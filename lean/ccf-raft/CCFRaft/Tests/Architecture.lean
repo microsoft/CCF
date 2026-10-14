@@ -3,6 +3,7 @@
 
 import CCFRaft.Properties
 import CCFRaft.Replay
+import CCFRaft.Tests.AppendTransactions
 import Lean
 
 namespace CCFRaft.Tests.Architecture

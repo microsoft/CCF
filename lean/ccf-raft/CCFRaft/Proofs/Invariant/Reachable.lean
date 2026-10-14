@@ -20,6 +20,7 @@ open Shared Shared.MultiNodeTransitionSystem Concrete
 open Model.Local (InitialConfig)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 theorem initial_inv {nodes : List Node} {state : Model.State Node TxId}
     (initialized : (Model.transitionSystem (inferInstance) nodes).init state)

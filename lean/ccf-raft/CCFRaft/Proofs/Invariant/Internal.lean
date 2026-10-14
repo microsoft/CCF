@@ -17,6 +17,7 @@ open Shared Concrete
 open Model.Local
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 @[simp]
 theorem replaceNode_twice (nodes : List (Node × NodeState Node TxId)) (node : Node)

@@ -22,6 +22,7 @@ open Shared Shared.MultiNodeTransitionSystem Concrete
 open Model.Local (NodeState InitialConfig initialNodeState)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 /-- A node-local predicate that holds initially and survives every local step. -/
 structure NodeInvariant (P : Node -> NodeState Node TxId -> Prop) : Prop where
@@ -62,7 +63,7 @@ theorem NodeInvariant.reachable {P : Node -> NodeState Node TxId -> Prop}
       cases action with
       | «local» actor input =>
           obtain ⟨old, new, outputs, found, acted, rfl⟩ := step_local stepped
-          exact preserved (event := .internal input) found acted
+          exact preserved (event := .internal input) found (by cases input <;> exact acted)
       | deliver envelope =>
           obtain ⟨_, old, new, outputs, found, received, rfl⟩ := step_deliver stepped
           exact preserved (event := .receive envelope.source envelope.payload) found received

@@ -16,7 +16,8 @@ open Model.Local
 
 /-- No two distinct nodes lead in the same term. -/
 def ElectionSafety : Prop :=
-  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId],
+  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
+    [LinearOrder Node],
   forall (config : InitialConfig Node),
   forall (nodes : List Node) (trace : GlobalTrace Node TxId)
           (state : Model.State Node TxId),
@@ -32,7 +33,8 @@ def ElectionSafety : Prop :=
 
 /-- Witness: a valid trace has a state in which two nodes are leaders. -/
 def ElectionSafetyWitness : Prop :=
-  exists (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId),
+  exists (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId)
+    (_ : Inhabited TxId) (_ : LinearOrder Node),
   exists (config : InitialConfig Node),
   exists
   (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),
@@ -48,7 +50,8 @@ def ElectionSafetyWitness : Prop :=
 /-- Any two committed logs in a valid trace are prefix-comparable: those of
 any two nodes, in any two states of the trace. -/
 def CommittedLogsPrefix : Prop :=
-  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId],
+  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
+    [LinearOrder Node],
   forall (config : InitialConfig Node),
   forall (nodes : List Node) (trace : GlobalTrace Node TxId),
   forall (first second : Model.State Node TxId),
@@ -64,7 +67,8 @@ def CommittedLogsPrefix : Prop :=
 /-- Witness: a valid trace has two states in which two distinct nodes have
 nonempty committed logs. -/
 def CommittedLogsPrefixWitness : Prop :=
-  exists (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId),
+  exists (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId)
+    (_ : Inhabited TxId) (_ : LinearOrder Node),
   exists (config : InitialConfig Node),
   exists (nodes : List Node) (trace : GlobalTrace Node TxId),
   exists (first second : Model.State Node TxId),
@@ -80,7 +84,8 @@ def CommittedLogsPrefixWitness : Prop :=
 
 /-- Every positive commit index points to a signature entry. -/
 def CommittedFrontierIsSignature : Prop :=
-  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId],
+  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
+    [LinearOrder Node],
   forall (config : InitialConfig Node),
   forall (nodes : List Node) (trace : GlobalTrace Node TxId)
           (state : Model.State Node TxId),
@@ -93,7 +98,8 @@ def CommittedFrontierIsSignature : Prop :=
 
 /-- Witness: a valid trace has a state with a positive commit index. -/
 def CommittedFrontierIsSignatureWitness : Prop :=
-  exists (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId),
+  exists (Node TxId : Type) (_ : DecidableEq Node) (_ : DecidableEq TxId)
+    (_ : Inhabited TxId) (_ : LinearOrder Node),
   exists (config : InitialConfig Node),
   exists
   (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),

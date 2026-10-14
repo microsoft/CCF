@@ -1,7 +1,7 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Model.Configuration
+import CCFRaft.Model.ClusterConfig
 import CCFRaft.Model.Node
 import CCFRaft.Model.Messages
 import CCFRaft.Model.NodeState
@@ -10,11 +10,8 @@ import CCFRaft.Shared.MultiNodeTransitionSystem
 /-!
 # CCF Raft network
 
-Composes copies of `Local.step` with `MultiNodeTransitionSystem`. Every node in
-`nodes` starts in `initialNodeState`: bootstrap members at `BOOTSTRAP_TERM`,
-and every other node as a fresh replica with term 0 and an empty log. A
-delivery may consume any queued envelope, so messages can be reordered. An
-envelope that is never delivered models a dropped message.
+Composes `Local.step` into a network. Deliveries may select any queued envelope;
+an envelope never delivered models message loss.
 -/
 
 namespace CCFRaft.Model
@@ -32,7 +29,7 @@ abbrev State (Node TxId : Type) :=
 abbrev Action (Node TxId : Type) :=
   MultiNodeTransitionSystem.Action Node (Message Node TxId) (Input Node TxId)
 
-def protocol (config : InitialConfig Node)
+def protocol [LinearOrder Node] [Inhabited TxId] (config : InitialConfig Node)
     : MultiNodeTransitionSystem.Protocol
         Node (NodeState Node TxId) (Event Node TxId) (Message Node TxId) Notification
         (Input Node TxId) where
@@ -43,7 +40,8 @@ def protocol (config : InitialConfig Node)
 
 /-- The network of `nodes`. Initial membership, the initial leader, and
 pre-vote modes are supplied explicitly by `config`. -/
-def transitionSystem (config : InitialConfig Node) (nodes : List Node)
+def transitionSystem [LinearOrder Node] [Inhabited TxId]
+    (config : InitialConfig Node) (nodes : List Node)
     : TransitionSystem (State Node TxId) (Action Node TxId) :=
   MultiNodeTransitionSystem.lift nodes (protocol config)
 

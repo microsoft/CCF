@@ -20,12 +20,21 @@ open Shared Shared.MultiNodeTransitionSystem
 open Model.Local (NodeState InitialConfig)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 /-- Replace the state of `node` in a node table. -/
 def replaceNode (nodes : List (Node × NodeState Node TxId)) (node : Node)
     (value : NodeState Node TxId)
     : List (Node × NodeState Node TxId) :=
   nodes.map fun entry => if entry.1 == node then (node, value) else entry
+
+/-- The state a local input runs on: only a nomination keeps the one-shot
+retirement nomination permission. -/
+def inputState (input : Model.Local.Input Node TxId) (state : NodeState Node TxId)
+    : NodeState Node TxId :=
+  match input with
+  | .nominateSuccessor _ => state
+  | _ => { state with pendingRetirementNomination := none }
 
 theorem step_local
     {nodes : List Node} {before after : Model.State Node TxId}
@@ -35,8 +44,8 @@ theorem step_local
         = some after)
     : exists state next outputs,
         nodeState before node = some state
-        /\ (Model.Local.act (inferInstance) (Capabilities.record node) node state
-              input).run
+        /\ (Model.Local.act (inferInstance) (Capabilities.record node) node
+              (inputState input state) input).run
               {}
             = some (next, outputs)
         /\ after
@@ -48,7 +57,8 @@ theorem step_local
   simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
   simp [Model.Local.step, guard, Option.bind_eq_some_iff] at stepped
   obtain ⟨_, state, found, next, outputs, ran, rfl⟩ := stepped
-  exact ⟨state, next, outputs, found, ran, by simp [replaceNode]⟩
+  refine ⟨state, next, outputs, found, ?_, by simp [replaceNode]⟩
+  cases input <;> exact ran
 
 theorem step_deliver
     {nodes : List Node} {before after : Model.State Node TxId}
@@ -60,7 +70,8 @@ theorem step_deliver
       /\ exists state next outputs,
           nodeState before envelope.target = some state
           /\ (Model.Local.receive (inferInstance) (Capabilities.record envelope.target)
-                envelope.target envelope.source state envelope.payload).run
+                envelope.target envelope.source { state with pendingRetirementNomination := none }
+                envelope.payload).run
                 {}
               = some (next, outputs)
           /\ after
@@ -125,38 +136,19 @@ theorem updateTerm_bounded (state : NodeState Node TxId) (term : Nat)
   · exact Nat.le_refl _
   · omega
 
-theorem handleAppendEntriesResponse_log (state : NodeState Node TxId) (source : Node)
-    (response : Model.Local.AppendEntriesResponse)
-    : (Model.Local.handleAppendEntriesResponse state source response).log = state.log
-      /\ (Model.Local.handleAppendEntriesResponse state source response).commitIndex
-          = state.commitIndex := by
-  unfold Model.Local.handleAppendEntriesResponse
-  split_ifs <;> exact ⟨rfl, rfl⟩
-
 theorem handleRequestVoteRequest_log (state : NodeState Node TxId) (source : Node)
     (request : Model.Local.RequestVoteRequest)
-    : (Model.Local.handleRequestVoteRequest state source request).1.log = state.log
-      /\ (Model.Local.handleRequestVoteRequest state source request).1.commitIndex
-          = state.commitIndex := by
-  unfold Model.Local.handleRequestVoteRequest
-  dsimp only
-  split_ifs <;> exact ⟨rfl, rfl⟩
-
-theorem handleRequestVoteResponse_log (state : NodeState Node TxId) (source : Node)
-    (response : Model.Local.RequestVoteResponse)
-    : (Model.Local.handleRequestVoteResponse state source response).log = state.log
-      /\ (Model.Local.handleRequestVoteResponse state source response).commitIndex
-          = state.commitIndex := by
-  unfold Model.Local.handleRequestVoteResponse
-  split_ifs <;> exact ⟨rfl, rfl⟩
-
-theorem handleRequestPreVoteResponse_log (state : NodeState Node TxId) (source : Node)
-    (response : Model.Local.RequestVoteResponse)
-    : (Model.Local.handleRequestPreVoteResponse state source response).log = state.log
-      /\ (Model.Local.handleRequestPreVoteResponse state source response).commitIndex
-          = state.commitIndex := by
-  unfold Model.Local.handleRequestPreVoteResponse
-  split_ifs <;> exact ⟨rfl, rfl⟩
+    {self : Node} {after : NodeState Node TxId}
+    {outputs : Outputs Node (Model.Local.Message Node TxId) Model.Local.Notification}
+    (ran : (Model.Local.handleRequestVoteRequest (Capabilities.record self)
+      state source request).run {} = some (after, outputs))
+    : after.log = state.log /\ after.commitIndex = state.commitIndex := by
+  let grant : Bool := decide (request.term = state.currentTerm
+    /\ Model.Local.voteLogUpToDate state request /\ !state.leaderKnown
+    /\ (state.votedFor = none \/ state.votedFor = some source))
+  change some ((if grant then { state with votedFor := some source } else state), _) =
+    some (after, outputs) at ran
+  split at ran <;> grind
 
 @[simp]
 theorem run_guard {σ : Type} (p : Prop) [Decidable p] (s : σ)

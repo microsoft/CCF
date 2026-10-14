@@ -15,6 +15,7 @@ open CCFRaft.Proofs.Config
 open Model.Local
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 /-- Immediate ACK eligibility depends on protocol fields, not retirement metadata. -/
 theorem canProduceAppendAckAt_iff (node : NodeState Node TxId)

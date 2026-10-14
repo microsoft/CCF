@@ -77,9 +77,9 @@ class CanonicalReplayTests(unittest.TestCase):
             json.loads(result.stdout),
             {
                 "status": "ok",
-                "instructions": 10,
-                "actions": 3,
-                "observations": 7,
+                "instructions": 5,
+                "actions": 1,
+                "observations": 4,
             },
         )
 
@@ -106,8 +106,9 @@ class CanonicalReplayTests(unittest.TestCase):
         signature = next(
             n
             for n, i in enumerate(document["instructions"])
-            if i.get("action") == "signCommittableMessages"
-            and i["origin"][0]["rule"] == "write-pre"
+            if i.get("action") == "append"
+            and i["entries"] == [{"kind": "signature"}]
+            and i["origin"][0]["rule"] == "atomic-append"
         )
         preceding = document["instructions"][signature - 1]
         self.assertEqual(preceding["fields"]["logLength"], 2)
@@ -119,9 +120,9 @@ class CanonicalReplayTests(unittest.TestCase):
             json.loads(result.stdout),
             {
                 "status": "ok",
-                "instructions": 16,
-                "actions": 5,
-                "observations": 11,
+                "instructions": 10,
+                "actions": 2,
+                "observations": 8,
             },
         )
         preceding["fields"]["logLength"] = 0
@@ -142,7 +143,7 @@ class CanonicalReplayTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("signature-marker", result.stderr)
         self.assertIn("signature", result.stderr)
-        self.assertIn("configuration", result.stderr)
+        self.assertIn("transaction", result.stderr)
 
     def test_terminal_retirement_and_nomination_match_driver(self):
         document = reduce_trace(
@@ -166,9 +167,37 @@ class CanonicalReplayTests(unittest.TestCase):
         negative = self.replay(reduce_trace(records))
         self.assertEqual(negative.returncode, 1)
         self.assertIn(
-            "disabled canonical action 'advanceCommitIndexAndProposeVote'",
+            "disabled canonical action 'nominateSuccessor'",
             negative.stderr,
         )
+
+    def test_retirement_commit_does_not_implicitly_queue_nomination(self):
+        document = reduce_trace(
+            read_trace(FIXTURE.with_name("terminal_retirement.stdout"))
+        )
+        document["instructions"] = [
+            instruction
+            for instruction in document["instructions"]
+            if instruction.get("action") != "nominateSuccessor"
+        ]
+        result = self.replay(document)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("terminal-nomination-message", result.stderr)
+        self.assertIn("no pending packet", result.stderr)
+
+    def test_nomination_requires_an_explicit_destination(self):
+        document = reduce_trace(
+            read_trace(FIXTURE.with_name("terminal_retirement.stdout"))
+        )
+        nomination = next(
+            instruction
+            for instruction in document["instructions"]
+            if instruction.get("action") == "nominateSuccessor"
+        )
+        del nomination["destination"]
+        result = self.replay(document)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("destination", result.stderr)
 
     def test_callback_property_mutations_are_rejected(self):
         records = read_trace(FIXTURE.with_name("terminal_retirement.stdout"))
@@ -301,7 +330,7 @@ class CanonicalReplayTests(unittest.TestCase):
         result = self.replay(document)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("instruction 1", result.stderr)
-        self.assertIn("bootstrap.ndjson:3 [bootstrap]", result.stderr)
+        self.assertIn("bootstrap.ndjson:8 [bootstrap]", result.stderr)
         self.assertIn("currentTerm", result.stderr)
         self.assertIn("999", result.stderr)
         self.assertEqual(result.stdout, "")
@@ -320,6 +349,14 @@ class CanonicalReplayTests(unittest.TestCase):
         result = self.replay(document)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("without updateTerm", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_implicit_nomination_schema_is_rejected(self):
+        document = self.bootstrap()
+        document["schema"] = "ccfraft-replay/v3"
+        result = self.replay(document)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("explicit nomination destinations and events", result.stderr)
         self.assertEqual(result.stdout, "")
 
     def test_empty_instruction_array_is_rejected(self):
@@ -345,7 +382,7 @@ class CanonicalReplayTests(unittest.TestCase):
         result = self.replay(document)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("disabled canonical action 'receive'", result.stderr)
-        self.assertIn("bootstrap.ndjson:3 [bootstrap]", result.stderr)
+        self.assertIn("bootstrap.ndjson:8 [bootstrap]", result.stderr)
         self.assertEqual(result.stdout, "")
 
     def test_drop_checks_and_removes_only_the_sender_queue_head(self):
@@ -354,17 +391,23 @@ class CanonicalReplayTests(unittest.TestCase):
         origin = document["instructions"][0]["origin"]
         configure = {
             "kind": "action",
-            "action": "changeConfiguration",
-            "source": "0",
-            "configuration": ["0", "1"],
+            "action": "append",
+            "node": "0",
+            "entries": [
+                {
+                    "kind": "transaction",
+                    "transaction": "configuration-test",
+                    "effects": [{"kind": "configuration", "configuration": ["0", "1"]}],
+                }
+            ],
             "origin": origin,
         }
         send = {
             "kind": "action",
-            "action": "appendEntries",
+            "action": "sendEntries",
             "source": "0",
             "destination": "1",
-            "batchEnd": 1,
+            "endIndex": 2,
             "origin": origin,
         }
         observe = {
@@ -373,7 +416,7 @@ class CanonicalReplayTests(unittest.TestCase):
             "source": "0",
             "destination": "1",
             "occurrence": 0,
-            "packet": {"msg": "raft_append_entries", "prev_idx": 0},
+            "packet": {"msg": "raft_append_entries", "prev_idx": 1, "idx": 1},
             "origin": origin,
         }
         drop = {
@@ -384,18 +427,20 @@ class CanonicalReplayTests(unittest.TestCase):
             "occurrence": 0,
             "origin": origin,
         }
+        # The configuration append queues the new peer's heartbeat (prev 1)
+        # before the explicit send (prev 1, idx 2).
         second = copy.deepcopy(observe)
-        second["packet"]["prev_idx"] = 1
-        document["instructions"] = [configure, send, send, observe, drop, second, drop]
+        second["packet"]["idx"] = 2
+        document["instructions"] = [configure, send, observe, drop, second, drop]
         positive = self.replay(document)
         self.assertEqual(positive.returncode, 0, positive.stderr)
 
-        document["instructions"] = [configure, send, send, second, drop]
+        document["instructions"] = [configure, send, second, drop]
         wrong_head = self.replay(document)
         self.assertEqual(wrong_head.returncode, 1)
-        self.assertIn("prev_idx: observed 1, canonical 0", wrong_head.stderr)
+        self.assertIn("idx: observed 2, canonical 1", wrong_head.stderr)
 
-        document["instructions"] = [configure, observe, drop]
+        document["instructions"] = [observe, drop]
         empty_queue = self.replay(document)
         self.assertEqual(empty_queue.returncode, 1)
         self.assertIn("no pending packet", empty_queue.stderr)
@@ -407,17 +452,25 @@ class CanonicalReplayTests(unittest.TestCase):
         document["instructions"] = [
             {
                 "kind": "action",
-                "action": "changeConfiguration",
-                "source": "0",
-                "configuration": ["0", "1"],
+                "action": "append",
+                "node": "0",
+                "entries": [
+                    {
+                        "kind": "transaction",
+                        "transaction": "configuration-test",
+                        "effects": [
+                            {"kind": "configuration", "configuration": ["0", "1"]}
+                        ],
+                    }
+                ],
                 "origin": origin,
             },
             {
                 "kind": "action",
-                "action": "appendEntries",
+                "action": "sendEntries",
                 "source": "0",
                 "destination": "1",
-                "batchEnd": 1,
+                "endIndex": 1,
                 "origin": origin,
             },
             {

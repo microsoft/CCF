@@ -15,6 +15,7 @@ open Shared Shared.MultiNodeTransitionSystem Concrete
 open Model.Local
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 theorem observeTerm_preserves {state : Model.State Node TxId} {joined : Finset Node}
     (invariant : StateInvariant state joined) (envelope : Model.Envelope Node TxId)

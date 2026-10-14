@@ -12,15 +12,7 @@ namespace CCFRaft.Proofs.Ledger
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local (
-  BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
-    PreVoteStatus Role becomeCandidateNodeState campaignEligible
-    configurationHistory configurationMembers entryAt? findHighestPossibleMatch
-    firstLogIndexAfter hasConfigurationMajority initialNodeState isSignatureAt
-    lastCommittableIndex lastCommittableTerm maxCommittableIndex maxCommittableIndexUpTo
-    maxCommittableTerm messageEntries refreshRetirementState retiredCommittedNodes
-    retirementIndexInLog termAt
-  )
+open CCFRaft.Model.Local
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
@@ -311,17 +303,15 @@ lemma maxCommittableIndexUpToPositiveIsSignature
       (maxCommittableIndexPositiveIsSignature positive)
 
 lemma configurationHistory_filterMap (index : Nat) (log : List (Entry Node TxId))
-    : (log.zipIdx index).filterMap
+    : (log.zipIdx index).flatMap
         (fun (entry, index) =>
-          match entry.content with
-          | .reconfiguration nodes => some ({ index, nodes } : Configuration Node)
-          | _ => none)
+          (entryConfigurations entry.content).map (fun nodes => ({ index, nodes } : Configuration Node)))
       = configurationsInLogFrom index log := by
   induction log generalizing index with
   | nil => rfl
   | cons entry entries ih =>
       rcases entry with ⟨term, content⟩
-      cases content <;> simp [configurationsInLogFrom, ih]
+      simp [configurationsInLogFrom, ih]
 
 @[simp]
 lemma configurationHistory_eq (config : InitialConfig Node) (log : List (Entry Node TxId))
@@ -352,9 +342,7 @@ lemma foldl_current_index (commitIndex : Nat) (configurations : List (Configurat
 lemma activeConfigurations_eq (config : InitialConfig Node) (state : NodeState Node TxId)
     : Model.Local.activeConfigurations config state.log state.commitIndex
       = activeConfigurationsOf config state := by
-  simp only [Model.Local.activeConfigurations, activeConfigurationsOf, currentConfiguration,
-    currentConfigurationAt, configurationHistory_eq]
-  simp [foldl_current_index, allConfigurations, implicitConfiguration]
+  rfl
 
 @[simp]
 lemma NodeState.activeConfigurations_eq (config : InitialConfig Node)

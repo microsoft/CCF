@@ -44,9 +44,7 @@ def configurationsInLogFrom : Nat -> List (Entry Node TxId) -> List (Configurati
   | _, [] => []
   | index, entry :: entries =>
       let remaining := configurationsInLogFrom (index + 1) entries
-      match entry.content with
-      | .reconfiguration nodes => { index, nodes } :: remaining
-      | _ => remaining
+      (entryConfigurations entry.content).map (fun nodes => { index, nodes }) ++ remaining
 
 /-- All configurations in a log, from reconfiguration entries only. -/
 def configurationsInLog (log : List (Entry Node TxId)) : List (Configuration Node) :=
@@ -80,10 +78,7 @@ def currentConfiguration (config : InitialConfig Node) (state : NodeState Node T
 /-- The current configuration and every later configuration in the node's log. -/
 def activeConfigurationsOf (config : InitialConfig Node) (state : NodeState Node TxId)
     : List (Configuration Node) :=
-  let current := currentConfiguration config state
-  (allConfigurations config state.log).filter
-    fun configuration =>
-      current.index <= configuration.index
+  Model.Local.activeConfigurations config state.log state.commitIndex
 
 /-- Union of the nodes in a node's active configurations. -/
 def activeNodeUnion (config : InitialConfig Node) (state : NodeState Node TxId)
@@ -121,13 +116,13 @@ def retirementCommittableIndexInLog (log : List (Entry Node TxId)) (retirementIn
 def retiredCommittedIndexFrom (node : Node) : Nat -> List (Entry Node TxId) -> Option Nat
   | _, [] => none
   | index, entry :: entries =>
-      match entry.content with
-      | .retiredCommitted nodes =>
-          if node ∈ nodes then
-            some index
-          else
-            retiredCommittedIndexFrom node (index + 1) entries
-      | _ => retiredCommittedIndexFrom node (index + 1) entries
+      if entry.content.effects.any (fun effect =>
+          match effect with
+          | .retiredCommitted nodes => decide (node ∈ nodes)
+          | .reconfiguration _ => false) then
+        some index
+      else
+        retiredCommittedIndexFrom node (index + 1) entries
 
 /-- The index of the first retired-committed entry naming a node. -/
 def retiredCommittedIndexInLog (node : Node) (log : List (Entry Node TxId))
@@ -140,9 +135,10 @@ def retiredCommittedNodesUpToFrom : Nat -> Nat -> List (Entry Node TxId) -> Fins
   | commitIndex, index, entry :: entries =>
       let remaining := retiredCommittedNodesUpToFrom commitIndex (index + 1) entries
       if index <= commitIndex then
-        match entry.content with
-        | .retiredCommitted nodes => nodes ∪ remaining
-        | _ => remaining
+        entry.content.effects.foldl (fun retired effect =>
+          match effect with
+          | .retiredCommitted nodes => retired ∪ nodes
+          | .reconfiguration _ => retired) remaining
       else
         remaining
 

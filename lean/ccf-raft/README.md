@@ -14,20 +14,19 @@ raft scenario -(raft_driver)-> raw stdout
 
 ## Contents
 
-| Purpose                            | Location                                                 |
-| ---------------------------------- | -------------------------------------------------------- |
-| Property statements                | `CCFRaft/Properties.lean`                                |
-| Proof of each property             | `CCFRaft/Proof.lean`, one theorem per property           |
-| Log entries and log queries        | `CCFRaft/Model/Log.lean`                                 |
-| Membership configurations          | `CCFRaft/Model/Configuration.lean`                       |
-| Node state                         | `CCFRaft/Model/NodeState.lean`                           |
-| Messages between nodes             | `CCFRaft/Model/Messages.lean`                            |
-| Single-node protocol               | `CCFRaft/Model/Node.lean`                                |
-| Network composition                | `CCFRaft/Model.lean`, `CCFRaft/Shared/`                  |
-| Definitions used by the statements | `CCFRaft/Properties/Utils.lean`                          |
-| Proof implementations              | `CCFRaft/Proofs/`                                        |
-| Executable checks                  | `CCFRaft/Tests/`                                         |
-| Trace replay                       | `CCFRaft/Replay.lean`, `replay/`. See `replay/README.md` |
+| Purpose                              | Location                                                 |
+| ------------------------------------ | -------------------------------------------------------- |
+| Property statements                  | `CCFRaft/Properties.lean`                                |
+| Proof of each property               | `CCFRaft/Proof.lean`, one theorem per property           |
+| Node state, log entries, log queries | `CCFRaft/Model/NodeState.lean`                           |
+| Membership configurations            | `CCFRaft/Model/ClusterConfig.lean`                       |
+| Messages between nodes               | `CCFRaft/Model/Messages.lean`                            |
+| Single-node protocol                 | `CCFRaft/Model/Node.lean`                                |
+| Network composition                  | `CCFRaft/Model.lean`, `CCFRaft/Shared/`                  |
+| Definitions used by the statements   | `CCFRaft/Properties/Utils.lean`                          |
+| Proof implementations                | `CCFRaft/Proofs/`                                        |
+| Executable checks                    | `CCFRaft/Tests/`                                         |
+| Trace replay                         | `CCFRaft/Replay.lean`, `replay/`. See `replay/README.md` |
 
 Human review covers the model, the property statements, the definitions they
 use, and the theorem links in `Proof.lean`. The build and the axiom audit
@@ -40,13 +39,20 @@ marks `linguist-generated`.
 
 ## Model
 
-`Model/Log.lean` defines log entries and pure queries over a log, such as
-`termAt` and `maxCommittableIndex`. `Model/Configuration.lean` defines the
-`InitialConfig` and the membership configurations recorded in a log.
-`Model/NodeState.lean` defines a node's state and the queries over it.
+`Model/NodeState.lean` defines a node's state, log entries, and pure queries
+over a log, such as `termAt` and `maxCommittableIndex`. An entry is either a
+signature or a transaction with an identifier and an ordered list of
+`TransactionEffect`s: a `reconfiguration` or a `retiredCommitted` record. An
+ordinary transaction has no effects, and a signature cannot carry any.
+`Model/ClusterConfig.lean` defines the `InitialConfig`, the membership
+configurations recorded in a log, node-state initialization, and the
+node-state queries that depend on configurations.
 
 `configurationHistory config log` includes initial membership at index zero
-and reconfigurations at their one-based log positions.
+and each reconfiguration effect at its transaction's one-based log position.
+Several configuration effects in one transaction share that index and keep
+their order; committing the transaction retains only the last of them. CCF
+itself records at most one configuration per transaction.
 `activeConfigurations config log commitIndex` retains the last committed
 configuration and every pending one. `configurationMembers` takes the union
 of any supplied configuration list.
@@ -54,7 +60,7 @@ of any supplied configuration list.
 Retirement queries use the same history: `retirementIndexInLog` finds the
 first change from membership to absence. `firstLogIndexAfter` finds a matching
 signature or retirement record strictly after a supplied index.
-`retiredCommittedNodes` unions the nodes named by retirement records in a
+`retiredCommittedNodes` unions the nodes named by retirement effects in a
 log; passing `log.take commitIndex` restricts it to committed records.
 A node's stored `retiredCommittedIndex` is the first commit frontier that
 covered its retirement record, not the record's own position.
@@ -64,8 +70,21 @@ nodes exchange, including the pre-vote and vote-proposal variants, and the
 term each one carries.
 
 `Model/Node.lean` defines how a node behaves. `Local.step` handles one event: an
-`Input`, such as a timeout or a client request, or a message delivered from a
-source node. It runs in `NodeEffect`, which records sent messages and can
+`Input` or a message delivered from a source node. The inputs are
+`append entries` (a leader appends a nonempty batch in one step, applying each
+transaction's effects in order as `raft.h` hooks do, then commits at once if no
+other active member exists), `sendEntries destination endIndex` (the previous
+index comes from the leader's `sentIndex`; an equal end is a heartbeat),
+`timeout .election` or `timeout .checkQuorum`, and
+`nominateSuccessor destination` (a leader may nominate any eligible peer other
+than itself; the model does not restrict the destination by replication ranking). Commit is
+internal: a current-term AppendEntries acknowledgement, a promotion with no
+other active member, or such an append commits in the same step. Retirement
+clears leadership and saves a one-shot nomination permission with the outgoing
+leader's term and precommit eligible peers. A separate nomination input consumes
+that permission; any other local event expires it. Retired nonleaders without
+this permission cannot nominate. A promotion also sends an empty AppendEntries
+to every eligible peer. It runs in `NodeEffect`, which records sent messages and can
 fail. A disabled event fails, discarding any messages sent before the
 failure. An enabled event returns the next node state and sends messages
 through the `send` callback in `caps`. A node reads only its own state, the explicitly supplied
@@ -76,14 +95,20 @@ before the receiver handles it, in the same step. Vote proposals never
 advance a term, and only a leader reads the term of an AppendEntries
 response, as in `raft.h`. A same-term AppendEntries request makes a candidate
 or pre-vote candidate step down, then the node handles the request.
+Elections follow `raft.h`: entering a pre-vote round or a candidacy votes for
+self and, in the same step, sends a request to every other active member. A
+vote or pre-vote that reaches a quorum promotes the node at once, inside the
+step that counted it, including a self vote.
 Every AppendEntries request is consumed. As in `raft.h`, a request whose
 previous index is below the commit index, or one that conflicts with the log
 of a node that may no longer roll back, is dropped without a response.
 
 `Model.lean` runs one copy of `Local.step` per node with
 `Shared/MultiNodeTransitionSystem.lean`. Every listed node starts in
-`initialNodeState`: bootstrap members at `BOOTSTRAP_TERM`, and every other
-node with no role at term 0. The network is a multiset of envelopes. A
+`initialNodeState`: bootstrap members at `BOOTSTRAP_TERM`, with the initial
+leader's log preloaded with the bootstrap configuration transaction (identifier
+`default`) at `BOOTSTRAP_TERM` and every other log empty, all with commit index 0. Every other
+node has no role at term 0. The network is a multiset of envelopes. A
 delivery consumes any queued envelope, so the model reorders messages, and an
 envelope that is never delivered is a dropped message.
 

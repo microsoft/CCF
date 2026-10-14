@@ -1,6 +1,5 @@
 import CCFRaft.Model
-import CCFRaft.Model.Configuration
-import CCFRaft.Model.Log
+import CCFRaft.Model.ClusterConfig
 import CCFRaft.Model.Messages
 import CCFRaft.Model.Node
 import CCFRaft.Model.NodeState
@@ -61,5 +60,6 @@ import CCFRaft.Shared.Execution
 import CCFRaft.Shared.MultiNodeTransitionSystem
 import CCFRaft.Shared.TransitionSystem
 import CCFRaft.Tests.Architecture
+import CCFRaft.Tests.AppendTransactions
 import CCFRaft.Tests.CanonicalTests
 import CCFRaft.Tests.ProofCoverage

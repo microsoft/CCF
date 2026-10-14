@@ -17,7 +17,7 @@ from typing import Any
 
 from trace_io import Record, TraceError, read_trace
 
-SCHEMA = "ccfraft-replay/v3"
+SCHEMA = "ccfraft-replay/v4"
 MESSAGE_FIELDS = {
     "add_configuration": {"args", "configurations"},
     "become_candidate": {"configurations"},
@@ -538,11 +538,19 @@ class Instructions:
         **parameters: Any,
     ) -> None:
         """Append a rule-selected model action with origins for its source events."""
+        sources = group or [event]
+        if action != "nominateSuccessor":
+            # Nomination callbacks have their own explicit model action.
+            sources = [
+                item
+                for item in sources
+                if item.function != "step_down_and_nominate_successor"
+            ]
         self.instructions.append(
             {
                 "kind": "action",
                 "action": action,
-                "origin": [item.origin(rule) for item in (group or [event])],
+                "origin": [item.origin(rule) for item in sources],
                 **parameters,
             }
         )
@@ -571,6 +579,25 @@ class Instructions:
                 "packet": packet(event),
                 "origin": [event.origin(rule)],
                 **extra,
+            }
+        )
+
+    def message_propose(self, nomination: Event, rule: str) -> None:
+        """Observe the nominated successor's queued proposal."""
+        self.instructions.append(
+            {
+                "kind": "observation",
+                "observation": "message",
+                "source": nomination.node,
+                "destination": node(
+                    nomination.message["to_node_id"], nomination.location
+                ),
+                "packet": {
+                    "msg": "raft_propose_request_vote",
+                    "term": term(nomination.state["current_view"], nomination.location),
+                },
+                "origin": [nomination.origin(rule)],
+                "selection": "last",
             }
         )
 
@@ -605,6 +632,250 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
 
     def same_context(first: Event, second: Event) -> bool:
         return first.node == second.node and first.command == second.command
+
+    def election_group(
+        head: Event,
+    ) -> tuple[list[Event], list[Event], list[Event]]:
+        """Take the callbacks of one raft.h election entry after its head event.
+
+        become_pre_vote_candidate and become_candidate vote for self before
+        their request loops; a self-quorum promotes synchronously, so nested
+        become_candidate/become_leader trace before any send_request_vote.
+        """
+        nested: list[Event] = []
+        if (
+            head.function == "become_pre_vote_candidate"
+            and peek() == ["become_candidate"]
+            and same_context(head, events[0])
+        ):
+            nested += take()
+        if (
+            (nested or [head])[-1].function == "become_candidate"
+            and peek() == ["become_leader"]
+            and same_context(head, events[0])
+        ):
+            nested += take()
+        # A synchronous promotion commits when alone and heartbeats before the
+        # candidate's own request loop continues.
+        tail = (
+            take_leader_tail(nested[-1])
+            if nested and nested[-1].function == "become_leader"
+            else []
+        )
+        family = (
+            "raft_request_pre_vote"
+            if head.function == "become_pre_vote_candidate" and not nested
+            else "raft_request_vote"
+        )
+        sends: list[Event] = []
+        while peek() == ["send_request_vote"] and same_context(head, events[0]):
+            (send,) = take()
+            require(
+                packet(send)["msg"] == family,
+                f"{send.location}: wrong vote request packet",
+            )
+            sends.append(send)
+        others = sorted(
+            {
+                member
+                for conf in head.message["configurations"]
+                for member in configuration_value(conf, head.location)
+            }
+            - {head.node}
+        )
+        require(
+            [node(s.message.get("to_node_id"), s.location) for s in sends] == others,
+            f"{head.location}: vote requests differ from other active members",
+        )
+        require(
+            not (nested and others),
+            f"{head.location}: self-quorum promotion with other active members",
+        )
+        return nested, sends, tail
+
+    def take_commit_tail(anchor: Event) -> list[Event]:
+        """Take an internal leader commit, and its retirement nomination, that
+        raft.h runs inside the operation which traced the anchor."""
+        if not (peek() == ["commit"] and same_context(anchor, events[0])):
+            return []
+        (commit,) = take()
+        require(
+            commit.state["leadership_state"] == "Leader",
+            f"{commit.location}: internal commit outside leadership",
+        )
+        if not (
+            peek() == ["step_down_and_nominate_successor"]
+            and same_context(commit, events[0])
+        ):
+            return [commit]
+        (nomination,) = take()
+        target = commit.message["args"]["idx"]
+        facts = state_facts(nomination)
+        require(
+            facts["role"] == "leader"
+            and facts["membershipState"] == "retirementCompleted"
+            and facts["commitIndex"] == target
+            and facts["retiredCommittedIndex"] == target,
+            f"{nomination.location}: unexpected terminal-retirement nomination boundary",
+        )
+        return [commit, nomination]
+
+    def emit_commit_tail(tail: list[Event]) -> None:
+        """Observe the result of a commit tail after its enclosing action."""
+        if not tail:
+            return
+        commit = tail[0]
+        target = commit.message["args"]["idx"]
+        facts = state_facts(commit)
+        changed = {
+            "commitIndex",
+            "role",
+            "configurations",
+            *retirement_fields,
+        }
+        # commit traces before advancing; it can also prune configurations and
+        # complete or finish retirement inside the same model step.
+        out.emit_observations(
+            commit,
+            "commit-in-action",
+            facts,
+            exclusions={
+                name: "commit traces before applying itself inside the same "
+                "atomic model step; checked after the commit below."
+                for name in changed
+                if name in facts
+            },
+        )
+        if len(tail) == 2:
+            nomination = tail[1]
+            nominated = state_facts(nomination)
+            post_fields = {"commitIndex", "retiredCommittedIndex", "committableIndices"}
+            # The nomination runs after compaction but before role/phase
+            # assignment and before old configurations are discarded.
+            out.emit_observations(
+                nomination,
+                "terminal-nomination-pre",
+                nominated,
+                exclusions={
+                    "role": "nominate_successor runs before become_retired clears leadership; the raw leader role is checked when grouping.",
+                    "membershipState": "nominate_successor runs before become_retired assigns the terminal phase; the raw completed phase is checked when grouping.",
+                    **{
+                        field: "Observed after the nomination at terminal-nomination-post."
+                        for field in post_fields
+                        if field in nominated
+                    },
+                    **(
+                        {
+                            "configurations": "become_retired later discards old configurations in the same step."
+                        }
+                        if "configurations" in nominated
+                        else {}
+                    ),
+                },
+            )
+            out.action(
+                nomination,
+                "nominateSuccessor",
+                "terminal-nomination",
+                node=nomination.node,
+                destination=node(nomination.message["to_node_id"], nomination.location),
+            )
+            out.message_propose(nomination, "terminal-nomination-message")
+            out.emit_observations(
+                nomination,
+                "terminal-nomination-post",
+                {
+                    field: value
+                    for field, value in nominated.items()
+                    if field
+                    in {"commitIndex", "retiredCommittedIndex", "committableIndices"}
+                },
+            )
+        out.emit_observations(commit, "commit-post", {"commitIndex": target})
+
+    def take_heartbeats(anchor: Event) -> list[Event]:
+        """Take the empty AppendEntries raft.h sends inside become_leader."""
+        heartbeats: list[Event] = []
+        while peek() == ["send_append_entries"] and same_context(anchor, events[0]):
+            raw = events[0].message["packet"]
+            if not (raw["prev_idx"] == raw["idx"] == events[0].state["last_idx"]):
+                break
+            heartbeats += take()
+        destinations = [
+            node(h.message.get("to_node_id"), h.location) for h in heartbeats
+        ]
+        require(
+            len(set(destinations)) == len(destinations),
+            f"{anchor.location}: duplicate leadership heartbeat destination",
+        )
+        if "configurations" in anchor.message:
+            active = {
+                name
+                for value in anchor.message["configurations"]
+                for name in configuration_value(value, anchor.location)
+            } - {anchor.node}
+            require(
+                active <= set(destinations),
+                f"{anchor.location}: missing active-peer leadership heartbeat",
+            )
+        return heartbeats
+
+    def take_leader_tail(leader_event: Event) -> list[Event]:
+        """become_leader: internal commit when alone, then heartbeats to peers."""
+        return [*take_commit_tail(leader_event), *take_heartbeats(leader_event)]
+
+    def emit_leader_tail(tail: list[Event]) -> None:
+        commits = [e for e in tail if e.function != "send_append_entries"]
+        emit_commit_tail(commits)
+        for heartbeat in tail[len(commits) :]:
+            out.peers(heartbeat, "leader-heartbeat-pre")
+            out.message(heartbeat, "send-post", receiving=False, selection="last")
+
+    def emit_election(
+        head: Event,
+        nested: list[Event],
+        sends: list[Event],
+        tail: list[Event],
+        rule: str,
+    ):
+        """Observe each role snapshot and each queued vote request of a group."""
+        final = state_facts((nested or [head])[-1])
+        for event in [head, *nested][:-1]:
+            facts = state_facts(event)
+            out.emit_observations(
+                event,
+                rule,
+                facts,
+                exclusions={
+                    name: "a synchronous self-quorum promotion later in the "
+                    "same atomic election step changes this property."
+                    for name in facts
+                    if facts[name] != final.get(name)
+                },
+            )
+        last = (nested or [head])[-1]
+        last_facts = state_facts(last)
+        committing = any(e.function == "commit" for e in tail)
+        out.emit_observations(
+            last,
+            rule,
+            last_facts,
+            exclusions={
+                name: "become_leader traces before its internal commit in the "
+                "same atomic step; checked after the commit."
+                for name in {
+                    "commitIndex",
+                    "role",
+                    "configurations",
+                    *retirement_fields,
+                }
+                if committing and name in last_facts
+            },
+        )
+        emit_leader_tail(tail)
+        for send in sends:
+            out.emit_observations(send, "send-post")
+            out.message(send, "send-post", receiving=False, selection="last")
 
     bootstrap = [
         "become_leader",
@@ -688,83 +959,129 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
                 prelude[4].message["args"]["idx"] == 2,
                 f"{prelude[4].location}: bootstrap commit target",
             )
-            for event in prelude[:3]:
-                out.emit_observations(event, "bootstrap")
-            out.action(
-                prelude[2],
-                "initializeConfiguration",
-                "bootstrap",
-                prelude[1:3],
-                node=leader,
-            )
+            # The initial leader log already holds the bootstrap configuration,
+            # so the empty-log events before it are validated but not replayed.
+            # The bootstrap signature is one append batch; the lone leader
+            # commits it inside the same step.
             out.emit_observations(prelude[3], "bootstrap")
-            out.action(prelude[3], "signCommittableMessages", "bootstrap", node=leader)
-            out.emit_observations(prelude[4], "bootstrap")
-            out.action(prelude[4], "advanceCommitIndex", "bootstrap", node=leader)
-            # The snapshot precedes commit; args.idx alone records its result.
-            out.emit_observations(prelude[4], "bootstrap", {"commitIndex": 2})
+            out.action(
+                prelude[3],
+                "append",
+                "bootstrap",
+                [prelude[3], prelude[4]],
+                node=leader,
+                entries=[{"kind": "signature"}],
+            )
+            emit_commit_tail([prelude[4]])
 
-        elif peek(2) == ["replicate", "add_configuration"]:
-            write, config = take(2)
-            require(
-                same_context(write, config)
-                and config.state == write.state
-                and config.message["args"]["configuration"]["idx"]
-                == write.message["seqno"]
-                and write.message["globally_committable"] is False,
-                f"{write.location}: configuration write pair mismatch",
-            )
-            out.emit_observations(write, "write-pre")
-            out.emit_observations(config, "configuration-pair")
-            require(
-                "configurations" in config.message,
-                f"{config.location}: missing configurations snapshot",
-            )
-            previous_nodes = {
-                name
-                for value in config.message["configurations"]
-                for name in configuration_value(value, config.location)
-            }
-            added = set(configuration(config)) - previous_nodes - {write.node}
-            require(
-                peek(len(added)) == ["send_append_entries"] * len(added),
-                f"{config.location}: missing new-peer configuration callback",
-            )
-            callbacks = take(len(added))
-            require(
-                sorted(node(c.message.get("to_node_id"), c.location) for c in callbacks)
-                == sorted(added),
-                f"{config.location}: new-peer configuration callback destinations differ",
-            )
-            for callback in callbacks:
-                raw = callback.message["packet"]
-                old_length = write.state["last_idx"]
+        elif peek(1) == ["replicate"]:
+            # Every driver replicate writes exactly one entry, so each raw
+            # replicate is one append batch of one entry. Its configuration
+            # hook, new-peer heartbeats and lone-leader commit run inside it.
+            (write,) = take()
+            config = None
+            if peek() == ["add_configuration"] and same_context(write, events[0]):
+                (config,) = take()
                 require(
-                    same_context(write, callback)
-                    and callback.state["last_idx"] == old_length
-                    and raw["prev_idx"] == old_length
-                    and raw["idx"] == old_length
-                    and callback.message.get("sent_idx") == old_length + 1
-                    and callback.message.get("match_idx") == 0,
-                    f"{callback.location}: unsupported configuration callback heartbeat",
+                    config.state == write.state
+                    and config.message["args"]["configuration"]["idx"]
+                    == write.message["seqno"]
+                    and write.message["globally_committable"] is False,
+                    f"{write.location}: configuration write pair mismatch",
                 )
-                # Hooks have changed membership, but replicate has not yet
-                # appended the configuration entry. Check both sides separately.
-                out.emit_observations(
-                    callback,
-                    "configuration-callback-pre",
-                    exclusions={
-                        field: "The configuration hook already changed this property; observed after changeConfiguration."
-                        for field in retirement_fields
-                    },
+            command = write.command.value["cmd"]
+            transaction = f"{write.record.file}:{write.record.line}"
+            if write.message["globally_committable"]:
+                require(
+                    config is None,
+                    f"{write.location}: signature carrying a configuration",
                 )
+                entry: dict[str, Any] = {"kind": "signature"}
+            elif config is not None:
+                entry = {
+                    "kind": "transaction",
+                    "transaction": transaction,
+                    "effects": [
+                        {
+                            "kind": "configuration",
+                            "configuration": configuration(config),
+                        }
+                    ],
+                }
+            elif command.startswith("cleanup_nodes,"):
+                # The replicate event does not carry the retired node set; the
+                # driver command records it after the term.
+                retired = sorted(
+                    node(name, write.location) for name in command.split(",")[2:]
+                )
+                require(bool(retired), f"{write.location}: empty retirement record")
+                entry = {
+                    "kind": "transaction",
+                    "transaction": transaction,
+                    "effects": [{"kind": "retiredCommitted", "nodes": retired}],
+                }
+            else:
+                entry = {
+                    "kind": "transaction",
+                    "transaction": transaction,
+                    "effects": [],
+                }
+            out.emit_observations(write, "write-pre")
+            callbacks: list[Event] = []
+            if config is not None:
+                out.emit_observations(config, "configuration-pair")
+                require(
+                    "configurations" in config.message,
+                    f"{config.location}: missing configurations snapshot",
+                )
+                previous_nodes = {
+                    name
+                    for value in config.message["configurations"]
+                    for name in configuration_value(value, config.location)
+                }
+                added = set(configuration(config)) - previous_nodes - {write.node}
+                require(
+                    peek(len(added)) == ["send_append_entries"] * len(added),
+                    f"{config.location}: missing new-peer configuration callback",
+                )
+                callbacks = take(len(added))
+                require(
+                    sorted(
+                        node(c.message.get("to_node_id"), c.location) for c in callbacks
+                    )
+                    == sorted(added),
+                    f"{config.location}: new-peer configuration callback destinations differ",
+                )
+                for callback in callbacks:
+                    raw = callback.message["packet"]
+                    old_length = write.state["last_idx"]
+                    require(
+                        same_context(write, callback)
+                        and callback.state["last_idx"] == old_length
+                        and raw["prev_idx"] == old_length
+                        and raw["idx"] == old_length
+                        and callback.message.get("sent_idx") == old_length + 1
+                        and callback.message.get("match_idx") == 0,
+                        f"{callback.location}: unsupported configuration callback heartbeat",
+                    )
+                    # Hooks have changed membership, but replicate has not yet
+                    # appended the configuration entry. Check both sides separately.
+                    out.emit_observations(
+                        callback,
+                        "configuration-callback-pre",
+                        exclusions={
+                            field: "The configuration hook already changed this property; observed after the append."
+                            for field in retirement_fields
+                        },
+                    )
+            tail = take_commit_tail(write)
             out.action(
                 write,
-                "changeConfiguration",
-                "configuration-pair",
-                [write, config],
-                source=write.node,
-                configuration=configuration(config),
+                "append",
+                "atomic-append",
+                [write, *([config] if config else []), *callbacks, *tail],
+                node=write.node,
+                entries=[entry],
             )
             for callback in callbacks:
                 facts = state_facts(callback)
@@ -788,47 +1105,26 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
                     },
                     peer=callback.message["to_node_id"],
                 )
-                out.action(
-                    callback,
-                    "appendEntries",
-                    "configuration-callback-send",
-                    source=write.node,
-                    destination=callback.message["to_node_id"],
-                    batchEnd=packet(callback)["idx"],
-                )
                 out.message(callback, "send-post", receiving=False, selection="last")
-
-        elif peek(1) == ["replicate"]:
-            (event,) = take()
-            out.emit_observations(event, "write-pre")
-            if event.message["globally_committable"]:
-                out.action(
-                    event, "signCommittableMessages", "write-pre", node=event.node
-                )
-            elif event.command.value["cmd"].startswith("cleanup_nodes,"):
-                out.action(
-                    event, "appendRetiredCommitted", "write-pre", node=event.node
-                )
-            else:
-                out.action(
-                    event,
-                    "clientRequest",
-                    "write-pre",
-                    node=event.node,
-                    transaction=f"{event.record.file}:{event.record.line}",
-                )
+            emit_commit_tail(tail)
 
         elif peek(1) == ["send_append_entries"]:
             (event,) = take()
+            raw = event.message["packet"]
+            # The model derives prev from sentIndex; only the endpoint is input.
+            require(
+                raw["prev_idx"] == event.message.get("sent_idx"),
+                f"{event.location}: send prev_idx differs from sent_idx",
+            )
             out.emit_observations(event, "send-pre")
             out.peers(event, "send-pre")
             out.action(
                 event,
-                "appendEntries",
-                "atomic-append",
+                "sendEntries",
+                "atomic-send",
                 source=event.node,
                 destination=node(event.message.get("to_node_id"), event.location),
-                batchEnd=packet(event)["idx"],
+                endIndex=packet(event)["idx"],
             )
             out.message(event, "send-post", receiving=False, selection="last")
 
@@ -902,11 +1198,29 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
                 )
                 callbacks = [response]
             elif (
-                event.function == "recv_propose_request_vote"
+                event.function
+                in {"recv_propose_request_vote", "recv_request_vote_response"}
                 and peek() == ["become_candidate"]
                 and same_context(event, events[0])
             ):
+                # Accepted proposals and pre-vote quorums enter the next term
+                # inside the receive, with the whole election entry.
                 callbacks = take()
+                election = election_group(callbacks[0])
+                callbacks += [*election[0], *election[2], *election[1]]
+            elif (
+                event.function == "recv_request_vote_response"
+                and peek() == ["become_leader"]
+                and same_context(event, events[0])
+            ):
+                # add_vote_for_me promotes inside the receive on a vote quorum.
+                callbacks = take()
+                election = ([], [], take_leader_tail(callbacks[0]))
+                callbacks += election[2]
+            elif event.function == "recv_append_entries_response":
+                # A current-term ACK updates match_idx, then commits inside
+                # the receive.
+                callbacks = take_commit_tail(event)
             out.action(
                 event,
                 "receive",
@@ -928,17 +1242,25 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
                         if name not in {"role", "currentTerm"}
                     },
                 )
+            if callbacks and callbacks[0].function in {
+                "become_candidate",
+                "become_leader",
+            }:
+                nested, sends, tail = election
+                emit_election(callbacks[0], nested, sends, tail, "receive-post")
+                callbacks = []
+            elif callbacks and event.function == "recv_append_entries_response":
+                emit_commit_tail(callbacks)
+                callbacks = []
             for position, callback in enumerate(callbacks):
                 if callback.function in {
                     "send_append_entries_response",
                     "send_request_vote_response",
-                    "become_candidate",
                 }:
                     out.emit_observations(callback, "receive-post")
-                    if callback.function != "become_candidate":
-                        out.message(
-                            callback, "response-post", receiving=False, selection="last"
-                        )
+                    out.message(
+                        callback, "response-post", receiving=False, selection="last"
+                    )
                     continue
 
                 if callback.function == "execute_append_entries_sync":
@@ -951,8 +1273,8 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
                         callback,
                         callback.message["args"]["configuration"]["idx"],
                         {
-                            "kind": "configuration",
-                            "configuration": configuration(callback),
+                            "kind": "transaction",
+                            "configurations": [configuration(callback)],
                         },
                     )
                 elif callback.function == "commit":
@@ -1031,125 +1353,57 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
                         out.entry(
                             callback,
                             config["index"],
-                            {"kind": "configuration", "configuration": config["nodes"]},
+                            {
+                                "kind": "transaction",
+                                "configurations": [config["nodes"]],
+                            },
                             rule="callback-configuration",
                         )
                 out.emit_observations(
                     callback, "tla-callback-stutter", facts, exclusions=exclusions
                 )
 
-        elif peek(2) == [
-            "commit",
-            "step_down_and_nominate_successor",
-        ] and same_context(events[0], events[1]):
-            commit, nomination = take(2)
-            require(
-                commit.state["leadership_state"] == "Leader",
-                f"{commit.location}: ungrouped follower commit",
-            )
-            out.emit_observations(commit, "commit-pre")
-            target = commit.message["args"]["idx"]
-            facts = state_facts(nomination)
-            require(
-                facts["role"] == "leader"
-                and facts["membershipState"] == "retirementCompleted"
-                and facts["commitIndex"] == target
-                and facts["retiredCommittedIndex"] == target,
-                f"{nomination.location}: unexpected terminal-retirement nomination boundary",
-            )
-            post_fields = {"commitIndex", "retiredCommittedIndex", "committableIndices"}
-            # The nomination runs after compaction but before role/phase
-            # assignment and before old configurations are discarded.
-            out.emit_observations(
-                nomination,
-                "terminal-nomination-pre",
-                facts,
-                exclusions={
-                    "role": "nominate_successor runs before become_retired clears leadership; the raw leader role is checked above.",
-                    "membershipState": "nominate_successor runs before become_retired assigns the terminal phase; the raw completed phase is checked above.",
-                    **{
-                        field: "Observed after the combined action at terminal-nomination-post."
-                        for field in post_fields
-                        if field in facts
-                    },
-                },
-            )
-            out.action(
-                commit,
-                "advanceCommitIndexAndProposeVote",
-                "terminal-commit",
-                [commit, nomination],
-                source=commit.node,
-                destination=nomination.message["to_node_id"],
-            )
-            out.emit_observations(
-                nomination,
-                "terminal-nomination-post",
-                {
-                    field: value
-                    for field, value in facts.items()
-                    if field in post_fields
-                },
-            )
-            out.emit_observations(commit, "commit-post", {"commitIndex": target})
-
-        elif peek(1) == ["commit"]:
+        elif events[0].function in {"become_candidate", "become_pre_vote_candidate"}:
             (event,) = take()
             require(
-                event.state["leadership_state"] == "Leader",
-                f"{event.location}: ungrouped follower commit",
+                event.state["pre_vote_enabled"]
+                == (event.function == "become_pre_vote_candidate"),
+                f"{event.location}: election entry differs from pre-vote mode",
             )
-            out.emit_observations(event, "commit-pre")
-            out.action(event, "advanceCommitIndex", "commit-pre", node=event.node)
-            out.emit_observations(
-                event, "commit-post", {"commitIndex": event.message["args"]["idx"]}
-            )
-
-        elif events[0].function in {
-            "become_candidate",
-            "become_pre_vote_candidate",
-            "become_follower",
-            "become_leader",
-        }:
-            (event,) = take()
-            action = {
-                "become_candidate": (
-                    "becomeCandidate" if event.state["pre_vote_enabled"] else "timeout"
-                ),
-                "become_pre_vote_candidate": "becomePreVoteCandidate",
-                "become_follower": "checkQuorum",
-                "become_leader": "becomeLeader",
-            }[event.function]
-            out.action(event, action, "role-post", node=event.node)
-            out.emit_observations(event, "role-post")
-
-        elif peek(1) == ["send_request_vote"]:
-            (event,) = take()
-            out.emit_observations(event, "send-pre")
-            family = packet(event)["msg"]
-            require(
-                family in {"raft_request_vote", "raft_request_pre_vote"},
-                f"{event.location}: wrong vote request packet",
-            )
+            nested, sends, tail = election_group(event)
             out.action(
                 event,
-                "requestVote" if family == "raft_request_vote" else "requestPreVote",
-                "send-pre",
-                source=event.node,
-                destination=node(event.message.get("to_node_id"), event.location),
+                "timeout",
+                "atomic-election",
+                [event, *nested, *tail, *sends],
+                node=event.node,
+                timeout="election",
             )
-            out.message(event, "send-post", receiving=False, selection="last")
+            emit_election(event, nested, sends, tail, "role-post")
+
+        elif events[0].function == "become_follower":
+            (event,) = take()
+            out.action(
+                event, "timeout", "role-post", node=event.node, timeout="checkQuorum"
+            )
+            out.emit_observations(event, "role-post")
 
         elif peek(1) == ["step_down_and_nominate_successor"]:
             (event,) = take()
+            require(
+                event.command.value["cmd"].startswith("nominate_successor,"),
+                f"{event.location}: nomination outside a nominate_successor command",
+            )
             out.emit_observations(event, "nomination")
+            # The model chooses the successor itself; check the emitted one.
             out.action(
                 event,
-                "proposeVote",
+                "nominateSuccessor",
                 "nomination",
-                source=event.node,
-                destination=event.message["to_node_id"],
+                node=event.node,
+                destination=node(event.message["to_node_id"], event.location),
             )
+            out.message_propose(event, "nomination-message")
 
         else:
             event = events[0]

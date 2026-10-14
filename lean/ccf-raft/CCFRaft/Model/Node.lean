@@ -1,10 +1,11 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Model.Configuration
-import CCFRaft.Model.Log
+import CCFRaft.Model.ClusterConfig
 import CCFRaft.Model.Messages
 import CCFRaft.Model.NodeState
+import CCFRaft.Shared.Capabilities
+import Mathlib.Data.Finset.Sort
 
 /-!
 # Local node steps
@@ -19,45 +20,27 @@ disabled: the step has no effect and a received message stays in flight.
 
 namespace CCFRaft.Model.Local
 
+open Shared (Capabilities Effect)
+
+abbrev Caps (Node TxId : Type) := Capabilities Node (Message Node TxId) Notification
+
+abbrev NodeEffect (Node TxId : Type) := Effect Node (Message Node TxId) Notification
+
 variable {Node TxId : Type}
 
-/-- Inputs a node acts on without receiving a message. -/
-inductive Input (Node TxId : Type) where
-  /-- Write the bootstrap configuration to the initial leader's empty log. -/
-  | initializeConfiguration
-  /-- Append a client transaction to a leader's log. -/
-  | clientRequest (txId : TxId)
-  /-- Append a new nonempty configuration to a leader's log. -/
-  | changeConfiguration (newConfiguration : Finset Node)
-  /-- Record completed retirements which are not durably represented yet. -/
-  | appendRetiredCommitted
-  /-- Append a signature over a leader's nonempty log. -/
-  | signCommittableMessages
-  /-- Send a single-term batch or an empty heartbeat. -/
-  | appendEntries (destination : Node) (batchEnd : Nat)
-  /-- Advance a leader to the commit index it can compute locally. -/
-  | advanceCommitIndex
-  /-- Start a next-term election when pre-vote is not enabled. -/
-  | timeout
-  /-- Start a pre-vote round without advancing the local term. -/
-  | becomePreVoteCandidate
-  /-- Convert a successful pre-vote round into a next-term election. -/
-  | becomeCandidate
-  /-- Send a RequestVote message to another node. -/
-  | requestVote (destination : Node)
-  /-- Send a RequestPreVote message to another node. -/
-  | requestPreVote (destination : Node)
-  /-- Step down as leader in the current term after a failed quorum check. -/
+inductive TimeoutKind where
+  | election
   | checkQuorum
-  /-- Promote a candidate after its local vote set reaches a majority. -/
-  | becomeLeader
-  /-- Ask one plausible successor to start an ordinary election. -/
-  | proposeVote (destination : Node)
-  /-- Commit terminal retirement and propose a vote to a successor in one step. -/
-  | advanceCommitIndexAndProposeVote (destination : Node)
 deriving DecidableEq
 
-/-- Everything a node can act on: an input, or a message from `source`. -/
+inductive Input (Node TxId : Type) where
+  | append (entries : List (EntryContent Node TxId))
+  /-- Starts at the peer's send frontier -/
+  | sendEntries (destination : Node) (endIndex : Nat)
+  | timeout (kind : TimeoutKind)
+  | nominateSuccessor (destination : Node)
+deriving DecidableEq
+
 inductive Event (Node TxId : Type) where
   | internal (input : Input Node TxId)
   | receive (source : Node) (message : Message Node TxId)
@@ -66,7 +49,6 @@ variable [DecidableEq Node] [DecidableEq TxId]
 
 /-! ## Leader state -/
 
-/-- True when voters form a strict majority in every supplied configuration. -/
 abbrev hasQuorum (configurations : List (Configuration Node)) (voters : Finset Node)
     : Prop :=
   configurations.all
@@ -74,29 +56,13 @@ abbrev hasQuorum (configurations : List (Configuration Node)) (voters : Finset N
       decide (hasConfigurationMajority voters configuration)
 
 /--
-A successor has maximal replication progress, with ties broken by membership
-in the highest active configuration, matching CCF's successor nomination.
+Approximates `all_other_nodes`; unlike CCF, peers lost on rollback are not retained.
 -/
-abbrev plausibleSuccessor (config : InitialConfig Node) (state : NodeState Node TxId)
-    (self destination : Node)
-    : Prop :=
-  let configurations := state.activeConfigurations config
-  let candidates := (state.activeMembers config).erase self
-  let latestMembershipIndex node :=
-    configurations.foldl
-      (fun highest configuration =>
-        if node ∈ configuration.nodes then max highest configuration.index else highest)
-      0
-  destination ∈ candidates
-  /\ ∀ candidate ∈ candidates,
-      state.matchIndex candidate <= state.matchIndex destination
-      /\ (state.matchIndex candidate = state.matchIndex destination
-          -> latestMembershipIndex candidate <= latestMembershipIndex destination)
+def eligiblePeers (config : InitialConfig Node) (state : NodeState Node TxId)
+    (self : Node)
+    : Finset Node :=
+  (state.activeMembers config ∪ state.retirementCompleted config).erase self
 
-/--
-The conditions which let a node start an election: a passive or campaigning
-role, membership it can campaign from, and no committed retirement.
--/
 abbrev candidateTransitionEnabled (config : InitialConfig Node)
     (state : NodeState Node TxId) (self : Node)
     : Prop :=
@@ -127,37 +93,41 @@ def highestCommittableIndex (config : InitialConfig Node)
     0
 
 /--
-Advance a leader's commit index and refresh its retirement metadata. A node
-whose retirement is now committed clears its role and known leader, as CCF's
-`become_retired(RetiredCommitted)` does.
+Retirement saves the outgoing leader's nomination permission before discarding
+committed configurations. Sending the nomination is a separate local event.
 -/
-def advanceCommit (config : InitialConfig Node)
-    (state : NodeState Node TxId) (self : Node)
-    : NodeState Node TxId :=
-  let next :=
-    refreshRetirementState config self
-      { state with commitIndex := highestCommittableIndex config state self }
-  if next.membershipState = .retiredCommitted then
-    { next with role := .none, leaderKnown := false }
-  else
-    next
-
-/--
-Append one current-term entry to a leader's log and refresh its retirement
-metadata. Disabled for a retired-committed node.
--/
-def leaderAppend (config : InitialConfig Node) (state : NodeState Node TxId)
-    (self : Node) (content : EntryContent Node TxId)
+def advanceCommit [LinearOrder Node] (config : InitialConfig Node)
+    (_caps : Caps Node TxId) (state : NodeState Node TxId) (self : Node)
     : NodeEffect Node TxId (NodeState Node TxId) := do
-  let next :=
-    refreshRetirementState config self
-      { state with log := state.log ++ [{ term := state.currentTerm, content }] }
-  guard (state.role = .leader /\ Not (state.membershipState = .retiredCommitted))
-  pure next
+  let target := highestCommittableIndex config state self
+  if target <= state.commitIndex then
+    return state
+  else
+    let next := refreshRetirementState config self { state with commitIndex := target }
+    if next.membershipState = .retiredCommitted then
+      return {
+        next with
+          role := .none
+          leaderKnown := false
+          pendingRetirementNomination :=
+            if state.role = .leader then
+              some (state.currentTerm, eligiblePeers config state self)
+            else
+              none
+      }
+    else
+      return next
+
+def advanceCommitIfAlone [LinearOrder Node] (config : InitialConfig Node)
+    (caps : Caps Node TxId) (state : NodeState Node TxId) (self : Node)
+    : NodeEffect Node TxId (NodeState Node TxId) :=
+  if ((state.activeMembers config).erase self).Nonempty then
+    pure state
+  else
+    advanceCommit config caps state self
 
 /-! ## Outgoing messages -/
 
-/-- Build an AppendEntries request for one destination. -/
 def makeAppendEntriesRequest (state : NodeState Node TxId) (destination : Node)
     (batchEnd : Nat)
     : AppendEntriesRequest Node TxId :=
@@ -170,32 +140,121 @@ def makeAppendEntriesRequest (state : NodeState Node TxId) (destination : Node)
     leaderCommit := state.commitIndex
   }
 
-/-- Build a vote or pre-vote request from the candidate's log. -/
 def makeRequestVoteRequest (state : NodeState Node TxId) : RequestVoteRequest where
   term := state.currentTerm
   lastCommittableTerm := lastCommittableTerm state
   lastCommittableIndex := lastCommittableIndex state
 
+/-! ## Appending entries -/
+
+/--
+CCF runs hooks before appending the entry: new-peer heartbeats use the
+pre-append log length.
+-/
+def applyTransactionEffect [LinearOrder Node] (config : InitialConfig Node)
+    (caps : Caps Node TxId) (self : Node) (txId : TxId)
+    (done : List (TransactionEffect Node)) (state : NodeState Node TxId)
+    (effect : TransactionEffect Node)
+    : NodeEffect Node TxId (NodeState Node TxId) :=
+  -- Later hooks see earlier effects without advancing the append frontier.
+  let view : NodeState Node TxId :=
+    {
+      state with
+        log :=
+          if done = [] then
+            state.log
+          else
+            state.log
+            ++ [{ term := state.currentTerm, content := .transaction txId done }]
+    }
+  match effect with
+  | .reconfiguration nodes => do
+      let previousConfiguration :=
+        (configurationHistory config view.log).foldl
+          (fun _ configuration => configuration.nodes) config.configuration
+      guard (nodes.Nonempty /\ Not (nodes = previousConfiguration))
+      let addedNodes := (nodes \ eligiblePeers config view self).erase self
+      let next : NodeState Node TxId :=
+        {
+          state with
+            sentIndex :=
+              fun peer =>
+                if peer ∈ addedNodes then state.log.length else state.sentIndex peer
+        }
+      (addedNodes.sort).forM
+        fun peer =>
+          caps.send
+            (.appendEntriesRequest (makeAppendEntriesRequest next peer state.log.length))
+            peer
+      return next
+  | .retiredCommitted nodes => do
+      let pending := view.retirementCompleted config \ retiredCommittedNodes view.log
+      guard (nodes.Nonempty /\ nodes ⊆ pending)
+      return state
+
+def appendEntry [LinearOrder Node] (config : InitialConfig Node)
+    (caps : Caps Node TxId) (self : Node) (state : NodeState Node TxId)
+    (content : EntryContent Node TxId)
+    : NodeEffect Node TxId (NodeState Node TxId) := do
+  let state <- match content with
+                | .transaction txId effects => do
+                    let (state, _) <- effects.foldlM
+                                        (fun (state, done) effect => do
+                                          let state <- applyTransactionEffect config caps
+                                                        self txId done state effect
+                                          return (state, done ++ [effect]))
+                                        (state, [])
+                    pure state
+                | .signature => do
+                    guard (Not (state.log = []))
+                    pure state
+  return refreshRetirementState config self
+    { state with log := state.log ++ [{ term := state.currentTerm, content }] }
+
+def appendBatch [LinearOrder Node] (config : InitialConfig Node)
+    (caps : Caps Node TxId) (self : Node) (state : NodeState Node TxId)
+    (entries : List (EntryContent Node TxId))
+    : NodeEffect Node TxId (NodeState Node TxId) := do
+  guard
+    (state.role = .leader
+      /\ Not (state.membershipState = .retiredCommitted)
+      /\ Not (entries = []))
+  let appended <- entries.foldlM (appendEntry config caps self) state
+  advanceCommitIfAlone config caps appended self
+
+def sendEntries (config : InitialConfig Node) (caps : Caps Node TxId) (self : Node)
+    (state : NodeState Node TxId) (destination : Node) (endIndex : Nat)
+    : NodeEffect Node TxId (NodeState Node TxId) := do
+  let sent := state.sentIndex destination
+  guard
+    (state.role = .leader
+      /\ destination ∈ eligiblePeers config state self
+      /\ sent <= endIndex
+      /\ endIndex <= state.log.length
+      /\ ((messageEntries state.log sent endIndex).all
+            fun entry =>
+              entry.term == termAt state.log endIndex)
+          = true
+      /\ (Not (state.membershipState = .retiredCommitted) \/ sent < endIndex))
+  caps.send
+    (.appendEntriesRequest (makeAppendEntriesRequest state destination endIndex))
+    destination
+  return { state with sentIndex := Function.update state.sentIndex destination endIndex }
+
 /-! ## Handling AppendEntries -/
 
-/-- Check that a request's previous index and term match the follower log. -/
 abbrev logOk (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
     : Prop :=
   request.prevLogIndex = 0
   \/ (request.prevLogIndex <= state.log.length
       /\ termAt state.log request.prevLogIndex = request.prevLogTerm)
 
-/--
-Detect a log position covered by both the follower's log and the request where
-the two disagree. As in CCF, only terms are compared, not entry contents.
--/
 abbrev hasTermConflict (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
     : Prop :=
   ((state.log.drop request.prevLogIndex).zip request.entries).any
     fun (existing, incoming) => existing.term != incoming.term
 
-/-- Advance the commit index to the latest signature the request covers. -/
 def committedFromLeader
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
@@ -205,12 +264,6 @@ def committedFromLeader
     (maxCommittableIndexUpTo newLog
       (min request.leaderCommit (request.prevLogIndex + request.entries.length)))
 
-/--
-The NACK for a stale-term request or a mismatched previous entry. It reports
-the follower's term and log length, unless the follower holds the previous
-index with a different term; then it reports the highest index that could
-still match the leader's log, and that index's term.
--/
 def appendEntriesNack
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
@@ -222,11 +275,6 @@ def appendEntriesNack
       findHighestPossibleMatch state.log request.prevLogIndex request.prevLogTerm
     { term := termAt state.log lastLogIndex, success := false, lastLogIndex }
 
-/--
-Apply a request that agrees with the follower's log on every position both
-cover: append the entries past the end of the log, adopt the leader's commit
-index, and ACK up to the end of the request.
--/
 def appendEntriesFromLeader
     (config : InitialConfig Node)
     (self : Node)
@@ -241,9 +289,11 @@ def appendEntriesFromLeader
     match
         firstLogIndexAfter newLog 0
           (fun content =>
-            match content with
-            | .retiredCommitted nodes => decide (self ∈ nodes)
-            | _ => false)
+            content.effects.any
+              fun effect =>
+                match effect with
+                | .retiredCommitted nodes => decide (self ∈ nodes)
+                | .reconfiguration _ => false)
     with
     | none => commitIndex
     | some markerIndex =>
@@ -263,67 +313,69 @@ def appendEntriesFromLeader
     }
   )
 
-/--
-Handle an AppendEntries request, returning the new state and the response to
-send, if any. A same-term candidate or pre-vote candidate first steps down to
-follower. Stale-term requests and requests whose previous entry does not match
-are NACKed. Otherwise the sender becomes the known leader, and the request is
-dropped without a response if it starts before the commit index, or if it
-conflicts with the log of a node that may no longer roll back. A new follower
-instead truncates a conflicting suffix, then the entries are applied.
--/
 def handleAppendEntriesRequest
     (config : InitialConfig Node)
-    (self : Node)
+    (caps : Caps Node TxId)
+    (self source : Node)
     (state : NodeState Node TxId)
     (request : AppendEntriesRequest Node TxId)
-    : NodeState Node TxId × Option AppendEntriesResponse :=
-  let state :=
-    if request.term = state.currentTerm
-        /\ (state.role = .candidate \/ state.role = .preVoteCandidate) then
-      { state with role := .follower, isNewFollower := true }
-    else
-      state
-  if request.term < state.currentTerm \/ Not (logOk state request) then
-    (state, some (appendEntriesNack state request))
+    : NodeEffect Node TxId (NodeState Node TxId) := do
+  if request.term < state.currentTerm then
+    caps.send (.appendEntriesResponse (appendEntriesNack state request)) source
+    return refreshRetirementState config self state
   else
-    let state := { state with leaderKnown := true }
-    if request.prevLogIndex < state.commitIndex
-        \/ (hasTermConflict state request /\ !state.isNewFollower) then
-      (state, none)
+    let state :=
+      if request.term = state.currentTerm
+          /\ (state.role = .candidate \/ state.role = .preVoteCandidate) then
+        { state with role := .follower, isNewFollower := true }
+      else
+        state
+    if Not (logOk state request) then
+      caps.send (.appendEntriesResponse (appendEntriesNack state request)) source
+      return refreshRetirementState config self state
     else
-      let state :=
-        if hasTermConflict state request then
-          {
-            state with
-              log := state.log.take request.prevLogIndex, isNewFollower := false
-          }
-        else
-          state
-      let (next, response) := appendEntriesFromLeader config self state request
-      (next, some response)
+      let state := { state with leaderKnown := true }
+      if request.prevLogIndex < state.commitIndex
+          \/ (hasTermConflict state request /\ !state.isNewFollower) then
+        return refreshRetirementState config self state
+      else
+        let state :=
+          if hasTermConflict state request then
+            {
+              state with
+                log := state.log.take request.prevLogIndex, isNewFollower := false
+            }
+          else
+            state
+        let (next, response) := appendEntriesFromLeader config self state request
+        caps.send (.appendEntriesResponse response) source
+        return refreshRetirementState config self next
 
-/-- Ignore replies after stepping down; otherwise update leader peer indices. -/
-def handleAppendEntriesResponse
+def handleAppendEntriesResponse [LinearOrder Node]
+    (config : InitialConfig Node)
+    (caps : Caps Node TxId)
+    (self : Node)
     (state : NodeState Node TxId)
     (source : Node)
     (response : AppendEntriesResponse)
-    : NodeState Node TxId :=
+    : NodeEffect Node TxId (NodeState Node TxId) := do
   if state.role != .leader then
-    state
+    return state
   else if response.success then
     if response.term = state.currentTerm then
-      {
-        state with
-          matchIndex :=
-            Function.update state.matchIndex source
-              (max (state.matchIndex source) response.lastLogIndex)
-      }
+      advanceCommit config caps
+        {
+          state with
+            matchIndex :=
+              Function.update state.matchIndex source
+                (max (state.matchIndex source) response.lastLogIndex)
+        }
+        self
     else
-      state
+      return state
   else
     let possible := findHighestPossibleMatch state.log response.lastLogIndex response.term
-    {
+    return {
       state with
         sentIndex :=
           Function.update state.sentIndex source
@@ -332,74 +384,190 @@ def handleAppendEntriesResponse
 
 /-! ## Handling elections -/
 
-/-- Compare a candidate log summary with a voter's local log. -/
 abbrev voteLogUpToDate (state : NodeState Node TxId) (request : RequestVoteRequest)
     : Prop :=
   request.lastCommittableTerm > maxCommittableTerm state.log
   \/ (request.lastCommittableTerm = maxCommittableTerm state.log
       /\ request.lastCommittableIndex >= maxCommittableIndex state.log)
 
-/--
-Grant a current-term vote to an up-to-date candidate, at most once per term
-and only while no leader is known in that term.
--/
 def handleRequestVoteRequest
+    (caps : Caps Node TxId)
     (state : NodeState Node TxId)
     (source : Node)
     (request : RequestVoteRequest)
-    : NodeState Node TxId × RequestVoteResponse :=
+    : NodeEffect Node TxId (NodeState Node TxId) := do
   let grant : Bool :=
     decide
       (request.term = state.currentTerm
         /\ voteLogUpToDate state request
         /\ !state.leaderKnown
         /\ (state.votedFor = none \/ state.votedFor = some source))
-  (
-    if grant then { state with votedFor := some source } else state,
-    { term := state.currentTerm, voteGranted := grant }
-  )
+  caps.send
+    (.requestVoteResponse { term := state.currentTerm, voteGranted := grant }) source
+  return if grant then { state with votedFor := some source } else state
 
-/-- Tally a current-term vote granted to a candidate. -/
-def handleRequestVoteResponse
+def handleRequestPreVote
+    (caps : Caps Node TxId)
+    (state : NodeState Node TxId)
+    (source : Node)
+    (request : RequestVoteRequest)
+    : NodeEffect Node TxId (NodeState Node TxId) := do
+  let voteGranted :=
+    decide (request.term = state.currentTerm /\ voteLogUpToDate state request)
+  caps.send (.requestPreVoteResponse { term := state.currentTerm, voteGranted }) source
+  return state
+
+/--
+CCF keeps the unsigned suffix at startup.
+-/
+def leaderState (config : InitialConfig Node) (self : Node) (state : NodeState Node TxId)
+    : NodeState Node TxId :=
+  let log :=
+    if state.commitIndex > 0 then
+      state.log.take (lastCommittableIndex state)
+    else
+      state.log
+  refreshRetirementState config self
+    {
+      state with
+        role := .leader
+        log
+        leaderKnown := true
+        sentIndex := fun _ => log.length
+        matchIndex := fun _ => 0
+    }
+
+def becomeLeader [LinearOrder Node] (config : InitialConfig Node)
+    (caps : Caps Node TxId) (self : Node) (state : NodeState Node TxId)
+    : NodeEffect Node TxId (NodeState Node TxId) := do
+  let leader <- advanceCommitIfAlone config caps (leaderState config self state) self
+  ((eligiblePeers config leader self).sort).forM
+    fun peer =>
+      caps.send
+        (.appendEntriesRequest (makeAppendEntriesRequest leader peer leader.log.length))
+        peer
+  return leader
+
+def electIfQuorum [LinearOrder Node] (config : InitialConfig Node)
+    (caps : Caps Node TxId) (self : Node) (state : NodeState Node TxId)
+    : NodeEffect Node TxId (NodeState Node TxId) :=
+  if state.role = .candidate
+      /\ hasQuorum (state.activeConfigurations config) state.votesGranted
+      /\ Not (state.membershipState = .retiredCommitted) then
+    becomeLeader config caps self state
+  else
+    pure state
+
+def broadcastToOthers [LinearOrder Node] (config : InitialConfig Node)
+    (caps : Caps Node TxId) (self : Node) (state : NodeState Node TxId)
+    (message : Message Node TxId)
+    : NodeEffect Node TxId Unit :=
+  (((state.activeMembers config).erase self).sort).forM
+    fun destination =>
+      caps.send message destination
+
+/--
+The self-vote can promote to leader before the vote-request loop.
+-/
+def becomeCandidate [LinearOrder Node] (config : InitialConfig Node)
+    (caps : Caps Node TxId) (state : NodeState Node TxId) (self : Node)
+    : NodeEffect Node TxId (NodeState Node TxId) := do
+  let candidate : NodeState Node TxId :=
+    {
+      state with
+        role := .candidate
+        currentTerm := state.currentTerm + 1
+        votedFor := some self
+        leaderKnown := false
+        votesGranted := {self}
+        preVotesGranted := ∅
+    }
+  let next <- electIfQuorum config caps self candidate
+  broadcastToOthers config caps self candidate
+    (.requestVoteRequest (makeRequestVoteRequest candidate))
+  return next
+
+/--
+The self-vote can synchronously start a regular election.
+-/
+def becomePreVoteCandidate [LinearOrder Node] (config : InitialConfig Node)
+    (caps : Caps Node TxId) (state : NodeState Node TxId) (self : Node)
+    : NodeEffect Node TxId (NodeState Node TxId) := do
+  let preVoteCandidate : NodeState Node TxId :=
+    {
+      state with
+        role := .preVoteCandidate, leaderKnown := false, preVotesGranted := {self}
+    }
+  if hasQuorum (preVoteCandidate.activeConfigurations config)
+      preVoteCandidate.preVotesGranted then
+    becomeCandidate config caps preVoteCandidate self
+  else
+    broadcastToOthers config caps self preVoteCandidate
+      (.requestPreVote (makeRequestVoteRequest preVoteCandidate))
+    return preVoteCandidate
+
+def startElection [LinearOrder Node] (config : InitialConfig Node)
+    (caps : Caps Node TxId) (state : NodeState Node TxId)
+    (self : Node)
+    : NodeEffect Node TxId (NodeState Node TxId) := do
+  guard (candidateTransitionEnabled config state self)
+  if config.preVoteStatus self = .enabled then
+    becomePreVoteCandidate config caps state self
+  else
+    becomeCandidate config caps state self
+
+def handleRequestVoteResponse [LinearOrder Node]
+    (config : InitialConfig Node)
+    (caps : Caps Node TxId)
+    (self : Node)
     (state : NodeState Node TxId)
     (source : Node)
     (response : RequestVoteResponse)
-    : NodeState Node TxId :=
+    : NodeEffect Node TxId (NodeState Node TxId) := do
   if state.role = .candidate
       /\ response.term = state.currentTerm
       /\ response.voteGranted then
-    { state with votesGranted := insert source state.votesGranted }
+    electIfQuorum config caps self
+      { state with votesGranted := insert source state.votesGranted }
   else
-    state
+    return state
 
-/-- Tally a current-term pre-vote without changing `votedFor`. -/
-def handleRequestPreVoteResponse
+def handleRequestPreVoteResponse [LinearOrder Node]
+    (config : InitialConfig Node)
+    (caps : Caps Node TxId)
+    (self : Node)
     (state : NodeState Node TxId)
     (source : Node)
     (response : RequestVoteResponse)
-    : NodeState Node TxId :=
+    : NodeEffect Node TxId (NodeState Node TxId) := do
   if state.role = .preVoteCandidate
       /\ response.term = state.currentTerm
       /\ response.voteGranted then
-    { state with preVotesGranted := insert source state.preVotesGranted }
+    let state := { state with preVotesGranted := insert source state.preVotesGranted }
+    if hasQuorum (state.activeConfigurations config) state.preVotesGranted then
+      becomeCandidate config caps state self
+    else
+      return state
   else
-    state
+    return state
 
-/-- Enter the next term as a candidate and vote for self. -/
-@[simp]
-def becomeCandidateNodeState (state : NodeState Node TxId) (node : Node)
-    : NodeState Node TxId :=
-  {
-    state with
-      role := .candidate
-      currentTerm := state.currentTerm + 1
-      votedFor := some node
-      leaderKnown := false
-      votesGranted := {node}
-      preVotesGranted := ∅
-  }
+def checkQuorum (config : InitialConfig Node) (state : NodeState Node TxId) (self : Node)
+    : NodeEffect Node TxId (NodeState Node TxId) := do
+  guard (state.role = .leader /\ ((state.activeMembers config).erase self).Nonempty)
+  return { state with role := .follower, leaderKnown := false }
 
-/-- Move to a newer term as a follower that has not voted or seen a leader in it. -/
+def handleProposeVoteRequest [LinearOrder Node]
+    (config : InitialConfig Node)
+    (caps : Caps Node TxId)
+    (state : NodeState Node TxId)
+    (self : Node)
+    (term : Nat)
+    : NodeEffect Node TxId (NodeState Node TxId) := do
+  if term = state.currentTerm /\ candidateTransitionEnabled config state self then
+    becomeCandidate config caps state self
+  else
+    return state
+
 def updateTerm (state : NodeState Node TxId) (term : Nat) : NodeState Node TxId :=
   if state.currentTerm < term then
     {
@@ -427,8 +595,7 @@ def observeTerm (state : NodeState Node TxId) : Message Node TxId -> NodeState N
 
 /-! ## The step -/
 
-/-- Handle one message from `source` after observing its term. -/
-def receive
+def receive [LinearOrder Node]
     (config : InitialConfig Node)
     (caps : Caps Node TxId)
     (self source : Node)
@@ -437,177 +604,52 @@ def receive
     : NodeEffect Node TxId (NodeState Node TxId) :=
   let state := observeTerm state message
   match message with
-  | .appendEntriesRequest request => do
-      let (next, response) := handleAppendEntriesRequest config self state request
-      if let some response := response then
-        caps.send (.appendEntriesResponse response) source
-      return refreshRetirementState config self next
+  | .appendEntriesRequest request =>
+      handleAppendEntriesRequest config caps self source state request
   | .appendEntriesResponse response =>
-      return handleAppendEntriesResponse state source response
-  | .requestVoteRequest request => do
-      let (next, response) := handleRequestVoteRequest state source request
-      caps.send (.requestVoteResponse response) source
-      return next
+      handleAppendEntriesResponse config caps self state source response
+  | .requestVoteRequest request =>
+      handleRequestVoteRequest caps state source request
   | .requestVoteResponse response =>
-      return handleRequestVoteResponse state source response
-  | .requestPreVote request => do
-      -- Answer without recording a vote.
-      let voteGranted :=
-        decide (request.term = state.currentTerm /\ voteLogUpToDate state request)
-      caps.send (.requestPreVoteResponse { term := state.currentTerm, voteGranted })
-        source
-      return state
+      handleRequestVoteResponse config caps self state source response
+  | .requestPreVote request =>
+      handleRequestPreVote caps state source request
   | .requestPreVoteResponse response =>
-      return handleRequestPreVoteResponse state source response
+      handleRequestPreVoteResponse config caps self state source response
   | .proposeVoteRequest term =>
-      -- Start an election on a same-term proposal when the node is eligible.
-      if term = state.currentTerm /\ candidateTransitionEnabled config state self then
-        return becomeCandidateNodeState state self
-      else
-        return state
+      handleProposeVoteRequest config caps state self term
 
-/-- Act on one input. -/
-def act (config : InitialConfig Node) (caps : Caps Node TxId) (self : Node)
-    (state : NodeState Node TxId)
+def act [LinearOrder Node] (config : InitialConfig Node) (caps : Caps Node TxId)
+    (self : Node) (state : NodeState Node TxId)
     : Input Node TxId -> NodeEffect Node TxId (NodeState Node TxId)
-  | .initializeConfiguration => do
-      guard
-        (self = config.leader
-          /\ state.role = .leader
-          /\ state.currentTerm = BOOTSTRAP_TERM
-          /\ state.log = []
-          /\ state.commitIndex = 0
-          /\ state.membershipState = .active)
-      return {
-        state with
-          log :=
-            [{
-              term := state.currentTerm
-              content := .reconfiguration config.configuration
-            }]
-      }
-  | .clientRequest txId => leaderAppend config state self (.transaction txId)
-  | .changeConfiguration newConfiguration => do
-      let previousConfiguration :=
-        (configurationHistory config state.log).foldl
-          (fun _ configuration => configuration.nodes) config.configuration
-      let addedNodes := newConfiguration \ previousConfiguration
-      guard (newConfiguration.Nonempty /\ Not (newConfiguration = previousConfiguration))
-      let appended <- leaderAppend config state self (.reconfiguration newConfiguration)
-      -- New nodes are sent only future entries at first; they NACK if necessary.
-      return {
-        appended with
-          sentIndex :=
-            fun peer =>
-              if peer ∈ addedNodes then state.log.length else state.sentIndex peer
-      }
-  | .appendRetiredCommitted => do
-      let pending := state.retirementCompleted config \ retiredCommittedNodes state.log
-      guard pending.Nonempty
-      leaderAppend config state self (.retiredCommitted pending)
-  | .signCommittableMessages => do
-      guard (Not (state.log = []))
-      leaderAppend config state self .signature
-  | .appendEntries destination batchEnd => do
-      let sent := state.sentIndex destination
-      guard
-        (state.role = .leader
-          /\ Not (self = destination)
-          /\ (destination ∈ state.activeMembers config
-              \/ destination ∈ state.retirementCompleted config)
-          /\ sent <= batchEnd
-          /\ batchEnd <= state.log.length
-          /\ ((messageEntries state.log sent batchEnd).all
-                fun entry =>
-                  entry.term == termAt state.log batchEnd)
-              = true
-          /\ (Not (state.membershipState = .retiredCommitted) \/ sent < batchEnd))
-      caps.send
-        (.appendEntriesRequest (makeAppendEntriesRequest state destination batchEnd))
-        destination
-      return {
-        state with
-          sentIndex := Function.update state.sentIndex destination batchEnd
-      }
-  | .advanceCommitIndex => do
-      guard
-        (state.role = .leader
-          /\ state.commitIndex < highestCommittableIndex config state self
-          /\ Not ((advanceCommit config state self).membershipState = .retiredCommitted))
-      return advanceCommit config state self
-  | .timeout => do
-      guard
-        (candidateTransitionEnabled config state self
-          /\ Not (config.preVoteStatus self = .enabled))
-      return becomeCandidateNodeState state self
-  | .becomePreVoteCandidate => do
-      guard
-        (candidateTransitionEnabled config state self
-          /\ config.preVoteStatus self = .enabled)
-      return {
-        state with
-          role := .preVoteCandidate, leaderKnown := false, preVotesGranted := {self}
-      }
-  | .becomeCandidate => do
-      guard
-        (state.role = .preVoteCandidate
-          /\ hasQuorum (state.activeConfigurations config) state.preVotesGranted)
-      return becomeCandidateNodeState state self
-  | .requestVote destination => do
-      guard
-        (state.role = .candidate
-          /\ Not (self = destination)
-          /\ destination ∈ state.activeMembers config)
-      caps.send (.requestVoteRequest (makeRequestVoteRequest state)) destination
-      return state
-  | .requestPreVote destination => do
-      guard
-        (state.role = .preVoteCandidate
-          /\ Not (self = destination)
-          /\ destination ∈ state.activeMembers config)
-      caps.send (.requestPreVote (makeRequestVoteRequest state)) destination
-      return state
-  | .checkQuorum => do
-      guard (state.role = .leader /\ ((state.activeMembers config).erase self).Nonempty)
-      return { state with role := .follower, leaderKnown := false }
-  | .becomeLeader => do
-      guard
-        (state.role = .candidate
-          /\ Not (state.membershipState = .retiredCommitted)
-          /\ hasQuorum (state.activeConfigurations config) state.votesGranted)
-      -- Drop the unsigned suffix, except at startup, as CCF does.
-      let log :=
-        if state.commitIndex > 0 then
-          state.log.take (lastCommittableIndex state)
-        else
-          state.log
-      return refreshRetirementState config self
-        {
-          state with
-            role := .leader
-            log
-            leaderKnown := true
-            sentIndex := fun _ => log.length
-            matchIndex := fun _ => 0
-        }
-  | .proposeVote destination => do
-      guard (state.role = .leader /\ plausibleSuccessor config state self destination)
-      caps.send (.proposeVoteRequest state.currentTerm) destination
-      return state
-  | .advanceCommitIndexAndProposeVote destination => do
-      guard
-        (state.role = .leader
-          /\ state.commitIndex < highestCommittableIndex config state self
-          /\ (advanceCommit config state self).membershipState = .retiredCommitted
-          /\ plausibleSuccessor config state self destination)
-      caps.send (.proposeVoteRequest state.currentTerm) destination
-      return advanceCommit config state self
+  | .append entries => appendBatch config caps self state entries
+  | .sendEntries destination endIndex =>
+      sendEntries config caps self state destination endIndex
+  | .timeout .election => startElection config caps state self
+  | .timeout .checkQuorum => checkQuorum config state self
+  | .nominateSuccessor destination => do
+      guard (destination ≠ self)
+      let term ←
+        if state.role = .leader then do
+          guard (destination ∈ eligiblePeers config state self)
+          pure state.currentTerm
+        else do
+          guard (state.role = .none /\ state.membershipState = .retiredCommitted)
+          let some (term, peers) := state.pendingRetirementNomination | failure
+          guard (destination ∈ peers)
+          pure term
+      caps.send (.proposeVoteRequest term) destination
+      return { state with pendingRetirementNomination := none }
 
-/-- One step of node `self`: act on an input or handle a delivered message. -/
-def step (config : InitialConfig Node) (caps : Caps Node TxId) (self : Node)
-    (state : NodeState Node TxId)
+def step [LinearOrder Node] (config : InitialConfig Node) (caps : Caps Node TxId)
+    (self : Node) (state : NodeState Node TxId)
     : Event Node TxId -> NodeEffect Node TxId (NodeState Node TxId)
-  | .internal input => act config caps self state input
-  | .receive source message => receive config caps self source state message
+  | .internal (.nominateSuccessor destination) =>
+      act config caps self state (.nominateSuccessor destination)
+  | .internal input =>
+      act config caps self { state with pendingRetirementNomination := none } input
+  | .receive source message =>
+      receive config caps self source { state with pendingRetirementNomination := none }
+        message
 
 end CCFRaft.Model.Local

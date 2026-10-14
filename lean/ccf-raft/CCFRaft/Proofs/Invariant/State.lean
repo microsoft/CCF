@@ -13,6 +13,7 @@ open Shared.MultiNodeTransitionSystem Concrete
 open Model.Local (InitialConfig NodeState initialNodeState)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 /-- Total lookup; identities absent from the node table retain their initial state. -/
 def nodeOf (state : Model.State Node TxId) (node : Node) : NodeState Node TxId :=

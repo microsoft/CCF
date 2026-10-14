@@ -50,9 +50,9 @@ def append_packet(**changes):
     return result
 
 
-def trace(*messages):
+def trace(*messages, cmd="dispatch_all"):
     records = [record.value for record in read_trace(FIXTURE)]
-    records.append({"tag": "raft_trace", "cmd": "dispatch_all"})
+    records.append({"tag": "raft_trace", "cmd": cmd})
     for timestamp, message in enumerate(messages, 20):
         records.append({"tag": "raft_trace", "h_ts": str(timestamp), "msg": message})
     return parse_ndjson([json.dumps(row) for row in records], "fixture.stdout")
@@ -68,6 +68,21 @@ def later_actions(document):
 
 
 class ReductionTests(unittest.TestCase):
+    def test_promotion_requires_heartbeats_to_all_traced_active_peers(self):
+        records = read_trace(FIXTURE.with_name("vote_responses.ndjson"))
+        reduce_trace(records)
+        heartbeat = next(
+            record
+            for record in records
+            if record.value.get("msg", {}).get("function") == "send_append_entries"
+            and record.value["msg"]["state"]["node_id"] == "1"
+            and record.value["msg"]["packet"]["term"] == 3
+        )
+        with self.assertRaisesRegex(
+            TraceError, "missing active-peer leadership heartbeat"
+        ):
+            reduce_trace([record for record in records if record is not heartbeat])
+
     def test_vote_response_sends_observe_receive_without_an_extra_action(self):
         records = read_trace(FIXTURE.with_name("vote_responses.ndjson"))
         document = reduce_trace(records)
@@ -140,7 +155,7 @@ class ReductionTests(unittest.TestCase):
                 ):
                     reduce_trace(records)
 
-    def test_explicit_nomination_after_commit_is_not_a_terminal_commit(self):
+    def test_explicit_nomination_is_not_a_terminal_commit(self):
         commit = {
             "function": "commit",
             "state": state(last_idx=3, committable_indices=[3]),
@@ -151,18 +166,13 @@ class ReductionTests(unittest.TestCase):
             "state": state(last_idx=3, commit_idx=3),
             "to_node_id": "1",
         }
-        records = trace(commit)
-        records += parse_ndjson(
-            [
-                '{"tag":"raft_trace","cmd":"nominate_successor,0"}',
-                json.dumps({"tag": "raft_trace", "msg": nomination}),
-            ]
-        )
+        records = trace(nomination, cmd="nominate_successor,0")
         self.assertEqual(
             [action["action"] for action in later_actions(reduce_trace(records))],
-            ["advanceCommitIndex", "proposeVote"],
+            ["nominateSuccessor"],
         )
-        with self.assertRaisesRegex(TraceError, "terminal-retirement nomination"):
+        # Leader commits are internal to an operation; a standalone one fails.
+        with self.assertRaisesRegex(TraceError, "ungrouped callback commit"):
             reduce_trace(trace(commit, nomination))
 
     def test_state_and_packet_terms_preserve_implementation_numbers(self):
@@ -379,26 +389,22 @@ class ReductionTests(unittest.TestCase):
     def test_exact_source_bootstrap(self):
         result = reduce_trace(read_trace(FIXTURE))
         self.assertEqual(result["bootstrap"]["configuration"], ["0"])
-        self.assertEqual(len(result["instructions"]), 10)
+        self.assertEqual(len(result["instructions"]), 5)
         observed = [
             i["fields"]
             for i in result["instructions"]
             if i.get("observation") == "state"
         ]
         self.assertEqual(
-            [f["currentTerm"] for f in observed if "currentTerm" in f], [2] * 5
+            [f["currentTerm"] for f in observed if "currentTerm" in f], [2] * 2
         )
+        self.assertEqual([f["logLength"] for f in observed if "logLength" in f], [1, 2])
         self.assertEqual(
-            [f["logLength"] for f in observed if "logLength" in f], [0, 0, 0, 1, 2]
+            [f["commitIndex"] for f in observed if "commitIndex" in f], [0, 2]
         )
-        self.assertEqual([f["commitIndex"] for f in observed], [0, 0, 0, 0, 0, 2])
         self.assertEqual(
             [i["action"] for i in result["instructions"] if i["kind"] == "action"],
-            [
-                "initializeConfiguration",
-                "signCommittableMessages",
-                "advanceCommitIndex",
-            ],
+            ["append"],
         )
         markers = [
             i
@@ -407,7 +413,15 @@ class ReductionTests(unittest.TestCase):
         ]
         self.assertEqual([i["index"] for i in markers], [2])
         self.assertEqual(markers[0]["fields"], {"kind": "signature"})
-        self.assertEqual(observed[-2]["configurations"], [{"index": 1, "nodes": ["0"]}])
+        commit = next(
+            i
+            for i in result["instructions"]
+            if i["origin"][0]["rule"] == "commit-in-action"
+        )
+        self.assertEqual(
+            commit["origin"][0]["omittedTransientFields"]["configurations"],
+            [{"index": 1, "nodes": ["0"]}],
+        )
         self.assertEqual(result["instructions"][-1]["origin"][0]["line"], 9)
 
     def test_recorded_signature_cache_is_not_complete_log_enumeration(self):
@@ -473,6 +487,8 @@ class ReductionTests(unittest.TestCase):
             "function": "send_append_entries",
             "state": state(last_idx=6),
             "to_node_id": "1",
+            "sent_idx": 2,
+            "match_idx": 0,
             "packet": append_packet(term="not-a-term"),
         }
         with self.assertRaisesRegex(TraceError, "expected natural number"):
@@ -482,6 +498,8 @@ class ReductionTests(unittest.TestCase):
                 "function": "send_append_entries",
                 "state": state(),
                 "to_node_id": "1",
+                "sent_idx": 2,
+                "match_idx": 0,
                 "packet": append_packet(new_field=1),
             }
         )
@@ -507,9 +525,9 @@ class ReductionTests(unittest.TestCase):
         result = reduce_trace(trace(send, drop, copy.deepcopy(send)))
         actions = later_actions(result)
         self.assertEqual(
-            [i["action"] for i in actions], ["appendEntries", "drop", "appendEntries"]
+            [i["action"] for i in actions], ["sendEntries", "drop", "sendEntries"]
         )
-        self.assertEqual([i["batchEnd"] for i in actions if "batchEnd" in i], [6, 6])
+        self.assertEqual([i["endIndex"] for i in actions if "endIndex" in i], [6, 6])
         drop_index = next(
             i
             for i, item in enumerate(result["instructions"])
@@ -527,6 +545,8 @@ class ReductionTests(unittest.TestCase):
             "function": "send_append_entries",
             "state": state(last_idx=6),
             "to_node_id": "1",
+            "sent_idx": 2,
+            "match_idx": 0,
             "packet": append_packet(),
         }
         receive = {
@@ -597,6 +617,8 @@ class ReductionTests(unittest.TestCase):
             "function": "send_append_entries",
             "state": state(last_idx=4, commit_idx=4),
             "to_node_id": "1",
+            "sent_idx": 4,
+            "match_idx": 4,
             "packet": request,
         }
         before = state(
@@ -669,7 +691,7 @@ class ReductionTests(unittest.TestCase):
         self.assertEqual([i["index"] for i in observed_configurations], [1, 3])
         self.assertEqual(
             observed_configurations[1]["fields"],
-            {"kind": "configuration", "configuration": ["0", "1"]},
+            {"kind": "transaction", "configurations": [["0", "1"]]},
         )
         prefix = next(
             i
@@ -708,6 +730,8 @@ class ReductionTests(unittest.TestCase):
             "function": "send_append_entries",
             "state": state(last_idx=3),
             "to_node_id": "1",
+            "sent_idx": 2,
+            "match_idx": 0,
             "packet": request,
         }
         receive = {
@@ -771,12 +795,16 @@ class ReductionTests(unittest.TestCase):
             "function": "send_append_entries",
             "state": state(last_idx=6),
             "to_node_id": "1",
+            "sent_idx": 2,
+            "match_idx": 0,
             "packet": append_packet(idx=4),
         }
         second = {
             "function": "send_append_entries",
             "state": state(last_idx=6),
             "to_node_id": "1",
+            "sent_idx": 2,
+            "match_idx": 0,
             "packet": append_packet(),
         }
         drop = {
@@ -798,6 +826,8 @@ class ReductionTests(unittest.TestCase):
             "function": "send_append_entries",
             "state": state(last_idx=6),
             "to_node_id": "1",
+            "sent_idx": 2,
+            "match_idx": 0,
             "packet": append_packet(idx=4),
         }
         second = copy.deepcopy(first)
@@ -848,14 +878,22 @@ class ReductionTests(unittest.TestCase):
             for i in callback
             if i["origin"][0]["rule"] == "configuration-callback-peer"
         )
-        send = next(i for i in callback if i.get("action") == "appendEntries")
         self.assertEqual(peer["fields"], {"sentIndex": 2, "matchIndex": 0})
-        self.assertEqual(send["batchEnd"], 2)
+        self.assertFalse(
+            any(i.get("action") == "sendEntries" for i in callback),
+            "configuration heartbeats belong to the append action",
+        )
         change_index = next(
             i
             for i, item in enumerate(result["instructions"])
-            if item.get("action") == "changeConfiguration"
+            if item.get("action") == "append" and item["entries"][0].get("effects")
         )
+        change = result["instructions"][change_index]
+        self.assertEqual(
+            change["entries"][0]["effects"],
+            [{"kind": "configuration", "configuration": ["0", "1"]}],
+        )
+        self.assertIn("send_append_entries", [o["function"] for o in change["origin"]])
         self.assertLess(result["instructions"].index(callback[0]), change_index)
         self.assertGreater(result["instructions"].index(peer), change_index)
         membership = next(
@@ -905,20 +943,55 @@ class ReductionTests(unittest.TestCase):
         ):
             reduce_trace(trace(callback))
 
-    def test_terminal_commit_includes_its_nomination_once(self):
+    def test_terminal_commit_emits_separate_nomination_once(self):
         fixture = FIXTURE.with_name("terminal_retirement.stdout")
         document = reduce_trace(read_trace(fixture))
+        nomination_index = next(
+            n
+            for n, instruction in enumerate(document["instructions"])
+            if instruction.get("action") == "nominateSuccessor"
+        )
         combined = [
+            next(
+                instruction
+                for instruction in reversed(document["instructions"][:nomination_index])
+                if instruction.get("action") == "receive"
+            )
+        ]
+        self.assertEqual(combined[0]["destination"], "0")
+        self.assertEqual(
+            [o["function"] for o in combined[0]["origin"]],
+            [
+                "recv_append_entries_response",
+                "commit",
+            ],
+        )
+        nominated = [
             i
             for i in document["instructions"]
-            if i.get("action") == "advanceCommitIndexAndProposeVote"
+            if i["origin"][0]["rule"] == "terminal-nomination-message"
         ]
-        self.assertEqual(len(combined), 1)
+        self.assertEqual(len(nominated), 1)
         self.assertEqual(
-            (combined[0]["source"], combined[0]["destination"]), ("0", "1")
+            (nominated[0]["source"], nominated[0]["destination"]), ("0", "1")
         )
-        self.assertFalse(
-            any(i.get("action") == "proposeVote" for i in document["instructions"])
+        self.assertEqual(nominated[0]["packet"]["msg"], "raft_propose_request_vote")
+        nominations = [
+            i
+            for i in document["instructions"]
+            if i.get("action") == "nominateSuccessor"
+        ]
+        self.assertEqual(len(nominations), 1)
+        self.assertEqual(
+            (nominations[0]["node"], nominations[0]["destination"]), ("0", "1")
+        )
+        self.assertLess(
+            document["instructions"].index(combined[0]),
+            document["instructions"].index(nominations[0]),
+        )
+        self.assertLess(
+            document["instructions"].index(nominations[0]),
+            document["instructions"].index(nominated[0]),
         )
         before = next(
             i
@@ -1011,7 +1084,7 @@ class ReductionTests(unittest.TestCase):
         actions = later_actions(result)
         self.assertEqual(
             [i["action"] for i in actions],
-            ["appendEntries", "drop", "appendEntries", "receive"],
+            ["sendEntries", "drop", "sendEntries", "receive"],
         )
         self.assertEqual([i["origin"][0]["line"] for i in actions], [2, 4, 6, 8])
         self.assertEqual(actions[1]["occurrence"], 0)
@@ -1039,23 +1112,34 @@ class ReductionTests(unittest.TestCase):
             "from_node_id": "0",
             "packet": {"msg": "raft_propose_request_vote", "term": 4},
         }
-        result = reduce_trace(trace(nomination, receive))
+        result = reduce_trace(trace(nomination, receive, cmd="nominate_successor,0"))
         actions = [i["action"] for i in later_actions(result)]
-        self.assertEqual(actions, ["proposeVote", "receive"])
+        self.assertEqual(actions, ["nominateSuccessor", "receive"])
 
-    def test_nomination_uses_recorded_destination_without_future_evidence(self):
+    def test_nomination_checks_recorded_successor_without_future_evidence(self):
         nomination = {
             "function": "step_down_and_nominate_successor",
             "state": state(),
             "to_node_id": "1",
         }
-        actions = later_actions(reduce_trace(trace(nomination, nomination)))
-        self.assertEqual([i["action"] for i in actions], ["proposeVote", "proposeVote"])
+        result = reduce_trace(trace(nomination, nomination, cmd="nominate_successor,0"))
+        actions = later_actions(result)
+        self.assertEqual(
+            [i["action"] for i in actions], ["nominateSuccessor", "nominateSuccessor"]
+        )
         self.assertEqual([i["destination"] for i in actions], ["1", "1"])
         self.assertTrue(all(len(i["origin"]) == 1 for i in actions))
+        proposals = [
+            i
+            for i in result["instructions"]
+            if i["origin"][0]["rule"] == "nomination-message"
+        ]
+        self.assertEqual([i["destination"] for i in proposals], ["1", "1"])
+        with self.assertRaisesRegex(TraceError, "nominate_successor command"):
+            reduce_trace(trace(nomination))
         del nomination["to_node_id"]
         with self.assertRaisesRegex(TraceError, "missing nomination destination"):
-            reduce_trace(trace(nomination))
+            reduce_trace(trace(nomination, cmd="nominate_successor,0"))
 
     def test_shuffle_commands_are_unsupported(self):
         for command in ("shuffle_one,0", "shuffle_all"):
