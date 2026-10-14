@@ -5,6 +5,9 @@ on:
     paths:
       - "tla/**"
       - "src/consensus/aft/raft.h"
+      - "src/consensus/aft/test/**"
+      - "tests/raft_scenarios/**"
+      - "tests/raft_scenarios_runner.py"
       - ".github/workflows/tla-shallow.yml"
 
 concurrency:
