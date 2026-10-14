@@ -1539,6 +1539,49 @@ def escaped_query_tests(c, endpoint):
         assert r.body.data() == "&".join(raw).encode(), r.body.data()
 
 
+@reqs.description("Testing chunked POSTs to the primary")
+@reqs.supports_methods("/app/log/private")
+@app.scoped_txs()
+def test_chunked_requests(network, args):
+    primary, _ = network.find_primary()
+    path = f"/app/log/private?scope={network.txs.scope}"
+    log_id = 0
+    msg = "Chunked message\r\nwith a null: \x00 and Unicode: \u2603"
+    body = json.dumps({"id": log_id, "msg": msg}).encode()
+    chunks = (body[:1], body[1:16], body[16:31], body[31:])
+    encoded_body = (
+        b"".join(f"{len(chunk):x}\r\n".encode() + chunk + b"\r\n" for chunk in chunks)
+        + b"0\r\n\r\n"
+    )
+
+    with primary.client("user0", impl_type=infra.clients.RawSocketClient) as c:
+        sock = c.client_impl.socket
+        sock.settimeout(infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC)
+        # Send the wire body directly, without an automatic Content-Length.
+        infra.clients.RawSocketClient._send_request(
+            ssl_socket=sock,
+            verb="POST",
+            path=path,
+            headers={
+                "host": primary.get_public_rpc_address(),
+                "transfer-encoding": "chunked",
+                "content-type": "application/json",
+            },
+            content=encoded_body,
+        )
+        r = infra.clients.Response.from_socket(sock)
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() is True, r.body.json()
+
+    with primary.client("user0") as c:
+        c.wait_for_commit(r)
+        r = c.get(f"{path}&id={log_id}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() == {"msg": msg}, r.body.json()
+
+    return network
+
+
 @reqs.description("Test user-data used for access permissions")
 @reqs.supports_methods("/app/log/private/admin_only")
 def test_user_data_ACL(network, args):
