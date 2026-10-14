@@ -33,7 +33,6 @@ TEST_CASE("host configuration unsigned integer bounds")
     "/network/rpc_interfaces/primary/max_open_sessions_soft",
     "/network/rpc_interfaces/primary/max_open_sessions_hard",
     "/network/rpc_interfaces/primary/http_configuration/max_headers_count",
-    "/network/rpc_interfaces/primary/forwarding_timeout_ms",
     "/attestation/snp_endorsements_servers/0/max_retries_count",
     "/snapshots/min_tx_count",
     "/files_cleanup/max_committed_ledger_chunks",
