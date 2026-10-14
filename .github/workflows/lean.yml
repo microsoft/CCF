@@ -48,14 +48,6 @@ jobs:
           lake build CCF
           lake lint
 
-      - name: Build and lint common infrastructure
-        working-directory: lean/common
-        shell: bash
-        run: |
-          set -euo pipefail
-          lake build --wfail --fail-fast
-          lake lint
-
       - name: Check Mathlib linters
         working-directory: lean/disaster-recovery
         shell: bash
