@@ -42,7 +42,7 @@ assert_commit_idx,0,8
 assert_detail,0,leadership_state,None
 assert_detail,0,retirement_phase,RetiredCommitted
 
-# Equal progress and membership nominate node 2, which becomes leader.
+# 2 becomes leader
 assert_detail,2,leadership_state,Leader
 emit_signature,3
 periodic_all,10
