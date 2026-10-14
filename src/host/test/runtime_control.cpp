@@ -7,6 +7,7 @@
 #include "node/commit_callback_subsystem.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <csignal>
 #include <doctest/doctest.h>
 
 TEST_CASE("Runtime control" * doctest::test_suite("runtime_control"))
@@ -52,42 +53,40 @@ TEST_CASE("Runtime control" * doctest::test_suite("runtime_control"))
   uv_run(uv_default_loop(), UV_RUN_NOWAIT);
 }
 
-TEST_CASE("Shutdown signals use their runtime's callbacks")
+TEST_CASE("Shutdown signals received before the loop are delivered on the loop")
 {
   size_t stops = 0;
   size_t notices = 0;
   const auto request_node_shutdown = [&]() { ++stops; };
   const auto notify_node_stopping = [&]() { ++notices; };
+  int signum = SIGTERM;
+  bool ignore_first_sigterm = false;
 
-  SUBCASE("SIGTERM requests a stop")
-  {
-    asynchost::ShutdownSignalImpl signal(
-      false, request_node_shutdown, notify_node_stopping);
-    signal.on_signal(SIGTERM);
-    CHECK(stops == 1);
-    CHECK(notices == 0);
-  }
+  SUBCASE("SIGTERM requests a stop") {}
 
-  SUBCASE("Ignored first SIGTERM delivers a notice, then stops")
+  SUBCASE("Ignored first SIGTERM delivers a notice without stopping")
   {
-    asynchost::ShutdownSignalImpl signal(
-      true, request_node_shutdown, notify_node_stopping);
-    signal.on_signal(SIGTERM);
-    CHECK(stops == 0);
-    CHECK(notices == 1);
-    signal.on_signal(SIGTERM);
-    CHECK(stops == 1);
-    CHECK(notices == 1);
+    ignore_first_sigterm = true;
   }
 
   SUBCASE("SIGHUP requests a stop independently")
   {
-    asynchost::ShutdownSignalImpl signal(
-      false, request_node_shutdown, notify_node_stopping);
-    signal.on_signal(SIGHUP);
-    CHECK(stops == 1);
-    CHECK(notices == 0);
+    signum = SIGHUP;
   }
+
+  {
+    asynchost::Sigterm sigterm(
+      ignore_first_sigterm, request_node_shutdown, notify_node_stopping);
+    asynchost::Sighup sighup(
+      false, request_node_shutdown, notify_node_stopping);
+    REQUIRE(std::raise(signum) == 0);
+    CHECK(stops == 0);
+    CHECK(notices == 0);
+    uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+    CHECK(stops == (ignore_first_sigterm ? 0 : 1));
+    CHECK(notices == (ignore_first_sigterm ? 1 : 0));
+  }
+  uv_run(uv_default_loop(), UV_RUN_NOWAIT);
 }
 
 TEST_CASE("Shutdown releases pending commit callbacks without invoking them")

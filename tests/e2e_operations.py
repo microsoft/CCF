@@ -1977,7 +1977,7 @@ def run_runtime_lifecycle_checks(args):
         if infra.platform_detection.is_snp():
             env.update(snp.get_aci_env())
 
-        for failure in ("bind", "output", "pending_join"):
+        for failure in ("bind", "output", "pending_join", "startup_signal"):
             with tempfile.TemporaryDirectory(dir=root) as temp:
                 temp = pathlib.Path(temp).resolve()
                 config = copy.deepcopy(original_config)
@@ -1996,6 +1996,11 @@ def run_runtime_lifecycle_checks(args):
                         )
                     elif failure == "output":
                         config["output_files"]["node_certificate_file"] = str(temp)
+                    elif failure == "startup_signal":
+                        os.mkfifo(temp / "certificate")
+                        config["output_files"]["node_certificate_file"] = str(
+                            temp / "certificate"
+                        )
                     else:
                         blocker.bind(("127.0.0.1", 0))
                         blocker.listen()
@@ -2014,9 +2019,7 @@ def run_runtime_lifecycle_checks(args):
                         "--log-level",
                         "Trace",
                     ]
-                    if failure == "pending_join":
-                        # Accept TCP but never complete TLS: the curl join
-                        # callback must be cancelled before NodeState is freed.
+                    if failure in ("pending_join", "startup_signal"):
                         with (
                             open(temp / "out", "w+", encoding="utf-8") as out,
                             subprocess.Popen(
@@ -2028,10 +2031,32 @@ def run_runtime_lifecycle_checks(args):
                             ) as proc,
                         ):
                             try:
-                                connection, _ = blocker.accept()
-                                with connection:
+                                if failure == "pending_join":
+                                    # Leave TLS incomplete to exercise curl
+                                    # cancellation while NodeState is alive.
+                                    connection, _ = blocker.accept()
+                                    with connection:
+                                        proc.send_signal(signal.SIGTERM)
+                                        assert proc.wait(timeout=30) == 0
+                                else:
+                                    # FIFO output holds startup before uv_run.
+                                    # Release it only after sending the signal.
+                                    deadline = time.monotonic() + 30
+                                    while "Created new node" not in (
+                                        temp / "out"
+                                    ).read_text(encoding="utf-8"):
+                                        assert proc.poll() is None
+                                        assert time.monotonic() < deadline
+                                        time.sleep(0.01)
                                     proc.send_signal(signal.SIGTERM)
-                                    assert proc.wait(timeout=30) == 0
+                                    with os.fdopen(
+                                        os.open(
+                                            temp / "certificate",
+                                            os.O_RDONLY | os.O_NONBLOCK,
+                                        ),
+                                        "rb",
+                                    ):
+                                        assert proc.wait(timeout=30) == 0
                             finally:
                                 if proc.poll() is None:
                                     proc.kill()

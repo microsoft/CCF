@@ -290,6 +290,28 @@ namespace ccf
     };
     asynchost::RuntimeControl runtime_control(request_enclave_stop);
 
+    // Register before startup, but libuv delivers signals only when the loop
+    // runs. This preserves signals received during initialization.
+    const auto request_node_shutdown = [&request_enclave_stop]() {
+      if (!request_enclave_stop())
+      {
+        LOG_FAIL_FMT("Cannot request node shutdown before it has been created");
+      }
+    };
+    const auto notify_node_stopping = [&enclave]() {
+      if (enclave == nullptr)
+      {
+        LOG_FAIL_FMT(
+          "Cannot notify node of stopping before it has been created");
+        return;
+      }
+      enclave->request_stop_notice();
+    };
+    asynchost::Sigterm sigterm(
+      config.ignore_first_sigterm, request_node_shutdown, notify_node_stopping);
+    asynchost::Sighup sighup(
+      false, request_node_shutdown, notify_node_stopping);
+
     // reset the inbound-TCP processing quota each iteration
     const asynchost::ResetTCPReadQuota reset_tcp_quota;
 
@@ -457,8 +479,12 @@ namespace ccf
       std::unique_ptr<Enclave>& enclave;
       asynchost::NodeConnections& transport;
       std::optional<http_client::CurlmLibuvContextSingleton>& curl_context;
+      asynchost::Sigterm& sigterm;
+      asynchost::Sighup& sighup;
       ~RuntimeCleanup()
       {
+        sigterm = nullptr;
+        sighup = nullptr;
         // Curl cancellation invokes callbacks borrowing NodeState.
         if (enclave != nullptr)
         {
@@ -468,7 +494,7 @@ namespace ccf
         enclave.reset();
         transport.shutdown();
       }
-    } cleanup{enclave, *node, curl_libuv_context};
+    } cleanup{enclave, *node, curl_libuv_context, sigterm, sighup};
 
     auto failure_status = CreateNodeStatus::EnclaveInitFailed;
     try
@@ -494,16 +520,6 @@ namespace ccf
       return failure_status;
     }
 
-    const auto request_node_shutdown = [&enclave]() {
-      enclave->request_stop();
-    };
-    const auto notify_node_stopping = [&enclave]() {
-      enclave->request_stop_notice();
-    };
-    asynchost::Sigterm sigterm(
-      config.ignore_first_sigterm, request_node_shutdown, notify_node_stopping);
-    asynchost::Sighup sighup(
-      false, request_node_shutdown, notify_node_stopping);
     run_enclave_threads(config, *enclave);
     runtime_control->throw_if_fatal_error();
 
