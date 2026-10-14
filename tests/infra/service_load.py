@@ -238,7 +238,7 @@ class ServiceLoad(infra.concurrency.StoppableThread):
             self.client.stop()
         LOG.info("Service load stopped")
 
-    def run(self):
+    def _run(self):
         log_capture = None if self.verbose else []
         primary, backups = self.network.find_nodes(timeout=10, log_capture=log_capture)
         known_nodes = [primary] + backups

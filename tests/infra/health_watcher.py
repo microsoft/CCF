@@ -123,7 +123,7 @@ class NetworkHealthWatcher(infra.concurrency.StoppableThread):
             )
         LOG.info("Recovery successfully detected")
 
-    def run(self):
+    def _run(self):
         """
         Monitor the health of the network. If the network is not stable for more than
         a specific period (election_timeout * election_timeout_factor), the health

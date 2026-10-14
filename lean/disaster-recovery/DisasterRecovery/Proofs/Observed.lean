@@ -140,13 +140,13 @@ lemma notification_opening_state {config : Model.Config} {trace : Properties.Glo
         after ∈ trace.states
         /\ (node, current) ∈ after.nodes
         /\ current.openKind = some kind := by
-  obtain ⟨before, after, action, nodeBefore, nodeAfter, execute, outputs,
-    _, atAfter, _, _, _, foundAfter, enabled, run, notified⟩ := notification
+  obtain ⟨before, after, action, nodeBefore, nodeAfter, outputs,
+    _, atAfter, _, _, _, foundAfter, enabled, notified⟩ := notification
   simp [Model.protocol, Option.bind_eq_some_iff] at enabled
   obtain ⟨recovered, _, enabled⟩ := enabled
   have erased := Lifting.step_erases config.protocol recovered nodeBefore (source := node)
     (Properties.Trace.event action) { state := nodeAfter, effects := outputs.notifications }
-    (by simp [enabled, run, Lifting.capture])
+    (by simp [enabled, Lifting.capture])
   have stateEq := congrArg Lifting.Result.state erased
   have notifications := congrArg Lifting.Result.effects erased
   change (step config.protocol nodeBefore (Properties.Trace.event action)).state = nodeAfter at stateEq
