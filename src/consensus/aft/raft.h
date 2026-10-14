@@ -2445,17 +2445,23 @@ namespace aft
         switch (state->leadership_state.load())
         {
           case ccf::kv::LeadershipState::PreVoteCandidate:
+          {
             become_candidate();
             break;
+          }
           case ccf::kv::LeadershipState::Candidate:
+          {
             become_leader();
             break;
+          }
           case ccf::kv::LeadershipState::None:
           case ccf::kv::LeadershipState::Leader:
           case ccf::kv::LeadershipState::Follower:
+          {
             throw std::logic_error(
               "add_vote_for_me() called while not a pre-vote candidate or "
               "candidate");
+          }
         }
       }
     }
