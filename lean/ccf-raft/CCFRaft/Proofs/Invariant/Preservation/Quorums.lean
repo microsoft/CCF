@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joined joinedNext : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -392,7 +393,7 @@ lemma potentialElectionVoterTermBound
   · exact effectiveElectionVoterTermBound snapshots active effective
   · simpa [
       currentlyEligibleElectionVoter,
-      voteRequestKey, Model.Local.makeRequestVoteRequest
+      voteRequestKey, Model.Node.makeRequestVoteRequest
     ] using eligible.1.le
 
 /-- A reserved peer has not advanced beyond the request source term. -/
@@ -2886,7 +2887,7 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
                         ((nodeOf state) candidate).currentTerm := by
                     simpa [
                       currentlyEligibleElectionVoter,
-                      voteRequestKey, Model.Local.makeRequestVoteRequest
+                      voteRequestKey, Model.Node.makeRequestVoteRequest
                     ] using eligible.1.symm
                   simpa [voterTerm] using bad))
       have candidateEntrySafe :
@@ -2928,7 +2929,7 @@ lemma potentialPrefixInHigherCandidateOfSharedConfiguration
             candidateEntrySafe
       · simpa [
           currentlyEligibleElectionVoter,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           lastCommittableIndex_eq_maxCommittableIndex
             ((nodeOf state) candidate) (committedSignature candidate),
           lastCommittableTerm_eq_maxCommittableTerm
@@ -3080,9 +3081,9 @@ lemma prospectiveKnownEffectiveWinnerCompletenessOfSharedAuthority
     · refine ⟨joined, Or.inr ?_⟩
       unfold currentlyEligibleElectionVoter at eligible
       exact ⟨
-        by simpa [voteRequestKey, Model.Local.makeRequestVoteRequest] using eligible.1.symm.le,
+        by simpa [voteRequestKey, Model.Node.makeRequestVoteRequest] using eligible.1.symm.le,
         by
-          simpa [voteRequestKey, Model.Local.makeRequestVoteRequest, voteLogUpToDate] using eligible.2.1
+          simpa [voteRequestKey, Model.Node.makeRequestVoteRequest, voteLogUpToDate] using eligible.2.1
       ⟩
   exact (validEvidenceSupportedPrefixFrontier valid).trans
     (prospectiveFacts.relaxedSupporterCarriesFrontier

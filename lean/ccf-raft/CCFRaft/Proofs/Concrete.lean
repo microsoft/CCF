@@ -17,7 +17,7 @@ namespace CCFRaft.Proofs.Concrete
 open CCFRaft.Proofs.Config
 
 open Shared Shared.MultiNodeTransitionSystem
-open Model.Local (NodeState InitialConfig)
+open Model.Node (NodeState InitialConfig)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]
@@ -28,24 +28,16 @@ def replaceNode (nodes : List (Node × NodeState Node TxId)) (node : Node)
     : List (Node × NodeState Node TxId) :=
   nodes.map fun entry => if entry.1 == node then (node, value) else entry
 
-/-- The state a local input runs on: only a nomination keeps the one-shot
-retirement nomination permission. -/
-def inputState (input : Model.Local.Input Node TxId) (state : NodeState Node TxId)
-    : NodeState Node TxId :=
-  match input with
-  | .nominateSuccessor _ => state
-  | _ => { state with pendingRetirementNomination := none }
-
 theorem step_local
     {nodes : List Node} {before after : Model.State Node TxId}
-    {node : Node} {input : Model.Local.Input Node TxId}
+    {node : Node} {input : Model.Node.Input Node TxId}
     (stepped
       : (Model.transitionSystem (inferInstance) nodes).step before (.local node input)
         = some after)
     : exists state next outputs,
         nodeState before node = some state
-        /\ (Model.Local.act (inferInstance) (Capabilities.record node) node
-              (inputState input state) input).run
+        /\ (Model.Node.act (inferInstance) (Capabilities.record node) node
+              state input).run
               {}
             = some (next, outputs)
         /\ after
@@ -55,10 +47,10 @@ theorem step_local
                 network := before.network ++ outputs.outgoing
             } := by
   simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
-  simp [Model.Local.step, guard, Option.bind_eq_some_iff] at stepped
+  simp [Model.Node.step, guard, Option.bind_eq_some_iff] at stepped
   obtain ⟨_, state, found, next, outputs, ran, rfl⟩ := stepped
   refine ⟨state, next, outputs, found, ?_, by simp [replaceNode]⟩
-  cases input <;> exact ran
+  exact ran
 
 theorem step_deliver
     {nodes : List Node} {before after : Model.State Node TxId}
@@ -69,8 +61,8 @@ theorem step_deliver
     : envelope ∈ before.network
       /\ exists state next outputs,
           nodeState before envelope.target = some state
-          /\ (Model.Local.receive (inferInstance) (Capabilities.record envelope.target)
-                envelope.target envelope.source { state with pendingRetirementNomination := none }
+          /\ (Model.Node.receive (inferInstance) (Capabilities.record envelope.target)
+                envelope.target envelope.source state
                 envelope.payload).run
                 {}
               = some (next, outputs)
@@ -81,7 +73,7 @@ theorem step_deliver
                   network := removeOne envelope before.network ++ outputs.outgoing
               } := by
   simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
-  simp [Model.Local.step, guard, Option.bind_eq_some_iff] at stepped
+  simp [Model.Node.step, guard, Option.bind_eq_some_iff] at stepped
   obtain ⟨queued, _, state, found, next, outputs, ran, rfl⟩ := stepped
   exact ⟨queued, state, next, outputs, found, ran, by simp [replaceNode]⟩
 
@@ -118,33 +110,33 @@ theorem mem_of_nodeState {concrete : Model.State Node TxId} {node : Node}
   exact List.mem_of_find?_eq_some located
 
 theorem observeTerm_log (state : NodeState Node TxId)
-    (message : Model.Local.Message Node TxId)
-    : (Model.Local.observeTerm state message).log = state.log := by
-  unfold Model.Local.observeTerm Model.Local.updateTerm
+    (message : Model.Node.Message Node TxId)
+    : (Model.Node.observeTerm state message).log = state.log := by
+  unfold Model.Node.observeTerm Model.Node.updateTerm
   split <;> (try split) <;> (try split) <;> rfl
 
 theorem observeTerm_commitIndex (state : NodeState Node TxId)
-    (message : Model.Local.Message Node TxId)
-    : (Model.Local.observeTerm state message).commitIndex = state.commitIndex := by
-  unfold Model.Local.observeTerm Model.Local.updateTerm
+    (message : Model.Node.Message Node TxId)
+    : (Model.Node.observeTerm state message).commitIndex = state.commitIndex := by
+  unfold Model.Node.observeTerm Model.Node.updateTerm
   split <;> (try split) <;> (try split) <;> rfl
 
 theorem updateTerm_bounded (state : NodeState Node TxId) (term : Nat)
-    : term <= (Model.Local.updateTerm state term).currentTerm := by
-  unfold Model.Local.updateTerm
+    : term <= (Model.Node.updateTerm state term).currentTerm := by
+  unfold Model.Node.updateTerm
   split_ifs with newer
   · exact Nat.le_refl _
   · omega
 
 theorem handleRequestVoteRequest_log (state : NodeState Node TxId) (source : Node)
-    (request : Model.Local.RequestVoteRequest)
+    (request : Model.Node.RequestVoteRequest)
     {self : Node} {after : NodeState Node TxId}
-    {outputs : Outputs Node (Model.Local.Message Node TxId) Model.Local.Notification}
-    (ran : (Model.Local.handleRequestVoteRequest (Capabilities.record self)
+    {outputs : Outputs Node (Model.Node.Message Node TxId) Model.Node.Notification}
+    (ran : (Model.Node.handleRequestVoteRequest (Capabilities.record self)
       state source request).run {} = some (after, outputs))
     : after.log = state.log /\ after.commitIndex = state.commitIndex := by
   let grant : Bool := decide (request.term = state.currentTerm
-    /\ Model.Local.voteLogUpToDate state request /\ !state.leaderKnown
+    /\ Model.Node.voteLogUpToDate state request /\ !state.leaderKnown
     /\ (state.votedFor = none \/ state.votedFor = some source))
   change some ((if grant then { state with votedFor := some source } else state), _) =
     some (after, outputs) at ran

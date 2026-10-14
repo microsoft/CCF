@@ -12,12 +12,13 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 @[concrete_effects]
 def initializeConfigurationEffect (state : Model.State Node TxId) (node : Node)
@@ -83,7 +84,7 @@ def appendRetiredCommittedEffect (state : Model.State Node TxId) (node : Node)
     : Model.State Node TxId :=
   let nodeState := (nodeOf state) node
   let pending :=
-    (nodeOf state node).retirementCompleted (inferInstance)
+    (nodeOf state node).retirementCompletedNodes (inferInstance)
     \ retiredCommittedNodes (nodeOf state node).log
   let entry : Entry Node TxId :=
     {

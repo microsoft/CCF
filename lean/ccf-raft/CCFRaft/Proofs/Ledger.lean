@@ -12,7 +12,7 @@ namespace CCFRaft.Proofs.Ledger
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId]
@@ -340,7 +340,7 @@ lemma foldl_current_index (commitIndex : Nat) (configurations : List (Configurat
 
 @[simp]
 lemma activeConfigurations_eq (config : InitialConfig Node) (state : NodeState Node TxId)
-    : Model.Local.activeConfigurations config state.log state.commitIndex
+    : Model.Node.activeConfigurations config state.log state.commitIndex
       = activeConfigurationsOf config state := by
   rfl
 
@@ -354,19 +354,17 @@ lemma NodeState.activeConfigurations_eq (config : InitialConfig Node)
 lemma NodeState.activeMembers_eq (config : InitialConfig Node)
     (state : NodeState Node TxId)
     : state.activeMembers config = activeNodeUnion config state := by
-  simp [Model.Local.NodeState.activeMembers, activeNodeUnion, configurationMembers]
-
-variable [InitialConfig Node]
+  simp [Model.Node.NodeState.activeMembers, activeNodeUnion, configurationMembers]
 
 @[simp]
-lemma refreshRetirementState_log (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState (inferInstance) node state).log = state.log := by
-  simp [refreshRetirementState]
+lemma NodeState.commitThrough_log (node : Node) (state : NodeState Node TxId) (index : Nat)
+    : (state.commitThrough node index).log = state.log :=
+  rfl
 
 @[simp]
-lemma refreshRetirementState_commitIndex (node : Node) (state : NodeState Node TxId)
-    : (refreshRetirementState (inferInstance) node state).commitIndex
-      = state.commitIndex := by
-  simp [refreshRetirementState]
+lemma NodeState.commitThrough_commitIndex (node : Node) (state : NodeState Node TxId)
+    (index : Nat)
+    : (state.commitThrough node index).commitIndex = index :=
+  rfl
 
 end CCFRaft.Proofs.Ledger

@@ -13,7 +13,7 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}

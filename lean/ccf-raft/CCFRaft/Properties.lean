@@ -6,13 +6,13 @@ import CCFRaft.Properties.Utils
 /-!
 Each claim quantifies every node and transaction identifier type, every
 explicit `InitialConfig` value, every node list, and every valid trace of
-`Model.transitionSystem`. Each has a `Witness` claim: some valid trace
-satisfies its premises.
+`Model.transitionSystem`. Each has a `Witness` claim exhibiting a nontrivial
+valid execution relevant to the property.
 -/
 
 namespace CCFRaft.Properties
 
-open Model.Local
+open Model.Node
 
 /-- No two distinct nodes lead in the same term. -/
 def ElectionSafety : Prop :=

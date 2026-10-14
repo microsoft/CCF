@@ -5,7 +5,7 @@ import CCFRaft.Replay
 import CCFRaft.Tests.AppendTransactions
 import Mathlib.Data.Fintype.Basic
 
-open CCFRaft CCFRaft.Model.Local
+open CCFRaft CCFRaft.Model.Node
 open CCFRaft.Shared.MultiNodeTransitionSystem (nodeState)
 
 private abbrev Node := Fin 15
@@ -94,7 +94,7 @@ private def configurationQueries : IO Unit := do
       ] do
     let state : NodeState Node Nat :=
       { (initialNodeState initialConfig 0 : NodeState Node Nat) with log, commitIndex }
-    check (state.retirementCompleted initialConfig == expected)
+    check (state.retirementCompletedNodes initialConfig == expected)
       s!"wrong completed retirements at commit index {commitIndex}"
   let rejoined :=
     log ++ [{ term := 1, content := .transaction 104 [.reconfiguration {0, 1, 5}] }]
@@ -106,7 +106,7 @@ private def configurationQueries : IO Unit := do
         log := rejoined
         commitIndex := 8
     }
-  check (rejoinedState.retirementCompleted initialConfig == {2, 3, 4})
+  check (rejoinedState.retirementCompletedNodes initialConfig == {2, 3, 4})
     "current members must not appear among completed retirements"
   -- Effects of one transaction share its index and keep their order.
   let combined : List (Entry Node Nat) :=
@@ -185,22 +185,33 @@ private def retirementQueries : IO Unit := do
         (7, 7, .retiredCommitted)
       ] do
     let state :=
-      refreshRetirementState initialConfig (0 : Node)
+      NodeState.commitThrough (0 : Node)
         {
           (initialNodeState initialConfig 0 : NodeState Node Nat) with
             log := log.take length
             commitIndex
-        }
-    check (state.membershipState == phase)
+        } commitIndex
+    let retirement := state.retirement initialConfig (0 : Node)
+    check (retirement.phase == phase)
       s!"wrong retirement phase at length {length}, commit {commitIndex}"
-    check (state.retirementIndex == if length < 2 then none else some 2)
+    check (retirement.index == if length < 2 then none else some 2)
       "retirement metadata must use the first membership removal"
-    check (state.retirementCommittableIndex == if length < 4 then none else some 4)
+    check (retirement.committableIndex == if length < 4 then none else some 4)
       "the signature before removal must not make retirement committable"
     check (state.retiredCommittedIndex == if commitIndex < 5 then none else some 7)
       "uncommitted records must not set the retirement commit frontier"
   let rejoined :=
     log ++ [{ term := 1, content := .transaction 106 [.reconfiguration {0, 1}] }]
+  let signed : NodeState Node Nat :=
+    { (initialNodeState initialConfig 0 : NodeState Node Nat) with log := log.take 4 }
+  check ((signed.retirement initialConfig 0).phase == .retirementSigned)
+    "a signature after removal must make retirement signed"
+  let rolledBack := { signed with log := signed.log.take 2 }
+  check ((rolledBack.retirement initialConfig 0).phase == .retirementOrdered)
+    "rolling back the signature must immediately restore ordered retirement"
+  let rolledBack := { rolledBack with log := rolledBack.log.take 1 }
+  check ((rolledBack.retirement initialConfig 0).phase == .active)
+    "rolling back removal must immediately restore active membership"
   check (retirementIndexInLog initialConfig (0 : Node) rejoined == some 2)
     "rejoining must preserve the first retirement index"
   check (retirementIndexInLog initialConfig (5 : Node) rejoined == some 9)
@@ -284,7 +295,7 @@ private def bootstrapAndNoMatchingPrefixTerms : IO Unit := do
   check (after.currentTerm == BOOTSTRAP_TERM && after.log == follower.log)
     "no matching prefix NACK must preserve the follower's term and log"
 
-private def nominationPermissions : IO Unit := do
+private def nominationSelection : IO Unit := do
   let leader : Node := 0
   let caps :=
     Shared.Capabilities.record (Message := Message Node Nat)
@@ -307,57 +318,103 @@ private def nominationPermissions : IO Unit := do
           ]
         matchIndex := fun _ => 4
     }
-  let nominate state destination :=
-    (step initialConfig caps leader state
-      (.internal (.nominateSuccessor destination))).run
-      {}
-  -- Eligible destinations are not ranked by progress.
-  let uneven := { before with matchIndex := Function.update before.matchIndex 1 0 }
-  check (nominate uneven 1).isSome
-    "a leader must be allowed to nominate an eligible peer with lower replication progress"
-  check (nominate before leader).isNone "self nomination must be disabled"
-  check (nominate before 5).isNone "nomination of an ineligible peer must be disabled"
-  check (nominate { before with role := .follower } 1).isNone
-    "a follower must not nominate"
-  let some (retired, effects) := (advanceCommit initialConfig caps before leader).run {}
-  | throw (IO.userError "retirement commit must be enabled")
-  check
-    (retired.commitIndex == 4
-      && retired.role == .none
-      && retired.membershipState == .retiredCommitted)
-    "retirement commit must still clear leadership and advance the commit frontier"
-  check effects.outgoing.isEmpty "retirement commit must not send an implicit nomination"
-  check (!decide ((3 : Node) ∈ eligiblePeers initialConfig retired leader))
-    "retirement must prune the old peer before the nomination event"
-  check (retired.pendingRetirementNomination == some (BOOTSTRAP_TERM, {1, 2, 3, 4}))
-    "retirement must capture the old eligible-peer view and term"
-  let some (nominated, outputs) := nominate retired 3
-  | throw
-      (IO.userError "outgoing retiring leader must nominate using its precommit peers")
+  let nominate state :=
+    (step initialConfig caps leader state (.internal .nominateSuccessor)).run {}
+  check (findSuccessor initialConfig before leader == some 2)
+    "latest active membership must outrank a larger node ID; full ties choose the highest ID"
+  let ahead := { before with matchIndex := Function.update before.matchIndex 4 8 }
+  check (findSuccessor initialConfig ahead leader == some 4)
+    "replication progress must outrank configuration membership"
+  check (nominate { before with role := .follower }).isNone "a follower must not nominate"
+  let some (nominated, outputs) := nominate ahead
+  | throw (IO.userError "leader nomination must be enabled")
+  check (nominated.log == ahead.log && nominated.commitIndex == ahead.commitIndex)
+    "standalone nomination must preserve the leader's ledger state"
   check (outputs.outgoing.length == 1)
-    "an explicit retirement nomination must send exactly one packet"
+    "a leader nomination must send exactly one packet when an eligible peer exists"
   let some envelope := outputs.outgoing.head?
   | throw (IO.userError "nomination packet is missing")
   check
     (envelope.source == leader
-      && envelope.target == 3
+      && envelope.target == 4
       && envelope.payload == .proposeVoteRequest BOOTSTRAP_TERM)
-    "retirement nomination must use the selected destination and captured term"
-  check nominated.pendingRetirementNomination.isNone
-    "retirement nomination must consume the pending permission"
-  check (nominate nominated 1).isNone
-    "a retired node must not reuse nomination permission"
-  check (nominate { retired with pendingRetirementNomination := none } 1).isNone
-    "arbitrary retired nonleaders must not nominate"
-  check (nominate retired leader).isNone
-    "pending retirement permission must not allow self nomination"
-  check (nominate retired 5).isNone
-    "pending retirement permission must reject destinations outside the captured peers"
-  let some (expired, _) :=
-    (step initialConfig caps leader retired (.receive 1 (.proposeVoteRequest 0))).run {}
-  | throw (IO.userError "an ignored proposal must remain enabled")
-  check (nominate expired 1).isNone
-    "another local event must expire retirement nomination permission"
+    "standalone nomination must use the internally selected destination and current term"
+  let some (retired, effects) := (advanceCommit initialConfig caps ahead leader).run {}
+  | throw (IO.userError "retirement commit must be enabled")
+  check
+    (retired.commitIndex == 4
+      && retired.role == .none
+      && (retired.retirement initialConfig leader).phase == .retiredCommitted)
+    "retirement commit must still clear leadership and advance the commit frontier"
+  check (!decide ((4 : Node) ∈ eligiblePeers initialConfig retired leader))
+    "retirement must prune the old peer after the atomic nomination"
+  check (effects.outgoing.length == 1)
+    "retirement commit must send exactly one nested nomination"
+  let some envelope := effects.outgoing.head?
+  | throw (IO.userError "retirement nomination packet is missing")
+  check
+    (envelope.source == leader
+      && envelope.target == 4
+      && envelope.payload == .proposeVoteRequest BOOTSTRAP_TERM)
+    "retirement nomination must use the precommit peer view and term"
+  check (nominate retired).isNone "retired nonleaders must not nominate after commit"
+  let solo : InitialConfig Node :=
+    { configuration := {leader}, leader, leader_mem := by simp }
+  let alone : NodeState Node Nat := initialNodeState solo leader
+  check (findSuccessor solo alone leader == none)
+    "a node must not nominate itself when no eligible peer exists"
+  let some (_, soloEffects) :=
+    (step solo caps leader alone (.internal .nominateSuccessor)).run {}
+  | throw (IO.userError "a lone leader nomination must be an enabled no-op")
+  check soloEffects.outgoing.isEmpty "a lone leader must not send a nomination"
+  let stringConfig : InitialConfig String :=
+    {
+      configuration := {"leader", "10", "2"}, leader := "leader", leader_mem := by decide
+    }
+  let strings : NodeState String Nat := initialNodeState stringConfig "leader"
+  check (findSuccessor stringConfig strings "leader" == some "2")
+    "trace node IDs must use lexical String order, not numeric order"
+
+private def appendCommitTriggers : IO Unit := do
+  let leader : Node := 0
+  let caps :=
+    Shared.Capabilities.record (Message := Message Node Nat)
+      (Notification := Notification) leader
+  let committed : NodeState Node Nat :=
+    {
+      (initialNodeState initialConfig leader : NodeState Node Nat) with
+        log :=
+          [
+            { term := BOOTSTRAP_TERM, content := .transaction 301 [] },
+            { term := BOOTSTRAP_TERM, content := .signature }
+          ]
+        commitIndex := 2
+        matchIndex := fun _ => 2
+    }
+  let some (appended, _) :=
+    (appendBatch initialConfig caps leader committed [.signature]).run {}
+  | throw (IO.userError "multinode append must be enabled")
+  check (appended.log.length == 3 && appended.commitIndex == 2)
+    "previous acknowledgements must not commit a newly appended signature"
+  let some (acknowledged, _) :=
+    (handleAppendEntriesResponse initialConfig caps leader appended 1
+      { term := BOOTSTRAP_TERM, success := true, lastLogIndex := 3 }).run
+      {}
+  | throw (IO.userError "first acknowledgement must be enabled")
+  check (acknowledged.commitIndex == 2)
+    "one other acknowledgement must not commit without the five-node majority"
+  let some (quorum, _) :=
+    (handleAppendEntriesResponse initialConfig caps leader acknowledged 2
+      { term := BOOTSTRAP_TERM, success := true, lastLogIndex := 3 }).run
+      {}
+  | throw (IO.userError "quorum acknowledgement must be enabled")
+  check (quorum.commitIndex == 3)
+    "the current-term signature must commit when its acknowledgements reach a quorum"
+  let stale := { appended with matchIndex := fun _ => 3, role := .candidate }
+  let some (promoted, _) := (becomeLeader initialConfig caps leader stale).run {}
+  | throw (IO.userError "leader promotion must be enabled")
+  check (promoted.commitIndex == 2 && promoted.matchIndex 1 == 0)
+    "promotion must reset stale peer progress before attempting commit"
 
 private def nominationTerms : IO Unit := do
   let source : Node := ⟨0, by decide⟩
@@ -890,7 +947,6 @@ private def terminalRetirementRole : IO Unit := do
         r#"{"kind":"action","action":"receive","source":"alpha","destination":"beta"}"#,
         r#"{"kind":"action","action":"receive","source":"beta","destination":"alpha"}"#,
         r#"{"kind":"observation","observation":"state","node":"alpha","fields":{"role":"none","membershipState":"retiredCommitted","currentTerm":2,"commitIndex":6,"retiredCommittedIndex":6}}"#,
-        r#"{"kind":"action","action":"nominateSuccessor","node":"alpha","destination":"beta"}"#,
         r#"{"kind":"observation","observation":"message","source":"alpha","destination":"beta","packet":{"msg":"raft_propose_request_vote","term":2}}"#,
         r#"{"kind":"action","action":"receive","source":"alpha","destination":"beta"}"#,
         r#"{"kind":"observation","observation":"state","node":"beta","fields":{"role":"leader","currentTerm":3}}"#
@@ -900,7 +956,7 @@ private def terminalRetirementRole : IO Unit := do
       r#"{"configuration":["alpha"],"leader":"alpha","pre_vote_enabled":{"alpha":false,"beta":false}}"#
   match CCFRaft.Replay.replay (document.setObjVal! "bootstrap" bootstrap) with
   | .ok result =>
-      check (result.instructions == 23) "incomplete terminal retirement replay"
+      check (result.instructions == 22) "incomplete terminal retirement replay"
   | .error error => throw (IO.userError error)
 
 private def retirementCommitFrontiers : IO Unit := do
@@ -920,23 +976,20 @@ private def retirementCommitFrontiers : IO Unit := do
       { term := 1, content := .signature }
     ]
   let before : NodeState Node Nat :=
-    refreshRetirementState initialConfig node
-      {
-        (initialNodeState initialConfig node : NodeState Node Nat) with
-          role := .follower
-          currentTerm := 1
-          log := log.take 5
-          commitIndex := 4
-      }
+    {
+      (initialNodeState initialConfig node : NodeState Node Nat) with
+        role := .follower
+        currentTerm := 1
+        log := log.take 5
+        commitIndex := 4
+    }
   check (before.retiredCommittedIndex.isNone)
     "an uncommitted retirement marker must not set the commit frontier"
   let jumped :=
-    refreshRetirementState initialConfig node
-      { before with log := log.take 8, commitIndex := 8 }
+    ({ before with log := log.take 8 } : NodeState Node Nat).commitThrough node 8
   check (jumped.retiredCommittedIndex == some 8)
     "commit frontier must not be the marker index or marker index plus one"
-  let later :=
-    refreshRetirementState initialConfig node { jumped with log, commitIndex := 10 }
+  let later := ({ jumped with log } : NodeState Node Nat).commitThrough node 10
   check (later.retiredCommittedIndex == some 8)
     "later commits must preserve the first covering retirement frontier"
   for (oldLength, expected) in [(5, 6), (6, 8)] do
@@ -957,7 +1010,6 @@ private def retirementCommitFrontiers : IO Unit := do
     let some { payload := .appendEntriesResponse response, .. } := effects.outgoing.head?
     | throw (IO.userError "retirement batch did not produce an AppendEntries response")
     check response.success "retirement batch was rejected"
-    let received := refreshRetirementState initialConfig node received
     check (received.commitIndex == 8 && received.retiredCommittedIndex == some expected)
       s!"batch from {oldLength}: wrong first covering retirement commit"
 
@@ -965,7 +1017,8 @@ def main : IO Unit := do
   configurationQueries
   retirementQueries
   bootstrapAndNoMatchingPrefixTerms
-  nominationPermissions
+  nominationSelection
+  appendCommitTriggers
   nominationTerms
   appendEntriesResponseTerms
   batches

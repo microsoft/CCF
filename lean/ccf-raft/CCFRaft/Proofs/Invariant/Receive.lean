@@ -12,7 +12,7 @@ namespace CCFRaft.Proofs.Invariant
 open CCFRaft.Proofs.Config
 
 open Shared Shared.MultiNodeTransitionSystem Concrete
-open Model.Local
+open Model.Node
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]
@@ -187,7 +187,7 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
     {outputs : Outputs Node (Message Node TxId) Notification}
     (queued : envelope ∈ state.network)
     (received
-      : (Model.Local.receive (inferInstance) (Capabilities.record envelope.target)
+      : (Model.Node.receive (inferInstance) (Capabilities.record envelope.target)
           envelope.target envelope.source (nodeOf state envelope.target)
           envelope.payload).run
           {}
@@ -219,14 +219,14 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
         (by rw [receiver]; exact observeTerm_appendRequest_term _ _)
         (nextNode := nextNode) (response := response) (by rw [receiver]; exact handled)
       simp only [middle, replaceNode_twice] at preserved
-      simp only [Model.Local.receive, handled] at received
+      simp only [Model.Node.receive, handled] at received
       cases response <;> simp [Capabilities.record] at received <;>
         obtain ⟨rfl, rfl⟩ := received <;>
         apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
           (invariant.receivedEndpoints queued (by simp)) <;>
         simpa using preserved
   | appendEntriesResponse response =>
-      simp [Model.Local.receive] at received
+      simp [Model.Node.receive] at received
       obtain ⟨rfl, rfl⟩ := received
       simp only [List.append_nil]
       apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
@@ -237,7 +237,7 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
         ⟨rfl, queued, rfl⟩ rfl (by rw [receiver])
       simpa only [middle, replaceNode_twice] using preserved
   | requestVoteRequest request =>
-      simp [Model.Local.receive, Capabilities.record] at received
+      simp [Model.Node.receive, Capabilities.record] at received
       obtain ⟨rfl, rfl⟩ := received
       let answer := handleRequestVoteRequest (nodeOf middle destination) source request
       apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
@@ -248,7 +248,7 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
         prepared.safety nodeJoined rfl ⟨rfl, queued, rfl⟩ rfl rfl rfl
       simpa [answer, receiver, middle, replaceNode_twice, enqueue] using preserved
   | requestVoteResponse response =>
-      simp [Model.Local.receive] at received
+      simp [Model.Node.receive] at received
       obtain ⟨rfl, rfl⟩ := received
       simp only [List.append_nil]
       apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
@@ -258,7 +258,7 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
         _ prepared.safety nodeJoined ⟨rfl, queued, rfl⟩ rfl (by rw [receiver])
       simpa only [middle, replaceNode_twice] using preserved
   | requestPreVote request =>
-      simp [Model.Local.receive, Capabilities.record] at received
+      simp [Model.Node.receive, Capabilities.record] at received
       obtain ⟨rfl, rfl⟩ := received
       apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
         (invariant.receivedEndpoints queued (by simp))
@@ -271,7 +271,7 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
         _ prepared.safety ⟨rfl, queued, rfl⟩ rfl
       simpa [receiver, middle] using preserved
   | requestPreVoteResponse response =>
-      simp [Model.Local.receive] at received
+      simp [Model.Node.receive] at received
       obtain ⟨rfl, rfl⟩ := received
       simp only [List.append_nil]
       apply invariant.update nodeJoined (Finset.Subset.refl _) ?_
@@ -286,7 +286,7 @@ theorem receive_preserves {state : Model.State Node TxId} {joined : Finset Node}
         prepared.safety nodeJoined ⟨rfl, queued, rfl⟩
       rw [receiver] at preserved
       simp only [middle, replaceNode_twice, observeTerm] at preserved
-      simp only [Model.Local.receive, observeTerm] at received
+      simp only [Model.Node.receive, observeTerm] at received
       have eligibleCases := run_ite received
       rcases eligibleCases with ⟨eligible, received⟩ | ⟨eligible, received⟩ <;>
         simp only [StateT.run_pure, Option.some.injEq, Prod.mk.injEq] at received <;>

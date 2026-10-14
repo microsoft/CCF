@@ -10,14 +10,14 @@ import CCFRaft.Shared.MultiNodeTransitionSystem
 /-!
 # CCF Raft network
 
-Composes `Local.step` into a network. Deliveries may select any queued envelope;
+Composes `Node.step` into a network. Deliveries may select any queued envelope;
 an envelope never delivered models message loss.
 -/
 
 namespace CCFRaft.Model
 
 open Shared
-open Local
+open Node
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId]
 
@@ -34,7 +34,7 @@ def protocol [LinearOrder Node] [Inhabited TxId] (config : InitialConfig Node)
         Node (NodeState Node TxId) (Event Node TxId) (Message Node TxId) Notification
         (Input Node TxId) where
   init node state := state = initialNodeState config node
-  step := Local.step config
+  step := CCFRaft.Model.Node.step config
   receive := .receive
   internal := .internal
 

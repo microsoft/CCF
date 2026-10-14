@@ -1,10 +1,9 @@
 # CCF Raft model
 
 This package contains an executable Lean model of CCF Raft
-(`src/consensus/aft/raft.h`), its safety properties, machine-checked proofs of
-those properties, and a replayer that checks recorded `raft_driver` runs
-against the model. The module layout follows the Lean module guide,
-`lean/AGENT.md` on the `dr-rework` branch.
+(`src/consensus/aft/raft.h`), safety property statements and proof
+implementations, and a replayer that checks recorded `raft_driver` runs
+against the model.
 
 ```text
 raft scenario -(raft_driver)-> raw stdout
@@ -33,9 +32,10 @@ use, and the theorem links in `Proof.lean`. The build and the axiom audit
 verify the proof implementations under `Proofs/`, which `.gitattributes`
 marks `linguist-generated`.
 
-`CCFRaft/Shared/` is a copy of `DisasterRecovery/Shared/` from the
-`dr-rework` branch, with the namespace renamed and `Effect` changed to
-`StateT Outputs Option` so that a local step can fail when it is disabled.
+`CCFRaft/Shared/` provides package-local transition systems, traces,
+output-recording capabilities, and network composition. It is not yet a
+dependency on a common Lean package. Its `Effect` is `StateT Outputs Option`
+so that a disabled local step fails without retaining outputs.
 
 ## Model
 
@@ -51,8 +51,7 @@ node-state queries that depend on configurations.
 `configurationHistory config log` includes initial membership at index zero
 and each reconfiguration effect at its transaction's one-based log position.
 Several configuration effects in one transaction share that index and keep
-their order; committing the transaction retains only the last of them. CCF
-itself records at most one configuration per transaction.
+their order; once they are committed, only the last of them remains active.
 `activeConfigurations config log commitIndex` retains the last committed
 configuration and every pending one. `configurationMembers` takes the union
 of any supplied configuration list.
@@ -62,53 +61,79 @@ first change from membership to absence. `firstLogIndexAfter` finds a matching
 signature or retirement record strictly after a supplied index.
 `retiredCommittedNodes` unions the nodes named by retirement effects in a
 log; passing `log.take commitIndex` restricts it to committed records.
-A node's stored `retiredCommittedIndex` is the first commit frontier that
-covered its retirement record, not the record's own position.
+`NodeState.retirementCompletedNodes` identifies removed peers whose removal
+is committed but whose final retirement record is not yet committed.
+`NodeState.retirement` derives the retirement index, following signature and
+membership phase from the current log and commit frontier, so rollback requires
+no metadata refresh. Only `retiredCommittedIndex` is stored: it remembers the
+first commit frontier that covered the retirement record, not the record's
+own position. `NodeState.commitThrough` sets the frontier and preserves
+that historical value.
 
 `Model/Messages.lean` defines the AppendEntries and RequestVote packets
 nodes exchange, including the pre-vote and vote-proposal variants, and the
 term each one carries.
 
-`Model/Node.lean` defines how a node behaves. `Local.step` handles one event: an
+`Model/Node.lean` defines how a node behaves. `Node.step` handles one event: an
 `Input` or a message delivered from a source node. The inputs are
 `append entries` (a leader appends a nonempty batch in one step, applying each
-transaction's effects in order as `raft.h` hooks do, then commits at once if no
-other active member exists), `sendEntries destination endIndex` (the previous
-index comes from the leader's `sentIndex`; an equal end is a heartbeat),
+transaction's effects in order as `raft.h` hooks do, then attempts to advance
+commit), `sendEntries destination endIndex` (the previous index comes from the
+leader's `sentIndex`; an equal end is a heartbeat),
 `timeout .election` or `timeout .checkQuorum`, and
-`nominateSuccessor destination` (a leader may nominate any eligible peer other
-than itself; the model does not restrict the destination by replication ranking). Commit is
-internal: a current-term AppendEntries acknowledgement, a promotion with no
-other active member, or such an append commits in the same step. Retirement
-clears leadership and saves a one-shot nomination permission with the outgoing
-leader's term and precommit eligible peers. A separate nomination input consumes
-that permission; any other local event expires it. Retired nonleaders without
-this permission cannot nominate. A promotion also sends an empty AppendEntries
-to every eligible peer. It runs in `NodeEffect`, which records sent messages and can
-fail. A disabled event fails, discarding any messages sent before the
-failure. An enabled event returns the next node state and sends messages
-through the `send` callback in `caps`. A node reads only its own state, the explicitly supplied
+`nominateSuccessor` (a leader internally selects the eligible peer with highest
+replication progress, then latest active configuration membership, then highest
+node ID). Commit is internal: a current-term AppendEntries acknowledgement,
+promotion, or append runs the same quorum-based commit calculation in its own
+step. A current-term signature can commit when a majority of every active
+configuration has reached it, including the singleton case. Retirement
+nominates inside the committing step using the precommit eligible peers and
+configuration view, then clears leadership. A standalone nomination is enabled
+only for a leader; it sends nothing if no eligible peer exists. A promotion
+also sends an empty AppendEntries to every eligible peer. Each event runs in
+`NodeEffect`, which records sent messages and can fail. A disabled event fails,
+discarding any messages sent before the failure. An enabled event returns the
+next node state and sends messages through the `send` callback in `caps`.
+Timeouts are logical events, not a model
+of elapsed time or acknowledgement clocks; `checkQuorum` represents a failed
+quorum check. A node reads only its own state, the explicitly supplied
 `InitialConfig` value, and the delivered message.
 
-A message with a newer term moves the receiver to that term as a follower
-before the receiver handles it, in the same step. Vote proposals never
-advance a term, and only a leader reads the term of an AppendEntries
-response, as in `raft.h`. A same-term AppendEntries request makes a candidate
-or pre-vote candidate step down, then the node handles the request.
+`eligiblePeers` reconstructs peers from active configurations and completed
+retirements. Unlike CCF's persistent peer inventory, it does not retain peers
+whose introduction was rolled back.
+
+Except for vote proposals and AppendEntries responses delivered to
+nonleaders, a newer-term message moves the receiver to that term as a follower
+before handling it, in the same step. A pre-vote round starts without
+incrementing the term, but newer-term pre-vote messages can still advance the
+receiver's term, as in `raft.h`. A same-term AppendEntries request makes a
+candidate or pre-vote candidate step down, then the node handles the request.
+AppendEntries ACKs count only in the leader's current term. A log-mismatch
+NACK instead carries the term of a possible matching log position, not
+necessarily the sender's current election term. A lower-term NACK can
+therefore rewind `sentIndex`, bounded below by `matchIndex`, without counting
+as an acknowledgement.
+
 Elections follow `raft.h`: entering a pre-vote round or a candidacy votes for
-self and, in the same step, sends a request to every other active member. A
-vote or pre-vote that reaches a quorum promotes the node at once, inside the
-step that counted it, including a self vote.
-Every AppendEntries request is consumed. As in `raft.h`, a request whose
+self and can synchronously advance on a self-quorum. Otherwise a pre-vote
+round broadcasts pre-vote requests; candidacy broadcasts regular vote
+requests even if the self-vote already promoted it. Requests go to every
+other active member. A vote or pre-vote that reaches a quorum advances the
+election inside the step that counted it.
+
+Every AppendEntries request is consumed. A stale-term request or a
+previous-entry mismatch gets a NACK. Once those checks pass, a request whose
 previous index is below the commit index, or one that conflicts with the log
 of a node that may no longer roll back, is dropped without a response.
 
-`Model.lean` runs one copy of `Local.step` per node with
+`Model.lean` runs one copy of `Node.step` per node with
 `Shared/MultiNodeTransitionSystem.lean`. Every listed node starts in
 `initialNodeState`: bootstrap members at `BOOTSTRAP_TERM`, with the initial
 leader's log preloaded with the bootstrap configuration transaction (identifier
-`default`) at `BOOTSTRAP_TERM` and every other log empty, all with commit index 0. Every other
-node has no role at term 0. The network is a multiset of envelopes. A
+`default`) at `BOOTSTRAP_TERM` and every other log empty, all with commit
+index 0. Listed nonbootstrap nodes have no role at term 0. The network is a
+multiset of envelopes. A
 delivery consumes any queued envelope, so the model reorders messages, and an
 envelope that is never delivered is a dropped message.
 
@@ -129,49 +154,34 @@ Each claim quantifies every node and transaction identifier type, every
 - `CommittedFrontierIsSignature`: every positive commit index points to a
   signature.
 
-Each property has a `Witness` claim asserting that some valid trace satisfies
-its premises. `Proofs/Witnesses.lean` proves each witness with a concrete
-execution that the kernel evaluates. `Tests/ProofCoverage.lean` requires an
-exported theorem and a witness for every claim.
+Each property has a `Witness` claim exhibiting a nontrivial valid execution.
+The election witness has two distinct leaders without requiring equal terms;
+it is not a witness to the safety property's entire antecedent.
+`Proofs/Witnesses.lean` proves the witnesses with concrete executions checked
+by the kernel. `Tests/ProofCoverage.lean` requires an exported theorem for
+every claim and a witness claim for every property.
 
 The proofs say nothing about liveness, fairness, or the C++ implementation.
 
 ## Proofs
 
-All proofs concern `Model.transitionSystem` directly. `Proofs/Direct/`
-proves node-local commit bounds, signature frontiers, and committed-log
-growth. `NodeInvariant` lifts a predicate preserved by every local step to
-every node of every reachable state.
+The proofs target `Model.transitionSystem` directly. `Proofs/Direct/`
+contains node-local commit bounds, signature frontiers, and committed-log
+growth proofs. `NodeInvariant` lifts a predicate preserved by every local step
+to every node of every reachable state.
 
-The cross-node invariant is stated over `Model.State` in
-`Proofs/Invariant/Facts.lean`. `Inv c` means that some proof-only joined set
-`J` satisfies `StateInvariant c J`. This includes
-`SystemInductiveInvariant c`, with vote, log, election, and
-configuration-activation histories, parameterized by `J`. It also requires
-distinct node-table keys, bootstrap members and envelope endpoints in `J`,
-and nodes outside `J` to remain in `initialNodeState`.
+The cross-node invariant is being replaced to cover the current four
+composite inputs and multiple ordered configuration effects at one log index.
+The legacy tree under `Proofs/Invariant/` was written for the earlier
+fine-grained inputs and does not yet build against the current model.
+The replacement and migration of the top-level election-safety and
+committed-log-prefix proofs are not complete. The full package build and
+axiom audit therefore remain required; successful model or direct-helper
+builds alone do not establish these properties.
 
-`Proofs/Invariant/State.lean` defines the only total node accessor,
-`nodeOf c n := (nodeState c n).getD (initialNodeState config n)`, and proves lookup
-laws for the concrete node list. Messages in flight are the model's own
-envelopes in `c.network`. Message histories use `(source, target, payload)`
-keys whose payloads are the types in `Model.Local`. The joined set stays
-separate from the concrete state and grows when a configuration names new
-nodes.
-
-`Proofs/Invariant/Preservation/` proves preservation under concrete node-list
-replacements and envelope-list updates, split into modules for incremental
-builds. `Internal.lean` applies these lemmas to all 16 inputs of `Local.act`.
-`Receive.lean` composes `observeTerm`, same-term step-down, and the model's
-message handlers. A delivery removes one envelope with `removeOne` and
-appends the handler's replies.
-
-`Proofs/Invariant/Reachable.lean` proves `reachable_inv` by induction over
-the concrete local and delivery steps. `Safety.lean` derives leader
-uniqueness and same-state committed-log agreement from the invariant.
-`Proofs/CommittedLogs.lean` carries the earlier node's committed log to the
-later state, then applies same-state agreement. This proves the trace-wide
-`CommittedLogsPrefix` claim.
+`Proof.lean` links the property statements to their proof implementations.
+The legacy invariant modules are to be removed only after their required
+guarantees and users have been migrated.
 
 [`scripts/invariant-dependencies.lean`](scripts/invariant-dependencies.lean)
 reports the invariant declarations in the exported proofs' kernel dependency

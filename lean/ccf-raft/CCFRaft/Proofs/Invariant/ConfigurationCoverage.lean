@@ -13,19 +13,20 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local (
+open CCFRaft.Model.Node (
   BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
-    PreVoteStatus Role becomeCandidateNodeState campaignEligible
+    PreVoteStatus Role campaignEligible
     configurationHistory configurationMembers entryAt? findHighestPossibleMatch
     firstLogIndexAfter hasConfigurationMajority initialNodeState isSignatureAt
     lastCommittableIndex lastCommittableTerm maxCommittableIndex maxCommittableIndexUpTo
-    maxCommittableTerm messageEntries refreshRetirementState retiredCommittedNodes
+    maxCommittableTerm messageEntries retiredCommittedNodes
     retirementIndexInLog termAt
   )
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 variable {joined : Finset Node}
 
 omit [DecidableEq Node] [DecidableEq TxId] in

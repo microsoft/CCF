@@ -10,7 +10,7 @@ namespace CCFRaft.Proofs.Election
 theorem election_safety : Properties.ElectionSafety := by
   intro Node TxId _ _ config nodes trace state left right leftState rightState
     ⟨valid, member, leftMember, rightMember, leftLeader, rightLeader, sameTerm⟩
-  let _ : Model.Local.InitialConfig Node := config
+  let _ : Model.Node.InitialConfig Node := config
   have reachable := valid.reachable member
   exact Invariant.inv_electionSafety (Invariant.reachable_inv reachable)
     leftMember rightMember leftLeader rightLeader sameTerm

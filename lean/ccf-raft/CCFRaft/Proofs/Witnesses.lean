@@ -14,7 +14,7 @@ namespace CCFRaft.Proofs.Witnesses
 open CCFRaft.Proofs.Config
 
 open Shared Shared.Execution Shared.MultiNodeTransitionSystem
-open CCFRaft.Model.Local (NodeState InitialConfig initialNodeState)
+open CCFRaft.Model.Node (NodeState InitialConfig initialNodeState)
 
 section Runs
 
@@ -162,17 +162,13 @@ def deliverFrom (source target : Nat) (state : CCFRaft.Model.State Nat Nat)
   | none => deliverOldest state
 
 /-- Take `input` at `node` regardless of the current state. -/
-def input (node : Nat) (input : CCFRaft.Model.Local.Input Nat Nat)
+def input (node : Nat) (input : CCFRaft.Model.Node.Input Nat Nat)
     : CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat :=
   fun _ => .local node input
 
-theorem member_of_nodeState {state : CCFRaft.Model.State Nat Nat} {node : Nat}
-    (present : (nodeState state node).isSome)
-    : (node, (nodeState state node).get present) ∈ state.nodes := by
-  generalize fetched : (nodeState state node).get present = value
-  have found : nodeState state node = some value := by
-    rw [← fetched]
-    exact (Option.some_get present).symm
+theorem mem_of_nodeState {state : CCFRaft.Model.State Nat Nat} {node : Nat}
+    {value : NodeState Nat Nat} (found : nodeState state node = some value)
+    : (node, value) ∈ state.nodes := by
   simp only [nodeState, Option.map_eq_some_iff] at found
   obtain ⟨⟨key, stored⟩, located, same⟩ := found
   simp only at same
@@ -180,6 +176,42 @@ theorem member_of_nodeState {state : CCFRaft.Model.State Nat Nat} {node : Nat}
   have keyEq : key = node := by simpa using List.find?_some located
   subst keyEq
   exact List.mem_of_find?_eq_some located
+
+theorem member_of_nodeState {state : CCFRaft.Model.State Nat Nat} {node : Nat}
+    (present : (nodeState state node).isSome)
+    : (node, (nodeState state node).get present) ∈ state.nodes :=
+  mem_of_nodeState (Option.some_get present).symm
+
+/-- `Finset.sort` computed by insertion sort. The kernel cannot evaluate the
+well-founded `List.mergeSort` behind `Finset.sort`, but it can evaluate this. -/
+def insertionSorted {α : Type} [LinearOrder α] (s : Finset α) : List α :=
+  Quot.liftOn s.val (List.insertionSort (· ≤ ·)) fun _ _ perm =>
+    ((List.perm_insertionSort _ _).trans
+        (perm.trans (List.perm_insertionSort _ _).symm)).eq_of_pairwise'
+      (List.pairwise_insertionSort _ _) (List.pairwise_insertionSort _ _)
+
+theorem sort_eq_insertionSorted {α : Type} [LinearOrder α] (s : Finset α)
+    : s.sort = insertionSorted s := by
+  obtain ⟨⟨list⟩, _⟩ := s
+  exact List.mergeSort_eq_insertionSort _ list
+
+/-- Unfold a concrete run down to the model's broadcasts and replace each
+`Finset.sort` with `insertionSorted`, so that `decide` can evaluate the run. -/
+macro "sort_by_insertion" : tactic =>
+  `(tactic| simp only [run, CCFRaft.Model.transitionSystem, MultiNodeTransitionSystem.lift,
+    MultiNodeTransitionSystem.next, CCFRaft.Model.protocol, CCFRaft.Model.Node.step,
+    CCFRaft.Model.Node.act, CCFRaft.Model.Node.receive,
+    CCFRaft.Model.Node.startElection, CCFRaft.Model.Node.becomePreVoteCandidate,
+    CCFRaft.Model.Node.becomeCandidate, CCFRaft.Model.Node.electIfQuorum,
+    CCFRaft.Model.Node.becomeLeader, CCFRaft.Model.Node.broadcastToOthers,
+    CCFRaft.Model.Node.advanceCommit, CCFRaft.Model.Node.nominateSuccessor,
+    CCFRaft.Model.Node.findSuccessor, CCFRaft.Model.Node.appendBatch,
+    CCFRaft.Model.Node.appendEntry, CCFRaft.Model.Node.applyTransactionEffect,
+    CCFRaft.Model.Node.handleAppendEntriesRequest,
+    CCFRaft.Model.Node.handleAppendEntriesResponse,
+    CCFRaft.Model.Node.handleRequestVoteResponse,
+    CCFRaft.Model.Node.handleRequestPreVoteResponse,
+    CCFRaft.Model.Node.handleProposeVoteRequest, sort_eq_insertionSorted])
 
 section Election
 
@@ -197,23 +229,25 @@ def electionChoices
 def electionSystem :=
   CCFRaft.Model.transitionSystem (inferInstance) (TxId := Nat) [0, 1, 2]
 
-theorem election_finished
-    : (run electionSystem (start [0, 1, 2]) electionChoices).isSome := by
+/-- Nodes 0 and 1 are both present and both lead. -/
+def bothLead (state : CCFRaft.Model.State Nat Nat) : Bool :=
+  ((nodeState state 0).any fun local_ => decide (local_.role = .leader))
+    && ((nodeState state 1).any fun local_ => decide (local_.role = .leader))
+
+theorem election_run
+    : (run electionSystem (start [0, 1, 2]) electionChoices).any bothLead = true := by
+  unfold electionSystem electionChoices
+  sort_by_insertion
   decide
-
-def electionFinal : CCFRaft.Model.State Nat Nat :=
-  (run electionSystem (start [0, 1, 2]) electionChoices).get election_finished
-
-theorem election_present (node : Nat) (listed : node ∈ [0, 1, 2])
-    : (nodeState electionFinal node).isSome := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at listed
-  rcases listed with rfl | rfl | rfl <;> decide +kernel
 
 end Election
 
 theorem election_safety_witness : Properties.ElectionSafetyWitness := by
   let _ : InitialConfig Nat := bootstrapOf {0, 1, 2} 0 (by decide)
-  refine ⟨
+  obtain ⟨final, finished, lead⟩ := (Option.any_eq_true _ _).mp election_run
+  simp only [bothLead, Bool.and_eq_true, Option.any_eq_true, decide_eq_true_eq] at lead
+  obtain ⟨⟨leftState, leftFound, leftLeader⟩, ⟨rightState, rightFound, rightLeader⟩⟩ := lead
+  exact ⟨
     Nat,
     Nat,
     inferInstance,
@@ -223,17 +257,17 @@ theorem election_safety_witness : Properties.ElectionSafetyWitness := by
     bootstrapOf {0, 1, 2} 0 (by decide),
     [0, 1, 2],
     ⟨runTrace electionSystem (start [0, 1, 2]) electionChoices⟩,
-    electionFinal,
+    final,
     0,
     1,
-    (nodeState electionFinal 0).get (election_present 0 (by simp)),
-    (nodeState electionFinal 1).get (election_present 1 (by simp)),
+    leftState,
+    rightState,
     runTrace_valid (start_initial (by decide)) _,
-    run_mem (Option.some_get _).symm,
-    member_of_nodeState _,
-    member_of_nodeState _,
-    by decide +kernel,
-    by decide +kernel,
+    run_mem finished,
+    mem_of_nodeState leftFound,
+    mem_of_nodeState rightFound,
+    leftLeader,
+    rightLeader,
     by decide
   ⟩
 

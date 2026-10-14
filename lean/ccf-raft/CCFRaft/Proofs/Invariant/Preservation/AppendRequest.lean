@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -534,7 +535,7 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
             have memberUnchanged :
                 (nodeOf after) member = (nodeOf state) member := by
               simp [after, present, nodeOf_replaceNode, memberEq]
-            simp only [voteRequestKey, Model.Local.makeRequestVoteRequest] at supporter ⊢
+            simp only [voteRequestKey, Model.Node.makeRequestVoteRequest] at supporter ⊢
             rw [memberUnchanged, candidateUnchanged] at supporter
             exact supporter
           simpa [candidateUnchanged, historySame, frontierSame]
@@ -1316,11 +1317,11 @@ lemma receiveAppendEntriesRequestPreservesSystemInductiveInvariant
                 have termEq := eligible.1
                 simpa [
                   currentlyEligibleElectionVoter,
-                  voteRequestKey, Model.Local.makeRequestVoteRequest
+                  voteRequestKey, Model.Node.makeRequestVoteRequest
                 ] using Nat.le_of_eq termEq.symm,
               by simpa [
                   currentlyEligibleElectionVoter,
-                  voteRequestKey, Model.Local.makeRequestVoteRequest, voteLogUpToDate
+                  voteRequestKey, Model.Node.makeRequestVoteRequest, voteLogUpToDate
                 ] using eligible.2.1
             ⟩
         ⟩

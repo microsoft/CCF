@@ -13,19 +13,20 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local (
+open CCFRaft.Model.Node (
   BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
-    PreVoteStatus Role becomeCandidateNodeState campaignEligible
+    PreVoteStatus Role campaignEligible
     configurationHistory configurationMembers entryAt? findHighestPossibleMatch
     firstLogIndexAfter hasConfigurationMajority initialNodeState isSignatureAt
     lastCommittableIndex lastCommittableTerm maxCommittableIndex maxCommittableIndexUpTo
-    maxCommittableTerm messageEntries refreshRetirementState retiredCommittedNodes
+    maxCommittableTerm messageEntries retiredCommittedNodes
     retirementIndexInLog termAt
   )
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 open Shared Shared.MultiNodeTransitionSystem Concrete
 
@@ -73,10 +74,10 @@ theorem mem_configurationMembers {configurations : List (Configuration Node)}
   · exact configured
 
 theorem retirementCompleted_configured {state : NodeState Node TxId} {member : Node}
-    (found : member ∈ state.retirementCompleted (inferInstance))
+    (found : member ∈ state.retirementCompletedNodes (inferInstance))
     : ∃ configuration ∈ allConfigurations (inferInstance) state.log,
         member ∈ configuration.nodes := by
-  unfold Model.Local.NodeState.retirementCompleted at found
+  unfold Model.Node.NodeState.retirementCompletedNodes at found
   simp only [Finset.mem_filter, Finset.mem_sdiff] at found
   obtain ⟨configuration, listed, inside⟩ := mem_configurationMembers found.1.1.1
   refine ⟨configuration, ?_, inside⟩
@@ -92,18 +93,18 @@ theorem initialNodeState_of_not_mem {node : Node} (absent : node ∉ INITIAL_CON
   simp [initialNodeState, freshNodeState, absent, notLeader]
 
 theorem observeTerm_eq_updateTerm (state : NodeState Node TxId)
-    (message : Model.Local.Message Node TxId)
-    : Model.Local.observeTerm state message = state
-      \/ (Model.Local.observeTerm state message
-            = Model.Local.updateTerm state message.term
+    (message : Model.Node.Message Node TxId)
+    : Model.Node.observeTerm state message = state
+      \/ (Model.Node.observeTerm state message
+            = Model.Node.updateTerm state message.term
           /\ state.currentTerm < message.term
           /\ (forall term, Not (message = .proposeVoteRequest term))
           /\ (forall response,
                 message = .appendEntriesResponse response -> state.role = .leader)) := by
-  have update : forall term, Model.Local.updateTerm state term = state \/
+  have update : forall term, Model.Node.updateTerm state term = state \/
       (state.currentTerm < term) := by
     intro term
-    unfold Model.Local.updateTerm
+    unfold Model.Node.updateTerm
     split_ifs with newer
     · exact Or.inr newer
     · exact Or.inl rfl
@@ -113,12 +114,12 @@ theorem observeTerm_eq_updateTerm (state : NodeState Node TxId)
     by_cases leader : state.role = .leader
     · rcases update response.term with same | newer
       · left
-        simp [Model.Local.observeTerm, leader, same]
+        simp [Model.Node.observeTerm, leader, same]
       · right
-        refine ⟨by simp [Model.Local.observeTerm, leader, Model.Local.Message.term], newer,
+        refine ⟨by simp [Model.Node.observeTerm, leader, Model.Node.Message.term], newer,
           by simp, fun _ _ => leader⟩
     · left
-      simp [Model.Local.observeTerm, leader]
+      simp [Model.Node.observeTerm, leader]
   case appendEntriesRequest payload =>
     rcases update payload.term with same | newer
     · exact Or.inl same
@@ -163,7 +164,7 @@ theorem StateInvariant.activeJoined {state : Model.State Node TxId} {joined : Fi
 
 theorem StateInvariant.retiredJoined {state : Model.State Node TxId}
     {joined : Finset Node} (invariant : StateInvariant state joined) {node member : Node}
-    (retired : member ∈ (nodeOf state node).retirementCompleted (inferInstance))
+    (retired : member ∈ (nodeOf state node).retirementCompletedNodes (inferInstance))
     : member ∈ joined := by
   obtain ⟨configuration, listed, member⟩ := retirementCompleted_configured retired
   exact invariant.joinedCarriers.configurationNodes node configuration listed member

@@ -13,19 +13,20 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local (
+open CCFRaft.Model.Node (
   BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
-    PreVoteStatus Role becomeCandidateNodeState campaignEligible
+    PreVoteStatus Role campaignEligible
     configurationHistory configurationMembers entryAt? findHighestPossibleMatch
     firstLogIndexAfter hasConfigurationMajority initialNodeState isSignatureAt
     lastCommittableIndex lastCommittableTerm maxCommittableIndex maxCommittableIndexUpTo
-    maxCommittableTerm messageEntries refreshRetirementState retiredCommittedNodes
+    maxCommittableTerm messageEntries retiredCommittedNodes
     retirementIndexInLog termAt
   )
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 variable {joined : Finset Node}
 
 /--
@@ -175,7 +176,7 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
           _ <= ((nodeOf after) voter).currentTerm := termMonotone voter
     · simpa [
         currentlyEligibleElectionVoter,
-        voteRequestKey, Model.Local.makeRequestVoteRequest
+        voteRequestKey, Model.Node.makeRequestVoteRequest
       ] using eligible.1.le
   have replicationMajority :
       hasConfigurationMajority
@@ -243,15 +244,15 @@ lemma updateTermPotentialPrefixOfRelaxedAuthority
             termMonotone voter
           _ = ((nodeOf after) candidate).currentTerm := by
             simpa [currentlyEligibleElectionVoter, voteRequestKey,
-              Model.Local.makeRequestVoteRequest]
+              Model.Node.makeRequestVoteRequest]
               using eligible.1.symm
           _ = ((nodeOf before) candidate).currentTerm := by
             rw [candidateNodeEq]
       · simpa [
           currentlyEligibleElectionVoter,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           candidateNodeEq, logEq,
-          Model.Local.voteLogUpToDate
+          Model.Node.voteLogUpToDate
         ] using eligible.2.1
   have prefixBefore :=
     preGhostAuthority

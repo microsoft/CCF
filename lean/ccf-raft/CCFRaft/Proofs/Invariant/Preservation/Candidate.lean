@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -70,13 +71,13 @@ lemma timeoutPotentialElectionVotersSubsetFuture
       · have sameTerm := eligible.1
         simp [
           concrete_effects, becomeCandidateState, present, nodeOf_replaceNode, voterEq,
-          voteRequestKey, Model.Local.makeRequestVoteRequest
+          voteRequestKey, Model.Node.makeRequestVoteRequest
         ] at sameTerm
         omega
       · simpa [
           concrete_effects, becomeCandidateState, present, nodeOf_replaceNode,
           Function.update, voterEq,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           voteLogUpToDate, lastCommittableTerm, lastCommittableIndex
         ] using eligible.2.1
 
@@ -429,7 +430,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
         exact False.elim (candidateNe voteChoice.symm)
       · simpa [
           currentlyEligibleElectionVoter,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           termOther candidate candidateNe,
           termOther voter voterEq,
           logEq, lastIndexEq, lastTermEq,
@@ -885,7 +886,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
                   ⟨
                     by simpa [termOther member memberEq, termNode] using supporter.1,
                     by simpa [
-                        voteRequestKey, Model.Local.makeRequestVoteRequest,
+                        voteRequestKey, Model.Node.makeRequestVoteRequest,
                         logEq, lastIndexEq, lastTermEq,
                         voteLogUpToDate
                       ] using supporter.2
@@ -935,7 +936,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
               · simpa [termOther member memberEq,
                   termOther candidate candidateEq] using supporter.1
             · simpa [
-                voteRequestKey, Model.Local.makeRequestVoteRequest,
+                voteRequestKey, Model.Node.makeRequestVoteRequest,
                 termOther candidate candidateEq,
                 logEq, lastIndexEq, lastTermEq,
                 voteLogUpToDate
@@ -986,7 +987,7 @@ lemma candidateTransitionPreservesSystemInductiveInvariant
       subst voter
       exact termNode
     · simp only [currentlyEligibleElectionVoter] at eligible
-      simpa [voteRequestKey, Model.Local.makeRequestVoteRequest, termNode] using eligible.1.symm
+      simpa [voteRequestKey, Model.Node.makeRequestVoteRequest, termNode] using eligible.1.symm
   have timeoutPotentialAckersSubset :
       forall source index,
         ((nodeOf (timeoutEffect state node)) source).role = .leader ->

@@ -4,13 +4,13 @@
 import CCFRaft.Proofs.Invariant.Facts
 import CCFRaft.Proofs.Direct.Framework
 
-open CCFRaft.Model.Local (
+open CCFRaft.Model.Node (
   BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
-    PreVoteStatus Role becomeCandidateNodeState campaignEligible
+    PreVoteStatus Role campaignEligible
     configurationHistory configurationMembers entryAt? findHighestPossibleMatch
     firstLogIndexAfter hasConfigurationMajority initialNodeState isSignatureAt
     lastCommittableIndex lastCommittableTerm maxCommittableIndex maxCommittableIndexUpTo
-    maxCommittableTerm messageEntries refreshRetirementState retiredCommittedNodes
+    maxCommittableTerm messageEntries retiredCommittedNodes
     retirementIndexInLog termAt
   )
 
@@ -32,6 +32,7 @@ open Shared Shared.MultiNodeTransitionSystem
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 variable {joined : Finset Node}
 
 /-- No two distinct nodes lead in the same term. -/

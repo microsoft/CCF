@@ -13,13 +13,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes joinedNext : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -520,7 +521,7 @@ lemma roleAndNetworkFramePreservesSystemInductiveInvariant
             by simpa [hasJoinedEq] using joined,
             Or.inr
               (by
-                simpa [voteRequestKey, Model.Local.makeRequestVoteRequest, termEq, logEq, lastIndexEq, lastTermEq,
+                simpa [voteRequestKey, Model.Node.makeRequestVoteRequest, termEq, logEq, lastIndexEq, lastTermEq,
                   voteLogUpToDate]
                   using eligible)
           ⟩
@@ -1097,7 +1098,7 @@ lemma networkFramePreservesSystemInductiveInvariant
       ⟩
     · refine ⟨by simpa [hasJoinedEq] using joined, Or.inr ?_⟩
       unfold currentlyEligibleElectionVoter at eligible ⊢
-      simpa [voteRequestKey, Model.Local.makeRequestVoteRequest, nodesEq] using eligible
+      simpa [voteRequestKey, Model.Node.makeRequestVoteRequest, nodesEq] using eligible
   · exact effectiveElectionMemberBack
 
 /--
@@ -1462,7 +1463,7 @@ lemma retirementMetadataFramePreservesSystemInductiveInvariant
           by simpa [hasJoinedEq] using joined,
           Or.inr
             (by
-              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq,
+              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Node.makeRequestVoteRequest, termEq,
                 logEq, commitEq, votedEq,
                 lastCommittableIndexFrame
                   (logEq candidate) (commitEq candidate),
@@ -1482,7 +1483,7 @@ lemma retirementMetadataFramePreservesSystemInductiveInvariant
           by simpa [hasJoinedEq] using joined,
           Or.inr
             (by
-              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq,
+              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Node.makeRequestVoteRequest, termEq,
                 logEq, commitEq, votedEq,
                 lastCommittableIndexFrame
                   (logEq candidate) (commitEq candidate),

@@ -12,7 +12,7 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
@@ -1147,11 +1147,11 @@ lemma handleAppendEntriesRequest_cases
     (handled
       : handleAppendEntriesRequest (inferInstance) self before request
         = (after, response))
-    : ((request.term < before.currentTerm \/ Not (logOk before request))
+    : ((request.term < before.currentTerm \/ Not (appendEntryMatchesLog before request))
         /\ after = appendEntriesSteppedDown before request
         /\ response = some (appendEntriesNack before request))
       \/ (request.term = before.currentTerm
-          /\ logOk before request
+          /\ appendEntryMatchesLog before request
           /\ (request.prevLogIndex < before.commitIndex
               \/ (hasTermConflict before request
                   /\ (appendEntriesSteppedDown before request).isNewFollower = false))
@@ -1167,7 +1167,7 @@ lemma handleAppendEntriesRequest_cases
   generalize steppedEq : appendEntriesSteppedDown before request = stepped at shape ⊢
   have unfolded :
       handleAppendEntriesRequest (inferInstance) self before request =
-        if request.term < stepped.currentTerm \/ Not (logOk stepped request) then
+        if request.term < stepped.currentTerm \/ Not (appendEntryMatchesLog stepped request) then
           (stepped, some (appendEntriesNack stepped request))
         else
           if request.prevLogIndex < stepped.commitIndex
@@ -1184,7 +1184,7 @@ lemma handleAppendEntriesRequest_cases
                 }
               else
                 { stepped with leaderKnown := true }
-            let (next, response) := appendEntriesFromLeader (inferInstance) self state request
+            let (next, response) := handleAppendEntiresFromLeader (inferInstance) self state request
             (next, some response) := by
     rw [← steppedEq]
     rfl
@@ -1198,13 +1198,13 @@ lemma handleAppendEntriesRequest_cases
   · left
     simp only [Prod.mk.injEq] at handled
     obtain ⟨rfl, rfl⟩ := handled
-    simp only [logOk, logEq, termEq] at nack
+    simp only [appendEntryMatchesLog, logEq, termEq] at nack
     exact ⟨nack, rfl, by rw [nackEq]⟩
   · right
     left
     simp only [Prod.mk.injEq] at handled
     obtain ⟨rfl, rfl⟩ := handled
-    simp only [logOk, hasTermConflict, logEq, termEq, commitEq] at nack drop ⊢
+    simp only [appendEntryMatchesLog, hasTermConflict, logEq, termEq, commitEq] at nack drop ⊢
     refine ⟨by omega, by tauto, ?_⟩
     simpa using drop
   all_goals
@@ -1221,7 +1221,7 @@ lemma handleAppendEntriesRequest_cases
       | rfl
       | (exfalso
          apply accept
-         simp only [logOk, hasTermConflict, logEq, termEq, commitEq] at nack drop ⊢
+         simp only [appendEntryMatchesLog, hasTermConflict, logEq, termEq, commitEq] at nack drop ⊢
          exact ⟨by omega, by tauto, by omega, by tauto⟩)
 
 /-- Facts about the accepting AppendEntries branch. -/
@@ -1232,7 +1232,7 @@ lemma acceptAppendEntriesRequest_eq
       : acceptAppendEntriesRequest? (inferInstance) self before request
         = some (after, response))
     : request.term = before.currentTerm
-      /\ logOk before request
+      /\ appendEntryMatchesLog before request
       /\ before.commitIndex <= request.prevLogIndex
       /\ ((Not (hasTermConflict before request)
             /\ after.log
@@ -1265,7 +1265,7 @@ lemma acceptAppendEntriesRequest_eq
   dsimp only at accepted
   split_ifs at accepted with conflict
   all_goals
-    simp only [appendEntriesFromLeader, refreshRetirementState, Option.some.injEq,
+    simp only [handleAppendEntiresFromLeader, refreshRetirementState, Option.some.injEq,
       Prod.mk.injEq] at accepted
     obtain ⟨rfl, rfl⟩ := accepted
   · refine ⟨Or.inr ⟨conflict, ?_, ?_⟩, ?_⟩
@@ -1322,7 +1322,7 @@ structure AppendRequestLocalPost
   successfulCurrentTerm : response.success = true -> request.term = before.currentTerm
   commitAdvancedSuccessful
     : before.commitIndex < after.commitIndex -> response.success = true
-  successfulLogOk : response.success = true -> logOk before request
+  successfulLogOk : response.success = true -> appendEntryMatchesLog before request
   successfulResponseTerm : response.success = true -> response.term = before.currentTerm
   successfulIndexExact
     : response.success = true
@@ -1470,7 +1470,7 @@ lemma acceptAppendEntriesRequest_conditions
       : acceptAppendEntriesRequest? (inferInstance) self before request
         = some (after, response))
     : request.term = before.currentTerm
-      ∧ logOk before request
+      ∧ appendEntryMatchesLog before request
       ∧ before.commitIndex ≤ request.prevLogIndex :=
   let facts := acceptAppendEntriesRequest_eq accepted
   ⟨facts.1, facts.2.1, facts.2.2.1⟩
@@ -1585,7 +1585,7 @@ lemma handleAppendEntriesRequest_option
   · right
     refine ⟨rfl, ?_, by rw [stepped]⟩
     rw [stepped] at drop
-    have notNack : Not (request.term < before.currentTerm \/ Not (logOk before request)) := by
+    have notNack : Not (request.term < before.currentTerm \/ Not (appendEntryMatchesLog before request)) := by
       omega
     simp only [handleAppendEntriesRequest?, notNack, ite_false, acceptAppendEntriesRequest?]
     split_ifs with guard
@@ -1599,7 +1599,7 @@ lemma handleAppendEntriesRequest_option
     refine ⟨_, rfl, ?_⟩
     rw [stepped] at acceptEq
     have conditions := acceptAppendEntriesRequest_conditions acceptEq
-    have notNack : Not (request.term < before.currentTerm \/ Not (logOk before request)) := by
+    have notNack : Not (request.term < before.currentTerm \/ Not (appendEntryMatchesLog before request)) := by
       omega
     simp only [handleAppendEntriesRequest?, notNack, ite_false]
     exact acceptEq

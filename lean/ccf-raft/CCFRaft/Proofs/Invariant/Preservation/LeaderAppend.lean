@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -608,7 +609,7 @@ lemma leaderAppendPreservesSystemInductiveInvariant
                 candidate voter =
             voteRequestKey state candidate voter := by
         simp [
-          voteRequestKey, Model.Local.makeRequestVoteRequest, leaderAppendState, leaderAppendJoined,
+          voteRequestKey, Model.Node.makeRequestVoteRequest, leaderAppendState, leaderAppendJoined,
           nodeOf_replaceNode, candidateNe
         ]
       have termAccepted :
@@ -1150,11 +1151,11 @@ lemma leaderAppendPreservesSystemInductiveInvariant
                 (voteRequestKey state candidate candidate)
                 rfl logEqNode
             simpa [
-              voteRequestKey, Model.Local.makeRequestVoteRequest, leaderAppendState, leaderAppendJoined,
+              voteRequestKey, Model.Node.makeRequestVoteRequest, leaderAppendState, leaderAppendJoined,
               nodeOf_replaceNode, Function.update, candidateNe
             ] using upToDate.2
           · simpa [
-              voteRequestKey, Model.Local.makeRequestVoteRequest, leaderAppendState, leaderAppendJoined,
+              voteRequestKey, Model.Node.makeRequestVoteRequest, leaderAppendState, leaderAppendJoined,
               nodeOf_replaceNode, Function.update,
               candidateNe, memberEq,
               voteLogUpToDate
@@ -3401,7 +3402,7 @@ lemma appendRetiredCommittedPreservesSystemInductiveInvariant
     using leaderAppendPreservesSystemInductiveInvariant (present := present)
       state node
       (.retiredCommitted
-        (((nodeOf state node).retirementCompleted (inferInstance)
+        (((nodeOf state node).retirementCompletedNodes (inferInstance)
           \ retiredCommittedNodes (nodeOf state node).log)))
       invariant enabled.1 enabled.2
 

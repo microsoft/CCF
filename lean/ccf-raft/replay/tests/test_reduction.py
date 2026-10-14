@@ -943,27 +943,24 @@ class ReductionTests(unittest.TestCase):
         ):
             reduce_trace(trace(callback))
 
-    def test_terminal_commit_emits_separate_nomination_once(self):
+    def test_terminal_commit_includes_its_nomination_once(self):
         fixture = FIXTURE.with_name("terminal_retirement.stdout")
         document = reduce_trace(read_trace(fixture))
-        nomination_index = next(
-            n
-            for n, instruction in enumerate(document["instructions"])
-            if instruction.get("action") == "nominateSuccessor"
-        )
         combined = [
-            next(
-                instruction
-                for instruction in reversed(document["instructions"][:nomination_index])
-                if instruction.get("action") == "receive"
-            )
+            instruction
+            for instruction in document["instructions"]
+            if instruction.get("action") == "receive"
+            and "step_down_and_nominate_successor"
+            in [origin["function"] for origin in instruction["origin"]]
         ]
+        self.assertEqual(len(combined), 1)
         self.assertEqual(combined[0]["destination"], "0")
         self.assertEqual(
             [o["function"] for o in combined[0]["origin"]],
             [
                 "recv_append_entries_response",
                 "commit",
+                "step_down_and_nominate_successor",
             ],
         )
         nominated = [
@@ -981,16 +978,9 @@ class ReductionTests(unittest.TestCase):
             for i in document["instructions"]
             if i.get("action") == "nominateSuccessor"
         ]
-        self.assertEqual(len(nominations), 1)
-        self.assertEqual(
-            (nominations[0]["node"], nominations[0]["destination"]), ("0", "1")
-        )
+        self.assertEqual(nominations, [])
         self.assertLess(
             document["instructions"].index(combined[0]),
-            document["instructions"].index(nominations[0]),
-        )
-        self.assertLess(
-            document["instructions"].index(nominations[0]),
             document["instructions"].index(nominated[0]),
         )
         before = next(
@@ -1127,7 +1117,7 @@ class ReductionTests(unittest.TestCase):
         self.assertEqual(
             [i["action"] for i in actions], ["nominateSuccessor", "nominateSuccessor"]
         )
-        self.assertEqual([i["destination"] for i in actions], ["1", "1"])
+        self.assertTrue(all("destination" not in i for i in actions))
         self.assertTrue(all(len(i["origin"]) == 1 for i in actions))
         proposals = [
             i

@@ -6,10 +6,11 @@ import CCFRaft.Model.NodeState
 /-!
 # Messages between nodes
 
-An empty AppendEntries batch is a heartbeat. Pre-votes do not advance the term.
+An empty AppendEntries batch is a heartbeat. Starting a pre-vote round does not
+increment the term, but receiving a newer-term pre-vote can advance it.
 -/
 
-namespace CCFRaft.Model.Local
+namespace CCFRaft.Model.Node
 
 structure AppendEntriesRequest (Node TxId : Type) where
   term : Nat
@@ -20,6 +21,7 @@ structure AppendEntriesRequest (Node TxId : Type) where
 deriving DecidableEq
 
 structure AppendEntriesResponse where
+  /-- Current election term, except a log-mismatch NACK carries the hinted log term. -/
   term : Nat
   success : Bool
   lastLogIndex : Nat
@@ -60,4 +62,4 @@ def Message.term : Message Node TxId -> Nat
   | .requestPreVoteResponse response => response.term
   | .proposeVoteRequest term => term
 
-end CCFRaft.Model.Local
+end CCFRaft.Model.Node

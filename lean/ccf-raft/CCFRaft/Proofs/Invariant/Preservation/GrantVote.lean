@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -519,7 +520,7 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
       have canonicalUpToDate :
           voteLogUpToDate ((nodeOf state) destination) (voteRequestKey
               state request.1 destination).2.2 := by
-        simpa [voteLogUpToDate, voteRequestKey, Model.Local.makeRequestVoteRequest,
+        simpa [voteLogUpToDate, voteRequestKey, Model.Node.makeRequestVoteRequest,
           lastCommittableIndex_eq_maxCommittableIndex
             ((nodeOf state) request.1)
             (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
@@ -539,7 +540,7 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
                     ] using grantFacts.2.1))
       exact ⟨
         by
-          simpa [voteRequestKey, Model.Local.makeRequestVoteRequest]
+          simpa [voteRequestKey, Model.Node.makeRequestVoteRequest]
             using sourceCurrent.symm.trans grantFacts.1,
         canonicalUpToDate,
         grantFacts.2.2.1
@@ -583,10 +584,10 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
             exact (Option.some.inj sameVote).symm
         refine ⟨
           by simpa [
-              voteRequestKey, Model.Local.makeRequestVoteRequest, termEq, candidateEq
+              voteRequestKey, Model.Node.makeRequestVoteRequest, termEq, candidateEq
             ] using eligible.1,
           by simpa [
-              voteRequestKey, Model.Local.makeRequestVoteRequest, logEq,
+              voteRequestKey, Model.Node.makeRequestVoteRequest, logEq,
               lastIndexEq, lastTermEq, voteLogUpToDate
             ] using eligible.2.1,
           ?_
@@ -594,7 +595,7 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
         simpa [candidateEq] using grantFacts.2.2.1
       · simpa [
           currentlyEligibleElectionVoter,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           termEq, logEq, lastIndexEq, lastTermEq,
           votedForOther voter voterEq, voteLogUpToDate
         ] using eligible
@@ -1078,7 +1079,7 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
             have canonicalUpToDate :
                 voteLogUpToDate ((nodeOf state) destination) (voteRequestKey
                     state request.1 request.1).2.2 := by
-              simpa [voteLogUpToDate, voteRequestKey, Model.Local.makeRequestVoteRequest,
+              simpa [voteLogUpToDate, voteRequestKey, Model.Node.makeRequestVoteRequest,
                 lastCommittableIndex_eq_maxCommittableIndex
                   ((nodeOf state) request.1)
                   (invariantFactsCommittedFrontierIsSignatureFromCommitEvidence
@@ -1102,7 +1103,7 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
             by simpa [after, present] using joined,
             Or.inr
               (by simpa [
-                  voteRequestKey, Model.Local.makeRequestVoteRequest,
+                  voteRequestKey, Model.Node.makeRequestVoteRequest,
                   termEq, logEq, lastIndexEq, lastTermEq,
                   voteLogUpToDate
                 ] using eligible)

@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joined joinedNext : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -163,7 +164,7 @@ lemma futureElectionMemberContainsSignedPrefix
       lastCommittableTerm_eq_maxCommittableTerm
         ((nodeOf state) candidate) (committedSignature candidate)
     unfold voteLogUpToDate at upToDate
-    simp only [voteRequestKey, Model.Local.makeRequestVoteRequest] at upToDate
+    simp only [voteRequestKey, Model.Node.makeRequestVoteRequest] at upToDate
     rw [candidateLastIndex, candidateLastTermEq] at upToDate
     have candidateLastTerm :
         evidence.commitTerm <=
@@ -716,7 +717,7 @@ lemma activationPrefixInPotentialCandidatePromotionOfGoverningConfiguration
             candidateEntrySafe
         · simpa [
               currentlyEligibleElectionVoter,
-              voteRequestKey, Model.Local.makeRequestVoteRequest,
+              voteRequestKey, Model.Node.makeRequestVoteRequest,
               lastCommittableIndex_eq_maxCommittableIndex
                 ((nodeOf state) candidate) (committedSignature candidate),
               lastCommittableTerm_eq_maxCommittableTerm
@@ -3155,7 +3156,7 @@ lemma effectiveAckerRelaxedCandidateContainsPotentialPrefix
               Or.inl (candidateEntriesBefore entry member))
       · simpa [
           relaxedElectionVoters,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           lastCommittableIndex_eq_maxCommittableIndex
             ((nodeOf state) candidate) (committedSignature candidate),
           lastCommittableTerm_eq_maxCommittableTerm
@@ -3286,7 +3287,7 @@ lemma effectiveAckerRelaxedCandidateContainsPrefixOfEarlierSafe
               Or.inl (candidateEntriesBefore entry member))
       · simpa [
           relaxedElectionVoters,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           lastCommittableIndex_eq_maxCommittableIndex
             ((nodeOf state) candidate) (committedSignature candidate),
           lastCommittableTerm_eq_maxCommittableTerm
@@ -3382,7 +3383,7 @@ lemma effectiveAckerFutureCandidateContainsPotentialPrefix
                 omega))
       · simpa [
           futureElectionVoters,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           lastCommittableIndex_eq_maxCommittableIndex
             ((nodeOf state) candidate) (committedSignature candidate),
           lastCommittableTerm_eq_maxCommittableTerm

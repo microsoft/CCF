@@ -21,13 +21,12 @@ namespace CCFRaft.Proofs.Direct
 open CCFRaft.Proofs.Config
 
 open Shared
-open Model.Local
+open Model.Node
 open Ledger (
   isSignatureAt_of_prefix isSignatureAt_take_of_le
     signatureIndex_le_maxCommittableIndex maxCommittableIndexUpTo_le_length
     maxCommittableIndexUpToPositiveIsSignature
   )
-open Ledger (refreshRetirementState_log refreshRetirementState_commitIndex)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]
@@ -127,12 +126,10 @@ theorem signature_le_length {log : List (Entry Node TxId)} {index : Nat}
   exact Ledger.entryAtSomeIndexBound found
 
 theorem CommitFrontier.leaderAppendState {state : NodeState Node TxId}
-    (frontier : CommitFrontier state) (self : Node) (content : EntryContent Node TxId)
+    (frontier : CommitFrontier state) (content : EntryContent Node TxId)
     : CommitFrontier
-        (refreshRetirementState (inferInstance) self
-          { state with log := state.log ++ [{ term := state.currentTerm, content }] }) :=
-  (frontier.extend (List.prefix_append _ _)).of_log (refreshRetirementState_log _ _)
-    (refreshRetirementState_commitIndex _ _)
+        { state with log := state.log ++ [{ term := state.currentTerm, content }] } :=
+  frontier.extend (List.prefix_append _ _)
 
 section AppendEntries
 
@@ -140,25 +137,20 @@ variable {self : Node} {state : NodeState Node TxId}
   {request : AppendEntriesRequest Node TxId}
 
 theorem CommitFrontier.fromLeader (frontier : CommitFrontier state)
-    : CommitFrontier (appendEntriesFromLeader (inferInstance) self state request).1 := by
+    : CommitFrontier (handleAppendEntiresFromLeader (inferInstance) self state request).1 := by
   have advanced := CommitFrontier.advance
     (bound := min request.leaderCommit (request.prevLogIndex + request.entries.length))
     (frontier.extend (List.prefix_append state.log
       (request.entries.drop (state.log.length - request.prevLogIndex))))
-  unfold appendEntriesFromLeader committedFromLeader
-  exact advanced.of_log (by simp) (by simp)
-
-theorem CommitFrontier.refresh {state : NodeState Node TxId}
-    (frontier : CommitFrontier state) (self : Node)
-    : CommitFrontier (refreshRetirementState (inferInstance) self state) :=
-  frontier.of_log (refreshRetirementState_log _ _) (refreshRetirementState_commitIndex _ _)
+  unfold handleAppendEntiresFromLeader
+  exact advanced.of_log rfl rfl
 
 theorem CommitFrontier.handleAppendEntriesRequest (frontier : CommitFrontier state)
     (caps : Caps Node TxId) (source : Node)
     : Keeps CommitFrontier
-        (Model.Local.handleAppendEntriesRequest (inferInstance) caps self source state
+        (Model.Node.handleAppendEntriesRequest (inferInstance) caps self source state
           request) := by
-  unfold Model.Local.handleAppendEntriesRequest
+  unfold Model.Node.handleAppendEntriesRequest
   have stepped : CommitFrontier (if request.term = state.currentTerm /\
       (state.role = .candidate \/ state.role = .preVoteCandidate) then
         { state with role := .follower, isNewFollower := true } else state) := by
@@ -169,13 +161,11 @@ theorem CommitFrontier.handleAppendEntriesRequest (frontier : CommitFrontier sta
       (state.role = .candidate \/ state.role = .preVoteCandidate) then
         { state with role := .follower, isNewFollower := true } else state) = current
     at stepped
-  refine Keeps.ite' (fun _ => Keeps.seq' fun _ => Keeps.pure' (frontier.refresh self))
-    fun _ => ?_
+  refine Keeps.ite' (fun _ => by
+    dsimp only
+    split <;> exact Keeps.seq' fun _ => Keeps.pure' stepped) fun _ => ?_
   dsimp only
-  refine Keeps.ite' (fun _ => Keeps.seq' fun _ => Keeps.pure' (stepped.refresh self))
-    fun _ => ?_
-  refine Keeps.ite' (fun _ => Keeps.pure' ((stepped.of_log rfl rfl).refresh self))
-    fun notBefore => ?_
+  refine Keeps.ite' (fun _ => Keeps.pure' (stepped.of_log rfl rfl)) fun notBefore => ?_
   have within : current.commitIndex <= request.prevLogIndex := by
     simp only [not_or] at notBefore
     omega
@@ -197,30 +187,25 @@ theorem CommitFrontier.handleAppendEntriesRequest (frontier : CommitFrontier sta
             log := current.log.take request.prevLogIndex, isNewFollower := false
         }
       else { current with leaderKnown := true }) = prepared' at prepared
-  exact Keeps.seq' fun _ => Keeps.pure' (prepared.fromLeader.refresh self)
+  exact Keeps.seq' fun _ => Keeps.pure' prepared.fromLeader
 
 end AppendEntries
 
 theorem CommitFrontier.advanced {state : NodeState Node TxId} (self : Node)
     (frontier : CommitFrontier state) (caps : Caps Node TxId)
-    : Keeps CommitFrontier (Model.Local.advanceCommit (inferInstance) caps state self) := by
-  unfold Model.Local.advanceCommit
+    : Keeps CommitFrontier (Model.Node.advanceCommit (inferInstance) caps state self) := by
+  unfold Model.Node.advanceCommit
   refine Keeps.ite' (fun _ => Keeps.pure' frontier) fun ahead => ?_
   have signature := highestCommittableIndex_signature state self (by omega)
   have advanced : CommitFrontier
-      (refreshRetirementState (inferInstance) self
-        { state with commitIndex := highestCommittableIndex (inferInstance) state self }) :=
-    CommitFrontier.refresh
-      ⟨by simpa using signature_le_length signature, fun _ => by simpa using signature⟩ self
-  refine Keeps.ite' (fun _ => Keeps.pure' (advanced.of_log rfl rfl))
+      (state.commitThrough self (highestCommittableIndex (inferInstance) state self)) :=
+    ⟨by simpa [NodeState.commitThrough] using signature_le_length signature,
+      fun _ => by simpa [NodeState.commitThrough] using signature⟩
+  dsimp only
+  refine Keeps.ite'
+    (fun _ => Keeps.ite' (fun _ => Keeps.seq' fun _ => Keeps.pure' (advanced.of_log rfl rfl))
+      fun _ => Keeps.pure' (advanced.of_log rfl rfl))
     fun _ => Keeps.pure' advanced
-
-theorem CommitFrontier.advancedIfAlone {state : NodeState Node TxId} (self : Node)
-    (frontier : CommitFrontier state) (caps : Caps Node TxId)
-    : Keeps CommitFrontier
-        (Model.Local.advanceCommitIfAlone (inferInstance) caps state self) := by
-  unfold Model.Local.advanceCommitIfAlone
-  exact Keeps.ite' (fun _ => Keeps.pure' frontier) fun _ => frontier.advanced self caps
 
 theorem CommitFrontier.withSent {state : NodeState Node TxId}
     (frontier : CommitFrontier state) {sentIndex : Node -> Nat}
@@ -258,23 +243,23 @@ variable (caps : Caps Node TxId) (self : Node)
 
 theorem CommitFrontier.appendEntry {state : NodeState Node TxId}
     (frontier : CommitFrontier state) (content : EntryContent Node TxId)
-    : Keeps CommitFrontier (Model.Local.appendEntry (inferInstance) caps self state content) := by
-  unfold Model.Local.appendEntry
+    : Keeps CommitFrontier (Model.Node.appendEntry (inferInstance) caps self state content) := by
+  unfold Model.Node.appendEntry
   cases content with
   | signature =>
-      exact Keeps.seq' fun _ => Keeps.pure' (frontier.leaderAppendState self _)
+      exact Keeps.seq' fun _ => Keeps.pure' (frontier.leaderAppendState _)
   | transaction txId effects =>
       dsimp only
       refine Keeps.bind'
         (Q := fun (pair : NodeState Node TxId × List (TransactionEffect Node)) =>
           CommitFrontier pair.1) ?_
-        fun pair kept => Keeps.pure' (kept.leaderAppendState self _)
+        fun pair kept => Keeps.pure' (kept.leaderAppendState _)
       refine Keeps.foldlM'
         (P := fun (pair : NodeState Node TxId × List (TransactionEffect Node)) =>
           CommitFrontier pair.1) ?_ effects (state, []) frontier
       intro ⟨current, done⟩ effect kept
       refine Keeps.bind' (Q := CommitFrontier) ?_ fun _ next => Keeps.pure' next
-      unfold Model.Local.applyTransactionEffect
+      unfold Model.Node.applyTransactionEffect
       cases effect with
       | reconfiguration nodes =>
           exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.pure' kept.withSent
@@ -283,24 +268,24 @@ theorem CommitFrontier.appendEntry {state : NodeState Node TxId}
 
 theorem CommitFrontier.becomeLeader {state : NodeState Node TxId}
     (frontier : CommitFrontier state)
-    : Keeps CommitFrontier (Model.Local.becomeLeader (inferInstance) caps self state) := by
-  unfold Model.Local.becomeLeader
-  refine Keeps.bind' (CommitFrontier.advancedIfAlone self ?_ caps) fun _ kept =>
+    : Keeps CommitFrontier (Model.Node.becomeLeader (inferInstance) caps self state) := by
+  unfold Model.Node.becomeLeader
+  refine Keeps.bind' (CommitFrontier.advanced self ?_ caps) fun _ kept =>
       Keeps.seq' fun _ => Keeps.pure' kept
-  unfold Model.Local.leaderState
-  exact (frontier.promotedLog.of_log rfl rfl).refresh self
+  unfold Model.Node.leaderState
+  exact frontier.promotedLog.of_log rfl rfl
 
 theorem CommitFrontier.electIfQuorum {state : NodeState Node TxId}
     (frontier : CommitFrontier state)
-    : Keeps CommitFrontier (Model.Local.electIfQuorum (inferInstance) caps self state) := by
-  unfold Model.Local.electIfQuorum
+    : Keeps CommitFrontier (Model.Node.electIfQuorum (inferInstance) caps self state) := by
+  unfold Model.Node.electIfQuorum
   exact Keeps.ite' (fun _ => frontier.becomeLeader caps self) fun _ => Keeps.pure' frontier
 
 theorem CommitFrontier.becomeCandidate {state : NodeState Node TxId}
     (frontier : CommitFrontier state)
     : Keeps CommitFrontier
-        (Model.Local.becomeCandidate (inferInstance) caps state self) := by
-  unfold Model.Local.becomeCandidate
+        (Model.Node.becomeCandidate (inferInstance) caps state self) := by
+  unfold Model.Node.becomeCandidate
   refine Keeps.bind' (CommitFrontier.electIfQuorum caps self ?_) fun _ kept =>
     Keeps.seq' fun _ => Keeps.pure' kept
   exact frontier.of_log rfl rfl
@@ -308,82 +293,75 @@ theorem CommitFrontier.becomeCandidate {state : NodeState Node TxId}
 theorem CommitFrontier.becomePreVoteCandidate {state : NodeState Node TxId}
     (frontier : CommitFrontier state)
     : Keeps CommitFrontier
-        (Model.Local.becomePreVoteCandidate (inferInstance) caps state self) := by
-  unfold Model.Local.becomePreVoteCandidate
+        (Model.Node.becomePreVoteCandidate (inferInstance) caps state self) := by
+  unfold Model.Node.becomePreVoteCandidate
   refine Keeps.ite' (fun _ => CommitFrontier.becomeCandidate caps self ?_)
     fun _ => Keeps.seq' fun _ => Keeps.pure' ?_ <;> exact frontier.of_log rfl rfl
 
 theorem CommitFrontier.act {state : NodeState Node TxId}
     (frontier : CommitFrontier state) (input : Input Node TxId)
-    : Keeps CommitFrontier (Model.Local.act (inferInstance) caps self state input) := by
+    : Keeps CommitFrontier (Model.Node.act (inferInstance) caps self state input) := by
   cases input with
   | append entries =>
-      unfold Model.Local.act Model.Local.appendBatch
+      unfold Model.Node.act Model.Node.appendBatch
       exact Keeps.seq' fun _ => Keeps.bind'
         (Keeps.foldlM' (fun current content kept => kept.appendEntry caps self content)
           entries state frontier)
-        fun _ kept => kept.advancedIfAlone self caps
+        fun _ kept => kept.advanced self caps
   | sendEntries destination endIndex =>
-      unfold Model.Local.act Model.Local.sendEntries
+      unfold Model.Node.act Model.Node.sendEntries
       exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.pure' frontier.withSent
   | timeout kind =>
       cases kind with
       | election =>
-          unfold Model.Local.act Model.Local.startElection
+          unfold Model.Node.act Model.Node.startElection
           exact Keeps.seq' fun _ => Keeps.ite'
             (fun _ => frontier.becomePreVoteCandidate caps self)
             fun _ => frontier.becomeCandidate caps self
       | checkQuorum =>
-          unfold Model.Local.act Model.Local.checkQuorum
+          unfold Model.Node.act Model.Node.checkQuorum
           exact Keeps.seq' fun _ => Keeps.pure' (frontier.of_log rfl rfl)
-  | nominateSuccessor destination =>
-      unfold Model.Local.act
-      refine Keeps.seq' fun _ => ?_
-      split
-      · exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.seq' fun _ =>
-          Keeps.pure' (frontier.of_log rfl rfl)
-      · refine Keeps.seq' fun _ => ?_
-        split
-        · exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.seq' fun _ =>
-            Keeps.pure' (frontier.of_log rfl rfl)
-        · exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.pure' (frontier.of_log rfl rfl)
+  | nominateSuccessor =>
+      unfold Model.Node.act
+      exact Keeps.seq' fun _ => Keeps.seq' fun _ =>
+        Keeps.pure' (frontier.of_log rfl rfl)
 
 theorem CommitFrontier.receive {state : NodeState Node TxId}
     (frontier : CommitFrontier state) (source : Node) (message : Message Node TxId)
     : Keeps CommitFrontier
-        (Model.Local.receive (inferInstance) caps self source state message) := by
+        (Model.Node.receive (inferInstance) caps self source state message) := by
   have observed : CommitFrontier (observeTerm state message) :=
     frontier.of_log (Concrete.observeTerm_log _ _) (Concrete.observeTerm_commitIndex _ _)
-  unfold Model.Local.receive
+  unfold Model.Node.receive
   dsimp only
   generalize observeTerm state message = current at observed ⊢
   cases message with
   | appendEntriesRequest request => exact observed.handleAppendEntriesRequest caps source
   | appendEntriesResponse response =>
-      unfold Model.Local.handleAppendEntriesResponse
+      unfold Model.Node.handleAppendEntriesResponse
       refine Keeps.ite' (fun _ => Keeps.pure' observed) fun _ => ?_
       refine Keeps.ite' (fun _ => ?_) fun _ => Keeps.pure' (observed.of_log rfl rfl)
       refine Keeps.ite' (fun _ => CommitFrontier.advanced self ?_ caps)
         fun _ => Keeps.pure' observed
       exact observed.of_log rfl rfl
   | requestVoteRequest request =>
-      unfold Model.Local.handleRequestVoteRequest
+      unfold Model.Node.handleRequestVoteRequest
       exact Keeps.seq' fun _ => Keeps.pure' (by split <;> exact observed.of_log rfl rfl)
   | requestVoteResponse response =>
-      unfold Model.Local.handleRequestVoteResponse
+      unfold Model.Node.handleRequestVoteResponse
       exact Keeps.ite' (fun _ => CommitFrontier.electIfQuorum caps self (observed.of_log rfl rfl))
         fun _ => Keeps.pure' observed
   | requestPreVote request =>
-      unfold Model.Local.handleRequestPreVote
+      unfold Model.Node.handleRequestPreVote
       exact Keeps.seq' fun _ => Keeps.pure' observed
   | requestPreVoteResponse response =>
-      unfold Model.Local.handleRequestPreVoteResponse
+      unfold Model.Node.handleRequestPreVoteResponse
       refine Keeps.ite' (fun _ => ?_) fun _ => Keeps.pure' observed
       dsimp only
       exact Keeps.ite' (fun _ => CommitFrontier.becomeCandidate caps self (observed.of_log rfl rfl))
         fun _ => Keeps.pure' (observed.of_log rfl rfl)
   | proposeVoteRequest term =>
-      unfold Model.Local.handleProposeVoteRequest
+      unfold Model.Node.handleProposeVoteRequest
       exact Keeps.ite' (fun _ => CommitFrontier.becomeCandidate caps self observed)
         fun _ => Keeps.pure' observed
 
@@ -397,19 +375,15 @@ theorem commitFrontier_invariant
   intro self state event after outputs frontier stepped
   cases event with
   | internal input =>
-      cases input <;> simp only [Model.Local.step] at stepped <;>
-        first
-          | exact frontier.act _ self _ _ _ _ stepped
-          | exact (frontier.of_log (after := { state with pendingRetirementNomination := none })
-              rfl rfl).act _ self _ _ _ _ stepped
+      simp only [Model.Node.step] at stepped
+      exact frontier.act _ self _ _ _ _ stepped
   | receive source message =>
-      simp only [Model.Local.step] at stepped
-      exact (frontier.of_log (after := { state with pendingRetirementNomination := none })
-        rfl rfl).receive _ self source message _ _ _ stepped
+      simp only [Model.Node.step] at stepped
+      exact frontier.receive _ self source message _ _ _ stepped
 
 theorem committed_frontier_is_signature : Properties.CommittedFrontierIsSignature := by
   intro Node TxId _ _ _ _ config nodes trace state node nodeState ⟨valid, member, listed, positive⟩
-  let _ : Model.Local.InitialConfig Node := config
+  let _ : Model.Node.InitialConfig Node := config
   exact (commitFrontier_invariant.reachable (valid.reachable member) node nodeState listed).2
     positive
 

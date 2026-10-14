@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -517,7 +518,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     · exact ⟨by simpa [concrete_effects, present] using joined, Or.inr (by
         simpa [
           currentlyEligibleElectionVoter,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           termEq, maxCommittableIndexEq, maxCommittableTermEq,
           lastIndexEq, lastTermEq, votedEq, voteLogUpToDate
         ] using eligible)⟩
@@ -527,7 +528,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
     · exact ⟨by simpa [concrete_effects, present] using joined, Or.inr (by
         simpa [
           currentlyEligibleElectionVoter,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           termEq, maxCommittableIndexEq, maxCommittableTermEq,
           lastIndexEq, lastTermEq, votedEq, voteLogUpToDate
         ] using eligible)⟩
@@ -1130,7 +1131,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
       simpa [roleOther candidate candidateNe, termEq, logOther candidate candidateNe,
         maxCommittableIndexEq, maxCommittableTermEq, lastIndexEq, lastTermEq, votedEq,
         effectiveElectionVotersEq, relaxedElectionVoters, voteRequestKey,
-        Model.Local.makeRequestVoteRequest, voteLogUpToDate]
+        Model.Node.makeRequestVoteRequest, voteLogUpToDate]
         using prospectiveFacts.relaxedSupporterCarriesFrontier evidence supportedPrefix
           (knownBack evidence supportedPrefix known)
           candidate member
@@ -1144,7 +1145,7 @@ lemma becomeLeaderPreservesSystemInductiveInvariant
           ackMember
           (by simpa [
               relaxedElectionVoters,
-              voteRequestKey, Model.Local.makeRequestVoteRequest,
+              voteRequestKey, Model.Node.makeRequestVoteRequest,
               termEq, logOther candidate candidateNe,
               maxCommittableIndexEq, maxCommittableTermEq,
               lastIndexEq, lastTermEq, votedEq,

@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes joinedNext : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -877,7 +878,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
         simpa [
           potentialElectionVoters,
           currentlyEligibleElectionVoter,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           activeConfigurationsEq,
           effectiveElectionVotersIntermediate,
           termEq, logEq, commitEq, votedEq,
@@ -1260,7 +1261,7 @@ lemma receiveAppendEntriesResponsePreservesSystemInductiveInvariant
           simpa [
             potentialElectionVoters,
             currentlyEligibleElectionVoter,
-            voteRequestKey, Model.Local.makeRequestVoteRequest,
+            voteRequestKey, Model.Node.makeRequestVoteRequest,
             activeConfigurationsEq,
             effectiveElectionVotersIntermediate,
             termEq, logEq, commitEq, votedEq,

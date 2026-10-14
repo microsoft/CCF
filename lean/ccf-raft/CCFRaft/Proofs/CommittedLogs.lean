@@ -17,12 +17,12 @@ open CCFRaft.Proofs.Config
 theorem committed_logs_prefix : Properties.CommittedLogsPrefix := by
   intro Node TxId _ _ config nodes trace first second left right leftState rightState
     ⟨valid, firstMember, secondMember, leftMember, rightMember⟩
-  let _ : Model.Local.InitialConfig Node := config
+  let _ : Model.Node.InitialConfig Node := config
   obtain ⟨firstIndex, atFirst⟩ := List.mem_iff_getElem?.mp firstMember
   obtain ⟨secondIndex, atSecond⟩ := List.mem_iff_getElem?.mp secondMember
   /- Move the node of the earlier state to the later state, then compare there. -/
   have across : forall {earlierIndex laterIndex : Nat} {earlier later}
-      {earlierNode laterNode : Node} {earlierState laterState : Model.Local.NodeState Node TxId},
+      {earlierNode laterNode : Node} {earlierState laterState : Model.Node.NodeState Node TxId},
       earlierIndex <= laterIndex
       -> trace.states[earlierIndex]? = some earlier
       -> trace.states[laterIndex]? = some later

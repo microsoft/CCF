@@ -19,7 +19,7 @@ in the network and the replay never delivers it.
 
 namespace CCFRaft.Replay
 
-open Lean Model.Local
+open Lean Model.Node
 open Shared (Envelope)
 open Shared.MultiNodeTransitionSystem (nodeState removeOne)
 
@@ -196,9 +196,8 @@ private def parseAction (header : Header) (value : Json) : Except String Step :=
       | "checkQuorum" => return .local node (.timeout .checkQuorum)
       | kind => throw s!"unsupported timeout '{kind}'"
   | "nominateSuccessor" =>
-      keys value (base ++ ["node", "destination"])
-      return .local (← nodeField header value "node")
-        (.nominateSuccessor (← nodeField header value "destination"))
+      keys value (base ++ ["node"])
+      return .local (← nodeField header value "node") .nominateSuccessor
   | _ => throw s!"unsupported action '{name}'"
 
 /-- Receive consumes the oldest live envelope; drop only excludes it from replay. -/
@@ -259,6 +258,7 @@ private def observeState (header : Header) (replay : ReplayState) (value : Json)
   keys value ["kind", "observation", "origin", "node", "peer", "fields"]
   let node ← nodeField header value "node"
   let nodeState ← lookup replay node
+  let retirement := nodeState.retirement header.bootstrap node
   let committableIndices :=
     (List.range' 1 nodeState.log.length).filter
       fun index =>
@@ -287,9 +287,9 @@ private def observeState (header : Header) (replay : ReplayState) (value : Json)
       ("commitIndex", toJson nodeState.commitIndex),
       ("committableIndices", toJson committableIndices),
       ("configurations", toJson configurations),
-      ("membershipState", toJson (membershipName nodeState.membershipState)),
-      ("retirementIndex", toJson nodeState.retirementIndex),
-      ("retirementCommittableIndex", toJson nodeState.retirementCommittableIndex),
+      ("membershipState", toJson (membershipName retirement.phase)),
+      ("retirementIndex", toJson retirement.index),
+      ("retirementCommittableIndex", toJson retirement.committableIndex),
       ("retiredCommittedIndex", toJson nodeState.retiredCommittedIndex),
       ("preVoteEnabled", toJson (decide (header.bootstrap.preVoteStatus node = .enabled)))
     ]
@@ -465,8 +465,7 @@ def replay (document : Json) : Except String Result := do
     throw
       "ccfraft-replay/v2 is unsupported: v4 receives adopt newer terms without updateTerm"
   if schema == "ccfraft-replay/v3" then
-    throw
-      "ccfraft-replay/v3 is unsupported: v4 requires explicit nomination destinations and events"
+    throw "ccfraft-replay/v3 is unsupported: v4 requires deterministic successor ranking"
   unless schema == "ccfraft-replay/v4" do
     throw s!"unsupported replay schema '{schema}'"
   let header ←

@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Negative wire-contract tests against the actual canonical executable."""
+"""Wire-contract regressions against the built ccfraft-replay executable."""
 
 import copy
 import json
@@ -167,37 +167,37 @@ class CanonicalReplayTests(unittest.TestCase):
         negative = self.replay(reduce_trace(records))
         self.assertEqual(negative.returncode, 1)
         self.assertIn(
-            "disabled canonical action 'nominateSuccessor'",
+            "no pending packet from '0' to '0'",
             negative.stderr,
         )
 
-    def test_retirement_commit_does_not_implicitly_queue_nomination(self):
+    def test_retirement_commit_atomically_queues_nomination(self):
         document = reduce_trace(
             read_trace(FIXTURE.with_name("terminal_retirement.stdout"))
         )
-        document["instructions"] = [
-            instruction
-            for instruction in document["instructions"]
-            if instruction.get("action") != "nominateSuccessor"
-        ]
+        self.assertFalse(
+            any(
+                instruction.get("action") == "nominateSuccessor"
+                for instruction in document["instructions"]
+            )
+        )
         result = self.replay(document)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("terminal-nomination-message", result.stderr)
-        self.assertIn("no pending packet", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_nomination_requires_an_explicit_destination(self):
-        document = reduce_trace(
-            read_trace(FIXTURE.with_name("terminal_retirement.stdout"))
+    def test_nomination_rejects_an_explicit_destination(self):
+        document = self.bootstrap()
+        document["instructions"].append(
+            {
+                "kind": "action",
+                "action": "nominateSuccessor",
+                "node": "0",
+                "destination": "0",
+                "origin": document["instructions"][0]["origin"],
+            }
         )
-        nomination = next(
-            instruction
-            for instruction in document["instructions"]
-            if instruction.get("action") == "nominateSuccessor"
-        )
-        del nomination["destination"]
         result = self.replay(document)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("destination", result.stderr)
+        self.assertIn("unsupported field 'destination'", result.stderr)
 
     def test_callback_property_mutations_are_rejected(self):
         records = read_trace(FIXTURE.with_name("terminal_retirement.stdout"))
@@ -351,12 +351,12 @@ class CanonicalReplayTests(unittest.TestCase):
         self.assertIn("without updateTerm", result.stderr)
         self.assertEqual(result.stdout, "")
 
-    def test_implicit_nomination_schema_is_rejected(self):
+    def test_previous_nomination_schema_is_rejected(self):
         document = self.bootstrap()
         document["schema"] = "ccfraft-replay/v3"
         result = self.replay(document)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("explicit nomination destinations and events", result.stderr)
+        self.assertIn("deterministic successor ranking", result.stderr)
         self.assertEqual(result.stdout, "")
 
     def test_empty_instruction_array_is_rejected(self):

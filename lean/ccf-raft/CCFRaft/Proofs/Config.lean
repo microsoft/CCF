@@ -14,11 +14,11 @@ model's definitions agree with them. These conveniences do not change the
 model or its properties.
 -/
 
-attribute [class] CCFRaft.Model.Local.InitialConfig
+attribute [class] CCFRaft.Model.Node.InitialConfig
 
 namespace CCFRaft.Proofs.Config
 
-open Model.Local
+open Model.Node
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId]
 
@@ -78,7 +78,7 @@ def currentConfiguration (config : InitialConfig Node) (state : NodeState Node T
 /-- The current configuration and every later configuration in the node's log. -/
 def activeConfigurationsOf (config : InitialConfig Node) (state : NodeState Node TxId)
     : List (Configuration Node) :=
-  Model.Local.activeConfigurations config state.log state.commitIndex
+  Model.Node.activeConfigurations config state.log state.commitIndex
 
 /-- Union of the nodes in a node's active configurations. -/
 def activeNodeUnion (config : InitialConfig Node) (state : NodeState Node TxId)
@@ -227,7 +227,7 @@ def acceptAppendEntriesRequest? (config : InitialConfig Node) (self : Node)
     (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
     : Option (NodeState Node TxId × AppendEntriesResponse) :=
   if request.term = state.currentTerm
-      /\ logOk state request
+      /\ appendEntryMatchesLog state request
       /\ state.commitIndex <= request.prevLogIndex
       /\ Not (hasTermConflict state request /\ !state.isNewFollower) then
     let state := { state with leaderKnown := true }
@@ -236,9 +236,19 @@ def acceptAppendEntriesRequest? (config : InitialConfig Node) (self : Node)
         { state with log := state.log.take request.prevLogIndex, isNewFollower := false }
       else
         state
-    some (appendEntriesFromLeader config self state request)
+    some (handleAppendEntiresFromLeader config self state request)
   else
     none
+
+/-- The NACK `handleAppendEntriesRequest` sends for a stale or mismatched request. -/
+def appendEntriesNack (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
+    : AppendEntriesResponse :=
+  if request.term < state.currentTerm \/ termAt state.log request.prevLogIndex = 0 then
+    { term := state.currentTerm, success := false, lastLogIndex := state.log.length }
+  else
+    let lastLogIndex :=
+      findHighestPossibleMatch state.log request.prevLogIndex request.prevLogTerm
+    { term := termAt state.log lastLogIndex, success := false, lastLogIndex }
 
 /--
 The AppendEntries handler of a node that did not step down, as an option: the
@@ -247,7 +257,7 @@ NACK or the accepting branch, and `none` when the request is dropped.
 def handleAppendEntriesRequest? (config : InitialConfig Node) (self : Node)
     (state : NodeState Node TxId) (request : AppendEntriesRequest Node TxId)
     : Option (NodeState Node TxId × AppendEntriesResponse) :=
-  if request.term < state.currentTerm \/ Not (logOk state request) then
+  if request.term < state.currentTerm \/ Not (appendEntryMatchesLog state request) then
     some (state, appendEntriesNack state request)
   else
     acceptAppendEntriesRequest? config self state request

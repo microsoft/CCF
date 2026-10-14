@@ -11,7 +11,7 @@ Log positions are one-based; index zero is the empty prefix.
 Signatures make their prefixes committable. Behaviour is in `Node.lean`.
 -/
 
-namespace CCFRaft.Model.Local
+namespace CCFRaft.Model.Node
 
 /-- Transaction effects take effect in list order. -/
 inductive TransactionEffect (Node : Type) where
@@ -70,22 +70,11 @@ structure NodeState (Node TxId : Type) where
   leaderKnown : Bool := false
   votesGranted : Finset Node
   preVotesGranted : Finset Node := {}
-  membershipState : MembershipState := .active
-  /-- First configuration log position that removes this node, if any. -/
-  retirementIndex : Option Nat := none
-  /-- First signature position after removal, making retirement committable. -/
-  retirementCommittableIndex : Option Nat := none
   /--
   Commit frontier when a record confirming this node's completed retirement
   first became committed; not necessarily the position of that record.
   -/
   retiredCommittedIndex : Option Nat := none
-  /--
-  One-shot permission for an outgoing retiring leader to nominate after commit
-  clears its role. Captures the term and eligible peers before configuration
-  pruning; any other local event expires the permission.
-  -/
-  pendingRetirementNomination : Option (Nat × Finset Node) := none
 
 namespace NodeState
 
@@ -153,4 +142,4 @@ def lastCommittableIndex (state : NodeState Node TxId) : Nat :=
 def lastCommittableTerm (state : NodeState Node TxId) : Nat :=
   termAt state.log (lastCommittableIndex state)
 
-end CCFRaft.Model.Local
+end CCFRaft.Model.Node

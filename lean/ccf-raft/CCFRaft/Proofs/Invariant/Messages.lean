@@ -7,7 +7,7 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open Model.Local
+open Model.Node
 
 /-- History keys retain both endpoints and the unchanged local payload. -/
 abbrev AppendRequestKey (Node TxId : Type) :=
@@ -81,6 +81,7 @@ def IsSafetyInert : Message Node TxId -> Prop
   | _ => False
 
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 def voteRequestKey (state : Model.State Node TxId) (source target : Node)
     : VoteRequestKey Node :=

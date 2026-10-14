@@ -10,7 +10,7 @@ namespace CCFRaft.Proofs.Invariant
 open CCFRaft.Proofs.Config
 
 open Shared.MultiNodeTransitionSystem Concrete
-open Model.Local (InitialConfig NodeState initialNodeState)
+open Model.Node (InitialConfig NodeState initialNodeState)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]

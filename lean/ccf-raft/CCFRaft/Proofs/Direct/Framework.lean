@@ -19,7 +19,7 @@ namespace CCFRaft.Proofs.Direct
 open CCFRaft.Proofs.Config
 
 open Shared Shared.MultiNodeTransitionSystem Concrete
-open Model.Local (NodeState InitialConfig initialNodeState)
+open Model.Node (NodeState InitialConfig initialNodeState)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]
@@ -30,7 +30,7 @@ structure NodeInvariant (P : Node -> NodeState Node TxId -> Prop) : Prop where
   step
     : forall node state event after outputs,
         P node state
-        -> (Model.Local.step (inferInstance) (Capabilities.record node) node state
+        -> (Model.Node.step (inferInstance) (Capabilities.record node) node state
               event).run
               {}
             = some (after, outputs)
@@ -49,9 +49,9 @@ theorem NodeInvariant.reachable {P : Node -> NodeState Node TxId -> Prop}
       exact invariant.initial node
   | @step before after action _ stepped ih =>
       have preserved : forall {actor : Node} {old : NodeState Node TxId}
-          {event : Model.Local.Event Node TxId} {new outputs},
+          {event : Model.Node.Event Node TxId} {new outputs},
           nodeState before actor = some old ->
-          (Model.Local.step (inferInstance) (Capabilities.record actor) actor old event).run {}
+          (Model.Node.step (inferInstance) (Capabilities.record actor) actor old event).run {}
             = some (new, outputs) ->
           forall node local_,
             (node, local_) ∈ replaceNode before.nodes actor new ->

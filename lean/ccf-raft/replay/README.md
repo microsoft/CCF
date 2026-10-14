@@ -55,7 +55,7 @@ fact and excludes `role` from the post-action observation.
 
 Actions are `append` (`node`, nonempty `entries`), `sendEntries` (`source`,
 `destination`, `endIndex`), `timeout` (`node`, `timeout` of `election` or
-`checkQuorum`), `nominateSuccessor` (`node`, `destination`), `receive` and `drop`. Each driver
+`checkQuorum`), `nominateSuccessor` (`node`), `receive` and `drop`. Each driver
 `replicate` writes one entry, so it becomes a one-entry `append`. A
 `globally_committable` write is a signature. Any other write is a transaction
 whose identifier is `file:line` of its `replicate` record. That includes
@@ -72,19 +72,20 @@ Replaying multi-entry C++ calls atomically needs additional trace evidence;
 adjacent callbacks alone do not establish a batch boundary.
 
 Callbacks that `raft.h` runs inside one operation form one action with it:
-new-peer heartbeats and a lone-leader commit inside `append`, a commit
-inside an AppendEntries-response `receive`, and the
+new-peer heartbeats and a lone-leader commit inside `append`, a commit and its
+retirement nomination inside an AppendEntries-response `receive`, and the
 commit and heartbeats of `become_leader`. No commit, promotion, or vote send is
 a standalone action, so an ungrouped leader `commit` is a reduction error. A
 standalone `send_append_entries` becomes `sendEntries`. The reducer requires its
 `prev_idx` to equal the recorded `sent_idx`, from which the model derives it. A
 `step_down_and_nominate_successor` outside a commit must come from a
-`nominate_successor` command. Every nomination callback becomes its own
-`nominateSuccessor` action with the recorded destination, including callbacks
-inside retirement commits. The reducer then observes the queued proposal.
+`nominate_successor` command. Only this standalone callback becomes a
+`nominateSuccessor` action, with no destination payload. A retirement callback
+is a nested output of its committing action. In both cases the reducer observes
+the proposal queued to the recorded destination.
 
-Elections are atomic, as in `raft.h`. `become_pre_vote_candidate` and
-`become_candidate` events form one `timeout` action together with their nested
+Elections are atomic, as in `raft.h`. Timeout-driven `become_pre_vote_candidate`
+and `become_candidate` events form one `timeout` action together with their nested
 self-quorum promotions (`become_candidate`, `become_leader`) and every
 `send_request_vote` callback that follows. The reducer checks that the
 requests go, in ascending order, to every other node in the traced active
@@ -96,13 +97,14 @@ every other active member. Extra retained peers are checked against queued
 model packets too; the snapshot alone cannot enumerate peers retained after
 rollback.
 
-Nomination destinations are model inputs guarded by eligible-peer membership
-and exclusion of self. The model intentionally does not check C++ successor
-ranking or unordered-map tie breaking. Terminal retirement records the
-outgoing leader's term and eligible-peer set before commit prunes old
-configurations and clears leadership. The following explicit nomination can
-use that captured permission once; another local event expires it. An arbitrary
-retired nonleader cannot nominate. Raw terminal snapshots still have the
+The model and C++ select the highest tuple of acknowledged replication index,
+latest active configuration index containing the peer (zero if absent), and
+node ID. Final node-ID ties use lexical string order: driver identities pass
+unchanged through `ccf::NodeId` and JSON, and replay uses Lean `String` order,
+so `"2"` is greater than `"10"`. No trace-supplied destination overrides the
+choice. Terminal retirement nominates atomically using the precommit eligible
+peers and configuration view, before pruning configurations and clearing
+leadership. A retired nonleader cannot nominate afterward. Raw terminal snapshots still have the
 leader role and completed retirement phase: these are audited when grouping,
 not confused with the model's postcommit role. Packet destination, term, queue
 ordering, and delivery evidence remain checked.

@@ -538,19 +538,11 @@ class Instructions:
         **parameters: Any,
     ) -> None:
         """Append a rule-selected model action with origins for its source events."""
-        sources = group or [event]
-        if action != "nominateSuccessor":
-            # Nomination callbacks have their own explicit model action.
-            sources = [
-                item
-                for item in sources
-                if item.function != "step_down_and_nominate_successor"
-            ]
         self.instructions.append(
             {
                 "kind": "action",
                 "action": action,
-                "origin": [item.origin(rule) for item in sources],
+                "origin": [item.origin(rule) for item in (group or [event])],
                 **parameters,
             }
         )
@@ -772,13 +764,6 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
                         else {}
                     ),
                 },
-            )
-            out.action(
-                nomination,
-                "nominateSuccessor",
-                "terminal-nomination",
-                node=nomination.node,
-                destination=node(nomination.message["to_node_id"], nomination.location),
             )
             out.message_propose(nomination, "terminal-nomination-message")
             out.emit_observations(
@@ -1111,7 +1096,7 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
         elif peek(1) == ["send_append_entries"]:
             (event,) = take()
             raw = event.message["packet"]
-            # The model derives prev from sentIndex; only the endpoint is input.
+            # prev_idx comes from sentIndex; the trace supplies destination and endIndex.
             require(
                 raw["prev_idx"] == event.message.get("sent_idx"),
                 f"{event.location}: send prev_idx differs from sent_idx",
@@ -1156,8 +1141,8 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
             out.peers(event, "receive-pre")
             out.message(event, "receive-pre", receiving=True)
 
-            # A newer term, or a same-term AppendEntries at a candidate, makes
-            # the receiver a follower. The model does this inside the receive.
+            # Term adoption and same-term AppendEntries step-down happen inside
+            # the model's receive, not as separate actions.
             followers = []
             if peek() == ["become_follower"] and same_context(event, events[0]):
                 followers = take()
@@ -1218,7 +1203,7 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
                 election = ([], [], take_leader_tail(callbacks[0]))
                 callbacks += election[2]
             elif event.function == "recv_append_entries_response":
-                # A current-term ACK updates match_idx, then commits inside
+                # A current-term ACK updates match_idx, then may commit inside
                 # the receive.
                 callbacks = take_commit_tail(event)
             out.action(
@@ -1396,13 +1381,7 @@ def reduce_trace(records: list[Record]) -> dict[str, Any]:
             )
             out.emit_observations(event, "nomination")
             # The model chooses the successor itself; check the emitted one.
-            out.action(
-                event,
-                "nominateSuccessor",
-                "nomination",
-                node=event.node,
-                destination=node(event.message["to_node_id"], event.location),
-            )
+            out.action(event, "nominateSuccessor", "nomination", node=event.node)
             out.message_propose(event, "nomination-message")
 
         else:

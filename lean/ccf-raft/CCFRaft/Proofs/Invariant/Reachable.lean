@@ -7,7 +7,7 @@ import CCFRaft.Proofs.Invariant.Preservation.Initial
 /-!
 # The invariant on reachable concrete states
 
-Each step runs `Local.act` or `Local.receive`, replaces one node-table entry,
+Each step runs `Model.Node.act` or `Model.Node.receive`, replaces one node-table entry,
 and updates the envelope list. The joined set is proof-only; configuration
 changes extend it without changing the concrete state representation.
 -/
@@ -17,7 +17,7 @@ namespace CCFRaft.Proofs.Invariant
 open CCFRaft.Proofs.Config
 
 open Shared Shared.MultiNodeTransitionSystem Concrete
-open Model.Local (InitialConfig)
+open Model.Node (InitialConfig)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]

@@ -4,13 +4,13 @@
 import CCFRaft.Model
 
 /-!
-Kernel-checked regressions for the transaction branch's enclosing append
-continuation and the batch fold's accumulator.
+Kernel-checked regressions that transactions extend the log and batch folding
+retains every entry in order.
 -/
 
 namespace CCFRaft.Tests.AppendTransactions
 
-open Model.Local
+open Model.Node
 
 private def config : InitialConfig Nat where
   configuration := {0, 1}

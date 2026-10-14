@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -36,7 +37,7 @@ lemma madeAppendRequestSupport
           /\ Not (source = destination)
           /\ (destination ∈ activeNodeUnion (inferInstance) ((nodeOf state) source)
               \/ destination
-                  ∈ ((nodeOf state) source).retirementCompleted (inferInstance))
+                  ∈ ((nodeOf state) source).retirementCompletedNodes (inferInstance))
           /\ ((nodeOf state) source).sentIndex destination <= batchEnd
           /\ batchEnd <= ((nodeOf state) source).log.length
           /\ ((messageEntries ((nodeOf state) source).log
@@ -62,7 +63,7 @@ lemma madeAppendRequestSupport
   dsimp [previousIndex] at *
   refine ⟨?_, ?_, ?_⟩
   · unfold RequestSnapshots
-    simp only [appendRequestKey, Model.Local.makeAppendEntriesRequest]
+    simp only [appendRequestKey, Model.Node.makeAppendEntriesRequest]
     refine ⟨?_, by simp, ?_⟩
     · rw [entriesLength]
       omega
@@ -77,9 +78,9 @@ lemma madeAppendRequestSupport
                 (l := ((nodeOf state) source).log)
                 (i := ((nodeOf state) source).sentIndex destination)
                 (j := batchEnd - ((nodeOf state) source).sentIndex destination))
-  · simpa [appendRequestKey, Model.Local.makeAppendEntriesRequest] using commitBounded source
+  · simpa [appendRequestKey, Model.Node.makeAppendEntriesRequest] using commitBounded source
   · unfold RequestCommitStillPresent
-    simp only [appendRequestKey, Model.Local.makeAppendEntriesRequest]
+    simp only [appendRequestKey, Model.Node.makeAppendEntriesRequest]
     exact prefixRefl _
 
 /-- Sending AppendEntries updates one cursor and enqueues one snapshot. -/
@@ -96,7 +97,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           /\ Not (source = destination)
           /\ (destination ∈ activeNodeUnion (inferInstance) ((nodeOf state) source)
               \/ destination
-                  ∈ ((nodeOf state) source).retirementCompleted (inferInstance))
+                  ∈ ((nodeOf state) source).retirementCompletedNodes (inferInstance))
           /\ ((nodeOf state) source).sentIndex destination <= batchEnd
           /\ batchEnd <= ((nodeOf state) source).log.length
           /\ ((messageEntries ((nodeOf state) source).log
@@ -410,7 +411,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       · exact ⟨by simpa [concrete_effects, present] using joined, Or.inr (by
           simpa [
           currentlyEligibleElectionVoter,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           currentTermEq, logEq, commitIndexEq, votedForEq,
           lastCommittableIndexFrame
             (logEq candidate) (commitIndexEq candidate),
@@ -425,7 +426,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       · exact ⟨by simpa [concrete_effects, present] using joined, Or.inr (by
           simpa [
           currentlyEligibleElectionVoter,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           currentTermEq, logEq, commitIndexEq, votedForEq,
           lastCommittableIndexFrame
             (logEq candidate) (commitIndexEq candidate),
@@ -577,7 +578,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       · exact facts.networkHistory.addressed queuedDestination message old
       · rcases new with ⟨destinationEq, messageEq⟩
         subst message
-        simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest] using destinationEq.symm
+        simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest] using destinationEq.symm
     · intro queuedDestination queuedRequest member
       rcases
           memEnqueue
@@ -711,7 +712,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       · subst queuedRequest
         have sourcePositive :
             0 < ((nodeOf state) source).commitIndex := by
-          simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+          simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest]
             using positive
         rcases
             evidenceFacts.nodePositive source sourcePositive with
@@ -727,11 +728,11 @@ lemma appendEntriesPreservesSystemInductiveInvariant
         ⟩
         · simpa [
             newAppendHistory, Function.update,
-            request, appendRequestKey, Model.Local.makeAppendEntriesRequest,
+            request, appendRequestKey, Model.Node.makeAppendEntriesRequest,
             NodeState.committedLog
           ] using valid
-        · simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest] using lengthEq
-        · simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest] using termBound
+        · simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest] using lengthEq
+        · simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest] using termBound
       · have oldMember :
             (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
           rcases
@@ -785,7 +786,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
         · subst queuedRequest
           have sourcePositive :
               0 < ((nodeOf state) source).commitIndex := by
-            simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+            simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest]
               using positive
           have sourceStored :
               nodeEvidence source = some evidence := by
@@ -797,7 +798,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
               sourceStored,
               by simpa [
                   newAppendHistory, Function.update,
-                  request, appendRequestKey, Model.Local.makeAppendEntriesRequest,
+                  request, appendRequestKey, Model.Node.makeAppendEntriesRequest,
                   NodeState.committedLog
                 ] using prefixEq
             ⟩
@@ -849,7 +850,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             · subst knownRequest
               have sourcePositive :
                   0 < ((nodeOf state) source).commitIndex := by
-                simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+                simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest]
                   using positive
               have sourceStored :
                   nodeEvidence source = some evidence := by
@@ -861,7 +862,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                   sourceStored,
                   by simpa [
                       newAppendHistory, Function.update,
-                      request, appendRequestKey, Model.Local.makeAppendEntriesRequest,
+                      request, appendRequestKey, Model.Node.makeAppendEntriesRequest,
                       NodeState.committedLog
                     ] using prefixEq
                 ⟩
@@ -898,10 +899,10 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           knownCommitEvidenceActiveLeaderContainsFrontier
             ownership electionFacts evidenceFacts prospectiveFacts
             oldKnown enabled.2.2.1
-            (by simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest] using Nat.le_of_eq sameTerm)
+            (by simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest] using Nat.le_of_eq sameTerm)
             ackMember
         simpa [newAppendHistory, Function.update, request, appendRequestKey,
-          Model.Local.makeAppendEntriesRequest]
+          Model.Node.makeAppendEntriesRequest]
           using leaderCovered
       · left
         have oldMember :
@@ -947,7 +948,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             by simpa [concrete_effects, present] using joined,
             Or.inr
               (by
-                simpa [voteRequestKey, Model.Local.makeRequestVoteRequest, currentTermEq, logEq, lastIndexEq,
+                simpa [voteRequestKey, Model.Node.makeRequestVoteRequest, currentTermEq, logEq, lastIndexEq,
                   lastTermEq, voteLogUpToDate]
                   using upToDate)
           ⟩
@@ -1053,14 +1054,14 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       by_cases requestEq : queuedRequest = request
       · subst queuedRequest
         refine ⟨?_, ?_, ?_⟩
-        · simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest] using enabled.2.2.2.1
-        · simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+        · simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest] using enabled.2.2.2.1
+        · simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest]
             using ownership.activeLeader source enabled.2.2.1
         · intro entry entryMember
           have sourceMember :
               entry ∈ ((nodeOf state) source).log := by
             simpa [newAppendHistory, Function.update] using entryMember
-          simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+          simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest]
             using facts.entriesDoNotExceedCurrentTerm source entry sourceMember
       · have oldMember :
             (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
@@ -1089,7 +1090,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       by_cases requestEq : queuedRequest = request
       · subst queuedRequest
         have requestSource : request.1 = source := by
-          simp [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+          simp [request, appendRequestKey, Model.Node.makeAppendEntriesRequest]
         have historyEq :
             newAppendHistory request = ((nodeOf state) source).log := by
           simp [newAppendHistory]
@@ -1761,7 +1762,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
             ← sameTerm,
             show request.2.2.term =
                 ((nodeOf state) source).currentTerm by
-              simp [request, appendRequestKey, Model.Local.makeAppendEntriesRequest],
+              simp [request, appendRequestKey, Model.Node.makeAppendEntriesRequest],
             ownership.activeLeaderHistory source enabled.2.2.1
           ]
           exact
@@ -1801,18 +1802,18 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                   ((nodeOf state) source).currentTerm) := by
           apply
             activationQuorums.committedCoverage source frontier
-          · simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+          · simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest]
               using within.trans (Nat.min_le_left _ _)
           · simpa [
               newAppendHistory, Function.update,
-              request, appendRequestKey, Model.Local.makeAppendEntriesRequest
+              request, appendRequestKey, Model.Node.makeAppendEntriesRequest
             ] using positive
           · simpa [
               newAppendHistory, Function.update,
-              request, appendRequestKey, Model.Local.makeAppendEntriesRequest
+              request, appendRequestKey, Model.Node.makeAppendEntriesRequest
             ] using signature
         simpa [newAppendHistory, Function.update, request, appendRequestKey,
-          Model.Local.makeAppendEntriesRequest]
+          Model.Node.makeAppendEntriesRequest]
           using sourceCoverage
       · have oldQueued :
             (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
@@ -1872,7 +1873,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
         · subst queuedRequest
           have sourcePositive :
               0 < ((nodeOf state) source).commitIndex := by
-            simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+            simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest]
               using positive
           have sourceStored :
               nodeEvidence source = some evidence := by
@@ -1884,7 +1885,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
               sourceStored,
               by simpa [
                   newAppendHistory, Function.update,
-                  request, appendRequestKey, Model.Local.makeAppendEntriesRequest,
+                  request, appendRequestKey, Model.Node.makeAppendEntriesRequest,
                   NodeState.committedLog
                 ] using prefixEq
             ⟩
@@ -2018,14 +2019,14 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       by_cases requestEq : queuedRequest = request
       · subst queuedRequest
         refine ⟨?_, ?_, ?_⟩
-        · simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest] using enabled.2.2.2.1
-        · simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+        · simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest] using enabled.2.2.2.1
+        · simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest]
             using ownership.activeLeader source enabled.2.2.1
         · intro entry entryMember
           have sourceMember :
               entry ∈ ((nodeOf state) source).log := by
             simpa [newAppendHistory, Function.update] using entryMember
-          simpa [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+          simpa [request, appendRequestKey, Model.Node.makeAppendEntriesRequest]
             using facts.entriesDoNotExceedCurrentTerm source entry sourceMember
       · have oldMember :
             (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
@@ -2054,7 +2055,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
       by_cases requestEq : queuedRequest = request
       · subst queuedRequest
         have requestSource : request.1 = source := by
-          simp [request, appendRequestKey, Model.Local.makeAppendEntriesRequest]
+          simp [request, appendRequestKey, Model.Node.makeAppendEntriesRequest]
         have historyEq :
             newAppendHistory request = ((nodeOf state) source).log := by
           simp [newAppendHistory]
@@ -2116,7 +2117,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
           ownership.activeLeaderHistory source enabled.2.2.1
         simpa [
           newAppendHistory, Function.update,
-          request, appendRequestKey, Model.Local.makeAppendEntriesRequest,
+          request, appendRequestKey, Model.Node.makeAppendEntriesRequest,
           activeHistory
         ] using promotionPrefix
       · have oldMember :
@@ -2244,7 +2245,7 @@ lemma appendEntriesPreservesSystemInductiveInvariant
                 (((nodeOf state) source).log.drop
                   (((nodeOf state) source).sentIndex destination))))
         simpa [
-          request, appendRequestKey, Model.Local.makeAppendEntriesRequest, messageEntries
+          request, appendRequestKey, Model.Node.makeAppendEntriesRequest, messageEntries
         ] using configured
     · intro queuedDestination response member
       have old :

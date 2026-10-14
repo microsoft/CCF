@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -268,7 +269,7 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
           by simpa [after, present] using joined,
           Or.inr
             (by
-              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq,
+              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Node.makeRequestVoteRequest, termEq,
                 logEq, commitEq, votedEq,
                 lastCommittableIndexFrame
                   (logEq candidate) (commitEq candidate),
@@ -288,7 +289,7 @@ lemma leaderDemotionPreservesSystemInductiveInvariant
           by simpa [after, present] using joined,
           Or.inr
             (by
-              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq,
+              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Node.makeRequestVoteRequest, termEq,
                 logEq, commitEq, votedEq,
                 lastCommittableIndexFrame
                   (logEq candidate) (commitEq candidate),
@@ -756,7 +757,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
           by simpa [after, present, concrete_effects, present] using joined,
           Or.inr
             (by
-              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq,
+              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Node.makeRequestVoteRequest, termEq,
                 logEq, commitEq, votedEq,
                 lastCommittableIndexFrame
                   (logEq candidate) (commitEq candidate),
@@ -776,7 +777,7 @@ lemma becomePreVoteCandidatePreservesSystemInductiveInvariant
           by simpa [after, present, concrete_effects, present] using joined,
           Or.inr
             (by
-              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Local.makeRequestVoteRequest, termEq,
+              simpa [currentlyEligibleElectionVoter, voteRequestKey, Model.Node.makeRequestVoteRequest, termEq,
                 logEq, commitEq, votedEq,
                 lastCommittableIndexFrame
                   (logEq candidate) (commitEq candidate),

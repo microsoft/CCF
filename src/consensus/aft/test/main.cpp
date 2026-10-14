@@ -127,6 +127,56 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
+  "Successor nomination breaks full ties by highest node ID" *
+  doctest::test_suite("multiple"))
+{
+  const auto self = ccf::kv::test::PrimaryNodeId;
+  const auto lower = std::min(
+    ccf::kv::test::FirstBackupNodeId, ccf::kv::test::SecondBackupNodeId);
+  const auto higher = std::max(
+    ccf::kv::test::FirstBackupNodeId, ccf::kv::test::SecondBackupNodeId);
+
+  for (const auto reverse : {false, true})
+  {
+    DOCTEST_CAPTURE(reverse);
+    auto store = std::make_shared<Store>(self);
+    auto channels = std::make_shared<aft::ChannelStubProxy>();
+    TRaft raft(
+      raft_settings,
+      std::make_unique<Adaptor>(store),
+      std::make_unique<aft::LedgerStubProxy>(self),
+      channels,
+      std::make_shared<aft::State>(self),
+      nullptr);
+
+    aft::Configuration::Nodes config;
+    config[self] = {};
+    config[reverse ? higher : lower] = {};
+    raft.add_configuration(0, config);
+    config[reverse ? lower : higher] = {};
+    raft.add_configuration(1, config);
+
+    raft.nominate_successor();
+    DOCTEST_REQUIRE(channels->messages.empty());
+
+    raft.force_become_primary();
+    channels->messages.clear();
+    raft.nominate_successor();
+    DOCTEST_REQUIRE(channels->messages.size() == 1);
+    DOCTEST_CHECK(
+      channels->pop_first(aft::raft_propose_request_vote, higher).has_value());
+
+    config.erase(higher);
+    raft.add_configuration(2, config);
+    channels->messages.clear();
+    raft.nominate_successor();
+    DOCTEST_REQUIRE(channels->messages.size() == 1);
+    DOCTEST_CHECK(
+      channels->pop_first(aft::raft_propose_request_vote, lower).has_value());
+  }
+}
+
+DOCTEST_TEST_CASE(
   "Multiple nodes startup and election" * doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;

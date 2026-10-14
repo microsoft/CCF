@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -275,7 +276,7 @@ lemma requestVotePreservesSystemInductiveInvariant
       · exact ⟨by simpa [concrete_effects, concrete_effects] using joined, Or.inr (by
           simpa [
           currentlyEligibleElectionVoter,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           concrete_effects, concrete_effects,
           voteLogUpToDate
           ] using eligible)⟩
@@ -286,7 +287,7 @@ lemma requestVotePreservesSystemInductiveInvariant
       · exact ⟨by simpa [concrete_effects, concrete_effects] using joined, Or.inr (by
           simpa [
           currentlyEligibleElectionVoter,
-          voteRequestKey, Model.Local.makeRequestVoteRequest,
+          voteRequestKey, Model.Node.makeRequestVoteRequest,
           concrete_effects, concrete_effects,
           voteLogUpToDate
           ] using eligible)⟩
@@ -439,7 +440,7 @@ lemma requestVotePreservesSystemInductiveInvariant
       · exact facts.networkHistory.addressed queuedDestination message old
       · rcases new with ⟨destinationEq, messageEq⟩
         subst message
-        simpa [request, voteRequestKey, Model.Local.makeRequestVoteRequest] using destinationEq.symm
+        simpa [request, voteRequestKey, Model.Node.makeRequestVoteRequest] using destinationEq.symm
     · intro queuedDestination queuedRequest member
       have old :
           (appendRequestEnvelope queuedRequest ∈ state.network /\ queuedRequest.2.1 = queuedDestination) := by
@@ -482,12 +483,12 @@ lemma requestVotePreservesSystemInductiveInvariant
           refine ⟨
             by simp [
                 newVoteRequestHistory,
-                request, voteRequestKey, Model.Local.makeRequestVoteRequest,
+                request, voteRequestKey, Model.Node.makeRequestVoteRequest,
                 sourceLastIndex, snapshotLength
               ],
             by simp [
                 newVoteRequestHistory,
-                request, voteRequestKey, Model.Local.makeRequestVoteRequest,
+                request, voteRequestKey, Model.Node.makeRequestVoteRequest,
                 sourceLastTerm, snapshotTerm
               ],
             by simpa [
@@ -495,12 +496,12 @@ lemma requestVotePreservesSystemInductiveInvariant
               ] using snapshotCommittable,
             candidatesAboveBootstrap source enabled.2.2.1,
             by
-              simp [request, voteRequestKey, Model.Local.makeRequestVoteRequest, concrete_effects, concrete_effects],
+              simp [request, voteRequestKey, Model.Node.makeRequestVoteRequest, concrete_effects, concrete_effects],
             ?_
           ⟩
           intro _ _
           simpa [newVoteRequestHistory, Function.update, voteRequestSnapshot, request,
-            voteRequestKey, Model.Local.makeRequestVoteRequest, concrete_effects]
+            voteRequestKey, Model.Node.makeRequestVoteRequest, concrete_effects]
             using List.take_prefix
               (maxCommittableIndex ((nodeOf state) source).log)
               ((nodeOf state) source).log
@@ -513,12 +514,12 @@ lemma requestVotePreservesSystemInductiveInvariant
         refine ⟨
           by simp [
               newVoteRequestHistory,
-              request, voteRequestKey, Model.Local.makeRequestVoteRequest,
+              request, voteRequestKey, Model.Node.makeRequestVoteRequest,
               sourceLastIndex, snapshotLength
             ],
           by simp [
               newVoteRequestHistory,
-              request, voteRequestKey, Model.Local.makeRequestVoteRequest,
+              request, voteRequestKey, Model.Node.makeRequestVoteRequest,
               sourceLastTerm, snapshotTerm
             ],
           by simpa [
@@ -526,12 +527,12 @@ lemma requestVotePreservesSystemInductiveInvariant
             ] using snapshotCommittable,
           candidatesAboveBootstrap source enabled.2.2.1,
           by
-            simp [request, voteRequestKey, Model.Local.makeRequestVoteRequest, concrete_effects, concrete_effects],
+            simp [request, voteRequestKey, Model.Node.makeRequestVoteRequest, concrete_effects, concrete_effects],
           ?_
         ⟩
         intro _ _
         simpa [newVoteRequestHistory, Function.update, voteRequestSnapshot, request,
-          voteRequestKey, Model.Local.makeRequestVoteRequest, concrete_effects]
+          voteRequestKey, Model.Node.makeRequestVoteRequest, concrete_effects]
           using List.take_prefix
             (maxCommittableIndex ((nodeOf state) source).log)
             ((nodeOf state) source).log
@@ -648,7 +649,7 @@ lemma requestVotePreservesSystemInductiveInvariant
             by simpa [concrete_effects, concrete_effects] using joined,
             Or.inr
               (by
-                simpa [voteRequestKey, Model.Local.makeRequestVoteRequest, concrete_effects, concrete_effects,
+                simpa [voteRequestKey, Model.Node.makeRequestVoteRequest, concrete_effects, concrete_effects,
                   voteLogUpToDate]
                   using upToDate)
           ⟩

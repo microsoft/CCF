@@ -12,7 +12,7 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open Model.Local
+open Model.Node
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]
@@ -22,7 +22,7 @@ theorem canProduceAppendAckAt_iff (node : NodeState Node TxId)
     (request : AppendRequestKey Node TxId) (index : Nat)
     : canProduceAppendAckAt node request index
       ↔ request.2.2.term = node.currentTerm
-        ∧ logOk node request.2.2
+        ∧ appendEntryMatchesLog node request.2.2
         ∧ node.commitIndex ≤ request.2.2.prevLogIndex
         ∧ ¬(hasTermConflict node request.2.2 ∧ node.isNewFollower = false)
         ∧ index ≤ request.2.2.prevLogIndex + request.2.2.entries.length
@@ -39,7 +39,7 @@ theorem canProduceAppendAckAt_iff (node : NodeState Node TxId)
   · rintro ⟨term, matching, committed, notBlocked, covered, passive⟩
     have enabled :
         request.2.2.term = node.currentTerm
-          ∧ logOk node request.2.2
+          ∧ appendEntryMatchesLog node request.2.2
           ∧ node.commitIndex ≤ request.2.2.prevLogIndex
           ∧ ¬(hasTermConflict node request.2.2 ∧ (!node.isNewFollower) = true) :=
       ⟨term, matching, committed, by simpa using notBlocked⟩
@@ -61,7 +61,7 @@ theorem canProduceAppendAckAt_frame
     (request : AppendRequestKey Node TxId) (index : Nat)
     : canProduceAppendAckAt after request index
       ↔ canProduceAppendAckAt before request index := by
-  simp only [canProduceAppendAckAt_iff, logOk, hasTermConflict, role, term, log, commit,
+  simp only [canProduceAppendAckAt_iff, appendEntryMatchesLog, hasTermConflict, role, term, log, commit,
     follower]
 
 end CCFRaft.Proofs.Invariant

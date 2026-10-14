@@ -12,13 +12,14 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open CCFRaft.Model.Local
+open CCFRaft.Model.Node
 open Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
 variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 
 attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
@@ -751,7 +752,7 @@ lemma updateTermPreservesSystemInductiveInvariant
             · simpa [termOther member memberEq,
                 termOther candidate candidateNe] using supporter.1
           · simpa [
-              voteRequestKey, Model.Local.makeRequestVoteRequest,
+              voteRequestKey, Model.Node.makeRequestVoteRequest,
               termOther candidate candidateNe,
               logEq, lastIndexEq, lastTermEq,
               voteLogUpToDate
@@ -1148,9 +1149,9 @@ lemma updateTermPreservesSystemInductiveInvariant
         · refine ⟨joined, Or.inr ?_⟩
           unfold currentlyEligibleElectionVoter at eligible
           exact ⟨
-            by simpa [voteRequestKey, Model.Local.makeRequestVoteRequest] using eligible.1.symm.le,
+            by simpa [voteRequestKey, Model.Node.makeRequestVoteRequest] using eligible.1.symm.le,
             by simpa [
-                voteRequestKey, Model.Local.makeRequestVoteRequest, voteLogUpToDate
+                voteRequestKey, Model.Node.makeRequestVoteRequest, voteLogUpToDate
               ] using eligible.2.1
           ⟩
       exact

@@ -3,13 +3,13 @@
 
 import CCFRaft.Proofs.Invariant.Messages
 
-open CCFRaft.Model.Local (
+open CCFRaft.Model.Node (
   BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
-    PreVoteStatus Role becomeCandidateNodeState campaignEligible
+    PreVoteStatus Role campaignEligible
     configurationHistory configurationMembers entryAt? findHighestPossibleMatch
     firstLogIndexAfter hasConfigurationMajority initialNodeState isSignatureAt
     lastCommittableIndex lastCommittableTerm maxCommittableIndex maxCommittableIndexUpTo
-    maxCommittableTerm messageEntries refreshRetirementState retiredCommittedNodes
+    maxCommittableTerm messageEntries retiredCommittedNodes
     retirementIndexInLog termAt
   )
 
@@ -21,6 +21,7 @@ open CCFRaft.Proofs.Config
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 variable {joined : Finset Node}
 
 /-- Every node's commit index points within its current log. -/
@@ -60,6 +61,7 @@ namespace CCFRaft.Proofs.Invariant
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
+  [LinearOrder Node] [Inhabited TxId]
 variable {joined : Finset Node}
 
 /-- A proof-only record of the candidate selected by a voter in a term. -/
@@ -691,7 +693,7 @@ structure NetworkHistoryFacts
             /\ votes response.1 response.2.2.term = some response.2.1
             /\ EndsAtMaxCommittable (voteCandidateHistory response)
             /\ EndsAtMaxCommittable (voteVoterHistory response)
-            /\ Model.Local.voteLogUpToDate
+            /\ Model.Node.voteLogUpToDate
                 { ((nodeOf state) response.1) with log := voteVoterHistory response }
                 {
                   term := response.2.2.term
@@ -748,7 +750,7 @@ def currentlyEligibleElectionVoter (state : Model.State Node TxId)
     : Prop :=
   let request := voteRequestKey state candidate voter
   request.2.2.term = ((nodeOf state) voter).currentTerm
-  /\ Model.Local.voteLogUpToDate ((nodeOf state) voter) request.2.2
+  /\ Model.Node.voteLogUpToDate ((nodeOf state) voter) request.2.2
   /\ (((nodeOf state) voter).votedFor = none
       \/ ((nodeOf state) voter).votedFor = some candidate)
 
@@ -794,7 +796,7 @@ noncomputable def relaxedElectionVoters (state : Model.State Node TxId) (candida
       voter ∈ effectiveElectionVoters (joined := joined) state candidate \/
         (((nodeOf state) voter).currentTerm <=
             ((nodeOf state) candidate).currentTerm /\
-          Model.Local.voteLogUpToDate ((nodeOf state) voter) request.2.2)
+          Model.Node.voteLogUpToDate ((nodeOf state) voter) request.2.2)
 
 /--
 Relaxed election support is still a strict majority in every active candidate
@@ -830,7 +832,7 @@ noncomputable def futureElectionVoters
     joined.filter fun voter =>
       voter = candidate \/
         (((nodeOf state) voter).currentTerm <= targetTerm /\
-          Model.Local.voteLogUpToDate ((nodeOf state) voter) request)
+          Model.Node.voteLogUpToDate ((nodeOf state) voter) request)
 
 /--
 Future election support is interpreted against an explicit frozen ballot
@@ -882,7 +884,7 @@ def GrantedVoteSnapshots
                 /\ EndsAtMaxCommittable (voteCandidateHistory response)
                 /\ EndsAtMaxCommittable (voteVoterHistory response)
                 /\ response.2.2.term <= ((nodeOf state) voter).currentTerm
-                /\ Model.Local.voteLogUpToDate
+                /\ Model.Node.voteLogUpToDate
                     { ((nodeOf state) voter) with log := voteVoterHistory response }
                     {
                       term := response.2.2.term
@@ -1113,7 +1115,7 @@ structure ElectionHistoryFacts
     : forall term record voter,
         elections term = some record
         -> voter ∈ record.supporters
-        -> Model.Local.voteLogUpToDate
+        -> Model.Node.voteLogUpToDate
             { ((nodeOf state) voter) with log := record.voterLog voter }
             {
               term

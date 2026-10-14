@@ -9,7 +9,7 @@ import CCFRaft.Model.NodeState
 Cluster initialization, membership history and retirement queries.
 -/
 
-namespace CCFRaft.Model.Local
+namespace CCFRaft.Model.Node
 
 /--
 Whether a node only answers pre-vote packets, or also starts its elections with
@@ -49,7 +49,7 @@ def entryConfigurations (content : EntryContent Node TxId) : List (Finset Node) 
 
 /--
 Initial membership has index zero. Effects in one transaction share its log
-index and retain their order; CCF installs at most one configuration per transaction.
+index and retain their order, so configuration indices need not be unique.
 -/
 def configurationHistory (config : InitialConfig Node) (log : List (Entry Node TxId))
     : List (Configuration Node) :=
@@ -141,14 +141,14 @@ def initialNodeState [Inhabited TxId] (config : InitialConfig Node) (node : Node
 def NodeState.activeConfigurations (config : InitialConfig Node)
     (state : NodeState Node TxId)
     : List (Configuration Node) :=
-  Local.activeConfigurations config state.log state.commitIndex
+  CCFRaft.Model.Node.activeConfigurations config state.log state.commitIndex
 
 def NodeState.activeMembers (config : InitialConfig Node) (state : NodeState Node TxId)
     : Finset Node :=
   configurationMembers (state.activeConfigurations config)
 
 /-- Nodes removed by committed configurations but not retired-committed yet. -/
-def NodeState.retirementCompleted (config : InitialConfig Node)
+def NodeState.retirementCompletedNodes (config : InitialConfig Node)
     (state : NodeState Node TxId)
     : Finset Node :=
   let committedLog := state.log.take state.commitIndex
@@ -161,26 +161,25 @@ def NodeState.retirementCompleted (config : InitialConfig Node)
     \ retiredCommittedNodes committedLog).filter
     fun node => (retirementIndexInLog config node committedLog).isSome
 
-def refreshRetirementState (config : InitialConfig Node) (node : Node)
+structure RetirementInfo where
+  index : Option Nat
+  committableIndex : Option Nat
+  phase : MembershipState
+deriving DecidableEq, Repr
+
+def NodeState.retirement (config : InitialConfig Node) (node : Node)
     (state : NodeState Node TxId)
-    : NodeState Node TxId :=
+    : RetirementInfo :=
   let retirementIndex := retirementIndexInLog config node state.log
   let retirementCommittableIndex :=
     retirementIndex.bind
       fun index =>
         firstLogIndexAfter state.log index (fun content => decide (content = .signature))
-  let committedRetiredIndex :=
-    state.retiredCommittedIndex.orElse
-      fun _ =>
-        if node ∈ retiredCommittedNodes (state.log.take state.commitIndex) then
-          some state.commitIndex
-        else
-          none
   let membershipState :=
     match retirementIndex with
     | none => MembershipState.active
     | some index =>
-        if committedRetiredIndex.isSome then
+        if state.retiredCommittedIndex.isSome then
           .retiredCommitted
         else if index <= state.commitIndex then
           .retirementCompleted
@@ -189,11 +188,25 @@ def refreshRetirementState (config : InitialConfig Node) (node : Node)
         else
           .retirementOrdered
   {
+    index := retirementIndex
+    committableIndex := retirementCommittableIndex
+    phase := membershipState
+  }
+
+/-- Preserve the first commit frontier covering this node's retirement record. -/
+def NodeState.commitThrough (node : Node) (state : NodeState Node TxId)
+    (commitIndex : Nat)
+    : NodeState Node TxId :=
+  {
     state with
-      membershipState
-      retirementIndex
-      retirementCommittableIndex
-      retiredCommittedIndex := committedRetiredIndex
+      commitIndex
+      retiredCommittedIndex :=
+        state.retiredCommittedIndex.orElse
+          fun _ =>
+            if node ∈ retiredCommittedNodes (state.log.take commitIndex) then
+              some commitIndex
+            else
+              none
   }
 
 /--
@@ -215,4 +228,4 @@ instance (config : InitialConfig Node) (node : Node) (state : NodeState Node TxI
   unfold campaignEligible
   infer_instance
 
-end CCFRaft.Model.Local
+end CCFRaft.Model.Node
