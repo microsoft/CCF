@@ -43,6 +43,6 @@
   "postStartCommand": [
     "bash",
     "-c",
-    "set -eu; umask 077; mkdir -p \"$HOME/.local/state/ccf-copilotd\"; trap '' HUP; bash .devcontainer/sshd/start_sshd.sh; setsid -f nohup bash .devcontainer/azurelinux4-copilotd/start_copilotd.sh </dev/null >>\"$HOME/.local/state/ccf-copilotd/copilotd.log\" 2>&1"
+    "set -eu; trap '' HUP; bash .devcontainer/sshd/start_sshd.sh; umask 077; mkdir -p \"$HOME/.local/state/ccf-copilotd\"; setsid -f bash .devcontainer/azurelinux4-copilotd/start_copilotd.sh </dev/null >>\"$HOME/.local/state/ccf-copilotd/copilotd.log\" 2>&1"
   ]
 }
