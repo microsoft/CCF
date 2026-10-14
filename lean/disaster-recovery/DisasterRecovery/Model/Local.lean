@@ -1,4 +1,8 @@
-import DisasterRecovery.Shared.Capabilities
+module
+
+public import DisasterRecovery.Shared.Capabilities
+
+@[expose] public section
 
 namespace DisasterRecovery.Model.Local
 

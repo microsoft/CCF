@@ -142,9 +142,9 @@ This involves the following steps:
 - transform old-style CommonJS modules into native JavaScript modules, and
 - store all files according to the app bundle folder structure.
 
-For this, the sample app relies on the `TypeScript compiler <https://www.npmjs.com/package/typescript>`_ and
-`rollup <https://github.com/rollup/rollup>`_. Rollup also offers tree shaking support
-to avoid deploying unused modules. See ``package.json`` and ``rollup.config.js`` for details.
+For this, the sample app relies on the `TypeScript compiler <https://www.npmjs.com/package/typescript>`_ and `rollup <https://github.com/rollup/rollup>`_.
+Rollup also offers tree shaking support to avoid deploying unused modules.
+See ``package.json`` and ``rollup.config.js`` for details.
 
 The conversion command is invoked with
 
@@ -164,9 +164,7 @@ A note on CommonJS modules
 --------------------------
 
 The sample project uses the
-`@rollup/plugin-commonjs <https://github.com/rollup/plugins/tree/master/packages/commonjs>`_
-package to automatically convert npm packages with CommonJS modules to native JavaScript modules
-so that they can be used in CCF.
+`@rollup/plugin-commonjs <https://github.com/rollup/plugins/tree/master/packages/commonjs>`_ package to automatically convert npm packages with CommonJS modules to native JavaScript modules so that they can be used in CCF.
 
 For some packages this conversion may fail, for example when the package has circular module dependencies.
 If that is the case, try one of the following suggestions:

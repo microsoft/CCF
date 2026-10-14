@@ -1,4 +1,8 @@
-import DisasterRecovery.Proofs.Lifting
+module
+
+public import DisasterRecovery.Proofs.Lifting
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Observed
 

@@ -1,4 +1,8 @@
-import DisasterRecovery.Proofs.Execution
+module
+
+public import DisasterRecovery.Proofs.Execution
+
+@[expose] public section
 
 /-! Safety predicates and committed-prefix assumptions for decorated executions. -/
 

@@ -1,4 +1,8 @@
-import DisasterRecovery.TraceValidation.Reduction
+module
+
+public import DisasterRecovery.TraceValidation.Reduction
+
+public section
 
 set_option autoImplicit false
 
@@ -27,6 +31,7 @@ private def messageJson : Message → Json
   | .vote => json% {message: "vote"}
   | .iAmOpen => json% {message: "iamopen"}
 
+@[no_expose]
 instance : ToJson Model.Envelope where
   toJson e :=
     (json% {source: $(e.source), target: $(e.target)}).mergeObj (messageJson e.payload)

@@ -1,5 +1,9 @@
-import DisasterRecovery.Properties
-import Mathlib.Tactic
+module
+
+public import DisasterRecovery.Properties
+public import Mathlib.Tactic
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Local
 

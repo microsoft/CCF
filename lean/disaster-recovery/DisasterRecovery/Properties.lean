@@ -1,4 +1,8 @@
-import DisasterRecovery.Properties.Utils
+module
+
+public import DisasterRecovery.Properties.Utils
+
+@[expose] public section
 
 namespace DisasterRecovery.Properties
 

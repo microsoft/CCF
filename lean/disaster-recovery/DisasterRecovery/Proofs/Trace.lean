@@ -1,9 +1,15 @@
-import DisasterRecovery.Shared.Execution
-import Mathlib.Tactic
+module
+
+public import DisasterRecovery.Shared.Execution
+public import Mathlib.Tactic
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Trace
 
 open Shared
+
+variable {State Action : Type}
 
 /-- Enabled steps through the listed successor states, from a start state to a final state. -/
 inductive Path (system : TransitionSystem State Action)
