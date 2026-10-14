@@ -85,7 +85,7 @@ lake build CCF
 lake lint
 lake exe runLinter --no-build CCF DisasterRecovery replayer.Main
 ./replayer/check-fixtures.sh
-lake check
+lake check --inadvisably-no-sandbox
 ```
 
 `--wfail` treats all build warnings, including `sorry`, as errors.
@@ -114,16 +114,17 @@ The package's default targets are the complete library and the replayer executab
 Canonical scenario and state-enumeration checks run with `#eval` when `Tests/CanonicalTests.lean` is built, and assertion failures fail the build.
 Their runner is namespaced, leaving the replayer as the only `main` entrypoint so both targets can be checked together.
 
-`lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/4.35.0/releases/v4.35.0/), builds and exports all default targets in a sandbox, then rechecks the export with Lean's kernel.
+`lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/4.35.0/releases/v4.35.0/), builds and exports all default targets, then rechecks the export with Lean's kernel.
 It also checks axiom dependencies, rejecting any use of axioms other than `propext`, `Classical.choice`, and `Quot.sound`, so a separate axiom-audit dependency is unnecessary.
 The checked targets include the complete library import root, canonical tests, and replayer, not just the exported property theorems.
 These supplement the import and proof coverage checks and executable model and trace tests.
-The sandbox requires Linux and `bubblewrap` (`sudo apt-get install bubblewrap`), with unprivileged user namespaces enabled or a setuid installation.
-CI checks the package in an Ubuntu 26.04 job without disabling the sandbox, using disk-backed temporary storage.
+We use `--inadvisably-no-sandbox` to allow the build to use the shared modules in `../common` directly.
+This disables build isolation, so run the check only on code you trust.
+The kernel recheck and axiom-dependency audit remain enabled.
+CI checks the package in an Ubuntu 26.04 job using disk-backed temporary storage.
 Additional bundled checkers are not enabled.
 This package uses the shared modules in `../common`.
-Lake copies them into `.lake/packages/ccf_common` so `lake check` can build them inside its sandbox.
-After editing `../common`, run `lake update --keep-toolchain ccf_common` from this directory before validating disaster recovery.
+Changes to those modules are picked up by DR builds without a separate copy-refresh command.
 
 `Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof module or if a removed name is reintroduced.
 See [Formatting](#formatting) for the [leanfmt](https://github.com/duckki/leanfmt) check.

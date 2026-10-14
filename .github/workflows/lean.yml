@@ -92,12 +92,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Lean and sandbox
+      - name: Install Lean
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y elan bubblewrap
+          sudo apt-get install -y elan
           elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
 
       - name: Restore Mathlib cache
@@ -113,7 +113,7 @@ jobs:
         run: |
           set -euo pipefail
           export TMPDIR="$RUNNER_TEMP"
-          lake check
+          lake check --inadvisably-no-sandbox
 
       - name: Check common infrastructure with Lean's kernel
         working-directory: lean/common
@@ -121,4 +121,4 @@ jobs:
         run: |
           set -euo pipefail
           export TMPDIR="$RUNNER_TEMP"
-          lake check
+          lake check --inadvisably-no-sandbox

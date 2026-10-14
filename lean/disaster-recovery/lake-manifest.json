@@ -33,7 +33,7 @@
       "manifestFile": "lake-manifest.json",
       "inherited": false,
       "dir": "../common",
-      "copy": true,
+      "copy": false,
       "configFile": "lakefile.toml"
     },
     {

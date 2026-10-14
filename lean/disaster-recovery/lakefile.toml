@@ -19,7 +19,7 @@ linter.unusedVariables.analyzeTactics = true
 [[require]]
 name = "ccf_common"
 path = "../common"
-copy = true
+copy = false
 
 [[require]]
 name = "mathlib"
