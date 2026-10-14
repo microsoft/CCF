@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -66,7 +67,7 @@ public:
 
     /// Construct a QtJsonArray referencing an empty array.
     QtJsonArray()
-      : m_value(emptyArray())
+      : m_value(emptyArray)
     {
     }
 
@@ -111,16 +112,8 @@ public:
 
 private:
 
-    /**
-     * @brief   Return a reference to a QtJson value that is an empty array.
-     *
-     * Note that the value returned by this function is a singleton.
-     */
-    static QJsonArray emptyArray()
-    {
-        static const QJsonArray array;
-        return array;
-    }
+    /// Shared QJsonArray instance used to represent empty array.
+    static inline const QJsonArray emptyArray;
 
     /// Reference to the contained value
     const QJsonArray m_value;
@@ -146,7 +139,7 @@ public:
 
     /// Construct a QtJsonObject referencing an empty object singleton.
     QtJsonObject()
-      : m_value(emptyObject())
+      : m_value(emptyObject)
     {
     }
 
@@ -203,16 +196,8 @@ public:
 
 private:
 
-    /**
-     * @brief   Return a reference to a QtJson value that is empty object.
-     *
-     * Note that the value returned by this function is a singleton.
-     */
-    static const QJsonObject emptyObject()
-    {
-        static const QJsonObject object;
-        return object;
-    }
+    /// Shared QJsonObject instance used to represent empty object.
+    static inline const QJsonObject emptyObject;
 
     /// Reference to the contained object
     const QJsonObject m_value;
@@ -272,7 +257,7 @@ public:
 
     /// Construct a wrapper for the empty object singleton
     QtJsonValue()
-      : m_value(emptyObject()) { }
+      : m_value(emptyObject) { }
 
     /// Construct a wrapper for a specific QtJson value
     QtJsonValue(QJsonValue value)
@@ -299,13 +284,13 @@ public:
      *
      * Otherwise it will return an empty optional.
      */
-    opt::optional<QtJsonArray> getArrayOptional() const
+    std::optional<QtJsonArray> getArrayOptional() const
     {
         if (m_value.isArray()) {
-            return opt::make_optional(QtJsonArray(m_value));
+            return std::make_optional(QtJsonArray(m_value));
         }
 
-        return opt::optional<QtJsonArray>();
+        return std::optional<QtJsonArray>();
     }
 
     /**
@@ -369,13 +354,13 @@ public:
      *
      * Otherwise it will return an empty optional.
      */
-    opt::optional<QtJsonObject> getObjectOptional() const
+    std::optional<QtJsonObject> getObjectOptional() const
     {
         if (m_value.isObject()) {
-            return opt::make_optional(QtJsonObject(m_value));
+            return std::make_optional(QtJsonObject(m_value));
         }
 
-        return opt::optional<QtJsonObject>();
+        return std::optional<QtJsonObject>();
     }
 
     /**
@@ -458,12 +443,8 @@ public:
 
 private:
 
-    /// Return a reference to an empty object singleton
-    static QJsonValue emptyObject()
-    {
-        static const QJsonValue object;
-        return object;
-    }
+    /// Shared QtJson value instance used to represent an empty object
+    static inline const QJsonValue emptyObject;
 
     /// Reference to the contained QtJson value.
     const QJsonValue m_value;

@@ -2,10 +2,10 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include <valijson/constraints/constraint.hpp>
-#include <valijson/internal/optional.hpp>
 #include <valijson/exceptions.hpp>
 
 namespace valijson {
@@ -100,9 +100,9 @@ public:
       , m_alwaysInvalid(false)
     {
         // explicitly initialise optionals. See: https://github.com/tristanpenman/valijson/issues/124
-        m_description = opt::nullopt;
-        m_id = opt::nullopt;
-        m_title = opt::nullopt;
+        m_description = std::nullopt;
+        m_id = std::nullopt;
+        m_title = std::nullopt;
     }
 
     /**
@@ -323,13 +323,13 @@ private:
     std::vector<Constraint::OwningPointer> m_constraints;
 
     /// Schema description (optional)
-    opt::optional<std::string> m_description;
+    std::optional<std::string> m_description;
 
     /// ID to apply when resolving the schema URI
-    opt::optional<std::string> m_id;
+    std::optional<std::string> m_id;
 
     /// Title string associated with the schema (optional)
-    opt::optional<std::string> m_title;
+    std::optional<std::string> m_title;
 };
 
 } // namespace valijson

@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>

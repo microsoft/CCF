@@ -12,6 +12,8 @@ Normal flow
 
 This is the simple, usual flow, where the request is submitted to a primary node capable of writing to the KV. Only the receiving node interacts with the request. The entire execution is synchronous, writing the response back to the client before proceeding with any other work.
 
+HTTP/1.x requests may use ``Transfer-Encoding: chunked``. CCF buffers and decodes the chunks across input fragments before dispatching a complete request, so applications receive the reconstructed body rather than chunk framing. The ``max_body_size`` limit applies to the total decoded body; a body exactly at the limit is accepted. Malformed framing is rejected, and incomplete requests are not dispatched.
+
 .. mermaid::
 
   sequenceDiagram
@@ -58,6 +60,10 @@ Forwarding flow
 ---------------
 
 When write request are submitted to a follower node, they must be forwarded to the primary for execution. This diagram shows how that is done, between a follower node A and a primary B. Decryption and some dispatch still occurs on the follower, as it must lookup the correct endpoint's metadata to determine whether this request should be forwarded. When A establishes that the request should be forwarded, it queues a node-to-node (N2N) forwarding message to the primary describing the original request. The synchronous execution the follower A now completes without writing any response to the user, but maintaining an open TLS session and some local state that a response is pending.
+
+.. note::
+
+    The deprecated forwarding path does not support chunked request bodies; send chunked writes directly to the primary. See :doc:`/build_apps/fwd_to_redirect` for redirection guidance.
 
 When the primary B receives the forwarded command, it executes the same dispatch and execution that it would if it had directly received the request, but with a different stack at the top level. Specifically, it will eventually write its response back over the encrypted node-to-node channel to A, rather than the original caller.
 
