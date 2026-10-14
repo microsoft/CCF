@@ -56,20 +56,28 @@ namespace ccf
     switch (flag)
     {
       case APPEND:
+      {
         os << "append";
         break;
+      }
 
       case VERIFY:
+      {
         os << "verify";
         break;
+      }
 
       case ROLLBACK:
+      {
         os << "rollback";
         break;
+      }
 
       case COMPACT:
+      {
         os << "compact";
         break;
+      }
     }
 
     return os;

@@ -486,6 +486,7 @@ namespace ccf::historical
     {
       case ccf::TxStatus::Unknown:
       case ccf::TxStatus::Pending:
+      {
         error_reason = fmt::format(
           "Only committed transactions can be queried. Transaction {}.{} "
           "is "
@@ -494,7 +495,9 @@ namespace ccf::historical
           seqno,
           ccf::tx_status_to_str(tx_status));
         return HistoricalTxStatus::PendingOrUnknown;
+      }
       case ccf::TxStatus::Invalid:
+      {
         error_reason = fmt::format(
           "Only committed transactions can be queried. Transaction {}.{} "
           "is "
@@ -503,7 +506,10 @@ namespace ccf::historical
           seqno,
           ccf::tx_status_to_str(tx_status));
         return HistoricalTxStatus::Invalid;
-      case ccf::TxStatus::Committed:;
+      }
+      case ccf::TxStatus::Committed:
+      {
+      }
     }
 
     return HistoricalTxStatus::Valid;
@@ -560,25 +566,33 @@ namespace ccf::historical
         switch (is_available)
         {
           case HistoricalTxStatus::Error:
+          {
             ehandler(
               HistoricalQueryErrorCode::InternalError,
               std::move(error_reason),
               args);
             return;
+          }
           case HistoricalTxStatus::PendingOrUnknown:
+          {
             ehandler(
               HistoricalQueryErrorCode::TransactionPending,
               std::move(error_reason),
               args);
             return;
+          }
           case HistoricalTxStatus::Invalid:
+          {
             ehandler(
               HistoricalQueryErrorCode::TransactionInvalid,
               std::move(error_reason),
               args);
             return;
+          }
           case HistoricalTxStatus::Valid:
+          {
             break;
+          }
         }
       }
 

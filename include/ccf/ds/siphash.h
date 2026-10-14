@@ -114,23 +114,41 @@ namespace ccf::siphash
     switch (left)
     {
       case 7:
+      {
         b |= (uint64_t)in[6] << 48;
+      }
       case 6:
+      {
         b |= (uint64_t)in[5] << 40;
+      }
       case 5:
+      {
         b |= (uint64_t)in[4] << 32;
+      }
       case 4:
+      {
         b |= (uint64_t)in[3] << 24;
+      }
       case 3:
+      {
         b |= (uint64_t)in[2] << 16;
+      }
       case 2:
+      {
         b |= (uint64_t)in[1] << 8;
+      }
       case 1:
+      {
         b |= (uint64_t)in[0];
+      }
       case 0:
+      {
         break;
+      }
       default:
+      {
         throw std::logic_error("unreachable");
+      }
     }
 
     s[3] ^= b;

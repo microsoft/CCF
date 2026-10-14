@@ -45,13 +45,17 @@ namespace ccf::kv
       switch (domain)
       {
         case SecurityDomain::PRIVATE:
+        {
           current_writer = &private_writer;
           current_domain = SecurityDomain::PRIVATE;
           break;
+        }
         case SecurityDomain::PUBLIC:
+        {
           current_writer = &public_writer;
           current_domain = SecurityDomain::PUBLIC;
           break;
+        }
         case SecurityDomain::SECURITY_DOMAIN_MAX:
         {
           throw std::logic_error("Invalid security domain");
