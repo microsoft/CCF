@@ -153,7 +153,7 @@ The workflow runs on pull requests that change `lean/`, any `.lean` file, the fo
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
-3rd party dependencies: Mathlib and leanfmt (pinned in the Lake package), elan, and bubblewrap.
+3rd party dependencies: Mathlib and leanfmt (pinned in the Lake package), and elan.
 
 # Vendored Dependency Verification
 
