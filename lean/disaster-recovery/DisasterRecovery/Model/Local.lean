@@ -1,12 +1,12 @@
 module
 
-public import DisasterRecovery.Shared.Capabilities
+public import CCF.Capabilities
 
 @[expose] public section
 
 namespace DisasterRecovery.Model.Local
 
-open Shared (Capabilities)
+open CCF (Capabilities)
 
 /-- A node's configured recovery location. -/
 abbrev Location := String
@@ -185,23 +185,23 @@ def advanceTimeoutLane (state : NodeState) (timeout : Bool) : NodeState :=
 /-- Advances the protocol phase and emits notifications, or disables an impossible advance. -/
 def advance (host : Capabilities Location Message Notification)
     (config : Config) (state : NodeState) (timeout : Bool)
-    : Option (Shared.Effect Location Message Notification NodeState) :=
+    : CCF.Effect Location Message Notification NodeState := do
   let aligned := validTimeout state timeout
   match state.phase with
   | .gossiping =>
       if decide (state.gossips.length >= config.expectedLocations.length) || aligned then
         match maximumGossip state.gossips with
-        | none => none
+        | none => failure
         | some (chosen, _) =>
             let next := { state with phase := .voting, chosen := some chosen }
-            some (pure (advanceTimeoutLane next timeout))
+            return advanceTimeoutLane next timeout
       else
-        some (pure (advanceTimeoutLane state timeout))
+        return advanceTimeoutLane state timeout
   | .voting =>
       let sufficient := decide (state.votes.length >= voteQuorum config)
       if sufficient || aligned then
         if aligned && state.votes.isEmpty then
-          some (pure state)
+          return state
         else
           let kind := if aligned && !sufficient then .failover else .quorum
           let next :=
@@ -210,66 +210,60 @@ def advance (host : Capabilities Location Message Notification)
                 phase := .opening
                 openKind := some kind
             }
-          some do
-            host.notify (.opening kind)
-            return advanceTimeoutLane next timeout
+          host.notify (.opening kind)
+          return advanceTimeoutLane next timeout
       else
-        some (pure (advanceTimeoutLane state timeout))
+        return advanceTimeoutLane state timeout
   | .joining =>
       match state.chosen with
-      | none => none
+      | none => failure
       | some chosen =>
-          some do
-            host.notify (.restart chosen)
-            return advanceTimeoutLane { state with restartRequested := true } timeout
+          host.notify (.restart chosen)
+          return advanceTimeoutLane { state with restartRequested := true } timeout
   | .opening =>
       if aligned then
-        some do
-          host.notify .completed
-          return advanceTimeoutLane { state with phase := .open } timeout
+        host.notify .completed
+        return advanceTimeoutLane { state with phase := .open } timeout
       else
-        some (pure (advanceTimeoutLane state timeout))
+        return advanceTimeoutLane state timeout
   | .open =>
-      some (pure (advanceTimeoutLane state timeout))
+      return advanceTimeoutLane state timeout
 
 /-- Emits a rejection diagnostic without changing the local protocol state. -/
 def rejected (host : Capabilities Location Message Notification)
     (state : NodeState) (reason : String)
-    : Shared.Effect Location Message Notification NodeState := do
+    : CCF.Effect Location Message Notification NodeState := do
   host.notify (.rejected reason)
   return state
 
 /-- Executes one local event using the host's output-only callbacks. -/
 def step (host : Capabilities Location Message Notification) (config : Config)
     (recovered : TxID) (state : NodeState) (event : Event)
-    : Option (Shared.Effect Location Message Notification NodeState) := do
+    : CCF.Effect Location Message Notification NodeState := do
   match event with
   | .receiveGossip source txid validation =>
       match validation with
-      | .rejected => pure (rejected host state "quote-or-certificate")
+      | .rejected => rejected host state "quote-or-certificate"
       | .accepted =>
           if state.chosen != none then
-            pure (rejected host state "gossip-frozen")
+            rejected host state "gossip-frozen"
           else
             let received :=
               { state with gossips := insertGossip source txid state.gossips }
-            pure
-              ((advance host config received false).getD
-                (rejected host state "empty-gossip-advance"))
+            advance host config received false
+            <|> rejected host state "empty-gossip-advance"
   | .receiveVote source validation =>
       match validation with
-      | .rejected => pure (rejected host state "quote-or-certificate")
+      | .rejected => rejected host state "quote-or-certificate"
       | .accepted =>
           let received := { state with votes := insertVote source state.votes }
-          pure
-            ((advance host config received false).getD
-              (rejected host state "vote-advance"))
+          advance host config received false <|> rejected host state "vote-advance"
   | .receiveIAmOpen source validation =>
       match validation with
-      | .rejected => pure (rejected host state "quote-or-certificate")
+      | .rejected => rejected host state "quote-or-certificate"
       | .accepted =>
           match state.phase with
-          | .opening | .open => pure (rejected host state "already-opening-or-open")
+          | .opening | .open => rejected host state "already-opening-or-open"
           | _ =>
               let received :=
                 {
@@ -277,9 +271,8 @@ def step (host : Capabilities Location Message Notification) (config : Config)
                     phase := .joining
                     chosen := some source
                 }
-              pure
-                ((advance host config received false).getD
-                  (rejected host state "join-without-chosen"))
+              advance host config received false
+              <|> rejected host state "join-without-chosen"
   | .timeout =>
       advance host config state true
   | .retry =>
@@ -287,19 +280,17 @@ def step (host : Capabilities Location Message Notification) (config : Config)
       | .gossiping | .voting =>
           let voteTarget := if state.phase == .voting then state.chosen else none
           guard (voteTarget.isSome || !config.expectedLocations.isEmpty)
-          pure do
-            if let some target := voteTarget then
-              host.send .vote target
-            for target in config.expectedLocations do
-              host.send (.gossip recovered) target
-            return state
+          if let some target := voteTarget then
+            host.send .vote target
+          for target in config.expectedLocations do
+            host.send (.gossip recovered) target
+          return state
       | .opening =>
           let targets := config.expectedLocations.filter (· != state.location)
           guard (!targets.isEmpty)
-          pure do
-            for target in targets do
-              host.send .iAmOpen target
-            return state
-      | .joining | .open => none
+          for target in targets do
+            host.send .iAmOpen target
+          return state
+      | .joining | .open => failure
 
 end DisasterRecovery.Model.Local

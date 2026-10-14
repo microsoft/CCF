@@ -133,7 +133,8 @@ Canonical behavior checks run with `#eval` when their test module is built, and 
 The build includes both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check --module` command ensures that the modular library root imports every library module, so newly added proofs cannot silently escape the checks.
 
-The kernel-check job runs `lake check` in a `bubblewrap` sandbox on Ubuntu 26.04 for the shared model and replayer package.
+The kernel-check job runs `lake check --inadvisably-no-sandbox` on Ubuntu 26.04 for the disaster-recovery model and replayer package, including its imported common infrastructure.
+Build isolation is disabled so disaster recovery can use the sibling common sources directly; kernel rechecking and the axiom-dependency audit remain enabled.
 The replayer is the only executable entrypoint; the canonical test runner is namespaced within the library.
 The job builds and exports every default target, including the complete library import root and replayer, and requires Lean's kernel to accept the declarations with only the standard axioms.
 This provides the axiom-dependency check and supplements the build, linters, and executable tests.
@@ -152,7 +153,7 @@ The workflow runs on pull requests that change `lean/`, any `.lean` file, the fo
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
-3rd party dependencies: Mathlib and leanfmt (pinned in the Lake package), elan, and bubblewrap.
+3rd party dependencies: Mathlib and leanfmt (pinned in the Lake package), and elan.
 
 # Vendored Dependency Verification
 
