@@ -595,11 +595,9 @@ void modified(int value)
 {
   switch (value)
   {
-    case 0:
+    case 0: {}
 #if CASE_VARIANT
       return;
-#else
-      { return; }
 #endif
     default: { return; }
   }
@@ -710,6 +708,10 @@ void valid(int value)
     case 3: [[likely]] { return; }
     case 4: another_label: [[likely]] { return; }
     case 5: CASE_BLOCK
+    [[likely]] case 6: { ++value; [[fallthrough]]; }
+    before_case: [[unlikely]] case 7: { return; }
+    case 8: { switch (value) { default: { break; } } break; }
+    case 9: { } case 10: { return; }
     default: { return; }
   }
 }
@@ -717,42 +719,102 @@ void stacked_default(int value)
 {
   switch (value) { default: case 0: { return; } }
 }
+void nested_cases(int value)
+{
+  switch (value) { case 0: { [[likely]] case 1: { return; } } }
+}
 """})
         self.assertEqual(count, 0, output)
 
+    def test_rejects_statements_after_case_blocks(self) -> None:
+        bodies = [
+            "{} return;",
+            "{} break;",
+            "{} ++value;",
+            "{} int local = value;",
+            "{} if (value) { return; }",
+            "{} for (int index = 0; index < value; ++index) {}",
+            "{} while (value) { --value; }",
+            "{} do {} while (false);",
+            "{} for (int item : items) { (void)item; }",
+            "{} [] {}();",
+            "{} switch (value) { default: { break; } }",
+            "{} try {} catch (...) {}",
+            "{} label: return;",
+            "{} [[likely]] return;",
+            "{} [[fallthrough]]; case 1: { return; }",
+            "{} {}",
+            "{} ;",
+            "label: {} return;",
+            "[[likely]] {} return;",
+            "case 1: {} return;",
+            "{} { case 1: { break; } }",
+            "{ case 1: {} return; }",
+            "{ [[likely]] case 1: {} return; }",
+            "{ label: [[likely]] case 1: {} return; }",
+            "{ if (value) { case 1: {} return; } }",
+        ]
+        for body in bodies:
+            with self.subTest(body=body):
+                count, output = self.query(
+                    {
+                        "trailing.cpp": (
+                            "void invalid(int value) { int items[2] = {}; "
+                            "switch (value) { default: { break; } "
+                            f"case 0: {body} }} }}"
+                        )
+                    }
+                )
+                self.assertEqual(count, 1, output)
+
+    def test_rejects_statements_after_default_blocks(self) -> None:
+        count, output = self.query(
+            {
+                "default.cpp": (
+                    "void invalid(int value) { switch (value) { "
+                    "case 0: { break; } default: {} ++value; return; } }"
+                )
+            }
+        )
+        self.assertEqual(count, 2, output)
+
     def test_rejects_every_nonempty_unbraced_body(self) -> None:
         bodies = [
-            "return;",
-            "break;",
-            "int local = value; (void)local; break;",
-            "auto [first, second] = items; (void)first; (void)second; break;",
-            "++value; break;",
-            "if (value) { return; } break;",
-            "for (int index = 0; index < value; ++index) { } break;",
-            "while (value) { --value; } break;",
-            "do { --value; } while (value); break;",
-            "for (int item : items) { (void)item; } break;",
-            "[] { }(); break;",
-            "switch (value) { default: { break; } } break;",
-            "try { ++value; } catch (...) { --value; } break;",
-            "label: return;",
-            "[[likely]] if (value) { return; } break;",
-            ";",
-            "case 1: return;",
+            ("return;", 1),
+            ("break;", 1),
+            ("int local = value; (void)local; break;", 3),
+            ("auto [first, second] = items; (void)first; (void)second; break;", 4),
+            ("++value; break;", 2),
+            ("if (value) { return; } break;", 2),
+            ("for (int index = 0; index < value; ++index) { } break;", 2),
+            ("while (value) { --value; } break;", 2),
+            ("do { --value; } while (value); break;", 2),
+            ("for (int item : items) { (void)item; } break;", 2),
+            ("[] { }(); break;", 2),
+            ("switch (value) { default: { break; } } break;", 2),
+            ("try { ++value; } catch (...) { --value; } break;", 2),
+            ("label: return;", 1),
+            ("[[likely]] if (value) { return; } break;", 2),
+            (";", 1),
+            ("case 1: return;", 1),
         ]
-        functions = [f"""
-void invalid_{index}(int value)
-{{
-  int items[2] = {{}};
-  switch (value) {{ default: {{ break; }} case 0: {body} }}
-}}
-""" for index, body in enumerate(bodies)]
-        count, output = self.query({"invalid.cpp": "\n".join(functions)})
-        self.assertEqual(count, len(bodies), output)
+        for body, expected in bodies:
+            with self.subTest(body=body):
+                count, output = self.query(
+                    {
+                        "invalid.cpp": (
+                            "void invalid(int value) { int items[2] = {}; "
+                            "switch (value) { default: { break; } "
+                            f"case 0: {body} }} }}"
+                        )
+                    }
+                )
+                self.assertEqual(count, expected, output)
 
     def test_checks_all_compile_variants(self) -> None:
         count, output = self.query(
-            {"variants.cpp": """
+            {
+                "variants.cpp": """
 void variant(int value)
 {
   switch (value)
@@ -766,10 +828,24 @@ void variant(int value)
     default: { return; }
   }
 }
-"""},
+""",
+                "trailing_variants.cpp": """
+void trailing_variant(int value)
+{
+  switch (value)
+  {
+    case 0: {}
+#if CASE_VARIANT
+      return;
+#endif
+    default: { return; }
+  }
+}
+""",
+            },
             variants=(0, 1),
         )
-        self.assertEqual(count, 1, output)
+        self.assertEqual(count, 2, output)
 
     def test_excludes_vendored_and_system_headers_but_checks_shared_headers(
         self,
@@ -780,6 +856,8 @@ void variant(int value)
             (path / "cases.h").write_text(
                 f"inline void excluded_{directory}_case(int value) "
                 "{ switch (value) { case 0: return; default: { return; } } }\n"
+                f"inline void excluded_{directory}_trailing(int value) "
+                "{ switch (value) { case 0: {} return; default: { return; } } }\n"
             )
         count, output = self.query(
             {
@@ -790,7 +868,7 @@ void variant(int value)
                 )
             }
         )
-        self.assertEqual(count, 1, output)
+        self.assertEqual(count, 2, output)
         self.assertIn("shared/cases.h", output)
 
     def test_multiple_files_have_one_combined_summary(self) -> None:

@@ -64,7 +64,7 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
 C++ Case Scopes
 ---------------
 
-Every non-empty ``case`` and ``default`` body must be enclosed in a ``{ ... }`` block, including bodies containing only a single ``return`` or ``break`` statement. Empty stacked labels may share the following block. A nested ``if``, loop, or lambda does not replace the required case block.
+Every non-empty ``case`` and ``default`` body must be enclosed in a ``{ ... }`` block, including bodies containing only a single ``return`` or ``break`` statement. All statements, including terminating ``break``/``return`` statements and fallthrough annotations, belong inside the block; ``case 0: { } return;`` is rejected. Empty stacked labels may share the following block. A nested ``if``, loop, or lambda does not replace the required case block.
 
 After building, run the check from the repository root:
 

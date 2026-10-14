@@ -623,8 +623,8 @@ namespace ccf::http_client
             curl_handle,
             CURLOPT_INFILESIZE_LARGE,
             static_cast<curl_off_t>(request_body->size()));
+          break;
         }
-        break;
         case HTTP_POST:
         {
           // CURLOPT_POST takes a long: a non-zero value (1L) selects a
@@ -646,8 +646,8 @@ namespace ccf::http_client
             curl_handle,
             CURLOPT_POSTFIELDSIZE_LARGE,
             static_cast<curl_off_t>(request_body->size()));
+          break;
         }
-        break;
         default:
         {
           throw std::logic_error(

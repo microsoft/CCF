@@ -11,10 +11,8 @@ let boundary stmt(anyOf(
   cxxForRangeStmt(), switchStmt(), cxxTryStmt(), cxxCatchStmt(), declStmt(), expr()
 ))
 
-match switchCase(
+let unbracedCase switchCase(
   switchCase().bind("unbraced_case"),
-  unless(isExpansionInSystemHeader()),
-  unless(isExpansionInFileMatching("(^|[/\\\\])3rdparty([/\\\\]|$)")),
   unless(hasDescendant(stmt(
     anyOf(compoundStmt(), switchCase()),
     hasAncestor(stmt(boundary).bind("body_parent")),
@@ -23,4 +21,28 @@ match switchCase(
       equalsBoundNode("unbraced_case")
     ))
   )))
+)
+
+# Statements after the initial case block are siblings of the label in Clang's
+# AST. Only labels and attributes leading directly to another case may remain.
+let caseAtTop switchCase(
+  hasAncestor(stmt(boundary).bind("case_parent")),
+  hasAncestor(compoundStmt(
+    equalsBoundNode("case_parent"),
+    equalsBoundNode("case_container")
+  ))
+)
+let unscopedStatement stmt(
+  unless(switchCase()),
+  hasParent(compoundStmt(
+    compoundStmt().bind("case_container"),
+    hasDescendant(caseAtTop)
+  )),
+  unless(hasDescendant(caseAtTop))
+)
+
+match stmt(
+  anyOf(unbracedCase, stmt(unscopedStatement).bind("unscoped_statement")),
+  unless(isExpansionInSystemHeader()),
+  unless(isExpansionInFileMatching("(^|[/\\\\])3rdparty([/\\\\]|$)"))
 )
