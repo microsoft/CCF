@@ -9,7 +9,6 @@
 #include "kv/tx_pimpl.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "node/rpc/claims.h"
 
 #include <list>
 
@@ -243,21 +242,17 @@ namespace ccf::kv
         MapSetLockGuard map_set_guard(*pimpl->store, maps_created);
         c = apply_changes(
           all_changes,
-          [&](bool has_new_map) {
-            auto resolution =
-              pimpl->store->next_version(has_new_map, pimpl->commit_view);
+          [&]() {
+            auto resolution = pimpl->store->next_version(pimpl->commit_view);
             commit_term_changed = !resolution.has_value();
             if (!resolution.has_value())
             {
-              return std::optional<VersionResolution>{};
+              return std::optional<Version>{};
             }
 
-            const auto
-              [resolved_version, previous_last_new_map, rollback_count] =
-                resolution.value();
+            const auto [resolved_version, rollback_count] = resolution.value();
             expected_rollback_count = rollback_count;
-            return std::optional<VersionResolution>(
-              std::in_place, resolved_version, previous_last_new_map);
+            return std::optional<Version>(resolved_version);
           },
           hooks,
           pimpl->created_maps,
@@ -508,7 +503,9 @@ namespace ccf::kv
         throw std::logic_error("Transaction already committed");
       }
 
-      if (all_changes.empty())
+      // A reserved transaction must fill its version with a ledger entry, so
+      // one which only reads would leave a hole at that version.
+      if (!has_writes())
       {
         throw std::logic_error("Reserved transaction cannot be empty");
       }
@@ -527,7 +524,7 @@ namespace ccf::kv
         MapSetLockGuard map_set_guard(*pimpl->store, maps_created);
         c = apply_changes(
           all_changes,
-          [this](bool) { return std::make_tuple(version, version - 1); },
+          [this]() { return version; },
           hooks,
           pimpl->created_maps,
           version,

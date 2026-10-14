@@ -3,7 +3,7 @@
 
 #include "node/jwt_key_auto_refresh.h"
 
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN

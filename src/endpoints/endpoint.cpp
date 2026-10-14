@@ -5,6 +5,8 @@
 
 #include "ds/internal_logger.h"
 
+#include <tuple>
+
 namespace ccf::endpoints
 {
   Endpoint& Endpoint::set_openapi_hidden(bool hidden)
@@ -36,7 +38,7 @@ namespace ccf::endpoints
         auto& responses = ds::openapi::responses(path_operation);
         if (!responses.contains(std::to_string(HTTP_STATUS_NOT_FOUND)))
         {
-          ds::openapi::response(
+          std::ignore = ds::openapi::response(
             path_operation,
             HTTP_STATUS_NOT_FOUND,
             "The required operator feature is not enabled on this interface.");

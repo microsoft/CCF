@@ -16,6 +16,7 @@ set(
   ${CCF_DIR}/src/crypto/pem.cpp
   ${CCF_DIR}/src/crypto/ecdsa.cpp
   ${CCF_DIR}/src/crypto/cose.cpp
+  ${CCF_DIR}/src/crypto/cose_key.cpp
   ${CCF_DIR}/src/crypto/openssl/symmetric_key.cpp
   ${CCF_DIR}/src/crypto/openssl/ec_public_key.cpp
   ${CCF_DIR}/src/crypto/openssl/ec_key_pair.cpp

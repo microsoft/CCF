@@ -2,19 +2,30 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/cose_verifier.h"
-#include "cose/cose_rs_ffi.h"
 
 #include <chrono>
+#include <span>
 
 namespace ccf::crypto
 {
+  /// The public key of a DER certificate, as COSE verifiers import it.
+  /// @throws std::invalid_argument if the certificate cannot be parsed, or its
+  /// key is not supported
+  COSEKey cose_key_from_der_cert(std::span<const uint8_t> der);
+
+  /// Whether a COSE signature algorithm verifies with key: the key types
+  /// match and, for EC2 keys, so do the curves.
+  /// @throws std::runtime_error if alg is not supported
+  bool cose_algorithm_matches_key(int64_t alg, const COSEKey& key);
+
   class COSEVerifier_OpenSSL : public COSEVerifier
   {
   protected:
-    CoseKey verify_key;
+    COSEKey verify_key;
 
-    explicit COSEVerifier_OpenSSL(CoseKey&& key) : verify_key(std::move(key)) {}
+    explicit COSEVerifier_OpenSSL(COSEKey key) : verify_key(std::move(key)) {}
 
   public:
     ~COSEVerifier_OpenSSL() override;
@@ -51,5 +62,6 @@ namespace ccf::crypto
   public:
     COSEKeyVerifier_OpenSSL(const Pem& public_key);
     COSEKeyVerifier_OpenSSL(std::span<const uint8_t> public_key_der);
+    explicit COSEKeyVerifier_OpenSSL(const COSEKey& key);
   };
 }

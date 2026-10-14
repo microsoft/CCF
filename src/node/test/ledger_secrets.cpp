@@ -3,8 +3,8 @@
 
 #include "node/ledger_secrets.h"
 
+#include "kv/null_encryptor.h"
 #include "kv/store.h"
-#include "kv/test/null_encryptor.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>

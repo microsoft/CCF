@@ -38,8 +38,7 @@ COSE Sign1
 CCF accepts signed requests in `COSE Sign1 <https://www.rfc-editor.org/rfc/rfc8152.html#section-4.2>`_ format.
 
 CCF identifies the signing identity for a request via the SHA-256 digest of its certificate, represented as a hex string.
-That value must be set in the ``kid`` protected header. Additional protected headers may be necessary, for example governance endpoints
-require setting ``ccf.gov.msg.type``, ``ccf.gov.msg.created_at``, and optionally ``ccf.gov.msg.proposal_id`` on the message types where it applies.
+That value must be set in the ``kid`` protected header. Additional protected headers may be necessary, for example governance endpoints require setting ``ccf.gov.msg.type``, ``ccf.gov.msg.created_at``, and optionally ``ccf.gov.msg.proposal_id`` on the message types where it applies.
 
 A signing script (``ccf_cose_sign1``) is provided as part of the `ccf Python package <https://pypi.org/project/ccf/>`_. The output can be piped directly into curl, or any other HTTP client.
 

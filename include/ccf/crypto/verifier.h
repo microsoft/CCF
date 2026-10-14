@@ -153,7 +153,7 @@ namespace ccf::crypto
       const = 0;
 
     /** The number of seconds of the validity period of the
-     * certificate remaining */
+     * certificate remaining, or 0 if the certificate has expired */
     [[nodiscard]] virtual size_t remaining_seconds(
       const ccf::nonstd::SystemClock::time_point& now) const = 0;
 

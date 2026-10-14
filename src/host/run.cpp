@@ -8,8 +8,7 @@
 #include "ccf/ds/logger_level.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/ds/unit_strings.h"
-#include "ccf/ds/x509_time_fmt.h"
-#include "ccf/node/startup_config.h"
+#include "ccf/node/configuration.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/platform.h"
@@ -20,18 +19,12 @@
 #include "common/configuration.h"
 #include "common/enclave_interface_types.h"
 #include "config_schema.h"
-#include "configuration.h"
 #include "consensus/ledger_enclave_types.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "ds/non_blocking.h"
-#include "ds/notifying.h"
-#include "ds/oversized.h"
 #include "ds/time_bound_logger.h"
 #include "enclave/entry_points.h"
-#include "handle_ring_buffer.h"
-#include "host/env.h"
 #include "host/files_cleanup_timer.h"
 #include "host/ledger_subsystem.h"
 #include "http_client/curl.h"
@@ -40,12 +33,11 @@
 #include "pal/quote_generation.h"
 #include "runtime_control.h"
 #include "sig_term.h"
+#include "task_ticker.h"
 #include "tcp.h"
-#include "ticker.h"
 #include "tracing/fluentd_sink.h"
 
 #include <CLI11/CLI11.hpp>
-#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdint>
@@ -94,7 +86,7 @@ static constexpr size_t retry_interval_ms = 100;
 
 namespace ccf
 {
-  void validate_ledger_transaction_size(const host::HostConfig& config)
+  void validate_ledger_transaction_size(const ccf::CCFConfig& config)
   {
     const auto max_message_size = config.memory.max_msg_size.count_bytes();
     const auto max_transaction_size =
@@ -109,16 +101,16 @@ namespace ccf
       throw std::logic_error(fmt::format(
         "ledger.max_transaction_size ({}) must be at least {} bytes smaller "
         "than memory.max_msg_size ({}) so a single ledger entry fits in a "
-        "ring-buffer range response",
+        "ledger range response",
         max_transaction_size,
         response_overhead,
         max_message_size));
     }
   }
 
-  void validate_and_coerce_worker_threads(host::HostConfig& config)
+  void validate_and_coerce_worker_threads(ccf::CCFConfig& config)
   {
-    // Replace the task execution capacity of the dispatch thread, which no
+    // Replace the task execution capacity of the coordination thread, which no
     // longer executes tasks itself, without requiring configuration changes.
     if (config.worker_threads == 0)
     {
@@ -129,7 +121,7 @@ namespace ccf
     ++config.worker_threads;
   }
 
-  void validate_and_adjust_recovery_threshold(host::HostConfig& config)
+  void validate_and_adjust_recovery_threshold(ccf::CCFConfig& config)
   {
     if (config.command.type != StartType::Start)
     {
@@ -207,259 +199,28 @@ namespace ccf
     }
   }
 
-  struct WriterFactories
-  {
-    ringbuffer::WriterFactory base_factory;
-    ringbuffer::NotifyingWriterFactory notifying_factory;
-    ringbuffer::NonBlockingWriterFactory non_blocking_factory;
-    oversized::WriterFactory writer_factory;
-
-    WriterFactories(
-      ringbuffer::Circuit& circuit, const oversized::WriterConfig& config) :
-      base_factory(circuit),
-      notifying_factory(base_factory),
-      non_blocking_factory(notifying_factory),
-      writer_factory(non_blocking_factory, config)
-    {}
-  };
-
-  void configure_snp_attestation(ccf::StartupConfig& startup_config)
-  {
-    if (ccf::pal::platform != ccf::pal::Platform::SNP)
-    {
-      return;
-    }
-
-    if (startup_config.attestation.snp_security_policy_file.has_value())
-    {
-      auto security_policy_file =
-        startup_config.attestation.snp_security_policy_file.value();
-      LOG_DEBUG_FMT(
-        "Resolving snp_security_policy_file: {}", security_policy_file);
-      security_policy_file =
-        ccf::env::expand_envvars_in_path(security_policy_file);
-      LOG_DEBUG_FMT(
-        "Resolved snp_security_policy_file: {}", security_policy_file);
-
-      startup_config.attestation.environment.security_policy =
-        files::try_slurp_string(security_policy_file);
-      if (!startup_config.attestation.environment.security_policy.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Could not read snp_security_policy from {}", security_policy_file);
-      }
-    }
-
-    if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
-    {
-      auto snp_uvm_endorsements_file =
-        startup_config.attestation.snp_uvm_endorsements_file.value();
-      LOG_DEBUG_FMT(
-        "Resolving snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
-      snp_uvm_endorsements_file =
-        ccf::env::expand_envvars_in_path(snp_uvm_endorsements_file);
-      LOG_DEBUG_FMT(
-        "Resolved snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
-
-      startup_config.attestation.environment.uvm_endorsements =
-        files::try_slurp_string(snp_uvm_endorsements_file);
-      if (!startup_config.attestation.environment.uvm_endorsements.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Could not read snp_uvm_endorsements from {}",
-          snp_uvm_endorsements_file);
-      }
-    }
-
-    for (auto& server : startup_config.attestation.snp_endorsements_servers)
-    {
-      auto& url = server.url;
-      if (url.has_value())
-      {
-        LOG_DEBUG_FMT("Resolving snp_endorsements_server url: {}", url.value());
-        auto pos = url->find(':');
-        if (pos == std::string::npos)
-        {
-          url = ccf::env::expand_envvar(url.value());
-        }
-        else
-        {
-          url = fmt::format(
-            "{}:{}",
-            ccf::env::expand_envvar(url->substr(0, pos)),
-            ccf::env::expand_envvar(url->substr(pos + 1)));
-        }
-        LOG_DEBUG_FMT("Resolved snp_endorsements_server url: {}", url.value());
-      }
-    }
-
-    if (startup_config.attestation.snp_endorsements_file.has_value())
-    {
-      auto snp_endorsements_file =
-        startup_config.attestation.snp_endorsements_file.value();
-      LOG_DEBUG_FMT(
-        "Resolving snp_endorsements_file: {}", snp_endorsements_file);
-      snp_endorsements_file =
-        ccf::env::expand_envvars_in_path(snp_endorsements_file);
-      LOG_DEBUG_FMT(
-        "Resolved snp_endorsements_file: {}", snp_endorsements_file);
-
-      startup_config.attestation.environment.snp_endorsements =
-        files::try_slurp_string(snp_endorsements_file);
-
-      if (!startup_config.attestation.environment.snp_endorsements.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Could not read snp_endorsements from {}", snp_endorsements_file);
-      }
-    }
-  }
-
-  void populate_config_for_start(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
-  {
-    for (auto const& member : config.command.start.members)
-    {
-      std::optional<ccf::crypto::Pem> public_encryption_key = std::nullopt;
-      std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
-      if (
-        member.encryption_public_key_file.has_value() &&
-        !member.encryption_public_key_file.value().empty())
-      {
-        public_encryption_key = ccf::crypto::Pem(
-          files::slurp(member.encryption_public_key_file.value()));
-        recovery_role = member.recovery_role;
-      }
-
-      nlohmann::json member_data = nullptr;
-      if (
-        member.data_json_file.has_value() &&
-        !member.data_json_file.value().empty())
-      {
-        member_data =
-          nlohmann::json::parse(files::slurp(member.data_json_file.value()));
-      }
-
-      startup_config.start.members.emplace_back(
-        ccf::crypto::Pem(files::slurp(member.certificate_file)),
-        public_encryption_key,
-        member_data,
-        recovery_role);
-    }
-
-    startup_config.start.constitution = "";
-    for (const auto& constitution_path :
-         config.command.start.constitution_files)
-    {
-      // Separate with single newlines
-      if (!startup_config.start.constitution.empty())
-      {
-        startup_config.start.constitution += '\n';
-      }
-
-      startup_config.start.constitution +=
-        files::slurp_string(constitution_path);
-    }
-
-    startup_config.start.service_configuration =
-      config.command.start.service_configuration;
-    startup_config.start.service_configuration.recovery_threshold =
-      config.command.start.service_configuration.recovery_threshold;
-    startup_config.initial_service_certificate_validity_days =
-      config.command.start.initial_service_certificate_validity_days;
-    startup_config.service_subject_name =
-      config.command.start.service_subject_name;
-    startup_config.cose_signatures = config.command.start.cose_signatures;
-
-    LOG_INFO_FMT(
-      "Creating new node: new network (with {} initial member(s) and {} "
-      "member(s) required for recovery)",
-      config.command.start.members.size(),
-      config.command.start.service_configuration.recovery_threshold);
-  }
-
-  void populate_config_for_join(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
-  {
-    LOG_INFO_FMT(
-      "Creating new node - join existing network at {}",
-      config.command.join.target_rpc_address);
-    startup_config.join.target_rpc_address =
-      config.command.join.target_rpc_address;
-    startup_config.join.retry_timeout = config.command.join.retry_timeout;
-    startup_config.join.service_cert =
-      files::slurp(config.command.service_certificate_file);
-    startup_config.join.follow_redirect = config.command.join.follow_redirect;
-    startup_config.join.fetch_recent_snapshot =
-      config.command.join.fetch_recent_snapshot;
-    startup_config.join.fetch_snapshot_max_attempts =
-      config.command.join.fetch_snapshot_max_attempts;
-    startup_config.join.fetch_snapshot_retry_interval =
-      config.command.join.fetch_snapshot_retry_interval;
-    startup_config.join.fetch_snapshot_max_size =
-      config.command.join.fetch_snapshot_max_size;
-    startup_config.join.host_data_transparent_statement_path =
-      config.command.join.host_data_transparent_statement_path;
-  }
-
-  void populate_config_for_recover(
-    const host::HostConfig& config, ccf::StartupConfig& startup_config)
-  {
-    LOG_INFO_FMT("Creating new node - recover");
-    startup_config.initial_service_certificate_validity_days =
-      config.command.recover.initial_service_certificate_validity_days;
-    auto idf = config.command.recover.previous_service_identity_file;
-    if (!files::exists(idf))
-    {
-      throw std::logic_error(fmt::format(
-        "Recovery requires a previous service identity certificate; cannot "
-        "open '{}'",
-        idf));
-    }
-    LOG_INFO_FMT("Reading previous service identity from {}", idf);
-    startup_config.recover.previous_service_identity = files::slurp(idf);
-  }
-
   std::optional<size_t> create_enclave_node(
-    const host::HostConfig& config,
-    messaging::BufferProcessor& buffer_processor,
-    ringbuffer::Circuit& circuit,
-    EnclaveConfig& enclave_config,
-    ccf::StartupConfig& startup_config,
+    const ccf::CCFConfig& config,
     std::vector<uint8_t>& node_cert,
     std::vector<uint8_t>& service_cert,
     std::vector<uint8_t>& rpc_addresses,
     ccf::LoggerLevel log_level,
-    ringbuffer::NotifyingWriterFactory& notifying_factory,
     ccf::AbstractRuntimeControl& runtime_control,
-    const std::shared_ptr<asynchost::ReadLedgerSubsystem>& ledger_subsystem)
+    const std::shared_ptr<asynchost::LedgerSubsystem>& ledger_subsystem,
+    const std::shared_ptr<asynchost::NodeConnections>& node_connections)
   {
     LOG_INFO_FMT("Initialising enclave: enclave_create_node");
-    std::atomic<bool> ecall_completed = false;
-    auto flush_outbound = [&]() {
-      do
-      {
-        std::this_thread::sleep_for(
-          std::chrono::milliseconds(retry_interval_ms));
-
-        buffer_processor.read_all(circuit.read_from_inside());
-      } while (!ecall_completed);
-    };
-    std::thread flusher_thread(flush_outbound);
     auto create_status = enclave_create_node(
-      enclave_config,
-      startup_config,
+      config,
       node_cert,
       service_cert,
       rpc_addresses,
       config.command.type,
       log_level,
       config.worker_threads,
-      notifying_factory.get_inbound_work_beacon(),
       runtime_control,
-      ledger_subsystem);
-    ecall_completed.store(true);
-    flusher_thread.join();
+      ledger_subsystem,
+      node_connections);
 
     // Reset the thread ID generator. This function will exit before any
     // thread calls enclave_run, and without creating any new threads, so it
@@ -473,10 +234,6 @@ namespace ccf
       LOG_FAIL_FMT(
         "An error occurred when creating CCF node: {}",
         create_node_result_to_str(create_status));
-
-      // Pull all logs from the enclave via BufferProcessor `buffer_processor`
-      // and show any logs that came from the ring buffer during setup.
-      buffer_processor.read_all(circuit.read_from_inside());
 
       // This returns from main, stopping the program
       return create_status;
@@ -494,7 +251,7 @@ namespace ccf
   }
 
   void write_certificates_to_disk(
-    const host::HostConfig& config,
+    const ccf::CCFConfig& config,
     const std::vector<uint8_t>& node_cert,
     const std::vector<uint8_t>& service_cert)
   {
@@ -516,8 +273,9 @@ namespace ccf
   }
 
   void run_enclave_threads(
-    const host::HostConfig& config,
-    asynchost::RuntimeControlImpl& runtime_control)
+    const ccf::CCFConfig& config,
+    asynchost::RuntimeControlImpl& runtime_control,
+    asynchost::LedgerSubsystem& ledger_subsystem)
   {
     auto enclave_thread_start = [&](threading::ThreadID thread_id) {
       threading::set_current_thread_id(thread_id);
@@ -560,6 +318,14 @@ namespace ccf
       thread.join();
     }
 
+    // Workers exit as soon as a stop is requested, so ledger mutations which
+    // append()/commit() accepted may still be queued on the ledger lane. Drain
+    // them to disk now, while no worker can run the lane. This must happen
+    // BEFORE enclave_shutdown_tasks(): shutting down the job board abandons
+    // every registered lane's pending actions, which would silently discard
+    // those writes.
+    ledger_subsystem.shutdown();
+
     // Transports and task workers are quiescent. Release queued actions,
     // including paused session queues, before their dependencies are torn down.
     enclave_shutdown_tasks();
@@ -568,39 +334,17 @@ namespace ccf
   }
 
   std::optional<size_t> run_main_loop(
-    host::HostConfig& config,
-    messaging::BufferProcessor& buffer_processor,
-    ringbuffer::Circuit& circuit,
-    EnclaveConfig& enclave_config,
-    ccf::LoggerLevel log_level)
+    ccf::CCFConfig& config, ccf::LoggerLevel log_level)
   {
-    // Construct hierarchy of ringbuffer writer factories
-    WriterFactories factories(circuit, enclave_config.writer_config);
-    auto& writer_factory = factories.writer_factory;
-
-    // provide regular ticks to the enclave
-    const asynchost::Ticker ticker(config.tick_interval, writer_factory);
+    const asynchost::TaskTicker task_ticker(config.tick_interval);
 
     const auto request_enclave_stop = []() {
       return ccf::enclave_request_stop();
     };
-    const auto drain_ringbuffers_before_loop_stop =
-      [&buffer_processor, &circuit, &factories]() {
-        buffer_processor.read_all(circuit.read_from_inside());
-        factories.non_blocking_factory.flush_all_inbound();
-      };
-    asynchost::RuntimeControl runtime_control(
-      request_enclave_stop, drain_ringbuffers_before_loop_stop);
+    asynchost::RuntimeControl runtime_control(request_enclave_stop);
 
     // reset the inbound-TCP processing quota each iteration
     const asynchost::ResetTCPReadQuota reset_tcp_quota;
-
-    // handle outbound logging and admin messages from the enclave
-    const asynchost::HandleRingbuffer handle_ringbuffer(
-      1ms,
-      buffer_processor,
-      circuit.read_from_inside(),
-      factories.non_blocking_factory);
 
     // graceful shutdown on sigterm
     asynchost::Sigterm sigterm(config.ignore_first_sigterm);
@@ -609,10 +353,17 @@ namespace ccf
 
     asynchost::Ledger ledger(
       config.ledger.directory,
-      writer_factory,
       asynchost::ledger_max_read_cache_files_default,
       config.ledger.read_only_directories);
-    ledger.register_message_handlers(buffer_processor.get_dispatcher());
+
+    // Typed ledger access for the enclave. Only valid while the ledger above
+    // is alive, and shut down before it is destroyed.
+    auto ledger_subsystem = std::make_shared<asynchost::LedgerSubsystem>(
+      ledger,
+      config.memory.max_msg_size.count_bytes() -
+        ::consensus::ledger_range_response_metadata_size,
+      ccf::tasks::get_main_job_board(),
+      config.memory.circuit_size.count_bytes());
 
     if (config.snapshots.read_only_directory.has_value())
     {
@@ -636,17 +387,21 @@ namespace ccf
         config.files_cleanup.max_committed_ledger_chunks);
     }
 
-    // Setup node-to-node connections
+    // Setup node-to-node connections, which the node uses as its typed
+    // transport. Outbound messages are ordered behind the ledger mutations
+    // submitted before them, then written on the loop thread by a 1ms flush
+    // timer. Inbound frames use the configured maximum message size.
     auto [node_host, node_port] =
       cli::validate_address(config.network.node_to_node_interface.bind_address);
-    asynchost::NodeConnections node(
-      buffer_processor.get_dispatcher(),
+    auto node = std::make_shared<asynchost::NodeConnections>(
       ledger,
-      writer_factory,
+      *ledger_subsystem,
       node_host,
       node_port,
+      config.memory.max_msg_size.count_bytes(),
       config.node_client_interface,
       config.client_connection_timeout);
+    const asynchost::FlushNodeOutbound flush_node_outbound(1ms, *node);
     config.network.node_to_node_interface.bind_address =
       ccf::make_net_address(node_host, node_port);
     if (config.network.node_to_node_interface.published_address.empty())
@@ -665,7 +420,12 @@ namespace ccf
     }
 
     // Initialise the curlm singleton
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    if (const auto curl_rc = curl_global_init(CURL_GLOBAL_DEFAULT);
+        curl_rc != CURLE_OK)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to initialise libcurl: {}", curl_easy_strerror(curl_rc)));
+    }
     auto curl_libuv_context =
       http_client::CurlmLibuvContextSingleton(uv_default_loop());
 
@@ -703,51 +463,9 @@ namespace ccf
     std::vector<uint8_t> service_cert(certificate_size);
     std::vector<uint8_t> rpc_addresses;
 
-    ccf::StartupConfig startup_config(config);
-
-    // Configure SNP attestation if on SNP platform
-    configure_snp_attestation(startup_config);
-
     if (ccf::pal::platform == ccf::pal::Platform::Virtual)
     {
       ccf::pal::emit_virtual_measurement();
-    }
-
-    if (config.node_data_json_file.has_value())
-    {
-      startup_config.node_data =
-        files::slurp_json(config.node_data_json_file.value());
-      LOG_TRACE_FMT("Read node_data: {}", startup_config.node_data.dump());
-    }
-
-    if (config.service_data_json_file.has_value())
-    {
-      if (
-        config.command.type == StartType::Start ||
-        config.command.type == StartType::Recover)
-      {
-        startup_config.service_data =
-          files::slurp_json(config.service_data_json_file.value());
-      }
-      else
-      {
-        LOG_FAIL_FMT(
-          "Service data is ignored for start type {}", config.command.type);
-      }
-    }
-
-    auto startup_host_time = std::chrono::system_clock::now();
-    LOG_INFO_FMT("Startup host time: {}", startup_host_time);
-
-    startup_config.startup_host_time =
-      ccf::ds::to_x509_time_string(startup_host_time);
-
-    startup_config.sealing_recovery = config.sealing_recovery;
-    if (config.sealing_recovery.has_value())
-    {
-      CCF_ASSERT_FMT(
-        ccf::pal::platform == ccf::pal::Platform::SNP,
-        "Sealing ledger secrets is only supported on SEV-SNP platforms");
     }
 
     // Configure startup based on command type
@@ -777,49 +495,30 @@ namespace ccf
           return static_cast<int>(CLI::ExitCodes::ValidationError);
         }
       }
-
-      populate_config_for_start(config, startup_config);
     }
-    else if (config.command.type == StartType::Join)
-    {
-      populate_config_for_join(config, startup_config);
-    }
-    else if (config.command.type == StartType::Recover)
-    {
-      populate_config_for_recover(config, startup_config);
-    }
-    else
+    else if (
+      config.command.type != StartType::Join &&
+      config.command.type != StartType::Recover)
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
-
-    // Used by GET /node/network/nodes/self to return rpc interfaces
-    // prior to the KV being updated
-    startup_config.network.rpc_interfaces = config.network.rpc_interfaces;
 
     ccf::tracing::FluentdSink::configure(
       config.observability.fluentd, config.worker_threads + 2);
     ccf::tracing::FluentdSink::bind_producer(config.worker_threads + 1);
     ccf::tracing::FluentdSink::Lifetime trace_lifetime;
 
-    // Create the enclave node. The read-only ledger view is installed as a
-    // node subsystem, and is only valid while the ledger above is alive.
-    auto ledger_subsystem =
-      std::make_shared<asynchost::ReadLedgerSubsystem>(ledger);
+    // Create the enclave node
     auto enclave_creation_result = create_enclave_node(
       config,
-      buffer_processor,
-      circuit,
-      enclave_config,
-      startup_config,
       node_cert,
       service_cert,
       rpc_addresses,
       log_level,
-      factories.notifying_factory,
       *runtime_control,
-      ledger_subsystem);
+      ledger_subsystem,
+      node);
 
     if (enclave_creation_result.has_value())
     {
@@ -829,8 +528,13 @@ namespace ccf
     // Output certificates to disk
     write_certificates_to_disk(config, node_cert, service_cert);
 
-    // Run enclave threads and event loop
-    run_enclave_threads(config, *runtime_control);
+    // Run enclave threads and event loop. The ledger subsystem is drained
+    // inside, between the enclave threads joining and the job board shutting
+    // down; see run_enclave_threads.
+    run_enclave_threads(config, *runtime_control, *ledger_subsystem);
+    // The enclave retains the transport, so close its sockets explicitly
+    // before the loop is closed
+    node->shutdown();
 
     return std::nullopt;
   }
@@ -962,9 +666,9 @@ namespace ccf
         schema_error_msg.value()));
     }
 
-    host::HostConfig config = config_json;
+    ccf::CCFConfig config = config_json;
 
-    if (config.logging.format == host::LogFormat::JSON)
+    if (config.logging.format == ccf::LogFormat::JSON)
     {
       ccf::logger::config::add_json_console_logger();
     }
@@ -1060,64 +764,10 @@ namespace ccf
     ccf::ds::TimeBoundLogger::default_max_time =
       config.slow_io_logging_threshold;
 
-    // create the enclave:
-
-    // messaging ring buffers
-    const auto buffer_size = config.memory.circuit_size;
-
-    std::vector<uint8_t> to_enclave_buffer(buffer_size);
-    ringbuffer::Offsets to_enclave_offsets;
-    ringbuffer::BufferDef to_enclave_def{
-      to_enclave_buffer.data(), to_enclave_buffer.size(), &to_enclave_offsets};
-    if (!ringbuffer::Const::find_acceptable_sub_buffer(
-          to_enclave_def.data, to_enclave_def.size))
+    const auto inner_ret = run_main_loop(config, log_level);
+    if (inner_ret.has_value())
     {
-      LOG_FATAL_FMT(
-        "Unable to construct valid inbound buffer of size {}", buffer_size);
-      return static_cast<int>(CLI::ExitCodes::ValidationError);
-    }
-
-    std::vector<uint8_t> from_enclave_buffer(buffer_size);
-    ringbuffer::Offsets from_enclave_offsets;
-    ringbuffer::BufferDef from_enclave_def{
-      from_enclave_buffer.data(),
-      from_enclave_buffer.size(),
-      &from_enclave_offsets};
-    if (!ringbuffer::Const::find_acceptable_sub_buffer(
-          from_enclave_def.data, from_enclave_def.size))
-    {
-      LOG_FATAL_FMT(
-        "Unable to construct valid outbound buffer of size {}", buffer_size);
-      return static_cast<int>(CLI::ExitCodes::ValidationError);
-    }
-
-    ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
-    messaging::BufferProcessor buffer_processor("Host");
-
-    // reconstruct oversized messages sent to the host
-    const oversized::FragmentReconstructor fragment_reconstructor(
-      buffer_processor.get_dispatcher());
-
-    {
-      EnclaveConfig enclave_config;
-      enclave_config.to_enclave_buffer_start = to_enclave_def.data;
-      enclave_config.to_enclave_buffer_size = to_enclave_def.size;
-      enclave_config.to_enclave_buffer_offsets = &to_enclave_offsets;
-      enclave_config.from_enclave_buffer_start = from_enclave_def.data;
-      enclave_config.from_enclave_buffer_size = from_enclave_def.size;
-      enclave_config.from_enclave_buffer_offsets = &from_enclave_offsets;
-
-      const oversized::WriterConfig writer_config{
-        config.memory.max_fragment_size, config.memory.max_msg_size};
-      enclave_config.writer_config = writer_config;
-
-      const auto inner_ret = run_main_loop(
-        config, buffer_processor, circuit, enclave_config, log_level);
-
-      if (inner_ret.has_value())
-      {
-        return inner_ret.value();
-      }
+      return inner_ret.value();
     }
 
     constexpr size_t max_close_iterations = 1000;

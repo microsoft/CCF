@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/aft/consensus_channels.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "node/rpc/rpc_handler.h"
@@ -13,22 +14,10 @@
 
 namespace ccf
 {
-  class NodeToNode
+  class NodeToNode : public aft::ConsensusChannels
   {
   public:
-    virtual ~NodeToNode() = default;
-
-    class DroppedMessageException : public std::exception
-    {
-    public:
-      NodeId from;
-      DroppedMessageException(NodeId from_) : from(std::move(from_)) {}
-    };
-
-    virtual void associate_node_address(
-      const NodeId& peer_id,
-      const std::string& peer_hostname,
-      const std::string& peer_service) = 0;
+    ~NodeToNode() override = default;
 
     virtual void close_channel(const NodeId& peer_id) = 0;
 
@@ -51,19 +40,12 @@ namespace ccf
     virtual bool send_authenticated(
       const NodeId& to, NodeMsgType type, const uint8_t* data, size_t size) = 0;
 
-    template <class T>
-    const T& recv_authenticated(
-      const NodeId& from, const uint8_t*& data, size_t& size)
+    using aft::ConsensusChannels::send_consensus_message;
+
+    bool send_consensus_message(
+      const NodeId& to, const uint8_t* data, size_t size) final
     {
-      std::span<const uint8_t> ts(data, sizeof(T));
-      auto& t = serialized::overlay<T>(data, size);
-
-      if (!recv_authenticated(from, ts, data, size))
-      {
-        throw DroppedMessageException(from);
-      }
-
-      return t;
+      return send_authenticated(to, NodeMsgType::consensus_msg, data, size);
     }
 
     template <class T>
@@ -86,12 +68,6 @@ namespace ccf
 
     virtual bool recv_authenticated_with_load(
       const NodeId& from, const uint8_t*& data, size_t& size) = 0;
-
-    virtual bool recv_authenticated(
-      const NodeId& from,
-      std::span<const uint8_t> header,
-      const uint8_t*& data,
-      size_t& size) = 0;
 
     virtual bool recv_channel_message(
       const NodeId& from, const uint8_t* data, size_t size) = 0;

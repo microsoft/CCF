@@ -418,10 +418,14 @@ namespace ccf::gov::endpoints
     return node;
   }
 
-  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-  inline void init_service_state_handlers(ccf::BaseEndpointRegistry& registry)
+  namespace detail
   {
-    auto get_constitution = [&](auto& ctx, ApiVersion api_version) {
+    // Endpoint handlers registered by init_service_state_handlers(), via
+    // forwarding lambdas. Kept out of the registration function so each
+    // handler's complexity is measured on its own.
+    template <typename Ctx>
+    inline void get_constitution(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -451,18 +455,12 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/service/constitution",
-        HTTP_GET,
-        api_version_adapter(get_constitution),
-        no_auth_required)
-      .set_auto_schema<void, ds::openapi::Javascript>()
-      .set_openapi_summary("Get the service constitution")
-      .install();
+    }
 
-    auto get_service_info = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_service_info(
+      Ctx& ctx, ApiVersion api_version, ccf::BaseEndpointRegistry& registry)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -535,18 +533,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/service/info",
-        HTTP_GET,
-        api_version_adapter(get_service_info),
-        no_auth_required)
-      .set_auto_schema<void, api::ServiceInfo>()
-      .set_openapi_summary("Get service information")
-      .install();
+    }
 
-    auto get_javascript_app = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_javascript_app(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -647,20 +638,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/service/javascript-app",
-        HTTP_GET,
-        api_version_adapter(get_javascript_app, ApiVersion::v1),
-        no_auth_required)
-      .set_auto_schema<void, api::JavascriptApp>()
-      .add_query_parameter<api::JavascriptAppCase>(
-        "case", ccf::endpoints::QueryParamPresence::OptionalParameter)
-      .set_openapi_summary("Get the installed JavaScript application")
-      .install();
+    }
 
-    auto get_javascript_modules = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_javascript_modules(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -680,80 +662,65 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/service/javascript-modules",
-        HTTP_GET,
-        api_version_adapter(get_javascript_modules, ApiVersion::v1),
-        no_auth_required)
-      .set_auto_schema<void, api::JavascriptModules>()
-      .set_openapi_summary("List JavaScript modules")
-      .install();
+    }
 
-    auto get_javascript_module_by_name =
-      [&](auto& ctx, ApiVersion api_version) {
-        switch (api_version)
+    template <typename Ctx>
+    inline void get_javascript_module_by_name(Ctx& ctx, ApiVersion api_version)
+    {
+      switch (api_version)
+      {
+        case ApiVersion::preview_v1:
+        case ApiVersion::v1:
+        case ApiVersion::Latest:
         {
-          case ApiVersion::preview_v1:
-          case ApiVersion::v1:
-          case ApiVersion::Latest:
+          std::string module_name;
           {
-            std::string module_name;
-            {
-              std::string error;
-              if (!ccf::endpoints::get_path_param(
-                    ctx.rpc_ctx->get_request_path_params(),
-                    "moduleName",
-                    module_name,
-                    error))
-              {
-                detail::set_gov_error(
-                  ctx.rpc_ctx,
-                  HTTP_STATUS_BAD_REQUEST,
-                  ccf::errors::InvalidResourceName,
-                  std::move(error));
-                return;
-              }
-            }
-
-            module_name = ::http::url_decode(module_name);
-
-            auto modules_handle =
-              ctx.tx.template ro<ccf::Modules>(ccf::Tables::MODULES);
-            auto module = modules_handle->get(module_name);
-
-            if (!module.has_value())
+            std::string error;
+            if (!ccf::endpoints::get_path_param(
+                  ctx.rpc_ctx->get_request_path_params(),
+                  "moduleName",
+                  module_name,
+                  error))
             {
               detail::set_gov_error(
                 ctx.rpc_ctx,
-                HTTP_STATUS_NOT_FOUND,
-                ccf::errors::ResourceNotFound,
-                fmt::format("Module {} does not exist.", module_name));
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidResourceName,
+                std::move(error));
               return;
             }
+          }
 
-            // Return raw JS module content in body
-            ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-            ctx.rpc_ctx->set_response_body(std::move(module.value()));
-            ctx.rpc_ctx->set_response_header(
-              ccf::http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::JAVASCRIPT);
+          module_name = ::http::url_decode(module_name);
+
+          auto modules_handle =
+            ctx.tx.template ro<ccf::Modules>(ccf::Tables::MODULES);
+          auto module = modules_handle->get(module_name);
+
+          if (!module.has_value())
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              fmt::format("Module {} does not exist.", module_name));
             return;
           }
-        }
-      };
-    registry
-      .make_read_only_endpoint(
-        "/service/javascript-modules/{moduleName}",
-        HTTP_GET,
-        api_version_adapter(get_javascript_module_by_name, ApiVersion::v1),
-        no_auth_required)
-      .set_auto_schema<void, ds::openapi::Javascript>()
-      .set_openapi_summary("Get a JavaScript module")
-      .install();
 
-    auto get_join_policy = [&](auto& ctx, ApiVersion api_version) {
+          // Return raw JS module content in body
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(std::move(module.value()));
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::JAVASCRIPT);
+          return;
+        }
+      }
+    }
+
+    template <typename Ctx>
+    inline void get_join_policy(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -858,18 +825,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/service/join-policy",
-        HTTP_GET,
-        api_version_adapter(get_join_policy),
-        no_auth_required)
-      .set_auto_schema<void, api::JoinPolicy>()
-      .set_openapi_summary("Get the service join policy")
-      .install();
+    }
 
-    auto get_jwk = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_jwk(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -937,18 +897,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/service/jwk",
-        HTTP_GET,
-        api_version_adapter(get_jwk),
-        no_auth_required)
-      .set_auto_schema<void, api::JwkInfo>()
-      .set_openapi_summary("Get accepted JWT issuers and keys")
-      .install();
+    }
 
-    auto get_members = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_members(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -980,18 +933,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/service/members",
-        HTTP_GET,
-        api_version_adapter(get_members),
-        no_auth_required)
-      .set_auto_schema<void, api::Members>()
-      .set_openapi_summary("List consortium members")
-      .install();
+    }
 
-    auto get_member_by_id = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_member_by_id(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -1033,18 +979,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/service/members/{memberId}",
-        HTTP_GET,
-        api_version_adapter(get_member_by_id),
-        no_auth_required)
-      .set_auto_schema<void, api::Member>()
-      .set_openapi_summary("Get a consortium member")
-      .install();
+    }
 
-    auto get_users = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_users(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -1069,18 +1008,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/service/users",
-        HTTP_GET,
-        api_version_adapter(get_users),
-        no_auth_required)
-      .set_auto_schema<void, api::Users>()
-      .set_openapi_summary("List application users")
-      .install();
+    }
 
-    auto get_user_by_id = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_user_by_id(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -1117,18 +1049,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/service/users/{userId}",
-        HTTP_GET,
-        api_version_adapter(get_user_by_id),
-        no_auth_required)
-      .set_auto_schema<void, api::User>()
-      .set_openapi_summary("Get an application user")
-      .install();
+    }
 
-    auto get_nodes = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_nodes(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -1154,18 +1079,11 @@ namespace ccf::gov::endpoints
           return;
         }
       }
-    };
-    registry
-      .make_read_only_endpoint(
-        "/service/nodes",
-        HTTP_GET,
-        api_version_adapter(get_nodes),
-        no_auth_required)
-      .set_auto_schema<void, api::Nodes>()
-      .set_openapi_summary("List service nodes")
-      .install();
+    }
 
-    auto get_node_by_id = [&](auto& ctx, ApiVersion api_version) {
+    template <typename Ctx>
+    inline void get_node_by_id(Ctx& ctx, ApiVersion api_version)
+    {
       switch (api_version)
       {
         case ApiVersion::preview_v1:
@@ -1201,6 +1119,171 @@ namespace ccf::gov::endpoints
           return;
         }
       }
+    }
+  }
+
+  inline void init_service_state_handlers(ccf::BaseEndpointRegistry& registry)
+  {
+    auto get_constitution = [](auto& ctx, ApiVersion api_version) {
+      detail::get_constitution(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/constitution",
+        HTTP_GET,
+        api_version_adapter(get_constitution),
+        no_auth_required)
+      .set_auto_schema<void, ds::openapi::Javascript>()
+      .set_openapi_summary("Get the service constitution")
+      .install();
+
+    auto get_service_info = [&](auto& ctx, ApiVersion api_version) {
+      detail::get_service_info(ctx, api_version, registry);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/info",
+        HTTP_GET,
+        api_version_adapter(get_service_info),
+        no_auth_required)
+      .set_auto_schema<void, api::ServiceInfo>()
+      .set_openapi_summary("Get service information")
+      .install();
+
+    auto get_javascript_app = [](auto& ctx, ApiVersion api_version) {
+      detail::get_javascript_app(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/javascript-app",
+        HTTP_GET,
+        api_version_adapter(get_javascript_app, ApiVersion::v1),
+        no_auth_required)
+      .set_auto_schema<void, api::JavascriptApp>()
+      .add_query_parameter<api::JavascriptAppCase>(
+        "case", ccf::endpoints::QueryParamPresence::OptionalParameter)
+      .set_openapi_summary("Get the installed JavaScript application")
+      .install();
+
+    auto get_javascript_modules = [](auto& ctx, ApiVersion api_version) {
+      detail::get_javascript_modules(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/javascript-modules",
+        HTTP_GET,
+        api_version_adapter(get_javascript_modules, ApiVersion::v1),
+        no_auth_required)
+      .set_auto_schema<void, api::JavascriptModules>()
+      .set_openapi_summary("List JavaScript modules")
+      .install();
+
+    auto get_javascript_module_by_name = [](auto& ctx, ApiVersion api_version) {
+      detail::get_javascript_module_by_name(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/javascript-modules/{moduleName}",
+        HTTP_GET,
+        api_version_adapter(get_javascript_module_by_name, ApiVersion::v1),
+        no_auth_required)
+      .set_auto_schema<void, ds::openapi::Javascript>()
+      .set_openapi_summary("Get a JavaScript module")
+      .install();
+
+    auto get_join_policy = [](auto& ctx, ApiVersion api_version) {
+      detail::get_join_policy(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/join-policy",
+        HTTP_GET,
+        api_version_adapter(get_join_policy),
+        no_auth_required)
+      .set_auto_schema<void, api::JoinPolicy>()
+      .set_openapi_summary("Get the service join policy")
+      .install();
+
+    auto get_jwk = [](auto& ctx, ApiVersion api_version) {
+      detail::get_jwk(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/jwk",
+        HTTP_GET,
+        api_version_adapter(get_jwk),
+        no_auth_required)
+      .set_auto_schema<void, api::JwkInfo>()
+      .set_openapi_summary("Get accepted JWT issuers and keys")
+      .install();
+
+    auto get_members = [](auto& ctx, ApiVersion api_version) {
+      detail::get_members(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/members",
+        HTTP_GET,
+        api_version_adapter(get_members),
+        no_auth_required)
+      .set_auto_schema<void, api::Members>()
+      .set_openapi_summary("List consortium members")
+      .install();
+
+    auto get_member_by_id = [](auto& ctx, ApiVersion api_version) {
+      detail::get_member_by_id(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/members/{memberId}",
+        HTTP_GET,
+        api_version_adapter(get_member_by_id),
+        no_auth_required)
+      .set_auto_schema<void, api::Member>()
+      .set_openapi_summary("Get a consortium member")
+      .install();
+
+    auto get_users = [](auto& ctx, ApiVersion api_version) {
+      detail::get_users(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/users",
+        HTTP_GET,
+        api_version_adapter(get_users),
+        no_auth_required)
+      .set_auto_schema<void, api::Users>()
+      .set_openapi_summary("List application users")
+      .install();
+
+    auto get_user_by_id = [](auto& ctx, ApiVersion api_version) {
+      detail::get_user_by_id(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/users/{userId}",
+        HTTP_GET,
+        api_version_adapter(get_user_by_id),
+        no_auth_required)
+      .set_auto_schema<void, api::User>()
+      .set_openapi_summary("Get an application user")
+      .install();
+
+    auto get_nodes = [](auto& ctx, ApiVersion api_version) {
+      detail::get_nodes(ctx, api_version);
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/nodes",
+        HTTP_GET,
+        api_version_adapter(get_nodes),
+        no_auth_required)
+      .set_auto_schema<void, api::Nodes>()
+      .set_openapi_summary("List service nodes")
+      .install();
+
+    auto get_node_by_id = [](auto& ctx, ApiVersion api_version) {
+      detail::get_node_by_id(ctx, api_version);
     };
     registry
       .make_read_only_endpoint(

@@ -1,12 +1,160 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "host/json_schema.h"
+
 #include "ccf/ds/json.h"
+#include "ccf/node/configuration.h"
+#include "host/config_schema.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <algorithm>
 #include <doctest/doctest.h>
+#include <limits>
 #include <nlohmann/json.hpp>
 #include <vector>
+
+TEST_CASE("host configuration unsigned integer bounds")
+{
+  using Json = nlohmann::json;
+  const auto schema = Json::parse(host::host_config_schema);
+  const auto base_config = Json::parse(R"({
+    "network": {
+      "node_to_node_interface": {"bind_address": "127.0.0.1:8081"},
+      "rpc_interfaces": {
+        "primary": {"bind_address": "127.0.0.1:8080"}
+      }
+    },
+    "command": {
+      "type": "Start",
+      "start": {"constitution_files": [], "members": []}
+    }
+  })");
+  const std::vector<std::string> paths = {
+    "/network/rpc_interfaces/primary/max_open_sessions_soft",
+    "/network/rpc_interfaces/primary/max_open_sessions_hard",
+    "/network/rpc_interfaces/primary/http_configuration/max_headers_count",
+    "/network/rpc_interfaces/primary/forwarding_timeout_ms",
+    "/attestation/snp_endorsements_servers/0/max_retries_count",
+    "/snapshots/min_tx_count",
+    "/files_cleanup/max_committed_ledger_chunks",
+    "/consensus/max_uncommitted_tx_count"};
+
+  REQUIRE_FALSE(json::validate_json(base_config, schema).has_value());
+  for (const auto& path : paths)
+  {
+    INFO(path);
+    const Json::json_pointer pointer(path);
+    for (const auto& value : std::vector<Json>{-1, -1.0, -0.5})
+    {
+      INFO(value);
+      auto config = base_config;
+      config[pointer] = value;
+      CHECK(json::validate_json(config, schema).has_value());
+    }
+    for (const auto& value : std::vector<Json>{0, 1})
+    {
+      INFO(value);
+      auto config = base_config;
+      config[pointer] = value;
+      REQUIRE_FALSE(json::validate_json(config, schema).has_value());
+      const Json parsed_config = config.get<ccf::CCFConfig>();
+      CHECK(parsed_config.at(pointer) == value);
+    }
+  }
+
+  const Json::json_pointer header_count(
+    "/network/rpc_interfaces/primary/http_configuration/max_headers_count");
+  const auto maximum = std::numeric_limits<uint32_t>::max();
+  auto config = base_config;
+  config[header_count] = maximum;
+  REQUIRE_FALSE(json::validate_json(config, schema).has_value());
+  const auto parsed_config = config.get<ccf::CCFConfig>();
+  CHECK(
+    parsed_config.network.rpc_interfaces.at("primary")
+      .http_configuration->max_headers_count == maximum);
+
+  for (const auto& value : std::vector<Json>{
+         uint64_t{maximum} + 1, static_cast<double>(maximum) + 1})
+  {
+    INFO(value);
+    config[header_count] = value;
+    CHECK(json::validate_json(config, schema).has_value());
+  }
+}
+
+TEST_CASE("host configuration integer validation")
+{
+  const auto config_schema = nlohmann::json::parse(host::host_config_schema);
+  const auto& schema = config_schema.at("properties").at("worker_threads");
+
+  for (const auto& value :
+       std::vector<nlohmann::json>{0, 1, 65533, 0.0, 1.0, 65533.0})
+  {
+    INFO(value);
+    CHECK_FALSE(json::validate_json(value, schema).has_value());
+  }
+
+  for (const auto& value : std::vector<nlohmann::json>{
+         -1, -1.0, 1.5, 65534, 65534.0, 1e20, "1", true, nullptr})
+  {
+    INFO(value);
+    CHECK(json::validate_json(value, schema).has_value());
+  }
+}
+
+TEST_CASE("host configuration references and error paths")
+{
+  const auto schema = nlohmann::json::parse(host::host_config_schema);
+  auto config = nlohmann::json::parse(R"({
+    "network": {
+      "node_to_node_interface": {"bind_address": "127.0.0.1:8081"},
+      "rpc_interfaces": {
+        "primary": {
+          "bind_address": "127.0.0.1:8080",
+          "redirections": {
+            "to_primary": {
+              "kind": "NodeByRole",
+              "target": {"role": "primary"}
+            },
+            "to_backup": {
+              "kind": "StaticAddress",
+              "target": {"address": "127.0.0.1:8082"}
+            }
+          }
+        }
+      }
+    },
+    "command": {
+      "type": "Start",
+      "start": {"constitution_files": [], "members": []}
+    }
+  })");
+  REQUIRE_FALSE(json::validate_json(config, schema).has_value());
+
+  auto& rpc = config["network"]["rpc_interfaces"]["primary"];
+  std::string expected_path =
+    R"(<root>["network"]["rpc_interfaces"]["primary"])";
+  SUBCASE("first reference")
+  {
+    rpc["redirections"]["to_primary"]["target"]["role"] = "not-a-role";
+    expected_path += R"(["redirections"]["to_primary"]["target"]["role"])";
+  }
+  SUBCASE("second reference")
+  {
+    rpc["redirections"]["to_backup"]["target"]["address"] = 42;
+    expected_path += R"(["redirections"]["to_backup"]["target"]["address"])";
+  }
+  SUBCASE("array item")
+  {
+    rpc["accepted_endpoints"] = nlohmann::json::array({"^/app/", 42});
+    expected_path += R"(["accepted_endpoints"][1])";
+  }
+
+  const auto error = json::validate_json(config, schema);
+  REQUIRE(error.has_value());
+  INFO(*error);
+  CHECK(error->find("context: " + expected_path) != std::string::npos);
+}
 
 struct Bar
 {

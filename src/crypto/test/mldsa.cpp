@@ -494,8 +494,9 @@ TEST_CASE("ML-DSA expanded private keys and corrupted key material")
         CHECK_THROWS_WITH_AS(
           make_mldsa_key_pair(private_encoding(
             info.nid, asn1_field(V_ASN1_OCTET_STRING, corrupted))),
-          "ML-DSA provider rejected the key material",
+          doctest::Contains("ML-DSA provider rejected the key material"),
           std::invalid_argument);
+        CHECK(ERR_peek_error() == 0);
       }
       for (const size_t length :
            {size_t(0), expanded.size() - 1, expanded.size() + 1})

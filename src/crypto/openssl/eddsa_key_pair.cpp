@@ -20,10 +20,7 @@ namespace ccf::crypto
   {
     OpenSSL::Unique_BIO mem(pem);
     key = PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr);
-    if (key == nullptr)
-    {
-      throw std::runtime_error("could not parse PEM");
-    }
+    OpenSSL::CHECKNULL(key);
   }
 
   EdDSAKeyPair_OpenSSL::EdDSAKeyPair_OpenSSL(const JsonWebKeyEdDSAPrivate& jwk)
@@ -115,7 +112,8 @@ namespace ccf::crypto
 
     std::vector<uint8_t> raw_priv(EVP_PKEY_size(key));
     size_t raw_priv_len = raw_priv.size();
-    EVP_PKEY_get_raw_private_key(key, raw_priv.data(), &raw_priv_len);
+    OpenSSL::CHECK1(
+      EVP_PKEY_get_raw_private_key(key, raw_priv.data(), &raw_priv_len));
     raw_priv.resize(raw_priv_len);
     jwk.d = b64url_from_raw(raw_priv, false /* with_padding */);
     return jwk;

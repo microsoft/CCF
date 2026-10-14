@@ -10,7 +10,7 @@ ASSUME IsFiniteSet(Servers)
 \* Terms is (strictly) totally ordered with a smallest element.
 CONSTANT Terms
 ASSUME /\ IsStrictlyTotallyOrderedUnder(<, Terms) 
-       /\ \E min \in Terms : \A t \in Terms : t <= min
+       /\ \E min \in Terms : \A t \in Terms : min <= t
 
 CONSTANT StartTerm
 ASSUME /\ StartTerm \in Terms

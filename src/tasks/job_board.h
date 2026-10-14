@@ -71,10 +71,19 @@ namespace ccf::tasks
     Summary get_summary();
 
     void add_delayed_task(Task task, std::chrono::milliseconds delay);
+
+    // Each tick enqueues a periodic task at most once, even if that tick spans
+    // multiple periods. It is re-armed from the observed task-clock time, so
+    // missed periods are not replayed. A period equal to the host tick interval
+    // may take a second host tick when the first advances just short of the
+    // deadline. Later ticks may enqueue another copy while an earlier
+    // execution is still pending or running.
     void add_periodic_task(
       Task task,
       std::chrono::milliseconds initial_delay,
       std::chrono::milliseconds repeat_period);
+
+    std::chrono::milliseconds get_current_time();
     void tick(std::chrono::milliseconds elapsed);
   };
 }

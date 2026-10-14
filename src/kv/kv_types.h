@@ -3,36 +3,41 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
+#include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/hex.h"
+#include "ccf/ds/json.h"
+#include "ccf/ds/net_address.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/entity_id.h"
 #include "ccf/kv/get_name.h"
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
 #include "ccf/kv/version.h"
-#include "ccf/node/cose_signatures_config.h"
-#include "ccf/node/startup_config.h"
-#include "ccf/service/consensus_type.h"
-#include "ccf/service/reconfiguration_type.h"
+#include "ccf/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 #include "crypto/openssl/ec_key_pair.h"
 #include "kv/ledger_chunker_interface.h"
 #include "serialised_entry_format.h"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstring>
 #include <functional>
 #include <limits>
 #include <list>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -429,7 +434,10 @@ namespace ccf::kv
     virtual bool is_backup() = 0;
     virtual bool is_candidate() = 0;
     virtual bool can_replicate() = 0;
-    virtual bool is_at_max_capacity() = 0;
+
+    // Whether frontends should shed new requests due to local overload.
+    // This does not prevent consensus from processing replication traffic.
+    virtual bool should_apply_backpressure() = 0;
 
     enum class SignatureDisposition : uint8_t
     {
@@ -461,7 +469,6 @@ namespace ccf::kv
       const NodeId& from, const uint8_t* data, size_t size) = 0;
 
     virtual void periodic(std::chrono::milliseconds /*elapsed*/) {}
-    virtual void periodic_end() {}
 
     virtual void enable_all_domains() {}
 
@@ -555,6 +562,54 @@ namespace ccf::kv
       const ccf::TxID& tx_id,
       EntryType entry_type = EntryType::WriteSet,
       bool historical_hint = false) = 0;
+    virtual bool encrypt(
+      std::span<const uint8_t> plain,
+      std::span<const uint8_t> additional_data,
+      std::span<uint8_t> serialised_header,
+      std::span<uint8_t> cipher,
+      const ccf::TxID& tx_id,
+      EntryType entry_type = EntryType::WriteSet,
+      bool historical_hint = false)
+    {
+      std::vector<uint8_t> plain_bytes;
+      std::vector<uint8_t> aad_bytes;
+      if (!plain.empty())
+      {
+        plain_bytes.assign(plain.begin(), plain.end());
+      }
+      if (!additional_data.empty())
+      {
+        aad_bytes.assign(additional_data.begin(), additional_data.end());
+      }
+      std::vector<uint8_t> header;
+      std::vector<uint8_t> output;
+      if (!encrypt(
+            plain_bytes,
+            aad_bytes,
+            header,
+            output,
+            tx_id,
+            entry_type,
+            historical_hint))
+      {
+        return false;
+      }
+      if (
+        header.size() != serialised_header.size() ||
+        output.size() != cipher.size())
+      {
+        throw std::logic_error("Incorrect transaction encryption output size");
+      }
+      if (!header.empty())
+      {
+        std::copy(header.begin(), header.end(), serialised_header.begin());
+      }
+      if (!output.empty())
+      {
+        std::copy(output.begin(), output.end(), cipher.begin());
+      }
+      return true;
+    }
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
@@ -643,9 +698,6 @@ namespace ccf::kv
     virtual void unlock() = 0;
     virtual SecurityDomain get_security_domain() = 0;
     virtual void clear() = 0;
-
-    virtual AbstractMap* clone(AbstractStore* store) = 0;
-    virtual void swap(AbstractMap* map) = 0;
   };
 
   class Tx;
@@ -682,8 +734,8 @@ namespace ccf::kv
     virtual void lock_map_set() = 0;
     virtual void unlock_map_set() = 0;
 
-    virtual std::optional<std::tuple<Version, Version, Version>> next_version(
-      bool commit_new_map, Term expected_commit_term) = 0;
+    virtual std::optional<std::tuple<Version, Version>> next_version(
+      Term expected_commit_term) = 0;
     virtual ccf::TxID next_txid() = 0;
 
     virtual Version current_version() = 0;

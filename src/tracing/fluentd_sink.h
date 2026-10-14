@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/node/startup_config.h"
+#include "ccf/fluentd_config.h"
 #include "ds/internal_logger.h"
 #include "tracing/spsc_queue.h"
 
@@ -30,7 +30,7 @@ namespace ccf::tracing
     static_assert(std::atomic<uint64_t>::is_always_lock_free);
 
   public:
-    using Endpoint = ccf::CCFConfig::Observability::Fluentd;
+    using Endpoint = ccf::FluentdConfig;
     static constexpr uint64_t DROP_REPORT_INTERVAL = 65536;
 
     static size_t validate(const Endpoint& endpoint, size_t producers = 1)

@@ -4,6 +4,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/rsa_key_pair.h"
+#include "ds/internal_logger.h"
 
 #include <climits>
 #include <openssl/core_names.h>
@@ -34,15 +35,6 @@ namespace
   const std::unordered_map<RSAPadding, size_t> rsa_padding_openssl{
     {RSAPadding::PKCS1v15, RSA_PKCS1_PADDING},
     {RSAPadding::PKCS_PSS, RSA_PKCS1_PSS_PADDING}};
-
-  void cleanup_pkey(EVP_PKEY** pkey)
-  {
-    if (*pkey != nullptr)
-    {
-      EVP_PKEY_free(*pkey);
-      *pkey = nullptr;
-    }
-  }
 }
 
 namespace ccf::crypto
@@ -51,7 +43,7 @@ namespace ccf::crypto
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL() = default;
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* key) :
-    PublicKey_OpenSSL(key)
+    key(key, EVP_PKEY_free)
   {
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
@@ -59,9 +51,15 @@ namespace ccf::crypto
         "Cannot construct RSAPublicKey_OpenSSL from non-RSA key");
     }
   }
-  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem) :
-    PublicKey_OpenSSL(pem)
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(Unique_PKEY&& pkey) :
+    RSAPublicKey_OpenSSL(pkey.release())
+  {}
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem)
   {
+    Unique_BIO mem(pem);
+    key.reset(PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr));
+    OpenSSL::CHECKNULL(key);
+
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
       throw std::logic_error(
@@ -73,18 +71,19 @@ namespace ccf::crypto
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(std::span<const uint8_t> der)
   {
     const unsigned char* pp = der.data();
-    key = EVP_PKEY_new(); // NOLINT(cppcoreguidelines-prefer-member-initializer)
-    if (
-      ((key = d2i_PUBKEY(&key, &pp, der.size())) ==
-       nullptr) && // "SubjectPublicKeyInfo structure" format
-      ((key = d2i_PublicKey(EVP_PKEY_RSA, &key, &pp, der.size())) ==
-       nullptr)) // PKCS#1 structure format
+    key.reset(d2i_PUBKEY(nullptr, &pp, der.size()));
+    if (key == nullptr)
     {
-      cleanup_pkey(&key);
-      unsigned long ec = ERR_get_error();
-      auto msg = OpenSSL::error_string(ec);
-      throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
+      pp = der.data();
+      key.reset(d2i_PublicKey(EVP_PKEY_RSA, nullptr, &pp, der.size()));
+      if (key != nullptr)
+      {
+        // PKCS#1 input fails to parse as SubjectPublicKeyInfo first, and the
+        // errors queued by that attempt must not outlive the fallback.
+        ERR_clear_error();
+      }
     }
+    OpenSSL::CHECKNULL(key);
 
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
@@ -95,7 +94,6 @@ namespace ccf::crypto
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk)
   {
-    key = EVP_PKEY_new(); // NOLINT(cppcoreguidelines-prefer-member-initializer)
     auto [n_raw, e_raw] = rsa_public_raw_from_jwk(jwk);
 
     OSSL_PARAM params[3];
@@ -107,8 +105,11 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(
-      pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
+    EVP_PKEY* parsed = nullptr;
+    const auto rc = EVP_PKEY_fromdata(
+      pctx, &parsed, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params));
+    key.reset(parsed);
+    CHECK1(rc);
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const
@@ -133,11 +134,12 @@ namespace ccf::crypto
       auto* openssl_label =
         static_cast<unsigned char*>(OPENSSL_malloc(label_size));
       std::copy(label, label + label_size, openssl_label);
-      EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size);
+      OpenSSL::CHECK1(
+        EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size));
     }
     else
     {
-      EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, nullptr, 0);
+      OpenSSL::CHECK1(EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, nullptr, 0));
     }
 
     size_t olen = 0;
@@ -240,8 +242,15 @@ namespace ccf::crypto
       CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
     }
     CHECKPOSITIVE(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
-    return EVP_PKEY_verify(pctx, signature, signature_size, hash, hash_size) ==
-      1;
+    const auto rc =
+      EVP_PKEY_verify(pctx, signature, signature_size, hash, hash_size);
+    if (rc != 1)
+    {
+      const auto error = OpenSSL::first_error();
+      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", error);
+      return false;
+    }
+    return true;
   }
 
   Unique_BIGNUM RSAPublicKey_OpenSSL::get_bn_param(const char* key_name) const

@@ -4,6 +4,7 @@
 
 #include "ccf/network_identity_interface.h"
 #include "ccf/receipt.h"
+#include "kv/claims.h"
 #include "node/history.h"
 #include "service/tables/signatures.h"
 

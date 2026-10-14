@@ -9,7 +9,7 @@
 #include "ccf/service/signed_req.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
-#include "kv/test/null_encryptor.h"
+#include "kv/null_encryptor.h"
 #include "kv/test/null_tx_history.h"
 #include "kv/test/stub_consensus.h"
 #include "node/rpc/member_frontend.h"

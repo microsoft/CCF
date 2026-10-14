@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "ccf/node/configuration.h"
 #include "tracing/test/events.h"
 
 #include <arpa/inet.h>
@@ -161,6 +162,27 @@ TEST_CASE("Trace configuration has no arbitrary producer or capacity ceiling")
   CHECK_THROWS_AS(Sink::validate(endpoint, 0), std::invalid_argument);
   endpoint.queue_capacity = 0;
   CHECK_THROWS_AS(Sink::validate(endpoint), std::invalid_argument);
+}
+
+TEST_CASE("Fluentd settings round-trip through the operator configuration")
+{
+  nlohmann::json config_json = ccf::CCFConfig{};
+  config_json.erase("observability");
+  CHECK_FALSE(
+    config_json.get<ccf::CCFConfig>().observability.fluentd.has_value());
+
+  config_json["observability"] = {
+    {"fluentd", {{"host", "127.0.0.1"}, {"port", "24224"}}}};
+  auto config = config_json.get<ccf::CCFConfig>();
+  REQUIRE(config.observability.fluentd.has_value());
+  CHECK(config.observability.fluentd->host == "127.0.0.1");
+  CHECK(config.observability.fluentd->port == "24224");
+  CHECK(config.observability.fluentd->queue_capacity == 4096);
+
+  config.observability.fluentd->queue_capacity = 17;
+  const nlohmann::json roundtrip = config;
+  CHECK(roundtrip.at("observability").at("fluentd").at("queue_capacity") == 17);
+  CHECK(roundtrip.get<ccf::CCFConfig>().observability == config.observability);
 }
 
 TEST_CASE("SPSC concurrent FIFO records outlive reused slots and the queue")

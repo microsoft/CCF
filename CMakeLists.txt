@@ -185,6 +185,29 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
+install(
+  DIRECTORY ${CCF_DIR}/src/rust/ccf-app/
+  DESTINATION share/ccf/src/rust/ccf-app
+  PATTERN target EXCLUDE
+)
+install(
+  FILES ${CCF_DIR}/samples/apps/main.cpp
+  DESTINATION share/ccf/rust
+  RENAME app_main.cpp
+)
+
+add_library(ccf_rust_app_bridge OBJECT ${CCF_DIR}/src/rust/app_bridge.cpp)
+set_property(TARGET ccf_rust_app_bridge PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_san(ccf_rust_app_bridge)
+add_hardening(ccf_rust_app_bridge)
+add_tidy(ccf_rust_app_bridge)
+add_warning_checks(ccf_rust_app_bridge)
+enable_coverage(ccf_rust_app_bridge)
+install(
+  TARGETS ccf_rust_app_bridge
+  EXPORT ccf
+  OBJECTS DESTINATION lib/ccf/objects
+)
 
 # Copy and install CCF utilities
 set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh)
@@ -236,11 +259,7 @@ include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 
 # Launcher library
-list(
-  APPEND CCF_LAUNCHER_SOURCES
-  ${CCF_DIR}/src/host/run.cpp
-  ${CCF_DIR}/src/host/env.cpp
-)
+list(APPEND CCF_LAUNCHER_SOURCES ${CCF_DIR}/src/host/run.cpp)
 
 add_ccf_static_library(
   ccf_launcher
@@ -289,15 +308,15 @@ add_ccf_static_library(
     ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
     ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
     ${CCF_DIR}/src/js/extensions/ccf/gov.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
     ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
     ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/network.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/node.cpp
     ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
     ${CCF_DIR}/src/js/extensions/ccf/request.cpp
     ${CCF_DIR}/src/js/registry.cpp
-    ${CCF_DIR}/src/node/uvm_endorsements.cpp
+    ${CCF_DIR}/src/node/gov/extensions/gov_effects.cpp
+    ${CCF_DIR}/src/node/gov/extensions/network.cpp
+    ${CCF_DIR}/src/node/gov/extensions/node.cpp
+    ${CCF_DIR}/src/pal/uvm_endorsements.cpp
   LINK_LIBS ccfcrypto quickjs ccf_pal
 )
 
@@ -469,8 +488,9 @@ option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
 set(
   CCF_IMPL_SOURCE
   ${CCF_DIR}/src/enclave/main.cpp
+  ${CCF_DIR}/src/node/env.cpp
   ${CCF_DIR}/src/node/quote.cpp
-  ${CCF_DIR}/src/node/uvm_endorsements.cpp
+  ${CCF_DIR}/src/pal/uvm_endorsements.cpp
   ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
 )
 
@@ -517,8 +537,15 @@ install(
 )
 
 install(
-  FILES ${TAV_INCLUDE_DIR}/tav/snp.h ${TAV_INCLUDE_DIR}/tav/utils.h
+  FILES
+    ${TAV_INCLUDE_DIR}/tav/cbor.hpp
+    ${TAV_INCLUDE_DIR}/tav/snp.h
+    ${TAV_INCLUDE_DIR}/tav/utils.h
   DESTINATION include/3rdparty/tav
+)
+install(
+  FILES ${TAV_INCLUDE_DIR}/tav/internal/cbor_abi.h
+  DESTINATION include/3rdparty/tav/internal
 )
 
 # Install all private CCF headers, which may still be needed
@@ -565,7 +592,6 @@ add_subdirectory(${CCF_DIR}/samples)
 add_test_bin(
   verify_uvm_attestation_and_endorsements
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/verify_uvm_attestation_and_endorsements.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/host/env.cpp
 )
 target_link_libraries(
   verify_uvm_attestation_and_endorsements
@@ -602,14 +628,30 @@ if(BUILD_TESTS)
         "${DOCS_PYTHON}" -m sphinx --fail-on-warning -b html "${CCF_DIR}/doc"
         "${CCF_DIR}/doc/html"
     )
+    # Its runner has no Lean; the Lean workflow checks the trace viewer's dumps.
     set_tests_properties(
       docs
-      PROPERTIES LABELS "bucket_a;docs" WORKING_DIRECTORY "${CCF_DIR}"
+      PROPERTIES
+        LABELS "bucket_a;docs"
+        WORKING_DIRECTORY "${CCF_DIR}"
+        ENVIRONMENT "SKIP_TRACE_VIEWER=ON"
     )
   endif()
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
+    add_test(
+      NAME ccf_app_rust_test
+      COMMAND
+        ${CMAKE_COMMAND} -E env --unset=CARGO_BUILD_TARGET "CARGO_NET_RETRY=10"
+        "CARGO_HTTP_TIMEOUT=60" "CARGO_BUILD_RUSTC=${RUSTC}" ${CARGO} test
+        --manifest-path ${CCF_DIR}/src/rust/ccf-app/Cargo.toml --target-dir
+        ${CMAKE_BINARY_DIR}/cargo/ccf-app-test --locked
+      WORKING_DIRECTORY ${CCF_DIR}/src/rust/ccf-app
+    )
+    add_test_target(ccf_app_rust_test)
+    add_test_label(ccf_app_rust_test unit)
+
     add_test(
       NAME verify_uvm_attestation_and_endorsements
       COMMAND
@@ -638,8 +680,8 @@ if(BUILD_TESTS)
 
     add_unit_test(
       env_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/env.cpp
-      ${CCF_DIR}/src/host/env.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/env.cpp
+      ${CCF_DIR}/src/node/env.cpp
     )
 
     add_unit_test(
@@ -694,12 +736,7 @@ if(BUILD_TESTS)
 
     add_unit_test(
       ds_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/typed_messages.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serialized.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
@@ -731,7 +768,7 @@ if(BUILD_TESTS)
       ledger_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
     )
-    target_link_libraries(ledger_test PRIVATE uv)
+    target_link_libraries(ledger_test PRIVATE ccf_tasks)
 
     add_unit_test(
       worker_shutdown_gate_test
@@ -754,12 +791,21 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/openssl_server_test.cpp
     )
     target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
-
+    target_link_options(
+      openssl_server_test
+      PRIVATE "LINKER:--wrap=uv_async_send"
+    )
     add_unit_test(
       node_connections_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/node_connections.cpp
     )
-    target_link_libraries(node_connections_test PRIVATE uv)
+    target_link_libraries(node_connections_test PRIVATE ccf_tasks uv)
+
+    add_unit_test(
+      tcp_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/tcp_test.cpp
+    )
+    target_link_libraries(tcp_test PRIVATE uv)
 
     add_unit_test(
       raft_test
@@ -872,7 +918,7 @@ if(BUILD_TESTS)
     add_unit_test(
       js_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/uvm_endorsements.cpp
     )
     target_link_libraries(
       js_test
@@ -891,7 +937,7 @@ if(BUILD_TESTS)
     add_unit_test(
       endorsements_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/endorsements.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/uvm_endorsements.cpp
     )
     set_property(
       TEST endorsements_test
@@ -931,6 +977,7 @@ if(BUILD_TESTS)
       node_inbound_message_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_inbound_message.cpp
     )
+    target_link_libraries(node_inbound_message_test PRIVATE ccf_tasks)
 
     add_unit_test(
       indexing_test
@@ -976,15 +1023,6 @@ if(BUILD_TESTS)
     )
     target_link_libraries(cose_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto)
 
-    add_unit_test(
-      cose_ffi_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/cose/test/cose_ffi_test.cpp
-    )
-    target_link_libraries(
-      cose_ffi_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
-    )
-
     add_unit_test(pem_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pem.cpp)
     target_link_libraries(pem_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -998,7 +1036,7 @@ if(BUILD_TESTS)
       channels_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
     )
-    target_link_libraries(channels_test PRIVATE)
+    target_link_libraries(channels_test PRIVATE ccf_tasks)
 
     add_unit_test(
       http_test
@@ -1015,7 +1053,7 @@ if(BUILD_TESTS)
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
       ${CCF_DIR}/src/node/quote.cpp
-      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/pal/uvm_endorsements.cpp
       ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
       DETECT_DEADLOCKS
     )
@@ -1067,7 +1105,7 @@ if(BUILD_TESTS)
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
       ${CCF_DIR}/src/node/quote.cpp
-      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/pal/uvm_endorsements.cpp
       ${CCF_DIR}/src/node/recovery_decision_protocol.cpp
     )
     target_link_libraries(
@@ -1087,7 +1125,7 @@ if(BUILD_TESTS)
     add_unit_test(
       internal_tables_access_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/internal_tables_access_test.cpp
-      ${CCF_DIR}/src/node/uvm_endorsements.cpp
+      ${CCF_DIR}/src/pal/uvm_endorsements.cpp
     )
     target_link_libraries(internal_tables_access_test PRIVATE ccfcrypto ccf_kv)
 
@@ -1163,7 +1201,6 @@ if(BUILD_TESTS)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
     add_picobench(msgpack_bench SRCS src/msgpack/test/msgpack_bench.cpp)
-    add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
     add_picobench(ledger_bench SRCS src/host/test/ledger_bench.cpp)
     add_picobench(crypto_bench SRCS src/crypto/test/bench.cpp LINK_LIBS)
     add_picobench(cose_bench SRCS src/crypto/test/cose_bench.cpp LINK_LIBS)
@@ -1415,6 +1452,14 @@ if(BUILD_TESTS)
     BUCKET bucket_c
     BUILD_DEPENDS logging
     ADDITIONAL_ARGS --package samples/apps/logging/logging ${FLUENTD_TEST_ARGS}
+  )
+
+  add_e2e_test(
+    NAME e2e_basic_rust
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basic_rust.py
+    BUCKET bucket_c
+    BUILD_DEPENDS basic_rust
+    ADDITIONAL_ARGS --package samples/apps/basic_rust/basic_rust
   )
 
   set(

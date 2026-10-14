@@ -23,6 +23,7 @@ bucket_c:
   code_update_test
   e2e_logging
   raft_trace_e2e
+  e2e_basic_rust
   programmability_and_jwt
   e2e_limits
   e2e_redirects
@@ -33,7 +34,6 @@ no_bucket:
   logger_bench
   json_bench
   msgpack_bench
-  ring_buffer_bench
   ledger_bench
   crypto_bench
   cose_bench

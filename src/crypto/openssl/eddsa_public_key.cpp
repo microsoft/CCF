@@ -4,6 +4,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/eddsa_key_pair.h"
 #include "crypto/openssl/hash.h"
+#include "ds/internal_logger.h"
 
 namespace ccf::crypto
 {
@@ -13,10 +14,7 @@ namespace ccf::crypto
   {
     Unique_BIO mem(pem);
     key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
-    if (key == nullptr)
-    {
-      throw std::runtime_error("could not parse PEM");
-    }
+    OpenSSL::CHECKNULL(key);
   }
 
   EdDSAPublicKey_OpenSSL::EdDSAPublicKey_OpenSSL(
@@ -49,9 +47,15 @@ namespace ccf::crypto
       EVP_PKEY_new_raw_public_key(curve, nullptr, x_raw.data(), x_raw.size());
     if (key == nullptr)
     {
-      throw std::logic_error("Error constructing EdDSA public key from JWK");
+      throw std::logic_error(fmt::format(
+        "Error constructing EdDSA public key from JWK: {}",
+        OpenSSL::first_error()));
     }
   }
+
+  EdDSAPublicKey_OpenSSL::EdDSAPublicKey_OpenSSL(Unique_PKEY&& pkey) :
+    key(pkey.release())
+  {}
 
   EdDSAPublicKey_OpenSSL::~EdDSAPublicKey_OpenSSL()
   {
@@ -83,8 +87,15 @@ namespace ccf::crypto
 
     OpenSSL::CHECK1(EVP_DigestVerifyInit(ctx, &pkctx, nullptr, nullptr, key));
 
-    return 1 ==
+    const auto rc =
       EVP_DigestVerify(ctx, signature, signature_size, contents, contents_size);
+    if (rc != 1)
+    {
+      const auto error = OpenSSL::first_error();
+      LOG_DEBUG_FMT("OpenSSL signature verification failure: {}", error);
+      return false;
+    }
+    return true;
   }
 
   int EdDSAPublicKey_OpenSSL::get_openssl_group_id(CurveID gid)
@@ -126,7 +137,8 @@ namespace ccf::crypto
     JsonWebKeyEdDSAPublic jwk;
     std::vector<uint8_t> raw_pub(EVP_PKEY_size(key));
     size_t raw_pub_len = raw_pub.size();
-    EVP_PKEY_get_raw_public_key(key, raw_pub.data(), &raw_pub_len);
+    OpenSSL::CHECK1(
+      EVP_PKEY_get_raw_public_key(key, raw_pub.data(), &raw_pub_len));
     raw_pub.resize(raw_pub_len);
     jwk.x = b64url_from_raw(raw_pub, false);
     jwk.crv = curve_id_to_jwk_eddsa_curve(get_curve_id());

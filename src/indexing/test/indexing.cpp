@@ -6,8 +6,8 @@
 #include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
 #include "consensus/aft/raft.h"
 #include "consensus/aft/test/logging_stub.h"
+#include "consensus/test/ledger_stub.h"
 #include "crypto/openssl/hash.h"
-#include "ds/test/stub_writer.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "indexing/test/common.h"
@@ -28,6 +28,32 @@ auto valid_from =
   ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
+
+class StubCommitPoint : public ccf::AbstractCommitPoint
+{
+public:
+  std::optional<ccf::TxID> committed;
+  mutable size_t polls = 0;
+
+  std::optional<ccf::TxID> get_committed_txid() const override
+  {
+    ++polls;
+    return committed;
+  }
+};
+
+// Inspect the commit point consumed by the real update path, including its
+// view.
+class ObservedIndexer : public ccf::indexing::Indexer
+{
+public:
+  using Indexer::Indexer;
+
+  ccf::TxID observed_commit() const
+  {
+    return committed;
+  }
+};
 
 static std::vector<ActionDesc> create_actions(
   ExpectedSeqNos& seqnos_hello,
@@ -165,6 +191,97 @@ void run_tests(
 }
 
 // Uses stub classes to test just indexing logic in isolation
+TEST_CASE(
+  "Periodic indexing uses the committed TxID" * doctest::test_suite("indexing"))
+{
+  ccf::tasks::JobBoard job_board;
+  auto fetcher = std::make_shared<TestTransactionFetcher>();
+  auto context = std::make_unique<ccf::AbstractNodeContext>();
+  auto without_commit_point =
+    std::make_shared<ccf::indexing::Indexer>(fetcher, *context);
+  REQUIRE_THROWS_WITH(
+    without_commit_point->register_periodic_tasks(job_board, 10ms),
+    "Periodic indexing requires the CommitPoint subsystem");
+  REQUIRE_THROWS_WITH(
+    std::make_shared<ccf::indexing::Indexer>(fetcher)->register_periodic_tasks(
+      job_board, 10ms),
+    "Periodic indexing requires the CommitPoint subsystem");
+  auto commit_point = std::make_shared<StubCommitPoint>();
+  context->install_subsystem(commit_point);
+  auto indexer = std::make_shared<ObservedIndexer>(fetcher, *context);
+  indexer->register_periodic_tasks(job_board, 10ms);
+  // Registry access is complete at construction; ticks do not need the context.
+  context.reset();
+  auto strategy = std::make_shared<IndexA>(map_a);
+  indexer->install_strategy(strategy);
+  const auto run_all = [&]() {
+    while (auto task = job_board.get_task())
+    {
+      task->do_task();
+    }
+  };
+
+  job_board.tick(9ms);
+  run_all();
+  REQUIRE(commit_point->polls == 0);
+  job_board.tick(1ms);
+  run_all();
+  REQUIRE(commit_point->polls == 1);
+  REQUIRE(fetcher->requested.empty());
+
+  commit_point->committed = ccf::TxID{2, 3};
+  job_board.tick(35ms);
+  run_all();
+  REQUIRE(commit_point->polls == 2);
+  REQUIRE(check_seqnos({1, 2, 3}, fetcher->requested));
+  REQUIRE(indexer->observed_commit() == ccf::TxID{2, 3});
+
+  commit_point->committed = ccf::TxID{4, 5};
+  job_board.tick(10ms);
+  run_all();
+  REQUIRE(check_seqnos({1, 2, 3, 4, 5}, fetcher->requested));
+  REQUIRE(indexer->observed_commit() == ccf::TxID{4, 5});
+  const auto before_stop = commit_point->polls;
+  job_board.tick(10ms);
+
+  SUBCASE("Board shutdown rejects already runnable updates")
+  {
+    job_board.shutdown();
+  }
+  SUBCASE("Destroyed indexer is not retained by the periodic task")
+  {
+    std::weak_ptr<ccf::indexing::Indexer> weak_indexer = indexer;
+    indexer.reset();
+    REQUIRE(weak_indexer.expired());
+  }
+
+  run_all();
+  job_board.tick(100ms);
+  run_all();
+  REQUIRE(commit_point->polls == before_stop);
+}
+
+TEST_CASE(
+  "Periodic indexing owns only its commit-point dependency" *
+  doctest::test_suite("indexing"))
+{
+  ccf::tasks::JobBoard board;
+  auto fetcher = std::make_shared<TestTransactionFetcher>();
+  auto context = std::make_unique<ccf::AbstractNodeContext>();
+  auto commit_point = std::make_shared<StubCommitPoint>();
+  std::weak_ptr<StubCommitPoint> weak_commit_point = commit_point;
+  context->install_subsystem(commit_point);
+  auto indexer = std::make_shared<ccf::indexing::Indexer>(fetcher, *context);
+  indexer->register_periodic_tasks(board, 10ms);
+  commit_point.reset();
+  context.reset();
+  REQUIRE_FALSE(weak_commit_point.expired());
+  indexer.reset();
+  REQUIRE(weak_commit_point.expired());
+  board.tick(10ms);
+  REQUIRE(board.get_task() == nullptr);
+}
+
 TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
 {
   ccf::kv::Store kv_store;
@@ -306,7 +423,7 @@ TEST_CASE_TEMPLATE(
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
 
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   auto cache = std::make_shared<ccf::historical::StateCacheImpl>(
     kv_store, ledger_secrets, stub_writer);
 
@@ -371,22 +488,18 @@ TEST_CASE_TEMPLATE(
       {
         const auto& write = *it;
 
-        const uint8_t* data = write.contents.data();
-        size_t size = write.contents.size();
-        REQUIRE(write.m == ::consensus::ledger_get_range);
-        auto [from_seqno, to_seqno, purpose_] =
-          ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
-        auto& purpose = purpose_;
-        REQUIRE(purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
-
         std::vector<uint8_t> combined;
-        for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
+        for (auto seqno = write.from; seqno <= write.to; ++seqno)
         {
           const auto entry = ledger->get_raw_entry_by_idx(seqno);
           REQUIRE(entry.has_value());
           combined.insert(combined.end(), entry->begin(), entry->end());
         }
-        cache->handle_ledger_entries(from_seqno, to_seqno, combined);
+        write.callback(
+          {write.from,
+           write.to,
+           consensus::LedgerRangeStatus::Found,
+           std::move(combined)});
       }
 
       handled_writes = writes.end() - writes.begin();
@@ -455,8 +568,45 @@ constexpr size_t multithread_tx_count = 100;
 constexpr size_t multithread_tx_count = 1'000;
 #endif
 
+namespace
+{
+  // Do the fetch for each ledger request written since handled_writes,
+  // simulating an asynchronous fetch by the historical query system
+  void serve_ledger_requests(
+    const std::vector<consensus::test::StubLedgerReader::Request>& writes,
+    size_t& handled_writes,
+    aft::LedgerStubProxy& ledger)
+  {
+    for (auto it = writes.begin() + handled_writes; it != writes.end(); ++it)
+    {
+      const auto& write = *it;
+
+      std::vector<uint8_t> combined;
+      for (auto seqno = write.from; seqno <= write.to; ++seqno)
+      {
+        auto entry = ledger.get_raw_entry_by_idx(seqno);
+        if (!entry.has_value())
+        {
+          // Possible that this operation beat consensus to the ledger, so
+          // pause and retry
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+          entry = ledger.get_raw_entry_by_idx(seqno);
+        }
+        REQUIRE(entry.has_value());
+        combined.insert(combined.end(), entry->begin(), entry->end());
+      }
+      write.callback(
+        {write.from,
+         write.to,
+         consensus::LedgerRangeStatus::Found,
+         std::move(combined)});
+    }
+
+    handled_writes = writes.end() - writes.begin();
+  }
+}
+
 // Uses the real classes, and access + update them concurrently
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE(
   "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
 {
@@ -466,7 +616,7 @@ TEST_CASE(
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   kv_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(ledger_secrets));
 
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   auto cache = std::make_shared<ccf::historical::StateCacheImpl>(
     kv_store, ledger_secrets, stub_writer);
 
@@ -581,40 +731,7 @@ TEST_CASE(
       {
         cache->tick(ccf::historical::slow_fetch_threshold / 2);
 
-        // Do the fetch, simulating an asynchronous fetch by the historical
-        // query system
-        for (auto it = writes.begin() + handled_writes; it != writes.end();
-             ++it)
-        {
-          const auto& write = *it;
-
-          const uint8_t* data = write.contents.data();
-          size_t size = write.contents.size();
-          REQUIRE(write.m == ::consensus::ledger_get_range);
-          auto [from_seqno, to_seqno, purpose_] =
-            ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
-          auto& purpose = purpose_;
-          REQUIRE(
-            purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
-
-          std::vector<uint8_t> combined;
-          for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
-          {
-            auto entry = ledger->get_raw_entry_by_idx(seqno);
-            if (!entry.has_value())
-            {
-              // Possible that this operation beat consensus to the ledger, so
-              // pause and retry
-              std::this_thread::sleep_for(std::chrono::milliseconds(50));
-              entry = ledger->get_raw_entry_by_idx(seqno);
-            }
-            REQUIRE(entry.has_value());
-            combined.insert(combined.end(), entry->begin(), entry->end());
-          }
-          cache->handle_ledger_entries(from_seqno, to_seqno, combined);
-        }
-
-        handled_writes = writes.end() - writes.begin();
+        serve_ledger_requests(writes, handled_writes, *ledger);
 
         if (work_done)
         {
@@ -674,7 +791,6 @@ public:
     ccf::SeqNo seqno, const uint8_t* data, size_t size) override
   {
     auto store = std::make_shared<ccf::kv::Store>(
-      false /* Do not start from very first seqno */,
       true /* Make use of historical secrets */);
 
     store->set_encryptor(encryptor);
@@ -730,7 +846,7 @@ TEST_CASE(
   auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
   kv_store.set_encryptor(encryptor);
 
-  auto stub_writer = std::make_shared<StubWriter>();
+  auto stub_writer = std::make_shared<consensus::test::StubLedgerReader>();
   auto cache = std::make_shared<ccf::historical::StateCacheImpl>(
     kv_store, ledger_secrets, stub_writer);
 

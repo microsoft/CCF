@@ -51,6 +51,13 @@ GCM_SIZE_IV = 12
 LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
 
+# Only entry format version written by CCF (see entry_format_v1 in
+# src/kv/serialised_entry_format.h). The node rejects any other value.
+ENTRY_FORMAT_V1 = 1
+# Every entry starts with an AES-GCM header followed by the size of its public
+# domain, so no valid entry can be smaller than this.
+MIN_ENTRY_SIZE = GCM_SIZE_TAG + GCM_SIZE_IV + LEDGER_DOMAIN_SIZE
+
 # Public table names as defined in CCF.
 TREE_TABLE_NAME = "public:ccf.internal.tree"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
@@ -288,8 +295,13 @@ class PublicDomain:
 
     def _read_buffer(self, size):
         prev_cursor = self._cursor
-        self._cursor += size
-        return self._buffer[prev_cursor : self._cursor]
+        next_cursor = prev_cursor + size
+        if next_cursor > len(self._buffer):
+            raise ValueError(
+                f"Insufficient public domain data at offset {prev_cursor}: {len(self._buffer) - prev_cursor}/{size} bytes"
+            )
+        self._cursor = next_cursor
+        return self._buffer[prev_cursor:next_cursor]
 
     def _read8(self):
         return self._read_buffer(8)
@@ -309,7 +321,8 @@ class PublicDomain:
     def _read_versioned_value(self, size):
         if size < self.get_version_size():
             raise ValueError(f"Invalid versioned value of size {size}")
-        return (self._read_uint64(), self._read_buffer(size - self.get_version_size()))
+        # Read the version as signed so that legacy negative versions are seen
+        return (self._read_int64(), self._read_buffer(size - self.get_version_size()))
 
     def _read_next_entry(self):
         size = self._read_uint64()
@@ -330,7 +343,7 @@ class PublicDomain:
 
     def _read_snapshot_entry_padding(self, size):
         padding = -size % 8  # Padded to 8 bytes
-        self._cursor += padding
+        self._read_buffer(padding)
 
     def _read_snapshot_key(self):
         size = self._read_uint64()
@@ -338,16 +351,11 @@ class PublicDomain:
         self._read_snapshot_entry_padding(size)
         return key
 
-    def _read_snapshot_versioned_value(self):
+    def _read_snapshot_versioned_value(self) -> tuple[int, bytes]:
         size = self._read_uint64()
         ver, value = self._read_versioned_value(size)
-        if ver < 0:
-            assert (
-                len(value) == 0
-            ), f"Expected empty value for tombstone deletion at {ver}"
-            value = None
         self._read_snapshot_entry_padding(size)
-        return value
+        return ver, value
 
     def _read(self):
         buffer_size = len(self._buffer)
@@ -367,8 +375,12 @@ class PublicDomain:
 
                 while self._cursor - start_map_pos < map_size:
                     k = self._read_snapshot_key()
-                    val = self._read_snapshot_versioned_value()
-                    records[k] = val
+                    ver, val = self._read_snapshot_versioned_value()
+                    # Versions were signed before 3.0, with negative values
+                    # marking deletions. As in deserialize_map_snapshot in
+                    # src/kv/untyped_map.h, parse but do not retain these
+                    if ver >= 0:
+                        records[k] = val
             else:
                 # read_version
                 self._read8()
@@ -432,6 +444,9 @@ class SimpleBuffer:
     def _safe_loc(self, loc):
         return min(loc, self._len)
 
+    def __len__(self):
+        return self._len
+
     def tell(self):
         return self._loc
 
@@ -469,20 +484,22 @@ def _byte_read_safe(file: SimpleBuffer, num_of_bytes):
 
 def _peek(file: SimpleBuffer, num_bytes, pos=None):
     save_pos = file.tell()
-    if pos is not None:
-        file.seek(pos)
-    buffer = _byte_read_safe(file, num_bytes)
-    file.seek(save_pos)
-    return buffer
+    try:
+        if pos is not None:
+            file.seek(pos)
+        return _byte_read_safe(file, num_bytes)
+    finally:
+        file.seek(save_pos)
 
 
 def _peek_all(file: SimpleBuffer, pos=None):
     save_pos = file.tell()
-    if pos is not None:
-        file.seek(pos)
-    buffer = file.read()
-    file.seek(save_pos)
-    return buffer
+    try:
+        if pos is not None:
+            file.seek(pos)
+        return file.read()
+    finally:
+        file.seek(save_pos)
 
 
 class LedgerValidator:
@@ -586,13 +603,12 @@ class LedgerValidator:
         Validate transaction header has valid version and flags.
         Raises ValueError if header is invalid.
         """
-        # Check version is a known EntryType
-        try:
-            _ = EntryType(header.version)
-        except ValueError:
+        # The header version is the entry format version, of which CCF has
+        # only ever written one. It is not the EntryType of the public domain.
+        if header.version != ENTRY_FORMAT_V1:
             raise ValueError(
                 f"Invalid transaction version: {header.version}. "
-                f"Valid versions are: {[e.value for e in EntryType]}"
+                f"Only version {ENTRY_FORMAT_V1} is valid"
             )
 
         # Check flags are valid (only known flags bits should be set)
@@ -605,9 +621,12 @@ class LedgerValidator:
                 f"Unknown flag bits set."
             )
 
-        # Check size is reasonable (not zero, not too large)
-        if header.size == 0:
-            raise ValueError("Invalid transaction header: size is 0")
+        # Check size is reasonable (not too small, not too large)
+        if header.size < MIN_ENTRY_SIZE:
+            raise ValueError(
+                f"Invalid transaction header: size {header.size} is smaller than "
+                f"the minimum entry size {MIN_ENTRY_SIZE}"
+            )
         # Max size check - 1GB seems like a reasonable maximum
         MAX_TX_SIZE = 1024 * 1024 * 1024
         if header.size > MAX_TX_SIZE:
@@ -684,8 +703,11 @@ class LedgerValidator:
                 ), f"Only one of node self-signed certificate and endorsed certificate should be recorded for node {node_id}"
 
                 if endorsed_node_cert is None:
-                    # Node has been removed from the store
-                    self.node_certificates.pop(node_id)
+                    # Node has been removed from the store. Pending nodes are
+                    # removed without ever having an endorsed certificate
+                    # (see InternalTablesAccess::remove_nodes), and the KV
+                    # records the removal of the absent key regardless.
+                    self.node_certificates.pop(node_id, None)
                 else:
                     self.node_certificates[node_id] = endorsed_node_cert
 
@@ -859,9 +881,26 @@ class Entry:
 
     def _read_header(self):
         # read the transaction header
+        header_pos = self._file.tell()
         buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
         self._header = TransactionHeader(buffer)
         entry_start_pos = self._file.tell()
+
+        # Mirror the framing checks performed by the node when it deserialises
+        # an entry (GenericDeserialiseWrapper::init in
+        # src/kv/generic_serialise_wrapper.h), so that a malformed entry is
+        # rejected rather than silently read into the bytes that follow it.
+        if self._header.size < MIN_ENTRY_SIZE:
+            raise ValueError(
+                f"Invalid entry at offset {header_pos}: size {self._header.size} "
+                f"is smaller than the minimum entry size {MIN_ENTRY_SIZE}"
+            )
+        entry_end_pos = entry_start_pos + self._header.size
+        if entry_end_pos > len(self._file):
+            raise ValueError(
+                f"Invalid entry at offset {header_pos}: ends at {entry_end_pos} "
+                f"but only {len(self._file)} bytes are available"
+            )
 
         # read the AES GCM header
         buffer = _byte_read_safe(self._file, GcmHeader.size())
@@ -870,6 +909,13 @@ class Entry:
         # read the size of the public domain
         buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
         self._public_domain_size = to_uint_64(buffer)
+        remaining_entry_size = self._header.size - MIN_ENTRY_SIZE
+        if self._public_domain_size > remaining_entry_size:
+            raise ValueError(
+                f"Invalid entry at offset {header_pos}: public domain size "
+                f"{self._public_domain_size} exceeds remaining entry size "
+                f"{remaining_entry_size}"
+            )
 
         return entry_start_pos
 
@@ -894,9 +940,7 @@ class Entry:
         """
         Retrieve the size of the private (i.e. encrypted) domain for that transaction.
         """
-        return self._header.size - (
-            GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
-        )
+        return self._header.size - (MIN_ENTRY_SIZE + self._public_domain_size)
 
     def get_transaction_header(self) -> TransactionHeader:
         return self._header
@@ -1409,16 +1453,13 @@ class Ledger:
                     public_domain = tx.get_public_domain()
                     latest_seqno = public_domain.get_seqno()
                     for table_name, records in public_domain.get_tables().items():
-                        if table_name in public_tables:
-                            public_tables[table_name].update(records)
-                            # Remove deleted keys
-                            public_tables[table_name] = {
-                                k: v
-                                for k, v in public_tables[table_name].items()
-                                if v is not None
-                            }
-                        else:
-                            public_tables[table_name] = records
+                        table = public_tables.setdefault(table_name, {})
+                        for key, value in records.items():
+                            if value is None:
+                                # Remove deleted keys
+                                table.pop(key, None)
+                            else:
+                                table[key] = value
         except Exception as e:
             print(f"Error reading ledger entry. Latest read seqno: {latest_seqno}")
             print(f"Error: {e}")

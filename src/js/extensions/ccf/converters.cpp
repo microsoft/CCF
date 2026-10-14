@@ -6,12 +6,14 @@
 
 #include "ccf/js/extensions/ccf/converters.h"
 
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/sha256_hash.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/js/core/context.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
 #include "ccf/version.h"
 #include "js/checks.h"
-#include "node/rpc/jwt_management.h"
 
 #include <nlohmann/json.hpp>
 #include <quickjs/quickjs.h>

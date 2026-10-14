@@ -19,26 +19,6 @@ namespace ccf::crypto
 {
   using namespace OpenSSL;
 
-  MDType Verifier_OpenSSL::get_md_type(int mdt)
-  {
-    switch (mdt)
-    {
-      case NID_undef:
-        return MDType::NONE;
-      case NID_sha1:
-        return MDType::SHA1;
-      case NID_sha256:
-        return MDType::SHA256;
-      case NID_sha384:
-        return MDType::SHA384;
-      case NID_sha512:
-        return MDType::SHA512;
-      default:
-        return MDType::NONE;
-    }
-    return MDType::NONE;
-  }
-
   Verifier_OpenSSL::Verifier_OpenSSL(const std::vector<uint8_t>& c)
   {
     Unique_BIO certbio(c);
@@ -49,8 +29,8 @@ namespace ccf::crypto
       cert = Unique_X509(certbio, false);
       if (cert == nullptr)
       {
-        throw std::invalid_argument(fmt::format(
-          "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
+        throw std::invalid_argument(
+          fmt::format("OpenSSL error: {}", OpenSSL::first_error()));
       }
     }
 
@@ -59,7 +39,7 @@ namespace ccf::crypto
     {
       throw std::invalid_argument(fmt::format(
         "OpenSSL error loading certificate public key: {}",
-        OpenSSL::error_string(ERR_get_error())));
+        OpenSSL::first_error()));
     }
 
     // The constructed public key takes ownership of pk, so it is only freed
@@ -109,6 +89,19 @@ namespace ccf::crypto
     const std::vector<const Pem*>& chain,
     bool ignore_time)
   {
+    // Rejections are reported through the return value, but some, such as an
+    // unparseable certificate or a bad signature, also queue OpenSSL errors.
+    // Log and remove any, so that a later, unrelated, failure on this thread
+    // does not report them. Most rejections, such as an expired certificate,
+    // queue none.
+    const auto log_queued_error = []() {
+      if (ERR_peek_error() != 0)
+      {
+        const auto error = OpenSSL::first_error();
+        LOG_DEBUG_FMT("OpenSSL error: {}", error);
+      }
+    };
+
     Unique_X509_STORE store;
     Unique_X509_STORE_CTX store_ctx;
 
@@ -119,6 +112,7 @@ namespace ccf::crypto
       if (tc == nullptr)
       {
         LOG_DEBUG_FMT("Failed to load certificate from PEM: {}", pem->str());
+        log_queued_error();
         return false;
       }
 
@@ -130,6 +124,7 @@ namespace ccf::crypto
       if (!is_ca)
       {
         LOG_DEBUG_FMT("Trusted certificate is not a CA: {}", pem->str());
+        log_queued_error();
         return false;
       }
 
@@ -144,6 +139,7 @@ namespace ccf::crypto
       if (chain_cert == nullptr)
       {
         LOG_DEBUG_FMT("Failed to load certificate from PEM: {}", pem->str());
+        log_queued_error();
         return false;
       }
 
@@ -158,13 +154,17 @@ namespace ccf::crypto
 
     if (ignore_time)
     {
-      X509_VERIFY_PARAM* param = X509_VERIFY_PARAM_new();
-      X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_NO_CHECK_TIME);
+      X509_VERIFY_PARAM* param = nullptr;
+      CHECKNULL(param = X509_VERIFY_PARAM_new());
+      CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_NO_CHECK_TIME));
       X509_VERIFY_PARAM_set_depth(param, 1);
       X509_STORE_CTX_set0_param(store_ctx, param);
     }
 
     auto valid = X509_verify_cert(store_ctx) == 1;
+    // Chain building can also queue errors for candidate issuers that it
+    // rejects, even when verification then succeeds.
+    log_queued_error();
     if (!valid)
     {
       auto error = X509_STORE_CTX_get_error(store_ctx);
@@ -192,9 +192,9 @@ namespace ccf::crypto
   {
     const ASN1_INTEGER* sn = X509_get0_serialNumber(cert);
     Unique_BIO mem;
-    i2a_ASN1_INTEGER(mem, sn);
+    CHECKPOSITIVE(i2a_ASN1_INTEGER(mem, sn));
     BUF_MEM* bptr = nullptr;
-    BIO_get_mem_ptr(mem, &bptr);
+    CHECK1(BIO_get_mem_ptr(mem, &bptr));
     return {bptr->data, bptr->length};
   }
 
@@ -209,9 +209,10 @@ namespace ccf::crypto
   {
     X509_NAME* name = X509_get_subject_name(cert);
     Unique_BIO mem;
-    X509_NAME_print_ex(mem, name, 0, 0);
+    // With flags == XN_FLAG_COMPAT (0), this returns 1 on success.
+    CHECK1(X509_NAME_print_ex(mem, name, 0, 0));
     BUF_MEM* bptr = nullptr;
-    BIO_get_mem_ptr(mem, &bptr);
+    CHECK1(BIO_get_mem_ptr(mem, &bptr));
     return {bptr->data, bptr->length};
   }
 
@@ -220,9 +221,9 @@ namespace ccf::crypto
   {
     auto [from, to] = validity_period();
     auto tp_to = ccf::ds::time_point_from_string(to);
-    return std::chrono::duration_cast<std::chrono::seconds>(tp_to - now)
-             .count() +
-      1;
+    const auto remaining =
+      std::chrono::duration_cast<std::chrono::seconds>(tp_to - now).count() + 1;
+    return remaining > 0 ? static_cast<size_t>(remaining) : 0;
   }
 
   double Verifier_OpenSSL::remaining_percentage(

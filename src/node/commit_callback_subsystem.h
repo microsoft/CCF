@@ -3,15 +3,16 @@
 #pragma once
 
 #include "ccf/ds/locking.h"
+#include "consensus/aft/commit_observer.h"
 #include "consensus/aft/impl/state.h"
-#include "kv/kv_types.h"
 #include "node/commit_callback_interface.h"
 
 #include <map>
 
 namespace ccf
 {
-  class CommitCallbackSubsystem : public CommitCallbackInterface
+  class CommitCallbackSubsystem : public CommitCallbackInterface,
+                                  public aft::CommitObserver
   {
   private:
     using Callbacks = std::vector<std::pair<ccf::TxID, CommitCallback>>;
@@ -23,15 +24,8 @@ namespace ccf
       std::nullopt;
     aft::ViewHistory known_view_history CCF_GUARDED_BY(callbacks_mutex);
 
-    ccf::kv::Consensus* consensus = nullptr;
-
   public:
     CommitCallbackSubsystem() = default;
-
-    void set_consensus(ccf::kv::Consensus* c)
-    {
-      consensus = c;
-    }
 
     void add_callback(ccf::TxID tx_id, CommitCallback&& callback) override
     {
@@ -69,15 +63,9 @@ namespace ccf
       callback(tx_id, immediate_status.value());
     }
 
-    void trigger_callbacks(
-      ccf::TxID committed, const aft::ViewHistory& view_history)
+    void on_commit(
+      ccf::TxID committed, const aft::ViewHistory& view_history) override
     {
-      if (consensus == nullptr)
-      {
-        throw std::logic_error(
-          "trigger_callbacks() called before set_consensus()");
-      }
-
       // Collect callbacks to invoke, under the lock
       using ReadyCallback =
         std::tuple<ccf::TxID, ccf::FinalTxStatus, CommitCallback>;

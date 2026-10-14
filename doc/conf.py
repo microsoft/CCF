@@ -16,14 +16,15 @@
 #
 import os
 import sys
+import shutil
 import subprocess
 import pathlib
 import re
 
 from docutils import nodes
 
-# To import generate_config_rst
-sys.path.insert(0, os.path.abspath("."))
+# Import local documentation helpers, also when using multiversion sources.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import generate_config_rst
 
@@ -65,6 +66,7 @@ extensions = [
     "sphinx_panels",
     "sphinx.ext.extlinks",
     "sphinx_inline_tabs",
+    "rustdoc",
 ]
 
 autosectionlabel_prefix_document = True
@@ -105,6 +107,9 @@ linkcheck_ignore = [
     r"https://github.com/.*#",
     r"../js/ccf-app.*",
     r"../doxygen/index.html",
+    r"../trace-viewer/index.html",
+    # The rustdoc role checks generated pages and anchors during HTML builds.
+    r"(?:\.\./)*rust/ccf_app/.*",
     r"https://nghttp2.org/.*",
     r"https://www.w3.org/Protocols/rfc2616/.*",
 ]
@@ -470,6 +475,22 @@ def setup(app):
             subprocess.run(
                 ["cp", "-r", str(doxygen_html_src), doxygen_html_dest], check=True
             )
+
+    # recovery trace viewer, in trees that have one: sphinx-multiversion also
+    # builds older refs, whose sources need not be in this checkout
+    replayer_dir = root_dir / "lean/disaster-recovery/replayer"
+    if not os.environ.get("SKIP_TRACE_VIEWER") and (replayer_dir / "viewer").is_dir():
+        subprocess.run(["lake", "build"], cwd=replayer_dir, check=True)
+        subprocess.run(
+            [sys.executable, "viewer/build.py"], cwd=replayer_dir, check=True
+        )
+        viewer_dest = out_dir / "trace-viewer"
+        shutil.rmtree(viewer_dest, ignore_errors=True)
+        shutil.copytree(
+            replayer_dir / "viewer",
+            viewer_dest,
+            ignore=shutil.ignore_patterns("*.py", ".gitignore"),
+        )
 
     # configuration generator
     input_file_path = doc_dir / "host_config_schema/host_config.json"

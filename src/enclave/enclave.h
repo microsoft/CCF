@@ -3,11 +3,12 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/js/core/context.h"
+#include "ccf/node/configuration.h"
+#include "ccf/node/start_type.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
-#include "ds/oversized.h"
 #include "ds/work_beacon.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
@@ -15,10 +16,12 @@
 #include "js/interpreter_cache.h"
 #include "kv/ledger_chunker.h"
 #include "node/commit_callback_subsystem.h"
+#include "node/commit_point_subsystem.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
+#include "node/node_inbound_message.h"
 #include "node/node_state.h"
-#include "node/node_types.h"
+#include "node/node_transport.h"
 #include "node/rpc/cosesigconfig_subsystem.h"
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/rpc/forwarder.h"
@@ -29,7 +32,6 @@
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/node_operation.h"
-#include "node/rpc/ringbuffer_messages.h"
 #include "node/rpc/rpc_connection_manager.h"
 #include "node/rpc/rpc_map.h"
 #include "node/rpc/user_frontend.h"
@@ -42,16 +44,16 @@ namespace ccf
   class Enclave
   {
   private:
-    std::unique_ptr<ringbuffer::Circuit> circuit;
-    std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory;
-    std::unique_ptr<oversized::WriterFactory> writer_factory;
-    ccf::ds::WorkBeaconPtr work_beacon;
+    ccf::ds::WorkBeacon work_beacon;
     ccf::AbstractRuntimeControl& runtime_control;
     ccf::NetworkState network;
+    std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem =
+      nullptr;
+    std::shared_ptr<AbstractNodeTransport> node_transport = nullptr;
+    std::shared_ptr<NodeIngress> node_ingress = nullptr;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCConnectionManager> rpcsessions;
-    std::unique_ptr<ccf::NodeState> node;
-    std::chrono::high_resolution_clock::time_point last_tick_time;
+    std::shared_ptr<ccf::NodeState> node;
     std::atomic<bool> stop_requested = false;
     std::atomic<bool> stop_notice_requested = false;
 
@@ -78,24 +80,19 @@ namespace ccf
 
   public:
     Enclave(
-      std::unique_ptr<ringbuffer::Circuit> circuit_,
-      std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory_,
-      std::unique_ptr<oversized::WriterFactory> writer_factory_,
       size_t sig_tx_interval,
       size_t sig_ms_interval,
+      std::chrono::milliseconds tick_interval,
       size_t chunk_threshold,
       size_t max_transaction_size,
       const ccf::consensus::Configuration& consensus_config,
       const ccf::crypto::CurveID& curve_id,
-      ccf::ds::WorkBeaconPtr work_beacon_,
       ccf::AbstractRuntimeControl& runtime_control_,
-      const std::shared_ptr<AbstractReadLedgerSubsystemInterface>&
-        ledger_subsystem) :
-      circuit(std::move(circuit_)),
-      basic_writer_factory(std::move(basic_writer_factory_)),
-      writer_factory(std::move(writer_factory_)),
-      work_beacon(std::move(work_beacon_)),
+      const std::shared_ptr<AbstractLedgerSubsystemInterface>& ledger_subsystem,
+      const std::shared_ptr<AbstractNodeTransport>& node_transport) :
       runtime_control(runtime_control_),
+      ledger_subsystem(ledger_subsystem),
+      node_transport(node_transport),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCConnectionManager>(rpc_map))
     {
@@ -107,22 +104,30 @@ namespace ccf
       network.tables->set_max_transaction_size(max_transaction_size);
 
       LOG_TRACE_FMT("Creating node");
-      node = std::make_unique<ccf::NodeState>(
-        *writer_factory, network, rpcsessions, curve_id, runtime_control);
+      node = std::make_shared<ccf::NodeState>(
+        this->node_transport,
+        network,
+        rpcsessions,
+        curve_id,
+        runtime_control,
+        this->ledger_subsystem);
 
       LOG_TRACE_FMT("Creating context");
       context = std::make_unique<NodeContext>(node->get_node_id());
 
       LOG_TRACE_FMT("Creating context subsystems");
       historical_state_cache = std::make_shared<ccf::historical::StateCache>(
-        *network.tables,
-        network.ledger_secrets,
-        writer_factory->create_writer_to_outside());
+        *network.tables, network.ledger_secrets, this->ledger_subsystem);
       context->install_subsystem(historical_state_cache);
+      context->install_subsystem(
+        std::make_shared<ccf::CommitPointSubsystem>(node));
 
       indexer = std::make_shared<ccf::indexing::Indexer>(
         std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
-          historical_state_cache));
+          historical_state_cache),
+        *context);
+      indexer->register_periodic_tasks(
+        ccf::tasks::get_main_job_board(), tick_interval);
       context->install_subsystem(indexer);
 
       lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
@@ -148,7 +153,7 @@ namespace ccf
       context->install_subsystem(cpss);
       rpcsessions->set_custom_protocol_subsystem(cpss);
 
-      context->install_subsystem(ledger_subsystem);
+      context->install_subsystem(this->ledger_subsystem);
 
       static constexpr size_t max_interpreter_cache_size = 10;
       auto interpreter_cache =
@@ -177,6 +182,7 @@ namespace ccf
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
 
       LOG_TRACE_FMT("Initialize node");
+      auto& job_board = ccf::tasks::get_main_job_board();
       node->initialize(
         consensus_config,
         rpc_map,
@@ -184,30 +190,46 @@ namespace ccf
         commit_callbacks,
         signature_cache,
         sig_tx_interval,
-        sig_ms_interval);
+        sig_ms_interval,
+        job_board,
+        tick_interval);
+
+      historical_state_cache->start_periodic_tick(job_board, tick_interval);
+
+      node_ingress = std::make_shared<NodeIngress>(
+        job_board,
+        [this](
+          NodeMsgType type,
+          const NodeId& from,
+          const uint8_t* data,
+          size_t size) { node->recv_node_inbound(type, from, data, size); });
+      this->node_transport->set_inbound_handler(node_ingress);
     }
 
     ~Enclave()
     {
+      node_ingress->stop();
+      node_transport->set_inbound_handler(nullptr);
       LOG_TRACE_FMT("Shutting down enclave");
     }
 
     void request_stop()
     {
+      node_ingress->stop();
       stop_requested.store(true);
-      work_beacon->notify_work_available_coalesced();
+      work_beacon.notify_work_available_coalesced();
       ccf::tasks::get_main_job_board().stop_waiters();
     }
 
     void request_stop_notice()
     {
       stop_notice_requested.store(true);
-      work_beacon->notify_work_available_coalesced();
+      work_beacon.notify_work_available_coalesced();
     }
 
     CreateNodeStatus create_new_node(
       StartType start_type_,
-      ccf::StartupConfig ccf_config_,
+      ccf::CCFConfig ccf_config_,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& service_cert,
       std::vector<uint8_t>& rpc_addresses)
@@ -360,182 +382,29 @@ namespace ccf
     {
       LOG_DEBUG_FMT("Running main thread");
 
+      while (!stop_requested.load())
       {
-        messaging::BufferProcessor bp("Enclave");
-
-        // reconstruct oversized messages sent to the enclave
-        oversized::FragmentReconstructor fr(bp.get_dispatcher());
-
-        last_tick_time = decltype(last_tick_time)::clock::now();
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp,
-          AdminMessage::tick,
-          [this, &disp = bp.get_dispatcher()](const uint8_t*, size_t) {
-            const auto time_now = decltype(last_tick_time)::clock::now();
-
-            const auto elapsed_ms =
-              std::chrono::duration_cast<std::chrono::milliseconds>(
-                time_now - last_tick_time);
-            if (elapsed_ms.count() > 0)
-            {
-              last_tick_time += elapsed_ms;
-
-              node->tick(elapsed_ms);
-              // Indexing strategies follow the commit point, which is only
-              // meaningful once the node is part of the network
-              const auto committed = node->get_committed_txid();
-              if (committed.has_value())
-              {
-                indexer->update_strategies(elapsed_ms, committed.value());
-              }
-              historical_state_cache->tick(elapsed_ms);
-              ccf::tasks::tick(elapsed_ms);
-              // When recovering, no signature should be emitted while the
-              // public ledger is being read
-              if (!node->is_reading_public_ledger())
-              {
-                for (auto& [actor, frontend] : rpc_map->frontends())
-                {
-                  frontend->tick(elapsed_ms);
-                }
-              }
-              node->tick_end();
-            }
-          });
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, ccf::node_inbound, [this](const uint8_t* data, size_t size) {
-            try
-            {
-              node->recv_node_inbound(data, size);
-            }
-            catch (const std::exception& e)
-            {
-              LOG_DEBUG_FMT(
-                "Ignoring node_inbound message due to exception: {}", e.what());
-            }
-          });
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp,
-          ::consensus::ledger_entry_range,
-          [this](const uint8_t* data, size_t size) {
-            const auto [from_seqno, to_seqno, purpose, body] =
-              ringbuffer::read_message<::consensus::ledger_entry_range>(
-                data, size);
-            switch (purpose)
-            {
-              case ::consensus::LedgerRequestPurpose::Recovery:
-              {
-                if (node->is_reading_public_ledger())
-                {
-                  node->recover_public_ledger_entries(body);
-                }
-                else if (node->is_reading_private_ledger())
-                {
-                  node->recover_private_ledger_entries(body);
-                }
-                else
-                {
-                  auto [s, _, __] = node->state();
-                  LOG_FAIL_FMT(
-                    "Cannot recover ledger entry: Unexpected node state {}", s);
-                }
-                break;
-              }
-              case ::consensus::LedgerRequestPurpose::HistoricalQuery:
-              {
-                historical_state_cache->handle_ledger_entries(
-                  from_seqno, to_seqno, body);
-                break;
-              }
-              default:
-              {
-                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
-              }
-            }
-          });
-
-        DISPATCHER_SET_MESSAGE_HANDLER(
-          bp,
-          ::consensus::ledger_no_entry_range,
-          [this](const uint8_t* data, size_t size) {
-            const auto [from_seqno, to_seqno, purpose] =
-              ringbuffer::read_message<::consensus::ledger_no_entry_range>(
-                data, size);
-            switch (purpose)
-            {
-              case ::consensus::LedgerRequestPurpose::Recovery:
-              {
-                node->recover_ledger_end();
-                break;
-              }
-              case ::consensus::LedgerRequestPurpose::HistoricalQuery:
-              {
-                historical_state_cache->handle_no_entry_range(
-                  from_seqno, to_seqno);
-                break;
-              }
-              default:
-              {
-                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
-              }
-            }
-          });
-
-        // Maximum number of inbound ringbuffer messages which will be
-        // processed in a single iteration
-        static constexpr size_t max_messages = 256;
-
-        bool should_wait_for_work = true;
-        while (!stop_requested.load())
+        work_beacon.wait_for_work();
+        if (stop_requested.load())
         {
-          if (should_wait_for_work)
-          {
-            // Wait until the host indicates that some ringbuffer messages are
-            // available, but wake at least every 100ms.
-            work_beacon->wait_for_work_with_timeout(
-              std::chrono::milliseconds(100));
-          }
-
-          if (stop_requested.load())
-          {
-            break;
-          }
-
-          if (stop_notice_requested.exchange(false))
-          {
-            node->stop_notice();
-          }
-
-          // Read some messages from the ringbuffer. This thread is dedicated
-          // to ingress dispatch; task execution happens on worker threads
-          // (see run_worker), so that opaque, potentially-blocking tasks never
-          // stall consensus ingress.
-          auto read = bp.read_n(max_messages, circuit->read_from_outside());
-
-          // Hitting the read budget may leave queued messages behind.
-          // Continue immediately rather than consuming the only coalesced
-          // wake and then sleeping with unread ringbuffer messages.
-          should_wait_for_work = read < max_messages;
-
-          // If no messages were read from the ringbuffer, idle
-          if (read == 0)
-          {
-            std::this_thread::yield();
-          }
+          break;
         }
 
-        LOG_INFO_FMT("Stopping RPC transports");
-        // The host is still running the libuv loop at this point.
-        rpcsessions->stop(ccf::tls::OpenSSLServer::LoopState::Running);
-
-        LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
-        runtime_control.report_stopped();
-
-        return true;
+        if (stop_notice_requested.exchange(false))
+        {
+          node_ingress->submit(
+            "Node stop notice", [this]() { node->stop_notice(); });
+        }
       }
+
+      LOG_INFO_FMT("Stopping RPC transports");
+      // The host is still running the libuv loop at this point.
+      rpcsessions->stop(ccf::tls::OpenSSLServer::LoopState::Running);
+
+      LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
+      runtime_control.report_stopped();
+
+      return true;
     }
 
     bool run_worker()

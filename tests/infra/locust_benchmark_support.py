@@ -4,11 +4,13 @@
 """Locust-side helpers shared by benchmark workloads."""
 
 import logging
+import os
 import ssl
+from pathlib import Path
 from typing import Any
 
 import gevent
-from locust.runners import WorkerRunner
+from locust.runners import MasterRunner, WorkerRunner
 
 DEFAULT_MEASURE_TIME_S = 20
 LOG = logging.getLogger(__name__)
@@ -51,6 +53,17 @@ def register_steady_state_listeners(events: Any) -> None:
         # Workers receive spawning_complete too, but only the master ends runs.
         if isinstance(environment.runner, WorkerRunner):
             return
+
+        ready_path = os.environ.get("CCF_LOCUST_MASTER_READY")
+        if ready_path and isinstance(environment.runner, MasterRunner):
+            # Server.port is assigned by ZMQ's bind_to_random_port, not the
+            # configured port (0). Publish atomically inside the private directory.
+            path = Path(ready_path)
+            staging_path = path.with_suffix(".pending")
+            staging_path.write_text(
+                str(environment.runner.server.port), encoding="ascii"
+            )
+            staging_path.replace(path)
 
         spawning_completed = False
 

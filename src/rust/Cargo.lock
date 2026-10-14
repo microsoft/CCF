@@ -38,7 +38,6 @@ dependencies = [
 name = "ccf-rs"
 version = "0.1.0"
 dependencies = [
- "cose-rs",
  "tee-attestation-verification-ffi",
 ]
 
@@ -47,21 +46,6 @@ name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
-
-[[package]]
-name = "cose-openssl"
-version = "0.1.0"
-dependencies = [
- "openssl-sys",
- "tee-attestation-verification-cbor",
-]
-
-[[package]]
-name = "cose-rs"
-version = "0.1.0"
-dependencies = [
- "cose-openssl",
-]
 
 [[package]]
 name = "find-msvc-tools"

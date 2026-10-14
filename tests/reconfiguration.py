@@ -10,7 +10,7 @@ import tempfile
 import time
 from contextlib import ExitStack
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from shutil import copy, rmtree
 
 import ccf.ledger
@@ -439,9 +439,8 @@ def test_add_node_endorsements_endpoints(network, args):
         return network
 
     args_copy = deepcopy(args)
+    # The public Azure cache returns 404 for the Genoa chip/TCB pairs used in CI.
     test_vectors = [
-        (["Azure:global.acccache.azure.net"], True),
-        (["Azure:global.acccache.azure.net:443"], True),
         (["Azure:invalid.azure.net:443"], False),
         (["AMD:kdsintf.amd.com"], True),
         (["AMD:invalid.amd.com"], False),
@@ -461,6 +460,9 @@ def test_add_node_endorsements_endpoints(network, args):
         args_copy.snp_endorsements_file = "/dev/null"
         try:
             per_request_retry_timeout = 3
+            if "AMD:kdsintf.amd.com" in servers:
+                # Allow for AMD's 10s Retry-After plus the 3s request timeout.
+                per_request_retry_timeout += 10
             network.join_node(
                 new_node,
                 args.package,
@@ -856,7 +858,7 @@ def test_join_straddling_primary_replacement(network, args):
                 "name": "transition_node_to_trusted",
                 "args": {
                     "node_id": new_node.node_id,
-                    "valid_from": str(datetime.now(timezone.utc)),
+                    "valid_from": str(datetime.now(UTC)),
                 },
             },
             {

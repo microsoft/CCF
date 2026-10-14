@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/quote_info.h"
-#include "ccf/node/cose_signatures_config.h"
 #include "ccf/node/quote.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/node_subsystem_interface.h"

@@ -8,7 +8,7 @@
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/version.h"
 #include "js/checks.h"
-#include "node/uvm_endorsements.h"
+#include "pal/uvm_endorsements.h"
 
 #include <algorithm>
 #include <quickjs/quickjs.h>

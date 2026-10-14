@@ -20,6 +20,7 @@
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <openssl/x509v3.h>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -29,6 +30,9 @@ namespace ccf::crypto
 
   namespace
   {
+    using Unique_ASN1_INTEGER =
+      Unique_SSL_OBJECT<ASN1_INTEGER, ASN1_INTEGER_new, ASN1_INTEGER_free>;
+
     std::map<std::string, std::string> parse_name(const std::string& name)
     {
       std::map<std::string, std::string> result;
@@ -47,31 +51,23 @@ namespace ccf::crypto
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(CurveID curve_id)
   {
     int curve_nid = get_openssl_group_id(curve_id);
-    key = EVP_PKEY_new();
     Unique_EVP_PKEY_CTX pkctx;
-    if (
-      EVP_PKEY_keygen_init(pkctx) <= 0 ||
-      EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkctx, curve_nid) <= 0 ||
-      EVP_PKEY_CTX_set_ec_param_enc(pkctx, OPENSSL_EC_NAMED_CURVE) <= 0)
-    {
-      throw std::runtime_error("could not initialize PK context");
-    }
-    const auto keygen_rc = EVP_PKEY_keygen(pkctx, &key);
-    if (keygen_rc <= 0)
-    {
-      throw std::runtime_error(
-        fmt::format("could not generate new EC key: {}", keygen_rc));
-    }
+    OpenSSL::CHECKPOSITIVE(EVP_PKEY_keygen_init(pkctx));
+    OpenSSL::CHECKPOSITIVE(
+      EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkctx, curve_nid));
+    OpenSSL::CHECKPOSITIVE(
+      EVP_PKEY_CTX_set_ec_param_enc(pkctx, OPENSSL_EC_NAMED_CURVE));
+    EVP_PKEY* generated = nullptr;
+    const auto keygen_rc = EVP_PKEY_keygen(pkctx, &generated);
+    key.reset(generated);
+    OpenSSL::CHECKPOSITIVE(keygen_rc);
   }
 
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr);
-    if (key == nullptr)
-    {
-      throw std::runtime_error("could not parse PEM");
-    }
+    key.reset(PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr));
+    OpenSSL::CHECKNULL(key);
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_EC)
     {
       throw std::logic_error(
@@ -81,7 +77,6 @@ namespace ccf::crypto
 
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
   {
-    key = EVP_PKEY_new();
     Unique_BIGNUM d;
     auto d_raw = raw_from_b64url(jwk.d);
     OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
@@ -106,8 +101,11 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(
-      pctx, &key, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params)));
+    EVP_PKEY* parsed = nullptr;
+    const auto rc = EVP_PKEY_fromdata(
+      pctx, &parsed, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params));
+    key.reset(parsed);
+    CHECK1(rc);
   }
 
   Pem ECKeyPair_OpenSSL::private_key_pem() const
@@ -190,13 +188,20 @@ namespace ccf::crypto
   std::vector<uint8_t> ECKeyPair_OpenSSL::sign_hash(
     const uint8_t* hash, size_t hash_size) const
   {
-    std::vector<uint8_t> sig(EVP_PKEY_size(key));
-    size_t written = sig.size();
+    // Query the required signature size from this context, rather than
+    // relying on EVP_PKEY_size(key). For some curves (eg - P-521), some
+    // providers (eg - SymCrypt) report a smaller EVP_PKEY_size() than the
+    // buffer they actually need, particularly after a private key has been
+    // through a PEM round trip, which then makes signing itself fail with
+    // "output buffer too small".
+    Unique_EVP_PKEY_CTX pctx(key);
+    OpenSSL::CHECK1(EVP_PKEY_sign_init(pctx));
 
-    if (sign_hash(hash, hash_size, &written, sig.data()) != 0)
-    {
-      return {};
-    }
+    size_t written = 0;
+    OpenSSL::CHECK1(EVP_PKEY_sign(pctx, nullptr, &written, hash, hash_size));
+
+    std::vector<uint8_t> sig(written);
+    OpenSSL::CHECK1(EVP_PKEY_sign(pctx, sig.data(), &written, hash, hash_size));
 
     sig.resize(written);
     return sig;
@@ -258,8 +263,8 @@ namespace ccf::crypto
           nullptr,
           NID_subject_alt_name,
           fmt::format("{}", fmt::join(subject_alt_names, ", ")).c_str()));
-      sk_X509_EXTENSION_push(exts, ext);
-      X509_REQ_add_extensions(req, exts);
+      OpenSSL::CHECKPOSITIVE(sk_X509_EXTENSION_push(exts, ext));
+      OpenSSL::CHECK1(X509_REQ_add_extensions(req, exts));
     }
 
     if (key != nullptr)
@@ -313,7 +318,7 @@ namespace ccf::crypto
     bool ca,
     Signer signer) const
   {
-    X509* icrt = nullptr;
+    std::optional<Unique_X509> icrt;
     Unique_BIO mem(signing_request);
     Unique_X509_REQ csr(mem);
     Unique_X509 crt;
@@ -334,29 +339,27 @@ namespace ccf::crypto
     unsigned char rndbytes[SERIAL_NUMBER_SIZE];
     OpenSSL::CHECK1(
       RAND_bytes(static_cast<unsigned char*>(rndbytes), sizeof(rndbytes)));
-    BIGNUM* bn = nullptr;
-    OpenSSL::CHECKNULL(bn = BN_new());
+    Unique_BIGNUM bn;
     OpenSSL::CHECKNULL(
       BN_bin2bn(static_cast<unsigned char*>(rndbytes), sizeof(rndbytes), bn));
-    ASN1_INTEGER* serial = ASN1_INTEGER_new();
-    BN_to_ASN1_INTEGER(bn, serial);
+    Unique_ASN1_INTEGER serial;
+    OpenSSL::CHECKNULL(BN_to_ASN1_INTEGER(bn, serial));
     OpenSSL::CHECK1(X509_set_serialNumber(crt, serial));
-    ASN1_INTEGER_free(serial);
-    BN_free(bn);
 
     // Add issuer name
     if (issuer_cert.has_value())
     {
       Unique_BIO imem(*issuer_cert);
-      OpenSSL::CHECKNULL(
-        icrt = PEM_read_bio_X509(imem, nullptr, nullptr, nullptr));
-      OpenSSL::CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
+      icrt.emplace(
+        PEM_read_bio_X509(imem, nullptr, nullptr, nullptr),
+        /*check_null=*/true);
+      OpenSSL::CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(*icrt)));
 
       if (signer == Signer::ISSUER)
       {
         // Verify issuer-signed CSR
         req_pubkey = X509_REQ_get0_pubkey(csr);
-        auto* issuer_pubkey = X509_get0_pubkey(icrt);
+        auto* issuer_pubkey = X509_get0_pubkey(*icrt);
         OpenSSL::CHECK1(X509_REQ_verify(csr, issuer_pubkey));
       }
     }
@@ -380,14 +383,14 @@ namespace ccf::crypto
     OpenSSL::CHECK1(X509_set1_notBefore(crt, not_before));
     OpenSSL::CHECK1(X509_set1_notAfter(crt, not_after));
 
-    X509_set_subject_name(crt, X509_REQ_get_subject_name(csr));
-    X509_set_pubkey(crt, req_pubkey);
+    OpenSSL::CHECK1(X509_set_subject_name(crt, X509_REQ_get_subject_name(csr)));
+    OpenSSL::CHECK1(X509_set_pubkey(crt, req_pubkey));
 
     // Extensions
     X509V3_CTX v3ctx;
     X509V3_set_ctx_nodb(&v3ctx);
     X509V3_set_ctx(
-      &v3ctx, icrt != nullptr ? icrt : crt, nullptr, csr, nullptr, 0);
+      &v3ctx, icrt.has_value() ? *icrt : crt, nullptr, csr, nullptr, 0);
 
     std::string constraints = "critical,CA:FALSE";
     if (ca)
@@ -462,14 +465,7 @@ namespace ccf::crypto
     // Export
     BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(omem, &bptr);
-    Pem result(reinterpret_cast<uint8_t*>(bptr->data), bptr->length);
-
-    if (icrt != nullptr)
-    {
-      X509_free(icrt);
-    }
-
-    return result;
+    return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
   CurveID ECKeyPair_OpenSSL::get_curve_id() const
@@ -497,8 +493,6 @@ namespace ccf::crypto
     CHECK1(EVP_PKEY_derive(ctx, nullptr, &shared_secret_length));
     shared_secret.resize(shared_secret_length);
     CHECK1(EVP_PKEY_derive(ctx, shared_secret.data(), &shared_secret_length));
-
-    EVP_PKEY_free(pk);
 
     return shared_secret;
   }

@@ -15,7 +15,6 @@ import threading
 import time
 import urllib.parse
 from collections import defaultdict
-from datetime import datetime, timezone
 from hashlib import sha256
 from http.client import HTTPResponse
 from types import MappingProxyType
@@ -26,7 +25,6 @@ import ccf.receipt
 import e2e_common_endpoints
 import infra.checker
 import infra.clients
-import infra.concurrency
 import infra.crypto
 import infra.e2e_args
 import infra.jwt_issuer
@@ -226,6 +224,7 @@ def test_illegal(network, args):
                 response.status,
                 response_body,
             )
+        return response_body
 
     initial_parsing_errors = get_main_interface_metrics()["errors"]["parsing"]
     send_bad_raw_content(b"\x01")
@@ -235,6 +234,15 @@ def test_illegal(network, args):
     send_bad_raw_content(json.dumps({"hello": "world"}).encode())
     # Tests non-UTF8 encoding in OData
     send_bad_raw_content(b"POST /node/\xff HTTP/2.0\r\n\r\n")
+
+    if not args.http2:
+        for whitespace in (b"", b" ", b"\t", b" \t"):
+            response_body = send_bad_raw_content(
+                b"GET /node/state HTTP/1.1\r\nTransfer-Encoding:"
+                + whitespace
+                + b"\r\nContent-Length: 0\r\n\r\n"
+            )
+            assert b"HPE_INVALID_TRANSFER_ENCODING" in response_body, response_body
 
     for _ in range(40):
         content = bytes(random.randint(0, 255) for _ in range(random.randrange(1, 2)))
@@ -1619,6 +1627,50 @@ def test_forwarding_frontends_without_app_prefix(network, args):
     return network
 
 
+@reqs.description("Testing chunked POSTs to the primary")
+@reqs.supports_methods("/app/log/private")
+@reqs.no_http2()
+@app.scoped_txs()
+def test_chunked_requests(network, args):
+    primary, _ = network.find_primary()
+    path = f"/app/log/private?scope={network.txs.scope}"
+    log_id = 0
+    msg = "Chunked message\r\nwith a null: \x00 and Unicode: \u2603"
+    body = json.dumps({"id": log_id, "msg": msg}).encode()
+    chunks = (body[:1], body[1:16], body[16:31], body[31:])
+    encoded_body = (
+        b"".join(f"{len(chunk):x}\r\n".encode() + chunk + b"\r\n" for chunk in chunks)
+        + b"0\r\n\r\n"
+    )
+
+    with primary.client("user0", impl_type=infra.clients.RawSocketClient) as c:
+        sock = c.client_impl.socket
+        sock.settimeout(infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC)
+        # Send the wire body directly, without an automatic Content-Length.
+        infra.clients.RawSocketClient._send_request(
+            ssl_socket=sock,
+            verb="POST",
+            path=path,
+            headers={
+                "host": primary.get_public_rpc_address(),
+                "transfer-encoding": "chunked",
+                "content-type": "application/json",
+            },
+            content=encoded_body,
+        )
+        r = infra.clients.Response.from_socket(sock)
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() is True, r.body.json()
+
+    with primary.client("user0") as c:
+        c.wait_for_commit(r)
+        r = c.get(f"{path}&id={log_id}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() == {"msg": msg}, r.body.json()
+
+    return network
+
+
 @reqs.description("Testing forwarding on long-lived connection")
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
@@ -2039,6 +2091,81 @@ def test_random_receipts(
                         view += 1
                         if view > max_view:
                             assert False, rc
+
+    return network
+
+
+@reqs.description("Receipts stay valid after a range query spanning a view change")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
+@reqs.at_least_n_nodes(2)
+def test_historical_receipts_across_views(network, args):
+    idx = 20000
+    service_key = get_service_key(network)
+    primary, backup = network.find_primary_and_any_backup()
+
+    # Add a node so that the remaining nodes can elect a replacement primary
+    new_node = network.create_node()
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.trust_node(new_node, args)
+
+    first_tx = network.txs.issue(network, number_txs=1, idx=idx, send_private=False)
+
+    # Retiring the primary forces a view change. The successor only learns
+    # that the final transactions of the old view are committed once it has
+    # signed in the new view, so its first signature's Merkle tree still
+    # covers them, and a range query uses that later signature to produce
+    # receipts for those old-view transactions.
+    network.retire_node(primary, primary, timeout=15)
+    primary.stop()
+    network.wait_for_new_primary(primary, nodes=[backup])
+
+    second_tx = network.txs.issue(network, number_txs=1, idx=idx, send_private=False)
+    assert second_tx.view > first_tx.view, (first_tx, second_tx)
+
+    with backup.client("user0") as c:
+        r = c.get("/node/commit?view_history=true")
+        assert r.status_code == http.HTTPStatus.OK, r
+        view_starts = [TxID.from_str(s) for s in r.body.json()["view_history"]]
+
+        def view_of(seqno):
+            return max(tx_id.view for tx_id in view_starts if tx_id.seqno <= seqno)
+
+        def check_receipts():
+            for seqno in range(first_tx.seqno, second_tx.seqno + 1):
+                tx_id = TxID(view_of(seqno), seqno)
+                end_time = time.time() + 3.0
+                while True:
+                    rc = c.get(f"/node/receipt/cose?transaction_id={tx_id}")
+                    if rc.status_code != http.HTTPStatus.ACCEPTED:
+                        break
+                    assert time.time() < end_time, f"Timed out fetching {tx_id}"
+                    time.sleep(0.1)
+                if rc.status_code == http.HTTPStatus.NOT_FOUND:
+                    # Signature transactions have no COSE receipt
+                    continue
+                assert rc.status_code == http.HTTPStatus.OK, rc
+                receipt_bytes = rc.body.data()
+                # Leaf of the inclusion proof, as [write set digest, commit
+                # evidence, claims digest]. Governance transactions carry
+                # claims, so the digest is taken from the leaf rather than
+                # assumed, but the commit evidence must name this transaction
+                _, uhdr, _, _ = cbor2.loads(receipt_bytes).value
+                leaf = cbor2.loads(uhdr[396][-1][0])[1]
+                assert leaf[1].startswith(f"ce:{tx_id}:"), (tx_id, leaf[1])
+                ccf.receipt.verify_cose(receipt_bytes, service_key, leaf[2])
+
+        # Each of these point queries creates a historical request on the
+        # backup which outlives this call, keeping the transaction's cached
+        # state (and receipt) alive
+        check_receipts()
+
+        # Range query over the same transactions, including both views
+        network.txs.verify_range_for_idx(
+            idx, node=backup, from_seqno=first_tx.seqno, to_seqno=second_tx.seqno
+        )
+
+        # Cached receipts must still verify
+        check_receipts()
 
     return network
 
@@ -2540,47 +2667,29 @@ def test_cose_config(network, args):
 
 
 def test_blocking_calls(network, args):
-    primary, _ = network.find_nodes()
-
-    class CommitPoller(infra.concurrency.StoppableThread):
-        def __init__(self, node):
-            super().__init__(name="commit poller")
-            self.node = node
-            self.known_commit_times = []
-
-        def run(self):
-            with self.node.client() as c:
-                prev_txid = None
-                while not self.is_stopped():
-                    r = c.get("/node/commit", log_capture=[])
-                    assert r.status_code == http.HTTPStatus.OK, r.status_code
-                    txid = TxID.from_str(r.body.json()["transaction_id"])
-                    if txid != prev_txid:
-                        self.known_commit_times.append(
-                            (datetime.now(timezone.utc), txid)
-                        )
-                        prev_txid = txid
-
-    cp = CommitPoller(primary)
-    cp.start()
-
-    response_times = []
+    primary, view = network.find_primary()
 
     paths = [
-        "/log/private",
-        "/log/blocking/private",
-        "/log/blocking/private/receipt",
-        "/log/private/optional_commit",
-        "/log/private/optional_commit?wait_for_commit=true",
+        ("/log/private", False),
+        ("/log/blocking/private", True),
+        ("/log/blocking/private/receipt", True),
+        ("/log/private/optional_commit", False),
+        ("/log/private/optional_commit?wait_for_commit=true", True),
     ]
     n_requests = 5
     request_order = paths * n_requests
     random.shuffle(request_order)
 
+    target_seqno = 0
     with primary.client("user0") as c:
-        for path in request_order:
+        for path, should_be_committed in request_order:
             r = c.post(path, {"id": 42, "msg": "Hello world"})
             assert r.status_code == http.HTTPStatus.OK, r.status_code
+            txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
+            assert (
+                txid.valid() and txid.view == view
+            ), f"Expected response in view {view}, got {txid}"
+            target_seqno = max(target_seqno, txid.seqno)
 
             if path == "/log/blocking/private/receipt":
                 # Response is a binary COSE receipt
@@ -2592,59 +2701,35 @@ def test_blocking_calls(network, args):
                     network.cert.public_key(),
                     b"\0" * 32,
                 )
+            else:
+                assert r.body.json() is True, r.body.json()
 
-            now = datetime.now(timezone.utc)
-            txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
-            response_times.append((now, path, txid))
+            if should_be_committed:
+                status = c.get(f"/node/tx?transaction_id={txid}")
+                assert status.status_code == http.HTTPStatus.OK, status.status_code
+                assert (
+                    TxStatus(status.body.json()["status"]) == TxStatus.Committed
+                ), f"Blocking response {txid} is not committed: {status.body.json()}"
 
-        c.wait_for_commit(r)
-
-    cp.stop()
-    cp.join()
-
-    commit_deltas = {p: [] for p in paths}
-
-    for response_time, path, txid in response_times:
-        for commit_time, commit_txid in cp.known_commit_times:
-            assert commit_txid.view == txid.view
-            if commit_txid.seqno >= txid.seqno:
-                delta = (commit_time - response_time).total_seconds()
-                commit_deltas[path].append(delta)
+        commit_txid = None
+        deadline = time.monotonic() + infra.clients.DEFAULT_REQUEST_TIMEOUT_SEC
+        while (remaining := deadline - time.monotonic()) > 0:
+            r = c.get("/node/commit", timeout=remaining)
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            transaction_id = r.body.json()["transaction_id"]
+            commit_txid = TxID.from_str(transaction_id)
+            assert commit_txid.valid(), f"Invalid commit ID: {transaction_id!r}"
+            assert (
+                commit_txid.view == view
+            ), f"Expected commit in view {view}, got {commit_txid}"
+            if commit_txid.seqno >= target_seqno:
                 break
+            time.sleep(0.1)
         else:
-            raise AssertionError(f"No commit found for {txid}")
-
-    mean_commit_deltas = {p: sum(ds) / len(ds) for p, ds in commit_deltas.items()}
-    LOG.info(f"Mean commit deltas: {mean_commit_deltas}")
-
-    # Over a large-enough sample size, we'd expect:
-    # - blocking means (both /blocking/private and /blocking/private/receipt)
-    #   to approach 0. We get a response and see commit advance at exactly
-    #   the same time, because the response is held until global commit.
-    # - non-blocking mean (/private) to approach the signature interval.
-    #   We get responses eagerly, and they're committed later at regular
-    #   signature intervals.
-    # - the receipt endpoint to behave similarly to the plain blocking
-    #   endpoint, since the receipt is constructed inline at commit time
-    #   with negligible overhead.
-    #
-    # Our actual test has far more variation (small sample, timing noise),
-    # so we can only make much broader claims - each blocking mean is
-    # smaller than the non-blocking mean.
-    assert (
-        mean_commit_deltas["/log/blocking/private"] < mean_commit_deltas["/log/private"]
-    )
-    assert (
-        mean_commit_deltas["/log/blocking/private/receipt"]
-        < mean_commit_deltas["/log/private"]
-    )
-    # The optional_commit endpoint with wait_for_commit=true should behave
-    # like the blocking endpoints, while without the parameter it should
-    # behave like the non-blocking endpoint.
-    assert (
-        mean_commit_deltas["/log/private/optional_commit?wait_for_commit=true"]
-        < mean_commit_deltas["/log/private/optional_commit"]
-    )
+            raise TimeoutError(
+                f"Did not observe commit of {view}.{target_seqno} before timing out: "
+                f"last sample={commit_txid}"
+            )
 
     return network
 
@@ -2660,8 +2745,9 @@ def do_main_tests(network, args):
         test_cose_signature_schema(network, args)
         test_cose_receipt_schema(network, args)
 
-    # HTTP2 doesn't support forwarding
+    # HTTP/2 supports neither chunked transfer encoding nor forwarding.
     if not args.http2:
+        test_chunked_requests(network, args)
         test_forwarding_frontends(network, args)
         test_forwarding_frontends_without_app_prefix(network, args)
         if not os.getenv("TSAN_OPTIONS"):
@@ -2703,6 +2789,9 @@ def do_main_tests(network, args):
     is_cose_only_from_genesis = args.package.endswith("_cose_only")
     if is_cose_only_from_genesis and not args.http2:
         test_cose_set_member(network, args)
+
+    # Last, as it retires the primary
+    test_historical_receipts_across_views(network, args)
 
 
 def run_parsing_errors(args):

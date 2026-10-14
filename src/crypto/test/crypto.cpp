@@ -11,6 +11,7 @@
 #include "ccf/crypto/jwk.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/x509_time_fmt.h"
@@ -20,6 +21,8 @@
 #include "crypto/csr.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/ec_key_pair.h"
+#include "crypto/openssl/ec_public_key.h"
+#include "crypto/openssl/eddsa_public_key.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/openssl/symmetric_key.h"
 #include "crypto/openssl/verifier.h"
@@ -33,11 +36,14 @@
 #include <ctime>
 #include <doctest/doctest.h>
 #include <exception>
+#include <functional>
+#include <limits>
 #include <mutex>
 #include <optional>
 #include <span>
 #include <tav/cbor.hpp>
 #include <thread>
+#include <utility>
 
 using namespace std;
 using namespace ccf::crypto;
@@ -201,6 +207,13 @@ ccf::crypto::Pem generate_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
 }
 
+static Pem pem_from_der(
+  const std::string& label, const std::vector<uint8_t>& der)
+{
+  return Pem(fmt::format(
+    "-----BEGIN {0}-----\n{1}\n-----END {0}-----\n", label, b64_from_raw(der)));
+}
+
 TEST_CASE("Check verifier handles nested certs for both PEM and DER inputs")
 {
   auto cert_der = ccf::crypto::raw_from_b64(nested_cert);
@@ -274,6 +287,12 @@ TEST_CASE("Private PEM imports enforce key family")
 
   CHECK(make_ec_key_pair(ec_pem)->public_key_der() == ec->public_key_der());
   CHECK(make_rsa_key_pair(rsa_pem)->public_key_der() == rsa->public_key_der());
+  CHECK(
+    make_ec_key_pair(pem_from_der("EC PRIVATE KEY", ec->private_key_der()))
+      ->public_key_der() == ec->public_key_der());
+  CHECK(
+    make_rsa_key_pair(pem_from_der("RSA PRIVATE KEY", rsa->private_key_der()))
+      ->public_key_der() == rsa->public_key_der());
   for (const auto& pem : {rsa_pem, eddsa_pem})
   {
     CHECK_THROWS_WITH_AS(
@@ -290,6 +309,151 @@ TEST_CASE("Private PEM imports enforce key family")
   }
 }
 
+TEST_CASE("Malformed, wrong-family and unsupported key material is rejected")
+{
+  const auto rsa = make_rsa_key_pair();
+  const auto rsa_der = rsa->public_key_der();
+  const std::vector<uint8_t> garbage = {0xde, 0xad, 0xbe, 0xef};
+  const Pem garbage_pem(
+    "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n");
+
+  CHECK_THROWS_AS(
+    make_ec_public_key(std::span<const uint8_t>(garbage)), std::runtime_error);
+  CHECK_THROWS_AS(make_ec_public_key(rsa_der), std::logic_error);
+  CHECK_THROWS_AS(make_ec_public_key(rsa->public_key_pem()), std::logic_error);
+  CHECK_THROWS_AS(make_rsa_public_key(garbage), std::runtime_error);
+  CHECK_THROWS_AS(make_rsa_public_key(garbage_pem), std::runtime_error);
+  CHECK_THROWS_AS(make_eddsa_public_key(garbage_pem), std::runtime_error);
+  CHECK_THROWS_AS(make_verifier(garbage), std::invalid_argument);
+  CHECK(
+    make_rsa_public_key(rsa_der.data(), rsa_der.size())->public_key_der() ==
+    rsa_der);
+
+  CHECK(ECPublicKey_OpenSSL::get_openssl_group_id(CurveID::NONE) == NID_undef);
+  CHECK_THROWS_AS(
+    ECPublicKey_OpenSSL::get_openssl_group_id(CurveID::CURVE25519),
+    std::logic_error);
+  CHECK_THROWS_AS(
+    EdDSAPublicKey_OpenSSL::get_openssl_group_id(CurveID::NONE),
+    std::logic_error);
+}
+
+TEST_CASE("Reported OpenSSL failures drain the error queue")
+{
+  // OpenSSL queues errors per thread, so an entry left behind by a failure
+  // would be reported by a later, unrelated, failure on this thread.
+  ERR_clear_error();
+  using Failure = std::pair<std::string, std::function<void()>>;
+
+  SUBCASE("Check helpers report the first queued error")
+  {
+    CHECK_THROWS_WITH_AS(
+      OpenSSL::CHECK1(0),
+      "OpenSSL error (rc=0): unknown error",
+      std::runtime_error);
+
+    const std::vector<Failure> checks = {
+      {"OpenSSL error (rc=0): ", []() { OpenSSL::CHECK1(0); }},
+      {"OpenSSL error (rc=2): ", []() { OpenSSL::CHECKEQUAL(1, 2); }},
+      {"OpenSSL error (rc=-1): ", []() { OpenSSL::CHECKPOSITIVE(-1); }},
+      {"OpenSSL error (missing object): ",
+       []() { OpenSSL::CHECKNULL(nullptr); }}};
+    for (const auto& [prefix, fail] : checks)
+    {
+      ERR_raise(ERR_LIB_EVP, EVP_R_BAD_DECRYPT);
+      ERR_raise(ERR_LIB_PEM, PEM_R_NO_START_LINE);
+      const auto expected_message =
+        prefix + "error:03000064:digital envelope routines::bad decrypt";
+      CHECK_THROWS_WITH_AS(
+        fail(), expected_message.c_str(), std::runtime_error);
+      CHECK(ERR_peek_error() == 0);
+    }
+  }
+
+  SUBCASE("Failed key and certificate imports")
+  {
+    const std::vector<uint8_t> garbage = {0xde, 0xad, 0xbe, 0xef};
+    const Pem garbage_public_key(
+      "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n");
+    const Pem garbage_private_key(
+      "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n");
+    const Pem garbage_cert(
+      "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n");
+
+    const std::vector<Failure> imports = {
+      {"EC public key PEM",
+       [&]() { (void)make_ec_public_key(garbage_public_key); }},
+      {"EC public key DER", [&]() { (void)make_ec_public_key(garbage); }},
+      {"RSA public key PEM",
+       [&]() { (void)make_rsa_public_key(garbage_public_key); }},
+      {"RSA public key DER", [&]() { (void)make_rsa_public_key(garbage); }},
+      {"EdDSA public key PEM",
+       [&]() { (void)make_eddsa_public_key(garbage_public_key); }},
+      {"EC key pair PEM",
+       [&]() { (void)make_ec_key_pair(garbage_private_key); }},
+      {"RSA key pair PEM",
+       [&]() { (void)make_rsa_key_pair(garbage_private_key); }},
+      {"EdDSA key pair PEM",
+       [&]() { (void)make_eddsa_key_pair(garbage_private_key); }},
+      {"Certificate DER", [&]() { (void)make_verifier(garbage); }},
+      {"Certificate PEM", [&]() { (void)make_verifier(garbage_cert); }},
+      {"COSE public key PEM",
+       [&]() { (void)make_cose_verifier_from_key(garbage_public_key); }},
+      {"COSE certificate PEM",
+       [&]() { (void)make_cose_verifier_from_pem_cert(garbage_cert); }}};
+    for (const auto& [description, fail] : imports)
+    {
+      INFO(description);
+      CHECK_THROWS(fail());
+      CHECK(ERR_peek_error() == 0);
+    }
+  }
+
+  SUBCASE("Failed signature verification")
+  {
+    const auto ec = make_ec_key_pair();
+    auto ec_signature = ec->sign(contents);
+    corrupt(ec_signature);
+    CHECK_FALSE(ec->verify(contents, ec_signature));
+    CHECK(ERR_peek_error() == 0);
+
+    const auto rsa = make_rsa_key_pair();
+    auto rsa_signature = rsa->sign(contents, MDType::SHA256);
+    corrupt(rsa_signature);
+    CHECK_FALSE(rsa->verify(
+      contents.data(),
+      contents.size(),
+      rsa_signature.data(),
+      rsa_signature.size(),
+      MDType::SHA256));
+    CHECK(ERR_peek_error() == 0);
+
+    const auto eddsa = make_eddsa_key_pair();
+    auto eddsa_signature = eddsa->sign(contents);
+    corrupt(eddsa_signature);
+    CHECK_FALSE(eddsa->verify(contents, eddsa_signature));
+    CHECK(ERR_peek_error() == 0);
+  }
+
+  SUBCASE("PKCS#1 RSA public key import")
+  {
+    // PKCS#1 DER is first tried, and fails to parse, as SubjectPublicKeyInfo.
+    const auto spki = make_rsa_key_pair()->public_key_der();
+    const auto* cursor = spki.data();
+    const OpenSSL::Unique_PKEY decoded(
+      d2i_PUBKEY(nullptr, &cursor, static_cast<long>(spki.size())),
+      EVP_PKEY_free);
+    unsigned char* encoded = nullptr;
+    const auto encoded_size = i2d_PublicKey(decoded, &encoded);
+    REQUIRE(encoded_size > 0);
+    const std::vector<uint8_t> pkcs1(encoded, encoded + encoded_size);
+    OPENSSL_free(encoded);
+
+    CHECK(make_rsa_public_key(pkcs1)->public_key_der() == spki);
+    CHECK(ERR_peek_error() == 0);
+  }
+}
+
 TEST_CASE("Sign, verify, with ECKeyPair")
 {
   for (const auto curve : supported_curves)
@@ -299,6 +463,8 @@ TEST_CASE("Sign, verify, with ECKeyPair")
     vector<uint8_t> payload(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(payload);
     CHECK(kp->verify(payload, signature));
+    CHECK(kp->verify(
+      payload.data(), payload.size(), signature.data(), signature.size()));
 
     auto kp2 = make_ec_key_pair(kp->private_key_pem());
     CHECK(kp2->verify(payload, signature));
@@ -314,6 +480,21 @@ TEST_CASE("Sign, verify, with ECKeyPair")
   }
 }
 
+TEST_CASE("Sign, verify, with ECKeyPair (P-521, regression for #8428)")
+{
+  // Not part of supported_curves/labels above (shared by many other tests):
+  // some OpenSSL providers (eg - SymCrypt) report a smaller EVP_PKEY_size()
+  // for a P-521 key than the buffer their signing implementation actually
+  // needs, once the private key has been reconstructed from PEM. sign_hash()
+  // must size its buffer from the signing operation itself, not
+  // EVP_PKEY_size(), or signing fails with "output buffer too small".
+  auto kp = make_ec_key_pair(CurveID::SECP521R1);
+  auto kp2 = make_ec_key_pair(kp->private_key_pem());
+  vector<uint8_t> payload(contents_.begin(), contents_.end());
+  const vector<uint8_t> signature = kp2->sign(payload);
+  CHECK(kp->verify(payload, signature));
+}
+
 TEST_CASE("Sign, verify, with ECPublicKey")
 {
   for (const auto curve : supported_curves)
@@ -326,6 +507,38 @@ TEST_CASE("Sign, verify, with ECPublicKey")
     const auto public_key = kp->public_key_pem();
     auto pubk = make_ec_public_key(public_key);
     CHECK(pubk->verify(payload, signature));
+  }
+}
+
+TEST_CASE("Public key from a raw EC point")
+{
+  for (const auto curve : supported_curves)
+  {
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
+    auto kp = make_ec_key_pair(curve);
+    const auto nid = ECPublicKey_OpenSSL::get_openssl_group_id(curve);
+    const auto raw = kp->public_key_raw();
+
+    // key_from_raw_ec_point hands over its only reference to the key, so
+    // moving the result into a public key must not leak (checked when this
+    // test runs under LeakSanitizer) and the public key is the sole owner.
+    const auto pubk =
+      std::make_shared<ECPublicKey_OpenSSL>(key_from_raw_ec_point(raw, nid));
+    CHECK(pubk->public_key_der() == kp->public_key_der());
+    CHECK(pubk->get_curve_id() == curve);
+
+    vector<uint8_t> payload(contents_.begin(), contents_.end());
+    CHECK(pubk->verify(payload, kp->sign(payload)));
+
+    // The raw point is an uncompressed SEC1 encoding, 0x04 || x || y, so
+    // changing its last byte changes y and the point is no longer on the curve
+    const auto coordinate_size = pubk->coordinates().x.size();
+    REQUIRE(raw.size() == 1 + (2 * coordinate_size));
+    REQUIRE(raw.front() == 0x04);
+    auto off_curve = raw;
+    off_curve.back() ^= 0xff;
+    CHECK_THROWS_AS(
+      std::ignore = key_from_raw_ec_point(off_curve, nid), std::runtime_error);
   }
 }
 
@@ -636,6 +849,19 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
     auto unwrapped = rsa_kp->rsa_oaep_unwrap(wrapped, label);
     REQUIRE(input == unwrapped);
   }
+
+  INFO("Key pair can wrap, and rejects empty labels");
+  {
+    auto rsa_kp = make_rsa_key_pair();
+    REQUIRE(rsa_kp->rsa_oaep_unwrap(rsa_kp->rsa_oaep_wrap(input)) == input);
+    REQUIRE(
+      rsa_kp->rsa_oaep_unwrap(
+        rsa_kp->rsa_oaep_wrap(input.data(), input.size())) == input);
+    const std::vector<uint8_t> empty;
+    REQUIRE_THROWS_AS(rsa_kp->rsa_oaep_wrap(input, empty), std::logic_error);
+    REQUIRE_THROWS_AS(
+      (void)rsa_kp->rsa_oaep_unwrap(input, empty), std::logic_error);
+  }
 }
 
 TEST_CASE("Extract public key from cert")
@@ -665,6 +891,12 @@ void create_csr_and_extract_pubk()
 TEST_CASE("Extract public key from csr")
 {
   create_csr_and_extract_pubk<ECKeyPair_OpenSSL>();
+
+  const auto kp = make_ec_key_pair();
+  const auto csr_der = kp->create_csr_der("CN=name", {});
+  REQUIRE(
+    public_key_pem_from_csr(pem_from_der("CERTIFICATE REQUEST", csr_der)) ==
+    kp->public_key_pem());
 }
 
 template <typename T, typename S>
@@ -1028,6 +1260,87 @@ TEST_CASE("AES-GCM empty inputs")
   REQUIRE(decrypted.empty());
 }
 
+TEST_CASE("AES-GCM caller-owned ciphertext")
+{
+  auto key = make_key_aes_gcm(get_raw_key());
+  auto context = key->make_context();
+  const std::vector<uint8_t> iv(12, 0);
+  const std::vector<uint8_t> plain(31, 0x24);
+  const std::vector<uint8_t> aad(7, 0x42);
+  std::vector<uint8_t> expected;
+  uint8_t expected_tag[GCM_SIZE_TAG] = {};
+  key->encrypt(iv, plain, aad, expected, expected_tag);
+
+  std::array<uint8_t, 33> storage = {};
+  storage.front() = 0xAA;
+  storage.back() = 0xBB;
+  auto output = std::span<uint8_t>(storage).subspan(1, plain.size());
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  key->encrypt(iv, plain, aad, output, tag);
+  REQUIRE(std::equal(output.begin(), output.end(), expected.begin()));
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+  REQUIRE(storage.front() == 0xAA);
+  REQUIRE(storage.back() == 0xBB);
+
+  context->encrypt(iv, plain, aad, output, tag);
+  REQUIRE(std::equal(output.begin(), output.end(), expected.begin()));
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+
+  std::vector<uint8_t> preallocated(plain.size(), 0);
+  auto* original_data = preallocated.data();
+  key->encrypt(iv, plain, aad, preallocated, tag);
+  REQUIRE(preallocated.data() == original_data);
+  REQUIRE(preallocated == expected);
+
+  auto in_place_plain = plain;
+  key->encrypt(
+    iv,
+    std::span<const uint8_t>(in_place_plain),
+    aad,
+    std::span<uint8_t>(in_place_plain),
+    tag);
+  REQUIRE(in_place_plain == expected);
+
+  auto vector_in_place = plain;
+  key->encrypt(
+    iv, std::span<const uint8_t>(vector_in_place), aad, vector_in_place, tag);
+  REQUIRE(vector_in_place == expected);
+
+  REQUIRE_THROWS_AS(
+    key->encrypt(iv, plain, aad, output.first(output.size() - 1), tag),
+    std::logic_error);
+  REQUIRE(storage.front() == 0xAA);
+  REQUIRE(storage.back() == 0xBB);
+
+  std::vector<uint8_t> decrypted;
+  REQUIRE(key->decrypt(iv, tag, output, aad, decrypted));
+  REQUIRE(decrypted == plain);
+  auto bad_aad = aad;
+  bad_aad.front() ^= 1;
+  REQUIRE_FALSE(key->decrypt(iv, tag, output, bad_aad, decrypted));
+
+  std::span<uint8_t> empty_output;
+  key->encrypt(iv, {}, aad, empty_output, tag);
+  REQUIRE(key->decrypt(iv, tag, empty_output, aad, decrypted));
+  REQUIRE(decrypted.empty());
+}
+
+TEST_CASE("Const GCM header serialisation")
+{
+  StandardGcmHeader header;
+  std::iota(std::begin(header.tag), std::end(header.tag), 0);
+  std::iota(header.iv.begin(), header.iv.end(), GCM_SIZE_TAG);
+  const auto& const_header = header;
+
+  std::vector<uint8_t> expected(const_header.serialised_size());
+  std::iota(expected.begin(), expected.end(), 0);
+  REQUIRE(const_header.serialise() == expected);
+
+  std::vector<uint8_t> output(expected.size());
+  const_header.serialise(output);
+  REQUIRE(output == expected);
+}
+
 TEST_CASE("Concurrent AES-GCM convenience calls")
 {
   constexpr size_t thread_count = 24;
@@ -1297,6 +1610,25 @@ TEST_CASE("X509 chain common validity period")
                   .has_value());
 }
 
+TEST_CASE("Certificate validity period")
+{
+  using namespace std::literals;
+  const auto kp = make_ec_key_pair();
+  REQUIRE_THROWS_AS(
+    (void)kp->self_sign("CN=name", "20240102000000Z", "20240101000000Z"),
+    std::logic_error);
+
+  const auto verifier = make_verifier(
+    kp->self_sign("CN=name", "20240101000000Z", "20240102000000Z"));
+  const auto midpoint = ccf::ds::time_point_from_string("20240101120000Z");
+  // Both ends of the validity period are included, so it lasts 86401s
+  CHECK(verifier->remaining_seconds(midpoint) == 43201);
+  CHECK(
+    verifier->remaining_percentage(midpoint) ==
+    doctest::Approx(43201.0 / 86401));
+  CHECK(verifier->remaining_seconds(midpoint + 24h) == 0);
+}
+
 TEST_CASE("hmac")
 {
   std::vector<uint8_t> key(32, 0);
@@ -1520,135 +1852,20 @@ TEST_CASE("Sign and verify with RSA key")
       RSAPadding::PKCS_PSS,
       verify_salt_legth));
   }
-}
 
-TEST_CASE("COSE algorithm validation")
-{
-  INFO("EC key curves must match COSE algorithm");
   {
-    // P-256 (secp256r1) requires COSE alg ES256(-7) or ESP256(-9)
-    auto p256_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP256R1);
-    auto p256_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
-      ccf::crypto::make_ec_public_key(p256_kp->public_key_pem()));
+    // The key pair can verify its own signatures
+    const auto sig = kp->sign(payload, mdtype);
+    REQUIRE(kp->verify(
+      payload.data(), payload.size(), sig.data(), sig.size(), mdtype));
+    const auto hash = ccf::crypto::sha256(payload);
+    REQUIRE(kp->verify_hash(
+      hash.data(), hash.size(), sig.data(), sig.size(), mdtype));
+    REQUIRE(kp->public_key_jwk() == pub->public_key_jwk());
 
-    // Correct algorithms should work
-    REQUIRE_NOTHROW(p256_pubkey->check_is_cose_compatible(-7));
-    REQUIRE_NOTHROW(p256_pubkey->check_is_cose_compatible(-9));
-
-    // Wrong algorithms should throw
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(-35),
-      "secp256r1 key cannot be used with COSE algorithm -35");
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(-36),
-      "secp256r1 key cannot be used with COSE algorithm -36");
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(-51),
-      "secp256r1 key cannot be used with COSE algorithm -51");
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(-52),
-      "secp256r1 key cannot be used with COSE algorithm -52");
-
-    // Unknown COSE algorithm for EC keys should throw
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(-999),
-      "secp256r1 key cannot be used with COSE algorithm -999");
-    REQUIRE_THROWS_WITH(
-      p256_pubkey->check_is_cose_compatible(42),
-      "secp256r1 key cannot be used with COSE algorithm 42");
-
-    // P-384 (secp384r1) requires COSE alg ES384(-35) or ESP384(-51)
-    auto p384_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP384R1);
-    auto p384_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
-      ccf::crypto::make_ec_public_key(p384_kp->public_key_pem()));
-
-    // Correct algorithms should work
-    REQUIRE_NOTHROW(p384_pubkey->check_is_cose_compatible(-35));
-    REQUIRE_NOTHROW(p384_pubkey->check_is_cose_compatible(-51));
-
-    // Wrong algorithms should throw
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(-7),
-      "secp384r1 key cannot be used with COSE algorithm -7");
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(-36),
-      "secp384r1 key cannot be used with COSE algorithm -36");
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(-9),
-      "secp384r1 key cannot be used with COSE algorithm -9");
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(-52),
-      "secp384r1 key cannot be used with COSE algorithm -52");
-
-    // Unknown COSE algorithm for EC keys should throw
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(0),
-      "secp384r1 key cannot be used with COSE algorithm 0");
-    REQUIRE_THROWS_WITH(
-      p384_pubkey->check_is_cose_compatible(-100),
-      "secp384r1 key cannot be used with COSE algorithm -100");
-
-    // P-521 (secp521r1) requires COSE alg ES512(-36) or ESP512(-52)
-    auto p521_kp = ccf::crypto::make_ec_key_pair(CurveID::SECP521R1);
-    auto p521_pubkey = std::dynamic_pointer_cast<ECPublicKey_OpenSSL>(
-      ccf::crypto::make_ec_public_key(p521_kp->public_key_pem()));
-
-    // Correct algorithms should work
-    REQUIRE_NOTHROW(p521_pubkey->check_is_cose_compatible(-36));
-    REQUIRE_NOTHROW(p521_pubkey->check_is_cose_compatible(-52));
-
-    // Wrong algorithms should throw
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(-7),
-      "secp521r1 key cannot be used with COSE algorithm -7");
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(-35),
-      "secp521r1 key cannot be used with COSE algorithm -35");
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(-9),
-      "secp521r1 key cannot be used with COSE algorithm -9");
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(-51),
-      "secp521r1 key cannot be used with COSE algorithm -51");
-
-    // Unknown COSE algorithm for EC keys should throw
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(0),
-      "secp521r1 key cannot be used with COSE algorithm 0");
-    REQUIRE_THROWS_WITH(
-      p521_pubkey->check_is_cose_compatible(-100),
-      "secp521r1 key cannot be used with COSE algorithm -100");
-  }
-
-  INFO("RSA keys accept PS256, PS384, and PS512");
-  {
-    auto rsa_kp = ccf::crypto::make_rsa_key_pair();
-    auto rsa_pubkey = std::dynamic_pointer_cast<RSAPublicKey_OpenSSL>(
-      ccf::crypto::make_rsa_public_key(rsa_kp->public_key_pem()));
-
-    // All PS algorithms should work
-    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-37)); // PS256
-    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-38)); // PS384
-    REQUIRE_NOTHROW(rsa_pubkey->check_is_cose_compatible(-39)); // PS512
-
-    // Non-PS algorithms should throw
-    REQUIRE_THROWS_WITH(
-      rsa_pubkey->check_is_cose_compatible(-7),
-      "Incompatible cose algorithm -7 for RSA");
-    REQUIRE_THROWS_WITH(
-      rsa_pubkey->check_is_cose_compatible(-35),
-      "Incompatible cose algorithm -35 for RSA");
-
-    // Unknown COSE algorithm for RSA keys should throw
-    REQUIRE_THROWS_WITH(
-      rsa_pubkey->check_is_cose_compatible(1),
-      "Incompatible cose algorithm 1 for RSA");
-    REQUIRE_THROWS_WITH(
-      rsa_pubkey->check_is_cose_compatible(-256),
-      "Incompatible cose algorithm -256 for RSA");
-    REQUIRE_THROWS_WITH(
-      rsa_pubkey->check_is_cose_compatible(999),
-      "Incompatible cose algorithm 999 for RSA");
+    constexpr auto bad_salt_length = std::numeric_limits<size_t>::max();
+    REQUIRE_THROWS_AS(
+      (void)kp->sign(payload, mdtype, bad_salt_length), std::invalid_argument);
   }
 }
 
@@ -1691,6 +1908,28 @@ TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
   );
 
   REQUIRE(!rc);
+
+  // Expired: the same chain is rejected once validity times are checked
+  REQUIRE_FALSE(
+    verifier->verify_certificate({&root_cert}, {&intermediate_cert}));
+
+  // Unparseable trusted or chain certificates, whose parsing errors must not
+  // be left on the OpenSSL error queue
+  const Pem not_a_cert(
+    "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n");
+  REQUIRE_FALSE(verifier->verify_certificate({&not_a_cert}, {}, true));
+  CHECK(ERR_peek_error() == 0);
+  REQUIRE_FALSE(
+    verifier->verify_certificate({&root_cert}, {&not_a_cert}, true));
+  CHECK(ERR_peek_error() == 0);
+
+  // Bad leaf signature, which also queues OpenSSL errors
+  auto bad_signature = ccf::crypto::cert_pem_to_der(leaf_cert);
+  bad_signature.back() ^= 1;
+  auto bad_verifier = ccf::crypto::make_verifier(bad_signature);
+  REQUIRE_FALSE(
+    bad_verifier->verify_certificate({&root_cert}, {&intermediate_cert}, true));
+  CHECK(ERR_peek_error() == 0);
 }
 
 TEST_CASE("Do not trust non-ca certs")

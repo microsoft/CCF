@@ -4,7 +4,7 @@
 
 #include "ccf/endpoints/authentication/authentication_types.h"
 #include "ccf/endpoints/authentication/cose_auth.h"
-#include "node/rpc/gov_logging.h"
+#include "ds/gov_logging.h"
 
 namespace ccf::gov::endpoints::detail
 {

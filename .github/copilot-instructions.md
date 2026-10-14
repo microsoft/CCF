@@ -7,7 +7,7 @@ CCF (Confidential Consortium Framework) is a replicated state machine for confid
 - Answer questions and planning requests without editing files unless requested.
 - Inspect the worktree before editing. Preserve existing user changes; ask before overwriting conflicting edits.
 - Limit edits to the requested task and necessary tests/documentation. Do not fix unrelated failures, reformat unrelated files, or expand into adjacent refactors.
-- Use only ASCII characters in code you add or modify for commit, including comments, docstrings, and string literals, and in agent instruction files. Lean source files (`*.lean`) are exempt and may use Unicode. Elsewhere, use ASCII escape sequences when Unicode test data or runtime output is needed; preserve its meaning. Existing grandfathered Unicode lines may remain unchanged, but must not be expanded.
+- Use only ASCII characters in first-party code you add or modify for commit, including comments, docstrings, and string literals, and in first-party agent instruction files. Vendored third-party dependencies under `3rdparty/` are exempt; preserve their upstream contents rather than rewriting them to satisfy this policy. Lean source files (`*.lean`) are also exempt and may use Unicode. Elsewhere, use ASCII escape sequences when Unicode test data or runtime output is needed; preserve its meaning. Existing grandfathered Unicode lines may remain unchanged, but must not be expanded.
 - When a PR resolves an issue, include `Closes #123` with the actual issue number in its description. Use a non-closing reference for partial work.
 
 ## Repository map
@@ -25,6 +25,8 @@ CCF (Confidential Consortium Framework) is a replicated state machine for confid
 - For C/C++ changes and security-sensitive reviews in any language, read [security/safety review guidance and C/C++ conventions](/.github/instructions/reviewing.instructions.md).
 - Before selecting, running, or writing tests, load the [testing skill](/.github/skills/testing/SKILL.md).
 - Before formatting or linting, load the [formatting-and-linting skill](/.github/skills/formatting-and-linting/SKILL.md).
+- In Markdown and reStructuredText prose, do not manually wrap prose to a fixed column width or insert line breaks within a sentence.
+  When editing an existing paragraph, put each sentence in that paragraph on its own line.
 - For user-facing API or behaviour changes, update existing documentation and follow the [changelog instructions](/.github/instructions/changelog.instructions.md). Link to existing documentation rather than duplicating it.
 
 ## Validation
@@ -72,6 +74,6 @@ sphinx-build --fail-on-warning -b html doc doc/html
 
 - Security and safety are the highest review priority: protect confidentiality, authorization, integrity, consensus safety, and availability before considering performance or convenience. Apply the security and safety review approaches in the scoped guidance where relevant.
 - Report actionable issues introduced by the diff, with a code location, triggering condition, and consequence. Separate demonstrated security impact from correctness risks and unverified hypotheses; do not call a finding exploitable without a supported path.
-- Leave mechanical formatting to existing checks; do not repeat their findings as inline review comments. Run `scripts/ascii-checks.sh` for its covered files. Apply the character policy above when reviewing changed code and agent instructions outside its coverage; exclusions other than Lean do not permit new non-ASCII code. Uncovered violations are an explicit exception to the no-formatting-comments rule.
+- Leave mechanical formatting to existing checks; do not repeat their findings as inline review comments. Run `scripts/ascii-checks.sh` for its covered files. Apply the character policy above when reviewing changed code and agent instructions outside its coverage. Lean source and vendored third-party dependencies are exempt; other check exclusions do not permit new non-ASCII code. Uncovered violations are an explicit exception to the no-formatting-comments rule.
 - Bash scripts with pipelines must enable `set -o pipefail`. For other shells, check support before recommending Bash-specific options.
 - Include a "Custom instructions used" section in PR review summaries listing the repository instruction files actually loaded and applied. Cite the scoped error-handling instructions when reporting a violation of that policy.

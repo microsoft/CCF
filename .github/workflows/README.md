@@ -63,6 +63,8 @@ File: `ci-al4.yml`
 
 Builds configurable CCF release install trees on Azure Linux 3 and Azure Linux 4 in parallel, then runs the LTS live-upgrade test directly on a VMSS runner. By default, it upgrades from the previous stable CCF release to the latest stable release; both versions can be overridden using the manual inputs in [`cross-platform-lts.yml`](cross-platform-lts.yml). Separate runtime images install only the required shared-library packages and copy in the matching install tree. Each CCF node runs in the container matching the distribution on which its binary was built, while the existing Python test infrastructure orchestrates the rolling upgrade over host networking. Runs weekly and manually, but not on pull requests because both full builds and the compatibility test are expensive.
 
+Because the upgrade job runs directly on the runner rather than in a container, it first restores ownership of the workspace with `sudo chown`. VMSS runners are reused across jobs, and `--user root` container jobs, including the Azure Linux 3 build in the same run, can leave root-owned files in the shared workspace that would otherwise make `actions/checkout` fail with permission errors.
+
 Shared workflow environment values define the Python version, base images, runner pool labels, install archive filename, and test workspace.
 
 File: `cross-platform-lts.yml`
@@ -70,7 +72,11 @@ File: `cross-platform-lts.yml`
 
 # Coverage
 
-Builds CCF with coverage enabled, runs unit and end to end tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
+Builds CCF with coverage enabled, runs unit, end to end and partition tests, and uploads HTML coverage reports. Triggered on every commit on `main`, twice daily on week days, and manually.
+
+A parallel job on `gha-aci-genoa` builds with coverage and runs the same SEV-SNP tests as the ACI SNP Genoa job in `ci.yml`, excluding benchmarks, then uploads their merged coverage profile. Before generating reports, the Virtual job waits for that job and merges its profile into the overall statistics. This does not lengthen the workflow, because the SNP job normally finishes well before the Virtual tests. Profiles only match binaries built with the same compiler and compile options, so the Virtual job also checks that both jobs used the same compiler version. If the SNP job does not succeed, or its compiler differs, the Virtual job fails rather than report statistics without SNP coverage, which also keeps that run out of the coverage trend.
+
+The Virtual job summary plots line and branch coverage together on a shared percentage axis with endpoint labels, for the previous successful runs on the same branch, recovered from their job logs, followed by the current run. The GitHub API sometimes returns an outdated list of runs, so a list is only used if it includes the current run, and is otherwise requested again. If no up-to-date list is returned, the trend only includes the current run, and the job reports a warning.
 
 File: `coverage.yml`
 3rd party dependencies: None
@@ -123,40 +129,47 @@ File: `tla-shallow.yml`
 
 # Lean
 
-Runs all Lean verification for the repository. Future Lean checks should be
-added as jobs to this workflow.
+Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
 
-The disaster recovery job builds the canonical model with `lake build --wfail`,
-audits its transitive axiom dependencies with `lake lint`, and runs its
-executable canonical behavior checks on Ubuntu 26.04 on relevant pull requests.
-The build and audit include both the human-reviewed model and system properties
-and the proof implementation files marked as generated for review purposes.
-The standard `mk_all --check` command ensures that the audit root imports every
-library module, so newly added proofs cannot silently escape the checks.
+The disaster recovery job builds the canonical model with `lake build --wfail`, audits its transitive axiom dependencies with `lake lint`, and runs its executable canonical behavior checks on Ubuntu 26.04 on relevant pull requests.
+The build and audit include both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
+The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
+
+The job also checks the records of the recovery trace fixtures in `lean/disaster-recovery/replayer/fixtures` against `trace.schema.json`, with `check-schema.py`.
+It then builds `disaster-recovery-replay`, from its own Lake package in `lean/disaster-recovery/replayer`, which has no dependencies, and runs its `check-fixtures.sh`.
+That replays the fixtures' quorum, failover and multiple-timeout traces, which must pass, and invalid and valid traces stored as diffs against them, which must fail and pass.
+It then runs the trace viewer's `viewer/build.py`, which fails if a dump the viewer shows is missing or disagrees with the replayer.
+
+The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, also builds the replayer the same way and replays the protocol's e2e scenarios against the model.
+
+After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
+The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
+See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
 3rd party dependencies: None
 
 # Vendored Dependency Verification
 
-Verifies that files under `3rdparty/` match the Git commits or release artifacts
-recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main`
-that change vendored sources, the manifest, the verifier, or this workflow. It
-can also be run manually.
+Verifies that files under `3rdparty/` match the Git commits or release artifacts recorded in `cgmanifest.json`. Triggered on pull requests and pushes to `main` that change vendored sources, the manifest, the verifier, or this workflow. It can also be run manually.
 
 File: `vendor-verification.yml`
 3rd party dependencies: None
 
 # Release
 
-Produces CCF reference release artifacts for all languages and platforms. Triggered on tags matching `ccf-[67].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+Produces CCF reference release artifacts, excluding the Python package. Triggered on tags matching `ccf-[567].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+
+Python packages are built and published separately by the [OneBranch pipeline](../../.pipelines/README.md), without attestations.
+
+Release-build tests, installed-package tests, and the recovery benchmark use the latest released `ccf` Python package from PyPI. The release job sets `CCF_USE_RELEASED_PYTHON_PACKAGE=1`; normal development and CI tests continue to use the local package.
 
 File: `release.yml`
 3rd party dependencies: None
 
 # Release Attestation
 
-Generate signed build provenance attestations for release artifacts. Triggered on release publishing.
+Generate signed build provenance attestations for non-Python release artifacts. Triggered on release publishing. Python wheels and existing attestation bundles are excluded.
 
 File: `release-attestation.yml`
 3rd party dependencies: None
@@ -167,15 +180,6 @@ Publishes ccf-app TS package from a GitHub release to NPM. Triggered on release 
 
 File: `npm.yml`
 3rd party dependencies: None
-
-# PyPI
-
-Publishes ccf Python package from a GitHub release to PyPI. Triggered on release publishing.
-
-File: `pypi.yml`
-3rd party dependencies:
-
-- `pypa/gh-action-pypi-publish@v1.14.0`
 
 # Documentation
 

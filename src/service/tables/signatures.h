@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/service/map.h"
+#include "kv/internal_table_names.h"
 #include "node_signature.h"
 #include "service/tables/identity_types.h"
 
@@ -83,13 +84,5 @@ namespace ccf
       }
     }
     return signatures;
-  }
-
-  namespace Tables
-  {
-    static constexpr auto SIGNATURES = "public:ccf.internal.signatures";
-    static constexpr auto COSE_SIGNATURES =
-      "public:ccf.internal.cose_signatures";
-    static constexpr auto SERIALISED_MERKLE_TREE = "public:ccf.internal.tree";
   }
 }

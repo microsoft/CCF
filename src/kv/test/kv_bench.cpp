@@ -84,6 +84,38 @@ static void serialise(picobench::state& s)
 }
 
 template <ccf::kv::SecurityDomain SD>
+static void serialise_small(picobench::state& s)
+{
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
+  ccf::kv::Store kv_store;
+  auto encryptor =
+    std::make_shared<ccf::NodeEncryptor>(create_ledger_secrets());
+  kv_store.set_encryptor(encryptor);
+  const auto map_name = build_map_name("small", SD);
+
+  std::vector<KeyType> keys;
+  std::vector<ValueType> values;
+  for (int i = 0; i < s.iterations(); ++i)
+  {
+    keys.push_back(gen_key(i));
+    values.push_back(gen_value(i));
+  }
+
+  s.start_timer();
+  for (auto _ : s)
+  {
+    auto tx = kv_store.create_tx();
+    tx.rw<MapType>(map_name)->put(keys[_], values[_]);
+    if (tx.commit() != ccf::kv::CommitResult::SUCCESS)
+    {
+      throw std::logic_error("Transaction commit failed");
+    }
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
+template <ccf::kv::SecurityDomain SD>
 static void deserialise(picobench::state& s)
 {
   ccf::logger::config::level() = ccf::LoggerLevel::INFO;
@@ -122,6 +154,53 @@ static void deserialise(picobench::state& s)
     throw std::logic_error(
       "Transaction deserialisation failed: " + std::to_string(rc));
   s.stop_timer();
+}
+
+// Mirrors an indexing strategy: an entry is deserialised into a fresh store,
+// and its changes are then read once through a TxDiff
+static void tx_diff(picobench::state& s)
+{
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
+
+  ccf::kv::Store kv_store;
+  ccf::kv::Store kv_store2;
+
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  kv_store.set_consensus(consensus);
+
+  auto secrets = create_ledger_secrets();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  kv_store.set_encryptor(encryptor);
+  kv_store2.set_encryptor(encryptor);
+
+  const auto map0 = build_map_name("map0", ccf::kv::SecurityDomain::PUBLIC);
+
+  auto tx = kv_store.create_tx();
+  auto tx0 = tx.rw<MapType>(map0);
+  for (int i = 0; i < s.iterations(); i++)
+  {
+    tx0->put(gen_key(i), gen_value(i));
+  }
+  tx.commit();
+
+  auto rc =
+    kv_store2.deserialize(consensus->get_latest_data().value())->apply(true);
+  if (rc != ccf::kv::ApplyResult::PASS)
+    throw std::logic_error(
+      "Transaction deserialisation failed: " + std::to_string(rc));
+
+  s.start_timer();
+  auto diff_tx = kv_store2.create_tx_diff();
+  size_t count = 0;
+  diff_tx.diff<MapType>(map0)->foreach(
+    [&count](const KeyType&, const std::optional<ValueType>&) {
+      ++count;
+      return true;
+    });
+  s.stop_timer();
+
+  if (count != static_cast<size_t>(s.iterations()))
+    throw std::logic_error("Diff visited unexpected number of entries");
 }
 
 template <size_t S>
@@ -259,12 +338,24 @@ PICOBENCH(serialise<SD::PUBLIC>)
   .baseline();
 PICOBENCH(serialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
 
+PICOBENCH_SUITE("serialise small transactions");
+PICOBENCH(serialise_small<SD::PUBLIC>)
+  .iterations({100, 1000})
+  .samples(sample_size)
+  .baseline();
+PICOBENCH(serialise_small<SD::PRIVATE>)
+  .iterations({100, 1000})
+  .samples(sample_size);
+
 PICOBENCH_SUITE("deserialise");
 PICOBENCH(deserialise<SD::PUBLIC>)
   .iterations(tx_count)
   .samples(sample_size)
   .baseline();
 PICOBENCH(deserialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
+
+PICOBENCH_SUITE("tx_diff");
+PICOBENCH(tx_diff).iterations(tx_count).samples(sample_size);
 
 const std::vector<int> map_count = {20, 100};
 

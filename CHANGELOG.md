@@ -2,8 +2,94 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
-and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+
+## [7.0.19]
+
+[7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
+
+### Added
+
+- Experimental support for exporting Raft trace events to a Fluentd collector, configured with [`observability.fluentd`](doc/host_config_schema/host_config.json).
+  The configuration and event format may change in future releases (#8386).
+- `ccf::crypto::COSEKey` now also parses, validates and encodes OKP COSE_Keys on Ed25519, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_*()` and `ccf::crypto::COSEKey::from_der_cert()` now also accept Ed25519 public keys and certificates, and COSE verifiers verify `EdDSA` (-8) and `Ed25519` (-19) signatures with such keys (#8548).
+
+### Changed
+
+- Updated snmalloc from 0.7.3 to [0.7.6](https://github.com/microsoft/snmalloc/releases/tag/0.7.6), including allocator and cross-thread deallocation improvements. CCF retains pthread-atfork protection, which upstream now makes opt-in (#8557).
+- Node configuration validation now accepts exact integer-valued JSON numbers such as `1.0` for integer settings, while still rejecting fractional values and enforcing limits. Schema error paths now quote object property names (#8558).
+- Python packages are now built and published separately through the [OneBranch pipeline](.pipelines/README.md), rather than attached to GitHub releases and automatically published by GitHub Actions. Release-build tests use the latest released Python package from PyPI, while development and normal CI tests continue using the local package. Python wheel attestations are disabled (#8546).
+- CCF no longer advances its subsystems in a single atomic tick step. Each subsystem schedules its own periodic work, which can run independently of other subsystems and incoming node messages (#8535).
+- `ccf::endpoints::EndpointRegistry::tick()` overrides now run on task-system worker threads rather than the enclave main thread. Ticks for the same registry do not overlap, but may run concurrently with endpoint execution and ticks for other registries (#8445).
+- Ledger writes and reads of uncommitted ledger entries no longer travel over the host-enclave ringbuffer. The number of ledger entries the host has accepted but not yet written to disk was previously bounded by the ringbuffer filling up and stalling the enclave. It is now bounded by a backpressure threshold instead: a node returns `503` `TooManyPendingTransactions` for application and governance requests while the bytes of pending ledger appends are at or above `memory.circuit_size` (16MB by default), and drops incoming `AppendEntries` replication messages, including heartbeats, until the backlog clears. `/node` endpoints are exempt. Threshold crossings are logged. See the Backpressure section of the Resource Usage operations documentation (#8405).
+- The `503` `TooManyPendingTransactions` check for `consensus.max_uncommitted_tx_count` now applies on backups as well as the primary, so a backup whose uncommitted transaction count reaches the limit rejects requests, including reads, rather than serving or forwarding them. Setting `consensus.max_uncommitted_tx_count` to `0` disables only this count-based check, not the ledger write backpressure above (#8405).
+
+### Deprecated
+
+- The helper functions in `ccf/endpoints/authentication/js.h` are deprecated and will be removed in 8.0. Their signatures are unchanged. Applications using these helpers for JavaScript endpoint dispatch can use the extensible registries in `ccf/js/registry.h` (#8520).
+
+### Removed
+
+- Removed the `CCF_RAFT_TRACING` CMake option.
+  Raft tracing is always built in (#8386).
+
+### Fixed
+
+- Node configuration validation now rejects negative values for unsigned integer settings and HTTP header counts above `4294967295`, instead of allowing them to wrap during parsing. See the [Configuration](doc/operations/configuration.rst) documentation (#8566).
+- Fixed invalid receipts from the shared historical query cache, affecting `/node/receipt`, `/node/receipt/cose`, application receipt endpoints, and C++/JavaScript historical query APIs. A cross-view range query could replace a cached receipt using the signing view instead of the original transaction view, causing subsequent point queries to return receipts that failed signature verification. The historical cache now takes every transaction's ID from the ledger entry itself, rejects signature transactions which declare a different ID, and keeps the first receipt it produces for a transaction rather than replacing it when a later signature is fetched (#8549).
+- Forwarding timeouts now return HTTP `504` with an `application/json` CCF error envelope and the `ForwardingTimeout` error code, conforming to the governance OpenAPI error schema. The message still identifies the target node and timeout duration (#8518).
+- Paused RPC reads now resume when another interface releases the inbound budget, even if older libuv versions coalesce the notification. Previously, reads could remain paused until an unrelated event triggered a recheck (#8498).
+- Recovered services no longer reuse stale incomplete ledger chunks behind the committed frontier after service opening, which could misplace later transactions and leave backup application frontends closed. See the [Disaster Recovery](doc/operations/recovery.rst) operations documentation (#8522).
+- Concurrent first requests to JavaScript endpoints now safely initialise the named authentication policy registry. Previously, requests could fail with `Unknown auth policy` while another worker was still populating the registry (#8520).
+- Snapshot and ledger chunk discovery now reject malformed `since` selectors with HTTP `400` `InvalidQueryParameterValue`. Previously, snapshot discovery silently ignored them and ledger chunk discovery misreported them as missing parameters. See the [Ledger and Snapshots](doc/operations/ledger_snapshot.rst) operations documentation (#8532).
+- When the host reports that a ledger entry is missing or too large, the historical query cache now drops only the requests which were waiting for that entry. Previously, unrelated requests could also be dropped, including every in-flight request when the entry was being fetched to recover an older ledger secret (#8527).
+- Historical query cache ticks no longer scan every retained request and store, so retaining many historical queries is much cheaper. Unrepresentable cache times or expiry deadlines now throw instead of overflowing (#8525).
+- Historical ledger replies no longer scan unrelated retained requests to select decryption mode or populate receipts. Reply processing still scales with actual consumers and their requested ranges, and the non-owning routing index adds per-dependency metadata (#8543).
+
+### Dependencies
+
+- Updated `llhttp` from `9.3.0` to `9.4.3` (#8552).
+
+## [7.0.18]
+
+[7.0.18]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.18
+
+### Added
+
+- TAV's CBOR C++ API (`<tav/cbor.hpp>`) is now installed with CCF's headers (#8467).
+- `ccf::crypto::OpenSSL::first_error()`, in the public header `ccf/crypto/openssl/openssl_wrappers.h`, reads the oldest error on the calling thread's OpenSSL error queue, usually the root cause, then removes every entry from the queue and returns the error string (#8474).
+- `ccf::crypto::COSEKey` (`ccf/crypto/cose_key.h`) parses and validates EC2 and RSA COSE_Keys, encodes them with a required `alg`, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_from_key()` accepts one (#8480).
+
+### Changed
+
+- `ccf::NodeConfigurationState::node_config` now exposes the operator configuration as `ccf::CCFConfig`, declared in `ccf/node/configuration.h`. It is the type parsed from the operator JSON configuration, so command-specific settings are under `command.start`, `command.join`, and `command.recover`, and file paths are exposed as configured. File-backed inputs are read once by the node when it is created, rather than being resolved by the host into a second startup configuration type. A missing or malformed input file now fails node creation with an error naming that file, rather than exiting the host process. The operator JSON format and the node-to-node genesis format are unchanged. `StartType` is now declared in `ccf/node/start_type.h` in the `ccf` namespace (#8309, #7565).
+- Resolved node data is now available to applications as `ccf::NodeConfigurationState::node_data`, alongside `node_config` (#8309).
+- A node joining a service no longer reads `service_data_json_file`, which is only used when starting or recovering a service. Previously a missing file failed a joining node at startup; it now starts and logs that the setting is ignored (#8309).
+- `ccf::crypto::make_cose_verifier_from_pem_cert()` and `ccf::crypto::make_cose_verifier_any_cert()` now require PEM certificates to start with `-----BEGIN CERTIFICATE-----`; leading text is no longer skipped (#8459).
+- `ccf::make_net_address()` and `ccf::split_net_address()` are now declared in the new public header `ccf/ds/net_address.h`. `ccf/service/node_info_network.h` still includes it, so existing includers are unaffected (#8463).
+- `ccf::COSESignaturesConfig` and `ccf::ReconfigurationType` are unchanged, but are now declared in the new public headers `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively (#8463).
+- On recovery, the minimum SNP TCB version stored for the recovering node's CPUID in `public:ccf.gov.nodes.snp.tcb_versions` is now kept if it admits the TCB version reported in the node's startup attestation, as it would for a joining node, rather than being overwritten with that TCB version. Otherwise, including when no minimum is stored for that CPUID, or when the stored minimum is higher than the reported TCB version in only some components, the reported TCB version is stored as the minimum, as before. On start, the behaviour is unchanged (#8468).
+- Requests to an endpoint whose required operator feature is not enabled on the receiving RPC interface now get the same `404` `ResourceNotFound` error as requests to an unknown path, rather than a `404` with an empty body (#8481).
+- `ccf::crypto::make_cose_verifier_*()` now reject RSA keys of fewer than 2048 or more than 16384 bits, or whose public exponent is even, 1 or longer than 64 bits (#8480).
+
+### Deprecated
+
+- The public headers `ccf/node/cose_signatures_config.h` and `ccf/service/reconfiguration_type.h` are deprecated, and will be removed in 8.0. They are kept for source compatibility only, include `ccf/cose_signatures_config.h` and `ccf/reconfiguration_type.h` respectively, and emit a compiler warning when included. Applications should include the new headers instead (#8463).
+
+### Removed
+
+- The public header `ccf/node/startup_config.h` and the type `ccf::StartupConfig` have been removed, along with the resolved startup inputs it exposed through `ccf::NodeConfigurationState::node_config`: `node_data`, `service_data`, `startup_host_time`, `start`, `join`, and `recover`. Applications using `ccf::NodeConfigurationInterface` must include `ccf/node/configuration.h`, read node data from `ccf::NodeConfigurationState::node_data`, and read command settings from `ccf::CCFConfig::command` (#8309, #7565).
+- Nodes no longer accept forwarded RPC requests and responses in the legacy v1 and v2 wire formats. All supported releases have emitted the v3 format since 4.0, so mixed-version networks are unaffected (#8426).
+
+### Fixed
+
+- `MapDiff::get()` (the typed wrapper over a transaction's key-value diff) now correctly returns an engaged `std::optional` holding `std::nullopt` for keys that were deleted, distinguishing them from untouched keys (which still return a disengaged `std::optional`), matching its documented contract. Previously both cases collapsed to a disengaged `std::optional`, so callers could not tell a deletion from no change. `MapDiff::foreach_key()` and `MapDiff::foreach_value()`, which failed to compile when used, now visit each changed key and each changed value (`std::nullopt` for deletions) respectively (#8429).
+- A recovered service is now opened by the next primary if the primary's opening at the end of private recovery is rolled back by an election before it commits, including when the new primary completed private recovery as a backup. Previously, the service could remain in the `WaitingForRecoveryShares` state indefinitely. A node which completes private recovery as primary after the service is already open no longer fails (#8450).
+- A node which applied an opening of a recovered service that an election then rolled back could keep that opening's seqno, rather than the seqno of the opening which committed, as the version at which the last ledger secret before recovery is stored. That version is recorded in the recovery shares and sealed recovery shares information, and sent to joining nodes (#8452).
+- `ccf::crypto::Verifier::remaining_seconds()` now returns 0 once the certificate has expired. Previously, the negative remaining duration wrapped around to a very large unsigned value (#8430).
+- `ccf::crypto::ECKeyPair::sign()` and `sign_hash()`, and therefore `ccf.crypto.sign()`, no longer fail with an OpenSSL "output buffer too small" error when signing with a P-521 key loaded from PEM under OpenSSL providers such as SymCrypt (#8428).
+- Where `ccf::crypto` reports an OpenSSL error, it now reads the oldest error on the calling thread's OpenSSL error queue, usually the root cause, then clears the queue, rather than leaving entries behind for a later, unrelated failure to report. Errors that other code leaves on the queue can still be reported by the next such failure (#8474).
+- Miscellaneous bug fixes in the `ccf.ledger` and `ccf.merkletree` Python modules (#8495).
 
 ## [7.0.17]
 
@@ -11,7 +97,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Experimental support for exporting Raft trace events to a Fluentd collector, configured with [`observability.fluentd`](doc/host_config_schema/host_config.json). The configuration and event format may change in future releases (#8386).
+- Native CCF applications can now be written in Rust through a minimal, experimental API for registering endpoints and accessing raw-byte KV maps. Unsupported endpoint error status codes are emitted as HTTP 500 responses, panic messages from application callbacks are not written to node output, and applications link against CCF's prebuilt Rust components without rebuilding their dependencies (#8200).
 - ML-DSA-44/65/87 key-pair and public-key APIs for key generation, PKCS#8/SPKI PEM and DER import/export, and pure ML-DSA signing and verification with optional context strings. These APIs are compiled only with OpenSSL 3.5 or newer (#8378).
 
 ### Changed
@@ -29,7 +115,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - Removed the unused ringbuffer writer from the public research `CustomProtocolSubsystemInterface::Essentials` structure. Custom protocol extensions can no longer access `Essentials::writer` (#8395).
-- Removed the `CCF_RAFT_TRACING` CMake option. Raft tracing is always built in (#8386).
 
 ## [7.0.16]
 

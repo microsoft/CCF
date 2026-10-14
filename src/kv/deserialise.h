@@ -4,12 +4,11 @@
 
 #include "apply_changes.h"
 #include "ds/internal_logger.h"
+#include "kv/claims.h"
 #include "kv/committable_tx.h"
+#include "kv/internal_table_names.h"
 #include "kv/ledger_chunker_interface.h"
 #include "kv_types.h"
-#include "service/tables/shares.h"
-#include "service/tables/signatures.h"
-#include "service/tables/snapshot_evidence.h"
 
 #include <vector>
 
@@ -29,8 +28,7 @@ namespace ccf::kv
       ccf::kv::OrderedChanges& changes,
       ccf::kv::MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
-      std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest,
-      bool ignore_strict_versions = false) = 0;
+      std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest) = 0;
 
     virtual bool commit_deserialised(
       ccf::kv::OrderedChanges& changes,
@@ -98,8 +96,7 @@ namespace ccf::kv
             changes,
             new_maps,
             claims_digest,
-            commit_evidence_digest,
-            true))
+            commit_evidence_digest))
       {
         return ApplyResult::FAIL;
       }

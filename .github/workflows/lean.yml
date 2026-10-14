@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "lean/**"
+      - "**/*.lean"
+      - "scripts/lean-format-checks.sh"
       - ".github/workflows/lean.yml"
 
 concurrency:
@@ -45,3 +47,34 @@ jobs:
           lake build --wfail
           lake lint
           lake exe canonical-checks
+
+      - name: Check Mathlib linters
+        working-directory: lean/disaster-recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe runLinter --no-build DisasterRecovery replayer.Main
+
+      - name: Check recovery trace fixtures against their schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y python3-jsonschema
+          python3 lean/disaster-recovery/replayer/check-schema.py \
+            lean/disaster-recovery/replayer/fixtures/*/*.out
+
+      - name: Build and check disaster recovery replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd lean/disaster-recovery/replayer
+          lake build
+          lake lint
+          ./check-fixtures.sh
+
+      - name: Dump replays for the trace viewer
+        shell: bash
+        run: python3 lean/disaster-recovery/replayer/viewer/build.py
+
+      - name: Check Lean formatting
+        run: ./scripts/lean-format-checks.sh

@@ -32,8 +32,7 @@ Replica State Machine
 Membership
 ~~~~~~~~~~
 
-Any node of the network is always in one of two membership states. The dotted arrows in the
-state diagram indicate a transition on rollback:
+Any node of the network is always in one of two membership states. The dotted arrows in the state diagram indicate a transition on rollback:
 
 .. mermaid::
 
@@ -46,8 +45,7 @@ The membership state a node is currently is provided in the output of the :http:
 Simplified Leadership
 ~~~~~~~~~~~~~~~~~~~~~
 
-Main consensus states and transitions. Nodes are not in any consensus state if they are not in the ``Active`` membership state yet,
-but once they are, they transition between all the consensus states as the network evolves:
+Main consensus states and transitions. Nodes are not in any consensus state if they are not in the ``Active`` membership state yet, but once they are, they transition between all the consensus states as the network evolves:
 
 .. mermaid::
 
@@ -179,9 +177,7 @@ In our example above, the election timeout on Node 1 simply expires and causes N
 Retirement details
 ~~~~~~~~~~~~~~~~~~
 
-Normal retirement of a node in a live service runs through five phases, as indicated by the following diagram. Previous-service nodes deleted during disaster recovery do not enter these phases. Live retirement starts with a reconfiguration transaction (RTX), involves
-two additional elements of state and ends with a retirement committed transaction (RTCX), whose commitment indicates that all future primaries are aware RTX is committed,
-and no longer require nodes in the old configuration to make progress.
+Normal retirement of a node in a live service runs through five phases, as indicated by the following diagram. Previous-service nodes deleted during disaster recovery do not enter these phases. Live retirement starts with a reconfiguration transaction (RTX), involves two additional elements of state and ends with a retirement committed transaction (RTCX), whose commitment indicates that all future primaries are aware RTX is committed, and no longer require nodes in the old configuration to make progress.
 
 - Retirement index (RI): Index at which node is set to ``Retired`` in ``public:ccf.gov.nodes.info``
 - Retirement Committable Index (RCI): Index at which the retirement transaction first becomes committable, ie. the first signature following the transaction.
@@ -206,8 +202,7 @@ A node permanently transitions to the ``Completed`` phase once it has observed c
 
 Until the very last phase (``RetiredCommitted``) is reached, a retiring leader will continue to act as leader, although it will not execute new transactions once it observes RCI. 
 
-Note that because the rollback triggered when a node becomes aware of a new view never preserves unsigned transactions,
-and because RCI is always the first signature after RI, RI and RCI are always both rolled back if RCI itself is rolled back.
+Note that because the rollback triggered when a node becomes aware of a new view never preserves unsigned transactions, and because RCI is always the first signature after RI, RI and RCI are always both rolled back if RCI itself is rolled back.
 
 PreVote Extensions
 ~~~~~~~~~~~~~~~~~~
