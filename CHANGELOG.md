@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Changed
 
+- Replaced the vendored SmallVector dependency with a standalone byte-only `ccf::ByteVector`, and separated ledger-write buffering into its own implementation.
+  Serialized formats and byte operations are preserved, but native applications must rebuild for the changed C++ type and layout (#8559).
 - Updated snmalloc from 0.7.3 to [0.7.6](https://github.com/microsoft/snmalloc/releases/tag/0.7.6), including allocator and cross-thread deallocation improvements. CCF retains pthread-atfork protection, which upstream now makes opt-in (#8557).
 - Node configuration validation now accepts exact integer-valued JSON numbers such as `1.0` for integer settings, while still rejecting fractional values and enforcing limits. Schema error paths now quote object property names (#8558).
 - Python packages are now built and published separately through the [OneBranch pipeline](.pipelines/README.md), rather than attached to GitHub releases and automatically published by GitHub Actions. Release-build tests use the latest released Python package from PyPI, while development and normal CI tests continue using the local package. Python wheel attestations are disabled (#8546).
@@ -35,6 +37,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Fixed
 
+- Byte-vector growth now reports allocation failures and size overflow, and preserves aliased byte inputs across reallocation (#8559).
 - Node configuration validation now rejects negative values for unsigned integer settings and HTTP header counts above `4294967295`, instead of allowing them to wrap during parsing. See the [Configuration](doc/operations/configuration.rst) documentation (#8566).
 - Fixed invalid receipts from the shared historical query cache, affecting `/node/receipt`, `/node/receipt/cose`, application receipt endpoints, and C++/JavaScript historical query APIs. A cross-view range query could replace a cached receipt using the signing view instead of the original transaction view, causing subsequent point queries to return receipts that failed signature verification. The historical cache now takes every transaction's ID from the ledger entry itself, rejects signature transactions which declare a different ID, and keeps the first receipt it produces for a transaction rather than replacing it when a later signature is fetched (#8549).
 - Forwarding timeouts now return HTTP `504` with an `application/json` CCF error envelope and the `ForwardingTimeout` error code, conforming to the governance OpenAPI error schema. The message still identifies the target node and timeout duration (#8518).
