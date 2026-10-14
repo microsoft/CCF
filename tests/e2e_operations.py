@@ -347,11 +347,14 @@ def test_snapshot_access(network, args):
     interface = primary.host.rpc_interfaces[infra.interfaces.FILE_SERVING_RPC_INTERFACE]
     loc = f"https://{infra.interfaces.make_address(interface.public_host, interface.public_port)}"
 
-    with primary.client(
-        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
-    ) as file_client, primary.client(
-        interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
-    ) as disabled_client:
+    with (
+        primary.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as file_client,
+        primary.client(
+            interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+        ) as disabled_client,
+    ):
 
         def do_request(http_verb, *args, **kwargs):
             r = disabled_client.call(*args, http_verb=http_verb, **kwargs)
@@ -878,7 +881,10 @@ def test_corrupt_snapshot_handling(network, args):
     # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
     LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
 
-    with tempfile.TemporaryDirectory() as writable_dir, tempfile.TemporaryDirectory() as read_only_dir:
+    with (
+        tempfile.TemporaryDirectory() as writable_dir,
+        tempfile.TemporaryDirectory() as read_only_dir,
+    ):
         # Place corrupt snapshots
         with open(os.path.join(writable_dir, writable_snapshot_name), "wb") as f:
             f.write(corrupt_data)
@@ -2102,9 +2108,10 @@ def run_config_timeout_check(const_args):
     if infra.platform_detection.is_snp():
         env.update(snp.get_aci_env())
 
-    with open(os.path.join(start_node_path, "out"), "wb") as stdout, open(
-        os.path.join(start_node_path, "err"), "wb"
-    ) as stderr:
+    with (
+        open(os.path.join(start_node_path, "out"), "wb") as stdout,
+        open(os.path.join(start_node_path, "err"), "wb") as stderr,
+    ):
         proc = subprocess.Popen(
             [
                 os.path.join(".", os.path.basename(node.remote.BIN)),
@@ -2235,6 +2242,78 @@ def run_configuration_file_checks(args):
                             b"pending_node_timeout must be 0s or at least 1ms"
                             in result.stdout + result.stderr
                         ), result
+
+
+def run_limit_config_checks(args):
+    with open(
+        os.path.join(args.config_samples_dir, "minimal_config.json"), encoding="utf-8"
+    ) as config_file:
+        base = json.load(config_file)
+
+    legacy = {
+        "memory": {
+            "circuit_size": "3MB",
+            "max_msg_size": "64MB",
+            "max_fragment_size": "256KB",
+        }
+    }
+    cases = [
+        ({}, True),
+        ({**legacy, "ledger": {"max_transaction_size": "64MB"}}, True),
+        ({"ledger": {"max_read_size": "64MB", "max_transaction_size": "64MB"}}, True),
+        (
+            {"ledger": {"max_read_size": "64MB", "max_transaction_size": "67108865B"}},
+            False,
+        ),
+        (
+            {
+                **legacy,
+                "ledger": {
+                    "max_read_size": "32MB",
+                    "max_transaction_size": "32MB",
+                    "max_pending_append_bytes": "0",
+                },
+                "node_to_node": {"max_message_size": "16MB"},
+            },
+            True,
+        ),
+    ]
+    for settings, valid in cases:
+        config = copy.deepcopy(base)
+        config.update(settings)
+        with tempfile.NamedTemporaryFile(mode="w+") as temp_config:
+            json.dump(config, temp_config)
+            temp_config.flush()
+            for flags in (["--check"],) if valid else (["--check"], []):
+                result = infra.proc.ccall(
+                    args.package, f"--config={temp_config.name}", *flags
+                )
+                output = result.stdout + result.stderr
+                if not valid:
+                    assert result.returncode != 0, result
+                    assert b"ledger.max_read_size" in output, result
+                    continue
+                assert result.returncode == 0, result
+                memory = settings.get("memory", {})
+                for field in ("circuit_size", "max_msg_size", "max_fragment_size"):
+                    notice = f"memory.{field} is deprecated".encode()
+                    assert (notice in output) == (field in memory), result
+                if "max_msg_size" in memory:
+                    read_state = (
+                        "ignored"
+                        if "max_read_size" in settings.get("ledger", {})
+                        else "used"
+                    )
+                    frame_state = (
+                        "ignored"
+                        if "max_message_size" in settings.get("node_to_node", {})
+                        else "used"
+                    )
+                    assert f"{read_state} for ledger.max_read_size".encode() in output
+                    assert (
+                        f"{frame_state} for node_to_node.max_message_size".encode()
+                        in output
+                    )
 
 
 def run_preopen_readiness_check(args):
@@ -5361,6 +5440,7 @@ def run_node_config_checks(args):
     run_config_timeout_check(args)
     run_pending_node_expiration(args)
     run_configuration_file_checks(args)
+    run_limit_config_checks(args)
     run_pid_file_check(args)
     run_preopen_readiness_check(args)
     run_sighup_check(args)

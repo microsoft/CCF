@@ -21,6 +21,9 @@ The configuration for each CCF node must be contained in a single JSON configura
 .. include:: generated_config.rst
 
 
+For migration from deprecated ringbuffer-era configuration, see :doc:`/build_apps/migration_7_x_to_8_x`.
+
+
 IPv6 Addresses
 --------------
 
@@ -100,4 +103,3 @@ A rolling upgrade from ``Dual`` to ``CoseOnly`` is a two-step process:
 1. **CoseAllowDualJoin.** Deploy a binary that returns ``CoseAllowDualJoin``. Replace nodes one at a time. During this phase, new nodes running the old ``Dual`` binary can still join as replacements.
 
 2. **CoseOnly.** Once all nodes are upgraded, deploy a binary that returns ``CoseOnly``. Replace nodes again. After this, ``Dual`` joiners are rejected.
-

@@ -1181,7 +1181,7 @@ namespace ccf::historical
               {
                 LOG_FAIL_FMT(
                   "Ledger entry at {} exceeds the ledger range read budget "
-                  "(memory.max_msg_size minus response metadata)",
+                  "(ledger.max_read_size)",
                   result.from);
                 handle_no_entry_range(result.from, result.to);
               }
