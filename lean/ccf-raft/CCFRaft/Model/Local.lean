@@ -6,35 +6,14 @@ import CCFRaft.Model.Messages
 set_option autoImplicit false
 
 /-!
-# Leader election and log replication
+# Local node steps
 
-This file describes how CCF nodes change the consensus state defined in
-`Node.lean`. Leaders append transactions, signatures, and membership changes,
-then send batches to followers using AppendEntries messages. Followers check
-the preceding log position and term, apply compatible entries, and reply with
-an acknowledgement or rejection. Leaders use acknowledgements to determine
-which signature they can commit.
+How one node reacts to an event, over the state in `Node.lean`. `step` is the
+entry point: `act` handles an `Input`, and `receive` handles a `Message` after
+`observeTerm` adopts any newer term it carries.
 
-For elections, a candidate requests votes using its latest committable log
-position. Voters compare that position with their own before granting a vote.
-A candidate needs a majority in every active configuration to become leader.
-When pre-voting is enabled, a preliminary round collects support without
-advancing the candidate's term.
-
-`Messages.lean` defines the packets exchanged between nodes. `Input` defines
-events that do not arrive as packets, such as a timeout or client request.
-`Event` combines these two cases. Start at `step` to follow an event: `act` handles
-inputs and `receive` handles messages. Before dispatching a message to its
-handler, `observeTerm` adopts a newer term where that message type requires it.
-
-An enabled step produces a new local state and any outgoing messages through
-the `send` callback in `caps`. A failed step, from a `guard` or `failure`,
-means that the event is disabled in this model, not that it was received and
-ignored; failure also discards any messages sent before it. By convention each
-case checks its guards before sending. A step cannot inspect another
-node or deliver its own outgoing messages; `Model.lean` supplies the network.
-This file, `Node.lean`, and `Messages.lean` share the `CCFRaft.Model.Local`
-namespace.
+A step may send messages through `caps`. A failed `guard` means the event is
+disabled: the step has no effect and a received message stays in flight.
 -/
 
 namespace CCFRaft.Model.Local
