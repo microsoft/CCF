@@ -895,7 +895,9 @@ TEST_CASE_FIXTURE(TransportsFixture, "Full NodeToNode test")
               }
               case NodeMsgType::forwarded_msg:
               default:
+              {
                 REQUIRE(false);
+              }
             }
           }
 
