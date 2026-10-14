@@ -90,17 +90,25 @@ class TargetRole:
 
 @dataclass
 class NodeByRoleResolver:
-    target: TargetRole = field(default_factory=lambda: TargetRole(NodeRole.primary))
+    # A None target omits the role, so the node targets the role of the
+    # redirections field (to_primary or to_backup) this resolver configures
+    target: TargetRole | None = field(
+        default_factory=lambda: TargetRole(NodeRole.primary)
+    )
     kind: str = "NodeByRole"
 
     @staticmethod
     def to_json(nbrr):
-        return asdict(nbrr)
+        j = {"kind": nbrr.kind}
+        if nbrr.target is not None:
+            j["target"] = TargetRole.to_json(nbrr.target)
+        return j
 
     @staticmethod
     def from_json(json):
         nbrr = NodeByRoleResolver()
-        nbrr.target = TargetRole.from_json(json["target"])
+        target = json.get("target", None)
+        nbrr.target = TargetRole.from_json(target) if target else None
         return nbrr
 
 
@@ -126,16 +134,22 @@ RedirectionResolver = NodeByRoleResolver | StaticAddressResolver
 
 @dataclass
 class RedirectionConfig:
-    to_primary: NodeByRoleResolver = field(default_factory=lambda: NodeByRoleResolver())
-    to_backup: NodeByRoleResolver = field(
+    to_primary: NodeByRoleResolver | StaticAddressResolver | None = field(
+        default_factory=lambda: NodeByRoleResolver()
+    )
+    to_backup: NodeByRoleResolver | StaticAddressResolver | None = field(
         default_factory=lambda: NodeByRoleResolver(target=TargetRole(NodeRole.backup))
     )
 
     @staticmethod
     def to_json(rc):
         return {
-            "to_primary": rc.to_primary.to_json(rc.to_primary),
-            "to_backup": rc.to_backup.to_json(rc.to_backup),
+            name: resolver.to_json(resolver)
+            for name, resolver in (
+                ("to_primary", rc.to_primary),
+                ("to_backup", rc.to_backup),
+            )
+            if resolver is not None
         }
 
     @staticmethod
@@ -200,7 +214,7 @@ class RPCInterface(Interface):
     forwarding_timeout_ms: int | None = field(
         default_factory=lambda: DEFAULT_FORWARDING_TIMEOUT_MS
     )
-    redirections: RedirectionConfig | None = None
+    redirections: RedirectionConfig | None = field(default_factory=RedirectionConfig)
     app_protocol: str = field(default_factory=lambda: "HTTP1")
 
     def apply_args(self, args):
@@ -290,6 +304,8 @@ class RPCInterface(Interface):
         )
         if "redirections" in json:
             interface.redirections = RedirectionConfig.from_json(json["redirections"])
+        else:
+            interface.redirections = None
         if "endorsement" in json:
             interface.endorsement = Endorsement.from_json(json["endorsement"])
         interface.accepted_endpoints = json.get("accepted_endpoints")
@@ -369,5 +385,31 @@ if __name__ == "__main__":
     rc.to_backup = NodeByRoleResolver(target=TargetRole(NodeRole.backup))
     test_roundtrip(rc)
 
+    rc.to_primary = NodeByRoleResolver(target=None)
+    rc.to_backup = NodeByRoleResolver(target=None)
+    test_roundtrip(rc)
+    roleless_json = RedirectionConfig.to_json(rc)
+    assert roleless_json["to_backup"] == {"kind": "NodeByRole"}, roleless_json
+    assert "target" not in roleless_json["to_primary"], roleless_json
+
     hc = HostSpec()
     test_roundtrip(hc)
+
+    default_interface = RPCInterface.to_json(RPCInterface())
+    assert (
+        default_interface["redirections"]["to_primary"]["target"]["role"] == "primary"
+    )
+    assert default_interface["redirections"]["to_backup"]["target"]["role"] == "backup"
+
+    legacy_interface = RPCInterface(redirections=None)
+    test_roundtrip(legacy_interface)
+    legacy_json = RPCInterface.to_json(legacy_interface)
+    assert "redirections" not in legacy_json
+    assert RPCInterface.from_json(legacy_json).redirections is None
+
+    empty_interface = RPCInterface(
+        redirections=RedirectionConfig(to_primary=None, to_backup=None)
+    )
+    empty_json = RPCInterface.to_json(empty_interface)
+    assert empty_json["redirections"] == {}
+    assert RPCInterface.from_json(empty_json).redirections == RedirectionConfig()

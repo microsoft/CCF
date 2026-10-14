@@ -74,6 +74,24 @@ def test_primary(network, args):
 @reqs.description("Network node info")
 @reqs.at_least_n_nodes(2)
 def test_network_node_info(network, args):
+    def check_interfaces(host, interfaces):
+        expected_interfaces = infra.interfaces.HostSpec.to_json(host)
+        actual_interfaces = {
+            name: dict(interface) for name, interface in interfaces.items()
+        }
+        for interface in actual_interfaces.values():
+            if "redirections" in interface:
+                # C++ serialization omits resolvers equal to their defaults.
+                interface["redirections"] = infra.interfaces.RedirectionConfig.to_json(
+                    infra.interfaces.RedirectionConfig.from_json(
+                        interface["redirections"]
+                    )
+                )
+        assert expected_interfaces == actual_interfaces, (
+            expected_interfaces,
+            actual_interfaces,
+        )
+
     primary, backups = network.find_nodes()
 
     all_nodes = [primary, *backups]
@@ -85,7 +103,7 @@ def test_network_node_info(network, args):
         nodes_by_id = {node["node_id"]: node for node in nodes}
         for n in all_nodes:
             node = nodes_by_id[n.node_id]
-            assert infra.interfaces.HostSpec.to_json(n.host) == node["rpc_interfaces"]
+            check_interfaces(n.host, node["rpc_interfaces"])
             del nodes_by_id[n.node_id]
 
         assert nodes_by_id == {}
@@ -100,10 +118,7 @@ def test_network_node_info(network, args):
                 assert r.status_code == http.HTTPStatus.OK.value
                 body = r.body.json()
                 assert body["node_id"] == node.node_id
-                assert (
-                    infra.interfaces.HostSpec.to_json(node.host)
-                    == body["rpc_interfaces"]
-                )
+                check_interfaces(node.host, body["rpc_interfaces"])
                 assert body["primary"] == (node == primary)
 
                 node_infos[node.node_id] = body
