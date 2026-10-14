@@ -756,6 +756,44 @@ TEST_CASE("Add a node to an opening service")
   }
 }
 
+TEST_CASE("TLS-only joining nodes compare their TLS published addresses")
+{
+  NetworkState network;
+  network.tables->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  network.identity = make_test_network_ident();
+  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  network.ledger_secrets->init();
+  auto tx = network.tables->create_tx();
+  InternalTablesAccess::init_configuration(
+    tx, {0, ConsensusType::CFT, std::nullopt});
+  InternalTablesAccess::create_service(
+    tx, network.identity->cert, ccf::TxID{2, 1});
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  StubNodeContext context;
+  NodeRpcFrontend frontend(network, context);
+  frontend.open();
+  for (const auto& [address, expected] :
+       std::vector<std::pair<std::string, int>>{
+         {"localhost:1234", HTTP_STATUS_OK},
+         {"localhost:5678", HTTP_STATUS_OK},
+         {"localhost:1234", HTTP_STATUS_BAD_REQUEST}})
+  {
+    const auto key = ccf::crypto::make_ec_key_pair();
+    JoinNetworkNodeToNode::In input;
+    input.public_encryption_key =
+      ccf::crypto::make_ec_key_pair()->public_key_pem();
+    input.node_info_network.node_to_node_interface.tls_bind_address = address;
+    input.node_info_network.node_to_node_interface.tls_published_address =
+      address;
+    const auto response = frontend_process(
+      frontend,
+      input,
+      "join",
+      key->self_sign("CN=TLS Joiner", valid_from, valid_to));
+    CHECK(response.status == expected);
+  }
+}
+
 TEST_CASE("JWT refresh metrics are thread-safe")
 {
   NetworkState network;

@@ -256,15 +256,19 @@ namespace ccf
       std::optional<NodeId> duplicate_node_id = std::nullopt;
       nodes->foreach([&node_info_network, &duplicate_node_id](
                        const NodeId& nid, const NodeInfo& ni) {
+        const auto& incoming = node_info_network.node_to_node_interface;
+        const auto& existing = ni.node_to_node_interface;
+        // Preserve duplicate detection for old, entirely empty metadata.
+        // Absent legacy addresses alone do not make TLS-only peers duplicates.
+        const bool same_legacy_address =
+          incoming.published_address == existing.published_address &&
+          (!incoming.published_address.empty() ||
+           (incoming.tls_published_address.empty() &&
+            existing.tls_published_address.empty()));
+        const bool same_tls_address = !incoming.tls_published_address.empty() &&
+          incoming.tls_published_address == existing.tls_published_address;
         if (
-          ((!node_info_network.node_to_node_interface.published_address
-               .empty() &&
-            node_info_network.node_to_node_interface.published_address ==
-              ni.node_to_node_interface.published_address) ||
-           (!node_info_network.node_to_node_interface.tls_published_address
-               .empty() &&
-            node_info_network.node_to_node_interface.tls_published_address ==
-              ni.node_to_node_interface.tls_published_address)) &&
+          (same_legacy_address || same_tls_address) &&
           ni.status != NodeStatus::RETIRED)
         {
           duplicate_node_id = nid;
