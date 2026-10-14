@@ -1,4 +1,8 @@
-import DisasterRecovery.Proofs.ExecutionLocal
+module
+
+public import DisasterRecovery.Proofs.ExecutionLocal
+
+@[expose] public section
 
 /-! Proof-only execution with send snapshots and terminal-effect histories. -/
 
@@ -105,7 +109,7 @@ def eventFor (envelope : Envelope) : Event :=
   | .iAmOpen => .receiveIAmOpen envelope.source .accepted
 
 /-- Removes one queued copy of a value, preserving any other identical copies. -/
-def removeOne [BEq α] (value : α) : List α -> List α
+def removeOne {α : Type _} [BEq α] (value : α) : List α -> List α
   | [] => []
   | head :: tail =>
       if head == value then tail else head :: removeOne value tail

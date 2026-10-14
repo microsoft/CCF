@@ -36,6 +36,11 @@ Developing in GitHub Codespaces
 
 CCF devcontainer setup works just fine with codespaces. It's recommended to pre-configure for 16-cores one.
 
+To use Copilot through ``copilotd`` in an Azure Linux 4 Codespace, select the :ccf_repo:`Copilot relay configuration <.devcontainer/azurelinux4-copilotd/devcontainer.json>` when creating the Codespace.
+Each start installs the latest ``copilotd`` and launches the relay in the background.
+The relay restarts if it exits and requires ``GITHUB_TOKEN`` (supplied by Codespaces) or ``COPILOTD_MISSION_CONTROL_TOKEN``.
+Logs are in ``~/.local/state/ccf-copilotd/copilotd.log``.
+
 Tweaks for codespaces:
 
 * In order to run lldb in a container, run this command first "settings set target.disable-aslr false"

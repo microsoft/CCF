@@ -1,0 +1,48 @@
+{
+  "name": "CCF Development Environment (Azure Linux 4, Copilot relay)",
+  "build": {
+    "dockerfile": "../azurelinux4/Dockerfile",
+    "context": "../azurelinux4"
+  },
+  "init": true,
+  "runArgs": [
+    "--cap-add=PERFMON",
+    "--cap-add=SYS_PTRACE",
+    "--cap-add=NET_ADMIN",
+    "--security-opt",
+    "seccomp=unconfined"
+  ],
+  "hostRequirements": {
+    "cpus": 16,
+    "memory": "64gb",
+    "storage": "128gb"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "github.vscode-github-actions",
+        "ms-python.black-formatter",
+        "ms-python.python",
+        "ms-vscode.cpptools",
+        "github.copilot"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "python3",
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter"
+        },
+        "python.formatting.provider": "none",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll": true
+        }
+      }
+    }
+  },
+  "postCreateCommand": "./.devcontainer/azurelinux4/post_create_setup.sh",
+  "postStartCommand": [
+    "bash",
+    "-c",
+    "set -eu; umask 077; mkdir -p \"$HOME/.local/state/ccf-copilotd\"; nohup bash .devcontainer/azurelinux4-copilotd/start_copilotd.sh </dev/null >>\"$HOME/.local/state/ccf-copilotd/copilotd.log\" 2>&1 &"
+  ]
+}
