@@ -1260,6 +1260,87 @@ TEST_CASE("AES-GCM empty inputs")
   REQUIRE(decrypted.empty());
 }
 
+TEST_CASE("AES-GCM caller-owned ciphertext")
+{
+  auto key = make_key_aes_gcm(get_raw_key());
+  auto context = key->make_context();
+  const std::vector<uint8_t> iv(12, 0);
+  const std::vector<uint8_t> plain(31, 0x24);
+  const std::vector<uint8_t> aad(7, 0x42);
+  std::vector<uint8_t> expected;
+  uint8_t expected_tag[GCM_SIZE_TAG] = {};
+  key->encrypt(iv, plain, aad, expected, expected_tag);
+
+  std::array<uint8_t, 33> storage = {};
+  storage.front() = 0xAA;
+  storage.back() = 0xBB;
+  auto output = std::span<uint8_t>(storage).subspan(1, plain.size());
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  key->encrypt(iv, plain, aad, output, tag);
+  REQUIRE(std::equal(output.begin(), output.end(), expected.begin()));
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+  REQUIRE(storage.front() == 0xAA);
+  REQUIRE(storage.back() == 0xBB);
+
+  context->encrypt(iv, plain, aad, output, tag);
+  REQUIRE(std::equal(output.begin(), output.end(), expected.begin()));
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+
+  std::vector<uint8_t> preallocated(plain.size(), 0);
+  auto* original_data = preallocated.data();
+  key->encrypt(iv, plain, aad, preallocated, tag);
+  REQUIRE(preallocated.data() == original_data);
+  REQUIRE(preallocated == expected);
+
+  auto in_place_plain = plain;
+  key->encrypt(
+    iv,
+    std::span<const uint8_t>(in_place_plain),
+    aad,
+    std::span<uint8_t>(in_place_plain),
+    tag);
+  REQUIRE(in_place_plain == expected);
+
+  auto vector_in_place = plain;
+  key->encrypt(
+    iv, std::span<const uint8_t>(vector_in_place), aad, vector_in_place, tag);
+  REQUIRE(vector_in_place == expected);
+
+  REQUIRE_THROWS_AS(
+    key->encrypt(iv, plain, aad, output.first(output.size() - 1), tag),
+    std::logic_error);
+  REQUIRE(storage.front() == 0xAA);
+  REQUIRE(storage.back() == 0xBB);
+
+  std::vector<uint8_t> decrypted;
+  REQUIRE(key->decrypt(iv, tag, output, aad, decrypted));
+  REQUIRE(decrypted == plain);
+  auto bad_aad = aad;
+  bad_aad.front() ^= 1;
+  REQUIRE_FALSE(key->decrypt(iv, tag, output, bad_aad, decrypted));
+
+  std::span<uint8_t> empty_output;
+  key->encrypt(iv, {}, aad, empty_output, tag);
+  REQUIRE(key->decrypt(iv, tag, empty_output, aad, decrypted));
+  REQUIRE(decrypted.empty());
+}
+
+TEST_CASE("Const GCM header serialisation")
+{
+  StandardGcmHeader header;
+  std::iota(std::begin(header.tag), std::end(header.tag), 0);
+  std::iota(header.iv.begin(), header.iv.end(), GCM_SIZE_TAG);
+  const auto& const_header = header;
+
+  std::vector<uint8_t> expected(const_header.serialised_size());
+  std::iota(expected.begin(), expected.end(), 0);
+  REQUIRE(const_header.serialise() == expected);
+
+  std::vector<uint8_t> output(expected.size());
+  const_header.serialise(output);
+  REQUIRE(output == expected);
+}
+
 TEST_CASE("Concurrent AES-GCM convenience calls")
 {
   constexpr size_t thread_count = 24;

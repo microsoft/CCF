@@ -10,8 +10,7 @@ npm install
 
 ## Code
 
-**Relative imports**:
-Every relative import of another TypeScript module **must** end with `.js` (yes, not `.ts`).
+**Relative imports**: Every relative import of another TypeScript module **must** end with `.js` (yes, not `.ts`).
 The extension is the **target** extension and all TypeScript-related tooling understands this.
 Omitting extensions will lead to omitted extensions in the transpiled `.js` files which may cause import issues depending on the module loader used in the consuming environment.
 

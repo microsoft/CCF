@@ -165,24 +165,34 @@ TEST_CASE("ByteVector model" * doctest::test_suite("byte_vector"))
     switch (random() % 8)
     {
       case 0:
+      {
         bytes.resize(size);
         model.resize(size);
         break;
+      }
       case 1:
+      {
         bytes.resize(size, value);
         model.resize(size, value);
         break;
+      }
       case 2:
+      {
         bytes.assign(size, value);
         model.assign(size, value);
         break;
+      }
       case 3:
+      {
         bytes.push_back(value);
         model.push_back(value);
         break;
+      }
       case 4:
+      {
         bytes.reserve(size);
         break;
+      }
       case 5:
       {
         const auto position = random() % (model.size() + 1);
@@ -191,6 +201,7 @@ TEST_CASE("ByteVector model" * doctest::test_suite("byte_vector"))
         break;
       }
       case 6:
+      {
         if (!model.empty())
         {
           const auto first = random() % model.size();
@@ -199,10 +210,13 @@ TEST_CASE("ByteVector model" * doctest::test_suite("byte_vector"))
           model.erase(model.begin() + first, model.begin() + last);
         }
         break;
+      }
       case 7:
+      {
         bytes.clear();
         model.clear();
         break;
+      }
     }
     REQUIRE(bytes.size() == model.size());
     CHECK(std::equal(bytes.begin(), bytes.end(), model.begin()));
@@ -229,33 +243,47 @@ TEST_CASE(
       switch (operation)
       {
         case 0:
+        {
           bytes.push_back(bytes[1]);
           model.push_back(value);
           break;
+        }
         case 1:
+        {
           bytes.emplace_back(bytes[1]);
           model.push_back(value);
           break;
+        }
         case 2:
+        {
           bytes.resize(bytes.size() + 3, bytes[1]);
           model.resize(model.size() + 3, value);
           break;
+        }
         case 3:
+        {
           bytes.assign(bytes.size() + 3, bytes[1]);
           model.assign(model.size() + 3, value);
           break;
+        }
         case 4:
+        {
           bytes.append(size_t{3}, bytes[1]);
           model.insert(model.end(), size_t{3}, value);
           break;
+        }
         case 5:
+        {
           bytes.insert(bytes.begin(), bytes[1]);
           model.insert(model.begin(), value);
           break;
+        }
         case 6:
+        {
           bytes.insert(bytes.begin(), size_t{3}, bytes[1]);
           model.insert(model.begin(), size_t{3}, value);
           break;
+        }
         case 7:
         {
           const auto copied = model;
