@@ -14,6 +14,7 @@ import random
 import re
 import shutil
 import signal
+import socket
 import struct
 import subprocess
 import tempfile
@@ -1953,6 +1954,111 @@ def run_sighup_check(const_args):
         with open(out, "r") as outf:
             lines = outf.readlines()
         assert any("SIGHUP: " in line for line in lines), "Hangup should be logged"
+
+
+def run_runtime_lifecycle_checks(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        node = network.nodes[0]
+        node.stop()
+        out, _ = node.remote.get_logs()
+        with open(out, encoding="utf-8") as f:
+            output = f.read()
+        assert "Shutting down enclave" in output, output
+        assert "cleanup iteration(s)" in output, output
+        assert "Failed to close uv loop" not in output, output
+
+        root = pathlib.Path(node.remote.remote.root).resolve()
+        with open(root / "0.config.json", encoding="utf-8") as f:
+            original_config = json.load(f)
+        env = os.environ.copy()
+        if infra.platform_detection.is_snp():
+            env.update(snp.get_aci_env())
+
+        for failure in ("bind", "output", "pending_join"):
+            with tempfile.TemporaryDirectory(dir=root) as temp:
+                temp = pathlib.Path(temp).resolve()
+                config = copy.deepcopy(original_config)
+                config["ledger"]["directory"] = str(temp / "ledger")
+                config["snapshots"]["directory"] = str(temp / "snapshots")
+                config["output_files"]["pid_file"] = str(temp / "node.pid")
+                with socket.socket() as blocker:
+                    if failure == "bind":
+                        blocker.bind(("127.0.0.1", 0))
+                        blocker.listen()
+                        interface = next(
+                            iter(config["network"]["rpc_interfaces"].values())
+                        )
+                        interface["bind_address"] = (
+                            f"127.0.0.1:{blocker.getsockname()[1]}"
+                        )
+                    elif failure == "output":
+                        config["output_files"]["node_certificate_file"] = str(temp)
+                    else:
+                        blocker.bind(("127.0.0.1", 0))
+                        blocker.listen()
+                        blocker.settimeout(10)
+                        config["command"]["type"] = "Join"
+                        config["command"]["join"][
+                            "target_rpc_address"
+                        ] = f"127.0.0.1:{blocker.getsockname()[1]}"
+                        config["command"]["join"]["fetch_recent_snapshot"] = False
+                    config_path = temp / "config.json"
+                    config_path.write_text(json.dumps(config), encoding="utf-8")
+                    command = [
+                        str(root / os.path.basename(node.remote.BIN)),
+                        "--config",
+                        str(config_path),
+                        "--log-level",
+                        "Trace",
+                    ]
+                    if failure == "pending_join":
+                        # Accept TCP but never complete TLS: the curl join
+                        # callback must be cancelled before NodeState is freed.
+                        with (
+                            open(temp / "out", "w+", encoding="utf-8") as out,
+                            subprocess.Popen(
+                                command,
+                                cwd=root,
+                                env=env,
+                                stdout=out,
+                                stderr=subprocess.STDOUT,
+                            ) as proc,
+                        ):
+                            try:
+                                connection, _ = blocker.accept()
+                                with connection:
+                                    proc.send_signal(signal.SIGTERM)
+                                    assert proc.wait(timeout=30) == 0
+                            finally:
+                                if proc.poll() is None:
+                                    proc.kill()
+                                    proc.wait()
+                            out.seek(0)
+                            output = out.read()
+                        assert "Shutting down enclave" in output, output
+                        assert "cleanup iteration(s)" in output, output
+                        assert "Failed to close uv loop" not in output, output
+                        continue
+                    result = subprocess.run(
+                        command,
+                        cwd=root,
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        check=False,
+                    )
+                assert result.returncode == 1, result
+                assert "Error starting node:" in result.stdout, result
+                assert "Shutting down enclave" in result.stdout, result
+                assert "cleanup iteration(s)" in result.stdout, result
+                assert "Failed to close uv loop" not in result.stdout, result
+                if failure == "output":
+                    assert "Created new node" in result.stdout, result
+                    assert "Failed to open file" in result.stdout, result
 
 
 def run_configuration_file_checks(args):

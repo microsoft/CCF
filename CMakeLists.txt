@@ -492,7 +492,6 @@ endif()
 # Build common library for CCF enclaves
 set(
   CCF_IMPL_SOURCE
-  ${CCF_DIR}/src/enclave/main.cpp
   ${CCF_DIR}/src/node/env.cpp
   ${CCF_DIR}/src/node/quote.cpp
   ${CCF_DIR}/src/pal/uvm_endorsements.cpp

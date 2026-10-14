@@ -3,6 +3,7 @@
 
 #include "host/runtime_control.h"
 
+#include "host/sig_term.h"
 #include "node/commit_callback_subsystem.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -49,6 +50,41 @@ TEST_CASE("Runtime control" * doctest::test_suite("runtime_control"))
   }
 
   uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+}
+
+TEST_CASE("Shutdown signals use their runtime's callbacks")
+{
+  size_t stops = 0;
+  size_t notices = 0;
+  const auto stop = [&]() { ++stops; };
+  const auto notice = [&]() { ++notices; };
+
+  SUBCASE("SIGTERM requests a stop")
+  {
+    asynchost::ShutdownSignalImpl signal(false, stop, notice);
+    signal.on_signal(SIGTERM);
+    CHECK(stops == 1);
+    CHECK(notices == 0);
+  }
+
+  SUBCASE("Ignored first SIGTERM delivers a notice, then stops")
+  {
+    asynchost::ShutdownSignalImpl signal(true, stop, notice);
+    signal.on_signal(SIGTERM);
+    CHECK(stops == 0);
+    CHECK(notices == 1);
+    signal.on_signal(SIGTERM);
+    CHECK(stops == 1);
+    CHECK(notices == 1);
+  }
+
+  SUBCASE("SIGHUP requests a stop independently")
+  {
+    asynchost::ShutdownSignalImpl signal(false, stop, notice);
+    signal.on_signal(SIGHUP);
+    CHECK(stops == 1);
+    CHECK(notices == 0);
+  }
 }
 
 TEST_CASE("Shutdown releases pending commit callbacks without invoking them")

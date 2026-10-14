@@ -3022,11 +3022,11 @@ TEST_CASE("Typed ledger shutdown completes accepted mutations only")
 
 TEST_CASE("Job board shutdown before the ledger drain abandons mutations")
 {
-  // Documents why run_enclave_threads must drain the ledger subsystem before
-  // enclave_shutdown_tasks(): shutting the board down first discards the
+  // Documents why Enclave destruction must drain the ledger subsystem before
+  // JobBoard::shutdown(): shutting the board down first discards the
   // lane's pending actions, so the drain then finds nothing to write. If this
   // test starts failing because abandoned actions are no longer dropped, the
-  // ordering comments in run.cpp and LedgerSubsystem::shutdown() are stale.
+  // ordering comments in Enclave and LedgerSubsystem::shutdown() are stale.
   auto dir = AutoDeleteFolder(ledger_dir);
   Ledger ledger(ledger_dir);
   ccf::tasks::JobBoard job_board;
