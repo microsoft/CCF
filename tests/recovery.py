@@ -1764,31 +1764,14 @@ def run_corrupted_ledger(args):
 
 
 def find_recovery_tx_seqno(node):
-    min_recovery_seqno = 0
     with node.client() as c:
         r = c.get("/node/state").body.json()
         if "last_recovered_seqno" not in r:
             return None
         min_recovery_seqno = r["last_recovered_seqno"]
 
-    ledger = ccf.ledger.Ledger(
-        node.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
-    )
-    for chunk in ledger:
-        _, chunk_end_seqno = chunk.get_seqnos()
-        if chunk_end_seqno < min_recovery_seqno:
-            continue
-        for tx in chunk:
-            tables = tx.get_public_domain().get_tables()
-            seqno = tx.get_public_domain().get_seqno()
-            if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
-                service_status = json.loads(
-                    tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
-                    ]
-                )["status"]
-                if service_status == "Open":
-                    return seqno
+    for txid in find_service_open_txids(node, min_recovery_seqno):
+        return txid.seqno
     return None
 
 
