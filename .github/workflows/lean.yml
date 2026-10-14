@@ -6,6 +6,7 @@ on:
       - "lean/**"
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
+      - "tests/raft_trace*.py"
       - ".github/workflows/lean.yml"
 
 concurrency:
@@ -28,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y elan python3-jsonschema
+          sudo apt-get install -y elan python3-jsonschema python3-msgpack
           elan toolchain install "$(cat lean/lean-toolchain)"
 
       - name: Restore Mathlib caches
@@ -69,10 +70,24 @@ jobs:
                 lake exe mk_all --check --module
               fi
               lake build --wfail --fail-fast
-              lake check --inadvisably-no-sandbox
+              if [ "$package" = "lean/ccf-raft" ]; then
+                lake exe replay-checks
+                config="$(mktemp)"
+                cp lakefile.toml "$config"
+                trap 'cp "$config" lakefile.toml; rm "$config"' EXIT
+                for target in CCFRaft ccfraft-replay replay-checks; do
+                  sed "s/^defaultTargets = .*/defaultTargets = [\"$target\"]/" "$config" > lakefile.toml
+                  lake check --inadvisably-no-sandbox
+                done
+              else
+                lake check --inadvisably-no-sandbox
+              fi
             )
             echo "::endgroup::"
           done
+
+      - name: Check native trace collection
+        run: python3 tests/raft_trace_capture_test.py
 
       - name: Check recovery trace fixtures against their schema
         shell: bash

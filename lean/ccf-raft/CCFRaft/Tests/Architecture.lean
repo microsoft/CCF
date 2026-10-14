@@ -4,6 +4,7 @@ import all Init.Prelude
 import all Lean.Data.Name
 
 public import CCFRaft.Properties
+public import CCFRaft.Replay.Suite
 public import Lean
 
 @[expose] public section
@@ -48,6 +49,8 @@ private def allowedImport (owner dependency : Name) : Bool :=
     (`CCFRaft.Model).isPrefixOf dependency
   else if (`CCFRaft.Properties).isPrefixOf owner then
     (`CCFRaft.Model).isPrefixOf dependency || (`CCFRaft.Properties).isPrefixOf dependency
+  else if (`CCFRaft.Replay).isPrefixOf owner then
+    (`CCFRaft.Model).isPrefixOf dependency || (`CCFRaft.Replay).isPrefixOf dependency
   else
     true
 
@@ -68,9 +71,15 @@ example : allowedImport `CCFRaft.Model.ClusterConfig `CCFRaft.Model = false := r
 example : allowedImport `CCF.MultiNodeTransitionSystem `CCFRaft.Model = false :=
   rfl
 
+example : allowedImport `CCFRaft.Replay `CCFRaft.Proofs.Model = false := rfl
+
+example : allowedImport `CCFRaft.Replay.Reduction `CCFRaft.Proofs.Model = false := rfl
+
+example : allowedImport `CCFRaft.Replay.Suite `CCFRaft.Replay.Reduction = true := rfl
+
 example : allowedImport `CCFRaft.Properties `CCFRaft = false := rfl
 
--- The model and properties must not depend on proofs.
+-- The model, properties and replay must not depend on proofs.
 run_cmd do
   let env ← getEnv
   let header := env.header
@@ -78,10 +87,10 @@ run_cmd do
     if (`CCFRaft.Shared).isPrefixOf name then
       throwError "Use ccf_common instead of package-local Shared module {name}"
     if (`CCFRaft.Proof).isPrefixOf name || (`CCFRaft.Proofs).isPrefixOf name then
-      throwError "Model or property definitions import proof module {name}"
+      throwError "Model, property or replay definitions import proof module {name}"
   for (owner, data) in header.moduleNames.zip header.moduleData do
     for dependency in data.imports do
       unless allowedImport owner dependency.module do
-        throwError "Forbidden model/property dependency: {owner} imports {dependency.module}"
+        throwError "Forbidden model/property/replay dependency: {owner} imports {dependency.module}"
 
 end CCFRaft.Tests.Architecture

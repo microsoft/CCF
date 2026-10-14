@@ -78,3 +78,13 @@ They say nothing about liveness, fairness, or the C++ implementation.
 
 [`scripts/invariant-dependencies.lean`](scripts/invariant-dependencies.lean) lists the `Proofs.Safety` declarations in the kernel dependency closure of the exported theorems, to help remove unused lemmas.
 Run it with `lake env lean scripts/invariant-dependencies.lean`.
+
+## Trace replay
+
+The [trace replayer](replay/README.md) checks finite driver observations against direct model transitions, independently of proofs.
+It preserves recorded delivery order and packet multiplicity, rejects ambiguous observations, and never repairs model state.
+The current native Fluentd capture path and its explicit pre-vote and retirement-index limitations are documented there.
+
+Build with `lake build --wfail --fail-fast` and run `lake exe replay-checks`.
+The CI kernel check selects `CCFRaft`, `ccfraft-replay` and `replay-checks` separately because the executables have distinct `main` declarations.
+Replay compatibility does not establish universal production inclusion, infinite extension, fairness or liveness.
