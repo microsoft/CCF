@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/nonstd.h"
 #include "ccf/fluentd_config.h"
 #include "ds/internal_logger.h"
 #include "tracing/spsc_queue.h"
@@ -120,7 +121,15 @@ namespace ccf::tracing
         connected.store(false, std::memory_order_release);
         if (fd >= 0)
         {
-          ::close(fd);
+          // Do not retry close, even on EINTR: the descriptor may be reused.
+          if (::close(fd) != 0)
+          {
+            const auto err = errno;
+            LOG_FAIL_FMT(
+              "Failed to close Fluentd socket {}: {}",
+              fd,
+              ccf::nonstd::strerror(err));
+          }
           fd = -1;
         }
         retry_after =

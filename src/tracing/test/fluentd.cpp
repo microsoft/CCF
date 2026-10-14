@@ -36,20 +36,26 @@ namespace
   std::atomic<bool> stalled = false;
   std::atomic<size_t> calls = 0;
   std::atomic<size_t> fail_at = 0;
+  std::atomic<size_t> close_calls = 0;
+  std::atomic<bool> fail_next_close = false;
   std::atomic<bool> wrong_thread = false;
   std::thread::id producer;
   struct DropLogger : ccf::logger::AbstractLogger
   {
     std::atomic<size_t> reports = 0;
+    std::atomic<size_t> close_errors = 0;
     void write(const ccf::logger::LogLine& line) override
     {
       if (line.msg.find("trace events") != std::string::npos)
         ++reports;
+      if (line.msg.find("Failed to close Fluentd socket") != std::string::npos)
+        ++close_errors;
     }
   };
 }
 
 extern "C" ssize_t __real_send(int, const void*, size_t, int);
+extern "C" int __real_close(int);
 extern "C" void* __real__Znwm(size_t);
 extern "C" void* __wrap__Znwm(size_t size)
 {
@@ -75,6 +81,18 @@ extern "C" ssize_t __wrap_send(int fd, const void* data, size_t size, int flags)
   }
   // Every successful write is short, including the EventTime extension.
   return __real_send(fd, data, std::min(size, size_t(7)), flags);
+}
+
+extern "C" int __wrap_close(int fd)
+{
+  ++close_calls;
+  const auto rc = __real_close(fd);
+  if (rc == 0 && fail_next_close.exchange(false))
+  {
+    errno = EINTR;
+    return -1;
+  }
+  return rc;
 }
 
 TEST_CASE("SPSC queue owns records, rejects before allocating and wraps")
@@ -484,8 +502,13 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(unbound_allocations == 0);
   CHECK(Sink::dropped_count() == drops_before_unbound + 1);
   const auto drops_before_shutdown = Sink::dropped_count();
+  const auto closes_before_shutdown = close_calls.load();
+  fail_next_close = true;
   const auto start = std::chrono::steady_clock::now();
   Sink::shutdown();
+  CHECK_FALSE(fail_next_close);
+  CHECK(close_calls == closes_before_shutdown + 1);
+  CHECK(logs->close_errors == 1);
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::seconds(1)));
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(3));
   CHECK(Sink::dropped_count() == drops_before_shutdown + 4);

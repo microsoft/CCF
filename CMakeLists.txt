@@ -835,7 +835,7 @@ if(BUILD_TESTS)
     )
     target_link_options(
       tracing_test
-      PRIVATE "LINKER:--wrap=send" "LINKER:--wrap=_Znwm"
+      PRIVATE "LINKER:--wrap=send" "LINKER:--wrap=close" "LINKER:--wrap=_Znwm"
     )
     set_tests_properties(tracing_test PROPERTIES TIMEOUT 30)
 
