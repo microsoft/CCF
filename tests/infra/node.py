@@ -561,16 +561,6 @@ class Node:
         tx = ledger.get_transaction(seqno)
         return tx.get_public_domain().get_tables()
 
-    def get_ledger_public_state_at(self, seqno):
-        if not self.is_stopped():
-            LOG.warning(
-                "Parsing ledger files directly from live node {}",
-                self.local_node_id,
-            )
-        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
-        assert ledger.last_committed_chunk_range[1] >= seqno
-        return ledger.get_latest_public_state()
-
     def wait_for_ledger_chunk(self, seqno, timeout=5):
         end_time = time.time() + timeout
         with self.client(

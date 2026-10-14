@@ -2423,31 +2423,19 @@ class Network:
             node=primary,
             timeout=timeout,
         )
-        if self._supports_operator_feature(primary, "LedgerChunkRead"):
-            with primary.get_ledger_chunk_from_api(seqno, timeout=timeout) as ledger:
-                return ledger.get_transaction(seqno).get_public_domain().get_tables()
-
-        return primary.get_ledger_public_tables_at(seqno)
+        with primary.get_ledger_chunk_from_api(seqno, timeout=timeout) as ledger:
+            return ledger.get_transaction(seqno).get_public_domain().get_tables()
 
     def get_latest_ledger_public_state(self, timeout=5):
         primary, _ = self.find_primary()
-        with primary.client() as nc:
-            resp = nc.get("/node/commit")
-            body = resp.body.json()
-            tx_id = TxID.from_str(body["transaction_id"])
         target_seqno = self.create_and_wait_for_ledger_chunk(
             node=primary,
             timeout=timeout,
         )
-        if self._supports_operator_feature(
-            primary, "LedgerChunkRead"
-        ) and self._supports_operator_feature(primary, "SnapshotRead"):
-            return primary.get_public_state_from_api(
-                target_seqno,
-                timeout=timeout,
-            )
-
-        return primary.get_ledger_public_state_at(tx_id.seqno)
+        return primary.get_public_state_from_api(
+            target_seqno,
+            timeout=timeout,
+        )
 
     @functools.cached_property
     def cert_path(self):
