@@ -9,24 +9,30 @@ from pathlib import Path
 import pty
 import signal
 import stat
+import subprocess
 import tempfile
 import time
 import unittest
 
 
 class DevcontainerStartupTest(unittest.TestCase):
-    def test_relay_survives_pty_hook_exit(self):
-        """Run the real hook with a test-only startup script, without credentials."""
+    def setUp(self):
         repo = Path(__file__).resolve().parents[1]
         config = json.loads(
             (repo / ".devcontainer/azurelinux4-copilotd/devcontainer.json").read_text()
         )
-        command = config["postStartCommand"]
+        self.command = config["postStartCommand"]
+
+    def test_relay_survives_pty_hook_exit(self):
+        """Run the real hook with test-only startup scripts, without credentials."""
 
         for attempt in range(10):
             with self.subTest(attempt=attempt), tempfile.TemporaryDirectory() as temp:
                 workspace = Path(temp)
                 home = workspace / "home"
+                ssh_startup = workspace / ".devcontainer/sshd/start_sshd.sh"
+                ssh_startup.parent.mkdir(parents=True)
+                ssh_startup.write_text("printf 'started\\n' > \"$HOME/sshd-started\"\n")
                 startup = (
                     workspace / ".devcontainer/azurelinux4-copilotd/start_copilotd.sh"
                 )
@@ -34,6 +40,7 @@ class DevcontainerStartupTest(unittest.TestCase):
                 startup.write_text(
                     "#!/bin/bash\n"
                     "set -eu\n"
+                    'test -f "$HOME/sshd-started"\n'
                     "printf 'startup ready\\n'\n"
                     'printf \'%s\\n\' "$$" > "$HOME/startup.pid.tmp"\n'
                     'mv "$HOME/startup.pid.tmp" "$HOME/startup.pid"\n'
@@ -46,8 +53,8 @@ class DevcontainerStartupTest(unittest.TestCase):
                 if hook_pid == 0:
                     os.chdir(workspace)
                     os.execvpe(
-                        command[0],
-                        command,
+                        self.command[0],
+                        self.command,
                         {"HOME": str(home), "PATH": os.environ["PATH"]},
                     )
 
@@ -86,6 +93,25 @@ class DevcontainerStartupTest(unittest.TestCase):
                             os.kill(hook_pid, signal.SIGKILL)
                         os.waitpid(hook_pid, 0)
                     os.close(terminal)
+
+    def test_ssh_failure_is_reported_by_hook(self):
+        with tempfile.TemporaryDirectory() as temp:
+            workspace = Path(temp)
+            home = workspace / "home"
+            ssh_startup = workspace / ".devcontainer/sshd/start_sshd.sh"
+            ssh_startup.parent.mkdir(parents=True)
+            ssh_startup.write_text("printf 'test SSH startup failed\\n' >&2\nexit 42\n")
+            result = subprocess.run(
+                self.command,
+                cwd=workspace,
+                env={"HOME": str(home), "PATH": os.environ["PATH"]},
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            self.assertEqual(result.returncode, 42)
+            self.assertIn("test SSH startup failed", result.stderr)
+            self.assertFalse((home / ".local/state/ccf-copilotd/copilotd.log").exists())
 
 
 if __name__ == "__main__":

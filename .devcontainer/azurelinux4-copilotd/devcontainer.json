@@ -2,9 +2,8 @@
   "name": "Az4 Copilotd SSH",
   "build": {
     "dockerfile": "Dockerfile",
-    "context": ".."
+    "context": "."
   },
-  "overrideCommand": false,
   "init": true,
   "runArgs": [
     "--cap-add=PERFMON",
@@ -44,6 +43,6 @@
   "postStartCommand": [
     "bash",
     "-c",
-    "set -eu; umask 077; mkdir -p \"$HOME/.local/state/ccf-copilotd\"; trap '' HUP; setsid -f nohup bash .devcontainer/azurelinux4-copilotd/start_copilotd.sh </dev/null >>\"$HOME/.local/state/ccf-copilotd/copilotd.log\" 2>&1"
+    "set -eu; umask 077; mkdir -p \"$HOME/.local/state/ccf-copilotd\"; trap '' HUP; bash .devcontainer/sshd/start_sshd.sh; setsid -f nohup bash .devcontainer/azurelinux4-copilotd/start_copilotd.sh </dev/null >>\"$HOME/.local/state/ccf-copilotd/copilotd.log\" 2>&1"
   ]
 }
