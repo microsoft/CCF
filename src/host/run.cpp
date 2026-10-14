@@ -494,10 +494,16 @@ namespace ccf
       return failure_status;
     }
 
-    const auto stop = [&enclave]() { enclave->request_stop(); };
-    const auto notice = [&enclave]() { enclave->request_stop_notice(); };
-    asynchost::Sigterm sigterm(config.ignore_first_sigterm, stop, notice);
-    asynchost::Sighup sighup(false, stop, notice);
+    const auto request_node_shutdown = [&enclave]() {
+      enclave->request_stop();
+    };
+    const auto notify_node_stopping = [&enclave]() {
+      enclave->request_stop_notice();
+    };
+    asynchost::Sigterm sigterm(
+      config.ignore_first_sigterm, request_node_shutdown, notify_node_stopping);
+    asynchost::Sighup sighup(
+      false, request_node_shutdown, notify_node_stopping);
     run_enclave_threads(config, *enclave);
     runtime_control->throw_if_fatal_error();
 

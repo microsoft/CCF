@@ -56,12 +56,13 @@ TEST_CASE("Shutdown signals use their runtime's callbacks")
 {
   size_t stops = 0;
   size_t notices = 0;
-  const auto stop = [&]() { ++stops; };
-  const auto notice = [&]() { ++notices; };
+  const auto request_node_shutdown = [&]() { ++stops; };
+  const auto notify_node_stopping = [&]() { ++notices; };
 
   SUBCASE("SIGTERM requests a stop")
   {
-    asynchost::ShutdownSignalImpl signal(false, stop, notice);
+    asynchost::ShutdownSignalImpl signal(
+      false, request_node_shutdown, notify_node_stopping);
     signal.on_signal(SIGTERM);
     CHECK(stops == 1);
     CHECK(notices == 0);
@@ -69,7 +70,8 @@ TEST_CASE("Shutdown signals use their runtime's callbacks")
 
   SUBCASE("Ignored first SIGTERM delivers a notice, then stops")
   {
-    asynchost::ShutdownSignalImpl signal(true, stop, notice);
+    asynchost::ShutdownSignalImpl signal(
+      true, request_node_shutdown, notify_node_stopping);
     signal.on_signal(SIGTERM);
     CHECK(stops == 0);
     CHECK(notices == 1);
@@ -80,7 +82,8 @@ TEST_CASE("Shutdown signals use their runtime's callbacks")
 
   SUBCASE("SIGHUP requests a stop independently")
   {
-    asynchost::ShutdownSignalImpl signal(false, stop, notice);
+    asynchost::ShutdownSignalImpl signal(
+      false, request_node_shutdown, notify_node_stopping);
     signal.on_signal(SIGHUP);
     CHECK(stops == 1);
     CHECK(notices == 0);

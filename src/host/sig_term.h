@@ -15,17 +15,17 @@ namespace asynchost
   private:
     bool ignore_first_signal = false;
     size_t signal_count = 0;
-    std::function<void()> request_stop;
-    std::function<void()> request_stop_notice;
+    std::function<void()> request_node_shutdown;
+    std::function<void()> notify_node_stopping;
 
   public:
     ShutdownSignalImpl(
       bool ignore_first_sigterm_,
-      std::function<void()> request_stop_,
-      std::function<void()> request_stop_notice_) :
+      std::function<void()> request_node_shutdown_,
+      std::function<void()> notify_node_stopping_) :
       ignore_first_signal(ignore_first_sigterm_),
-      request_stop(std::move(request_stop_)),
-      request_stop_notice(std::move(request_stop_notice_))
+      request_node_shutdown(std::move(request_node_shutdown_)),
+      notify_node_stopping(std::move(notify_node_stopping_))
     {}
 
     void on_signal(int signal)
@@ -36,13 +36,13 @@ namespace asynchost
         LOG_INFO_FMT(
           "SIG{}: Notifying enclave, but not shutting down.",
           sigabbrev_np(signal));
-        request_stop_notice();
+        notify_node_stopping();
       }
       else
       {
         LOG_INFO_FMT(
           "SIG{}: Shutting down enclave gracefully...", sigabbrev_np(signal));
-        request_stop();
+        request_node_shutdown();
       }
     }
   };
