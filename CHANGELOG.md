@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Deprecated
 
+- The `memory` configuration section is deprecated and will be removed in 8.0. Use `ledger.max_pending_append_bytes` instead of `memory.circuit_size`, and `ledger.max_read_size` and `node_to_node.max_message_size` instead of `memory.max_msg_size`. Explicit new settings take precedence over legacy values. `memory.max_fragment_size` is ignored. Explicit legacy fields produce INFO deprecation notices, including with `--check` (#8568).
 - The helper functions in `ccf/endpoints/authentication/js.h` are deprecated and will be removed in 8.0. Their signatures are unchanged. Applications using these helpers for JavaScript endpoint dispatch can use the extensible registries in `ccf/js/registry.h` (#8520).
 
 ### Removed

@@ -88,23 +88,17 @@ namespace ccf
 {
   void validate_ledger_transaction_size(const ccf::CCFConfig& config)
   {
-    const auto max_message_size = config.memory.max_msg_size.count_bytes();
+    const auto max_read_size = config.get_max_ledger_read_size();
     const auto max_transaction_size =
       config.ledger.max_transaction_size.count_bytes();
-    const auto response_overhead =
-      ::consensus::ledger_range_response_metadata_size;
-
-    if (
-      max_message_size <= response_overhead ||
-      max_transaction_size > max_message_size - response_overhead)
+    if (max_read_size == 0 || max_transaction_size > max_read_size)
     {
       throw std::logic_error(fmt::format(
-        "ledger.max_transaction_size ({}) must be at least {} bytes smaller "
-        "than memory.max_msg_size ({}) so a single ledger entry fits in a "
-        "ledger range response",
-        max_transaction_size,
-        response_overhead,
-        max_message_size));
+        "ledger.max_read_size ({}) must be nonzero and at least "
+        "ledger.max_transaction_size ({}) so a single ledger entry fits in a "
+        "ledger range read",
+        max_read_size,
+        max_transaction_size));
     }
   }
 
@@ -360,10 +354,9 @@ namespace ccf
     // is alive, and shut down before it is destroyed.
     auto ledger_subsystem = std::make_shared<asynchost::LedgerSubsystem>(
       ledger,
-      config.memory.max_msg_size.count_bytes() -
-        ::consensus::ledger_range_response_metadata_size,
+      config.get_max_ledger_read_size(),
       ccf::tasks::get_main_job_board(),
-      config.memory.circuit_size.count_bytes());
+      config.get_max_pending_append_bytes());
 
     if (config.snapshots.read_only_directory.has_value())
     {
@@ -398,7 +391,7 @@ namespace ccf
       *ledger_subsystem,
       node_host,
       node_port,
-      config.memory.max_msg_size.count_bytes(),
+      config.get_node_to_node_max_message_size(),
       config.node_client_interface,
       config.client_connection_timeout);
     const asynchost::FlushNodeOutbound flush_node_outbound(1ms, *node);
@@ -713,6 +706,36 @@ namespace ccf
 
     // Coerces rather than rejects, so no try/catch is needed here.
     validate_and_coerce_worker_threads(config);
+
+    if (config_json.contains("memory"))
+    {
+      const auto& memory = config_json.at("memory");
+      if (memory.contains("circuit_size"))
+      {
+        LOG_INFO_FMT(
+          "memory.circuit_size is deprecated and will be removed in 8.0; use "
+          "ledger.max_pending_append_bytes instead. The legacy value is {}.",
+          config.ledger.max_pending_append_bytes.has_value() ? "ignored" :
+                                                               "used");
+      }
+      if (memory.contains("max_msg_size"))
+      {
+        LOG_INFO_FMT(
+          "memory.max_msg_size is deprecated and will be removed in 8.0; use "
+          "ledger.max_read_size and node_to_node.max_message_size instead. "
+          "The legacy value is {} for ledger.max_read_size and {} for "
+          "node_to_node.max_message_size.",
+          config.ledger.max_read_size.has_value() ? "ignored" : "used",
+          config.node_to_node.max_message_size.has_value() ? "ignored" :
+                                                             "used");
+      }
+      if (memory.contains("max_fragment_size"))
+      {
+        LOG_INFO_FMT(
+          "memory.max_fragment_size is deprecated and ignored; remove it "
+          "from the configuration. It will be removed in 8.0.");
+      }
+    }
 
     if (check_config_only)
     {

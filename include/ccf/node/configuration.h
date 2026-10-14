@@ -65,6 +65,14 @@ namespace ccf
     // 2**24.5 as per RFC8446 Section 5.5
     size_t node_to_node_message_limit = 23'726'566;
 
+    struct NodeToNode
+    {
+      std::optional<ccf::ds::SizeString> max_message_size = std::nullopt;
+
+      bool operator==(const NodeToNode&) const = default;
+    };
+    NodeToNode node_to_node = {};
+
     ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
 
     // How long an idle RPC (client TLS) connection is kept before it is closed.
@@ -94,6 +102,9 @@ namespace ccf
       std::vector<std::string> read_only_directories;
       ccf::ds::SizeString chunk_size = {"5MB"};
       ccf::ds::SizeString max_transaction_size = {"32MB"};
+      std::optional<ccf::ds::SizeString> max_read_size = std::nullopt;
+      std::optional<ccf::ds::SizeString> max_pending_append_bytes =
+        std::nullopt;
 
       bool operator==(const Ledger&) const = default;
     };
@@ -234,6 +245,25 @@ namespace ccf
     };
     Memory memory = {};
 
+    // Keep explicit new values distinct from defaults so legacy aliases only
+    // supply limits which have not been configured under their new names.
+    [[nodiscard]] size_t get_max_ledger_read_size() const
+    {
+      return ledger.max_read_size.value_or(memory.max_msg_size).count_bytes();
+    }
+
+    [[nodiscard]] size_t get_max_pending_append_bytes() const
+    {
+      return ledger.max_pending_append_bytes.value_or(memory.circuit_size)
+        .count_bytes();
+    }
+
+    [[nodiscard]] size_t get_node_to_node_max_message_size() const
+    {
+      return node_to_node.max_message_size.value_or(memory.max_msg_size)
+        .count_bytes();
+    }
+
     struct Command
     {
       StartType type = StartType::Start;
@@ -279,6 +309,10 @@ namespace ccf
     Command command = {};
   };
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::NodeToNode);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeToNode);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::NodeToNode, max_message_size);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::NodeCertificateInfo);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::NodeCertificateInfo);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -295,7 +329,9 @@ namespace ccf
     directory,
     read_only_directories,
     chunk_size,
-    max_transaction_size);
+    max_transaction_size,
+    max_read_size,
+    max_pending_append_bytes);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::LedgerSignatures);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::LedgerSignatures);
@@ -456,6 +492,7 @@ namespace ccf
     files_cleanup,
     pending_node_timeout,
     node_to_node_message_limit,
+    node_to_node,
     historical_cache_soft_limit,
     identity_history_fetch,
     observability,
