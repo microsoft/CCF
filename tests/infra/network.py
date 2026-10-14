@@ -218,8 +218,6 @@ class Network:
         "previous_service_identity_file",
         "snp_endorsements_servers",
         "node_to_node_message_limit",
-        "node_to_node_transport",
-        "node_to_node_tls_record_limit",
         "historical_cache_soft_limit",
         "tick_ms",
         "max_msg_size_bytes",

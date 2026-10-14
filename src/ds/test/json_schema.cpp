@@ -13,6 +13,59 @@
 #include <nlohmann/json.hpp>
 #include <vector>
 
+TEST_CASE("Node-to-node endpoint capabilities and RPC listener requirements")
+{
+  using Json = nlohmann::json;
+  const auto schema = Json::parse(host::host_config_schema);
+  auto config = Json::parse(R"({
+    "network": {
+      "node_to_node_interface": {"bind_address": "127.0.0.1:8081"},
+      "rpc_interfaces": {"primary": {"bind_address": "127.0.0.1:8080"}}
+    },
+    "command": {
+      "type": "Start",
+      "start": {"constitution_files": [], "members": []}
+    }
+  })");
+  auto& interface = config["network"]["node_to_node_interface"];
+  REQUIRE_FALSE(json::validate_json(config, schema).has_value());
+  interface["tls_bind_address"] = "127.0.0.1:8082";
+  REQUIRE_FALSE(json::validate_json(config, schema).has_value());
+  interface.erase("bind_address");
+  REQUIRE_FALSE(json::validate_json(config, schema).has_value());
+  const auto parsed = config.get<ccf::CCFConfig>();
+  CHECK(parsed.network.node_to_node_interface.bind_address.empty());
+  CHECK(
+    parsed.network.node_to_node_interface.tls_bind_address == "127.0.0.1:8082");
+  interface["published_address"] = "node.example:8081";
+  CHECK(json::validate_json(config, schema).has_value());
+  interface.erase("published_address");
+  interface.erase("tls_bind_address");
+  CHECK(json::validate_json(config, schema).has_value());
+  interface["tls_bind_address"] = "";
+  CHECK(json::validate_json(config, schema).has_value());
+  interface["tls_bind_address"] = "127.0.0.1:8082";
+  config["network"]["rpc_interfaces"]["primary"].erase("bind_address");
+  CHECK(json::validate_json(config, schema).has_value());
+  config["network"]["rpc_interfaces"]["primary"]["bind_address"] =
+    "127.0.0.1:8080";
+  config["memory"]["max_msg_size"] = "3MB";
+  CHECK(
+    config.get<ccf::CCFConfig>().get_node_to_node_max_message_size() ==
+    3 * 1024 * 1024);
+  config["node_to_node"]["max_message_size"] = "2MB";
+  CHECK(
+    config.get<ccf::CCFConfig>().get_node_to_node_max_message_size() ==
+    2 * 1024 * 1024);
+  for (const auto& removed :
+       {"node_to_node_transport", "node_to_node_tls_record_limit"})
+  {
+    config[removed] = 4;
+    CHECK(json::validate_json(config, schema).has_value());
+    config.erase(removed);
+  }
+}
+
 TEST_CASE("host configuration unsigned integer bounds")
 {
   using Json = nlohmann::json;

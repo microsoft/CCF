@@ -42,8 +42,14 @@ namespace ccf
     size_t payload_size,
     TForwarder* cmd_forwarder,
     TChannels* n2n_channels,
-    TConsensus* consensus)
+    TConsensus* consensus,
+    bool tls_authenticated = false)
   {
+    if (tls_authenticated && msg_type != consensus_msg)
+    {
+      LOG_FAIL_FMT("Rejecting non-consensus message over TLS node transport");
+      return;
+    }
     switch (msg_type)
     {
       case forwarded_msg:
@@ -78,7 +84,8 @@ namespace ccf
             "Ignoring consensus node message: consensus not initialised");
           return;
         }
-        consensus->recv_message(from, payload_data, payload_size);
+        consensus->recv_message(
+          from, payload_data, payload_size, tls_authenticated);
         return;
       }
       default:

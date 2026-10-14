@@ -198,6 +198,8 @@ namespace aft
     // When set, recv_authenticated() reports that a message failed
     // authentication, as a real channel does for a message it cannot verify.
     bool fail_recv_authentication = false;
+    std::map<ccf::NodeId, std::pair<std::string, std::string>>
+      tls_node_addresses;
 
     ChannelStubProxy() {}
 
@@ -243,9 +245,12 @@ namespace aft
     void associate_node_address(
       const ccf::NodeId& peer_id,
       const std::string& peer_hostname,
-      const std::string& peer_service) override
+      const std::string& peer_service,
+      const std::string& tls_hostname = {},
+      const std::string& tls_service = {}) override
     {
       node_addresses[peer_id] = {peer_hostname, peer_service};
+      tls_node_addresses[peer_id] = {tls_hostname, tls_service};
     }
 
     bool send_consensus_message(

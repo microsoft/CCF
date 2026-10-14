@@ -737,7 +737,10 @@ namespace aft
     }
 
     void recv_message(
-      const ccf::NodeId& from, const uint8_t* data, size_t size) override
+      const ccf::NodeId& from,
+      const uint8_t* data,
+      size_t size,
+      bool tls_authenticated = false) override
     {
       auto type = serialized::peek<RaftMsgType>(data, size);
 
@@ -749,7 +752,7 @@ namespace aft
           {
             AppendEntries r =
               channels->template recv_authenticated<AppendEntries>(
-                from, data, size);
+                from, data, size, tls_authenticated);
             if (ledger->is_backlogged())
             {
               // Treat the whole message as lost. Check before term/log
@@ -770,7 +773,7 @@ namespace aft
           {
             AppendEntriesResponse r =
               channels->template recv_authenticated<AppendEntriesResponse>(
-                from, data, size);
+                from, data, size, tls_authenticated);
             recv_append_entries_response(from, r);
             break;
           }
@@ -779,7 +782,7 @@ namespace aft
           {
             RequestPreVote r =
               channels->template recv_authenticated<RequestPreVote>(
-                from, data, size);
+                from, data, size, tls_authenticated);
             recv_request_pre_vote(from, r);
             break;
           }
@@ -787,7 +790,7 @@ namespace aft
           case raft_request_vote:
           {
             RequestVote r = channels->template recv_authenticated<RequestVote>(
-              from, data, size);
+              from, data, size, tls_authenticated);
             recv_request_vote(from, r);
             break;
           }
@@ -796,7 +799,7 @@ namespace aft
           {
             RequestPreVoteResponse r =
               channels->template recv_authenticated<RequestPreVoteResponse>(
-                from, data, size);
+                from, data, size, tls_authenticated);
             recv_request_pre_vote_response(from, r);
             break;
           }
@@ -805,7 +808,7 @@ namespace aft
           {
             RequestVoteResponse r =
               channels->template recv_authenticated<RequestVoteResponse>(
-                from, data, size);
+                from, data, size, tls_authenticated);
             recv_request_vote_response(from, r);
             break;
           }
@@ -814,7 +817,7 @@ namespace aft
           {
             ProposeRequestVote r =
               channels->template recv_authenticated<ProposeRequestVote>(
-                from, data, size);
+                from, data, size, tls_authenticated);
             recv_propose_request_vote(from, r);
             break;
           }
@@ -2827,7 +2830,9 @@ namespace aft
       {
         for (auto const& node : conf.nodes)
         {
-          active_nodes.emplace(node.first, node.second);
+          // Membership spans active configurations, while an existing node's
+          // latest advertised endpoints determine how to reach it.
+          active_nodes.insert_or_assign(node.first, node.second);
         }
       }
 
@@ -2839,7 +2844,20 @@ namespace aft
           continue;
         }
 
-        if (all_other_nodes.find(node_info.first) == all_other_nodes.end())
+        const auto existing_node = all_other_nodes.find(node_info.first);
+        if (
+          existing_node != all_other_nodes.end() &&
+          existing_node->second.node_info != node_info.second)
+        {
+          channels->associate_node_address(
+            node_info.first,
+            node_info.second.hostname,
+            node_info.second.port,
+            node_info.second.tls_hostname,
+            node_info.second.tls_port);
+          existing_node->second.node_info = node_info.second;
+        }
+        if (existing_node == all_other_nodes.end())
         {
           RAFT_DEBUG_FMT(
             "Configurations: associate node address for {}", node_info.first);
@@ -2847,7 +2865,11 @@ namespace aft
           // An incoming channel may predate this configuration. The host still
           // needs the peer's address to reconnect after that channel closes.
           channels->associate_node_address(
-            node_info.first, node_info.second.hostname, node_info.second.port);
+            node_info.first,
+            node_info.second.hostname,
+            node_info.second.port,
+            node_info.second.tls_hostname,
+            node_info.second.tls_port);
 
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.

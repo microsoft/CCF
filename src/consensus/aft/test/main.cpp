@@ -238,6 +238,12 @@ DOCTEST_TEST_CASE(
   DOCTEST_CHECK(channels->node_addresses.at(node_id2).second == "8002");
   DOCTEST_CHECK(channels->node_addresses.at(node_id1).first == "127.0.0.2");
   DOCTEST_CHECK(channels->node_addresses.at(node_id1).second == "8001");
+
+  config[node_id1] = {"127.0.0.4", "8101", "127.0.0.5", "8201"};
+  raft.add_configuration(2, config);
+  DOCTEST_CHECK(channels->node_addresses.at(node_id1).first == "127.0.0.4");
+  DOCTEST_CHECK(channels->tls_node_addresses.at(node_id1).first == "127.0.0.5");
+  DOCTEST_CHECK(channels->tls_node_addresses.at(node_id1).second == "8201");
 }
 
 DOCTEST_TEST_CASE(
@@ -1753,6 +1759,19 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(r1.get_view() == 5);
     DOCTEST_REQUIRE(
       r1c->count_messages_with_type(aft::raft_request_vote_response) == 1);
+  }
+
+  DOCTEST_SUBCASE("TLS authentication is scoped to one consensus message")
+  {
+    r1c->fail_recv_authentication = true;
+    const auto tls_msg = as_bytes(aft::RequestVote{
+      .term = 5, .last_committable_idx = 0, .term_of_last_committable_idx = 0});
+    r1.recv_message(node_id0, tls_msg.data(), tls_msg.size(), true);
+    DOCTEST_REQUIRE(r1.get_view() == 5);
+    const auto legacy_msg = as_bytes(aft::RequestVote{
+      .term = 6, .last_committable_idx = 0, .term_of_last_committable_idx = 0});
+    r1.recv_message(node_id0, legacy_msg.data(), legacy_msg.size());
+    DOCTEST_REQUIRE(r1.get_view() == 5);
   }
 }
 

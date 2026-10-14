@@ -5,11 +5,42 @@
 #include "ccf/service/node_info_network.h"
 #include "common/cli_helper.h"
 #include "ds/internal_logger.h"
+#include "kv/kv_types.h"
 
 #include <utility>
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+
+TEST_CASE("Node-to-node endpoint metadata preserves legacy and TLS addresses")
+{
+  using Interface = ccf::NodeInfoNetwork::NodeToNodeInterface;
+  const nlohmann::json legacy = {{"bind_address", "127.0.0.1:8081"}};
+  const auto old = legacy.get<Interface>();
+  CHECK(old.tls_bind_address.empty());
+  CHECK(old.tls_published_address.empty());
+  for (const bool legacy_enabled : {false, true})
+  {
+    auto j = legacy_enabled ? legacy : nlohmann::json::object();
+    j["tls_bind_address"] = "127.0.0.1:8082";
+    j["tls_published_address"] = "node.example:8082";
+    const auto parsed = j.get<Interface>();
+    const nlohmann::json roundtrip = parsed;
+    CHECK(roundtrip.get<Interface>() == parsed);
+    CHECK(roundtrip.contains("bind_address") == legacy_enabled);
+    CHECK(roundtrip.at("tls_published_address") == "node.example:8082");
+  }
+  CHECK_THROWS_AS(
+    nlohmann::json::object().get<ccf::NodeInfoNetwork::NetInterface>(),
+    ccf::JsonParseError);
+
+  const ccf::kv::Configuration::NodeInfo peer(
+    "legacy.example", "8081", "tls.example", "8082");
+  const nlohmann::json peer_json = peer;
+  CHECK(peer_json.get<ccf::kv::Configuration::NodeInfo>() == peer);
+  const nlohmann::json old_peer = {{"address", "legacy.example:8081"}};
+  CHECK(old_peer.get<ccf::kv::Configuration::NodeInfo>().tls_hostname.empty());
+}
 
 TEST_CASE("Multiple versions of NodeInfoNetwork")
 {

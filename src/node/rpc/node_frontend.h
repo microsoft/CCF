@@ -257,8 +257,14 @@ namespace ccf
       nodes->foreach([&node_info_network, &duplicate_node_id](
                        const NodeId& nid, const NodeInfo& ni) {
         if (
-          node_info_network.node_to_node_interface.published_address ==
-            ni.node_to_node_interface.published_address &&
+          ((!node_info_network.node_to_node_interface.published_address
+               .empty() &&
+            node_info_network.node_to_node_interface.published_address ==
+              ni.node_to_node_interface.published_address) ||
+           (!node_info_network.node_to_node_interface.tls_published_address
+               .empty() &&
+            node_info_network.node_to_node_interface.tls_published_address ==
+              ni.node_to_node_interface.tls_published_address)) &&
           ni.status != NodeStatus::RETIRED)
         {
           duplicate_node_id = nid;

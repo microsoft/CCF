@@ -26,12 +26,18 @@ namespace
     std::optional<ccf::NodeId> last_from;
     std::vector<uint8_t> last_payload;
     size_t call_count = 0;
+    bool tls_authenticated = false;
 
-    void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
+    void recv_message(
+      const ccf::NodeId& from,
+      const uint8_t* data,
+      size_t size,
+      bool authenticated = false)
     {
       last_from = from;
       last_payload.assign(data, data + size);
       ++call_count;
+      tls_authenticated = authenticated;
     }
 
     void recv_channel_message(
@@ -285,6 +291,43 @@ TEST_CASE(
     REQUIRE(forwarder.call_count == 0);
     REQUIRE(channels.call_count == 0);
     REQUIRE(consensus.call_count == 0);
+  }
+
+  SUBCASE("TLS metadata reaches consensus and forbids forwarding")
+  {
+    StubHandler forwarder;
+    StubHandler channels;
+    StubHandler consensus;
+    ccf::recv_node_inbound_message(
+      ccf::consensus_msg,
+      from,
+      payload.data(),
+      payload.size(),
+      &forwarder,
+      &channels,
+      &consensus,
+      true);
+    CHECK(consensus.tls_authenticated);
+    ccf::recv_node_inbound_message(
+      ccf::forwarded_msg,
+      from,
+      payload.data(),
+      payload.size(),
+      &forwarder,
+      &channels,
+      &consensus,
+      true);
+    ccf::recv_node_inbound_message(
+      ccf::channel_msg,
+      from,
+      payload.data(),
+      payload.size(),
+      &forwarder,
+      &channels,
+      &consensus,
+      true);
+    CHECK(forwarder.call_count == 0);
+    CHECK(channels.call_count == 0);
   }
 }
 

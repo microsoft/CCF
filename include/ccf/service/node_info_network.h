@@ -144,8 +144,16 @@ namespace ccf
     /// RPC interface mapping
     using RpcInterfaces = std::map<RpcInterfaceID, NetInterface>;
 
+    struct NodeToNodeInterface : NetInterface
+    {
+      NetAddress tls_bind_address;
+      NetAddress tls_published_address;
+
+      bool operator==(const NodeToNodeInterface&) const = default;
+    };
+
     /// Node-to-node network interface
-    NetInterface node_to_node_interface;
+    NodeToNodeInterface node_to_node_interface;
 
     /// RPC interfaces
     RpcInterfaces rpc_interfaces;
@@ -171,6 +179,78 @@ namespace ccf
     forwarding_timeout_ms,
     enabled_operator_features,
     redirections);
+
+  inline void to_json(
+    nlohmann::json& j, const NodeInfoNetwork_v2::NodeToNodeInterface& interface)
+  {
+    to_json(j, static_cast<const NodeInfoNetwork_v2::NetInterface&>(interface));
+    if (interface.bind_address.empty())
+    {
+      j.erase("bind_address");
+    }
+    if (interface.published_address.empty())
+    {
+      j.erase("published_address");
+    }
+    if (!interface.tls_bind_address.empty())
+    {
+      j["tls_bind_address"] = interface.tls_bind_address;
+    }
+    if (!interface.tls_published_address.empty())
+    {
+      j["tls_published_address"] = interface.tls_published_address;
+    }
+  }
+
+  inline void from_json(
+    const nlohmann::json& j, NodeInfoNetwork_v2::NodeToNodeInterface& interface)
+  {
+    auto legacy = j;
+    // Only node-to-node interfaces may omit the legacy listener. RPC
+    // interfaces retain their required bind_address field.
+    if (!legacy.contains("bind_address"))
+    {
+      legacy["bind_address"] = "";
+    }
+    from_json(
+      legacy, static_cast<NodeInfoNetwork_v2::NetInterface&>(interface));
+    interface.tls_bind_address = j.value("tls_bind_address", std::string{});
+    interface.tls_published_address =
+      j.value("tls_published_address", std::string{});
+  }
+
+  inline std::string schema_name(const NodeInfoNetwork_v2::NodeToNodeInterface*)
+  {
+    return "NodeInfoNetwork_v2::NodeToNodeInterface";
+  }
+
+  inline void node_to_node_schema_fields(nlohmann::json& j)
+  {
+    j["required"] = nlohmann::json::array();
+    j["properties"]["tls_bind_address"] = j["properties"]["bind_address"];
+    j["properties"]["tls_published_address"] =
+      j["properties"]["published_address"];
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& j, const NodeInfoNetwork_v2::NodeToNodeInterface* interface)
+  {
+    fill_json_schema(
+      j, static_cast<const NodeInfoNetwork_v2::NetInterface*>(interface));
+    node_to_node_schema_fields(j);
+  }
+
+  template <typename T>
+  void add_schema_components(
+    T& doc,
+    nlohmann::json& j,
+    const NodeInfoNetwork_v2::NodeToNodeInterface* interface)
+  {
+    add_schema_components(
+      doc, j, static_cast<const NodeInfoNetwork_v2::NetInterface*>(interface));
+    node_to_node_schema_fields(j);
+  }
+
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);

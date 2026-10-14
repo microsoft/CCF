@@ -16,6 +16,8 @@ namespace ccf
   {
     std::string hostname;
     std::string port;
+    std::string tls_hostname;
+    std::string tls_port;
   };
 
   class ConfigurationChangeHook : public ccf::kv::ConsensusHook
@@ -47,6 +49,8 @@ namespace ccf
         const auto& ni = opt_ni.value();
         const auto [host, port] =
           split_net_address(ni.node_to_node_interface.published_address);
+        const auto [tls_host, tls_port] =
+          split_net_address(ni.node_to_node_interface.tls_published_address);
         switch (ni.status)
         {
           case NodeStatus::PENDING:
@@ -57,7 +61,8 @@ namespace ccf
           }
           case NodeStatus::TRUSTED:
           {
-            cfg_delta.try_emplace(node_id, NodeAddr{host, port});
+            cfg_delta.try_emplace(
+              node_id, NodeAddr{host, port, tls_host, tls_port});
             break;
           }
           case NodeStatus::RETIRED:
@@ -84,9 +89,17 @@ namespace ccf
       {
         if (opt_ni.has_value())
         {
-          configuration_changed |=
-            configuration.try_emplace(node_id, opt_ni->hostname, opt_ni->port)
-              .second;
+          const ccf::kv::Configuration::NodeInfo updated(
+            opt_ni->hostname,
+            opt_ni->port,
+            opt_ni->tls_hostname,
+            opt_ni->tls_port);
+          const auto existing = configuration.find(node_id);
+          if (existing == configuration.end() || existing->second != updated)
+          {
+            configuration.insert_or_assign(node_id, updated);
+            configuration_changed = true;
+          }
         }
         else
         {

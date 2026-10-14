@@ -198,7 +198,10 @@ namespace ccf::kv::test
     }
 
     void recv_message(
-      const NodeId& from, const uint8_t* data, size_t size) override
+      const NodeId& from,
+      const uint8_t* data,
+      size_t size,
+      bool = false) override
     {}
 
     void add_configuration(

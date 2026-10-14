@@ -211,6 +211,32 @@ class Node:
                 self.n2n_interface = infra.interfaces.Interface(
                     host=rpc_interface.host, port=node_port
                 )
+                self.n2n_legacy_interface = self.n2n_interface
+                self.n2n_tls_interface = None
+                configured = self.host.node_to_node_interface
+                if configured is not None:
+                    self.n2n_legacy_interface = None
+                    if "bind_address" in configured:
+                        host, port = infra.interfaces.split_netloc(
+                            configured["bind_address"]
+                        )
+                        self.n2n_legacy_interface = infra.interfaces.Interface(
+                            host=host, port=port
+                        )
+                    if "tls_bind_address" in configured:
+                        host, port = infra.interfaces.split_netloc(
+                            configured["tls_bind_address"]
+                        )
+                        self.n2n_tls_interface = infra.interfaces.Interface(
+                            host=host, port=port
+                        )
+                    self.n2n_interface = (
+                        self.n2n_legacy_interface or self.n2n_tls_interface
+                    )
+                    if self.n2n_interface is None:
+                        raise ValueError(
+                            "At least one node-to-node listener is required"
+                        )
 
             # These helpers use the underscored ledger chunk endpoint, which is
             # only supported from 7.0.0-dev13 onwards.
@@ -358,6 +384,7 @@ class Node:
                 self.n2n_interface.host, self.n2n_interface.port
             ),
             node_address_port=self.n2n_interface.port,
+            node_to_node_interface=self._node_to_node_config(),
             node_client_interface=self.node_client_host,
             members_info=members_info,
             version=self.version,
@@ -438,6 +465,18 @@ class Node:
             start_msg += f" [version: {self.version}]"
         LOG.info(start_msg)
 
+    def _node_to_node_config(self):
+        config = dict(self.host.node_to_node_interface or {})
+        if self.n2n_legacy_interface is not None:
+            config["bind_address"] = infra.interfaces.make_address(
+                self.n2n_legacy_interface.host, self.n2n_legacy_interface.port
+            )
+        if self.n2n_tls_interface is not None:
+            config["tls_bind_address"] = infra.interfaces.make_address(
+                self.n2n_tls_interface.host, self.n2n_tls_interface.port
+            )
+        return config
+
     def _resolve_address(self, address_file_path, interfaces):
         with open(address_file_path, "r", encoding="utf-8") as f:
             addresses = json.load(f)
@@ -459,7 +498,10 @@ class Node:
                 )
                 self._resolve_address(
                     node_address_file,
-                    {infra.interfaces.NODE_TO_NODE_INTERFACE_NAME: self.n2n_interface},
+                    {
+                        infra.interfaces.NODE_TO_NODE_INTERFACE_NAME: self.n2n_legacy_interface,
+                        infra.interfaces.NODE_TO_NODE_TLS_INTERFACE_NAME: self.n2n_tls_interface,
+                    },
                 )
 
             if self.remote.rpc_addresses_file is not None:

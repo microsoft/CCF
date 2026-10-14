@@ -561,6 +561,205 @@ TEST_CASE("TLS transport binds sender identity and protects appended ledger")
   net = nullptr;
 }
 
+TEST_CASE("Bridge transport concurrently carries legacy and TLS peer traffic")
+{
+  using Kind = ccf::NodeTransportKind;
+  using Dual = asynchost::DualNodeConnectionsImpl<MockSocket>;
+  using Interface = ccf::NodeInfoNetwork::NodeToNodeInterface;
+  MockNet mock_net;
+  net = &mock_net;
+  {
+    TestNode a("bridge", "10.0.0.1");
+    TestNode b("legacy_peer", "10.0.0.2");
+    TestNode c("tls_peer", "10.0.0.3");
+    Interface ai;
+    ai.bind_address = "10.0.0.1:0";
+    ai.tls_bind_address = "10.0.0.1:0";
+    Interface bi;
+    bi.bind_address = "10.0.0.2:0";
+    Interface ci;
+    ci.tls_bind_address = "10.0.0.3:0";
+    const auto make_transport = [&](TestNode& n, Interface& addresses) {
+      n.connections->shutdown();
+      auto transport = std::make_unique<Dual>(
+        *n.ledger,
+        *n.ledger_subsystem,
+        addresses,
+        default_max_frame_size,
+        std::nullopt,
+        2s,
+        4);
+      transport->set_inbound_handler(n.inbound);
+      return transport;
+    };
+    auto ad = make_transport(a, ai);
+    auto bd = make_transport(b, bi);
+    auto cd = make_transport(c, ci);
+    CHECK(ai.bind_address == ai.published_address);
+    CHECK(ai.tls_bind_address == ai.tls_published_address);
+    CHECK(ai.bind_address != ai.tls_bind_address);
+
+    const auto service_key = ccf::crypto::make_ec_key_pair();
+    const auto service_cert = ccf::crypto::create_self_signed_cert(
+      service_key, "CN=Test service", {}, "20000101000000Z", 1);
+    const auto configure = [&](TestNode& n, Dual& transport) {
+      auto key = ccf::crypto::make_ec_key_pair();
+      auto cert = ccf::crypto::create_endorsed_cert(
+        key,
+        "CN=Test node",
+        {},
+        "20000101000000Z",
+        1,
+        service_key->private_key_pem(),
+        service_cert);
+      n.self_id = ccf::crypto::Sha256Hash(key->public_key_der()).hex_str();
+      transport.set_tls_credentials(service_cert, cert, key->private_key_pem());
+    };
+    configure(a, *ad);
+    configure(b, *bd);
+    configure(c, *cd);
+    const auto drain = [](TestNode& n, Dual& transport) {
+      while (auto task = n.job_board.get_task())
+      {
+        task->do_task();
+      }
+      transport.flush_outbound();
+    };
+    const auto body = make_pre_vote();
+    const auto associate =
+      [](Dual& transport, const std::string& id, const Interface& addresses) {
+        const auto [host, port] =
+          ccf::split_net_address(addresses.published_address);
+        const auto [tls_host, tls_port] =
+          ccf::split_net_address(addresses.tls_published_address);
+        transport.associate_node_address(id, host, port, tls_host, tls_port);
+      };
+
+    {
+      INFO(
+        "Unauthenticated legacy identities cannot persist or pin TLS "
+        "bootstrap");
+      drain(a, *ad);
+      drain(c, *cd);
+      auto raw = MockSocket(true, std::nullopt);
+      raw->set_behaviour(std::make_unique<RawBehaviour>());
+      const auto [host, port] = ccf::split_net_address(ai.bind_address);
+      raw->connect(host, port);
+      complete_connects();
+      const auto spoof = [&](const std::string& sender) {
+        const auto size = sizeof(ccf::NodeMsgType) + sizeof(size_t) +
+          sender.size() + body.size();
+        std::vector<uint8_t> frame(sizeof(uint32_t) + size);
+        auto* data = frame.data();
+        auto remaining = frame.size();
+        serialized::write(data, remaining, static_cast<uint32_t>(size));
+        serialized::write(data, remaining, ccf::consensus_msg);
+        serialized::write(data, remaining, sender);
+        std::copy(body.begin(), body.end(), data);
+        raw->write(frame.size(), frame.data());
+      };
+      spoof(c.self_id);
+      for (size_t i = 0; i < 1024; ++i)
+      {
+        spoof("unauthenticated_" + std::to_string(i));
+      }
+      pump();
+      REQUIRE(a.inbound->frames.size() == 1025);
+      CHECK(ad->peer_route_count() == 0);
+
+      // Legacy channel-handshake replies still use the accepted socket,
+      // without creating a persistent route from its claimed sender.
+      ad->send(c.self_id, ccf::channel_msg, a.self_id, std::vector(body));
+      drain(a, *ad);
+      CHECK_FALSE(raw->rx.empty());
+      pump();
+      CHECK(ad->peer_route_count() == 0);
+      a.inbound->frames.clear();
+
+      // The TLS primary knows the joiner, but the bridge has not yet received
+      // the ledger configuration identifying that primary.
+      associate(*cd, a.self_id, ai);
+      drain(c, *cd);
+      cd->send(
+        a.self_id, ccf::consensus_msg, c.self_id, std::vector(body), Kind::TLS);
+      drain(c, *cd);
+      complete_connects();
+      pump();
+      REQUIRE(a.inbound->frames.size() == 1);
+      CHECK(a.inbound->frames.front().tls_authenticated);
+      CHECK(ad->select_transport(c.self_id) == Kind::TLS);
+      CHECK(ad->peer_route_count() == 1);
+      spoof(c.self_id);
+      spoof("another_unauthenticated_identity");
+      pump();
+      CHECK(ad->select_transport(c.self_id) == Kind::TLS);
+      CHECK(ad->peer_route_count() == 1);
+      a.inbound->frames.clear();
+    }
+
+    associate(*ad, b.self_id, bi);
+    associate(*ad, c.self_id, ci);
+    associate(*bd, a.self_id, ai);
+    associate(*bd, c.self_id, ci);
+    associate(*cd, a.self_id, ai);
+    CHECK(ad->select_transport(b.self_id) == Kind::Legacy);
+    CHECK(ad->select_transport(c.self_id) == Kind::TLS);
+    CHECK(bd->select_transport(c.self_id) == Kind::Unavailable);
+
+    drain(a, *ad);
+    drain(b, *bd);
+    drain(c, *cd);
+    ad->send(
+      b.self_id,
+      ccf::consensus_msg,
+      a.self_id,
+      std::vector(body),
+      Kind::Legacy);
+    ad->send(
+      c.self_id, ccf::consensus_msg, a.self_id, std::vector(body), Kind::TLS);
+    drain(a, *ad);
+    complete_connects();
+    pump();
+    REQUIRE(b.inbound->frames.size() == 1);
+    REQUIRE(c.inbound->frames.size() == 1);
+    CHECK_FALSE(b.inbound->frames.front().tls_authenticated);
+    CHECK(c.inbound->frames.front().tls_authenticated);
+    bd->send(a.self_id, ccf::consensus_msg, b.self_id, std::vector(body));
+    cd->send(
+      a.self_id, ccf::consensus_msg, c.self_id, std::vector(body), Kind::TLS);
+    drain(b, *bd);
+    drain(c, *cd);
+    pump();
+    REQUIRE(a.inbound->frames.size() == 2);
+    CHECK(
+      a.inbound->frames[0].tls_authenticated !=
+      a.inbound->frames[1].tls_authenticated);
+
+    // Endpoint advertisement, not connection success, fixes the selection.
+    ad->close(c.self_id);
+    drain(a, *ad);
+    CHECK(ad->select_transport(c.self_id) == Kind::TLS);
+    const auto before = a.inbound->frames.size();
+    cd->send(
+      a.self_id, ccf::forwarded_msg, c.self_id, std::vector(body), Kind::TLS);
+    drain(c, *cd);
+    pump();
+    CHECK(a.inbound->frames.size() == before);
+
+    auto upgraded = ci;
+    upgraded.published_address = "10.0.0.3:4000";
+    associate(*ad, c.self_id, upgraded);
+    drain(a, *ad);
+    CHECK(ad->select_transport(c.self_id) == Kind::Legacy);
+    // Closing the selected connection never switches back to the still
+    // advertised TLS endpoint.
+    ad->close(c.self_id);
+    drain(a, *ad);
+    CHECK(ad->select_transport(c.self_id) == Kind::Legacy);
+  }
+  net = nullptr;
+}
+
 // Regression test for the node-to-node channel stall investigated in #8232.
 //
 // When two nodes dial each other at the same moment, each ends up with both an

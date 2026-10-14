@@ -2860,11 +2860,11 @@ namespace ccf
       size_t size,
       bool tls_authenticated = false)
     {
-      // Only transport-authenticated consensus can reach the tag-free Raft
-      // path in TLS mode. A marker is never taken from peer-controlled bytes.
+      // The transport-authenticated marker is never read from the wire.
       if (
-        tls_authenticated != node_transport->uses_tls() ||
-        (tls_authenticated && msg_type != NodeMsgType::consensus_msg))
+        tls_authenticated &&
+        (!node_transport->supports_tls() ||
+         msg_type != NodeMsgType::consensus_msg))
       {
         LOG_FAIL_FMT("Rejecting node message with incompatible transport");
         return;
@@ -2884,7 +2884,8 @@ namespace ccf
         size,
         cmd_forwarder.get(),
         n2n_channels.get(),
-        consensus.get());
+        consensus.get(),
+        tls_authenticated);
     }
 
     //

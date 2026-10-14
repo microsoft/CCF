@@ -13,6 +13,13 @@
 
 namespace ccf
 {
+  enum class NodeTransportKind
+  {
+    Legacy,
+    TLS,
+    Unavailable
+  };
+
   // Receives frames from peers. Peer-controlled input: implementations must
   // tolerate malformed payloads. Called by the transport on its own thread, so
   // implementations must be thread-safe and must not block.
@@ -41,9 +48,14 @@ namespace ccf
   public:
     virtual ~AbstractNodeTransport() = default;
 
-    virtual bool uses_tls() const
+    virtual bool supports_tls() const
     {
       return false;
+    }
+
+    virtual NodeTransportKind select_transport(const NodeId&) const
+    {
+      return NodeTransportKind::Legacy;
     }
 
     virtual void set_tls_credentials(
@@ -53,14 +65,17 @@ namespace ccf
     virtual void associate_node_address(
       const NodeId& peer_id,
       const std::string& peer_hostname,
-      const std::string& peer_service) = 0;
+      const std::string& peer_service,
+      const std::string& tls_hostname = {},
+      const std::string& tls_service = {}) = 0;
 
     // payload is everything after the message type and sender ID on the wire.
     virtual void send(
       const NodeId& to,
       NodeMsgType type,
       const NodeId& from,
-      std::vector<uint8_t>&& payload) = 0;
+      std::vector<uint8_t>&& payload,
+      NodeTransportKind kind = NodeTransportKind::Legacy) = 0;
 
     virtual void close(const NodeId& peer_id) = 0;
 

@@ -480,6 +480,7 @@ class CCFRemote:
         log_level="Info",
         major_version=None,
         node_address=None,
+        node_to_node_interface=None,
         config_file=None,
         join_timer_s=None,
         pending_node_timeout=None,
@@ -720,6 +721,8 @@ class CCFRemote:
                 snp_security_context_directory_envvar=snp_security_context_directory_envvar,  # Ignored by current jinja, but passed for LTS compat
                 ignore_first_sigterm=ignore_first_sigterm,
                 node_address=LocalRemote.get_node_address(node_address),
+                node_to_node_interface=node_to_node_interface
+                or {"bind_address": LocalRemote.get_node_address(node_address)},
                 follow_redirect=follow_redirect,
                 fetch_recent_snapshot=fetch_recent_snapshot,
                 max_uncommitted_tx_count=max_uncommitted_tx_count,

@@ -30,7 +30,9 @@ namespace aft
     virtual void associate_node_address(
       const ccf::NodeId& peer_id,
       const std::string& peer_hostname,
-      const std::string& peer_service) = 0;
+      const std::string& peer_service,
+      const std::string& tls_hostname = {},
+      const std::string& tls_service = {}) = 0;
 
     // Returns false if the message could not be sent
     virtual bool send_consensus_message(
@@ -51,12 +53,15 @@ namespace aft
 
     template <class T>
     const T& recv_authenticated(
-      const ccf::NodeId& from, const uint8_t*& data, size_t& size)
+      const ccf::NodeId& from,
+      const uint8_t*& data,
+      size_t& size,
+      bool tls_authenticated = false)
     {
       std::span<const uint8_t> ts(data, sizeof(T));
       auto& t = serialized::overlay<T>(data, size);
 
-      if (!recv_authenticated(from, ts, data, size))
+      if (!tls_authenticated && !recv_authenticated(from, ts, data, size))
       {
         throw DroppedMessageException(from);
       }

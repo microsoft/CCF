@@ -40,6 +40,7 @@ PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
 FILE_SERVING_RPC_INTERFACE = "file_serving_rpc_interface"
 NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
+NODE_TO_NODE_TLS_INTERFACE_NAME = "node_to_node_tls_interface"
 
 
 class EndorsementAuthority(str, Enum):
@@ -319,6 +320,8 @@ class HostSpec:
             ),
         }
     )
+
+    node_to_node_interface: dict[str, str] | None = None
 
     def get_primary_interface(self):
         return self.rpc_interfaces[PRIMARY_RPC_INTERFACE]

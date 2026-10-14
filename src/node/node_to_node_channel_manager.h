@@ -140,7 +140,7 @@ namespace ccf
 
       this_node =
         std::make_unique<ThisNode>(self_id, service_cert, node_kp, node_cert);
-      if (transport->uses_tls() && node_cert.has_value())
+      if (transport->supports_tls() && node_cert.has_value())
       {
         transport->set_tls_credentials(
           service_cert, node_cert.value(), node_kp->private_key_pem());
@@ -152,7 +152,7 @@ namespace ccf
     {
       std::lock_guard<ccf::ds::Mutex> guard(lock);
       this_node->endorsed_node_cert = endorsed_node_cert;
-      if (transport->uses_tls())
+      if (transport->supports_tls())
       {
         transport->set_tls_credentials(
           this_node->service_cert,
@@ -204,9 +204,12 @@ namespace ccf
     void associate_node_address(
       const NodeId& peer_id,
       const std::string& peer_hostname,
-      const std::string& peer_service) override
+      const std::string& peer_service,
+      const std::string& tls_hostname = {},
+      const std::string& tls_service = {}) override
     {
-      transport->associate_node_address(peer_id, peer_hostname, peer_service);
+      transport->associate_node_address(
+        peer_id, peer_hostname, peer_service, tls_hostname, tls_service);
     }
 
     bool have_channel(const ccf::NodeId& nid) override
@@ -225,7 +228,12 @@ namespace ccf
         this_node != nullptr,
         "Calling send_authenticated before channel manager is initialized");
 
-      if (transport->uses_tls())
+      const auto kind = transport->select_transport(to);
+      if (kind == NodeTransportKind::Unavailable)
+      {
+        return false;
+      }
+      if (kind == NodeTransportKind::TLS)
       {
         if (type != NodeMsgType::consensus_msg)
         {
@@ -235,7 +243,8 @@ namespace ccf
           to,
           type,
           this_node->node_id,
-          std::vector<uint8_t>(data, data + size));
+          std::vector<uint8_t>(data, data + size),
+          NodeTransportKind::TLS);
         return true;
       }
       return get_channel(to)->send(type, std::span<const uint8_t>(data, size));
@@ -247,7 +256,7 @@ namespace ccf
       std::span<const uint8_t> header,
       const std::vector<uint8_t>& data) override
     {
-      if (transport->uses_tls())
+      if (transport->select_transport(to) != NodeTransportKind::Legacy)
       {
         LOG_FAIL_FMT(
           "Request forwarding is unsupported with TLS node transport; "
@@ -274,13 +283,6 @@ namespace ccf
         "initialized",
         from);
 
-      // Node ingress accepts only TLS-authenticated consensus in this mode.
-      // The fully assembled message (including ledger entries) was protected
-      // by TLS, so there is no legacy authentication tag to strip.
-      if (transport->uses_tls())
-      {
-        return true;
-      }
       return get_channel(from)->recv_authenticated(header, data, size);
     }
 
@@ -320,7 +322,7 @@ namespace ccf
     bool recv_channel_message(
       const NodeId& from, const uint8_t* data, size_t size) override
     {
-      if (transport->uses_tls())
+      if (transport->select_transport(from) != NodeTransportKind::Legacy)
       {
         return false;
       }

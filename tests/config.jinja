@@ -1,6 +1,6 @@
 {
   "network": {
-    "node_to_node_interface": { "bind_address": "{{ node_address }}", "published_address": "{{ published_node_address }}" },
+    "node_to_node_interface": {{ node_to_node_interface|tojson }},
     "rpc_interfaces": {{ rpc_interfaces|tojson }}
   },
   "node_certificate":
@@ -117,12 +117,6 @@
   "client_connection_timeout": "2s"{% if idle_connection_timeout_s %},
   "idle_connection_timeout": "{{ idle_connection_timeout_s }}s"{% endif %},
   "node_client_interface": {{ node_client_interface|tojson }},
-  {% if node_to_node_transport %}
-  "node_to_node_transport": {{ node_to_node_transport|tojson }},
-  {% endif %}
-  {% if node_to_node_tls_record_limit %}
-  "node_to_node_tls_record_limit": {{ node_to_node_tls_record_limit|tojson }},
-  {% endif %}
   "worker_threads": {{ worker_threads }},
   "node_to_node": {
     "max_message_size": "{{ node_to_node_max_message_bytes or max_msg_size_bytes or "64MB" }}"

@@ -63,17 +63,26 @@ namespace ccf::kv
     {
       std::string hostname;
       std::string port;
+      std::string tls_hostname;
+      std::string tls_port;
 
       NodeInfo() = default;
 
-      NodeInfo(std::string hostname_, std::string port_) :
+      NodeInfo(
+        std::string hostname_,
+        std::string port_,
+        std::string tls_hostname_ = {},
+        std::string tls_port_ = {}) :
         hostname(std::move(hostname_)),
-        port(std::move(port_))
+        port(std::move(port_)),
+        tls_hostname(std::move(tls_hostname_)),
+        tls_port(std::move(tls_port_))
       {}
 
       bool operator==(const NodeInfo& other) const
       {
-        return hostname == other.hostname && port == other.port;
+        return hostname == other.hostname && port == other.port &&
+          tls_hostname == other.tls_hostname && tls_port == other.tls_port;
       }
     };
 
@@ -86,15 +95,24 @@ namespace ccf::kv
 
   inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
   {
-    j["address"] = ccf::make_net_address(ni.hostname, ni.port);
+    if (!ni.hostname.empty() || ni.tls_hostname.empty())
+    {
+      j["address"] = ccf::make_net_address(ni.hostname, ni.port);
+    }
+    if (!ni.tls_hostname.empty())
+    {
+      j["tls_address"] = ccf::make_net_address(ni.tls_hostname, ni.tls_port);
+    }
   }
 
   inline void from_json(const nlohmann::json& j, Configuration::NodeInfo& ni)
   {
-    const std::string addr(j["address"]);
+    const std::string addr = j.value("address", std::string{});
     const auto& [h, p] = ccf::split_net_address(addr);
     ni.hostname = h;
     ni.port = p;
+    std::tie(ni.tls_hostname, ni.tls_port) =
+      ccf::split_net_address(j.value("tls_address", std::string{}));
   }
 
   inline std::string schema_name(const Configuration::NodeInfo* /*unused*/)
@@ -106,11 +124,12 @@ namespace ccf::kv
     nlohmann::json& schema, const Configuration::NodeInfo* /*unused*/)
   {
     schema["type"] = "object";
-    schema["required"] = nlohmann::json::array();
-    schema["required"].push_back("address");
+    schema["anyOf"] = nlohmann::json::array(
+      {{{"required", {"address"}}}, {{"required", {"tls_address"}}}});
     schema["properties"] = nlohmann::json::object();
     schema["properties"]["address"] = nlohmann::json::object();
     schema["properties"]["address"]["$ref"] = "#/components/schemas/string";
+    schema["properties"]["tls_address"]["$ref"] = "#/components/schemas/string";
   }
 
   enum class LeadershipState : uint8_t
@@ -466,7 +485,10 @@ namespace ccf::kv
     virtual std::optional<NodeId> primary() = 0;
 
     virtual void recv_message(
-      const NodeId& from, const uint8_t* data, size_t size) = 0;
+      const NodeId& from,
+      const uint8_t* data,
+      size_t size,
+      bool tls_authenticated = false) = 0;
 
     virtual void periodic(std::chrono::milliseconds /*elapsed*/) {}
 

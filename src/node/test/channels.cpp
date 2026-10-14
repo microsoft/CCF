@@ -40,10 +40,21 @@ class RecordingTransport : public AbstractNodeTransport
 public:
   bool tls = false;
   size_t tls_credential_updates = 0;
+  std::map<NodeId, NodeTransportKind> peer_transports;
 
-  bool uses_tls() const override
+  bool supports_tls() const override
   {
     return tls;
+  }
+
+  NodeTransportKind select_transport(const NodeId& peer) const override
+  {
+    const auto it = peer_transports.find(peer);
+    if (it != peer_transports.end())
+    {
+      return it->second;
+    }
+    return tls ? NodeTransportKind::TLS : NodeTransportKind::Legacy;
   }
 
   void set_tls_credentials(
@@ -84,7 +95,9 @@ public:
   void associate_node_address(
     const NodeId& peer_id,
     const std::string& peer_hostname,
-    const std::string& peer_service) override
+    const std::string& peer_service,
+    const std::string& = {},
+    const std::string& = {}) override
   {
     std::lock_guard guard(mutex);
     ops.emplace_back(Associate{peer_id, peer_hostname, peer_service});
@@ -94,7 +107,8 @@ public:
     const NodeId& to,
     NodeMsgType type,
     const NodeId& from,
-    std::vector<uint8_t>&& payload) override
+    std::vector<uint8_t>&& payload,
+    NodeTransportKind = NodeTransportKind::Legacy) override
   {
     std::lock_guard guard(mutex);
     ops.emplace_back(Send{to, type, from, std::move(payload)});
@@ -212,6 +226,17 @@ TEST_CASE("TLS consensus bypasses legacy handshakes and forwarding is rejected")
     manager.send_encrypted(nid2, NodeMsgType::forwarded_msg, {}, body));
   CHECK_FALSE(manager.recv_channel_message(nid2, body.data(), body.size()));
   CHECK(transport->take().empty());
+
+  const NodeId legacy_peer("legacy_peer");
+  transport->peer_transports[legacy_peer] = NodeTransportKind::Legacy;
+  CHECK(
+    manager.send_encrypted(legacy_peer, NodeMsgType::forwarded_msg, {}, body));
+  CHECK(manager.have_channel(legacy_peer));
+  const auto legacy_operations = transport->take();
+  REQUIRE_FALSE(legacy_operations.empty());
+  CHECK(
+    std::get<RecordingTransport::Send>(legacy_operations.front()).type ==
+    NodeMsgType::channel_msg);
 
   manager.set_endorsed_node_cert(node_cert);
   CHECK(transport->tls_credential_updates == 2);

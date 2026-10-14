@@ -382,31 +382,36 @@ namespace ccf
     // transport. Outbound messages are ordered behind the ledger mutations
     // submitted before them, then written on the loop thread by a 1ms flush
     // timer. Inbound frames use the configured maximum message size.
-    auto [node_host, node_port] =
-      cli::validate_address(config.network.node_to_node_interface.bind_address);
+    auto& node_interface = config.network.node_to_node_interface;
+    if (!node_interface.bind_address.empty())
+    {
+      cli::validate_address(node_interface.bind_address);
+    }
+    if (!node_interface.tls_bind_address.empty())
+    {
+      cli::validate_address(node_interface.tls_bind_address);
+    }
     auto node = std::make_shared<asynchost::NodeConnections>(
       ledger,
       *ledger_subsystem,
-      node_host,
-      node_port,
+      node_interface,
       config.get_node_to_node_max_message_size(),
       config.node_client_interface,
-      config.client_connection_timeout,
-      config.node_to_node_transport == ccf::NodeToNodeTransport::TLS,
-      config.node_to_node_tls_record_limit);
+      config.client_connection_timeout);
     const asynchost::FlushNodeOutbound flush_node_outbound(1ms, *node);
-    config.network.node_to_node_interface.bind_address =
-      ccf::make_net_address(node_host, node_port);
-    if (config.network.node_to_node_interface.published_address.empty())
-    {
-      config.network.node_to_node_interface.published_address =
-        config.network.node_to_node_interface.bind_address;
-    }
     if (!config.output_files.node_to_node_address_file.empty())
     {
       ResolvedAddresses resolved_node_address;
-      resolved_node_address[node_to_node_interface_name] =
-        config.network.node_to_node_interface.bind_address;
+      if (!node_interface.bind_address.empty())
+      {
+        resolved_node_address[node_to_node_interface_name] =
+          node_interface.bind_address;
+      }
+      if (!node_interface.tls_bind_address.empty())
+      {
+        resolved_node_address["node_to_node_tls_interface"] =
+          node_interface.tls_bind_address;
+      }
       files::dump(
         nlohmann::json(resolved_node_address).dump(),
         config.output_files.node_to_node_address_file);

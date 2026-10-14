@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/service/node_info_network.h"
 #include "consensus/aft/raft_types.h"
 #include "ds/serialized.h"
 #include "ledger.h"
@@ -557,9 +558,15 @@ namespace asynchost
     }
 
   public:
-    bool uses_tls() const override
+    bool supports_tls() const override
     {
       return tls_enabled;
+    }
+
+    ccf::NodeTransportKind select_transport(const ccf::NodeId&) const override
+    {
+      return tls_enabled ? ccf::NodeTransportKind::TLS :
+                           ccf::NodeTransportKind::Legacy;
     }
 
     void set_tls_credentials(
@@ -628,7 +635,9 @@ namespace asynchost
     void associate_node_address(
       const ccf::NodeId& node_id,
       const std::string& hostname,
-      const std::string& port) override
+      const std::string& port,
+      const std::string& = {},
+      const std::string& = {}) override
     {
       ordered("Node address association", [this, node_id, hostname, port]() {
         enqueue_ready(AssociateAddress{node_id, hostname, port});
@@ -646,7 +655,8 @@ namespace asynchost
       const ccf::NodeId& to,
       ccf::NodeMsgType msg_type,
       const ccf::NodeId& from,
-      std::vector<uint8_t>&& payload) override
+      std::vector<uint8_t>&& payload,
+      ccf::NodeTransportKind = ccf::NodeTransportKind::Legacy) override
     {
       if (tls_enabled && msg_type != ccf::NodeMsgType::consensus_msg)
       {
@@ -980,7 +990,296 @@ namespace asynchost
     }
   };
 
-  using NodeConnections = NodeConnectionsImpl<TCP>;
+  // The legacy and TLS listeners own independent connection maps and framing
+  // state. Selection is an advertised-capability decision, never a retry or
+  // fallback decision after a network failure.
+  template <class ConnType>
+  class DualNodeConnectionsImpl : public ccf::AbstractNodeTransport
+  {
+    using Kind = ccf::NodeTransportKind;
+    using Transport = NodeConnectionsImpl<ConnType>;
+    std::unique_ptr<Transport> legacy;
+    std::unique_ptr<Transport> tls;
+
+    struct Route
+    {
+      Kind kind;
+      bool advertised = false;
+      bool received = false;
+      std::array<std::string, 4> addresses{};
+    };
+    mutable std::mutex mutex;
+    std::unordered_map<ccf::NodeId, Route> routes;
+    std::shared_ptr<ccf::NodeInboundHandler> inbound_handler;
+
+    class Inbound : public ccf::NodeInboundHandler
+    {
+      DualNodeConnectionsImpl& owner;
+      const Kind kind;
+
+    public:
+      Inbound(DualNodeConnectionsImpl& owner_, Kind kind_) :
+        owner(owner_),
+        kind(kind_)
+      {}
+
+      void recv_node_inbound(
+        ccf::NodeMsgType type,
+        const ccf::NodeId& from,
+        std::vector<uint8_t>&& payload,
+        bool authenticated = false) override
+      {
+        if (
+          (kind == Kind::TLS) != authenticated ||
+          (authenticated && type != ccf::NodeMsgType::consensus_msg))
+        {
+          return;
+        }
+        std::shared_ptr<ccf::NodeInboundHandler> handler;
+        {
+          std::lock_guard guard(owner.mutex);
+          auto it = owner.routes.find(from);
+          if (it == owner.routes.end() && authenticated)
+          {
+            it = owner.routes.try_emplace(from, Route{Kind::TLS}).first;
+          }
+          // A legacy sender field is untrusted until channel authentication
+          // runs on the ingress lane. It must not allocate persistent routes
+          // or prevent subsequent TLS-authenticated bootstrap traffic.
+          if (it != owner.routes.end())
+          {
+            auto& route = it->second;
+            if (route.kind != kind)
+            {
+              return;
+            }
+            if (!route.received)
+            {
+              LOG_INFO_FMT(
+                "Node transport {} received from {}",
+                kind == Kind::TLS ? "TLS" : "legacy",
+                from);
+              route.received = true;
+            }
+          }
+          handler = owner.inbound_handler;
+        }
+        if (handler != nullptr)
+        {
+          handler->recv_node_inbound(
+            type, from, std::move(payload), authenticated);
+        }
+      }
+    };
+
+  public:
+    DualNodeConnectionsImpl(
+      Ledger& ledger,
+      LedgerSubsystem& ledger_subsystem,
+      ccf::NodeInfoNetwork::NodeToNodeInterface& interface,
+      size_t max_message_size,
+      const std::optional<std::string>& client_interface = std::nullopt,
+      std::optional<std::chrono::milliseconds> timeout = std::nullopt,
+      size_t tls_record_limit = max_node_tls_records_per_key)
+    {
+      if (interface.bind_address.empty() && interface.tls_bind_address.empty())
+      {
+        throw std::logic_error(
+          "At least one node-to-node bind address is required");
+      }
+      if (
+        (interface.bind_address.empty() &&
+         !interface.published_address.empty()) ||
+        (interface.tls_bind_address.empty() &&
+         !interface.tls_published_address.empty()))
+      {
+        throw std::logic_error(
+          "A published node address requires its corresponding bind address");
+      }
+      const auto listen =
+        [&](auto& transport, auto& bind, auto& published, Kind kind) {
+          if (bind.empty())
+          {
+            return;
+          }
+          auto [host, port] = ccf::split_net_address(bind);
+          transport = std::make_unique<Transport>(
+            ledger,
+            ledger_subsystem,
+            host,
+            port,
+            max_message_size,
+            client_interface,
+            timeout,
+            kind == Kind::TLS,
+            tls_record_limit);
+          bind = ccf::make_net_address(host, port);
+          if (published.empty())
+          {
+            published = bind;
+          }
+          transport->set_inbound_handler(
+            std::make_shared<Inbound>(*this, kind));
+        };
+      listen(
+        legacy,
+        interface.bind_address,
+        interface.published_address,
+        Kind::Legacy);
+      listen(
+        tls,
+        interface.tls_bind_address,
+        interface.tls_published_address,
+        Kind::TLS);
+    }
+
+    ~DualNodeConnectionsImpl() override
+    {
+      shutdown();
+    }
+
+    bool supports_tls() const override
+    {
+      return tls != nullptr;
+    }
+
+    Kind select_transport(const ccf::NodeId& peer) const override
+    {
+      std::lock_guard guard(mutex);
+      const auto it = routes.find(peer);
+      // Before advertisement, legacy channels may reply over their existing
+      // incoming socket. This bootstrap default never creates a stored route.
+      return it == routes.end() ?
+        (legacy != nullptr ? Kind::Legacy : Kind::Unavailable) :
+        it->second.kind;
+    }
+
+    size_t peer_route_count() const
+    {
+      std::lock_guard guard(mutex);
+      return routes.size();
+    }
+
+    void set_tls_credentials(
+      const ccf::crypto::Pem& service,
+      const ccf::crypto::Pem& certificate,
+      const ccf::crypto::Pem& key) override
+    {
+      if (tls != nullptr)
+      {
+        tls->set_tls_credentials(service, certificate, key);
+      }
+    }
+
+    void associate_node_address(
+      const ccf::NodeId& peer,
+      const std::string& host,
+      const std::string& port,
+      const std::string& tls_host = {},
+      const std::string& tls_port = {}) override
+    {
+      std::lock_guard guard(mutex);
+      const auto kind = legacy != nullptr && !host.empty() && !port.empty() ?
+        Kind::Legacy :
+        (tls != nullptr && !tls_host.empty() && !tls_port.empty() ?
+           Kind::TLS :
+           Kind::Unavailable);
+      const std::array<std::string, 4> addresses{
+        host, port, tls_host, tls_port};
+      const auto previous = routes.find(peer);
+      const bool reconnect = previous != routes.end() &&
+        (previous->second.kind != kind ||
+         (previous->second.advertised &&
+          previous->second.addresses != addresses));
+      const bool received = previous != routes.end() &&
+        previous->second.kind == kind && previous->second.received;
+      routes.insert_or_assign(peer, Route{kind, true, received, addresses});
+      if (legacy != nullptr)
+      {
+        if (reconnect)
+        {
+          legacy->close(peer);
+        }
+        legacy->associate_node_address(peer, host, port);
+      }
+      if (tls != nullptr)
+      {
+        if (reconnect)
+        {
+          tls->close(peer);
+        }
+        tls->associate_node_address(peer, tls_host, tls_port);
+      }
+    }
+
+    void send(
+      const ccf::NodeId& to,
+      ccf::NodeMsgType type,
+      const ccf::NodeId& from,
+      std::vector<uint8_t>&& payload,
+      Kind kind = Kind::Legacy) override
+    {
+      std::lock_guard guard(mutex);
+      const auto it = routes.find(to);
+      const auto selected = it == routes.end() ?
+        (legacy != nullptr ? Kind::Legacy : Kind::Unavailable) :
+        it->second.kind;
+      if (
+        selected != kind || kind == Kind::Unavailable ||
+        (kind == Kind::TLS && type != ccf::NodeMsgType::consensus_msg))
+      {
+        return;
+      }
+      auto& transport = kind == Kind::TLS ? tls : legacy;
+      transport->send(to, type, from, std::move(payload), kind);
+    }
+
+    void close(const ccf::NodeId& peer) override
+    {
+      if (legacy != nullptr)
+      {
+        legacy->close(peer);
+      }
+      if (tls != nullptr)
+      {
+        tls->close(peer);
+      }
+    }
+
+    void set_inbound_handler(
+      std::shared_ptr<ccf::NodeInboundHandler> handler) override
+    {
+      std::lock_guard guard(mutex);
+      inbound_handler = std::move(handler);
+    }
+
+    void flush_outbound()
+    {
+      if (legacy != nullptr)
+      {
+        legacy->flush_outbound();
+      }
+      if (tls != nullptr)
+      {
+        tls->flush_outbound();
+      }
+    }
+
+    void shutdown()
+    {
+      set_inbound_handler(nullptr);
+      if (legacy != nullptr)
+      {
+        legacy->shutdown();
+      }
+      if (tls != nullptr)
+      {
+        tls->shutdown();
+      }
+    }
+  };
+
+  using NodeConnections = DualNodeConnectionsImpl<TCP>;
 
   class FlushNodeOutboundImpl
   {
