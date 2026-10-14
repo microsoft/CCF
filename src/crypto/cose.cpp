@@ -82,16 +82,24 @@ namespace ccf::cose
       switch (curve)
       {
         case crypto::CurveID::SECP256R1:
+        {
           return {alg::ES256, crypto::MDType::SHA256};
+        }
         case crypto::CurveID::SECP384R1:
+        {
           return {alg::ES384, crypto::MDType::SHA384};
+        }
         case crypto::CurveID::SECP521R1:
+        {
           return {alg::ES512, crypto::MDType::SHA512};
+        }
         case crypto::CurveID::NONE:
         case crypto::CurveID::CURVE25519:
         case crypto::CurveID::X25519:
         default:
+        {
           throw std::runtime_error("Unsupported COSE signing curve");
+        }
       }
     }
   }

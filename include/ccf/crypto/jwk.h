@@ -72,16 +72,26 @@ namespace ccf::crypto
       case CurveID::NONE:
       case CurveID::CURVE25519:
       case CurveID::X25519:
+      {
         throw std::logic_error(
           fmt::format("Invalid JWK EC CurveId {}", curve_id));
+      }
       case CurveID::SECP384R1:
+      {
         return JsonWebKeyECCurve::P384;
+      }
       case CurveID::SECP256R1:
+      {
         return JsonWebKeyECCurve::P256;
+      }
       case CurveID::SECP521R1:
+      {
         return JsonWebKeyECCurve::P521;
+      }
       default:
+      {
         throw std::logic_error(fmt::format("Unknown curve {}", curve_id));
+      }
     }
   }
 
@@ -90,13 +100,21 @@ namespace ccf::crypto
     switch (jwk_curve)
     {
       case JsonWebKeyECCurve::P521:
+      {
         return CurveID::SECP521R1;
+      }
       case JsonWebKeyECCurve::P384:
+      {
         return CurveID::SECP384R1;
+      }
       case JsonWebKeyECCurve::P256:
+      {
         return CurveID::SECP256R1;
+      }
       default:
+      {
         throw std::logic_error(fmt::format("Unknown JWK curve {}", jwk_curve));
+      }
     }
   }
 
@@ -118,13 +136,21 @@ namespace ccf::crypto
       case CurveID::SECP384R1:
       case CurveID::SECP256R1:
       case CurveID::SECP521R1:
+      {
         throw std::logic_error(fmt::format("Invalid EdDSA curve {}", curve_id));
+      }
       case CurveID::CURVE25519:
+      {
         return JsonWebKeyEdDSACurve::ED25519;
+      }
       case CurveID::X25519:
+      {
         return JsonWebKeyEdDSACurve::X25519;
+      }
       default:
+      {
         throw std::logic_error(fmt::format("Unknown EdDSA curve {}", curve_id));
+      }
     }
   }
 

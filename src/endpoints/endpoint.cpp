@@ -103,12 +103,16 @@ namespace ccf::endpoints
     switch (properties.forwarding_required)
     {
       case endpoints::ForwardingRequired::Never:
+      {
         properties.redirection_strategy = RedirectionStrategy::None;
         break;
+      }
       case endpoints::ForwardingRequired::Sometimes:
       case endpoints::ForwardingRequired::Always:
+      {
         properties.redirection_strategy = RedirectionStrategy::ToPrimary;
         break;
+      }
     }
     return *this;
   }

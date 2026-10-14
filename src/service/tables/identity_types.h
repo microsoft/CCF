@@ -80,12 +80,18 @@ namespace ccf::kv::serialisers
       switch (value)
       {
         case static_cast<uint64_t>(ccf::IdentityType::CLASSICAL):
+        {
           return ccf::IdentityType::CLASSICAL;
+        }
         case static_cast<uint64_t>(ccf::IdentityType::PQ):
+        {
           return ccf::IdentityType::PQ;
+        }
         default:
+        {
           throw std::logic_error(
             fmt::format("Unknown identity type: {}", value));
+        }
       }
     }
   };

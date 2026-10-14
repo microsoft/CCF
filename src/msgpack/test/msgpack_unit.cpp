@@ -234,24 +234,36 @@ TEST_CASE("write_int negative boundary table")
     switch (r.size)
     {
       case 1:
+      {
         // fixint: the byte itself is the int8 bit pattern (negative
         // fixint range is 0xE0..0xFF, which sign-extends correctly).
         decoded = static_cast<int8_t>(buf[0]);
         break;
+      }
       case 2:
+      {
         decoded = static_cast<int8_t>(buf[1]);
         break;
+      }
       case 3:
+      {
         decoded = static_cast<int16_t>(decode_be<uint16_t>(buf, 1));
         break;
+      }
       case 5:
+      {
         decoded = static_cast<int32_t>(decode_be<uint32_t>(buf, 1));
         break;
+      }
       case 9:
+      {
         decoded = static_cast<int64_t>(decode_be<uint64_t>(buf, 1));
         break;
+      }
       default:
+      {
         FAIL("unexpected encoded size for write_int row");
+      }
     }
     CHECK(decoded == r.v);
   }
