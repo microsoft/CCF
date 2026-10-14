@@ -1,8 +1,12 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.Messages
-import CCFRaft.Proofs.Ledger
+public import CCFRaft.Proofs.Invariant.Messages
+public import CCFRaft.Proofs.Ledger
+
+@[expose] public section
 
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
@@ -13,7 +17,7 @@ namespace CCFRaft.Proofs.Invariant
 open CCFRaft.Proofs.Config
 
 open CCFRaft.Model.Node
-open Shared Concrete
+open CCF Concrete
 open CCFRaft.Proofs.Ledger
 
 variable {Node TxId : Type}
@@ -164,7 +168,7 @@ def Selected (source : Node) (network : List (Model.Envelope Node TxId))
     : Prop :=
   envelope.source = source
   /\ envelope ∈ network
-  /\ remaining = Shared.MultiNodeTransitionSystem.removeOne envelope network
+  /\ remaining = CCF.MultiNodeTransitionSystem.removeOne envelope network
 
 /-- Append the handler's reply to the remaining concrete network. -/
 def reply (remaining : List (Model.Envelope Node TxId))

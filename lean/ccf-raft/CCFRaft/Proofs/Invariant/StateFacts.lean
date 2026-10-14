@@ -1,9 +1,13 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.Safety
-import CCFRaft.Proofs.Invariant.NodeFacts
-import CCFRaft.Proofs.Ledger
+public import CCFRaft.Proofs.Invariant.Safety
+public import CCFRaft.Proofs.Invariant.NodeFacts
+public import CCFRaft.Proofs.Ledger
+
+@[expose] public section
 
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
@@ -28,7 +32,7 @@ variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]
 
-open Shared Shared.MultiNodeTransitionSystem Concrete
+open CCF CCF.MultiNodeTransitionSystem Concrete
 
 theorem mem_foldl_union {P : Configuration Node -> Prop} [DecidablePred P]
     (configurations : List (Configuration Node)) (init : Finset Node) (member : Node)

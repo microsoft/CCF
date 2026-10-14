@@ -1,13 +1,17 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Model
-import CCFRaft.Model.ClusterConfig
-import CCFRaft.Model.Node
-import CCFRaft.Model.Messages
-import CCFRaft.Model.NodeState
-import Lean.Data.Json
-import Mathlib.Data.String.Basic
+public import CCFRaft.Model
+public import CCFRaft.Model.ClusterConfig
+public import CCFRaft.Model.Node
+public import CCFRaft.Model.Messages
+public import CCFRaft.Model.NodeState
+public import Lean.Data.Json
+public import Mathlib.Data.String.Basic
+
+public section
 
 /-!
 Replays reduced `raft_driver` executions through `Model.transitionSystem`.
@@ -20,8 +24,8 @@ in the network and the replay never delivers it.
 namespace CCFRaft.Replay
 
 open Lean Model.Node
-open Shared (Envelope)
-open Shared.MultiNodeTransitionSystem (nodeState removeOne)
+open CCF (Envelope)
+open CCF.MultiNodeTransitionSystem (nodeState removeOne)
 
 abbrev Envelope := Model.Envelope String String
 

@@ -1,9 +1,13 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.Preservation.Local
-import CCFRaft.Proofs.Invariant.StateFacts
-import CCFRaft.Proofs.Direct.CommitFrontier
+public import CCFRaft.Proofs.Invariant.Preservation.Local
+public import CCFRaft.Proofs.Invariant.StateFacts
+public import CCFRaft.Proofs.Direct.CommitFrontier
+
+@[expose] public section
 
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
@@ -13,7 +17,7 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open Shared Concrete
+open CCF Concrete
 open Model.Node
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]

@@ -2,25 +2,24 @@ name = "ccf_raft"
 version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]
 leanOptions = { autoImplicit = false }
-# Quote the hyphenated executable name for Lean's name parser.
-lintDriver = "axiomAudit/\u00abaxiom-audit\u00bb"
-lintDriverArgs = ["--root", "CCFRaft"]
+builtinLint = true
 defaultTargets = ["CCFRaft", "canonical-checks", "ccfraft-replay"]
+
+[[require]]
+name = "ccf_common"
+git = "https://github.com/microsoft/CCF.git"
+rev = "cc22c58d61e628b90f1f5b49194c7e6722f1ec2c" # Merged #8573
+subDir = "lean/common"
 
 [[require]]
 name = "mathlib"
 git = "https://github.com/leanprover-community/mathlib4.git"
-rev = "v4.34.0"
-
-[[require]]
-name = "axiomAudit"
-git = "https://github.com/leanprover-community/axiom-audit.git"
-rev = "46024e005996495c65ef609368e11ab39c4222e3" # v0.1.2
+rev = "v4.35.0"
 
 [[require]]
 name = "leanfmt"
 git = "https://github.com/duckki/leanfmt.git"
-rev = "v0.4.5"
+rev = "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef" # v0.4.5
 
 [[lean_lib]]
 name = "CCFRaft"

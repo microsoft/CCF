@@ -1,8 +1,16 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Properties
-import CCFRaft.Proofs.Concrete
+public import CCFRaft.Properties
+public import CCFRaft.Proofs.Concrete
+
+import all Init.Control.State
+import all Init.Data.List.Sort.Basic
+import all Mathlib.Data.List.Sort
+
+@[expose] public section
 
 /-!
 Concrete executions satisfying the premises of each property. The kernel
@@ -13,7 +21,7 @@ namespace CCFRaft.Proofs.Witnesses
 
 open CCFRaft.Proofs.Config
 
-open Shared Shared.Execution Shared.MultiNodeTransitionSystem
+open CCF CCF.Execution CCF.MultiNodeTransitionSystem
 open CCFRaft.Model.Node (NodeState InitialConfig initialNodeState)
 
 section Runs
@@ -157,7 +165,8 @@ def deliverOldest (state : CCFRaft.Model.State Nat Nat) : CCFRaft.Model.Action N
 
 def deliverFrom (source target : Nat) (state : CCFRaft.Model.State Nat Nat)
     : CCFRaft.Model.Action Nat Nat :=
-  match state.network.find? (fun envelope => envelope.source == source && envelope.target == target) with
+  match state.network.find?
+          (fun envelope => envelope.source == source && envelope.target == target) with
   | some envelope => .deliver envelope
   | none => deliverOldest state
 
@@ -185,10 +194,11 @@ theorem member_of_nodeState {state : CCFRaft.Model.State Nat Nat} {node : Nat}
 /-- `Finset.sort` computed by insertion sort. The kernel cannot evaluate the
 well-founded `List.mergeSort` behind `Finset.sort`, but it can evaluate this. -/
 def insertionSorted {α : Type} [LinearOrder α] (s : Finset α) : List α :=
-  Quot.liftOn s.val (List.insertionSort (· ≤ ·)) fun _ _ perm =>
-    ((List.perm_insertionSort _ _).trans
+  Quot.liftOn s.val (List.insertionSort (· ≤ ·))
+    fun _ _ perm =>
+      ((List.perm_insertionSort _ _).trans
         (perm.trans (List.perm_insertionSort _ _).symm)).eq_of_pairwise'
-      (List.pairwise_insertionSort _ _) (List.pairwise_insertionSort _ _)
+        (List.pairwise_insertionSort _ _) (List.pairwise_insertionSort _ _)
 
 theorem sort_eq_insertionSorted {α : Type} [LinearOrder α] (s : Finset α)
     : s.sort = insertionSorted s := by
@@ -220,11 +230,7 @@ local instance : InitialConfig Nat := bootstrapOf {0, 1, 2} 0 (by decide)
 /-- Node 1 wins term 3 with node 2's vote while node 0 still leads term 2. -/
 def electionChoices
     : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat) :=
-  [
-    input 1 (.timeout .election),
-    deliverFrom 1 2,
-    deliverFrom 2 1
-  ]
+  [input 1 (.timeout .election), deliverFrom 1 2, deliverFrom 2 1]
 
 def electionSystem :=
   CCFRaft.Model.transitionSystem (inferInstance) (TxId := Nat) [0, 1, 2]
@@ -232,7 +238,7 @@ def electionSystem :=
 /-- Nodes 0 and 1 are both present and both lead. -/
 def bothLead (state : CCFRaft.Model.State Nat Nat) : Bool :=
   ((nodeState state 0).any fun local_ => decide (local_.role = .leader))
-    && ((nodeState state 1).any fun local_ => decide (local_.role = .leader))
+  && ((nodeState state 1).any fun local_ => decide (local_.role = .leader))
 
 theorem election_run
     : (run electionSystem (start [0, 1, 2]) electionChoices).any bothLead = true := by
@@ -346,9 +352,7 @@ local instance : InitialConfig Nat := bootstrapOf {0} 0 (by decide)
 
 /-- A single bootstrap leader commits its first signature. -/
 def singleChoices : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat) :=
-  [
-    input 0 (.append [.signature])
-  ]
+  [input 0 (.append [.signature])]
 
 def singleSystem := CCFRaft.Model.transitionSystem (inferInstance) (TxId := Nat) [0]
 

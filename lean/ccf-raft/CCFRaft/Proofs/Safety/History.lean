@@ -1,7 +1,11 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Direct.Framework
+public import CCFRaft.Proofs.Direct.Framework
+
+@[expose] public section
 
 set_option linter.unusedSectionVars false
 
@@ -17,7 +21,7 @@ namespace CCFRaft.Proofs.Safety
 
 open CCFRaft.Proofs.Config
 
-open Shared Shared.MultiNodeTransitionSystem Concrete Direct
+open CCF CCF.MultiNodeTransitionSystem Concrete Direct
 open Model.Node
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
@@ -31,7 +35,8 @@ inductive Exec (nodes : List Node) : List (Model.State Node TxId) -> Prop where
   | step {before after : Model.State Node TxId} {history : List (Model.State Node TxId)}
     {action : Model.Action Node TxId}
     (prior : Exec nodes (before :: history))
-    (stepped : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
+    (stepped
+      : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
     : Exec nodes (after :: before :: history)
 
 theorem exec_of_reachable {nodes : List Node} {state : Model.State Node TxId}
@@ -99,9 +104,11 @@ structure LocalTransition (before after : Model.State Node TxId) where
   pendingSub : forall envelope, envelope ∈ pending -> envelope ∈ before.network
   source
     : (exists input, event = .internal input /\ pending = before.network)
-      \/ (exists envelope, envelope ∈ before.network /\ envelope.target = actor
-          /\ event = .receive envelope.source envelope.payload
-          /\ pending = removeOne envelope before.network)
+      \/ (exists envelope,
+            envelope ∈ before.network
+            /\ envelope.target = actor
+            /\ event = .receive envelope.source envelope.payload
+            /\ pending = removeOne envelope before.network)
 
 theorem mem_removeOne {α : Type} [BEq α] {value item : α} {items : List α}
     (member : item ∈ removeOne value items)
@@ -118,20 +125,26 @@ theorem mem_removeOne {α : Type} [BEq α] {value item : α} {items : List α}
 
 theorem LocalTransition.ofStep {nodes : List Node} {before after : Model.State Node TxId}
     {action : Model.Action Node TxId}
-    (stepped : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
+    (stepped
+      : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
     : Nonempty (LocalTransition before after) := by
   cases action with
   | «local» actor input =>
       obtain ⟨pre, post, outputs, found, ran, rfl⟩ := step_local stepped
       exact ⟨{
-        actor, pre, post, event := .internal input, outputs, pending := before.network
-        found
-        ran := by cases input <;> exact ran
-        nodesEq := rfl
-        networkEq := rfl
-        pendingSub := fun _ member => member
-        source := Or.inl ⟨input, rfl, rfl⟩
-      }⟩
+              actor,
+              pre,
+              post,
+              event := .internal input,
+              outputs,
+              pending := before.network
+              found
+              ran := by cases input <;> exact ran
+              nodesEq := rfl
+              networkEq := rfl
+              pendingSub := fun _ member => member
+              source := Or.inl ⟨input, rfl, rfl⟩
+            }⟩
   | deliver envelope =>
       obtain ⟨queued, pre, post, outputs, found, ran, rfl⟩ := step_deliver stepped
       exact ⟨{
@@ -146,8 +159,8 @@ theorem LocalTransition.ofStep {nodes : List Node} {before after : Model.State N
       }⟩
 
 theorem LocalTransition.mem_after {before after : Model.State Node TxId}
-    (transition : LocalTransition before after) {node : Node} {state : NodeState Node TxId}
-    (member : (node, state) ∈ after.nodes)
+    (transition : LocalTransition before after) {node : Node}
+    {state : NodeState Node TxId} (member : (node, state) ∈ after.nodes)
     : (node = transition.actor /\ state = transition.post)
       \/ (Not (node = transition.actor) /\ (node, state) ∈ before.nodes) := by
   rw [transition.nodesEq] at member
@@ -166,8 +179,9 @@ theorem LocalTransition.post_mem {before after : Model.State Node TxId}
   exact ⟨_, transition.pre_mem, by simp⟩
 
 theorem LocalTransition.other_mem {before after : Model.State Node TxId}
-    (transition : LocalTransition before after) {node : Node} {state : NodeState Node TxId}
-    (member : (node, state) ∈ before.nodes) (different : Not (node = transition.actor))
+    (transition : LocalTransition before after) {node : Node}
+    {state : NodeState Node TxId} (member : (node, state) ∈ before.nodes)
+    (different : Not (node = transition.actor))
     : (node, state) ∈ after.nodes := by
   rw [transition.nodesEq]
   simp only [replaceNode, List.mem_map]

@@ -1,8 +1,12 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.Preservation.AppendSend
-import CCFRaft.Proofs.Ledger
+public import CCFRaft.Proofs.Invariant.Preservation.AppendSend
+public import CCFRaft.Proofs.Ledger
+
+@[expose] public section
 
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
@@ -21,7 +25,7 @@ variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]
 
-attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] CCF.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /--
 After a timeout, every potential voter for the fresh self-ballot was already a

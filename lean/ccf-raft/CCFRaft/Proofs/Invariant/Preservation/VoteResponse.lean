@@ -1,8 +1,12 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.Preservation.AppendResponse
-import CCFRaft.Proofs.Ledger
+public import CCFRaft.Proofs.Invariant.Preservation.AppendResponse
+public import CCFRaft.Proofs.Ledger
+
+@[expose] public section
 
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
@@ -21,7 +25,7 @@ variable {joinedNodes joinedNext : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]
 
-attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] CCF.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /-- Dequeuing a vote response leaves latent replication acknowledgements unchanged. -/
 lemma effectiveAckersAfterVoteResponse

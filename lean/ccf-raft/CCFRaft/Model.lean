@@ -1,11 +1,15 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Model.ClusterConfig
-import CCFRaft.Model.Node
-import CCFRaft.Model.Messages
-import CCFRaft.Model.NodeState
-import CCFRaft.Shared.MultiNodeTransitionSystem
+public import CCFRaft.Model.ClusterConfig
+public import CCFRaft.Model.Node
+public import CCFRaft.Model.Messages
+public import CCFRaft.Model.NodeState
+public import CCF.MultiNodeTransitionSystem
+
+@[expose] public section
 
 /-!
 # CCF Raft network
@@ -16,12 +20,12 @@ an envelope never delivered models message loss.
 
 namespace CCFRaft.Model
 
-open Shared
+open CCF
 open Node
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId]
 
-abbrev Envelope (Node TxId : Type) := Shared.Envelope Node (Message Node TxId)
+abbrev Envelope (Node TxId : Type) := CCF.Envelope Node (Message Node TxId)
 
 abbrev State (Node TxId : Type) :=
   MultiNodeTransitionSystem.State Node (NodeState Node TxId) (Message Node TxId)

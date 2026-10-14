@@ -1,11 +1,15 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Properties
-import CCFRaft.Proofs.CommittedLogs
-import CCFRaft.Proofs.Direct.CommitFrontier
-import CCFRaft.Proofs.Election
-import CCFRaft.Proofs.Witnesses
+public import CCFRaft.Properties
+public import CCFRaft.Proofs.CommittedLogs
+public import CCFRaft.Proofs.Direct.CommitFrontier
+public import CCFRaft.Proofs.Election
+public import CCFRaft.Proofs.Witnesses
+
+@[expose] public section
 
 namespace CCFRaft.Proof
 

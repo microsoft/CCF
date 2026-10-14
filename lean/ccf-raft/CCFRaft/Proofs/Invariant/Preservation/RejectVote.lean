@@ -1,8 +1,12 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.Preservation.ReceiveFrames
-import CCFRaft.Proofs.Ledger
+public import CCFRaft.Proofs.Invariant.Preservation.ReceiveFrames
+public import CCFRaft.Proofs.Ledger
+
+@[expose] public section
 
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
@@ -21,7 +25,7 @@ variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]
 
-attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] CCF.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /-- Enqueuing a rejected vote response is inert for all safety evidence. -/
 lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
@@ -350,7 +354,7 @@ lemma enqueueRejectedVoteResponsePreservesSystemInductiveInvariant
               (by simpa [after] using member) with
         old | new
       · exact facts.networkHistory.addressed destination message old
-      · exact (congrArg Shared.Envelope.target new.2).trans new.1.symm
+      · exact (congrArg CCF.Envelope.target new.2).trans new.1.symm
     · intro destination request member
       exact
         facts.networkHistory.appendRequest

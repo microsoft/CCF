@@ -1,11 +1,15 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Model.ClusterConfig
-import CCFRaft.Model.Messages
-import CCFRaft.Model.NodeState
-import CCFRaft.Shared.Capabilities
-import Mathlib.Data.Finset.Sort
+public import CCFRaft.Model.ClusterConfig
+public import CCFRaft.Model.Messages
+public import CCFRaft.Model.NodeState
+public import CCF.Capabilities
+public import Mathlib.Data.Finset.Sort
+
+@[expose] public section
 
 /-!
 # Local node steps
@@ -20,7 +24,7 @@ disabled: the step has no effect and a received message stays in flight.
 
 namespace CCFRaft.Model.Node
 
-open Shared (Capabilities Effect)
+open CCF (Capabilities Effect)
 
 abbrev Caps (Node TxId : Type) := Capabilities Node (Message Node TxId) Notification
 

@@ -1,8 +1,12 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Direct.CommitFrontier
-import CCFRaft.Properties
+public import CCFRaft.Proofs.Direct.CommitFrontier
+public import CCFRaft.Properties
+
+@[expose] public section
 
 set_option linter.unusedSectionVars false
 
@@ -19,7 +23,7 @@ namespace CCFRaft.Proofs.Direct
 
 open CCFRaft.Proofs.Config
 
-open Shared Shared.MultiNodeTransitionSystem Concrete
+open CCF CCF.MultiNodeTransitionSystem Concrete
 open Model.Node
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]

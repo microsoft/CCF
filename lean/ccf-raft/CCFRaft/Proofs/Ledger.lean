@@ -1,8 +1,12 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Config
-import Mathlib.Tactic
+public import CCFRaft.Proofs.Config
+public import Mathlib.Tactic
+
+@[expose] public section
 
 set_option linter.unusedSectionVars false
 

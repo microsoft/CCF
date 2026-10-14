@@ -1,8 +1,12 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proof
-import Lean
+public import CCFRaft.Proof
+public import Lean
+
+@[expose] public section
 
 namespace CCFRaft.Tests.ProofCoverage
 

@@ -1,8 +1,12 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.Preservation.Authority
-import CCFRaft.Proofs.Ledger
+public import CCFRaft.Proofs.Invariant.Preservation.Authority
+public import CCFRaft.Proofs.Ledger
+
+@[expose] public section
 
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
@@ -21,7 +25,7 @@ variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]
 
-attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] CCF.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 def leaderAppendJoined (joined : Finset Node)
     (state : Model.State Node TxId) (node : Node) (content : EntryContent Node TxId)

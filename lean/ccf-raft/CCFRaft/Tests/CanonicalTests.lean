@@ -1,12 +1,16 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Replay
-import CCFRaft.Tests.AppendTransactions
-import Mathlib.Data.Fintype.Basic
+public import CCFRaft.Replay
+public import CCFRaft.Tests.AppendTransactions
+public import Mathlib.Data.Fintype.Basic
+
+public section
 
 open CCFRaft CCFRaft.Model.Node
-open CCFRaft.Shared.MultiNodeTransitionSystem (nodeState)
+open CCF.MultiNodeTransitionSystem (nodeState)
 
 private abbrev Node := Fin 15
 
@@ -284,7 +288,7 @@ private def bootstrapAndNoMatchingPrefixTerms : IO Unit := do
     (findHighestPossibleMatch follower.log request.prevLogIndex request.prevLogTerm == 0)
     "conflicting prefix must have no possible matching index"
   let some (after, effects) :=
-    (handleAppendEntriesRequest initialConfig (Shared.Capabilities.record destination)
+    (handleAppendEntriesRequest initialConfig (CCF.Capabilities.record destination)
       destination source follower request).run
       {}
   | throw (IO.userError "conflicting prefix did not produce a response")
@@ -298,7 +302,7 @@ private def bootstrapAndNoMatchingPrefixTerms : IO Unit := do
 private def nominationSelection : IO Unit := do
   let leader : Node := 0
   let caps :=
-    Shared.Capabilities.record (Message := Message Node Nat)
+    CCF.Capabilities.record (Message := Message Node Nat)
       (Notification := Notification) leader
   let before : NodeState Node Nat :=
     {
@@ -378,7 +382,7 @@ private def nominationSelection : IO Unit := do
 private def appendCommitTriggers : IO Unit := do
   let leader : Node := 0
   let caps :=
-    Shared.Capabilities.record (Message := Message Node Nat)
+    CCF.Capabilities.record (Message := Message Node Nat)
       (Notification := Notification) leader
   let committed : NodeState Node Nat :=
     {
@@ -1003,7 +1007,7 @@ private def retirementCommitFrontiers : IO Unit := do
         leaderCommit := 8
       }
     let some (received, effects) :=
-      (handleAppendEntriesRequest initialConfig (Shared.Capabilities.record node)
+      (handleAppendEntriesRequest initialConfig (CCF.Capabilities.record node)
         node node state request).run
         {}
     | throw (IO.userError "retirement batch was not answered")

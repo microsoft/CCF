@@ -1,10 +1,14 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Direct.Effects
-import CCFRaft.Proofs.Direct.Framework
-import CCFRaft.Properties
-import CCFRaft.Proofs.Ledger
+public import CCFRaft.Proofs.Direct.Effects
+public import CCFRaft.Proofs.Direct.Framework
+public import CCFRaft.Properties
+public import CCFRaft.Proofs.Ledger
+
+@[expose] public section
 
 set_option linter.unusedSectionVars false
 
@@ -20,7 +24,7 @@ namespace CCFRaft.Proofs.Direct
 
 open CCFRaft.Proofs.Config
 
-open Shared
+open CCF
 open Model.Node
 open Ledger (
   isSignatureAt_of_prefix isSignatureAt_take_of_le

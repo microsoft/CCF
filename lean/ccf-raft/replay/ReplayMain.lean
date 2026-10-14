@@ -1,7 +1,11 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Replay
+public import CCFRaft.Replay
+
+public section
 
 def main (args : List String) : IO UInt32 := do
   let stderr ← IO.getStderr

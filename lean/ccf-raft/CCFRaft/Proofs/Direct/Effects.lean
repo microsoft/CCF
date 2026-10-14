@@ -1,7 +1,11 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Concrete
+public import CCFRaft.Proofs.Concrete
+
+@[expose] public section
 
 set_option linter.unusedSectionVars false
 
@@ -15,7 +19,7 @@ when each of its state updates does.
 
 namespace CCFRaft.Proofs.Direct
 
-open Shared
+open CCF
 
 variable {Node Message Notification : Type}
 
@@ -34,8 +38,7 @@ theorem pure' {P : α -> Prop} {value : α} (holds : P value)
   cases ran
   exact holds
 
-theorem trivial' (m : Effect Node Message Notification α)
-    : Keeps (fun _ => True) m :=
+theorem trivial' (m : Effect Node Message Notification α) : Keeps (fun _ => True) m :=
   fun _ _ _ _ => True.intro
 
 theorem bind' {Q : α -> Prop} {P : β -> Prop} {m : Effect Node Message Notification α}
@@ -47,9 +50,9 @@ theorem bind' {Q : α -> Prop} {P : β -> Prop} {m : Effect Node Message Notific
   cases ranFirst : m.run outputs with
   | none => simp [ranFirst] at ran
   | some pair =>
-  obtain ⟨value, middle⟩ := pair
-  simp only [ranFirst] at ran
-  exact rest value (first _ _ _ ranFirst) _ _ _ ran
+      obtain ⟨value, middle⟩ := pair
+      simp only [ranFirst] at ran
+      exact rest value (first _ _ _ ranFirst) _ _ _ ran
 
 theorem seq' {P : β -> Prop} {m : Effect Node Message Notification α}
     {f : α -> Effect Node Message Notification β}
@@ -76,9 +79,10 @@ theorem ite' {P : α -> Prop} {c : Prop} [Decidable c]
   · exact no ‹_›
 
 theorem failure' {P : α -> Prop}
-    : Keeps (Node := Node) (Message := Message) (Notification := Notification) P failure := by
+    : Keeps (Node := Node) (Message := Message) (Notification := Notification) P
+        failure := by
   intro _ _ _ ran
-  cases ran
+  simp at ran
 
 /-- A guard either fails or establishes its condition. -/
 theorem guard' {c : Prop} [Decidable c]

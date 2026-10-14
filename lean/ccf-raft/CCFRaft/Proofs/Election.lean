@@ -1,9 +1,13 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Properties
-import CCFRaft.Proofs.Invariant.Reachable
-import CCFRaft.Proofs.Invariant.Safety
+public import CCFRaft.Properties
+public import CCFRaft.Proofs.Invariant.Reachable
+public import CCFRaft.Proofs.Invariant.Safety
+
+@[expose] public section
 
 namespace CCFRaft.Proofs.Election
 

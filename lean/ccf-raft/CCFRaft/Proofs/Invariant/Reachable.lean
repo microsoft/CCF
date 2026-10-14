@@ -1,8 +1,12 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.Receive
-import CCFRaft.Proofs.Invariant.Preservation.Initial
+public import CCFRaft.Proofs.Invariant.Receive
+public import CCFRaft.Proofs.Invariant.Preservation.Initial
+
+@[expose] public section
 
 /-!
 # The invariant on reachable concrete states
@@ -16,7 +20,7 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open Shared Shared.MultiNodeTransitionSystem Concrete
+open CCF CCF.MultiNodeTransitionSystem Concrete
 open Model.Node (InitialConfig)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]

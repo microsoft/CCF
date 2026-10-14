@@ -21,7 +21,7 @@ raft scenario -(raft_driver)-> raw stdout
 | Membership configurations            | `CCFRaft/Model/ClusterConfig.lean`                       |
 | Messages between nodes               | `CCFRaft/Model/Messages.lean`                            |
 | Single-node protocol                 | `CCFRaft/Model/Node.lean`                                |
-| Network composition                  | `CCFRaft/Model.lean`, `CCFRaft/Shared/`                  |
+| Network composition                  | `CCFRaft/Model.lean`, `ccf_common` (`CCF.*`)             |
 | Definitions used by the statements   | `CCFRaft/Properties/Utils.lean`                          |
 | Proof implementations                | `CCFRaft/Proofs/`                                        |
 | Executable checks                    | `CCFRaft/Tests/`                                         |
@@ -32,10 +32,12 @@ use, and the theorem links in `Proof.lean`. The build and the axiom audit
 verify the proof implementations under `Proofs/`, which `.gitattributes`
 marks `linguist-generated`.
 
-`CCFRaft/Shared/` provides package-local transition systems, traces,
-output-recording capabilities, and network composition. It is not yet a
-dependency on a common Lean package. Its `Effect` is `StateT Outputs Option`
-so that a disabled local step fails without retaining outputs.
+The `ccf_common` dependency provides transition systems, traces,
+output-recording capabilities, and network composition through the `CCF`
+namespace. It is pinned to the `lean/common` Git subdirectory at commit
+`cc22c58d61e628b90f1f5b49194c7e6722f1ec2c`; no package-local Shared copy is
+maintained. Its `Effect` is `StateT Outputs Option`, so a disabled local step
+fails without retaining outputs. The package uses Lean and Mathlib 4.35.
 
 ## Model
 
@@ -128,7 +130,7 @@ previous index is below the commit index, or one that conflicts with the log
 of a node that may no longer roll back, is dropped without a response.
 
 `Model.lean` runs one copy of `Node.step` per node with
-`Shared/MultiNodeTransitionSystem.lean`. Every listed node starts in
+`CCF.MultiNodeTransitionSystem`. Every listed node starts in
 `initialNodeState`: bootstrap members at `BOOTSTRAP_TERM`, with the initial
 leader's log preloaded with the bootstrap configuration transaction (identifier
 `default`) at `BOOTSTRAP_TERM` and every other log empty, all with commit
@@ -214,17 +216,20 @@ Run the following commands from this directory:
 
 ```sh
 lake exe cache get
-lake exe mk_all --check --lib CCFRaft
-lake build --wfail
+lake exe mk_all --check --module --lib CCFRaft
+lake build --wfail --fail-fast
 lake lint
+lake check --inadvisably-no-sandbox
 lake exe canonical-checks
 python3 -m unittest discover -s replay/tests -p 'test_*.py'
 ../../scripts/lean-format-checks.sh ccf-raft
 ```
 
-`--wfail` treats `sorry` as an error. `lake lint` runs
-[axiom-audit](https://github.com/leanprover-community/axiom-audit); only
-`propext`, `Classical.choice`, and `Quot.sound` are permitted.
+`--wfail` treats `sorry` as an error. `lake lint` runs Lake's built-in linter.
+`lake check` rechecks declarations with Lean's kernel; only `propext`,
+`Classical.choice`, and `Quot.sound` are permitted. The command above disables
+build sandboxing, so it does not establish trustworthy isolation of the build
+process.
 `Tests/Architecture.lean` fails the build if the model, the properties, or
 the replayer import a proof module. The formatting check runs
 [leanfmt](https://github.com/duckki/leanfmt), pinned in `lakefile.toml`, over

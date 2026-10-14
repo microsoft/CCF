@@ -1,8 +1,12 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.Facts
-import CCFRaft.Proofs.Direct.Framework
+public import CCFRaft.Proofs.Invariant.Facts
+public import CCFRaft.Proofs.Direct.Framework
+
+@[expose] public section
 
 open CCFRaft.Model.Node (
   BOOTSTRAP_TERM InitialConfig Configuration Entry EntryContent MembershipState NodeState
@@ -28,7 +32,7 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open Shared Shared.MultiNodeTransitionSystem
+open CCF CCF.MultiNodeTransitionSystem
 
 variable {Node TxId : Type}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]

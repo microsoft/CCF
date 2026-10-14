@@ -1,9 +1,15 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Model
-import CCFRaft.Proofs.Config
-import Mathlib.Tactic
+public import CCFRaft.Model
+public import CCFRaft.Proofs.Config
+public import Mathlib.Tactic
+
+import all Init.Control.State
+
+@[expose] public section
 
 set_option linter.unusedSectionVars false
 
@@ -16,7 +22,7 @@ namespace CCFRaft.Proofs.Concrete
 
 open CCFRaft.Proofs.Config
 
-open Shared Shared.MultiNodeTransitionSystem
+open CCF CCF.MultiNodeTransitionSystem
 open Model.Node (NodeState InitialConfig)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
@@ -132,8 +138,11 @@ theorem handleRequestVoteRequest_log (state : NodeState Node TxId) (source : Nod
     (request : Model.Node.RequestVoteRequest)
     {self : Node} {after : NodeState Node TxId}
     {outputs : Outputs Node (Model.Node.Message Node TxId) Model.Node.Notification}
-    (ran : (Model.Node.handleRequestVoteRequest (Capabilities.record self)
-      state source request).run {} = some (after, outputs))
+    (ran
+      : (Model.Node.handleRequestVoteRequest (Capabilities.record self)
+          state source request).run
+          {}
+        = some (after, outputs))
     : after.log = state.log /\ after.commitIndex = state.commitIndex := by
   let grant : Bool := decide (request.term = state.currentTerm
     /\ Model.Node.voteLogUpToDate state request /\ !state.leaderKnown
@@ -141,6 +150,10 @@ theorem handleRequestVoteRequest_log (state : NodeState Node TxId) (source : Nod
   change some ((if grant then { state with votedFor := some source } else state), _) =
     some (after, outputs) at ran
   split at ran <;> grind
+
+@[simp]
+theorem run_failure {σ α : Type} (s : σ) : (failure : StateT σ Option α).run s = none :=
+  Option.eq_none_iff_forall_ne_some.mpr fun _ ran => nomatch ran
 
 @[simp]
 theorem run_guard {σ : Type} (p : Prop) [Decidable p] (s : σ)

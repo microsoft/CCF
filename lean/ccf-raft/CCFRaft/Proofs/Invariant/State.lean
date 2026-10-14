@@ -1,7 +1,11 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Direct.Framework
+public import CCFRaft.Proofs.Direct.Framework
+
+@[expose] public section
 
 set_option linter.unusedSectionVars false
 
@@ -9,7 +13,7 @@ namespace CCFRaft.Proofs.Invariant
 
 open CCFRaft.Proofs.Config
 
-open Shared.MultiNodeTransitionSystem Concrete
+open CCF.MultiNodeTransitionSystem Concrete
 open Model.Node (InitialConfig NodeState initialNodeState)
 
 variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]

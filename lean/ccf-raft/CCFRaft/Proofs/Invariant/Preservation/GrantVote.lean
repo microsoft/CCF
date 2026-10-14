@@ -1,8 +1,12 @@
+module
+
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proofs.Invariant.Preservation.RejectVote
-import CCFRaft.Proofs.Ledger
+public import CCFRaft.Proofs.Invariant.Preservation.RejectVote
+public import CCFRaft.Proofs.Ledger
+
+@[expose] public section
 
 set_option maxHeartbeats 700000
 set_option linter.unusedSectionVars false
@@ -21,7 +25,7 @@ variable {joinedNodes : Finset Node}
 variable [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
   [LinearOrder Node] [Inhabited TxId]
 
-attribute [local simp] Shared.Envelope.target ConfigurationCoverageWitness.sharedPrefix
+attribute [local simp] CCF.Envelope.target ConfigurationCoverageWitness.sharedPrefix
 
 /-- Enqueuing a granted vote response materialises prospective election evidence. -/
 lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
@@ -861,7 +865,7 @@ lemma enqueueGrantedVoteResponsePreservesSystemInductiveInvariant
       · exact
           facts.networkHistory.addressed
             queuedDestination message old
-      · exact (congrArg Shared.Envelope.target new.2).trans new.1.symm
+      · exact (congrArg CCF.Envelope.target new.2).trans new.1.symm
     · intro queuedDestination queuedRequest member
       have old :=
         facts.networkHistory.appendRequest
