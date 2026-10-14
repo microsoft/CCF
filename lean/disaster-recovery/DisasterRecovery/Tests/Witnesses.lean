@@ -1,4 +1,8 @@
-import DisasterRecovery.Proof
+module
+
+public import DisasterRecovery.Proof
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests.Witnesses
 

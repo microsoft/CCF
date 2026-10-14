@@ -1,7 +1,11 @@
-import DisasterRecovery.Properties
-import DisasterRecovery.Proofs.Local
-import DisasterRecovery.Proofs.Model
-import DisasterRecovery.Proofs.Witnesses
+module
+
+public import DisasterRecovery.Properties
+public import DisasterRecovery.Proofs.Local
+public import DisasterRecovery.Proofs.Model
+public import DisasterRecovery.Proofs.Witnesses
+
+@[expose] public section
 
 namespace DisasterRecovery.Proof
 

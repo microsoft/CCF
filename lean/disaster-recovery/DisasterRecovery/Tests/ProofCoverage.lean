@@ -1,5 +1,12 @@
-import DisasterRecovery.Proof
-import Lean
+module
+
+-- The public interface erases theorem bodies; inspect their implementation metadata.
+import all DisasterRecovery.Proof
+
+public import DisasterRecovery.Proof
+public import Lean
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests.ProofCoverage
 
