@@ -60,7 +60,7 @@ namespace ccf::kv::test
       return state == Primary;
     }
 
-    virtual bool is_at_max_capacity() override
+    virtual bool should_apply_backpressure() override
     {
       return false;
     }

@@ -324,8 +324,8 @@ namespace ccf::crypto
     int sz = (EC_GROUP_get_degree(group) + CHAR_BIT - 1) / CHAR_BIT;
     r.x.resize(sz);
     r.y.resize(sz);
-    BN_bn2binpad(x, r.x.data(), sz);
-    BN_bn2binpad(y, r.y.data(), sz);
+    CHECKPOSITIVE(BN_bn2binpad(x, r.x.data(), sz));
+    CHECKPOSITIVE(BN_bn2binpad(y, r.y.data(), sz));
     return r;
   }
 

@@ -135,7 +135,9 @@ namespace ccf::js::extensions
       {
         JS_CHECK_OR_THROW(caller.set(
           "policy",
-          ctx.new_string(ccf::get_policy_name_from_ident(jwt_ident))));
+          ctx.new_string(
+            ccf::detail::js_authentication::get_policy_name_from_ident(
+              jwt_ident))));
 
         auto jwt = ctx.new_obj();
         JS_CHECK_OR_THROW(jwt.set(
@@ -155,7 +157,9 @@ namespace ccf::js::extensions
       {
         JS_CHECK_OR_THROW(caller.set(
           "policy",
-          ctx.new_string(ccf::get_policy_name_from_ident(empty_ident))));
+          ctx.new_string(
+            ccf::detail::js_authentication::get_policy_name_from_ident(
+              empty_ident))));
         return caller;
       }
       if (
@@ -184,7 +188,8 @@ namespace ccf::js::extensions
           dynamic_cast<const ccf::AnyCertAuthnIdentity*>(ident.get()))
       {
         const auto* policy_name =
-          ccf::get_policy_name_from_ident(any_cert_ident);
+          ccf::detail::js_authentication::get_policy_name_from_ident(
+            any_cert_ident);
         JS_CHECK_OR_THROW(caller.set("policy", ctx.new_string(policy_name)));
         auto pem_cert = ccf::crypto::cert_der_to_pem(any_cert_ident->cert);
         JS_CHECK_OR_THROW(caller.set("cert", ctx.new_string(pem_cert.str())));
@@ -199,7 +204,9 @@ namespace ccf::js::extensions
         const auto* user_cert_ident =
           dynamic_cast<const ccf::UserCertAuthnIdentity*>(ident.get()))
       {
-        policy_name = ccf::get_policy_name_from_ident(user_cert_ident);
+        policy_name =
+          ccf::detail::js_authentication::get_policy_name_from_ident(
+            user_cert_ident);
         id = user_cert_ident->user_id;
         is_member = false;
       }
@@ -207,7 +214,9 @@ namespace ccf::js::extensions
         const auto* member_cert_ident =
           dynamic_cast<const ccf::MemberCertAuthnIdentity*>(ident.get()))
       {
-        policy_name = ccf::get_policy_name_from_ident(member_cert_ident);
+        policy_name =
+          ccf::detail::js_authentication::get_policy_name_from_ident(
+            member_cert_ident);
         id = member_cert_ident->member_id;
         is_member = true;
       }
@@ -215,7 +224,9 @@ namespace ccf::js::extensions
         const auto* user_cose_ident =
           dynamic_cast<const ccf::UserCOSESign1AuthnIdentity*>(ident.get()))
       {
-        policy_name = ccf::get_policy_name_from_ident(user_cose_ident);
+        policy_name =
+          ccf::detail::js_authentication::get_policy_name_from_ident(
+            user_cose_ident);
         id = user_cose_ident->user_id;
         is_member = false;
 

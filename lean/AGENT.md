@@ -13,29 +13,30 @@ To be clear being able to save 1 line of human readable code at the cost of 1000
 
 Within a model's library directory, use this layout:
 
-| Location          | Responsibility                                                                                       |
-| ----------------- | ---------------------------------------------------------------------------------------------------- |
-| `Model.lean`      | Assemble the executable model, including configuration and network composition.                      |
-| `Model/`          | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`. |
-| `Shared/`         | Reusable transition systems, network composition, and execution definitions.                         |
-| `Properties.lean` | Define the named claims as `def ... : Prop`.                                                         |
-| `Properties/`     | Definitions needed to state and understand those claims, such as state and trace predicates.         |
-| `Proof.lean`      | Export theorems establishing the named properties, linked to their checked implementations.          |
-| `Proofs/`         | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
-| `Tests/`          | Executable model checks and regression cases.                                                        |
+| Location               | Responsibility                                                                                       |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `Model.lean`           | Assemble the executable model, including configuration and network composition.                      |
+| `Model/`               | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`. |
+| `Shared/`              | Reusable transition systems, network composition, and execution definitions.                         |
+| `Properties.lean`      | Define the named claims as `def ... : Prop`.                                                         |
+| `Properties/`          | Definitions needed to state and understand those claims, such as state and trace predicates.         |
+| `Proof.lean`           | Export theorems establishing the named properties, linked to their checked implementations.          |
+| `Proofs/`              | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
+| `Tests/`               | Executable model checks and regression cases.                                                        |
+| `TraceValidation.lean` | Replay recorded implementation traces through the executable model.                                  |
+| `TraceValidation/`     | Parsing and ordering of those traces, for `TraceValidation.lean`.                                    |
 
 ## Dependency direction
 
-- Keep `Shared/`, `Model/`, and `Model.lean` independent of property and proof
-  modules. Shared infrastructure must not depend on a particular protocol.
-- Property definitions should depend on the model, shared definitions, and other
-  property helpers. Neither `Properties.lean` nor `Properties/` may import
-  `Proof.lean` or `Proofs/`.
-- Let `Proofs/` depend on model and property definitions, plus other supporting
-  proofs. `Proof.lean` imports the property statements and their implementations.
+- Keep `Shared/`, `Model/`, and `Model.lean` independent of property and proof modules.
+  Shared infrastructure must not depend on a particular protocol.
+- Property definitions should depend on the model, shared definitions, and other property helpers.
+  Neither `Properties.lean` nor `Properties/` may import `Proof.lean` or `Proofs/`.
+- Let `Proofs/` depend on model and property definitions, plus other supporting proofs.
+  `Proof.lean` imports the property statements and their implementations.
 
-The proof entrypoint should establish the named property rather than repeat its
-statement. For example:
+The proof entrypoint should establish the named property rather than repeat its statement.
+For example:
 
 ```lean
 theorem quorum_opener_unique : Properties.QuorumOpenerUnique :=
@@ -46,32 +47,26 @@ Do not use axioms or unfinished theorems as placeholders for property statements
 
 ## Statement definitions versus proof machinery
 
-A definition belongs with properties when a reader needs it to understand the
-claim or its assumptions. A definition used only to establish the claim belongs
-with proofs.
+A definition belongs with properties when a reader needs it to understand the claim or its assumptions.
+A definition used only to establish the claim belongs with proofs.
 
-State historical properties over executions of the actual model. Put reusable
-execution definitions in `Shared/` and protocol-specific trace predicates in
-`Properties/`. Keep ghost histories, send-time snapshots, and proof-only
-invariants under `Proofs/`; do not expose their representation through public
-property helpers.
+State historical properties over executions of the actual model.
+Put reusable execution definitions in `Shared/` and protocol-specific trace predicates in `Properties/`.
+Keep ghost histories, send-time snapshots, and proof-only invariants under `Proofs/`; do not expose their representation through public property helpers.
 
-When using a ghost execution, prove that every relevant model execution admits
-the decoration. Do not restrict the model to executions convenient for a proof.
-Moving ghost definitions into `Properties/` merely to remove an import does not
-establish this separation.
+When using a ghost execution, prove that every relevant model execution admits the decoration.
+Do not restrict the model to executions convenient for a proof.
+Moving ghost definitions into `Properties/` merely to remove an import does not establish this separation.
 
 ## Review and validation
 
-Review the model, property definitions, their helpers, and the theorem links in
-`Proof.lean`. Keep the detailed proof implementations machine-checked and within
-the axiom allowlist.
+Review the model, property definitions, their helpers, and the theorem links in `Proof.lean`.
+Keep the detailed proof implementations machine-checked and within the axiom allowlist.
 
-Retain the generated package-level import-all module and the whole-package axiom
-audit. The proof entrypoint does not replace either check. After moving modules,
-regenerate the import root and run the package's existing checks. For disaster
-recovery, see the [validation commands](disaster-recovery/README.md#validation).
+Retain the generated package-level import-all module and the whole-package axiom audit.
+The proof entrypoint does not replace either check.
+After moving modules, regenerate the import root and run the package's existing checks.
+For disaster recovery, see the [validation commands](disaster-recovery/README.md#validation).
 
-`DisasterRecovery/Tests/Architecture.lean` checks the property import graph during
-the build. It rejects proof dependencies and imports that reverse the shared,
-model, and property layers.
+`DisasterRecovery/Tests/Architecture.lean` checks the property import graph during the build.
+It rejects proof dependencies and imports that reverse the shared, model, and property layers.

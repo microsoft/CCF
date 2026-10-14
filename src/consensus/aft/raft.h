@@ -16,6 +16,7 @@
 #include "kv/kv_types.h"
 #include "raft_types.h"
 #include "service/tables/signatures.h"
+#include "tasks/periodic_task_owner.h"
 
 #include <algorithm>
 #include <functional>
@@ -88,7 +89,7 @@ namespace aft
   using Configuration = ccf::kv::Configuration;
 
   template <class LedgerProxy>
-  class Aft : public ccf::kv::Consensus
+  class Aft : public ccf::kv::Consensus, public ccf::tasks::PeriodicTaskOwner
   {
   private:
     struct NodeState
@@ -234,6 +235,16 @@ namespace aft
 
     ~Aft() override = default;
 
+    void register_periodic_tasks(
+      ccf::tasks::JobBoard& job_board, std::chrono::milliseconds period)
+    {
+      schedule_periodic_task(
+        job_board,
+        period,
+        [this](std::chrono::milliseconds elapsed) { periodic(elapsed); },
+        "Consensus maintenance");
+    }
+
     std::optional<ccf::NodeId> primary() override
     {
       // leader_id is written under state->lock, and unlike is_primary() this
@@ -267,20 +278,21 @@ namespace aft
     }
 
     /**
-     * Returns true if the node is primary, max_uncommitted_tx_count is non-zero
-     * and the number of transactions replicated but not yet committed exceeds
-     * max_uncommitted_tx_count.
+     * Returns true if local ledger backlog or the uncommitted transaction
+     * count reaches its configured threshold, regardless of the node's role.
      */
-    bool is_at_max_capacity() override
+    bool should_apply_backpressure() override
     {
+      if (ledger->is_backlogged())
+      {
+        return true;
+      }
       if (max_uncommitted_tx_count == 0)
       {
         return false;
       }
       std::unique_lock<ccf::ds::Mutex> guard(state->lock);
-      return state->leadership_state.load() ==
-        ccf::kv::LeadershipState::Leader &&
-        (state->last_idx - state->commit_idx >= max_uncommitted_tx_count);
+      return state->last_idx - state->commit_idx >= max_uncommitted_tx_count;
     }
 
     Consensus::SignatureDisposition get_signature_disposition() override
@@ -738,6 +750,18 @@ namespace aft
             AppendEntries r =
               channels->template recv_authenticated<AppendEntries>(
                 from, data, size);
+            if (ledger->is_backlogged())
+            {
+              // Treat the whole message as lost. Check before term/log
+              // processing so overload does not produce NACKs or reset
+              // election timers, even ignoring heartbeats or potentially
+              // useful leadership/term information, for simplicity. Expect
+              // that normal periodic probes will repair any gap once ledger
+              // IO catches up.
+              RAFT_DEBUG_FMT(
+                "Dropping AppendEntries from {}: ledger write backlog", from);
+              break;
+            }
             recv_append_entries(from, r, data, size);
             break;
           }

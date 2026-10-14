@@ -3,25 +3,31 @@
 #pragma once
 
 #include "ccf/node_subsystem_interface.h"
+#include "consensus/ledger_enclave_types.h"
 
 #include <filesystem>
 #include <optional>
 
 namespace ccf
 {
-  class AbstractReadLedgerSubsystemInterface : public AbstractNodeSubSystem
+  class AbstractLedgerSubsystemInterface
+    : public AbstractNodeSubSystem,
+      public ::consensus::AbstractLedgerWriter,
+      public ::consensus::AbstractLedgerReader
   {
   public:
-    ~AbstractReadLedgerSubsystemInterface() override = default;
+    ~AbstractLedgerSubsystemInterface() override = default;
 
     static char const* get_subsystem_name()
     {
-      return "LedgerReadInterface";
+      return "LedgerInterface";
     }
 
     virtual std::optional<std::filesystem::path> committed_ledger_path_with_idx(
       size_t idx) = 0;
 
     virtual size_t get_init_idx() = 0;
+
+    virtual void shutdown() = 0;
   };
 }

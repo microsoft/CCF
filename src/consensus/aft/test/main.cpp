@@ -4,11 +4,124 @@
 #include "node/commit_callback_subsystem.h"
 #include "test_common.h"
 
+#include <barrier>
+#include <thread>
+
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
 using ms = std::chrono::milliseconds;
+
+DOCTEST_TEST_CASE(
+  "Consensus owns its periodic timer" * doctest::test_suite("single"))
+{
+  const auto self = ccf::kv::test::PrimaryNodeId;
+  auto kv_store = std::make_shared<Store>(self);
+  ccf::tasks::JobBoard job_board;
+  auto raft = std::make_shared<TRaft>(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(self),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(self),
+    nullptr);
+  raft->register_periodic_tasks(job_board, ms(10));
+  aft::Configuration::Nodes config;
+  config[self] = {};
+  raft->add_configuration(0, config);
+  const auto run_all = [&]() {
+    while (auto task = job_board.get_task())
+    {
+      task->do_task();
+    }
+  };
+
+  job_board.tick(election_timeout * 5);
+  run_all();
+  DOCTEST_REQUIRE_FALSE(raft->is_primary());
+  raft->start_ticking();
+  for (size_t i = 0; i < 9; ++i)
+  {
+    job_board.tick(ms(10));
+    run_all();
+    DOCTEST_REQUIRE_FALSE(raft->is_primary());
+  }
+  job_board.tick(ms(10));
+  run_all();
+  DOCTEST_REQUIRE(raft->is_primary());
+
+  job_board.tick(ms(10));
+  std::weak_ptr<TRaft> weak_raft = raft;
+  raft.reset();
+  DOCTEST_REQUIRE(weak_raft.expired());
+  run_all();
+  job_board.tick(election_timeout * 5);
+  run_all();
+  DOCTEST_REQUIRE(job_board.get_summary().pending_tasks == 0);
+}
+
+DOCTEST_TEST_CASE(
+  "Consensus maintenance, inbound processing and notices concurrency smoke" *
+  doctest::test_suite("concurrent"))
+{
+  const auto self = ccf::kv::test::PrimaryNodeId;
+  const auto peer = ccf::kv::test::FirstBackupNodeId;
+  auto kv_store = std::make_shared<Store>(self);
+  auto settings = raft_settings;
+  settings.election_timeout = ccf::ds::TimeString{"1s"};
+  TRaft raft(
+    settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(self),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(self),
+    nullptr);
+  aft::Configuration::Nodes config;
+  config[self] = {};
+  config[peer] = {};
+  raft.add_configuration(0, config);
+  raft.start_ticking();
+  raft.force_become_primary();
+  aft::RequestVote vote{};
+  vote.term = raft.get_view();
+  std::barrier start{4};
+  constexpr size_t iterations = 200;
+  // The barrier creates competing calls, not a guaranteed lock interleaving.
+  // Keep leadership for the whole workload so responses/notices are observable.
+  std::thread maintenance([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      raft.periodic(ms(1));
+    }
+  });
+  std::thread inbound([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      raft.recv_message(
+        peer, reinterpret_cast<const uint8_t*>(&vote), sizeof(vote));
+    }
+  });
+  std::thread notices([&]() {
+    start.arrive_and_wait();
+    for (size_t i = 0; i < iterations; ++i)
+    {
+      raft.nominate_successor();
+    }
+  });
+  start.arrive_and_wait();
+  maintenance.join();
+  inbound.join();
+  notices.join();
+  DOCTEST_REQUIRE(
+    channel_stub_proxy(raft)->count_messages_with_type(
+      aft::raft_request_vote_response) == iterations);
+  DOCTEST_REQUIRE(
+    channel_stub_proxy(raft)->count_messages_with_type(
+      aft::raft_propose_request_vote) == iterations);
+}
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
@@ -1303,6 +1416,141 @@ struct PrimaryAndBackup
 };
 
 DOCTEST_TEST_CASE(
+  "Ledger overload drops AppendEntries before processing" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+  n.replicate(1, 1);
+  n.r0.periodic(request_timeout);
+  const auto first = n.with_payload(n.take_append_entries_header());
+  const auto ack = n.backup_receives(first);
+  require_ack(ack, 1);
+  n.primary_receives(ack.value());
+
+  n.replicate(2, 2);
+  n.r0.periodic(request_timeout);
+  auto header = read_msg<aft::AppendEntries>(n.take_append_entries_header());
+  auto message = n.with_payload(as_bytes(header));
+  DOCTEST_SUBCASE("New entries") {}
+  DOCTEST_SUBCASE("Duplicate entries")
+  {
+    message = first;
+  }
+  DOCTEST_SUBCASE("Heartbeat with a matching prefix")
+  {
+    header.idx = header.prev_idx;
+    message = as_bytes(header);
+  }
+  DOCTEST_SUBCASE("Heartbeat after a missing batch")
+  {
+    header.prev_idx = header.idx;
+    message = as_bytes(header);
+  }
+  DOCTEST_SUBCASE("Newer term")
+  {
+    ++header.term;
+    message = n.with_payload(as_bytes(header));
+  }
+  DOCTEST_SUBCASE("Older term")
+  {
+    --header.term;
+    message = n.with_payload(as_bytes(header));
+  }
+
+  const auto ledger_before = n.r1.ledger->ledger;
+  const auto view_before = n.r1.get_view();
+  const auto commit_before = n.r1.get_committed_seqno();
+  n.r1.ledger->reset_skip_count();
+  n.r1.ledger->backlogged = true;
+
+  DOCTEST_REQUIRE_FALSE(n.backup_receives(message).has_value());
+  DOCTEST_REQUIRE(n.r1.get_view() == view_before);
+  DOCTEST_REQUIRE(n.r1.get_last_idx() == 1);
+  DOCTEST_REQUIRE(n.r1.get_committed_seqno() == commit_before);
+  DOCTEST_REQUIRE(n.r1.ledger->ledger == ledger_before);
+  DOCTEST_REQUIRE(n.r1.ledger->skip_count == 0);
+}
+
+DOCTEST_TEST_CASE(
+  "Ledger overload clears and the backup catches up without new writes" *
+  doctest::test_suite("multiple"))
+{
+  auto settings = raft_settings;
+  settings.max_uncommitted_tx_count = 1;
+  PrimaryAndBackup n({.settings = settings}, {.settings = settings});
+  n.replicate(1, 2);
+  n.r0.periodic(request_timeout);
+  const auto batch = n.with_payload(n.take_append_entries_header());
+
+  n.r1.ledger->backlogged = true;
+  DOCTEST_REQUIRE_FALSE(n.backup_receives(batch).has_value());
+  n.r0.periodic(request_timeout);
+  auto heartbeat = n.take_append_entries_header();
+  auto ae = read_msg<aft::AppendEntries>(heartbeat);
+  DOCTEST_REQUIRE(ae.prev_idx == 2);
+  DOCTEST_REQUIRE(ae.idx == ae.prev_idx);
+  DOCTEST_REQUIRE_FALSE(n.backup_receives(heartbeat).has_value());
+  DOCTEST_REQUIRE(n.r1.get_last_idx() == 0);
+  DOCTEST_REQUIRE(n.r0.get_details().acks.at(n.id1).seqno == 0);
+  DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 0);
+
+  // Once IO catches up, the normal heartbeat detects the missing batch.
+  n.r1.ledger->backlogged = false;
+  n.r0.periodic(request_timeout);
+  auto response = n.backup_receives(n.take_append_entries_header());
+  require_nack(response, 0);
+  n.primary_receives(response.value());
+  n.r0.periodic(request_timeout);
+  response = n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_ack(response, 2);
+  n.primary_receives(response.value());
+  DOCTEST_REQUIRE(n.r0.get_last_idx() == 2);
+  DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 2);
+  DOCTEST_REQUIRE(n.r1.ledger->ledger == n.r0.ledger->ledger);
+
+  // Uncommitted-count pressure must not drop the commit-carrying heartbeat.
+  DOCTEST_REQUIRE(n.r1.should_apply_backpressure());
+  n.r0.periodic(request_timeout);
+  heartbeat = n.take_append_entries_header();
+  n.r1.ledger->backlogged = true;
+  DOCTEST_REQUIRE_FALSE(n.backup_receives(heartbeat).has_value());
+  n.r1.ledger->backlogged = false;
+  require_ack(n.backup_receives(heartbeat), 2);
+  DOCTEST_REQUIRE(n.r1.get_committed_seqno() == 2);
+  DOCTEST_REQUIRE_FALSE(n.r1.should_apply_backpressure());
+}
+
+DOCTEST_TEST_CASE(
+  "Ledger overload does not drop other consensus messages" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+  DOCTEST_SUBCASE("Vote request")
+  {
+    n.r1.ledger->backlogged = true;
+    const auto request = as_bytes(aft::RequestVote{
+      .term = n.r1.get_view() + 1,
+      .last_committable_idx = 0,
+      .term_of_last_committable_idx = 0});
+    n.r1.recv_message(n.id0, request.data(), request.size());
+    DOCTEST_REQUIRE(
+      n.c1->count_messages_with_type(aft::raft_request_vote_response) == 1);
+    DOCTEST_REQUIRE(n.r1.get_view() == n.r0.get_view() + 1);
+  }
+  DOCTEST_SUBCASE("AppendEntries response")
+  {
+    n.replicate(1, 1);
+    n.r0.periodic(request_timeout);
+    const auto response =
+      n.backup_receives(n.with_payload(n.take_append_entries_header()));
+    require_ack(response, 1);
+    n.r0.ledger->backlogged = true;
+    n.primary_receives(response.value());
+    DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 1);
+  }
+}
+
+DOCTEST_TEST_CASE(
   "Backup NACKs AppendEntries whose entries cannot be read or deserialised" *
   doctest::test_suite("multiple"))
 {
@@ -2277,7 +2525,7 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
-  "Primary is at max capacity while too many entries are uncommitted" *
+  "Nodes apply backpressure while too many entries are uncommitted" *
   doctest::test_suite("multiple"))
 {
   DOCTEST_SUBCASE("A limit of 0 is no limit")
@@ -2285,7 +2533,7 @@ DOCTEST_TEST_CASE(
     PrimaryAndBackup n;
     n.replicate(1, 5);
     DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 0);
-    DOCTEST_REQUIRE_FALSE(n.r0.is_at_max_capacity());
+    DOCTEST_REQUIRE_FALSE(n.r0.should_apply_backpressure());
   }
 
   DOCTEST_SUBCASE("With a limit")
@@ -2296,20 +2544,109 @@ DOCTEST_TEST_CASE(
     PrimaryAndBackup n({.settings = settings}, {.settings = settings});
 
     n.replicate(1, 1);
-    DOCTEST_REQUIRE_FALSE(n.r0.is_at_max_capacity());
+    DOCTEST_REQUIRE_FALSE(n.r0.should_apply_backpressure());
     n.replicate(2, 2);
-    DOCTEST_REQUIRE(n.r0.is_at_max_capacity());
-    DOCTEST_REQUIRE_FALSE(n.r1.is_at_max_capacity());
+    DOCTEST_REQUIRE(n.r0.should_apply_backpressure());
+    DOCTEST_REQUIRE_FALSE(n.r1.should_apply_backpressure());
 
     DOCTEST_INFO("Until the backup acknowledges the entries, and they commit");
     n.r0.periodic(request_timeout);
     const auto response =
       n.backup_receives(n.with_payload(n.take_append_entries_header()));
     require_ack(response, 2);
+    DOCTEST_REQUIRE(n.r1.get_committed_seqno() == 0);
+    DOCTEST_REQUIRE(n.r1.should_apply_backpressure());
     n.primary_receives(response.value());
     DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 2);
-    DOCTEST_REQUIRE_FALSE(n.r0.is_at_max_capacity());
+    DOCTEST_REQUIRE_FALSE(n.r0.should_apply_backpressure());
+
+    // The backup resumes admission when it learns the new commit index.
+    n.r0.periodic(request_timeout);
+    require_ack(
+      n.backup_receives(n.with_payload(n.take_append_entries_header())), 2);
+    DOCTEST_REQUIRE(n.r1.get_committed_seqno() == 2);
+    DOCTEST_REQUIRE_FALSE(n.r1.should_apply_backpressure());
   }
+}
+
+DOCTEST_TEST_CASE(
+  "Ledger backlog applies backpressure independently of commit" *
+  doctest::test_suite("multiple"))
+{
+  auto settings = raft_settings;
+  DOCTEST_SUBCASE("Uncommitted count disabled")
+  {
+    settings.max_uncommitted_tx_count = 0;
+  }
+  DOCTEST_SUBCASE("Uncommitted count enabled")
+  {
+    settings.max_uncommitted_tx_count = 2;
+  }
+  PrimaryAndBackup n({.settings = settings}, {.settings = settings});
+  n.replicate(1, 1);
+  n.r0.periodic(request_timeout);
+  auto ack = n.backup_receives(n.with_payload(n.take_append_entries_header()));
+  require_ack(ack, 1);
+  n.primary_receives(ack.value());
+  DOCTEST_REQUIRE(n.r0.get_committed_seqno() == 1);
+  DOCTEST_REQUIRE_FALSE(n.r0.should_apply_backpressure());
+
+  n.r0.ledger->backlogged = true;
+  n.r1.ledger->backlogged = true;
+  DOCTEST_REQUIRE(n.r0.should_apply_backpressure());
+  DOCTEST_REQUIRE(n.r1.should_apply_backpressure());
+  n.replicate(2, 2); // Already admitted work is not refused by replicate().
+  n.r0.ledger->backlogged = false;
+  DOCTEST_REQUIRE_FALSE(n.r0.should_apply_backpressure());
+  DOCTEST_REQUIRE(n.r1.should_apply_backpressure());
+  n.r1.ledger->backlogged = false;
+  DOCTEST_REQUIRE_FALSE(n.r1.should_apply_backpressure());
+  if (settings.max_uncommitted_tx_count != 0)
+  {
+    // Clearing the storage backlog does not disable uncommitted-count pressure.
+    n.replicate(3, 3);
+    DOCTEST_REQUIRE(n.r0.should_apply_backpressure());
+  }
+}
+
+DOCTEST_TEST_CASE(
+  "Ledger backlog applies backpressure before a node becomes primary" *
+  doctest::test_suite("multiple"))
+{
+  TestNode node(ccf::kv::test::FirstBackupNodeId);
+  auto& raft = node.raft;
+  DOCTEST_REQUIRE_FALSE(raft.is_primary());
+  DOCTEST_REQUIRE_FALSE(raft.should_apply_backpressure());
+  raft.ledger->backlogged = true;
+  DOCTEST_REQUIRE(raft.should_apply_backpressure());
+  raft.ledger->backlogged = false;
+  DOCTEST_REQUIRE_FALSE(raft.should_apply_backpressure());
+}
+
+DOCTEST_TEST_CASE(
+  "Single-node primary applies ledger backpressure despite immediate commit" *
+  doctest::test_suite("single"))
+{
+  const auto id = ccf::kv::test::PrimaryNodeId;
+  TestNode node(id);
+  auto& raft = node.raft;
+  aft::Configuration::Nodes config;
+  config[id] = {};
+  raft.add_configuration(0, config);
+  raft.start_ticking();
+  raft.periodic(election_timeout * 2);
+  DOCTEST_REQUIRE(raft.is_primary());
+
+  auto entry = std::make_shared<std::vector<uint8_t>>(3, 1);
+  DOCTEST_REQUIRE(raft.replicate(
+    ccf::kv::BatchVector{{1, entry, true, hooks}}, raft.get_view()));
+  DOCTEST_REQUIRE(raft.get_committed_seqno() == raft.get_last_idx());
+  DOCTEST_REQUIRE_FALSE(raft.should_apply_backpressure());
+
+  raft.ledger->backlogged = true;
+  DOCTEST_REQUIRE(raft.should_apply_backpressure());
+  raft.ledger->backlogged = false;
+  DOCTEST_REQUIRE_FALSE(raft.should_apply_backpressure());
 }
 
 // Records whether each call to deserialize() was for public domains only

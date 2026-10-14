@@ -10,6 +10,7 @@
 #include <regex>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <unistd.h>
 #include <vector>
@@ -209,7 +210,8 @@ namespace ccf::nonstd
   {
     if (fd != nullptr && *fd >= 0)
     {
-      close(*fd);
+      // Best-effort cleanup from a scope guard, with no way to report failure
+      std::ignore = close(*fd);
       *fd = -1;
     }
   }

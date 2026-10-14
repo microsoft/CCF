@@ -106,7 +106,9 @@ def test_kill_primary_no_reqs(network, args):
     # Note that the first TxID read after an election may be of a signature
     # Tx (time-based signature generation) in the new term rather than the
     # last entry in the previous term
-    for node in network.get_joined_nodes():
+    joined_nodes = network.get_joined_nodes()
+    joined_node_ids = {node.node_id for node in joined_nodes}
+    for node in joined_nodes:
         with node.client() as c:
             r = c.get("/node/network")
             c.wait_for_commit(r)
@@ -114,8 +116,10 @@ def test_kill_primary_no_reqs(network, args):
             # Also verify that reported last ack time are as expected
             r = c.get("/node/consensus")
             acks = r.body.json()["details"]["acks"]
-            for ack in acks.values():
+            for node_id, ack in acks.items():
                 if node is new_primary:
+                    if node_id not in joined_node_ids:
+                        continue
                     assert (
                         ack["last_received_ms"] < network.args.election_timeout_ms
                     ), acks

@@ -49,10 +49,12 @@
 #include "node/node_to_node_channel_manager.h"
 #include "node/open_service.h"
 #include "node/pending_node_cleanup.h"
+#include "node/recovered_service_opening_task.h"
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
 #include "node/retired_nodes_cleanup.h"
 #include "node/rpc/abstract_rpc_sessions.h"
+#include "node/rpc/ledger_interface.h"
 #include "node/runtime_control.h"
 #include "node/signature_cache_subsystem.h"
 #include "node/snapshotter.h"
@@ -69,6 +71,7 @@
 #include "share_manager.h"
 #include "snapshots/fetch.h"
 #include "snapshots/filenames.h"
+#include "tasks/job_board.h"
 
 #include <arpa/inet.h>
 #include <optional>
@@ -148,7 +151,8 @@ namespace ccf
     return best_view;
   }
 
-  class NodeState : public AbstractNodeState
+  class NodeState : public AbstractNodeState,
+                    public std::enable_shared_from_this<NodeState>
   {
     friend class RecoveryDecisionProtocolSubsystem;
 
@@ -449,8 +453,8 @@ namespace ccf
     //
     // kv store, replication, and I/O
     //
-    ringbuffer::AbstractWriterFactory& writer_factory;
-    ringbuffer::WriterPtr to_host;
+    std::shared_ptr<AbstractNodeTransport> node_transport;
+    std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem;
     ccf::consensus::Configuration consensus_config;
     size_t sig_tx_interval = 0;
     size_t sig_ms_interval = 0;
@@ -502,9 +506,9 @@ namespace ccf
     // private recovery as a backup. So from when this node begins private
     // recovery until it sees an opening commit, a node which has completed
     // private recovery also tries to open the service in each view in which it
-    // is primary (see tick()). Committed is final, and may be set before
-    // private recovery begins, since global hooks run in table order. The
-    // service hook only acts on openings of this node's service identity,
+    // is primary. Committed is permanent, and may be set
+    // before private recovery begins, since global hooks run in table order.
+    // The service hook only acts on openings of this node's service identity,
     // which is new on recovery, so the only opening a recovering node can see
     // commit is the recovered service's.
     enum class RecoveredServiceOpening : uint8_t
@@ -826,19 +830,20 @@ namespace ccf
 
   public:
     NodeState(
-      ringbuffer::AbstractWriterFactory& writer_factory,
+      std::shared_ptr<AbstractNodeTransport> node_transport_,
       NetworkState& network,
       std::shared_ptr<AbstractRPCSessions> rpcsessions,
       ccf::crypto::CurveID curve_id_,
-      ccf::AbstractRuntimeControl& runtime_control_) :
+      ccf::AbstractRuntimeControl& runtime_control_,
+      std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(curve_id_)),
       self(compute_node_id_from_kp(node_sign_kp)),
       node_encrypt_kp(ccf::crypto::make_rsa_key_pair()),
       runtime_control(runtime_control_),
-      writer_factory(writer_factory),
-      to_host(writer_factory.create_writer_to_outside()),
+      node_transport(std::move(node_transport_)),
+      ledger_subsystem(std::move(ledger_subsystem_)),
       network(network),
       rpcsessions(std::move(rpcsessions)),
       share_manager(network.ledger_secrets),
@@ -875,7 +880,9 @@ namespace ccf
       std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks_,
       std::shared_ptr<ccf::SignatureCacheSubsystem> signature_cache_,
       size_t sig_tx_interval_,
-      size_t sig_ms_interval_)
+      size_t sig_ms_interval_,
+      ccf::tasks::JobBoard& job_board_,
+      std::chrono::milliseconds tick_interval_)
     {
       std::lock_guard<ds::Mutex> guard(lock);
       sm.expect(NodeStartupState::uninitialized);
@@ -889,7 +896,12 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
-      n2n_channels = std::make_shared<NodeToNodeChannelManager>(writer_factory);
+      // Register through the concrete type before storing the channel
+      // interface.
+      auto channel_manager =
+        std::make_shared<NodeToNodeChannelManager>(node_transport);
+      channel_manager->register_periodic_tasks(job_board_, tick_interval_);
+      n2n_channels = std::move(channel_manager);
 
       cmd_forwarder = std::make_shared<Forwarder<NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map);
@@ -900,6 +912,7 @@ namespace ccf
       {
         fe->set_sig_intervals(sig_tx_interval, sig_ms_interval);
         fe->set_cmd_forwarder(cmd_forwarder);
+        fe->start_periodic_tick(job_board_, tick_interval_);
       }
     }
 
@@ -1522,9 +1535,8 @@ namespace ccf
           // minimal: capture the response and defer all node-state processing
           // to a task, matching the JWT refresh client. That processing can
           // deserialise a large snapshot and acquires NodeState::lock;
-          // running it on the libuv thread would stall every other user of
-          // the shared curl loop and risk a ringbuffer back-pressure deadlock
-          // (the blocking host writer is drained on this same thread).
+          // Running it on the libuv thread would stall every other user of the
+          // shared curl loop.
           // NodeState outlives the curl singleton and the task board (both
           // are torn down during enclave shutdown, before NodeState is
           // destroyed), so capturing raw `this` is safe.
@@ -2132,7 +2144,7 @@ namespace ccf
       // Note: KV term must be set before the first Tx is committed
       network.tables->rollback(
         {last_recovered_term, last_recovered_signed_idx}, new_term);
-      ledger_truncate(last_recovered_signed_idx, true);
+      truncate_ledger(last_recovered_signed_idx, true);
       snapshotter->rollback(last_recovered_signed_idx);
 
       LOG_INFO_FMT(
@@ -2417,7 +2429,7 @@ namespace ccf
       snapshotter->set_snapshot_generation(true);
 
       // Open the service if this node is primary. Otherwise, or if this
-      // opening does not commit, a later primary opens it (see tick()).
+      // opening does not commit, a later primary's periodic check opens it.
       if (consensus->can_replicate())
       {
         LOG_INFO_FMT(
@@ -2427,7 +2439,7 @@ namespace ccf
         recovered_service_open_view = consensus->get_view();
         if (!open_recovered_service_if_waiting())
         {
-          // Retried on tick() while this node is primary
+          // Retried periodically while this node is primary
           recovered_service_open_view = VIEW_UNKNOWN;
         }
       }
@@ -2438,6 +2450,16 @@ namespace ccf
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
       sm.advance(NodeStartupState::partOfNetwork);
+      if (recovered_service_opening.load() == RecoveredServiceOpening::Pending)
+      {
+        auto& board = ccf::tasks::get_main_job_board();
+        const auto retry_interval =
+          std::chrono::milliseconds(config.tick_interval);
+        board.add_delayed_task(
+          std::make_shared<RecoveredServiceOpeningTask<NodeState>>(
+            shared_from_this(), board, retry_interval),
+          retry_interval);
+      }
     }
 
     // Opens the recovered service, from a node which has completed private
@@ -2481,36 +2503,42 @@ namespace ccf
     }
 
     // Tries to open the recovered service, at most once per view in which this
-    // node is primary, until it sees the opening commit
-    void open_recovered_service_if_primary()
+    // node is primary, until it sees the opening commit. Returns whether
+    // another delayed attempt is needed.
+    bool open_recovered_service_if_primary()
     {
+      if (recovered_service_opening.load() != RecoveredServiceOpening::Pending)
+      {
+        return false;
+      }
       if (
-        recovered_service_opening.load() != RecoveredServiceOpening::Pending ||
         !sm.check(NodeStartupState::partOfNetwork) ||
         !consensus->can_replicate())
       {
-        return;
+        return true;
       }
 
       const auto view = consensus->get_view();
       if (recovered_service_open_view.exchange(view) == view)
       {
-        return;
+        return true;
       }
 
       LOG_INFO_FMT(
         "Primary in view {}: trying to open recovered service", view);
-      ccf::tasks::add_task(ccf::tasks::make_basic_task([this, view]() {
-        if (consensus->can_replicate() && open_recovered_service_if_waiting())
-        {
-          return;
-        }
-
+      if (!consensus->can_replicate() || !open_recovered_service_if_waiting())
+      {
         // Allow another attempt in this view, if this node is still primary
         auto expected = view;
         recovered_service_open_view.compare_exchange_strong(
           expected, VIEW_UNKNOWN);
-      }));
+      }
+      if (
+        recovered_service_opening.load() == RecoveredServiceOpening::Committed)
+      {
+        return false;
+      }
+      return true;
     }
 
     void setup_recovered_opening_secret_hook()
@@ -2809,26 +2837,6 @@ namespace ccf
         recovered_ledger_secrets);
     }
 
-    //
-    // funcs in state "partOfNetwork" or "partOfPublicNetwork"
-    //
-    void tick(std::chrono::milliseconds elapsed)
-    {
-      if (
-        !sm.check(NodeStartupState::partOfNetwork) &&
-        !sm.check(NodeStartupState::partOfPublicNetwork) &&
-        !sm.check(NodeStartupState::readingPrivateLedger))
-      {
-        return;
-      }
-
-      consensus->periodic(elapsed);
-
-      n2n_channels->tick(elapsed);
-
-      open_recovered_service_if_primary();
-    }
-
     void stop_notice() override
     {
       consensus->nominate_successor();
@@ -2845,7 +2853,11 @@ namespace ccf
       return stop_noticed;
     }
 
-    void recv_node_inbound(const uint8_t* data, size_t size)
+    void recv_node_inbound(
+      NodeMsgType msg_type,
+      const NodeId& from,
+      const uint8_t* data,
+      size_t size)
     {
       if (!can_process_node_inbound_message(sm))
       {
@@ -2856,7 +2868,13 @@ namespace ccf
       }
 
       recv_node_inbound_message(
-        data, size, cmd_forwarder.get(), n2n_channels.get(), consensus.get());
+        msg_type,
+        from,
+        data,
+        size,
+        cmd_forwarder.get(),
+        n2n_channels.get(),
+        consensus.get());
     }
 
     //
@@ -3273,142 +3291,329 @@ namespace ccf
         last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
     }
 
-    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
+    ccf::kv::ConsensusHookPtr on_secrets_local_commit(
+      ccf::kv::Version hook_version, const Secrets::Write& w)
+    {
+      // Used to rekey the ledger on a live service
+      if (!is_part_of_network())
+      {
+        // Ledger rekey is not allowed during recovery
+        return {nullptr};
+      }
+
+      const auto& ledger_secrets_for_nodes = w;
+      if (!ledger_secrets_for_nodes.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected removal from {} table", network.secrets.get_name()));
+      }
+
+      for (const auto& [node_id, encrypted_ledger_secrets] :
+           ledger_secrets_for_nodes.value())
+      {
+        if (node_id != self)
+        {
+          // Only consider ledger secrets for this node
+          continue;
+        }
+
+        for (const auto& encrypted_ledger_secret : encrypted_ledger_secrets)
+        {
+          auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
+            node_encrypt_kp, encrypted_ledger_secret.encrypted_secret);
+
+          // When rekeying, set the encryption key for the next version
+          // onward (backups deserialise this transaction with the
+          // previous ledger secret)
+          auto ledger_secret = std::make_shared<LedgerSecret>(
+            std::move(plain_ledger_secret), hook_version);
+          network.ledger_secrets->set_secret(
+            hook_version + 1, std::move(ledger_secret));
+        }
+      }
+
+      return {nullptr};
+    }
+
+    void on_secrets_global_commit(
+      ccf::kv::Version hook_version, const Secrets::Write& w)
+    {
+      // Used on recovery to initiate private recovery on all nodes.
+      if (!is_part_of_public_network())
+      {
+        return;
+      }
+
+      const auto& ledger_secrets_for_nodes = w;
+      if (!ledger_secrets_for_nodes.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected removal from {} table", network.secrets.get_name()));
+      }
+
+      for (const auto& [node_id, encrypted_ledger_secrets] :
+           ledger_secrets_for_nodes.value())
+      {
+        if (node_id != self)
+        {
+          // Only consider ledger secrets for this node
+          continue;
+        }
+
+        LedgerSecretsMap restored_ledger_secrets = {};
+        for (const auto& encrypted_ledger_secret : encrypted_ledger_secrets)
+        {
+          // On rekey, the version is inferred from the version at which
+          // the hook is executed. Otherwise, on recovery, use the
+          // version read from the write set.
+          if (!encrypted_ledger_secret.version.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Commit hook at seqno {} for table {}: no version for "
+              "encrypted ledger secret",
+              hook_version,
+              network.secrets.get_name()));
+          }
+
+          auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
+            node_encrypt_kp, encrypted_ledger_secret.encrypted_secret);
+
+          restored_ledger_secrets.emplace(
+            encrypted_ledger_secret.version.value(),
+            std::make_shared<LedgerSecret>(
+              std::move(plain_ledger_secret),
+              encrypted_ledger_secret.previous_secret_stored_version));
+        }
+
+        if (!restored_ledger_secrets.empty())
+        {
+          // When recovering, restore ledger secrets and trigger end of
+          // recovery protocol (backup only)
+          network.ledger_secrets->restore_historical(
+            std::move(restored_ledger_secrets));
+          begin_private_recovery();
+          return;
+        }
+      }
+
+      LOG_INFO_FMT(
+        "Found no ledger secrets for this node ({}) in global commit hook "
+        "for {} @ {}",
+        self,
+        network.secrets.get_name(),
+        hook_version);
+    }
+
+    void on_nodes_global_commit(
+      ccf::kv::Version hook_version, const Nodes::Write& w)
+    {
+      std::vector<NodeId> retired_committed_nodes;
+      for (const auto& [node_id, node_info] : w)
+      {
+        if (node_info.has_value() && node_info->retired_committed)
+        {
+          retired_committed_nodes.push_back(node_id);
+        }
+      }
+      consensus->set_retired_committed(hook_version, retired_committed_nodes);
+    }
+
+    ccf::kv::ConsensusHookPtr on_node_endorsed_certificates_local_commit(
+      ccf::kv::Version hook_version, const NodeEndorsedCertificates::Write& w)
+    {
+      LOG_INFO_FMT(
+        "[local] node_endorsed_certificates local hook at version {}, "
+        "with {} writes",
+        hook_version,
+        w.size());
+      for (auto const& [node_id, endorsed_certificate] : w)
+      {
+        if (node_id != self)
+        {
+          LOG_INFO_FMT(
+            "[local] Ignoring endorsed certificate for other node {}", node_id);
+          continue;
+        }
+
+        if (!endorsed_certificate.has_value())
+        {
+          LOG_FAIL_FMT(
+            "[local] Endorsed cert for self ({}) has been deleted", self);
+          throw std::logic_error(fmt::format(
+            "Could not find endorsed node certificate for {}", self));
+        }
+
+        const auto new_endorsed_node_cert = endorsed_certificate.value();
+        std::optional<ccf::crypto::Pem> previous_endorsed_node_cert;
+        {
+          std::lock_guard<ds::Mutex> cert_guard(node_certificates_lock);
+          previous_endorsed_node_cert = endorsed_node_cert;
+          endorsed_node_cert = new_endorsed_node_cert;
+        }
+
+        if (previous_endorsed_node_cert.has_value())
+        {
+          LOG_INFO_FMT(
+            "[local] Previous endorsed node cert was:\n{}",
+            previous_endorsed_node_cert->str());
+        }
+
+        LOG_INFO_FMT(
+          "[local] Setting endorsed node cert to:\n{}",
+          new_endorsed_node_cert.str());
+        history->set_endorsed_certificate(new_endorsed_node_cert);
+        n2n_channels->set_endorsed_node_cert(new_endorsed_node_cert);
+      }
+
+      return {nullptr};
+    }
+
+    void on_node_endorsed_certificates_global_commit(
+      ccf::kv::Version hook_version, const NodeEndorsedCertificates::Write& w)
+    {
+      LOG_INFO_FMT(
+        "[global] node_endorsed_certificates global hook at version {}, "
+        "with {} writes",
+        hook_version,
+        w.size());
+      for (auto const& [node_id, endorsed_certificate] : w)
+      {
+        if (node_id != self)
+        {
+          LOG_INFO_FMT(
+            "[global] Ignoring endorsed certificate for other node {}",
+            node_id);
+          continue;
+        }
+
+        if (!endorsed_certificate.has_value())
+        {
+          LOG_FAIL_FMT(
+            "[global] Endorsed cert for self ({}) has been deleted", self);
+          throw std::logic_error(fmt::format(
+            "Could not find endorsed node certificate for {}", self));
+        }
+
+        const auto new_endorsed_node_cert = endorsed_certificate.value();
+
+        LOG_INFO_FMT("[global] Accepting network connections");
+        accept_network_tls_connections(new_endorsed_node_cert);
+
+        if (is_member_frontend_open())
+        {
+          // Also, automatically refresh self-signed node certificate,
+          // using the same validity period as the endorsed certificate.
+          // Note that this is only done when the certificate is renewed
+          // via proposal (i.e. when the member frontend is open), and not
+          // for the initial addition of the node (the self-signed
+          // certificate is output to disk then).
+          auto [valid_from, valid_to] =
+            ccf::crypto::make_verifier(new_endorsed_node_cert)
+              ->validity_period();
+          LOG_INFO_FMT(
+            "[global] Member frontend is open, so refreshing self-signed "
+            "node cert");
+          const auto new_self_signed_node_cert = create_self_signed_cert(
+            node_sign_kp,
+            config.node_certificate.subject_name,
+            subject_alt_names,
+            valid_from,
+            valid_to);
+
+          ccf::crypto::Pem previous_self_signed_node_cert;
+          {
+            std::lock_guard<ds::Mutex> cert_guard(node_certificates_lock);
+            previous_self_signed_node_cert = self_signed_node_cert;
+            self_signed_node_cert = new_self_signed_node_cert;
+          }
+
+          LOG_INFO_FMT(
+            "[global] Previously:\n{}", previous_self_signed_node_cert.str());
+          LOG_INFO_FMT("[global] Now:\n{}", new_self_signed_node_cert.str());
+
+          LOG_INFO_FMT("[global] Accepting node connections");
+          accept_node_tls_connections(new_self_signed_node_cert);
+        }
+        else
+        {
+          const auto current_self_signed_node_cert =
+            get_self_signed_certificate();
+          LOG_INFO_FMT("[global] Member frontend is NOT open");
+          LOG_INFO_FMT(
+            "[global] Self-signed node cert remains:\n{}",
+            current_self_signed_node_cert.str());
+        }
+
+        LOG_INFO_FMT("[global] Opening members frontend");
+        open_frontend_async(ActorsType::members);
+      }
+    }
+
+    void on_service_global_commit(
+      ccf::kv::Version hook_version, const Service::Write& w)
+    {
+      if (!w.has_value())
+      {
+        throw std::logic_error("Unexpected deletion in service value");
+      }
+
+      // Service open on historical service has no effect
+      auto hook_pubk_pem = ccf::crypto::public_key_pem_from_cert(
+        ccf::crypto::cert_pem_to_der(w->cert));
+      auto current_pubk_pem =
+        ccf::crypto::make_ec_key_pair(network.identity->priv_key)
+          ->public_key_pem();
+      if (hook_pubk_pem != current_pubk_pem)
+      {
+        LOG_TRACE_FMT(
+          "Ignoring historical service open at seqno {} for {}",
+          hook_version,
+          w->cert.str());
+        return;
+      }
+
+      LOG_INFO_FMT(
+        "Executing global hook for service table at {}, to service "
+        "status {}. Cert is:\n{}",
+        hook_version,
+        w->status,
+        w->cert.str());
+
+      network.identity->set_certificate(w->cert);
+      if (w->status == ServiceStatus::OPEN)
+      {
+        recovered_service_opening = RecoveredServiceOpening::Committed;
+        open_frontend_async(ActorsType::users);
+
+        if (!ledger_subsystem->open())
+        {
+          throw std::logic_error("Ledger rejected open");
+        }
+        LOG_INFO_FMT("Service open at seqno {}", hook_version);
+      }
+    }
+
     void setup_basic_hooks()
     {
       network.tables->set_map_hook(
         network.secrets.get_name(),
         Secrets::wrap_map_hook(
-          [this](ccf::kv::Version hook_version, const Secrets::Write& w)
-            -> ccf::kv::ConsensusHookPtr {
-            // Used to rekey the ledger on a live service
-            if (!is_part_of_network())
-            {
-              // Ledger rekey is not allowed during recovery
-              return {nullptr};
-            }
-
-            const auto& ledger_secrets_for_nodes = w;
-            if (!ledger_secrets_for_nodes.has_value())
-            {
-              throw std::logic_error(fmt::format(
-                "Unexpected removal from {} table",
-                network.secrets.get_name()));
-            }
-
-            for (const auto& [node_id, encrypted_ledger_secrets] :
-                 ledger_secrets_for_nodes.value())
-            {
-              if (node_id != self)
-              {
-                // Only consider ledger secrets for this node
-                continue;
-              }
-
-              for (const auto& encrypted_ledger_secret :
-                   encrypted_ledger_secrets)
-              {
-                auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
-                  node_encrypt_kp, encrypted_ledger_secret.encrypted_secret);
-
-                // When rekeying, set the encryption key for the next version
-                // onward (backups deserialise this transaction with the
-                // previous ledger secret)
-                auto ledger_secret = std::make_shared<LedgerSecret>(
-                  std::move(plain_ledger_secret), hook_version);
-                network.ledger_secrets->set_secret(
-                  hook_version + 1, std::move(ledger_secret));
-              }
-            }
-
-            return {nullptr};
+          [this](ccf::kv::Version hook_version, const Secrets::Write& w) {
+            return on_secrets_local_commit(hook_version, w);
           }));
 
       network.tables->set_global_hook(
         network.secrets.get_name(),
-        Secrets::wrap_commit_hook([this](
-                                    ccf::kv::Version hook_version,
-                                    const Secrets::Write& w) {
-          // Used on recovery to initiate private recovery on all nodes.
-          if (!is_part_of_public_network())
-          {
-            return;
-          }
-
-          const auto& ledger_secrets_for_nodes = w;
-          if (!ledger_secrets_for_nodes.has_value())
-          {
-            throw std::logic_error(fmt::format(
-              "Unexpected removal from {} table", network.secrets.get_name()));
-          }
-
-          for (const auto& [node_id, encrypted_ledger_secrets] :
-               ledger_secrets_for_nodes.value())
-          {
-            if (node_id != self)
-            {
-              // Only consider ledger secrets for this node
-              continue;
-            }
-
-            LedgerSecretsMap restored_ledger_secrets = {};
-            for (const auto& encrypted_ledger_secret : encrypted_ledger_secrets)
-            {
-              // On rekey, the version is inferred from the version at which
-              // the hook is executed. Otherwise, on recovery, use the
-              // version read from the write set.
-              if (!encrypted_ledger_secret.version.has_value())
-              {
-                throw std::logic_error(fmt::format(
-                  "Commit hook at seqno {} for table {}: no version for "
-                  "encrypted ledger secret",
-                  hook_version,
-                  network.secrets.get_name()));
-              }
-
-              auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
-                node_encrypt_kp, encrypted_ledger_secret.encrypted_secret);
-
-              restored_ledger_secrets.emplace(
-                encrypted_ledger_secret.version.value(),
-                std::make_shared<LedgerSecret>(
-                  std::move(plain_ledger_secret),
-                  encrypted_ledger_secret.previous_secret_stored_version));
-            }
-
-            if (!restored_ledger_secrets.empty())
-            {
-              // When recovering, restore ledger secrets and trigger end of
-              // recovery protocol (backup only)
-              network.ledger_secrets->restore_historical(
-                std::move(restored_ledger_secrets));
-              begin_private_recovery();
-              return;
-            }
-          }
-
-          LOG_INFO_FMT(
-            "Found no ledger secrets for this node ({}) in global commit hook "
-            "for {} @ {}",
-            self,
-            network.secrets.get_name(),
-            hook_version);
-        }));
+        Secrets::wrap_commit_hook(
+          [this](ccf::kv::Version hook_version, const Secrets::Write& w) {
+            on_secrets_global_commit(hook_version, w);
+          }));
 
       network.tables->set_global_hook(
         network.nodes.get_name(),
         Nodes::wrap_commit_hook(
           [this](ccf::kv::Version hook_version, const Nodes::Write& w) {
-            std::vector<NodeId> retired_committed_nodes;
-            for (const auto& [node_id, node_info] : w)
-            {
-              if (node_info.has_value() && node_info->retired_committed)
-              {
-                retired_committed_nodes.push_back(node_id);
-              }
-            }
-            consensus->set_retired_committed(
-              hook_version, retired_committed_nodes);
+            on_nodes_global_commit(hook_version, w);
           }));
 
       // Service-endorsed certificate is passed to history as early as _local_
@@ -3422,54 +3627,8 @@ namespace ccf
         NodeEndorsedCertificates::wrap_map_hook(
           [this](
             ccf::kv::Version hook_version,
-            const NodeEndorsedCertificates::Write& w)
-            -> ccf::kv::ConsensusHookPtr {
-            LOG_INFO_FMT(
-              "[local] node_endorsed_certificates local hook at version {}, "
-              "with {} writes",
-              hook_version,
-              w.size());
-            for (auto const& [node_id, endorsed_certificate] : w)
-            {
-              if (node_id != self)
-              {
-                LOG_INFO_FMT(
-                  "[local] Ignoring endorsed certificate for other node {}",
-                  node_id);
-                continue;
-              }
-
-              if (!endorsed_certificate.has_value())
-              {
-                LOG_FAIL_FMT(
-                  "[local] Endorsed cert for self ({}) has been deleted", self);
-                throw std::logic_error(fmt::format(
-                  "Could not find endorsed node certificate for {}", self));
-              }
-
-              const auto new_endorsed_node_cert = endorsed_certificate.value();
-              std::optional<ccf::crypto::Pem> previous_endorsed_node_cert;
-              {
-                std::lock_guard<ds::Mutex> cert_guard(node_certificates_lock);
-                previous_endorsed_node_cert = endorsed_node_cert;
-                endorsed_node_cert = new_endorsed_node_cert;
-              }
-
-              if (previous_endorsed_node_cert.has_value())
-              {
-                LOG_INFO_FMT(
-                  "[local] Previous endorsed node cert was:\n{}",
-                  previous_endorsed_node_cert->str());
-              }
-
-              LOG_INFO_FMT(
-                "[local] Setting endorsed node cert to:\n{}",
-                new_endorsed_node_cert.str());
-              history->set_endorsed_certificate(new_endorsed_node_cert);
-              n2n_channels->set_endorsed_node_cert(new_endorsed_node_cert);
-            }
-
-            return {nullptr};
+            const NodeEndorsedCertificates::Write& w) {
+            return on_node_endorsed_certificates_local_commit(hook_version, w);
           }));
 
       network.tables->set_global_hook(
@@ -3478,127 +3637,14 @@ namespace ccf
           [this](
             ccf::kv::Version hook_version,
             const NodeEndorsedCertificates::Write& w) {
-            LOG_INFO_FMT(
-              "[global] node_endorsed_certificates global hook at version {}, "
-              "with {} writes",
-              hook_version,
-              w.size());
-            for (auto const& [node_id, endorsed_certificate] : w)
-            {
-              if (node_id != self)
-              {
-                LOG_INFO_FMT(
-                  "[global] Ignoring endorsed certificate for other node {}",
-                  node_id);
-                continue;
-              }
-
-              if (!endorsed_certificate.has_value())
-              {
-                LOG_FAIL_FMT(
-                  "[global] Endorsed cert for self ({}) has been deleted",
-                  self);
-                throw std::logic_error(fmt::format(
-                  "Could not find endorsed node certificate for {}", self));
-              }
-
-              const auto new_endorsed_node_cert = endorsed_certificate.value();
-
-              LOG_INFO_FMT("[global] Accepting network connections");
-              accept_network_tls_connections(new_endorsed_node_cert);
-
-              if (is_member_frontend_open())
-              {
-                // Also, automatically refresh self-signed node certificate,
-                // using the same validity period as the endorsed certificate.
-                // Note that this is only done when the certificate is renewed
-                // via proposal (i.e. when the member frontend is open), and not
-                // for the initial addition of the node (the self-signed
-                // certificate is output to disk then).
-                auto [valid_from, valid_to] =
-                  ccf::crypto::make_verifier(new_endorsed_node_cert)
-                    ->validity_period();
-                LOG_INFO_FMT(
-                  "[global] Member frontend is open, so refreshing self-signed "
-                  "node cert");
-                const auto new_self_signed_node_cert = create_self_signed_cert(
-                  node_sign_kp,
-                  config.node_certificate.subject_name,
-                  subject_alt_names,
-                  valid_from,
-                  valid_to);
-
-                ccf::crypto::Pem previous_self_signed_node_cert;
-                {
-                  std::lock_guard<ds::Mutex> cert_guard(node_certificates_lock);
-                  previous_self_signed_node_cert = self_signed_node_cert;
-                  self_signed_node_cert = new_self_signed_node_cert;
-                }
-
-                LOG_INFO_FMT(
-                  "[global] Previously:\n{}",
-                  previous_self_signed_node_cert.str());
-                LOG_INFO_FMT(
-                  "[global] Now:\n{}", new_self_signed_node_cert.str());
-
-                LOG_INFO_FMT("[global] Accepting node connections");
-                accept_node_tls_connections(new_self_signed_node_cert);
-              }
-              else
-              {
-                const auto current_self_signed_node_cert =
-                  get_self_signed_certificate();
-                LOG_INFO_FMT("[global] Member frontend is NOT open");
-                LOG_INFO_FMT(
-                  "[global] Self-signed node cert remains:\n{}",
-                  current_self_signed_node_cert.str());
-              }
-
-              LOG_INFO_FMT("[global] Opening members frontend");
-              open_frontend_async(ActorsType::members);
-            }
+            on_node_endorsed_certificates_global_commit(hook_version, w);
           }));
 
       network.tables->set_global_hook(
         network.service.get_name(),
         Service::wrap_commit_hook(
           [this](ccf::kv::Version hook_version, const Service::Write& w) {
-            if (!w.has_value())
-            {
-              throw std::logic_error("Unexpected deletion in service value");
-            }
-
-            // Service open on historical service has no effect
-            auto hook_pubk_pem = ccf::crypto::public_key_pem_from_cert(
-              ccf::crypto::cert_pem_to_der(w->cert));
-            auto current_pubk_pem =
-              ccf::crypto::make_ec_key_pair(network.identity->priv_key)
-                ->public_key_pem();
-            if (hook_pubk_pem != current_pubk_pem)
-            {
-              LOG_TRACE_FMT(
-                "Ignoring historical service open at seqno {} for {}",
-                hook_version,
-                w->cert.str());
-              return;
-            }
-
-            LOG_INFO_FMT(
-              "Executing global hook for service table at {}, to service "
-              "status {}. Cert is:\n{}",
-              hook_version,
-              w->status,
-              w->cert.str());
-
-            network.identity->set_certificate(w->cert);
-            if (w->status == ServiceStatus::OPEN)
-            {
-              recovered_service_opening = RecoveredServiceOpening::Committed;
-              open_frontend_async(ActorsType::users);
-
-              RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_open, to_host);
-              LOG_INFO_FMT("Service open at seqno {}", hook_version);
-            }
+            on_service_global_commit(hook_version, w);
           }));
     }
 
@@ -3725,15 +3771,19 @@ namespace ccf
       auto retired_node_cleanup =
         std::make_shared<RetiredNodeCleanup>(node_client);
 
-      consensus = std::make_shared<RaftType>(
+      auto raft = std::make_shared<RaftType>(
         consensus_config,
         std::make_unique<aft::Adaptor<ccf::kv::Store>>(network.tables),
-        std::make_unique<::consensus::LedgerEnclave>(writer_factory),
+        std::make_unique<::consensus::LedgerEnclave>(ledger_subsystem),
         n2n_channels,
         shared_state,
         [retired_node_cleanup]() { retired_node_cleanup->cleanup(); },
         commit_callbacks,
         public_only);
+      raft->register_periodic_tasks(
+        ccf::tasks::get_main_job_board(),
+        std::chrono::milliseconds(config.tick_interval));
+      consensus = std::move(raft);
 
       pending_node_cleanup = std::make_shared<PendingNodeCleanup>(
         node_client,
@@ -3899,18 +3949,46 @@ namespace ccf
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::ledger_get_range,
-        to_host,
-        from,
-        to,
-        ::consensus::LedgerRequestPurpose::Recovery);
+      if (!ledger_subsystem->get_range(
+            from, to, [this](::consensus::LedgerRangeResult&& result) {
+              if (result.status == ::consensus::LedgerRangeStatus::NotFound)
+              {
+                recover_ledger_end();
+              }
+              else if (
+                result.status == ::consensus::LedgerRangeStatus::TooLarge)
+              {
+                throw std::logic_error(fmt::format(
+                  "Ledger entry at {} exceeds the ledger range read budget "
+                  "(memory.max_msg_size minus response metadata)",
+                  result.from));
+              }
+              else if (is_reading_public_ledger())
+              {
+                recover_public_ledger_entries(result.entries);
+              }
+              else if (is_reading_private_ledger())
+              {
+                recover_private_ledger_entries(result.entries);
+              }
+              else
+              {
+                auto [s, _, __] = state();
+                LOG_FAIL_FMT(
+                  "Cannot recover ledger entry: Unexpected node state {}", s);
+              }
+            }))
+      {
+        throw std::logic_error("Ledger rejected recovery range read");
+      }
     }
 
-    void ledger_truncate(::consensus::Index idx, bool recovery_mode = false)
+    void truncate_ledger(::consensus::Index idx, bool recovery_mode = false)
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        ::consensus::ledger_truncate, to_host, idx, recovery_mode);
+      if (!ledger_subsystem->truncate(idx, recovery_mode))
+      {
+        throw std::logic_error("Ledger rejected recovery truncation");
+      }
     }
 
   public:

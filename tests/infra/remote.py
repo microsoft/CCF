@@ -549,6 +549,8 @@ class CCFRemote:
         env["TSAN_SYMBOLIZER_PATH"] = os.environ.get("TSAN_SYMBOLIZER_PATH", "")
         if "LLVM_PROFILE_FILE" in os.environ:
             env["LLVM_PROFILE_FILE"] = os.environ["LLVM_PROFILE_FILE"]
+        if "CCF_RECOVERY_TRACE" in os.environ:
+            env["CCF_RECOVERY_TRACE"] = os.environ["CCF_RECOVERY_TRACE"]
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type

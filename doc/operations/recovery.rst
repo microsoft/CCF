@@ -40,6 +40,8 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
 
 Each node will then immediately restore the public entries of its ledger (``ledger.directory`` and ``ledger.read_only_directories`` configuration entries). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling :http:GET:`/node/state` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
+At startup, the host discovers the latest committed chunk end across all configured ledger directories before restoring mutable chunks. Mutable chunks whose reconstructed end is at or before this committed frontier, including incomplete chunks without an end index in their filename, are renamed with an ``.ignored`` suffix rather than reused for new appends. Chunks which overlap the committed history but extend beyond that frontier are retained.
+
 Public-ledger replay temporarily reconstructs the previous service's node entries and consensus configuration. When the recovery service is created, the recovery transaction deletes all previous-service node entries and their associated endorsed certificates and local-sealing records. These nodes do not pass through the normal ``Retired`` and ``retired_committed`` states because the previous service does not participate in the new service's consensus. Consequently, previous-service nodes are absent from both :http:GET:`/node/network/nodes` and :http:GET:`/node/network/removable_nodes` after recovery. See :ref:`architecture/consensus/index:Retirement details` for the normal live-service retirement sequence.
 
 The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.directory`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.
@@ -211,6 +213,24 @@ This failover path is illustrated below.
 
 
 If the network fails during reconfiguration, each node will use its latest known configuration to recover. Since reconfiguration requires votes from a majority of nodes, the latest configuration should recover using the election path, however nodes in the previous configuration may recover using the election path.
+
+Trace viewer
+^^^^^^^^^^^^
+
+The `trace viewer <../trace-viewer/index.html>`__ steps through recovery decision protocol traces as the protocol's Lean model replays them.
+For each step, it shows the nodes' records beside the model state that they lead to, and, when the model does not explain a trace, the step that fails and why.
+The published viewer shows the replayer's fixtures: recorded traces, and invalid traces that the replayer must reject.
+
+Nodes trace the protocol when started with the ``CCF_RECOVERY_TRACE`` environment variable set, for example to ``1``, and log each step as an ``RDP_TRACE`` record.
+To view other traces, put each node's log in a directory as a ``.out`` file, with a ``scenario.json`` like those of the replayer's :ccf_repo:`fixtures </lean/disaster-recovery/replayer/fixtures>`.
+Then build the replayer with ``lake``, which `elan <https://lean-lang.org/install/>`__ installs, and serve the viewer at ``http://localhost:8000/``:
+
+.. code-block:: bash
+
+    cd lean/disaster-recovery/replayer
+    lake build
+    python3 viewer/build.py --logs DIR
+    python3 -m http.server --bind 127.0.0.1 8000 --directory viewer
 
 Local Sealing
 ~~~~~~~~~~~~~

@@ -10,7 +10,7 @@ import subprocess
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import ccf.ledger
 import infra.e2e_args
@@ -327,7 +327,7 @@ def test_expired_certs(network, args):
     def set_certs(from_days_diff, validity_period_days, nodes):
         valid_from = str(
             infra.crypto.datetime_to_X509time(
-                datetime.now(timezone.utc) + timedelta(days=from_days_diff)
+                datetime.now(UTC) + timedelta(days=from_days_diff)
             )
         )
         for node in nodes:
@@ -424,9 +424,7 @@ def test_rolled_back_node_certificate(network, args):
             renewed_node,
             renewed_node,
             valid_from=str(
-                infra.crypto.datetime_to_X509time(
-                    datetime.now(timezone.utc) - timedelta(days=1)
-                )
+                infra.crypto.datetime_to_X509time(datetime.now(UTC) - timedelta(days=1))
             ),
             validity_period_days=args.maximum_node_certificate_validity_days - 1,
             wait_for_commit=False,
@@ -520,7 +518,7 @@ def test_election_reconfiguration(network, args):
         network.consortium.trust_nodes(
             primary,
             [n.node_id for n in new_nodes],
-            valid_from=datetime.now(timezone.utc),
+            valid_from=datetime.now(UTC),
             wait_for_commit=False,
         )
 
@@ -608,7 +606,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         ccf.ledger.NodeStatus.PENDING,
         timeout=args.ledger_recovery_timeout,
     )
-    valid_from = datetime.now(timezone.utc)
+    valid_from = datetime.now(UTC)
     network.consortium.trust_node(
         primary,
         pending_node.node_id,
@@ -643,7 +641,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         network.consortium.trust_node(
             primary,
             trusted_node.node_id,
-            valid_from=datetime.now(timezone.utc),
+            valid_from=datetime.now(UTC),
             wait_for_commit=False,
         )
         trusted_node.wait_for_node_to_join(
@@ -668,7 +666,7 @@ def test_join_rollback_on_primary_isolation(network, args):
         ccf.ledger.NodeStatus.PENDING,
         timeout=args.ledger_recovery_timeout,
     )
-    valid_from = datetime.now(timezone.utc)
+    valid_from = datetime.now(UTC)
     network.consortium.trust_node(
         primary,
         trusted_node.node_id,
@@ -689,6 +687,19 @@ def test_join_rollback_on_primary_isolation(network, args):
 @reqs.description("Forwarding across a partition may trigger a timeout")
 @reqs.at_least_n_nodes(3)
 def test_forwarding_timeout(network, args):
+    def check_timeout_response(response, target):
+        assert response.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, response
+        assert response.headers["content-type"] == "application/json", response
+        error = response.body.json()["error"]
+        assert error["code"] == "ForwardingTimeout", response
+        timeout_ms = backup.host.rpc_interfaces[
+            infra.interfaces.PRIMARY_RPC_INTERFACE
+        ].forwarding_timeout_ms
+        assert error["message"] == (
+            f"Request was forwarded to node n[{target.node_id}], but no response "
+            f"was received after {timeout_ms}ms"
+        ), response
+
     primary, backups = network.find_nodes()
     backup = backups[0]
     key = 42
@@ -709,7 +720,7 @@ def test_forwarding_timeout(network, args):
             # partitioned backups will have an election, and then requests will
             # succeed again
             r = c.post("/app/log/public", {"id": key, "msg": val_b})
-            assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
+            check_timeout_response(r, primary)
 
             network.wait_for_new_primary(primary, nodes=backups)
 
@@ -739,7 +750,7 @@ def test_forwarding_timeout(network, args):
         # NB: Although this backup reports a timeout, the operation was actually
         # successfully forwarded!
         r = c.post("/app/log/public", {"id": key, "msg": val_b})
-        assert r.status_code == http.HTTPStatus.GATEWAY_TIMEOUT, r
+        check_timeout_response(r, primary)
 
     with primary.client("user0") as c:
         r = c.get(f"/app/log/public?id={key}")
