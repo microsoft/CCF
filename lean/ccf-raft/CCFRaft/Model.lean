@@ -2,7 +2,7 @@
 -- Licensed under the Apache 2.0 License.
 
 import CCFRaft.Model.Configuration
-import CCFRaft.Model.Local
+import CCFRaft.Model.Node
 import CCFRaft.Model.Messages
 import CCFRaft.Model.NodeState
 import CCFRaft.Shared.MultiNodeTransitionSystem

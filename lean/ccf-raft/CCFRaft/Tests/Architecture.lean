@@ -31,7 +31,7 @@ example : allowedImport `CCFRaft.Properties `CCFRaft.Proofs.Model = false := rfl
 
 example : allowedImport `CCFRaft.Properties `CCFRaft.Proof = false := rfl
 
-example : allowedImport `CCFRaft.Model.Local `CCFRaft.Properties.Utils = false := rfl
+example : allowedImport `CCFRaft.Model.Node `CCFRaft.Properties.Utils = false := rfl
 
 example
     : allowedImport `CCFRaft.Shared.MultiNodeTransitionSystem `CCFRaft.Model = false :=

@@ -385,6 +385,20 @@ def handleRequestPreVoteResponse
   else
     state
 
+/-- Enter the next term as a candidate and vote for self. -/
+@[simp]
+def becomeCandidateNodeState (state : NodeState Node TxId) (node : Node)
+    : NodeState Node TxId :=
+  {
+    state with
+      role := .candidate
+      currentTerm := state.currentTerm + 1
+      votedFor := some node
+      leaderKnown := false
+      votesGranted := {node}
+      preVotesGranted := ∅
+  }
+
 /-- Move to a newer term as a follower that has not voted or seen a leader in it. -/
 def updateTerm (state : NodeState Node TxId) (term : Nat) : NodeState Node TxId :=
   if state.currentTerm < term then

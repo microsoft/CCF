@@ -10,7 +10,7 @@ import CCFRaft.Model.Log
 One node's consensus state and pure queries over it, given the
 `InitialConfig`. `commitIndex` ends the committed prefix of the log.
 
-No protocol steps here: `Local.lean` defines those.
+No protocol steps here: `Node.lean` defines those.
 -/
 
 namespace CCFRaft.Model.Local
@@ -191,20 +191,6 @@ instance (config : InitialConfig Node) (node : Node) (state : NodeState Node TxI
     : Decidable (campaignEligible config node state) := by
   unfold campaignEligible
   infer_instance
-
-/-- Enter the next term as a candidate and vote for self. -/
-@[simp]
-def becomeCandidateNodeState (state : NodeState Node TxId) (node : Node)
-    : NodeState Node TxId :=
-  {
-    state with
-      role := .candidate
-      currentTerm := state.currentTerm + 1
-      votedFor := some node
-      leaderKnown := false
-      votesGranted := {node}
-      preVotesGranted := ∅
-  }
 
 /--
 The log position a node reports when it campaigns: its commit index or its

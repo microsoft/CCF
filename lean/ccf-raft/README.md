@@ -22,7 +22,7 @@ raft scenario -(raft_driver)-> raw stdout
 | Membership configurations          | `CCFRaft/Model/Configuration.lean`                       |
 | Node state                         | `CCFRaft/Model/NodeState.lean`                           |
 | Messages between nodes             | `CCFRaft/Model/Messages.lean`                            |
-| Single-node protocol               | `CCFRaft/Model/Local.lean`                               |
+| Single-node protocol               | `CCFRaft/Model/Node.lean`                                |
 | Network composition                | `CCFRaft/Model.lean`, `CCFRaft/Shared/`                  |
 | Definitions used by the statements | `CCFRaft/Properties/Utils.lean`                          |
 | Proof implementations              | `CCFRaft/Proofs/`                                        |
@@ -63,7 +63,7 @@ covered its retirement record, not the record's own position.
 nodes exchange, including the pre-vote and vote-proposal variants, and the
 term each one carries.
 
-`Model/Local.lean` defines how a node behaves. `Local.step` handles one event: an
+`Model/Node.lean` defines how a node behaves. `Local.step` handles one event: an
 `Input`, such as a timeout or a client request, or a message delivered from a
 source node. It runs in `NodeEffect`, which records sent messages and can
 fail. A disabled event fails, discarding any messages sent before the

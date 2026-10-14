@@ -3,7 +3,7 @@
 
 import CCFRaft.Model
 import CCFRaft.Model.Configuration
-import CCFRaft.Model.Local
+import CCFRaft.Model.Node
 import CCFRaft.Model.Log
 import CCFRaft.Model.Messages
 import CCFRaft.Model.NodeState
