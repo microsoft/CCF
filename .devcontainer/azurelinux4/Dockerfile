@@ -17,4 +17,4 @@ RUN dnf -y update
 # gawk provides awk, which the VSCode server's check-requirements.sh needs; the
 # minimal Azure Linux 4 base image ships without it (unlike Azure Linux 3, where
 # build-essential pulled it in transitively).
-RUN dnf -y install gcc gcc-c++ make binutils gawk tar gzip ca-certificates git
+RUN dnf -y install gcc gcc-c++ make binutils gawk tar gzip ca-certificates git curl
