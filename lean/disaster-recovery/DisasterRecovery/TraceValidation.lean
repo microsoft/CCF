@@ -17,8 +17,8 @@ notifications of the node's latest action, with the model.
 namespace DisasterRecovery.TraceValidation
 
 open Model.Local
-open Shared (Capabilities Outputs)
-open Shared.MultiNodeTransitionSystem (nodeState)
+open CCF (Capabilities Outputs)
+open CCF.MultiNodeTransitionSystem (nodeState)
 
 /-- `Config.isValid` requires an instance identifier, which traces do not carry. -/
 def instanceId : String :=
@@ -135,10 +135,10 @@ private def runAction (config : Model.Config) (state : Model.State)
   let (node, event) := localEvent config action
   let some before := nodeState state node
   | throw s!"node '{node}' is not in the network"
-  let some execute :=
-    (Model.protocol config).step (Capabilities.record node) node before event
+  let some (_, effects) :=
+    ((Model.protocol config).step (Capabilities.record node) node before event).run {}
   | throw s!"disabled model action '{actionName action}'"
-  return (next, node, (Id.run (execute.run {})).2)
+  return (next, node, effects)
 
 private def check {α : Type} [BEq α] [Repr α] (key : String) (observed : Option α)
     (model : α)

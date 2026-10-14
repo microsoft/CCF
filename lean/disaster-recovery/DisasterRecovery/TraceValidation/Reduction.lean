@@ -197,7 +197,7 @@ private def linearize (queues : Array (Array Item)) : Checked (Array Instruction
               let envelope := (source, event.node, message)
               if !queued.contains envelope then
                 break
-              queued := Shared.MultiNodeTransitionSystem.removeOne envelope queued
+              queued := CCF.MultiNodeTransitionSystem.removeOne envelope queued
         result := result ++ item.instructions
         positions := positions.modify index (· + 1)
         progress := true

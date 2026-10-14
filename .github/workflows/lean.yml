@@ -45,6 +45,15 @@ jobs:
           set -euo pipefail
           lake exe mk_all --check --module --lib DisasterRecovery
           lake build --wfail --fail-fast
+          lake build CCF
+          lake lint
+
+      - name: Build and lint common infrastructure
+        working-directory: lean/common
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake build --wfail --fail-fast
           lake lint
 
       - name: Check Mathlib linters
@@ -52,7 +61,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          lake exe runLinter --no-build DisasterRecovery replayer.Main
+          lake exe runLinter --no-build CCF DisasterRecovery replayer.Main
 
       - name: Check recovery trace fixtures against their schema
         shell: bash
@@ -100,6 +109,14 @@ jobs:
 
       - name: Check with Lean's kernel
         working-directory: lean/disaster-recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TMPDIR="$RUNNER_TEMP"
+          lake check
+
+      - name: Check common infrastructure with Lean's kernel
+        working-directory: lean/common
         shell: bash
         run: |
           set -euo pipefail
