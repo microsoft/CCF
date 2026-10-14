@@ -3960,7 +3960,7 @@ namespace ccf
               {
                 throw std::logic_error(fmt::format(
                   "Ledger entry at {} exceeds the ledger range read budget "
-                  "(memory.max_msg_size minus response metadata)",
+                  "(ledger.max_read_size)",
                   result.from));
               }
               else if (is_reading_public_ledger())

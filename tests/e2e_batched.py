@@ -45,10 +45,10 @@ def size_string_to_bytes(size):
 def get_node_response_sizes(node):
     config_path = os.path.join(node.common_dir, f"{node.local_node_id}.config.json")
     with open(config_path, encoding="utf-8") as f:
-        memory_config = json.load(f)["memory"]
+        config = json.load(f)
 
-    large_response_size = size_string_to_bytes(memory_config["circuit_size"])
-    max_message_size = size_string_to_bytes(memory_config["max_msg_size"])
+    large_response_size = 16 * 1024 * 1024
+    max_message_size = size_string_to_bytes(config["ledger"]["max_read_size"])
 
     return (
         large_response_size,
@@ -221,7 +221,8 @@ if __name__ == "__main__":
     # Keep this stress test's successful write below the configured transaction
     # limit while allowing the next, much larger write to exercise clean
     # rejection.
-    args.max_msg_size_bytes = f"{large_response_size}"
+    args.ledger_max_read_bytes = f"{large_response_size}"
+    args.node_to_node_max_message_bytes = f"{large_response_size}"
     args.ledger_max_transaction_bytes = f"{1024 * 1024 * 15}"  # 15MB
 
     run_to_transaction_limit(args)
