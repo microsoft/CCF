@@ -776,7 +776,7 @@ namespace ccf
     ccf::ds::TimeBoundLogger::default_max_time =
       config.slow_io_logging_threshold;
 
-    std::optional<size_t> inner_ret;
+    std::optional<int> inner_ret;
     try
     {
       inner_ret = run_main_loop(config);
@@ -820,6 +820,6 @@ namespace ccf
     }
     curl_global_cleanup();
 
-    return inner_ret.has_value() ? inner_ret.value() : loop_close_rc;
+    return inner_ret.value_or(loop_close_rc);
   }
 }
