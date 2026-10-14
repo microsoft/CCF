@@ -8,7 +8,6 @@
 #include <string>
 
 #include <valijson/internal/adapter.hpp>
-#include <valijson/internal/optional.hpp>
 #include <valijson/exceptions.hpp>
 
 #ifdef _MSC_VER
@@ -129,8 +128,8 @@ inline std::string extractReferenceToken(std::string::const_iterator begin,
  * This function takes both a string reference and an iterator to the beginning
  * of the substring that is being resolved. This iterator is expected to point
  * to the beginning of a reference token, whose length will be determined by
- * searching for the next delimiter ('/' or '\0'). A reference token must be
- * at least one character in length to be considered valid.
+ * searching for the next delimiter ('/' or '\0'). Empty reference tokens are
+ * valid and identify an empty object member name.
  *
  * Once the next reference token has been identified, it will be used either as
  * an array index or as the name of an object member. The validity of a
@@ -153,7 +152,8 @@ template<typename AdapterType>
 inline AdapterType resolveJsonPointer(
         const AdapterType &node,
         const std::string &jsonPointer,
-        const std::string::const_iterator jsonPointerItr)
+        const std::string::const_iterator jsonPointerItr,
+        const bool preserveEmptyTokens = false)
 {
     // TODO: This function will probably need to implement support for
     // fetching documents referenced by JSON Pointers, similar to the
@@ -182,9 +182,9 @@ inline AdapterType resolveJsonPointer(
     const std::string referenceToken = extractReferenceToken(
             jsonPointerItr + 1, jsonPointerNext);
 
-    // Empty reference tokens should be ignored
-    if (referenceToken.empty()) {
-        return resolveJsonPointer(node, jsonPointer, jsonPointerNext);
+    if (!preserveEmptyTokens && referenceToken.empty()) {
+        return resolveJsonPointer(node, jsonPointer, jsonPointerNext,
+                preserveEmptyTokens);
 
     } else if (node.isArray()) {
         if (referenceToken == "-") {
@@ -217,13 +217,19 @@ inline AdapterType resolveJsonPointer(
             itr.advance(static_cast<std::ptrdiff_t>(index));
 
             // Recursively process the remaining tokens
-            return resolveJsonPointer(*itr, jsonPointer, jsonPointerNext);
+            return resolveJsonPointer(*itr, jsonPointer, jsonPointerNext,
+                    preserveEmptyTokens);
 
 #if VALIJSON_USE_EXCEPTIONS
         } catch (std::invalid_argument &) {
             throwRuntimeError("Expected reference token to contain a "
                     "non-negative integer to identify an element in the "
                     "current array; actual token: " + referenceToken);
+        } catch (std::out_of_range &) {
+            throwRuntimeError("Expected reference token to contain a "
+                    "non-negative integer to identify an element in the "
+                    "current array, but the numeric token is too large; "
+                    "actual token: " + referenceToken);
         }
 #endif
     } else if (node.maybeObject()) {
@@ -241,7 +247,8 @@ inline AdapterType resolveJsonPointer(
         }
 
         // Recursively process the remaining tokens
-        return resolveJsonPointer(itr->second, jsonPointer, jsonPointerNext);
+        return resolveJsonPointer(itr->second, jsonPointer, jsonPointerNext,
+                preserveEmptyTokens);
     }
 
     throwRuntimeError("Expected end of JSON Pointer, but at least "
@@ -263,7 +270,15 @@ inline AdapterType resolveJsonPointer(
         const AdapterType &rootNode,
         const std::string &jsonPointer)
 {
-    return resolveJsonPointer(rootNode, jsonPointer, jsonPointer.begin());
+    return resolveJsonPointer(rootNode, jsonPointer, jsonPointer.begin(), false);
+}
+
+template<typename AdapterType>
+inline AdapterType resolveJsonPointerStrict(
+        const AdapterType &rootNode,
+        const std::string &jsonPointer)
+{
+    return resolveJsonPointer(rootNode, jsonPointer, jsonPointer.begin(), true);
 }
 
 } // namespace json_pointer
