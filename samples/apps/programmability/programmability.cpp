@@ -639,7 +639,7 @@ namespace programmabilityapp
       };
       make_endpoint(
         "/records/{key}", HTTP_PUT, put, {ccf::user_cert_auth_policy})
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto get = [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
@@ -647,7 +647,7 @@ namespace programmabilityapp
       };
       make_read_only_endpoint(
         "/records/{key}", HTTP_GET, get, {ccf::user_cert_auth_policy})
-        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
       auto post = [](ccf::endpoints::EndpointContext& ctx) {

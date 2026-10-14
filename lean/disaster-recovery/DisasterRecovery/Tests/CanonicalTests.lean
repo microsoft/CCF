@@ -1,5 +1,6 @@
 module
 
+import all Init.Control.State
 meta import DisasterRecovery.Tests.Initial
 meta import DisasterRecovery.Tests.Network
 
@@ -11,7 +12,7 @@ public section
 namespace DisasterRecovery.Tests.CanonicalTests
 
 open DisasterRecovery
-open Shared
+open CCF
 open DisasterRecovery.Model.Local
 
 private def localMachine (config : Config) (recovered : TxID) (location : Location)
@@ -19,8 +20,8 @@ private def localMachine (config : Config) (recovered : TxID) (location : Locati
   init := fun state => state = initialNode location
   step :=
     fun state event =>
-      (step (Capabilities.record location) config recovered state event).map
-        (fun execute => (execute.run {}).1)
+      ((step (Capabilities.record location) config recovered state event).run {}).map
+        Prod.fst
 
 example (config : Config) (recovered : TxID) (location : Location)
     : (localMachine config recovered location).Reachable (initialNode location) :=
@@ -42,11 +43,10 @@ private def frozenStep
     effects := { notifications := [.rejected "gossip-frozen"] }
   }
 
-example : (Model.protocol stepConfig).ValidStep frozenStep := ⟨_, rfl, rfl⟩
+example : (Model.protocol stepConfig).ValidStep frozenStep := rfl
 
 example : ¬ (Model.protocol stepConfig).ValidStep { frozenStep with effects := {} } := by
-  rintro ⟨execute, enabled, result⟩
-  cases enabled
+  intro result
   cases result
 
 example (config : Model.Config) (active : List Location)
@@ -73,8 +73,8 @@ private def runLocal (config : Config) (state : NodeState) (event : Event)
     : IO (NodeState × Outputs Location Message Notification) :=
   requireSome
     ((step (Capabilities.record state.location) config { view := 1, seqno := 10 } state
-        event).map
-      (fun execute => execute.run {}))
+        event).run
+      {})
     s!"disabled local event: {repr event}"
 
 private def runGlobal (config : Model.Config) (state : Model.State)
@@ -157,14 +157,14 @@ private def enumerate (config : Config) (location : Location) : IO (Nat × Nat) 
     for event in eventsFor config do
       edges := edges + 1
       let emitted := step (Capabilities.record location) config recovered state event
-      if let some execute := emitted then
-        let (after, effects) := execute.run {}
+      if let some (after, effects) := emitted.run {} then
         let pending : Outputs Location Message Notification :=
           {
             outgoing := [{ source := location, target := location, payload := .vote }]
             notifications := [.rejected "existing-notification"]
           }
-        let (afterPending, accumulated) := execute.run pending
+        let (afterPending, accumulated) <- requireSome (emitted.run pending)
+          s!"pending outputs disabled local execution: {repr event}"
         expect
           (afterPending == after
             && accumulated.outgoing == pending.outgoing ++ effects.outgoing
@@ -282,8 +282,9 @@ def run : IO Unit := do
   let retry (config : Model.Config) (state : NodeState)
       : Option (NodeState × List Model.Envelope) := do
     let recovered <- Model.recoveredTxID config "A"
-    let execute <- step (Capabilities.record "A") config.protocol recovered state .retry
-    let (after, effects) := execute.run {}
+    let (after, effects) <- (step (Capabilities.record "A") config.protocol recovered
+                              state .retry).run
+                              {}
     pure (after, effects.outgoing)
   let (retried, outgoing) <- requireSome
                               (retry globalConfig second.1)
