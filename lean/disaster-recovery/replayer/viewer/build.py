@@ -96,7 +96,7 @@ def replay(run: dict, directory: pathlib.Path) -> dict:
             f"run id {run['id']} is taken: rename the --logs directory,"
             " or drop the repeated --trace"
         )
-    command = [REPLAYER / ".lake/build/bin/disaster-recovery-replay"]
+    command = [REPLAYER.parent / ".lake/build/bin/disaster-recovery-replay"]
     command += ["--participants", str(run["participants"])]
     command += ["--wait-ms", "0", "--dump", dump]
     names = sorted(p.name for p in directory.glob("*.out"))
