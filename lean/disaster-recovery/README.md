@@ -26,9 +26,8 @@ The proof implementations under `Proofs/` are verified by the build and `lake ch
 `Model/Local.lean` defines one node.
 Its phases are gossiping, voting, opening, joining, and open.
 It also models a timeout lane, retries, failover, and restart.
-`Local.step` returns an effect whose execution returns `none` for a disabled event.
-For an enabled event execution returns the next state and invokes the host's `send` and `notify` callbacks.
-A failed guard discards the entire step's outputs, including those recorded before the guard.
+`Local.step` returns `none` for a disabled event.
+For an enabled event it returns the next state and invokes the host's `send` and `notify` callbacks.
 A rejected receive is an enabled step that emits a notification.
 `Validation.accepted` and `Validation.rejected` represent the results of the C++ quote and certificate checks.
 The model does not define that cryptography.
