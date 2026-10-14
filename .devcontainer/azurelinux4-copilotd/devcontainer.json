@@ -1,9 +1,10 @@
 {
-  "name": "CCF Development Environment (Azure Linux 4, Copilot relay)",
+  "name": "Az4 Copilotd SSH",
   "build": {
-    "dockerfile": "../azurelinux4/Dockerfile",
-    "context": "../azurelinux4"
+    "dockerfile": "Dockerfile",
+    "context": ".."
   },
+  "overrideCommand": false,
   "init": true,
   "runArgs": [
     "--cap-add=PERFMON",
