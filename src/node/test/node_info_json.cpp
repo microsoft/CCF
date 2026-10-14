@@ -7,6 +7,7 @@
 #include "ds/internal_logger.h"
 #include "kv/kv_types.h"
 
+#include <type_traits>
 #include <utility>
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -40,6 +41,25 @@ TEST_CASE("Node-to-node endpoint metadata preserves legacy and TLS addresses")
   CHECK(peer_json.get<ccf::kv::Configuration::NodeInfo>() == peer);
   const nlohmann::json old_peer = {{"address", "legacy.example:8081"}};
   CHECK(old_peer.get<ccf::kv::Configuration::NodeInfo>().tls_hostname.empty());
+}
+
+TEST_CASE("Redirection configurations retain aggregate initialization")
+{
+  using Redirections = ccf::NodeInfoNetwork_v2::NetInterface::Redirections;
+  static_assert(std::is_aggregate_v<Redirections>);
+  static_assert(std::is_nothrow_move_constructible_v<Redirections>);
+  static_assert(!noexcept(Redirections{}));
+  const ccf::RedirectionResolverConfig primary{
+    ccf::RedirectionResolutionKind::StaticAddress,
+    {{"address", "primary.test"}}};
+  const ccf::RedirectionResolverConfig backup{
+    ccf::RedirectionResolutionKind::StaticAddress,
+    {{"address", "backup.test"}}};
+  const Redirections positional{primary, backup};
+  const Redirections designated{.to_primary = primary, .to_backup = backup};
+  CHECK(positional == designated);
+  const Redirections defaults{};
+  CHECK(defaults.to_backup.target.at("role") == "backup");
 }
 
 TEST_CASE("Multiple versions of NodeInfoNetwork")
