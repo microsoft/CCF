@@ -3,6 +3,8 @@
 
 #include "host/runtime_control.h"
 
+#include "node/commit_callback_subsystem.h"
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
@@ -47,4 +49,23 @@ TEST_CASE("Runtime control" * doctest::test_suite("runtime_control"))
   }
 
   uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+}
+
+TEST_CASE("Shutdown releases pending commit callbacks without invoking them")
+{
+  auto callbacks = std::make_shared<ccf::CommitCallbackSubsystem>();
+  auto retained = std::make_shared<int>(42);
+  std::weak_ptr<int> weak = retained;
+  bool called = false;
+  callbacks->add_callback(
+    {1, 1}, [callbacks, retained, &called](ccf::TxID, ccf::FinalTxStatus) {
+      called = true;
+    });
+  retained.reset();
+  CHECK_FALSE(weak.expired());
+  callbacks->shutdown();
+  CHECK(weak.expired());
+  CHECK_FALSE(called);
+  CHECK(callbacks.use_count() == 1);
+  callbacks->shutdown();
 }
