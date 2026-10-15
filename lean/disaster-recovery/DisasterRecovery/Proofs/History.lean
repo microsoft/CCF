@@ -1,9 +1,13 @@
-import DisasterRecovery.Proofs.Lifting
-import DisasterRecovery.Proofs.Trace
+module
+
+public import DisasterRecovery.Proofs.Lifting
+public import DisasterRecovery.Proofs.Trace
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.History
 
-open Shared
+open CCF
 open Lifting
 
 /-- Decorated steps whose erased successor states form the given model-state list. -/

@@ -852,6 +852,19 @@ namespace ccf
       network.tables->set_readiness(ccf::kv::StoreReadiness::Unavailable);
     }
 
+    // Terminal cleanup after transports and task execution have stopped.
+    void shutdown()
+    {
+      if (snapshotter != nullptr)
+      {
+        snapshotter->shutdown();
+      }
+      if (commit_callbacks != nullptr)
+      {
+        commit_callbacks->shutdown();
+      }
+    }
+
     QuoteVerificationResult verify_quote(
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info_,
@@ -3960,7 +3973,7 @@ namespace ccf
               {
                 throw std::logic_error(fmt::format(
                   "Ledger entry at {} exceeds the ledger range read budget "
-                  "(memory.max_msg_size minus response metadata)",
+                  "(ledger.max_read_size)",
                   result.from));
               }
               else if (is_reading_public_ledger())

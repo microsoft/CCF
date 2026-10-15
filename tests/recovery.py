@@ -145,56 +145,39 @@ def get_replacement_package(args):
     )
 
 
-def wait_for_recovery_ledger_chunks_renamed(node, timeout=10):
-    """Wait until the node's host has renamed the ledger chunks written during
-    recovery. They keep a .recovery suffix, and are skipped by ledger reads that
-    exclude recovery files, until the host completes recovery. It does so
-    asynchronously, after the node sees the service opening commit, so this can
-    happen after the node reports that transaction as committed."""
-    ledger_dir = node.remote.current_ledger_path()
-    end_time = time.time() + timeout
-    while True:
-        recovery_chunks = [
-            f
-            for f in os.listdir(ledger_dir)
-            if f.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX)
-        ]
-        if not recovery_chunks:
-            return
-        if time.time() > end_time:
-            raise TimeoutError(
-                f"Node {node.node_id} still has recovery ledger chunks after "
-                f"{timeout}s: {recovery_chunks}"
-            )
-        time.sleep(0.1)
-
-
-def find_service_open_seqnos(node, from_seqno):
-    """Return the seqnos after from_seqno, in the node's ledger, of the
+def find_service_open_txids(node, from_seqno):
+    """Return the committed txids after from_seqno, in the node's ledger, of the
     transactions which set the service status to Open."""
-    ledger = ccf.ledger.Ledger(
-        node.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
-    )
-    open_seqnos = []
-    for chunk in ledger:
-        _, chunk_end_seqno = chunk.get_seqnos()
-        if chunk_end_seqno is not None and chunk_end_seqno <= from_seqno:
-            continue
-        for tx in chunk:
-            public_domain = tx.get_public_domain()
-            seqno = public_domain.get_seqno()
-            tables = public_domain.get_tables()
-            if seqno <= from_seqno or ccf.ledger.SERVICE_INFO_TABLE_NAME not in tables:
-                continue
-            service_info = tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
-            ]
-            if (
-                service_info is not None
-                and json.loads(service_info)["status"] == "Open"
-            ):
-                open_seqnos.append(seqno)
-    return open_seqnos
+    with node.client() as c:
+        r = c.get("/node/commit")
+        assert r.status_code == http.HTTPStatus.OK, r
+        target_seqno = ccf.tx_id.TxID.from_str(r.body.json()["transaction_id"]).seqno
+
+    open_txids = []
+    with node.download_ledger(
+        target_seqno,
+        local_only=True,
+        include_committed_prefix=True,
+    ) as ledger_paths:
+        for path in ledger_paths:
+            for tx in ccf.ledger.LedgerChunk(path):
+                public_domain = tx.get_public_domain()
+                seqno = public_domain.get_seqno()
+                tables = public_domain.get_tables()
+                if (
+                    not from_seqno < seqno <= target_seqno
+                    or ccf.ledger.SERVICE_INFO_TABLE_NAME not in tables
+                ):
+                    continue
+                service_info = tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
+                    ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+                ]
+                if (
+                    service_info is not None
+                    and json.loads(service_info)["status"] == "Open"
+                ):
+                    open_txids.append(tx.get_txid())
+    return open_txids
 
 
 def recover_with_primary_dying(args, recovered_network, after_backups_recovered=False):
@@ -325,8 +308,9 @@ def recover_with_primary_dying(args, recovered_network, after_backups_recovered=
     recovered_network.wait_for_all_nodes_to_commit(primary=primary)
     open_seqno = None
     for node in recovered_network.get_joined_nodes():
-        wait_for_recovery_ledger_chunks_renamed(node)
-        open_seqnos = find_service_open_seqnos(node, create_seqno)
+        open_seqnos = [
+            txid.seqno for txid in find_service_open_txids(node, create_seqno)
+        ]
         assert (
             len(open_seqnos) == 1
         ), f"Node {node.node_id} ledger opens the service at {open_seqnos}"
@@ -674,7 +658,7 @@ def test_recover_service_with_stale_incomplete_ledger(
     network, args, recovered_networks=None
 ):
     primary, _ = network.find_primary()
-    network.create_and_wait_for_ledger_chunk(primary)
+    committed_seqno = network.create_and_wait_for_ledger_chunk(primary)
     snapshot_trigger = primary.trigger_snapshot()
     snapshots_dir = network.get_committed_snapshots(
         primary,
@@ -686,17 +670,17 @@ def test_recover_service_with_stale_incomplete_ledger(
     snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
 
     stale_entries = None
-    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths())
-    for chunk in ledger:
-        _, end_seqno = chunk.get_seqnos()
-        if end_seqno is None or end_seqno >= snapshot_seqno:
-            continue
-        entries = [
-            (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
-        ]
-        if len(entries) > 1:
-            stale_entries = entries[:-1]
-            break
+    with primary.get_ledger_from_api(committed_seqno) as ledger:
+        for chunk in ledger:
+            _, end_seqno = chunk.get_seqnos()
+            if end_seqno is None or end_seqno >= snapshot_seqno:
+                continue
+            entries = [
+                (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
+            ]
+            if len(entries) > 1:
+                stale_entries = entries[:-1]
+                break
     assert stale_entries is not None, "No old committed chunk for the stale fixture"
 
     network.txs.issue(network, number_txs=2)
@@ -710,7 +694,6 @@ def test_recover_service_with_stale_incomplete_ledger(
     )
 
     primary, _ = network.find_primary()
-    wait_for_recovery_ledger_chunks_renamed(primary)
     ignored_path = os.path.join(
         primary.remote.current_ledger_path(),
         f"ledger_{stale_entries[0][0]}{ccf.ledger.IGNORED_FILE_SUFFIX}",
@@ -721,12 +704,9 @@ def test_recover_service_with_stale_incomplete_ledger(
     with open(ignored_path, "rb") as ignored_file:
         assert ignored_file.read() == expected_stale_bytes
 
-    opening_seqnos = find_service_open_seqnos(primary, snapshot_seqno)
-    assert len(opening_seqnos) == 1, opening_seqnos
-    ledger = ccf.ledger.Ledger(
-        primary.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
-    )
-    opening_txid = ledger.get_transaction(opening_seqnos[0]).get_txid()
+    opening_txids = find_service_open_txids(primary, snapshot_seqno)
+    assert len(opening_txids) == 1, opening_txids
+    opening_txid = opening_txids[0]
     network.wait_for_all_nodes_to_commit(tx_id=opening_txid)
     for node in network.get_joined_nodes():
         with node.client() as c:
@@ -1784,31 +1764,14 @@ def run_corrupted_ledger(args):
 
 
 def find_recovery_tx_seqno(node):
-    min_recovery_seqno = 0
     with node.client() as c:
         r = c.get("/node/state").body.json()
         if "last_recovered_seqno" not in r:
             return None
         min_recovery_seqno = r["last_recovered_seqno"]
 
-    ledger = ccf.ledger.Ledger(
-        node.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
-    )
-    for chunk in ledger:
-        _, chunk_end_seqno = chunk.get_seqnos()
-        if chunk_end_seqno < min_recovery_seqno:
-            continue
-        for tx in chunk:
-            tables = tx.get_public_domain().get_tables()
-            seqno = tx.get_public_domain().get_seqno()
-            if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
-                service_status = json.loads(
-                    tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
-                    ]
-                )["status"]
-                if service_status == "Open":
-                    return seqno
+    for txid in find_service_open_txids(node, min_recovery_seqno):
+        return txid.seqno
     return None
 
 
@@ -2364,10 +2327,10 @@ def run_recovery_with_stale_incomplete_ledger(args):
             network.wait_for_all_nodes_to_commit(tx_id=post_opening_txid)
             primary, _ = network.find_primary()
             network.create_and_wait_for_ledger_chunk(primary)
-            ledger = ccf.ledger.Ledger(primary.remote.ledger_paths())
-            post_opening_bytes = ledger.get_transaction(
-                post_opening_txid.seqno
-            ).get_raw_tx()
+            with primary.get_ledger_chunk_from_api(post_opening_txid.seqno) as ledger:
+                post_opening_bytes = ledger.get_transaction(
+                    post_opening_txid.seqno
+                ).get_raw_tx()
 
             network = test_recover_service(
                 network,

@@ -139,19 +139,25 @@ namespace ccf::kv
         switch (changes.size())
         {
           case 2:
+          {
             if (merkle_tree_in && (cose_signature_in != signature_in))
             {
               break;
             }
+          }
           case 3:
+          {
             if (merkle_tree_in && cose_signature_in && signature_in)
             {
               break;
             }
+          }
           default:
+          {
             LOG_DEBUG_FMT(
               "Unexpected contents in signature transaction {}", version);
             return ApplyResult::FAIL;
+          }
         }
 
         if (history)

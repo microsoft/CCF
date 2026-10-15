@@ -1,4 +1,8 @@
-import DisasterRecovery.Model
+module
+
+public import DisasterRecovery.Model
+
+@[expose] public section
 
 /-!
 Proof-only local instrumentation. `Lifting.step_erases` relates these
@@ -7,7 +11,7 @@ outputs to `DisasterRecovery.Model.Local.step` results, including rejected recei
 
 namespace DisasterRecovery.Proofs.Execution.Local
 
-open Shared (TransitionSystem)
+open CCF (TransitionSystem)
 
 export DisasterRecovery.Model.Local (
   Location TxID Phase OpenKind Validation Config NodeState Event

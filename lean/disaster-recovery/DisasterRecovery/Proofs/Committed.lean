@@ -1,7 +1,11 @@
-import DisasterRecovery.Proofs.Predicates
-import DisasterRecovery.Proofs.Quorum
-import DisasterRecovery.Properties.Utils
-import Mathlib.Tactic
+module
+
+public import DisasterRecovery.Proofs.Predicates
+public import DisasterRecovery.Proofs.Quorum
+public import DisasterRecovery.Properties.Utils
+public import Mathlib.Tactic
+
+@[expose] public section
 
 /-!
 Machine-checked proof implementations. Review the system-level statements in

@@ -4,7 +4,6 @@
       "post": {
         "js_module": "cache.js",
         "js_function": "cachedFib",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
@@ -15,7 +14,6 @@
       "post": {
         "js_module": "cache.js",
         "js_function": "cachedFib",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
@@ -29,7 +27,6 @@
       "post": {
         "js_module": "cache.js",
         "js_function": "cachedFib",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
@@ -43,7 +40,6 @@
       "post": {
         "js_module": "cache.js",
         "js_function": "cachedFib",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
@@ -57,7 +53,6 @@
       "post": {
         "js_module": "di_sample.js",
         "js_function": "slowCall",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
@@ -71,7 +66,6 @@
       "post": {
         "js_module": "global_handle.js",
         "js_function": "increment",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readwrite",
@@ -85,7 +79,6 @@
       "post": {
         "js_module": "global_handle.js",
         "js_function": "globals",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readwrite",
@@ -99,7 +92,6 @@
       "get": {
         "js_module": "global_handle.js",
         "js_function": "historical",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "historical",
@@ -113,7 +105,6 @@
       "get": {
         "js_module": "global_handle.js",
         "js_function": "historical",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
@@ -127,7 +118,6 @@
       "get": {
         "js_module": "func_caching.js",
         "js_function": "func_caching",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",

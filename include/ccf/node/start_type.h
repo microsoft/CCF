@@ -26,13 +26,21 @@ namespace ccf
     switch (type)
     {
       case StartType::Start:
+      {
         return "Start";
+      }
       case StartType::Join:
+      {
         return "Join";
+      }
       case StartType::Recover:
+      {
         return "Recover";
+      }
       default:
+      {
         return "Unknown StartType";
+      }
     }
   }
 }

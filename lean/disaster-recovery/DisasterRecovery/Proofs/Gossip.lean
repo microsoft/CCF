@@ -1,7 +1,11 @@
-import DisasterRecovery.Properties
-import DisasterRecovery.Proofs.History
-import DisasterRecovery.Proofs.Observed
-import DisasterRecovery.Proofs.Committed
+module
+
+public import DisasterRecovery.Properties
+public import DisasterRecovery.Proofs.History
+public import DisasterRecovery.Proofs.Observed
+public import DisasterRecovery.Proofs.Committed
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Gossip
 

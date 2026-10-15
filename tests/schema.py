@@ -321,6 +321,14 @@ if __name__ == "__main__":
     )
 
     # These groups run concurrently, each on its own network.
+    cr.add(
+        "operations-lifecycle",
+        e2e_operations.run_runtime_lifecycle_checks,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        log_level="trace",
+    )
+
     for name, target in (
         ("operations-offline", e2e_operations.run_offline_ledger_tools),
         ("operations-snapshots", e2e_operations.run_snapshot_manual_and_retention),
@@ -350,6 +358,18 @@ if __name__ == "__main__":
         # chunk count depends only on transaction count, not on how much
         # wall-clock time elapses before the default signature interval fires.
         sig_tx_interval=1,
+    )
+
+    cr.add(
+        "committed-prefix-download",
+        e2e_operations.run_committed_ledger_prefix_download,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        initial_user_count=1,
+        ledger_chunk_bytes="50MB",
+        # A due snapshot ends the chunk at the next signature regardless of
+        # size, which would promote the file to .committed mid-test.
+        snapshot_tx_interval=100000,
     )
 
     for name, target in (

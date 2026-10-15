@@ -1,9 +1,13 @@
-import DisasterRecovery.Shared.Execution
+module
+
+public import CCF.Execution
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests.Execution
 
-open Shared
-open Shared.Execution
+open CCF
+open CCF.Execution
 
 private def counter : TransitionSystem Nat Bool where
   init state := state = 0
