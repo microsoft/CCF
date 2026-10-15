@@ -275,13 +275,12 @@ def stateFacts (state message : Json) : Except String Json := do
     facts := facts ++ [("committableIndices", toJson values)]
   if let some configurations := optional message "configurations" then
     let mut projected := #[]
-    let mut previous := 0
+    let mut previous : Option Nat := none
     for value in ← configurations.getArr? do
       let names ← configuration value
       let index ← nat value "idx"
-      -- Ordered effects may legitimately have the same transaction index.
-      require (index >= previous) "unordered configurations"
-      previous := index
+      require (previous.all (· < index)) "unordered/duplicate configurations"
+      previous := some index
       projected :=
         projected.push (Json.mkObj [("index", toJson index), ("nodes", toJson names)])
     facts := facts ++ [("configurations", .arr projected)]

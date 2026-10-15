@@ -64,14 +64,15 @@ The named branches of `reduce` in `Reduction.lean` consume every event:
 
 Commands alone do not invent protocol actions.
 Shuffled queues (`shuffle_one`, `shuffle_all`), ungrouped callbacks, missing required group members and invalid group order are rejected.
-Configuration effects retain their order and may share a transaction index; the reducer does not impose uniqueness on configuration indices.
+Each transaction carries at most one configuration in its `TransactionMetadata`.
+Multiple configuration callbacks for one append and duplicate configuration-cache indices are rejected, not collapsed into one configuration or split into invented model actions.
 The model and its guards are unchanged.
 
 ## Atomic boundaries and observations
 
 `RaftDriver::_replicate` in `src/consensus/aft/test/driver.h` passes a singleton `BatchVector`, so each `replicate` event is one append action.
 A globally committable entry is a signature; another entry is a transaction identified by its source `file:line`.
-Configuration callbacks supply ordered configuration effects, and `cleanup_nodes` supplies its retirement node set.
+Configuration callbacks supply the optional configuration metadata, and `cleanup_nodes` supplies its retired-committed node set.
 The preloaded bootstrap configuration has the empty transaction identifier.
 Adjacent callbacks do not establish a general multi-entry production batch boundary; replaying such calls needs additional trace evidence.
 
@@ -81,6 +82,9 @@ Every intentional omitted transient field retains its raw value and a reason in 
 Committable indices are a partial cache: each recorded index must point to a signature, but an absent index asserts nothing.
 Configuration caches within a receive are checked against log-entry configurations, and a positive callback commit frontier must already point to a committed signature.
 Present retirement indices remain checked even when later callbacks may set an index that was absent.
+Follower delivery commits at each newly applied signature and once at the end, preserving the first frontier covering its retirement record while allowing a later final commit index.
+Replay still executes this as one model delivery and checks callback evidence against the resulting log and state; it does not insert intermediate commit actions.
+The model's `noRetirementObserved` membership phase maps to the trace's `active` label, including declared nodes that have not yet joined.
 
 New-peer configuration heartbeats belong to the append and use the constructor's next-index sentinel, one past the model's sent frontier.
 Ordinary sends do not use this adjustment.
@@ -114,7 +118,7 @@ It does not relax record parsing, source callback ordering, action guards or sta
 
 `replay/tests/Main.lean` replaces the old Python regression suite.
 It runs the retained bootstrap, startup, vote-response, missing-prefix, configuration, drop/resend and retirement fixtures, checks instruction consumption, mutates every projected observation field, and exercises raw callback/packet mutations, malformed and unsupported records, disabled actions, missing packets, wrong FIFO heads and repeated/drop message occurrences.
-Focused cases cover the relaxed send-telemetry semantics and ordered effects sharing one log index.
+Focused cases cover the relaxed send-telemetry semantics, transaction metadata, undeclared metadata members, and rejected duplicate configuration callbacks and cache indices.
 The test executable doubles as a deterministic fake driver for capture byte preservation, timeout/nonzero-exit/stderr failures, recursive inventory, invalid encoding, missing captures and stale-summary removal.
 Neither it nor the replayer imports proof modules.
 The combined package still includes every model/proof import and required proof checks; replay-only builds do not replace the full proof build and kernel checks.
