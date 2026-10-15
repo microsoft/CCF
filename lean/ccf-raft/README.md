@@ -57,13 +57,16 @@ The Lean CI workflow runs the same commands.
 - The formatting script runs the pinned [leanfmt](https://github.com/duckki/leanfmt).
   Pass `-f` before the package name to rewrite files in place.
 
-`Properties.lean` states three properties over every valid trace of `Model.transitionSystem`:
+`Properties.lean` states four properties of `Model.transitionSystem`:
 
 - `ElectionSafety`: no two distinct nodes lead in the same term.
 - `CommittedLogsPrefix`: any two committed logs in a trace are prefix-comparable.
+- `SingleNodeCommittedLogMonotonic`: a successful network step from a state with unique node IDs preserves each node's committed prefix, without assuming reachability.
 - `CommittedFrontierIsSignature`: every positive commit index points to a signature.
 
-Each has a `Witness` statement asserting that some valid trace reaches the situation the property constrains, such as two distinct leaders, so that a later proof is not vacuous.
+The other three properties quantify over valid traces.
+Each has a `Witness` statement exhibiting the situation it constrains, such as two distinct leaders.
+The single-node witness requires unique starting node IDs and a successful step that strictly extends a nonempty committed log.
 Liveness is not stated.
 
 Modules are layered in order: `ccf_common`, then the model, then the properties.
