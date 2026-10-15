@@ -6,7 +6,7 @@ set -ex
 pushd ..
 mkdir -p build
 pushd build
-cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DCCF_RAFT_TRACING=ON ..
+cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON ..
 ninja raft_driver
 ./tests.sh -VV -R scenario
 popd

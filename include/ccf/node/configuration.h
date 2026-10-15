@@ -7,6 +7,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/entity_id.h"
+#include "ccf/fluentd_config.h"
 #include "ccf/node/start_type.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_config.h"
@@ -192,6 +193,18 @@ namespace ccf
       bool operator==(const IdentityHistoryFetch&) const = default;
     };
     IdentityHistoryFetch identity_history_fetch = {};
+
+    struct Observability
+    {
+      using Fluentd = FluentdConfig;
+
+      // Absent means the feature is off: no thread ever opens a socket.
+      std::optional<Fluentd> fluentd = std::nullopt;
+
+      bool operator==(const Observability&) const = default;
+    };
+    Observability observability = {};
+
     ccf::ds::TimeString tick_interval = {"10ms"};
     ccf::ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
@@ -381,6 +394,15 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig::IdentityHistoryFetch, max_attempts, retry_interval);
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability::Fluentd);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability::Fluentd, host, port);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Observability::Fluentd, queue_capacity);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::Observability, fluentd);
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
     RecoveryDecisionProtocolConfig, expected_locations);
@@ -473,6 +495,7 @@ namespace ccf
     node_to_node,
     historical_cache_soft_limit,
     identity_history_fetch,
+    observability,
     tick_interval,
     slow_io_logging_threshold,
     node_client_interface,
