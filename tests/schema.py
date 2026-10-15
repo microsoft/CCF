@@ -321,6 +321,14 @@ if __name__ == "__main__":
     )
 
     # These groups run concurrently, each on its own network.
+    cr.add(
+        "operations-lifecycle",
+        e2e_operations.run_runtime_lifecycle_checks,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        log_level="trace",
+    )
+
     for name, target in (
         ("operations-offline", e2e_operations.run_offline_ledger_tools),
         ("operations-snapshots", e2e_operations.run_snapshot_manual_and_retention),
