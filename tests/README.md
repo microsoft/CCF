@@ -1,5 +1,27 @@
 # End-to-End Tests
 
+## Released Python SDK compatibility
+
+Release tests set `CCF_USE_RELEASED_PYTHON_PACKAGE=1` to use the latest published `ccf` package rather than the editable SDK in the checkout.
+The harness must also work with `ccf==7.0.18`.
+For an exact-version e2e run, set `UV_CONSTRAINT` to an absolute-path requirements file containing `ccf==7.0.18`, then run the usual `build/tests.sh` command with `CCF_USE_RELEASED_PYTHON_PACKAGE=1`.
+
+`infra.ledger` handles committed-prefix filenames independently of SDK support.
+It decodes unchanged prefix bytes through a temporary closed-range filename without a `.committed` suffix, so older SDKs do not mistake the prefix for a canonical committed chunk.
+SDK-specific filename parsing and directory discovery remain covered by the SDK unit tests.
+
+The harness validator also makes certificate removal idempotent for pending nodes that never had an endorsed certificate.
+All other validation, including full signature verification and signing-node trust checks, remains delegated to the installed SDK.
+Corruption tests require rejection with the diagnostics produced by the supported parser.
+
+The harness regression tests run against both the current SDK and 7.0.18 in CI.
+To run the compatibility tests without a native build:
+
+```bash
+uv run --no-project --with ccf==7.0.18 --with pytest \
+  python3 -m pytest python/tests/test_ledger_download.py
+```
+
 ## Test hierarchy
 
 ```

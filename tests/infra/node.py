@@ -26,6 +26,7 @@ from packaging.version import Version  # type: ignore
 import infra.clients
 import infra.crypto
 import infra.interfaces
+import infra.ledger
 import infra.net
 import infra.path
 import infra.remote
@@ -575,7 +576,9 @@ class Node:
                     chunk_name = os.path.basename(
                         r.headers["x-ms-ccf-ledger-chunk-name"]
                     )
-                    start_seqno, end_seqno = ccf.ledger.range_from_filename(chunk_name)
+                    start_seqno, end_seqno = infra.ledger.range_from_filename(
+                        chunk_name
+                    )
                     assert (
                         end_seqno is not None and start_seqno <= seqno <= end_seqno
                     ), f"Ledger chunk {chunk_name} does not cover seqno {seqno}"
@@ -621,27 +624,13 @@ class Node:
         ledger_paths = []
 
         def save_chunk(response, requested_seqno):
-            chunk_name = os.path.basename(
-                response.headers["x-ms-ccf-ledger-chunk-name"]
+            return infra.ledger.save_chunk(
+                ledger_dir,
+                ledger_paths,
+                response.headers["x-ms-ccf-ledger-chunk-name"],
+                response.body.data(),
+                requested_seqno,
             )
-            start_seqno, end_seqno = ccf.ledger.range_from_filename(chunk_name)
-            assert (
-                end_seqno is not None and start_seqno <= requested_seqno <= end_seqno
-            ), f"Ledger chunk {chunk_name} does not cover seqno {requested_seqno}"
-
-            chunk_path = os.path.join(ledger_dir, chunk_name)
-            with open(chunk_path, "wb") as chunk_file:
-                chunk_file.write(response.body.data())
-            # A canonical chunk may replace prefixes downloaded before its
-            # promotion. Keep only the new, complete representation.
-            while (
-                ledger_paths
-                and ledger_paths[-1].endswith(ccf.ledger.COMMITTED_PREFIX_FILE_SUFFIX)
-                and ccf.ledger.range_from_filename(ledger_paths[-1])[0] >= start_seqno
-            ):
-                ledger_paths.pop()
-            ledger_paths.append(chunk_path)
-            return end_seqno
 
         if start_seqno is not None:
             next_seqno = start_seqno

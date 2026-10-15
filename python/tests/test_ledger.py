@@ -3,6 +3,8 @@
 
 """Unit tests for CCF ledger filename handling."""
 
+from pathlib import Path
+
 import ccf.ledger
 import pytest
 
@@ -15,6 +17,27 @@ def test_committed_prefix_filename_range():
 def test_committed_prefix_is_not_canonical_committed_file():
     """Committed prefixes stay excluded from committed-only discovery."""
     assert not ccf.ledger.is_ledger_chunk_committed("ledger_42-100.committed_prefix")
+
+
+def test_committed_prefix_chunk_parsing(tmp_path):
+    """Prefix filenames retain the existing chunk format and transaction range."""
+    source = (
+        Path(__file__).parents[2]
+        / "tests"
+        / "testdata"
+        / "cose_upgraded_service"
+        / "ledger"
+        / "ledger_1-2.committed"
+    )
+    prefix = tmp_path / "ledger_1-2.committed_prefix"
+    prefix.write_bytes(source.read_bytes())
+
+    original = ccf.ledger.LedgerChunk(str(source))
+    chunk = ccf.ledger.LedgerChunk(str(prefix))
+    assert chunk.get_seqnos() == original.get_seqnos()
+    assert len(chunk) == len(original)
+    assert not chunk.is_committed()
+    assert [tx.get_txid() for tx in chunk] == [tx.get_txid() for tx in original]
 
 
 def test_ledger_directory_ignores_committed_prefix(tmp_path):
