@@ -1,11 +1,15 @@
-import Std
+module
 
-namespace DisasterRecovery.Shared
+public import Std
+
+@[expose] public section
+
+namespace CCF
 
 /-!
 A protocol node cannot see the network. It gets a `Capabilities` record with
 two output-only callbacks, `send` and `notify`, and runs in the `Effect` monad,
-which only accumulates those outputs. The host that runs the node decides what
+which accumulates those outputs or disables the entire step. The host that runs the node decides what
 the callbacks do. `Capabilities.record` is the canonical host: it appends each
 send and notification to an `Outputs` record, which the network and the
 property statements then read.
@@ -29,9 +33,9 @@ structure Outputs (Node Message Notification : Type) where
   notifications : List Notification := []
 deriving Repr, BEq
 
-/-- A local computation that can only append to `Outputs`. -/
+/-- A local computation whose failure discards both its result and all outputs. -/
 abbrev Effect (Node Message Notification : Type) :=
-  StateM (Outputs Node Message Notification)
+  StateT (Outputs Node Message Notification) Option
 
 /-- The callbacks a host lends to a node for one step. Both return `Unit`. -/
 structure Capabilities (Node Message Notification : Type) where
@@ -41,7 +45,8 @@ structure Capabilities (Node Message Notification : Type) where
   notify : Notification -> Effect Node Message Notification Unit
 
 /-- The recording host: sends become envelopes from `source`, notifications are kept. -/
-def Capabilities.record (source : Node) : Capabilities Node Message Notification where
+def Capabilities.record {Node Message Notification : Type} (source : Node)
+    : Capabilities Node Message Notification where
   send message target :=
     modify
       fun outputs =>
@@ -54,4 +59,4 @@ def Capabilities.record (source : Node) : Capabilities Node Message Notification
       fun outputs =>
         { outputs with notifications := outputs.notifications ++ [notification] }
 
-end DisasterRecovery.Shared
+end CCF

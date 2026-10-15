@@ -128,13 +128,21 @@ namespace ccf::crypto
     switch (nid)
     {
       case NID_secp384r1:
+      {
         return CurveID::SECP384R1;
+      }
       case NID_X9_62_prime256v1:
+      {
         return CurveID::SECP256R1;
+      }
       case NID_secp521r1:
+      {
         return CurveID::SECP521R1;
+      }
       default:
+      {
         throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
+      }
     }
     return CurveID::NONE;
   }
@@ -170,17 +178,27 @@ namespace ccf::crypto
     switch (gid)
     {
       case CurveID::NONE:
+      {
         return NID_undef;
+      }
       case CurveID::SECP384R1:
+      {
         return NID_secp384r1;
+      }
       case CurveID::SECP256R1:
+      {
         return NID_X9_62_prime256v1;
+      }
       case CurveID::SECP521R1:
+      {
         return NID_secp521r1;
+      }
       case CurveID::CURVE25519:
       case CurveID::X25519:
+      {
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));
+      }
     }
     return NID_undef;
   }

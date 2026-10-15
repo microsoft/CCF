@@ -1,0 +1,53 @@
+# Node 2 has signed its retirement, but a delayed ACK only lets the leader
+# commit an earlier signature. Learning that commit must leave node 2 Signed.
+start_node,0
+emit_signature,2
+trust_nodes,2,1,2
+emit_signature,2
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_state_sync
+assert_commit_idx,2,4
+
+# Both backups hold signature 5, but neither ACK has reached the leader.
+emit_signature,2
+periodic_one,0,10
+dispatch_single,0,1
+dispatch_single,0,2
+assert_last_txid,2,2.5
+assert_commit_idx,0,4
+drop_pending,2
+
+# Only node 2 receives the retirement order and its signature at 7.
+swap_nodes,2,out,2
+emit_signature,2
+periodic_one,0,10
+drop_pending_to,0,1
+dispatch_single,0,2
+assert_detail,2,membership_state,Retired
+assert_detail,2,retirement_phase,Signed
+assert_last_txid,2,2.7
+assert_commit_idx,2,4
+
+# The ACK for 5 satisfies both configurations, but does not commit retirement.
+dispatch_single,1,0
+assert_commit_idx,0,5
+periodic_one,0,10
+dispatch_single,0,2
+assert_commit_idx,2,5
+assert_detail,2,retirement_phase,Signed
+assert_last_txid,2,2.7
+
+# Once node 1 catches up, the retirement signature can commit normally.
+dispatch_all
+periodic_one,0,10
+dispatch_all
+assert_commit_idx,0,7
+periodic_one,0,10
+dispatch_all
+assert_commit_idx,2,7
+assert_detail,2,retirement_phase,Completed
+loop_until_sync

@@ -81,7 +81,7 @@ def test_parse_snapshot_file(network, args):
                 primary.remote.snapshots_dir_name,
             )
 
-        def run(self):
+        def _run(self):
             seen = set()
             while not self.is_stopped():
                 for snapshot in os.listdir(self.snapshots_dir):
@@ -107,7 +107,7 @@ def test_parse_snapshot_file(network, args):
             self.member = network.consortium.get_any_active_member()
             self.reader = reader
 
-        def run(self):
+        def _run(self):
             while not self.is_stopped() and self.reader.is_alive():
                 self.member.update_ack_state_digest(self.primary)
 
@@ -347,11 +347,14 @@ def test_snapshot_access(network, args):
     interface = primary.host.rpc_interfaces[infra.interfaces.FILE_SERVING_RPC_INTERFACE]
     loc = f"https://{infra.interfaces.make_address(interface.public_host, interface.public_port)}"
 
-    with primary.client(
-        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
-    ) as file_client, primary.client(
-        interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
-    ) as disabled_client:
+    with (
+        primary.client(
+            interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+        ) as file_client,
+        primary.client(
+            interface_name=infra.interfaces.PRIMARY_RPC_INTERFACE
+        ) as disabled_client,
+    ):
 
         def do_request(http_verb, *args, **kwargs):
             r = disabled_client.call(*args, http_verb=http_verb, **kwargs)
@@ -878,7 +881,10 @@ def test_corrupt_snapshot_handling(network, args):
     # ---- Part 1: writable dir (rename succeeds) + read-only config dir ----
     LOG.info("Part 1: corrupt snapshots in both writable and read-only directories")
 
-    with tempfile.TemporaryDirectory() as writable_dir, tempfile.TemporaryDirectory() as read_only_dir:
+    with (
+        tempfile.TemporaryDirectory() as writable_dir,
+        tempfile.TemporaryDirectory() as read_only_dir,
+    ):
         # Place corrupt snapshots
         with open(os.path.join(writable_dir, writable_snapshot_name), "wb") as f:
             f.write(corrupt_data)
@@ -1344,6 +1350,22 @@ def test_ledger_chunk_access(network, args):
             range_etag == f'"sha-256=:{range_expected_b64}:"'
         ), f"Range ETag mismatch: expected sha-256=:{range_expected_b64}:, got {range_etag}"
 
+        # A suffix longer than the representation selects the full content.
+        r = c.get(
+            chunk_url,
+            headers={"range": f"bytes=-{total_size + 1}"},
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+        assert r.body.data() == chunk_data
+
+        r = c.get(
+            chunk_url,
+            headers={"range": "bytes=-0"},
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
+
         # Non-matching If-None-Match on range -> fresh partial download
         r = c.call(
             chunk_url,
@@ -1532,6 +1554,162 @@ def test_ledger_chunk_repr_digest(network, args):
         ), f"Expected partial body of {range_end + 1} bytes, got {len(r.body.data())}"
 
 
+def test_committed_ledger_prefix_access(network, args):
+    primary, _ = network.find_primary()
+    first_txid = network.txs.issue(
+        network, number_txs=1, send_private=False, send_public=True
+    )
+
+    with primary.client(
+        interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
+    ) as c:
+        locator = f"/node/ledger_chunk?since={first_txid.seqno}"
+
+        r = c.get(locator, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+
+        r = c.get(f"{locator}&include_committed_prefix=false", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+
+        r = c.get(f"{locator}&include_committed_prefix=invalid", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+
+        r = c.head(f"{locator}&include_committed_prefix=true", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
+
+        r = c.get(f"{locator}&include_committed_prefix=true", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
+        prefix_url = urllib.parse.urlparse(r.headers["Location"]).path
+        first_prefix_name = os.path.basename(prefix_url)
+        assert first_prefix_name.endswith(
+            ccf.ledger.COMMITTED_PREFIX_FILE_SUFFIX
+        ), first_prefix_name
+        first_start, first_end = ccf.ledger.range_from_filename(first_prefix_name)
+        assert first_start == first_txid.seqno
+        assert first_end is not None and first_end >= first_start
+
+        r = c.head(prefix_url, allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.headers["x-ms-ccf-ledger-chunk-kind"] == "committed-prefix", r
+        assert r.headers["x-ms-ccf-ledger-chunk-name"] == first_prefix_name, r
+        prefix_size = int(r.headers["content-length"])
+        first_etag = r.headers["etag"]
+
+        r = c.get(
+            prefix_url,
+            allow_redirects=False,
+            headers={"want-repr-digest": "sha-256=1"},
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+        first_prefix = r.body.data()
+        assert len(first_prefix) == prefix_size
+        expected_digest = base64.b64encode(
+            hashlib.sha256(first_prefix).digest()
+        ).decode()
+        assert r.headers["repr-digest"] == f"sha-256=:{expected_digest}:"
+
+        range_end = min(31, prefix_size - 1)
+        r = c.get(
+            prefix_url,
+            allow_redirects=False,
+            headers={"range": f"bytes=0-{range_end}"},
+        )
+        assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT, r
+        assert r.body.data() == first_prefix[: range_end + 1]
+
+        # Ranges spanning the header, the entries, and the positions table
+        positions_start = int.from_bytes(
+            first_prefix[: ccf.ledger.LEDGER_HEADER_SIZE], byteorder="little"
+        )
+        for range_value, expected in (
+            (f"bytes=4-{positions_start}", first_prefix[4 : positions_start + 1]),
+            (f"bytes={positions_start - 2}-", first_prefix[positions_start - 2 :]),
+            ("bytes=-6", first_prefix[-6:]),
+        ):
+            r = c.get(prefix_url, allow_redirects=False, headers={"range": range_value})
+            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT, r
+            assert r.body.data() == expected, range_value
+
+        r = c.get(
+            prefix_url,
+            allow_redirects=False,
+            headers={"range": "bytes=4-11", "want-repr-digest": "sha-256=1"},
+        )
+        assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT, r
+        assert r.body.data() == first_prefix[4:12]
+        assert r.headers["repr-digest"] == f"sha-256=:{expected_digest}:"
+
+        for invalid_range in (f"bytes={prefix_size}-", "bytes=10-5"):
+            r = c.get(
+                prefix_url, allow_redirects=False, headers={"range": invalid_range}
+            )
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+
+        with tempfile.TemporaryDirectory() as ledger_dir:
+            first_path = os.path.join(ledger_dir, first_prefix_name)
+            with open(first_path, "wb") as prefix_file:
+                prefix_file.write(first_prefix)
+
+            chunk = ccf.ledger.LedgerChunk(first_path)
+            assert chunk.get_seqnos() == (first_start, first_end)
+            assert len(chunk) == first_end - first_start + 1
+            assert not chunk.is_committed()
+            assert len(ccf.ledger.Ledger([ledger_dir])) == 0
+
+            second_txid = network.txs.issue(
+                network, number_txs=1, send_private=False, send_public=True
+            )
+            assert second_txid.seqno > first_end
+
+            r = c.get(prefix_url, allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.data() == first_prefix
+            assert r.headers["etag"] == first_etag
+
+            next_seqno = first_end + 1
+            r = c.get(
+                "/node/ledger_chunk"
+                f"?since={next_seqno}&include_committed_prefix=true",
+                allow_redirects=False,
+            )
+            assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
+            second_url = urllib.parse.urlparse(r.headers["Location"]).path
+            second_prefix_name = os.path.basename(second_url)
+            second_start, second_end = ccf.ledger.range_from_filename(
+                second_prefix_name
+            )
+            assert second_start == next_seqno
+            assert second_end is not None and second_end >= second_txid.seqno
+
+            r = c.get(second_url, allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.OK, r
+            second_path = os.path.join(ledger_dir, second_prefix_name)
+            with open(second_path, "wb") as prefix_file:
+                prefix_file.write(r.body.data())
+
+            # Each prefix is a self-contained chunk, and consecutive prefixes
+            # are contiguous, but like the node the SDK never treats them as
+            # part of a ledger directory.
+            second_chunk = ccf.ledger.LedgerChunk(second_path)
+            assert second_chunk.get_seqnos() == (second_start, second_end)
+            assert len(second_chunk) == second_end - second_start + 1
+            assert second_start == first_end + 1
+            assert len(ccf.ledger.Ledger([ledger_dir], committed_only=False)) == 0
+
+        r = c.get(
+            "/node/ledger_chunk"
+            f"?since={second_end + 1_000_000}&include_committed_prefix=true",
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+
+        r = c.get(
+            "/node/ledger_chunk/committed_prefix/not-a-prefix",
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+
+
 def test_ledger_chunk_redirect_recent(network, args):
     """
     Access ledger chunk that is missing locally on a backup, after the initial index,
@@ -1554,10 +1732,6 @@ def test_ledger_chunk_redirect_recent(network, args):
     with late_backup.client(
         interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
     ) as c:
-        r = c.head(
-            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=False
-        )
-        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         expected_host = primary.get_public_rpc_host(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
@@ -1565,6 +1739,22 @@ def test_ledger_chunk_redirect_recent(network, args):
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         )
         expected_location = f"https://{infra.interfaces.make_address(expected_host, expected_port)}/node/ledger_chunk?since={start_of_last_chunk}"
+
+        r = c.head(
+            f"/node/ledger_chunk?since={start_of_last_chunk}"
+            "&include_committed_prefix=true",
+            allow_redirects=False,
+        )
+        assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value, r
+        assert (
+            r.headers["Location"]
+            == f"{expected_location}&include_committed_prefix=true"
+        ), r
+
+        r = c.head(
+            f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=False
+        )
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
         assert r.headers["Location"] == expected_location, r
         r = c.get(
             f"/node/ledger_chunk?since={start_of_last_chunk}", allow_redirects=True
@@ -1632,6 +1822,20 @@ def test_ledger_chunk_redirect_gap(network, args):
         with new_node.client(
             interface_name=infra.interfaces.FILE_SERVING_RPC_INTERFACE
         ) as c:
+            r = c.head(
+                f"/node/ledger_chunk?since={download_index}"
+                "&include_committed_prefix=true",
+                allow_redirects=False,
+            )
+            assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value, r
+            redirect_query = urllib.parse.parse_qs(
+                urllib.parse.urlparse(r.headers["Location"]).query
+            )
+            assert redirect_query == {
+                "since": [str(download_index)],
+                "include_committed_prefix": ["true"],
+            }, r
+
             r = c.head(
                 f"/node/ledger_chunk?since={download_index}", allow_redirects=False
             )
@@ -1736,6 +1940,18 @@ def run_ledger_chunk_download(args):
         test_ledger_chunk_repr_digest(network, args)
         test_ledger_chunk_redirect_recent(network, args)
         test_ledger_chunk_redirect_gap(network, args)
+
+
+def run_committed_ledger_prefix_download(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+        txs=app.LoggingTxs("user0"),
+    ) as network:
+        network.start_and_open(args)
+        test_committed_ledger_prefix_access(network, args)
 
 
 def run_tls_san_checks(const_args):
@@ -1892,9 +2108,10 @@ def run_config_timeout_check(const_args):
     if infra.platform_detection.is_snp():
         env.update(snp.get_aci_env())
 
-    with open(os.path.join(start_node_path, "out"), "wb") as stdout, open(
-        os.path.join(start_node_path, "err"), "wb"
-    ) as stderr:
+    with (
+        open(os.path.join(start_node_path, "out"), "wb") as stdout,
+        open(os.path.join(start_node_path, "err"), "wb") as stderr,
+    ):
         proc = subprocess.Popen(
             [
                 os.path.join(".", os.path.basename(node.remote.BIN)),
@@ -1969,6 +2186,44 @@ def run_configuration_file_checks(args):
 
         with open(config, encoding="utf-8") as config_file:
             config_json = json.load(config_file)
+
+        for worker_threads, valid in (
+            (0, True),
+            (1, True),
+            (65533, True),
+            (0.0, True),
+            (1.0, True),
+            (65533.0, True),
+            (-1, False),
+            (-1.0, False),
+            (1.5, False),
+            (65534, False),
+            (65534.0, False),
+            (1e20, False),
+            ("1", False),
+            (True, False),
+            (None, False),
+        ):
+            worker_config = copy.deepcopy(config_json)
+            worker_config["worker_threads"] = worker_threads
+            with tempfile.NamedTemporaryFile(mode="w+") as temp_config:
+                json.dump(worker_config, temp_config)
+                temp_config.flush()
+                for flags in (["--check"],) if valid else (["--check"], []):
+                    result = infra.proc.ccall(
+                        bin_path, f"--config={temp_config.name}", *flags
+                    )
+                    if valid:
+                        assert result.returncode == 0, result
+                    else:
+                        assert result.returncode != 0, result
+                        output = result.stdout + result.stderr
+                        assert (
+                            b"Error validating JSON schema for configuration file"
+                            in output
+                        ), result
+                        assert b'context: <root>["worker_threads"]' in output, result
+
         for timeout in ("0s", "0us", "1us", "500us", "999us", "1000us", "1ms"):
             valid = timeout in ("0s", "0us", "1000us", "1ms")
             config_json["pending_node_timeout"] = timeout
@@ -1987,6 +2242,78 @@ def run_configuration_file_checks(args):
                             b"pending_node_timeout must be 0s or at least 1ms"
                             in result.stdout + result.stderr
                         ), result
+
+
+def run_limit_config_checks(args):
+    with open(
+        os.path.join(args.config_samples_dir, "minimal_config.json"), encoding="utf-8"
+    ) as config_file:
+        base = json.load(config_file)
+
+    legacy = {
+        "memory": {
+            "circuit_size": "3MB",
+            "max_msg_size": "64MB",
+            "max_fragment_size": "256KB",
+        }
+    }
+    cases = [
+        ({}, True),
+        ({**legacy, "ledger": {"max_transaction_size": "64MB"}}, True),
+        ({"ledger": {"max_read_size": "64MB", "max_transaction_size": "64MB"}}, True),
+        (
+            {"ledger": {"max_read_size": "64MB", "max_transaction_size": "67108865B"}},
+            False,
+        ),
+        (
+            {
+                **legacy,
+                "ledger": {
+                    "max_read_size": "32MB",
+                    "max_transaction_size": "32MB",
+                    "max_pending_append_bytes": "0",
+                },
+                "node_to_node": {"max_message_size": "16MB"},
+            },
+            True,
+        ),
+    ]
+    for settings, valid in cases:
+        config = copy.deepcopy(base)
+        config.update(settings)
+        with tempfile.NamedTemporaryFile(mode="w+") as temp_config:
+            json.dump(config, temp_config)
+            temp_config.flush()
+            for flags in (["--check"],) if valid else (["--check"], []):
+                result = infra.proc.ccall(
+                    args.package, f"--config={temp_config.name}", *flags
+                )
+                output = result.stdout + result.stderr
+                if not valid:
+                    assert result.returncode != 0, result
+                    assert b"ledger.max_read_size" in output, result
+                    continue
+                assert result.returncode == 0, result
+                memory = settings.get("memory", {})
+                for field in ("circuit_size", "max_msg_size", "max_fragment_size"):
+                    notice = f"memory.{field} is deprecated".encode()
+                    assert (notice in output) == (field in memory), result
+                if "max_msg_size" in memory:
+                    read_state = (
+                        "ignored"
+                        if "max_read_size" in settings.get("ledger", {})
+                        else "used"
+                    )
+                    frame_state = (
+                        "ignored"
+                        if "max_message_size" in settings.get("node_to_node", {})
+                        else "used"
+                    )
+                    assert f"{read_state} for ledger.max_read_size".encode() in output
+                    assert (
+                        f"{frame_state} for node_to_node.max_message_size".encode()
+                        in output
+                    )
 
 
 def run_preopen_readiness_check(args):
@@ -5113,6 +5440,7 @@ def run_node_config_checks(args):
     run_config_timeout_check(args)
     run_pending_node_expiration(args)
     run_configuration_file_checks(args)
+    run_limit_config_checks(args)
     run_pid_file_check(args)
     run_preopen_readiness_check(args)
     run_sighup_check(args)

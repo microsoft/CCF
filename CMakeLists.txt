@@ -731,6 +731,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/raw_writer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
     )
@@ -740,9 +741,19 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      byte_storage_allocation_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/byte_storage_allocation.cpp
+    )
+    target_link_options(
+      byte_storage_allocation_test
+      PRIVATE -Wl,--wrap=malloc -Wl,--wrap=realloc -Wl,--wrap=calloc
+    )
+
+    add_unit_test(
       ds_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serialized.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/byte_vector.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
@@ -1433,6 +1444,14 @@ if(BUILD_TESTS)
     DETECT_DEADLOCKS
     TSAN_SUPPRESSIONS ${CCF_DIR}/tsan_e2e_logging_suppressions
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
+
+  add_e2e_test(
+    NAME e2e_forwarding_smoke
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/forwarding.py
+    BUCKET bucket_c
+    BUILD_DEPENDS logging
+    ADDITIONAL_ARGS --package samples/apps/logging/logging
   )
 
   add_e2e_test(

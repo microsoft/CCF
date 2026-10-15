@@ -86,7 +86,6 @@ all_tests_suite = [
     e2e_logging.test_cert_prefix,
     e2e_logging.test_anonymous_caller,
     e2e_logging.test_raw_text,
-    e2e_logging.test_forwarding_frontends,
     e2e_logging.test_user_data_ACL,
     e2e_logging.test_view_history,
     e2e_logging.test_tx_statuses,
@@ -156,7 +155,6 @@ regression_5236_suite = [
     memberclient.test_corrupted_signature,
     e2e_operations.test_forced_snapshot,
     recovery.test_recover_service,
-    e2e_logging.test_forwarding_frontends,
     recovery.test_recover_service_aborted,
 ]
 suites["regression_5236"] = regression_5236_suite

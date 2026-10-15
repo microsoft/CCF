@@ -1,4 +1,5 @@
 ---
+description: "Use when writing or reviewing CHANGELOG entries, release notes, dependency updates, or SDK release-version changes."
 applyTo: "CHANGELOG.md,python/pyproject.toml"
 ---
 
@@ -7,6 +8,12 @@ applyTo: "CHANGELOG.md,python/pyproject.toml"
 Use [Keep a Changelog 1.0.0](https://keepachangelog.com/en/1.0.0/) format, with the CCF-specific rules below.
 
 These instructions apply when writing or reviewing changelog entries and SDK release-version changes. Unrelated changes to `python/pyproject.toml` do not require a release bump.
+
+## Writing the entry
+
+- Write a single concise entry per PR: one bullet, one or two short sentences describing the new or corrected user-facing behaviour, without implementation detail or an account of old behaviour.
+- Include only what users need to understand or act on the change; name affected APIs and migration replacements precisely, and link to documentation for detail.
+- Changes with no notable user-facing impact need no entry.
 
 ## Selecting the release section
 
