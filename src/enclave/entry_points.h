@@ -4,7 +4,7 @@
 
 #include "ccf/node/configuration.h"
 #include "ccf/node/start_type.h"
-#include "common/enclave_interface_types.h"
+#include "common/create_node_status.h"
 #include "node/node_transport.h"
 #include "node/rpc/ledger_interface.h"
 #include "node/runtime_control.h"

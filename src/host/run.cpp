@@ -17,7 +17,7 @@
 #include "ccf/version.h"
 #include "common/cli_helper.h"
 #include "common/configuration.h"
-#include "common/enclave_interface_types.h"
+#include "common/create_node_status.h"
 #include "config_schema.h"
 #include "consensus/ledger_enclave_types.h"
 #include "crypto/openssl/hash.h"

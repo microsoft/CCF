@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ds/logger_level.h"
+#include <cstdint>
 
 enum CreateNodeStatus : std::uint8_t
 {
@@ -15,26 +15,12 @@ enum CreateNodeStatus : std::uint8_t
   /** The node has already been created */
   NodeAlreadyCreated = 2,
 
-  /** The selected consensus is not valid */
-  ConsensusNotAllowed = 3,
-
-  /** The number of worker threads created is too high */
-  TooManyThreads = 4,
-
-  /** One of the input buffers is not located outside of the enclave memory */
-  MemoryNotOutsideEnclave = 5,
-
   /** Enclave initialisation failed */
   EnclaveInitFailed = 6,
-
-  /** OpenSSL RDRAND Init Failed */
-  OpenSSLRDRANDInitFailed = 7,
 
   /** The reconfiguration method is not supported */
   ReconfigurationMethodNotSupported = 8,
 
-  /** When reading from host memory, the source must be 8-byte aligned **/
-  UnalignedArguments = 10,
 };
 
 constexpr char const* create_node_result_to_str(CreateNodeStatus result)
@@ -53,33 +39,13 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     {
       return "NodeAlreadyCreated";
     }
-    case CreateNodeStatus::ConsensusNotAllowed:
-    {
-      return "ConsensusNotAllowed";
-    }
-    case CreateNodeStatus::TooManyThreads:
-    {
-      return "TooManyThreads";
-    }
-    case CreateNodeStatus::MemoryNotOutsideEnclave:
-    {
-      return "MemoryNotOutsideEnclave";
-    }
     case CreateNodeStatus::EnclaveInitFailed:
     {
       return "EnclaveInitFailed";
     }
-    case CreateNodeStatus::OpenSSLRDRANDInitFailed:
-    {
-      return "OpenSSLRDRANDInitFailed";
-    }
     case CreateNodeStatus::ReconfigurationMethodNotSupported:
     {
       return "ReconfigurationMethodNotSupported";
-    }
-    case CreateNodeStatus::UnalignedArguments:
-    {
-      return "UnalignedArguments";
     }
     default:
     {

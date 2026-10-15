@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "common/enclave_interface_types.h"
+#include "ccf/ds/logger_level.h"
 
 static constexpr auto node_to_node_interface_name = "node_to_node_interface";
 

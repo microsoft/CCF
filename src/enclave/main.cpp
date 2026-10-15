@@ -4,7 +4,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/locking.h"
 #include "ccf/version.h"
-#include "common/enclave_interface_types.h"
+#include "common/create_node_status.h"
 #include "ds/internal_logger.h"
 #include "enclave.h"
 #include "entry_points.h"
