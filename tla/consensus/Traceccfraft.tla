@@ -406,6 +406,23 @@ IsExecuteAppendEntries ==
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
        /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
+IsSendRequestVoteResponse ==
+    \* HandleRequestVoteRequest already sent the response.
+    /\ IsEvent("send_request_vote_response")
+    /\ UNCHANGED vars
+    /\ LET i == logline.msg.state.node_id
+           j == logline.msg.to_node_id
+       IN \E m \in Network!Messages:
+            /\ IsRequestVoteResponse(m, j, i, logline)
+            /\ m.isPreVote = (logline.msg.packet.msg = "raft_request_pre_vote_response")
+    /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
+    /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
+    /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
+    /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
+
 IsRcvRequestVoteResponse ==
     /\ \/ IsEvent("recv_request_vote_response")
        \/ IsEvent("recv_request_pre_vote_response")
@@ -491,6 +508,7 @@ TraceNext ==
     \/ IsRcvAppendEntriesResponse
 
     \/ IsSendRequestVote
+    \/ IsSendRequestVoteResponse
     \/ IsRcvRequestVoteRequest
     \/ IsRcvRequestVoteResponse
     \/ IsExecuteAppendEntries

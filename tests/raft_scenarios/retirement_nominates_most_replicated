@@ -1,0 +1,53 @@
+# A retiring leader nominates the successor with the highest match index,
+# even when a node with a higher ID is in the same latest configuration.
+start_node,0
+emit_signature,2
+
+swap_nodes,2,in,1,2,3
+emit_signature,2
+
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+assert_config,0,3,0,1,2,3
+
+# Node 3 stops receiving replication, so it lags behind nodes 1 and 2.
+disconnect_node,3
+
+# Reconfig [0, 1, 2, 3] -> [1, 2, 3]
+swap_nodes,2,out,0
+emit_signature,2
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,6
+assert_detail,0,retirement_phase,Completed
+assert_detail,0,leadership_state,Leader
+
+cleanup_nodes,2,0
+emit_signature,2
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,8
+assert_detail,0,leadership_state,None
+assert_detail,0,retirement_phase,RetiredCommitted
+
+# Nodes 1 and 2 are tied on progress and membership, so the higher ID, node 2,
+# is nominated. Node 3 has the highest ID, but its lower match index excludes it.
+assert_detail,2,leadership_state,Leader
+assert_detail,1,leadership_state,Follower
+assert_detail,3,leadership_state,Follower
+
+reconnect_node,3
+emit_signature,3
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,2,9
+assert_commit_idx,3,9

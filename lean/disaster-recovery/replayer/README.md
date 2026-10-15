@@ -24,8 +24,9 @@ The recovery decision protocol scenarios only run in the SNP Genoa CI job, which
 After the quorum, failover and multiple-timeout scenarios in `tests/e2e_operations.py`, `tests/infra/recovery_trace.py` runs the replayer on the nodes' logs.
 `.github/workflows/lean.yml` checks the records of committed fixtures of those three scenarios against the schema, then builds and lints the replayer and runs `check-fixtures.sh` on them.
 The replayer and model share the same [built-in linter checks](../README.md#validation).
-The kernel-check job verifies both together with Lean's kernel in a sandbox.
-Run `lake check` from the package directory with the [kernel-check prerequisites](../README.md#validation).
+The kernel-check job verifies both together with Lean's kernel without build sandboxing.
+Run `lake check --inadvisably-no-sandbox` from the package directory as described in the [validation instructions](../README.md#validation).
+This disables build isolation, not proof or axiom checking; run it only on code you trust.
 
 ## Records
 

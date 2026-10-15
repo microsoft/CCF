@@ -1,5 +1,6 @@
 module
 
+import all Init.Control.State
 import all Init.Data.List.Sort.Basic
 
 public import DisasterRecovery.Properties
@@ -10,7 +11,7 @@ public import Mathlib.Tactic
 
 namespace DisasterRecovery.Tests.QuorumCommit
 
-open Shared
+open CCF
 open Model.Local
 
 private def high : TxID := { view := 1, seqno := 10 }
