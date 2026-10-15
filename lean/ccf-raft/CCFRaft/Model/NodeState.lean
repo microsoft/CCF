@@ -17,21 +17,21 @@ Signatures make their prefixes committable. Behaviour is in `Node.lean`.
 
 namespace CCFRaft.Model.Node
 
-/-- Transaction effects take effect in list order. -/
-inductive TransactionEffect (Node : Type) where
-  | reconfiguration (nodes : Finset Node)
-  | retiredCommitted (nodes : Finset Node)
+/-- The consensus-relevant changes recorded by one transaction. -/
+structure TransactionMetadata (Node : Type) where
+  configuration : Option (Finset Node) := none
+  retiredCommitted : Finset Node := ∅
 deriving DecidableEq
 
 inductive EntryContent (Node TxId : Type) where
-  | transaction (txId : TxId) (effects : List (TransactionEffect Node))
+  | transaction (txId : TxId) (metadata : TransactionMetadata Node)
   | signature
 deriving DecidableEq
 
-def EntryContent.effects {Node TxId : Type}
-    : EntryContent Node TxId -> List (TransactionEffect Node)
-  | .transaction _ effects => effects
-  | .signature => []
+def EntryContent.metadata {Node TxId : Type}
+    : EntryContent Node TxId -> TransactionMetadata Node
+  | .transaction _ metadata => metadata
+  | .signature => {}
 
 def EntryContent.isSignature {Node TxId : Type} : EntryContent Node TxId -> Bool
   | .transaction _ _ => false

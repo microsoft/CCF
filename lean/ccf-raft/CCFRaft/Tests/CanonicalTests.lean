@@ -60,13 +60,13 @@ private def configurationQueries : IO Unit := do
     "an empty log must retain the initial configuration as its latest membership"
   let log : List (Entry Node Nat) :=
     [
-      { term := 1, content := .transaction 10 [] },
-      { term := 1, content := .transaction 101 [.reconfiguration {0, 1}] },
+      { term := 1, content := .transaction 10 {} },
+      { term := 1, content := .transaction 101 { configuration := some {0, 1} } },
       { term := 1, content := .signature },
-      { term := 1, content := .transaction 102 [.reconfiguration {1, 5}] },
-      { term := 1, content := .transaction 103 [.reconfiguration {5}] },
+      { term := 1, content := .transaction 102 { configuration := some {1, 5} } },
+      { term := 1, content := .transaction 103 { configuration := some {5} } },
       { term := 1, content := .signature },
-      { term := 1, content := .transaction 109 [.retiredCommitted {0}] }
+      { term := 1, content := .transaction 109 { retiredCommitted := {0} } }
     ]
   check ((configurationHistory initialConfig log).map (·.index) == [0, 2, 4, 5])
     "configuration indices must count intervening nonconfiguration entries"
@@ -177,7 +177,8 @@ private def configurationQueries : IO Unit := do
     check (state.retirementCompletedNodes initialConfig == expected)
       s!"wrong completed retirements at commit index {commitIndex}"
   let rejoined :=
-    log ++ [{ term := 1, content := .transaction 104 [.reconfiguration {0, 1, 5}] }]
+    log
+    ++ [{ term := 1, content := .transaction 104 { configuration := some {0, 1, 5} } }]
   check (retirementIndexInLog initialConfig (0 : Node) rejoined == some 4)
     "rejoining must not change the first removal index"
   let rejoinedState : NodeState Node Nat :=
@@ -188,32 +189,38 @@ private def configurationQueries : IO Unit := do
     }
   check (rejoinedState.retirementCompletedNodes initialConfig == {2, 3, 4})
     "current members must not appear among completed retirements"
-  -- Effects of one transaction share its index and keep their order.
   let combined : List (Entry Node Nat) :=
     [
       {
         term := 1,
-        content := .transaction 200 [.reconfiguration {0, 1}, .reconfiguration {1}]
+        content :=
+          .transaction 200 { configuration := some {1}, retiredCommitted := {0} }
       },
       { term := 1, content := .signature }
     ]
-  check ((configurationHistory initialConfig combined).map (·.index) == [0, 1, 1])
-    "configuration effects of one transaction must share its index"
+  check ((configurationHistory initialConfig combined).map (·.index) == [0, 1])
+    "a transaction must record at most one configuration at its log index"
   check (latestConfigurationMembers (configurationHistory initialConfig combined) == {1})
-    "the latest configuration must be the last effect, even at a shared index"
+    "the latest membership must be the transaction's resulting configuration"
   check
     ((activeConfigurations initialConfig combined 0).map (·.nodes)
-      == [initialConfig.configuration, {0, 1}, {1}])
-    "uncommitted configuration effects must all be active, in effect order"
+      == [initialConfig.configuration, {1}])
+    "a transaction must add only its resulting configuration to active membership"
   check
     ((activeConfigurations initialConfig combined 2).map (·.nodes) == [{1}])
-    "committing a transaction must retain only its last configuration effect"
+    "committing a transaction must supersede the earlier configuration"
+  check (retiredCommittedNodes combined == {0})
+    "retirement metadata must coexist with a configuration at the same log index"
+  check
+    ((configurationHistory initialConfig (combined.take 0)).map (·.index) == [0]
+      && retiredCommittedNodes (combined.take 0) == ∅)
+    "rolling back a transaction must remove both metadata fields from log queries"
   let combinedState : NodeState Node Nat :=
     { (initialNodeState initialConfig 0 : NodeState Node Nat) with log := combined }
   check
     ((combinedState.signedActiveConfigurations initialConfig).map (·.nodes)
-      == [initialConfig.configuration, {0, 1}, {1}])
-    "a signature must cover every pending configuration effect at the same index"
+      == [initialConfig.configuration, {1}])
+    "a signature must cover the transaction's pending configuration"
   let unsigned := { combinedState with log := combined.take 1 }
   check
     ((unsigned.signedActiveConfigurations initialConfig).map (·.index) == [0])
@@ -221,7 +228,7 @@ private def configurationQueries : IO Unit := do
   let committed := { combinedState with commitIndex := 2 }
   check
     ((committed.signedActiveConfigurations initialConfig).map (·.nodes) == [{1}])
-    "signed active configurations must exclude superseded committed effects"
+    "signed active configurations must exclude superseded configurations"
   for history in [log, rejoined, combined] do
     for length in List.range (history.length + 1) do
       for commitIndex in List.range (history.length + 3) do
@@ -244,19 +251,19 @@ private def retirementQueries : IO Unit := do
     let state : NodeState Node Nat := initialNodeState initialConfig node
     check ((state.retirement initialConfig node).phase == .noRetirementObserved)
       "no observed retirement must cover both initial members and never-joined nodes"
-    let latched := { state with retiredCommittedIndex := some 0 }
-    check (!decide (latched.isRetiredCommitted initialConfig node))
+    let state := { state with retiredCommittedIndex := some 0 }
+    check (!decide (state.isRetiredCommitted initialConfig node))
       "a retirement commit latch without a membership removal must not imply retirement"
   let log : List (Entry Node Nat) :=
     [
       { term := 1, content := .signature },
-      { term := 1, content := .transaction 105 [.reconfiguration {1, 5}] },
-      { term := 1, content := .transaction 3 [] },
+      { term := 1, content := .transaction 105 { configuration := some {1, 5} } },
+      { term := 1, content := .transaction 3 {} },
       { term := 1, content := .signature },
-      { term := 1, content := .transaction 110 [.retiredCommitted {0}] },
-      { term := 1, content := .transaction 111 [.retiredCommitted {1, 5}] },
+      { term := 1, content := .transaction 110 { retiredCommitted := {0} } },
+      { term := 1, content := .transaction 111 { retiredCommitted := {1, 5} } },
       { term := 1, content := .signature },
-      { term := 1, content := .transaction 112 [.retiredCommitted {0, 6}] }
+      { term := 1, content := .transaction 112 { retiredCommitted := {0, 6} } }
     ]
   for entry in log do
     check (entry.content.isSignature == decide (entry.content = .signature))
@@ -274,11 +281,7 @@ private def retirementQueries : IO Unit := do
       s!"wrong first signature after {afterIndex}"
   let namesNode :=
     fun (content : EntryContent Node Nat) =>
-      content.effects.any
-        fun effect =>
-          match effect with
-          | .retiredCommitted nodes => decide ((0 : Node) ∈ nodes)
-          | .reconfiguration _ => false
+      decide ((0 : Node) ∈ content.metadata.retiredCommitted)
   check (firstLogIndexAfter log 0 namesNode == some 5)
     "retirement lookup must select the first record naming the node"
   check (firstLogIndexAfter log 5 namesNode == some 8)
@@ -287,11 +290,10 @@ private def retirementQueries : IO Unit := do
     [{
       term := 1
       content :=
-        .transaction 113
-          [.reconfiguration {0, 1}, .retiredCommitted {0}, .retiredCommitted {5}]
+        .transaction 113 { configuration := some {0, 1}, retiredCommitted := {0, 5} }
     }]
   check (retiredCommittedNodes combined == {0, 5})
-    "retirement lookup must inspect every effect at a shared log index"
+    "retirement lookup must read the full recorded set alongside configuration metadata"
   for (length, expected)
       in [
         (0, (∅ : Finset Node)),
@@ -334,16 +336,16 @@ private def retirementQueries : IO Unit := do
     check (state.retiredCommittedIndex == if commitIndex < 5 then none else some 7)
       "uncommitted records must not set the retirement commit frontier"
   let rejoined :=
-    log ++ [{ term := 1, content := .transaction 106 [.reconfiguration {0, 1}] }]
-  let signed : NodeState Node Nat :=
+    log ++ [{ term := 1, content := .transaction 106 { configuration := some {0, 1} } }]
+  let state : NodeState Node Nat :=
     { (initialNodeState initialConfig 0 : NodeState Node Nat) with log := log.take 4 }
-  check ((signed.retirement initialConfig 0).phase == .retirementSigned)
+  check ((state.retirement initialConfig 0).phase == .retirementSigned)
     "a signature after removal must make retirement signed"
-  let rolledBack := { signed with log := signed.log.take 2 }
-  check ((rolledBack.retirement initialConfig 0).phase == .retirementOrdered)
+  let state := { state with log := state.log.take 2 }
+  check ((state.retirement initialConfig 0).phase == .retirementOrdered)
     "rolling back the signature must immediately restore ordered retirement"
-  let rolledBack := { rolledBack with log := rolledBack.log.take 1 }
-  check ((rolledBack.retirement initialConfig 0).phase == .noRetirementObserved)
+  let state := { state with log := state.log.take 1 }
+  check ((state.retirement initialConfig 0).phase == .noRetirementObserved)
     "rolling back removal must clear the observed retirement"
   check (retirementIndexInLog initialConfig (0 : Node) rejoined == some 2)
     "rejoining must preserve the first retirement index"
@@ -395,7 +397,7 @@ private def bootstrapAndNoMatchingPrefixTerms : IO Unit := do
         == [{
               term := BOOTSTRAP_TERM
               content :=
-                .transaction default [.reconfiguration initialConfig.configuration]
+                .transaction default { configuration := some initialConfig.configuration }
             }]
       && (get initial destination).log.isEmpty
       && (get initial source).commitIndex == 0)
@@ -403,7 +405,7 @@ private def bootstrapAndNoMatchingPrefixTerms : IO Unit := do
   let follower :=
     {
       get initial destination with
-        log := [{ term := BOOTSTRAP_TERM, content := .transaction 1 [] }]
+        log := [{ term := BOOTSTRAP_TERM, content := .transaction 1 {} }]
     }
   let request : AppendEntriesRequest Node Nat :=
     {
@@ -440,12 +442,12 @@ private def nominationSelection : IO Unit := do
           [
             {
               term := BOOTSTRAP_TERM,
-              content := .transaction 201 [.reconfiguration {1, 2}]
+              content := .transaction 201 { configuration := some {1, 2} }
             },
             { term := BOOTSTRAP_TERM, content := .signature },
             {
               term := BOOTSTRAP_TERM,
-              content := .transaction 202 [.retiredCommitted {0, 3, 4}]
+              content := .transaction 202 { retiredCommitted := {0, 3, 4} }
             },
             { term := BOOTSTRAP_TERM, content := .signature }
           ]
@@ -513,40 +515,41 @@ private def appendCommitTriggers : IO Unit := do
   let caps :=
     CCF.Capabilities.record (Message := Message Node Nat)
       (Notification := Notification) leader
-  let committed : NodeState Node Nat :=
+  let state : NodeState Node Nat :=
     {
       (initialNodeState initialConfig leader : NodeState Node Nat) with
         log :=
           [
-            { term := BOOTSTRAP_TERM, content := .transaction 301 [] },
+            { term := BOOTSTRAP_TERM, content := .transaction 301 {} },
             { term := BOOTSTRAP_TERM, content := .signature }
           ]
         commitIndex := 2
         matchIndex := fun _ => 2
     }
-  let some (appended, _) :=
-    (appendBatch initialConfig caps leader committed [.signature]).run {}
+  let some (state, _) :=
+    (appendBatch initialConfig caps leader state [.signature]).run {}
   | throw (IO.userError "multinode append must be enabled")
-  check (appended.log.length == 3 && appended.commitIndex == 2)
+  check (state.log.length == 3 && state.commitIndex == 2)
     "previous acknowledgements must not commit a newly appended signature"
-  let some (acknowledged, _) :=
-    (handleAppendEntriesResponse initialConfig caps leader appended 1
+  let appendedState := state
+  let some (state, _) :=
+    (handleAppendEntriesResponse initialConfig caps leader state 1
       { term := BOOTSTRAP_TERM, success := true, lastLogIndex := 3 }).run
       {}
   | throw (IO.userError "first acknowledgement must be enabled")
-  check (acknowledged.commitIndex == 2)
+  check (state.commitIndex == 2)
     "one other acknowledgement must not commit without the five-node majority"
-  let some (quorum, _) :=
-    (handleAppendEntriesResponse initialConfig caps leader acknowledged 2
+  let some (state, _) :=
+    (handleAppendEntriesResponse initialConfig caps leader state 2
       { term := BOOTSTRAP_TERM, success := true, lastLogIndex := 3 }).run
       {}
   | throw (IO.userError "quorum acknowledgement must be enabled")
-  check (quorum.commitIndex == 3)
+  check (state.commitIndex == 3)
     "the current-term signature must commit when its acknowledgements reach a quorum"
-  let stale := { appended with matchIndex := fun _ => 3, role := .candidate }
-  let some (promoted, _) := (becomeLeader initialConfig caps leader stale).run {}
+  let state := { appendedState with matchIndex := fun _ => 3, role := .candidate }
+  let some (state, _) := (becomeLeader initialConfig caps leader state).run {}
   | throw (IO.userError "leader promotion must be enabled")
-  check (promoted.commitIndex == 2 && promoted.matchIndex 1 == 0)
+  check (state.commitIndex == 2 && state.matchIndex 1 == 0)
     "promotion must reset stale peer progress before attempting commit"
 
 private def nominationTerms : IO Unit := do
@@ -613,7 +616,7 @@ private def batches : IO Unit := do
     "a follower must not append"
   let written ←
     apply initial
-      (.local source (.append [.transaction 1 [], .transaction 2 [], .signature]))
+      (.local source (.append [.transaction 1 {}, .transaction 2 {}, .signature]))
   check ((get written source).log.length == 4)
     s!"an append batch must append every entry in one step (length {(get written source).log.length})"
   check (system.step written (.local source (.sendEntries destination 5))).isNone
@@ -640,8 +643,8 @@ private def batches : IO Unit := do
       get written source with
         log :=
           [
-            { term := 1, content := .transaction 1 [] },
-            { term := 2, content := .transaction 2 [] }
+            { term := 1, content := .transaction 1 {} },
+            { term := 2, content := .transaction 2 {} }
           ]
     }
   let mixed :=
@@ -658,23 +661,26 @@ private def batches : IO Unit := do
 private def reorderedDelivery : IO Unit := do
   let source : Node := ⟨0, by decide⟩
   let destination : Node := ⟨1, by decide⟩
-  let written ← apply initial (.local source (.append [.transaction 1 []]))
-  let written ← apply written (.local source (.append [.signature]))
-  let sent ← apply written (.local source (.sendEntries destination 2))
-  let sent ← apply sent (.local source (.sendEntries destination 2))
-  let some heartbeat := (pending sent source destination)[1]?
+  let state ← apply initial (.local source (.append [.transaction 1 {}]))
+  let state ← apply state (.local source (.append [.signature]))
+  let state ← apply state (.local source (.sendEntries destination 2))
+  let state ← apply state (.local source (.sendEntries destination 2))
+  let some heartbeat := (pending state source destination)[1]?
   | throw (IO.userError "missing second AppendEntries")
-  let after ← apply sent (.deliver heartbeat)
+  let beforeDeliveryState := state
+  let state ← apply state (.deliver heartbeat)
   check
-    ((pending after source destination).length == 1
-      && (get after destination).log.isEmpty)
+    ((pending state source destination).length == 1
+      && (get state destination).log.isEmpty)
     "a later envelope may be delivered first, leaving the earlier one pending"
   let some { payload := .appendEntriesResponse response, .. } :=
-    (pending after destination source).head?
+    (pending state destination source).head?
   | throw (IO.userError "reordered heartbeat did not produce a response")
   check (!response.success && response.lastLogIndex == 0)
     "a heartbeat past the follower log must be NACKed"
-  check (system.step sent (.deliver { heartbeat with target := source })).isNone
+  check
+    (system.step beforeDeliveryState
+      (.deliver { heartbeat with target := source })).isNone
     "an envelope that is not pending cannot be delivered"
 
 private def committedPrefixSurvivesTruncation : IO Unit := do
@@ -689,7 +695,7 @@ private def committedPrefixSurvivesTruncation : IO Unit := do
     state ← receive state peer original
   let committed := (get state original).committedLog
   check (committed.length == 2) "truncation test requires a nonempty committed prefix"
-  state ← apply state (.local original (.append [.transaction 10 []]))
+  state ← apply state (.local original (.append [.transaction 10 {}]))
   state ← apply state (.local original (.sendEntries successor 3))
   state ← receive state original successor
   state ← receive state successor original
@@ -710,7 +716,7 @@ private def committedPrefixSurvivesTruncation : IO Unit := do
   for peer in [original, second] do
     state ← receive state successor peer
     state ← receive state peer successor
-  state ← apply state (.local successor (.append [.transaction 20 []]))
+  state ← apply state (.local successor (.append [.transaction 20 {}]))
   state ← apply state (.local successor (.append [.signature]))
   for peer in [original, second] do
     state ← apply state (.local successor (.sendEntries peer 4))
@@ -719,7 +725,7 @@ private def committedPrefixSurvivesTruncation : IO Unit := do
   check
     ((get state original).committedLog == committed
       && entryAt? (get state original).log 3
-          == some { term := BOOTSTRAP_TERM + 1, content := .transaction 20 [] })
+          == some { term := BOOTSTRAP_TERM + 1, content := .transaction 20 {} })
     "conflict resolution must replace the uncommitted entry, not the committed prefix"
   state ← apply state (.local successor (.sendEntries original 4))
   state ← receive state successor original
@@ -788,7 +794,7 @@ private def repliesAfterStepDown : IO Unit := do
   let destination : Node := ⟨1, by decide⟩
   let mut state := initial
   for transaction in [:6] do
-    state ← apply state (.local source (.append [.transaction transaction []]))
+    state ← apply state (.local source (.append [.transaction transaction {}]))
   state ← apply state (.local source (.sendEntries destination 6))
   state ← apply state (.local source (.sendEntries destination 6))
   let sent := state
@@ -822,15 +828,17 @@ private def retirementCommitFrontiers : IO Unit := do
   let survivor : Node := ⟨1, by decide⟩
   let log : List (Entry Node Nat) :=
     [
-      { term := 1, content := .transaction 107 [.reconfiguration {node, survivor}] },
+      {
+        term := 1, content := .transaction 107 { configuration := some {node, survivor} }
+      },
       { term := 1, content := .signature },
-      { term := 1, content := .transaction 108 [.reconfiguration {survivor}] },
+      { term := 1, content := .transaction 108 { configuration := some {survivor} } },
       { term := 1, content := .signature },
-      { term := 1, content := .transaction 113 [.retiredCommitted {node}] },
+      { term := 1, content := .transaction 113 { retiredCommitted := {node} } },
       { term := 1, content := .signature },
-      { term := 1, content := .transaction 7 [] },
+      { term := 1, content := .transaction 7 {} },
       { term := 1, content := .signature },
-      { term := 1, content := .transaction 9 [] },
+      { term := 1, content := .transaction 9 {} },
       { term := 1, content := .signature }
     ]
   let before : NodeState Node Nat :=
@@ -843,12 +851,12 @@ private def retirementCommitFrontiers : IO Unit := do
     }
   check (before.retiredCommittedIndex.isNone)
     "an uncommitted retirement marker must not set the commit frontier"
-  let jumped :=
+  let state :=
     ({ before with log := log.take 8 } : NodeState Node Nat).recordCommit node 8
-  check (jumped.retiredCommittedIndex == some 8)
+  check (state.retiredCommittedIndex == some 8)
     "commit frontier must not be the marker index or marker index plus one"
-  let later := ({ jumped with log } : NodeState Node Nat).recordCommit node 10
-  check (later.retiredCommittedIndex == some 8)
+  let state := ({ state with log } : NodeState Node Nat).recordCommit node 10
+  check (state.retiredCommittedIndex == some 8)
     "later commits must preserve the first covering retirement frontier"
   for (
         oldLength,

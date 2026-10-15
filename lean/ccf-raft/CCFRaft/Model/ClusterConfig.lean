@@ -53,23 +53,13 @@ structure Configuration (Node : Type) where
   nodes : Finset Node
 deriving DecidableEq
 
-def entryConfigurations (content : EntryContent Node TxId) : List (Finset Node) :=
-  content.effects.filterMap
-    fun effect =>
-      match effect with
-      | .reconfiguration nodes => some nodes
-      | .retiredCommitted _ => none
-
-/--
-Initial membership has index zero. Effects in one transaction share its log
-index and retain their order, so configuration indices need not be unique.
--/
+/-- Initial membership has index zero; each entry records at most one change. -/
 def configurationHistory (config : InitialConfig Node) (log : List (Entry Node TxId))
     : List (Configuration Node) :=
   { index := 0, nodes := config.configuration }
-  :: (log.zipIdx 1).flatMap
+  :: (log.zipIdx 1).filterMap
       fun (entry, index) =>
-        (entryConfigurations entry.content).map fun nodes => { index, nodes }
+        entry.content.metadata.configuration.map fun nodes => { index, nodes }
 
 /--
 The last committed configuration and every pending configuration. Earlier
@@ -79,7 +69,6 @@ def activeConfigurations (config : InitialConfig Node) (log : List (Entry Node T
     (commitIndex : Nat)
     : List (Configuration Node) :=
   let history := configurationHistory config log
-  -- Keep only the last configuration even when several share the committed index.
   let committed := history.filter fun configuration => configuration.index <= commitIndex
   history.drop (committed.length - 1)
 
@@ -115,15 +104,7 @@ Nodes named by retirement records in the supplied log or prefix. Pass
 `log.take commitIndex` to restrict this to locally committed records.
 -/
 def retiredCommittedNodes (log : List (Entry Node TxId)) : Finset Node :=
-  log.foldl
-    (fun retired entry =>
-      entry.content.effects.foldl
-        (fun retired effect =>
-          match effect with
-          | .retiredCommitted nodes => retired ∪ nodes
-          | .reconfiguration _ => retired)
-        retired)
-    ∅
+  log.foldl (fun retired entry => retired ∪ entry.content.metadata.retiredCommitted) ∅
 
 def hasConfigurationMajority (support : Finset Node) (configuration : Configuration Node)
     : Prop :=
@@ -157,7 +138,7 @@ def initialNodeState [Inhabited TxId] (config : InitialConfig Node) (node : Node
     if node = config.leader then
       [{
         term := BOOTSTRAP_TERM
-        content := .transaction default [.reconfiguration config.configuration]
+        content := .transaction default { configuration := some config.configuration }
       }]
     else
       []

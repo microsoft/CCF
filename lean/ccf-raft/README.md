@@ -33,20 +33,6 @@ the historical commit latch.
 Protocol helpers such as `NodeState.recordCommit`
 and `findHighestPossibleMatch` live in `Node.lean`.
 
-`NodeState.activeConfigurations` retains the last committed configuration and
-every pending one. `NodeState.signedActiveConfigurations` filters these to those
-covered by the latest signature, whether committed or not; configuration zero
-qualifies even without a signature. The election guard in `Node.lean` checks
-membership in this signed subset, with a separate allowance for completed
-retirements. Unsigned pending configurations remain active for replication
-and quorum checks.
-
-Follower AppendEntries processing folds over only the missing entries, attempting
-commitment after each new signature and once at the end. This preserves the first
-commit frontier covering a retirement record without reconstructing intermediate
-commits from the completed batch. Processing remains one atomic model step with
-one acknowledgement for the original request.
-
 ## Validation
 
 Install Lean via [elan](https://lean-lang.org/install/), then run from this directory:
