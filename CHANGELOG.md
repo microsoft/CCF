@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Changed
 
 - Updated didx509cpp to [1.0.0](https://github.com/microsoft/didx509cpp/releases/tag/didx509cpp-1.0.0), adding Fulcio extension selectors and OtherName SAN support, and stricter DID and certificate validation.
-  CCF's supported attestation signing algorithms are unchanged.
+  CCF's supported attestation signing algorithms are unchanged (#8587).
 - Replaced the vendored SmallVector dependency with a standalone byte-only `ccf::ByteVector`, and separated ledger-write buffering into its own implementation.
   Serialized formats and byte operations are preserved, but native applications must rebuild for the changed C++ type and layout (#8559).
 - Updated snmalloc from 0.7.3 to [0.7.6](https://github.com/microsoft/snmalloc/releases/tag/0.7.6), including allocator and cross-thread deallocation improvements. CCF retains pthread-atfork protection, which upstream now makes opt-in (#8557).
