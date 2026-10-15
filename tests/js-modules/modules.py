@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import copy
 import http
 import json
 import os
@@ -14,7 +13,6 @@ import infra.net
 import infra.network
 import infra.path
 import infra.proc
-import infra.proposal
 import suite.test_requirements as reqs
 from e2e_logging import test_multi_auth
 from loguru import logger as LOG
@@ -92,36 +90,11 @@ def test_module_access(network, args):
 
     bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
     bundle = network.consortium.read_bundle_from_dir(bundle_dir)
-    endpoints = bundle["metadata"]["endpoints"]
-    template = endpoints["/test_module"]["post"]
-    for redirection in (None, "none", "to_primary", "to_backup"):
-        for forwarding in (None, "never", "sometimes", "always"):
-            definition = copy.deepcopy(template)
-            definition.pop("redirection_strategy")
-            if redirection is not None:
-                definition["redirection_strategy"] = redirection
-            if forwarding is not None:
-                definition["forwarding_required"] = forwarding
-            endpoints[f"/policy/{redirection}/{forwarding}"] = {"post": definition}
-
-    for field in ("forwarding_required", "redirection_strategy"):
-        for invalid in ("invalid", 1, None):
-            invalid_bundle = copy.deepcopy(bundle)
-            invalid_bundle["metadata"]["endpoints"]["/test_module"]["post"][
-                field
-            ] = invalid
-            try:
-                network.consortium.set_js_app_from_bundle(primary, invalid_bundle)
-            except infra.proposal.ProposalNotCreated as e:
-                assert e.response.status_code == http.HTTPStatus.BAD_REQUEST, e.response
-                assert field in e.response.body.json()["error"]["message"], e.response
-            else:
-                raise AssertionError(f"Accepted invalid {field}: {invalid}")
-
     network.consortium.set_js_app_from_bundle(primary, bundle)
 
     expected_modules = bundle["modules"]
-    expected_metadata = copy.deepcopy(bundle["metadata"])
+    expected_metadata = bundle["metadata"]
+
     http_methods_renamed = {
         method: method.upper() for method in ("post", "get", "put", "delete")
     }
@@ -133,7 +106,6 @@ def test_module_access(network, args):
     endpoint_def_camelcased = {
         "js_module": "jsModule",
         "js_function": "jsFunction",
-        "forwarding_required": "forwardingRequired",
         "redirection_strategy": "redirectionStrategy",
         "authn_policies": "authnPolicies",
         "openapi": "openApi",
@@ -157,18 +129,6 @@ def test_module_access(network, args):
         assert (
             expected == actual
         ), f"{json.dumps(expected, indent=2)}\nvs\n{json.dumps(actual, indent=2)}"
-
-        for operations in expected_metadata["endpoints"].values():
-            for definition in operations.values():
-                definition.setdefault(
-                    "forwarding_required",
-                    (
-                        "always"
-                        if definition.get("redirection_strategy", "to_primary")
-                        == "to_primary"
-                        else "never"
-                    ),
-                )
 
         r = c.get("/gov/service/javascript-app")
         assert r.status_code == http.HTTPStatus.OK, r.status_code

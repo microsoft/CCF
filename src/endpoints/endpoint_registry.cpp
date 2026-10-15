@@ -122,12 +122,6 @@ namespace ccf::endpoints
           }
         }
       }
-
-      auto schema_ref_object = nlohmann::json::object();
-      schema_ref_object["$ref"] = fmt::format(
-        "#/components/x-ccf-forwarding/{}",
-        endpoint->properties.forwarding_required);
-      ds::openapi::extension(path_op, "x-ccf-forwarding") = schema_ref_object;
     }
   }
 
@@ -227,8 +221,7 @@ namespace ccf::endpoints
 
     endpoint.authn_policies = ap;
     // By default, all transactions are assumed to be writing, and so
-    // forwarded/redirected
-    endpoint.properties.forwarding_required = ForwardingRequired::Always;
+    // redirected.
     endpoint.properties.redirection_strategy = RedirectionStrategy::ToPrimary;
     endpoint.installer = this;
     return endpoint;
@@ -240,18 +233,16 @@ namespace ccf::endpoints
     const ReadOnlyEndpointFunction& f,
     const AuthnPolicies& ap)
   {
-    auto endpoint = make_endpoint(
-      method,
-      verb,
-      [f](EndpointContext& ctx) {
-        ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
-        ro_ctx.caller = std::move(ctx.caller);
-        f(ro_ctx);
-      },
-      ap);
-    endpoint.set_redirection_strategy(RedirectionStrategy::None);
-    endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
-    return endpoint;
+    return make_endpoint(
+             method,
+             verb,
+             [f](EndpointContext& ctx) {
+               ReadOnlyEndpointContext ro_ctx(ctx.rpc_ctx, ctx.tx);
+               ro_ctx.caller = std::move(ctx.caller);
+               f(ro_ctx);
+             },
+             ap)
+      .set_redirection_strategy(RedirectionStrategy::None);
   }
 
   Endpoint EndpointRegistry::make_command_endpoint(
@@ -264,9 +255,7 @@ namespace ccf::endpoints
       make_endpoint(method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap);
     endpoint.execution_mode = EndpointExecutionMode::Command;
     endpoint.command_func = f;
-    endpoint.set_redirection_strategy(RedirectionStrategy::None);
-    endpoint.properties.forwarding_required = ForwardingRequired::Sometimes;
-    return endpoint;
+    return endpoint.set_redirection_strategy(RedirectionStrategy::None);
   }
 
   void EndpointRegistry::install(Endpoint& endpoint)
@@ -312,28 +301,6 @@ namespace ccf::endpoints
     nlohmann::json& document, ccf::kv::ReadOnlyTx& tx)
   {
     (void)tx;
-    // Add common components:
-    // - Descriptions of each kind of forwarding
-    auto& forwarding_component = document["components"]["x-ccf-forwarding"];
-    auto& always = forwarding_component["always"];
-    always["value"] = ccf::endpoints::ForwardingRequired::Always;
-    always["description"] =
-      "If this request is made to a backup node, it will be forwarded to the "
-      "primary node for execution.";
-    auto& sometimes = forwarding_component["sometimes"];
-    sometimes["value"] = ccf::endpoints::ForwardingRequired::Sometimes;
-    sometimes["description"] =
-      "If this request is made to a backup node, it may be forwarded to the "
-      "primary node for execution. Specifically, if this request is sent as "
-      "part of a session which was already forwarded, then it will also be "
-      "forwarded.";
-    auto& never = forwarding_component["never"];
-    never["value"] = ccf::endpoints::ForwardingRequired::Never;
-    never["description"] =
-      "This call will never be forwarded, and is always executed on the "
-      "receiving node, potentially breaking session consistency. If this "
-      "attempts to write on a backup, this will fail.";
-
     // Add ccf OData error response schema
     auto& schemas = document["components"]["schemas"];
     schemas["CCFError"]["type"] = "object";

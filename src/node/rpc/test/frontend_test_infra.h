@@ -12,6 +12,7 @@
 #include "kv/null_encryptor.h"
 #include "kv/test/null_tx_history.h"
 #include "kv/test/stub_consensus.h"
+#include "node/rpc/http_rpc_context.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/user_frontend.h"
 #include "node_stub.h"
@@ -95,7 +96,6 @@ auto frontend_process(
   auto rpc_ctx = ccf::make_rpc_context(session, serialized_request);
   ::http::extract_actor(*rpc_ctx);
   frontend.process(rpc_ctx);
-  DOCTEST_CHECK(!rpc_ctx->response_is_pending);
 
   auto serialized_response = rpc_ctx->serialise_response();
 

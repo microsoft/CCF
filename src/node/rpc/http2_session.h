@@ -266,13 +266,6 @@ namespace http
 
         search->process(rpc_ctx);
 
-        if (rpc_ctx->response_is_pending)
-        {
-          // If the RPC is pending, hold the connection.
-          LOG_TRACE_FMT("Pending");
-          return;
-        }
-
         responder->send_response(
           rpc_ctx->get_response_http_status(),
           rpc_ctx->get_response_headers(),
