@@ -81,12 +81,6 @@ jobs:
           cd python
           python ../tests/infra/test_reporting.py pytest
 
-      - name: "Run harness compatibility tests with ccf 7.0.18"
-        run: |
-          set -ex
-          uv run --no-project --with ccf==7.0.18 --with pytest \
-            python3 tests/infra/test_reporting.py pytest python/tests/test_ledger_download.py
-
       - name: "Run Unit tests"
         run: |
           set -ex

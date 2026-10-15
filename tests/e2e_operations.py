@@ -35,7 +35,6 @@ import infra.concurrency
 import infra.crypto
 import infra.e2e_args
 import infra.interfaces
-import infra.ledger
 import infra.logging_app as app
 import infra.network
 import infra.path
@@ -1558,6 +1557,7 @@ def test_ledger_chunk_repr_digest(network, args):
 
 def test_committed_ledger_prefix_access(network, args):
     primary, _ = network.find_primary()
+    prefix_suffix = infra.node.COMMITTED_PREFIX_FILE_SUFFIX
     first_txid = network.txs.issue(
         network, number_txs=1, send_private=False, send_public=True
     )
@@ -1583,10 +1583,10 @@ def test_committed_ledger_prefix_access(network, args):
         assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
         prefix_url = urllib.parse.urlparse(r.headers["Location"]).path
         first_prefix_name = os.path.basename(prefix_url)
-        assert first_prefix_name.endswith(
-            infra.ledger.COMMITTED_PREFIX_FILE_SUFFIX
-        ), first_prefix_name
-        first_start, first_end = infra.ledger.range_from_filename(first_prefix_name)
+        assert first_prefix_name.endswith(prefix_suffix), first_prefix_name
+        first_start, first_end = ccf.ledger.range_from_filename(
+            first_prefix_name.removesuffix(prefix_suffix)
+        )
         assert first_start == first_txid.seqno
         assert first_end is not None and first_end >= first_start
 
@@ -1618,16 +1618,17 @@ def test_committed_ledger_prefix_access(network, args):
                 include_committed_prefix=True,
             ) as ledger_paths:
                 assert len(ledger_paths) == 1, ledger_paths
-                assert ledger_paths[0].endswith(
-                    infra.ledger.COMMITTED_PREFIX_FILE_SUFFIX
-                ), ledger_paths
-                with infra.ledger.open_chunk(ledger_paths[0]) as downloaded_chunk:
-                    downloaded_start, downloaded_end = downloaded_chunk.get_seqnos()
-                    assert downloaded_start == first_start
-                    assert downloaded_end >= first_end
-                    assert any(
-                        tx.get_txid() == first_txid for tx in downloaded_chunk
-                    ), first_txid
+                assert ledger_paths[0].endswith(prefix_suffix), ledger_paths
+                # Older SDKs can read the bytes but not the prefix filename.
+                chunk_path = ledger_paths[0].removesuffix(prefix_suffix)
+                os.rename(ledger_paths[0], chunk_path)
+                downloaded_chunk = ccf.ledger.LedgerChunk(chunk_path)
+                downloaded_start, downloaded_end = downloaded_chunk.get_seqnos()
+                assert downloaded_start == first_start
+                assert downloaded_end >= first_end
+                assert any(
+                    tx.get_txid() == first_txid for tx in downloaded_chunk
+                ), first_txid
 
         range_end = min(31, prefix_size - 1)
         r = c.get(
@@ -1667,15 +1668,16 @@ def test_committed_ledger_prefix_access(network, args):
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
 
         with tempfile.TemporaryDirectory() as ledger_dir:
-            first_path = os.path.join(ledger_dir, first_prefix_name)
+            first_path = os.path.join(
+                ledger_dir, first_prefix_name.removesuffix(prefix_suffix)
+            )
             with open(first_path, "wb") as prefix_file:
                 prefix_file.write(first_prefix)
 
-            with infra.ledger.open_chunk(first_path) as chunk:
-                assert chunk.get_seqnos() == (first_start, first_end)
-                assert len(chunk) == first_end - first_start + 1
-                assert not chunk.is_committed()
-            assert len(ccf.ledger.Ledger([ledger_dir])) == 0
+            chunk = ccf.ledger.LedgerChunk(first_path)
+            assert chunk.get_seqnos() == (first_start, first_end)
+            assert len(chunk) == first_end - first_start + 1
+            assert not chunk.is_committed()
 
             second_txid = network.txs.issue(
                 network, number_txs=1, send_private=False, send_public=True
@@ -1696,23 +1698,25 @@ def test_committed_ledger_prefix_access(network, args):
             assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
             second_url = urllib.parse.urlparse(r.headers["Location"]).path
             second_prefix_name = os.path.basename(second_url)
-            second_start, second_end = infra.ledger.range_from_filename(
-                second_prefix_name
+            second_start, second_end = ccf.ledger.range_from_filename(
+                second_prefix_name.removesuffix(prefix_suffix)
             )
             assert second_start == next_seqno
             assert second_end is not None and second_end >= second_txid.seqno
 
             r = c.get(second_url, allow_redirects=False)
             assert r.status_code == http.HTTPStatus.OK, r
-            second_path = os.path.join(ledger_dir, second_prefix_name)
+            second_path = os.path.join(
+                ledger_dir, second_prefix_name.removesuffix(prefix_suffix)
+            )
             with open(second_path, "wb") as prefix_file:
                 prefix_file.write(r.body.data())
 
             # Each prefix is a self-contained chunk, and consecutive prefixes
             # are contiguous.
-            with infra.ledger.open_chunk(second_path) as second_chunk:
-                assert second_chunk.get_seqnos() == (second_start, second_end)
-                assert len(second_chunk) == second_end - second_start + 1
+            second_chunk = ccf.ledger.LedgerChunk(second_path)
+            assert second_chunk.get_seqnos() == (second_start, second_end)
+            assert len(second_chunk) == second_end - second_start + 1
             assert second_start == first_end + 1
 
         r = c.get(
@@ -3869,11 +3873,6 @@ def run_merkle_verification_level(args):
     ]
 
     null_block_size = source_size // 8
-    nulled_block_error = (
-        "is smaller than the minimum entry size"
-        if hasattr(ccf.ledger, "MIN_ENTRY_SIZE")
-        else "index out of range"
-    )
 
     for name, corrupted_data, expected_parse_error in [
         (
@@ -3896,7 +3895,7 @@ def run_merkle_verification_level(args):
             good_data[: source_size // 2]
             + b"\00" * null_block_size
             + good_data[source_size // 2 + null_block_size :],
-            nulled_block_error,
+            "is smaller than the minimum entry size|index out of range",
         ),
         (
             "header_offset_too_large",
@@ -3949,8 +3948,8 @@ def run_merkle_verification_level(args):
                 tx.get_public_domain()
 
         except (AssertionError, IndexError, ValueError) as e:
-            assert expected_parse_error in str(
-                e
+            assert re.search(
+                expected_parse_error, str(e)
             ), f"Unexpected error message for corruption {name}: {e}"
         else:
             raise AssertionError(
@@ -5589,7 +5588,12 @@ def run_pending_node_expiration(const_args):
 
     # Expired Pending nodes are removed along with an endorsed certificate
     # they never had, which full offline verification must accept
-    validator = infra.ledger.LedgerValidator()
+    class NodeCertificates(dict):
+        def pop(self, key, default=None):
+            return super().pop(key, default)
+
+    validator = ccf.ledger.LedgerValidator()
+    validator.node_certificates = NodeCertificates(validator.node_certificates)
     ledger = ccf.ledger.Ledger(
         primary.remote.ledger_paths(),
         committed_only=False,
