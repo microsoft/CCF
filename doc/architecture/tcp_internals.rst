@@ -4,245 +4,92 @@ TCP Internals
 Overview
 ~~~~~~~~
 
-In CCF, the :term:`TCP` host layer is implemented using `libuv <https://libuv.org/>`_, allowing us to listen for connections from other nodes and requests from clients as well as connect to other nodes.
-
-Both :term:`RPC` and Node-to-Node connections use TCP to communicate with external resources. Node-to-node connections implement the node's typed transport interface: inbound frames are copied into owned buffers and passed to the node, and outbound messages are submitted by the node from any thread.
-
-CCF uses an HTTP :term:`REST` interface to call programs, so the process is usually read request, execute the endpoint, and send the response to the client.
-
-However, the TCP implementation in CCF is generic and could adapt to other common communication processes, but perhaps would need to change how the users (RPC, Node-to-node) use it.
+CCF's node-to-node :term:`TCP` transport uses `libuv <https://libuv.org/>`_ to listen for connections from other nodes and connect to peers.
+This document describes that transport, not the client-facing :term:`RPC` stack.
+RPC connections use a separate socket and session implementation, with OpenSSL terminating :term:`TLS` in the connection layer; see :doc:`tls_internals` for the current RPC/TLS design.
 
 Overall structure
 ~~~~~~~~~~~~~~~~~
 
-The `TCPImpl` class (in ``src/host/tcp.h``) implements all TCP logic (using the asynchronous `libuv`), used by both `RPCConnections` and `NodeConnections`.
+:ccf_repo:`TCPImpl </src/host/tcp.h>` implements asynchronous socket handling using ``libuv``.
+:ccf_repo:`NodeConnectionsImpl </src/host/node_connections.h>` uses it to implement the node's typed :ccf_repo:`AbstractNodeTransport </src/node/node_transport.h>` interface.
+Socket operations and connection state are owned by the libuv loop thread.
 
-`TCPImpl` uses behaviour classes to keep generic socket handling separate from protocol-specific callbacks such as `on_read` and `on_accept`.
+``TCPImpl`` uses behaviour classes to separate generic socket handling from protocol-specific callbacks such as ``on_accept`` and ``on_read``:
 
-Most of the call backs are for logging purposes, but the two important ones are:
-- `on_accept` on servers, which creates a new socket to communicate with the particular connecting client
-- `on_read`, which takes the data that is read and passes it to the enclave
-
-For node-to-node connections, the behaviours are:
-- `NodeServerBehaviour`, the main listening socket and, `on_accept`, creates a new socket to communicate with a particular connecting client
-- `NodeIncomingBehaviour`, the socket that is created above, that waits for input and passes that to the enclave
-- `NodeOutgoingBehaviour`, a socket that is created when the enclave sends to a node with no existing connection, to connect to external nodes
-
-For RPC connections, the behaviours are:
-- `RPCServerBehaviour`, same as the `NodeServerBehaviour` above
-- `RPCClientBehaviour`, a misnomer, used for both incoming and outgoing behaviours above
-
-Here's a diagram with the types of behaviours and their relationships:
+- ``NodeServerBehaviour`` handles the listening socket and creates a peer socket for each accepted connection.
+- ``NodeIncomingBehaviour`` handles an accepted connection and associates it with a peer node.
+- ``NodeOutgoingBehaviour`` handles a connection opened to a peer node.
+- ``NodeConnectionBehaviour`` is the common base for incoming and outgoing connections and assembles complete node frames from received bytes.
 
 .. mermaid::
 
-  graph BT
-      subgraph TCP
-          SocketBehaviour
-      end
+    graph BT
+        NodeConnectionBehaviour --> SocketBehaviour
+        NodeIncomingBehaviour --> NodeConnectionBehaviour
+        NodeOutgoingBehaviour --> NodeConnectionBehaviour
+        NodeServerBehaviour --> SocketBehaviour
 
-      subgraph RPCConnections
-          RPCClientBehaviour
-          RPCServerBehaviour
-      end
+Inbound and outbound messages
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-      subgraph NodeConnections
-          NodeConnectionBehaviour
-          NodeIncomingBehaviour
-          NodeOutgoingBehaviour
-          NodeServerBehaviour
-      end
+Incoming connections carry length-prefixed frames, not HTTP requests.
+``NodeConnectionBehaviour::on_read`` buffers partial frames, checks the configured maximum frame size, and extracts the message type and sender node ID.
+Complete payloads are copied into owned buffers and passed to the node's inbound handler on the libuv thread.
+The node queues their processing through :ccf_repo:`NodeIngress </src/node/node_inbound_message.h>`.
+The transport's association of a connection with a node ID is not authentication; authenticated node-to-node channels protect the messages above this TCP layer.
 
-          RPCClientBehaviour --> SocketBehaviour
-          RPCServerBehaviour --> SocketBehaviour
-          NodeConnectionBehaviour --> SocketBehaviour
-          NodeIncomingBehaviour --> NodeConnectionBehaviour
-          NodeOutgoingBehaviour --> NodeConnectionBehaviour
-          NodeServerBehaviour --> SocketBehaviour
+Outbound transport operations may be submitted from any thread.
+Sends, address updates, and closes first pass through the same ordered task lane as ledger mutations.
+This ensures that an ``AppendEntries`` message reads ledger entries only after preceding appends have been applied and preserves the order of transport operations.
+The assembled frames and control operations are queued for the libuv thread, which drains them in ``flush_outbound()``.
+The transport creates an outgoing connection when needed and reuses connections for subsequent messages rather than disconnecting after each request/response exchange.
 
+.. mermaid::
+
+    flowchart LR
+        Socket["TCP peer socket"] --> Frame["NodeConnectionBehaviour"]
+        Frame --> Inbound["Owned payload / inbound handler"]
+        Inbound --> Ingress["NodeIngress"]
+        Node["Node / worker threads"] --> Lane["Ordered ledger task lane"]
+        Lane --> Ready["Ready outbound queue"]
+        Ready --> Flush["flush_outbound on libuv thread"]
+        Flush --> Socket
 
 State machine
 ~~~~~~~~~~~~~
 
-The `TCPImpl` has an internal state machine where states change as reactions to callbacks from `libuv`.
-
-Since it implements both server (listen, peer, read) and client (connect, write) logic, the state helps common functions to know where to continue to on completion.
-
-The complete state machine diagram, without failed states, is:
+``TCPImpl`` has an internal state machine whose transitions are driven by libuv callbacks.
+It supports listeners, accepted peer sockets, and outgoing connections.
+The successful paths, address-family fallback, and disconnect transitions are:
 
 .. mermaid::
 
     stateDiagram-v2
-        %% Server side
         FRESH --> LISTENING_RESOLVING : server
         LISTENING_RESOLVING --> LISTENING : uv_listen
 
-        %% Client side
         state client_host <<choice>>
         FRESH --> client_host : client
         client_host --> BINDING : client_host != null
-
         BINDING --> CONNECTING_RESOLVING : client_host resolved
-
         client_host --> CONNECTING_RESOLVING : client_host == null
         CONNECTING_RESOLVING --> CONNECTING : host resolved
-
+        CONNECTING_RESOLVING --> RECONNECTING : address family changed
+        RECONNECTING --> FRESH : handle reinitialised
+        FRESH --> CONNECTING_RESOLVING : resume address-family fallback
         CONNECTING --> CONNECTING_RESOLVING : retry
         CONNECTING --> CONNECTED : uv_tcp_connect
 
-        %% Peer side
         FRESH --> CONNECTED : peer
+        CONNECTED --> DISCONNECTED : error / close
 
-        %% Disconnect / reconnect
-        CONNECTED --> DISCONNECTED : error<br>close
-        DISCONNECTED --> RECONNECTING : retry
-        RECONNECTING --> FRESH : init
+Connection attempts may retry the next resolved address, resetting the socket handle if its address family changes.
+Disconnection is terminal for a ``TCPImpl`` instance; ``NodeConnectionsImpl`` removes it.
+A subsequent send attempts to create a connection if none exists and the peer's address is known; connection creation may fail.
+Accepted and outgoing sockets both read and write node messages once connected.
+Libuv reports read and write completion asynchronously, so the loop can handle multiple peer connections concurrently.
 
-Some failed states give transition to retries / reconnects, others are terminal and close the connection.
-
-Server logic
-~~~~~~~~~~~~
-
-The main cycle of a server is the following:
-- create a main socket and listen for connections
-- on accepting a new connection, creates a new (`peer`) socket to communicate with that client
-
-  - read the request, communicate with the enclave, get the response backs
-  - send the response to the client
-  - close the socket
-
-There could be several `peer` sockets open communicating with different clients at the same time and it's up to `libuv` to handle the asynchronous tasks.
-
-Here's a diagram of the control flow for a server connection:
-
-.. mermaid::
-
-    graph TD
-        subgraph RPCConnections
-            rl(listen)
-            subgraph RPCServerBehaviour
-                rsboa(on_accept)
-            end
-        end
-
-        subgraph TCPImpl
-            tl(listen)
-            tr(resolve)
-            tor(on_resolved)
-            tlr(listen_resolved)
-            toa(on_accept)
-            tp[TCP peer]
-        end
-
-        subgraph NodeConnections
-            nctor(NodeConnections)
-            subgraph NodeServerBehaviour
-                nsboa(on_accept)
-            end
-        end
-
-        %% Entry Points
-        rl --> tl
-        nctor --> tl
-
-        %% Listen path
-        tl -- LISTENING_RESOLVING --> tr
-        tr -. via: DNS::resolve .-> tor
-        tor --> tlr
-        tlr -. LISTENING<br>via: uv_listen .-> toa
-        toa --> rsboa
-        toa --> nsboa
-        toa ==> tp
-
-The control flow of the `peer` connection is similar to the client (below), but the order is reverse.
-
-The client first writes the request and then waits for the response, while the peer first waits for the request and then writes the response back.
-
-Client logic
-~~~~~~~~~~~~
-
-Clients don't have a cycle, as they connect to an existing server, send the request, wait for the response and disconnect.
-
-Clients are used from the enclave side (Node-to-node and RPC).
-
-Node-to-node clients are used for pings across nodes, electing a new leader, etc.
-
-RPC clients are used for REST service callbacks from other services, ex. metrics.
-
-Here's the diagram of the client control flow:
-
-.. mermaid::
-
-    graph TD
-        subgraph RPCConnections
-            rc(connect)
-            rw(write)
-            subgraph RPCClientBehaviour
-                rsbor(on_read)
-            end
-        end
-
-        subgraph TCPImpl
-            tc(connect)
-            tocr(on_client_resolved)
-            tcb(client_bind)
-            tr(resolve)
-            tor(on_resolved)
-            tcr(connect_resolved)
-            toc(on_connect<br>CONNECTED)
-
-            trs(read_start)
-            toa(on_alloc)
-            tore(on_read)
-            tof(on_free)
-
-            tw(write)
-            tow(on_write)
-            tfw(free_write)
-            tsw(send_write)
-        end
-
-        subgraph NodeConnections
-            ncc(create_connection)
-            nw(send)
-            subgraph NodeConnectionBehaviour
-                nsbor(on_read)
-            end
-        end
-
-        %% Entry Points
-        rc --> tc
-        ncc --> tc
-        rw --> tw
-        nw --> tw
-
-        %% Connect path
-        tc -- CONNECTING_RESOLVING --> tr
-        tc -. BINDING<br>via: DNS::resolve .-> tocr
-        tocr --> tcb
-        tcb -- uv_tcp_bind<br>CONNECTING_RESOLVING --> tr
-        tr -. via: DNS::resolve .-> tor
-        tor --> tcr
-        tcr -. CONNECTING<br>via: uv_tcp_connect .-> toc
-        toc -- retry<br>CONNECTING_RESOLVING --> tcr
-        toc -- pending writes --> tw
-        toc --> trs
-
-        %% Read path
-        trs -. via: uv_read_start .-> toa
-        trs -. via: uv_read_start .-> tore
-        tore -- DISCONNECTED<br>uv_read_stop --> tof
-        tore --> rsbor
-        tore --> nsbor
-
-        %% Write path
-        tw -- CONNECTED --> tsw
-        tw -- DISCONNECTED<br>no data --> tfw
-        tsw -. via: uv_write .-> tow
-        tow --> tfw
-
-Note that some clients have a `client_host` parameter separate from `host` that is used for testing, and uses the state `BINDING`.
-
-The `client_host` is resolved separately, bound to the client handle (via `uv_tcp_bind`) but the call to `uv_tcp_connect` is done on the `host` address.
-
-This allows us to bind separate addresses to the client side while connecting to the `host`, to allow external packet filters (like `iptables`) to restrict traffic.
+An outgoing connection may specify a ``client_host`` separately from the destination ``host``.
+It is resolved and bound locally with ``uv_tcp_bind`` before connecting to the destination with ``uv_tcp_connect``.
+Tests use this to give connections distinct source addresses so that packet filters such as ``iptables`` can selectively restrict traffic.

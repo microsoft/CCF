@@ -7,6 +7,7 @@
 #include "ccf/node/start_type.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
+#include "common/create_node_status.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 #include "ds/work_beacon.h"
