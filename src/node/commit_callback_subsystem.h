@@ -27,6 +27,17 @@ namespace ccf
   public:
     CommitCallbackSubsystem() = default;
 
+    // Terminal cleanup after workers stop. Release sessions waiting for a
+    // commit which will never arrive, without invoking their callbacks.
+    void shutdown()
+    {
+      decltype(pending_callbacks) abandoned;
+      {
+        ccf::ds::MutexGuard guard(callbacks_mutex);
+        abandoned.swap(pending_callbacks);
+      }
+    }
+
     void add_callback(ccf::TxID tx_id, CommitCallback&& callback) override
     {
       std::optional<ccf::FinalTxStatus> immediate_status;
