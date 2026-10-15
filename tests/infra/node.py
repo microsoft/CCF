@@ -34,6 +34,16 @@ BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
 NODE_STARTUP_RETRY_COUNT = 5
 
+COMMITTED_PREFIX_FILE_SUFFIX = getattr(
+    ccf.ledger,
+    "COMMITTED_PREFIX_FILE_SUFFIX",
+    # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+    # Once release tests use ccf >= 7.0.19, delete all compatibility blocks.
+    # Then run the usual Ruff and Black automatic fixes.
+    ".committed_prefix",
+    # END SDK 7.0.18 compatibility.
+)
+
 
 class NodeNetworkState(Enum):
     stopped = auto()
@@ -624,7 +634,12 @@ class Node:
             chunk_name = os.path.basename(
                 response.headers["x-ms-ccf-ledger-chunk-name"]
             )
-            start_seqno, end_seqno = ccf.ledger.range_from_filename(chunk_name)
+            start_seqno, end_seqno = ccf.ledger.range_from_filename(
+                chunk_name
+                # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                .removesuffix(COMMITTED_PREFIX_FILE_SUFFIX)
+                # END SDK 7.0.18 compatibility.
+            )
             assert (
                 end_seqno is not None and start_seqno <= requested_seqno <= end_seqno
             ), f"Ledger chunk {chunk_name} does not cover seqno {requested_seqno}"
@@ -636,8 +651,14 @@ class Node:
             # promotion. Keep only the new, complete representation.
             while (
                 ledger_paths
-                and ledger_paths[-1].endswith(ccf.ledger.COMMITTED_PREFIX_FILE_SUFFIX)
-                and ccf.ledger.range_from_filename(ledger_paths[-1])[0] >= start_seqno
+                and ledger_paths[-1].endswith(COMMITTED_PREFIX_FILE_SUFFIX)
+                and ccf.ledger.range_from_filename(
+                    ledger_paths[-1]
+                    # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                    .removesuffix(COMMITTED_PREFIX_FILE_SUFFIX)
+                    # END SDK 7.0.18 compatibility.
+                )[0]
+                >= start_seqno
             ):
                 ledger_paths.pop()
             ledger_paths.append(chunk_path)
