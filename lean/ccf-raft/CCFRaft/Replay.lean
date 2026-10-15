@@ -102,13 +102,10 @@ private def runStep (header : Header) (replay : ReplayState) (step : Step)
       | .sendEntries destination _ => declared header destination
       | .append entries =>
           for entry in entries do
-            if let .transaction _ effects := entry then
-              for effect in effects do
-                let nodes :=
-                  match effect with
-                  | .reconfiguration nodes | .retiredCommitted nodes => nodes
-                for member in nodes.sort do
-                  declared header member
+            let metadata := entry.metadata
+            for member
+                in metadata.configuration.getD ∅ ∪ metadata.retiredCommitted |>.sort do
+              declared header member
       | _ => pure ()
       let some state := system.step replay.state (.local node input)
       | throw s!"disabled model action '{step.name}'"
@@ -137,7 +134,7 @@ private def roleName : Role → String
   | .leader => "leader"
 
 private def membershipName : MembershipState → String
-  | .active => "active"
+  | .noRetirementObserved => "active"
   | .retirementOrdered => "retirementOrdered"
   | .retirementSigned => "retirementSigned"
   | .retirementCompleted => "retirementCompleted"
@@ -215,33 +212,12 @@ private def observeEntry (header : Header) (replay : ReplayState) (node : String
   | throw s!"node '{node}' has no log entry at index {index}"
   let content :=
     match entry.content with
-    | .transaction transaction effects =>
+    | .transaction transaction metadata =>
         [
           ("kind", toJson "transaction"),
           ("transaction", toJson transaction),
-          (
-            "effects",
-            toJson
-              (effects.map
-                fun effect =>
-                  match effect with
-                  | .reconfiguration nodes =>
-                      Json.mkObj
-                        [
-                          ("kind", toJson "configuration"),
-                          ("configuration", members header nodes)
-                        ]
-                  | .retiredCommitted nodes =>
-                      Json.mkObj
-                        [
-                          ("kind", toJson "retiredCommitted"),
-                          ("nodes", members header nodes)
-                        ])
-          ),
-          (
-            "configurations",
-            toJson ((entryConfigurations entry.content).map (members header))
-          )
+          ("retiredCommitted", members header metadata.retiredCommitted),
+          ("configurations", toJson (metadata.configuration.toList.map (members header)))
         ]
     | .signature => [("kind", toJson "signature")]
   checkFields expected

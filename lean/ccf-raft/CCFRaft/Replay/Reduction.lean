@@ -311,10 +311,12 @@ private def appendRule (write : Event) : Reduction Unit := do
     "write coordinates differ from the recorded state"
   let mut configurations := []
   let mut callbacks := []
-  let mut effects := []
+  let mut metadata : TransactionMetadata String := {}
   observe write "write-pre"
   while ← nextIs "add_configuration" (some write) do
     let config ← take
+    checked config metadata.configuration.isNone
+      "multiple configuration callbacks for one transaction"
     let value ← read config (field config.message "args" >>= (field · "configuration"))
     checked config
       (config.state == write.state
@@ -322,7 +324,7 @@ private def appendRule (write : Event) : Reduction Unit := do
         && !(← read write (boolean write.message "globally_committable")))
       "configuration write pair mismatch"
     let nodes ← read config (configurationArg config.message)
-    effects := effects ++ [TransactionEffect.reconfiguration nodes.toFinset]
+    metadata := { metadata with configuration := some nodes.toFinset }
     configurations := configurations ++ [config]
     observe config "configuration-pair"
     let previous ← activePeers config
@@ -358,10 +360,11 @@ private def appendRule (write : Event) : Reduction Unit := do
       let nodes := command.splitOn "," |>.drop 2
       checked write (!nodes.isEmpty && nodes.all (!·.isEmpty) && nodes.eraseDups == nodes)
         "invalid retirement node set"
-      checked write effects.isEmpty "cleanup_nodes with configuration effects"
-      pure (.transaction write.record.location [.retiredCommitted nodes.toFinset])
+      checked write metadata.configuration.isNone
+        "cleanup_nodes with configuration metadata"
+      pure (.transaction write.record.location { retiredCommitted := nodes.toFinset })
     else
-      pure (.transaction write.record.location effects)
+      pure (.transaction write.record.location metadata)
   let tail ← takeCommit write
   action write "atomic-append" (.local write.node (.append [content]))
     ([write] ++ configurations ++ callbacks ++ tail)

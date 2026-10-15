@@ -171,7 +171,7 @@ private def parserTests : IO Nat := do
   rejects (configuration (config.setObjVal! "rid" (toJson (2 : Nat)))) "rid differs"
   rejects (configuration (config.setObjVal! "nodes" (Json.mkObj []))) "empty"
   let configs := Json.mkObj [("configurations", toJson [config, config])]
-  let _ ← ok (stateFacts state configs)
+  rejects (stateFacts state configs) "unordered/duplicate configurations"
   let _ ←
     ok
       (parseLog "capture.stdout"
@@ -278,6 +278,12 @@ private def reductionTests : IO Nat := do
     (reduce (bootstrap ++ mutate config heartbeat ["msg", "sent_idx"] (toJson (2 : Nat))))
     "callback heartbeat"
   let configIndex ← find config "add_configuration"
+  let duplicated :=
+    config.extract 0 (heartbeat + 1)
+    ++ #[config[configIndex]!]
+    ++ config.extract (heartbeat + 1) config.size
+  rejects (reduce (bootstrap ++ duplicated))
+    "multiple configuration callbacks for one transaction"
   let missing :=
     config.modify configIndex
       fun row =>
@@ -312,7 +318,7 @@ private def reductionTests : IO Nat := do
         | _ => none
   check (actions == ["sendEntries", "drop", "sendEntries", "receive"])
     "drop/resend reduction changed"
-  return count + 14
+  return count + 15
 
 /-- Raw mutations exercise the reducer's projections, not merely the final checker. -/
 private def fixtureMutations : IO Nat := do
@@ -520,9 +526,10 @@ private def directTests : IO Nat := do
         [
           ("role", toJson "none"),
           ("currentTerm", toJson (0 : Nat)),
-          ("preVoteEnabled", .bool true)
+          ("preVoteEnabled", .bool true),
+          ("membershipState", toJson "active")
         ],
-      act (.local "alpha" (.append [.transaction "tx-1" []])),
+      act (.local "alpha" (.append [.transaction "tx-1" {}])),
       act (.local "alpha" (.append [.signature])),
       act (.local "alpha" (.sendEntries "beta" 3)),
       sent "alpha" "beta"
@@ -651,19 +658,46 @@ private def directTests : IO Nat := do
   rejects (replay header (early.push (act (.receive "missing" "missing"))))
     "instruction 6"
   rejects (replay header early) "direct.ndjson:17 [unit]"
-  -- Transaction effects are ordered and may share one physical index.
-  let multi :=
+  let configured :=
     #[
       act
         (.local "alpha"
-          (.append
-            [.transaction "multi"
-              [.reconfiguration {"alpha"}, .reconfiguration {"alpha", "beta"}]])),
+          (.append [.transaction "configuration" { configuration := some {"alpha"} }])),
       .entry "alpha" 2
-        (Json.mkObj [("configurations", toJson [["alpha"], ["alpha", "beta"]])]) origin
+        (Json.mkObj
+          [
+            ("configurations", toJson [["alpha"]]),
+            ("retiredCommitted", toJson ([] : List String))
+          ]) origin
     ]
-  let _ ← ok (replay header multi)
-  return 31
+  let _ ← ok (replay header configured)
+  let retired :=
+    configured
+    ++ #[
+      act (.local "alpha" (.append [.signature])),
+      act (.local "alpha" (.sendEntries "beta" 3)),
+      act (.receive "alpha" "beta"),
+      act (.receive "beta" "alpha"),
+      act
+        (.local "alpha"
+          (.append [.transaction "retired" { retiredCommitted := {"beta"} }]))
+    ]
+  let retirementEntry (nodes : List String) :=
+    Instruction.entry "alpha" 4
+      (Json.mkObj
+        [
+          ("retiredCommitted", toJson nodes),
+          ("configurations", toJson ([] : List (List String)))
+        ])
+      origin
+  let _ ← ok (replay header (retired.push (retirementEntry ["beta"])))
+  rejects (replay header (retired.push (retirementEntry []))) "retiredCommitted"
+  for metadata
+      in [{ configuration := some {"missing"} }, { retiredCommitted := {"missing"} }] do
+    rejects
+      (replay header #[act (.local "alpha" (.append [.transaction "unknown" metadata]))])
+      "undeclared node 'missing'"
+  return 35
 
 private def expectIOError (action : IO Unit) (expected : String) : IO Unit := do
   let result ← action.toBaseIO
