@@ -1,10 +1,10 @@
 module
 
-public import DisasterRecovery.Shared.TransitionSystem
+public import CCF.TransitionSystem
 
 @[expose] public section
 
-namespace DisasterRecovery.Shared.Execution
+namespace CCF.Execution
 
 /-!
 Finite executions of a `TransitionSystem`. `Run` relates a start state, an
@@ -112,4 +112,4 @@ theorem reachable_iff_trace {State Action : Type}
   · rintro ⟨trace, valid, member⟩
     exact valid.reachable member
 
-end DisasterRecovery.Shared.Execution
+end CCF.Execution

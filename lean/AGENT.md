@@ -17,7 +17,7 @@ Within a model's library directory, use this layout:
 | ---------------------- | ---------------------------------------------------------------------------------------------------- |
 | `Model.lean`           | Assemble the executable model, including configuration and network composition.                      |
 | `Model/`               | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`. |
-| `Shared/`              | Reusable transition systems, network composition, and execution definitions.                         |
+| `../common/CCF/`       | Reusable transition systems, network composition, and execution definitions in the `CCF` namespace.  |
 | `Properties.lean`      | Define the named claims as `def ... : Prop`.                                                         |
 | `Properties/`          | Definitions needed to state and understand those claims, such as state and trace predicates.         |
 | `Proof.lean`           | Export theorems establishing the named properties, linked to their checked implementations.          |
@@ -28,7 +28,7 @@ Within a model's library directory, use this layout:
 
 ## Dependency direction
 
-- Keep `Shared/`, `Model/`, and `Model.lean` independent of property and proof modules.
+- Keep `common/CCF/`, `Model/`, and `Model.lean` independent of property and proof modules.
   Shared infrastructure must not depend on a particular protocol.
 - Property definitions should depend on the model, shared definitions, and other property helpers.
   Neither `Properties.lean` nor `Properties/` may import `Proof.lean` or `Proofs/`.
@@ -51,7 +51,7 @@ A definition belongs with properties when a reader needs it to understand the cl
 A definition used only to establish the claim belongs with proofs.
 
 State historical properties over executions of the actual model.
-Put reusable execution definitions in `Shared/` and protocol-specific trace predicates in `Properties/`.
+Put reusable execution definitions in `common/CCF/` and protocol-specific trace predicates in `Properties/`.
 Keep ghost histories, send-time snapshots, and proof-only invariants under `Proofs/`; do not expose their representation through public property helpers.
 
 When using a ghost execution, prove that every relevant model execution admits the decoration.

@@ -8,7 +8,7 @@ public import DisasterRecovery.Proofs.ExecutionLocal
 
 namespace DisasterRecovery.Proofs.Execution.Global
 
-open Shared (TransitionSystem)
+open CCF (TransitionSystem)
 open Local
 
 @[inherit_doc Model.Config]

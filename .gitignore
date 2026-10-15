@@ -15,6 +15,7 @@ tests/raft_scenarios/scenario-*
 __pycache__/
 sphinx/build/
 tests/Testing/
+test-results/
 doxygen/
 obj/
 *.retry

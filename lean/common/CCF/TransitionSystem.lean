@@ -4,7 +4,7 @@ public import Std
 
 @[expose] public section
 
-namespace DisasterRecovery.Shared
+namespace CCF
 
 /-!
 The minimal interface every model implements. `init` picks out the initial
@@ -36,4 +36,4 @@ inductive Reachable {State Action : Type} (system : TransitionSystem State Actio
 
 end TransitionSystem
 
-end DisasterRecovery.Shared
+end CCF
