@@ -3,7 +3,11 @@
 
 #include "host/runtime_control.h"
 
+#include "host/sig_term.h"
+#include "node/commit_callback_subsystem.h"
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <csignal>
 #include <doctest/doctest.h>
 
 TEST_CASE("Runtime control" * doctest::test_suite("runtime_control"))
@@ -47,4 +51,59 @@ TEST_CASE("Runtime control" * doctest::test_suite("runtime_control"))
   }
 
   uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+}
+
+TEST_CASE("Shutdown signals received before the loop are delivered on the loop")
+{
+  size_t stops = 0;
+  size_t notices = 0;
+  const auto request_node_shutdown = [&]() { ++stops; };
+  const auto notify_node_stopping = [&]() { ++notices; };
+  int signum = SIGTERM;
+  bool ignore_first_sigterm = false;
+
+  SUBCASE("SIGTERM requests a stop") {}
+
+  SUBCASE("Ignored first SIGTERM delivers a notice without stopping")
+  {
+    ignore_first_sigterm = true;
+  }
+
+  SUBCASE("SIGHUP requests a stop independently")
+  {
+    signum = SIGHUP;
+  }
+
+  {
+    asynchost::Sigterm sigterm(
+      ignore_first_sigterm, request_node_shutdown, notify_node_stopping);
+    asynchost::Sighup sighup(
+      false, request_node_shutdown, notify_node_stopping);
+    REQUIRE(std::raise(signum) == 0);
+    CHECK(stops == 0);
+    CHECK(notices == 0);
+    uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+    CHECK(stops == (ignore_first_sigterm ? 0 : 1));
+    CHECK(notices == (ignore_first_sigterm ? 1 : 0));
+  }
+  uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+}
+
+TEST_CASE("Shutdown releases pending commit callbacks without invoking them")
+{
+  auto callbacks = std::make_shared<ccf::CommitCallbackSubsystem>();
+  auto retained = std::make_shared<int>(42);
+  std::weak_ptr<int> weak = retained;
+  bool called = false;
+  callbacks->add_callback(
+    {1, 1}, [callbacks, retained, &called](ccf::TxID, ccf::FinalTxStatus) {
+      called = true;
+    });
+  retained.reset();
+  CHECK_FALSE(weak.expired());
+  callbacks->shutdown();
+  CHECK(weak.expired());
+  CHECK_FALSE(called);
+  CHECK(callbacks.use_count() == 1);
+  callbacks->shutdown();
 }

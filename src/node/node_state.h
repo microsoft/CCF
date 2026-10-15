@@ -852,6 +852,19 @@ namespace ccf
       network.tables->set_readiness(ccf::kv::StoreReadiness::Unavailable);
     }
 
+    // Terminal cleanup after transports and task execution have stopped.
+    void shutdown()
+    {
+      if (snapshotter != nullptr)
+      {
+        snapshotter->shutdown();
+      }
+      if (commit_callbacks != nullptr)
+      {
+        commit_callbacks->shutdown();
+      }
+    }
+
     QuoteVerificationResult verify_quote(
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info_,

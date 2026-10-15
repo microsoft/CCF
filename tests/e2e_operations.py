@@ -14,6 +14,7 @@ import random
 import re
 import shutil
 import signal
+import socket
 import struct
 import subprocess
 import tempfile
@@ -2163,6 +2164,164 @@ def run_sighup_check(const_args):
         with open(out, "r") as outf:
             lines = outf.readlines()
         assert any("SIGHUP: " in line for line in lines), "Hangup should be logged"
+
+
+def run_runtime_lifecycle_checks(args):
+    def assert_log_order(output, *messages):
+        offset = 0
+        for message in messages:
+            index = output.find(message, offset)
+            assert (
+                index >= 0
+            ), f"Expected {message!r} after offset {offset} in:\n{output}"
+            offset = index + len(message)
+
+    shutdown_sequence = (
+        "Created new node",
+        "Output self-signed node certificate",
+        "Entering event loop",
+        "SIGTERM: Shutting down enclave gracefully...",
+        "Stopping RPC transports",
+        "Enclave stopped successfully. Stopping host...",
+        "Exited event loop",
+        "Shutting down enclave",
+        "cleanup iteration(s)",
+    )
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        node = network.nodes[0]
+        node.stop()
+        out, _ = node.remote.get_logs()
+        with open(out, encoding="utf-8") as f:
+            output = f.read()
+        assert_log_order(output, *shutdown_sequence)
+        assert "Failed to close uv loop" not in output, output
+
+        root = pathlib.Path(node.remote.remote.root).resolve()
+        with open(root / "0.config.json", encoding="utf-8") as f:
+            original_config = json.load(f)
+        env = os.environ.copy()
+        if infra.platform_detection.is_snp():
+            env.update(snp.get_aci_env())
+
+        for failure in ("bind", "output", "pending_join", "startup_signal"):
+            with tempfile.TemporaryDirectory(dir=root) as temp:
+                temp = pathlib.Path(temp).resolve()
+                config = copy.deepcopy(original_config)
+                config["ledger"]["directory"] = str(temp / "ledger")
+                config["snapshots"]["directory"] = str(temp / "snapshots")
+                config["output_files"]["pid_file"] = str(temp / "node.pid")
+                with socket.socket() as blocker:
+                    if failure == "bind":
+                        blocker.bind(("127.0.0.1", 0))
+                        blocker.listen()
+                        interface = next(
+                            iter(config["network"]["rpc_interfaces"].values())
+                        )
+                        interface["bind_address"] = (
+                            f"127.0.0.1:{blocker.getsockname()[1]}"
+                        )
+                    elif failure == "output":
+                        config["output_files"]["node_certificate_file"] = str(temp)
+                    elif failure == "startup_signal":
+                        os.mkfifo(temp / "certificate")
+                        config["output_files"]["node_certificate_file"] = str(
+                            temp / "certificate"
+                        )
+                    else:
+                        blocker.bind(("127.0.0.1", 0))
+                        blocker.listen()
+                        blocker.settimeout(10)
+                        config["command"]["type"] = "Join"
+                        config["command"]["join"][
+                            "target_rpc_address"
+                        ] = f"127.0.0.1:{blocker.getsockname()[1]}"
+                        config["command"]["join"]["fetch_recent_snapshot"] = False
+                    config_path = temp / "config.json"
+                    config_path.write_text(json.dumps(config), encoding="utf-8")
+                    command = [
+                        str(root / os.path.basename(node.remote.BIN)),
+                        "--config",
+                        str(config_path),
+                        "--log-level",
+                        "Trace",
+                    ]
+                    if failure in ("pending_join", "startup_signal"):
+                        with (
+                            open(temp / "out", "w+", encoding="utf-8") as out,
+                            subprocess.Popen(
+                                command,
+                                cwd=root,
+                                env=env,
+                                stdout=out,
+                                stderr=subprocess.STDOUT,
+                            ) as proc,
+                        ):
+                            try:
+                                if failure == "pending_join":
+                                    # Leave TLS incomplete to exercise curl
+                                    # cancellation while NodeState is alive.
+                                    connection, _ = blocker.accept()
+                                    with connection:
+                                        proc.send_signal(signal.SIGTERM)
+                                        assert proc.wait(timeout=30) == 0
+                                else:
+                                    # FIFO output holds startup before uv_run.
+                                    # Release it only after sending the signal.
+                                    deadline = time.monotonic() + 30
+                                    while "Created new node" not in (
+                                        temp / "out"
+                                    ).read_text(encoding="utf-8"):
+                                        assert proc.poll() is None
+                                        assert time.monotonic() < deadline
+                                        time.sleep(0.01)
+                                    proc.send_signal(signal.SIGTERM)
+                                    with os.fdopen(
+                                        os.open(
+                                            temp / "certificate",
+                                            os.O_RDONLY | os.O_NONBLOCK,
+                                        ),
+                                        "rb",
+                                    ):
+                                        assert proc.wait(timeout=30) == 0
+                            finally:
+                                if proc.poll() is None:
+                                    proc.kill()
+                                    proc.wait()
+                            out.seek(0)
+                            output = out.read()
+                        assert_log_order(output, *shutdown_sequence)
+                        assert "Failed to close uv loop" not in output, output
+                        continue
+                    result = subprocess.run(
+                        command,
+                        cwd=root,
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        check=False,
+                    )
+                assert result.returncode == 1, result
+                if failure == "output":
+                    startup_sequence = (
+                        "Created new node",
+                        "Error starting node: Failed to open file",
+                    )
+                else:
+                    startup_sequence = ("Error starting node:",)
+                    assert "Created new node" not in result.stdout, result
+                assert_log_order(
+                    result.stdout,
+                    *startup_sequence,
+                    "Shutting down enclave",
+                    "cleanup iteration(s)",
+                )
+                assert "Entering event loop" not in result.stdout, result
+                assert "Failed to close uv loop" not in result.stdout, result
 
 
 def run_configuration_file_checks(args):
@@ -5270,22 +5429,21 @@ def run_ledger_cleanup_no_read_only_dir_check(const_args):
 
         node = network.nodes[0]
         expected_msg = (
-            "files_cleanup.max_committed_ledger_chunks requires at least one "
+            "Exception in ccf::run: files_cleanup.max_committed_ledger_chunks "
+            "requires at least one "
             "ledger.read_only_directories entry"
         )
-        _, err_path = node.get_logs()
-        found = False
-        if err_path is not None:
-            with open(err_path, "r") as f:
-                for line in f:
-                    if expected_msg in line:
-                        found = True
-                        break
-        if not found:
-            raise AssertionError(
-                "Expected node error message about missing read-only ledger "
-                "directory when max_committed_ledger_chunks is configured"
-            )
+        out_path, _ = node.get_logs()
+        with open(out_path, encoding="utf-8") as f:
+            output = f.read()
+        error_index = output.find(expected_msg)
+        cleanup_index = output.find("cleanup iteration(s)")
+        assert 0 <= error_index < cleanup_index, (
+            "Expected missing read-only ledger directory error before final "
+            f"cleanup:\n{output}"
+        )
+        assert "Created new node" not in output, output
+        assert "Entering event loop" not in output, output
 
         LOG.success(
             "Node correctly refused to start without read-only ledger directory"

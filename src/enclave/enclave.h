@@ -80,14 +80,15 @@ namespace ccf
     std::shared_ptr<ccf::indexing::EnclaveLFSAccess> lfs_access = nullptr;
 
   public:
+    struct StartupInfo
+    {
+      std::vector<uint8_t> node_cert;
+      std::vector<uint8_t> service_cert;
+      std::vector<uint8_t> rpc_addresses;
+    };
+
     Enclave(
-      size_t sig_tx_interval,
-      size_t sig_ms_interval,
-      std::chrono::milliseconds tick_interval,
-      size_t chunk_threshold,
-      size_t max_transaction_size,
-      const ccf::consensus::Configuration& consensus_config,
-      const ccf::crypto::CurveID& curve_id,
+      const ccf::CCFConfig& config,
       ccf::AbstractRuntimeControl& runtime_control_,
       const std::shared_ptr<AbstractLedgerSubsystemInterface>& ledger_subsystem,
       const std::shared_ptr<AbstractNodeTransport>& node_transport) :
@@ -97,19 +98,26 @@ namespace ccf
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCConnectionManager>(rpc_map))
     {
+      if (ledger_subsystem == nullptr || node_transport == nullptr)
+      {
+        throw std::invalid_argument(
+          "A ledger subsystem and node transport must be provided");
+      }
+
       LOG_TRACE_FMT("Creating ledger secrets");
       network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
 
       network.tables->set_chunker(
-        std::make_shared<ccf::kv::LedgerChunker>(chunk_threshold));
-      network.tables->set_max_transaction_size(max_transaction_size);
+        std::make_shared<ccf::kv::LedgerChunker>(config.ledger.chunk_size));
+      network.tables->set_max_transaction_size(
+        config.ledger.max_transaction_size);
 
       LOG_TRACE_FMT("Creating node");
       node = std::make_shared<ccf::NodeState>(
         this->node_transport,
         network,
         rpcsessions,
-        curve_id,
+        config.node_certificate.curve_id,
         runtime_control,
         this->ledger_subsystem);
 
@@ -127,8 +135,6 @@ namespace ccf
         std::make_shared<ccf::indexing::HistoricalTransactionFetcher>(
           historical_state_cache),
         *context);
-      indexer->register_periodic_tasks(
-        ccf::tasks::get_main_job_board(), tick_interval);
       context->install_subsystem(indexer);
 
       lfs_access = std::make_shared<ccf::indexing::EnclaveLFSAccess>(
@@ -181,42 +187,30 @@ namespace ccf
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
-
-      LOG_TRACE_FMT("Initialize node");
-      auto& job_board = ccf::tasks::get_main_job_board();
-      node->initialize(
-        consensus_config,
-        rpc_map,
-        rpcsessions,
-        commit_callbacks,
-        signature_cache,
-        sig_tx_interval,
-        sig_ms_interval,
-        job_board,
-        tick_interval);
-
-      historical_state_cache->start_periodic_tick(job_board, tick_interval);
-
-      node_ingress = std::make_shared<NodeIngress>(
-        job_board,
-        [this](
-          NodeMsgType type,
-          const NodeId& from,
-          const uint8_t* data,
-          size_t size) { node->recv_node_inbound(type, from, data, size); });
-      this->node_transport->set_inbound_handler(node_ingress);
     }
 
+    // The launcher must join all runtime threads before destroying the node.
+    // This also handles failed startup, before the event loop has run.
     ~Enclave()
     {
-      node_ingress->stop();
+      request_stop();
       node_transport->set_inbound_handler(nullptr);
+      rpcsessions->stop(ccf::tls::OpenSSLServer::LoopState::NotRunning);
+      // Accepted writes must reach disk before queued tasks are discarded.
+      ledger_subsystem->shutdown();
+      ccf::tasks::get_main_job_board().shutdown();
+      node->shutdown();
+      // Frontends borrow the context and must be released before it.
+      rpc_map->frontends().clear();
       LOG_TRACE_FMT("Shutting down enclave");
     }
 
     void request_stop()
     {
-      node_ingress->stop();
+      if (node_ingress != nullptr)
+      {
+        node_ingress->stop();
+      }
       stop_requested.store(true);
       work_beacon.notify_work_available_coalesced();
       ccf::tasks::get_main_job_board().stop_waiters();
@@ -228,14 +222,33 @@ namespace ccf
       work_beacon.notify_work_available_coalesced();
     }
 
-    CreateNodeStatus create_new_node(
-      StartType start_type_,
-      ccf::CCFConfig ccf_config_,
-      std::vector<uint8_t>& node_cert,
-      std::vector<uint8_t>& service_cert,
-      std::vector<uint8_t>& rpc_addresses)
+    StartupInfo initialise(ccf::CCFConfig ccf_config_)
     {
-      start_type = start_type_;
+      start_type = ccf_config_.command.type;
+      StartupInfo result;
+      const auto tick_interval =
+        std::chrono::milliseconds(ccf_config_.tick_interval);
+      auto& job_board = ccf::tasks::get_main_job_board();
+      indexer->register_periodic_tasks(job_board, tick_interval);
+      node->initialize(
+        ccf_config_.consensus,
+        rpc_map,
+        rpcsessions,
+        context->get_subsystem<ccf::CommitCallbackSubsystem>(),
+        context->get_subsystem<ccf::SignatureCacheSubsystem>(),
+        ccf_config_.ledger_signatures.tx_count,
+        ccf_config_.ledger_signatures.delay.count_ms(),
+        job_board,
+        tick_interval);
+      historical_state_cache->start_periodic_tick(job_board, tick_interval);
+      node_ingress = std::make_shared<NodeIngress>(
+        job_board,
+        [this](
+          NodeMsgType type,
+          const NodeId& from,
+          const uint8_t* data,
+          size_t size) { node->recv_node_inbound(type, from, data, size); });
+      node_transport->set_inbound_handler(node_ingress);
 
       rpcsessions->update_listening_interface_options(ccf_config_.network);
 
@@ -319,7 +332,7 @@ namespace ccf
           resolved_rpc_addresses[name] = interface.bind_address;
         }
         const auto dumped = resolved_rpc_addresses.dump();
-        rpc_addresses.assign(dumped.begin(), dumped.end());
+        result.rpc_addresses.assign(dumped.begin(), dumped.end());
       }
 
       node->set_n2n_message_limit(ccf_config_.node_to_node_message_limit);
@@ -331,21 +344,12 @@ namespace ccf
         context->get_subsystem<ccf::NetworkIdentitySubsystem>();
       if (network_identity_subsystem == nullptr)
       {
-        LOG_FAIL_FMT(
+        throw std::logic_error(
           "NetworkIdentitySubsystem is not installed; cannot start "
           "network identity fetching");
-        return CreateNodeStatus::InternalError;
       }
-      try
-      {
-        network_identity_subsystem->start_with_config(
-          ccf_config_.identity_history_fetch);
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT("Failed to start network identity fetching: {}", e.what());
-        return CreateNodeStatus::InternalError;
-      }
+      network_identity_subsystem->start_with_config(
+        ccf_config_.identity_history_fetch);
 
       // If we haven't heard from a node for multiple elections, then cleanup
       // their node-to-node channel
@@ -353,30 +357,21 @@ namespace ccf
         std::chrono::milliseconds(ccf_config_.consensus.election_timeout) * 4;
       node->set_n2n_idle_timeout(idle_timeout);
 
-      ccf::NodeCreateInfo create_info;
-      try
-      {
-        LOG_TRACE_FMT(
-          "Creating node with start_type {}", start_type_to_str(start_type));
-        create_info = node->create(start_type, ccf_config_);
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT("Error starting node: {}", e.what());
-        return CreateNodeStatus::InternalError;
-      }
+      LOG_TRACE_FMT(
+        "Creating node with start_type {}", start_type_to_str(start_type));
+      const auto create_info = node->create(start_type, ccf_config_);
 
       // Copy node and service certs out
-      node_cert = create_info.self_signed_node_cert.raw();
+      result.node_cert = create_info.self_signed_node_cert.raw();
 
       if (start_type == StartType::Start || start_type == StartType::Recover)
       {
         // When starting a node in start or recover modes, fresh network secrets
         // are created and the associated certificate can be passed to the host
-        service_cert = create_info.service_cert.raw();
+        result.service_cert = create_info.service_cert.raw();
       }
 
-      return CreateNodeStatus::OK;
+      return result;
     }
 
     bool run_main()

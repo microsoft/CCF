@@ -141,6 +141,22 @@ struct RecoverySnapshotLedgerFixture
   }
 };
 
+TEST_CASE("Terminal snapshotter shutdown releases its store")
+{
+  ScopedSnapshotDir snapshot_dir;
+  auto store = std::make_shared<ccf::kv::Store>();
+  auto snapshotter =
+    std::make_shared<ccf::Snapshotter>(snapshot_dir.path.string(), store, 10);
+  store->set_snapshotter(snapshotter);
+  std::weak_ptr<ccf::kv::Store> weak_store = store;
+  store.reset();
+  CHECK_FALSE(weak_store.expired());
+  snapshotter->shutdown();
+  CHECK(weak_store.expired());
+  CHECK(snapshotter.use_count() == 1);
+  snapshotter->shutdown();
+}
+
 TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
 {
   ScopedSnapshotDir ledger_dir;
