@@ -1,13 +1,13 @@
 module
 
-public import DisasterRecovery.Shared.MultiNodeTransitionSystem
+public import CCF.MultiNodeTransitionSystem
 public import DisasterRecovery.Model.Local
 
 @[expose] public section
 
 namespace DisasterRecovery.Model
 
-open Shared
+open CCF
 open DisasterRecovery.Model.Local
 
 /-- The local protocol configuration and one recovered ledger per expected location. -/
@@ -37,7 +37,7 @@ inductive Input where
 deriving Repr, BEq
 
 /-- A recovery protocol message in flight. -/
-abbrev Envelope := Shared.Envelope Location Message
+abbrev Envelope := CCF.Envelope Location Message
 
 /-- The local states, active nodes, and queued recovery messages. -/
 abbrev State := MultiNodeTransitionSystem.State Location NodeState Message
@@ -57,7 +57,7 @@ def protocol (config : Config)
         Input where
   init node state := state = initialNode node
   step host source state action := do
-    let recovered <- recoveredTxID config source
+    let recovered <- liftM (recoveredTxID config source)
     DisasterRecovery.Model.Local.step host config.protocol recovered state action
   receive := receive
   internal

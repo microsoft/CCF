@@ -21,15 +21,14 @@ Note: It is not possible to treat `undeclaredType` as an implicitly bound variab
 example (value : undeclaredType) := value
 
 private def allowedImport (owner dependency : Name) : Bool :=
-  if !(`DisasterRecovery).isPrefixOf dependency then
+  if (`CCF).isPrefixOf owner then
+    (`CCF).isPrefixOf dependency || !(`DisasterRecovery).isPrefixOf dependency
+  else if !(`DisasterRecovery).isPrefixOf dependency then
     true
-  else if (`DisasterRecovery.Shared).isPrefixOf owner then
-    (`DisasterRecovery.Shared).isPrefixOf dependency
   else if (`DisasterRecovery.Model).isPrefixOf owner then
-    (`DisasterRecovery.Shared).isPrefixOf dependency
-    || (`DisasterRecovery.Model).isPrefixOf dependency
+    (`CCF).isPrefixOf dependency || (`DisasterRecovery.Model).isPrefixOf dependency
   else if (`DisasterRecovery.Properties).isPrefixOf owner then
-    (`DisasterRecovery.Shared).isPrefixOf dependency
+    (`CCF).isPrefixOf dependency
     || (`DisasterRecovery.Model).isPrefixOf dependency
     || (`DisasterRecovery.Properties).isPrefixOf dependency
   else
@@ -37,9 +36,7 @@ private def allowedImport (owner dependency : Name) : Bool :=
 
 example : allowedImport `DisasterRecovery.Properties `DisasterRecovery.Model = true := rfl
 
-example
-    : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Shared.Execution
-      = true :=
+example : allowedImport `DisasterRecovery.Properties.Utils `CCF.Execution = true :=
   rfl
 
 example
@@ -55,10 +52,7 @@ example
       = false :=
   rfl
 
-example
-    : allowedImport `DisasterRecovery.Shared.MultiNodeTransitionSystem
-        `DisasterRecovery.Model
-      = false :=
+example : allowedImport `CCF.MultiNodeTransitionSystem `DisasterRecovery.Model = false :=
   rfl
 
 example : allowedImport `DisasterRecovery.Properties `DisasterRecovery = false := rfl
@@ -71,9 +65,9 @@ run_cmd do
       `DisasterRecovery.Model.Local.phaseName,
       `DisasterRecovery.Model.Local.openKindName,
       `DisasterRecovery.Model.Local.receive,
-      `DisasterRecovery.Shared.MultiNodeTransitionSystem.runStep,
-      `DisasterRecovery.Shared.MultiNodeTransitionSystem.runLocal,
-      `DisasterRecovery.Shared.MultiNodeTransitionSystem.replaceNode,
+      `CCF.MultiNodeTransitionSystem.runStep,
+      `CCF.MultiNodeTransitionSystem.runLocal,
+      `CCF.MultiNodeTransitionSystem.replaceNode,
       `DisasterRecovery.Model.Local.Result,
       `DisasterRecovery.Model.initial,
       `DisasterRecovery.Model.next,
@@ -101,22 +95,22 @@ run_cmd do
       `DisasterRecovery.Properties.History.QuorumOpened,
       `DisasterRecovery.Properties.History.FullGossipSelection,
       `DisasterRecovery.Properties.QuorumHistoryOpenerUnique,
-      `DisasterRecovery.Shared.Execution.History,
-      `DisasterRecovery.Shared.Execution.reachable_iff_history,
+      `CCF.Execution.History,
+      `CCF.Execution.reachable_iff_history,
       `DisasterRecovery.Properties.ContainsRaftCommittable,
       `DisasterRecovery.Properties.RaftCommittable,
       `DisasterRecovery.Properties.TxIDAtOrAfter,
       `DisasterRecovery.Properties.FullGossipSelectionPreservesCommit,
-      `DisasterRecovery.Shared.Execution.Transition,
-      `DisasterRecovery.Shared.Execution.ValidSteps,
-      `DisasterRecovery.Shared.Execution.Trace.track,
-      `DisasterRecovery.Shared.Execution.Trace.final,
+      `CCF.Execution.Transition,
+      `CCF.Execution.ValidSteps,
+      `CCF.Execution.Trace.track,
+      `CCF.Execution.Trace.final,
       `DisasterRecovery.Properties.Trace.OutputAt] do
     if env.contains name then
       throwError "Removed model/property API must not be reintroduced: {name}"
   let header := env.header
   for name in header.moduleNames do
-    if #[`DisasterRecovery.Shared.Global, `DisasterRecovery.Properties.Trace, `DisasterRecovery.Properties.History].contains name then
+    if #[`CCF.Global, `DisasterRecovery.Properties.Trace, `DisasterRecovery.Properties.History].contains name then
       throwError "Removed module must not be reintroduced: {name}"
     if (`DisasterRecovery.Proof).isPrefixOf name ||
         (`DisasterRecovery.Proofs).isPrefixOf name then

@@ -82,7 +82,7 @@ def test_parse_snapshot_file(network, args):
                 primary.remote.snapshots_dir_name,
             )
 
-        def run(self):
+        def _run(self):
             seen = set()
             while not self.is_stopped():
                 for snapshot in os.listdir(self.snapshots_dir):
@@ -108,7 +108,7 @@ def test_parse_snapshot_file(network, args):
             self.member = network.consortium.get_any_active_member()
             self.reader = reader
 
-        def run(self):
+        def _run(self):
             while not self.is_stopped() and self.reader.is_alive():
                 self.member.update_ack_state_digest(self.primary)
 

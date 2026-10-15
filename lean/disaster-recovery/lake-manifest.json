@@ -27,6 +27,16 @@
       "configFile": "lakefile.lean"
     },
     {
+      "type": "path",
+      "scope": "",
+      "name": "ccf_common",
+      "manifestFile": "lake-manifest.json",
+      "inherited": false,
+      "dir": "../common",
+      "copy": false,
+      "configFile": "lakefile.toml"
+    },
+    {
       "url": "https://github.com/leanprover-community/plausible",
       "type": "git",
       "subDir": null,
