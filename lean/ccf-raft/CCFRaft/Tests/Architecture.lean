@@ -30,13 +30,13 @@ private def allowedImport (owner dependency : Name) : Bool :=
 
 example : allowedImport `CCFRaft.Properties `CCFRaft.Model = true := rfl
 
-example : allowedImport `CCFRaft.Properties.Utils `CCF.Execution = true := rfl
+example : allowedImport `CCFRaft.Properties `CCF.Execution = true := rfl
 
 example : allowedImport `CCFRaft.Properties `CCFRaft.Proofs.Model = false := rfl
 
 example : allowedImport `CCFRaft.Properties `CCFRaft.Proof = false := rfl
 
-example : allowedImport `CCFRaft.Model.Node `CCFRaft.Properties.Utils = false := rfl
+example : allowedImport `CCFRaft.Model.Node `CCFRaft.Properties = false := rfl
 
 example : allowedImport `CCF.MultiNodeTransitionSystem `CCFRaft.Model = false :=
   rfl

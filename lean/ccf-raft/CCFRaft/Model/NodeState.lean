@@ -33,6 +33,10 @@ def EntryContent.effects {Node TxId : Type}
   | .transaction _ effects => effects
   | .signature => []
 
+def EntryContent.isSignature {Node TxId : Type} : EntryContent Node TxId -> Bool
+  | .transaction _ _ => false
+  | .signature => true
+
 structure Entry (Node TxId : Type) where
   term : Nat
   content : EntryContent Node TxId
@@ -45,14 +49,6 @@ inductive Role where
   | preVoteCandidate
   | candidate
   | leader
-deriving DecidableEq, Repr
-
-inductive MembershipState where
-  | active
-  | retirementOrdered
-  | retirementSigned
-  | retirementCompleted
-  | retiredCommitted
 deriving DecidableEq, Repr
 
 variable {Node TxId : Type}
@@ -98,7 +94,7 @@ def termAt (log : List (Entry Node TxId)) (index : Nat) : Nat :=
 
 def isSignatureAt (log : List (Entry Node TxId)) (index : Nat) : Bool :=
   match entryAt? log index with
-  | some entry => decide (entry.content = .signature)
+  | some entry => entry.content.isSignature
   | none => false
 
 /-- The one-based index of the latest signature, or zero if the log has none. -/
@@ -118,16 +114,6 @@ def maxCommittableIndexUpTo (log : List (Entry Node TxId)) (frontier : Nat) : Na
 def messageEntries (log : List (Entry Node TxId)) (previousIndex batchEnd : Nat)
     : List (Entry Node TxId) :=
   (log.drop previousIndex).take (batchEnd - previousIndex)
-
-/-- The highest local index whose term could match a rejected request. -/
-def findHighestPossibleMatch (log : List (Entry Node TxId)) (index term : Nat) : Nat :=
-  (List.range (min index log.length + 1)).foldl
-    (fun best candidate =>
-      if candidate > 0 /\ termAt log candidate <= term then
-        max best candidate
-      else
-        best)
-    0
 
 def firstLogIndexAfter (log : List (Entry Node TxId)) (afterIndex : Nat)
     (predicate : EntryContent Node TxId -> Bool)

@@ -13,13 +13,39 @@ The properties are stated but not yet proved.
 | `CCFRaft/Model/Node.lean`          | `Node.step`: one node's response to an input or a message      |
 | `CCFRaft/Model.lean`               | Composition of nodes into a network                            |
 | `CCFRaft/Properties.lean`          | Safety property statements and their witnesses                 |
-| `CCFRaft/Properties/Utils.lean`    | Definitions used by the statements                             |
 | `CCFRaft/Tests/`                   | Regression theorems, behavior checks and import-boundary rules |
 | `CCFRaft.lean`                     | Generated root importing every module                          |
 
 Transition systems, traces, output-recording effects and network composition come from the `ccf_common` package in `lean/common`, under the `CCF` namespace.
 It is a Git dependency pinned to a commit in `lakefile.toml`.
 To move it, update `rev`, run `lake update ccf_common`, and keep `lean-toolchain` and the Mathlib tag in step with `ccf_common`.
+
+`Properties.lean` defines `GlobalTrace` alongside the property statements.
+
+`NodeState.lean` holds the state and simple log accessors. `ClusterConfig.lean`
+holds configuration and membership queries, including `MembershipState` and
+`latestMembershipIndex`, plus the configuration-majority and quorum predicates.
+`MembershipState.noRetirementObserved` means no membership removal is recorded
+in the local log; it does not imply that the node has joined.
+`NodeState.isRetiredCommitted` queries the derived membership phase, not just
+the historical commit latch.
+`latestConfigurationMembers` reads the final supplied configuration's membership.
+Protocol helpers such as `NodeState.recordCommit`
+and `findHighestPossibleMatch` live in `Node.lean`.
+
+`NodeState.activeConfigurations` retains the last committed configuration and
+every pending one. `NodeState.signedActiveConfigurations` filters these to those
+covered by the latest signature, whether committed or not; configuration zero
+qualifies even without a signature. The election guard in `Node.lean` checks
+membership in this signed subset, with a separate allowance for completed
+retirements. Unsigned pending configurations remain active for replication
+and quorum checks.
+
+Follower AppendEntries processing folds over only the missing entries, attempting
+commitment after each new signature and once at the end. This preserves the first
+commit frontier covering a retirement record without reconstructing intermediate
+commits from the completed batch. Processing remains one atomic model step with
+one acknowledgement for the original request.
 
 ## Validation
 
