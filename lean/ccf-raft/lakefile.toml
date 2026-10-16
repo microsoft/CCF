@@ -3,7 +3,7 @@ version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]
 leanOptions = { autoImplicit = false }
 builtinLint = true
-defaultTargets = ["CCFRaft", "canonical-checks"]
+defaultTargets = ["CCFRaft"]
 
 [[require]]
 name = "ccf_common"
@@ -23,7 +23,3 @@ rev = "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef" # v0.4.5
 
 [[lean_lib]]
 name = "CCFRaft"
-
-[[lean_exe]]
-name = "canonical-checks"
-root = "CCFRaft.Tests.CanonicalTests"

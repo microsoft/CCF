@@ -75,6 +75,8 @@ Liveness properties are out of scope.
 
 ## Validation
 
+The package's `lean-toolchain` is a symlink to [`../lean-toolchain`](../lean-toolchain), shared with the CCF Raft package.
+
 Run the following commands from this directory:
 
 ```console
@@ -82,9 +84,8 @@ lake exe cache get
 lake exe mk_all --check --module --lib DisasterRecovery
 lake build --wfail --fail-fast
 lake lint
-lake exe runLinter --no-build DisasterRecovery replayer.Main
 ./replayer/check-fixtures.sh
-lake check
+lake check --inadvisably-no-sandbox
 ```
 
 `--wfail` treats all build warnings, including `sorry`, as errors.
@@ -107,18 +108,19 @@ Public imports preserve existing names and exports.
 Proofs that evaluate upstream implementations use narrowly scoped `import all` directives to retain access to those definitions.
 The proof-coverage check also loads implementation metadata to distinguish checked theorems from axioms after module interface erasure.
 
-`runLinter` uses Mathlib's declaration-lint driver, including the slow checks, over every module imported by `DisasterRecovery.lean` and `replayer.Main`.
+`lake lint` also runs Mathlib's `runLinter` declaration-lint driver, including the slow checks, over every module imported by `DisasterRecovery.lean` and `replayer.Main`.
 It lints our declarations rather than dependencies, and findings fail the command.
 The package's default targets are the complete library and the replayer executable.
 Canonical scenario and state-enumeration checks run with `#eval` when `Tests/CanonicalTests.lean` is built, and assertion failures fail the build.
 Their runner is namespaced, leaving the replayer as the only `main` entrypoint so both targets can be checked together.
 
-`lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/4.35.0/releases/v4.35.0/), builds and exports all default targets in a sandbox, then rechecks the export with Lean's kernel.
+`lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/4.35.0/releases/v4.35.0/), builds and exports all default targets, then rechecks the export with Lean's kernel.
 It also checks axiom dependencies, rejecting any use of axioms other than `propext`, `Classical.choice`, and `Quot.sound`, so a separate axiom-audit dependency is unnecessary.
 The checked targets include the complete library import root, canonical tests, and replayer, not just the exported property theorems.
 These supplement the import and proof coverage checks and executable model and trace tests.
-The sandbox requires Linux and `bubblewrap` (`sudo apt-get install bubblewrap`), with unprivileged user namespaces enabled or a setuid installation.
-CI checks the package in an Ubuntu 26.04 job without disabling the sandbox, using disk-backed temporary storage.
+CI checks the package without sandbox isolation, using disk-backed temporary storage.
+Build-time code must therefore be trusted; kernel rechecking and the axiom allowlist remain enabled.
+The Lean workflow runs formatting, linting, import-root, build, executable and kernel checks in one job, in that order.
 Additional bundled checkers are not enabled.
 All sources belong to this package, so `lake check` needs no source staging or path rewriting.
 

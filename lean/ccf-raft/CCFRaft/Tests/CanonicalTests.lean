@@ -10,6 +10,8 @@ public import Mathlib.Data.String.Basic
 
 public section
 
+namespace CCFRaft.Tests.CanonicalTests
+
 open CCFRaft CCFRaft.Model.Node
 open CCF.MultiNodeTransitionSystem (nodeState)
 
@@ -914,7 +916,8 @@ private def retirementCommitFrontiers : IO Unit := do
         && received.retiredCommittedIndex == expectedRetirement)
       s!"batch from {oldLength}, previous {previousIndex}, end {endIndex}, commit {leaderCommit}: wrong commit frontiers"
 
-def main : IO Unit := do
+/-- Runs the canonical CCF Raft behavior checks. -/
+def run : IO Unit := do
   configurationQueries
   retirementQueries
   bootstrapAndNoMatchingPrefixTerms
@@ -930,3 +933,7 @@ def main : IO Unit := do
   repliesAfterStepDown
   retirementCommitFrontiers
   IO.println "Canonical behavior checks passed."
+
+#eval run
+
+end CCFRaft.Tests.CanonicalTests

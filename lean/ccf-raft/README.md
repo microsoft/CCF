@@ -18,7 +18,7 @@ The properties are stated but not yet proved.
 
 Transition systems, traces, output-recording effects and network composition come from the `ccf_common` package in `lean/common`, under the `CCF` namespace.
 It is a Git dependency pinned to a commit in `lakefile.toml`.
-To move it, update `rev`, run `lake update ccf_common`, and keep `lean-toolchain` and the Mathlib tag in step with `ccf_common`.
+To move it, update `rev`, run `lake update ccf_common`, and keep the shared [`../lean-toolchain`](../lean-toolchain) and the Mathlib tag in step with `ccf_common`.
 
 `Properties.lean` defines `GlobalTrace` alongside the property statements.
 
@@ -35,6 +35,8 @@ and `findHighestPossibleMatch` live in `Node.lean`.
 
 ## Validation
 
+The package's `lean-toolchain` is a symlink to [`../lean-toolchain`](../lean-toolchain), shared with the disaster recovery package.
+
 Install Lean via [elan](https://lean-lang.org/install/), then run from this directory:
 
 ```sh
@@ -42,16 +44,15 @@ lake exe cache get
 lake exe mk_all --check --module --lib CCFRaft
 lake build --wfail --fail-fast
 lake lint
-lake exe canonical-checks
 lake check --inadvisably-no-sandbox
 ../../scripts/lean-format-checks.sh ccf-raft
 ```
 
-The Lean CI workflow runs the same commands.
+The Lean CI workflow runs these checks for each package, grouping formatting and linting in one step and import-root, build and kernel checks in another.
 
 - `mk_all --check` fails if `CCFRaft.lean` does not import every module.
-- `lake build --wfail` builds the library and the `canonical-checks` executable, treating warnings, including `sorry`, as errors.
-- `lake exe canonical-checks` runs executable behavior checks of the model.
+- `lake build --wfail` builds the library, treating warnings, including `sorry`, as errors.
+- Canonical behavior checks run through `#eval` when `Tests/CanonicalTests.lean` is compiled; failures fail the build.
 - `lake check` re-checks all default targets with Lean's kernel and fails on any axiom other than `propext`, `Classical.choice` and `Quot.sound`.
   It runs without sandbox isolation, so build-time code must be trusted; Lake prints a warning saying so.
 - The formatting script runs the pinned [leanfmt](https://github.com/duckki/leanfmt).
