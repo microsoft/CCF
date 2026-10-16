@@ -1,4 +1,8 @@
-import DisasterRecovery.TraceValidation.Reduction
+module
+
+public import DisasterRecovery.TraceValidation.Reduction
+
+public section
 
 set_option autoImplicit false
 
@@ -13,8 +17,8 @@ and the result of each check, with the observed and model values when one fails.
 namespace DisasterRecovery.TraceValidation.Dump
 
 open Lean Model.Local
-open Shared (Capabilities)
-open Shared.MultiNodeTransitionSystem (nodeState removeOne)
+open CCF (Capabilities)
+open CCF.MultiNodeTransitionSystem (nodeState removeOne)
 
 instance : ToJson TxID where
   toJson txid := .str s!"{txid.view}.{txid.seqno}"
@@ -27,6 +31,7 @@ private def messageJson : Message → Json
   | .vote => json% {message: "vote"}
   | .iAmOpen => json% {message: "iamopen"}
 
+@[no_expose]
 instance : ToJson Model.Envelope where
   toJson e :=
     (json% {source: $(e.source), target: $(e.target)}).mergeObj (messageJson e.payload)
@@ -162,7 +167,7 @@ private def guards (config : Model.Config) (state : Model.State) (action : Model
   let localStep :=
     before.bind
       fun before =>
-        (Model.protocol config).step (Capabilities.record node) node before event
+        ((Model.protocol config).step (Capabilities.record node) node before event).run {}
   let holding :=
     json% {
       active: $(state.active.contains node), known: $(before.isSome),

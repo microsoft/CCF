@@ -12,6 +12,7 @@ from loguru import logger as LOG
 import infra.interfaces
 import infra.network
 import infra.path
+import infra.test_reporting
 
 # Every argument registered directly by cli_args must appear here. None means
 # that no single host configuration schema property applies to the argument.
@@ -87,7 +88,10 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     "snp_endorsements_servers": None,
     "forwarding_timeout_ms": "network.rpc_interfaces.*.forwarding_timeout_ms",
     "tick_ms": "tick_interval",
-    "max_msg_size_bytes": "memory.max_msg_size",
+    "max_msg_size_bytes": None,
+    "ledger_max_read_bytes": "ledger.max_read_size",
+    "ledger_max_pending_append_bytes": "ledger.max_pending_append_bytes",
+    "node_to_node_max_message_bytes": "node_to_node.max_message_size",
     "gov_api_version": None,
 }
 
@@ -105,6 +109,7 @@ _SIZE_UNITS_IN_BYTES = {
     "MB": 1024 * 1024,
     "GB": 1024 * 1024 * 1024,
     "TB": 1024 * 1024 * 1024 * 1024,
+    "PB": 1024 * 1024 * 1024 * 1024 * 1024,
 }
 
 
@@ -124,12 +129,12 @@ def _convert_time_string(value, target_unit):
 
 
 def _convert_size_string_to_bytes(value):
-    match = re.fullmatch(r"(\d+)(B|KB|MB|GB|TB)?", value)
+    match = re.fullmatch(r"(\d+)(B|KB|MB|GB|TB|PB)?", value, flags=re.IGNORECASE)
     if match is None:
-        raise ValueError(f"Invalid size string in host config schema: {value}")
+        raise ValueError(f"Invalid size string: {value}")
 
     source_value, source_unit = match.groups()
-    return int(source_value) * _SIZE_UNITS_IN_BYTES[source_unit or "B"]
+    return int(source_value) * _SIZE_UNITS_IN_BYTES[(source_unit or "B").upper()]
 
 
 def _convert_curve_id(value):
@@ -253,7 +258,12 @@ def _apply_host_config_metadata(
         actions[destination].help = config_property["description"]
         if use_host_config_defaults:
             converter = _CONFIG_DEFAULT_CONVERTERS.get(destination, lambda value: value)
-            actions[destination].default = converter(config_property["default"])
+            # Preserve presence for limits with a shared legacy CLI fallback.
+            if destination not in (
+                "ledger_max_read_bytes",
+                "node_to_node_max_message_bytes",
+            ):
+                actions[destination].default = converter(config_property["default"])
 
 
 _LOG_LEVEL_DISPLAY = {
@@ -685,9 +695,25 @@ def cli_args(
     )
     parser.add_argument(
         "--max-msg-size-bytes",
-        help="Configured maximum message size in bytes",
+        help="Deprecated fallback for ledger reads and inbound node-to-node frames; use the independent size arguments instead",
         type=str,
         default="64MB",
+    )
+    parser.add_argument(
+        "--ledger-max-read-bytes",
+        help="Maximum ledger range-read data size (size string)",
+        type=str,
+    )
+    parser.add_argument(
+        "--ledger-max-pending-append-bytes",
+        help="Soft pending ledger append byte threshold (size string)",
+        type=str,
+        default="16MB",
+    )
+    parser.add_argument(
+        "--node-to-node-max-message-bytes",
+        help="Maximum inbound node-to-node frame size (size string)",
+        type=str,
     )
     parser.add_argument(
         "--gov-api-version",
@@ -718,6 +744,8 @@ def cli_args(
 
     if not args.package and args.js_app_bundle:
         args.package = "js_generic"
+
+    infra.test_reporting.install_exception_handler(args)
 
     if accept_unknown:
         return args, unknown_args

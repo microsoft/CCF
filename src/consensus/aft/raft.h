@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <functional>
 #include <list>
+#include <map>
 #include <random>
 #include <unordered_map>
 #include <vector>
@@ -170,7 +171,9 @@ namespace aft
     // This should be used for diagnostic or broadcasting
     // messages but _not_ for counting quorums, which should be done for each
     // active configuration.
-    std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
+    // Ordered so that iteration, including successor selection in
+    // find_successor(), is deterministic.
+    std::map<ccf::NodeId, NodeState> all_other_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
 
     // Called on the primary to remove retired nodes from the store
@@ -1901,6 +1904,16 @@ namespace aft
         RequestVoteResponse response{
           .term = state->current_view, .vote_granted = answer};
 
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "send_request_vote_response";
+        j["packet"] = response;
+        j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
+        j["to_node_id"] = to;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
+
         RAFT_INFO_FMT(
           "Send {} from {} to {}: {}",
           response.msg,
@@ -1914,6 +1927,16 @@ namespace aft
       {
         RequestPreVoteResponse response{
           .term = state->current_view, .vote_granted = answer};
+
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "send_request_vote_response";
+        j["packet"] = response;
+        j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
+        j["to_node_id"] = to;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
 
         RAFT_INFO_FMT(
           "Send {} from {} to {}: {}",
@@ -2319,6 +2342,8 @@ namespace aft
       // in the latest config, provided that match idx at least as high as a
       // majority. That would make them both eligible and unlikely to retire
       // soon.
+      // Remaining ties go to the last candidate visited, which is the highest
+      // node ID because all_other_nodes is ordered.
       for (auto& [node, node_state] : all_other_nodes)
       {
         if (node_state.match_idx >= max_match_idx)
@@ -2445,17 +2470,23 @@ namespace aft
         switch (state->leadership_state.load())
         {
           case ccf::kv::LeadershipState::PreVoteCandidate:
+          {
             become_candidate();
             break;
+          }
           case ccf::kv::LeadershipState::Candidate:
+          {
             become_leader();
             break;
+          }
           case ccf::kv::LeadershipState::None:
           case ccf::kv::LeadershipState::Leader:
           case ccf::kv::LeadershipState::Follower:
+          {
             throw std::logic_error(
               "add_vote_for_me() called while not a pre-vote candidate or "
               "candidate");
+          }
         }
       }
     }
@@ -2794,6 +2825,7 @@ namespace aft
 #ifdef CCF_RAFT_TRACING
         nlohmann::json j = {};
         j["function"] = "step_down_and_nominate_successor";
+        j["to_node_id"] = successor.value();
         j["state"] = *state;
         COMMITTABLE_INDICES(j["state"], state);
         j["configurations"] = configurations;

@@ -19,6 +19,7 @@
 #include <valijson/internal/adapter.hpp>
 #include <valijson/internal/frozen_value.hpp>
 #include <valijson/internal/basic_adapter.hpp>
+#include <valijson/internal/double_parser.hpp>
 #include <valijson/exceptions.hpp>
 
 namespace valijson {
@@ -314,10 +315,8 @@ public:
 
     bool maybeDouble() const override
     {
-        const char *b = m_value.c_str();
-        char *e = nullptr;
-        strtod(b, &e);
-        return e != b && e == b + m_value.length();
+        double x;
+        return internal::parseDouble(m_value, x);
     }
 
     bool maybeInteger() const override

@@ -432,7 +432,9 @@ namespace ccf::tls
       switch (ssl_error)
       {
         case SSL_ERROR_ZERO_RETURN:
+        {
           return "peer closed the TLS connection";
+        }
 
         case SSL_ERROR_SSL:
         case SSL_ERROR_SYSCALL:
@@ -450,7 +452,9 @@ namespace ccf::tls
         }
 
         default:
+        {
           return fmt::format("SSL_get_error {}", ssl_error);
+        }
       }
     }
 

@@ -93,9 +93,8 @@ To create distributable packages for your CCF application, create a ``cpack.cmak
 Rust Applications
 -----------------
 
-Rust applications are native CCF executables with the same deployment model as
-C++ applications. The Rust interface is experimental; see :doc:`example_rust`
-and the :doc:`API reference <rust_api>`.
+Rust applications are native CCF executables with the same deployment model as C++ applications.
+The Rust interface is experimental; see :doc:`example_rust` and the :doc:`API reference <rust_api>`.
 
 Network Governance
 ------------------

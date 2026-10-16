@@ -1712,7 +1712,6 @@
       "required": [
         "jsModule",
         "jsFunction",
-        "forwardingRequired",
         "authnPolicies",
         "mode",
         "openApi"

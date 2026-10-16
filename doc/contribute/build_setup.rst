@@ -36,6 +36,12 @@ Developing in GitHub Codespaces
 
 CCF devcontainer setup works just fine with codespaces. It's recommended to pre-configure for 16-cores one.
 
+To use Copilot through ``copilotd`` in an Azure Linux 4 Codespace, select the :ccf_repo:`Az4 Copilotd SSH configuration <.devcontainer/azurelinux4-copilotd/devcontainer.json>` when creating the Codespace.
+This configuration also supports SSH access through ``gh codespace ssh``.
+On each start, a single startup hook starts SSH, installs the latest ``copilotd``, and launches the relay in the background.
+The relay restarts if it exits and requires ``GITHUB_TOKEN`` (supplied by Codespaces) or ``COPILOTD_MISSION_CONTROL_TOKEN``.
+Logs are in ``~/.local/state/ccf-copilotd/copilotd.log``.
+
 Tweaks for codespaces:
 
 * In order to run lldb in a container, run this command first "settings set target.disable-aslr false"
@@ -66,8 +72,7 @@ How to install docker
 How do I install an EXTENDED package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-There are 2 lists of packages in the official Azure Linux repo - `SPECS <https://github.com/microsoft/azurelinux/tree/3.0/SPECS>`_
-and `SPECS-EXTENDED <https://github.com/microsoft/azurelinux/tree/3.0/SPECS-EXTENDED>`_.
+There are 2 lists of packages in the official Azure Linux repo - `SPECS <https://github.com/microsoft/azurelinux/tree/3.0/SPECS>`_ and `SPECS-EXTENDED <https://github.com/microsoft/azurelinux/tree/3.0/SPECS-EXTENDED>`_.
 
 The latter are hosted on `packages.microsoft.com <https://packages.microsoft.com/azurelinux/3.0/prod/extended/x86_64/>`_, but to consume them you'll need to manually add the repo. One way to do this is to put the .repo file directly into ``/etc/yum.repos.d``:
 

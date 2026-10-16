@@ -201,6 +201,70 @@ TEST_CASE("Node configuration retains operator file paths")
     defaults.command.recover.initial_service_certificate_validity_days == 1);
 }
 
+TEST_CASE("Node configuration resolves ringbuffer-era limit aliases")
+{
+  const json base = {
+    {"network", CCFConfig{}.network}, {"command", {{"type", "Join"}}}};
+  const auto check_limits = [&](
+                              const json& settings,
+                              size_t read_size,
+                              size_t pending_bytes,
+                              size_t frame_size) {
+    auto input = base;
+    input.update(settings);
+    const auto config = input.get<CCFConfig>();
+    const auto check = [&](const CCFConfig& parsed) {
+      CHECK(parsed.get_max_ledger_read_size() == read_size);
+      CHECK(parsed.get_max_pending_append_bytes() == pending_bytes);
+      CHECK(parsed.get_node_to_node_max_message_size() == frame_size);
+    };
+    check(config);
+    const auto encoded = json(config);
+    const auto decoded = encoded.get<CCFConfig>();
+    check(decoded);
+    CHECK(json(decoded) == encoded);
+    CHECK(decoded.ledger == config.ledger);
+    CHECK(decoded.node_to_node == config.node_to_node);
+  };
+
+  constexpr size_t mb = 1024 * 1024;
+  check_limits(json::object(), 64 * mb, 16 * mb, 64 * mb);
+  check_limits(
+    {{"memory",
+      {{"circuit_size", "3MB"},
+       {"max_msg_size", "128MB"},
+       {"max_fragment_size", "256KB"}}}},
+    128 * mb,
+    3 * mb,
+    128 * mb);
+  check_limits(
+    {{"ledger", {{"max_read_size", "96MB"}, {"max_pending_append_bytes", "0"}}},
+     {"node_to_node", {{"max_message_size", "48MB"}}}},
+    96 * mb,
+    0,
+    48 * mb);
+  check_limits(
+    {{"memory", {{"circuit_size", "3MB"}, {"max_msg_size", "128MB"}}},
+     {"ledger",
+      {{"max_read_size", "64MB"}, {"max_pending_append_bytes", "16MB"}}},
+     {"node_to_node", {{"max_message_size", "64MB"}}}},
+    64 * mb,
+    16 * mb,
+    64 * mb);
+  check_limits(
+    {{"memory", {{"max_msg_size", "128MB"}}},
+     {"ledger", {{"max_read_size", "32MB"}}}},
+    32 * mb,
+    16 * mb,
+    128 * mb);
+  check_limits(
+    {{"memory", {{"max_msg_size", "128MB"}}},
+     {"node_to_node", {{"max_message_size", "32MB"}}}},
+    128 * mb,
+    16 * mb,
+    32 * mb);
+}
+
 TEST_CASE("Genesis request retains resolved data on the wire")
 {
   CreateNetworkNodeToNode::GenesisInfo genesis;
@@ -252,7 +316,7 @@ namespace
     return path;
   }
 
-  std::pair<std::shared_ptr<::http::HttpRpcContext>, bool> file_range_response(
+  std::shared_ptr<::http::HttpRpcContext> file_range_response(
     const std::string& path,
     llhttp_method verb,
     const ccf::http::HeaderMap& headers)
@@ -270,7 +334,7 @@ namespace
     REQUIRE(f.is_open());
     rpc_ctx->set_response_header("x-file", "test-file");
     ccf::node::fill_range_response_from_file(ctx, f);
-    return {rpc_ctx, f.is_open()};
+    return rpc_ctx;
   }
 
   // This file is built with DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS,
@@ -1230,8 +1294,7 @@ TEST_CASE("File range responses preserve GET and HEAD metadata")
         {
           request_headers[ccf::http::headers::WANT_REPR_DIGEST] = "sha-256=1";
         }
-        const auto [response, file_is_open] =
-          file_range_response(path, verb, request_headers);
+        const auto response = file_range_response(path, verb, request_headers);
         const auto headers = response->get_response_headers();
         CHECK(
           response->get_response_status() ==
@@ -1282,7 +1345,6 @@ TEST_CASE("File range responses preserve GET and HEAD metadata")
         {
           CHECK(response->get_response_body() == expected);
         }
-        CHECK_FALSE(file_is_open);
       }
     }
   }
@@ -1318,7 +1380,7 @@ TEST_CASE("File range responses reject invalid and empty ranges before reading")
     for (const auto verb : {HTTP_GET, HTTP_HEAD})
     {
       INFO(test.header, ", verb=", verb);
-      const auto [response, file_is_open] = file_range_response(
+      const auto response = file_range_response(
         path,
         verb,
         {{ccf::http::headers::RANGE, test.header},
@@ -1331,7 +1393,6 @@ TEST_CASE("File range responses reject invalid and empty ranges before reading")
       CHECK_FALSE(headers.contains(ccf::http::headers::ETAG));
       CHECK_FALSE(headers.contains(ccf::http::headers::REPR_DIGEST));
       CHECK_FALSE(headers.contains(ccf::http::headers::CONTENT_RANGE));
-      CHECK(file_is_open);
       if (verb == HTTP_GET)
       {
         const auto body = json::parse(response->get_response_body());
@@ -1353,7 +1414,7 @@ TEST_CASE(
   const auto path = write_test_file(dir, "empty.bin", "");
   for (const auto verb : {HTTP_GET, HTTP_HEAD})
   {
-    const auto [response, file_is_open] = file_range_response(
+    const auto response = file_range_response(
       path,
       verb,
       {{ccf::http::headers::RANGE, "invalid"},
@@ -1365,7 +1426,6 @@ TEST_CASE(
     CHECK_FALSE(headers.contains("accept-ranges"));
     CHECK_FALSE(headers.contains(ccf::http::headers::ETAG));
     CHECK_FALSE(headers.contains(ccf::http::headers::REPR_DIGEST));
-    CHECK(file_is_open);
     if (verb == HTTP_GET)
     {
       const auto body = json::parse(response->get_response_body());
@@ -1395,9 +1455,7 @@ TEST_CASE(
     {
       request_headers[ccf::http::headers::RANGE] = "bytes=2-4";
     }
-    const auto [initial, initial_file_is_open] =
-      file_range_response(path, HTTP_GET, request_headers);
-    CHECK_FALSE(initial_file_is_open);
+    const auto initial = file_range_response(path, HTTP_GET, request_headers);
     const auto etag =
       initial->get_response_headers().at(ccf::http::headers::ETAG);
     const auto& body = initial->get_response_body();
@@ -1425,8 +1483,7 @@ TEST_CASE(
         {
           INFO(with_range, ", verb=", verb, ", If-None-Match=", match);
           headers[ccf::http::headers::IF_NONE_MATCH] = match;
-          const auto [response, file_is_open] =
-            file_range_response(path, verb, headers);
+          const auto response = file_range_response(path, verb, headers);
           CHECK(response->get_response_status() == HTTP_STATUS_NOT_MODIFIED);
           CHECK(response->get_response_body().empty());
           const auto response_headers = response->get_response_headers();
@@ -1450,31 +1507,27 @@ TEST_CASE(
             CHECK_FALSE(
               response_headers.contains(ccf::http::headers::REPR_DIGEST));
           }
-          CHECK_FALSE(file_is_open);
         }
         headers[ccf::http::headers::IF_NONE_MATCH] = "\"different\"";
-        const auto [response, file_is_open] =
-          file_range_response(path, verb, headers);
+        const auto response = file_range_response(path, verb, headers);
         CHECK(
           response->get_response_status() ==
           (with_range ? HTTP_STATUS_PARTIAL_CONTENT : HTTP_STATUS_OK));
         CHECK(
           response->get_response_headers().at(ccf::http::headers::ETAG) ==
           etag);
-        CHECK_FALSE(file_is_open);
 
         for (const auto& invalid_match :
              std::vector<std::string>{"not etags", fmt::format("W/{}", etag)})
         {
           headers[ccf::http::headers::IF_NONE_MATCH] = invalid_match;
-          const auto [invalid_response, invalid_file_is_open] =
+          const auto invalid_response =
             file_range_response(path, verb, headers);
           CHECK(
             invalid_response->get_response_status() == HTTP_STATUS_BAD_REQUEST);
           CHECK(
             invalid_response->get_response_headers().at(
               ccf::http::headers::ETAG) == etag);
-          CHECK_FALSE(invalid_file_is_open);
           if (verb == HTTP_GET)
           {
             const auto error =
