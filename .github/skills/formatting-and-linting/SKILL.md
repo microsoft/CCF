@@ -28,7 +28,7 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | -------------------------- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------- |
 | `cpp-format-checks.sh`     | C/C++ in `include/`, `src/`, `samples/`                      | clang-format                                       | `-f`              |
 | `clang-tidier.py -p build` | First-party C++ compile commands and their headers           | clang-query: braces for non-empty case bodies      | No                |
-| `lean-format-checks.sh`    | All tracked Lean files                                       | leanfmt                                            | `-f`              |
+| `lean-format-checks.sh`    | All tracked Lean files, each with its package's leanfmt      | leanfmt                                            | `-f`              |
 | `python-format-checks.sh`  | Python in `tests/`, `python/`, `scripts/`, `tla/`            | black                                              | `-f`              |
 | `python-lint-checks.sh`    | Python in `python/`, `tests/`                                | ruff                                               | `-f`              |
 | `python-types-checks.sh`   | Python SDK                                                   | mypy                                               | No                |
@@ -52,7 +52,7 @@ It needs the compilation database, generated headers, and Clang's extra tools (1
 Run it with `./scripts/clang-tidier.py -p build`; use `--all` for a full scan and `--help` for selection and parallelism options.
 
 The Lean formatting check runs in `.github/workflows/lean.yml`, not `scripts/ci-checks.sh`.
-It requires elan and the package's Lean toolchain.
+It requires elan and each Lean package's toolchain.
 See [Lean formatting setup](../../../lean/disaster-recovery/README.md#formatting).
 
 The ASCII check includes Rust and TLA+, but exempts Lean source files (`*.lean`) and excludes `3rdparty/`. Vendored third-party dependencies are exempt from the authoring policy; preserve their upstream contents. In checked files, existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.
