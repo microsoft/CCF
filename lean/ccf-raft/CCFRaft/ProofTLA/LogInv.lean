@@ -4,14 +4,13 @@ module
 -- Licensed under the Apache 2.0 License.
 
 public import CCFRaft.ProofTLA.Safety.Commit
-public import CCF.Execution
 
 @[expose] public section
 
 /-!
 Same-state comparability of committed logs, for `PropertiesTLA.spec_logInv`.
-Every state of a valid trace is reachable, so it heads an `Exec` history whose
-invariant makes any two committed logs comparable.
+Every reachable state heads an `Exec` history whose invariant makes any two
+committed logs comparable.
 -/
 
 namespace CCFRaft.ProofTLA
@@ -20,14 +19,14 @@ open Model.Node
 
 theorem logInv {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
     [LinearOrder Node] (config : InitialConfig Node) {nodes : List Node}
-    {trace : CCF.Execution.Trace (Model.State Node TxId)}
-    (valid : trace.Valid (Model.transitionSystem config nodes))
-    {state : Model.State Node TxId} (member : state ∈ trace.states) {i j : Node}
+    {state : Model.State Node TxId}
+    (reachable : (Model.transitionSystem config (TxId := TxId) nodes).Reachable state)
+    {i j : Node}
     {si sj : NodeState Node TxId} (iMember : (i, si) ∈ state.nodes)
     (jMember : (j, sj) ∈ state.nodes)
     : si.committedLog <+: sj.committedLog \/ sj.committedLog <+: si.committedLog := by
   let _ : InitialConfig Node := config
-  obtain ⟨history, exec⟩ := Safety.exec_of_reachable (valid.reachable member)
+  obtain ⟨history, exec⟩ := Safety.exec_of_reachable reachable
   exact Safety.committed_logs_comparable exec iMember jMember
 
 end CCFRaft.ProofTLA

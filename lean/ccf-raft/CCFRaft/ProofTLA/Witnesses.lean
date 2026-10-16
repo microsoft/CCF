@@ -5,7 +5,6 @@ module
 
 public import CCFRaft.Model
 public import CCFRaft.ProofTLA.Config
-public import CCF.Execution
 
 import all Init.Control.State
 import all Init.Data.List.Sort.Basic
@@ -15,128 +14,41 @@ import all Mathlib.Data.List.Sort
 
 /-!
 Concrete executions for the `PropertiesTLA` witnesses. The kernel evaluates
-every step, so each witness is a real trace of the model. Each witness restates
-its `PropertiesTLA` claim, which checks it against that definition.
+every step, so each witness is a real reachable state or step of the model.
+Each witness restates its `PropertiesTLA` claim, which checks it against that
+definition.
 -/
 
 namespace CCFRaft.ProofTLA.Witnesses
 
-open CCF CCF.Execution CCF.MultiNodeTransitionSystem
+open CCF CCF.MultiNodeTransitionSystem
 open CCFRaft.Model.Node (NodeState InitialConfig initialNodeState)
 
 section Runs
 
 variable {State Action : Type}
 
-/-- The states visited by choosing each action from the current state. -/
-def runTrace (system : TransitionSystem State Action) (start : State)
-    : List (State -> Action) -> List State
-  | [] => [start]
-  | choose :: rest =>
-      match system.step start (choose start) with
-      | some next => start :: runTrace system next rest
-      | none => [start]
-
-/-- The final state of `runTrace`, when every chosen action is enabled. -/
+/-- The final state after choosing each action from the current state, when
+every chosen action is enabled. -/
 def run (system : TransitionSystem State Action) (start : State)
     : List (State -> Action) -> Option State
   | [] => some start
   | choose :: rest =>
       (system.step start (choose start)).bind fun next => run system next rest
 
-theorem runTrace_head (system : TransitionSystem State Action) (start : State)
-    (choices : List (State -> Action))
-    : (runTrace system start choices)[0]? = some start := by
-  cases choices with
-  | nil => rfl
-  | cons choose rest =>
-      simp only [runTrace]
-      split <;> rfl
-
-theorem runTrace_steps (system : TransitionSystem State Action) (start : State)
-    (choices : List (State -> Action))
-    : forall i before after,
-        (runTrace system start choices)[i]? = some before
-        -> (runTrace system start choices)[i + 1]? = some after
-        -> exists action, system.step before action = some after := by
-  induction choices generalizing start with
-  | nil =>
-      intro i before after _ second
-      cases i <;> simp [runTrace] at second
-  | cons choose rest ih =>
-      intro i before after first second
-      rcases stepped : system.step start (choose start) with _ | next
-      · simp only [runTrace, stepped] at second
-        cases i <;> simp at second
-      · simp only [runTrace, stepped] at first second
-        cases i with
-        | zero =>
-            have head := runTrace_head system next rest
-            simp only [List.getElem?_cons_zero, Option.some.injEq] at first
-            simp only [Nat.zero_add, List.getElem?_cons_succ, head, Option.some.injEq] at second
-            subst first second
-            exact ⟨choose start, stepped⟩
-        | succ i =>
-            exact ih next i before after (by simpa using first) (by simpa using second)
-
-theorem runTrace_valid {system : TransitionSystem State Action} {start : State}
-    (initialized : system.init start) (choices : List (State -> Action))
-    : (⟨runTrace system start choices⟩ : Trace State).Valid system :=
-  ⟨
-    ⟨start, runTrace_head system start choices, initialized⟩,
-    runTrace_steps system start choices
-  ⟩
-
-theorem run_mem {system : TransitionSystem State Action} {start final : State}
-    {choices : List (State -> Action)} (finished : run system start choices = some final)
-    : final ∈ runTrace system start choices := by
+theorem run_reachable {system : TransitionSystem State Action} {start final : State}
+    {choices : List (State -> Action)} (reachable : system.Reachable start)
+    (finished : run system start choices = some final)
+    : system.Reachable final := by
   induction choices generalizing start with
   | nil =>
       simp only [run, Option.some.injEq] at finished
       subst finished
-      simp [runTrace]
+      exact reachable
   | cons choose rest ih =>
       simp only [run, Option.bind_eq_some_iff] at finished
       obtain ⟨next, stepped, rest⟩ := finished
-      simp only [runTrace, stepped]
-      exact List.mem_cons_of_mem _ (ih rest)
-
-theorem runTrace_get {system : TransitionSystem State Action} {start final : State}
-    {choices : List (State -> Action)} {index : Nat} (bounded : index <= choices.length)
-    (finished : run system start (choices.take index) = some final)
-    : (runTrace system start choices)[index]? = some final := by
-  induction choices generalizing start index with
-  | nil =>
-      have zero : index = 0 := by simpa using bounded
-      subst zero
-      simp only [List.take_nil, run, Option.some.injEq] at finished
-      subst finished
-      rfl
-  | cons choose rest ih =>
-      cases index with
-      | zero =>
-          simp only [List.take_zero, run, Option.some.injEq] at finished
-          subst finished
-          exact runTrace_head system start _
-      | succ index =>
-          simp only [List.take_succ_cons, run, Option.bind_eq_some_iff] at finished
-          obtain ⟨next, stepped, rest⟩ := finished
-          simp only [runTrace, stepped, List.getElem?_cons_succ]
-          exact ih (by simpa using bounded) rest
-
-theorem run_append (system : TransitionSystem State Action) (start : State)
-    (first second : List (State -> Action))
-    : run system start (first ++ second)
-      = (run system start first).bind
-          fun middle =>
-            run system middle second := by
-  induction first generalizing start with
-  | nil => rfl
-  | cons choose rest ih =>
-      simp only [List.cons_append, run, Option.bind_assoc]
-      congr 1
-      funext next
-      exact ih next
+      exact ih (.step reachable stepped) rest
 
 end Runs
 
@@ -304,15 +216,6 @@ theorem extend_committed
   sort_by_insertion
   decide
 
-/-- The single run followed by `extendAction`. -/
-def extendChoices : List (CCFRaft.Model.State Nat Nat -> CCFRaft.Model.Action Nat Nat) :=
-  singleChoices ++ [fun _ => extendAction]
-
-theorem extend_run : run singleSystem (start [0]) extendChoices = some extendFinal := by
-  rw [extendChoices, run_append, <- Option.some_get single_finished]
-  simp only [Option.bind_some, run, Option.bind_eq_some_iff]
-  exact ⟨extendFinal, (Option.some_get extend_enabled).symm, rfl⟩
-
 end Single
 
 /-- `PropertiesTLA.LogInvWitness`: nodes 0 and 1 have both committed. -/
@@ -321,16 +224,9 @@ theorem logInv_witness
     exists (_ : DecidableEq Node) (_ : DecidableEq TxId),
     exists (_ : Inhabited TxId) (_ : LinearOrder Node),
     exists (config : InitialConfig Node),
-    exists
-    (nodes : List Node) (trace
-                          : CCF.Execution.Trace (CCFRaft.Model.State Node TxId)) (state
-                                                                                  : CCFRaft.Model.State
-                                                                                      Node
-                                                                                      TxId)
-      ,
+    exists (nodes : List Node) (state : CCFRaft.Model.State Node TxId),
     exists (left right : Node) (leftState rightState : NodeState Node TxId),
-      trace.Valid (CCFRaft.Model.transitionSystem config nodes)
-      /\ state ∈ trace.states
+      (CCFRaft.Model.transitionSystem config nodes).Reachable state
       /\ (left, leftState) ∈ state.nodes
       /\ (right, rightState) ∈ state.nodes
       /\ left ≠ right
@@ -346,14 +242,12 @@ theorem logInv_witness
     inferInstance,
     bootstrapOf {0, 1} 0 (by decide),
     [0, 1],
-    ⟨runTrace commitSystem (start [0, 1]) commitChoices⟩,
     commitFinal,
     0,
     1,
     (nodeState commitFinal 0).get (commit_present 0 (by simp)),
     (nodeState commitFinal 1).get (commit_present 1 (by simp)),
-    runTrace_valid (start_initial (by decide)) _,
-    run_mem (Option.some_get _).symm,
+    run_reachable (.initial (start_initial (by decide))) (Option.some_get _).symm,
     member_of_nodeState _,
     member_of_nodeState _,
     by decide,
@@ -369,14 +263,12 @@ theorem committedLogAppendOnlyProp_witness
     exists (_ : Inhabited TxId) (_ : LinearOrder Node),
     exists (config : InitialConfig Node),
     exists
-    (nodes : List Node) (trace
-                          : CCF.Execution.Trace (CCFRaft.Model.State Node TxId)) (index
-                                                                                  : Nat),
-    exists (before after : CCFRaft.Model.State Node TxId),
+    (nodes : List Node) (before after : CCFRaft.Model.State Node TxId) (action
+                                                                        : CCFRaft.Model.Action
+                                                                            Node TxId),
     exists (node : Node) (nodeBefore nodeAfter : NodeState Node TxId),
-      trace.Valid (CCFRaft.Model.transitionSystem config nodes)
-      /\ trace.states[index]? = some before
-      /\ trace.states[index + 1]? = some after
+      (CCFRaft.Model.transitionSystem config nodes).Reachable before
+      /\ (CCFRaft.Model.transitionSystem config nodes).step before action = some after
       /\ (node, nodeBefore) ∈ before.nodes
       /\ (node, nodeAfter) ∈ after.nodes
       /\ nodeBefore.committedLog ≠ []
@@ -391,16 +283,15 @@ theorem committedLogAppendOnlyProp_witness
     inferInstance,
     bootstrapOf {0} 0 (by decide),
     [0],
-    ⟨runTrace singleSystem (start [0]) extendChoices⟩,
-    1,
     singleFinal,
     extendFinal,
+    extendAction,
     0,
     (nodeState singleFinal 0).get single_final_present,
     (nodeState extendFinal 0).get extend_final_present,
-    runTrace_valid (start_initial (by decide)) _,
-    runTrace_get (by decide) (Option.some_get single_finished).symm,
-    runTrace_get (by decide) extend_run,
+    run_reachable (.initial (start_initial (by decide)))
+      (Option.some_get single_finished).symm,
+    (Option.some_get extend_enabled).symm,
     member_of_nodeState _,
     member_of_nodeState _,
     extend_committed.1,
