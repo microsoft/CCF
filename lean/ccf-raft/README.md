@@ -22,16 +22,12 @@ To move it, update `rev`, run `lake update ccf_common`, and keep `lean-toolchain
 
 `Properties.lean` defines `GlobalTrace` alongside the property statements.
 
-`NodeState.lean` holds the state and simple log accessors. `ClusterConfig.lean`
-holds configuration and membership queries, including `MembershipState` and
-`latestMembershipIndex`, plus the configuration-majority and quorum predicates.
-`MembershipState.noRetirementObserved` means no membership removal is recorded
-in the local log; it does not imply that the node has joined.
-`NodeState.isRetiredCommitted` queries the derived membership phase, not just
-the historical commit latch.
+`NodeState.lean` holds the state and simple log accessors.
+`ClusterConfig.lean` holds configuration and membership queries, including `MembershipState` and `latestMembershipIndex`, plus the configuration-majority and quorum predicates.
+`MembershipState.noRetirementObserved` means no membership removal is recorded in the local log; it does not imply that the node has joined.
+`NodeState.isRetiredCommitted` queries the derived membership phase, not just the historical commit latch.
 `latestConfigurationMembers` reads the final supplied configuration's membership.
-Protocol helpers such as `NodeState.recordCommit`
-and `findHighestPossibleMatch` live in `Node.lean`.
+Protocol helpers such as `NodeState.recordCommit` and `findHighestPossibleMatch` live in `Node.lean`.
 
 ## Validation
 
