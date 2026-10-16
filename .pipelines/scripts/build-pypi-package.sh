@@ -30,23 +30,6 @@ package_version=$(
         'import tomllib; print(tomllib.load(open("python/pyproject.toml", "rb"))["project"]["version"])'
 )
 
-pypi_status=$(
-    curl -sS -o /dev/null -w '%{http_code}' \
-        "https://pypi.org/pypi/ccf/$package_version/json"
-)
-case "$pypi_status" in
-    200)
-        echo "ccf $package_version already exists on PyPI" >&2
-        exit 1
-        ;;
-    404)
-        ;;
-    *)
-        echo "Unexpected PyPI response for ccf $package_version: $pypi_status" >&2
-        exit 1
-        ;;
-esac
-
 rm -rf python/dist
 "$uv" build --wheel python
 mapfile -t wheels < <(
