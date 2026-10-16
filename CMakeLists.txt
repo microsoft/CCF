@@ -521,7 +521,6 @@ endif()
 # Build common library for CCF enclaves
 set(
   CCF_IMPL_SOURCE
-  ${CCF_DIR}/src/enclave/main.cpp
   ${CCF_DIR}/src/node/env.cpp
   ${CCF_DIR}/src/node/quote.cpp
   ${CCF_DIR}/src/pal/uvm_endorsements.cpp
@@ -662,9 +661,13 @@ if(BUILD_TESTS)
         "${DOCS_PYTHON}" -m sphinx --fail-on-warning -b html "${CCF_DIR}/doc"
         "${CCF_DIR}/doc/html"
     )
+    # Its runner has no Lean; the Lean workflow checks the trace viewer's dumps.
     set_tests_properties(
       docs
-      PROPERTIES LABELS "bucket_a;docs" WORKING_DIRECTORY "${CCF_DIR}"
+      PROPERTIES
+        LABELS "bucket_a;docs"
+        WORKING_DIRECTORY "${CCF_DIR}"
+        ENVIRONMENT "SKIP_TRACE_VIEWER=ON"
     )
   endif()
 
@@ -756,6 +759,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/raw_writer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_trace.cpp
@@ -779,14 +783,19 @@ if(BUILD_TESTS)
     endif()
 
     add_unit_test(
+      byte_storage_allocation_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/byte_storage_allocation.cpp
+    )
+    target_link_options(
+      byte_storage_allocation_test
+      PRIVATE -Wl,--wrap=malloc -Wl,--wrap=realloc -Wl,--wrap=calloc
+    )
+
+    add_unit_test(
       ds_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/typed_messages.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serialized.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/byte_vector.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
@@ -817,7 +826,7 @@ if(BUILD_TESTS)
       ledger_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
     )
-    target_link_libraries(ledger_test PRIVATE uv)
+    target_link_libraries(ledger_test PRIVATE ccf_tasks)
 
     add_unit_test(
       worker_shutdown_gate_test
@@ -848,7 +857,7 @@ if(BUILD_TESTS)
       node_connections_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/node_connections.cpp
     )
-    target_link_libraries(node_connections_test PRIVATE uv)
+    target_link_libraries(node_connections_test PRIVATE ccf_tasks uv)
 
     add_unit_test(
       tcp_test
@@ -1015,6 +1024,7 @@ if(BUILD_TESTS)
       node_inbound_message_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/node_inbound_message.cpp
     )
+    target_link_libraries(node_inbound_message_test PRIVATE ccf_tasks)
 
     add_unit_test(
       indexing_test
@@ -1073,7 +1083,7 @@ if(BUILD_TESTS)
       channels_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
     )
-    target_link_libraries(channels_test PRIVATE)
+    target_link_libraries(channels_test PRIVATE ccf_tasks)
 
     add_unit_test(
       http_test
@@ -1238,7 +1248,6 @@ if(BUILD_TESTS)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
     add_picobench(msgpack_bench SRCS src/msgpack/test/msgpack_bench.cpp)
-    add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
     add_picobench(ledger_bench SRCS src/host/test/ledger_bench.cpp)
     add_picobench(crypto_bench SRCS src/crypto/test/bench.cpp LINK_LIBS)
     add_picobench(cose_bench SRCS src/crypto/test/cose_bench.cpp LINK_LIBS)
@@ -1477,6 +1486,14 @@ if(BUILD_TESTS)
     DETECT_DEADLOCKS
     TSAN_SUPPRESSIONS ${CCF_DIR}/tsan_e2e_logging_suppressions
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
+
+  add_e2e_test(
+    NAME e2e_forwarding_smoke
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/forwarding.py
+    BUCKET bucket_c
+    BUILD_DEPENDS logging
+    ADDITIONAL_ARGS --package samples/apps/logging/logging
   )
 
   add_e2e_test(

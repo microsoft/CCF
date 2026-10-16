@@ -28,7 +28,11 @@ These logging functions do several things:
 - Variable substitution. See `libfmt <https://fmt.dev/latest/>`_ for more details of the formatting syntax used in C++
 - Declare the severity of the entry. CCF defines 5 levels (``trace``, ``debug``, ``info``, ``fail``, and ``fatal``), and production nodes will generally ignore entries below ``info``
 - Prefix formatted metadata. The produced log line will include a timestamp, the name and line number where the line was produced, and an ``[app]`` tag
-- Queue writes to a ringbuffer for the host to process, so diagnostic logging should not cause significant performance drops
+- Write directly to stdout through the framework logger
+
+CCF bundles the header-only C++ interface from `fmt 12.2.0 <https://github.com/fmtlib/fmt/releases/tag/12.2.0>`_.
+Applications using fmt directly should include ``<fmt/format.h>`` for ``fmt::format`` rather than relying on ``<fmt/core.h>`` to include it, and ``<fmt/std.h>`` for ``std::byte`` formatting.
+The ``CCF_APP_*`` logging macros remain available through ``ccf/ds/logger.h``.
 
 .. note:: The app's logging entries will be interleaved (line-by-line) with the framework's logging messages. Filter for entries containing ``[app]`` to extract only application log lines.
 

@@ -299,15 +299,23 @@ namespace ccf::http_client
       switch (origin)
       {
         case SEEK_SET:
+        {
           break;
+        }
         case SEEK_CUR:
+        {
           base = buffer.size() - unsent.size();
           break;
+        }
         case SEEK_END:
+        {
           base = buffer.size();
           break;
+        }
         default:
+        {
           return false;
+        }
       }
 
       size_t position = 0;
@@ -588,11 +596,15 @@ namespace ccf::http_client
       switch (static_cast<int>(http_method.value()))
       {
         case HTTP_GET:
+        {
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPGET, 1L);
           break;
+        }
         case HTTP_HEAD:
+        {
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_NOBODY, 1L);
           break;
+        }
         case HTTP_PUT:
         {
           CHECK_CURL_EASY_SETOPT(curl_handle, CURLOPT_UPLOAD, 1L);
@@ -611,8 +623,8 @@ namespace ccf::http_client
             curl_handle,
             CURLOPT_INFILESIZE_LARGE,
             static_cast<curl_off_t>(request_body->size()));
+          break;
         }
-        break;
         case HTTP_POST:
         {
           // CURLOPT_POST takes a long: a non-zero value (1L) selects a
@@ -634,11 +646,13 @@ namespace ccf::http_client
             curl_handle,
             CURLOPT_POSTFIELDSIZE_LARGE,
             static_cast<curl_off_t>(request_body->size()));
+          break;
         }
-        break;
         default:
+        {
           throw std::logic_error(
             fmt::format("Unsupported HTTP method: {}", method.c_str()));
+        }
       }
 
       if (request_body != nullptr)
@@ -1226,6 +1240,7 @@ namespace ccf::http_client
           break;
         }
         case CURL_POLL_REMOVE:
+        {
           if (socket_context != nullptr)
           {
             LOG_DEBUG_FMT(
@@ -1239,9 +1254,12 @@ namespace ccf::http_client
               curl_multi_assign(self->curl_request_curlm, s, nullptr));
           }
           break;
+        }
         default:
+        {
           LOG_FAIL_FMT("Unknown action in curl_socket_callback: {}", action);
           return 0;
+        }
       }
       return 0;
     }

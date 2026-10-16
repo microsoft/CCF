@@ -1,7 +1,12 @@
-import DisasterRecovery.Model
+module
+
+public import DisasterRecovery.Model
+
+@[expose] public section
 
 namespace DisasterRecovery.Tests
 
+/-- Initializes every configured node, with the given active subset and no queued messages. -/
 def initial (config : Model.Config) (active : List Model.Local.Location) : Model.State :=
   {
     nodes :=

@@ -21,6 +21,7 @@
 #include "node/internal_tables_access.h"
 #include "node/node_configuration_subsystem.h"
 #include "node/rpc/rpc_handler.h"
+#include "tasks/periodic_task_owner.h"
 
 #define FMT_HEADER_ONLY
 
@@ -31,7 +32,9 @@
 
 namespace ccf
 {
-  class RpcFrontend : public RpcHandler, public ForwardedRpcHandler
+  class RpcFrontend : public RpcHandler,
+                      public ForwardedRpcHandler,
+                      public ccf::tasks::PeriodicTaskOwner
   {
   protected:
     ccf::kv::Store& tables;
@@ -207,8 +210,12 @@ namespace ccf
       return true;
     }
 
+    // default_role is the role a NodeByRole resolver targets when its target
+    // does not name one, ie - the role of the redirections field (to_primary
+    // or to_backup) that the resolver was configured under
     std::optional<std::string> resolve_redirect_location(
       const RedirectionResolverConfig& resolver,
+      const std::string& default_role,
       ccf::kv::ReadOnlyTx& tx,
       const ccf::ListenInterfaceID& incoming_interface,
       ccf::kv::Consensus* current_consensus)
@@ -217,11 +224,18 @@ namespace ccf
       {
         case (RedirectionResolutionKind::NodeByRole):
         {
+          std::string role = default_role;
           const auto role_it = resolver.target.find("role");
-          const bool seeking_primary =
-            role_it == resolver.target.end() || role_it.value() == "primary";
-          const bool seeking_backup =
-            !seeking_primary && role_it.value() == "backup";
+          if (role_it != resolver.target.end())
+          {
+            if (!role_it->is_string())
+            {
+              return std::nullopt;
+            }
+            role = role_it->get<std::string>();
+          }
+          const bool seeking_primary = role == "primary";
+          const bool seeking_backup = role == "backup";
           if (!seeking_primary && !seeking_backup)
           {
             return std::nullopt;
@@ -322,7 +336,7 @@ namespace ccf
               ctx->get_session_context()->interface_id.value_or(
                 PRIMARY_RPC_INTERFACE);
             const auto location = resolve_redirect_location(
-              resolver, tx, listen_interface, current_consensus);
+              resolver, "primary", tx, listen_interface, current_consensus);
             if (location.has_value())
             {
               ctx->set_response_header(
@@ -357,7 +371,7 @@ namespace ccf
               ctx->get_session_context()->interface_id.value_or(
                 PRIMARY_RPC_INTERFACE);
             const auto location = resolve_redirect_location(
-              resolver, tx, listen_interface, current_consensus);
+              resolver, "backup", tx, listen_interface, current_consensus);
             if (location.has_value())
             {
               ctx->set_response_header(
@@ -736,7 +750,7 @@ namespace ccf
         {
           if (
             endpoints.apply_uncommitted_tx_backpressure() &&
-            current_consensus->is_at_max_capacity())
+            current_consensus->should_apply_backpressure())
           {
             ctx->set_error(
               HTTP_STATUS_SERVICE_UNAVAILABLE,
@@ -1176,6 +1190,17 @@ namespace ccf
       {
         endpoints.tick(elapsed);
       }
+    }
+
+    void start_periodic_tick(
+      ccf::tasks::JobBoard& job_board,
+      std::chrono::milliseconds period) override
+    {
+      schedule_periodic_task(
+        job_board,
+        period,
+        [this](std::chrono::milliseconds elapsed) { tick(elapsed); },
+        "RPC frontend tick");
     }
   };
 }

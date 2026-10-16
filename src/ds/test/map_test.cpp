@@ -173,7 +173,9 @@ std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
         break;
       }
       default:
+      {
         throw std::logic_error("bad op number");
+      }
     }
     ops.push_back(std::move(op));
   }

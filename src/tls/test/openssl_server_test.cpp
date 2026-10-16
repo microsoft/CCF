@@ -2369,11 +2369,11 @@ TEST_CASE("Budget resumption revisits idle connections on every interface")
   constexpr size_t interface_count = 2;
   constexpr size_t limit = 1;
   auto admission = std::make_shared<InboundAdmission>(limit);
-  admission->queued(limit);
 
   std::array<std::atomic<size_t>, interface_count> received{};
   std::array<std::atomic<bool>, interface_count> correct_payload{};
   std::atomic<size_t> accepted{0};
+  std::atomic<bool> release_source{false};
   std::array<std::shared_ptr<OpenSSLServer>, interface_count> servers;
   std::array<int, interface_count> clients;
   clients.fill(-1);
@@ -2392,6 +2392,15 @@ TEST_CASE("Budget resumption revisits idle connections on every interface")
         correct_payload[i] =
           data.size() == 1 && data[0] == static_cast<uint8_t>('a' + i);
         received[i] += data.size();
+        if (i == 0)
+        {
+          admission->queued(data.size());
+          while (!release_source.load())
+          {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+          }
+          admission->consumed(data.size());
+        }
       },
       OpenSSLServer::OnClose{},
       [&](::tcp::ConnID) -> std::optional<bool> {
@@ -2431,6 +2440,21 @@ TEST_CASE("Budget resumption revisits idle connections on every interface")
       setup_error = sent < 0 ? errno : EIO;
       break;
     }
+    if (i == 0)
+    {
+      const auto saturated_deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(5);
+      while (!admission->saturated() &&
+             std::chrono::steady_clock::now() < saturated_deadline)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      if (!admission->saturated())
+      {
+        setup_error = ETIMEDOUT;
+        break;
+      }
+    }
   }
 
   const auto accepted_deadline =
@@ -2441,17 +2465,18 @@ TEST_CASE("Budget resumption revisits idle connections on every interface")
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
-  // Let the masked readability passes finish, leaving no dirty connections.
+  // No more data is sent on either interface. Let the masked readability pass
+  // finish, leaving the second connection idle with data waiting to be read.
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   const std::array<size_t, interface_count> stalled_at = {
     received[0].load(), received[1].load()};
 
-  // Only the shared admission wake can revisit these otherwise idle sockets.
-  admission->consumed(limit);
+  // The first interface releases the budget from its worker. Only the shared
+  // admission wake can revisit the otherwise idle second interface.
+  release_source.store(true);
   const auto resumed_deadline =
     std::chrono::steady_clock::now() + std::chrono::seconds(5);
-  while (setup_error == 0 &&
-         (received[0].load() == 0 || received[1].load() == 0) &&
+  while (setup_error == 0 && received[1].load() == 0 &&
          std::chrono::steady_clock::now() < resumed_deadline)
   {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -2477,9 +2502,10 @@ TEST_CASE("Budget resumption revisits idle connections on every interface")
   INFO("Socket setup error: " << setup_error);
   CHECK(setup_error == 0);
   CHECK(accepted.load() == interface_count);
+  CHECK(stalled_at[0] == 1);
+  CHECK(stalled_at[1] == 0);
   for (size_t i = 0; i < interface_count; ++i)
   {
-    CHECK(stalled_at[i] == 0);
     CHECK(resumed_at[i] == 1);
     CHECK(valid_at_resume[i]);
   }

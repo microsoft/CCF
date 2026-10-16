@@ -22,14 +22,11 @@ namespace asynchost
     friend class ccf::uv::close_ptr<RuntimeControlImpl>;
 
     std::function<bool()> stop_enclave;
-    std::function<void()> before_loop_stop;
     std::mutex mutex;
     std::optional<std::string> fatal_error;
 
     static void on_wake(uv_async_t* handle)
     {
-      auto* self = static_cast<RuntimeControlImpl*>(handle->data);
-      self->before_loop_stop();
       uv_stop(handle->loop);
     }
 
@@ -53,11 +50,8 @@ namespace asynchost
       return true;
     }
 
-    RuntimeControlImpl(
-      std::function<bool()> stop_enclave_,
-      std::function<void()> before_loop_stop_) :
-      stop_enclave(std::move(stop_enclave_)),
-      before_loop_stop(std::move(before_loop_stop_))
+    RuntimeControlImpl(std::function<bool()> stop_enclave_) :
+      stop_enclave(std::move(stop_enclave_))
     {
       const auto rc = uv_async_init(uv_default_loop(), &uv_handle, on_wake);
       if (rc != 0)

@@ -27,6 +27,7 @@ namespace
     std::shared_ptr<ccf::LedgerSecrets> ledger_secrets;
     std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_key;
     ccf::crypto::Pem service_cert;
+    ccf::MemberId member_id;
   };
 
   // Builds a store in the state a recovering node reaches at the end of the
@@ -60,14 +61,14 @@ namespace
 
     auto member_kp = ccf::crypto::make_ec_key_pair();
     auto member_cert = member_kp->self_sign("CN=member", valid_from, valid_to);
-    const auto member_id =
+    ts.member_id =
       ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(member_cert))
         .hex_str();
     tx.rw<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO)
-      ->put(member_id, {ccf::MemberStatus::ACTIVE});
+      ->put(ts.member_id, {ccf::MemberStatus::ACTIVE});
     tx.rw<ccf::MemberPublicEncryptionKeys>(
         ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS)
-      ->put(member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
+      ->put(ts.member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
 
     ccf::ServiceInfo service_info;
     service_info.cert = ts.service_cert;
@@ -79,7 +80,7 @@ namespace
     // which triggered the private ledger read.
     tx.rw<ccf::EncryptedSubmittedShares>(
         ccf::Tables::ENCRYPTED_SUBMITTED_SHARES)
-      ->put(member_id, {1, 2, 3});
+      ->put(ts.member_id, {1, 2, 3});
 
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     return ts;
@@ -118,8 +119,115 @@ TEST_CASE("Opening a service reports an unopenable status")
   auto ts = make_recovering_state(ccf::ServiceStatus::RECOVERING);
   ccf::ShareManager share_manager(ts.ledger_secrets);
 
-  auto tx = ts.store->create_tx();
-  REQUIRE_FALSE(ccf::open_service(tx, share_manager, *ts.service_key));
+  const auto before = ts.store->current_txid();
+  {
+    auto tx = ts.store->create_tx();
+    REQUIRE_FALSE(ccf::open_service(tx, share_manager, *ts.service_key));
+    REQUIRE_FALSE(tx.tx_flag_enabled(
+      ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+  }
+  REQUIRE(ts.store->current_txid() == before);
+  auto ro = ts.store->create_read_only_tx();
+  REQUIRE(
+    ro.ro<ccf::Service>(ccf::Tables::SERVICE)->get()->status ==
+    ccf::ServiceStatus::RECOVERING);
+  REQUIRE_FALSE(ro.ro<ccf::RecoveryShares>(ccf::Tables::SHARES)->has());
+  REQUIRE_FALSE(ro.ro<ccf::EncryptedLedgerSecretsInfo>(
+                    ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET)
+                  ->has());
+  REQUIRE_FALSE(ro.ro<ccf::PreviousServiceIdentityEndorsement>(
+                    ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+                  ->has(ccf::IdentityType::CLASSICAL));
+  REQUIRE(
+    ro.ro<ccf::EncryptedSubmittedShares>(
+        ccf::Tables::ENCRYPTED_SUBMITTED_SHARES)
+      ->get(ts.member_id) == std::vector<uint8_t>{1, 2, 3});
+}
+
+TEST_CASE(
+  "Opening rejects invalid recovery configuration before issuing shares")
+{
+  auto ts = make_recovering_state(ccf::ServiceStatus::OPENING);
+  ccf::ShareManager share_manager(ts.ledger_secrets);
+  const char* expected_error = nullptr;
+  {
+    auto tx = ts.store->create_tx();
+    SUBCASE("No recovery configuration")
+    {
+      tx.rw<ccf::Configuration>(ccf::Tables::CONFIGURATION)->clear();
+      expected_error =
+        "Failed to get recovery threshold: No active configuration found";
+    }
+    SUBCASE("Owner-only recovery threshold greater than one")
+    {
+      tx.rw<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO)
+        ->put(
+          ts.member_id,
+          {ccf::MemberStatus::ACTIVE, nullptr, ccf::MemberRecoveryRole::Owner});
+      tx.rw<ccf::Configuration>(ccf::Tables::CONFIGURATION)->put({2});
+      expected_error =
+        "Recovery threshold 2 cannot be greater than 1 when the consortium "
+        "consists of only active recovery owner members (1)";
+    }
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(expected_error != nullptr);
+  const auto before = ts.store->current_txid();
+  {
+    auto tx = ts.store->create_tx();
+    REQUIRE_THROWS_WITH_AS(
+      static_cast<void>(ccf::open_service(tx, share_manager, *ts.service_key)),
+      expected_error,
+      std::logic_error);
+    REQUIRE_FALSE(tx.tx_flag_enabled(
+      ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(ts.store->current_txid() == before);
+  auto ro = ts.store->create_read_only_tx();
+  REQUIRE(
+    ro.ro<ccf::Service>(ccf::Tables::SERVICE)->get()->status ==
+    ccf::ServiceStatus::OPENING);
+  REQUIRE_FALSE(ro.ro<ccf::RecoveryShares>(ccf::Tables::SHARES)->has());
+  REQUIRE_FALSE(ro.ro<ccf::EncryptedLedgerSecretsInfo>(
+                    ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET)
+                  ->has());
+  REQUIRE(
+    ro.ro<ccf::EncryptedSubmittedShares>(
+        ccf::Tables::ENCRYPTED_SUBMITTED_SHARES)
+      ->get(ts.member_id) == std::vector<uint8_t>{1, 2, 3});
+}
+
+TEST_CASE("Opening a recovered service requires an active service")
+{
+  auto ts =
+    make_recovering_state(ccf::ServiceStatus::WAITING_FOR_RECOVERY_SHARES);
+  ccf::ShareManager share_manager(ts.ledger_secrets);
+  {
+    auto tx = ts.store->create_tx();
+    tx.rw<ccf::Service>(ccf::Tables::SERVICE)->clear();
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto before = ts.store->current_txid();
+  {
+    auto tx = ts.store->create_tx();
+    REQUIRE_THROWS_WITH_AS(
+      ccf::open_recovered_service(tx, share_manager, *ts.service_key),
+      "Error in open_recovered_service: no value in "
+      "public:ccf.gov.service.info",
+      std::logic_error);
+    REQUIRE_FALSE(tx.tx_flag_enabled(
+      ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(ts.store->current_txid() == before);
+  auto ro = ts.store->create_read_only_tx();
+  REQUIRE_FALSE(ro.ro<ccf::Service>(ccf::Tables::SERVICE)->has());
+  REQUIRE_FALSE(ro.ro<ccf::RecoveryShares>(ccf::Tables::SHARES)->has());
+  REQUIRE(
+    ro.ro<ccf::EncryptedSubmittedShares>(
+        ccf::Tables::ENCRYPTED_SUBMITTED_SHARES)
+      ->get(ts.member_id) == std::vector<uint8_t>{1, 2, 3});
 }
 
 TEST_CASE("Opening a recovered service")
@@ -178,10 +286,25 @@ TEST_CASE("Opening a recovered service happens at most once")
     auto ts = make_recovering_state(status);
     ccf::ShareManager share_manager(ts.ledger_secrets);
 
+    const auto before = ts.store->current_txid();
     auto tx = ts.store->create_tx();
-    REQUIRE_THROWS_AS(
+    REQUIRE_THROWS_WITH_AS(
       ccf::open_recovered_service(tx, share_manager, *ts.service_key),
+      fmt::format(
+        "Error in open_recovered_service: current service status is {}", status)
+        .c_str(),
       std::logic_error);
+    REQUIRE_FALSE(tx.tx_flag_enabled(
+      ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(ts.store->current_txid() == before);
+    auto ro = ts.store->create_read_only_tx();
+    REQUIRE(ro.ro<ccf::Service>(ccf::Tables::SERVICE)->get()->status == status);
+    REQUIRE(
+      ro.ro<ccf::EncryptedSubmittedShares>(
+          ccf::Tables::ENCRYPTED_SUBMITTED_SHARES)
+        ->get(ts.member_id) == std::vector<uint8_t>{1, 2, 3});
+    REQUIRE_FALSE(ro.ro<ccf::RecoveryShares>(ccf::Tables::SHARES)->has());
   }
 }
 

@@ -13,6 +13,7 @@
 
 #include <netinet/in.h>
 #include <optional>
+#include <tuple>
 #include <unistd.h>
 
 namespace asynchost
@@ -178,7 +179,7 @@ namespace asynchost
         assert_status(BINDING, CONNECTING_RESOLVING);
         if (addr_current != nullptr)
         {
-          connect_resolved();
+          std::ignore = connect_resolved();
         }
         else
         {
@@ -594,7 +595,7 @@ namespace asynchost
       // init() leaves the handle without a socket; the next connect_resolved()
       // creates one for the (new) current address family.
       assert_status(FRESH, CONNECTING_RESOLVING);
-      connect_resolved();
+      std::ignore = connect_resolved();
     }
 
     bool set_connection_timeout(uv_os_sock_t sock)
@@ -740,7 +741,7 @@ namespace asynchost
         {
           case CONNECTING_RESOLVING:
           {
-            connect_resolved();
+            std::ignore = connect_resolved();
             break;
           }
 
@@ -841,7 +842,7 @@ namespace asynchost
         LOG_DEBUG_FMT("uv_tcp_connect async retry: {}", uv_strerror(rc));
         addr_current = addr_current->ai_next;
         assert_status(CONNECTING, CONNECTING_RESOLVING);
-        connect_resolved();
+        std::ignore = connect_resolved();
       }
       else
       {

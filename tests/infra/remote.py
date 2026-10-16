@@ -549,6 +549,8 @@ class CCFRemote:
         env["TSAN_SYMBOLIZER_PATH"] = os.environ.get("TSAN_SYMBOLIZER_PATH", "")
         if "LLVM_PROFILE_FILE" in os.environ:
             env["LLVM_PROFILE_FILE"] = os.environ["LLVM_PROFILE_FILE"]
+        if "CCF_RECOVERY_TRACE" in os.environ:
+            env["CCF_RECOVERY_TRACE"] = os.environ["CCF_RECOVERY_TRACE"]
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
@@ -678,6 +680,16 @@ class CCFRemote:
             t_env = Environment(loader=loader, autoescape=select_autoescape())
             t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
 
+            # Older binaries ship their own template with only the shared limit.
+            legacy_max_message_size = kwargs.get("max_msg_size_bytes") or "64MB"
+            ledger_read_size = (
+                kwargs.get("ledger_max_read_bytes") or legacy_max_message_size
+            )
+            node_frame_size = (
+                kwargs.get("node_to_node_max_message_bytes") or legacy_max_message_size
+            )
+            kwargs["max_msg_size_bytes"] = legacy_max_message_size
+
             output = t.render(
                 start_type=start_type.name.title(),
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
@@ -740,6 +752,21 @@ class CCFRemote:
                 # Parse and re-emit output to produce consistently formatted (indented) JSON.
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
+
+                if "memory" in j and "max_read_size" not in j.get("ledger", {}):
+                    from infra.e2e_args import _convert_size_string_to_bytes
+
+                    if _convert_size_string_to_bytes(
+                        ledger_read_size
+                    ) != _convert_size_string_to_bytes(node_frame_size):
+                        raise ValueError(
+                            "This binary's configuration template cannot represent "
+                            "independent ledger and node-to-node size limits"
+                        )
+                    j["memory"]["circuit_size"] = (
+                        kwargs.get("ledger_max_pending_append_bytes") or "16MB"
+                    )
+                    j["memory"]["max_msg_size"] = ledger_read_size
 
                 # Releases before 7.0.16 reject this unknown HTTP configuration field.
                 if v is not None and v < Version("7.0.16"):

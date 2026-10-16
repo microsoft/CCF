@@ -14,6 +14,7 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -101,7 +102,7 @@ namespace ccf::logger
 
     virtual void emit(const std::string& s)
     {
-      std::cout.write(s.c_str(), s.size());
+      std::ignore = std::cout.write(s.c_str(), s.size());
       std::cout.flush();
     }
 

@@ -1,33 +1,35 @@
-import DisasterRecovery.Model
-import DisasterRecovery.Model.Local
-import DisasterRecovery.Proof
-import DisasterRecovery.Proofs.Committed
-import DisasterRecovery.Proofs.Execution
-import DisasterRecovery.Proofs.ExecutionLocal
-import DisasterRecovery.Proofs.Gossip
-import DisasterRecovery.Proofs.History
-import DisasterRecovery.Proofs.Invariants
-import DisasterRecovery.Proofs.Lifting
-import DisasterRecovery.Proofs.Local
-import DisasterRecovery.Proofs.Model
-import DisasterRecovery.Proofs.Observed
-import DisasterRecovery.Proofs.Predicates
-import DisasterRecovery.Proofs.Quorum
-import DisasterRecovery.Proofs.Trace
-import DisasterRecovery.Proofs.Witnesses
-import DisasterRecovery.Properties
-import DisasterRecovery.Properties.Utils
-import DisasterRecovery.Shared.Capabilities
-import DisasterRecovery.Shared.Execution
-import DisasterRecovery.Shared.MultiNodeTransitionSystem
-import DisasterRecovery.Shared.TransitionSystem
-import DisasterRecovery.Tests.Architecture
-import DisasterRecovery.Tests.CanonicalTests
-import DisasterRecovery.Tests.Execution
-import DisasterRecovery.Tests.Initial
-import DisasterRecovery.Tests.Network
-import DisasterRecovery.Tests.ProofCoverage
-import DisasterRecovery.Tests.QuorumCommit
-import DisasterRecovery.Tests.RaftFreshness
-import DisasterRecovery.Tests.Trace
-import DisasterRecovery.Tests.Witnesses
+module  -- shake: keep-all --deprecated_module: ignore
+
+public import DisasterRecovery.Model
+public import DisasterRecovery.Model.Local
+public import DisasterRecovery.Proof
+public import DisasterRecovery.Proofs.Committed
+public import DisasterRecovery.Proofs.Execution
+public import DisasterRecovery.Proofs.ExecutionLocal
+public import DisasterRecovery.Proofs.Gossip
+public import DisasterRecovery.Proofs.History
+public import DisasterRecovery.Proofs.Invariants
+public import DisasterRecovery.Proofs.Lifting
+public import DisasterRecovery.Proofs.Local
+public import DisasterRecovery.Proofs.Model
+public import DisasterRecovery.Proofs.Observed
+public import DisasterRecovery.Proofs.Predicates
+public import DisasterRecovery.Proofs.Quorum
+public import DisasterRecovery.Proofs.Trace
+public import DisasterRecovery.Proofs.Witnesses
+public import DisasterRecovery.Properties
+public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Tests.Architecture
+public import DisasterRecovery.Tests.CanonicalTests
+public import DisasterRecovery.Tests.Execution
+public import DisasterRecovery.Tests.Initial
+public import DisasterRecovery.Tests.Network
+public import DisasterRecovery.Tests.ProofCoverage
+public import DisasterRecovery.Tests.QuorumCommit
+public import DisasterRecovery.Tests.RaftFreshness
+public import DisasterRecovery.Tests.Trace
+public import DisasterRecovery.Tests.Witnesses
+public import DisasterRecovery.TraceValidation
+public import DisasterRecovery.TraceValidation.Dump
+public import DisasterRecovery.TraceValidation.Records
+public import DisasterRecovery.TraceValidation.Reduction

@@ -52,6 +52,30 @@ The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`
 File: `ci.yml`
 3rd party dependencies: None
 
+## Test failure annotations
+
+On GitHub Actions, `tests/tests.sh` automatically enables `tests/infra/test_reporting.py` to publish test failures as error annotations and a job-summary table.
+The Python SDK job invokes the reporter with `python ../tests/infra/test_reporting.py pytest`.
+Each invocation publishes up to ten annotations and 100 summary rows.
+Full test output is available in the job logs, with node logs in the log artifacts.
+
+Python e2e annotations identify the CTest test, concurrent scenario, logical case, exception, source location, and workspace prefix where available.
+Failures are captured by `ConcurrentRunner`, the e2e suite runner, and the shared CLI's uncaught-exception handler.
+Description decorators provide case names and descriptions.
+Child threads should use `infra.concurrency.Thread` (or `StoppableThread`) to retain their owning scenario.
+Subclasses implement `_run()` rather than overriding `run()`, so their work executes inside the context-propagation and exception-reporting wrapper.
+Uninstrumented threads can only be identified by the outer test and thread name.
+
+CTest and pytest XML results supply diagnostics for failures outside the Python e2e handlers, including native test failures, crashes, timeouts, and missing executables.
+Doctest assertion details supplement CTest's termination diagnostic.
+Setup or collection failures without test results receive a command-level annotation.
+Handled exceptions, intentional skips, and ordinary error log messages do not generate failure annotations.
+The reporter preserves failing command exit statuses and fails an otherwise successful invocation if reporting fails.
+
+Reporting options are managed by the wrapper and reporter.
+Intermediate results are stored per invocation under `build/test-results/` for CTest and `python/test-results/` for pytest; these directories are not uploaded.
+Local `./tests.sh ...` commands run CTest without XML reporting or GitHub annotations.
+
 # Continuous Integration AL4
 
 Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readiness for the move from Azure Linux 3, which `ci.yml` builds against. Runs daily on `main` on week days, and manually. It deliberately does not run on PRs, to keep PR feedback fast and limit pool usage.
@@ -133,17 +157,35 @@ File: `tla-shallow.yml`
 
 Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
 
-The disaster recovery and KV jobs both use the shared [Lean package checks](#lean-package-checks) action, which also checks the formatting of each package's tracked `.lean` files with its pinned leanfmt dependency.
-Disaster recovery runs its canonical behavior checks on Ubuntu 26.04.
-KV runs in Azure Linux 3: it builds and runs the instrumented C++ KV unit tests before putting the pinned Lean distribution, which bundles its own `clang`, on `PATH`, then checks the generated traces against the Lean model and uploads trace diagnostics as artifacts.
-The build and audit include both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
-The standard `mk_all --check` command ensures that the audit root imports every library module, so newly added proofs cannot silently escape the checks.
+The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.
+Canonical behavior checks run with `#eval` when their test module is built, and assertion failures fail the build.
+The build includes both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
+The standard `mk_all --check --module` command ensures that the modular library root imports every library module, so newly added proofs cannot silently escape the checks.
+
+The kernel-check job runs `lake check --inadvisably-no-sandbox` on Ubuntu 26.04 for the disaster-recovery model and replayer package, including its imported common infrastructure.
+Build isolation is disabled so disaster recovery can use the sibling common sources directly; kernel rechecking and the axiom-dependency audit remain enabled.
+The replayer is the only executable entrypoint; the canonical test runner is namespaced within the library.
+The job builds and exports every default target, including the complete library import root and replayer, and requires Lean's kernel to accept the declarations with only the standard axioms.
+This provides the axiom-dependency check and supplements the build, linters, and executable tests.
+Temporary exports use disk-backed runner storage rather than `/tmp`.
+Additional bundled checkers are not enabled.
+
+The disaster recovery job also checks the records of the recovery trace fixtures in `lean/disaster-recovery/replayer/fixtures` against `trace.schema.json`, with `check-schema.py`.
+It runs `replayer/check-fixtures.sh` using the package's built `disaster-recovery-replay` executable.
+That replays the fixtures' quorum, failover and multiple-timeout traces, which must pass, and invalid and valid traces stored as diffs against them, which must fail and pass.
+It then runs the trace viewer's `viewer/build.py`, which fails if a dump the viewer shows is missing or disagrees with the replayer.
+
+The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
+
+After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
+The KV job runs in Azure Linux 3 and uses the shared [Lean package checks](#lean-package-checks) action.
+It builds and runs the instrumented C++ KV unit tests before putting the pinned Lean distribution, which bundles its own `clang`, on `PATH`, then checks the generated traces against the Lean model and uploads trace diagnostics as artifacts.
 
 The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, the workflow, or its shared actions. It also runs on changes to the KV implementation and public KV API (`src/kv/`, `include/ccf/kv/`, `include/ccf/tx.h`, and the CHAMP map), the KV trace runner, `tests/tests.sh`, and the CMake build.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
-3rd party dependencies: None
+3rd party dependencies: Mathlib and leanfmt (pinned in the Lake package), and elan.
 
 # Vendored Dependency Verification
 
@@ -154,14 +196,18 @@ File: `vendor-verification.yml`
 
 # Release
 
-Produces CCF reference release artifacts for all languages and platforms. Triggered on tags matching `ccf-[67].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+Produces CCF reference release artifacts, excluding the Python package. Triggered on tags matching `ccf-[567].*`, and manually with an optional dry run. The output of a non-dry-run job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+
+Python packages are built and published separately by the [OneBranch pipeline](../../.pipelines/README.md), without attestations.
+
+Release-build tests, installed-package tests, and the recovery benchmark use the latest released `ccf` Python package from PyPI. The release job sets `CCF_USE_RELEASED_PYTHON_PACKAGE=1`; normal development and CI tests continue to use the local package.
 
 File: `release.yml`
 3rd party dependencies: None
 
 # Release Attestation
 
-Generate signed build provenance attestations for release artifacts. Triggered on release publishing.
+Generate signed build provenance attestations for non-Python release artifacts. Triggered on release publishing. Python wheels and existing attestation bundles are excluded.
 
 File: `release-attestation.yml`
 3rd party dependencies: None
@@ -172,15 +218,6 @@ Publishes ccf-app TS package from a GitHub release to NPM. Triggered on release 
 
 File: `npm.yml`
 3rd party dependencies: None
-
-# PyPI
-
-Publishes ccf Python package from a GitHub release to PyPI. Triggered on release publishing.
-
-File: `pypi.yml`
-3rd party dependencies:
-
-- `pypa/gh-action-pypi-publish@v1.14.0`
 
 # Documentation
 

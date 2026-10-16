@@ -42,16 +42,16 @@ assert_commit_idx,0,8
 assert_detail,0,leadership_state,None
 assert_detail,0,retirement_phase,RetiredCommitted
 
-# 1 becomes leader
-assert_detail,1,leadership_state,Leader
+# 2 becomes leader
+assert_detail,2,leadership_state,Leader
 emit_signature,3
 periodic_all,10
 dispatch_all
 dispatch_all
-assert_commit_idx,1,9
+assert_commit_idx,2,9
 
 # 0 becomes a follower again, because it receives messages
-# from 1 before 1 realises 0 is retired committed.
+# from 2 before 2 realises 0 is retired committed.
 # But 0 does not attempt to run for election
 # because it knows it is retired committed
 assert_detail,0,retirement_phase,RetiredCommitted
@@ -66,4 +66,4 @@ emit_signature,3
 periodic_all,10
 dispatch_all
 dispatch_all
-assert_commit_idx,1,11
+assert_commit_idx,2,11

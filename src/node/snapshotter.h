@@ -394,6 +394,13 @@ namespace ccf
     }
 
   public:
+    // After workers and snapshot tasks stop, break the Store/Snapshotter
+    // ownership cycle, including store hooks which retain this object.
+    void shutdown()
+    {
+      store.reset();
+    }
+
     Snapshotter(
       const std::string& snapshot_dir,
       std::shared_ptr<ccf::kv::Store>& store_,

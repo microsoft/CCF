@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import tempfile
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import ccf.ledger
 import ccf.signatures
@@ -145,99 +145,57 @@ def get_replacement_package(args):
     )
 
 
-def get_step_down_commit_seqno(node):
-    """Return the commit seqno a node reported when it first stepped down
-    after being sent SIGTERM (a stop notice)."""
-    seen_stop_notice = False
-    with open(node.remote.remote.out, encoding="utf-8") as f:
-        for line in f:
-            if "SIGTERM: Notifying enclave" in line:
-                seen_stop_notice = True
-            elif seen_stop_notice:
-                m = re.search(r"Becoming follower \S+: \d+\.(\d+)", line)
-                if m:
-                    return int(m.group(1))
-    return None
-
-
-def wait_for_recovery_ledger_chunks_renamed(node, timeout=10):
-    """Wait until the node's host has renamed the ledger chunks written during
-    recovery. They keep a .recovery suffix, and are skipped by ledger reads that
-    exclude recovery files, until the host completes recovery. It does so
-    asynchronously, after the node sees the service opening commit, so this can
-    happen after the node reports that transaction as committed."""
-    ledger_dir = node.remote.current_ledger_path()
-    end_time = time.time() + timeout
-    while True:
-        recovery_chunks = [
-            f
-            for f in os.listdir(ledger_dir)
-            if f.endswith(ccf.ledger.RECOVERY_FILE_SUFFIX)
-        ]
-        if not recovery_chunks:
-            return
-        if time.time() > end_time:
-            raise TimeoutError(
-                f"Node {node.node_id} still has recovery ledger chunks after "
-                f"{timeout}s: {recovery_chunks}"
-            )
-        time.sleep(0.1)
-
-
-def find_service_open_seqnos(node, from_seqno):
-    """Return the seqnos after from_seqno, in the node's ledger, of the
+def find_service_open_txids(node, from_seqno):
+    """Return the committed txids after from_seqno, in the node's ledger, of the
     transactions which set the service status to Open."""
-    ledger = ccf.ledger.Ledger(
-        node.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
-    )
-    open_seqnos = []
-    for chunk in ledger:
-        _, chunk_end_seqno = chunk.get_seqnos()
-        if chunk_end_seqno is not None and chunk_end_seqno <= from_seqno:
-            continue
-        for tx in chunk:
-            public_domain = tx.get_public_domain()
-            seqno = public_domain.get_seqno()
-            tables = public_domain.get_tables()
-            if seqno <= from_seqno or ccf.ledger.SERVICE_INFO_TABLE_NAME not in tables:
-                continue
-            service_info = tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
-            ]
-            if (
-                service_info is not None
-                and json.loads(service_info)["status"] == "Open"
-            ):
-                open_seqnos.append(seqno)
-    return open_seqnos
+    with node.client() as c:
+        r = c.get("/node/commit")
+        assert r.status_code == http.HTTPStatus.OK, r
+        target_seqno = ccf.tx_id.TxID.from_str(r.body.json()["transaction_id"]).seqno
+
+    open_txids = []
+    with node.download_ledger(
+        target_seqno,
+        local_only=True,
+        include_committed_prefix=True,
+    ) as ledger_paths:
+        for path in ledger_paths:
+            # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+            chunk_path = path.removesuffix(infra.node.COMMITTED_PREFIX_FILE_SUFFIX)
+            if chunk_path != path:
+                os.rename(path, chunk_path)
+            path = chunk_path
+            # END SDK 7.0.18 compatibility.
+            for tx in ccf.ledger.LedgerChunk(path):
+                public_domain = tx.get_public_domain()
+                seqno = public_domain.get_seqno()
+                tables = public_domain.get_tables()
+                if (
+                    not from_seqno < seqno <= target_seqno
+                    or ccf.ledger.SERVICE_INFO_TABLE_NAME not in tables
+                ):
+                    continue
+                service_info = tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
+                    ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+                ]
+                if (
+                    service_info is not None
+                    and json.loads(service_info)["status"] == "Open"
+                ):
+                    open_txids.append(tx.get_txid())
+    return open_txids
 
 
 def recover_with_primary_dying(args, recovered_network, after_backups_recovered=False):
-    # Force an election immediately after the final recovery share is accepted
-    # and check recovery still completes and the service is opened exactly
-    # once. Nodes run with ignore_first_sigterm=True, so SIGTERM'ing the
-    # primary makes it nominate a successor and an election happens
-    # immediately, with no election-timeout wait.
+    # Suspend the primary after the final recovery share commits, so a different
+    # node must be elected. A SIGTERM stop notice only nominates a successor:
+    # if that successor is behind, it can lose and the old primary can win again.
     #
-    # Whether the stop notice lands before or after the primary finishes
-    # reading the private ledger, and before or after its opening commits, is
-    # a race the test cannot control from outside the node. A stop notice only
-    # makes the primary nominate a successor, so it stays leader, and can still
-    # commit, until it sees the successor's higher term. The orderings are:
-    # - the primary steps down before opening, and the new primary opens;
-    # - the primary writes the opening and steps down before it commits: the
-    #   new leader rolls it back unless it holds a signature over it, and opens
-    #   the service itself, even if it completed private recovery as a backup;
-    # - the opening commits before the primary steps down, so the election
-    #   follows a completed recovery.
-    # With a short private ledger the second ordering is the usual one. The
-    # checks below hold in all of them: recovery completes, every survivor stays
-    # healthy, and each survivor's ledger opens the recovered service exactly
-    # once. A second opening would be fatal to the node attempting it, since
-    # opening requires the service to still be waiting for shares (that guard
-    # is unit-tested in open_service_test; the check that only the primary
-    # attempts to open lives in NodeState and is exercised here). The ordering
-    # that occurred is logged.
+    # Private recovery and the service opening may finish before suspension.
+    # If the opening survives the election, the new primary must not open again;
+    # otherwise it must open the service itself, even if it completed private
+    # recovery as a backup. Recovery must complete, every survivor must stay
+    # healthy, and each survivor's ledger must open the service exactly once.
     #
     # With after_backups_recovered, the old primary is instead suspended as
     # soon as every backup has begun private recovery, and a backup is elected
@@ -308,19 +266,15 @@ def recover_with_primary_dying(args, recovered_network, after_backups_recovered=
                 f"to complete private recovery in view {initial_view}"
             )
     else:
-        # SIGTERM (not SIGKILL) the primary: thanks to ignore_first_sigterm it
-        # stays up, treats this as a stop notice and immediately nominates a
-        # successor, which is elected rapidly (no election-timeout wait).
-        LOG.info(f"SIGTERM primary {retired_id} to nominate a successor")
-        retired_primary.sigterm()
+        LOG.info(f"Suspend primary {retired_id} to force failover")
+        retired_primary.suspend()
 
     primary, new_view = recovered_network.wait_for_new_primary(retired_primary)
     assert new_view > initial_view, (new_view, initial_view)
     LOG.info(f"New primary {primary.node_id} elected in view {new_view}")
 
-    # SIGKILL the old primary (it ignored the SIGTERM, or is suspended) and
-    # confirm it is gone before dropping it: SIGKILL is asynchronous, and once
-    # removed nothing else will reap it.
+    # SIGKILL the suspended primary and confirm it is gone before dropping it:
+    # SIGKILL is asynchronous, and once removed nothing else will reap it.
     retired_primary.sigkill()
     assert (
         retired_primary.remote.check_done()
@@ -360,8 +314,9 @@ def recover_with_primary_dying(args, recovered_network, after_backups_recovered=
     recovered_network.wait_for_all_nodes_to_commit(primary=primary)
     open_seqno = None
     for node in recovered_network.get_joined_nodes():
-        wait_for_recovery_ledger_chunks_renamed(node)
-        open_seqnos = find_service_open_seqnos(node, create_seqno)
+        open_seqnos = [
+            txid.seqno for txid in find_service_open_txids(node, create_seqno)
+        ]
         assert (
             len(open_seqnos) == 1
         ), f"Node {node.node_id} ledger opens the service at {open_seqnos}"
@@ -378,19 +333,11 @@ def recover_with_primary_dying(args, recovered_network, after_backups_recovered=
                 f"Service not opened at {new_view}.{open_seqno} by the new "
                 f"primary, so the old primary's opening was kept: {r.body.json()}"
             )
-    else:
-        step_down_commit_seqno = get_step_down_commit_seqno(retired_primary)
-        if step_down_commit_seqno is not None and step_down_commit_seqno < open_seqno:
-            LOG.info(
-                f"Old primary stepped down at commit seqno {step_down_commit_seqno}, "
-                f"before the service opening at seqno {open_seqno} committed"
-            )
-        else:
-            LOG.warning(
-                f"Service opening at seqno {open_seqno} committed before the old "
-                f"primary stepped down (at commit seqno {step_down_commit_seqno}): "
-                "the election followed a completed recovery"
-            )
+
+    LOG.info(
+        f"Recovered service has exactly one opening at seqno {open_seqno}; "
+        f"new primary {primary.node_id} was elected in view {new_view}"
+    )
 
 
 @reqs.description("Recovery members cannot be changed during recovery")
@@ -578,7 +525,7 @@ def run_reconfiguration_before_recovery_shares(args):
                 timeout=args.ledger_recovery_timeout,
             )
 
-            valid_from = datetime.now(timezone.utc)
+            valid_from = datetime.now(UTC)
             recovered_network.consortium.trust_node(
                 primary,
                 new_node.node_id,
@@ -711,6 +658,69 @@ def test_recover_service_with_ledger_after_snapshot(network, args):
     return test_recover_service(network, args, snapshots_dir=snapshots_dir)
 
 
+@reqs.description("Recover with a stale incomplete chunk behind committed history")
+@reqs.recover(number_txs=2)
+def test_recover_service_with_stale_incomplete_ledger(
+    network, args, recovered_networks=None
+):
+    primary, _ = network.find_primary()
+    committed_seqno = network.create_and_wait_for_ledger_chunk(primary)
+    snapshot_trigger = primary.trigger_snapshot()
+    snapshots_dir = network.get_committed_snapshots(
+        primary,
+        target_seqno=snapshot_trigger.seqno,
+        wait_for_target_seqno=True,
+    )
+    snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
+    assert snapshot_name is not None
+    snapshot_seqno, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
+
+    stale_entries = None
+    with primary.get_ledger_from_api(committed_seqno) as ledger:
+        for chunk in ledger:
+            _, end_seqno = chunk.get_seqnos()
+            if end_seqno is None or end_seqno >= snapshot_seqno:
+                continue
+            entries = [
+                (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in chunk
+            ]
+            if len(entries) > 1:
+                stale_entries = entries[:-1]
+                break
+    assert stale_entries is not None, "No old committed chunk for the stale fixture"
+
+    network.txs.issue(network, number_txs=2)
+    network.create_and_wait_for_ledger_chunk(primary)
+    network = _recover_service(
+        network,
+        args,
+        snapshots_dir=snapshots_dir,
+        recovered_networks=recovered_networks,
+        stale_ledger_entries=stale_entries,
+    )
+
+    primary, _ = network.find_primary()
+    ignored_path = os.path.join(
+        primary.remote.current_ledger_path(),
+        f"ledger_{stale_entries[0][0]}{ccf.ledger.IGNORED_FILE_SUFFIX}",
+    )
+    expected_stale_bytes = b"\0" * ccf.ledger.LEDGER_HEADER_SIZE + b"".join(
+        raw_tx for _, raw_tx in stale_entries
+    )
+    with open(ignored_path, "rb") as ignored_file:
+        assert ignored_file.read() == expected_stale_bytes
+
+    opening_txids = find_service_open_txids(primary, snapshot_seqno)
+    assert len(opening_txids) == 1, opening_txids
+    opening_txid = opening_txids[0]
+    network.wait_for_all_nodes_to_commit(tx_id=opening_txid)
+    for node in network.get_joined_nodes():
+        with node.client() as c:
+            response = c.get("/node/ready/app")
+            assert response.status_code == http.HTTPStatus.NO_CONTENT, response
+    return network
+
+
 def _recover_service(
     network,
     args,
@@ -721,6 +731,7 @@ def _recover_service(
     snapshots_dir=None,
     election_after_backups_recovered=False,
     recovered_networks=None,
+    stale_ledger_entries=None,
 ):
     network.save_service_identity(args)
     old_node_ids = {node.node_id for node in network.get_joined_nodes()}
@@ -770,6 +781,28 @@ def _recover_service(
     else:
         current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
+    if stale_ledger_entries is not None:
+        assert current_ledger_dir is not None
+        committed_chunks = list(ccf.ledger.Ledger(committed_ledger_dirs))
+        assert len(committed_chunks) > 1
+        latest_chunk = committed_chunks[-1]
+        tail_entries = [
+            (tx.get_public_domain().get_seqno(), tx.get_raw_tx()) for tx in latest_chunk
+        ]
+        assert tail_entries[0][0] > stale_ledger_entries[-1][0]
+        # Keep a valid incomplete tail above the committed prefix, so public
+        # recovery completes that tail rather than the stale chunk.
+        infra.utils.write_ledger_chunk(
+            current_ledger_dir, tail_entries, tail_entries[-1][0], complete=False
+        )
+        os.remove(latest_chunk.filename())
+        infra.utils.write_ledger_chunk(
+            current_ledger_dir,
+            stale_ledger_entries,
+            stale_ledger_entries[-1][0],
+            complete=False,
+        )
+
     with tempfile.NamedTemporaryFile(mode="w+") as node_data_tf:
         start_node_data = {"this is a": "recovery node"}
         json.dump(start_node_data, node_data_tf)
@@ -795,9 +828,6 @@ def _recover_service(
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
                 service_data_json_file=ntf.name,
-                # Lets recover_with_primary_dying SIGTERM the primary to nominate
-                # a successor rather than killing it outright.
-                ignore_first_sigterm=force_election,
             )
             LOG.info("Check that service data has been set")
             primary, _ = recovered_network.find_primary()
@@ -1740,31 +1770,14 @@ def run_corrupted_ledger(args):
 
 
 def find_recovery_tx_seqno(node):
-    min_recovery_seqno = 0
     with node.client() as c:
         r = c.get("/node/state").body.json()
         if "last_recovered_seqno" not in r:
             return None
         min_recovery_seqno = r["last_recovered_seqno"]
 
-    ledger = ccf.ledger.Ledger(
-        node.remote.ledger_paths(), committed_only=False, contiguous_suffix=True
-    )
-    for chunk in ledger:
-        _, chunk_end_seqno = chunk.get_seqnos()
-        if chunk_end_seqno < min_recovery_seqno:
-            continue
-        for tx in chunk:
-            tables = tx.get_public_domain().get_tables()
-            seqno = tx.get_public_domain().get_seqno()
-            if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:
-                service_status = json.loads(
-                    tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                        ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
-                    ]
-                )["status"]
-                if service_status == "Open":
-                    return seqno
+    for txid in find_service_open_txids(node, min_recovery_seqno):
+        return txid.seqno
     return None
 
 
@@ -2199,9 +2212,7 @@ def run_recover_snapshot_from_expired_node_certificate(args):
         recovered_network = None
         try:
             valid_from = str(
-                infra.crypto.datetime_to_X509time(
-                    datetime.now(timezone.utc) - timedelta(days=2)
-                )
+                infra.crypto.datetime_to_X509time(datetime.now(UTC) - timedelta(days=2))
             )
             validity_period_days = 1
             primary.verify_ca_by_default = False
@@ -2218,7 +2229,7 @@ def run_recover_snapshot_from_expired_node_certificate(args):
             _, valid_to = infra.crypto.get_validity_period_from_pem_cert(
                 primary.get_tls_certificate_pem()
             )
-            assert valid_to < datetime.now(timezone.utc), valid_to
+            assert valid_to < datetime.now(UTC), valid_to
 
             recovered_network = test_recover_service(
                 network,
@@ -2261,11 +2272,9 @@ def run_recovery_with_election(args, after_backups_recovered=False):
             )
         finally:
             # Recovered nodes are a separate Network (not torn down by the
-            # context manager) and run with ignore_first_sigterm=True; SIGKILL
-            # them, including any suspended or not yet joined, even if the test
-            # failed, so they don't linger as orphans that ignore the first
-            # teardown SIGTERM. SIGKILL is asynchronous, so confirm each one is
-            # gone (which also reaps it).
+            # context manager). SIGKILL them, including any suspended or not yet
+            # joined, even if the test failed. SIGKILL is asynchronous, so confirm
+            # each one is gone (which also reaps it).
             recovered_nodes = [
                 node
                 for recovered_network in recovered_networks
@@ -2307,6 +2316,57 @@ def run_recovery_with_incomplete_ledger(args):
         network.start_and_open(args)
         test_incomplete_ledger_recovery(network, args)
         return network
+
+
+def run_recovery_with_stale_incomplete_ledger(args):
+    txs = app.LoggingTxs("user0")
+    recovered_networks = []
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb, txs=txs
+    ) as network:
+        try:
+            network.start_and_open(args)
+            network = test_recover_service_with_stale_incomplete_ledger(
+                network, args, recovered_networks=recovered_networks
+            )
+            post_opening_txid = network.txs.issue(network, number_txs=3)
+            network.wait_for_all_nodes_to_commit(tx_id=post_opening_txid)
+            primary, _ = network.find_primary()
+            network.create_and_wait_for_ledger_chunk(primary)
+            with primary.get_ledger_chunk_from_api(post_opening_txid.seqno) as ledger:
+                post_opening_bytes = ledger.get_transaction(
+                    post_opening_txid.seqno
+                ).get_raw_tx()
+
+            network = test_recover_service(
+                network,
+                args,
+                from_snapshot=False,
+                recovered_networks=recovered_networks,
+            )
+            primary, _ = network.find_primary()
+            network.stop_all_nodes()
+            validator = ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False)
+            ledger = ccf.ledger.Ledger(
+                primary.remote.ledger_paths(),
+                committed_only=False,
+                contiguous_suffix=True,
+            )
+            found_post_opening_tx = False
+            for chunk in ledger:
+                for tx in chunk:
+                    validator.add_transaction(tx)
+                    if tx.get_txid() == post_opening_txid:
+                        assert tx.get_raw_tx() == post_opening_bytes
+                        found_post_opening_tx = True
+            assert found_post_opening_tx, post_opening_txid
+        finally:
+            for recovered_network in reversed(recovered_networks):
+                recovered_network.stop_all_nodes(
+                    skip_verification=True,
+                    check_file_invariants=False,
+                    skip_verify_chunking=True,
+                )
 
 
 def run_recover_via_initial_recovery_owner(args):
@@ -3421,6 +3481,15 @@ checked. Note that the key for each logging message is unique (per table).
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=10000,
+    )
+
+    cr.add(
+        "recovery_with_stale_incomplete_ledger",
+        run_recovery_with_stale_incomplete_ledger,
+        package="samples/apps/logging/logging",
+        nodes=infra.e2e_args.nodes(cr.args, 2),
+        ledger_chunk_bytes="1B",
+        snapshot_tx_interval=30,
     )
 
     cr.add(

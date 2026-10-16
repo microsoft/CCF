@@ -16,10 +16,12 @@
 #include "kv/kv_types.h"
 #include "raft_types.h"
 #include "service/tables/signatures.h"
+#include "tasks/periodic_task_owner.h"
 
 #include <algorithm>
 #include <functional>
 #include <list>
+#include <map>
 #include <random>
 #include <unordered_map>
 #include <vector>
@@ -88,7 +90,7 @@ namespace aft
   using Configuration = ccf::kv::Configuration;
 
   template <class LedgerProxy>
-  class Aft : public ccf::kv::Consensus
+  class Aft : public ccf::kv::Consensus, public ccf::tasks::PeriodicTaskOwner
   {
   private:
     struct NodeState
@@ -169,7 +171,9 @@ namespace aft
     // This should be used for diagnostic or broadcasting
     // messages but _not_ for counting quorums, which should be done for each
     // active configuration.
-    std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
+    // Ordered so that iteration, including successor selection in
+    // find_successor(), is deterministic.
+    std::map<ccf::NodeId, NodeState> all_other_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
 
     // Called on the primary to remove retired nodes from the store
@@ -234,6 +238,16 @@ namespace aft
 
     ~Aft() override = default;
 
+    void register_periodic_tasks(
+      ccf::tasks::JobBoard& job_board, std::chrono::milliseconds period)
+    {
+      schedule_periodic_task(
+        job_board,
+        period,
+        [this](std::chrono::milliseconds elapsed) { periodic(elapsed); },
+        "Consensus maintenance");
+    }
+
     std::optional<ccf::NodeId> primary() override
     {
       // leader_id is written under state->lock, and unlike is_primary() this
@@ -267,20 +281,21 @@ namespace aft
     }
 
     /**
-     * Returns true if the node is primary, max_uncommitted_tx_count is non-zero
-     * and the number of transactions replicated but not yet committed exceeds
-     * max_uncommitted_tx_count.
+     * Returns true if local ledger backlog or the uncommitted transaction
+     * count reaches its configured threshold, regardless of the node's role.
      */
-    bool is_at_max_capacity() override
+    bool should_apply_backpressure() override
     {
+      if (ledger->is_backlogged())
+      {
+        return true;
+      }
       if (max_uncommitted_tx_count == 0)
       {
         return false;
       }
       std::unique_lock<ccf::ds::Mutex> guard(state->lock);
-      return state->leadership_state.load() ==
-        ccf::kv::LeadershipState::Leader &&
-        (state->last_idx - state->commit_idx >= max_uncommitted_tx_count);
+      return state->last_idx - state->commit_idx >= max_uncommitted_tx_count;
     }
 
     Consensus::SignatureDisposition get_signature_disposition() override
@@ -738,6 +753,18 @@ namespace aft
             AppendEntries r =
               channels->template recv_authenticated<AppendEntries>(
                 from, data, size);
+            if (ledger->is_backlogged())
+            {
+              // Treat the whole message as lost. Check before term/log
+              // processing so overload does not produce NACKs or reset
+              // election timers, even ignoring heartbeats or potentially
+              // useful leadership/term information, for simplicity. Expect
+              // that normal periodic probes will repair any gap once ledger
+              // IO catches up.
+              RAFT_DEBUG_FMT(
+                "Dropping AppendEntries from {}: ledger write backlog", from);
+              break;
+            }
             recv_append_entries(from, r, data, size);
             break;
           }
@@ -1877,6 +1904,16 @@ namespace aft
         RequestVoteResponse response{
           .term = state->current_view, .vote_granted = answer};
 
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "send_request_vote_response";
+        j["packet"] = response;
+        j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
+        j["to_node_id"] = to;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
+
         RAFT_INFO_FMT(
           "Send {} from {} to {}: {}",
           response.msg,
@@ -1890,6 +1927,16 @@ namespace aft
       {
         RequestPreVoteResponse response{
           .term = state->current_view, .vote_granted = answer};
+
+#ifdef CCF_RAFT_TRACING
+        nlohmann::json j = {};
+        j["function"] = "send_request_vote_response";
+        j["packet"] = response;
+        j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
+        j["to_node_id"] = to;
+        RAFT_TRACE_JSON_OUT(j);
+#endif
 
         RAFT_INFO_FMT(
           "Send {} from {} to {}: {}",
@@ -2295,6 +2342,8 @@ namespace aft
       // in the latest config, provided that match idx at least as high as a
       // majority. That would make them both eligible and unlikely to retire
       // soon.
+      // Remaining ties go to the last candidate visited, which is the highest
+      // node ID because all_other_nodes is ordered.
       for (auto& [node, node_state] : all_other_nodes)
       {
         if (node_state.match_idx >= max_match_idx)
@@ -2421,17 +2470,23 @@ namespace aft
         switch (state->leadership_state.load())
         {
           case ccf::kv::LeadershipState::PreVoteCandidate:
+          {
             become_candidate();
             break;
+          }
           case ccf::kv::LeadershipState::Candidate:
+          {
             become_leader();
             break;
+          }
           case ccf::kv::LeadershipState::None:
           case ccf::kv::LeadershipState::Leader:
           case ccf::kv::LeadershipState::Follower:
+          {
             throw std::logic_error(
               "add_vote_for_me() called while not a pre-vote candidate or "
               "candidate");
+          }
         }
       }
     }
@@ -2770,6 +2825,7 @@ namespace aft
 #ifdef CCF_RAFT_TRACING
         nlohmann::json j = {};
         j["function"] = "step_down_and_nominate_successor";
+        j["to_node_id"] = successor.value();
         j["state"] = *state;
         COMMITTABLE_INDICES(j["state"], state);
         j["configurations"] = configurations;

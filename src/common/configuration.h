@@ -4,21 +4,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
-#include "common/enclave_interface_types.h"
-#include "ds/oversized.h"
-
-struct EnclaveConfig
-{
-  uint8_t* to_enclave_buffer_start = nullptr;
-  size_t to_enclave_buffer_size = 0;
-  ringbuffer::Offsets* to_enclave_buffer_offsets = nullptr;
-
-  uint8_t* from_enclave_buffer_start = nullptr;
-  size_t from_enclave_buffer_size = 0;
-  ringbuffer::Offsets* from_enclave_buffer_offsets = nullptr;
-
-  oversized::WriterConfig writer_config = {};
-};
+#include "ccf/ds/logger_level.h"
 
 static constexpr auto node_to_node_interface_name = "node_to_node_interface";
 

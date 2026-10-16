@@ -13,7 +13,7 @@ import time
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum, IntEnum, auto
 from typing import ClassVar
 
@@ -221,6 +221,9 @@ class Network:
         "historical_cache_soft_limit",
         "tick_ms",
         "max_msg_size_bytes",
+        "ledger_max_read_bytes",
+        "ledger_max_pending_append_bytes",
+        "node_to_node_max_message_bytes",
         "snp_security_policy_file",
         "snp_uvm_endorsements_file",
         "snp_endorsements_file",
@@ -1490,7 +1493,7 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                valid_from = valid_from or datetime.now(timezone.utc)
+                valid_from = valid_from or datetime.now(UTC)
                 # Note: Timeout is function of the ledger size here since
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
@@ -1520,6 +1523,26 @@ class Network:
         if not no_wait:
             self.wait_for_all_nodes_to_commit(primary=primary)
 
+    @staticmethod
+    def _is_retryable_node_removal_response(response):
+        """Retry uncommitted retirement and primary-routing failures by error code."""
+        if response.status_code not in (
+            http.HTTPStatus.BAD_REQUEST,
+            http.HTTPStatus.SERVICE_UNAVAILABLE,
+        ):
+            return False
+        try:
+            error = response.body.json()["error"]
+            return (
+                response.status_code == http.HTTPStatus.BAD_REQUEST
+                and error["code"] == "NodeNotRetiredCommitted"
+            ) or (
+                response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
+                and error["code"] in ("InternalError", "PrimaryNotFound")
+            )
+        except (ValueError, KeyError, TypeError):
+            return False
+
     def retire_node(self, remote_node, node_to_retire, timeout=10):
         pending = self.consortium.retire_node(
             remote_node, node_to_retire, timeout=timeout
@@ -1538,16 +1561,7 @@ class Network:
                             r = c.delete(
                                 f"/node/network/nodes/{node_to_retire.node_id}"
                             )
-                            retry = False
-                            if r.status_code == http.HTTPStatus.BAD_REQUEST:
-                                try:
-                                    retry = (
-                                        r.body.json()["error"]["code"]
-                                        == "NodeNotRetiredCommitted"
-                                    )
-                                except (ValueError, KeyError, TypeError):
-                                    pass
-                            if retry:
+                            if self._is_retryable_node_removal_response(r):
                                 LOG.warning(f"Retrying node removal after {r}")
                                 try:
                                     remote_node, _ = self.find_primary(
@@ -1665,13 +1679,13 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                valid_from = valid_from or datetime.now(timezone.utc)
+                valid_from = valid_from or datetime.now(UTC)
                 # Note: Timeout is function of the ledger size here since
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
                 if statistics is not None:
                     statistics["node_replacement_governance_start"] = datetime.now(
-                        timezone.utc
+                        UTC
                     ).isoformat()
                 self.consortium.replace_node(
                     primary,
@@ -1683,7 +1697,7 @@ class Network:
                 )
                 if statistics is not None:
                     statistics["node_replacement_governance_committed"] = datetime.now(
-                        timezone.utc
+                        UTC
                     ).isoformat()
         except (ValueError, TimeoutError):
             LOG.error(
@@ -1702,8 +1716,21 @@ class Network:
                     if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
                         check_commit = infra.checker.Checker(c)
                         r = c.delete(f"/node/network/nodes/{node_to_retire.node_id}")
-                        check_commit(r)
-                        break
+                        if self._is_retryable_node_removal_response(r):
+                            LOG.warning(f"Retrying node removal after {r}")
+                            try:
+                                primary, _ = self.find_primary(
+                                    timeout=max(0, end_time - time.time())
+                                )
+                            except PrimaryNotFound:
+                                pass
+                        else:
+                            if not 200 <= r.status_code < 300:
+                                raise RuntimeError(
+                                    f"Failed to remove node {node_to_retire.node_id}: {r}"
+                                )
+                            check_commit(r)
+                            break
                     else:
                         r = c.get(
                             f"/node/network/nodes/{node_to_retire.node_id}"
@@ -1714,9 +1741,7 @@ class Network:
         else:
             raise TimeoutError(f"Timed out waiting for node to become removed: {r}")
         if statistics is not None:
-            statistics["old_node_removal_committed"] = datetime.now(
-                timezone.utc
-            ).isoformat()
+            statistics["old_node_removal_committed"] = datetime.now(UTC).isoformat()
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
@@ -2398,31 +2423,19 @@ class Network:
             node=primary,
             timeout=timeout,
         )
-        if self._supports_operator_feature(primary, "LedgerChunkRead"):
-            with primary.get_ledger_chunk_from_api(seqno, timeout=timeout) as ledger:
-                return ledger.get_transaction(seqno).get_public_domain().get_tables()
-
-        return primary.get_ledger_public_tables_at(seqno)
+        with primary.get_ledger_chunk_from_api(seqno, timeout=timeout) as ledger:
+            return ledger.get_transaction(seqno).get_public_domain().get_tables()
 
     def get_latest_ledger_public_state(self, timeout=5):
         primary, _ = self.find_primary()
-        with primary.client() as nc:
-            resp = nc.get("/node/commit")
-            body = resp.body.json()
-            tx_id = TxID.from_str(body["transaction_id"])
         target_seqno = self.create_and_wait_for_ledger_chunk(
             node=primary,
             timeout=timeout,
         )
-        if self._supports_operator_feature(
-            primary, "LedgerChunkRead"
-        ) and self._supports_operator_feature(primary, "SnapshotRead"):
-            return primary.get_public_state_from_api(
-                target_seqno,
-                timeout=timeout,
-            )
-
-        return primary.get_ledger_public_state_at(tx_id.seqno)
+        return primary.get_public_state_from_api(
+            target_seqno,
+            timeout=timeout,
+        )
 
     @functools.cached_property
     def cert_path(self):
@@ -2452,7 +2465,7 @@ class Network:
         if self.service_certificate_valid_from is None:
             # If the service certificate has not been renewed, assume that certificate has
             # been issued within this test run
-            expected_valid_from = datetime.now(timezone.utc) - timedelta(hours=1)
+            expected_valid_from = datetime.now(UTC) - timedelta(hours=1)
             if valid_from < expected_valid_from:
                 raise ValueError(
                     f'Service certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'

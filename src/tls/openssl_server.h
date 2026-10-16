@@ -16,6 +16,7 @@
 #include "tasks/worker.h"
 #include "tcp/msg_types.h"
 #include "tls/inbound_admission.h"
+#include "tls/socket_utils.h"
 
 #include <arpa/inet.h>
 #include <atomic>
@@ -372,7 +373,8 @@ namespace ccf::tls
     // Loop-owned connections affected by commands or worker completions.
     std::vector<std::shared_ptr<Conn>> dirty_connections;
     // Remember resumption even if saturation clears between loop passes.
-    std::atomic<bool> recheck_read_interest{false};
+    // Share the queue mutex so a coalesced wake cannot miss a later recheck.
+    bool recheck_read_interest CCF_GUARDED_BY(out_mutex) = false;
 
     // Cross-thread server-cert (re)load requests (deferred cert / rotation),
     // applied on the loop thread so `ctx` is only ever touched there.
@@ -430,7 +432,9 @@ namespace ccf::tls
       switch (ssl_error)
       {
         case SSL_ERROR_ZERO_RETURN:
+        {
           return "peer closed the TLS connection";
+        }
 
         case SSL_ERROR_SSL:
         case SSL_ERROR_SYSCALL:
@@ -448,7 +452,9 @@ namespace ccf::tls
         }
 
         default:
+        {
           return fmt::format("SSL_get_error {}", ssl_error);
+        }
       }
     }
 
@@ -1107,7 +1113,7 @@ namespace ccf::tls
       // The poll handle frees itself, so the Conn can be dropped here rather
       // than being parked until the close callback runs.
       close_handle(conn->poll);
-      ::close(fd);
+      details::close_socket(fd);
       conn->fd = -1;
     }
 
@@ -1148,7 +1154,7 @@ namespace ccf::tls
             "setsockopt({}) failed for accepted RPC socket: {}",
             error->option,
             std::generic_category().message(error->error));
-          ::close(cfd);
+          details::close_socket(cfd);
           continue;
         }
 
@@ -1169,7 +1175,7 @@ namespace ccf::tls
           const auto admission = on_accept(cid);
           if (!admission.has_value())
           {
-            ::close(cfd);
+            details::close_socket(cfd);
             continue;
           }
           soft_limited = *admission;
@@ -1208,7 +1214,7 @@ namespace ccf::tls
             // it is otherwise invisible, hence the log.
             LOG_DEBUG_FMT(
               "Refusing connection {}: no server certificate yet", cid);
-            ::close(cfd);
+            details::close_socket(cfd);
             release_admitted();
             continue;
           }
@@ -1228,7 +1234,7 @@ namespace ccf::tls
           // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
           delete c->poll;
           c->poll = nullptr;
-          ::close(cfd);
+          details::close_socket(cfd);
           release_admitted();
           continue;
         }
@@ -1242,7 +1248,7 @@ namespace ccf::tls
             cid,
             uv_strerror(start_rc));
           close_handle(c->poll);
-          ::close(cfd);
+          details::close_socket(cfd);
           release_admitted();
           continue;
         }
@@ -1340,13 +1346,13 @@ namespace ccf::tls
     // Apply worker completions and cross-thread commands on the libuv thread.
     void drain_pending_out() CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
-      const bool recheck_all =
-        recheck_read_interest.exchange(false, std::memory_order_acq_rel);
+      bool recheck_all = false;
       std::vector<OutItem> items;
       std::vector<DriveResult> completions;
       std::vector<std::pair<std::string, std::string>> certs;
       {
         ccf::ds::MutexGuard g(out_mutex);
+        recheck_all = std::exchange(recheck_read_interest, false);
         std::swap(items, pending_out);
         std::swap(completions, completed_drives);
         std::swap(certs, pending_certs);
@@ -1595,7 +1601,7 @@ namespace ccf::tls
       listening = false;
       if (listen_fd >= 0)
       {
-        ::close(listen_fd);
+        details::close_socket(listen_fd);
         listen_fd = -1;
       }
 
@@ -1738,7 +1744,7 @@ namespace ccf::tls
           setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) !=
           0)
         {
-          ::close(listen_fd);
+          details::close_socket(listen_fd);
           listen_fd = -1;
           continue;
         }
@@ -1747,7 +1753,7 @@ namespace ccf::tls
           bound_ok = true;
           break;
         }
-        ::close(listen_fd);
+        details::close_socket(listen_fd);
         listen_fd = -1;
       }
       freeaddrinfo(res);
@@ -1877,8 +1883,10 @@ namespace ccf::tls
           inbound_admission->register_waker([weak = weak_from_this()]() {
             if (auto self = weak.lock())
             {
-              self->recheck_read_interest.store(
-                true, std::memory_order_release);
+              {
+                ccf::ds::MutexGuard g(self->out_mutex);
+                self->recheck_read_interest = true;
+              }
               self->wake();
             }
           });
@@ -2003,7 +2011,7 @@ namespace ccf::tls
     {
       if (listen_fd >= 0)
       {
-        ::close(listen_fd);
+        details::close_socket(listen_fd);
         listen_fd = -1;
       }
       ctx.reset();

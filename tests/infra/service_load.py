@@ -232,11 +232,13 @@ class ServiceLoad(infra.concurrency.StoppableThread):
 
     def end(self):
         super().stop()
+        if self.is_alive():
+            self.join()
         if self.client:
             self.client.stop()
         LOG.info("Service load stopped")
 
-    def run(self):
+    def _run(self):
         log_capture = None if self.verbose else []
         primary, backups = self.network.find_nodes(timeout=10, log_capture=log_capture)
         known_nodes = [primary] + backups
@@ -280,5 +282,13 @@ class ServiceLoad(infra.concurrency.StoppableThread):
 @contextmanager
 def load(*args, **kwargs):
     s = ServiceLoad(*args, **kwargs)
-    yield s
-    s.end()
+    try:
+        yield s
+    except BaseException:
+        try:
+            s.end()
+        except Exception:
+            LOG.exception("Failed to stop service load while handling an exception")
+        raise
+    else:
+        s.end()

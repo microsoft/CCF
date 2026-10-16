@@ -11,6 +11,7 @@
 #include "ccf/service/operator_feature.h"
 
 #include <string>
+#include <tuple>
 #include <utility>
 
 namespace ccf::endpoints
@@ -167,6 +168,14 @@ namespace ccf::endpoints
     nlohmann::json& schema,
     [[maybe_unused]] const InterpreterReusePolicy* policy);
 
+  constexpr ForwardingRequired forwarding_required_for(
+    RedirectionStrategy redirection_strategy)
+  {
+    return redirection_strategy == RedirectionStrategy::ToPrimary ?
+      ForwardingRequired::Always :
+      ForwardingRequired::Never;
+  }
+
   struct EndpointProperties
   {
     /// Endpoint mode
@@ -191,11 +200,24 @@ namespace ccf::endpoints
     std::optional<InterpreterReusePolicy> interpreter_reuse = std::nullopt;
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    EndpointProperties, forwarding_required, authn_policies);
+  // Keep forwarding explicit in stored records and governance responses, while
+  // allowing application bundles to specify only their redirection policy.
+  DECLARE_JSON_TYPE_IMPL(
+    EndpointProperties, , to_json_optional_fields(j, t);
+    j["forwarding_required"] = t.forwarding_required,
+    ,
+    from_json_optional_fields(j, t);
+    if (!j.contains("forwarding_required")) {
+      t.forwarding_required = forwarding_required_for(t.redirection_strategy);
+    },
+    ,
+    fill_json_schema_optional_fields(j, t),
+    ,
+    add_schema_components_optional_fields(doc, j, t));
+  DECLARE_JSON_REQUIRED_FIELDS(EndpointProperties, authn_policies);
   DECLARE_JSON_OPTIONAL_FIELDS(
     EndpointProperties,
+    forwarding_required,
     openapi,
     openapi_hidden,
     mode,
@@ -265,6 +287,10 @@ namespace ccf::endpoints
    */
   struct Endpoint : public EndpointDefinition
   {
+  private:
+    bool forwarding_policy_explicit = false;
+
+  public:
     // Functor which is invoked to process requests for this Endpoint
     EndpointFunction func;
 
@@ -380,7 +406,8 @@ namespace ccf::endpoints
             ds::openapi::add_response_schema<Out>(
               document, endpoint.full_uri_path, http_verb.value(), status);
           }
-          ds::openapi::response(path_operation, status, description);
+          std::ignore =
+            ds::openapi::response(path_operation, status, description);
         });
 
       return *this;
@@ -495,11 +522,18 @@ namespace ccf::endpoints
     /** Overrides whether a Endpoint is always forwarded, or whether it is
      * safe to sometimes execute on followers.
      *
+     * @deprecated Use set_redirection_strategy instead. Request forwarding
+     * will be removed in CCF 8.0. For CCF 7.x interfaces using legacy
+     * forwarding, preserve the policy in properties.forwarding_required.
+     *
      * @param fr Enum value with desired status
      * @return This Endpoint for further modification
      */
     Endpoint& set_forwarding_required(ForwardingRequired fr);
 
+    /** Sets redirection and its corresponding legacy forwarding policy, unless
+     * forwarding was explicitly configured through set_forwarding_required().
+     */
     Endpoint& set_redirection_strategy(RedirectionStrategy rs);
 
     Endpoint& set_locally_committed_function(
