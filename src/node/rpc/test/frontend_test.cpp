@@ -1614,6 +1614,208 @@ TEST_CASE("Retry on conflict")
   }
 }
 
+class TestCommitHistory : public ccf::NullTxHistory
+{
+public:
+  using ccf::NullTxHistory::NullTxHistory;
+
+  std::function<void()> on_signature;
+
+  void try_emit_signature() override
+  {
+    on_signature();
+  }
+};
+
+TEST_CASE("Commit completion preserves callbacks and receipt details")
+{
+  bool wait_for_consensus = true;
+  bool throw_standard_exception = false;
+  bool throw_unknown_exception = false;
+  SUBCASE("Successful local commit") {}
+  SUBCASE("No consensus callback")
+  {
+    wait_for_consensus = false;
+  }
+  SUBCASE("Standard exception from local commit callback")
+  {
+    throw_standard_exception = true;
+  }
+  SUBCASE("Unknown exception from local commit callback")
+  {
+    throw_unknown_exception = true;
+  }
+
+  NetworkState network;
+  prepare_callers(network);
+  const auto consensus =
+    std::dynamic_pointer_cast<ccf::kv::test::PrimaryStubConsensus>(
+      network.tables->get_consensus());
+  REQUIRE(consensus != nullptr);
+  auto history = std::make_shared<TestCommitHistory>(
+    *network.tables, ccf::kv::test::PrimaryNodeId, *kp);
+  network.tables->set_history(history);
+  BaseTestFrontend frontend(*network.tables);
+
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, anonymous_caller_der);
+  auto request = create_simple_request("/commit");
+  auto rpc_ctx = ccf::make_rpc_context(session, request.build_request());
+  std::vector<std::string> events;
+  std::optional<ccf::TxID> locally_committed_tx_id;
+  size_t consensus_callback_count = 0;
+  auto handler = [&](auto& ctx) {
+    events.push_back("endpoint");
+    ctx.tx.template rw<ccf::kv::Map<size_t, size_t>>("test_commit")->put(0, 42);
+    ctx.rpc_ctx->set_claims_digest(ccf::crypto::Sha256Hash("test claims"));
+    if (wait_for_consensus)
+    {
+      ctx.rpc_ctx->set_consensus_committed_function(
+        [&](auto&) { ++consensus_callback_count; });
+    }
+    ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+  };
+  auto locally_committed = [&](auto& ctx, const ccf::TxID& tx_id) {
+    events.push_back("local");
+    locally_committed_tx_id = tx_id;
+    CHECK_FALSE(rpc_ctx->respond_on_commit.has_value());
+    ctx.rpc_ctx->set_response_header("test-local", "true");
+    if (throw_standard_exception)
+    {
+      throw std::runtime_error("test failure");
+    }
+    if (throw_unknown_exception)
+    {
+      throw 42;
+    }
+    ccf::endpoints::default_locally_committed_func(ctx, tx_id);
+  };
+  frontend.make_endpoint("/commit", HTTP_POST, handler)
+    .set_locally_committed_function(locally_committed)
+    .install();
+  frontend.open();
+  publish_frontend_state(frontend, network);
+
+  history->on_signature = [&]() {
+    const std::vector<std::string> before_signature = {"endpoint", "local"};
+    CHECK(events == before_signature);
+    CHECK(rpc_ctx->respond_on_commit.has_value() == wait_for_consensus);
+    events.push_back("signature");
+  };
+
+  frontend.process(rpc_ctx);
+
+  REQUIRE_FALSE(rpc_ctx->response_is_pending);
+  REQUIRE(locally_committed_tx_id.has_value());
+  const std::vector<std::string> expected_events = {
+    "endpoint", "local", "signature"};
+  CHECK(events == expected_events);
+  CHECK(consensus_callback_count == 0);
+  auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK(
+    response.headers[ccf::http::headers::CCF_TX_ID] ==
+    locally_committed_tx_id->to_str());
+  if (throw_standard_exception || throw_unknown_exception)
+  {
+    CHECK(response.status == HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    CHECK(response.headers.find("test-local") == response.headers.end());
+    const auto message = throw_standard_exception ?
+      "Failed to execute local commit handler func: test failure" :
+      "Failed to execute local commit handler func";
+    CHECK(
+      nlohmann::json::parse(response.body)["error"] ==
+      nlohmann::json{
+        {"code", ccf::errors::InternalError}, {"message", message}});
+  }
+  else
+  {
+    CHECK(response.status == HTTP_STATUS_OK);
+    CHECK(response.headers["test-local"] == "true");
+  }
+
+  if (wait_for_consensus)
+  {
+    REQUIRE(rpc_ctx->respond_on_commit.has_value());
+    const auto& committed = rpc_ctx->respond_on_commit.value();
+    CHECK(committed.tx_id == locally_committed_tx_id.value());
+    const auto serialised = consensus->get_latest_data();
+    REQUIRE(serialised.has_value());
+    const auto expected_digest =
+      ccf::crypto::Sha256Hash({serialised->data(), serialised->size()});
+    CHECK(committed.write_set_digest == expected_digest);
+    CHECK(
+      committed.commit_evidence ==
+      encryptor->get_commit_evidence(committed.tx_id));
+    CHECK(
+      committed.claims_digest.value() ==
+      ccf::crypto::Sha256Hash("test claims"));
+    REQUIRE(committed.committed_func != nullptr);
+    ccf::endpoints::CommittedTxInfo info{};
+    committed.committed_func(info);
+    CHECK(consensus_callback_count == 1);
+  }
+  else
+  {
+    CHECK_FALSE(rpc_ctx->respond_on_commit.has_value());
+  }
+}
+
+TEST_CASE("Replication failure completes without retry or commit callbacks")
+{
+  struct FailingConsensus : public ccf::kv::test::PrimaryStubConsensus
+  {
+    bool replicate(const ccf::kv::BatchVector&, ccf::View) override
+    {
+      return false;
+    }
+  };
+
+  NetworkState network;
+  prepare_callers(network);
+  network.tables->set_consensus(std::make_shared<FailingConsensus>());
+  auto history = std::make_shared<TestCommitHistory>(
+    *network.tables, ccf::kv::test::PrimaryNodeId, *kp);
+  network.tables->set_history(history);
+  BaseTestFrontend frontend(*network.tables);
+  size_t execution_count = 0;
+  size_t locally_committed_count = 0;
+  size_t signature_count = 0;
+  history->on_signature = [&]() { ++signature_count; };
+  auto handler = [&](auto& ctx) {
+    ++execution_count;
+    ctx.tx.template rw<ccf::kv::Map<size_t, size_t>>("test_commit")->put(0, 42);
+    ctx.rpc_ctx->set_consensus_committed_function([](auto&) {});
+    ctx.rpc_ctx->set_response_header("test-execution", "true");
+    ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+  };
+  frontend.make_endpoint("/commit", HTTP_POST, handler)
+    .set_locally_committed_function(
+      [&](auto&, const ccf::TxID&) { ++locally_committed_count; })
+    .install();
+  frontend.open();
+  publish_frontend_state(frontend, network);
+  auto session = std::make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, anonymous_caller_der);
+  auto request = create_simple_request("/commit");
+  auto rpc_ctx = ccf::make_rpc_context(session, request.build_request());
+
+  frontend.process(rpc_ctx);
+
+  REQUIRE_FALSE(rpc_ctx->response_is_pending);
+  CHECK(execution_count == 1);
+  CHECK(locally_committed_count == 0);
+  CHECK(signature_count == 0);
+  CHECK_FALSE(rpc_ctx->respond_on_commit.has_value());
+  const auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+  CHECK(response.headers.find("test-execution") == response.headers.end());
+  CHECK(
+    nlohmann::json::parse(response.body)["error"] ==
+    nlohmann::json{
+      {"code", ccf::errors::TransactionReplicationFailed},
+      {"message", "Transaction failed to replicate."}});
+}
+
 class TestManualConflictsRegistry : public UserEndpointRegistry
 {
 public:
