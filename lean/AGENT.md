@@ -66,7 +66,9 @@ Keep the detailed proof implementations machine-checked and within the axiom all
 Retain the generated package-level import-all module and the whole-package kernel and axiom-dependency checks with `lake check`.
 The proof entrypoint does not replace either check.
 After moving modules, regenerate the import root and run the package's existing checks.
-For disaster recovery, see the [validation commands](disaster-recovery/README.md#validation).
+See the validation commands for [disaster recovery](disaster-recovery/README.md#validation) and [KV](kv/README.md#validation).
 
-`DisasterRecovery/Tests/Architecture.lean` checks the property import graph during the build.
+Each package's `Tests/Architecture.lean` checks the property import graph during the build.
 It rejects proof dependencies and imports that reverse the shared, model, and property layers.
+Each package's `Tests/ProofCoverage.lean` requires an exported theorem for every property claim.
+Both use the shared checks in `common/CCF/Architecture.lean`, so new packages should reuse them.

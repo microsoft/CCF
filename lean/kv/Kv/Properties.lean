@@ -1,292 +1,333 @@
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
+module
 
-import Kv.Proofs.Model
-import Kv.Proofs.Trace
+public import Kv.Properties.Invariants
+
+@[expose] public section
 
 /-!
 # Human-reviewed KV properties
 
-Review these statements with the definitions and assumptions in `Kv/Protocol/`.
-Each theorem explicitly applies its checked implementation in `Kv.Proofs`.
-Intermediate facts and proof steps stay in the proof modules.
+Review these statements with the definitions in `Kv/Model/`, `Kv/Model.lean`, and
+`Kv/Properties/`. Each claim is a `Prop`; `Kv.Proof` proves every one of them.
 -/
 
 namespace Kv.Properties
 
-section Generic
-variable {M K V : Type} [DecidableEq M] [DecidableEq K]
+open Kv.Model
 
 /-! ## Reads and atomic publication -/
 
-theorem read_your_write (db : DB M K V) (ws : Writes M K V) (a : Addr M K) (v : V)
-    : valueAt db (set ws a (some v)) a = some v :=
-  Proofs.Model.read_your_write db ws a v
+/-- A staged put is visible to the transaction that staged it. -/
+def ReadYourWrite : Prop :=
+  ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] (db : DB M K V) (ws : Writes M K V)
+    (a : Addr M K) (v : V),
+    valueAt db (set ws a (some v)) a = some v
 
-theorem read_your_deletion (db : DB M K V) (ws : Writes M K V) (a : Addr M K)
-    : valueAt db (set ws a none) a = none :=
-  Proofs.Model.read_your_deletion db ws a
+/-- A staged removal is visible to the transaction that staged it. -/
+def ReadYourDeletion : Prop :=
+  ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] (db : DB M K V) (ws : Writes M K V)
+    (a : Addr M K),
+    valueAt db (set ws a none) a = none
 
-theorem absent_read (db : DB M K V) (ws : Writes M K V) (a : Addr M K)
-    (hw : find ws a = none) (hd : find db a = none)
-    : valueAt db ws a = none :=
-  Proofs.Model.absent_read db ws a hw hd
+/-- A key neither staged nor committed reads as absent. -/
+def AbsentRead : Prop :=
+  ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] (db : DB M K V) (ws : Writes M K V)
+    (a : Addr M K),
+    find ws a = none → find db a = none → valueAt db ws a = none
 
-theorem staged_noninterference (db : DB M K V) (ws : Writes M K V)
-    (a b : Addr M K) (v : Option V) (h : a ≠ b)
-    : valueAt db (set ws a v) b = valueAt db ws b :=
-  Proofs.Model.staged_noninterference db ws a b v h
+/-- Staging a write at one address does not change reads at another. -/
+def StagedNoninterference : Prop :=
+  ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] (db : DB M K V) (ws : Writes M K V)
+    (a b : Addr M K) (v : Option V),
+    a ≠ b → valueAt db (set ws a v) b = valueAt db ws b
 
-theorem previous_ignores_pending (db : DB M K V) (a : Addr M K)
-    : previousAt db a = (find db a).map Cell.version :=
-  Proofs.Model.previous_ignores_pending db a
+/-- Reading the committed version ignores staged writes. -/
+def PreviousIgnoresPending : Prop :=
+  ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] (db : DB M K V) (a : Addr M K),
+    previousAt db a = (find db a).map Cell.version
 
-theorem publish_lookup (db : DB M K V) (version : Nat) (ws : Writes M K V) (a : Addr M K)
-    : find (publish db version ws) a
-      = match find ws a with
-        | none => find db a
-        | some none => none
-        | some (some v) => some { value := v, version } :=
-  Proofs.Model.publish_lookup db version ws a
+/-- Publishing replaces each written cell, stamped with the new version, and keeps the rest. -/
+def PublishLookup : Prop :=
+  ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] (db : DB M K V) (version : Nat)
+    (ws : Writes M K V) (a : Addr M K),
+    find (publish db version ws) a
+    = match find ws a with
+      | none => find db a
+      | some none => none
+      | some (some v) => some { value := v, version }
 
-theorem publication_noninterference (db : DB M K V) (version : Nat)
-    (ws : Writes M K V) (a : Addr M K) (h : find ws a = none)
-    : find (publish db version ws) a = find db a :=
-  Proofs.Model.publication_noninterference db version ws a h
+/-- Publishing leaves unwritten addresses unchanged. -/
+def PublicationNoninterference : Prop :=
+  ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] (db : DB M K V) (version : Nat)
+    (ws : Writes M K V) (a : Addr M K),
+    find ws a = none → find (publish db version ws) a = find db a
 
-theorem publish_unique (db : DB M K V) (version : Nat) (ws : Writes M K V) (h : Unique db)
-    : Unique (publish db version ws) :=
-  Proofs.Model.publish_unique db version ws h
+/-- Publishing preserves key uniqueness. -/
+def PublishUnique : Prop :=
+  ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] (db : DB M K V) (version : Nat)
+    (ws : Writes M K V),
+    Unique db → Unique (publish db version ws)
 
-variable [DecidableEq V]
+/-- Applying OCC-validated programs on a branch matches running them serially. -/
+def BranchNormalSerializability : Prop :=
+  ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V] (db final : DB M K V)
+    (programs : List (AppliedProgram M K V)),
+    BranchExecution db programs final → serialBranch db programs = some final
 
-theorem branch_normal_serializability (db final : DB M K V)
-    (programs : List (AppliedProgram M K V))
-    (h : BranchExecution db programs final)
-    : serialBranch db programs = some final :=
-  Proofs.Model.branch_normal_serializability db final programs h
-
-end Generic
-
-theorem apply_atomic (s : Store) (writes : Pending)
-    : (advance s writes).head.data = publish s.head.data (s.head.version + 1) writes :=
-  Proofs.Model.apply_atomic s writes
+/-- Applying an attempt publishes its entire write set at the next version. -/
+def ApplyAtomic : Prop :=
+  ∀ (s : Store) (writes : Pending),
+    (advance s writes).head.data = publish s.head.data (s.head.version + 1) writes
 
 /-! ## Snapshot witnesses and normal-view serializability -/
 
-theorem transaction_snapshot_witness (t : Tx) (snap : Snapshot)
-    (hs : t.snapshot = some snap)
-    : serialRun snap.current.data [] t.normal.log = some t.normal.writes :=
-  Proofs.Model.transaction_snapshot_witness t snap hs
+/-- An attempt's operation log runs serially on its captured snapshot to its staged writes. -/
+def TransactionSnapshotWitness : Prop :=
+  ∀ (t : Tx) (snap : Snapshot),
+    t.snapshot = some snap
+    → serialRun snap.current.data [] t.normal.log = some t.normal.writes
 
-theorem transaction_application_serial_witness (s : Store) (t : Tx) (snap : Snapshot)
-    (hs : t.snapshot = some snap) (hv : canApply s t = true)
-    : serialRun s.head.data [] t.normal.log = some t.normal.writes :=
-  Proofs.Model.transaction_application_serial_witness s t snap hs hv
+/-- An attempt that may apply runs serially on the current head to the same staged writes. -/
+def TransactionApplicationSerialWitness : Prop :=
+  ∀ (s : Store) (t : Tx) (snap : Snapshot),
+    t.snapshot = some snap
+    → canApply s t = true
+    → serialRun s.head.data [] t.normal.log = some t.normal.writes
 
-theorem executable_branch_serializability (s final : Store) (ts : List Tx)
-    (h : AppliedBranch s ts final)
-    : serialTransactions s.head.data s.head.version ts = some final.head.data :=
-  Proofs.Model.executable_branch_serializability s final ts h
+/-- A branch of applied attempts matches running their logs serially from the start. -/
+def ExecutableBranchSerializability : Prop :=
+  ∀ (s final : Store) (ts : List Tx),
+    AppliedBranch s ts final
+    → serialTransactions s.head.data s.head.version ts = some final.head.data
 
-theorem replay_segment_serializability (w final : World) (sid : Nat) (s : Store)
-    (rs : List Record) (live : find w.stores sid = some s)
-    (segment : ∀ r ∈ rs, SegmentEvent sid r.event)
-    (accepted : replay w rs = .ok final)
-    : ∃ after txs,
+/-- In an accepted record segment that keeps store `sid` alive, the applications projected
+onto that store run serially to its final head. -/
+def ReplaySegmentSerializability : Prop :=
+  ∀ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
+    find w.stores sid = some s
+    → (∀ r ∈ rs, SegmentEvent sid r.event)
+    → CCF.Execution.Run Model.transitionSystem w rs final
+    → ∃ after txs,
         find final.stores sid = some after
         ∧ projectApplications w sid rs = .ok txs
         ∧ serialTransactions s.head.data s.head.version txs = some after.head.data
-        ∧ after.head.version = s.head.version + txs.length :=
-  Proofs.Trace.replay_segment_serializability w final sid s rs live segment accepted
+        ∧ after.head.version = s.head.version + txs.length
 
 /-! ## Reachable store invariants -/
 
-theorem reachable_store_invariants (w : World) (reachable : Reachable w)
-    (sid : Nat) (s : Store) (live : find w.stores sid = some s)
-    : History s.history s.head.version
+/-- Every live store in a reachable world has a well-formed history whose head is newest, and a
+global version within it that is the version of its global cut. -/
+def ReachableStoreInvariants : Prop :=
+  ∀ (w : World) (sid : Nat) (s : Store),
+    Model.transitionSystem.Reachable w
+    → find w.stores sid = some s
+    → History s.history s.head.version
       ∧ s.history.head? = some s.head
       ∧ s.global ≤ s.head.version
-      ∧ (atCut s s.global).version = s.global :=
-  Proofs.Trace.reachable_store_invariants w reachable sid s live
+      ∧ (atCut s s.global).version = s.global
 
-theorem reachable_store_data_invariants (w : World) (reachable : Reachable w)
-    (sid : Nat) (s : Store) (live : find w.stores sid = some s)
-    : Unique s.head.data ∧ CellsBounded s.head.data s.head.version :=
-  Proofs.Trace.reachable_store_data_invariants w reachable sid s live
+/-- Every live store's head data in a reachable world has unique keys and versions no later than
+the head. -/
+def ReachableStoreDataInvariants : Prop :=
+  ∀ (w : World) (sid : Nat) (s : Store),
+    Model.transitionSystem.Reachable w
+    → find w.stores sid = some s
+    → Unique s.head.data ∧ CellsBounded s.head.data s.head.version
 
 /-! ## Current snapshot capture and preservation -/
 
-theorem step_capture_metadata (w next : World) (sid tid version global term seq : Nat)
-    (s : Store) (t : Tx) (source : storeOf w sid = .ok s)
-    (accepted : step w ⟨seq, .snapshot sid tid version global term⟩ = .ok next)
-    (capturedTx : find next.txs tid = some t)
-    : ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term :=
-  Proofs.Trace.step_capture_metadata w next sid tid version global term seq s t
-    source accepted capturedTx
+/-- Capturing a snapshot records the store's head and the reported term. -/
+def StepCaptureMetadata : Prop :=
+  ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
+    storeOf w sid = .ok s
+    → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+      = some next
+    → find next.txs tid = some t
+    → ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term
 
-theorem step_capture_cut_values (w next : World) (sid tid version global term seq : Nat)
-    (s : Store) (source : storeOf w sid = .ok s)
-    (accepted : step w ⟨seq, .snapshot sid tid version global term⟩ = .ok next)
-    : version = s.head.version ∧ global = s.global :=
-  Proofs.Trace.step_capture_cut_values w next sid tid version global term seq s source
-    accepted
+/-- An accepted snapshot capture reports the store's head and global versions. -/
+def StepCaptureCutValues : Prop :=
+  ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store),
+    storeOf w sid = .ok s
+    → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+      = some next
+    → version = s.head.version ∧ global = s.global
 
-theorem capture_replay_preserves_metadata (w capturedWorld final : World)
-    (sid tid version global term seq : Nat) (s : Store) (t : Tx) (tail : List Record)
-    (source : storeOf w sid = .ok s)
-    (capture : step w ⟨seq, .snapshot sid tid version global term⟩ = .ok capturedWorld)
-    (live : find capturedWorld.txs tid = some t)
-    (segment : ∀ r ∈ tail, AttemptEvent tid r.event)
-    (accepted : replay capturedWorld tail = .ok final)
-    : ∃ after snap,
+/-- A captured snapshot's head and term are unchanged by later records that do not end the
+attempt. -/
+def CaptureReplayPreservesMetadata : Prop :=
+  ∀ (w capturedWorld final : World) (sid tid version global term seq : Nat) (s : Store)
+    (t : Tx) (tail : List Record),
+    storeOf w sid = .ok s
+    → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+      = some capturedWorld
+    → find capturedWorld.txs tid = some t
+    → (∀ r ∈ tail, AttemptEvent tid r.event)
+    → CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+    → ∃ after snap,
         find final.txs tid = some after
         ∧ after.snapshot = some snap
         ∧ snap.current = s.head
-        ∧ snap.term = term :=
-  Proofs.Trace.capture_replay_preserves_metadata w capturedWorld final
-    sid tid version global term seq s t tail source capture live segment accepted
+        ∧ snap.term = term
 
-theorem replay_snapshot_fixed (w final : World) (tid : Nat) (before : Tx)
-    (snap : Snapshot) (rs : List Record) (live : find w.txs tid = some before)
-    (captured : before.snapshot = some snap)
-    (segment : ∀ r ∈ rs, AttemptEvent tid r.event) (accepted : replay w rs = .ok final)
-    : ∃ after, find final.txs tid = some after ∧ after.snapshot = some snap :=
-  Proofs.Trace.replay_snapshot_fixed w final tid before snap rs live captured segment
-    accepted
+/-- An attempt's captured snapshot is unchanged by later records that do not end it. -/
+def ReplaySnapshotFixed : Prop :=
+  ∀ (w final : World) (tid : Nat) (before : Tx) (snap : Snapshot) (rs : List Record),
+    find w.txs tid = some before
+    → before.snapshot = some snap
+    → (∀ r ∈ rs, AttemptEvent tid r.event)
+    → CCF.Execution.Run Model.transitionSystem w rs final
+    → ∃ after, find final.txs tid = some after ∧ after.snapshot = some snap
 
 /-! ## Per-map globally committed views -/
 
-theorem step_map_capture (w next : World) (sid tid localVersion globalVersion seq : Nat)
-    (map : String) (s : Store) (before after : Tx) (snap : Snapshot)
-    (store : storeOf w sid = .ok s) (tx : txOf w sid tid = .ok before)
-    (snapshot : before.snapshot = some snap)
-    (accepted : step w ⟨seq, .acquire sid tid map localVersion globalVersion⟩ = .ok next)
-    (live : find next.txs tid = some after)
-    : find after.globalViews map = some (captureGlobal s snap map)
+/-- Acquiring a map records its global view and checks the reported revision versions. -/
+def StepMapCapture : Prop :=
+  ∀ (w next : World) (sid tid localVersion globalVersion seq : Nat) (map : String)
+    (s : Store) (before after : Tx) (snap : Snapshot),
+    storeOf w sid = .ok s
+    → txOf w sid tid = .ok before
+    → before.snapshot = some snap
+    → Model.transitionSystem.step w ⟨seq, .acquire sid tid map localVersion globalVersion⟩
+      = some next
+    → find next.txs tid = some after
+    → find after.globalViews map = some (captureGlobal s snap map)
       ∧ localVersion = (revision snap.current map).version
-      ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version :=
-  Proofs.Trace.step_map_capture w next sid tid localVersion globalVersion seq
-    map s before after snap store tx snapshot accepted live
+      ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version
 
-theorem replay_map_global_fixed (w final : World) (tid : Nat) (before : Tx) (map : String)
-    (view : GlobalView) (rs : List Record) (live : find w.txs tid = some before)
-    (captured : find before.globalViews map = some view)
-    (segment : ∀ r ∈ rs, AttemptEvent tid r.event) (accepted : replay w rs = .ok final)
-    : ∃ after, find final.txs tid = some after ∧ find after.globalViews map = some view :=
-  Proofs.Trace.replay_map_global_fixed w final tid before map view rs live captured
-    segment accepted
+/-- A map's captured global view is unchanged by later records that do not end the attempt. -/
+def ReplayMapGlobalFixed : Prop :=
+  ∀ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
+    (rs : List Record),
+    find w.txs tid = some before
+    → find before.globalViews map = some view
+    → (∀ r ∈ rs, AttemptEvent tid r.event)
+    → CCF.Execution.Run Model.transitionSystem w rs final
+    → ∃ after, find final.txs tid = some after ∧ find after.globalViews map = some view
 
-theorem capture_replay_preserves_map (w capturedWorld final : World)
-    (sid tid localVersion globalVersion seq : Nat) (map : String)
-    (s : Store) (before capturedTx : Tx) (snap : Snapshot) (tail : List Record)
-    (store : storeOf w sid = .ok s) (tx : txOf w sid tid = .ok before)
-    (snapshot : before.snapshot = some snap)
-    (capture
-      : step w ⟨seq, .acquire sid tid map localVersion globalVersion⟩ = .ok capturedWorld)
-    (live : find capturedWorld.txs tid = some capturedTx)
-    (segment : ∀ r ∈ tail, AttemptEvent tid r.event)
-    (accepted : replay capturedWorld tail = .ok final)
-    : ∃ after,
+/-- A map acquisition's global view and reported versions persist through later records that do
+not end the attempt. -/
+def CaptureReplayPreservesMap : Prop :=
+  ∀ (w capturedWorld final : World) (sid tid localVersion globalVersion seq : Nat)
+    (map : String) (s : Store) (before capturedTx : Tx) (snap : Snapshot)
+    (tail : List Record),
+    storeOf w sid = .ok s
+    → txOf w sid tid = .ok before
+    → before.snapshot = some snap
+    → Model.transitionSystem.step w ⟨seq, .acquire sid tid map localVersion globalVersion⟩
+      = some capturedWorld
+    → find capturedWorld.txs tid = some capturedTx
+    → (∀ r ∈ tail, AttemptEvent tid r.event)
+    → CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+    → ∃ after,
         find final.txs tid = some after
         ∧ find after.globalViews map = some (captureGlobal s snap map)
         ∧ localVersion = (revision snap.current map).version
-        ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version :=
-  Proofs.Trace.capture_replay_preserves_map w capturedWorld final
-    sid tid localVersion globalVersion seq map s before capturedTx snap tail
-    store tx snapshot capture live segment accepted
+        ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version
 
-theorem captureGlobal_placeholder (s : Store) (snap : Snapshot) (map : String)
-    (absent : find snap.current.births map = none)
-    : (captureGlobal s snap map).frame = {} :=
-  Proofs.Trace.captureGlobal_placeholder s snap map absent
+/-- The global view of a map not yet created is the empty frame. -/
+def CaptureGlobalPlaceholder : Prop :=
+  ∀ (s : Store) (snap : Snapshot) (map : String),
+    find snap.current.births map = none → (captureGlobal s snap map).frame = {}
 
-theorem captureGlobal_committed (s : Store) (snap : Snapshot) (map : String)
-    (birth : Stamp) (existing : find snap.current.births map = some birth)
-    : (captureGlobal s snap map).frame = atCut s s.global :=
-  Proofs.Trace.captureGlobal_committed s snap map birth existing
+/-- The global view of an existing map is the store's global cut. -/
+def CaptureGlobalCommitted : Prop :=
+  ∀ (s : Store) (snap : Snapshot) (map : String) (birth : Stamp),
+    find snap.current.births map = some birth
+    → (captureGlobal s snap map).frame = atCut s s.global
 
-theorem step_global_read_from_captured_map (w next : World) (sid tid seq : Nat)
-    (map key : String) (value : Option String) (t : Tx) (view : GlobalView)
-    (source : txOf w sid tid = .ok t) (captured : find t.globalViews map = some view)
-    (accepted : step w ⟨seq, .get sid tid map key value true⟩ = .ok next)
-    : value = (find view.frame.data (map, key)).map Cell.value
+/-- A global read returns the captured view's value, and that view is empty or a store's global
+cut with no cell newer than it. -/
+def StepGlobalReadFromCapturedMap : Prop :=
+  ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Option String)
+    (t : Tx) (view : GlobalView),
+    txOf w sid tid = .ok t
+    → find t.globalViews map = some view
+    → Model.transitionSystem.step w ⟨seq, .get sid tid map key value true⟩ = some next
+    → value = (find view.frame.data (map, key)).map Cell.value
       ∧ (view.frame = {}
           ∨ ∃ origin : Store,
               view.frame = atCut origin origin.global
               ∧ view.frame.version = origin.global
-              ∧ CellsBounded view.frame.data origin.global) :=
-  Proofs.Trace.step_global_read_from_captured_map w next sid tid seq
-    map key value t view source captured accepted
+              ∧ CellsBounded view.frame.data origin.global)
 
-theorem step_global_has_from_captured_map (w next : World) (sid tid seq : Nat)
-    (map key : String) (value : Bool) (t : Tx) (view : GlobalView)
-    (source : txOf w sid tid = .ok t) (captured : find t.globalViews map = some view)
-    (accepted : step w ⟨seq, .has sid tid map key value true⟩ = .ok next)
-    : value = (find view.frame.data (map, key)).isSome
+/-- A global presence test reflects the captured view, and that view is empty or a store's
+global cut with no cell newer than it. -/
+def StepGlobalHasFromCapturedMap : Prop :=
+  ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Bool) (t : Tx)
+    (view : GlobalView),
+    txOf w sid tid = .ok t
+    → find t.globalViews map = some view
+    → Model.transitionSystem.step w ⟨seq, .has sid tid map key value true⟩ = some next
+    → value = (find view.frame.data (map, key)).isSome
       ∧ (view.frame = {}
           ∨ ∃ origin : Store,
               view.frame = atCut origin origin.global
               ∧ view.frame.version = origin.global
-              ∧ CellsBounded view.frame.data origin.global) :=
-  Proofs.Trace.step_global_has_from_captured_map w next sid tid seq
-    map key value t view source captured accepted
+              ∧ CellsBounded view.frame.data origin.global)
 
 /-! ## Compaction, rollback, and invalidated attempts -/
 
-theorem compact_above_head_noop (s : Store) (v : Nat) (h : s.head.version < v)
-    : compactStore s v = s :=
-  Proofs.Model.compact_above_head_noop s v h
+/-- Compacting beyond the head leaves the store unchanged. -/
+def CompactAboveHeadNoop : Prop :=
+  ∀ (s : Store) (v : Nat), s.head.version < v → compactStore s v = s
 
-theorem rollback_keeps_prefix (s : Store) (v term : Nat) (f : Frame)
-    (h : f ∈ s.history) (hv : f.version ≤ s.global)
-    : f ∈ (rollbackStore s v term).history :=
-  Proofs.Model.rollback_keeps_prefix s v term f h hv
+/-- Rollback keeps every frame at or below the global version. -/
+def RollbackKeepsPrefix : Prop :=
+  ∀ (s : Store) (v term : Nat) (f : Frame),
+    f ∈ s.history → f.version ≤ s.global → f ∈ (rollbackStore s v term).history
 
-theorem rollback_discards_suffix (s : Store) (v term : Nat) (f : Frame)
-    (h : v < f.version) (boundary : s.global ≤ v)
-    : f ∉ (rollbackStore s v term).history :=
-  Proofs.Model.rollback_discards_suffix s v term f h boundary
+/-- Rollback discards every frame above the requested version. -/
+def RollbackDiscardsSuffix : Prop :=
+  ∀ (s : Store) (v term : Nat) (f : Frame),
+    v < f.version → s.global ≤ v → f ∉ (rollbackStore s v term).history
 
-theorem durable_cut_survives_rollback (s : Store) (v term cut : Nat)
-    (hcut : cut ≤ s.global) (hboundary : s.global ≤ v)
-    : (atCut (rollbackStore s v term) cut).data = (atCut s cut).data :=
-  Proofs.Model.durable_cut_survives_rollback s v term cut hcut hboundary
+/-- Rollback preserves the data at every cut at or below the global version. -/
+def DurableCutSurvivesRollback : Prop :=
+  ∀ (s : Store) (v term cut : Nat),
+    cut ≤ s.global
+    → s.global ≤ v
+    → (atCut (rollbackStore s v term) cut).data = (atCut s cut).data
 
-theorem stale_term_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
-    (hs : t.snapshot = some snap) (ht : s.term ≠ snap.term)
-    : canApply s t = false :=
-  Proofs.Model.stale_term_cannot_apply s t snap hs ht
+/-- An attempt whose snapshot term differs from the store's cannot apply. -/
+def StaleTermCannotApply : Prop :=
+  ∀ (s : Store) (t : Tx) (snap : Snapshot),
+    t.snapshot = some snap → s.term ≠ snap.term → canApply s t = false
 
-theorem discarded_handle_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
-    (hs : t.snapshot = some snap) (m : String) (view : GlobalView)
-    (hm : (m, view) ∈ t.globalViews)
-    (gone : ∀ f ∈ s.history, (revision f m == revision snap.current m) = false)
-    : canApply s t = false :=
-  Proofs.Model.discarded_handle_cannot_apply s t snap hs m view hm gone
+/-- An attempt whose acquired map revision is no longer on the branch cannot apply. -/
+def DiscardedHandleCannotApply : Prop :=
+  ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
+    t.snapshot = some snap
+    → (m, view) ∈ t.globalViews
+    → (∀ f ∈ s.history, (revision f m == revision snap.current m) = false)
+    → canApply s t = false
 
-theorem discarded_birth_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
-    (hs : t.snapshot = some snap) (m : String) (view : GlobalView)
-    (hm : (m, view) ∈ t.globalViews)
-    (gone : ∀ f ∈ s.history, (find f.births m == find snap.current.births m) = false)
-    : canApply s t = false :=
-  Proofs.Model.discarded_birth_cannot_apply s t snap hs m view hm gone
+/-- An attempt whose acquired map creation is no longer on the branch cannot apply. -/
+def DiscardedBirthCannotApply : Prop :=
+  ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
+    t.snapshot = some snap
+    → (m, view) ∈ t.globalViews
+    → (∀ f ∈ s.history, (find f.births m == find snap.current.births m) = false)
+    → canApply s t = false
 
-theorem compacted_map_unavailable (s : Store) (f : Frame) (m : String)
-    (birth : Stamp) (existing : find f.births m = some birth)
-    (h : (revision f m).version < (revision (atCut s s.global) m).version)
-    : mapAvailable s f m = false :=
-  Proofs.Model.compacted_map_unavailable s f m birth existing h
+/-- A map revised before the global cut's revision is unavailable. -/
+def CompactedMapUnavailable : Prop :=
+  ∀ (s : Store) (f : Frame) (m : String) (birth : Stamp),
+    find f.births m = some birth
+    → (revision f m).version < (revision (atCut s s.global) m).version
+    → mapAvailable s f m = false
 
-theorem absent_map_available (s : Store) (f : Frame) (m : String)
-    (absent : find f.births m = none) (empty : image f.data m = [])
-    (unwritten : find f.revisions m = none)
-    : mapAvailable s f m = true :=
-  Proofs.Model.absent_map_available s f m absent empty unwritten
+/-- A map that does not exist, has no data, and was never revised is available. -/
+def AbsentMapAvailable : Prop :=
+  ∀ (s : Store) (f : Frame) (m : String),
+    find f.births m = none
+    → image f.data m = []
+    → find f.revisions m = none
+    → mapAvailable s f m = true
 
-theorem absent_placeholder_has_no_values (s : Store) (f : Frame) (m key : String)
-    (absent : find f.births m = none) (permitted : mapAvailable s f m = true)
-    : find f.data (m, key) = none :=
-  Proofs.Model.absent_placeholder_has_no_values s f m key absent permitted
+/-- An available map that does not exist has no values. -/
+def AbsentPlaceholderHasNoValues : Prop :=
+  ∀ (s : Store) (f : Frame) (m key : String),
+    find f.births m = none → mapAvailable s f m = true → find f.data (m, key) = none
 
 end Kv.Properties

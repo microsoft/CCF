@@ -14,8 +14,8 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 
 ## Lean package checks
 
-The local composite action in `.github/actions/lean-checks/action.yml` restores the Mathlib cache, checks the generated library import root, builds with warnings as errors, runs the package's configured axiom audit and test driver through `lake lint` and `lake test`, and checks the package's formatting with `scripts/lean-format-checks.sh`.
-Each caller supplies a `working-directory` and `library`, and puts the package's pinned Lean toolchain on `PATH` before invoking the action.
+The local composite action in `.github/actions/lean-checks/action.yml` restores the Mathlib cache, checks the generated library import root with `mk_all --check --module`, builds with `lake build --wfail --fail-fast` (which runs each package's build-time `#eval` tests), builds the shared `CCF` library, runs Lean's built-in linters with `lake lint` and the Mathlib linters with `runLinter`, and checks the package's formatting with `scripts/lean-format-checks.sh`.
+Each caller supplies a `working-directory`, `library` and `executable-root`, and puts the package's pinned Lean toolchain on `PATH` before invoking the action.
 
 # Maintained
 
@@ -157,14 +157,15 @@ File: `tla-shallow.yml`
 
 Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
 
-The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.
-Canonical behavior checks run with `#eval` when their test module is built, and assertion failures fail the build.
+The disaster recovery and KV jobs both use the shared [Lean package checks](#lean-package-checks) action on relevant pull requests.
+Behavior checks run with `#eval` when their test module is built, and assertion failures fail the build.
 The build includes both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
 The standard `mk_all --check --module` command ensures that the modular library root imports every library module, so newly added proofs cannot silently escape the checks.
+Each package's architecture and proof-coverage tests use `CCF.Architecture` from `lean/common` to check that models and properties do not import proofs, and that every property has an exported theorem.
 
-The kernel-check job runs `lake check --inadvisably-no-sandbox` on Ubuntu 26.04 for the disaster-recovery model and replayer package, including its imported common infrastructure.
-Build isolation is disabled so disaster recovery can use the sibling common sources directly; kernel rechecking and the axiom-dependency audit remain enabled.
-The replayer is the only executable entrypoint; the canonical test runner is namespaced within the library.
+The kernel-check job runs `lake check --inadvisably-no-sandbox` on Ubuntu 26.04 for each of the disaster-recovery and KV packages, including their imported common infrastructure.
+Build isolation is disabled so the packages can use the sibling common sources directly; kernel rechecking and the axiom-dependency audit remain enabled.
+Each package's replayer is its only executable entrypoint; test runners are namespaced within the library.
 The job builds and exports every default target, including the complete library import root and replayer, and requires Lean's kernel to accept the declarations with only the standard axioms.
 This provides the axiom-dependency check and supplements the build, linters, and executable tests.
 Temporary exports use disk-backed runner storage rather than `/tmp`.
@@ -177,8 +178,8 @@ It then runs the trace viewer's `viewer/build.py`, which fails if a dump the vie
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
 
-After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
-The KV job runs in Azure Linux 3 and uses the shared [Lean package checks](#lean-package-checks) action.
+Between them, the two jobs' formatting checks cover every tracked `.lean` file, each formatted by its package's pinned leanfmt dependency.
+The KV job runs in Azure Linux 3.
 It builds and runs the instrumented C++ KV unit tests before putting the pinned Lean distribution, which bundles its own `clang`, on `PATH`, then checks the generated traces against the Lean model and uploads trace diagnostics as artifacts.
 
 The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, the workflow, or its shared actions. It also runs on changes to the KV implementation and public KV API (`src/kv/`, `include/ccf/kv/`, `include/ccf/tx.h`, and the CHAMP map), the KV trace runner, `tests/tests.sh`, and the CMake build.

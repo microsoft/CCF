@@ -1,5 +1,5 @@
 name: Check Lean package
-description: Build a Lean package and run its configured axiom audit, tests and formatting check
+description: Build a Lean package, run its build-time tests and linters, and check its formatting
 
 inputs:
   working-directory:
@@ -7,6 +7,9 @@ inputs:
     required: true
   library:
     description: Lean library whose generated import root must be complete
+    required: true
+  executable-root:
+    description: Root module of the package's executable, checked by the Mathlib linters
     required: true
 
 runs:
@@ -24,10 +27,20 @@ runs:
         LEAN_LIBRARY: ${{ inputs.library }}
       run: |
         set -euo pipefail
-        lake exe mk_all --check --lib "$LEAN_LIBRARY"
-        lake build --wfail
+        lake exe mk_all --check --module --lib "$LEAN_LIBRARY"
+        lake build --wfail --fail-fast
+        lake build CCF
         lake lint
-        lake test
+
+    - name: Check Mathlib linters
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+      env:
+        LEAN_LIBRARY: ${{ inputs.library }}
+        LEAN_EXECUTABLE_ROOT: ${{ inputs.executable-root }}
+      run: |
+        set -euo pipefail
+        lake exe runLinter --no-build CCF "$LEAN_LIBRARY" "$LEAN_EXECUTABLE_ROOT"
 
     - name: Check Lean formatting
       shell: bash

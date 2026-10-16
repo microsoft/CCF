@@ -1,11 +1,14 @@
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
+module
 
-import Kv.Protocol.Types
+public import Kv.Model.Types
+
+@[expose] public section
 
 /-! Supporting lemmas for the erased certificates carried by the executable model. -/
 
-namespace Kv.Proofs.Types
+namespace Kv.Model.Certificates
+
+variable {M K V : Type}
 
 theorem normalRun_append [DecidableEq M] [DecidableEq K] [DecidableEq V]
     (db : DB M K V) (n : Normal M K V) (a b : List (NormalOp M K V))
@@ -39,7 +42,7 @@ theorem History.bounded (fs : List Frame) (n : Nat) (h : History fs n)
       have he : g = {} := List.mem_singleton.mp hg
       subst g
       exact Nat.le_refl 0
-  | succ f n fs hv effect tail ih =>
+  | succ f n fs hv _effect _tail ih =>
       intro g hg
       rcases List.mem_cons.mp hg with he | hm
       · subst g; omega
@@ -122,4 +125,4 @@ theorem cut_global_bound (s : Store) (cut : Nat)
   rw [(atCut_spec s cut within).1]
   exact boundary
 
-end Kv.Proofs.Types
+end Kv.Model.Certificates

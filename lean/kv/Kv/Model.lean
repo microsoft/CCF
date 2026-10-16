@@ -1,8 +1,9 @@
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
+module
 
-import Kv.Protocol.Types
-import Kv.Proofs.Types
+public import CCF.Execution
+public import Kv.Model.Certificates
+
+@[expose] public section
 
 /-!
 Human-reviewed executable transitions and replay. A failure is `invalidTrace` (`invalid`,
@@ -11,60 +12,77 @@ lifecycle events, `rejected` (`reject`, `expect`) when it records behaviour the 
 forbids, and `unsupported` when the implementation reports an operation outside the model.
 -/
 
-namespace Kv
+namespace Kv.Model
 
-def invalid (message : String) : Except Failure α := .error ⟨.invalidTrace, message⟩
-def reject (message : String) : Except Failure α := .error ⟨.rejected, message⟩
+/-- Fails with `invalidTrace`. -/
+def invalid {α : Type} (message : String) : Except Failure α :=
+  .error ⟨.invalidTrace, message⟩
 
-def present (value : Option α) (message : String) : Except Failure α :=
+/-- Fails with `rejected`. -/
+def reject {α : Type} (message : String) : Except Failure α := .error ⟨.rejected, message⟩
+
+/-- The value if present; otherwise fails with `invalidTrace`. -/
+def present {α : Type} (value : Option α) (message : String) : Except Failure α :=
   match value with
   | some x => .ok x
   | none => invalid message
 
+/-- Fails with `invalidTrace` unless `condition` holds. -/
 def require (condition : Bool) (message : String) : Except Failure Unit :=
   if condition then .ok () else invalid message
 
+/-- Fails with `rejected` unless `condition` holds. -/
 def expect (condition : Bool) (message : String) : Except Failure Unit :=
   if condition then .ok () else reject message
 
+/-- The live store `sid`. -/
 def storeOf (w : World) (sid : Nat) : Except Failure Store :=
   present (find w.stores sid) s!"unknown/closed store {sid}"
 
+/-- The live attempt `tid`, which must belong to store `sid`. -/
 def txOf (w : World) (sid tid : Nat) : Except Failure Tx := do
   let _ ← storeOf w sid
   let t ← present (find w.txs tid) s!"unknown/closed attempt {tid}"
   require (t.store == sid) "attempt belongs to another store"
   return t
 
+/-- The attempt's captured current snapshot. -/
 def snapOf (t : Tx) : Except Failure Snapshot :=
   present t.snapshot "map operation before current snapshot capture"
 
+/-- Requires the attempt to be executing operations. -/
 def active (t : Tx) : Except Failure Unit :=
   require (t.phase == .active) "operation outside active attempt"
 
+/-- Requires no iteration callback to be pending. -/
 def operationPosition (t : Tx) : Except Failure Unit :=
   require (t.iterations.head?.all Iteration.awaitingContinue)
     "operation between iteration callbacks"
 
+/-- Requires a captured snapshot to be followed by an acquisition or unavailability. -/
 def completeCapture (t : Tx) : Except Failure Unit :=
   require (t.snapshot.isNone || !t.globalViews.isEmpty || t.unavailable)
     "current snapshot missing first map acquisition/outcome"
 
+/-- Updates attempt `tid` of store `sid` with `f`. -/
 def withTx (w : World) (sid tid : Nat) (f : Tx → Except Failure Tx)
     : Except Failure World := do
   let t ← txOf w sid tid
   let next ← f t
   return { w with txs := set w.txs tid next }
 
+/-- The snapshot for an operation on acquired map `m`. -/
 def handleOf (t : Tx) (m : String) : Except Failure Snapshot := do
   active t
   operationPosition t
   require ((find t.globalViews m).isSome) s!"map {m} used before acquisition"
   snapOf t
 
+/-- The globally committed view captured for map `m`. -/
 def globalOf (t : Tx) (m : String) : Except Failure GlobalView :=
   present (find t.globalViews m) s!"map {m} has no captured global view"
 
+/-- Executes a normal operation against the captured snapshot, extending the certificate. -/
 def runOp (t : Tx) (op : NormalOp String String String) : Except Failure Tx := do
   match hs : t.snapshot with
   | none => invalid "normal operation before snapshot"
@@ -74,21 +92,26 @@ def runOp (t : Tx) (op : NormalOp String String String) : Except Failure Tx := d
           return {
             t with
               normal := n
-              certificate := Proofs.Types.operation_certificate t snap n op hs hn
+              certificate := Certificates.operation_certificate t snap n op hs hn
           }
       | none =>
           reject
             s!"normal observation disagrees with captured snapshot {snap.current.version}: {repr op}"
 
+/-- Stages removal of each listed entry of `map`. -/
 def clearWrites (t : Tx) (map : String) (entries : Assoc String String)
     : Except Failure Tx :=
   entries.foldlM (fun acc (key, _) => runOp acc (.write (map, key) none)) t
 
+/-- Frame `f` agrees with some frame on the store's branch about map `m`'s creation and
+latest revision. -/
 def mapLineage (s : Store) (f : Frame) (m : String) : Bool :=
   s.history.any
     fun old =>
       find old.births m == find f.births m && revision old m == revision f m
 
+/-- Map `m` in frame `f` is absent, or its revision is at or after the global cut and on the
+store's branch. -/
 def mapAvailable (s : Store) (f : Frame) (m : String) : Bool :=
   match find f.births m with
   | none => (image f.data m).isEmpty && (find f.revisions m).isNone
@@ -97,15 +120,18 @@ def mapAvailable (s : Store) (f : Frame) (m : String) : Bool :=
       let base := revision (atCut s s.global) m
       decide (base.version ≤ stamp.version) && mapLineage s f m
 
+/-- Map `m` is available in the attempt's snapshot. -/
 def available (s : Store) (snap : Snapshot) (m : String) : Bool :=
   mapAvailable s snap.current m
 
+/-- The globally committed view of `m` for a snapshot: empty for a map not yet created. -/
 def captureGlobal (s : Store) (snap : Snapshot) (m : String) : GlobalView :=
   if (find snap.current.births m).isNone then
     { frame := {}, origin := Or.inl rfl }
   else
     { frame := atCut s s.global, origin := Or.inr ⟨s, rfl⟩ }
 
+/-- Acquires map `m`, checking the reported local and global revision versions. -/
 def acquireMap (s : Store) (t : Tx) (m : String) (version global : Nat)
     : Except Failure Tx := do
   active t
@@ -121,15 +147,19 @@ def acquireMap (s : Store) (t : Tx) (m : String) (version global : Nat)
   expect (available s snap m) "snapshot no longer available for later map acquisition"
   return { t with globalViews := set t.globalViews m view }
 
+/-- The attempt's snapshot is on the store's current branch and term. -/
 def validLineage (s : Store) (t : Tx) : Bool :=
   match t.snapshot with
   | none => true
   | some snap =>
       s.term == snap.term && t.globalViews.all (fun (m, _) => mapLineage s snap.current m)
 
+/-- The attempt may apply: its maps are available, its lineage is valid, and its read
+dependencies hold. -/
 def canApply (s : Store) (t : Tx) : Bool :=
   !t.unavailable && validLineage s t && validates s.head.data t.normal.deps
 
+/-- Publishes `writes` as the next version, updating revisions and births. -/
 def advance (s : Store) (writes : Pending) : Store :=
   let v := s.head.version + 1
   let data := publish s.head.data v writes
@@ -155,14 +185,16 @@ def advance (s : Store) (writes : Pending) : Store :=
       history := f :: s.history,
       head := f,
       nextIdentity := s.nextIdentity + 1
-      historyShape := Proofs.Types.history_extension s f writes rfl rfl
+      historyShape := Certificates.history_extension s f writes rfl rfl
       headFirst := rfl
       globalBound := Nat.le_trans s.globalBound (Nat.le_succ _)
   }
 
+/-- Applies the attempt's writes if `canApply` holds. -/
 def tryApply (s : Store) (t : Tx) : Option Store :=
   if canApply s t then some (advance s t.normal.writes) else none
 
+/-- Raises the global version to `requested` if it is within the head. -/
 def compactStore (s : Store) (requested : Nat) : Store :=
   if h : requested ≤ s.head.version then
     {
@@ -172,8 +204,10 @@ def compactStore (s : Store) (requested : Nat) : Store :=
   else
     s
 
+/-- The effective rollback version: `v`, clamped between the global version and the head. -/
 def rollbackCut (s : Store) (v : Nat) : Nat := max s.global (min s.head.version v)
 
+/-- Rolls back to `rollbackCut s v` and enters `term`. -/
 def rollbackStore (s : Store) (v term : Nat) : Store :=
   let cut := rollbackCut s v
   have within : cut ≤ s.head.version :=
@@ -184,17 +218,20 @@ def rollbackStore (s : Store) (v term : Nat) : Store :=
       head := atCut s cut,
       term,
       termKnown := true
-      historyShape := Proofs.Types.cut_history s cut within
-      headFirst := (Proofs.Types.atCut_spec s cut within).2.2
-      globalBound := Proofs.Types.cut_global_bound s cut within (Nat.le_max_left _ _)
+      historyShape := Certificates.cut_history s cut within
+      headFirst := (Certificates.atCut_spec s cut within).2.2
+      globalBound := Certificates.cut_global_bound s cut within (Nat.le_max_left _ _)
   }
 
+/-- The two write sets contain the same entries. -/
 def writesEqual (a b : Pending) : Bool :=
   a.length == b.length && a.all (fun (k, v) => find b k == some v)
 
-def uniqueKeys [DecidableEq K] (a : Assoc K V) : Bool :=
+/-- No key occurs twice. -/
+def uniqueKeys {K V : Type} [DecidableEq K] (a : Assoc K V) : Bool :=
   decide (a.map Prod.fst).Nodup
 
+/-- The innermost iteration, which must be over `m` with identifier `id`. -/
 def eachTop (t : Tx) (m : String) (id : Nat)
     : Except Failure (Iteration × List Iteration) := do
   active t
@@ -206,6 +243,7 @@ def eachTop (t : Tx) (m : String) (id : Nat)
       require (i.map == m && i.id == id) "iteration nesting/id mismatch"
       return (i, rest)
 
+/-- Applies one trace event. -/
 def stepEvent (w : World) (event : Event) : Except Failure World := do
   match event with
   | .traceStart schema =>
@@ -262,7 +300,7 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
             return {
               t with
                 snapshot := some { current := s.head, term, origin := ⟨s, rfl⟩ }
-                certificate := Proofs.Types.snapshot_certificate t s.head.data hs
+                certificate := Certificates.snapshot_certificate t s.head.data hs
             }
           else
             invalid "snapshot refreshed inside attempt"
@@ -446,6 +484,7 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
         "empty claimed coverage"
       return { w with ended := true }
 
+/-- Applies one record, checking sequence numbers and that `trace_start` comes first. -/
 def step (w : World) (r : Record) : Except Failure World := do
   require (!w.ended) "record after trace_end"
   require (w.lastSeq.all (fun n => n < r.seq)) "seq must strictly increase run-wide"
@@ -456,8 +495,15 @@ def step (w : World) (r : Record) : Except Failure World := do
   let next ← stepEvent w r.event
   return { next with lastSeq := some r.seq, count := w.count + 1 }
 
+/-- Applies records in order, stopping at the first failure. -/
 def replay (w : World) : List Record → Except Failure World
   | [] => .ok w
   | r :: rs => (step w r).bind fun next => replay next rs
 
-end Kv
+/-- The model as a transition system over trace records: it starts from the empty world, and
+a record is enabled exactly when `step` accepts it. -/
+def transitionSystem : CCF.TransitionSystem World Record where
+  init w := w = {}
+  step w r := (step w r).toOption
+
+end Kv.Model

@@ -43,29 +43,12 @@ jobs:
           sudo apt-get install -y elan
           elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
 
-      - name: Restore Mathlib cache
-        working-directory: lean/disaster-recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          lake exe cache get
-
       - name: Build and check canonical model
-        working-directory: lean/disaster-recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          lake exe mk_all --check --module --lib DisasterRecovery
-          lake build --wfail --fail-fast
-          lake build CCF
-          lake lint
-
-      - name: Check Mathlib linters
-        working-directory: lean/disaster-recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          lake exe runLinter --no-build CCF DisasterRecovery replayer.Main
+        uses: ./.github/actions/lean-checks
+        with:
+          working-directory: lean/disaster-recovery
+          library: DisasterRecovery
+          executable-root: replayer.Main
 
       - name: Check recovery trace fixtures against their schema
         shell: bash
@@ -86,33 +69,36 @@ jobs:
         shell: bash
         run: python3 lean/disaster-recovery/replayer/viewer/build.py
 
-      - name: Check Lean formatting
-        run: ./scripts/lean-format-checks.sh
-
   kernel-checks:
-    name: Kernel checks (disaster-recovery)
+    name: Kernel checks (${{ matrix.package }})
     runs-on: ubuntu-26.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [disaster-recovery, kv]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Lean
         shell: bash
+        env:
+          LEAN_PACKAGE: lean/${{ matrix.package }}
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y elan
-          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          elan toolchain install "$(cat "$LEAN_PACKAGE/lean-toolchain")"
 
       - name: Restore Mathlib cache
-        working-directory: lean/disaster-recovery
+        working-directory: lean/${{ matrix.package }}
         shell: bash
         run: |
           set -euo pipefail
           lake exe cache get
 
       - name: Check with Lean's kernel
-        working-directory: lean/disaster-recovery
+        working-directory: lean/${{ matrix.package }}
         shell: bash
         run: |
           set -euo pipefail
@@ -131,8 +117,8 @@ jobs:
         shell: bash
     env:
       # Must match lean/kv/lean-toolchain. The digest is the release archive's.
-      LEAN_VERSION: 4.34.1
-      LEAN_SHA256: 47bf4bbd78f70c2e9670598ab7124d92b6efb7330ff33e5fbb4030f6fd72e4e4
+      LEAN_VERSION: 4.35.0
+      LEAN_SHA256: 7289597a44543246c9227b8cae501767e095ce17f6d448b95fc4a8dc97268f6d
 
     steps:
       - name: Bootstrap checkout dependencies
@@ -158,7 +144,7 @@ jobs:
           cmake -S . -B build-kv-trace -GNinja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCCF_KV_TRACING=ON \
-            -DCCF_KV_TRACE_CHECKER="$PWD/lean/kv/.lake/build/bin/kv_trace_check"
+            -DCCF_KV_TRACE_CHECKER="$PWD/lean/kv/.lake/build/bin/kv-replay"
           cmake --build build-kv-trace --target kv_test --parallel 2
 
       - name: Run KV unit tests
@@ -195,6 +181,7 @@ jobs:
         with:
           working-directory: lean/kv
           library: Kv
+          executable-root: replayer.Main
 
       - name: Check generated traces
         working-directory: build-kv-trace

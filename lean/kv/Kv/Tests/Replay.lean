@@ -1,12 +1,23 @@
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
+module
 
-import Kv
+meta import Kv.Properties.Invariants
+meta import Kv.TraceValidation
 
-namespace Kv.Tests
-open Lean Trace
+public import Kv.Properties.Invariants
+public import Kv.TraceValidation
 
-def eventJson (e : Event) : String × List (String × Json) :=
+public section
+
+/-!
+Checker self-tests, run at build time: accepted and rejected model histories, malformed
+NDJSON, and agreement between the projected serial history and actual replay.
+-/
+
+namespace Kv.Tests.Replay
+
+open Lean Kv.Model Kv.Properties Kv.TraceValidation
+
+private def eventJson (e : Event) : String × List (String × Json) :=
   let st (s t : Nat) := [("store", toJson s), ("tx", toJson t)]
   let mp (s t : Nat) (m : String) := st s t ++ [("map", toJson m)]
   let pt (s t : Nat) (m k : String) := mp s t m ++ [("key", toJson k)]
@@ -89,7 +100,7 @@ def eventJson (e : Event) : String × List (String × Json) :=
         [("operation", toJson op)] ++ sid.toList.map fun s => ("store", toJson s)
       )
 
-def encode (events : List Event) : String :=
+private def encode (events : List Event) : String :=
   String.intercalate "\n"
   <| events.mapIdx
       fun index e =>
@@ -97,21 +108,21 @@ def encode (events : List Event) : String :=
         (Json.mkObj
           (("type", toJson kind) :: ("seq", toJson (index + 1)) :: fields)).compress
 
-def closed (body : List Event) : List Event :=
+private def closed (body : List Event) : List Event :=
   let events :=
     [.traceStart 1, .caseBegin "model regression", .storeCreate 1]
     ++ body
     ++ [.storeEnd 1, .caseEnd "model regression" false]
   events ++ [.traceEnd events.length]
 
-def start (t r g : Nat) (term := 0) : List Event :=
+private def start (t r g : Nat) (term := 0) : List Event :=
   [.txCreate 1 t, .snapshot 1 t r g term]
 
-def commit (t v : Nat) (ws : Pending) (term := 0) (result := Outcome.success)
+private def commit (t v : Nat) (ws : Pending) (term := 0) (result := Outcome.success)
     : List Event :=
   [.commitBegin 1 t, .apply 1 t v term ws, .commitResult 1 t result v, .txEnd 1 t]
 
-def seed (t r g : Nat) (value : String) : List Event :=
+private def seed (t r g : Nat) (value : String) : List Event :=
   start t r g
   ++ [
     .acquire 1 t "a" r g,
@@ -121,7 +132,7 @@ def seed (t r g : Nat) (value : String) : List Event :=
   ]
   ++ commit t (r + 1) [(("a", "00"), some value), (("b", "00"), some value)]
 
-def basic : List Event :=
+private def basic : List Event :=
   start 1 0 0
   ++ [
     .acquire 1 1 "a" 0 0,
@@ -153,7 +164,7 @@ def basic : List Event :=
     .txEnd 1 2
   ]
 
-def absencePrefix : List Event :=
+private def absencePrefix : List Event :=
   start 1 0 0
   ++ [.acquire 1 1 "a" 0 0, .acquire 1 1 "b" 0 0, .get 1 1 "a" "00" none false]
   ++ start 2 0 0
@@ -161,14 +172,14 @@ def absencePrefix : List Event :=
   ++ commit 2 1 [(("a", "00"), some "11")]
   ++ [.put 1 1 "b" "00" "22", .commitBegin 1 1]
 
-def globalPrefix : List Event :=
+private def globalPrefix : List Event :=
   seed 1 0 0 "11"
   ++ [.compact 1 1 1]
   ++ seed 2 1 1 "22"
   ++ start 3 2 1
   ++ [.acquire 1 3 "a" 2 1]
 
-def seedKeys (t r g : Nat) (v0 v1 : String) : List Event :=
+private def seedKeys (t r g : Nat) (v0 v1 : String) : List Event :=
   start t r g
   ++ [
     .acquire 1 t "a" r g,
@@ -186,14 +197,14 @@ def seedKeys (t r g : Nat) (v0 v1 : String) : List Event :=
         (("b", "01"), some v1)
       ]
 
-def keyGlobalPrefix : List Event :=
+private def keyGlobalPrefix : List Event :=
   seedKeys 1 0 0 "11" "aa"
   ++ [.compact 1 1 1]
   ++ seedKeys 2 1 1 "22" "bb"
   ++ start 3 2 1
   ++ [.acquire 1 3 "a" 2 1]
 
-def writeSkew : List Event :=
+private def writeSkew : List Event :=
   start 1 0 0
   ++ [
     .acquire 1 1 "a" 0 0,
@@ -211,7 +222,7 @@ def writeSkew : List Event :=
   ++ commit 1 1 [(("a", "00"), some "11")]
   ++ [.commitBegin 1 2, .apply 1 2 2 0 [(("b", "00"), some "22")]]
 
-def phantom : List Event :=
+private def phantom : List Event :=
   start 1 0 0
   ++ [.acquire 1 1 "a" 0 0, .acquire 1 1 "b" 0 0, .size 1 1 "a" 0]
   ++ start 2 0 0
@@ -219,7 +230,7 @@ def phantom : List Event :=
   ++ commit 2 1 [(("a", "01"), some "11")]
   ++ [.put 1 1 "b" "00" "22", .commitBegin 1 1, .apply 1 1 2 0 [(("b", "00"), some "22")]]
 
-def sameValuePrevious : List Event :=
+private def sameValuePrevious : List Event :=
   seed 1 0 0 "11"
   ++ start 2 1 0
   ++ [.acquire 1 2 "a" 1 0, .put 1 2 "a" "00" "22", .previous 1 2 "a" "00" (some 1)]
@@ -228,7 +239,7 @@ def sameValuePrevious : List Event :=
   ++ commit 3 2 [(("a", "00"), some "11")]
   ++ [.commitBegin 1 2, .apply 1 2 3 0 [(("a", "00"), some "22")]]
 
-def termConflict : List Event :=
+private def termConflict : List Event :=
   start 1 0 0
   ++ [
     .acquire 1 1 "a" 0 0,
@@ -238,14 +249,14 @@ def termConflict : List Event :=
     .apply 1 1 1 1 [(("a", "00"), some "11")]
   ]
 
-def reusedVersion : List Event :=
+private def reusedVersion : List Event :=
   seed 1 0 0 "11"
   ++ start 2 1 0
   ++ [.acquire 1 2 "a" 1 0, .rollback 1 0 0 0]
   ++ seed 3 0 0 "22"
   ++ [.put 1 2 "a" "00" "33", .commitBegin 1 2, .apply 1 2 2 0 [(("a", "00"), some "33")]]
 
-def interleavedSegment : List Event :=
+private def interleavedSegment : List Event :=
   start 1 0 0 7
   ++ [.acquire 1 1 "a" 0 0, .put 1 1 "a" "00" "11"]
   ++ commit 1 1 [(("a", "00"), some "11")] 7 .noReplicate
@@ -276,7 +287,7 @@ def interleavedSegment : List Event :=
     .compact 1 1 0
   ]
 
-def absentCreationPrefix : List Event :=
+private def absentCreationPrefix : List Event :=
   start 1 0 0
   ++ [.acquire 1 1 "a" 0 0]
   ++ start 2 0 0
@@ -284,12 +295,12 @@ def absentCreationPrefix : List Event :=
   ++ commit 2 1 [(("b", "00"), some "11")]
   ++ [.compact 1 1 1]
 
-def persistEmpty (tid : Nat) : List Event :=
+private def persistEmpty (tid : Nat) : List Event :=
   start tid 0 0
   ++ [.acquire 1 tid "b" 0 0, .remove 1 tid "b" "00"]
   ++ commit tid 1 [(("b", "00"), none)]
 
-def existingEmptyCompacted : List Event :=
+private def existingEmptyCompacted : List Event :=
   persistEmpty 1
   ++ start 2 1 0
   ++ [.acquire 1 2 "a" 0 0]
@@ -298,7 +309,7 @@ def existingEmptyCompacted : List Event :=
   ++ commit 3 2 [(("b", "00"), some "11")]
   ++ [.compact 1 2 2]
 
-def accepted : List (String × List Event) :=
+private def accepted : List (String × List Event) :=
   [
     (
       "unrelated same-term rollback keeps attempt valid",
@@ -323,7 +334,7 @@ def accepted : List (String × List Event) :=
     )
   ]
 
-def negative : List (String × String × List Event) :=
+private def negative : List (String × String × List Event) :=
   [
     (
       "initial frontier is validated without storing it",
@@ -559,14 +570,14 @@ def negative : List (String × String × List Event) :=
   ]
 
 /-- Checks text with the same streaming file reader as the CLI. -/
-def checkText (text : String) : IO Report :=
+private def checkText (text : String) : IO Report :=
   IO.FS.withTempFile
     fun handle path => do
       handle.putStr text
       handle.flush
       checkFile path
 
-def assertStatus (name expected text : String) : IO Unit := do
+private def assertStatus (name expected text : String) : IO Unit := do
   let result ← checkText text
   if result.status != expected then
     throw
@@ -577,7 +588,7 @@ def assertStatus (name expected text : String) : IO Unit := do
   if expected != "accepted" && result.message.isEmpty then
     throw (IO.userError s!"missing diagnostic: {name}")
 
-def assertProjection : IO Unit := do
+private def assertProjection : IO Unit := do
   let records :=
     (closed interleavedSegment).mapIdx
       fun index event =>
@@ -603,7 +614,7 @@ def assertProjection : IO Unit := do
       || after.head.version != before.head.version + txs.length then
     throw (IO.userError "selected-store serial projection disagrees with actual replay")
 
-def run : IO Unit := do
+private def run : IO Unit := do
   assertProjection
   let good := encode (closed basic)
   assertStatus "basic accepted history" "accepted" good
@@ -665,6 +676,6 @@ def run : IO Unit := do
     throw (IO.userError "missing rejection context")
   IO.println "checker self-tests passed"
 
-end Kv.Tests
+#eval run
 
-def main : IO Unit := Kv.Tests.run
+end Kv.Tests.Replay

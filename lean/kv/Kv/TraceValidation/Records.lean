@@ -1,16 +1,20 @@
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
+module
 
-import Kv.Protocol.Model
-import Lean.Data.Json
+public import Kv.Model
+public import Lean.Data.Json
 
-/-! Human-reviewed strict decoding of schema 1 NDJSON traces, streaming replay, and reports. -/
+public section
 
-namespace Kv.Trace
-open Lean
+/-! Human-reviewed strict decoding of schema 1 NDJSON trace records. -/
 
+namespace Kv.TraceValidation
+
+open Lean Kv.Model
+
+/-- The largest number a trace field may carry. -/
 def uint64Max : Nat := UInt64.size - 1
 
+/-- A JSON number that is an exact nonnegative integer no larger than `uint64Max`. -/
 def nat64 (j : Json) : Except String Nat := do
   let v ←
     j.getNat?.mapError
@@ -22,47 +26,52 @@ def nat64 (j : Json) : Except String Nat := do
   if v > uint64Max then throw "integer exceeds uint64"
   return v
 
+/-- The value of a required field. -/
 def field (j : Json) (name : String) : Except String Json := j.getObjVal? name
 
+/-- A required string field. -/
 def str (j : Json) (name : String) : Except String String :=
   (field j name).bind Json.getStr?
 
+/-- A required uint64 field. -/
 def num (j : Json) (name : String) : Except String Nat := (field j name).bind nat64
 
-def boolean (j : Json) (name : String) : Except String Bool :=
+private def boolean (j : Json) (name : String) : Except String Bool :=
   (field j name).bind Json.getBool?
 
-def hex (j : Json) : Except String String := do
+private def hex (j : Json) : Except String String := do
   let s ← j.getStr?
   if s.length % 2 != 0 || !s.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f')) then
     throw "bytes must be even-length lowercase hexadecimal (empty bytes are allowed)"
   return s
 
-def bytes (j : Json) (name : String) : Except String String := (field j name).bind hex
+private def bytes (j : Json) (name : String) : Except String String :=
+  (field j name).bind hex
 
-def nullable (f : Json → Except String α) (j : Json) : Except String (Option α) :=
+private def nullable {α : Type} (f : Json → Except String α) (j : Json)
+    : Except String (Option α) :=
   match j with
   | .null => .ok none
   | _ => some <$> f j
 
-def optionalBytes (j : Json) (name : String) : Except String (Option String) :=
+private def optionalBytes (j : Json) (name : String) : Except String (Option String) :=
   (field j name).bind (nullable hex)
 
-def optionalNum (j : Json) (name : String) : Except String (Option Nat) :=
+private def optionalNum (j : Json) (name : String) : Except String (Option Nat) :=
   (field j name).bind (nullable nat64)
 
-def fields (j : Json) (allowed : List String) : Except String Unit := do
+private def fields (j : Json) (allowed : List String) : Except String Unit := do
   match (← j.getObj?).keys.find? (!allowed.contains ·) with
   | some k => throw s!"unknown field '{k}'"
   | none => return ()
 
-def numberChar (c : Char) : Bool :=
+private def numberChar (c : Char) : Bool :=
   c.isDigit || c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-'
 
 open Std.Internal.Parsec Std.Internal.Parsec.String in
 /-- The bundled parser normalizes numbers and object keys. Check the lexical
 information it would otherwise discard before giving it any numeric input. -/
-partial def lexicalScan (objects : List (List String)) : Parser Unit := do
+private partial def lexicalScan (objects : List (List String)) : Parser Unit := do
   match ← peek? with
   | none => return ()
   | some '"' =>
@@ -91,12 +100,14 @@ partial def lexicalScan (objects : List (List String)) : Parser Unit := do
         lexicalScan objects
 
 open Std.Internal.Parsec in
+/-- Checks the raw line's lexical form, which `Json.parse` would otherwise normalize. -/
 def lexicalCheck (line : String) : Except String Unit :=
   match lexicalScan [] ⟨line, line.startPos⟩ with
   | .success .. => .ok ()
   | .error _ .eof => .error "unterminated JSON string"
   | .error _ (.other message) => .error message
 
+/-- Decodes an `apply` record's write set. -/
 def decodeWrites (j : Json) : Except String Pending := do
   let array ← j.getArr?
   array.toList.mapM
@@ -104,6 +115,7 @@ def decodeWrites (j : Json) : Except String Pending := do
       fields item ["map", "key", "value"]
       return ((← str item "map", ← bytes item "key"), ← optionalBytes item "value")
 
+/-- The fields each record type allows, excluding `type` and `seq`. -/
 def eventFields (kind : String) : Except String (List String) :=
   let st := ["store", "tx"]
   let mp := st ++ ["map"]
@@ -132,6 +144,7 @@ def eventFields (kind : String) : Except String (List String) :=
   | "trace_end" => .ok ["events"]
   | _ => .error s!"unknown event type '{kind}'"
 
+/-- Decodes the event of a record of type `kind`, rejecting unknown or missing fields. -/
 def decodeEvent (j : Json) (kind : String) : Except String Event := do
   fields j (["type", "seq"] ++ (← eventFields kind))
   match kind with
@@ -209,89 +222,13 @@ def decodeEvent (j : Json) (kind : String) : Except String Event := do
   | "trace_end" => return .traceEnd (← num j "events")
   | _ => throw s!"unknown event type '{kind}'"
 
+/-- Decodes one record. -/
 def decode (j : Json) : Except String Record := do
   return { seq := ← num j "seq", event := ← decodeEvent j (← str j "type") }
 
+/-- Parses one NDJSON line after checking its lexical form. -/
 def parseLine (line : String) : Except String Json := do
   lexicalCheck line
   Json.parse line
 
-structure Report where
-  status : String
-  events : Nat
-  message : String
-  seq? : Option Nat := none
-  store? : Option Nat := none
-  tx? : Option Nat := none
-deriving Repr, BEq, ToJson
-
-def statusName : FailureKind → String
-  | .rejected => "rejected"
-  | .invalidTrace => "invalid_trace"
-  | .unsupported => "unsupported"
-
-def failureReport (w : World) (j : Json) (failure : Failure) : Report :=
-  let kind := (str j "type").toOption.getD "<undecoded>"
-  let seq := (num j "seq").toOption
-  let sid := (num j "store").toOption
-  let tid := (num j "tx").toOption
-  let id (n : Option Nat) := (n.map toString).getD "<none>"
-  {
-    status := statusName failure.kind
-    events := w.count
-    message :=
-      s!"event {w.count + 1} type={kind} case={w.currentCase.getD "<none>"} store={id sid} tx={id tid}: {failure.message}"
-    seq? := seq,
-    store? := sid,
-    tx? := tid
-  }
-
-def checkLine (w : World) (line : String) : Except Report World := do
-  let j ←
-    match parseLine line with
-    | .ok j => pure j
-    | .error message => throw (failureReport w .null ⟨.invalidTrace, message⟩)
-  let r ←
-    match decode j with
-    | .ok r => pure r
-    | .error message => throw (failureReport w j ⟨.invalidTrace, message⟩)
-  match step w r with
-  | .ok next => return next
-  | .error failure => throw (failureReport w j failure)
-
-def finishReport (w : World) : Report :=
-  if !w.ended then
-    failureReport w .null ⟨.invalidTrace, "truncated stream: missing trace_end"⟩
-  else
-    {
-      status := "accepted",
-      events := w.count,
-      message := s!"accepted {w.count} events in {w.cases} cases"
-    }
-
-def checkHandle (handle : IO.FS.Handle) : IO Report := do
-  let mut w : World := {}
-  let mut eof := false
-  while !eof do
-    match ← handle.getLine.toBaseIO with
-    | .error e => return failureReport w .null ⟨.invalidTrace, s!"cannot read trace: {e}"⟩
-    | .ok line =>
-        if line.isEmpty then
-          eof := true
-        else
-          match checkLine w line with
-          | .ok next => w := next
-          | .error report => return report
-  return finishReport w
-
-def checkFile (path : System.FilePath) : IO Report :=
-  IO.FS.withFile path .read checkHandle
-
-def Report.exitCode (r : Report) : UInt32 :=
-  match r.status with
-  | "accepted" => 0
-  | "rejected" => 1
-  | "unsupported" => 3
-  | _ => 2
-
-end Kv.Trace
+end Kv.TraceValidation

@@ -1,10 +1,17 @@
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
+module
 
-import Kv
+public import Kv.TraceValidation
 
-open Kv.Trace
+public section
 
+open Kv.TraceValidation
+
+/-- Command-line syntax reported when arguments are invalid. -/
+def usage : String :=
+  "usage: kv-replay [--json] <trace.ndjson>"
+
+/-- Checks one trace, printing the report as JSON with `--json` or as text on stderr, and
+exits with `Report.exitCode`. -/
 def main (args : List String) : IO UInt32 := do
   let jsonMode := args.contains "--json"
   let paths := args.filter (· != "--json")
@@ -21,12 +28,7 @@ def main (args : List String) : IO UInt32 := do
               message := s!"cannot read trace: {e}"
             }
     | _ =>
-        pure
-          {
-            status := "invalid_trace",
-            events := 0,
-            message := "usage: kv_trace_check [--json] <trace.ndjson>"
-          }
+        pure { status := "invalid_trace", events := 0, message := usage }
   if jsonMode then
     (← IO.getStdout).putStrLn (Lean.toJson report).compress
   else

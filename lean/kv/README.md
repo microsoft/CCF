@@ -1,80 +1,38 @@
-# Executable KV implementation profile
+# Lean KV implementation model
 
-Standalone Lean 4.34.1 project, using the same pinned Mathlib, axiom-audit and
-leanfmt tooling as the [disaster-recovery model](../disaster-recovery/README.md).
-It does not change CCF behavior or introduce a normal-build dependency. The
-user-facing contract, trace capture and fuzzing campaigns are described in
-[`doc/build_apps/kv/semantics.rst`](../../doc/build_apps/kv/semantics.rst).
+This package contains an executable Lean model of the observable semantics of CCF's KV store (`src/kv/`), its properties, machine-checked proofs of those properties, and a replayer that checks traces recorded by the C++ KV unit tests against the model.
+It does not change CCF behavior or introduce a normal-build dependency.
+The user-facing contract, trace capture and fuzzing campaigns are described in [`doc/build_apps/kv/semantics.rst`](../../doc/build_apps/kv/semantics.rst).
 This profile follows the implementation's **per-map globally committed views**.
+[The Lean module guide](../AGENT.md) describes the module layout, which this package shares with the [disaster-recovery model](../disaster-recovery/README.md).
 
-## Commands
+## Contents
 
-Run under Linux, from `lean/kv`:
+| Purpose                                                   | Location                                  |
+| --------------------------------------------------------- | ----------------------------------------- |
+| Property statements                                       | `Kv/Properties.lean`                      |
+| Proof of each property                                    | `Kv/Proof.lean`, one theorem per property |
+| State, observations, dependencies, and certificate types  | `Kv/Model/Types.lean`                     |
+| Construction of runtime-erased certificates               | `Kv/Model/Certificates.lean`              |
+| Executable transitions, replay, and the transition system | `Kv/Model.lean`, `../common/CCF/`         |
+| Sequential reference, trace projections, and invariants   | `Kv/Properties/`                          |
+| Proof implementations                                     | `Kv/Proofs/`                              |
+| Executable checks and architecture tests                  | `Kv/Tests/`                               |
+| Replay of recorded C++ traces                             | `Kv/TraceValidation.lean`                 |
+| Strict decoding of those traces                           | `Kv/TraceValidation/`                     |
+| Replayer executable                                       | `replayer/`                               |
 
-```bash
-lake exe cache get
-lake exe mk_all --check --lib Kv
-lake build --wfail
-lake lint
-lake test
-```
+Human review covers the model, the property statements, the definitions they use, and the theorem links in `Proof.lean`.
+The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
+`Model/Certificates.lean`, also marked `linguist-generated`, proves the runtime-erased certificates for the model's store and transaction states.
+Their types remain review-visible in `Model/Types.lean`, and constructing them adds no assumption or replay acceptance condition.
 
-Elan is optional: putting the official Lean 4.34.1 distribution's `bin`
-directory on `PATH` is sufficient. Lake dependencies and their transitive
-revisions are pinned in `lake-manifest.json`. From the repository root,
-`scripts/lean-format-checks.sh lean/kv` checks formatting, and `-f` before the
-package directory applies fixes.
-
-The build also produces the checker, run as
-`.lake/build/bin/kv_trace_check [--json] <trace.ndjson>`. Its exit codes are 0
-for an accepted trace, 1 for a contract rejection, 2 for an invalid or
-incomplete trace or an IO error, and 3 for an explicitly unsupported operation.
-`--json` writes exactly one object to stdout, with `status`, `events`,
-`message`, and, when decoded, `seq`, `store`, `tx`. `events` counts accepted
-records (including `trace_end` on success).
-Without `--json`, diagnostics go to stderr. Diagnostics identify the event
-index/type, case and available IDs.
-The CLI reads one NDJSON line at a time and returns immediately at the first
-diagnostic; it does not load the entire input before checking. It still reads
-through EOF after a valid `trace_end` to reject trailing records. Accepted
-prefixes retain model history and lifecycle metadata, so total model memory
-is not constant even though whole-file input buffering is avoided.
-
-## Review guide
-
-Start with [`Kv/Properties.lean`](Kv/Properties.lean). It states the
-review-facing guarantees, each of which directly applies a checked
-implementation in `Kv.Proofs`; these are not detached proposition declarations.
-Review the statements together with every definition and assumption they use in
-`Kv/Protocol/`.
-
-| Surface                                                                                | Review role     | Contents                                                        |
-| -------------------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------- |
-| [`Kv/Properties.lean`](Kv/Properties.lean)                                             | Human           | Property statements and explicit checked-proof links            |
-| [`Kv/Protocol/Types.lean`](Kv/Protocol/Types.lean)                                     | Human           | State, observations, dependencies, and erased certificate types |
-| [`Kv/Protocol/Model.lean`](Kv/Protocol/Model.lean)                                     | Human           | Executable transitions and replay                               |
-| [`Kv/Protocol/Programs.lean`](Kv/Protocol/Programs.lean)                               | Human           | Independent sequential reference and branch predicates          |
-| [`Kv/Protocol/Invariants.lean`](Kv/Protocol/Invariants.lean)                           | Human           | Trace projections, segment assumptions, and store invariants    |
-| [`Kv/Trace.lean`](Kv/Trace.lean), [`Main.lean`](Main.lean), [`Tests.lean`](Tests.lean) | Human           | Strict decoding, CLI, and executable examples                   |
-| [`Kv/Proofs/Types.lean`](Kv/Proofs/Types.lean)                                         | Machine-checked | Certificate construction and history lemmas                     |
-| [`Kv/Proofs/Model.lean`](Kv/Proofs/Model.lean)                                         | Machine-checked | Read, publication, serializability, and rollback proofs         |
-| [`Kv/Proofs/Trace.lean`](Kv/Proofs/Trace.lean)                                         | Machine-checked | Proofs connecting accepted replay to the contracts              |
-| [`Kv.lean`](Kv.lean), Lake/toolchain files                                             | Human           | Generated import root, dependency pins, and trust policy        |
-
-Only Lean files under `Kv/Proofs/` are marked `linguist-generated` by the
-repository's `.gitattributes`; GitHub can collapse their proof steps without
-hiding the executable model, assumptions, or public statements. Imports, audit
-configuration, toolchain changes, the import-root check, and the attribute rules
-still require human review.
-
-The model imports `Kv.Proofs.Types` only to construct runtime-erased
-certificates. Their types and the state construction remain review-visible in
-`Protocol/`, and constructing them adds no assumption or replay acceptance
-condition.
+`Model.transitionSystem` presents `step` as a [`CCF.TransitionSystem`](../common/CCF/TransitionSystem.lean) from the empty world.
+Properties of executions use the shared `CCF.Execution.Run` and `TransitionSystem.Reachable`, and `Proofs/Execution.lean` shows that they coincide with successful `replay`.
 
 ## Model
 
-`Kv/Protocol/Types.lean` defines finite association lists over arbitrary equality-bearing
+`Kv/Model/Types.lean` defines finite association lists over arbitrary equality-bearing
 map/key/value types. The executable instance uses opaque map-name strings and
 lossless serialized bytes encoded as lowercase hex. There are no fixed bounds
 on map/key/transaction counts. `Unique`, `set_unique`, `publish_unique` and
@@ -82,7 +40,7 @@ on map/key/transaction counts. `Unique`, `set_unique`, `publish_unique` and
 absence are distinct: `""` denotes a present zero-byte value, `null` denotes
 absence, and a missing required `value` field is an invalid trace.
 
-`Kv/Protocol/Model.lean` implements the **one transition used by replay**:
+`Kv/Model.lean` implements the **one transition used by replay**:
 
 - First access captures one current snapshot R shared by all maps and validates
   the initial global frontier without storing it. All acquired handles share staged
@@ -174,23 +132,14 @@ snapshot interpretation. This implementation profile does not establish that
 stronger contract. The production implementation, public comments and wire
 schema are not changed by choosing this model profile.
 
-## Proof scope
+## Properties
 
-The reviewed statements are in `Kv/Properties.lean`; proof implementations and
-intermediate lemmas are in `Kv/Proofs/`.
+The reviewed statements are `Prop` definitions in `Kv/Properties.lean`.
+`Kv/Proof.lean` proves each one, named in snake case after the claim, from the proof implementations and intermediate lemmas in `Kv/Proofs/`.
 No `sorry`, custom axioms, unsafe declarations, or external solver are used.
-Lean's intentional Unicode mathematical notation is used in source.
-The audited trace projection and history theorems use Lean's standard
-`propext` and `Quot.sound`; the snapshot/global-observation proofs additionally
-use standard `Classical.choice`.
-The Lake build treats every warning as an error, including admission warnings.
-The pinned `axiom-audit` lint driver checks every declaration under `Kv` against
-that three-axiom allowlist, rejecting `sorryAx`, custom assumptions, and native
-evaluation assumptions. Mathlib's `mk_all --check` verifies that the generated
-`Kv.lean` root imports every library module; run `lake exe mk_all --lib Kv` after
-adding a module.
+The trace projection and history theorems use Lean's standard `propext` and `Quot.sound`; the snapshot/global-observation proofs additionally use standard `Classical.choice`.
 
-The property names below are in `Kv.Properties`; additional supporting lemmas
+The theorem names below are in `Kv.Proof`; additional supporting lemmas
 remain available in their proof namespaces.
 
 | Theorems                                                                                                                | Established scope                                                                                                                                                               |
@@ -253,7 +202,21 @@ They do not prove that arbitrary C++ executions refine this model or that the
 instrumentation is complete; iteration protocol and acquisition-availability
 checks are not claimed as independently verified C++ algorithms.
 
-## Strict schema 1
+## Trace validation
+
+`Kv/TraceValidation.lean` checks traces recorded by the instrumented C++ KV unit tests against the model, decoding them with `Kv/TraceValidation/Records.lean`.
+The replayer is run as `.lake/build/bin/kv-replay [--json] <trace.ndjson>`.
+Its exit codes are 0 for an accepted trace, 1 for a contract rejection, 2 for an invalid or incomplete trace or an IO error, and 3 for an explicitly unsupported operation.
+`--json` writes exactly one object to stdout, with `status`, `events`, `message`, and, when decoded, `seq`, `store`, `tx`.
+`events` counts accepted records (including `trace_end` on success).
+Without `--json`, diagnostics go to stderr.
+Diagnostics identify the event index/type, case and available IDs.
+
+The replayer reads one NDJSON line at a time and returns immediately at the first diagnostic; it does not load the entire input before checking.
+It still reads through EOF after a valid `trace_end` to reject trailing records.
+Accepted prefixes retain model history and lifecycle metadata, so total model memory is not constant even though whole-file input buffering is avoided.
+
+### Strict schema 1
 
 Every NDJSON record is an object with `type` and strictly increasing run-wide
 uint64 `seq`. Numeric fields must be lexical nonnegative JSON integers, not
@@ -295,13 +258,13 @@ events; an active `tx_end` abandons writes. Retries need new attempt IDs.
 | `unsupported`                                | optional `store`, `operation:string`                                                                |
 | `trace_end`                                  | `events:uint64` counting all prior records                                                          |
 
-`Tests.lean` retains a basic accepted history and two acceptance relationships
+`Tests/Replay.lean` retains a basic accepted history and two acceptance relationships
 not guaranteed by generated-trace event coverage. It exercises expected
 rejections, including forbidden map-view refreshes, wrong global
 values/presence/revisions, partial applications, absent/phantom/write-skew
 conflicts, stale lineage, iteration lifecycle errors, exact uint64 decoding, and
 damaged streams. Every case is replayed from a temporary file through the same
-streaming reader as the CLI. Other positive implementation schedules come from
+streaming reader as the replayer. They run with `#eval` when the module is built, and failures fail the build. Other positive implementation schedules come from
 the focused C++ tests and concurrent fuzzer.
 
 ## Recorded finding
@@ -314,7 +277,7 @@ iterated map had since gained an entry, while the model rejected the `apply`.
 [#8320](https://github.com/microsoft/CCF/pull/8320) fixed this by tracking the
 map-read version as `std::optional<Version>`. The model's whole-map dependency
 check, which caught it, is exercised by the `map-wide phantom dependency` case
-in `Tests.lean`.
+in `Tests/Replay.lean`.
 
 ## Trust and exclusions
 
@@ -330,3 +293,27 @@ Lean's kernel/compiler/runtime, filesystem IO and the correspondence of emitted
 events to actual C++ actions. Positive finite traces are conformance evidence,
 not a proof of C++ refinement. Rejections remain diagnostic evidence and must
 not be hidden by reseeding state or accepting arbitrary global revisions.
+
+## Validation
+
+Run the following commands from this directory:
+
+```console
+lake exe cache get
+lake exe mk_all --check --module --lib Kv
+lake build --wfail --fail-fast
+lake build CCF
+lake lint
+lake exe runLinter --no-build CCF Kv replayer.Main
+lake check --inadvisably-no-sandbox
+```
+
+These are the same checks as the [disaster-recovery validation](../disaster-recovery/README.md#validation), which describes each of them and the package's linter options.
+The build runs `Tests/Replay.lean`, `Tests/Architecture.lean` and `Tests/ProofCoverage.lean`.
+The architecture test rejects imports that reverse the shared, model, and property layers, and reintroduced removed names.
+The proof-coverage test requires an exported theorem for every claim in `Properties.lean`.
+Unlike disaster recovery, the KV properties do not yet have `Witness` claims, so coverage does not require them.
+
+To check C++ traces against the model, build the replayer and pass it to CMake as described in [Reproducing a run](../../doc/build_apps/kv/semantics.rst).
+The Lean CI workflow runs these checks and the trace conformance tests in an Azure Linux 3 job.
+See the disaster-recovery [Formatting](../disaster-recovery/README.md#formatting) section for the formatting check, and pass `lean/kv` to restrict it to this package.

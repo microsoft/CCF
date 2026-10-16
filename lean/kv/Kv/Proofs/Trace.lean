@@ -1,13 +1,15 @@
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
+module
 
-import Kv.Protocol.Invariants
-import Kv.Proofs.Model
+public import Kv.Properties.Invariants
+public import Kv.Proofs.Model
+
+@[expose] public section
 
 /-! Supporting lemmas and proof implementations connecting accepted replay to its contracts. -/
 
 namespace Kv.Proofs.Trace
-open Kv.Proofs.Types Kv.Proofs.Model
+
+open Kv.Model Kv.Model.Certificates Kv.Properties Kv.Proofs.Model
 
 theorem storeOf_ok (w : World) (sid : Nat) (s : Store)
     : storeOf w sid = .ok s ↔ find w.stores sid = some s := by
@@ -194,7 +196,7 @@ theorem replay_segment_serializability (w final : World) (sid : Nat) (s : Store)
 
 /-- Every constructor of Store carries these erased proofs. In particular,
 accepted replay cannot produce a hole in history or a provisional global cut. -/
-theorem reachable_store_invariants (w : World) (_reachable : Reachable w)
+theorem reachable_store_invariants (w : World)
     (sid : Nat) (s : Store) (_live : find w.stores sid = some s)
     : History s.history s.head.version
       ∧ s.history.head? = some s.head
@@ -215,11 +217,11 @@ theorem txOf_found (w : World) (sid tid : Nat) (t : Tx)
     | cases accepted
     | split at accepted
 
-theorem find_set_cases [DecidableEq K] (xs : Assoc K V) (id key : K) (v : V)
+theorem find_set_cases {K V : Type} [DecidableEq K] (xs : Assoc K V) (id key : K) (v : V)
     : find (set xs id v) key = if id = key then some v else find xs key := by
   by_cases h : id = key <;> simp [h, find_set_same, find_set_other]
 
-theorem find_erase_cases [DecidableEq K] (xs : Assoc K V) (id key : K)
+theorem find_erase_cases {K V : Type} [DecidableEq K] (xs : Assoc K V) (id key : K)
     : find (erase xs id) key = if id = key then none else find xs key := by
   by_cases h : id = key <;> simp [h, find_erase_same, find_erase_other]
 
@@ -284,7 +286,7 @@ theorem step_snapshot_fixed (w next : World) (tid : Nat) (before after : Tx)
   apply stepEvent_snapshot_fixed w eventNext tid before after snap r.event live
     (by simpa [txs] using stillLive) captured segment eventStep
 
-theorem find_set_live [DecidableEq K] (xs : Assoc K V) (key : K) (before : V)
+theorem find_set_live {K V : Type} [DecidableEq K] (xs : Assoc K V) (key : K) (before : V)
     (id : K) (value : V) (live : find xs key = some before)
     : ∃ after, find (set xs id value) key = some after := by
   by_cases h : id = key
@@ -428,7 +430,7 @@ theorem History.head_cells_bounded (fs : List Frame) (n : Nat) (shape : History 
   | zero =>
       intro key cell found
       simp [find] at found
-  | succ f n fs version effect tail ih =>
+  | succ f n fs _version effect _tail ih =>
       obtain ⟨writes, published⟩ := effect
       simp only [List.head?_cons, Option.getD_some]
       rw [published]
@@ -446,13 +448,13 @@ theorem History.head_unique (fs : List Frame) (n : Nat) (shape : History fs n)
     : Unique (fs.head?.getD {}).data := by
   induction shape with
   | zero => simp [Unique]
-  | succ f n fs version effect tail ih =>
+  | succ f n fs _version effect _tail ih =>
       obtain ⟨writes, published⟩ := effect
       simp only [List.head?_cons, Option.getD_some]
       rw [published]
       exact publish_unique _ _ _ ih
 
-theorem reachable_store_data_invariants (w : World) (_reachable : Reachable w)
+theorem reachable_store_data_invariants (w : World)
     (sid : Nat) (s : Store) (_live : find w.stores sid = some s)
     : Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
   have unique := History.head_unique s.history s.head.version s.historyShape

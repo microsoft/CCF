@@ -198,9 +198,10 @@ certificates carry snapshot execution and store-history invariants through the
 constructors; they are not extra sequential-oracle acceptance checks.
 
 Mathlib's ``mk_all --check`` verifies the complete library import root. The Lake
-build treats warnings as errors, and the pinned ``axiom-audit`` lint driver
-checks every declaration under ``Kv``. Only Lean's standard trusted axioms are
-allowed; admitted proofs and custom assumptions fail the build.
+build treats warnings as errors, and build-time tests check that every claim in
+``Kv/Properties.lean`` has a theorem in ``Kv/Proof.lean``. The CI kernel check
+(``lake check``) requires every declaration to depend only on Lean's standard
+trusted axioms; admitted proofs and custom assumptions fail.
 
 The consensus abstraction assumes a valid irrevocable prefix and permitted
 environment transitions. It does not prove quorum agreement, eventual
@@ -260,12 +261,11 @@ of normal CCF builds:
 
    cd lean/kv
    lake exe cache get
-   lake build
-   lake test
+   lake build --wfail
    cd ../..
    cmake -S . -B build-kv-trace -GNinja \
      -DCMAKE_BUILD_TYPE=Debug -DCCF_KV_TRACING=ON \
-     -DCCF_KV_TRACE_CHECKER="$PWD/lean/kv/.lake/build/bin/kv_trace_check"
+     -DCCF_KV_TRACE_CHECKER="$PWD/lean/kv/.lake/build/bin/kv-replay"
    cmake --build build-kv-trace --target kv_test
    cd build-kv-trace
    ./tests.sh -R '^kv_test$' -L unit --no-tests=error

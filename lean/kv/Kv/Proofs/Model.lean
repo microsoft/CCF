@@ -1,20 +1,21 @@
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
+module
 
-import Kv.Protocol.Programs
-import Kv.Proofs.Types
+public import Kv.Properties.Programs
+
+@[expose] public section
 
 /-! Supporting lemmas and proof implementations for the executable KV model. -/
 
 namespace Kv.Proofs.Model
-open Kv.Proofs.Types
+
+open Kv.Model Kv.Model.Certificates Kv.Properties
 
 section Generic
 variable {M K V : Type} [DecidableEq M] [DecidableEq K]
 
 theorem find_set_same (xs : Assoc K V) (k : K) (v : V)
     : find (set xs k v) k = some v := by
-  simp [set, find]
+  simp [Model.set, find]
 
 theorem find_erase_same (xs : Assoc K V) (k : K) : find (erase xs k) k = none := by
   induction xs with
@@ -33,7 +34,7 @@ theorem find_erase_other (xs : Assoc K V) (a k : K) (h : a ≠ k)
 
 theorem find_set_other (xs : Assoc K V) (a k : K) (v : V) (h : a ≠ k)
     : find (set xs a v) k = find xs k := by
-  simp [set, find, h, find_erase_other xs a k h]
+  simp [Model.set, find, h, find_erase_other xs a k h]
 
 theorem find_image (db : DB M K V) (m : M) (key : K)
     : find (image db m) key = find db (m, key) := by
@@ -61,7 +62,7 @@ theorem erase_unique (xs : Assoc K V) (k : K) (h : Unique xs) : Unique (erase xs
 
 theorem set_unique (xs : Assoc K V) (k : K) (v : V) (h : Unique xs)
     : Unique (set xs k v) := by
-  simp only [Unique, set, List.map_cons, List.nodup_cons]
+  simp only [Unique, Model.set, List.map_cons, List.nodup_cons]
   constructor
   · simp [erase_keys]
   · exact erase_unique xs k h
@@ -257,7 +258,7 @@ theorem branch_normal_serializability (db final : DB M K V)
     : serialBranch db programs = some final := by
   induction h with
   | nil db => rfl
-  | apply db tail p ps hex hval rest ih =>
+  | apply db tail p ps hex hval _rest ih =>
       have hw := normalRun_serial_witness p.snapshot db p.ops {} p.result hex hval
       simpa [serialBranch, hw] using ih
 
@@ -435,7 +436,7 @@ theorem executable_branch_serializability (s final : Store) (ts : List Tx)
     : serialTransactions s.head.data s.head.version ts = some final.head.data := by
   induction h with
   | nil s => rfl
-  | compact s final v ts rest ih =>
+  | compact s final v ts _rest ih =>
       simpa only [compact_preserves_head] using ih
   | cons s middle final t ts one rest ih =>
       have hw := tryApply_serial_witness s middle t one
