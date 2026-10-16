@@ -75,7 +75,7 @@ public:
         // Construct a ValidationVisitor to perform validation at the root level
         ValidationVisitor<AdapterType, RegexEngine> v(
                 target,
-                std::vector<std::string>(1, "<root>"),
+                ValidationResults::Path(),
                 strictTypes,
                 strictDateTime,
                 results,

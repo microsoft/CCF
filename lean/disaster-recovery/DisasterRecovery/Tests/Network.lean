@@ -1,8 +1,14 @@
-import DisasterRecovery.Shared.MultiNodeTransitionSystem
+module
+
+import all Init.Control.State
+
+public import CCF.MultiNodeTransitionSystem
+
+public section
 
 namespace DisasterRecovery.Tests.Network
 
-open Shared
+open CCF
 
 private inductive Input where
   | receive (source message : Nat)
@@ -17,34 +23,37 @@ private def protocol
     match action with
     | .receive source message =>
         guard (message != 0)
+        host.notify message
+        host.send 1 source
         guard (message != 99)
-        pure do
-          host.notify message
-          host.send 1 source
-          return state + message
-    | .increment => pure (pure (state + 1))
-    | .blocked => none
+        return state + message
+    | .increment => return state + 1
+    | .blocked => failure
     | .burst =>
-        pure do
-          host.notify 10
-          host.send 1 0
-          host.notify 20
-          host.send 2 0
-          return state + 1
+        host.notify 10
+        host.send 1 0
+        host.notify 20
+        host.send 2 0
+        return state + 1
   receive := .receive
   internal := id
 
 example (host : Capabilities Nat Nat Nat) (node state : Nat)
-    : protocol.step host node state .blocked = none :=
-  rfl
-
-example (host : Capabilities Nat Nat Nat) (node state : Nat)
-    : protocol.step host node state (.receive 0 99) = none :=
+    : (protocol.step host node state .blocked).run {} = none :=
   rfl
 
 example (node state : Nat)
-    : (protocol.step (Capabilities.record node) node state .burst).map
-        (fun execute => execute.run {})
+    : (protocol.step (Capabilities.record node) node state (.receive 0 99)).run {}
+      = none :=
+  rfl
+
+example (node state : Nat) (pending : Outputs Nat Nat Nat)
+    : (protocol.step (Capabilities.record node) node state (.receive 0 99)).run pending
+      = none :=
+  rfl
+
+example (node state : Nat)
+    : (protocol.step (Capabilities.record node) node state .burst).run {}
       = some
           (
             state + 1,
@@ -76,22 +85,20 @@ private def burstStep : MultiNodeTransitionSystem.LocalStep Nat Nat Input Nat Na
       }
   }
 
-example : protocol.ValidStep burstStep := ⟨_, rfl, rfl⟩
+example : protocol.ValidStep burstStep := rfl
 
 example : ¬ protocol.ValidStep { burstStep with action := .blocked } := by
-  rintro ⟨execute, enabled, _⟩
-  cases enabled
+  intro result
+  cases result
 
 example : ¬ protocol.ValidStep { burstStep with after := 44 } := by
-  rintro ⟨execute, enabled, result⟩
-  cases enabled
+  intro result
   cases result
 
 example
     : ¬ protocol.ValidStep
           { burstStep with effects := { notifications := [10, 20] } } := by
-  rintro ⟨execute, enabled, result⟩
-  cases enabled
+  intro result
   cases result
 
 example
@@ -100,8 +107,7 @@ example
             burstStep with
               effects := { burstStep.effects with notifications := [20, 10] }
           } := by
-  rintro ⟨execute, enabled, result⟩
-  cases enabled
+  intro result
   cases result
 
 private def initial : MultiNodeTransitionSystem.State Nat Nat Nat :=
@@ -113,7 +119,7 @@ private def initial : MultiNodeTransitionSystem.State Nat Nat Nat :=
 private def expect (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError message)
 
-private def requireSome (value : Option α) (message : String) : IO α :=
+private def requireSome {α : Type} (value : Option α) (message : String) : IO α :=
   match value with
   | some result => pure result
   | none => throw (IO.userError message)

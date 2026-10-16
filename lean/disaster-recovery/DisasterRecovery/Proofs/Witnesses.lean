@@ -1,10 +1,19 @@
-import DisasterRecovery.Properties
-import Mathlib.Tactic
+module
+
+import all Init.Data.List.Sort.Basic
+
+public import DisasterRecovery.Properties
+public import DisasterRecovery.Proofs.Local
+public import Mathlib.Tactic
+
+@[expose] public section
 
 namespace DisasterRecovery.Proofs.Witnesses
 
-open Shared
+open CCF
 open Model.Local
+open DisasterRecovery.Proofs.Local
+attribute [local simp] StateT.run
 
 private theorem valid_of_adjacent {config : Model.Config} {trace : Properties.GlobalTrace}
     (initialized
@@ -100,20 +109,25 @@ private theorem quorum_valid
       MultiNodeTransitionSystem.next, quorumConfig, initial, quorumReady, quorumVoteSent,
       quorumOpened, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
       MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.receive, step, guard] <;> cbv
+      Model.receive, step, guard]
+  all_goals cbv
+  all_goals simp [advance, rejected, validTimeout, maximumGossip, advanceTimeoutLane]
 
 private theorem quorum_notified
     : Properties.Trace.NotificationAt quorumConfig quorumTrace 3 "A"
         (.opening .quorum) := by
   refine ⟨quorumVoteSent, quorumOpened, .deliver vote, quorumSelected, quorumOpener,
-    _, { notifications := [.opening .quorum] }, ?_, ?_, ?_, rfl, rfl, rfl, rfl, ?_, ?_⟩
+    { notifications := [.opening .quorum] }, ?_, ?_, ?_, rfl, rfl, rfl, ?_, ?_⟩
   · rfl
   · rfl
   · simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, quorumVoteSent, quorumReady, vote,
       MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne, guard]
     cbv
+    simp [advance, rejected, validTimeout, voteQuorum, advanceTimeoutLane]
+    rfl
   · cbv
+    simp [advance, rejected, validTimeout, voteQuorum, advanceTimeoutLane]
   · simp
 
 theorem quorum_opener_unique_witness : Properties.QuorumOpenerUniqueWitness :=
@@ -317,7 +331,7 @@ private def frozenGossip : Properties.LocalStep :=
 
 theorem gossip_freezes_after_choice_witness
     : Properties.GossipFreezesAfterChoiceWitness := by
-  refine ⟨quorumConfig, frozenGossip, "A", high, ⟨_, rfl, ?_⟩, rfl, rfl⟩
+  refine ⟨quorumConfig, frozenGossip, "A", high, ?_, rfl, rfl⟩
   cbv
 
 private def rejectedGossip : Properties.LocalStep :=
@@ -330,7 +344,7 @@ private def rejectedGossip : Properties.LocalStep :=
   }
 
 theorem rejected_gossip_stutters_witness : Properties.RejectedGossipStuttersWitness := by
-  refine ⟨quorumConfig, rejectedGossip, "A", high, ⟨_, rfl, ?_⟩, rfl⟩
+  refine ⟨quorumConfig, rejectedGossip, "A", high, ?_, rfl⟩
   cbv
 
 private def quorumTimeout : Properties.LocalStep :=
@@ -343,7 +357,7 @@ private def quorumTimeout : Properties.LocalStep :=
   }
 
 theorem quorum_advance_opens_witness : Properties.QuorumAdvanceOpensWitness := by
-  refine ⟨quorumConfig, quorumTimeout, ⟨_, rfl, ?_⟩, Or.inl rfl, rfl, by decide⟩
+  refine ⟨quorumConfig, quorumTimeout, ?_, Or.inl rfl, rfl, by decide⟩
   cbv
 
 private def openingTimeout : Properties.LocalStep :=
@@ -357,7 +371,7 @@ private def openingTimeout : Properties.LocalStep :=
 
 theorem aligned_opening_timeout_completes_witness
     : Properties.AlignedOpeningTimeoutCompletesWitness := by
-  refine ⟨quorumConfig, openingTimeout, ⟨_, rfl, ?_⟩, rfl, rfl, rfl⟩
+  refine ⟨quorumConfig, openingTimeout, ?_, rfl, rfl, rfl⟩
   cbv
 
 end DisasterRecovery.Proofs.Witnesses

@@ -3,7 +3,7 @@ Key-Value Serialisation
 
 Every transaction executed by the primary on its Key-Value store is serialised before being replicated to all backups of the CCF network and written to the ledger. The serialisation format is defined per :cpp:type:`ccf::kv::Map` and distinctly for the key and value types.
 
-.. tip:: Selecting the right serialision format for a KV map depends on the application logic but is generally a trade-off between performance and auditability of the ledger. For example, the default serialisation format for :cpp:type:`ccf::kv::Map` is JSON and allows for easy parsing of transactions in the `public` ledger. For more performance sensitive use cases, apps may define or use their own serialisers.
+.. tip:: Selecting the right serialisation format for a KV map depends on the application logic but is generally a trade-off between performance and auditability of the ledger. For example, the default serialisation format for :cpp:type:`ccf::kv::Map` is JSON and allows for easy parsing of transactions in the `public` ledger. For more performance sensitive use cases, apps may define or use their own serialisers.
 
 Custom key and value types
 --------------------------

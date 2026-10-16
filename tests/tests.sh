@@ -2,7 +2,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set -e
+set -eo pipefail
+
+if [[ "${GITHUB_ACTIONS:-}" == "true" && -z "${CCF_TEST_REPORT_DIR:-}" ]]; then
+    exec python3 ../tests/infra/test_reporting.py ctest "$0" "$@"
+fi
 
 echo "Setting up Python environment..."
 if [ ! -f "env/bin/activate" ]
@@ -15,7 +19,11 @@ source env/bin/activate
 if [ -n "${PIP_INDEX_URL:-}" ] && [ -z "${UV_INDEX_URL:-}" ]; then
     export UV_INDEX_URL="$PIP_INDEX_URL"
 fi
-uv pip install -q -e ../python/
+if [[ "${CCF_USE_RELEASED_PYTHON_PACKAGE:-0}" == "1" ]]; then
+    uv pip install -q --upgrade --reinstall-package ccf ccf
+else
+    uv pip install -q -e ../python/
+fi
 uv pip install -q -r ../tests/requirements.txt
 echo "Python environment successfully setup"
 
@@ -34,4 +42,8 @@ export VENV_DIR="$VENV_DIR"
 # Enable https://github.com/Qix-/better-exceptions
 export BETTER_EXCEPTIONS=1
 
-ctest "$@"
+if [[ -n "${CCF_TEST_REPORT_DIR:-}" ]]; then
+    ctest "$@" --output-junit "$CCF_TEST_REPORT_DIR/junit.xml"
+else
+    ctest "$@"
+fi

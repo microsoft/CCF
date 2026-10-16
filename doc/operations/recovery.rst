@@ -227,10 +227,10 @@ Then build the replayer with ``lake``, which `elan <https://lean-lang.org/instal
 
 .. code-block:: bash
 
-    cd lean/disaster-recovery/replayer
-    lake build
-    python3 viewer/build.py --logs DIR
-    python3 -m http.server --bind 127.0.0.1 8000 --directory viewer
+    cd lean/disaster-recovery
+    lake build disaster-recovery-replay
+    python3 replayer/viewer/build.py --logs DIR
+    python3 -m http.server --bind 127.0.0.1 8000 --directory replayer/viewer
 
 Local Sealing
 ~~~~~~~~~~~~~

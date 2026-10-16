@@ -1,0 +1,48 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
+set traversal IgnoreUnlessSpelledInSource
+set bind-root false
+
+# Only a block or another case at the start of the body makes a case braced or
+# empty. Labels and attributes are transparent; nested statements are not.
+let boundary stmt(anyOf(
+  compoundStmt(), switchCase(), ifStmt(), forStmt(), whileStmt(), doStmt(),
+  cxxForRangeStmt(), switchStmt(), cxxTryStmt(), cxxCatchStmt(), declStmt(), expr()
+))
+
+let unbracedCase switchCase(
+  switchCase().bind("unbraced_case"),
+  unless(hasDescendant(stmt(
+    anyOf(compoundStmt(), switchCase()),
+    hasAncestor(stmt(boundary).bind("body_parent")),
+    hasAncestor(switchCase(
+      equalsBoundNode("body_parent"),
+      equalsBoundNode("unbraced_case")
+    ))
+  )))
+)
+
+# Statements after the initial case block are siblings of the label in Clang's
+# AST. Only labels and attributes leading directly to another case may remain.
+let caseAtTop switchCase(
+  hasAncestor(stmt(boundary).bind("case_parent")),
+  hasAncestor(compoundStmt(
+    equalsBoundNode("case_parent"),
+    equalsBoundNode("case_container")
+  ))
+)
+let unscopedStatement stmt(
+  unless(switchCase()),
+  hasParent(compoundStmt(
+    compoundStmt().bind("case_container"),
+    hasDescendant(caseAtTop)
+  )),
+  unless(hasDescendant(caseAtTop))
+)
+
+match stmt(
+  anyOf(unbracedCase, stmt(unscopedStatement).bind("unscoped_statement")),
+  unless(isExpansionInSystemHeader()),
+  unless(isExpansionInFileMatching("(^|[/\\\\])3rdparty([/\\\\]|$)"))
+)

@@ -32,6 +32,7 @@ FUNCTIONS = {
     "send_append_entries_response": "SAeR",
     "recv_append_entries_response": "RAeR",
     "send_request_vote": "SRv",
+    "send_request_vote_response": "SRvR",
     "recv_request_vote": "RRv",
     "recv_request_vote_response": "RRvR",
     "recv_propose_request_vote": "RPRv",
