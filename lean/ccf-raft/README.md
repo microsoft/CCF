@@ -71,21 +71,20 @@ After adding or removing a module, regenerate `CCFRaft.lean` with `lake exe mk_a
 ## TLA+ safety properties
 
 `PropertiesTLA.lean` is a separate experiment that measures how much Lean is needed to prove TLA+ safety properties of this model.
-It states and proves:
+In the style of `Properties.lean`, it states each property with a witness, and proves both:
 
 - `LogInv` and `THEOREM Spec => []LogInv` from `tla/consensus/ccfraft.tla` (lines 1400-1407), using `Committed(i)` (line 490).
 - `CommittedLogAppendOnlyProp` and its theorem from `ccfraft.tla` (lines 1639-1645).
-- `AppendOnlyProp` from `tla/consensus/abs.tla` (line 101), read through ccfraft's `MappingToAbs` (line 1727), which maps `cLogs[i]` to the terms of `Committed(i)`.
 
+The statements match the TLA+ semantically rather than syntactically: `Spec` is a valid trace of `Model.transitionSystem` without `Fairness`, `Committed(i)` is `committedLog`, and a `[][A]_vars` property is a claim about every step of the trace.
 `LogInv` compares committed logs of different nodes in the same state, unlike `CommittedLogsPrefix` above, which compares any two states of a trace.
-`Spec` is read as a valid trace of `Model.transitionSystem`, without `Fairness`, and `Servers` as the configured nodes.
-The module documentation lists the remaining correspondences.
+The `AppendOnlyProp` of `tla/consensus/abs.tla` (line 101), read through ccfraft's `MappingToAbs` (line 1727), keeps only the terms of each committed log, so it follows from `CommittedLogAppendOnlyProp`.
 The Lean model is not proved equivalent to the TLA+ specification, and no TLAPS proof is involved.
 
 Each theorem body calls a helper in `ProofTLA/`, which holds the whole proof.
 `ProofTLA/` imports only the model, `ccf_common` and Mathlib, and is independent of any other proof layer.
 `Tests/ArchitectureTLA.lean` enforces this and fails the build if a theorem depends on an axiom other than `propext`, `Classical.choice` and `Quot.sound`.
-`Tests/PropertiesTLA.lean` checks how the statements read the TLA+ definitions, such as `Committed(i)` being `SubSeq` within the log and `cLogs` keeping only terms.
+`Tests/PropertiesTLA.lean` checks that `committedLog` is `Committed(i)` and that every state holds each configured node exactly once.
 The package checks under Validation cover these modules through `CCFRaft.lean`.
 
 To compare proof sizes, count lines from this directory:

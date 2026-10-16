@@ -5,113 +5,115 @@ module
 
 public import CCFRaft.Model
 public import CCF.Execution
-public import CCFRaft.ProofTLA.AppendOnlyProp
+public import CCFRaft.ProofTLA.CommittedLogAppendOnlyProp
 public import CCFRaft.ProofTLA.LogInv
+public import CCFRaft.ProofTLA.Witnesses
 
 @[expose] public section
 
 /-!
-# TLA+ safety properties
-
 Lean counterparts of `LogInv` and `CommittedLogAppendOnlyProp` in
-`tla/consensus/ccfraft.tla`, and of `AppendOnlyProp` in `tla/consensus/abs.tla`
-under ccfraft's `MappingToAbs` refinement mapping. Each theorem delegates to
-`CCFRaft/ProofTLA/`. The Lean model is not proved equivalent to the TLA+
-specification; these statements only read the TLA+ formulas in this model.
+`tla/consensus/ccfraft.tla`, stated in the style of `Properties.lean` and proved
+in `CCFRaft/ProofTLA/`. Each has a `Witness` claim exhibiting a nontrivial valid
+execution relevant to the property.
 
-Reading the TLA+ in this model:
-
-- `Spec`: a valid trace of `Model.transitionSystem config nodes`. `Fairness` is
-  omitted; it does not constrain safety properties.
-- `Servers`: the keys of `state.nodes`, which is `nodes` in every state of a
-  valid trace, so inactive nodes are included.
-- `log[i]`, `commitIndex[i]`: the fields of `i`'s entry in `state.nodes`.
-- `IsPrefix`: `<+:`.
-- `[]P`: `P` holds in every state of every valid trace (`Always`).
-- `[][A]_v`: every step between consecutive states of a valid trace is an `A`
-  step or leaves `v` unchanged (`AlwaysStep`, with the disjunction spelled out).
-
-Finite traces suffice: these are safety properties, so a behaviour violates one
-exactly when some finite prefix does.
-
-`abs.tla`'s `AppendOnlyProp` is a property of the abstract specification. Read
-through `MappingToAbs`, it says each node's committed terms only grow. It
-follows from `CommittedLogAppendOnlyProp` by projecting entries to their terms,
-but is weaker: it cannot see a committed entry replaced by one of the same term.
+The statements match the TLA+ semantically, not syntactically. `Spec` is a
+valid trace of `Model.transitionSystem`, without `Fairness`; `Servers` are the
+nodes in a state; `Committed(i)` is `committedLog`; `IsPrefix` is `<+:`.
+`[][A]_vars` becomes a claim about every step between consecutive states, whose
+stuttering case holds trivially. The Lean model is not proved equivalent to the
+TLA+ specification.
 -/
 
 namespace CCFRaft.PropertiesTLA
 
+abbrev GlobalTrace (Node TxId : Type) := CCF.Execution.Trace (Model.State Node TxId)
+
 open Model.Node
 
-variable {Node TxId : Type}
+/-- `LogInv`: in every state, the committed logs of any two nodes are
+prefix-comparable. -/
+def LogInv : Prop :=
+  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
+          [LinearOrder Node],
+  forall (config : InitialConfig Node),
+  forall (nodes : List Node) (trace : GlobalTrace Node TxId)
+          (state : Model.State Node TxId),
+  forall (left right : Node) (leftState rightState : NodeState Node TxId),
+    (trace.Valid (Model.transitionSystem config nodes)
+      /\ state ∈ trace.states
+      /\ (left, leftState) ∈ state.nodes
+      /\ (right, rightState) ∈ state.nodes)
+    -> leftState.committedLog <+: rightState.committedLog
+        \/ rightState.committedLog <+: leftState.committedLog
 
-abbrev Trace (Node TxId : Type) := CCF.Execution.Trace (Model.State Node TxId)
+/-- Witness: a valid trace has a state in which two distinct nodes have
+nonempty committed logs. -/
+def LogInvWitness : Prop :=
+  exists (Node TxId : Type),
+  exists (_ : DecidableEq Node) (_ : DecidableEq TxId),
+  exists (_ : Inhabited TxId) (_ : LinearOrder Node),
+  exists (config : InitialConfig Node),
+  exists
+  (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),
+  exists (left right : Node) (leftState rightState : NodeState Node TxId),
+    trace.Valid (Model.transitionSystem config nodes)
+    /\ state ∈ trace.states
+    /\ (left, leftState) ∈ state.nodes
+    /\ (right, rightState) ∈ state.nodes
+    /\ left ≠ right
+    /\ leftState.committedLog ≠ []
+    /\ rightState.committedLog ≠ []
 
-/-- `[]P` over the states of a trace. -/
-def Always (trace : Trace Node TxId) (P : Model.State Node TxId -> Prop) : Prop :=
-  forall state, state ∈ trace.states -> P state
+/-- `CommittedLogAppendOnlyProp`: every step of a valid trace extends or keeps
+each node's committed log. -/
+def CommittedLogAppendOnlyProp : Prop :=
+  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
+          [LinearOrder Node],
+  forall (config : InitialConfig Node),
+  forall (nodes : List Node) (trace : GlobalTrace Node TxId) (index : Nat),
+  forall (before after : Model.State Node TxId),
+  forall (node : Node) (nodeBefore nodeAfter : NodeState Node TxId),
+    (trace.Valid (Model.transitionSystem config nodes)
+      /\ trace.states[index]? = some before
+      /\ trace.states[index + 1]? = some after
+      /\ (node, nodeBefore) ∈ before.nodes
+      /\ (node, nodeAfter) ∈ after.nodes)
+    -> nodeBefore.committedLog <+: nodeAfter.committedLog
 
-/-- `[]A` over the steps of a trace. -/
-def AlwaysStep (trace : Trace Node TxId)
-    (A : Model.State Node TxId -> Model.State Node TxId -> Prop)
-    : Prop :=
-  forall (k : Nat) (before after : Model.State Node TxId),
-    trace.states[k]? = some before -> trace.states[k + 1]? = some after -> A before after
-
-/-- ccfraft.tla `Committed(i)`: `log[i]` up to `commitIndex[i]`, over whole entries. -/
-def Committed (s : NodeState Node TxId) : List (Entry Node TxId) :=
-  s.log.take s.commitIndex
-
-/-- ccfraft.tla `LogInv`. -/
-def LogInv (state : Model.State Node TxId) : Prop :=
-  forall (i j : Node) (si sj : NodeState Node TxId),
-    (i, si) ∈ state.nodes
-    -> (j, sj) ∈ state.nodes
-    -> Committed si <+: Committed sj \/ Committed sj <+: Committed si
-
-/-- ccfraft.tla `CommittedLogAppendOnlyProp`:
-`[][\A i \in Servers : IsPrefix(Committed(i), Committed(i)')]_vars`. -/
-def CommittedLogAppendOnlyStep (before after : Model.State Node TxId) : Prop :=
-  (forall (i : Node) (si si' : NodeState Node TxId),
-    (i, si) ∈ before.nodes -> (i, si') ∈ after.nodes -> Committed si <+: Committed si')
-  \/ after = before
-
-/-- ccfraft.tla `MappingToAbs`:
-`cLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]`. -/
-def cLogs (state : Model.State Node TxId) : List (Node × List Nat) :=
-  state.nodes.map fun entry => (entry.1, (Committed entry.2).map Entry.term)
-
-/-- abs.tla `AppendOnlyProp`, under `MappingToAbs`:
-`[][\A i \in Servers : IsPrefix(cLogs[i], cLogs'[i])]_cLogs`. -/
-def AppendOnlyStep (before after : Model.State Node TxId) : Prop :=
-  (forall (i : Node) (c c' : List Nat),
-    (i, c) ∈ cLogs before -> (i, c') ∈ cLogs after -> c <+: c')
-  \/ cLogs after = cLogs before
-
-variable [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId] [LinearOrder Node]
+/-- Witness: a step of a valid trace strictly extends a node's nonempty
+committed log. -/
+def CommittedLogAppendOnlyPropWitness : Prop :=
+  exists (Node TxId : Type),
+  exists (_ : DecidableEq Node) (_ : DecidableEq TxId),
+  exists (_ : Inhabited TxId) (_ : LinearOrder Node),
+  exists (config : InitialConfig Node),
+  exists (nodes : List Node) (trace : GlobalTrace Node TxId) (index : Nat),
+  exists (before after : Model.State Node TxId),
+  exists (node : Node) (nodeBefore nodeAfter : NodeState Node TxId),
+    trace.Valid (Model.transitionSystem config nodes)
+    /\ trace.states[index]? = some before
+    /\ trace.states[index + 1]? = some after
+    /\ (node, nodeBefore) ∈ before.nodes
+    /\ (node, nodeAfter) ∈ after.nodes
+    /\ nodeBefore.committedLog ≠ []
+    /\ nodeBefore.committedLog.length < nodeAfter.committedLog.length
 
 /-- `THEOREM Spec => []LogInv` -/
-theorem spec_logInv (config : InitialConfig Node) (nodes : List Node)
-    (trace : Trace Node TxId) (spec : trace.Valid (Model.transitionSystem config nodes))
-    : Always trace LogInv :=
-  fun _ member _ _ _ _ iMember jMember =>
-    ProofTLA.logInv config spec member iMember jMember
+theorem spec_logInv : LogInv :=
+  fun _ _ _ _ _ _ config _ _ _ _ _ _ _ ⟨valid, member, leftMember, rightMember⟩ =>
+    ProofTLA.logInv config valid member leftMember rightMember
+
+theorem logInv_witness : LogInvWitness :=
+  ProofTLA.Witnesses.logInv_witness
 
 /-- `THEOREM Spec => CommittedLogAppendOnlyProp` -/
-theorem spec_committedLogAppendOnlyProp (config : InitialConfig Node) (nodes : List Node)
-    (trace : Trace Node TxId) (spec : trace.Valid (Model.transitionSystem config nodes))
-    : AlwaysStep trace CommittedLogAppendOnlyStep :=
-  fun _ _ _ atBefore atAfter =>
-    .inl fun _ _ _ => ProofTLA.committedLog_step config spec atBefore atAfter
+theorem spec_committedLogAppendOnlyProp : CommittedLogAppendOnlyProp :=
+  fun _ _ _ _ _ _ config _ _ _ _ _ _ _ _
+      ⟨valid, atBefore, atAfter, beforeMember, afterMember⟩ =>
+    ProofTLA.committedLog_step config valid atBefore atAfter beforeMember afterMember
 
-/-- `Spec => MappingToAbs!AppendOnlyProp` -/
-theorem spec_appendOnlyProp (config : InitialConfig Node) (nodes : List Node)
-    (trace : Trace Node TxId) (spec : trace.Valid (Model.transitionSystem config nodes))
-    : AlwaysStep trace AppendOnlyStep :=
-  fun _ _ _ atBefore atAfter =>
-    .inl
-      fun _ _ _ =>
-        ProofTLA.projected_committedLog_step Entry.term config spec atBefore atAfter
+theorem committedLogAppendOnlyProp_witness : CommittedLogAppendOnlyPropWitness :=
+  ProofTLA.Witnesses.committedLogAppendOnlyProp_witness
 
 end CCFRaft.PropertiesTLA

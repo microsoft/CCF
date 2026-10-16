@@ -5,7 +5,7 @@ public import CCFRaft.Model.ClusterConfig
 public import CCFRaft.Model.Messages
 public import CCFRaft.Model.Node
 public import CCFRaft.Model.NodeState
-public import CCFRaft.ProofTLA.AppendOnlyProp
+public import CCFRaft.ProofTLA.CommittedLogAppendOnlyProp
 public import CCFRaft.ProofTLA.Concrete
 public import CCFRaft.ProofTLA.Config
 public import CCFRaft.ProofTLA.Direct.AppendOnly
@@ -27,6 +27,7 @@ public import CCFRaft.ProofTLA.Safety.Records
 public import CCFRaft.ProofTLA.Safety.Sends
 public import CCFRaft.ProofTLA.Safety.Step
 public import CCFRaft.ProofTLA.Safety.Summary
+public import CCFRaft.ProofTLA.Witnesses
 public import CCFRaft.Properties
 public import CCFRaft.PropertiesTLA
 public import CCFRaft.Tests.AppendTransactions

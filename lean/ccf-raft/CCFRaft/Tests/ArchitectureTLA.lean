@@ -67,8 +67,9 @@ run_cmd do
 run_cmd do
   let standard := [``propext, ``Classical.choice, ``Quot.sound]
   for root in [``CCFRaft.PropertiesTLA.spec_logInv,
+      ``CCFRaft.PropertiesTLA.logInv_witness,
       ``CCFRaft.PropertiesTLA.spec_committedLogAppendOnlyProp,
-      ``CCFRaft.PropertiesTLA.spec_appendOnlyProp] do
+      ``CCFRaft.PropertiesTLA.committedLogAppendOnlyProp_witness] do
     unless (← getEnv).find? root matches some (.thmInfo _) do
       throwError "Missing TLA+ property theorem: {root}"
     for axiom_ in ← Elab.Command.liftCoreM (collectAxioms root) do
