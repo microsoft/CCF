@@ -44,6 +44,8 @@ extends:
                 lfs: false
               - script: bash .pipelines/scripts/build-pypi-package.sh
                 displayName: Build and validate release wheel
+                env:
+                  BUILD_SOURCEBRANCH: $(Build.SourceBranch)
 
       - stage: release
         displayName: Publish CCF wheel to PyPI
