@@ -76,7 +76,9 @@ In the style of `Properties.lean`, it states each property with a witness, and p
 - `LogInv` and `THEOREM Spec => []LogInv` from `tla/consensus/ccfraft.tla` (lines 1400-1407), using `Committed(i)` (line 490).
 - `CommittedLogAppendOnlyProp` and its theorem from `ccfraft.tla` (lines 1639-1645).
 
-The statements match the TLA+ semantically rather than syntactically: `Spec` is a valid trace of `Model.transitionSystem` without `Fairness`, `Committed(i)` is `committedLog`, and a `[][A]_vars` property is a claim about every step of the trace.
+The statements match the TLA+ semantically rather than syntactically, as invariants of `Model.transitionSystem`.
+For these safety properties, `Spec => []P` means `P` holds in every reachable state, and `Spec => [][A]_vars` means `A` holds on every enabled step from a reachable state, since stuttering steps satisfy it trivially; `Fairness` plays no part.
+`Committed(i)` is `committedLog`.
 `LogInv` compares committed logs of different nodes in the same state, unlike `CommittedLogsPrefix` above, which compares any two states of a trace.
 The `AppendOnlyProp` of `tla/consensus/abs.tla` (line 101), read through ccfraft's `MappingToAbs` (line 1727), keeps only the terms of each committed log, so it follows from `CommittedLogAppendOnlyProp`.
 The Lean model is not proved equivalent to the TLA+ specification, and no TLAPS proof is involved.
@@ -84,7 +86,7 @@ The Lean model is not proved equivalent to the TLA+ specification, and no TLAPS 
 Each theorem body calls a helper in `ProofTLA/`, which holds the whole proof.
 `ProofTLA/` imports only the model, `ccf_common` and Mathlib, and is independent of any other proof layer.
 `Tests/ArchitectureTLA.lean` enforces this and fails the build if a theorem depends on an axiom other than `propext`, `Classical.choice` and `Quot.sound`.
-`Tests/PropertiesTLA.lean` checks that `committedLog` is `Committed(i)` and that every state holds each configured node exactly once.
+`Tests/PropertiesTLA.lean` checks that `committedLog` is `Committed(i)` and that every reachable state holds each configured node exactly once.
 The package checks under Validation cover these modules through `CCFRaft.lean`.
 
 To compare proof sizes, count lines from this directory:
