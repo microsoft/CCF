@@ -160,6 +160,12 @@ def find_service_open_txids(node, from_seqno):
         include_committed_prefix=True,
     ) as ledger_paths:
         for path in ledger_paths:
+            # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+            chunk_path = path.removesuffix(infra.node.COMMITTED_PREFIX_FILE_SUFFIX)
+            if chunk_path != path:
+                os.rename(path, chunk_path)
+            path = chunk_path
+            # END SDK 7.0.18 compatibility.
             for tx in ccf.ledger.LedgerChunk(path):
                 public_domain = tx.get_public_domain()
                 seqno = public_domain.get_seqno()
