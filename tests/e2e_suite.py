@@ -14,6 +14,7 @@ import infra.jwt_issuer
 import infra.logging_app as app
 import infra.network
 import infra.proc
+import infra.test_reporting as reporting
 import suite.test_requirements as reqs
 import suite.test_suite as s
 from loguru import logger as LOG
@@ -117,7 +118,13 @@ def run(args):
 
             # Actually run the test
             if not args.dry_run:
-                new_network = test(network, args)
+                with reporting.test_context(
+                    reporting.TestContext(
+                        ctest=args.label,
+                        workspace=os.path.join(args.workspace, args.label),
+                    )
+                ), reporting.test_case(test, ""):
+                    new_network = test(network, args)
             else:
                 new_network = network
             status = TestStatus.success
@@ -128,8 +135,16 @@ def run(args):
             reason = str(ce)
             new_network = network
 
-        except Exception:
+        except Exception as exc:
             LOG.exception(f"Test {s.test_name(test)} failed")
+            reporting.record_failure(
+                exc,
+                context=reporting.TestContext(
+                    ctest=args.label,
+                    workspace=os.path.join(args.workspace, args.label),
+                ),
+                case=test,
+            )
             status = TestStatus.failure
             new_network = network
 

@@ -376,7 +376,7 @@ namespace asynchost
     //   abandons the pending actions of every registered OrderedTasks lane,
     //   including this one, so calling it first would discard the queued
     //   mutations this method exists to drain. The host therefore calls this
-    //   before enclave_shutdown_tasks(); see run_enclave_threads in run.cpp.
+    //   before JobBoard::shutdown(); see Enclave::~Enclave().
     //
     // A mutation which append() or commit() accepted must reach disk. Queued
     // reads are skipped and their callbacks never fire: answering them would

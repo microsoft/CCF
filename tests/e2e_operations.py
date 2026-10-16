@@ -14,6 +14,7 @@ import random
 import re
 import shutil
 import signal
+import socket
 import struct
 import subprocess
 import tempfile
@@ -81,7 +82,7 @@ def test_parse_snapshot_file(network, args):
                 primary.remote.snapshots_dir_name,
             )
 
-        def run(self):
+        def _run(self):
             seen = set()
             while not self.is_stopped():
                 for snapshot in os.listdir(self.snapshots_dir):
@@ -107,7 +108,7 @@ def test_parse_snapshot_file(network, args):
             self.member = network.consortium.get_any_active_member()
             self.reader = reader
 
-        def run(self):
+        def _run(self):
             while not self.is_stopped() and self.reader.is_alive():
                 self.member.update_ack_state_digest(self.primary)
 
@@ -1556,6 +1557,7 @@ def test_ledger_chunk_repr_digest(network, args):
 
 def test_committed_ledger_prefix_access(network, args):
     primary, _ = network.find_primary()
+    prefix_suffix = infra.node.COMMITTED_PREFIX_FILE_SUFFIX
     first_txid = network.txs.issue(
         network, number_txs=1, send_private=False, send_public=True
     )
@@ -1581,10 +1583,13 @@ def test_committed_ledger_prefix_access(network, args):
         assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
         prefix_url = urllib.parse.urlparse(r.headers["Location"]).path
         first_prefix_name = os.path.basename(prefix_url)
-        assert first_prefix_name.endswith(
-            ccf.ledger.COMMITTED_PREFIX_FILE_SUFFIX
-        ), first_prefix_name
-        first_start, first_end = ccf.ledger.range_from_filename(first_prefix_name)
+        assert first_prefix_name.endswith(prefix_suffix), first_prefix_name
+        first_start, first_end = ccf.ledger.range_from_filename(
+            first_prefix_name
+            # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+            .removesuffix(prefix_suffix)
+            # END SDK 7.0.18 compatibility.
+        )
         assert first_start == first_txid.seqno
         assert first_end is not None and first_end >= first_start
 
@@ -1607,6 +1612,29 @@ def test_committed_ledger_prefix_access(network, args):
             hashlib.sha256(first_prefix).digest()
         ).decode()
         assert r.headers["repr-digest"] == f"sha-256=:{expected_digest}:"
+
+        for local_only in (False, True):
+            with primary.download_ledger(
+                first_end,
+                start_seqno=first_start,
+                local_only=local_only,
+                include_committed_prefix=True,
+            ) as ledger_paths:
+                assert len(ledger_paths) == 1, ledger_paths
+                assert ledger_paths[0].endswith(prefix_suffix), ledger_paths
+                chunk_path = ledger_paths[0]
+                # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                # Older SDKs can read the bytes but not the prefix filename.
+                chunk_path = chunk_path.removesuffix(prefix_suffix)
+                os.rename(ledger_paths[0], chunk_path)
+                # END SDK 7.0.18 compatibility.
+                downloaded_chunk = ccf.ledger.LedgerChunk(chunk_path)
+                downloaded_start, downloaded_end = downloaded_chunk.get_seqnos()
+                assert downloaded_start == first_start
+                assert downloaded_end >= first_end
+                assert any(
+                    tx.get_txid() == first_txid for tx in downloaded_chunk
+                ), first_txid
 
         range_end = min(31, prefix_size - 1)
         r = c.get(
@@ -1646,7 +1674,13 @@ def test_committed_ledger_prefix_access(network, args):
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
 
         with tempfile.TemporaryDirectory() as ledger_dir:
-            first_path = os.path.join(ledger_dir, first_prefix_name)
+            first_path = os.path.join(
+                ledger_dir,
+                first_prefix_name
+                # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                .removesuffix(prefix_suffix),
+                # END SDK 7.0.18 compatibility.
+            )
             with open(first_path, "wb") as prefix_file:
                 prefix_file.write(first_prefix)
 
@@ -1654,7 +1688,6 @@ def test_committed_ledger_prefix_access(network, args):
             assert chunk.get_seqnos() == (first_start, first_end)
             assert len(chunk) == first_end - first_start + 1
             assert not chunk.is_committed()
-            assert len(ccf.ledger.Ledger([ledger_dir])) == 0
 
             second_txid = network.txs.issue(
                 network, number_txs=1, send_private=False, send_public=True
@@ -1677,24 +1710,31 @@ def test_committed_ledger_prefix_access(network, args):
             second_prefix_name = os.path.basename(second_url)
             second_start, second_end = ccf.ledger.range_from_filename(
                 second_prefix_name
+                # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                .removesuffix(prefix_suffix)
+                # END SDK 7.0.18 compatibility.
             )
             assert second_start == next_seqno
             assert second_end is not None and second_end >= second_txid.seqno
 
             r = c.get(second_url, allow_redirects=False)
             assert r.status_code == http.HTTPStatus.OK, r
-            second_path = os.path.join(ledger_dir, second_prefix_name)
+            second_path = os.path.join(
+                ledger_dir,
+                second_prefix_name
+                # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                .removesuffix(prefix_suffix),
+                # END SDK 7.0.18 compatibility.
+            )
             with open(second_path, "wb") as prefix_file:
                 prefix_file.write(r.body.data())
 
             # Each prefix is a self-contained chunk, and consecutive prefixes
-            # are contiguous, but like the node the SDK never treats them as
-            # part of a ledger directory.
+            # are contiguous.
             second_chunk = ccf.ledger.LedgerChunk(second_path)
             assert second_chunk.get_seqnos() == (second_start, second_end)
             assert len(second_chunk) == second_end - second_start + 1
             assert second_start == first_end + 1
-            assert len(ccf.ledger.Ledger([ledger_dir], committed_only=False)) == 0
 
         r = c.get(
             "/node/ledger_chunk"
@@ -1708,6 +1748,22 @@ def test_committed_ledger_prefix_access(network, args):
             allow_redirects=False,
         )
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+
+        network.create_and_wait_for_ledger_chunk(primary)
+        canonical_response = c.get(locator, allow_redirects=True)
+        assert canonical_response.status_code == http.HTTPStatus.OK, canonical_response
+        canonical_name = canonical_response.headers["x-ms-ccf-ledger-chunk-name"]
+        assert canonical_name.endswith(ccf.ledger.COMMITTED_FILE_SUFFIX), canonical_name
+
+        with primary.download_ledger(
+            second_txid.seqno,
+            start_seqno=first_start,
+            include_committed_prefix=True,
+        ) as ledger_paths:
+            assert [os.path.basename(p) for p in ledger_paths] == [canonical_name]
+            txids = [tx.get_txid() for tx in ccf.ledger.LedgerChunk(ledger_paths[0])]
+            assert txids.count(first_txid) == 1, txids
+            assert txids.count(second_txid) == 1, txids
 
 
 def test_ledger_chunk_redirect_recent(network, args):
@@ -2163,6 +2219,164 @@ def run_sighup_check(const_args):
         with open(out, "r") as outf:
             lines = outf.readlines()
         assert any("SIGHUP: " in line for line in lines), "Hangup should be logged"
+
+
+def run_runtime_lifecycle_checks(args):
+    def assert_log_order(output, *messages):
+        offset = 0
+        for message in messages:
+            index = output.find(message, offset)
+            assert (
+                index >= 0
+            ), f"Expected {message!r} after offset {offset} in:\n{output}"
+            offset = index + len(message)
+
+    shutdown_sequence = (
+        "Created new node",
+        "Output self-signed node certificate",
+        "Entering event loop",
+        "SIGTERM: Shutting down enclave gracefully...",
+        "Stopping RPC transports",
+        "Enclave stopped successfully. Stopping host...",
+        "Exited event loop",
+        "Shutting down enclave",
+        "cleanup iteration(s)",
+    )
+
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+        node = network.nodes[0]
+        node.stop()
+        out, _ = node.remote.get_logs()
+        with open(out, encoding="utf-8") as f:
+            output = f.read()
+        assert_log_order(output, *shutdown_sequence)
+        assert "Failed to close uv loop" not in output, output
+
+        root = pathlib.Path(node.remote.remote.root).resolve()
+        with open(root / "0.config.json", encoding="utf-8") as f:
+            original_config = json.load(f)
+        env = os.environ.copy()
+        if infra.platform_detection.is_snp():
+            env.update(snp.get_aci_env())
+
+        for failure in ("bind", "output", "pending_join", "startup_signal"):
+            with tempfile.TemporaryDirectory(dir=root) as temp:
+                temp = pathlib.Path(temp).resolve()
+                config = copy.deepcopy(original_config)
+                config["ledger"]["directory"] = str(temp / "ledger")
+                config["snapshots"]["directory"] = str(temp / "snapshots")
+                config["output_files"]["pid_file"] = str(temp / "node.pid")
+                with socket.socket() as blocker:
+                    if failure == "bind":
+                        blocker.bind(("127.0.0.1", 0))
+                        blocker.listen()
+                        interface = next(
+                            iter(config["network"]["rpc_interfaces"].values())
+                        )
+                        interface["bind_address"] = (
+                            f"127.0.0.1:{blocker.getsockname()[1]}"
+                        )
+                    elif failure == "output":
+                        config["output_files"]["node_certificate_file"] = str(temp)
+                    elif failure == "startup_signal":
+                        os.mkfifo(temp / "certificate")
+                        config["output_files"]["node_certificate_file"] = str(
+                            temp / "certificate"
+                        )
+                    else:
+                        blocker.bind(("127.0.0.1", 0))
+                        blocker.listen()
+                        blocker.settimeout(10)
+                        config["command"]["type"] = "Join"
+                        config["command"]["join"][
+                            "target_rpc_address"
+                        ] = f"127.0.0.1:{blocker.getsockname()[1]}"
+                        config["command"]["join"]["fetch_recent_snapshot"] = False
+                    config_path = temp / "config.json"
+                    config_path.write_text(json.dumps(config), encoding="utf-8")
+                    command = [
+                        str(root / os.path.basename(node.remote.BIN)),
+                        "--config",
+                        str(config_path),
+                        "--log-level",
+                        "Trace",
+                    ]
+                    if failure in ("pending_join", "startup_signal"):
+                        with (
+                            open(temp / "out", "w+", encoding="utf-8") as out,
+                            subprocess.Popen(
+                                command,
+                                cwd=root,
+                                env=env,
+                                stdout=out,
+                                stderr=subprocess.STDOUT,
+                            ) as proc,
+                        ):
+                            try:
+                                if failure == "pending_join":
+                                    # Leave TLS incomplete to exercise curl
+                                    # cancellation while NodeState is alive.
+                                    connection, _ = blocker.accept()
+                                    with connection:
+                                        proc.send_signal(signal.SIGTERM)
+                                        assert proc.wait(timeout=30) == 0
+                                else:
+                                    # FIFO output holds startup before uv_run.
+                                    # Release it only after sending the signal.
+                                    deadline = time.monotonic() + 30
+                                    while "Created new node" not in (
+                                        temp / "out"
+                                    ).read_text(encoding="utf-8"):
+                                        assert proc.poll() is None
+                                        assert time.monotonic() < deadline
+                                        time.sleep(0.01)
+                                    proc.send_signal(signal.SIGTERM)
+                                    with os.fdopen(
+                                        os.open(
+                                            temp / "certificate",
+                                            os.O_RDONLY | os.O_NONBLOCK,
+                                        ),
+                                        "rb",
+                                    ):
+                                        assert proc.wait(timeout=30) == 0
+                            finally:
+                                if proc.poll() is None:
+                                    proc.kill()
+                                    proc.wait()
+                            out.seek(0)
+                            output = out.read()
+                        assert_log_order(output, *shutdown_sequence)
+                        assert "Failed to close uv loop" not in output, output
+                        continue
+                    result = subprocess.run(
+                        command,
+                        cwd=root,
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        check=False,
+                    )
+                assert result.returncode == 1, result
+                if failure == "output":
+                    startup_sequence = (
+                        "Created new node",
+                        "Error starting node: Failed to open file",
+                    )
+                else:
+                    startup_sequence = ("Error starting node:",)
+                    assert "Created new node" not in result.stdout, result
+                assert_log_order(
+                    result.stdout,
+                    *startup_sequence,
+                    "Shutting down enclave",
+                    "cleanup iteration(s)",
+                )
+                assert "Entering event loop" not in result.stdout, result
+                assert "Failed to close uv loop" not in result.stdout, result
 
 
 def run_configuration_file_checks(args):
@@ -3750,14 +3964,24 @@ def run_merkle_verification_level(args):
             for tx in chunk:
                 tx.get_public_domain()
 
-            assert (
-                False
-            ), f"Expected to raise exception while parsing corrupted ledger chunk {name}"
-
-        except Exception as e:
+        except (
+            AssertionError,
+            # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+            IndexError,
+            # END SDK 7.0.18 compatibility.
+            ValueError,
+        ) as e:
+            # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+            if name == "nulled_block" and isinstance(e, IndexError):
+                expected_parse_error = "index out of range"
+            # END SDK 7.0.18 compatibility.
             assert expected_parse_error in str(
                 e
             ), f"Unexpected error message for corruption {name}: {e}"
+        else:
+            raise AssertionError(
+                f"Expected to raise exception while parsing corrupted ledger chunk {name}"
+            )
 
         # NB: cleanup() is deliberately skipped if an assertion fails, so the corrupted files can be inspected
         temp_dir.cleanup()
@@ -5270,22 +5494,21 @@ def run_ledger_cleanup_no_read_only_dir_check(const_args):
 
         node = network.nodes[0]
         expected_msg = (
-            "files_cleanup.max_committed_ledger_chunks requires at least one "
+            "Exception in ccf::run: files_cleanup.max_committed_ledger_chunks "
+            "requires at least one "
             "ledger.read_only_directories entry"
         )
-        _, err_path = node.get_logs()
-        found = False
-        if err_path is not None:
-            with open(err_path, "r") as f:
-                for line in f:
-                    if expected_msg in line:
-                        found = True
-                        break
-        if not found:
-            raise AssertionError(
-                "Expected node error message about missing read-only ledger "
-                "directory when max_committed_ledger_chunks is configured"
-            )
+        out_path, _ = node.get_logs()
+        with open(out_path, encoding="utf-8") as f:
+            output = f.read()
+        error_index = output.find(expected_msg)
+        cleanup_index = output.find("cleanup iteration(s)")
+        assert 0 <= error_index < cleanup_index, (
+            "Expected missing read-only ledger directory error before final "
+            f"cleanup:\n{output}"
+        )
+        assert "Created new node" not in output, output
+        assert "Entering event loop" not in output, output
 
         LOG.success(
             "Node correctly refused to start without read-only ledger directory"
@@ -5393,6 +5616,14 @@ def run_pending_node_expiration(const_args):
     # Expired Pending nodes are removed along with an endorsed certificate
     # they never had, which full offline verification must accept
     validator = ccf.ledger.LedgerValidator()
+
+    # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+    class NodeCertificates(dict):
+        def pop(self, key, default=None):
+            return super().pop(key, default)
+
+    validator.node_certificates = NodeCertificates(validator.node_certificates)
+    # END SDK 7.0.18 compatibility.
     ledger = ccf.ledger.Ledger(
         primary.remote.ledger_paths(),
         committed_only=False,

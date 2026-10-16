@@ -492,7 +492,6 @@ endif()
 # Build common library for CCF enclaves
 set(
   CCF_IMPL_SOURCE
-  ${CCF_DIR}/src/enclave/main.cpp
   ${CCF_DIR}/src/node/env.cpp
   ${CCF_DIR}/src/node/quote.cpp
   ${CCF_DIR}/src/pal/uvm_endorsements.cpp
@@ -1444,6 +1443,14 @@ if(BUILD_TESTS)
     DETECT_DEADLOCKS
     TSAN_SUPPRESSIONS ${CCF_DIR}/tsan_e2e_logging_suppressions
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
+
+  add_e2e_test(
+    NAME e2e_forwarding_smoke
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/forwarding.py
+    BUCKET bucket_c
+    BUILD_DEPENDS logging
+    ADDITIONAL_ARGS --package samples/apps/logging/logging
   )
 
   add_e2e_test(

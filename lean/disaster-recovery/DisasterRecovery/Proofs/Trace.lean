@@ -1,13 +1,13 @@
 module
 
-public import DisasterRecovery.Shared.Execution
+public import CCF.Execution
 public import Mathlib.Tactic
 
 @[expose] public section
 
 namespace DisasterRecovery.Proofs.Trace
 
-open Shared
+open CCF
 
 variable {State Action : Type}
 

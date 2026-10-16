@@ -10,7 +10,7 @@ This package contains a Lean model of CCF's recovery decision protocol (`src/nod
 | Property statements                   | `DisasterRecovery/Properties.lean`                      |
 | Proof of each property                | `DisasterRecovery/Proof.lean`, one theorem per property |
 | Single-node protocol                  | `DisasterRecovery/Model/Local.lean`                     |
-| Network composition                   | `DisasterRecovery/Model.lean`, `Shared/`                |
+| Network composition                   | `DisasterRecovery/Model.lean`, `../common/CCF/`         |
 | Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`                |
 | Proof implementations                 | `DisasterRecovery/Proofs/`                              |
 | Executable checks and concrete traces | `DisasterRecovery/Tests/`                               |
@@ -32,7 +32,7 @@ A rejected receive is an enabled step that emits a notification.
 `Validation.accepted` and `Validation.rejected` represent the results of the C++ quote and certificate checks.
 The model does not define that cryptography.
 
-`Shared/MultiNodeTransitionSystem.lean` composes copies of one local protocol into a message-passing network.
+[`CCF.MultiNodeTransitionSystem`](../common/CCF/MultiNodeTransitionSystem.lean) in the [common package](../common/README.md) composes copies of one local protocol into a message-passing network.
 Each step executes one node once, collects its outputs with `Capabilities.record`, and appends its sends to the queue.
 Delivery consumes any queued envelope, not only the first.
 Notifications are not stored in the global state.
@@ -83,6 +83,7 @@ Run the following commands from this directory:
 lake exe cache get
 lake exe mk_all --check --module --lib DisasterRecovery
 lake build --wfail --fail-fast
+lake build CCF
 lake lint
 ./replayer/check-fixtures.sh
 lake check --inadvisably-no-sandbox
@@ -108,7 +109,7 @@ Public imports preserve existing names and exports.
 Proofs that evaluate upstream implementations use narrowly scoped `import all` directives to retain access to those definitions.
 The proof-coverage check also loads implementation metadata to distinguish checked theorems from axioms after module interface erasure.
 
-`lake lint` also runs Mathlib's `runLinter` declaration-lint driver, including the slow checks, over every module imported by `DisasterRecovery.lean` and `replayer.Main`.
+`lake lint` also runs Mathlib's `runLinter` declaration-lint driver, including the slow checks, over every module imported by `CCF.lean`, `DisasterRecovery.lean`, and `replayer.Main`.
 It lints our declarations rather than dependencies, and findings fail the command.
 The package's default targets are the complete library and the replayer executable.
 Canonical scenario and state-enumeration checks run with `#eval` when `Tests/CanonicalTests.lean` is built, and assertion failures fail the build.
@@ -120,9 +121,9 @@ The checked targets include the complete library import root, canonical tests, a
 These supplement the import and proof coverage checks and executable model and trace tests.
 CI checks the package without sandbox isolation, using disk-backed temporary storage.
 Build-time code must therefore be trusted; kernel rechecking and the axiom allowlist remain enabled.
+The `--inadvisably-no-sandbox` flag also allows the check to build the shared modules directly from `../common`.
 The Lean workflow runs formatting, linting, import-root, build, executable and kernel checks in one job, in that order.
 Additional bundled checkers are not enabled.
-All sources belong to this package, so `lake check` needs no source staging or path rewriting.
 
 `Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof module or if a removed name is reintroduced.
 See [Formatting](#formatting) for the [leanfmt](https://github.com/duckki/leanfmt) check.
@@ -145,6 +146,6 @@ scripts/lean-format-checks.sh -f
 
 The script builds each package's imported modules and runs its pinned leanfmt dependency.
 By default it checks both disaster recovery and CCF Raft; pass `disaster-recovery` to check only the recovery package and Lean files outside the Raft package.
-The Lean CI workflow runs the same check after the proof checks.
+The Lean CI workflow runs the same check before linting.
 Files outside `lean/` are included; untracked files and downloaded dependencies are excluded.
 Add new Lean files to Git before running the check.

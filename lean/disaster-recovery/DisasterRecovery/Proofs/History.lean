@@ -7,7 +7,7 @@ public import DisasterRecovery.Proofs.Trace
 
 namespace DisasterRecovery.Proofs.History
 
-open Shared
+open CCF
 open Lifting
 
 /-- Decorated steps whose erased successor states form the given model-state list. -/

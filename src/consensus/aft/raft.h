@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <functional>
 #include <list>
+#include <map>
 #include <random>
 #include <unordered_map>
 #include <vector>
@@ -170,7 +171,9 @@ namespace aft
     // This should be used for diagnostic or broadcasting
     // messages but _not_ for counting quorums, which should be done for each
     // active configuration.
-    std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
+    // Ordered so that iteration, including successor selection in
+    // find_successor(), is deterministic.
+    std::map<ccf::NodeId, NodeState> all_other_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
 
     // Called on the primary to remove retired nodes from the store
@@ -2331,13 +2334,16 @@ namespace aft
 
       // Pick the node that has the highest match_idx, and break
       // ties by looking at the highest reconfiguration id they are
-      // part of, then by highest node ID. This can lead to nudging a node that
-      // is about to retire too, but that node will then nudge a successor, and
-      // that seems preferable to nudging a node that risks not being eligible
-      // if reconfiguration id is prioritised. Alternatively, we could pick the
-      // node with the highest match idx in the latest config, provided that
-      // match idx at least as high as a majority. That would make them both
-      // eligible and unlikely to retire soon.
+      // part of. This can lead to nudging a node that is
+      // about to retire too, but that node will then nudge
+      // a successor, and that seems preferable to nudging a node that
+      // risks not being eligible if reconfiguration id is prioritised.
+      // Alternatively, we could pick the node with the highest match idx
+      // in the latest config, provided that match idx at least as high as a
+      // majority. That would make them both eligible and unlikely to retire
+      // soon.
+      // Remaining ties go to the last candidate visited, which is the highest
+      // node ID because all_other_nodes is ordered.
       for (auto& [node, node_state] : all_other_nodes)
       {
         if (node_state.match_idx >= max_match_idx)
@@ -2353,11 +2359,8 @@ namespace aft
             }
             conf++;
           }
-          if (
-            !successor.has_value() || node_state.match_idx > max_match_idx ||
-            latest_reconf_id > reconf_id_of_max_match ||
-            (latest_reconf_id == reconf_id_of_max_match &&
-             successor.value() < node))
+          if (!(node_state.match_idx == max_match_idx &&
+                latest_reconf_id < reconf_id_of_max_match))
           {
             reconf_id_of_max_match = latest_reconf_id;
             successor = node;

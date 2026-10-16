@@ -16,9 +16,8 @@ The properties are stated but not yet proved.
 | `CCFRaft/Tests/`                   | Regression theorems, behavior checks and import-boundary rules |
 | `CCFRaft.lean`                     | Generated root importing every module                          |
 
-Transition systems, traces, output-recording effects and network composition come from the `ccf_common` package in `lean/common`, under the `CCF` namespace.
-It is a Git dependency pinned to a commit in `lakefile.toml`.
-To move it, update `rev`, run `lake update ccf_common`, and keep the shared [`../lean-toolchain`](../lean-toolchain) and the Mathlib tag in step with `ccf_common`.
+Transition systems, traces, output-recording effects and network composition come from the local [`ccf_common` package](../common/README.md), under the `CCF` namespace.
+Both `lakefile.toml` and `lake-manifest.json` reference `../common`, without copying or fetching another CCF checkout.
 
 `Properties.lean` defines `GlobalTrace` alongside the property statements.
 

@@ -34,6 +34,16 @@ BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
 NODE_STARTUP_RETRY_COUNT = 5
 
+COMMITTED_PREFIX_FILE_SUFFIX = getattr(
+    ccf.ledger,
+    "COMMITTED_PREFIX_FILE_SUFFIX",
+    # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+    # Once release tests use ccf >= 7.0.19, delete all compatibility blocks.
+    # Then run the usual Ruff and Black automatic fixes.
+    ".committed_prefix",
+    # END SDK 7.0.18 compatibility.
+)
+
 
 class NodeNetworkState(Enum):
     stopped = auto()
@@ -561,16 +571,6 @@ class Node:
         tx = ledger.get_transaction(seqno)
         return tx.get_public_domain().get_tables()
 
-    def get_ledger_public_state_at(self, seqno):
-        if not self.is_stopped():
-            LOG.warning(
-                "Parsing ledger files directly from live node {}",
-                self.local_node_id,
-            )
-        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
-        assert ledger.last_committed_chunk_range[1] >= seqno
-        return ledger.get_latest_public_state()
-
     def wait_for_ledger_chunk(self, seqno, timeout=5):
         end_time = time.time() + timeout
         with self.client(
@@ -626,6 +626,7 @@ class Node:
         timeout=5,
         local_only=False,
         start_seqno=None,
+        include_committed_prefix=False,
     ):
         ledger_paths = []
 
@@ -633,7 +634,12 @@ class Node:
             chunk_name = os.path.basename(
                 response.headers["x-ms-ccf-ledger-chunk-name"]
             )
-            start_seqno, end_seqno = ccf.ledger.range_from_filename(chunk_name)
+            start_seqno, end_seqno = ccf.ledger.range_from_filename(
+                chunk_name
+                # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                .removesuffix(COMMITTED_PREFIX_FILE_SUFFIX)
+                # END SDK 7.0.18 compatibility.
+            )
             assert (
                 end_seqno is not None and start_seqno <= requested_seqno <= end_seqno
             ), f"Ledger chunk {chunk_name} does not cover seqno {requested_seqno}"
@@ -641,6 +647,20 @@ class Node:
             chunk_path = os.path.join(ledger_dir, chunk_name)
             with open(chunk_path, "wb") as chunk_file:
                 chunk_file.write(response.body.data())
+            # A canonical chunk may replace prefixes downloaded before its
+            # promotion. Keep only the new, complete representation.
+            while (
+                ledger_paths
+                and ledger_paths[-1].endswith(COMMITTED_PREFIX_FILE_SUFFIX)
+                and ccf.ledger.range_from_filename(
+                    ledger_paths[-1]
+                    # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                    .removesuffix(COMMITTED_PREFIX_FILE_SUFFIX)
+                    # END SDK 7.0.18 compatibility.
+                )[0]
+                >= start_seqno
+            ):
+                ledger_paths.pop()
             ledger_paths.append(chunk_path)
             return end_seqno
 
@@ -657,9 +677,12 @@ class Node:
         ) as c:
 
             def get_chunk(seqno, allow_redirects):
+                locator = f"/node/ledger_chunk?since={seqno}"
+                if include_committed_prefix:
+                    locator += "&include_committed_prefix=true"
                 try:
                     return c.get(
-                        f"/node/ledger_chunk?since={seqno}",
+                        locator,
                         allow_redirects=allow_redirects,
                     )
                 except (
@@ -676,7 +699,11 @@ class Node:
                 if (
                     local_only
                     and r is not None
-                    and r.status_code == http.HTTPStatus.PERMANENT_REDIRECT
+                    and r.status_code
+                    in (
+                        http.HTTPStatus.PERMANENT_REDIRECT,
+                        http.HTTPStatus.TEMPORARY_REDIRECT,
+                    )
                 ):
                     chunk_url = urllib.parse.urlparse(r.headers["Location"])
                     if chunk_url.query:
@@ -730,6 +757,7 @@ class Node:
         timeout=5,
         local_only=False,
         start_seqno=None,
+        include_committed_prefix=False,
     ):
         with tempfile.TemporaryDirectory(
             prefix=f"{self.local_node_id}.ledger.downloaded.",
@@ -741,6 +769,7 @@ class Node:
                 timeout=timeout,
                 local_only=local_only,
                 start_seqno=start_seqno,
+                include_committed_prefix=include_committed_prefix,
             )
 
     @contextmanager

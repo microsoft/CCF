@@ -4,7 +4,6 @@
       "get": {
         "js_module": "basic.js",
         "js_function": "get_record",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
@@ -13,7 +12,6 @@
       "put": {
         "js_module": "basic.js",
         "js_function": "put_record",
-        "forwarding_required": "never",
         "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readwrite",
@@ -24,7 +22,6 @@
       "post": {
         "js_module": "basic.js",
         "js_function": "post_records",
-        "forwarding_required": "always",
         "redirection_strategy": "to_primary",
         "authn_policies": ["user_cert"],
         "mode": "readwrite",

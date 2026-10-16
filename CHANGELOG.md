@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.20]
+
+[7.0.20]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.20
+
+### Changed
+
+- No user-visible changes. Internal request-processing code was restructured without changing behaviour (#8562).
+
 ## [7.0.19]
 
 [7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
@@ -15,6 +23,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Changed
 
+- Updated didx509cpp to [1.0.0](https://github.com/microsoft/didx509cpp/releases/tag/didx509cpp-1.0.0), adding Fulcio extension selectors and OtherName SAN support, and stricter DID and certificate validation.
+  CCF's supported attestation signing algorithms are unchanged (#8587).
 - Replaced the vendored SmallVector dependency with a standalone byte-only `ccf::ByteVector`, and separated ledger-write buffering into its own implementation.
   Serialized formats and byte operations are preserved, but native applications must rebuild for the changed C++ type and layout (#8559).
 - Updated snmalloc from 0.7.3 to [0.7.6](https://github.com/microsoft/snmalloc/releases/tag/0.7.6), including allocator and cross-thread deallocation improvements. CCF retains pthread-atfork protection, which upstream now makes opt-in (#8557).
@@ -24,6 +34,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 - `ccf::endpoints::EndpointRegistry::tick()` overrides now run on task-system worker threads rather than the enclave main thread. Ticks for the same registry do not overlap, but may run concurrently with endpoint execution and ticks for other registries (#8445).
 - Ledger writes and reads of uncommitted ledger entries no longer travel over the host-enclave ringbuffer. The number of ledger entries the host has accepted but not yet written to disk was previously bounded by the ringbuffer filling up and stalling the enclave. It is now bounded by a backpressure threshold instead: a node returns `503` `TooManyPendingTransactions` for application and governance requests while the bytes of pending ledger appends are at or above `memory.circuit_size` (16MB by default), and drops incoming `AppendEntries` replication messages, including heartbeats, until the backlog clears. `/node` endpoints are exempt. Threshold crossings are logged. See the Backpressure section of the Resource Usage operations documentation (#8405).
 - The `503` `TooManyPendingTransactions` check for `consensus.max_uncommitted_tx_count` now applies on backups as well as the primary, so a backup whose uncommitted transaction count reaches the limit rejects requests, including reads, rather than serving or forwarding them. Setting `consensus.max_uncommitted_tx_count` to `0` disables only this count-based check, not the ledger write backpressure above (#8405).
+- First-party node configuration tools now enable redirects by default; manually configured interfaces without `redirections` retain legacy forwarding. JavaScript bundles can omit `forwarding_required`, inferring `always` for `to_primary` and `never` for `none` or `to_backup`, while explicit legacy policies remain supported. Request forwarding remains deprecated and will be removed in CCF 8.0. See [Migrating from forwarding to redirection](https://microsoft.github.io/CCF/main/build_apps/fwd_to_redirect.html) (#8538).
+- Setting a C++ endpoint's `redirection_strategy` now also infers its legacy `forwarding_required` policy (`Always` for `ToPrimary`, `Never` for `None` and `ToBackup`), unless a policy was set earlier through `set_forwarding_required()`. The `Sometimes` policy assigned by `make_read_only_endpoint()` and `make_command_endpoint()` is not explicit, so endpoints which chain `set_redirection_strategy(ToBackup)` now report `never` in their OpenAPI `x-ccf-forwarding` metadata, as the logging sample's `/log/private/backup` and `/log/public/backup` endpoints do. On interfaces still using forwarding, such endpoints are always executed locally, rather than being forwarded on sessions which previously forwarded a request (#8538).
 
 ### Deprecated
 
@@ -32,6 +44,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Fixed
 
+- Node startup reports a diagnostic and exits with an error status for invalid ledger-cleanup settings, unavailable RPC bind addresses, and unwritable certificate output paths (#8572).
 - Byte-vector growth now reports allocation failures and size overflow, and preserves aliased byte inputs across reallocation (#8559).
 - Node configuration validation now rejects negative values for unsigned integer settings and HTTP header counts above `4294967295`, instead of allowing them to wrap during parsing. See the [Configuration](doc/operations/configuration.rst) documentation (#8566).
 - Fixed invalid receipts from the shared historical query cache, affecting `/node/receipt`, `/node/receipt/cose`, application receipt endpoints, and C++/JavaScript historical query APIs. A cross-view range query could replace a cached receipt using the signing view instead of the original transaction view, causing subsequent point queries to return receipts that failed signature verification. The historical cache now takes every transaction's ID from the ledger entry itself, rejects signature transactions which declare a different ID, and keeps the first receipt it produces for a transaction rather than replacing it when a later signature is fetched (#8549).
@@ -43,6 +56,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 - When the host reports that a ledger entry is missing or too large, the historical query cache now drops only the requests which were waiting for that entry. Previously, unrelated requests could also be dropped, including every in-flight request when the entry was being fetched to recover an older ledger secret (#8527).
 - Historical query cache ticks no longer scan every retained request and store, so retaining many historical queries is much cheaper. Unrepresentable cache times or expiry deadlines now throw instead of overflowing (#8525).
 - Historical ledger replies no longer scan unrelated retained requests to select decryption mode or populate receipts. Reply processing still scales with actual consumers and their requested ranges, and the non-owning routing index adds per-dependency metadata (#8543).
+- `to_backup` redirection resolvers now target a backup by default, whether `redirections.to_backup` is omitted or configured as `NodeByRole` without a `role`. Previously, `to_backup` fell back to the primary, so `ToBackup` endpoints received by the primary were redirected back to the primary unless `"role": "backup"` was configured explicitly (#8538).
 
 ### Dependencies
 

@@ -1,5 +1,6 @@
 module
 
+import all Init.Control.State
 import all Init.Data.List.Sort.Basic
 
 public import DisasterRecovery.Proofs.Local
@@ -9,7 +10,7 @@ public import DisasterRecovery.Tests.Initial
 
 namespace DisasterRecovery.Tests.Trace
 
-open Shared
+open CCF
 open Model.Local
 open Properties.Trace
 
@@ -78,12 +79,10 @@ private theorem observedOpening
     .deliver vote,
     selected,
     opening,
-    _,
     { notifications := [.opening .quorum] },
     rfl,
     rfl,
     ?_,
-    rfl,
     rfl,
     rfl,
     rfl,
@@ -103,12 +102,12 @@ example : NotificationAt config trace 3 "A" (.opening .quorum) := observedOpenin
 
 example (notification : Notification)
     : ¬ NotificationAt config trace 4 "A" notification := by
-  rintro ⟨_, _, _, _, _, _, _, _, after, _⟩
+  rintro ⟨_, _, _, _, _, _, _, after, _⟩
   simp [trace] at after
 
 example (notification : Notification)
     : ¬ NotificationAt config trace 3 "missing-node" notification := by
-  rintro ⟨before, _, _, _, _, _, _, first, _, _, _, found, _⟩
+  rintro ⟨before, _, _, _, _, _, first, _, _, _, found, _⟩
   have same : before = voteSent := by simpa [trace] using first.symm
   subst before
   simp [voteSent, ready, MultiNodeTransitionSystem.nodeState] at found
@@ -117,8 +116,8 @@ example (notification : Notification)
 example
     : ¬ NotificationAt config { states := [voteSent, voteSent] } 0 "A"
           (.opening .quorum) := by
-  rintro ⟨before, after, action, nodeBefore, nodeAfter, execute, outputs,
-    first, second, transition, actor, foundBefore, foundAfter, enabled, run, notified⟩
+  rintro ⟨before, after, action, nodeBefore, nodeAfter, outputs,
+    first, second, transition, actor, foundBefore, foundAfter, run, notified⟩
   simp only [List.getElem?_cons_zero, List.getElem?_cons_succ, Option.some.injEq] at first second
   subst before after
   have beforeEq : nodeBefore = selected := by
@@ -131,20 +130,15 @@ example
       simp only [Properties.Trace.actor] at actor
       subst node
       cases input
-      · have actual : execute.run {} = (selected, { outgoing := [vote, gossip] }) := by
-          have enabled' := enabled
-          change _ = some execute at enabled'
-          have same : _ = execute := Option.some.inj (rfl.trans enabled')
-          rw [← same]
-          rfl
-        have effects := congrArg Prod.snd (actual.symm.trans run)
+      · change some (selected, { outgoing := [vote, gossip] }) =
+          some (selected, outputs) at run
+        have effects := congrArg Prod.snd (Option.some.inj run)
         dsimp only at effects
         rw [← effects] at notified
         simp at notified
-      · have actual := enabled
-        change some _ = some execute at actual
-        cases actual
-        have impossible := congrArg (fun result => result.1.timeoutState) run
+      · have impossible := congrArg
+          (fun result => result.map (fun value => value.1.timeoutState)) run
+        cbv at impossible
         cases impossible
   | deliver envelope =>
       have pending : envelope ∈ [vote, gossip] := by
@@ -152,20 +146,15 @@ example
           MultiNodeTransitionSystem.next, Option.bind_eq_some_iff, guard, failure] at transition
         exact transition.1
       rcases List.mem_cons.mp pending with rfl | remaining
-      · have actual := enabled
-        change some _ = some execute at actual
-        cases actual
-        have impossible := congrArg (fun result => result.1.phase) run
+      · have impossible := congrArg
+          (fun result => result.map (fun value => value.1.phase)) run
         cbv at impossible
         cases impossible
       · have same : envelope = gossip := by simpa using remaining
         subst envelope
-        have actual := enabled
-        change some _ = some execute at actual
-        cases actual
-        change (selected, { outgoing := [], notifications := [.rejected "gossip-frozen"] }) =
-          (selected, outputs) at run
-        have effects := congrArg Prod.snd run
+        change some (selected, { outgoing := [], notifications := [.rejected "gossip-frozen"] }) =
+          some (selected, outputs) at run
+        have effects := congrArg Prod.snd (Option.some.inj run)
         dsimp only at effects
         rw [← effects] at notified
         simp at notified
@@ -186,7 +175,7 @@ example
       /\ quorumVote.after.openKind = some .quorum
       /\ .opening .quorum ∈ quorumVote.effects.notifications :=
   Proofs.Local.quorum_step_opens config quorumVote
-    ⟨⟨_, rfl, by cbv⟩, Or.inr ⟨"A", rfl⟩, rfl, by decide⟩
+    ⟨by cbv, Or.inr ⟨"A", rfl⟩, rfl, by decide⟩
 
 private def quorumTimeout : Properties.LocalStep :=
   {
@@ -199,8 +188,7 @@ example
     : quorumTimeout.after.phase = .opening
       /\ quorumTimeout.after.openKind = some .quorum
       /\ .opening .quorum ∈ quorumTimeout.effects.notifications :=
-  Proofs.Local.quorum_step_opens config quorumTimeout
-    ⟨⟨_, rfl, by cbv⟩, Or.inl rfl, rfl, by decide⟩
+  Proofs.Local.quorum_step_opens config quorumTimeout ⟨by cbv, Or.inl rfl, rfl, by decide⟩
 
 example
     : ¬ ({ states := [ready, voteSent] } : Properties.GlobalTrace).Valid

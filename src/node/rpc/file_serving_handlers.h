@@ -12,6 +12,8 @@
 #include "node/rpc/ledger_interface.h"
 #include "snapshots/filenames.h"
 
+#include <variant>
+
 namespace ccf::node
 {
   // Compute and format the Repr-Digest header value for the given algorithm
@@ -151,6 +153,155 @@ namespace ccf::node
     return node_configuration_subsystem;
   }
 
+  namespace detail
+  {
+    struct FileRange
+    {
+      size_t start;
+      size_t end;
+    };
+
+    // total_size must be non-zero. The caller rejects empty half-open ranges.
+    static std::variant<FileRange, std::string> parse_range_header(
+      const std::string& range_header, size_t total_size)
+    {
+      size_t range_start = 0;
+      size_t range_end = total_size;
+
+      auto [unit, ranges] = ccf::nonstd::split_1(range_header, "=");
+      if (unit != "bytes")
+      {
+        return "Only 'bytes' is supported as a Range header unit";
+      }
+
+      if (ranges.contains(','))
+      {
+        return "Multiple ranges are not supported";
+      }
+
+      const auto segments = ccf::nonstd::split(ranges, "-");
+      if (segments.size() != 2)
+      {
+        return fmt::format(
+          "Invalid format, cannot parse range in {}", range_header);
+      }
+
+      const auto s_range_start = segments[0];
+      const auto s_range_end = segments[1];
+
+      if (!s_range_start.empty())
+      {
+        {
+          const auto [p, ec] = std::from_chars(
+            s_range_start.begin(), s_range_start.end(), range_start);
+          if (ec != std::errc())
+          {
+            return fmt::format(
+              "Unable to parse start of range value {} in {}",
+              s_range_start,
+              range_header);
+          }
+        }
+
+        if (range_start > total_size)
+        {
+          return fmt::format(
+            "Start of range {} is larger than total file size {}",
+            range_start,
+            total_size);
+        }
+
+        if (!s_range_end.empty())
+        {
+          // Range end in header is inclusive, but we prefer to reason about
+          // exclusive range end (ie - one past the end)
+          size_t inclusive_range_end = 0;
+
+          // Fully-specified range, like "X-Y"
+          {
+            const auto [p, ec] = std::from_chars(
+              s_range_end.begin(), s_range_end.end(), inclusive_range_end);
+            if (ec != std::errc())
+            {
+              return fmt::format(
+                "Unable to parse end of range value {} in {}",
+                s_range_end,
+                range_header);
+            }
+          }
+
+          // Clamp the inclusive end _before_ converting to an exclusive end,
+          // so that an end of SIZE_MAX cannot overflow to 0. total_size is
+          // known to be non-zero here.
+          if (inclusive_range_end >= total_size)
+          {
+            LOG_DEBUG_FMT(
+              "Requested range ending at {}, but file size is "
+              "only {} - shrinking range end",
+              inclusive_range_end,
+              total_size);
+            inclusive_range_end = total_size - 1;
+          }
+
+          range_end = inclusive_range_end + 1;
+
+          if (range_end < range_start)
+          {
+            return fmt::format(
+              "Invalid range: Start ({}) and end ({}) out of order",
+              range_start,
+              range_end);
+          }
+        }
+        else
+        {
+          // Else this is an open-ended range like "X-"
+          range_end = total_size;
+        }
+      }
+      else
+      {
+        if (!s_range_end.empty())
+        {
+          // Negative range, like "-Y"
+          size_t offset = 0;
+          const auto [p, ec] =
+            std::from_chars(s_range_end.begin(), s_range_end.end(), offset);
+          if (ec != std::errc())
+          {
+            return fmt::format(
+              "Unable to parse end of range offset value {} in {}",
+              s_range_end,
+              range_header);
+          }
+
+          // A suffix range asks for the last `offset` bytes. If the file is
+          // shorter than that, the entire file is returned (RFC 9110
+          // 14.1.2). Clamping here also prevents the subtraction below from
+          // underflowing.
+          if (offset > total_size)
+          {
+            LOG_DEBUG_FMT(
+              "Requested last {} bytes, but file size is only {} - "
+              "shrinking range to whole file",
+              offset,
+              total_size);
+            offset = total_size;
+          }
+
+          range_end = total_size;
+          range_start = range_end - offset;
+        }
+        else
+        {
+          return "Invalid range: Must contain range-start or range-end";
+        }
+      }
+
+      return FileRange{range_start, range_end};
+    }
+  }
+
   // Helper function to serve byte ranges from a resource.
   // This populates the response body, and range-related response headers. This
   // may produce an error response if an invalid range was requested.
@@ -171,7 +322,6 @@ namespace ccf::node
   // generally avoid modifying the response further _after_ calling this
   // function.
   template <typename ReadRange>
-  // NOLINTNEXTLINE(readability-function-cognitive-complexity)
   static void fill_range_response(
     ccf::endpoints::CommandEndpointContext& ctx,
     size_t total_size,
@@ -213,172 +363,20 @@ namespace ccf::node
         has_range_header = true;
         LOG_TRACE_FMT("Parsing range header {}", range_header.value());
 
-        auto [unit, ranges] = ccf::nonstd::split_1(range_header.value(), "=");
-        if (unit != "bytes")
+        auto parsed_range =
+          detail::parse_range_header(range_header.value(), total_size);
+        if (auto* error = std::get_if<std::string>(&parsed_range))
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidHeaderValue,
-            "Only 'bytes' is supported as a Range header unit");
+            std::move(*error));
           return;
         }
 
-        if (ranges.contains(','))
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidHeaderValue,
-            "Multiple ranges are not supported");
-          return;
-        }
-
-        const auto segments = ccf::nonstd::split(ranges, "-");
-        if (segments.size() != 2)
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidHeaderValue,
-            fmt::format(
-              "Invalid format, cannot parse range in {}",
-              range_header.value()));
-          return;
-        }
-
-        const auto s_range_start = segments[0];
-        const auto s_range_end = segments[1];
-
-        if (!s_range_start.empty())
-        {
-          {
-            const auto [p, ec] = std::from_chars(
-              s_range_start.begin(), s_range_start.end(), range_start);
-            if (ec != std::errc())
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidHeaderValue,
-                fmt::format(
-                  "Unable to parse start of range value {} in {}",
-                  s_range_start,
-                  range_header.value()));
-              return;
-            }
-          }
-
-          if (range_start > total_size)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidHeaderValue,
-              fmt::format(
-                "Start of range {} is larger than total file size {}",
-                range_start,
-                total_size));
-            return;
-          }
-
-          if (!s_range_end.empty())
-          {
-            // Range end in header is inclusive, but we prefer to reason about
-            // exclusive range end (ie - one past the end)
-            size_t inclusive_range_end = 0;
-
-            // Fully-specified range, like "X-Y"
-            {
-              const auto [p, ec] = std::from_chars(
-                s_range_end.begin(), s_range_end.end(), inclusive_range_end);
-              if (ec != std::errc())
-              {
-                ctx.rpc_ctx->set_error(
-                  HTTP_STATUS_BAD_REQUEST,
-                  ccf::errors::InvalidHeaderValue,
-                  fmt::format(
-                    "Unable to parse end of range value {} in {}",
-                    s_range_end,
-                    range_header.value()));
-                return;
-              }
-            }
-
-            // Clamp the inclusive end _before_ converting to an exclusive end,
-            // so that an end of SIZE_MAX cannot overflow to 0. total_size is
-            // known to be non-zero here.
-            if (inclusive_range_end >= total_size)
-            {
-              LOG_DEBUG_FMT(
-                "Requested range ending at {}, but file size is "
-                "only {} - shrinking range end",
-                inclusive_range_end,
-                total_size);
-              inclusive_range_end = total_size - 1;
-            }
-
-            range_end = inclusive_range_end + 1;
-
-            if (range_end < range_start)
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidHeaderValue,
-                fmt::format(
-                  "Invalid range: Start ({}) and end ({}) out of order",
-                  range_start,
-                  range_end));
-              return;
-            }
-          }
-          else
-          {
-            // Else this is an open-ended range like "X-"
-            range_end = total_size;
-          }
-        }
-        else
-        {
-          if (!s_range_end.empty())
-          {
-            // Negative range, like "-Y"
-            size_t offset = 0;
-            const auto [p, ec] =
-              std::from_chars(s_range_end.begin(), s_range_end.end(), offset);
-            if (ec != std::errc())
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidHeaderValue,
-                fmt::format(
-                  "Unable to parse end of range offset value {} in {}",
-                  s_range_end,
-                  range_header.value()));
-              return;
-            }
-
-            // A suffix range asks for the last `offset` bytes. If the file is
-            // shorter than that, the entire file is returned (RFC 9110
-            // 14.1.2). Clamping here also prevents the subtraction below from
-            // underflowing.
-            if (offset > total_size)
-            {
-              LOG_DEBUG_FMT(
-                "Requested last {} bytes, but file size is only {} - "
-                "shrinking range to whole file",
-                offset,
-                total_size);
-              offset = total_size;
-            }
-
-            range_end = total_size;
-            range_start = range_end - offset;
-          }
-          else
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidHeaderValue,
-              "Invalid range: Must contain range-start or range-end");
-            return;
-          }
-        }
+        const auto& range = std::get<detail::FileRange>(parsed_range);
+        range_start = range.start;
+        range_end = range.end;
       }
     }
 
@@ -1121,7 +1119,7 @@ namespace ccf::node
     registry
       .make_read_only_endpoint(
         "/snapshot", HTTP_HEAD, find_snapshot, no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::OptionalParameter)
       .add_openapi_response(
@@ -1133,7 +1131,7 @@ namespace ccf::node
     registry
       .make_read_only_endpoint(
         "/snapshot", HTTP_GET, find_snapshot, no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::OptionalParameter)
       .add_openapi_response(
@@ -1154,7 +1152,7 @@ namespace ccf::node
     registry
       .make_read_only_endpoint(
         "/ledger_chunk", HTTP_HEAD, find_chunk, no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
       .add_query_parameter<bool>(
@@ -1179,7 +1177,7 @@ namespace ccf::node
     registry
       .make_read_only_endpoint(
         "/ledger_chunk", HTTP_GET, find_chunk, no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_query_parameter<ccf::SeqNo>(
         file_since_param_key, ccf::endpoints::RequiredParameter)
       .add_query_parameter<bool>(
@@ -1208,7 +1206,7 @@ namespace ccf::node
     registry
       .make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_HEAD, get_snapshot, no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response(
         HTTP_STATUS_OK, "Metadata for the requested snapshot.")
       .add_openapi_response(
@@ -1223,7 +1221,7 @@ namespace ccf::node
     registry
       .make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_GET, get_snapshot, no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response<ds::openapi::Binary>(
         HTTP_STATUS_OK, "The requested snapshot.")
       .add_openapi_response<ds::openapi::Binary>(
@@ -1245,7 +1243,7 @@ namespace ccf::node
         HTTP_HEAD,
         get_ledger_chunk,
         no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response(
         HTTP_STATUS_OK, "Metadata for the requested ledger chunk.")
       .add_openapi_response(
@@ -1267,7 +1265,7 @@ namespace ccf::node
         HTTP_GET,
         get_ledger_chunk,
         no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response<ds::openapi::Binary>(
         HTTP_STATUS_OK, "The requested ledger chunk.")
       .add_openapi_response<ds::openapi::Binary>(
@@ -1293,7 +1291,7 @@ namespace ccf::node
         HTTP_HEAD,
         get_prefix_chunk,
         no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response(
         HTTP_STATUS_OK, "Metadata for the requested committed ledger prefix.")
       .add_openapi_response(
@@ -1317,7 +1315,7 @@ namespace ccf::node
         HTTP_GET,
         get_prefix_chunk,
         no_auth_required)
-      .set_forwarding_required(endpoints::ForwardingRequired::Never)
+      .set_redirection_strategy(endpoints::RedirectionStrategy::None)
       .add_openapi_response<ds::openapi::Binary>(
         HTTP_STATUS_OK, "The requested committed ledger prefix.")
       .add_openapi_response<ds::openapi::Binary>(

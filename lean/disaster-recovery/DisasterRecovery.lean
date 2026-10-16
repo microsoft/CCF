@@ -19,10 +19,6 @@ public import DisasterRecovery.Proofs.Trace
 public import DisasterRecovery.Proofs.Witnesses
 public import DisasterRecovery.Properties
 public import DisasterRecovery.Properties.Utils
-public import DisasterRecovery.Shared.Capabilities
-public import DisasterRecovery.Shared.Execution
-public import DisasterRecovery.Shared.MultiNodeTransitionSystem
-public import DisasterRecovery.Shared.TransitionSystem
 public import DisasterRecovery.Tests.Architecture
 public import DisasterRecovery.Tests.CanonicalTests
 public import DisasterRecovery.Tests.Execution

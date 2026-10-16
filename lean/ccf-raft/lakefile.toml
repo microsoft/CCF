@@ -7,9 +7,8 @@ defaultTargets = ["CCFRaft"]
 
 [[require]]
 name = "ccf_common"
-git = "https://github.com/microsoft/CCF.git"
-rev = "cc22c58d61e628b90f1f5b49194c7e6722f1ec2c" # Merged #8573
-subDir = "lean/common"
+path = "../common"
+copy = false
 
 [[require]]
 name = "mathlib"

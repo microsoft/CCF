@@ -27,15 +27,13 @@
       "configFile": "lakefile.lean"
     },
     {
-      "url": "https://github.com/microsoft/CCF.git",
-      "type": "git",
-      "subDir": "lean/common",
+      "type": "path",
       "scope": "",
-      "rev": "cc22c58d61e628b90f1f5b49194c7e6722f1ec2c",
       "name": "ccf_common",
       "manifestFile": "lake-manifest.json",
-      "inputRev": "cc22c58d61e628b90f1f5b49194c7e6722f1ec2c",
       "inherited": false,
+      "dir": "../common",
+      "copy": false,
       "configFile": "lakefile.toml"
     },
     {

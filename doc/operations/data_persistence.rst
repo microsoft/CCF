@@ -4,9 +4,18 @@ Data Persistence
 Durability
 ----------
 
-Persistence to disk is handled by host-side code, outside the enclave, by code that is not attested and may be controlled by an attacker in the CCF threat model.
+Persistence is handled by code running in the same process as the rest of the CCF node.
+In an :doc:`SNP deployment </operations/platforms/snp>`, this code executes inside the protected VM.
+The external storage holding ledger and snapshot files remains untrusted: these files may be modified, deleted, withheld, or not persisted.
+CCF's confidentiality and integrity protections for ledger and snapshot files are described in the :doc:`/overview/threat_model`.
+These protections do not guarantee storage availability or durability.
 
-As a result, CCF cannot make a formal guarantee about data persistence. Durability relies on the operator maintaining enough healthy nodes, and making regular backups of the ledger. To minimise the risk of data loss on node failure, the CCF host component issues an ``fflush()`` call on every transaction as soon as it becomes committable (i.e. followed by a signature).
+As a result, CCF cannot make a formal guarantee about data persistence.
+Durability relies on the operator maintaining enough healthy nodes and making regular backups of the ledger.
+Snapshots are optional: the ledger alone is sufficient for recovery.
+To minimise the risk of data loss on node failure, the persistence code calls ``fflush()`` when it writes a committable ledger entry (a signature), flushing the preceding transactions as well.
+Completed ledger chunks are also synchronised with ``fsync()`` when committed.
+Neither call makes untrusted storage trustworthy.
 
 The operator can further minimize the risk of data loss by running their CCF-based service on a larger number of nodes.
 

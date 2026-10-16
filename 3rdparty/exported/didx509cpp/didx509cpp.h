@@ -3,37 +3,39 @@
 
 #pragma once
 
-#include <cstring>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <initializer_list>
 #include <limits>
-#include <memory>
 #include <map>
+#include <memory>
 #include <openssl/asn1.h>
 #include <openssl/bio.h>
 #include <openssl/bn.h>
+#include <openssl/core_names.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/obj_mac.h>
 #include <openssl/objects.h>
-#include <openssl/ossl_typ.h>
+#include <openssl/opensslv.h>
 #include <openssl/pem.h>
 #include <openssl/safestack.h>
+#include <openssl/types.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-#  include <openssl/core_names.h>
-#  include <openssl/types.h>
+#if OPENSSL_VERSION_NUMBER < 0x30300000L
+#  error "didx509cpp requires OpenSSL 3.3 or newer"
 #endif
 
 namespace didx509
@@ -52,28 +54,30 @@ namespace didx509
       return "unknown error";
     }
 
-    /// Throws if rc is different from and there is an error
+    /// Throws if rc is different from 1. OpenSSL does not always queue an
+    /// error for a failed call, so the error queue only informs the message
+    /// and never decides whether to throw.
     inline void CHECK1(int rc)
 #ifdef _DEBUG
       __attribute__((noinline))
 #endif
     {
       const unsigned long ec = ERR_get_error();
-      if (rc != 1 && ec != 0)
+      if (rc != 1)
       {
         throw std::runtime_error(
           std::string("OpenSSL error: ") + error_string(ec));
       }
     }
 
-    /// Throws if rc is 0 and there is an error
+    /// Throws if rc is 0, see CHECK1 for the role of the error queue.
     inline void CHECK0(int rc)
 #ifdef _DEBUG
       __attribute__((noinline))
 #endif
     {
       const unsigned long ec = ERR_get_error();
-      if (rc == 0 && ec != 0)
+      if (rc == 0)
       {
         throw std::runtime_error(
           std::string("OpenSSL error: ") + error_string(ec));
@@ -92,6 +96,140 @@ namespace didx509
         throw std::runtime_error(
           std::string("OpenSSL error: missing object: ") + error_string(ec));
       }
+    }
+
+    inline bool is_valid_utf8(std::string_view value)
+    {
+      for (size_t i = 0; i < value.size();)
+      {
+        const auto first = static_cast<uint8_t>(value[i++]);
+        if (first <= 0x7f)
+        {
+          continue;
+        }
+
+        size_t remaining = 0;
+        uint32_t scalar = 0;
+        uint32_t minimum = 0;
+        if (first >= 0xc2 && first <= 0xdf)
+        {
+          remaining = 1;
+          scalar = first & 0x1f;
+          minimum = 0x80;
+        }
+        else if (first >= 0xe0 && first <= 0xef)
+        {
+          remaining = 2;
+          scalar = first & 0x0f;
+          minimum = 0x800;
+        }
+        else if (first >= 0xf0 && first <= 0xf4)
+        {
+          remaining = 3;
+          scalar = first & 0x07;
+          minimum = 0x10000;
+        }
+        else
+        {
+          return false;
+        }
+        if (remaining > value.size() - i)
+        {
+          return false;
+        }
+        for (size_t j = 0; j < remaining; j++)
+        {
+          const auto next = static_cast<uint8_t>(value[i++]);
+          if (next < 0x80 || next > 0xbf)
+          {
+            return false;
+          }
+          scalar = (scalar << 6) | (next & 0x3f);
+        }
+        if (
+          scalar < minimum || scalar > 0x10ffff ||
+          (scalar >= 0xd800 && scalar <= 0xdfff))
+        {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    inline std::string decode_der_utf8_string(const std::string& encoded)
+    {
+      if (encoded.empty() || static_cast<uint8_t>(encoded[0]) != 0x0c)
+      {
+        throw std::runtime_error("value is not a primitive DER UTF8String");
+      }
+      if (encoded.size() < 2)
+      {
+        throw std::runtime_error("DER UTF8String length is truncated");
+      }
+
+      size_t length = static_cast<uint8_t>(encoded[1]);
+      size_t offset = 2;
+      if (length >= 0x80)
+      {
+        if (length == 0x80 || length == 0xff)
+        {
+          throw std::runtime_error("DER UTF8String length is not definite");
+        }
+        const size_t octets = length & 0x7f;
+        if (octets > encoded.size() - offset)
+        {
+          throw std::runtime_error("DER UTF8String length is truncated");
+        }
+        if (encoded[offset] == 0 || octets > sizeof(size_t))
+        {
+          throw std::runtime_error("DER UTF8String length is invalid");
+        }
+        length = 0;
+        for (size_t i = 0; i < octets; i++)
+        {
+          length = (length << 8) | static_cast<uint8_t>(encoded[offset++]);
+        }
+        if (length < 0x80)
+        {
+          throw std::runtime_error("DER UTF8String length is not minimal");
+        }
+      }
+      if (length != encoded.size() - offset)
+      {
+        throw std::runtime_error(
+          "DER UTF8String must contain exactly one complete value");
+      }
+      auto value = encoded.substr(offset);
+      if (!is_valid_utf8(value))
+      {
+        throw std::runtime_error("DER UTF8String is not valid UTF-8");
+      }
+      return value;
+    }
+
+    inline constexpr auto fulcio_othername_oid = "1.3.6.1.4.1.57264.1.7";
+
+    inline const std::map<std::string, std::string>& fulcio_extension_oids()
+    {
+      static const std::map<std::string, std::string> oids = {
+        {"issuer", "1.3.6.1.4.1.57264.1.8"},
+        {"build-signer-uri", "1.3.6.1.4.1.57264.1.9"},
+        {"build-signer-digest", "1.3.6.1.4.1.57264.1.10"},
+        {"runner-environment", "1.3.6.1.4.1.57264.1.11"},
+        {"source-repository-uri", "1.3.6.1.4.1.57264.1.12"},
+        {"source-repository-digest", "1.3.6.1.4.1.57264.1.13"},
+        {"source-repository-ref", "1.3.6.1.4.1.57264.1.14"},
+        {"source-repository-identifier", "1.3.6.1.4.1.57264.1.15"},
+        {"source-repository-owner-uri", "1.3.6.1.4.1.57264.1.16"},
+        {"source-repository-owner-identifier", "1.3.6.1.4.1.57264.1.17"},
+        {"build-config-uri", "1.3.6.1.4.1.57264.1.18"},
+        {"build-config-digest", "1.3.6.1.4.1.57264.1.19"},
+        {"build-trigger", "1.3.6.1.4.1.57264.1.20"},
+        {"run-invocation-uri", "1.3.6.1.4.1.57264.1.21"},
+        {"source-repository-visibility-at-signing", "1.3.6.1.4.1.57264.1.22"},
+        {"deployment-environment", "1.3.6.1.4.1.57264.1.23"},
+        {"token-subject", "1.3.6.1.4.1.57264.1.24"}};
+      return oids;
     }
 
     inline std::string to_base64(const std::vector<uint8_t>& bytes)
@@ -133,6 +271,32 @@ namespace didx509
         }
       }
       return r;
+    }
+
+    // RFC 8032 section 5.1.3: an Ed25519 public key encodes the y-coordinate
+    // in the low 255 bits, little-endian, with the sign of x in the top bit.
+    // Decoding fails if y >= p = 2^255 - 19, so the only non-canonical
+    // encodings are the 19 values p .. 2^255 - 1 (times two for the sign bit).
+    // OpenSSL accepts and re-exports these unchanged, so check here.
+    inline bool is_canonical_ed25519_public_key(const std::vector<uint8_t>& key)
+    {
+      if (key.size() != 32)
+      {
+        return false;
+      }
+      // y >= p iff bits 1..254 are all set and the low byte is >= 0xed.
+      if ((key[31] & 0x7f) != 0x7f)
+      {
+        return true;
+      }
+      for (size_t i = 1; i < 31; i++)
+      {
+        if (key[i] != 0xff)
+        {
+          return true;
+        }
+      }
+      return key[0] < 0xed;
     }
 
     template <class T, T* (*CTOR)(), void (*DTOR)(T*)>
@@ -313,8 +477,10 @@ namespace didx509
       {}
 
       UqX509_EXTENSION(UqX509_EXTENSION&& ext) noexcept :
-        UqSSLOBJECT(ext, X509_EXTENSION_free, true)
-      {}
+        UqSSLOBJECT(nullptr, X509_EXTENSION_free, false)
+      {
+        p = std::move(ext.p);
+      }
 
       [[nodiscard]] UqASN1_OBJECT object() const
       {
@@ -324,6 +490,11 @@ namespace didx509
       [[nodiscard]] UqASN1_OCTET_STRING data() const
       {
         return X509_EXTENSION_get_data(*this);
+      }
+
+      [[nodiscard]] bool critical() const
+      {
+        return X509_EXTENSION_get_critical(*this) != 0;
       }
     };
 
@@ -338,6 +509,64 @@ namespace didx509
         UqSSLOBJECT(nullptr, GENERAL_NAME_free, false)
       {
         p = std::move(other.p);
+      }
+
+      [[nodiscard]] std::string othername_value() const
+      {
+        if (p->type != GEN_OTHERNAME || p->d.otherName == nullptr)
+        {
+          throw std::runtime_error("invalid OtherName SAN");
+        }
+        const auto* name = p->d.otherName;
+        CHECKNULL(name->type_id);
+        CHECKNULL(name->value);
+        if (UqASN1_OBJECT(name->type_id) != UqASN1_OBJECT(fulcio_othername_oid))
+        {
+          throw std::runtime_error("unsupported OtherName SAN type OID");
+        }
+        UqBIO encoded;
+        CHECK1(
+          ASN1_item_i2d_bio(ASN1_ITEM_rptr(ASN1_ANY), encoded, name->value));
+        return decode_der_utf8_string(encoded.to_string());
+      }
+
+      [[nodiscard]] std::string ia5_value() const
+      {
+        ASN1_IA5STRING* value = nullptr;
+        switch (p->type)
+        {
+          case GEN_EMAIL:
+            value = p->d.rfc822Name;
+            break;
+          case GEN_DNS:
+            value = p->d.dNSName;
+            break;
+          case GEN_URI:
+            value = p->d.uniformResourceIdentifier;
+            break;
+          default:
+            throw std::runtime_error("SAN is not an IA5String");
+        }
+        CHECKNULL(value);
+        const int length = ASN1_STRING_length(value);
+        const auto* data = ASN1_STRING_get0_data(value);
+        if (length < 0 || (length > 0 && data == nullptr))
+        {
+          throw std::runtime_error("invalid IA5String SAN");
+        }
+        std::string result;
+        if (length > 0)
+        {
+          result.assign(data, data + static_cast<size_t>(length));
+        }
+        for (const char c : result)
+        {
+          if (static_cast<uint8_t>(c) > 0x7f)
+          {
+            throw std::runtime_error("SAN value is not a valid IA5String");
+          }
+        }
+        return result;
       }
     };
 
@@ -368,11 +597,47 @@ namespace didx509
           throw std::runtime_error("SAN extension could not be decoded");
         }
         p.reset(data);
+
+        bool contains_othername = false;
+        for (size_t i = 0; i < size(); i++)
+        {
+          const auto name = at(i);
+          switch (name->type)
+          {
+            case GEN_OTHERNAME:
+              (void)name.othername_value();
+              contains_othername = true;
+              break;
+            case GEN_EMAIL:
+            case GEN_DNS:
+            case GEN_URI:
+              (void)name.ia5_value();
+              break;
+            case GEN_DIRNAME:
+              break;
+            default:
+              throw std::runtime_error("unsupported SAN type");
+          }
+        }
+        if (contains_othername)
+        {
+          // OpenSSL accepts BER and normalizes ANY values. Check the original
+          // bytes too, so nonminimal OtherName lengths cannot become valid DER.
+          UqBIO canonical;
+          CHECK1(ASN1_item_i2d_bio(
+            ASN1_ITEM_rptr(GENERAL_NAMES), canonical, p.get()));
+          if (canonical.to_string() != static_cast<std::string>(ext.data()))
+          {
+            throw std::runtime_error("OtherName SAN is not canonical DER");
+          }
+        }
       }
 
       UqSUBJECT_ALT_NAME(UqSUBJECT_ALT_NAME&& other) noexcept :
         UqSSLOBJECT(
-          nullptr, [](auto x) { sk_GENERAL_NAME_pop_free(x, GENERAL_NAME_free); })
+          nullptr,
+          [](auto x) { sk_GENERAL_NAME_pop_free(x, GENERAL_NAME_free); },
+          false)
       {
         p = std::move(other.p);
       }
@@ -397,10 +662,6 @@ namespace didx509
                                     EXTENDED_KEY_USAGE_new,
                                     EXTENDED_KEY_USAGE_free>
     {
-      UqEXTENDED_KEY_USAGE(EXTENDED_KEY_USAGE* eku) :
-        UqSSLOBJECT(sk_ASN1_OBJECT_dup(eku), EXTENDED_KEY_USAGE_free)
-      {}
-
       UqEXTENDED_KEY_USAGE(const UqX509_EXTENSION& ext) :
         UqSSLOBJECT(nullptr, EXTENDED_KEY_USAGE_free, false)
       {
@@ -456,11 +717,7 @@ namespace didx509
 
       bool operator==(const UqEVP_PKEY& other) const
       {
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
         return EVP_PKEY_eq(*this, other) == 1;
-#else
-        return EVP_PKEY_cmp(*this, other) == 1;
-#endif
       }
 
       bool operator!=(const UqEVP_PKEY& other) const
@@ -468,7 +725,6 @@ namespace didx509
         return !(*this == other);
       }
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
       UqBIGNUM get_bn_param(const char* key_name) const
       {
         BIGNUM* bn = nullptr;
@@ -477,7 +733,6 @@ namespace didx509
         BN_free(bn);
         return r;
       }
-#endif
     };
 
     struct UqEVP_PKEY_CTX : public UqSSLOBJECT<EVP_PKEY_CTX, nullptr, nullptr>
@@ -559,9 +814,56 @@ namespace didx509
 
       [[nodiscard]] std::vector<UqSUBJECT_ALT_NAME> subject_alternative_name() const
       {
-        return extensions<UqSUBJECT_ALT_NAME>(
-          UqASN1_OBJECT(NID_subject_alt_name));
+        auto names =
+          extensions<UqSUBJECT_ALT_NAME>(UqASN1_OBJECT(NID_subject_alt_name));
+        if (names.size() > 1)
+        {
+          throw std::runtime_error("duplicate SAN extension");
+        }
+        return names;
       };
+
+      [[nodiscard]] std::map<std::string, std::string> fulcio_extensions() const
+      {
+        std::map<std::string, std::string> fields;
+        for (const auto& [field, oid] : fulcio_extension_oids())
+        {
+          const auto exts = extensions<UqX509_EXTENSION>(oid);
+          if (exts.size() > 1)
+          {
+            throw std::runtime_error("duplicate Fulcio extension: " + field);
+          }
+          if (!exts.empty())
+          {
+            const auto& ext = exts.front();
+            if (ext.critical())
+            {
+              throw std::runtime_error("critical Fulcio extension: " + field);
+            }
+            fields.emplace(
+              field,
+              decode_der_utf8_string(static_cast<std::string>(ext.data())));
+          }
+        }
+        const auto legacy =
+          extensions<UqX509_EXTENSION>("1.3.6.1.4.1.57264.1.1");
+        if (legacy.size() > 1)
+        {
+          throw std::runtime_error("duplicate fulcio-issuer extension");
+        }
+        for (const auto& ext : legacy)
+        {
+          if (ext.critical())
+          {
+            throw std::runtime_error("critical fulcio-issuer extension");
+          }
+          if (!is_valid_utf8(static_cast<std::string>(ext.data())))
+          {
+            throw std::runtime_error("fulcio-issuer is not valid UTF-8");
+          }
+        }
+        return fields;
+      }
 
       [[nodiscard]] std::vector<UqEXTENDED_KEY_USAGE> extended_key_usage() const
       {
@@ -586,11 +888,25 @@ namespace didx509
           (X509_get_key_usage(*this) & KU_KEY_AGREEMENT) != 0;
       }
 
+      [[nodiscard]] bool has_key_usage_encipherment() const
+      {
+        return has_key_usage() &&
+          (X509_get_key_usage(*this) &
+           (KU_KEY_ENCIPHERMENT | KU_DATA_ENCIPHERMENT | KU_ENCIPHER_ONLY |
+            KU_DECIPHER_ONLY)) != 0;
+      }
+
       [[nodiscard]] bool has_common_name(const std::string& expected_name) const;
 
-      [[nodiscard]] std::map<std::string, std::vector<std::string>> subject() const
+      /// Maps the subject name to the did:x509 JSON model: one UTF-8 value per
+      /// attribute, keyed by RFC 4514 label or dotted OID. The model does not
+      /// support repeated attributes, so a name that carries the same
+      /// attribute type more than once (as separate RDNs or within a
+      /// multi-valued RDN) is rejected rather than matched against any one of
+      /// its values.
+      [[nodiscard]] std::map<std::string, std::string> subject() const
       {
-        std::map<std::string, std::vector<std::string>> r;
+        std::map<std::string, std::string> r;
 
         auto * name = X509_get_subject_name(*this);
         CHECKNULL(name);
@@ -669,7 +985,11 @@ namespace didx509
             value.assign(utf8.get(), utf8.get() + utf8_len);
           }
 
-          r[key].push_back(std::move(value));
+          if (!r.emplace(key, std::move(value)).second)
+          {
+            throw std::runtime_error(
+              "certificate subject contains duplicate attribute: " + key);
+          }
         }
 
         return r;
@@ -722,12 +1042,12 @@ namespace didx509
       }
 
       [[nodiscard]] bool has_san(
-        const std::string& san_type, const std::string& value) const
+        const std::string& san_type,
+        const std::string& value,
+        const std::string& othername_oid = {}) const
       {
-        // The did:x509 spec requires the [san_type, san_value] pair to be one
-        // of the items in chain[0].extensions.san, i.e. an exact, literal match
-        // against a SAN entry of the corresponding type. We therefore compare
-        // directly against the SAN extension values and deliberately do NOT use
+        // SAN predicates require an exact, literal match against an entry of
+        // the corresponding type (and OID for OtherName). Deliberately do NOT use
         // X509_check_host / X509_check_email, which additionally perform
         // wildcard matching and fall back to the subject DN (CN / emailAddress)
         // when no SAN of the requested type is present.
@@ -743,6 +1063,14 @@ namespace didx509
         else if (san_type == "uri")
         {
           target_type = GEN_URI;
+        }
+        else if (san_type == "othername")
+        {
+          if (othername_oid != fulcio_othername_oid)
+          {
+            throw std::runtime_error("unsupported OtherName SAN type OID");
+          }
+          target_type = GEN_OTHERNAME;
         }
         else
         {
@@ -760,41 +1088,16 @@ namespace didx509
             {
               continue;
             }
-
-            // All three supported SAN types (dNSName, rfc822Name,
-            // uniformResourceIdentifier) are stored as IA5Strings.
-            const ASN1_IA5STRING* ia5 = nullptr;
-            switch (target_type)
+            if (target_type == GEN_OTHERNAME)
             {
-              case GEN_DNS:
-                ia5 = san_i->d.dNSName;
-                break;
-              case GEN_EMAIL:
-                ia5 = san_i->d.rfc822Name;
-                break;
-              case GEN_URI:
-                ia5 = san_i->d.uniformResourceIdentifier;
-                break;
-              default:
-                break;
-            }
-            if (ia5 == nullptr)
-            {
+              if (san_i.othername_value() == value)
+              {
+                return true;
+              }
               continue;
             }
 
-            // Compare using the explicit length so that an embedded NUL byte
-            // does not truncate the value (which could otherwise be used to
-            // spoof a prefix of a pinned value).
-            const int len = ASN1_STRING_length(ia5);
-            const unsigned char* data = ASN1_STRING_get0_data(ia5);
-            if (data == nullptr || len < 0)
-            {
-              continue;
-            }
-            const std::string san_value{
-              data, data + static_cast<size_t>(len)};
-            if (san_value == value)
+            if (san_i.ia5_value() == value)
             {
               return true;
             }
@@ -807,7 +1110,7 @@ namespace didx509
       [[nodiscard]] std::vector<uint8_t> der() const
       {
         UqBIO mem;
-        i2d_X509_bio(mem, *this);
+        CHECK1(i2d_X509_bio(mem, *this));
         return mem.to_vector();
       }
 
@@ -826,15 +1129,9 @@ namespace didx509
         {
           case EVP_PKEY_RSA: {
             r += R"("kty":"RSA",)";
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
             const UqEVP_PKEY_CTX ek_ctx(EVP_PKEY_RSA);
             auto n = pk.get_bn_param(OSSL_PKEY_PARAM_RSA_N);
             auto e = pk.get_bn_param(OSSL_PKEY_PARAM_RSA_E);
-#else
-            auto rsa = EVP_PKEY_get0_RSA(pk);
-            const BIGNUM *n = nullptr, *e = nullptr, *d = nullptr;
-            RSA_get0_key(rsa, &n, &e, &d);
-#endif
             auto n_len = BN_num_bytes(n);
             auto e_len = BN_num_bytes(e);
             std::vector<uint8_t> nv(n_len);
@@ -850,7 +1147,6 @@ namespace didx509
             r += R"("crv":")";
             // Field-element size in octets for the selected curve (RFC 7518).
             int coord_size = 0;
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
             // RAII-owned so the coordinates are freed on every exit path,
             // including the throws below. get_bn_param also checks the result,
             // which the raw EVP_PKEY_get_bn_param calls here did not.
@@ -881,36 +1177,6 @@ namespace didx509
             {
               throw std::runtime_error("unsupported EC key curve");
             }
-#else
-            auto ec_key = EVP_PKEY_get0_EC_KEY(pk);
-            const EC_GROUP* grp = EC_KEY_get0_group(ec_key);
-            int curve_nid = EC_GROUP_get_curve_name(grp);
-            const EC_POINT* pnt = EC_KEY_get0_public_key(ec_key);
-            // RAII-owned so the coordinates are freed on every exit path,
-            // including the throws below.
-            UqBIGNUM x;
-            UqBIGNUM y;
-            CHECK1(EC_POINT_get_affine_coordinates(grp, pnt, x, y, nullptr));
-            if (curve_nid == NID_X9_62_prime256v1)
-            {
-              r += "P-256";
-              coord_size = 32;
-            }
-            else if (curve_nid == NID_secp384r1)
-            {
-              r += "P-384";
-              coord_size = 48;
-            }
-            else if (curve_nid == NID_secp521r1)
-            {
-              r += "P-521";
-              coord_size = 66;
-            }
-            else
-            {
-              throw std::runtime_error("unsupported EC key curve");
-            }
-#endif
             r += R"(",)";
             // RFC 7518 (JWA) section 6.2.1.2/6.2.1.3 requires the "x" and "y"
             // octet strings to be the full coordinate size for the curve (e.g.
@@ -929,6 +1195,31 @@ namespace didx509
             }
             r += R"("x":")" + to_base64url(xv) + R"(",)";
             r += R"("y":")" + to_base64url(yv) + R"(")";
+            break;
+          }
+          case EVP_PKEY_ED25519: {
+            // RFC 8032 section 5.1.5: Ed25519 public keys are 32 octets.
+            std::vector<uint8_t> raw_key(32);
+            size_t raw_key_size = raw_key.size();
+            if (
+              EVP_PKEY_get_raw_public_key(pk, raw_key.data(), &raw_key_size) !=
+              1)
+            {
+              throw std::runtime_error(
+                "Ed25519 public key extraction failed: " +
+                error_string(ERR_get_error()));
+            }
+            if (raw_key_size != raw_key.size())
+            {
+              throw std::runtime_error("invalid Ed25519 public key size");
+            }
+            if (!is_canonical_ed25519_public_key(raw_key))
+            {
+              throw std::runtime_error(
+                "non-canonical Ed25519 public key encoding");
+            }
+            r += R"("kty":"OKP","crv":"Ed25519","x":")" +
+              to_base64url(raw_key) + R"(")";
             break;
           }
           default:
@@ -1234,7 +1525,6 @@ namespace didx509
         // set0 takes ownership of param, so release it from the unique_ptr.
         X509_STORE_CTX_set0_param(store_ctx, param_holder.release());
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
         if (no_auth_key_id_ok)
         {
           X509_STORE_CTX_set_verify_cb(
@@ -1247,7 +1537,6 @@ namespace didx509
               return ok;
             });
         }
-#endif
 
         const int rc = X509_verify_cert(store_ctx);
 
@@ -1338,6 +1627,42 @@ namespace didx509
         (digit >= 0x41 && digit <= 0x46) || (digit >= 0x61 && digit <= 0x66);
     }
 
+    /// Checks that value is a dotted-decimal OID matching the did:x509 ABNF
+    /// (oid = 1*DIGIT *("." 1*DIGIT)) in canonical form, i.e. without
+    /// leading zeros. The spec compares OIDs as strings, so each OID must
+    /// have exactly one spelling; OBJ_txt2obj alone would also accept spaces,
+    /// leading zeros, empty arcs and anything after an embedded NUL.
+    inline bool is_canonical_oid(const std::string& value)
+    {
+      if (value.empty())
+      {
+        return false;
+      }
+      size_t start = 0;
+      while (true)
+      {
+        const auto end = value.find('.', start);
+        const auto arc_end = end == std::string::npos ? value.size() : end;
+        const auto arc_size = arc_end - start;
+        if (arc_size == 0 || (arc_size > 1 && value[start] == '0'))
+        {
+          return false;
+        }
+        for (size_t i = start; i < arc_end; i++)
+        {
+          if (value[i] < '0' || value[i] > '9')
+          {
+            return false;
+          }
+        }
+        if (end == std::string::npos)
+        {
+          return true;
+        }
+        start = end + 1;
+      }
+    }
+
     // Adapted from curl:
     // https://github.com/curl/curl/blob/e335d778e3eaa41ebbe209e9b8110e8a0d9a72f3/lib/escape.c#L134
     inline std::string url_unescape(const std::string& is)
@@ -1382,6 +1707,37 @@ namespace didx509
       return r;
     }
 
+    inline std::string decode_scalar(const std::string& encoded)
+    {
+      if (encoded.empty())
+      {
+        throw std::runtime_error("empty percent-encoded value");
+      }
+      for (size_t i = 0; i < encoded.size(); i++)
+      {
+        const char c = encoded[i];
+        if (
+          (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+          (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-')
+        {
+          continue;
+        }
+        if (
+          c != '%' || encoded.size() - i < 3 || !is_hex_digit(encoded[i + 1]) ||
+          !is_hex_digit(encoded[i + 2]))
+        {
+          throw std::runtime_error("invalid percent-encoded value");
+        }
+        i += 2;
+      }
+      auto value = url_unescape(encoded);
+      if (!is_valid_utf8(value))
+      {
+        throw std::runtime_error("percent-encoded value is not valid UTF-8");
+      }
+      return value;
+    }
+
     inline std::vector<std::string> split(
       const std::string& s, const std::string& delimiter)
     {
@@ -1399,6 +1755,63 @@ namespace didx509
       return r;
     }
 
+    inline void verify_san(
+      const UqX509& leaf, const std::vector<std::string>& args)
+    {
+      const auto& san_type = args.at(0);
+      const bool othername = san_type == "othername";
+      if (args.size() != (othername ? 3 : 2))
+      {
+        throw std::runtime_error(
+          othername ? "exactly one OtherName SAN type, OID and value required" :
+                      "exactly one SAN type and value required");
+      }
+      const std::string othername_oid = othername ? args[1] : "";
+      const auto san_value = decode_scalar(args.back());
+      if (!leaf.has_san(san_type, san_value, othername_oid))
+      {
+        throw std::runtime_error("SAN not found: " + san_value);
+      }
+    }
+
+    inline void verify_fulcio(
+      const std::map<std::string, std::string>& fields,
+      const std::vector<std::string>& args)
+    {
+      if (args.size() != 2)
+      {
+        throw std::runtime_error("exactly one Fulcio field and value required");
+      }
+      const auto& field = args[0];
+      if (fulcio_extension_oids().find(field) == fulcio_extension_oids().end())
+      {
+        throw std::runtime_error("unknown Fulcio field: " + field);
+      }
+      const auto value = decode_scalar(args[1]);
+      const auto ext = fields.find(field);
+      if (ext == fields.end())
+      {
+        throw std::runtime_error("Fulcio extension not found: " + field);
+      }
+      if (ext->second != value)
+      {
+        throw std::runtime_error("invalid Fulcio field/value: " + field);
+      }
+    }
+
+    inline std::string did_document_id(const std::string& did)
+    {
+      auto id = did.substr(0, did.find('#'));
+      const auto separator = id.find_first_of("/?");
+      if (separator != std::string::npos)
+      {
+        throw std::runtime_error(
+          std::string("DID URL ") +
+          (id[separator] == '/' ? "paths" : "queries") + " are not supported");
+      }
+      return id;
+    }
+
     inline void verify(const UqSTACK_OF_X509& chain, const std::string& did)
     {
       auto top_tokens = split(did, "::");
@@ -1413,7 +1826,8 @@ namespace didx509
       auto pretokens = split(prefix, ":");
 
       if (
-        pretokens.size() < 5 || pretokens[0] != "did" || pretokens[1] != "x509")
+        pretokens.size() != 5 || pretokens[0] != "did" ||
+        pretokens[1] != "x509")
       {
         throw std::runtime_error("unsupported method/prefix");
       }
@@ -1428,6 +1842,18 @@ namespace didx509
       const auto& ca_fingerprint = pretokens[4];
 
       check_fingerprint(chain, ca_fingerprint_alg, ca_fingerprint);
+
+      std::map<std::string, std::string> leaf_fulcio;
+      for (size_t i = 0; i < chain.size(); i++)
+      {
+        const auto cert = chain.at(i);
+        (void)cert.subject_alternative_name();
+        auto fields = cert.fulcio_extensions();
+        if (i == 0)
+        {
+          leaf_fulcio = std::move(fields);
+        }
+      }
 
       // Check policies
       for (size_t i = 1; i < top_tokens.size(); i++)
@@ -1471,7 +1897,7 @@ namespace didx509
               // to contain a duplicate field, and rejected.
               k = "ST";
             }
-            const auto& v = url_unescape(args[j + 1]);
+            const auto& v = decode_scalar(args[j + 1]);
 
             if (seen_fields.find(k) != seen_fields.end())
             {
@@ -1490,20 +1916,11 @@ namespace didx509
                 std::string("unsupported subject key: '") + k + "'");
             }
 
-            bool found = false;
-            for (const auto& fv : sit->second)
-            {
-              // The did:x509 spec defines subject matching via object.subset,
-              // i.e. exact equality of the attribute value. A substring match
-              // would incorrectly let e.g. "CN:Microsoft" match a certificate
-              // whose CN is "Microsoft Corporation".
-              if (fv == v)
-              {
-                found = true;
-                break;
-              }
-            }
-            if (!found)
+            // The did:x509 spec defines subject matching via object.subset,
+            // i.e. exact equality of the attribute value. A substring match
+            // would incorrectly let e.g. "CN:Microsoft" match a certificate
+            // whose CN is "Microsoft Corporation".
+            if (sit->second != v)
             {
               throw std::runtime_error(
                 std::string("invalid subject key/value: " + k + "=" + v));
@@ -1512,25 +1929,17 @@ namespace didx509
         }
         else if (policy_name == "san")
         {
-          if (args.size() != 2)
-          {
-            throw std::runtime_error("exactly one SAN type and value required");
-          }
-
-          auto san_type = args[0];
-          auto san_value = url_unescape(args[1]);
-
-          if (!chain.at(0).has_san(san_type, san_value))
-          {
-            throw std::runtime_error(
-              std::string("SAN not found: ") + san_value);
-          }
+          verify_san(chain.at(0), args);
         }
         else if (policy_name == "eku")
         {
           if (args.size() != 1)
           {
             throw std::runtime_error("exactly one EKU required");
+          }
+          if (!is_canonical_oid(args[0]))
+          {
+            throw std::runtime_error("invalid EKU: " + args[0]);
           }
 
           const UqASN1_OBJECT oid(args[0]);
@@ -1561,7 +1970,7 @@ namespace didx509
           }
 
           const std::string fulcio_oid("1.3.6.1.4.1.57264.1.1");
-          auto decoded_arg = url_unescape(args[0]);
+          auto decoded_arg = decode_scalar(args[0]);
           auto fulcio_issuer = "https://" + decoded_arg;
 
           bool found = false;
@@ -1580,6 +1989,10 @@ namespace didx509
               std::string("invalid fulcio-issuer: ") + fulcio_issuer);
           }
         }
+        else if (policy_name == "fulcio")
+        {
+          verify_fulcio(leaf_fulcio, args);
+        }
         else
         {
           throw std::runtime_error(
@@ -1592,6 +2005,28 @@ namespace didx509
     {
       const bool include_assertion_method =
         !cert.has_key_usage() || cert.has_key_usage_digital_signature();
+      if (EVP_PKEY_base_id(cert.public_key()) == EVP_PKEY_ED25519)
+      {
+        // RFC 8410 section 5: an Ed25519 end-entity key usage may only
+        // contain digitalSignature and nonRepudiation. Key agreement and
+        // encipherment usages do not apply to EdDSA keys.
+        if (cert.has_key_usage_key_agreement())
+        {
+          throw std::runtime_error(
+            "Ed25519 certificate key usage must not include key agreement");
+        }
+        if (cert.has_key_usage_encipherment())
+        {
+          throw std::runtime_error(
+            "Ed25519 certificate key usage must not include encipherment");
+        }
+        if (!include_assertion_method)
+        {
+          throw std::runtime_error(
+            "Ed25519 certificate key usage must include digital signature");
+        }
+        return {true, false};
+      }
       const bool include_key_agreement =
         !cert.has_key_usage() || cert.has_key_usage_key_agreement();
       if (!include_assertion_method && !include_key_agreement)
@@ -1669,24 +2104,24 @@ namespace didx509
       const auto& leaf_jwk = leaf.public_jwk();
 
       std::string r = R"({
-    "@context": [
-        "https://www.w3.org/ns/did/v1",
-        "https://w3id.org/security/suites/jws-2020/v1"
-    ],
+    "@context": "https://www.w3.org/ns/cid/v1",
     "id": ")" + did_json +
         R"(",
     "verificationMethod": [{
         "id": ")" + did_json +
         R"(#0",
-        "type": "JsonWebKey2020",
+        "type": "JsonWebKey",
         "controller": ")" + did_json +
         R"(",
         "publicKeyJwk": )" + leaf_jwk +
         R"(
     }])";
 
+      // Per the did:x509 resolution steps, digitalSignature (or an absent Key
+      // Usage extension) yields both authentication and assertionMethod.
       if (include_assertion_method)
       {
+        r += R"(,"authentication": [")" + did_json + R"(#0"])";
         r += R"(,"assertionMethod": [")" + did_json + R"(#0"])";
       }
       if (include_key_agreement)
@@ -1716,7 +2151,24 @@ namespace didx509
     roots.emplace_back(std::move(root));
 
     auto valid_chain = chain.verify(roots, ignore_time);
-    verify(valid_chain, did);
+    // Do not let path building discard evidence before eager extension checks.
+    if (chain.size() != valid_chain.size())
+    {
+      throw std::runtime_error(
+        "supplied certificate chain does not match the verified chain");
+    }
+    for (size_t i = 0; i < chain.size(); i++)
+    {
+      if (chain.at(i).der() != valid_chain.at(i).der())
+      {
+        throw std::runtime_error(
+          "supplied certificate chain does not match the verified chain");
+      }
+    }
+    verify(valid_chain, did_document_id(did));
+    // Resolution step 12 of the did:x509 spec: the leaf key usage must permit
+    // at least one verification relationship, whichever entry point is used.
+    is_agreed_signature_key(valid_chain.front());
 
     return valid_chain;
   }
@@ -1729,7 +2181,7 @@ namespace didx509
     const UqSTACK_OF_X509 chain(chain_pem);
 
     const auto valid_chain = resolve_chain(chain, did, ignore_time);
-    return create_did_document(did, valid_chain);
+    return create_did_document(did_document_id(did), valid_chain);
   }
 
   inline std::string resolve_jwk(
@@ -1740,9 +2192,6 @@ namespace didx509
     const UqSTACK_OF_X509 chain(chain_pem);
 
     const auto valid_chain = resolve_chain(chain, did, ignore_time);
-    const auto& leaf = valid_chain.front();
-    is_agreed_signature_key(leaf);
-
-    return leaf.public_jwk();
+    return valid_chain.front().public_jwk();
   }
 }

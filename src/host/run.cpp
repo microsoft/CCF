@@ -17,14 +17,14 @@
 #include "ccf/version.h"
 #include "common/cli_helper.h"
 #include "common/configuration.h"
-#include "common/enclave_interface_types.h"
+#include "common/create_node_status.h"
 #include "config_schema.h"
 #include "consensus/ledger_enclave_types.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "ds/time_bound_logger.h"
-#include "enclave/entry_points.h"
+#include "enclave/enclave.h"
 #include "host/files_cleanup_timer.h"
 #include "host/ledger_subsystem.h"
 #include "http_client/curl.h"
@@ -44,6 +44,7 @@
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <latch>
 #include <map>
 #include <memory>
 #include <optional>
@@ -192,57 +193,6 @@ namespace ccf
     }
   }
 
-  std::optional<size_t> create_enclave_node(
-    const ccf::CCFConfig& config,
-    std::vector<uint8_t>& node_cert,
-    std::vector<uint8_t>& service_cert,
-    std::vector<uint8_t>& rpc_addresses,
-    ccf::LoggerLevel log_level,
-    ccf::AbstractRuntimeControl& runtime_control,
-    const std::shared_ptr<asynchost::LedgerSubsystem>& ledger_subsystem,
-    const std::shared_ptr<asynchost::NodeConnections>& node_connections)
-  {
-    LOG_INFO_FMT("Initialising enclave: enclave_create_node");
-    auto create_status = enclave_create_node(
-      config,
-      node_cert,
-      service_cert,
-      rpc_addresses,
-      config.command.type,
-      log_level,
-      config.worker_threads,
-      runtime_control,
-      ledger_subsystem,
-      node_connections);
-
-    // Reset the thread ID generator. This function will exit before any
-    // thread calls enclave_run, and without creating any new threads, so it
-    // is safe for the first thread that calls enclave_run to re-use this
-    // thread_id. That way they are both considered MAIN_THREAD_ID, even if
-    // they are actually distinct std::threads.
-    ccf::threading::reset_thread_id_generator();
-
-    if (create_status != CreateNodeStatus::OK)
-    {
-      LOG_FAIL_FMT(
-        "An error occurred when creating CCF node: {}",
-        create_node_result_to_str(create_status));
-
-      // This returns from main, stopping the program
-      return create_status;
-    }
-
-    LOG_INFO_FMT("Created new node");
-
-    // The enclave resolves and binds the RPC interfaces (including ephemeral
-    // ports), and reports the resolved addresses back here to be written out.
-    if (!config.output_files.rpc_addresses_file.empty())
-    {
-      files::dump(rpc_addresses, config.output_files.rpc_addresses_file);
-    }
-    return std::nullopt;
-  }
-
   void write_certificates_to_disk(
     const ccf::CCFConfig& config,
     const std::vector<uint8_t>& node_cert,
@@ -265,41 +215,55 @@ namespace ccf
     }
   }
 
-  void run_enclave_threads(
-    const ccf::CCFConfig& config,
-    asynchost::RuntimeControlImpl& runtime_control,
-    asynchost::LedgerSubsystem& ledger_subsystem)
+  void run_enclave_threads(const ccf::CCFConfig& config, Enclave& enclave)
   {
+    const auto thread_count = config.worker_threads + 1;
+    std::latch ready(thread_count);
+    std::atomic<bool> cancelled = false;
+    // Startup ran on the launcher thread. Runtime threads reuse its main ID.
+    ccf::threading::reset_thread_id_generator();
     auto enclave_thread_start = [&](threading::ThreadID thread_id) {
       threading::set_current_thread_id(thread_id);
+      ready.arrive_and_wait();
+      if (cancelled.load())
+      {
+        return;
+      }
       try
       {
-        bool ret = enclave_run();
+        LOG_INFO_FMT("Starting thread: {}", thread_id);
+        const bool ret = thread_id == threading::MAIN_THREAD_ID ?
+          enclave.run_main() :
+          enclave.run_worker();
 
         if (!ret)
         {
-          throw std::logic_error(fmt::format("Failure in enclave_run"));
+          throw std::logic_error("Failure in enclave runtime thread");
         }
       }
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
 
-        // This exception should be rethrown, probably aborting the process,
-        // but we sleep briefly to allow more outbound messages to be
-        // processed. If the enclave sent logging messages, it is useful to
-        // read and print them before dying.
-        std::this_thread::sleep_for(1s);
         throw;
       }
     };
 
     LOG_INFO_FMT("Starting enclave thread(s)");
-    // Start threads which will ECall and process messages inside the enclave
-    std::vector<std::thread> threads;
-    for (uint32_t i = 0; i < (config.worker_threads + 1); ++i)
+    std::vector<std::jthread> threads;
+    threads.reserve(thread_count);
+    try
     {
-      threads.emplace_back(enclave_thread_start, i);
+      for (uint32_t i = 0; i < thread_count; ++i)
+      {
+        threads.emplace_back(enclave_thread_start, i);
+      }
+    }
+    catch (...)
+    {
+      cancelled.store(true);
+      ready.count_down(thread_count - threads.size());
+      throw;
     }
 
     LOG_INFO_FMT("Entering event loop");
@@ -309,39 +273,47 @@ namespace ccf
     {
       thread.join();
     }
-
-    // Workers exit as soon as a stop is requested, so ledger mutations which
-    // append()/commit() accepted may still be queued on the ledger lane. Drain
-    // them to disk now, while no worker can run the lane. This must happen
-    // BEFORE enclave_shutdown_tasks(): shutting down the job board abandons
-    // every registered lane's pending actions, which would silently discard
-    // those writes.
-    ledger_subsystem.shutdown();
-
-    // Transports and task workers are quiescent. Release queued actions,
-    // including paused session queues, before their dependencies are torn down.
-    enclave_shutdown_tasks();
-
-    runtime_control.throw_if_fatal_error();
   }
 
-  std::optional<size_t> run_main_loop(
-    ccf::CCFConfig& config, ccf::LoggerLevel log_level)
+  std::optional<size_t> run_main_loop(ccf::CCFConfig& config)
   {
     const asynchost::TaskTicker task_ticker(config.tick_interval);
 
-    const auto request_enclave_stop = []() {
-      return ccf::enclave_request_stop();
+    std::unique_ptr<Enclave> enclave;
+    const auto request_enclave_stop = [&enclave]() {
+      if (enclave == nullptr)
+      {
+        return false;
+      }
+      enclave->request_stop();
+      return true;
     };
     asynchost::RuntimeControl runtime_control(request_enclave_stop);
 
+    // Register before startup, but libuv delivers signals only when the loop
+    // runs. This preserves signals received during initialization.
+    const auto request_node_shutdown = [&request_enclave_stop]() {
+      if (!request_enclave_stop())
+      {
+        LOG_FAIL_FMT("Cannot request node shutdown before it has been created");
+      }
+    };
+    const auto notify_node_stopping = [&enclave]() {
+      if (enclave == nullptr)
+      {
+        LOG_FAIL_FMT(
+          "Cannot notify node of stopping before it has been created");
+        return;
+      }
+      enclave->request_stop_notice();
+    };
+    asynchost::Sigterm sigterm(
+      config.ignore_first_sigterm, request_node_shutdown, notify_node_stopping);
+    asynchost::Sighup sighup(
+      false, request_node_shutdown, notify_node_stopping);
+
     // reset the inbound-TCP processing quota each iteration
     const asynchost::ResetTCPReadQuota reset_tcp_quota;
-
-    // graceful shutdown on sigterm
-    asynchost::Sigterm sigterm(config.ignore_first_sigterm);
-    // graceful shutdown on sighup
-    asynchost::Sighup sighup(false /* never ignore */);
 
     asynchost::Ledger ledger(
       config.ledger.directory,
@@ -417,8 +389,8 @@ namespace ccf
       throw std::logic_error(fmt::format(
         "Failed to initialise libcurl: {}", curl_easy_strerror(curl_rc)));
     }
-    auto curl_libuv_context =
-      http_client::CurlmLibuvContextSingleton(uv_default_loop());
+    std::optional<http_client::CurlmLibuvContextSingleton> curl_libuv_context(
+      std::in_place, uv_default_loop());
 
     // Validate and normalise the configured RPC addresses here, at the input
     // boundary, so that everything downstream sees a well-formed "host:port"
@@ -447,12 +419,6 @@ namespace ccf
         return static_cast<int>(CLI::ExitCodes::ValidationError);
       }
     }
-
-    // Prepare startup configuration
-    const size_t certificate_size = 4096;
-    std::vector<uint8_t> node_cert(certificate_size);
-    std::vector<uint8_t> service_cert(certificate_size);
-    std::vector<uint8_t> rpc_addresses;
 
     if (ccf::pal::platform == ccf::pal::Platform::Virtual)
     {
@@ -495,32 +461,67 @@ namespace ccf
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
-    // Create the enclave node
-    auto enclave_creation_result = create_enclave_node(
-      config,
-      node_cert,
-      service_cert,
-      rpc_addresses,
-      log_level,
-      *runtime_control,
-      ledger_subsystem,
-      node);
-
-    if (enclave_creation_result.has_value())
+    if (
+      config.command.type == StartType::Start &&
+      config.command.start.service_configuration.reconfiguration_type.value_or(
+        ccf::ReconfigurationType::ONE_TRANSACTION) !=
+        ccf::ReconfigurationType::ONE_TRANSACTION)
     {
-      return enclave_creation_result;
+      LOG_FAIL_FMT(
+        "2TX reconfiguration is experimental, disabled in release mode");
+      return CreateNodeStatus::ReconfigurationMethodNotSupported;
     }
 
-    // Output certificates to disk
-    write_certificates_to_disk(config, node_cert, service_cert);
+    // The stop callback's owner must outlive RuntimeControl, but the runtime
+    // itself must be destroyed before its host dependencies.
+    struct RuntimeCleanup
+    {
+      std::unique_ptr<Enclave>& enclave;
+      asynchost::NodeConnections& transport;
+      std::optional<http_client::CurlmLibuvContextSingleton>& curl_context;
+      asynchost::Sigterm& sigterm;
+      asynchost::Sighup& sighup;
+      ~RuntimeCleanup()
+      {
+        sigterm = nullptr;
+        sighup = nullptr;
+        // Curl cancellation invokes callbacks borrowing NodeState.
+        if (enclave != nullptr)
+        {
+          enclave->request_stop();
+        }
+        curl_context.reset();
+        enclave.reset();
+        transport.shutdown();
+      }
+    } cleanup{enclave, *node, curl_libuv_context, sigterm, sighup};
 
-    // Run enclave threads and event loop. The ledger subsystem is drained
-    // inside, between the enclave threads joining and the job board shutting
-    // down; see run_enclave_threads.
-    run_enclave_threads(config, *runtime_control, *ledger_subsystem);
-    // The enclave retains the transport, so close its sockets explicitly
-    // before the loop is closed
-    node->shutdown();
+    auto failure_status = CreateNodeStatus::EnclaveInitFailed;
+    try
+    {
+      enclave = std::make_unique<Enclave>(
+        config, *runtime_control, ledger_subsystem, node);
+      failure_status = CreateNodeStatus::InternalError;
+      const auto startup = enclave->initialise(config);
+      LOG_INFO_FMT("Created new node");
+      if (!config.output_files.rpc_addresses_file.empty())
+      {
+        files::dump(
+          startup.rpc_addresses, config.output_files.rpc_addresses_file);
+      }
+      write_certificates_to_disk(
+        config, startup.node_cert, startup.service_cert);
+    }
+    catch (const std::exception& e)
+    {
+      // Startup diagnostics are safe here: no runtime thread has executed,
+      // and locally generated secrets will be discarded.
+      LOG_FAIL_FMT("Error starting node: {}", e.what());
+      return failure_status;
+    }
+
+    run_enclave_threads(config, *enclave);
+    runtime_control->throw_if_fatal_error();
 
     return std::nullopt;
   }
@@ -775,10 +776,15 @@ namespace ccf
     ccf::ds::TimeBoundLogger::default_max_time =
       config.slow_io_logging_threshold;
 
-    const auto inner_ret = run_main_loop(config, log_level);
-    if (inner_ret.has_value())
+    std::optional<int> inner_ret;
+    try
     {
-      return inner_ret.value();
+      inner_ret = run_main_loop(config);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
+      inner_ret = CreateNodeStatus::InternalError;
     }
 
     constexpr size_t max_close_iterations = 1000;
@@ -814,6 +820,6 @@ namespace ccf
     }
     curl_global_cleanup();
 
-    return loop_close_rc;
+    return inner_ret.value_or(loop_close_rc);
   }
 }

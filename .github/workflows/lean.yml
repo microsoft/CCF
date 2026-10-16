@@ -36,6 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           for config in lean/*/lakefile.toml; do
+            grep -q '^name = "mathlib"$' "$config" || continue
             package="$(dirname "$config")"
             echo "::group::Mathlib cache: $package"
             (cd "$package" && lake exe cache get)
@@ -64,7 +65,9 @@ jobs:
             echo "::group::Check: $package"
             (
               cd "$package"
-              lake exe mk_all --check --module
+              if grep -q '^name = "mathlib"$' lakefile.toml; then
+                lake exe mk_all --check --module
+              fi
               lake build --wfail --fail-fast
               lake check --inadvisably-no-sandbox
             )
