@@ -98,9 +98,15 @@ jobs:
         run: ./scripts/lean-format-checks.sh
 
   kernel-checks:
-    name: Kernel checks (disaster-recovery)
+    name: Kernel checks (${{ matrix.package }})
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [ccf-raft, disaster-recovery]
+    env:
+      PACKAGE: ${{ matrix.package }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -110,17 +116,17 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y elan bubblewrap
-          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          elan toolchain install "$(cat "lean/$PACKAGE/lean-toolchain")"
 
       - name: Restore Mathlib cache
-        working-directory: lean/disaster-recovery
+        working-directory: lean/${{ matrix.package }}
         shell: bash
         run: |
           set -euo pipefail
           lake exe cache get
 
       - name: Check with Lean's kernel
-        working-directory: lean/disaster-recovery
+        working-directory: lean/${{ matrix.package }}
         shell: bash
         run: |
           set -euo pipefail
