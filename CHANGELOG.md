@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Fixed
 
-- After recovery, an election, or joining from a snapshot, a node which becomes primary now counts the `ledger_signatures.tx_count` interval from the latest signature it replayed from the ledger, or from its snapshot, rather than emitting a signature on its first transaction.
+- After recovery, an election, or joining from a snapshot, a node which becomes primary now counts the `ledger_signatures.tx_count` interval from the latest signature it replayed from the ledger, or from its snapshot, rather than emitting a signature on its first transaction (#8595).
 
 ## [7.0.20]
 
