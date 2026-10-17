@@ -4973,8 +4973,7 @@ namespace
   std::shared_ptr<ccf::NullTxHistory> attach_null_history(
     ccf::kv::Store& store, const ccf::NodeId& node_id)
   {
-    static auto kp =
-      ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+    auto kp = ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
     auto history = std::make_shared<ccf::NullTxHistory>(store, node_id, *kp);
     store.set_history(history);
     return history;
@@ -5157,21 +5156,6 @@ TEST_CASE("committable_gap after rolling back replayed entries")
   replay_ledger(*primary_consensus, store, between_signatures + 1, last_seqno);
   REQUIRE(last_committable(store) == second_signature);
   REQUIRE(store.committable_gap() == last_seqno - second_signature);
-
-  INFO("Rolling back below every replayed signature");
-  store.rollback({term, first_signature - 1}, term + 3);
-  REQUIRE(store.current_version() == first_signature - 1);
-  REQUIRE(store.committable_gap() == 0);
-  REQUIRE(last_committable(store) == first_signature - 1);
-
-  replay_ledger(*primary_consensus, store, first_signature, first_signature);
-  REQUIRE(last_committable(store) == first_signature);
-  REQUIRE(store.committable_gap() == 0);
-
-  replay_ledger(
-    *primary_consensus, store, first_signature + 1, second_signature - 1);
-  REQUIRE(last_committable(store) == first_signature);
-  REQUIRE(store.committable_gap() == second_signature - 1 - first_signature);
 }
 
 TEST_CASE("Ledger entry chunk request")

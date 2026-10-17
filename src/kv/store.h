@@ -181,10 +181,8 @@ namespace ccf::kv
         term_of_last_version = term;
         if (committable)
         {
-          // Deserialised signatures count towards committable_gap() exactly
-          // like signatures emitted by this store, so that a node which
-          // becomes primary after replaying the ledger does not see a stale
-          // gap and emit a signature immediately.
+          // Replayed signatures count towards committable_gap(), so that a
+          // node which later becomes primary does not see a stale gap
           last_committable = v;
         }
       }
