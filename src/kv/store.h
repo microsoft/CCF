@@ -60,8 +60,10 @@ namespace ccf::kv
     Term term_of_last_version = 0;
 
     Version last_replicated = 0;
-    // Version of the latest committable entry committed in this term and by
-    // _this_ store.
+    // Version of the latest committable entry (signature) known to this
+    // store, whether committed by this store, deserialised from the ledger or
+    // from another node, or the version at which a snapshot was installed.
+    // Always <= version: rollback() clamps it.
     Version last_committable = 0;
 
     Version rollback_count = 0;
@@ -151,7 +153,8 @@ namespace ccf::kv
       Term term,
       const MapCollection& new_maps,
       ccf::kv::ConsensusHookPtrs& hooks,
-      bool track_deletes_on_missing_keys) override
+      bool track_deletes_on_missing_keys,
+      bool committable) override
     {
       std::unique_lock<ccf::ds::Mutex> maps_guard(maps_lock, std::defer_lock);
       if (!new_maps.empty())
@@ -176,6 +179,14 @@ namespace ccf::kv
         version = v;
         last_replicated = version;
         term_of_last_version = term;
+        if (committable)
+        {
+          // Deserialised signatures count towards committable_gap() exactly
+          // like signatures emitted by this store, so that a node which
+          // becomes primary after replaying the ledger does not see a stale
+          // gap and emit a signature immediately.
+          last_committable = v;
+        }
       }
       return true;
     }
@@ -572,6 +583,8 @@ namespace ccf::kv
           std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
           version = v;
           last_replicated = v;
+          // Snapshots are only generated at signature seqnos
+          last_committable = v;
         }
       }
 
@@ -702,7 +715,9 @@ namespace ccf::kv
         version = tx_id.seqno;
         last_replicated = tx_id.seqno;
         // In practice rollback is only called at signature seqnos, so
-        // clamping here restores the latest committable entry
+        // clamping here restores the latest committable entry. Clamping also
+        // keeps last_committable <= version, so committable_gap() cannot
+        // underflow.
         last_committable = std::min(last_committable, tx_id.seqno);
         unset_flag_unsafe(StoreFlag::SNAPSHOT_AT_NEXT_SIGNATURE);
         rollback_count++;
