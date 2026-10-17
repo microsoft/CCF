@@ -416,7 +416,7 @@ namespace aft
 
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       state->current_view += starting_view_change;
-      become_leader();
+      become_leader(true);
     }
 
     void force_become_primary(
@@ -440,7 +440,7 @@ namespace aft
       state->view_history.initialise(terms);
       state->view_history.update(index, term);
       state->current_view += starting_view_change;
-      become_leader();
+      become_leader(true);
     }
 
     void init_as_backup(
@@ -2213,7 +2213,9 @@ namespace aft
       }
     }
 
-    void become_leader()
+    // forced is set when leadership is taken by force_become_primary() rather
+    // than won in an election.
+    void become_leader(bool forced = false)
     {
       if (is_retired_committed())
       {
@@ -2276,7 +2278,13 @@ namespace aft
         send_append_entries(node.first, next);
       }
 
-      if (retired_node_cleanup)
+      // Leadership is only forced at service start, when the nodes table is
+      // empty, and at the end of public recovery, where the create transaction
+      // removes the previous service's nodes outright. There are no retired
+      // nodes to finalise in either case, and the cleanup request to this node
+      // would race with that create transaction, so only an elected leader
+      // triggers it.
+      if (retired_node_cleanup && !forced)
       {
         retired_node_cleanup();
       }
