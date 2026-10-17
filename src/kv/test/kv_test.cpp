@@ -4968,6 +4968,212 @@ TEST_CASE("Reserved signature side effects are not applied after a rollback")
   }
 }
 
+namespace
+{
+  std::shared_ptr<ccf::NullTxHistory> attach_null_history(
+    ccf::kv::Store& store, const ccf::NodeId& node_id)
+  {
+    static auto kp =
+      ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+    auto history = std::make_shared<ccf::NullTxHistory>(store, node_id, *kp);
+    store.set_history(history);
+    return history;
+  }
+
+  // last_committable is only observable through committable_gap(), which is
+  // defined as current_version() - last_committable
+  ccf::kv::Version last_committable(ccf::kv::Store& store)
+  {
+    return store.current_version() - store.committable_gap();
+  }
+
+  // Replays the entries replicated by primary_consensus whose seqno lies in
+  // [from_seqno, to_seqno] into store, as a backup or a recovering node would
+  void replay_ledger(
+    const ccf::kv::test::StubConsensus& primary_consensus,
+    ccf::kv::Store& store,
+    ccf::kv::Version from_seqno,
+    ccf::kv::Version to_seqno)
+  {
+    for (const auto& [seqno, data, committable, hooks] :
+         primary_consensus.replica)
+    {
+      if (seqno < from_seqno || seqno > to_seqno)
+      {
+        continue;
+      }
+
+      INFO("Replaying entry at seqno ", seqno);
+      const auto expected = committable ? ccf::kv::ApplyResult::PASS_SIGNATURE :
+                                          ccf::kv::ApplyResult::PASS;
+      REQUIRE(store.deserialize(*data)->apply() == expected);
+      REQUIRE(store.current_version() == seqno);
+    }
+  }
+}
+
+TEST_CASE("committable_gap after replaying a ledger ending in a signature")
+{
+  // A node recovering the public ledger, or a backup, replays entries
+  // produced by another node and may then become primary. The gap used to
+  // decide when to emit a signature must count from the latest replayed
+  // signature, not from the start of the ledger.
+  constexpr ccf::kv::Term term = 2;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  MapTypes::StringString map("public:map");
+
+  ccf::kv::Store primary;
+  primary.set_encryptor(encryptor);
+  auto primary_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  primary.set_consensus(primary_consensus);
+  auto primary_history =
+    attach_null_history(primary, ccf::kv::test::PrimaryNodeId);
+  primary.initialise_term(term);
+
+  constexpr size_t tx_count = 3;
+
+  INFO("A signature emitted by the primary itself resets its gap");
+  for (size_t i = 1; i <= tx_count; ++i)
+  {
+    auto tx = primary.create_tx();
+    tx.rw(map)->put(fmt::format("key{}", i), "value");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(primary.committable_gap() == i);
+  }
+  primary_history->emit_signature();
+  const auto signature_seqno = primary.current_version();
+  REQUIRE(signature_seqno == tx_count + 1);
+  REQUIRE(primary.committable_gap() == 0);
+  REQUIRE(primary_consensus->replica.size() == signature_seqno);
+
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  store.set_consensus(consensus);
+  auto history = attach_null_history(store, ccf::kv::test::FirstBackupNodeId);
+  store.initialise_term(term);
+
+  INFO("Replayed entries grow the gap until a signature is replayed");
+  for (const auto& [seqno, data, committable, hooks] :
+       primary_consensus->replica)
+  {
+    REQUIRE(committable == (seqno == signature_seqno));
+    replay_ledger(*primary_consensus, store, seqno, seqno);
+    REQUIRE(store.committable_gap() == (committable ? 0 : seqno));
+  }
+  REQUIRE(store.current_version() == signature_seqno);
+  REQUIRE(last_committable(store) == signature_seqno);
+
+  INFO(
+    "Becoming primary, at the end of recovery or after an election, moves the "
+    "term on without disturbing the gap");
+  store.rollback(store.current_txid(), term + 1);
+  consensus->force_become_primary();
+  REQUIRE(consensus->can_replicate());
+  REQUIRE(store.current_version() == signature_seqno);
+  REQUIRE(store.committable_gap() == 0);
+
+  INFO("Transactions committed by the new primary count from that signature");
+  for (size_t i = 1; i <= tx_count; ++i)
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("key", fmt::format("value{}", i));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE(store.committable_gap() == i);
+  }
+
+  INFO("A signature emitted by the new primary resets the gap");
+  history->emit_signature();
+  REQUIRE(store.current_version() == signature_seqno + tx_count + 1);
+  REQUIRE(store.committable_gap() == 0);
+}
+
+TEST_CASE("committable_gap after rolling back replayed entries")
+{
+  constexpr ccf::kv::Term term = 2;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  MapTypes::StringString map("public:map");
+
+  ccf::kv::Store primary;
+  primary.set_encryptor(encryptor);
+  auto primary_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  primary.set_consensus(primary_consensus);
+  auto primary_history =
+    attach_null_history(primary, ccf::kv::test::PrimaryNodeId);
+  primary.initialise_term(term);
+
+  auto commit_txs = [&](size_t count) {
+    for (size_t i = 0; i < count; ++i)
+    {
+      auto tx = primary.create_tx();
+      tx.rw(map)->put("key", fmt::format("value{}", primary.current_version()));
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    }
+  };
+
+  // Ledger: 3 transactions, a signature, 2 transactions, a signature, 2
+  // transactions
+  commit_txs(3);
+  primary_history->emit_signature();
+  const auto first_signature = primary.current_version();
+  commit_txs(2);
+  primary_history->emit_signature();
+  const auto second_signature = primary.current_version();
+  commit_txs(2);
+  const auto last_seqno = primary.current_version();
+  REQUIRE(first_signature == 4);
+  REQUIRE(second_signature == 7);
+  REQUIRE(last_seqno == 9);
+
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+  attach_null_history(store, ccf::kv::test::FirstBackupNodeId);
+  store.initialise_term(term);
+
+  INFO("The gap counts from the latest replayed signature");
+  replay_ledger(*primary_consensus, store, 1, last_seqno);
+  REQUIRE(last_committable(store) == second_signature);
+  REQUIRE(store.committable_gap() == last_seqno - second_signature);
+
+  INFO(
+    "Rolling back to the latest signature, as at the end of public recovery, "
+    "leaves no gap");
+  store.rollback({term, second_signature}, term + 1);
+  REQUIRE(store.current_version() == second_signature);
+  REQUIRE(store.committable_gap() == 0);
+
+  INFO(
+    "Rolling back below the latest signature clamps last_committable to the "
+    "rollback point, so that the gap cannot underflow");
+  const auto between_signatures = first_signature + 1;
+  store.rollback({term, between_signatures}, term + 2);
+  REQUIRE(store.current_version() == between_signatures);
+  REQUIRE(store.committable_gap() == 0);
+  REQUIRE(last_committable(store) == between_signatures);
+
+  INFO("Replaying the discarded entries again restores the gap");
+  replay_ledger(*primary_consensus, store, between_signatures + 1, last_seqno);
+  REQUIRE(last_committable(store) == second_signature);
+  REQUIRE(store.committable_gap() == last_seqno - second_signature);
+
+  INFO("Rolling back below every replayed signature");
+  store.rollback({term, first_signature - 1}, term + 3);
+  REQUIRE(store.current_version() == first_signature - 1);
+  REQUIRE(store.committable_gap() == 0);
+  REQUIRE(last_committable(store) == first_signature - 1);
+
+  replay_ledger(*primary_consensus, store, first_signature, first_signature);
+  REQUIRE(last_committable(store) == first_signature);
+  REQUIRE(store.committable_gap() == 0);
+
+  replay_ledger(
+    *primary_consensus, store, first_signature + 1, second_signature - 1);
+  REQUIRE(last_committable(store) == first_signature);
+  REQUIRE(store.committable_gap() == second_signature - 1 - first_signature);
+}
+
 TEST_CASE("Ledger entry chunk request")
 {
   ccf::kv::Store store;
