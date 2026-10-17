@@ -476,6 +476,13 @@ namespace ccf::kv
       ccf::SeqNo /*seqno*/, const std::vector<NodeId>& node_ids)
     {}
 
+    // Called once the deletion of these nodes from the service's node table
+    // is globally committed, for instance when a recovery deletes the
+    // previous service's nodes without retiring them first.
+    virtual void remove_deleted_nodes(
+      ccf::SeqNo /*seqno*/, const std::vector<NodeId>& /*node_ids*/)
+    {}
+
     virtual void nominate_successor() {}
 
     ccf::TxStatus evaluate_tx_status(

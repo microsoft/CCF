@@ -42,7 +42,12 @@ Each node will then immediately restore the public entries of its ledger (``ledg
 
 At startup, the host discovers the latest committed chunk end across all configured ledger directories before restoring mutable chunks. Mutable chunks whose reconstructed end is at or before this committed frontier, including incomplete chunks without an end index in their filename, are renamed with an ``.ignored`` suffix rather than reused for new appends. Chunks which overlap the committed history but extend beyond that frontier are retained.
 
-Public-ledger replay temporarily reconstructs the previous service's node entries and consensus configuration. When the recovery service is created, the recovery transaction deletes all previous-service node entries and their associated endorsed certificates and local-sealing records. These nodes do not pass through the normal ``Retired`` and ``retired_committed`` states because the previous service does not participate in the new service's consensus. Consequently, previous-service nodes are absent from both :http:GET:`/node/network/nodes` and :http:GET:`/node/network/removable_nodes` after recovery. See :ref:`architecture/consensus/index:Retirement details` for the normal live-service retirement sequence.
+Public-ledger replay temporarily reconstructs the previous service's node entries and consensus configuration.
+When the recovery service is created, the recovery transaction deletes all previous-service node entries and their associated endorsed certificates and local-sealing records.
+These nodes do not pass through the normal ``Retired`` and ``retired_committed`` states because the previous service does not participate in the new service's consensus.
+Consequently, previous-service nodes are absent from both :http:GET:`/node/network/nodes` and :http:GET:`/node/network/removable_nodes` after recovery.
+Once the recovery transaction is globally committed, they are also absent from :http:GET:`/node/consensus` on every node of the recovered service, including nodes which joined from a snapshot taken before the recovery, and are never contacted again, even if their addresses have since been reused.
+See :ref:`architecture/consensus/index:Retirement details` for the normal live-service retirement sequence.
 
 The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.directory`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.
 
