@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.21]
+
+[7.0.21]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.21
+
+### Fixed
+
+- A node becoming primary at the end of public recovery no longer emits a ledger signature before the transaction recording its own certificate. Previously, a request handled concurrently with that transaction could trigger an early signature, after which private recovery failed with `Signature cannot be verified: no certificate found for node`, and joining nodes and later recoveries would reject the ledger (#8597).
+
 ## [7.0.20]
 
 [7.0.20]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.20
