@@ -76,7 +76,13 @@ For a live service, reconfiguration is materialised in two separate transactions
 
 In contrast to normal transactions, reconfiguration transactions will only commit when the necessary quorum of acknowledgements is reached in **both** the previous and the new configuration it defines.
 
-Disaster recovery is an exception to this retirement sequence. Replaying the public ledger reconstructs the previous service's trusted-node configuration in the new consensus instance. When the recovery service is created, its recovery transaction deletes the previous service's entries from ``nodes.info`` directly, and those deletions remove the old nodes from the new consensus configuration. The previous nodes do not transition through ``RETIRED`` or ``retired_committed`` because the old service is unavailable and does not participate in the recovery service's consensus. See :ref:`operations/recovery:Disaster Recovery`.
+Disaster recovery is an exception to this retirement sequence.
+Replaying the public ledger reconstructs the previous service's trusted-node configuration in the new consensus instance.
+When the recovery service is created, its recovery transaction deletes the previous service's entries from ``nodes.info`` directly, and those deletions remove the old nodes from the new consensus configuration.
+Once the deletions are globally committed, consensus also stops tracking the deleted nodes altogether, as it does for ``retired_committed`` nodes, so that no future primary sends them ``AppendEntries`` and they no longer appear in the acknowledgements reported by :http:GET:`/node/consensus`.
+This also holds for nodes which join the recovered service from a snapshot taken before the recovery, and so initially know of the previous service's nodes.
+The previous nodes do not transition through ``RETIRED`` or ``retired_committed`` because the old service is unavailable and does not participate in the recovery service's consensus.
+See :ref:`operations/recovery:Disaster Recovery`.
 
 The following sample illustrates the addition of a single node to a one-node network:
 

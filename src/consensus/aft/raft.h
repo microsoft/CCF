@@ -167,7 +167,8 @@ namespace aft
     // Union of other nodes (i.e. all nodes but us) in each active
     // configuration, plus those that are retired, but for which
     // the persistence of retirement knowledge is not yet established,
-    // i.e. Completed but not RetiredCommitted
+    // i.e. Completed but not RetiredCommitted, or deleted, but whose deletion
+    // is not yet globally committed.
     // This should be used for diagnostic or broadcasting
     // messages but _not_ for counting quorums, which should be done for each
     // active configuration.
@@ -358,6 +359,35 @@ namespace aft
           // advance commit. No further communication with this node is needed.
           all_other_nodes.erase(node_id);
           RAFT_INFO_FMT("Removed {} from nodes known to consensus", node_id);
+        }
+      }
+    }
+
+    void remove_deleted_nodes(
+      ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
+    {
+      for (const auto& node_id : node_ids)
+      {
+        if (id() == node_id)
+        {
+          // A node is only deleted once its retirement is committed, which
+          // set_retired_committed has already observed
+          continue;
+        }
+
+        // Deleting a node removes it from the configurations as soon as the
+        // deletion is applied locally, but nodes are otherwise only removed
+        // from all_other_nodes once their retirement is committed. Nodes
+        // deleted without being retired, such as the previous service's nodes
+        // during a recovery, would otherwise be sent AppendEntries by every
+        // future primary, and remain eligible as a retiring primary's
+        // successor.
+        if (all_other_nodes.erase(node_id) != 0)
+        {
+          RAFT_INFO_FMT(
+            "Removed deleted node {} from nodes known to consensus at {}",
+            node_id,
+            seqno);
         }
       }
     }

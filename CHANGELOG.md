@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.21]
+
+[7.0.21]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.21
+
+### Fixed
+
+- Consensus no longer tracks nodes deleted from the service without being retired, such as the previous service's nodes after a disaster recovery, once their deletion is globally committed, including on nodes recovered from a snapshot taken before the recovery. This stops a later primary from sending `AppendEntries` to the stale node IDs, which could prevent an election from completing when their addresses had been reused by current nodes. See the [Disaster Recovery](doc/operations/recovery.rst) operations documentation.
+
 ## [7.0.20]
 
 [7.0.20]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.20

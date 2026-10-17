@@ -935,6 +935,23 @@ def _recover_service(
         unexpected_removable_node_ids = old_node_ids & removable_node_ids
         assert not unexpected_removable_node_ids, unexpected_removable_node_ids
 
+    # Once the deletion of the previous service's nodes is globally committed,
+    # consensus must have forgotten them on every recovered node, not only on
+    # the primary: nodes recovered from a snapshot taken before the recovery
+    # knew them, and one of them may later be elected and would otherwise keep
+    # sending them AppendEntries.
+    recovered_network.wait_for_all_nodes_to_commit(primary=new_primary)
+    for node in recovered_network.get_joined_nodes():
+        with node.client() as c:
+            r = c.get("/node/consensus")
+            assert r.status_code == http.HTTPStatus.OK, r
+            acked_node_ids = set(r.body.json()["details"]["acks"].keys())
+            unexpected_acked_node_ids = old_node_ids & acked_node_ids
+            assert not unexpected_acked_node_ids, (
+                node.node_id,
+                unexpected_acked_node_ids,
+            )
+
     return recovered_network
 
 

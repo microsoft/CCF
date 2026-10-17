@@ -139,6 +139,7 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     stale_snapshots_dir = preserve_oldest_committed_snapshot(
         network, "stale_pre_recovery_snapshot"
     )
+    old_node_ids = {node.node_id for node in network.get_joined_nodes()}
 
     # Disaster-recover the service. Recovery mints a new network identity which
     # endorses the previous one, extending the identity endorsement chain and
@@ -154,6 +155,24 @@ def test_join_from_stale_pre_recovery_snapshot(network, args):
     # endorsement chain across the recovery boundary before it can settle.
     new_node = join_from_snapshot(recovered_network, args, stale_snapshots_dir)
     LOG.success("New node joined from the stale pre-recovery snapshot and caught up")
+
+    # The stale snapshot also hands the joiner the previous service's consensus
+    # configuration, so it initially tracks the previous service's nodes. Once it
+    # has committed the recovery transaction which deleted them, consensus must
+    # have forgotten them entirely: were the joiner later elected primary, it
+    # would otherwise keep contacting node IDs whose addresses may since have been
+    # reused by nodes of the recovered service.
+    recovered_primary, _ = recovered_network.find_primary()
+    recovered_network.wait_for_all_nodes_to_commit(primary=recovered_primary)
+    with new_node.client() as c:
+        r = c.get("/node/consensus")
+        assert r.status_code == http.HTTPStatus.OK, r
+        tracked_node_ids = set(r.body.json()["details"]["acks"].keys())
+    stale_node_ids = old_node_ids & tracked_node_ids
+    assert (
+        not stale_node_ids
+    ), f"Joined node still tracks previous service nodes in consensus: {stale_node_ids}"
+    LOG.success("Joined node no longer tracks the previous service's nodes")
 
     # Functional end-to-end check: the joined node must serve a trusted-key set
     # that spans the recovery. That is only possible once it has built the
