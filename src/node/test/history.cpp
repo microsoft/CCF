@@ -500,6 +500,76 @@ TEST_CASE("Pending signatures retain their endorsed certificate")
   updater.join();
 }
 
+TEST_CASE("Signatures are not emitted on demand until signing is enabled")
+{
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
+  auto node_kp = ccf::crypto::make_ec_key_pair();
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
+    ccf::crypto::make_ec_key_pair());
+
+  const auto node_cert = node_kp->self_sign("CN=Node", valid_from, valid_to);
+
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+  store.set_consensus(consensus);
+
+  // With an interval of 1, try_emit_signature() would otherwise sign after
+  // every transaction
+  constexpr size_t sig_tx_interval = 1;
+  constexpr size_t sig_ms_interval = 1000;
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    store,
+    ccf::kv::test::PrimaryNodeId,
+    *node_kp,
+    sig_tx_interval,
+    sig_ms_interval);
+  history->set_endorsed_certificate(node_cert);
+  history->set_service_signing_identity(
+    service_kp, ccf::COSESignaturesConfig{});
+  store.set_history(history);
+
+  constexpr auto store_term = 2;
+  store.initialise_term(store_term);
+
+  MapT table("public:table");
+
+  auto has_signature = [&]() {
+    auto tx = store.create_read_only_tx();
+    return tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get().has_value();
+  };
+
+  {
+    auto tx = store.create_tx();
+    tx.rw(table)->put(0, 1);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(consensus->number_of_replicas() == 1);
+  REQUIRE(store.committable_gap() >= sig_tx_interval);
+
+  INFO("No signature before start_signature_emit_timer(), despite the gap");
+  {
+    history->try_emit_signature();
+    REQUIRE(consensus->number_of_replicas() == 1);
+    REQUIRE(store.committable_gap() >= sig_tx_interval);
+    REQUIRE_FALSE(has_signature());
+  }
+
+  INFO("Signature emitted on demand once signing is enabled");
+  {
+    history->start_signature_emit_timer();
+    history->try_emit_signature();
+    REQUIRE(consensus->number_of_replicas() == 2);
+    REQUIRE(store.committable_gap() == 0);
+
+    auto tx = store.create_read_only_tx();
+    const auto signature =
+      tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get();
+    REQUIRE(signature.has_value());
+    REQUIRE(signature->cert == node_cert);
+  }
+}
+
 struct PausedSignatureCommit
 {
   ccf::ds::Mutex lock;
