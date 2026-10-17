@@ -416,7 +416,7 @@ namespace aft
 
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
       state->current_view += starting_view_change;
-      become_leader(true);
+      become_leader();
     }
 
     void force_become_primary(
@@ -440,7 +440,7 @@ namespace aft
       state->view_history.initialise(terms);
       state->view_history.update(index, term);
       state->current_view += starting_view_change;
-      become_leader(true);
+      become_leader();
     }
 
     void init_as_backup(
@@ -2213,9 +2213,7 @@ namespace aft
       }
     }
 
-    // forced is set when leadership is taken by force_become_primary() rather
-    // than won in an election.
-    void become_leader(bool forced = false)
+    void become_leader()
     {
       if (is_retired_committed())
       {
@@ -2276,17 +2274,6 @@ namespace aft
 
         // Send an empty append_entries to all nodes.
         send_append_entries(node.first, next);
-      }
-
-      // Leadership is only forced at service start, when the nodes table is
-      // empty, and at the end of public recovery, where the create transaction
-      // removes the previous service's nodes outright. There are no retired
-      // nodes to finalise in either case, and the cleanup request to this node
-      // would race with that create transaction, so only an elected leader
-      // triggers it.
-      if (retired_node_cleanup && !forced)
-      {
-        retired_node_cleanup();
       }
     }
 
@@ -2485,6 +2472,14 @@ namespace aft
           case ccf::kv::LeadershipState::Candidate:
           {
             become_leader();
+            // Only elected primaries may have retired nodes to finalise.
+            // Where leadership is forced instead, at service start and at
+            // the end of public recovery, there are none, and the request to
+            // this node would race with the create transaction.
+            if (retired_node_cleanup && is_primary())
+            {
+              retired_node_cleanup();
+            }
             break;
           }
           case ccf::kv::LeadershipState::None:
