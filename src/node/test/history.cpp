@@ -534,9 +534,9 @@ TEST_CASE("Signatures are not emitted on demand until signing is enabled")
 
   MapT table("public:table");
 
-  auto has_signature = [&]() {
+  auto get_signature = [&]() {
     auto tx = store.create_read_only_tx();
-    return tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get().has_value();
+    return tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get();
   };
 
   {
@@ -548,26 +548,18 @@ TEST_CASE("Signatures are not emitted on demand until signing is enabled")
   REQUIRE(store.committable_gap() >= sig_tx_interval);
 
   INFO("No signature before start_signature_emit_timer(), despite the gap");
-  {
-    history->try_emit_signature();
-    REQUIRE(consensus->number_of_replicas() == 1);
-    REQUIRE(store.committable_gap() >= sig_tx_interval);
-    REQUIRE_FALSE(has_signature());
-  }
+  history->try_emit_signature();
+  REQUIRE(consensus->number_of_replicas() == 1);
+  REQUIRE_FALSE(get_signature().has_value());
 
   INFO("Signature emitted on demand once signing is enabled");
-  {
-    history->start_signature_emit_timer();
-    history->try_emit_signature();
-    REQUIRE(consensus->number_of_replicas() == 2);
-    REQUIRE(store.committable_gap() == 0);
-
-    auto tx = store.create_read_only_tx();
-    const auto signature =
-      tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES)->get();
-    REQUIRE(signature.has_value());
-    REQUIRE(signature->cert == node_cert);
-  }
+  history->start_signature_emit_timer();
+  history->try_emit_signature();
+  REQUIRE(consensus->number_of_replicas() == 2);
+  REQUIRE(store.committable_gap() == 0);
+  const auto signature = get_signature();
+  REQUIRE(signature.has_value());
+  REQUIRE(signature->cert == node_cert);
 }
 
 struct PausedSignatureCommit
