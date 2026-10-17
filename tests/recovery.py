@@ -935,11 +935,9 @@ def _recover_service(
         unexpected_removable_node_ids = old_node_ids & removable_node_ids
         assert not unexpected_removable_node_ids, unexpected_removable_node_ids
 
-    # Once the deletion of the previous service's nodes is globally committed,
-    # consensus must have forgotten them on every recovered node, not only on
-    # the primary: nodes recovered from a snapshot taken before the recovery
-    # knew them, and one of them may later be elected and would otherwise keep
-    # sending them AppendEntries.
+    # Nodes recovered from a snapshot taken before the recovery initially know
+    # the previous service's nodes, and must forget them once their deletion
+    # is committed, or would keep contacting them if later elected primary.
     recovered_network.wait_for_all_nodes_to_commit(primary=new_primary)
     for node in recovered_network.get_joined_nodes():
         with node.client() as c:

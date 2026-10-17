@@ -366,22 +366,12 @@ namespace aft
     void remove_deleted_nodes(
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
+      // Nodes deleted without being retired, such as the previous service's
+      // nodes during a recovery, never become retired_committed, and would
+      // otherwise remain known forever, and be sent AppendEntries by every
+      // future primary.
       for (const auto& node_id : node_ids)
       {
-        if (id() == node_id)
-        {
-          // A node is only deleted once its retirement is committed, which
-          // set_retired_committed has already observed
-          continue;
-        }
-
-        // Deleting a node removes it from the configurations as soon as the
-        // deletion is applied locally, but nodes are otherwise only removed
-        // from all_other_nodes once their retirement is committed. Nodes
-        // deleted without being retired, such as the previous service's nodes
-        // during a recovery, would otherwise be sent AppendEntries by every
-        // future primary, and remain eligible as a retiring primary's
-        // successor.
         if (all_other_nodes.erase(node_id) != 0)
         {
           RAFT_INFO_FMT(

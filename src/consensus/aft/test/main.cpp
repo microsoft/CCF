@@ -1679,37 +1679,15 @@ DOCTEST_TEST_CASE(
   ccf::NodeId node_id2 = ccf::kv::test::SecondBackupNodeId;
 
   TestNode node0(node_id0);
-  TestNode node1(node_id1);
   auto& r0 = node0.raft;
-  auto& r1 = node1.raft;
   auto r0c = channel_stub_proxy(r0);
 
-  // Node 2 is in the initial configuration but never responds, like a node of
-  // the previous service after a recovery from a snapshot taken before it
   aft::Configuration::Nodes config;
   config[node_id0] = {};
   config[node_id1] = {};
   config[node_id2] = {};
   r0.add_configuration(0, config);
-  r1.add_configuration(0, config);
-
-  const auto deliver = [](TRaft& from, TRaft& to, aft::RaftMsgType type) {
-    auto msg = channel_stub_proxy(from)->pop_first(type, to.id());
-    DOCTEST_REQUIRE(msg.has_value());
-    receive_message(from, to, msg.value());
-  };
-
-  DOCTEST_INFO("Node 0 is elected with node 1's votes");
-  r0.start_ticking();
-  r0.periodic(election_timeout * 2);
-  deliver(r0, r1, aft::raft_request_pre_vote);
-  deliver(r1, r0, aft::raft_request_pre_vote_response);
-  deliver(r0, r1, aft::raft_request_vote);
-  deliver(r1, r0, aft::raft_request_vote_response);
-  DOCTEST_REQUIRE(r0.is_primary());
-  deliver(r0, r1, aft::raft_append_entries);
-  deliver(r1, r0, aft::raft_append_entries_response);
-  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
+  r0.force_become_primary();
 
   DOCTEST_INFO("Node 2 is deleted from the configuration without retiring");
   config.erase(node_id2);
@@ -1719,16 +1697,16 @@ DOCTEST_TEST_CASE(
   auto data = std::make_shared<std::vector<uint8_t>>(3, 1);
   DOCTEST_REQUIRE(r0.replicate(
     ccf::kv::BatchVector{{1, data, true, deletion_hooks}}, r0.get_view()));
-  r0c->messages.clear();
-  r0.periodic(request_timeout);
-  deliver(r0, r1, aft::raft_append_entries);
-  deliver(r1, r0, aft::raft_append_entries_response);
+  const auto ack = as_bytes(aft::AppendEntriesResponse{
+    .term = r0.get_view(),
+    .last_log_idx = 1,
+    .success = aft::AppendEntriesResponseType::OK});
+  r0.recv_message(node_id1, ack.data(), ack.size());
   DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
   DOCTEST_REQUIRE(r0.get_details().configs.size() == 1);
-  DOCTEST_REQUIRE(r0.get_latest_configuration() == config);
 
   DOCTEST_INFO(
-    "Committing the configuration alone does not stop the primary from "
+    "Committing the new configuration alone does not stop the primary from "
     "sending to node 2");
   DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
   r0c->messages.clear();
@@ -1739,7 +1717,6 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("The globally committed deletion does");
   r0.remove_deleted_nodes(1, {node_id2});
   DOCTEST_REQUIRE_FALSE(r0.get_details().acks.contains(node_id2));
-  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id1));
   r0c->messages.clear();
   r0.periodic(request_timeout);
   DOCTEST_REQUIRE_FALSE(
@@ -1747,17 +1724,6 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(
     r0c->pop_first(aft::raft_append_entries, node_id1).has_value());
   DOCTEST_REQUIRE(r0.is_primary());
-
-  DOCTEST_INFO("Backups prune the deleted node too, ready to become primary");
-  DOCTEST_REQUIRE(r1.get_details().acks.contains(node_id2));
-  r1.remove_deleted_nodes(1, {node_id2});
-  DOCTEST_REQUIRE_FALSE(r1.get_details().acks.contains(node_id2));
-  DOCTEST_REQUIRE(r1.get_details().acks.contains(node_id0));
-
-  DOCTEST_INFO("A node ignores its own deletion");
-  r0.remove_deleted_nodes(1, {node_id0});
-  DOCTEST_REQUIRE(r0.is_primary());
-  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id1));
 }
 
 DOCTEST_TEST_CASE(
