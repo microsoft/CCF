@@ -844,6 +844,7 @@ TEST_CASE(
     REQUIRE_EQ(v.value(), "bar");
   }
 }
+
 TEST_CASE(
   "Installing a snapshot sets the committable gap" *
   doctest::test_suite("snapshot"))
