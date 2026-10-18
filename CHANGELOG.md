@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.21]
+
+[7.0.21]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.21
+
+### Changed
+
+- `ccf::crypto::cert_der_to_pem()` and `cert_pem_to_der()` now re-encode the certificate without inspecting its public key, so they also accept certificates with Ed25519 subject public keys, which `ccf::crypto::COSEKey::from_der_cert()` and the COSE verifiers accept since 7.0.19. `ccf::crypto::make_verifier()` is unchanged and still accepts RSA and EC keys only (#8598).
+
 ## [7.0.20]
 
 [7.0.20]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.20
