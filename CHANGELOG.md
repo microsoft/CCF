@@ -4,14 +4,6 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [7.0.21]
-
-[7.0.21]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.21
-
-### Fixed
-
-- Nodes forced to become primary, at service start or at the end of public recovery, no longer send themselves a retired-node cleanup request: there are no retired nodes to finalise at that point, and the request raced with the create transaction (#8594).
-
 ## [7.0.20]
 
 [7.0.20]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.20
