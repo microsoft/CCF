@@ -143,7 +143,8 @@ namespace aft
     // Union of other nodes (i.e. all nodes but us) in each active
     // configuration, plus those that are retired, but for which
     // the persistence of retirement knowledge is not yet established,
-    // i.e. Completed but not RetiredCommitted
+    // i.e. Completed but not RetiredCommitted, or deleted, but whose deletion
+    // is not yet globally committed.
     // This should be used for diagnostic or broadcasting
     // messages but _not_ for counting quorums, which should be done for each
     // active configuration.
@@ -334,6 +335,42 @@ namespace aft
           // advance commit. No further communication with this node is needed.
           all_other_nodes.erase(node_id);
           RAFT_INFO_FMT("Removed {} from nodes known to consensus", node_id);
+        }
+      }
+    }
+
+    void remove_deleted_nodes(
+      ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
+    {
+      // Nodes deleted without being retired, such as the previous service's
+      // nodes during a recovery.
+      for (const auto& node_id : node_ids)
+      {
+        // A deleted node may have rejoined with the same identity and been
+        // trusted again, in a configuration later than the deletion. It is
+        // then an active peer, and must remain known to consensus.
+        const auto in_later_configuration = std::any_of(
+          configurations.begin(),
+          configurations.end(),
+          [&](const Configuration& c) {
+            return c.idx > seqno && c.nodes.contains(node_id);
+          });
+        if (in_later_configuration)
+        {
+          RAFT_INFO_FMT(
+            "Node {} deleted at {} is present in a later configuration, "
+            "keeping it known to consensus",
+            node_id,
+            seqno);
+          continue;
+        }
+
+        if (all_other_nodes.erase(node_id) != 0)
+        {
+          RAFT_INFO_FMT(
+            "Removed deleted node {} from nodes known to consensus at {}",
+            node_id,
+            seqno);
         }
       }
     }
@@ -2053,11 +2090,12 @@ namespace aft
       }
     }
 
-    void become_leader()
+    // Returns true if this node became leader, false if it declined to
+    bool become_leader()
     {
       if (is_retired_committed())
       {
-        return;
+        return false;
       }
 
       const auto election_index = last_committable_index();
@@ -2109,10 +2147,7 @@ namespace aft
         send_append_entries(node.first, next);
       }
 
-      if (retired_node_cleanup)
-      {
-        retired_node_cleanup();
-      }
+      return true;
     }
 
   public:
@@ -2302,7 +2337,14 @@ namespace aft
           }
           case ccf::kv::LeadershipState::Candidate:
           {
-            become_leader();
+            // Only elected primaries may have retired nodes to finalise.
+            // Where leadership is forced instead, at service start and at
+            // the end of public recovery, there are none, and the request to
+            // this node would race with the create transaction.
+            if (become_leader() && retired_node_cleanup)
+            {
+              retired_node_cleanup();
+            }
             break;
           }
           case ccf::kv::LeadershipState::None:

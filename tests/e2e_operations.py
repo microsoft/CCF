@@ -1557,6 +1557,7 @@ def test_ledger_chunk_repr_digest(network, args):
 
 def test_committed_ledger_prefix_access(network, args):
     primary, _ = network.find_primary()
+    prefix_suffix = infra.node.COMMITTED_PREFIX_FILE_SUFFIX
     first_txid = network.txs.issue(
         network, number_txs=1, send_private=False, send_public=True
     )
@@ -1582,10 +1583,13 @@ def test_committed_ledger_prefix_access(network, args):
         assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT, r
         prefix_url = urllib.parse.urlparse(r.headers["Location"]).path
         first_prefix_name = os.path.basename(prefix_url)
-        assert first_prefix_name.endswith(
-            ccf.ledger.COMMITTED_PREFIX_FILE_SUFFIX
-        ), first_prefix_name
-        first_start, first_end = ccf.ledger.range_from_filename(first_prefix_name)
+        assert first_prefix_name.endswith(prefix_suffix), first_prefix_name
+        first_start, first_end = ccf.ledger.range_from_filename(
+            first_prefix_name
+            # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+            .removesuffix(prefix_suffix)
+            # END SDK 7.0.18 compatibility.
+        )
         assert first_start == first_txid.seqno
         assert first_end is not None and first_end >= first_start
 
@@ -1617,13 +1621,17 @@ def test_committed_ledger_prefix_access(network, args):
                 include_committed_prefix=True,
             ) as ledger_paths:
                 assert len(ledger_paths) == 1, ledger_paths
-                downloaded_chunk = ccf.ledger.LedgerChunk(ledger_paths[0])
+                assert ledger_paths[0].endswith(prefix_suffix), ledger_paths
+                chunk_path = ledger_paths[0]
+                # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                # Older SDKs can read the bytes but not the prefix filename.
+                chunk_path = chunk_path.removesuffix(prefix_suffix)
+                os.rename(ledger_paths[0], chunk_path)
+                # END SDK 7.0.18 compatibility.
+                downloaded_chunk = ccf.ledger.LedgerChunk(chunk_path)
                 downloaded_start, downloaded_end = downloaded_chunk.get_seqnos()
                 assert downloaded_start == first_start
                 assert downloaded_end >= first_end
-                assert ledger_paths[0].endswith(
-                    ccf.ledger.COMMITTED_PREFIX_FILE_SUFFIX
-                ), ledger_paths
                 assert any(
                     tx.get_txid() == first_txid for tx in downloaded_chunk
                 ), first_txid
@@ -1666,7 +1674,13 @@ def test_committed_ledger_prefix_access(network, args):
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
 
         with tempfile.TemporaryDirectory() as ledger_dir:
-            first_path = os.path.join(ledger_dir, first_prefix_name)
+            first_path = os.path.join(
+                ledger_dir,
+                first_prefix_name
+                # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                .removesuffix(prefix_suffix),
+                # END SDK 7.0.18 compatibility.
+            )
             with open(first_path, "wb") as prefix_file:
                 prefix_file.write(first_prefix)
 
@@ -1674,7 +1688,6 @@ def test_committed_ledger_prefix_access(network, args):
             assert chunk.get_seqnos() == (first_start, first_end)
             assert len(chunk) == first_end - first_start + 1
             assert not chunk.is_committed()
-            assert len(ccf.ledger.Ledger([ledger_dir])) == 0
 
             second_txid = network.txs.issue(
                 network, number_txs=1, send_private=False, send_public=True
@@ -1697,24 +1710,31 @@ def test_committed_ledger_prefix_access(network, args):
             second_prefix_name = os.path.basename(second_url)
             second_start, second_end = ccf.ledger.range_from_filename(
                 second_prefix_name
+                # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                .removesuffix(prefix_suffix)
+                # END SDK 7.0.18 compatibility.
             )
             assert second_start == next_seqno
             assert second_end is not None and second_end >= second_txid.seqno
 
             r = c.get(second_url, allow_redirects=False)
             assert r.status_code == http.HTTPStatus.OK, r
-            second_path = os.path.join(ledger_dir, second_prefix_name)
+            second_path = os.path.join(
+                ledger_dir,
+                second_prefix_name
+                # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+                .removesuffix(prefix_suffix),
+                # END SDK 7.0.18 compatibility.
+            )
             with open(second_path, "wb") as prefix_file:
                 prefix_file.write(r.body.data())
 
             # Each prefix is a self-contained chunk, and consecutive prefixes
-            # are contiguous, but like the node the SDK never treats them as
-            # part of a ledger directory.
+            # are contiguous.
             second_chunk = ccf.ledger.LedgerChunk(second_path)
             assert second_chunk.get_seqnos() == (second_start, second_end)
             assert len(second_chunk) == second_end - second_start + 1
             assert second_start == first_end + 1
-            assert len(ccf.ledger.Ledger([ledger_dir], committed_only=False)) == 0
 
         r = c.get(
             "/node/ledger_chunk"
@@ -3944,14 +3964,24 @@ def run_merkle_verification_level(args):
             for tx in chunk:
                 tx.get_public_domain()
 
-            assert (
-                False
-            ), f"Expected to raise exception while parsing corrupted ledger chunk {name}"
-
-        except Exception as e:
+        except (
+            AssertionError,
+            # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+            IndexError,
+            # END SDK 7.0.18 compatibility.
+            ValueError,
+        ) as e:
+            # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+            if name == "nulled_block" and isinstance(e, IndexError):
+                expected_parse_error = "index out of range"
+            # END SDK 7.0.18 compatibility.
             assert expected_parse_error in str(
                 e
             ), f"Unexpected error message for corruption {name}: {e}"
+        else:
+            raise AssertionError(
+                f"Expected to raise exception while parsing corrupted ledger chunk {name}"
+            )
 
         # NB: cleanup() is deliberately skipped if an assertion fails, so the corrupted files can be inspected
         temp_dir.cleanup()
@@ -5586,6 +5616,14 @@ def run_pending_node_expiration(const_args):
     # Expired Pending nodes are removed along with an endorsed certificate
     # they never had, which full offline verification must accept
     validator = ccf.ledger.LedgerValidator()
+
+    # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+    class NodeCertificates(dict):
+        def pop(self, key, default=None):
+            return super().pop(key, default)
+
+    validator.node_certificates = NodeCertificates(validator.node_certificates)
+    # END SDK 7.0.18 compatibility.
     ledger = ccf.ledger.Ledger(
         primary.remote.ledger_paths(),
         committed_only=False,

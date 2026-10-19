@@ -160,6 +160,12 @@ def find_service_open_txids(node, from_seqno):
         include_committed_prefix=True,
     ) as ledger_paths:
         for path in ledger_paths:
+            # BEGIN SDK 7.0.18 compatibility (remove for 7.0.19).
+            chunk_path = path.removesuffix(infra.node.COMMITTED_PREFIX_FILE_SUFFIX)
+            if chunk_path != path:
+                os.rename(path, chunk_path)
+            path = chunk_path
+            # END SDK 7.0.18 compatibility.
             for tx in ccf.ledger.LedgerChunk(path):
                 public_domain = tx.get_public_domain()
                 seqno = public_domain.get_seqno()
@@ -928,6 +934,21 @@ def _recover_service(
         }
         unexpected_removable_node_ids = old_node_ids & removable_node_ids
         assert not unexpected_removable_node_ids, unexpected_removable_node_ids
+
+    # Nodes recovered from a snapshot taken before the recovery initially know
+    # the previous service's nodes, and must forget them once their deletion
+    # is committed, or would keep contacting them if later elected primary.
+    recovered_network.wait_for_all_nodes_to_commit(primary=new_primary)
+    for node in recovered_network.get_joined_nodes():
+        with node.client() as c:
+            r = c.get("/node/consensus")
+            assert r.status_code == http.HTTPStatus.OK, r
+            acked_node_ids = set(r.body.json()["details"]["acks"].keys())
+            unexpected_acked_node_ids = old_node_ids & acked_node_ids
+            assert not unexpected_acked_node_ids, (
+                node.node_id,
+                unexpected_acked_node_ids,
+            )
 
     return recovered_network
 

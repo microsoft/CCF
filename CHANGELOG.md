@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.21]
+
+[7.0.21]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.21
+
+### Added
+
+- Added Ed25519 certificate support to `ccf::crypto::cert_der_to_pem()` and `cert_pem_to_der()` (#8598).
+
+### Fixed
+
+- Nodes becoming primary at the end of public recovery now always wait for their certificate to be recorded successfully before emitting ledger signatures, so that private recovery, joining nodes and later recoveries accept the ledger (#8597).
+- Nodes which join a recovered service from a snapshot taken before the recovery now stop tracking the previous service's nodes in consensus once the recovery transaction is committed, see [Disaster Recovery](doc/operations/recovery.rst) (#8596).
+
+## [7.0.20]
+
+[7.0.20]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.20
+
+### Changed
+
+- No user-visible changes. Internal request-processing code was restructured without changing behaviour (#8562).
+
 ## [7.0.19]
 
 [7.0.19]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.19
@@ -17,6 +38,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Changed
 
+- Updated didx509cpp to [1.0.0](https://github.com/microsoft/didx509cpp/releases/tag/didx509cpp-1.0.0), adding Fulcio extension selectors and OtherName SAN support, and stricter DID and certificate validation.
+  CCF's supported attestation signing algorithms are unchanged (#8587).
 - Replaced the vendored SmallVector dependency with a standalone byte-only `ccf::ByteVector`, and separated ledger-write buffering into its own implementation.
   Serialized formats and byte operations are preserved, but native applications must rebuild for the changed C++ type and layout (#8559).
 - Updated snmalloc from 0.7.3 to [0.7.6](https://github.com/microsoft/snmalloc/releases/tag/0.7.6), including allocator and cross-thread deallocation improvements. CCF retains pthread-atfork protection, which upstream now makes opt-in (#8557).
