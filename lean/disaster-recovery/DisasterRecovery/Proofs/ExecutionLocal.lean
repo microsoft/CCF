@@ -69,18 +69,9 @@ deriving Repr, BEq, Inhabited
 
 /-- The node-state table used by decorated executions. -/
 structure SystemState where
-  /-- Current state of each configured recovery location. -/
+  /-- Current state of each stored recovery node. -/
   nodes : List (Prod Location NodeState)
 deriving Repr, BEq, Hashable, Inhabited
-
-/-- Initializes one local node state per expected recovery location. -/
-def initialSystem (config : Config) : SystemState :=
-  {
-    nodes :=
-      config.expectedLocations.map
-        fun location =>
-          (location, initialNode location)
-  }
 
 /-- Instrumented phase advance with the same notifications as the executable model. -/
 def advance (config : Config) (state : NodeState) (timeout : Bool) : Option StepOutput :=
