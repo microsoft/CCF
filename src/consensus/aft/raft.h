@@ -2250,11 +2250,12 @@ namespace aft
       }
     }
 
-    void become_leader()
+    // Returns true if this node became leader, false if it declined to
+    bool become_leader()
     {
       if (is_retired_committed())
       {
-        return;
+        return false;
       }
 
       const auto election_index = last_committable_index();
@@ -2313,10 +2314,7 @@ namespace aft
         send_append_entries(node.first, next);
       }
 
-      if (retired_node_cleanup)
-      {
-        retired_node_cleanup();
-      }
+      return true;
     }
 
   public:
@@ -2513,7 +2511,14 @@ namespace aft
           }
           case ccf::kv::LeadershipState::Candidate:
           {
-            become_leader();
+            // Only elected primaries may have retired nodes to finalise.
+            // Where leadership is forced instead, at service start and at
+            // the end of public recovery, there are none, and the request to
+            // this node would race with the create transaction.
+            if (become_leader() && retired_node_cleanup)
+            {
+              retired_node_cleanup();
+            }
             break;
           }
           case ccf::kv::LeadershipState::None:

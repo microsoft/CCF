@@ -4,7 +4,8 @@
 
 `pypi.official.yml` publishes the `ccf` wheel through OneBranch and ESRP.
 After the corresponding GitHub Release is reviewed and published, the pipeline is manually queued from its `ccf-*` tag.
-It builds the wheel from that tag, validates its metadata, installs it in a clean environment, and rejects a version that already exists on PyPI.
+It builds the wheel from that tag, validates its metadata, and installs it in a clean environment.
+ESRP and PyPI reject attempts to overwrite an existing package version.
 
 The Azure DevOps pipeline must reference `/.pipelines/pypi.official.yml` and have access to an Azure DevOps Library variable group named `ccf-esrp-pypi` containing:
 
@@ -39,4 +40,3 @@ Before publication, the pipeline verifies that:
 - Exactly one `ccf` wheel is built.
 - The wheel name and version match the tag.
 - The wheel installs in a clean environment.
-- The version does not already exist on PyPI.

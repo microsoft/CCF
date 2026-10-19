@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 [7.0.21]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.21
 
+### Added
+
+- Added Ed25519 certificate support to `ccf::crypto::cert_der_to_pem()` and `cert_pem_to_der()` (#8598).
+
 ### Fixed
 
 - Nodes which join a recovered service from a snapshot taken before the recovery now stop tracking the previous service's nodes in consensus once the recovery transaction is committed, see [Disaster Recovery](doc/operations/recovery.rst) (#8596).
