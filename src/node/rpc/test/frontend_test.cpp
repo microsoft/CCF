@@ -1028,6 +1028,79 @@ TEST_CASE("Member caller")
   }
 }
 
+TEST_CASE(
+  "DID certificate authentication binds authorization to an enrolled key")
+{
+  NetworkState network;
+  prepare_callers(network);
+  TestJsonWrappedEndpointFunction frontend(*network.tables);
+  const auto key = ccf::crypto::make_ec_key_pair();
+  const auto cert = key->self_sign("CN=original", valid_from, valid_to);
+  const auto replacement =
+    key->self_sign("CN=replacement", valid_from, valid_to);
+  const auto did = ccf::crypto::compute_cert_id(cert, IdentityIdFormat::DIDKey);
+  auto tx = network.tables->create_tx();
+  InternalTablesAccess::add_user(tx, {cert, nullptr, IdentityIdFormat::DIDKey});
+  NewMember member{cert};
+  member.id_format = IdentityIdFormat::DIDKey;
+  InternalTablesAccess::add_member(tx, member);
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+  const auto session = make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, ccf::crypto::make_verifier(replacement)->cert_der());
+  const auto request = create_simple_request("/get_caller").build_request();
+  const auto call = [&]() {
+    auto ctx = ccf::make_rpc_context(session, request);
+    frontend.process(ctx);
+    return parse_response(ctx->serialise_response());
+  };
+
+  auto response = call();
+  REQUIRE(response.status == HTTP_STATUS_OK);
+  CHECK(parse_response_body(response.body).get<std::string>() == did);
+
+  SUBCASE("Removal revokes an existing TLS session")
+  {
+    auto removal = network.tables->create_tx();
+    InternalTablesAccess::remove_user(removal, did);
+    REQUIRE(removal.commit() == ccf::kv::CommitResult::SUCCESS);
+    CHECK(call().status == HTTP_STATUS_UNAUTHORIZED);
+  }
+  SUBCASE("Stored certificates must remain bound to the DID")
+  {
+    auto update = network.tables->create_tx();
+    update.rw<UserCerts>(Tables::USER_CERTS)->put(did, invalid_caller);
+    REQUIRE(update.commit() == ccf::kv::CommitResult::SUCCESS);
+    CHECK(call().status == HTTP_STATUS_UNAUTHORIZED);
+  }
+  SUBCASE("User certificate validity still applies")
+  {
+    const auto expired =
+      key->self_sign("CN=expired", "20200101000000Z", "20201231235959Z");
+    auto ctx = ccf::make_rpc_context(
+      make_shared<ccf::SessionContext>(
+        ccf::InvalidSessionId, ccf::crypto::make_verifier(expired)->cert_der()),
+      request);
+    frontend.process(ctx);
+    CHECK(
+      parse_response(ctx->serialise_response()).status ==
+      HTTP_STATUS_UNAUTHORIZED);
+  }
+  SUBCASE("Member authentication accepts a replacement certificate")
+  {
+    MemberCertAuthnPolicy policy;
+    std::string error_reason;
+    auto read = network.tables->create_read_only_tx();
+    auto ctx = ccf::make_rpc_context(session, request);
+    auto identity = policy.authenticate(read, ctx, error_reason);
+    const auto* authenticated =
+      dynamic_cast<MemberCertAuthnIdentity*>(identity.get());
+    REQUIRE(authenticated != nullptr);
+    CHECK(authenticated->member_id.value() == did);
+    CHECK(error_reason.empty());
+  }
+}
+
 TEST_CASE("JsonWrappedEndpointFunction")
 {
   NetworkState network;

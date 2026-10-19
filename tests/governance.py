@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import http
+import importlib.util
 import json
 import os
 import random
@@ -8,7 +9,9 @@ import tempfile
 import time
 from datetime import UTC, datetime
 from hashlib import sha256
+from urllib.parse import quote
 
+import e2e_logging
 import governance_api
 import governance_history
 import governance_js
@@ -402,8 +405,8 @@ def test_each_node_cert_renewal(network, args):
                         assert node_cert_tls_before == self_signed_cert
 
                     assert (
-                        infra.crypto.compute_public_key_der_hash_hex_from_pem(
-                            node_cert_tls_before
+                        infra.crypto.node_id_from_cert(
+                            node_cert_tls_before, node.remote.node_id_format
                         )
                         == node.node_id
                     )
@@ -837,6 +840,150 @@ def gov_replay(args):
         governance_js.test_cose_msg_type_validation(network, args)
 
 
+def did_key_identities(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
+    ) as network:
+        initial_format = getattr(args, "identity_id_format", "sha256")
+        network.start_and_open(
+            args, node_id_format=initial_format, member_id_format=initial_format
+        )
+        assert all(
+            node.node_id.startswith("did:key:") == (initial_format == "did:key")
+            for node in network.get_joined_nodes()
+        )
+        primary, _ = network.find_primary()
+        member = network.consortium.generate_and_add_new_member(
+            primary,
+            args.participants_curve,
+            recovery_role=infra.member.RecoveryRole.Owner,
+            id_format="did:key",
+        )
+        assert member.service_id.startswith("did:key:z")
+        proposal, ballot = network.consortium.make_proposal(
+            "set_member_data",
+            member_id=member.service_id,
+            member_data={"format": "did:key"},
+        )
+        with primary.api_versioned_client(
+            *member.auth(write=True), api_version=args.gov_api_version
+        ) as c:
+            r = c.post("/gov/members/proposals:create", proposal)
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+            other_id = network.consortium.get_any_active_member().service_id
+            r = c.post(f"/gov/members/state-digests/{quote(other_id, safe='')}:update")
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+            r = c.get(f"/gov/members/proposals/{member.service_id}")
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+        member.ack(primary)
+        member.get_and_decrypt_recovery_share(primary)
+        network.consortium.vote_using_majority(
+            primary, member.propose(primary, proposal), ballot
+        )
+        share = member.get_and_decrypt_recovery_share(primary)
+        proposal, ballot = network.consortium.make_proposal(
+            "set_member", cert=member.cert, id_format="did:key"
+        )
+        network.consortium.vote_using_majority(
+            primary, member.propose(primary, proposal), ballot
+        )
+        assert member.get_and_decrypt_recovery_share(primary) == share
+
+        user = network.create_user(
+            "did_user", args.participants_curve, id_format="did:key"
+        )
+        network.consortium.add_user(primary, user.local_id, id_format="did:key")
+        with primary.client(user.local_id) as c:
+            r = c.post("/app/log/private", {"id": 1, "msg": "DID user"})
+            assert r.status_code == http.HTTPStatus.OK, r
+
+        try:
+            network.consortium.add_user(primary, user.local_id)
+        except infra.proposal.ProposalNotCreated as e:
+            assert "different ID format" in e.response.body.text()
+        else:
+            raise AssertionError("Cross-format duplicate key was accepted")
+
+        with open(user.key_path, encoding="ascii") as f:
+            replacement = infra.crypto.generate_cert(f.read(), cn="replacement")
+        replacement_path = os.path.join(network.common_dir, "replacement_cert.pem")
+        with open(replacement_path, "w", encoding="ascii") as f:
+            f.write(replacement)
+        replacement_identity = infra.clients.Identity(
+            user.key_path, replacement_path, "replacement", "did:key"
+        )
+        with primary.client(replacement_identity) as c:
+            r = c.get("/app/log/private?id=1")
+            assert r.status_code == http.HTTPStatus.OK, r
+        with primary.client(cose_signing_identity=replacement_identity) as c:
+            r = c.post("/app/multi_auth", {"msg": "DID COSE user"})
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.text().startswith("User COSE Sign1"), r
+            assert user.service_id in r.body.text(), r
+        wrong_key_identity = infra.clients.Identity(
+            network.users[0].key_path,
+            replacement_path,
+            "wrong signing key",
+            "did:key",
+        )
+        with primary.client(cose_signing_identity=wrong_key_identity) as c:
+            r = c.post("/app/log/private", {"id": 4, "msg": "Wrong key"})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+            assert "Failed to validate COSE Sign1" in r.body.text(), r
+
+        node = network.create_node()
+        network.join_node(node, args.package, args, node_id_format="did:key")
+        assert node.node_id.startswith("did:key:z")
+        network.trust_node(node, args)
+        node.verify_certificate_validity_period()
+        with node.client(replacement_identity) as c:
+            r = c.post("/app/log/private", {"id": 2, "msg": "Mixed node IDs"})
+            assert r.status_code == http.HTTPStatus.OK, r
+            c.wait_for_commit(r)
+        e2e_logging.verify_receipt(
+            node.get_receipt(r.view, r.seqno).json(), network.cert
+        )
+        test_each_node_cert_renewal(network, args)
+
+        network.consortium.remove_user(primary, user.service_id)
+        with primary.client(replacement_identity) as c:
+            r = c.get("/app/log/private?id=1")
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+        with primary.client(cose_signing_identity=replacement_identity) as c:
+            r = c.post("/app/log/private", {"id": 5, "msg": "Removed key"})
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+            assert "Signer is not a known user" in r.body.text(), r
+        primary.stop()
+        primary, _ = network.wait_for_new_primary(primary)
+        network.wait_for_all_nodes_to_commit(primary=primary)
+        snapshot = primary.trigger_snapshot()
+        snapshots_dir = network.get_committed_snapshots(
+            primary, target_seqno=snapshot.seqno, wait_for_target_seqno=True
+        )
+        network.save_service_identity(args)
+        network.stop_all_nodes()
+        ledger_dir, committed_ledger_dirs = primary.get_ledger()
+        with infra.network.network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            existing_network=network,
+        ) as recovered:
+            recovered.start_in_recovery(
+                args,
+                ledger_dir=ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+                snapshots_dir=snapshots_dir,
+                node_id_format="did:key",
+            )
+            recovered.recover(args, via_recovery_owner=True)
+            recovered_primary, _ = recovered.find_primary()
+            assert recovered_primary.node_id.startswith("did:key:z")
+            with recovered_primary.client(replacement_identity) as c:
+                r = c.get("/app/log/private?id=1")
+                assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -847,6 +994,27 @@ if __name__ == "__main__":
         )
 
     cr = ConcurrentRunner(add)
+
+    if importlib.util.find_spec("ccf.identity") is not None:
+        cr.add(
+            "did_key",
+            did_key_identities,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            authenticate_session="COSE",
+        )
+        cr.add(
+            "did_key_genesis",
+            did_key_identities,
+            package="samples/apps/logging/logging",
+            nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+            authenticate_session="COSE",
+            identity_id_format="did:key",
+        )
+    else:
+        LOG.warning(
+            "Skipping did:key regressions: the installed SDK lacks did:key support"
+        )
 
     cr.add(
         "single_node",

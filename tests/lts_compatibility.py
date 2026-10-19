@@ -409,6 +409,10 @@ def run_code_upgrade_from(
             new_constitution = get_new_constitution_for_install(args, to_install_path)
             network.consortium.set_constitution(primary, new_constitution)
 
+            LOG.info("Legacy enrollment still works on the old primary")
+            upgrade_user = network.create_user("upgrade_user", args.participants_curve)
+            network.consortium.add_user(primary, upgrade_user.local_id)
+
             new_measurement = infra.utils.get_measurement(
                 infra.platform_detection.get_platform(),
                 args.package,

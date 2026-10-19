@@ -6,6 +6,7 @@ import http
 import json
 import os
 from enum import Enum
+from urllib.parse import quote
 
 from loguru import logger as LOG
 
@@ -88,7 +89,7 @@ class MemberAPI:
                 api_version=self.API_VERSION,
             ) as mc:
                 r = mc.post(
-                    f"/gov/members/proposals/{proposal.proposal_id}/ballots/{member.service_id}:submit",
+                    f"/gov/members/proposals/{proposal.proposal_id}/ballots/{quote(member.service_id, safe='')}:submit",
                     body=ballot,
                 )
                 return r
@@ -111,7 +112,9 @@ class MemberAPI:
                 *member.auth(write=True),
                 api_version=self.API_VERSION,
             ) as mc:
-                return mc.post(f"/gov/members/state-digests/{member.service_id}:update")
+                return mc.post(
+                    f"/gov/members/state-digests/{quote(member.service_id, safe='')}:update"
+                )
 
         def ack(self, member, remote_node, state_digest):
             with remote_node.api_versioned_client(
@@ -119,7 +122,7 @@ class MemberAPI:
                 api_version=self.API_VERSION,
             ) as mc:
                 r = mc.post(
-                    f"/gov/members/state-digests/{member.service_id}:ack",
+                    f"/gov/members/state-digests/{quote(member.service_id, safe='')}:ack",
                     body=state_digest,
                 )
                 if r.status_code == http.HTTPStatus.UNAUTHORIZED:
@@ -134,7 +137,9 @@ class MemberAPI:
             with remote_node.api_versioned_client(
                 api_version=self.API_VERSION,
             ) as mc:
-                r = mc.get(f"/gov/recovery/encrypted-shares/{member.service_id}")
+                r = mc.get(
+                    f"/gov/recovery/encrypted-shares/{quote(member.service_id, safe='')}"
+                )
                 if r.status_code != http.HTTPStatus.OK.value:
                     raise NoRecoveryShareFound(r)
                 return r.body.json()["encryptedShare"]
@@ -220,12 +225,14 @@ class Member:
         member_data=None,
         authenticate_session=True,
         gov_api_impl=None,
+        id_format="sha256",
     ):
         self.common_dir = common_dir
         self.local_id = local_id
         self.status = MemberStatus.ACCEPTED
         self.share_script = share_script
         self.member_data = member_data
+        self.id_format = id_format
         self.recovery_role = recovery_role
         self.is_retired = False
         self.authenticate_session = authenticate_session
@@ -239,6 +246,8 @@ class Member:
 
         self.member_info = {}
         self.member_info["certificate_file"] = f"{self.local_id}_cert.pem"
+        if id_format != "sha256":
+            self.member_info["id_format"] = id_format
         self.member_info["encryption_public_key_file"] = (
             f"{self.local_id}_enc_pubk.pem"
             if recovery_role != RecoveryRole.NonParticipant
@@ -294,12 +303,25 @@ class Member:
             encoding="utf-8",
         ) as c:
             self.cert = c.read()
-            self.service_id = infra.crypto.compute_cert_der_hash_hex_from_pem(self.cert)
+            self.service_id = infra.crypto.identity_id_from_cert(
+                self.cert, self.id_format
+            )
 
         LOG.info(f"Member {self.local_id} created: {self.service_id}")
 
     def auth(self, write=False):
         if self.authenticate_session == "COSE":
+            if self.id_format != "sha256":
+                return (
+                    None,
+                    None,
+                    infra.clients.Identity(
+                        os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
+                        os.path.join(self.common_dir, f"{self.local_id}_cert.pem"),
+                        self.local_id,
+                        self.id_format,
+                    ),
+                )
             return (None, None, self.local_id)
         if self.authenticate_session:
             if write:
@@ -381,6 +403,10 @@ class Member:
             "--member-enc-privk",
             os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
         ]
+        if self.id_format != "sha256":
+            if "--identity-id-format" not in help_out:
+                raise ValueError("Recovery script does not support did:key identities")
+            cmd += ["--identity-id-format", self.id_format]
 
         # Versions of the script that support --member-id arguments use COSE Sign1
         # to authenticate with the service.
@@ -427,7 +453,7 @@ class Member:
 
         if supports_api_version and support_member_id_cert:
             path = infra.clients.APIVersionedCCFClient.add_query_arg_to_path(
-                f"/gov/recovery/members/{self.service_id}:recover",
+                f"/gov/recovery/members/{quote(self.service_id, safe='')}:recover",
                 "api-version",
                 api_version,
             )

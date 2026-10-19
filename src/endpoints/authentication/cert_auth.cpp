@@ -3,6 +3,7 @@
 
 #include "ccf/endpoints/authentication/cert_auth.h"
 
+#include "ccf/crypto/cert_id.h"
 #include "ccf/ds/locking.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/rpc_context.h"
@@ -14,6 +15,46 @@
 
 namespace ccf
 {
+  namespace
+  {
+    template <typename Certs>
+    std::optional<std::string> find_certificate_identity(
+      Certs* certs,
+      const SessionContext& session,
+      std::string_view role,
+      std::string& error_reason)
+    {
+      if (certs->has(session.caller_cert_sha256))
+      {
+        return session.caller_cert_sha256;
+      }
+      try
+      {
+        const auto did = crypto::did_key_from_public_key_der(
+          crypto::public_key_der_from_cert(session.caller_cert));
+        auto enrolled = certs->get(did);
+        if (enrolled.has_value())
+        {
+          if (
+            crypto::compute_cert_id(*enrolled, IdentityIdFormat::DIDKey) != did)
+          {
+            error_reason = "Enrolled did:key does not match its public key";
+            return std::nullopt;
+          }
+          return did;
+        }
+      }
+      catch (const std::invalid_argument& e)
+      {
+        error_reason = e.what();
+        return std::nullopt;
+      }
+      error_reason =
+        fmt::format("Could not find matching {} certificate", role);
+      return std::nullopt;
+    }
+  }
+
   struct ValidityPeriodsCache
   {
     static constexpr size_t DEFAULT_MAX_PERIODS = 500;
@@ -123,17 +164,16 @@ namespace ccf
       return nullptr;
     }
 
-    const auto& caller_id = session->caller_cert_sha256;
-
     auto* user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
-    if (user_certs->has(caller_id))
+    const auto caller_id =
+      find_certificate_identity(user_certs, *session, "user", error_reason);
+    if (caller_id.has_value())
     {
       auto identity = std::make_unique<UserCertAuthnIdentity>();
-      identity->user_id = caller_id;
+      identity->user_id = *caller_id;
       return identity;
     }
 
-    error_reason = "Could not find matching user certificate";
     return nullptr;
   }
 
@@ -156,17 +196,16 @@ namespace ccf
       return nullptr;
     }
 
-    const auto& caller_id = session->caller_cert_sha256;
-
     auto* member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
-    if (member_certs->has(caller_id))
+    const auto caller_id =
+      find_certificate_identity(member_certs, *session, "member", error_reason);
+    if (caller_id.has_value())
     {
       auto identity = std::make_unique<MemberCertAuthnIdentity>();
-      identity->member_id = caller_id;
+      identity->member_id = *caller_id;
       return identity;
     }
 
-    error_reason = "Could not find matching member certificate";
     return nullptr;
   }
 
@@ -186,6 +225,20 @@ namespace ccf
 
     auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
     auto node = nodes->get(node_caller_id);
+    if (!node.has_value())
+    {
+      try
+      {
+        node_caller_id =
+          compute_node_id_from_cert_der(caller_cert, IdentityIdFormat::DIDKey);
+      }
+      catch (const std::invalid_argument& e)
+      {
+        error_reason = e.what();
+        return nullptr;
+      }
+      node = nodes->get(node_caller_id);
+    }
     if (node.has_value())
     {
       auto identity = std::make_unique<NodeCertAuthnIdentity>();

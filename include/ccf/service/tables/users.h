@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/pem.h"
+#include "ccf/identity_id_format.h"
 #include "ccf/service/blit_serialiser_pem.h"
 #include "ccf/service/map.h"
 
@@ -14,10 +15,11 @@ namespace ccf
   {
     ccf::crypto::Pem cert;
     nlohmann::json user_data = nullptr;
+    IdentityIdFormat id_format = IdentityIdFormat::SHA256;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewUser);
   DECLARE_JSON_REQUIRED_FIELDS(NewUser, cert);
-  DECLARE_JSON_OPTIONAL_FIELDS(NewUser, user_data);
+  DECLARE_JSON_OPTIONAL_FIELDS(NewUser, user_data, id_format);
 
   struct UserDetails
   {

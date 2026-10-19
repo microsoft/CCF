@@ -537,8 +537,8 @@
         "type": "string"
       },
       "NodeId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
+        "maxLength": 3000,
+        "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
         "type": "string"
       },
       "NodeId_to_Configuration__NodeInfo": {
@@ -970,7 +970,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.9"
+    "version": "5.0.10"
   },
   "openapi": "3.0.0",
   "paths": {

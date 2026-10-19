@@ -37,10 +37,17 @@ COSE Sign1
 
 CCF accepts signed requests in `COSE Sign1 <https://www.rfc-editor.org/rfc/rfc8152.html#section-4.2>`_ format.
 
-CCF identifies the signing identity for a request via the SHA-256 digest of its certificate, represented as a hex string.
-That value must be set in the ``kid`` protected header. Additional protected headers may be necessary, for example governance endpoints require setting ``ccf.gov.msg.type``, ``ccf.gov.msg.created_at``, and optionally ``ccf.gov.msg.proposal_id`` on the message types where it applies.
+CCF identifies the signing identity for a request via its canonical enrolled member or user ID.
+By default this is the SHA-256 digest of its certificate, represented as a hex string; identities enrolled with ``"id_format": "did:key"`` use their full public-key DID instead.
+That value must be set in the ``kid`` protected header.
+Additional protected headers may be necessary, for example governance endpoints require setting ``ccf.gov.msg.type``, ``ccf.gov.msg.created_at``, and optionally ``ccf.gov.msg.proposal_id`` on the message types where it applies.
 
 A signing script (``ccf_cose_sign1``) is provided as part of the `ccf Python package <https://pypi.org/project/ccf/>`_. The output can be piped directly into curl, or any other HTTP client.
+
+For DID identities, pass ``--identity-id-format did:key`` to ``ccf_cose_sign1``, ``ccf_cose_sign1_prepare``, and ``ccf_cose_sign1_finish``.
+Preparation and completion must select the same format.
+The equivalent SDK functions accept ``id_format="did:key"``.
+The default remains ``sha256``; service receipt verification and its public-key fingerprint are unchanged.
 
 Commands can also be signed using the `python-cwt <https://github.com/dajiaji/python-cwt/>`_ library, and sent with any standard HTTP library such as `Python HTTPX <https://www.python-httpx.org/>`_.
 

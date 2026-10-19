@@ -231,6 +231,12 @@
                           "type": "string",
                           "description": "Path to member x509 identity certificate (PEM)"
                         },
+                        "id_format": {
+                          "type": "string",
+                          "enum": ["sha256", "did:key"],
+                          "default": "sha256",
+                          "description": "Canonical member ID format; did:key identifies the certificate public key rather than the certificate"
+                        },
                         "encryption_public_key_file": {
                           "type": ["string", "null"],
                           "description": "Path to member encryption public key (PEM)"
@@ -387,6 +393,12 @@
     "node_certificate": {
       "type": "object",
       "properties": {
+        "id_format": {
+          "type": "string",
+          "enum": ["sha256", "did:key"],
+          "default": "sha256",
+          "description": "Canonical node ID format; did:key embeds the node public key without changing attestation hashes"
+        },
         "subject_name": {
           "type": "string",
           "default": "CN=CCF Node",

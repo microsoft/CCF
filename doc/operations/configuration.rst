@@ -21,6 +21,19 @@ The configuration for each CCF node must be contained in a single JSON configura
 .. include:: generated_config.rst
 
 
+Identity ID Format
+------------------
+
+Set ``node_certificate.id_format`` to ``"did:key"`` before starting a new node to use its canonical public-key DID as the node ID.
+This applies to start, join, and recovery nodes.
+Each initial member can independently select ``"id_format": "did:key"`` in its ``command.start.members`` entry.
+Both settings default to ``"sha256"``.
+
+These settings only select IDs for new identities; they do not rename existing ledger entries or change attestation hashes.
+A DID joiner requires the accepting node to confirm its canonical ID, and rejects a response that silently uses the legacy format.
+See :ref:`architecture/cryptography:Identity IDs` for upgrade prerequisites and migration limitations.
+
+
 For migration from deprecated ringbuffer-era configuration, see :doc:`/build_apps/migration_7_x_to_8_x`.
 
 

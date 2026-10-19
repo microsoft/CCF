@@ -64,7 +64,9 @@ class Consortium:
     def add_member(self, member):
         self.members.append(member)
 
-    def generate_new_member(self, curve, recovery_role, member_data):
+    def generate_new_member(
+        self, curve, recovery_role, member_data, id_format="sha256"
+    ):
         new_member_local_id = f"member{len(self.members)}"
         new_member = infra.member.Member(
             new_member_local_id,
@@ -76,6 +78,7 @@ class Consortium:
             member_data=member_data,
             authenticate_session=self.authenticate_session,
             gov_api_impl=self.gov_api_impl,
+            id_format=id_format,
         )
         return new_member
 
@@ -161,6 +164,7 @@ class Consortium:
         curve,
         recovery_role=infra.member.RecoveryRole.Participant,
         member_data=None,
+        id_format="sha256",
     ):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
@@ -168,10 +172,12 @@ class Consortium:
             curve=curve,
             recovery_role=recovery_role,
             member_data=member_data,
+            id_format=id_format,
         )
 
         proposal_body, careful_vote = self.make_proposal(
             "set_member",
+            id_format=id_format if id_format != "sha256" else None,
             cert=slurp_file(
                 os.path.join(self.common_dir, f"{new_member.local_id}_cert.pem")
             ),
@@ -199,9 +205,10 @@ class Consortium:
         curve,
         recovery_role=infra.member.RecoveryRole.Participant,
         member_data=None,
+        id_format="sha256",
     ):
         proposal, new_member, careful_vote = self.generate_and_propose_new_member(
-            remote_node, curve, recovery_role, member_data
+            remote_node, curve, recovery_role, member_data, id_format
         )
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
@@ -484,9 +491,10 @@ class Consortium:
     def user_cert_path(self, user_id):
         return os.path.join(self.common_dir, f"{user_id}_cert.pem")
 
-    def add_user(self, remote_node, user_id, user_data=None):
+    def add_user(self, remote_node, user_id, user_data=None, id_format="sha256"):
         proposal, careful_vote = self.make_proposal(
             "set_user",
+            id_format=id_format if id_format != "sha256" else None,
             cert=slurp_file(self.user_cert_path(user_id)),
             user_data=user_data,
         )

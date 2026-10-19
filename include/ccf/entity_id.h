@@ -2,19 +2,43 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/did_key.h"
 #include "ccf/ds/json.h"
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
+#include <algorithm>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 
 namespace ccf
 {
+  inline bool is_valid_identity_id(std::string_view id)
+  {
+    if (id.starts_with("did:key:"))
+    {
+      try
+      {
+        crypto::public_key_der_from_did_key(id);
+        return true;
+      }
+      catch (const std::invalid_argument&)
+      {
+        return false;
+      }
+    }
+    return id.size() == 64 && std::all_of(id.begin(), id.end(), [](char c) {
+             return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
+               (c >= 'A' && c <= 'F');
+           });
+  }
+
   template <typename FmtExtender = void>
   struct EntityId
   {
   public:
-    static constexpr size_t LENGTH = 64; // hex-encoded SHA-256 hash
-    using Value = std::string; // < hex-encoded hash
+    static constexpr size_t LENGTH = 64; // Legacy hex-encoded SHA-256 hash
+    using Value = std::string;
 
   private:
     Value id;
@@ -100,7 +124,7 @@ namespace ccf
     else
     {
       throw ccf::JsonParseError(fmt::format(
-        "{} should be hex-encoded string: {}",
+        "{} should be an identity string: {}",
         FmtExtender::ID_LABEL,
         j.dump()));
     }
@@ -120,12 +144,8 @@ namespace ccf
   {
     schema["type"] = "string";
 
-    // According to the spec, "format is an open value, so you can use any
-    // formats, even not those defined by the OpenAPI Specification"
-    // https://swagger.io/docs/specification/data-models/data-types/#format
-    schema["format"] = "hex";
-    schema["pattern"] =
-      fmt::format("^[a-f0-9]{{{}}}$", EntityId<FmtExtender>::LENGTH);
+    schema["pattern"] = "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$";
+    schema["maxLength"] = 3000;
   }
 
   struct MemberIdFormatter

@@ -32,8 +32,20 @@ namespace ccf
         return nullptr;
       }
 
-      const auto caller_node_id =
-        compute_node_id_from_cert_der(ctx->get_session_context()->caller_cert);
+      NodeId caller_node_id;
+      try
+      {
+        caller_node_id = compute_node_id_from_cert_der(
+          ctx->get_session_context()->caller_cert,
+          node_context.get_node_id().value().starts_with("did:key:") ?
+            IdentityIdFormat::DIDKey :
+            IdentityIdFormat::SHA256);
+      }
+      catch (const std::invalid_argument& e)
+      {
+        error_reason = e.what();
+        return nullptr;
+      }
       // The node ID may not be set yet when this policy is constructed.
       if (caller_node_id != node_context.get_node_id())
       {

@@ -240,6 +240,12 @@ function checkNone(args) {
 
 function checkEntityId(value, field) {
   checkType(value, "string", field);
+  if (value.startsWith("did:key:")) {
+    if (!ccf.isValidEntityId(value)) {
+      throw new Error(`${field} must be a supported canonical did:key`);
+    }
+    return;
+  }
   // This should be the hex-encoding of a SHA256 digest. This is 32 bytes long, so
   // produces 64 hex characters.
   const digestLength = 64;
@@ -250,6 +256,27 @@ function checkEntityId(value, field) {
   if (!re.test(value)) {
     throw new Error(`${field} contains non-hexadecimal character`);
   }
+}
+
+function checkIdentityEnrollment(args, tableName) {
+  const format = args.id_format === undefined ? "sha256" : args.id_format;
+  checkEnum(format, ["sha256", "did:key"], "id_format");
+  const id =
+    format === "sha256"
+      ? ccf.pemToId(args.cert)
+      : ccf.pemToId(args.cert, format);
+  ccf.kv[tableName].forEach((cert, key) => {
+    const existingId = ccf.bufToStr(key);
+    if (
+      existingId.startsWith("did:key:") !== (format === "did:key") &&
+      ccf.certificatesHaveSamePublicKey(ccf.bufToStr(cert), args.cert)
+    ) {
+      throw new Error(
+        `Public key is already enrolled under a different ID format: ${existingId}`,
+      );
+    }
+  });
+  return id;
 }
 
 function getSingletonKvKey() {
@@ -646,16 +673,37 @@ const actions = new Map([
           );
         }
 
+        const memberId = checkIdentityEnrollment(
+          args,
+          "public:ccf.gov.members.certs",
+        );
+        const rawMemberId = ccf.strToBuf(memberId);
+        if (
+          memberId.startsWith("did:key:") &&
+          ccf.kv["public:ccf.gov.members.certs"].has(rawMemberId)
+        ) {
+          return;
+        }
         checkRecoveryMemberChange(
-          ccf.strToBuf(ccf.pemToId(args.cert)),
+          rawMemberId,
           args.encryption_pub_key !== null &&
             args.encryption_pub_key !== undefined,
         );
       },
 
       function (args) {
-        const memberId = ccf.pemToId(args.cert);
+        const memberId = checkIdentityEnrollment(
+          args,
+          "public:ccf.gov.members.certs",
+        );
         const rawMemberId = ccf.strToBuf(memberId);
+        if (
+          memberId.startsWith("did:key:") &&
+          ccf.kv["public:ccf.gov.members.certs"].has(rawMemberId)
+        ) {
+          return;
+        }
+
         checkRecoveryMemberChange(
           rawMemberId,
           args.encryption_pub_key !== null &&
@@ -780,9 +828,13 @@ const actions = new Map([
       function (args) {
         checkX509CertBundle(args.cert, "cert");
         checkType(args.user_data, "object?", "user_data");
+        checkIdentityEnrollment(args, "public:ccf.gov.users.certs");
       },
       function (args) {
-        let userId = ccf.pemToId(args.cert);
+        let userId = checkIdentityEnrollment(
+          args,
+          "public:ccf.gov.users.certs",
+        );
         let rawUserId = ccf.strToBuf(userId);
 
         ccf.kv["public:ccf.gov.users.certs"].set(
