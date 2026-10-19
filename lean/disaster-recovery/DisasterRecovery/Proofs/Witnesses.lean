@@ -55,7 +55,6 @@ private def quorumConfig : Model.Config :=
   {
     protocol := { instanceId := "quorum-witness", expectedLocations := ["A"] }
     recovered := [("A", high)]
-    active := ["A"]
   }
 
 private def quorumActions : List Model.Action :=
@@ -120,7 +119,7 @@ private theorem quorum_notified
     cbv
     simp [advance, rejected, validTimeout, voteQuorum, advanceTimeoutLane]
     rfl
-  · simp [Model.protocol, quorumConfig, guard]
+  · simp [Model.protocol, quorumConfig]
     cbv
     simp [advance, rejected, validTimeout, voteQuorum, advanceTimeoutLane]
   · simp
@@ -156,7 +155,6 @@ private def fullConfig : Model.Config :=
       {
         instanceId := "full-gossip-failover-witness", expectedLocations := ["A", "B", "C"]
       }
-    active := ["A", "B", "C"]
     recovered :=
       [("A", high), ("B", { view := 1, seqno := 8 }), ("C", { view := 1, seqno := 5 })]
   }
@@ -325,7 +323,7 @@ theorem gossip_freezes_after_choice_witness
     : Properties.GossipFreezesAfterChoiceWitness := by
   refine ⟨quorumConfig, frozenGossip, "A", high, ?_, rfl, rfl⟩
   simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
-    frozenGossip, guard]
+    frozenGossip]
   cbv
 
 private def rejectedGossip : Properties.LocalStep :=
@@ -340,7 +338,7 @@ private def rejectedGossip : Properties.LocalStep :=
 theorem rejected_gossip_stutters_witness : Properties.RejectedGossipStuttersWitness := by
   refine ⟨quorumConfig, rejectedGossip, "A", high, ?_, rfl⟩
   simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
-    rejectedGossip, guard]
+    rejectedGossip]
   cbv
 
 private def quorumTimeout : Properties.LocalStep :=
@@ -355,7 +353,7 @@ private def quorumTimeout : Properties.LocalStep :=
 theorem quorum_advance_opens_witness : Properties.QuorumAdvanceOpensWitness := by
   refine ⟨quorumConfig, quorumTimeout, ?_, Or.inl rfl, rfl, by decide⟩
   simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
-    quorumTimeout, guard]
+    quorumTimeout]
   cbv
 
 private def openingTimeout : Properties.LocalStep :=
@@ -371,7 +369,7 @@ theorem aligned_opening_timeout_completes_witness
     : Properties.AlignedOpeningTimeoutCompletesWitness := by
   refine ⟨quorumConfig, openingTimeout, ?_, rfl, rfl, rfl⟩
   simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
-    openingTimeout, guard]
+    openingTimeout]
   cbv
 
 end DisasterRecovery.Proofs.Witnesses

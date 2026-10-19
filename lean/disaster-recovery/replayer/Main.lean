@@ -75,7 +75,7 @@ def main (args : List String) : IO UInt32 := do
           return 1
       | .ok result =>
           let summary :=
-            s!"replayed {result.actions} actions and {result.observations} observations of {reduced.header.config.active.length} participants"
+            s!"replayed {result.actions} actions and {result.observations} observations of {reduced.header.participants.length} participants"
           if let some failure := reduced.scenario then
             IO.eprintln s!"{summary}, but the scenario failed: {failure}"
             return 1

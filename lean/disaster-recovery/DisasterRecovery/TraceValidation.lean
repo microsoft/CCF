@@ -9,7 +9,7 @@ set_option autoImplicit false
 /-!
 Replays reduced recovery-decision-protocol executions through
 `Model.transitionSystem`. Every expected location is in the network from the
-start, and the configuration specifies the active participants. Actions must be enabled, and
+start; the recorded instructions determine which nodes act. Actions must be enabled, and
 observations compare selected fields of a node's state, or the messages and
 notifications of the node's latest action, with the model.
 -/
@@ -24,7 +24,7 @@ open CCF.MultiNodeTransitionSystem (nodeState)
 def instanceId : String :=
   "recovery-trace"
 
-/-- The recovered TxID of a location that sent no gossip, which no step reads. -/
+/-- Placeholder recovered TxID for a location with no recorded gossip. -/
 def unusedTxID : TxID :=
   { view := 0, seqno := 0 }
 
@@ -70,10 +70,12 @@ def Instruction.origins : Instruction → List Origin
   | .state _ _ origins
   | .outputs _ _ _ origins => origins
 
-/-- Model configuration reconstructed from the trace. -/
+/-- Model configuration and display metadata reconstructed from the trace. -/
 structure Header where
-  /-- Recovery parameters, ledger tips, and fixed participants reconstructed from the trace. -/
+  /-- Recovery parameters and ledger tips reconstructed from the trace. -/
   config : Model.Config
+  /-- Nodes with records in this replay; does not constrain model actions. -/
+  participants : List Location
 
 /-- The expected locations, the participants, and the TxIDs they gossiped. -/
 def Header.make (expected participants : List Location)
@@ -85,11 +87,11 @@ def Header.make (expected participants : List Location)
         protocol := { instanceId, expectedLocations := expected }
         recovered :=
           expected.map fun node => (node, (recovered.lookup node).getD unusedTxID)
-        active := participants
       }
+    participants
   }
 
-/-- Every expected location in its initial state. Only participants act. -/
+/-- Every expected location in its initial state, regardless of recorded participation. -/
 def Header.initial (header : Header) : Model.State :=
   {
     nodes :=

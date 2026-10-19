@@ -140,7 +140,7 @@ def initial (config : Config) (nodes : List Location := config.protocol.expected
 /-- Executes a decorated network action and updates its proof-only histories. -/
 def next (config : Config) (state : State) : Action -> Option State
   | .retry source => do
-      guard (config.active.contains source)
+      guard (recoveredTxID config source).isSome
       let sourceState <- nodeState state source
       let messages := retryMessages config source sourceState
       guard (!messages.isEmpty)
@@ -152,7 +152,7 @@ def next (config : Config) (state : State) : Action -> Option State
         }
   | .deliver envelope => do
       guard (state.network.contains envelope)
-      guard (config.active.contains envelope.target)
+      guard (recoveredTxID config envelope.target).isSome
       let (system, output) <- systemStep config.protocol state.system envelope.target
                                 (eventFor envelope)
       let delivered :=
@@ -163,7 +163,7 @@ def next (config : Config) (state : State) : Action -> Option State
         }
       pure (recordEffects envelope.target output.state output.effects delivered)
   | .timeout target => do
-      guard (config.active.contains target)
+      guard (recoveredTxID config target).isSome
       let (system, output) <- systemStep config.protocol state.system target .timeout
       guard output.accepted
       pure (recordEffects target output.state output.effects { state with system })

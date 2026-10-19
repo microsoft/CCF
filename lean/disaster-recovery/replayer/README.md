@@ -17,6 +17,9 @@ lake exe disaster-recovery-replay --participants N [--wait-ms N] [--dump FILE] L
 
 By default it waits up to 20 seconds for the nodes to log a complete scenario; `--wait-ms 0` makes any incompleteness fail immediately.
 It replays the reduced trace through `Model.transitionSystem`, prints how many actions and observations it replayed, and checks the scenario.
+The `--participants` count checks scenario completion, not which model actions are permitted.
+Recorded participant identities are replay/display metadata; every configured location remains in the model, and the recorded instructions determine which nodes act.
+Messages to nodes that never act may remain queued.
 Malformed records, records that no commit order explains, disabled actions and observation mismatches fail it immediately.
 Each instruction names the log line and the rule it comes from, so a failure points back to both.
 

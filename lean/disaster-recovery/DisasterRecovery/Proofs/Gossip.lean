@@ -395,7 +395,7 @@ lemma sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace}
   obtain ⟨current, present, _, same⟩ := frozen envelope sent vote
   obtain ⟨atGossip, gossipReachable, projected⟩ :=
     Lifting.model_reachable_lifts (valid.reachable inTrace)
-  have configured := wf.activeConfigured _ (wf.sentSourceActive envelope sent)
+  have configured := wf.sentSourceConfigured envelope sent
   have sourceKey : envelope.source ∈ atGossip.system.nodes.map Prod.fst := by
     exact (reachable_well_formed gossipReachable).nodeKeys _ configured
   obtain ⟨entry, entryMember, key⟩ := List.mem_map.mp sourceKey
