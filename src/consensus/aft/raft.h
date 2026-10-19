@@ -367,9 +367,7 @@ namespace aft
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
       // Nodes deleted without being retired, such as the previous service's
-      // nodes during a recovery, never become retired_committed, and would
-      // otherwise remain known forever, and be sent AppendEntries by every
-      // future primary.
+      // nodes during a recovery.
       for (const auto& node_id : node_ids)
       {
         if (all_other_nodes.erase(node_id) != 0)
