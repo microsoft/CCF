@@ -370,6 +370,25 @@ namespace aft
       // nodes during a recovery.
       for (const auto& node_id : node_ids)
       {
+        // A deleted node may have rejoined with the same identity and been
+        // trusted again, in a configuration later than the deletion. It is
+        // then an active peer, and must remain known to consensus.
+        const auto in_later_configuration = std::any_of(
+          configurations.begin(),
+          configurations.end(),
+          [&](const Configuration& c) {
+            return c.idx > seqno && c.nodes.contains(node_id);
+          });
+        if (in_later_configuration)
+        {
+          RAFT_INFO_FMT(
+            "Node {} deleted at {} is present in a later configuration, "
+            "keeping it known to consensus",
+            node_id,
+            seqno);
+          continue;
+        }
+
         if (all_other_nodes.erase(node_id) != 0)
         {
           RAFT_INFO_FMT(

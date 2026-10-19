@@ -1727,6 +1727,65 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
+  "Deleted nodes present in a later configuration remain known to consensus" *
+  doctest::test_suite("multiple"))
+{
+  ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = ccf::kv::test::SecondBackupNodeId;
+
+  TestNode node0(node_id0);
+  auto& r0 = node0.raft;
+
+  aft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  r0.add_configuration(0, config);
+  r0.force_become_primary();
+
+  DOCTEST_INFO(
+    "Node 2 is deleted while pending, which does not change the "
+    "configuration");
+  auto no_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+  auto data = std::make_shared<std::vector<uint8_t>>(3, 1);
+  DOCTEST_REQUIRE(r0.replicate(
+    ccf::kv::BatchVector{{1, data, true, no_hooks}}, r0.get_view()));
+
+  DOCTEST_INFO("Node 2 rejoins with the same identity and is trusted");
+  config[node_id2] = {};
+  auto trust_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+  trust_hooks->push_back(
+    std::make_unique<aft::ConfigurationChangeHook>(config, 2));
+  DOCTEST_REQUIRE(r0.replicate(
+    ccf::kv::BatchVector{{2, data, true, trust_hooks}}, r0.get_view()));
+  DOCTEST_REQUIRE(r0.get_details().configs.size() == 2);
+  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
+
+  DOCTEST_INFO(
+    "The deletion commits before the configuration which trusts node 2 "
+    "again");
+  auto ack = as_bytes(aft::AppendEntriesResponse{
+    .term = r0.get_view(),
+    .last_log_idx = 1,
+    .success = aft::AppendEntriesResponseType::OK});
+  r0.recv_message(node_id1, ack.data(), ack.size());
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
+  r0.remove_deleted_nodes(1, {node_id2});
+  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
+
+  DOCTEST_INFO("Commit continues to advance through the new configuration");
+  ack = as_bytes(aft::AppendEntriesResponse{
+    .term = r0.get_view(),
+    .last_log_idx = 2,
+    .success = aft::AppendEntriesResponseType::OK});
+  r0.recv_message(node_id1, ack.data(), ack.size());
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 2);
+  DOCTEST_REQUIRE(r0.get_details().configs.size() == 1);
+  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
+  DOCTEST_REQUIRE(r0.is_primary());
+}
+
+DOCTEST_TEST_CASE(
   "Raft messages that cannot be parsed or authenticated are ignored" *
   doctest::test_suite("multiple"))
 {
