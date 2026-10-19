@@ -36,6 +36,7 @@ REQUIRED_FUZZ_COVERAGE = {
     "remove",
     "clear",
     "size",
+    "range",
     "foreach_begin",
     "foreach_entry",
     "foreach_continue",

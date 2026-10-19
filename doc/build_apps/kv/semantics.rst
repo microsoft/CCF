@@ -55,6 +55,9 @@ Global reads follow the implementation's per-map capture described below, not a 
        Callback mutations affect ordinary reads but do not change the entries already captured for this iteration.
    * - ``size`` / ``clear``
      - Observe or modify the whole transaction-visible map, using the same visibility rules as iteration.
+   * - ``range``
+     - Return the transaction-visible entries with keys in ``[from, to)``, in ascending byte order, collected before any callback runs.
+       It takes the same whole-map dependency as ``size``, unless the bounds admit no key.
    * - Local application
      - Validate dependencies across all touched maps, then publish all writes atomically.
        Blind writes need not conflict; absent reads and map-wide reads introduce dependencies too.
@@ -62,7 +65,7 @@ Global reads follow the implementation's per-map capture described below, not a 
      - Publish none of the attempt's pending writes.
        A retry is a fresh attempt.
 
-The C++ ``Value`` and ``Set`` wrappers use the same map operations.
+The C++ ``Value``, ``Set`` and ``UnitValue`` wrappers use the same map operations.
 JavaScript ``set`` and ``delete`` correspond to KV ``put`` and ``remove``.
 The model does not verify serializers or the JavaScript binding implementation.
 
@@ -242,7 +245,8 @@ Seeded concurrent campaigns
 It exercises the KV interface and transaction lifetimes, not binary parsers or a running network.
 Each worker has its own deterministically seeded operation choices and transaction objects.
 
-Concurrent workers mix current/global reads, version observations, writes, deletions, map-wide operations, callback mutations, read-only completion and abandonment.
+Concurrent workers mix current/global reads, version observations, writes, deletions, map-wide operations including ``range``, callback mutations, read-only completion, ``ReadOnlyTx`` attempts and abandonment.
+They use ``Map``, ``Value``, ``Set``, ``UnitValue`` and untyped handles over the same maps.
 A maintenance thread can compact while ordinary transactions run.
 Coordinated phases retain transactions and handles across global advancement, compaction and rollback, covering less frequent lifetime and conflict cases.
 Rollback occurs between KV calls rather than overlapping its internal multi-step implementation: an overlap which the existing tracer cannot order must not be mistaken for a valid atomic transition.

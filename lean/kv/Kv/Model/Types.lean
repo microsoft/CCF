@@ -369,6 +369,9 @@ inductive Event where
   | clear (store tx : Nat) (map : String)
   /-- Reads the number of entries in a map. -/
   | size (store tx : Nat) (map : String) (value : Nat)
+  /-- Reads the entries with keys in `[lower, upper)`, in ascending key order. -/
+  | range (store tx : Nat) (map : String) (lower upper : Option String)
+    (entries : Assoc String String)
   /-- Begins iterating over a map. -/
   | foreachBegin (store tx : Nat) (map : String) (iteration : Nat)
   /-- Visits one entry. -/

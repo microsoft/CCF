@@ -307,10 +307,25 @@ namespace ccf::kv::untyped
     const std::optional<MapHandle::KeyType>& from,
     const std::optional<MapHandle::KeyType>& to)
   {
-    KV_TRACE(trace::transaction(
-      tx_changes.trace_metadata.id,
-      "unsupported",
-      {{"operation", "range"}, {"map", map_name}}));
+#ifdef CCF_KV_TRACING
+    // Records the bounds and the collected entries, in visiting order, before
+    // any callback runs.
+    const auto trace_range = [&](const std::map<KeyType, ValueType>& entries) {
+      auto observed = trace::Json::array();
+      for (const auto& [k, v] : entries)
+      {
+        observed.push_back(
+          {{"key", ccf::ds::to_hex(k)}, {"value", ccf::ds::to_hex(v)}});
+      }
+      trace::operation(
+        tx_changes.trace_metadata,
+        "range",
+        map_name,
+        {{"from", trace::bytes(from.has_value() ? &*from : nullptr)},
+         {"to", trace::bytes(to.has_value() ? &*to : nullptr)},
+         {"entries", std::move(observed)}});
+    };
+#endif
     // Current limitations/ineficiencies:
     // - The state and writes are wastefully looped over until `from` is
     // found.
@@ -328,6 +343,7 @@ namespace ccf::kv::untyped
       from.has_value() && to.has_value() &&
       (from.value() == to.value() || to.value() < from.value()))
     {
+      KV_TRACE(trace_range({}));
       return;
     }
 
@@ -356,6 +372,7 @@ namespace ccf::kv::untyped
       return true;
     };
     foreach_state_and_writes(g, true);
+    KV_TRACE(trace_range(res));
 
     for (const auto& e : res)
     {

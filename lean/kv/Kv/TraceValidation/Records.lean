@@ -118,6 +118,14 @@ def decodeWrites (j : Json) : Except String Pending := do
       fields item ["map", "key", "value"]
       return ((← str item "map", ← bytes item "key"), ← optionalBytes item "value")
 
+/-- Decodes a `range` record's `[{key, value}]` entries. -/
+def decodeEntries (j : Json) : Except String (Assoc String String) := do
+  let array ← j.getArr?
+  array.toList.mapM
+    fun item => do
+      fields item ["key", "value"]
+      return (← bytes item "key", ← bytes item "value")
+
 /-- The fields each record type allows, excluding `type` and `seq`. -/
 def eventFields (kind : String) : Except String (List String) :=
   let st := ["store", "tx"]
@@ -135,6 +143,7 @@ def eventFields (kind : String) : Except String (List String) :=
       .ok (mp ++ ["key", "value"])
   | "remove" => .ok (mp ++ ["key"])
   | "size" => .ok (mp ++ ["value"])
+  | "range" => .ok (mp ++ ["from", "to", "entries"])
   | "foreach_begin" | "foreach_end" => .ok (mp ++ ["iteration"])
   | "foreach_entry" => .ok (mp ++ ["iteration", "key", "value"])
   | "foreach_continue" => .ok (mp ++ ["iteration", "value"])
@@ -185,6 +194,10 @@ def decodeEvent (j : Json) (kind : String) : Except String Event := do
   | "clear" => return .clear (← num j "store") (← num j "tx") (← str j "map")
   | "size" =>
       return .size (← num j "store") (← num j "tx") (← str j "map") (← num j "value")
+  | "range" =>
+      return .range (← num j "store") (← num j "tx") (← str j "map")
+        (← optionalBytes j "from") (← optionalBytes j "to")
+        (← decodeEntries (← field j "entries"))
   | "foreach_begin" =>
       return .foreachBegin (← num j "store") (← num j "tx") (← str j "map")
         (← num j "iteration")

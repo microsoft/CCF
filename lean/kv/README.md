@@ -61,6 +61,9 @@ Empty bytes and absence are distinct: `""` denotes a present zero-byte value, `n
 - Iteration freezes visible entries at begin, checks membership/value/uniqueness, permits arbitrary order, supports nested callbacks and explicit early stop.
   Iteration identity is `(store, tx, map, iteration)`; different maps may use the same numeric iteration ID.
   `size` and `clear` take the same whole-map dependency.
+- `range` is one atomic observation of the visible entries in `[from, to)`, recorded before its callbacks run.
+  Its entries must ascend by key, where lowercase hex order is byte order.
+  It takes the whole-map dependency unless both bounds are present and `to <= from`, when it reads nothing.
 - Application validates dependencies/lineage/term and publishes the entire reconstructed staged write set, not the logged `writes` array.
   The array is only an exact, order-independent cross-check.
   Even an absent-key deletion may allocate a version without changing a map revision.
@@ -208,6 +211,7 @@ Retries need new attempt IDs.
 | `put`                                        | `store`, `tx`, `map`, `key:hex`, `value:hex`                                                        |
 | `remove`                                     | `store`, `tx`, `map`, `key:hex`                                                                     |
 | `size`                                       | `store`, `tx`, `map`, `value:uint64`                                                                |
+| `range`                                      | `store`, `tx`, `map`, `from:hex or null`, `to:hex or null`, `entries:[{key:hex,value:hex}]`         |
 | `foreach_begin`, `foreach_end`               | `store`, `tx`, `map`, `iteration:uint64`                                                            |
 | `foreach_entry`                              | `store`, `tx`, `map`, `iteration`, `key:hex`, `value:hex`                                           |
 | `foreach_continue`                           | `store`, `tx`, `map`, `iteration`, `value:bool`                                                     |

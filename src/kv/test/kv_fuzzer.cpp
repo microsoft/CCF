@@ -1,6 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/kv/map.h"
+#include "ccf/kv/set.h"
+#include "ccf/kv/unit_value.h"
+#include "ccf/kv/value.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/null_encryptor.h"
 #include "kv/store.h"
@@ -25,6 +28,7 @@
 #include <string_view>
 #include <system_error>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 namespace
@@ -33,7 +37,15 @@ namespace
     std::string,
     std::string,
     ccf::kv::serialisers::BlitSerialiser>;
+  // The typed wrappers view the same maps through different key/value shapes.
+  using ValueMap = ccf::kv::
+    ValueSerialisedWith<std::string, ccf::kv::serialisers::BlitSerialiser>;
+  using SetMap = ccf::kv::
+    SetSerialisedWith<std::string, ccf::kv::serialisers::BlitSerialiser>;
+  using UnitMap = ccf::kv::UnitValue<>;
+  using RawMap = ccf::kv::untyped::Map;
   using Tx = ccf::kv::CommittableTx;
+  using ReadOnlyTx = ccf::kv::ReadOnlyTx;
   using Result = ccf::kv::CommitResult;
   using Json = nlohmann::json;
 
@@ -152,6 +164,12 @@ namespace
     RandomCompactions,
     CoordinatedPhases,
     BinaryKey,
+    TypedValue,
+    TypedSet,
+    TypedUnit,
+    Range,
+    EmptyRange,
+    ReadOnlyTx,
     Count
   };
 
@@ -191,7 +209,13 @@ namespace
       "max_live_workers",
       "random_compactions",
       "coordinated_phases",
-      "binary_key"};
+      "binary_key",
+      "typed_value",
+      "typed_set",
+      "typed_unit",
+      "range",
+      "empty_range",
+      "read_only_tx"};
 
   class Coverage
   {
@@ -454,12 +478,27 @@ namespace
     }
   };
 
+  // Every facet of one map in one transaction. Writable facets are null in a
+  // read-only transaction.
   struct Handles
   {
-    Map::Handle* write;
     Map::ReadOnlyHandle* read;
     ccf::kv::untyped::MapHandle* raw;
+    ValueMap::ReadOnlyHandle* value_read;
+    SetMap::ReadOnlyHandle* set_read;
+    UnitMap::ReadOnlyHandle* unit_read;
+    Map::Handle* write = nullptr;
+    ValueMap::WriteOnlyHandle* value_write = nullptr;
+    SetMap::WriteOnlyHandle* set_write = nullptr;
+    UnitMap::WriteOnlyHandle* unit_write = nullptr;
   };
+
+  template <typename T>
+  T* writable(T* handle)
+  {
+    ensure(handle != nullptr, "Fuzzer wrote through a read-only transaction");
+    return handle;
+  }
 
   class Operations
   {
@@ -484,12 +523,36 @@ namespace
 
     Handles pin(Tx& tx, const Map& map)
     {
+      const auto& name = map.get_name();
       auto* write = tx.rw(map);
       auto* read = tx.ro(map);
       coverage.add(Counter::Alias);
-      auto* raw = tx.rw<ccf::kv::untyped::Map>(map.get_name());
+      auto* raw = tx.rw<RawMap>(name);
       coverage.add(Counter::Alias);
-      return {write, read, raw};
+      return {
+        read,
+        raw,
+        tx.rw<ValueMap>(name),
+        tx.rw<SetMap>(name),
+        tx.rw<UnitMap>(name),
+        write,
+        tx.wo<ValueMap>(name),
+        tx.wo<SetMap>(name),
+        tx.wo<UnitMap>(name)};
+    }
+
+    Handles pin(ReadOnlyTx& tx, const Map& map)
+    {
+      const auto& name = map.get_name();
+      auto* read = tx.ro(map);
+      auto* raw = tx.ro<RawMap>(name);
+      coverage.add(Counter::Alias);
+      return {
+        read,
+        raw,
+        tx.ro<ValueMap>(name),
+        tx.ro<SetMap>(name),
+        tx.ro<UnitMap>(name)};
     }
 
     std::optional<std::string> get(
@@ -539,7 +602,7 @@ namespace
     void put(
       const Handles& handles, const std::string& key, const std::string& value)
     {
-      handles.write->put(key, value);
+      writable(handles.write)->put(key, value);
       coverage.add(Counter::Put);
       key_used(key);
       if (std::any_of(value.begin(), value.end(), [](unsigned char byte) {
@@ -552,7 +615,7 @@ namespace
 
     void remove(const Handles& handles, const std::string& key)
     {
-      handles.write->remove(key);
+      writable(handles.write)->remove(key);
       coverage.add(Counter::Remove);
       key_used(key);
     }
@@ -584,7 +647,7 @@ namespace
 
     void clear(const Handles& handles)
     {
-      handles.write->clear();
+      writable(handles.write)->clear();
       coverage.add(Counter::Clear);
     }
 
@@ -638,6 +701,152 @@ namespace
       handles.read->foreach_value(
         [&](const auto&) { return ++visited < limit; });
       coverage.add(Counter::ForeachValue);
+    }
+
+    // The typed operations pick one wrapper call by choice.
+    void value_read(const Handles& handles, size_t choice)
+    {
+      auto* value = handles.value_read;
+      switch (choice % 4)
+      {
+        case 0:
+          value->get();
+          break;
+        case 1:
+          value->has();
+          break;
+        case 2:
+          value->get_globally_committed();
+          break;
+        default:
+          value->get_version_of_previous_write();
+          break;
+      }
+      coverage.add(Counter::TypedValue);
+    }
+
+    void value_write(
+      const Handles& handles, const std::string& value, size_t choice)
+    {
+      auto* handle = writable(handles.value_write);
+      if (choice % 2 == 0)
+      {
+        handle->put(value);
+      }
+      else
+      {
+        handle->clear();
+      }
+      coverage.add(Counter::TypedValue);
+    }
+
+    void set_read(
+      const Handles& handles,
+      const std::string& key,
+      size_t choice,
+      size_t limit)
+    {
+      auto* set = handles.set_read;
+      switch (choice % 5)
+      {
+        case 0:
+          set->contains(key);
+          break;
+        case 1:
+          set->contains_globally_committed(key);
+          break;
+        case 2:
+          set->get_version_of_previous_write(key);
+          break;
+        case 3:
+        {
+          size_t visited = 0;
+          set->foreach([&](const auto&) { return ++visited < limit; });
+          break;
+        }
+        default:
+          set->size();
+          break;
+      }
+      key_used(key);
+      coverage.add(Counter::TypedSet);
+    }
+
+    void set_write(
+      const Handles& handles, const std::string& key, size_t choice)
+    {
+      auto* set = writable(handles.set_write);
+      switch (choice % 3)
+      {
+        case 0:
+          set->insert(key);
+          break;
+        case 1:
+          set->remove(key);
+          break;
+        default:
+          set->clear();
+          break;
+      }
+      key_used(key);
+      coverage.add(Counter::TypedSet);
+    }
+
+    void unit_read(const Handles& handles, size_t choice)
+    {
+      if (choice % 2 == 0)
+      {
+        handles.unit_read->has();
+      }
+      else
+      {
+        handles.unit_read->get_version_of_previous_write();
+      }
+      coverage.add(Counter::TypedUnit);
+    }
+
+    void unit_write(const Handles& handles, size_t choice)
+    {
+      auto* unit = writable(handles.unit_write);
+      if (choice % 2 == 0)
+      {
+        unit->touch();
+      }
+      else
+      {
+        unit->clear();
+      }
+      coverage.add(Counter::TypedUnit);
+    }
+
+    // Bit 0 of bounds selects a lower bound, bit 1 an upper bound. The
+    // callback reads each visited key from target.
+    void range(
+      const Handles& source,
+      const Handles& target,
+      const std::string& from,
+      const std::string& to,
+      size_t bounds)
+    {
+      std::optional<ccf::kv::untyped::MapHandle::KeyType> lower;
+      std::optional<ccf::kv::untyped::MapHandle::KeyType> upper;
+      if ((bounds & 1) != 0)
+      {
+        lower = Map::KeySerialiser::to_serialised(from);
+      }
+      if ((bounds & 2) != 0)
+      {
+        upper = Map::KeySerialiser::to_serialised(to);
+      }
+      source.raw->range(
+        [&](const auto& key, const auto&) { target.raw->get(key); },
+        lower,
+        upper);
+      coverage.add(Counter::Range);
+      if (lower.has_value() && upper.has_value() && !(*lower < *upper))
+      {
+        coverage.add(Counter::EmptyRange);
+      }
     }
 
     Result commit(Tx& tx, bool random_worker = false)
@@ -741,13 +950,23 @@ namespace
     SameValue,
     MissingRemove,
     Alias,
+    ValueRead,
+    ValueWrite,
+    SetRead,
+    SetWrite,
+    UnitRead,
+    UnitWrite,
+    Range,
     Count
   };
 
+  // ReadOnly commits a CommittableTx without writes; ReadOnlyTx uses a
+  // ReadOnlyTx, which ends without a commit.
   enum class Mode
   {
     Commit,
     ReadOnly,
+    ReadOnlyTx,
     Abandon
   };
 
@@ -784,19 +1003,24 @@ namespace
       Kind::ForeachKey,
       Kind::ForeachValue,
       Kind::Nested,
-      Kind::Alias};
+      Kind::Alias,
+      Kind::ValueRead,
+      Kind::SetRead,
+      Kind::UnitRead,
+      Kind::Range};
     std::vector<Program> result;
     result.reserve(config.transactions);
     for (size_t slot = 0; slot < config.transactions; ++slot)
     {
       const auto a = rng() % MAP_COUNT;
       const auto b = (a + 1 + rng() % (MAP_COUNT - 1)) % MAP_COUNT;
-      const auto mode = rng() % 4;
+      const auto mode = rng() % 5;
       Program program{
         a,
         b,
         mode < 2    ? Mode::Commit :
           mode == 2 ? Mode::ReadOnly :
+          mode == 3 ? Mode::ReadOnlyTx :
                       Mode::Abandon,
         {}};
       program.instructions.reserve(config.operations);
@@ -804,7 +1028,7 @@ namespace
       {
         const auto choice = rng();
         program.instructions.push_back(
-          {program.mode == Mode::ReadOnly ?
+          {program.mode == Mode::ReadOnly || program.mode == Mode::ReadOnlyTx ?
              read_kinds[choice % read_kinds.size()] :
              static_cast<Kind>(choice % static_cast<size_t>(Kind::Count)),
            rng() % KEY_COUNT,
@@ -825,8 +1049,9 @@ namespace
     return result;
   }
 
+  template <typename T>
   void execute(
-    Tx& tx,
+    T& tx,
     const Universe& universe,
     Operations& operations,
     const Program& program,
@@ -906,6 +1131,27 @@ namespace
       case Kind::Alias:
         operations.pin(tx, universe.maps[program.a]);
         break;
+      case Kind::ValueRead:
+        operations.value_read(a, instruction.other_value);
+        break;
+      case Kind::ValueWrite:
+        operations.value_write(a, value, instruction.other_value);
+        break;
+      case Kind::SetRead:
+        operations.set_read(a, key, instruction.other_value, instruction.limit);
+        break;
+      case Kind::SetWrite:
+        operations.set_write(a, key, instruction.other_value);
+        break;
+      case Kind::UnitRead:
+        operations.unit_read(a, instruction.other_value);
+        break;
+      case Kind::UnitWrite:
+        operations.unit_write(a, instruction.other_value);
+        break;
+      case Kind::Range:
+        operations.range(a, b, key, other_key, instruction.other_value);
+        break;
       case Kind::Count:
         throw std::logic_error("Invalid generated operation");
     }
@@ -967,29 +1213,35 @@ namespace
             {
               return;
             }
+            const auto& program = choices[slot];
             bool abandoned = false;
-            {
-              auto tx = store.create_tx();
+            // Returns false if the phase was cancelled.
+            const auto attempt = [&](auto& tx) {
               if (slot == 0 && !control.checkpoint())
               {
-                return;
+                return false;
               }
               try
               {
-                const auto& program = choices[slot];
                 const auto a = operations.pin(tx, universe.maps[program.a]);
                 const auto b = operations.pin(tx, universe.maps[program.b]);
                 for (const auto& instruction : program.instructions)
                 {
                   if (control.stopped())
                   {
-                    return;
+                    return false;
                   }
                   execute(tx, universe, operations, program, a, b, instruction);
                   coverage.add(Counter::WorkerOperations);
                   std::this_thread::yield();
                 }
-                if (program.mode == Mode::Abandon)
+                if constexpr (std::is_same_v<
+                                std::remove_reference_t<decltype(tx)>,
+                                ReadOnlyTx>)
+                {
+                  coverage.add(Counter::ReadOnlyTx);
+                }
+                else if (program.mode == Mode::Abandon)
                 {
                   abandoned = true;
                 }
@@ -1001,6 +1253,23 @@ namespace
               catch (const ccf::kv::CompactedVersionConflict&)
               {
                 coverage.add(Counter::SnapshotUnavailable);
+              }
+              return true;
+            };
+            if (program.mode == Mode::ReadOnlyTx)
+            {
+              auto tx = store.create_read_only_tx();
+              if (!attempt(tx))
+              {
+                return;
+              }
+            }
+            else
+            {
+              auto tx = store.create_tx();
+              if (!attempt(tx))
+              {
+                return;
               }
             }
             if (abandoned)
@@ -1069,6 +1338,23 @@ namespace
         operations.foreach(a, b, key, value, true, true, MAX_VISITS);
         operations.foreach_key(a, MAX_VISITS);
         operations.foreach_value(b, 1);
+        for (size_t choice = 0; choice < 5; ++choice)
+        {
+          operations.value_read(a, choice);
+          operations.set_read(a, key, choice, MAX_VISITS);
+          operations.unit_read(a, choice);
+          if (choice < 3)
+          {
+            operations.value_write(a, value, choice);
+            operations.set_write(a, other_key, choice);
+            operations.unit_write(a, choice);
+          }
+        }
+        for (size_t bounds = 0; bounds < 4; ++bounds)
+        {
+          operations.range(a, b, key, other_key, bounds);
+        }
+        operations.range(a, b, universe.keys[3], universe.keys[1], 3);
         operations.clear(b);
         ensure(operations.size(b) == 0, "clear left a pending entry");
         operations.remove(a, key);
@@ -1086,6 +1372,18 @@ namespace
     ensure(
       operations.commit(empty) == Result::SUCCESS,
       "Empty read-only transaction did not complete");
+    auto reader = store.create_read_only_tx();
+    const auto a = operations.pin(reader, universe.maps[selection.a]);
+    const auto b = operations.pin(reader, universe.maps[selection.b]);
+    ensure(
+      operations.get(a, key) == value,
+      "Read-only transaction missed a committed write");
+    operations.global(a, key);
+    operations.value_read(a, 0);
+    operations.set_read(b, key, 0, MAX_VISITS);
+    operations.unit_read(a, 0);
+    operations.range(a, b, key, other_key, 1);
+    coverage.add(Counter::ReadOnlyTx);
   }
 
   void global_cuts(

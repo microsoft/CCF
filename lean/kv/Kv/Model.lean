@@ -234,6 +234,29 @@ def writesEqual (a b : Pending) : Bool :=
 def uniqueKeys {K V : Type} [DecidableEq K] (a : Assoc K V) : Bool :=
   decide (a.map Prod.fst).Nodup
 
+/-- The bounds `[lower, upper)` admit no key, so `range` reads nothing. -/
+def emptyRange (lower upper : Option String) : Bool :=
+  match lower, upper with
+  | some l, some u => decide (u ≤ l)
+  | _, _ => false
+
+/-- `key` lies in `[lower, upper)`. Lowercase hex order is the byte order of the keys. -/
+def inRange (lower upper : Option String) (key : String) : Bool :=
+  lower.all (fun l => decide (l ≤ key)) && upper.all (fun u => decide (key < u))
+
+/-- The keys strictly ascend. -/
+def ascending : Assoc String String → Bool
+  | a :: b :: rest => decide (a.1 < b.1) && ascending (b :: rest)
+  | _ => true
+
+/-- `observed` lists exactly the entries of `visible` in `[lower, upper)`, by ascending key. -/
+def rangeMatches (visible observed : Assoc String String) (lower upper : Option String)
+    : Bool :=
+  let expected := visible.filter fun (k, _) => inRange lower upper k
+  ascending observed
+  && observed.length == expected.length
+  && observed.all fun (k, v) => find expected k == some v
+
 /-- The innermost iteration, which must be over `m` with identifier `id`. -/
 def eachTop (t : Tx) (m : String) (id : Nat)
     : Except Failure (Iteration × List Iteration) := do
@@ -374,6 +397,18 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
           expect (entries.length == value)
             s!"size expected {entries.length}, observed {value}"
           runOp t (.scan m entries)
+  | .range sid tid m lower upper observed =>
+      withTx w sid tid
+        fun t => do
+          let snap ← handleOf t m
+          if emptyRange lower upper then
+            expect observed.isEmpty "empty range bounds returned entries"
+            return t
+          else
+            let entries := scanAt snap.current.data t.normal.writes m
+            expect (rangeMatches entries observed lower upper)
+              "range entries differ from the visible entries in key order"
+            runOp t (.scan m entries)
   | .foreachBegin sid tid m id =>
       withTx w sid tid
         fun t => do

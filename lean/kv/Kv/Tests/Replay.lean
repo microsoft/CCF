@@ -53,6 +53,13 @@ private def eventJson (e : Event) : String × List (String × Json) :=
   | .remove s t m k => ("remove", pt s t m k)
   | .clear s t m => ("clear", mp s t m)
   | .size s t m v => ("size", mp s t m ++ [("value", toJson v)])
+  | .range s t m lower upper entries =>
+      let es :=
+        entries.map fun (k, v) => Json.mkObj [("key", toJson k), ("value", toJson v)]
+      (
+        "range",
+        mp s t m ++ [("from", toJson lower), ("to", toJson upper), ("entries", toJson es)]
+      )
   | .foreachBegin s t m i => ("foreach_begin", it s t m i)
   | .foreachEntry s t m i k v =>
       ("foreach_entry", it s t m i ++ [("key", toJson k), ("value", toJson v)])
@@ -233,6 +240,21 @@ private def phantom : List Event :=
   ++ commit 2 1 [(("a", "01"), some "11")]
   ++ [.put 1 1 "b" "00" "22", .commitBegin 1 1, .apply 1 1 2 0 [(("b", "00"), some "22")]]
 
+/-- Attempt 2 overlays a pending write on keys `00` and `01` of `a` before reading a range. -/
+private def rangePrefix : List Event :=
+  seedKeys 1 0 0 "11" "aa"
+  ++ start 2 1 0
+  ++ [.acquire 1 2 "a" 1 0, .acquire 1 2 "b" 1 0, .put 1 2 "a" "0100" "cc"]
+
+/-- A range read takes a whole-map dependency, even if the new key lies outside its bounds. -/
+private def rangePhantom : List Event :=
+  rangePrefix
+  ++ [.range 1 2 "a" (some "01") (some "02") [("01", "aa"), ("0100", "cc")]]
+  ++ start 3 1 0
+  ++ [.acquire 1 3 "a" 1 0, .put 1 3 "a" "ff" "dd"]
+  ++ commit 3 2 [(("a", "ff"), some "dd")]
+  ++ [.put 1 2 "b" "00" "22", .commitBegin 1 2, .apply 1 2 3 0 [(("b", "00"), some "22")]]
+
 private def sameValuePrevious : List Event :=
   seed 1 0 0 "11"
   ++ start 2 1 0
@@ -334,6 +356,19 @@ private def accepted : List (String × List Event) :=
       ++ commit 2 1 [(("a", "00"), some "11")]
       ++ [.put 1 1 "b" "00" "22"]
       ++ commit 1 2 [(("b", "00"), some "22")]
+    ),
+    (
+      "range reads ordered bounded entries; empty bounds take no dependency",
+      rangePrefix
+      ++ [
+        .range 1 2 "a" none none [("00", "11"), ("01", "aa"), ("0100", "cc")],
+        .range 1 2 "a" (some "0001") (some "0100") [("01", "aa")],
+        .range 1 2 "b" (some "01") (some "01") []
+      ]
+      ++ start 3 1 0
+      ++ [.acquire 1 3 "b" 1 0, .put 1 3 "b" "02" "dd"]
+      ++ commit 3 2 [(("b", "02"), some "dd")]
+      ++ commit 2 3 [(("a", "0100"), some "cc")]
     )
   ]
 
@@ -453,6 +488,23 @@ private def negative : List (String × String × List Event) :=
     ),
     ("two-map write skew", "rejected", writeSkew),
     ("map-wide phantom dependency", "rejected", phantom),
+    ("range takes a map-wide dependency", "rejected", rangePhantom),
+    (
+      "range entries must ascend",
+      "rejected",
+      rangePrefix ++ [.range 1 2 "a" (some "01") none [("0100", "cc"), ("01", "aa")]]
+    ),
+    (
+      "range entries must lie within bounds",
+      "rejected",
+      rangePrefix
+      ++ [.range 1 2 "a" (some "01") none [("00", "11"), ("01", "aa"), ("0100", "cc")]]
+    ),
+    (
+      "range must include pending writes",
+      "rejected",
+      rangePrefix ++ [.range 1 2 "a" (some "01") none [("01", "aa")]]
+    ),
     ("same-value write changes previous-write dependency", "rejected", sameValuePrevious),
     ("term-only stale attempt", "rejected", termConflict),
     ("reused version does not restore lineage", "rejected", reusedVersion),
