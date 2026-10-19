@@ -17,6 +17,7 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 ## Bencher
 
 Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
+The end-to-end tests include `fluentd_emission`, which measures two-node throughput and latency with Raft trace export disabled and then enabled, sending events to a local Fluentd-compatible TCP collector.
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
 Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
@@ -27,6 +28,8 @@ File: `bencher.yml`
 ## Bencher A/B
 
 Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing up to five recent branch runs against the recent trend on `main`. Two nested shaded blue bands show the shared seven-run-half-life EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs. Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run. Triggered on PRs that have the label `bench-ab`.
+
+The end-to-end tests run with `CCF_BENCHMARK_FLUENTD=1`. For each workload and signature interval, this starts a local Fluentd-compatible TCP collector and configures every node to export Raft trace events to it. The collector decodes and counts events without storing them, and the run fails if any node sends none. The radar charts therefore compare branch runs with export enabled against `main` runs without export. `fluentd_emission` is excluded because it configures its own collector. Collector counts, node logs and configurations, and Locust statistics are uploaded as the `benchmark-diagnostics` artifact. To reproduce a run locally, set `CCF_BENCHMARK_FLUENTD=1` when running a Locust benchmark.
 
 File: `bencher-ab.yml`
 3rd party dependencies: None
