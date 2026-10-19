@@ -844,3 +844,57 @@ TEST_CASE(
     REQUIRE_EQ(v.value(), "bar");
   }
 }
+
+TEST_CASE(
+  "Installing a snapshot sets the committable gap" *
+  doctest::test_suite("snapshot"))
+{
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
+
+  constexpr size_t tx_count = 5;
+  for (size_t i = 0; i < tx_count; ++i)
+  {
+    auto tx = store.create_tx();
+    tx.rw(num_map)->put(i, i);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  // Snapshots are only generated at signature seqnos, so the version a
+  // snapshot is installed at is always committable
+  const auto snapshot_version = store.current_version();
+  REQUIRE(snapshot_version == tx_count);
+
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+  {
+    ccf::kv::ScopedStoreMapsLock maps_lock(&store);
+    snapshot = store.snapshot_unsafe_maps(snapshot_version);
+  }
+  auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
+
+  ccf::kv::Store new_store;
+  new_store.set_encryptor(encryptor);
+  REQUIRE(new_store.committable_gap() == 0);
+
+  INFO("A store which has just installed a snapshot has no committable gap");
+  {
+    ccf::kv::ConsensusHookPtrs hooks;
+    REQUIRE_EQ(
+      new_store.deserialise_snapshot(
+        serialised_snapshot.data(), serialised_snapshot.size(), hooks),
+      ccf::kv::ApplyResult::PASS);
+    REQUIRE_EQ(new_store.current_version(), snapshot_version);
+    REQUIRE_EQ(new_store.committable_gap(), 0);
+  }
+
+  INFO("Transactions committed after the snapshot are counted from it");
+  for (size_t i = 1; i <= 3; ++i)
+  {
+    auto tx = new_store.create_tx();
+    tx.rw(num_map)->put(snapshot_version + i, i);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    REQUIRE_EQ(new_store.current_version(), snapshot_version + i);
+    REQUIRE_EQ(new_store.committable_gap(), i);
+  }
+}

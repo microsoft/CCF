@@ -30,13 +30,16 @@ namespace ccf::kv
       ccf::ClaimsDigest& claims_digest,
       std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest) = 0;
 
+    // committable is true when the entry is a signature, i.e. when applying
+    // it yields ApplyResult::PASS_SIGNATURE
     virtual bool commit_deserialised(
       ccf::kv::OrderedChanges& changes,
       ccf::kv::Version v,
       ccf::kv::Term term,
       const MapCollection& new_maps,
       ccf::kv::ConsensusHookPtrs& hooks,
-      bool track_deletes_on_missing_keys) = 0;
+      bool track_deletes_on_missing_keys,
+      bool committable) = 0;
   };
 
   class CFTExecutionWrapper : public AbstractExecutionWrapper
@@ -115,24 +118,26 @@ namespace ccf::kv
         }
       }
 
+      const bool signature_in =
+        (changes.find(ccf::Tables::SIGNATURES) != changes.end());
+      const bool cose_signature_in =
+        (changes.find(ccf::Tables::COSE_SIGNATURES) != changes.end());
+      const bool committable = signature_in || cose_signature_in;
+
       if (!store->commit_deserialised(
             changes,
             version,
             term,
             new_maps,
             hooks,
-            track_deletes_on_missing_keys))
+            track_deletes_on_missing_keys,
+            committable))
       {
         return ApplyResult::FAIL;
       }
       auto success = ApplyResult::PASS;
 
-      const bool signature_in =
-        (changes.find(ccf::Tables::SIGNATURES) != changes.end());
-      const bool cose_signature_in =
-        (changes.find(ccf::Tables::COSE_SIGNATURES) != changes.end());
-
-      if (signature_in || cose_signature_in)
+      if (committable)
       {
         const bool merkle_tree_in =
           changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) != changes.end();
