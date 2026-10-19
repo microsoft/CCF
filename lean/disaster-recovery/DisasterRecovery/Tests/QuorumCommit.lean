@@ -21,6 +21,7 @@ private def config : Model.Config :=
   {
     protocol := { instanceId := "quorum-timeout", expectedLocations := ["A", "B", "C"] }
     recovered := [("A", high), ("B", high), ("C", low)]
+    active := ["A", "B", "C"]
   }
 
 private def gossip (source target : Location) (txid : TxID) : Model.Envelope :=
@@ -39,9 +40,9 @@ private def openedC : NodeState :=
   { selected "C" with phase := .opening, votes := ["A", "B"], openKind := some .quorum }
 
 private def snapshot (a b c : NodeState) (network : List Model.Envelope) : Model.State :=
-  { nodes := [("A", a), ("B", b), ("C", c)], active := ["A", "B", "C"], network }
+  { nodes := [("A", a), ("B", b), ("C", c)], network }
 
-private def initial : Model.State := Tests.initial config ["A", "B", "C"]
+private def initial : Model.State := Tests.initial config
 private def aGossips := [gossip "A" "A" high, gossip "A" "B" high, gossip "A" "C" high]
 private def bGossips := [gossip "B" "A" high, gossip "B" "B" high, gossip "B" "C" high]
 
@@ -94,9 +95,8 @@ private def actions : List Model.Action :=
   ]
 
 private theorem initialized : (Model.transitionSystem config).init initial := by
-  refine ⟨by unfold Model.Config.Valid; decide, by decide, rfl, by decide, ?_, rfl, ?_⟩
-  · intro node member
-    exact member
+  refine ⟨by unfold Model.Config.Valid; decide, ?_, by decide, rfl, ?_⟩
+  · simp [initial, Tests.initial, config]
   · simp [initial, Tests.initial, config, Model.protocol]
 
 private theorem valid : trace.Valid (Model.transitionSystem config) := by

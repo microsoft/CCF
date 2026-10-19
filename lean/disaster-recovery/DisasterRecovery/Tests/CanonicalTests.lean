@@ -31,6 +31,7 @@ private def stepConfig : Model.Config :=
   {
     protocol := { instanceId := "local-step-tests", expectedLocations := ["A"] }
     recovered := [("A", { view := 1, seqno := 10 })]
+    active := ["A"]
   }
 
 private def frozenStep
@@ -49,14 +50,12 @@ example : ¬ (Model.protocol stepConfig).ValidStep { frozenStep with effects := 
   intro result
   cases result
 
-example (config : Model.Config) (active : List Location)
-    (valid : config.Valid)
-    (nodup : active.Nodup)
-    (configured : forall node, node ∈ active -> node ∈ config.protocol.expectedLocations)
-    : (Model.transitionSystem config).Reachable (Tests.initial config active) := by
+example (config : Model.Config) (valid : config.Valid)
+    : (Model.transitionSystem config).Reachable (Tests.initial config) := by
   apply TransitionSystem.Reachable.initial
-  refine ⟨valid, valid.2.1, ?_, nodup, configured, rfl, ?_⟩
+  refine ⟨valid, ?_, ?_, rfl, ?_⟩
   · simp [Tests.initial, List.map_map, Function.comp_def]
+  · simpa [Tests.initial, List.map_map, Function.comp_def] using valid.2.1
   · intro entry member
     rcases List.mem_map.mp member with ⟨node, _, rfl⟩
     rfl
@@ -278,6 +277,7 @@ def run : IO Unit := do
     {
       protocol := config
       recovered := [("A", { view := 1, seqno := 10 }), ("B", { view := 2, seqno := 1 })]
+      active := ["A", "B"]
     }
   let retry (config : Model.Config) (state : NodeState)
       : Option (NodeState × List Model.Envelope) := do
@@ -335,7 +335,7 @@ def run : IO Unit := do
   expect
     ((retry noPeers { initial with phase := .opening }).isNone)
     "opening retry without recipients must be disabled"
-  let globalInitial := Tests.initial globalConfig ["A", "B"]
+  let globalInitial := Tests.initial globalConfig
   expect
     (((Model.transitionSystem globalConfig).step globalInitial
         (.local "A" .timeout)).isNone)
@@ -378,13 +378,14 @@ def run : IO Unit := do
   let ignoredAgain <- runGlobal globalConfig ignored (.deliver envelope)
   expect (ignoredAgain.network.isEmpty && ignoredAgain.nodes == ignored.nodes)
     "second ignored delivery did not consume the remaining occurrence"
-  let toInactive := Tests.initial globalConfig ["A"]
-  let inactiveSent <- runGlobal globalConfig toInactive (.local "A" .retry)
+  let inactiveConfig := { globalConfig with active := ["A"] }
+  let toInactive := Tests.initial inactiveConfig
+  let inactiveSent <- runGlobal inactiveConfig toInactive (.local "A" .retry)
   let inactiveMessage <- requireSome
                           (inactiveSent.network.find? fun env => env.target == "B")
                           "inactive gossip missing"
   expect
-    (((Model.transitionSystem globalConfig).step inactiveSent
+    (((Model.transitionSystem inactiveConfig).step inactiveSent
         (.deliver inactiveMessage)).isNone)
     "an inactive destination accepted a delivery"
 
@@ -427,8 +428,9 @@ def run : IO Unit := do
     {
       protocol := { instanceId := "different-snapshots", expectedLocations := ["A"] }
       recovered := [("A", { view := 1, seqno := 10 })]
+      active := ["A"]
     }
-  let singleInitial := Tests.initial singleConfig ["A"]
+  let singleInitial := Tests.initial singleConfig
   let singleSend1 <- runGlobal singleConfig singleInitial (.local "A" .retry)
   let singleSend2 <- runGlobal singleConfig singleSend1 (.local "A" .retry)
   let singleReceived <- deliverMessage singleConfig singleSend2 "A" "A"

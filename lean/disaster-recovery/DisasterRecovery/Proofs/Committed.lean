@@ -151,7 +151,7 @@ lemma recoveredTxID_of_mem
     (membership : (location, txid) ∈ config.recovered)
     : recoveredTxID config location = some txid := by
   have keysNodup : (config.recovered.map Prod.fst).Nodup := by
-    rw [valid.2.2]
+    rw [valid.2.2.1]
     exact valid.2.1
   unfold recoveredTxID
   cases found : config.recovered.find? fun entry => entry.1 == location with
@@ -221,7 +221,7 @@ lemma up_to_date_with_quorum_of_all
     unfold voteQuorum
     omega
   · intro voter member
-    rw [← valid.2.2] at member
+    rw [← valid.2.2.1] at member
     obtain ⟨entry, present, key⟩ := List.mem_map.mp member
     subst voter
     exact ⟨entry.2, recoveredTxID_of_mem valid present, fresh entry present⟩
