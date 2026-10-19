@@ -458,32 +458,32 @@ lemma systemStep_quorum_effect_has_threshold
   rw [←outputEq] at opening ⊢
   exact quorum_effect_has_threshold config node event opening
 
-lemma initial_node_votes_nodup (config : Config) (active nodes : List Location)
-    : NodeVotesNodup (initial config active nodes) := by
+lemma initial_node_votes_nodup (config : Config) (nodes : List Location)
+    : NodeVotesNodup (initial config nodes) := by
   simp [NodeVotesNodup, Execution.Global.initial, initialNode]
 
-lemma initial_node_votes_sent (config : Config) (active nodes : List Location)
-    : NodeVotesSent (initial config active nodes) := by
+lemma initial_node_votes_sent (config : Config) (nodes : List Location)
+    : NodeVotesSent (initial config nodes) := by
   simp [NodeVotesSent, Execution.Global.initial, initialNode]
 
-lemma initial_sent_votes_functional (config : Config) (active nodes : List Location)
-    : SentVotesFunctional (initial config active nodes) := by
+lemma initial_sent_votes_functional (config : Config) (nodes : List Location)
+    : SentVotesFunctional (initial config nodes) := by
   simp [SentVotesFunctional, SentVote, Execution.Global.initial]
 
-lemma initial_sent_vote_stable (config : Config) (active nodes : List Location)
-    : SentVoteStable (initial config active nodes) := by
+lemma initial_sent_vote_stable (config : Config) (nodes : List Location)
+    : SentVoteStable (initial config nodes) := by
   simp [SentVoteStable, Execution.Global.initial]
 
-lemma initial_voting_selections (config : Config) (active nodes : List Location)
-    : VotingSelectionsValid (initial config active nodes) := by
+lemma initial_voting_selections (config : Config) (nodes : List Location)
+    : VotingSelectionsValid (initial config nodes) := by
   simp [VotingSelectionsValid, Execution.Global.initial, initialNode]
 
-lemma initial_sent_votes_selected (config : Config) (active nodes : List Location)
-    : SentVotesSelected (initial config active nodes) := by
+lemma initial_sent_votes_selected (config : Config) (nodes : List Location)
+    : SentVotesSelected (initial config nodes) := by
   simp [SentVotesSelected, Execution.Global.initial]
 
-lemma initial_openings_valid (config : Config) (active nodes : List Location)
-    : OpeningsValid config (initial config active nodes) := by
+lemma initial_openings_valid (config : Config) (nodes : List Location)
+    : OpeningsValid config (initial config nodes) := by
   simp [OpeningsValid, Execution.Global.initial]
 
 lemma systemStep_preserves_node_votes_sent
@@ -1164,16 +1164,16 @@ lemma timeout_preserves_sent_votes_functional
   · simpa [SentVote] using firstVote
   · simpa [SentVote] using secondVote
 
-lemma initial_quorum_invariant (config : Config) (active nodes : List Location)
-    : QuorumInvariant config (initial config active nodes) :=
+lemma initial_quorum_invariant (config : Config) (nodes : List Location)
+    : QuorumInvariant config (initial config nodes) :=
   {
-    votesNodup := initial_node_votes_nodup config active nodes
-    votesSent := initial_node_votes_sent config active nodes
-    sentVoteStable := initial_sent_vote_stable config active nodes
-    sentVotesFunctional := initial_sent_votes_functional config active nodes
-    votingSelections := initial_voting_selections config active nodes
-    sentVotesSelected := initial_sent_votes_selected config active nodes
-    openingsValid := initial_openings_valid config active nodes
+    votesNodup := initial_node_votes_nodup config nodes
+    votesSent := initial_node_votes_sent config nodes
+    sentVoteStable := initial_sent_vote_stable config nodes
+    sentVotesFunctional := initial_sent_votes_functional config nodes
+    votingSelections := initial_voting_selections config nodes
+    sentVotesSelected := initial_sent_votes_selected config nodes
+    openingsValid := initial_openings_valid config nodes
   }
 
 lemma next_preserves_quorum_invariant
@@ -1245,8 +1245,8 @@ lemma reachable_quorum_invariant
     : QuorumInvariant config state := by
   induction reachable with
   | initial initialized =>
-      rcases initialized with ⟨active, _, _, _, nodes, _, _, rfl⟩
-      exact initial_quorum_invariant config active nodes
+      rcases initialized with ⟨_, nodes, _, _, rfl⟩
+      exact initial_quorum_invariant config nodes
   | step reachable transition invariant =>
       exact next_preserves_quorum_invariant
         (reachable_well_formed reachable) invariant transition

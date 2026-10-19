@@ -14,13 +14,13 @@ open Execution.Global
 /-! ## Well-formedness and message provenance -/
 
 /-- Only active nodes appear in terminal-notification histories. -/
-structure HistoriesActive (state : State) : Prop where
+structure HistoriesActive (config : Config) (state : State) : Prop where
   /-- Only active locations have recorded opening notifications. -/
-  openings : forall opening, opening ∈ state.openings -> opening.node ∈ state.active
+  openings : forall opening, opening ∈ state.openings -> opening.node ∈ config.active
   /-- Only active locations have recorded restart notifications. -/
-  restarts : forall node, node ∈ state.restarts -> node ∈ state.active
+  restarts : forall node, node ∈ state.restarts -> node ∈ config.active
   /-- Only active locations have recorded completion notifications. -/
-  completed : forall node, node ∈ state.completed -> node ∈ state.active
+  completed : forall node, node ∈ state.completed -> node ∈ config.active
 
 /-- Node identities, active membership, and message provenance are consistent. -/
 structure WellFormed (config : Config) (state : State) : Prop where
@@ -33,19 +33,19 @@ structure WellFormed (config : Config) (state : State) : Prop where
   /-- Every local state's location agrees with its node-table key. -/
   nodeLocations : forall entry, entry ∈ state.system.nodes -> entry.2.location = entry.1
   /-- The active-location list has no duplicates. -/
-  activeNodup : state.active.Nodup
+  activeNodup : config.active.Nodup
   /-- Every active location is configured. -/
   activeConfigured
-    : forall node, node ∈ state.active -> node ∈ config.protocol.expectedLocations
+    : forall node, node ∈ config.active -> node ∈ config.protocol.expectedLocations
   /-- Every recorded send has valid local-step evidence. -/
   sentValid : forall envelope, envelope ∈ state.sent -> envelope.Valid config
   /-- Only active locations have sent messages. -/
   sentSourceActive
-    : forall envelope, envelope ∈ state.sent -> envelope.source ∈ state.active
+    : forall envelope, envelope ∈ state.sent -> envelope.source ∈ config.active
   /-- Every queued envelope has a corresponding recorded send. -/
   networkSent : forall envelope, envelope ∈ state.network -> envelope ∈ state.sent
   /-- Host-notification histories refer only to active locations. -/
-  historiesActive : HistoriesActive state
+  historiesActive : HistoriesActive config state
 
 /-! ## Votes, quorums, and openings -/
 

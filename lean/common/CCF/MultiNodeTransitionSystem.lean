@@ -60,8 +60,8 @@ structure LocalStep (Node LocalState LocalAction Message Notification : Type) wh
   effects : Outputs Node Message Notification
 
 /-- `s` is a real step: running the protocol from `s.before` on `s.action` with
-recording capabilities yields exactly `s.after` and `s.effects`. No reachability
-or activity is required. -/
+recording capabilities yields exactly `s.after` and `s.effects`. No global
+reachability is required. -/
 def Protocol.ValidStep
     {Node LocalState LocalAction Message Notification Input : Type}
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)

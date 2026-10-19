@@ -9,7 +9,7 @@ set_option autoImplicit false
 /-!
 Replays reduced recovery-decision-protocol executions through
 `Model.transitionSystem`. Every expected location is in the network from the
-start, and the participants are its active nodes. Actions must be enabled, and
+start, and the configuration specifies the active participants. Actions must be enabled, and
 observations compare selected fields of a node's state, or the messages and
 notifications of the node's latest action, with the model.
 -/
@@ -70,12 +70,10 @@ def Instruction.origins : Instruction → List Origin
   | .state _ _ origins
   | .outputs _ _ _ origins => origins
 
-/-- Model configuration and active participants reconstructed from the trace. -/
+/-- Model configuration reconstructed from the trace. -/
 structure Header where
-  /-- Recovery parameters and ledger tips reconstructed from start and send records. -/
+  /-- Recovery parameters, ledger tips, and fixed participants reconstructed from the trace. -/
   config : Model.Config
-  /-- Nodes that participate in the recorded scenario. -/
-  participants : List Location
 
 /-- The expected locations, the participants, and the TxIDs they gossiped. -/
 def Header.make (expected participants : List Location)
@@ -87,8 +85,8 @@ def Header.make (expected participants : List Location)
         protocol := { instanceId, expectedLocations := expected }
         recovered :=
           expected.map fun node => (node, (recovered.lookup node).getD unusedTxID)
+        active := participants
       }
-    participants
   }
 
 /-- Every expected location in its initial state. Only participants act. -/
@@ -96,7 +94,6 @@ def Header.initial (header : Header) : Model.State :=
   {
     nodes :=
       header.config.protocol.expectedLocations.map fun node => (node, initialNode node)
-    active := header.participants
   }
 
 /-- Lowercase phase name used in replay diagnostics. -/
@@ -133,7 +130,7 @@ private def runAction (config : Model.Config) (state : Model.State)
   let some next := (Model.transitionSystem config).step state action
   | throw s!"disabled model action '{actionName action}'"
   let (node, event) := localEvent config action
-  let some before := nodeState state.toState node
+  let some before := nodeState state node
   | throw s!"node '{node}' is not in the network"
   let some (_, effects) :=
     ((Model.protocol config).step (Capabilities.record node) node before event).run {}
@@ -172,7 +169,7 @@ private def execute (config : Model.Config) (current : ReplayState)
       let (state, node, outputs) ← runAction config current.state action
       return { state, latest := some (node, outputs) }
   | .state node fields _ => do
-      let some state := nodeState current.state.toState node
+      let some state := nodeState current.state node
       | throw s!"node '{node}' is not in the network"
       checkState fields state
       return current

@@ -38,7 +38,7 @@ Delivery consumes any queued envelope, not only the first.
 Notifications are not stored in the global state.
 
 `Model.lean` supplies each node's recovered TxID and adds `Config.Valid` to the initial-state predicate.
-Its global state extends the shared network with a fixed active subset, which gates both local actions and message delivery.
+Its configuration supplies a fixed active subset, which the DR protocol adapter checks before every local step, including message delivery.
 Every expected location has an initial node state; extra unused node states are permitted, in any order, without changing the configured quorum.
 Nodes are not created during an execution.
 Retries still enqueue messages to inactive expected locations, but those messages cannot be delivered.

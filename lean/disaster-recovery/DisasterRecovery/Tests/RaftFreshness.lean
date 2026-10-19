@@ -17,6 +17,7 @@ private def config (ledgers : List (Location × TxID)) : Model.Config :=
     protocol :=
       { instanceId := "raft-freshness-tests", expectedLocations := ledgers.map Prod.fst }
     recovered := ledgers
+    active := ledgers.map Prod.fst
   }
 
 example : LogUpToDate high high := by decide

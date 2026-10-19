@@ -33,16 +33,11 @@ private theorem valid_of_adjacent {config : Model.Config} {trace : Properties.Gl
   exact ⟨action, by simpa only [beforeEq, afterEq] using stepped⟩
 
 private def initial (config : Model.Config) : Model.State :=
-  {
-    nodes := config.protocol.expectedLocations.map fun node => (node, initialNode node)
-    active := config.protocol.expectedLocations
-  }
+  { nodes := config.protocol.expectedLocations.map fun node => (node, initialNode node) }
 
 private theorem initialized {config : Model.Config} (valid : config.Valid)
     : (Model.transitionSystem config).init (initial config) := by
-  refine ⟨valid, valid.2.1, ?_, ?_, ?_, rfl, ?_⟩
-  · intro node member
-    exact member
+  refine ⟨valid, ?_, ?_, rfl, ?_⟩
   · simp [initial, Function.comp_def]
   · simpa [initial, Function.comp_def] using valid.2.1
   · intro entry member
@@ -60,6 +55,7 @@ private def quorumConfig : Model.Config :=
   {
     protocol := { instanceId := "quorum-witness", expectedLocations := ["A"] }
     recovered := [("A", high)]
+    active := ["A"]
   }
 
 private def quorumActions : List Model.Action :=
@@ -69,10 +65,7 @@ private def quorumSelected : NodeState :=
   { location := "A", phase := .voting, chosen := some "A", gossips := [("A", high)] }
 
 private def quorumReady : Model.State :=
-  {
-    nodes := [("A", quorumSelected)]
-    active := ["A"]
-  }
+  { nodes := [("A", quorumSelected)] }
 
 private def quorumVoteSent : Model.State :=
   { quorumReady with network := [vote, gossip "A" "A" high] }
@@ -83,7 +76,6 @@ private def quorumOpener : NodeState :=
 private def quorumOpened : Model.State :=
   {
     nodes := [("A", quorumOpener)]
-    active := ["A"]
     network := [gossip "A" "A" high]
   }
 
@@ -123,11 +115,13 @@ private theorem quorum_notified
   · rfl
   · simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, quorumVoteSent, quorumReady, vote,
-      MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne, guard]
+      MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne,
+      Model.protocol, quorumConfig, guard]
     cbv
     simp [advance, rejected, validTimeout, voteQuorum, advanceTimeoutLane]
     rfl
-  · cbv
+  · simp [Model.protocol, quorumConfig, guard]
+    cbv
     simp [advance, rejected, validTimeout, voteQuorum, advanceTimeoutLane]
   · simp
 
@@ -162,6 +156,7 @@ private def fullConfig : Model.Config :=
       {
         instanceId := "full-gossip-failover-witness", expectedLocations := ["A", "B", "C"]
       }
+    active := ["A", "B", "C"]
     recovered :=
       [("A", high), ("B", { view := 1, seqno := 8 }), ("C", { view := 1, seqno := 5 })]
   }
@@ -195,10 +190,7 @@ private def fullSelected (node : Location) : NodeState :=
   }
 
 private def fullGossiped : Model.State :=
-  {
-    nodes := [("A", fullSelected "A"), ("B", fullSelected "B"), ("C", fullSelected "C")]
-    active := ["A", "B", "C"]
-  }
+  { nodes := [("A", fullSelected "A"), ("B", fullSelected "B"), ("C", fullSelected "C")] }
 
 private def failoverOpener : NodeState :=
   {
@@ -231,7 +223,6 @@ private def partialGossip (a b c : Nat) : Model.State :=
   {
     nodes :=
       [("A", partialNode "A" a), ("B", partialNode "B" b), ("C", partialNode "C" c)]
-    active := ["A", "B", "C"]
     network := fullPending a b c
   }
 
@@ -333,6 +324,8 @@ private def frozenGossip : Properties.LocalStep :=
 theorem gossip_freezes_after_choice_witness
     : Properties.GossipFreezesAfterChoiceWitness := by
   refine ⟨quorumConfig, frozenGossip, "A", high, ?_, rfl, rfl⟩
+  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
+    frozenGossip, guard]
   cbv
 
 private def rejectedGossip : Properties.LocalStep :=
@@ -346,6 +339,8 @@ private def rejectedGossip : Properties.LocalStep :=
 
 theorem rejected_gossip_stutters_witness : Properties.RejectedGossipStuttersWitness := by
   refine ⟨quorumConfig, rejectedGossip, "A", high, ?_, rfl⟩
+  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
+    rejectedGossip, guard]
   cbv
 
 private def quorumTimeout : Properties.LocalStep :=
@@ -359,6 +354,8 @@ private def quorumTimeout : Properties.LocalStep :=
 
 theorem quorum_advance_opens_witness : Properties.QuorumAdvanceOpensWitness := by
   refine ⟨quorumConfig, quorumTimeout, ?_, Or.inl rfl, rfl, by decide⟩
+  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
+    quorumTimeout, guard]
   cbv
 
 private def openingTimeout : Properties.LocalStep :=
@@ -373,6 +370,8 @@ private def openingTimeout : Properties.LocalStep :=
 theorem aligned_opening_timeout_completes_witness
     : Properties.AlignedOpeningTimeoutCompletesWitness := by
   refine ⟨quorumConfig, openingTimeout, ?_, rfl, rfl, rfl⟩
+  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
+    openingTimeout, guard]
   cbv
 
 end DisasterRecovery.Proofs.Witnesses

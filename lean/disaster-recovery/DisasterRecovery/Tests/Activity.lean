@@ -18,18 +18,17 @@ private def config : Model.Config :=
   {
     protocol := { instanceId := "activity-tests", expectedLocations := ["A", "B"] }
     recovered := [("A", { view := 1, seqno := 10 }), ("B", { view := 1, seqno := 5 })]
+    active := ["A"]
   }
 
 private def initial : Model.State :=
   {
     nodes :=
       [("unused", initialNode "unused"), ("B", initialNode "B"), ("A", initialNode "A")]
-    active := ["A"]
   }
 
 private theorem initialized : (Model.transitionSystem config).init initial := by
-  refine ⟨by unfold Model.Config.Valid; decide, by decide, ?_, ?_, by decide, rfl, ?_⟩
-  · simp [initial, config]
+  refine ⟨by unfold Model.Config.Valid; decide, ?_, by decide, rfl, ?_⟩
   · simp [initial, config]
   · simp [initial, Model.protocol]
 
@@ -62,33 +61,36 @@ example : (Model.transitionSystem config).step initial (.local "unused" .retry) 
   rfl
 
 example
-    : ((MultiNodeTransitionSystem.lift (Model.protocol config)).step sent.toState
+    : ((MultiNodeTransitionSystem.lift (Model.protocol config)).step sent
         (.deliver (gossip "B"))).isSome
-      = true := by
-  simp [MultiNodeTransitionSystem.lift, MultiNodeTransitionSystem.next,
-    MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne,
-    Model.protocol, Model.recoveredTxID, Model.receive, step, initial, sent, gossip,
-    config, guard]
-  cbv
+      = false :=
+  rfl
+
+example
+    : ((Model.protocol config).step (Capabilities.record "B") "B" (initialNode "B")
+        .retry).run
+        {}
+      = none :=
+  rfl
 
 example : voteQuorum config.protocol = 2 := rfl
 
 example
-    : ¬ (Model.transitionSystem config).init { initial with active := ["unused"] } := by
+    : ¬ (Model.transitionSystem { config with active := ["unused"] }).init initial := by
   intro initialized
-  have configured := initialized.2.2.1 "unused" (by simp)
+  have configured := initialized.1.2.2.2.2 "unused" (by simp)
   simp [config] at configured
 
 example
     : ¬ (Model.transitionSystem config).init
           { initial with nodes := [("A", initialNode "A")] } := by
   intro initialized
-  have covered := initialized.2.2.2.1 "B" (by simp [config])
+  have covered := initialized.2.1 "B" (by simp [config])
   simp at covered
 
 example
     : (TraceValidation.Header.make ["A", "B"] ["A"] config.recovered).initial
-      = Tests.initial config ["A"] :=
+      = Tests.initial config :=
   rfl
 
 end DisasterRecovery.Tests.Activity

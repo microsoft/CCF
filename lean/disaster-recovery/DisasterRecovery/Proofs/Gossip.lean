@@ -246,7 +246,7 @@ lemma reachable_gossip_invariant {config : Config} {state : State}
     : Genuine config state.system.nodes /\ FrozenVotes state := by
   induction reachable with
   | initial initialized =>
-      obtain ⟨active, _, _, _, nodes, _, _, rfl⟩ := initialized
+      obtain ⟨_, nodes, _, _, rfl⟩ := initialized
       constructor
       · simp [Genuine, initial, initialNode]
       · simp [FrozenVotes, initial]

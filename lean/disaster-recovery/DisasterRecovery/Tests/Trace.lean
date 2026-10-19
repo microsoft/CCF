@@ -14,17 +14,20 @@ open CCF
 open Model.Local
 open Properties.Trace
 
+attribute [local simp] StateT.run
+
 private def config : Model.Config :=
   {
     protocol := { instanceId := "trace-tests", expectedLocations := ["A"] }
     recovered := [("A", { view := 1, seqno := 10 })]
+    active := ["A"]
   }
 
 private def recovered : TxID := { view := 1, seqno := 10 }
 private def unused : Location × NodeState := ("unused", initialNode "unused")
 
 private def initial : Model.State :=
-  { Tests.initial config ["A"] with nodes := [unused, ("A", initialNode "A")] }
+  { Tests.initial config with nodes := [unused, ("A", initialNode "A")] }
 
 private def gossip : Model.Envelope :=
   { source := "A", target := "A", payload := .gossip recovered }
@@ -35,7 +38,7 @@ private def gossipSent : Model.State := { initial with network := [gossip] }
 private def selected : NodeState :=
   { location := "A", phase := .voting, chosen := some "A", gossips := [("A", recovered)] }
 
-private def ready : Model.State := { nodes := [unused, ("A", selected)], active := ["A"] }
+private def ready : Model.State := { nodes := [unused, ("A", selected)] }
 private def voteSent : Model.State := { ready with network := [vote, gossip] }
 
 private def opening : NodeState :=
@@ -48,9 +51,7 @@ private def trace : Properties.GlobalTrace :=
   { states := [initial, gossipSent, ready, voteSent, opened] }
 
 private theorem initialized : (Model.transitionSystem config).init initial := by
-  refine ⟨by unfold Model.Config.Valid; decide, by decide, ?_, ?_, by decide, rfl, ?_⟩
-  · intro node member
-    exact member
+  refine ⟨by unfold Model.Config.Valid; decide, ?_, by decide, rfl, ?_⟩
   · simp [initial, Tests.initial, config]
   · simp [initial, unused, Model.protocol]
 
@@ -95,9 +96,11 @@ private theorem observedOpening
   ⟩
   · simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, voteSent, ready, vote,
-      MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne, guard]
+      MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne,
+      Model.protocol, config, guard]
     cbv
-  · cbv
+  · simp [Model.protocol, config, guard]
+    cbv
 
 example : (Model.transitionSystem config).Reachable opened :=
   valid.reachable (by simp [trace])
@@ -109,7 +112,7 @@ example
         Model.recoveredTxID config "A" = some openerTxID
         /\ Properties.UpToDateWithQuorum config openerTxID := by
   apply Proof.full_gossip_preserves_commit config trace ready opened "A" opening
-  refine ⟨valid, by simp [trace], ?_, by simp [trace], by simp [opened, ready], rfl⟩
+  refine ⟨valid, by simp [trace], ?_, by simp [trace], by simp [opened], rfl⟩
   intro node nodeState configured member entry
   have nodeEq : node = "A" := by simpa [config] using configured
   subst node
@@ -144,6 +147,7 @@ example
     simpa [voteSent, ready, unused, MultiNodeTransitionSystem.nodeState]
       using foundAfter.symm
   subst nodeBefore nodeAfter
+  simp [Model.protocol, config, guard] at run
   cases action with
   | «local» node input =>
       simp only [Properties.Trace.actor] at actor
@@ -163,8 +167,7 @@ example
       have pending : envelope ∈ [vote, gossip] := by
         simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
           MultiNodeTransitionSystem.next, Option.bind_eq_some_iff, guard, failure] at transition
-        obtain ⟨_, _, _, _, ⟨pending, _⟩, _⟩ := transition
-        exact pending
+        exact transition.1
       rcases List.mem_cons.mp pending with rfl | remaining
       · have impossible := congrArg
           (fun result => result.map (fun value => value.1.phase)) run
@@ -195,7 +198,15 @@ example
       /\ quorumVote.after.openKind = some .quorum
       /\ .opening .quorum ∈ quorumVote.effects.notifications :=
   Proofs.Local.quorum_step_opens config quorumVote
-    ⟨by cbv, Or.inr ⟨"A", rfl⟩, rfl, by decide⟩
+    ⟨
+      by
+        simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, config,
+          quorumVote, guard]
+        cbv,
+      Or.inr ⟨"A", rfl⟩,
+      rfl,
+      by decide
+    ⟩
 
 private def quorumTimeout : Properties.LocalStep :=
   {
@@ -208,12 +219,21 @@ example
     : quorumTimeout.after.phase = .opening
       /\ quorumTimeout.after.openKind = some .quorum
       /\ .opening .quorum ∈ quorumTimeout.effects.notifications :=
-  Proofs.Local.quorum_step_opens config quorumTimeout ⟨by cbv, Or.inl rfl, rfl, by decide⟩
+  Proofs.Local.quorum_step_opens config quorumTimeout
+    ⟨
+      by
+        simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, config,
+          quorumTimeout, guard]
+        cbv,
+      Or.inl rfl,
+      rfl,
+      by decide
+    ⟩
 
 example
     : ¬ ({ states := [ready, voteSent] } : Properties.GlobalTrace).Valid
           (Model.transitionSystem config) := by
-  rintro ⟨⟨start, first, _, _, _, _, _, _, nodes⟩, _⟩
+  rintro ⟨⟨start, first, _, _, _, _, nodes⟩, _⟩
   have same : start = ready := by simpa using first.symm
   subst start
   have invalid := nodes ("A", selected) (by simp [ready])

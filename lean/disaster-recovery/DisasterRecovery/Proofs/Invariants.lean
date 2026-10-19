@@ -159,41 +159,21 @@ lemma nodeState_location
 
 lemma initial_well_formed
     (config : Config)
-    (active : List Location)
     (nodes : List Location)
+    (valid : config.Valid)
     (nodesNodup : nodes.Nodup)
     (covered : forall node, node ∈ config.protocol.expectedLocations -> node ∈ nodes)
-    (activeNodup : active.Nodup)
-    (activeConfigured
-      : forall node, node ∈ active -> node ∈ config.protocol.expectedLocations)
-    : WellFormed config (initial config active nodes) := by
+    : WellFormed config (initial config nodes) := by
   constructor
   · simpa [Execution.Global.initial, Function.comp_def] using covered
   · simpa [Execution.Global.initial, Function.comp_def] using nodesNodup
   · simp [Execution.Global.initial, initialNode]
-  · exact activeNodup
-  · exact activeConfigured
+  · exact valid.2.2.2.1
+  · exact valid.2.2.2.2
   · simp [Execution.Global.initial]
   · simp [Execution.Global.initial]
   · simp [Execution.Global.initial]
   · constructor <;> simp [Execution.Global.initial]
-
-@[simp]
-lemma recordEffects_active
-    (node : Location)
-    (nodeState : NodeState)
-    (effects : List Effect)
-    (state : State)
-    : (recordEffects node nodeState effects state).active = state.active := by
-  induction effects generalizing state with
-  | nil => rfl
-  | cons effect tail ih =>
-      simp only [recordEffects, List.foldl_cons]
-      change (recordEffects node nodeState tail
-                (recordEffect node nodeState state effect)).active
-      = state.active
-      rw [ih]
-      cases effect <;> rfl
 
 @[simp]
 lemma recordEffects_system
@@ -247,33 +227,34 @@ lemma recordEffects_sent
       cases effect <;> rfl
 
 lemma recordEffect_preserves_histories_active
+    {config : Config}
     {node : Location}
     {nodeState : NodeState}
     {state : State}
     {effect : Effect}
-    (wellFormed : HistoriesActive state)
-    (nodeActive : node ∈ state.active)
-    : HistoriesActive (recordEffect node nodeState state effect) := by
+    (wellFormed : HistoriesActive config state)
+    (nodeActive : node ∈ config.active)
+    : HistoriesActive config (recordEffect node nodeState state effect) := by
   rcases wellFormed with ⟨openings, restarts, completed⟩
   cases effect <;>
     constructor <;>
     simp_all [recordEffect]
 
 lemma recordEffects_preserves_histories_active
+    {config : Config}
     {node : Location}
     {nodeState : NodeState}
     {effects : List Effect}
     {state : State}
-    (wellFormed : HistoriesActive state)
-    (nodeActive : node ∈ state.active)
-    : HistoriesActive (recordEffects node nodeState effects state) := by
+    (wellFormed : HistoriesActive config state)
+    (nodeActive : node ∈ config.active)
+    : HistoriesActive config (recordEffects node nodeState effects state) := by
   induction effects generalizing state with
   | nil => exact wellFormed
   | cons effect tail ih =>
       simp only [recordEffects, List.foldl_cons]
       apply ih
-      · exact recordEffect_preserves_histories_active wellFormed nodeActive
-      · cases effect <;> simpa [recordEffect] using nodeActive
+      exact recordEffect_preserves_histories_active wellFormed nodeActive
 
 lemma mem_of_mem_removeOne {α : Type _} [BEq α] (value member : α) (values : List α)
     : member ∈ removeOne value values -> member ∈ values := by
@@ -494,26 +475,6 @@ lemma systemStep_other_node_eq
   rw [←stateEq]
   exact findNode_replaceNode_ne target other
     (step config node event).state before.nodes different
-
-lemma next_active_eq
-    {config : Config}
-    {before after : State}
-    {action : Action}
-    (transition : next config before action = some after)
-    : after.active = before.active := by
-  cases action with
-  | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, sourceState, _, _, rfl⟩
-      rfl
-  | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, _, system, output, _, rfl⟩
-      simp
-  | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, system, output, _, _, rfl⟩
-      simp
 
 lemma next_node_keys_eq
     {config : Config}
@@ -763,7 +724,6 @@ lemma deliver_preserves_well_formed
     exact wellFormed.sentValid sent membership
   · intro sent membership
     rw [recordEffects_sent] at membership
-    rw [recordEffects_active]
     exact wellFormed.sentSourceActive sent membership
   · intro pending membership
     rw [recordEffects_network] at membership
@@ -804,7 +764,6 @@ lemma timeout_preserves_well_formed
     exact wellFormed.sentValid sent membership
   · intro sent membership
     rw [recordEffects_sent] at membership
-    rw [recordEffects_active]
     exact wellFormed.sentSourceActive sent membership
   · intro pending membership
     rw [recordEffects_network] at membership
@@ -840,8 +799,8 @@ lemma reachable_well_formed
   induction reachable with
   | initial initialized =>
       rcases initialized with
-        ⟨active, _, nodup, configured, nodes, nodesNodup, covered, rfl⟩
-      exact initial_well_formed config active nodes nodesNodup covered nodup configured
+        ⟨valid, nodes, nodesNodup, covered, rfl⟩
+      exact initial_well_formed config nodes valid nodesNodup covered
   | step _ transition wellFormed =>
       exact next_preserves_well_formed wellFormed transition
 
@@ -852,7 +811,7 @@ lemma reachable_config_valid
     : config.Valid := by
   induction reachable with
   | initial initialized =>
-      rcases initialized with ⟨_, valid, _⟩
+      rcases initialized with ⟨valid, _⟩
       exact valid
   | step _ _ valid => exact valid
 
