@@ -38,10 +38,6 @@ Delivery consumes any queued envelope, not only the first.
 Notifications are not stored in the global state.
 
 `Model.lean` supplies each node's recovered TxID and adds `Config.Valid` to the initial-state predicate.
-Its configuration supplies a fixed active subset, which the DR protocol adapter checks before every local step, including message delivery.
-Every expected location has an initial node state; extra unused node states are permitted, in any order, without changing the configured quorum.
-Nodes are not created during an execution.
-Retries still enqueue messages to inactive expected locations, but those messages cannot be delivered.
 The model records no history.
 The proofs reconstruct sends and notifications by re-executing local steps.
 
@@ -60,8 +56,7 @@ The global properties quantify a `GlobalTrace`, a list of states beginning with 
 `QuorumOpenPreservesCommit` and `FullGossipPreservesCommit` conclude that the opener satisfies Raft's vote freshness check against a strict majority of the recovered ledgers.
 `LogUpToDate` is that check, comparing view and then sequence number, as in `recv_request_vote` in `src/consensus/aft/raft.h`.
 The first property requires each voter to have received its own gossip; without this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by quorum.
-The second requires a state in which every configured location's gossip equals `config.recovered`, and it also covers failover openings.
-Unused extra nodes need not collect gossip.
+The second requires a state in which every node's gossip equals `config.recovered`, and it also covers failover openings.
 
 Each property has a `Witness` claim asserting that some valid trace or step satisfies its premises.
 `Proofs/Witnesses.lean` proves all seven witnesses using concrete executions.
