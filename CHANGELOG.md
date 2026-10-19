@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Added
 
 - Added opt-in `did:key` node, member, and user IDs, with matching enrollment and COSE signing options.
-  See [Identity IDs](doc/architecture/cryptography.rst#identity-ids) for upgrade and migration requirements.
+  See [Identity IDs](doc/architecture/cryptography.rst#identity-ids) for upgrade and migration requirements (#8602).
 - Added Ed25519 certificate support to `ccf::crypto::cert_der_to_pem()` and `cert_pem_to_der()` (#8598).
 
 ### Fixed
