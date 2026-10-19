@@ -2421,6 +2421,54 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
+  "Retired node cleanup is triggered by election, not forced leadership" *
+  doctest::test_suite("single"))
+{
+  ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
+  auto kv_store = std::make_shared<Store>(node_id);
+
+  size_t cleanup_count = 0;
+  TRaft r0(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(node_id),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(node_id),
+    [&cleanup_count]() { ++cleanup_count; });
+
+  aft::Configuration::Nodes config;
+  config[node_id] = {};
+  r0.add_configuration(0, config);
+
+  DOCTEST_SUBCASE("Forced at service start")
+  {
+    r0.force_become_primary();
+    DOCTEST_REQUIRE(r0.is_primary());
+    DOCTEST_REQUIRE(cleanup_count == 0);
+  }
+
+  DOCTEST_SUBCASE("Forced at the end of public recovery")
+  {
+    // As in node_state.h, a recovered primary's commit index is the last
+    // recovered seqno
+    const aft::Index recovered_idx = 7;
+    const aft::Term recovered_view = 3;
+    r0.force_become_primary(
+      recovered_idx, recovered_view, {1, 4, 6}, recovered_idx);
+    DOCTEST_REQUIRE(r0.is_primary());
+    DOCTEST_REQUIRE(cleanup_count == 0);
+  }
+
+  DOCTEST_SUBCASE("Elected")
+  {
+    r0.start_ticking();
+    r0.periodic(election_timeout * 2);
+    DOCTEST_REQUIRE(r0.is_primary());
+    DOCTEST_REQUIRE(cleanup_count == 1);
+  }
+}
+
+DOCTEST_TEST_CASE(
   "Election attempts without a configuration are ignored" *
   doctest::test_suite("single"))
 {
