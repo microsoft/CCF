@@ -23,10 +23,9 @@ open CCF
 open Model.Node
 open CCFRaft.ProofTLA.Ledger
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
-theorem Backed.transfer {history : History Node TxId} {log log' : List (Entry Node TxId)}
+theorem Backed.transfer {history : History} {log log' : List (Entry)}
     {commit term : Nat} (backed : Backed history log commit term)
     (agree : log'.take commit = log.take commit)
     : Backed history log' commit term := by
@@ -34,7 +33,7 @@ theorem Backed.transfer {history : History Node TxId} {log log' : List (Entry No
   · exact Or.inl zero
   · exact Or.inr ⟨earlier, part, committed, le, agree ▸ within⟩
 
-theorem maxCommittableIndexUpTo_le (log : List (Entry Node TxId)) (frontier : Nat)
+theorem maxCommittableIndexUpTo_le (log : List (Entry)) (frontier : Nat)
     : maxCommittableIndexUpTo log frontier <= frontier := by
   have := maxCommittableIndexBounded (log.take frontier)
   simp only [List.length_take] at this
@@ -43,20 +42,20 @@ theorem maxCommittableIndexUpTo_le (log : List (Entry Node TxId)) (frontier : Na
 
 namespace Ctx
 
-variable {nodes : List Node} {after before : Model.State Node TxId}
-  {rest : History Node TxId} (c : Ctx nodes after before rest)
+variable {nodes : List NodeID} {after before : Model.State}
+  {rest : History} (c : Ctx nodes after before rest)
 
 include c
 
 /-! ## Leaders before the step -/
 
-theorem pre_led (leader : c.pre.role = .leader)
+theorem pre_led (leader : c.pre.role = .primary)
     : Led (before :: rest) c.actor c.pre.currentTerm :=
   c.inv.leader_led c.actor c.pre c.pre_now leader
 
 theorem post_led
     (origin
-      : (c.pre.role = .leader /\ c.post.currentTerm = c.pre.currentTerm)
+      : (c.pre.role = .primary /\ c.post.currentTerm = c.pre.currentTerm)
         \/ Wins c.actor c.pre c.event c.post)
     : Led (after :: before :: rest) c.actor c.post.currentTerm := by
   rcases origin with ⟨leader, termEq⟩ | wins
@@ -65,7 +64,7 @@ theorem post_led
   · exact Or.inr ⟨_, _, after, before, rest, List.suffix_refl _, c.wins_elect wins⟩
 
 /-- An acknowledgement of a leader's term holds a prefix of the leader's log. -/
-theorem acked_pre (leader : c.pre.role = .leader) {voter : Node} {index : Nat}
+theorem acked_pre (leader : c.pre.role = .primary) {voter : NodeID} {index : Nat}
     (acked : Acked (before :: rest) voter c.pre.currentTerm index)
     : exists acker,
         Seen (after :: before :: rest) voter acker
@@ -86,11 +85,11 @@ theorem acked_pre (leader : c.pre.role = .leader) {voter : Node} {index : Nat}
 /-! ## Commit indices -/
 
 /-- An advanced commit index is a commit step backed by the earlier one. -/
-theorem advance_backed {middle : NodeState Node TxId}
+theorem advance_backed {middle : NodeState}
     (advance : Advance c.actor middle c.post)
     (old : Backed (before :: rest) c.post.log middle.commitIndex c.post.currentTerm)
     (led : Led (after :: before :: rest) c.actor c.post.currentTerm)
-    (role : middle.role = .leader)
+    (role : middle.role = .primary)
     (acks
       : forall voter,
           Not (voter = c.actor)
@@ -104,15 +103,15 @@ theorem advance_backed {middle : NodeState Node TxId}
   rcases advance with same | ⟨log, term, _, _, _, _, lt, eq, postRole⟩
   · subst same
     exact old.mono c.suffix_tail
-  have ahead : middle.commitIndex < highestCommittableIndex (inferInstance) middle c.actor :=
+  have ahead : middle.commitIndex < highestCommittableIndex middle c.actor :=
     eq ▸ lt
   obtain ⟨bound, signature, termEq, quorum⟩ := highestCommittableIndex_spec middle c.actor ahead
   obtain ⟨voters, quorum, members⟩
       : exists voters,
-          hasQuorum (middle.activeConfigurations (inferInstance)) voters
+          hasQuorum (middle.activeConfigurations) voters
           /\ forall voter, voter ∈ voters
               -> voter = c.actor
-                  \/ middle.matchIndex voter >= highestCommittableIndex (inferInstance) middle
+                  \/ middle.matchIndex voter >= highestCommittableIndex middle
                       c.actor :=
     ⟨_, quorum, fun _ mem => (Finset.mem_filter.mp mem).2⟩
   have notCandidate : Not (c.post.role = .candidate) := by
@@ -154,7 +153,7 @@ theorem pre_backed
   ((c.inv.commit_backed c.actor c.pre c.pre_now).weaken c.term_le).transfer agree
 
 /-- A leader's acknowledged prefix, from its match index. -/
-theorem match_pre (leader : c.pre.role = .leader) {voter : Node}
+theorem match_pre (leader : c.pre.role = .primary) {voter : NodeID}
     (different : Not (voter = c.actor)) (positive : 0 < c.pre.matchIndex voter)
     : exists acker,
         Seen (after :: before :: rest) voter acker
@@ -164,7 +163,7 @@ theorem match_pre (leader : c.pre.role = .leader) {voter : Node}
   c.acked_pre leader
     (c.inv.match_ack c.actor c.pre voter c.pre_now leader different positive)
 
-theorem accept_backed {source : Node} {request : AppendEntriesRequest Node TxId}
+theorem accept_backed {source : NodeID} {request : AppendEntriesRequest}
     (received : c.event = .receive source (.appendEntriesRequest request))
     (accepted : Accepted c.pre request c.post)
     : Backed (after :: before :: rest) c.post.log c.post.commitIndex
@@ -175,7 +174,7 @@ theorem accept_backed {source : Node} {request : AppendEntriesRequest Node TxId}
   rw [commitEq]
   rcases max_choice c.pre.commitIndex
       (maxCommittableIndexUpTo c.post.log
-        (min request.leaderCommit (request.prevLogIndex + request.entries.length))) with
+        (min request.primaryCommit (request.prevLogIndex + request.entries.length))) with
     choice | choice <;> rw [choice]
   · refine (c.pre_backed ?_).mono c.suffix_tail
     rcases shape with same | ⟨fresh, _⟩
@@ -193,7 +192,7 @@ theorem accept_backed {source : Node} {request : AppendEntriesRequest Node TxId}
         _ = c.pre.log.take c.pre.commitIndex := by
           rw [List.take_take, Nat.min_eq_left commitLe]
   · have kLe := maxCommittableIndexUpTo_le c.post.log
-      (min request.leaderCommit (request.prevLogIndex + request.entries.length))
+      (min request.primaryCommit (request.prevLogIndex + request.entries.length))
     have lcLe := aeok.2.2.2.2.2
     have senderTerm := canon.2.1
     obtain ⟨_, _, rfl⟩ := canon.1.nonempty
@@ -203,7 +202,7 @@ theorem accept_backed {source : Node} {request : AppendEntriesRequest Node TxId}
     · refine Or.inr
         ⟨earlier', part, committed.mono (suffix.trans c.suffix_tail), by omega, ?_⟩
       generalize maxCommittableIndexUpTo c.post.log
-        (min request.leaderCommit (request.prevLogIndex + request.entries.length)) = k at kLe ⊢
+        (min request.primaryCommit (request.prevLogIndex + request.entries.length)) = k at kLe ⊢
       have agree : c.post.log.take k = sender.log.take k := by
         calc
           c.post.log.take k
@@ -290,9 +289,9 @@ theorem commit_backed : CommitBacked (after :: before :: rest) := by
 
 /-- A signed prefix of the follower's log survives an accepted request, unless
 the sender's leader log of a later term lacks it. -/
-theorem accept_persist {source : Node} {request : AppendEntriesRequest Node TxId}
+theorem accept_persist {source : NodeID} {request : AppendEntriesRequest}
     (received : c.event = .receive source (.appendEntriesRequest request))
-    (accepted : Accepted c.pre request c.post) {part : List (Entry Node TxId)}
+    (accepted : Accepted c.pre request c.post) {part : List (Entry)}
     (signature : isSignatureAt part part.length = true) (inPre : part <+: c.pre.log)
     : part <+: c.post.log
       \/ Bad (after :: before :: rest) part (termAt part part.length)
@@ -351,7 +350,7 @@ theorem accept_persist {source : Node} {request : AppendEntriesRequest Node TxId
 
 /-- A signed prefix of the actor's log survives the step, unless a leader log
 of a later term lacks it. -/
-theorem persist_pre {part : List (Entry Node TxId)}
+theorem persist_pre {part : List (Entry)}
     (signature : isSignatureAt part part.length = true) (inPre : part <+: c.pre.log)
     : part <+: c.post.log
       \/ Bad (after :: before :: rest) part (termAt part part.length)
@@ -423,7 +422,7 @@ theorem match_ack : MatchAck (after :: before :: rest) := by
 /-! ## Messages -/
 
 /-- Vote requests recorded for a candidacy stay accurate while it lasts. -/
-theorem rv_stable {node : Node} {term : Nat} {request : RequestVoteRequest}
+theorem rv_stable {node : NodeID} {term : Nat} {request : RequestVoteRequest}
     (seen : exists state, Seen (before :: rest) node state /\ state.currentTerm = term)
     (stable
       : forall state,
@@ -452,15 +451,14 @@ theorem rv_stable {node : Node} {term : Nat} {request : RequestVoteRequest}
       exact this
   · exact stable state old role termEq
 
-theorem seen_term {node : Node} {term : Nat}
+theorem seen_term {node : NodeID} {term : Nat}
     (seen : exists state, Seen (before :: rest) node state /\ state.currentTerm = term)
     : exists state,
         Seen (after :: before :: rest) node state /\ state.currentTerm = term := by
   obtain ⟨state, seen, termEq⟩ := seen
   exact ⟨state, seen.mono c.suffix_tail, termEq⟩
 
-theorem old_message {envelope : Model.Envelope Node TxId}
-    (ok : MessageOK (before :: rest) envelope)
+theorem old_message {envelope : Model.Envelope} (ok : MessageOK (before :: rest) envelope)
     : MessageOK (after :: before :: rest) envelope := by
   cases h : envelope.payload with
   | appendEntriesRequest request =>
@@ -483,7 +481,7 @@ theorem old_message {envelope : Model.Envelope Node TxId}
   | requestPreVoteResponse _ => simp only [MessageOK, h]
   | proposeVoteRequest _ => simp only [MessageOK, h]
 
-theorem new_message {envelope : Model.Envelope Node TxId} (new : envelope ∈ c.sent)
+theorem new_message {envelope : Model.Envelope} (new : envelope ∈ c.sent)
     : MessageOK (after :: before :: rest) envelope := by
   obtain ⟨sourceEq, ok⟩ := Summary.sends c.sum envelope new
   cases h : envelope.payload with
@@ -600,6 +598,7 @@ theorem inv_step : Inv (after :: before :: rest) :=
     match_ack := c.match_ack
     messages := c.messages
     message_terms := c.message_terms
+    genesis := c.genesis
   }
 
 end Ctx
@@ -607,8 +606,7 @@ end Ctx
 /-! ## Executions -/
 
 /-- The invariant holds at every point of every execution. -/
-theorem good_of_exec {nodes : List Node} {history : History Node TxId}
-    (exec : Exec nodes history)
+theorem good_of_exec {nodes : List NodeID} {history : History} (exec : Exec nodes history)
     : Good history := by
   induction exec with
   | initial initialized =>
@@ -625,9 +623,9 @@ theorem good_of_exec {nodes : List Node} {history : History Node TxId}
       · exact ih earlier inner nonempty
 
 /-- The committed logs of two nodes in one state are comparable. -/
-theorem committed_logs_comparable {nodes : List Node} {history : History Node TxId}
-    (exec : Exec nodes history) {left right : Node}
-    {leftState rightState : NodeState Node TxId} (leftNow : Now history left leftState)
+theorem committed_logs_comparable {nodes : List NodeID} {history : History}
+    (exec : Exec nodes history) {left right : NodeID}
+    {leftState rightState : NodeState} (leftNow : Now history left leftState)
     (rightNow : Now history right rightState)
     : leftState.committedLog <+: rightState.committedLog
       \/ rightState.committedLog <+: leftState.committedLog := by

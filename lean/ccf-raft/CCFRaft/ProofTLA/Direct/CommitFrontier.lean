@@ -31,15 +31,14 @@ open Ledger (
     maxCommittableIndexUpToPositiveIsSignature
   )
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
 /-- The commit index lies within the log and, when positive, is a signature. -/
-def CommitFrontier (state : NodeState Node TxId) : Prop :=
+def CommitFrontier (state : NodeState) : Prop :=
   state.commitIndex <= state.log.length
   /\ (0 < state.commitIndex -> isSignatureAt state.log state.commitIndex = true)
 
-theorem CommitFrontier.of_log {state after : NodeState Node TxId}
+theorem CommitFrontier.of_log {state after : NodeState}
     (frontier : CommitFrontier state) (logEq : after.log = state.log)
     (commitEq : after.commitIndex = state.commitIndex)
     : CommitFrontier after := by
@@ -47,16 +46,16 @@ theorem CommitFrontier.of_log {state after : NodeState Node TxId}
   rw [logEq, commitEq]
   exact frontier
 
-theorem CommitFrontier.extend {state : NodeState Node TxId}
-    (frontier : CommitFrontier state) {log : List (Entry Node TxId)}
+theorem CommitFrontier.extend {state : NodeState}
+    (frontier : CommitFrontier state) {log : List (Entry)}
     (extends_ : state.log <+: log)
     : CommitFrontier { state with log } := by
   refine ⟨frontier.1.trans extends_.length_le, fun positive => ?_⟩
   exact isSignatureAt_of_prefix extends_ (frontier.2 positive)
 
-theorem CommitFrontier.keep {state : NodeState Node TxId}
+theorem CommitFrontier.keep {state : NodeState}
     (frontier : CommitFrontier state) {count : Nat} (within : state.commitIndex <= count)
-    {suffix : List (Entry Node TxId)}
+    {suffix : List (Entry)}
     : CommitFrontier { state with log := state.log.take count ++ suffix } := by
   refine ⟨?_, fun positive => ?_⟩
   · simp only [List.length_append, List.length_take]
@@ -66,8 +65,8 @@ theorem CommitFrontier.keep {state : NodeState Node TxId}
       (isSignatureAt_take_of_le within (frontier.2 positive))
 
 /-- A new commit frontier chosen from the latest covered signature. -/
-theorem CommitFrontier.advance {state : NodeState Node TxId}
-    {log : List (Entry Node TxId)} {bound : Nat}
+theorem CommitFrontier.advance {state : NodeState}
+    {log : List (Entry)} {bound : Nat}
     (extends_ : CommitFrontier { state with log })
     : CommitFrontier
         {
@@ -115,42 +114,42 @@ theorem foldl_select_max_pos (P : Nat -> Prop) [DecidablePred P] (values : List 
     omega
   · exact holds
 
-theorem highestCommittableIndex_signature (state : NodeState Node TxId) (self : Node)
-    (positive : 0 < highestCommittableIndex (inferInstance) state self)
-    : isSignatureAt state.log (highestCommittableIndex (inferInstance) state self)
-      = true := by
+theorem highestCommittableIndex_signature (state : NodeState) (self : NodeID)
+    (positive : 0 < highestCommittableIndex state self)
+    : isSignatureAt state.log (highestCommittableIndex state self) = true := by
   unfold highestCommittableIndex at positive ⊢
   exact (foldl_select_max_pos _ _ positive).2.1
 
-theorem signature_le_length {log : List (Entry Node TxId)} {index : Nat}
+theorem signature_le_length {log : List (Entry)} {index : Nat}
     (signature : isSignatureAt log index = true)
     : index <= log.length := by
   obtain ⟨entry, found, _⟩ := Ledger.isSignatureAtTrue signature
   exact Ledger.entryAtSomeIndexBound found
 
-theorem CommitFrontier.leaderAppendState {state : NodeState Node TxId}
-    (frontier : CommitFrontier state) (content : EntryContent Node TxId)
+theorem CommitFrontier.leaderAppendState {state : NodeState}
+    (frontier : CommitFrontier state) (content : EntryContent)
     : CommitFrontier
         { state with log := state.log ++ [{ term := state.currentTerm, content }] } :=
   frontier.extend (List.prefix_append _ _)
 
 section AppendEntries
 
-variable {self : Node} {state : NodeState Node TxId}
-  {request : AppendEntriesRequest Node TxId}
+variable {self : NodeID} {state : NodeState}
+  {request : AppendEntriesRequest}
 
 theorem CommitFrontier.fromLeader (frontier : CommitFrontier state)
-    : CommitFrontier (handleAppendEntiresFromLeader self state request).1 := by
-  obtain ⟨retired, eq⟩ := Ledger.handleAppendEntiresFromLeader_eq self state request
+    : CommitFrontier (handleAppendEntiresFromPrimary self state request).1 := by
+  obtain ⟨retired, role, known, eq, _⟩ :=
+    Ledger.handleAppendEntiresFromPrimary_eq self state request
   rw [eq]
   exact (CommitFrontier.advance
           (bound :=
-            min request.leaderCommit (request.prevLogIndex + request.entries.length))
+            min request.primaryCommit (request.prevLogIndex + request.entries.length))
           (frontier.extend (List.prefix_append _ _))).of_log
     rfl rfl
 
 theorem CommitFrontier.handleAppendEntriesRequest (frontier : CommitFrontier state)
-    (caps : Caps Node TxId) (source : Node)
+    (caps : Caps) (source : NodeID)
     : Keeps CommitFrontier
         (Model.Node.handleAppendEntriesRequest caps self source state request) := by
   unfold Model.Node.handleAppendEntriesRequest
@@ -172,39 +171,30 @@ theorem CommitFrontier.handleAppendEntriesRequest (frontier : CommitFrontier sta
   have within : current.commitIndex <= request.prevLogIndex := by
     simp only [not_or] at notBefore
     omega
-  have prepared : CommitFrontier
-      (if hasTermConflict { current with leaderKnown := true } request then
-        {
-          current with
-            leaderKnown := true
-            log := current.log.take request.prevLogIndex, isNewFollower := false
-        }
-      else { current with leaderKnown := true }) := by
-    split
-    · exact (stepped.keep within (suffix := [])).of_log (by simp) rfl
-    · exact stepped.of_log rfl rfl
-  generalize (if hasTermConflict { current with leaderKnown := true } request then
-        {
-          current with
-            leaderKnown := true
-            log := current.log.take request.prevLogIndex, isNewFollower := false
-        }
-      else { current with leaderKnown := true }) = prepared' at prepared
-  exact Keeps.seq' fun _ => Keeps.pure' prepared.fromLeader
+  generalize found : firstTermConflictIndex { current with primaryKnown := true } request
+    = conflict
+  refine Keeps.seq' fun _ => Keeps.pure' (CommitFrontier.fromLeader ?_)
+  cases conflict with
+  | none => exact stepped.of_log rfl rfl
+  | some index =>
+      have := Ledger.firstTermConflictIndex_gt found
+      exact (stepped.keep (count := index - 1) (by omega) (suffix := [])).of_log (by simp)
+        rfl
 
 end AppendEntries
 
-theorem CommitFrontier.advanced {state : NodeState Node TxId} (self : Node)
-    (frontier : CommitFrontier state) (caps : Caps Node TxId)
-    : Keeps CommitFrontier
-        (Model.Node.advanceCommit (inferInstance) caps state self) := by
+theorem CommitFrontier.advanced {state : NodeState} (self : NodeID)
+    (frontier : CommitFrontier state) (caps : Caps)
+    : Keeps CommitFrontier (Model.Node.advanceCommit caps state self) := by
   unfold Model.Node.advanceCommit
   refine Keeps.ite' (fun _ => Keeps.pure' frontier) fun ahead => ?_
   have signature := highestCommittableIndex_signature state self (by omega)
   have advanced : CommitFrontier
-      (state.recordCommit self (highestCommittableIndex (inferInstance) state self)) :=
-    ⟨by simpa [NodeState.recordCommit] using signature_le_length signature,
-      fun _ => by simpa [NodeState.recordCommit] using signature⟩
+      (state.recordCommit self (highestCommittableIndex state self)) := by
+    obtain ⟨retired, role, known, eq, _⟩ :=
+      Ledger.recordCommit_eq self state (highestCommittableIndex state self)
+    rw [eq]
+    exact ⟨signature_le_length signature, fun _ => signature⟩
   dsimp only
   refine Keeps.ite'
     (fun _ =>
@@ -212,14 +202,13 @@ theorem CommitFrontier.advanced {state : NodeState Node TxId} (self : Node)
         fun _ => Keeps.pure' (advanced.of_log rfl rfl))
     fun _ => Keeps.pure' advanced
 
-theorem CommitFrontier.withSent {state : NodeState Node TxId}
-    (frontier : CommitFrontier state) {sentIndex : Node -> Nat}
+theorem CommitFrontier.withSent {state : NodeState}
+    (frontier : CommitFrontier state) {sentIndex : NodeID -> Nat}
     : CommitFrontier { state with sentIndex } :=
   frontier.of_log rfl rfl
 
 /-- The log a new leader keeps: its signed prefix, or everything at startup. -/
-theorem CommitFrontier.promotedLog {state : NodeState Node TxId}
-    (frontier : CommitFrontier state)
+theorem CommitFrontier.promotedLog {state : NodeState} (frontier : CommitFrontier state)
     : CommitFrontier
         {
           state with
@@ -237,12 +226,11 @@ theorem CommitFrontier.promotedLog {state : NodeState Node TxId}
 
 section Handlers
 
-variable (caps : Caps Node TxId) (self : Node)
+variable (caps : Caps) (self : NodeID)
 
-theorem CommitFrontier.appendEntry {state : NodeState Node TxId}
-    (frontier : CommitFrontier state) (content : EntryContent Node TxId)
-    : Keeps CommitFrontier
-        (Model.Node.appendEntry (inferInstance) caps self state content) := by
+theorem CommitFrontier.appendEntry {state : NodeState}
+    (frontier : CommitFrontier state) (content : EntryContent)
+    : Keeps CommitFrontier (Model.Node.appendEntry caps self state content) := by
   unfold Model.Node.appendEntry
   simp only [pure_bind]
   repeat'
@@ -252,42 +240,37 @@ theorem CommitFrontier.appendEntry {state : NodeState Node TxId}
     | refine Keeps.seq' fun _ => ?_
     | split
 
-theorem CommitFrontier.becomeLeader {state : NodeState Node TxId}
-    (frontier : CommitFrontier state)
-    : Keeps CommitFrontier (Model.Node.becomeLeader (inferInstance) caps self state) := by
-  unfold Model.Node.becomeLeader
+theorem CommitFrontier.becomePrimary {state : NodeState} (frontier : CommitFrontier state)
+    : Keeps CommitFrontier (Model.Node.becomePrimary caps self state) := by
+  unfold Model.Node.becomePrimary
   refine Keeps.bind' (CommitFrontier.advanced self ?_ caps) fun _ kept =>
       Keeps.seq' fun _ => Keeps.pure' kept
-  unfold Model.Node.leaderState
+  unfold Model.Node.primaryState
   exact frontier.promotedLog.of_log rfl rfl
 
-theorem CommitFrontier.electIfQuorum {state : NodeState Node TxId}
-    (frontier : CommitFrontier state)
-    : Keeps CommitFrontier
-        (Model.Node.electIfQuorum (inferInstance) caps self state) := by
+theorem CommitFrontier.electIfQuorum {state : NodeState} (frontier : CommitFrontier state)
+    : Keeps CommitFrontier (Model.Node.electIfQuorum caps self state) := by
   unfold Model.Node.electIfQuorum
-  exact Keeps.ite' (fun _ => frontier.becomeLeader caps self) fun _ => Keeps.pure' frontier
+  exact Keeps.ite' (fun _ => frontier.becomePrimary caps self) fun _ => Keeps.pure' frontier
 
-theorem CommitFrontier.becomeCandidate {state : NodeState Node TxId}
+theorem CommitFrontier.becomeCandidate {state : NodeState}
     (frontier : CommitFrontier state)
-    : Keeps CommitFrontier
-        (Model.Node.becomeCandidate (inferInstance) caps state self) := by
+    : Keeps CommitFrontier (Model.Node.becomeCandidate caps state self) := by
   unfold Model.Node.becomeCandidate
   refine Keeps.bind' (CommitFrontier.electIfQuorum caps self ?_) fun _ kept =>
     Keeps.seq' fun _ => Keeps.pure' kept
   exact frontier.of_log rfl rfl
 
-theorem CommitFrontier.becomePreVoteCandidate {state : NodeState Node TxId}
+theorem CommitFrontier.becomePreVoteCandidate {state : NodeState}
     (frontier : CommitFrontier state)
-    : Keeps CommitFrontier
-        (Model.Node.becomePreVoteCandidate (inferInstance) caps state self) := by
+    : Keeps CommitFrontier (Model.Node.becomePreVoteCandidate caps state self) := by
   unfold Model.Node.becomePreVoteCandidate
   refine Keeps.ite' (fun _ => CommitFrontier.becomeCandidate caps self ?_)
     fun _ => Keeps.seq' fun _ => Keeps.pure' ?_ <;> exact frontier.of_log rfl rfl
 
-theorem CommitFrontier.act {state : NodeState Node TxId}
-    (frontier : CommitFrontier state) (input : Input Node TxId)
-    : Keeps CommitFrontier (Model.Node.act (inferInstance) caps self state input) := by
+theorem CommitFrontier.act {state : NodeState}
+    (frontier : CommitFrontier state) (input : Input)
+    : Keeps CommitFrontier (Model.Node.act caps self state input) := by
   cases input with
   | append entries =>
       unfold Model.Node.act Model.Node.appendBatch
@@ -302,9 +285,7 @@ theorem CommitFrontier.act {state : NodeState Node TxId}
       cases kind with
       | election =>
           unfold Model.Node.act Model.Node.startElection
-          exact Keeps.seq' fun _ => Keeps.ite'
-            (fun _ => frontier.becomePreVoteCandidate caps self)
-            fun _ => frontier.becomeCandidate caps self
+          exact Keeps.seq' fun _ => frontier.becomePreVoteCandidate caps self
       | checkQuorum =>
           unfold Model.Node.act Model.Node.checkQuorum
           exact Keeps.seq' fun _ => Keeps.pure' (frontier.of_log rfl rfl)
@@ -313,10 +294,9 @@ theorem CommitFrontier.act {state : NodeState Node TxId}
       exact Keeps.seq' fun _ => Keeps.seq' fun _ =>
         Keeps.pure' (frontier.of_log rfl rfl)
 
-theorem CommitFrontier.receive {state : NodeState Node TxId}
-    (frontier : CommitFrontier state) (source : Node) (message : Message Node TxId)
-    : Keeps CommitFrontier
-        (Model.Node.receive (inferInstance) caps self source state message) := by
+theorem CommitFrontier.receive {state : NodeState}
+    (frontier : CommitFrontier state) (source : NodeID) (message : Message)
+    : Keeps CommitFrontier (Model.Node.receive caps self source state message) := by
   have observed : CommitFrontier (observeTerm state message) :=
     frontier.of_log (Concrete.observeTerm_log _ _) (Concrete.observeTerm_commitIndex _ _)
   unfold Model.Node.receive
@@ -355,10 +335,10 @@ theorem CommitFrontier.receive {state : NodeState Node TxId}
 end Handlers
 
 theorem commitFrontier_invariant
-    : Direct.NodeInvariant (Node := Node) (TxId := TxId)
-        fun _ state => CommitFrontier state := by
+    : Direct.NodeInvariant fun _ state => CommitFrontier state := by
   refine ⟨
-    fun node => ⟨Nat.zero_le _, fun positive => by simp [initialNodeState] at positive⟩,
+    fun node =>
+      ⟨Nat.zero_le _, fun positive => by simp [Model.initialNodeState] at positive⟩,
     ?_
   ⟩
   intro self state event after outputs frontier stepped

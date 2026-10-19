@@ -30,35 +30,32 @@ namespace CCFRaft.ProofTLA.Safety
 open CCF
 open Model.Node
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
-abbrev History (Node TxId : Type) := List (Model.State Node TxId)
+abbrev History := List (Model.State)
 
 /-- `node` has `state` in the newest state of `history`. -/
-def Now : History Node TxId -> Node -> NodeState Node TxId -> Prop
+def Now : History -> NodeID -> NodeState -> Prop
   | [], _, _ => False
   | current :: _, node, state => (node, state) ∈ current.nodes
 
 /-- `envelope` is queued in the newest state of `history`. -/
-def Pending : History Node TxId -> Model.Envelope Node TxId -> Prop
+def Pending : History -> Model.Envelope -> Prop
   | [], _ => False
   | current :: _, envelope => envelope ∈ current.network
 
 /-- `node` had `state` at some point of `history`. -/
-def Seen (history : History Node TxId) (node : Node) (state : NodeState Node TxId)
-    : Prop :=
+def Seen (history : History) (node : NodeID) (state : NodeState) : Prop :=
   exists current, current ∈ history /\ (node, state) ∈ current.nodes
 
 /-- The vote request of a candidate with this term, log and commit index. -/
-def vals (term : Nat) (log : List (Entry Node TxId)) (commit : Nat)
-    : RequestVoteRequest where
+def vals (term : Nat) (log : List (Entry)) (commit : Nat) : RequestVoteRequest where
   term
   lastCommittableTerm := termAt log (max commit (maxCommittableIndex log))
   lastCommittableIndex := max commit (maxCommittableIndex log)
 
 /-- `voter` votes for `candidate` in `term`, its log up to date for `request`. -/
-def GrantStep (after before : Model.State Node TxId) (voter candidate : Node) (term : Nat)
+def GrantStep (after before : Model.State) (voter candidate : NodeID) (term : Nat)
     (request : RequestVoteRequest)
     : Prop :=
   exists granting granted,
@@ -69,7 +66,7 @@ def GrantStep (after before : Model.State Node TxId) (voter candidate : Node) (t
     /\ granted.votedFor = some candidate
     /\ voteLogUpToDate granting request
 
-def Granted (history : History Node TxId) (voter candidate : Node) (term : Nat)
+def Granted (history : History) (voter candidate : NodeID) (term : Nat)
     (request : RequestVoteRequest)
     : Prop :=
   exists after before rest,
@@ -77,8 +74,8 @@ def Granted (history : History Node TxId) (voter candidate : Node) (term : Nat)
     /\ GrantStep after before voter candidate term request
 
 /-- `node` becomes the leader of `term`, campaigning with `log` and `commit`. -/
-def ElectStep (after before : Model.State Node TxId) (rest : History Node TxId)
-    (node : Node) (term : Nat) (log : List (Entry Node TxId)) (commit : Nat)
+def ElectStep (after before : Model.State) (rest : History)
+    (node : NodeID) (term : Nat) (log : List (Entry)) (commit : Nat)
     : Prop :=
   exists candidate leader,
     (node, candidate) ∈ before.nodes
@@ -89,30 +86,30 @@ def ElectStep (after before : Model.State Node TxId) (rest : History Node TxId)
     /\ (candidate.currentTerm < term
         \/ (candidate.currentTerm = term /\ candidate.role = .candidate))
     /\ leader.currentTerm = term
-    /\ (leader.role = .leader \/ leader.role = .none)
+    /\ (leader.role = .primary \/ leader.role = .none)
     /\ log.take (maxCommittableIndex log) <+: leader.log
     /\ 3 <= term
     /\ exists voters,
-        hasQuorum (activeConfigurations (inferInstance) log commit) voters
+        hasQuorum (activeConfigurations log commit) voters
         /\ forall voter,
             voter ∈ voters
             -> Granted (after :: before :: rest) voter node term (vals term log commit)
 
-def Elected (history : History Node TxId) (node : Node) (term : Nat)
-    (log : List (Entry Node TxId)) (commit : Nat)
+def Elected (history : History) (node : NodeID) (term : Nat)
+    (log : List (Entry)) (commit : Nat)
     : Prop :=
   exists after before rest,
     after :: before :: rest <:+ history
     /\ ElectStep after before rest node term log commit
 
 /-- `node` led `term`: the bootstrap leader, or elected. -/
-def Led (history : History Node TxId) (node : Node) (term : Nat) : Prop :=
-  (term = BOOTSTRAP_TERM /\ node = (inferInstance : InitialConfig Node).leader)
+def Led (history : History) (node : NodeID) (term : Nat) : Prop :=
+  (term = Model.BOOTSTRAP_TERM
+    /\ node = ((inferInstance : Model.ModelConfig).primary : NodeID))
   \/ exists log commit, Elected history node term log commit
 
 /-- `node` now has `state` as the leader of `term`, possibly stepped down. -/
-def CanonNow (history : History Node TxId) (node : Node) (state : NodeState Node TxId)
-    (term : Nat)
+def CanonNow (history : History) (node : NodeID) (state : NodeState) (term : Nat)
     : Prop :=
   Now history node state
   /\ state.currentTerm = term
@@ -120,15 +117,14 @@ def CanonNow (history : History Node TxId) (node : Node) (state : NodeState Node
   /\ Led history node term
 
 /-- `log` was the log of the leader of `term` at some point. -/
-def Canon (history : History Node TxId) (term : Nat) (log : List (Entry Node TxId))
-    : Prop :=
+def Canon (history : History) (term : Nat) (log : List (Entry)) : Prop :=
   exists earlier,
     earlier <:+ history
     /\ exists node state, CanonNow earlier node state term /\ state.log = log
 
 /-- A leader of `term` with `state` has its first `index` entries acknowledged
 by a quorum of the configurations active at `base`. -/
-def CommitStep (history : History Node TxId) (leader : Node) (state : NodeState Node TxId)
+def CommitStep (history : History) (leader : NodeID) (state : NodeState)
     (term base index : Nat)
     : Prop :=
   CanonNow history leader state term
@@ -137,7 +133,7 @@ def CommitStep (history : History Node TxId) (leader : Node) (state : NodeState 
   /\ isSignatureAt state.log index = true
   /\ termAt state.log index = term
   /\ exists voters,
-      hasQuorum (activeConfigurations (inferInstance) state.log base) voters
+      hasQuorum (activeConfigurations state.log base) voters
       /\ forall voter,
           voter ∈ voters
           -> exists acker,
@@ -146,32 +142,30 @@ def CommitStep (history : History Node TxId) (leader : Node) (state : NodeState 
               /\ state.log.take index <+: acker.log
 
 /-- Prefixes committed by a leader, each backed by earlier commits. -/
-inductive Committed : History Node TxId -> Nat -> List (Entry Node TxId) -> Prop where
-  | fresh {current : Model.State Node TxId} {rest : History Node TxId} {leader : Node}
-    {state : NodeState Node TxId} {term index : Nat}
+inductive Committed : History -> Nat -> List (Entry) -> Prop where
+  | fresh {current : Model.State} {rest : History} {leader : NodeID}
+    {state : NodeState} {term index : Nat}
     (step : CommitStep (current :: rest) leader state term 0 index)
     : Committed (current :: rest) term (state.log.take index)
-  | chained {current : Model.State Node TxId} {rest : History Node TxId} {leader : Node}
-    {state : NodeState Node TxId} {term base index earlier : Nat}
-    {part : List (Entry Node TxId)}
+  | chained {current : Model.State} {rest : History} {leader : NodeID}
+    {state : NodeState} {term base index earlier : Nat}
+    {part : List (Entry)}
     (step : CommitStep (current :: rest) leader state term base index)
     (backing : Committed rest earlier part) (le : earlier <= term)
     (within : state.log.take base <+: part)
     : Committed (current :: rest) term (state.log.take index)
-  | past {current : Model.State Node TxId} {rest : History Node TxId} {term : Nat}
-    {part : List (Entry Node TxId)} (old : Committed rest term part)
+  | past {current : Model.State} {rest : History} {term : Nat}
+    {part : List (Entry)} (old : Committed rest term part)
     : Committed (current :: rest) term part
 
 /-- The first `commit` entries of `log` lie within a part committed by `term`. -/
-def Backed (history : History Node TxId) (log : List (Entry Node TxId))
-    (commit term : Nat)
-    : Prop :=
+def Backed (history : History) (log : List (Entry)) (commit term : Nat) : Prop :=
   commit = 0
   \/ exists earlier part,
       Committed history earlier part /\ earlier <= term /\ log.take commit <+: part
 
 /-- `voter` held the first `index` entries of a leader log of `term` in `term`. -/
-def Acked (history : History Node TxId) (voter : Node) (term index : Nat) : Prop :=
+def Acked (history : History) (voter : NodeID) (term index : Nat) : Prop :=
   exists acker log,
     Seen history voter acker
     /\ acker.currentTerm = term
@@ -180,14 +174,12 @@ def Acked (history : History Node TxId) (voter : Node) (term index : Nat) : Prop
     /\ log.take index <+: acker.log
 
 /-- A leader of a term in `(term, bound]` lacked `part`. -/
-def Bad (history : History Node TxId) (part : List (Entry Node TxId)) (term bound : Nat)
-    : Prop :=
+def Bad (history : History) (part : List (Entry)) (term bound : Nat) : Prop :=
   exists later log,
     term < later /\ later <= bound /\ Canon history later log /\ Not (part <+: log)
 
 /-- What a queued message tells about its sender. -/
-def MessageOK (history : History Node TxId) (envelope : Model.Envelope Node TxId)
-    : Prop :=
+def MessageOK (history : History) (envelope : Model.Envelope) : Prop :=
   match envelope.payload with
   | .appendEntriesRequest request =>
       exists earlier,
@@ -219,27 +211,27 @@ def MessageOK (history : History Node TxId) (envelope : Model.Envelope Node TxId
               -> makeRequestVoteRequest state = request
   | _ => True
 
-def Terms (history : History Node TxId) : Prop :=
+def Terms (history : History) : Prop :=
   forall node state,
     Now history node state
     -> forall entry, entry ∈ state.log -> entry.term <= state.currentTerm
 
-def Sorted (history : History Node TxId) : Prop :=
+def Sorted (history : History) : Prop :=
   forall node state,
     Now history node state
     -> state.log.Pairwise fun first second => first.term <= second.term
 
-def Active (history : History Node TxId) : Prop :=
+def Active (history : History) : Prop :=
   forall node state,
     Now history node state -> Not (state.role = .none) -> 2 <= state.currentTerm
 
-def TermMono (history : History Node TxId) : Prop :=
+def TermMono (history : History) : Prop :=
   forall node state earlier,
     Now history node state
     -> Seen history node earlier
     -> earlier.currentTerm <= state.currentTerm
 
-def VoteRecord (history : History Node TxId) : Prop :=
+def VoteRecord (history : History) : Prop :=
   forall node state earlier candidate,
     Now history node state
     -> Seen history node earlier
@@ -247,18 +239,18 @@ def VoteRecord (history : History Node TxId) : Prop :=
     -> earlier.currentTerm < state.currentTerm
         \/ (earlier.currentTerm = state.currentTerm /\ state.votedFor = some candidate)
 
-def LedCur (history : History Node TxId) : Prop :=
+def LedCur (history : History) : Prop :=
   forall node state term,
     Now history node state
     -> Led history node term
     -> term < state.currentTerm
         \/ (term = state.currentTerm /\ Not (state.role = .candidate))
 
-def LeaderLed (history : History Node TxId) : Prop :=
+def LeaderLed (history : History) : Prop :=
   forall node state,
-    Now history node state -> state.role = .leader -> Led history node state.currentTerm
+    Now history node state -> state.role = .primary -> Led history node state.currentTerm
 
-def Candidate (history : History Node TxId) : Prop :=
+def Candidate (history : History) : Prop :=
   forall node state,
     Now history node state
     -> state.role = .candidate
@@ -270,16 +262,16 @@ def Candidate (history : History Node TxId) : Prop :=
                   (vals state.currentTerm state.log state.commitIndex))
         /\ Backed history state.log state.commitIndex (state.currentTerm - 1)
 
-def ElectBacked (history : History Node TxId) : Prop :=
+def ElectBacked (history : History) : Prop :=
   forall after before rest node term log commit,
     after :: before :: rest <:+ history
     -> ElectStep after before rest node term log commit
     -> Backed (before :: rest) log commit (term - 1)
 
-def ElectionSafety (history : History Node TxId) : Prop :=
+def ElectionSafety (history : History) : Prop :=
   forall node other term, Led history node term -> Led history other term -> node = other
 
-def CanonMono (history : History Node TxId) : Prop :=
+def CanonMono (history : History) : Prop :=
   forall node state,
     Now history node state
     -> Not (state.role = .candidate)
@@ -289,7 +281,7 @@ def CanonMono (history : History Node TxId) : Prop :=
             Elected history node state.currentTerm log commit
             -> log.take (maxCommittableIndex log) <+: state.log
 
-def Anchor (history : History Node TxId) : Prop :=
+def Anchor (history : History) : Prop :=
   forall node state index,
     Now history node state
     -> 0 < index
@@ -299,18 +291,18 @@ def Anchor (history : History Node TxId) : Prop :=
         /\ index <= log.length
         /\ state.log.take index = log.take index
 
-def Completeness (history : History Node TxId) : Prop :=
+def Completeness (history : History) : Prop :=
   forall term part node later log commit,
     Committed history term part
     -> Elected history node later log commit
     -> term < later
     -> part <+: log
 
-def CommitBacked (history : History Node TxId) : Prop :=
+def CommitBacked (history : History) : Prop :=
   forall node state,
     Now history node state -> Backed history state.log state.commitIndex state.currentTerm
 
-def Persist (history : History Node TxId) : Prop :=
+def Persist (history : History) : Prop :=
   forall node state earlier index,
     Now history node state
     -> Seen history node earlier
@@ -319,22 +311,36 @@ def Persist (history : History Node TxId) : Prop :=
         \/ Bad history (earlier.log.take index) (termAt earlier.log index)
             state.currentTerm
 
-def MatchAck (history : History Node TxId) : Prop :=
+def MatchAck (history : History) : Prop :=
   forall node state peer,
     Now history node state
-    -> state.role = .leader
+    -> state.role = .primary
     -> Not (peer = node)
     -> 0 < state.matchIndex peer
     -> Acked history peer state.currentTerm (state.matchIndex peer)
 
-def Messages (history : History Node TxId) : Prop :=
+def Messages (history : History) : Prop :=
   forall envelope, Pending history envelope -> MessageOK history envelope
 
-def MessageTerms (history : History Node TxId) : Prop :=
+def MessageTerms (history : History) : Prop :=
   forall envelope,
     Pending history envelope -> Bumping envelope.payload -> 2 <= envelope.payload.term
 
-structure Inv (history : History Node TxId) : Prop where
+/-- The configuration transaction the initial primary starts with. -/
+def genesisEntry : Entry where
+  term := Model.BOOTSTRAP_TERM
+  content :=
+    .transaction 0
+      { configuration := some (inferInstance : Model.ModelConfig).configuration }
+
+/-- Logs start with the genesis entry, and leaders' logs are nonempty. -/
+def Genesis (history : History) : Prop :=
+  forall node state,
+    Now history node state
+    -> (forall first, state.log.head? = some first -> first = genesisEntry)
+        /\ (state.role = .primary -> Not (state.log = []))
+
+structure Inv (history : History) : Prop where
   terms : Terms history
   sorted : Sorted history
   active : Active history
@@ -353,9 +359,10 @@ structure Inv (history : History Node TxId) : Prop where
   match_ack : MatchAck history
   messages : Messages history
   message_terms : MessageTerms history
+  genesis : Genesis history
 
 /-- The invariant holds at every point of the history. -/
-def Good (history : History Node TxId) : Prop :=
+def Good (history : History) : Prop :=
   forall earlier, earlier <:+ history -> Not (earlier = []) -> Inv earlier
 
 end CCFRaft.ProofTLA.Safety

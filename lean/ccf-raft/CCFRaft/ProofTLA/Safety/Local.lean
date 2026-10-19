@@ -22,10 +22,9 @@ open CCF
 open Model.Node
 open CCFRaft.ProofTLA.Ledger
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
-theorem Advance.facts {self : Node} {middle state : NodeState Node TxId}
+theorem Advance.facts {self : NodeID} {middle state : NodeState}
     (advance : Advance self middle state)
     : state.log = middle.log
       /\ state.currentTerm = middle.currentTerm
@@ -34,12 +33,12 @@ theorem Advance.facts {self : Node} {middle state : NodeState Node TxId}
   · exact ⟨rfl, rfl, Or.inl rfl⟩
   · exact ⟨log, term, role⟩
 
-theorem makeRequestVoteRequest_eq (state : NodeState Node TxId)
+theorem makeRequestVoteRequest_eq (state : NodeState)
     : makeRequestVoteRequest state = vals state.currentTerm state.log state.commitIndex :=
   rfl
 
 /-- A candidate's own log is up to date for its vote request. -/
-theorem vals_upToDate {state : NodeState Node TxId} (term : Nat)
+theorem vals_upToDate {state : NodeState} (term : Nat)
     (sorted : state.log.Pairwise fun first second => first.term <= second.term)
     (frontier : state.commitIndex <= state.log.length)
     : voteLogUpToDate state (vals term state.log state.commitIndex) := by
@@ -53,8 +52,8 @@ theorem vals_upToDate {state : NodeState Node TxId} (term : Nat)
 
 namespace Ctx
 
-variable {nodes : List Node} {after before : Model.State Node TxId}
-  {rest : History Node TxId} (c : Ctx nodes after before rest)
+variable {nodes : List NodeID} {after before : Model.State}
+  {rest : History} (c : Ctx nodes after before rest)
 
 include c
 
@@ -69,7 +68,7 @@ theorem pre_sorted : c.pre.log.Pairwise fun first second => first.term <= second
 
 /-- An accepted request copies its sender's log up to the end of the batch,
 keeping the follower's suffix exactly when the follower already agreed. -/
-theorem accept_shape {source : Node} {request : AppendEntriesRequest Node TxId}
+theorem accept_shape {source : NodeID} {request : AppendEntriesRequest}
     (eq : c.event = .receive source (.appendEntriesRequest request))
     (accepted : Accepted c.pre request c.post)
     : exists earlier sender,
@@ -137,7 +136,7 @@ theorem post_log
       \/ (exists entries,
             c.post.log = c.pre.log ++ entries
             /\ (forall entry, entry ∈ entries -> entry.term = c.pre.currentTerm)
-            /\ c.pre.role = .leader
+            /\ c.pre.role = .primary
             /\ c.post.currentTerm = c.pre.currentTerm
             /\ Not (c.post.role = .candidate))
       \/ (exists earlier source sender n,
@@ -167,7 +166,87 @@ theorem post_log
   | elect wins =>
       obtain ⟨_, ⟨_, candidateLog, _⟩, _, log, _⟩ := Wins.facts wins
       rw [log, ← candidateLog]
-      exact Or.inl (leaderState_log_prefix _)
+      exact Or.inl (primaryState_log_prefix _)
+
+/-! ## The genesis entry -/
+
+theorem genesis_pre
+    : (forall first, c.pre.log.head? = some first -> first = genesisEntry)
+      /\ (c.pre.role = .primary -> Not (c.pre.log = [])) :=
+  c.inv.genesis c.actor c.pre c.pre_now
+
+theorem genesis_head_post (first : Entry) (head : c.post.log.head? = some first)
+    : first = genesisEntry := by
+  rcases c.post_log with sub | ⟨entries, log, _, leader, _, _⟩
+    | ⟨earlier, source, sender, n, suffix, canon, _, log⟩
+  · exact c.genesis_pre.1 first (head_of_prefix sub head)
+  · have nonempty := c.genesis_pre.2 leader
+    have pre := c.genesis_pre.1
+    rw [log] at head
+    obtain ⟨x, xs, eq⟩ := List.exists_cons_of_ne_nil nonempty
+    rw [eq] at head pre
+    simp only [List.cons_append, List.head?_cons, Option.some.injEq] at head
+    exact pre first (by rw [head]; rfl)
+  · obtain ⟨current, older, rfl⟩ := canon.1.nonempty
+    have senderGenesis :=
+      (c.all Inv.genesis) _ suffix (List.cons_ne_nil _ _) source sender canon.1
+    rw [log] at head
+    exact senderGenesis.1 first (head_of_prefix (List.take_prefix _ _) head)
+
+omit c in
+/-- A won election starts from a log with a configuration. -/
+theorem Wins.log_ne_nil {self : NodeID} {before : NodeState} {event : Event}
+    {after : NodeState} (wins : Wins self before event after)
+    : Not (after.log = []) := by
+  obtain ⟨candidate, ⟨_, candidateLog, candidateCommit, _⟩, quorum, log, _⟩ := Wins.facts wins
+  have nonempty := log_ne_nil_of_quorum quorum
+  rw [log]
+  simp only [primaryState]
+  split
+  · rename_i positive
+    intro empty
+    rcases List.take_eq_nil_iff.mp empty with zero | nil
+    · simp [lastCommittableIndex] at zero
+      omega
+    · exact nonempty (candidateLog ▸ nil)
+  · rw [candidateLog]
+    exact nonempty
+
+theorem genesis_leader_post (leader : c.post.role = .primary)
+    : Not (c.post.log = []) := by
+  rcases Summary.leader c.sum leader with ⟨preLeader, _⟩ | wins
+  · have pre := c.genesis_pre.2 preLeader
+    cases Summary.kind c.sum with
+    | same log _ =>
+        rw [log]
+        exact pre
+    | append entries _ _ _ advance =>
+        rw [(Advance.facts advance).1]
+        simp [pre]
+    | ack _ _ _ _ _ _ advance =>
+        rw [(Advance.facts advance).1]
+        exact pre
+    | accept source request eq accepted =>
+        obtain ⟨_, sender, _, _, _, bound, _, same | ⟨fresh, differ⟩, _⟩ :=
+          c.accept_shape eq accepted
+        · rw [same]
+          exact pre
+        · intro empty
+          rw [empty] at fresh
+          apply differ
+          rcases List.take_eq_nil_iff.mp fresh.symm with zero | nil
+          · rw [zero, List.take_zero, List.take_zero]
+          · rw [nil] at bound
+            simp only [List.length_nil, Nat.le_zero] at bound
+            rw [bound, List.take_zero, List.take_zero]
+    | elect wins => exact Wins.log_ne_nil wins
+  · exact Wins.log_ne_nil wins
+
+theorem genesis : Genesis (after :: before :: rest) := by
+  intro node state now
+  rcases c.now_after now with ⟨rfl, rfl⟩ | ⟨_, old⟩
+  · exact ⟨c.genesis_head_post, c.genesis_leader_post⟩
+  · exact c.inv.genesis node state old
 
 /-! ## Log terms and order -/
 
@@ -269,7 +348,7 @@ theorem self_granted {term : Nat} (le : c.pre.currentTerm <= term)
   ⟩
 
 /-- Every vote counted by a campaign was granted for its vote request. -/
-theorem campaign_votes {candidate : NodeState Node TxId}
+theorem campaign_votes {candidate : NodeState}
     (campaign : Campaign c.actor c.pre c.event candidate)
     (termEq : c.post.currentTerm = candidate.currentTerm)
     (votedEq : c.post.votedFor = candidate.votedFor)
@@ -299,7 +378,7 @@ theorem campaign_votes {candidate : NodeState Node TxId}
       exact granted'.mono c.suffix_tail
 
 /-- A campaign's term is above the bootstrap term. -/
-theorem campaign_three {candidate : NodeState Node TxId}
+theorem campaign_three {candidate : NodeState}
     (campaign : Campaign c.actor c.pre c.event candidate)
     : 3 <= candidate.currentTerm
       /\ (c.pre.currentTerm < candidate.currentTerm
@@ -337,7 +416,7 @@ theorem wins_elect (wins : Wins c.actor c.pre c.event c.post)
   · rw [termEq]
     exact termCase
   · rw [logEq]
-    simp only [leaderState]
+    simp only [primaryState]
     split
     · rw [candidateLog]
       exact take_prefix_take _ (by

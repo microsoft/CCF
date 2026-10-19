@@ -23,39 +23,36 @@ namespace CCFRaft.ProofTLA.Direct
 open CCFRaft.ProofTLA.Config
 
 open CCF CCF.MultiNodeTransitionSystem Concrete
-open Model.Node (NodeState InitialConfig initialNodeState)
+open Model.Node (NodeID NodeState)
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
 /-- A node-local predicate that holds initially and survives every local step. -/
-structure NodeInvariant (P : Node -> NodeState Node TxId -> Prop) : Prop where
-  initial : forall node, P node (initialNodeState (inferInstance) node)
+structure NodeInvariant (P : NodeID -> NodeState -> Prop) : Prop where
+  initial : forall node, P node (Model.initialNodeState (inferInstance) node)
   step
     : forall node state event after outputs,
         P node state
-        -> (Model.Node.step (inferInstance) (Capabilities.record node) node state
-              event).run
-              {}
+        -> (Model.Node.step (Capabilities.record node) node state event).run {}
             = some (after, outputs)
         -> P node after
 
-theorem NodeInvariant.reachable {P : Node -> NodeState Node TxId -> Prop}
-    (invariant : NodeInvariant P) {nodes : List Node} {state : Model.State Node TxId}
-    (reachable
-      : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable state)
+theorem NodeInvariant.reachable {P : NodeID -> NodeState -> Prop}
+    (invariant : NodeInvariant P) {nodes : List NodeID} {state : Model.State}
+    (reachable : (Model.transitionSystem (inferInstance) nodes).Reachable state)
     : forall node local_, (node, local_) ∈ state.nodes -> P node local_ := by
   induction reachable with
   | initial initialized =>
       intro node local_ member
-      have initial : local_ = initialNodeState (inferInstance) node := initialized.2.2.2.2.2 (node, local_) member
+      have initial : local_ = Model.initialNodeState (inferInstance) node :=
+        initialized.2.2.2.2.2 (node, local_) member
       subst initial
       exact invariant.initial node
   | @step before after action _ stepped ih =>
-      have preserved : forall {actor : Node} {old : NodeState Node TxId}
-          {event : Model.Node.Event Node TxId} {new outputs},
+      have preserved : forall {actor : NodeID} {old : NodeState}
+          {event : Model.Node.Event} {new outputs},
           nodeState before actor = some old ->
-          (Model.Node.step (inferInstance) (Capabilities.record actor) actor old event).run {}
+          (Model.Node.step (Capabilities.record actor) actor old event).run {}
             = some (new, outputs) ->
           forall node local_,
             (node, local_) ∈ replaceNode before.nodes actor new ->
@@ -73,9 +70,8 @@ theorem NodeInvariant.reachable {P : Node -> NodeState Node TxId -> Prop}
           obtain ⟨_, old, new, outputs, found, received, rfl⟩ := step_deliver stepped
           exact preserved (event := .receive envelope.source envelope.payload) found received
 
-theorem keys_nodup {nodes : List Node} {state : Model.State Node TxId}
-    (reachable
-      : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable state)
+theorem keys_nodup {nodes : List NodeID} {state : Model.State}
+    (reachable : (Model.transitionSystem (inferInstance) nodes).Reachable state)
     : (state.nodes.map Prod.fst).Nodup := by
   induction reachable with
   | initial initialized => exact initialized.2.1 ▸ initialized.1
@@ -88,8 +84,8 @@ theorem keys_nodup {nodes : List Node} {state : Model.State Node TxId}
           obtain ⟨_, _, _, _, _, _, rfl⟩ := step_deliver stepped
           simpa [replaceNode_keys] using ih
 
-theorem find_of_mem {entries : List (Node × NodeState Node TxId)} {node : Node}
-    {local_ : NodeState Node TxId} (distinct : (entries.map Prod.fst).Nodup)
+theorem find_of_mem {entries : List (NodeID × NodeState)} {node : NodeID}
+    {local_ : NodeState} (distinct : (entries.map Prod.fst).Nodup)
     (member : (node, local_) ∈ entries)
     : entries.find? (fun entry => entry.1 == node) = some (node, local_) := by
   induction entries with
@@ -108,8 +104,8 @@ theorem find_of_mem {entries : List (Node × NodeState Node TxId)} {node : Node}
           exact absurd same.1.symm here
         · simp [here, ih distinct.2 later]
 
-theorem nodeState_of_mem {state : Model.State Node TxId} {node : Node}
-    {local_ : NodeState Node TxId} (distinct : (state.nodes.map Prod.fst).Nodup)
+theorem nodeState_of_mem {state : Model.State} {node : NodeID}
+    {local_ : NodeState} (distinct : (state.nodes.map Prod.fst).Nodup)
     (member : (node, local_) ∈ state.nodes)
     : nodeState state node = some local_ := by
   simp [nodeState, find_of_mem distinct member]

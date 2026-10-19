@@ -23,37 +23,36 @@ open CCF
 open Model.Node
 open CCFRaft.ProofTLA.Ledger
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
 /-! ## Winning an election -/
 
-theorem leaderState_log_prefix (state : NodeState Node TxId)
-    : (leaderState state).log <+: state.log := by
-  simp only [leaderState]
+theorem primaryState_log_prefix (state : NodeState)
+    : (primaryState state).log <+: state.log := by
+  simp only [primaryState]
   split
   · exact List.take_prefix _ _
   · exact List.prefix_refl _
 
 /-- The facts of a won election used by the safety proof. -/
-theorem Wins.facts {self : Node} {before' : NodeState Node TxId} {event : Event Node TxId}
-    {after' : NodeState Node TxId} (wins : Wins self before' event after')
+theorem Wins.facts {self : NodeID} {before' : NodeState} {event : Event}
+    {after' : NodeState} (wins : Wins self before' event after')
     : exists candidate,
         Campaign self before' event candidate
         /\ hasQuorum
-            (activeConfigurations (inferInstance) before'.log before'.commitIndex)
+            (activeConfigurations before'.log before'.commitIndex)
             candidate.votesGranted
-        /\ after'.log = (leaderState candidate).log
+        /\ after'.log = (primaryState candidate).log
         /\ after'.currentTerm = candidate.currentTerm
         /\ after'.votedFor = candidate.votedFor
         /\ (forall peer, after'.matchIndex peer = 0)
-        /\ (after'.role = .leader \/ after'.role = .none)
+        /\ (after'.role = .primary \/ after'.role = .none)
         /\ candidate.commitIndex <= after'.commitIndex := by
   obtain ⟨candidate, campaign, quorum, advance⟩ := wins
   have ⟨_, logEq, commitEq, _⟩ := campaign
   refine ⟨candidate, campaign, ?_, ?_⟩
-  · have : candidate.activeConfigurations (inferInstance)
-        = activeConfigurations (inferInstance) before'.log before'.commitIndex := by
+  · have : candidate.activeConfigurations
+        = activeConfigurations before'.log before'.commitIndex := by
       rw [← logEq, ← commitEq]
       rfl
     rw [← this]
@@ -64,35 +63,34 @@ theorem Wins.facts {self : Node} {before' : NodeState Node TxId} {event : Event 
     · rcases role with role | role
       · exact Or.inl role
       · exact Or.inr role
-    · simp only [leaderState] at lt
+    · simp only [primaryState] at lt
       omega
 
 /-- One step of an execution, the invariant holding before it. -/
-structure Ctx (nodes : List Node) (after before : Model.State Node TxId)
-    (rest : History Node TxId) where
+structure Ctx (nodes : List NodeID) (after before : Model.State) (rest : History) where
   exec : Exec nodes (after :: before :: rest)
   tr : LocalTransition before after
   good : Good (before :: rest)
 
 namespace Ctx
 
-variable {nodes : List Node} {after before : Model.State Node TxId}
-  {rest : History Node TxId} (c : Ctx nodes after before rest)
+variable {nodes : List NodeID} {after before : Model.State}
+  {rest : History} (c : Ctx nodes after before rest)
 
 include c
 
-abbrev actor : Node := c.tr.actor
-abbrev pre : NodeState Node TxId := c.tr.pre
-abbrev post : NodeState Node TxId := c.tr.post
-abbrev event : Event Node TxId := c.tr.event
-abbrev sent : List (Model.Envelope Node TxId) := c.tr.outputs.outgoing
+abbrev actor : NodeID := c.tr.actor
+abbrev pre : NodeState := c.tr.pre
+abbrev post : NodeState := c.tr.post
+abbrev event : Event := c.tr.event
+abbrev sent : List (Model.Envelope) := c.tr.outputs.outgoing
 
 theorem sum : Summary c.actor c.pre c.event c.post c.sent := c.tr.summary
 
 theorem prior : Exec nodes (before :: rest) :=
   c.exec.suffix (List.suffix_cons _ _) (List.cons_ne_nil _ _)
 
-theorem all {clause : History Node TxId -> Prop} (project : forall {h}, Inv h -> clause h)
+theorem all {clause : History -> Prop} (project : forall {h}, Inv h -> clause h)
     : Everywhere clause (before :: rest) :=
   c.good.everywhere project
 
@@ -106,22 +104,21 @@ theorem pre_now : Now (before :: rest) c.actor c.pre := c.tr.pre_mem
 
 theorem post_now : Now (after :: before :: rest) c.actor c.post := c.tr.post_mem
 
-theorem now_pre {state : NodeState Node TxId} (now : Now (before :: rest) c.actor state)
+theorem now_pre {state : NodeState} (now : Now (before :: rest) c.actor state)
     : state = c.pre :=
   now_unique c.prior now c.pre_now
 
-theorem now_post {state : NodeState Node TxId}
-    (now : Now (after :: before :: rest) c.actor state)
+theorem now_post {state : NodeState} (now : Now (after :: before :: rest) c.actor state)
     : state = c.post :=
   now_unique c.exec now c.post_now
 
-theorem now_after {node : Node} {state : NodeState Node TxId}
+theorem now_after {node : NodeID} {state : NodeState}
     (now : Now (after :: before :: rest) node state)
     : (node = c.actor /\ state = c.post)
       \/ (Not (node = c.actor) /\ Now (before :: rest) node state) :=
   c.tr.mem_after now
 
-theorem seen_after {node : Node} {state : NodeState Node TxId}
+theorem seen_after {node : NodeID} {state : NodeState}
     (seen : Seen (after :: before :: rest) node state)
     : Seen (before :: rest) node state \/ (node = c.actor /\ state = c.post) := by
   rcases seen.cons with now | old
@@ -139,7 +136,7 @@ theorem frontier_pre : c.pre.commitIndex <= c.pre.log.length :=
 
 /-! ## Received messages -/
 
-theorem received {source : Node} {message : Message Node TxId}
+theorem received {source : NodeID} {message : Message}
     (eq : c.event = .receive source message)
     : exists envelope,
         Pending (before :: rest) envelope
@@ -156,7 +153,7 @@ theorem received {source : Node} {message : Message Node TxId}
     exact ⟨envelope, queued, rfl, target, rfl⟩
 
 /-- The evidence carried by a received message. -/
-theorem received_ok {source : Node} {message : Message Node TxId}
+theorem received_ok {source : NodeID} {message : Message}
     (eq : c.event = .receive source message)
     : exists envelope,
         MessageOK (before :: rest) envelope
@@ -166,7 +163,7 @@ theorem received_ok {source : Node} {message : Message Node TxId}
   obtain ⟨envelope, pending, sourceEq, targetEq, payload⟩ := c.received eq
   exact ⟨envelope, c.inv.messages envelope pending, sourceEq, targetEq, payload⟩
 
-theorem received_term {source : Node} {message : Message Node TxId}
+theorem received_term {source : NodeID} {message : Message}
     (eq : c.event = .receive source message) (bumping : Bumping message)
     : 2 <= message.term := by
   obtain ⟨envelope, pending, _, _, rfl⟩ := c.received eq
@@ -192,7 +189,7 @@ theorem post_two (active : Not (c.post.role = .none) \/ Not (c.sent = []))
 
 /-! ## Elections in the extended history -/
 
-theorem elected_after {node : Node} {term commit : Nat} {log : List (Entry Node TxId)}
+theorem elected_after {node : NodeID} {term commit : Nat} {log : List (Entry)}
     (elected : Elected (after :: before :: rest) node term log commit)
     : Elected (before :: rest) node term log commit
       \/ ElectStep after before rest node term log commit := by
@@ -203,7 +200,7 @@ theorem elected_after {node : Node} {term commit : Nat} {log : List (Entry Node 
   · exact Or.inl ⟨a, b, r, inner, step⟩
 
 /-- A new election is the actor's, campaigning with its state before the step. -/
-theorem electStep {node : Node} {term commit : Nat} {log : List (Entry Node TxId)}
+theorem electStep {node : NodeID} {term commit : Nat} {log : List (Entry)}
     (step : ElectStep after before rest node term log commit)
     : node = c.actor
       /\ c.pre.log = log
@@ -211,7 +208,7 @@ theorem electStep {node : Node} {term commit : Nat} {log : List (Entry Node TxId
       /\ (c.pre.currentTerm < term
           \/ (c.pre.currentTerm = term /\ c.pre.role = .candidate))
       /\ c.post.currentTerm = term
-      /\ (c.post.role = .leader \/ c.post.role = .none)
+      /\ (c.post.role = .primary \/ c.post.role = .none)
       /\ log.take (maxCommittableIndex log) <+: c.post.log
       /\ 3 <= term := by
   obtain ⟨candidate, leader, candidateMem, leaderMem, logEq, commitEq, _, termCase, leaderTerm,
@@ -226,7 +223,7 @@ theorem electStep {node : Node} {term commit : Nat} {log : List (Entry Node TxId
     · omega
     · rcases leaderRole with role' | role' <;> rw [role'] at role <;> cases role
 
-theorem led_after {node : Node} {term : Nat}
+theorem led_after {node : NodeID} {term : Nat}
     (led : Led (after :: before :: rest) node term)
     : Led (before :: rest) node term
       \/ exists log commit, ElectStep after before rest node term log commit := by
@@ -236,14 +233,14 @@ theorem led_after {node : Node} {term : Nat}
     · exact Or.inl (Or.inr ⟨log, commit, old⟩)
     · exact Or.inr ⟨log, commit, step⟩
 
-theorem led_other {node : Node} {term : Nat} (different : Not (node = c.actor))
+theorem led_other {node : NodeID} {term : Nat} (different : Not (node = c.actor))
     (led : Led (after :: before :: rest) node term)
     : Led (before :: rest) node term := by
   rcases c.led_after led with old | ⟨_, _, step⟩
   · exact old
   · exact absurd (c.electStep step).1 different
 
-theorem canon_after {term : Nat} {log : List (Entry Node TxId)}
+theorem canon_after {term : Nat} {log : List (Entry)}
     (canon : Canon (after :: before :: rest) term log)
     : Canon (before :: rest) term log
       \/ exists node state,

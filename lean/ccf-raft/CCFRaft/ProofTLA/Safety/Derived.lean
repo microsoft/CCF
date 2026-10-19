@@ -21,33 +21,32 @@ namespace CCFRaft.ProofTLA.Safety
 open CCF
 open Model.Node
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
 section Mono
 
-variable {history later : History Node TxId}
+variable {history later : History}
 
-theorem Seen.mono (suffix : history <:+ later) {node : Node} {state : NodeState Node TxId}
+theorem Seen.mono (suffix : history <:+ later) {node : NodeID} {state : NodeState}
     (seen : Seen history node state)
     : Seen later node state := by
   obtain ⟨current, member, mem⟩ := seen
   exact ⟨current, suffix.subset member, mem⟩
 
-theorem Granted.mono (suffix : history <:+ later) {voter candidate : Node} {term : Nat}
+theorem Granted.mono (suffix : history <:+ later) {voter candidate : NodeID} {term : Nat}
     {request : RequestVoteRequest}
     (granted : Granted history voter candidate term request)
     : Granted later voter candidate term request := by
   obtain ⟨after, before, rest, inner, step⟩ := granted
   exact ⟨after, before, rest, inner.trans suffix, step⟩
 
-theorem Elected.mono (suffix : history <:+ later) {node : Node} {term commit : Nat}
-    {log : List (Entry Node TxId)} (elected : Elected history node term log commit)
+theorem Elected.mono (suffix : history <:+ later) {node : NodeID} {term commit : Nat}
+    {log : List (Entry)} (elected : Elected history node term log commit)
     : Elected later node term log commit := by
   obtain ⟨after, before, rest, inner, step⟩ := elected
   exact ⟨after, before, rest, inner.trans suffix, step⟩
 
-theorem Led.mono (suffix : history <:+ later) {node : Node} {term : Nat}
+theorem Led.mono (suffix : history <:+ later) {node : NodeID} {term : Nat}
     (led : Led history node term)
     : Led later node term := by
   rcases led with bootstrap | ⟨log, commit, elected⟩
@@ -55,45 +54,45 @@ theorem Led.mono (suffix : history <:+ later) {node : Node} {term : Nat}
   · exact Or.inr ⟨log, commit, elected.mono suffix⟩
 
 theorem Canon.mono (suffix : history <:+ later) {term : Nat}
-    {log : List (Entry Node TxId)} (canon : Canon history term log)
+    {log : List (Entry)} (canon : Canon history term log)
     : Canon later term log := by
   obtain ⟨earlier, inner, rest⟩ := canon
   exact ⟨earlier, inner.trans suffix, rest⟩
 
-theorem Committed.append {term : Nat} {part : List (Entry Node TxId)}
-    (committed : Committed history term part) (front : History Node TxId)
+theorem Committed.append {term : Nat} {part : List (Entry)}
+    (committed : Committed history term part) (front : History)
     : Committed (front ++ history) term part := by
   induction front with
   | nil => exact committed
   | cons _ _ ih => exact .past ih
 
 theorem Committed.mono (suffix : history <:+ later) {term : Nat}
-    {part : List (Entry Node TxId)} (committed : Committed history term part)
+    {part : List (Entry)} (committed : Committed history term part)
     : Committed later term part := by
   obtain ⟨front, rfl⟩ := suffix
   exact committed.append front
 
-theorem Backed.mono (suffix : history <:+ later) {log : List (Entry Node TxId)}
+theorem Backed.mono (suffix : history <:+ later) {log : List (Entry)}
     {commit term : Nat} (backed : Backed history log commit term)
     : Backed later log commit term := by
   rcases backed with zero | ⟨earlier, part, committed, le, within⟩
   · exact Or.inl zero
   · exact Or.inr ⟨earlier, part, committed.mono suffix, le, within⟩
 
-theorem Backed.weaken {log : List (Entry Node TxId)} {commit term term' : Nat}
+theorem Backed.weaken {log : List (Entry)} {commit term term' : Nat}
     (backed : Backed history log commit term) (le : term <= term')
     : Backed history log commit term' := by
   rcases backed with zero | ⟨earlier, part, committed, le', within⟩
   · exact Or.inl zero
   · exact Or.inr ⟨earlier, part, committed, by omega, within⟩
 
-theorem Acked.mono (suffix : history <:+ later) {voter : Node} {term index : Nat}
+theorem Acked.mono (suffix : history <:+ later) {voter : NodeID} {term index : Nat}
     (acked : Acked history voter term index)
     : Acked later voter term index := by
   obtain ⟨acker, log, seen, termEq, canon, bound, sub⟩ := acked
   exact ⟨acker, log, seen.mono suffix, termEq, canon.mono suffix, bound, sub⟩
 
-theorem Bad.mono (suffix : history <:+ later) {part : List (Entry Node TxId)}
+theorem Bad.mono (suffix : history <:+ later) {part : List (Entry)}
     {term bound : Nat} (bad : Bad history part term bound)
     : Bad later part term bound := by
   obtain ⟨term', log, lt, le, canon, missing⟩ := bad
@@ -101,15 +100,15 @@ theorem Bad.mono (suffix : history <:+ later) {part : List (Entry Node TxId)}
 
 end Mono
 
-theorem Now.seen {history : History Node TxId} {node : Node} {state : NodeState Node TxId}
+theorem Now.seen {history : History} {node : NodeID} {state : NodeState}
     (now : Now history node state)
     : Seen history node state := by
   cases history with
   | nil => exact absurd now id
   | cons current rest => exact ⟨current, List.mem_cons_self, now⟩
 
-theorem Seen.cons {current : Model.State Node TxId} {rest : History Node TxId}
-    {node : Node} {state : NodeState Node TxId} (seen : Seen (current :: rest) node state)
+theorem Seen.cons {current : Model.State} {rest : History}
+    {node : NodeID} {state : NodeState} (seen : Seen (current :: rest) node state)
     : (node, state) ∈ current.nodes \/ Seen rest node state := by
   obtain ⟨state', member, mem⟩ := seen
   rcases List.mem_cons.mp member with rfl | inner

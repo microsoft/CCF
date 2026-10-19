@@ -23,21 +23,19 @@ open CCF
 open Model.Node
 open CCFRaft.ProofTLA.Ledger
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
 /-! ## Clauses at every suffix -/
 
 /-- `clause` holds at every nonempty suffix of `history`. -/
-def Everywhere (clause : History Node TxId -> Prop) (history : History Node TxId)
-    : Prop :=
+def Everywhere (clause : History -> Prop) (history : History) : Prop :=
   forall earlier, earlier <:+ history -> Not (earlier = []) -> clause earlier
 
 section Everywhere
 
-variable {clause : History Node TxId -> Prop} {history : History Node TxId}
+variable {clause : History -> Prop} {history : History}
 
-theorem Everywhere.cons {current : Model.State Node TxId}
+theorem Everywhere.cons {current : Model.State}
     (old : Everywhere clause history) (now : clause (current :: history))
     : Everywhere clause (current :: history) := by
   intro earlier suffix nonempty
@@ -45,7 +43,7 @@ theorem Everywhere.cons {current : Model.State Node TxId}
   · exact now
   · exact old earlier inner nonempty
 
-theorem Everywhere.suffix (all : Everywhere clause history) {earlier : History Node TxId}
+theorem Everywhere.suffix (all : Everywhere clause history) {earlier : History}
     (suffix : earlier <:+ history)
     : Everywhere clause earlier :=
   fun inner within nonempty => all inner (within.trans suffix) nonempty
@@ -60,48 +58,86 @@ end Everywhere
 
 section Exec
 
-variable {nodes : List Node}
+variable {nodes : List NodeID}
 
-theorem Now.nonempty {history : History Node TxId} {node : Node}
-    {state : NodeState Node TxId} (now : Now history node state)
+theorem Now.nonempty {history : History} {node : NodeID}
+    {state : NodeState} (now : Now history node state)
     : exists current rest, history = current :: rest := by
   cases history with
   | nil => exact absurd now id
   | cons current rest => exact ⟨current, rest, rfl⟩
 
-theorem now_unique {history : History Node TxId} (exec : Exec nodes history) {node : Node}
-    {first second : NodeState Node TxId} (left : Now history node first)
+theorem now_unique {history : History} (exec : Exec nodes history) {node : NodeID}
+    {first second : NodeState} (left : Now history node first)
     (right : Now history node second)
     : first = second := by
   obtain ⟨current, rest, rfl⟩ := left.nonempty
   exact state_unique (exec.keys List.mem_cons_self) left right
 
 /-- A state seen in a history is the current state of one of its suffixes. -/
-theorem Seen.now {history : History Node TxId} {node : Node} {state : NodeState Node TxId}
+theorem Seen.now {history : History} {node : NodeID} {state : NodeState}
     (seen : Seen history node state)
     : exists earlier, earlier <:+ history /\ Now earlier node state := by
   obtain ⟨current, member, mem⟩ := seen
   obtain ⟨front, back, split⟩ := List.append_of_mem member
   exact ⟨current :: back, ⟨front, split.symm⟩, mem⟩
 
-theorem Seen.frontier {history : History Node TxId} (exec : Exec nodes history)
-    {node : Node} {state : NodeState Node TxId} (seen : Seen history node state)
+theorem Seen.frontier {history : History} (exec : Exec nodes history)
+    {node : NodeID} {state : NodeState} (seen : Seen history node state)
     : Direct.CommitFrontier state := by
   obtain ⟨current, member, mem⟩ := seen
   obtain ⟨front, back, split⟩ := List.append_of_mem member
   have tail : Exec nodes (current :: back) := exec.suffix ⟨front, split.symm⟩ (by simp)
   exact Direct.commitFrontier_invariant.reachable tail.reachable node state mem
 
-theorem Seen.commit_le {history : History Node TxId} (exec : Exec nodes history)
-    {node : Node} {state : NodeState Node TxId} (seen : Seen history node state)
+theorem Seen.commit_le {history : History} (exec : Exec nodes history)
+    {node : NodeID} {state : NodeState} (seen : Seen history node state)
     : state.commitIndex <= state.log.length :=
   (seen.frontier exec).1
 
 end Exec
 
+/-! ## The genesis entry -/
+
+theorem head_of_prefix {small large : List (Entry)} (sub : small <+: large)
+    {first : Entry} (head : small.head? = some first)
+    : large.head? = some first := by
+  obtain ⟨tail, rfl⟩ := sub
+  cases small with
+  | nil => cases head
+  | cons x xs => simpa using head
+
+/-- A quorum of the active configurations needs a configuration in the log. -/
+theorem log_ne_nil_of_quorum {log : List (Entry)} {commit : Nat}
+    {voters : Finset NodeID} (quorum : hasQuorum (activeConfigurations log commit) voters)
+    : Not (log = []) := by
+  rintro rfl
+  exact quorum.1 (by simp [activeConfigurations, configurationHistory])
+
+/-- Two nonempty logs starting with the genesis entry agree on their first
+entry, which names a configuration. -/
+theorem genesis_agree {left right : List (Entry)} {k : Nat}
+    (leftHead : forall first, left.head? = some first -> first = genesisEntry)
+    (rightHead : forall first, right.head? = some first -> first = genesisEntry)
+    (leftNonempty : Not (left = [])) (rightNonempty : Not (right = []))
+    (agree : left.take k = right.take k)
+    : left.take (max k 1) = right.take (max k 1)
+      /\ Not (configurationHistory (right.take (max k 1)) = []) := by
+  obtain ⟨x, xs, rfl⟩ := List.exists_cons_of_ne_nil leftNonempty
+  obtain ⟨y, ys, rfl⟩ := List.exists_cons_of_ne_nil rightNonempty
+  have xEq := leftHead x rfl
+  have yEq := rightHead y rfl
+  subst xEq yEq
+  cases k with
+  | zero =>
+      simp [configurationHistory, genesisEntry, EntryContent.metadata]
+  | succ n =>
+      refine ⟨by simpa using agree, ?_⟩
+      simp [configurationHistory, List.zipIdx_cons, genesisEntry, EntryContent.metadata]
+
 /-! ## Terms and signatures -/
 
-theorem termAt_mono {log : List (Entry Node TxId)}
+theorem termAt_mono {log : List (Entry)}
     (sorted : log.Pairwise fun first second => first.term <= second.term) {i j : Nat}
     (le : i <= j) (bound : j <= log.length)
     : termAt log i <= termAt log j := by
@@ -113,7 +149,7 @@ theorem termAt_mono {log : List (Entry Node TxId)}
   · exact le_rfl
   · exact List.pairwise_iff_getElem.mp sorted _ _ _ _ (by omega)
 
-theorem termAt_le_of_mem {log : List (Entry Node TxId)} {bound : Nat}
+theorem termAt_le_of_mem {log : List (Entry)} {bound : Nat}
     (terms : forall entry, entry ∈ log -> entry.term <= bound) (index : Nat)
     : termAt log index <= bound := by
   unfold termAt
@@ -121,14 +157,14 @@ theorem termAt_le_of_mem {log : List (Entry Node TxId)} {bound : Nat}
   | none => exact Nat.zero_le _
   | some entry => exact terms entry (entryAt_mem found)
 
-theorem signature_pos {log : List (Entry Node TxId)} {index : Nat}
+theorem signature_pos {log : List (Entry)} {index : Nat}
     (signature : isSignatureAt log index = true)
     : 0 < index := by
   rcases Nat.eq_zero_or_pos index with rfl | positive
   · simp [isSignatureAt, entryAt?] at signature
   · exact positive
 
-theorem signature_bound {log : List (Entry Node TxId)} {index : Nat}
+theorem signature_bound {log : List (Entry)} {index : Nat}
     (signature : isSignatureAt log index = true)
     : index <= log.length := by
   obtain ⟨entry, found, _⟩ := isSignatureAtTrue signature
@@ -136,14 +172,14 @@ theorem signature_bound {log : List (Entry Node TxId)} {index : Nat}
 
 /-- The winning prefix `log.take (maxCommittableIndex log)` contains every
 prefix of `log` ending in a signature. -/
-theorem prefix_committable {part log : List (Entry Node TxId)} (sub : part <+: log)
+theorem prefix_committable {part log : List (Entry)} (sub : part <+: log)
     (signature : isSignatureAt part part.length = true)
     : part <+: log.take (maxCommittableIndex log) := by
   have le := signatureIndex_le_maxCommittableIndex (isSignatureAt_of_prefix sub signature)
   rw [List.prefix_iff_eq_take.mp sub]
   exact take_prefix_take log le
 
-theorem take_signature {log : List (Entry Node TxId)} {index : Nat}
+theorem take_signature {log : List (Entry)} {index : Nat}
     (signature : isSignatureAt log index = true)
     : isSignatureAt (log.take index) (log.take index).length = true := by
   rw [List.length_take, Nat.min_eq_left (signature_bound signature)]
@@ -151,7 +187,7 @@ theorem take_signature {log : List (Entry Node TxId)} {index : Nat}
 
 /-! ## Leadership records -/
 
-theorem Led.two_le {history : History Node TxId} {node : Node} {term : Nat}
+theorem Led.two_le {history : History} {node : NodeID} {term : Nat}
     (led : Led history node term)
     : 2 <= term := by
   rcases led with ⟨rfl, -⟩ | ⟨log, commit, after, before, rest, -, candidate, leader, -, -, -,
@@ -159,7 +195,7 @@ theorem Led.two_le {history : History Node TxId} {node : Node} {term : Nat}
   · decide
   · omega
 
-theorem Led.elected {history : History Node TxId} {node : Node} {term : Nat}
+theorem Led.elected {history : History} {node : NodeID} {term : Nat}
     (led : Led history node term) (above : 2 < term)
     : exists log commit, Elected history node term log commit := by
   rcases led with ⟨rfl, -⟩ | elected
@@ -167,16 +203,16 @@ theorem Led.elected {history : History Node TxId} {node : Node} {term : Nat}
   · exact elected
 
 /-- Logs of leaders of one term form a chain. -/
-theorem canon_chain {history : History Node TxId} (mono : Everywhere CanonMono history)
-    {term : Nat} {first second : List (Entry Node TxId)} (left : Canon history term first)
+theorem canon_chain {history : History} (mono : Everywhere CanonMono history)
+    {term : Nat} {first second : List (Entry)} (left : Canon history term first)
     (right : Canon history term second)
     : first <+: second \/ second <+: first := by
   obtain ⟨early, earlySuffix, earlyNode, earlyState,
     ⟨earlyNow, earlyTerm, earlyRole, earlyLed⟩, rfl⟩ := left
   obtain ⟨late, lateSuffix, lateNode, lateState,
     ⟨lateNow, lateTerm, lateRole, lateLed⟩, rfl⟩ := right
-  have contains : forall {inner outer : History Node TxId} {innerNode outerNode : Node}
-      {innerState outerState : NodeState Node TxId},
+  have contains : forall {inner outer : History} {innerNode outerNode : NodeID}
+      {innerState outerState : NodeState},
       inner <:+ outer -> outer <:+ history
       -> Now inner innerNode innerState -> innerState.currentTerm = term
       -> Not (innerState.role = .candidate) -> Led inner innerNode term
@@ -198,9 +234,9 @@ theorem canon_chain {history : History Node TxId} (mono : Everywhere CanonMono h
       earlyTerm earlyRole earlyLed)
 
 /-- Two seen logs agreeing on the term at `index` agree up to `index`. -/
-theorem log_matching {history : History Node TxId} (anchor : Everywhere Anchor history)
-    (mono : Everywhere CanonMono history) {node other : Node}
-    {first second : NodeState Node TxId} (left : Seen history node first)
+theorem log_matching {history : History} (anchor : Everywhere Anchor history)
+    (mono : Everywhere CanonMono history) {node other : NodeID}
+    {first second : NodeState} (left : Seen history node first)
     (right : Seen history other second) {index : Nat} (positive : 0 < index)
     (leftBound : index <= first.log.length) (rightBound : index <= second.log.length)
     (same : termAt first.log index = termAt second.log index)
@@ -223,14 +259,14 @@ theorem log_matching {history : History Node TxId} (anchor : Everywhere Anchor h
 /-! ## Votes -/
 
 /-- A voter grants at most one candidate per term. -/
-theorem vote_unique {nodes : List Node} {history : History Node TxId}
+theorem vote_unique {nodes : List NodeID} {history : History}
     (exec : Exec nodes history) (record : Everywhere VoteRecord history)
-    {voter first second : Node} {term : Nat}
+    {voter first second : NodeID} {term : Nat}
     {firstRequest secondRequest : RequestVoteRequest}
     (left : Granted history voter first term firstRequest)
     (right : Granted history voter second term secondRequest)
     : first = second := by
-  have ordered : forall {early late : Node} {earlyRequest lateRequest : RequestVoteRequest},
+  have ordered : forall {early late : NodeID} {earlyRequest lateRequest : RequestVoteRequest},
       Granted history voter early term earlyRequest
       -> Granted history voter late term lateRequest
       -> (forall a b r a' b' r', a :: b :: r <:+ history -> a' :: b' :: r' <:+ history
@@ -271,8 +307,8 @@ theorem vote_unique {nodes : List Node} {history : History Node TxId}
 /-! ## Committed parts -/
 
 /-- The commit step behind a committed part, with its backing. -/
-theorem Committed.shape {history : History Node TxId} {term : Nat}
-    {part : List (Entry Node TxId)} (committed : Committed history term part)
+theorem Committed.shape {history : History} {term : Nat}
+    {part : List (Entry)} (committed : Committed history term part)
     : exists current rest leader state base index,
         current :: rest <:+ history
         /\ CommitStep (current :: rest) leader state term base index
@@ -292,8 +328,8 @@ theorem Committed.shape {history : History Node TxId} {term : Nat}
       exact ⟨current, rest, leader, state, base, index, suffix.trans (List.suffix_cons _ _),
         step, eq, backing⟩
 
-theorem Committed.signature {history : History Node TxId} {term : Nat}
-    {part : List (Entry Node TxId)} (committed : Committed history term part)
+theorem Committed.signature {history : History} {term : Nat}
+    {part : List (Entry)} (committed : Committed history term part)
     : isSignatureAt part part.length = true
       /\ termAt part part.length = term
       /\ 2 <= term := by
@@ -304,9 +340,9 @@ theorem Committed.signature {history : History Node TxId} {term : Nat}
     termAt_take le_rfl, termEq]
 
 /-- A part committed in a term is in every later leader log. -/
-theorem committed_in_canon {history : History Node TxId} (complete : Completeness history)
+theorem committed_in_canon {history : History} (complete : Completeness history)
     (mono : Everywhere CanonMono history) {term later : Nat}
-    {part log : List (Entry Node TxId)} (committed : Committed history term part)
+    {part log : List (Entry)} (committed : Committed history term part)
     (canon : Canon history later log) (lt : term < later)
     : part <+: log := by
   obtain ⟨earlier, suffix, node, state, ⟨now, termEq, role, led⟩, rfl⟩ := canon
@@ -320,13 +356,13 @@ theorem committed_in_canon {history : History Node TxId} (complete : Completenes
     ((clause node state now role (termEq ▸ led)).2 elected commit (termEq ▸ election))
 
 /-- Committed parts are comparable. -/
-theorem committed_comparable {history : History Node TxId}
+theorem committed_comparable {history : History}
     (complete : Completeness history) (mono : Everywhere CanonMono history)
-    {first second : Nat} {left right : List (Entry Node TxId)}
+    {first second : Nat} {left right : List (Entry)}
     (leftCommitted : Committed history first left)
     (rightCommitted : Committed history second right)
     : left <+: right \/ right <+: left := by
-  have inCanon : forall {term term' : Nat} {part part' : List (Entry Node TxId)},
+  have inCanon : forall {term term' : Nat} {part part' : List (Entry)},
       Committed history term part -> Committed history term' part' -> term <= term'
       -> part <+: part' \/ part' <+: part := by
     intro term term' part part' committed committed' le

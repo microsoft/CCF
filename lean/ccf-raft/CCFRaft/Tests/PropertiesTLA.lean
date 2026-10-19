@@ -17,15 +17,12 @@ open Model.Node ProofTLA
 
 section Execution
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
-  [LinearOrder Node]
-
 /-- `Servers`: every reachable state holds each configured node exactly once. -/
-theorem servers (config : InitialConfig Node) {nodes : List Node}
-    {state : Model.State Node TxId}
-    (reachable : (Model.transitionSystem config (TxId := TxId) nodes).Reachable state)
+theorem servers (config : Model.ModelConfig) {nodes : List NodeID}
+    {state : Model.State}
+    (reachable : (Model.transitionSystem config nodes).Reachable state)
     : state.nodes.map Prod.fst = nodes /\ nodes.Nodup := by
-  let _ : InitialConfig Node := config
+  let _ : Model.ModelConfig := config
   induction reachable with
   | initial initialized => exact ⟨initialized.2.1, initialized.1⟩
   | @step before after action _ stepped ih =>
@@ -39,13 +36,12 @@ theorem servers (config : InitialConfig Node) {nodes : List Node}
 
 /-- `committedLog` is ccfraft.tla's `Committed(i)`, `SubSeq(log[i], 1, commitIndex[i])`:
 `take` never truncates at the log's end, since the commit index lies within the log. -/
-theorem committed_length (config : InitialConfig Node) {nodes : List Node}
-    {state : Model.State Node TxId}
-    (reachable
-      : (Model.transitionSystem config (TxId := TxId) nodes).Reachable state) {i : Node}
-    {s : NodeState Node TxId} (listed : (i, s) ∈ state.nodes)
+theorem committed_length (config : Model.ModelConfig) {nodes : List NodeID}
+    {state : Model.State}
+    (reachable : (Model.transitionSystem config nodes).Reachable state) {i : NodeID}
+    {s : NodeState} (listed : (i, s) ∈ state.nodes)
     : s.committedLog.length = s.commitIndex := by
-  let _ : InitialConfig Node := config
+  let _ : Model.ModelConfig := config
   have frontier := Direct.commitFrontier_invariant.reachable reachable i s listed
   simpa [NodeState.committedLog] using frontier.1
 

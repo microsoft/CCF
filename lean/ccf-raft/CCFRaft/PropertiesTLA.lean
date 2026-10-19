@@ -27,15 +27,14 @@ proved equivalent to the TLA+ specification.
 namespace CCFRaft.PropertiesTLA
 
 open Model.Node
+open Model (ModelConfig)
 
 /-- `LogInv`: in every reachable state, the committed logs of any two nodes are
 prefix-comparable. -/
 def LogInv : Prop :=
-  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
-          [LinearOrder Node],
-  forall (config : InitialConfig Node),
-  forall (nodes : List Node) (state : Model.State Node TxId),
-  forall (left right : Node) (leftState rightState : NodeState Node TxId),
+  forall (config : ModelConfig),
+  forall (nodes : List NodeID) (state : Model.State),
+  forall (left right : NodeID) (leftState rightState : NodeState),
     ((Model.transitionSystem config nodes).Reachable state
       /\ (left, leftState) ∈ state.nodes
       /\ (right, rightState) ∈ state.nodes)
@@ -45,12 +44,9 @@ def LogInv : Prop :=
 /-- Witness: a reachable state in which two distinct nodes have nonempty
 committed logs. -/
 def LogInvWitness : Prop :=
-  exists (Node TxId : Type),
-  exists (_ : DecidableEq Node) (_ : DecidableEq TxId),
-  exists (_ : Inhabited TxId) (_ : LinearOrder Node),
-  exists (config : InitialConfig Node),
-  exists (nodes : List Node) (state : Model.State Node TxId),
-  exists (left right : Node) (leftState rightState : NodeState Node TxId),
+  exists (config : ModelConfig),
+  exists (nodes : List NodeID) (state : Model.State),
+  exists (left right : NodeID) (leftState rightState : NodeState),
     (Model.transitionSystem config nodes).Reachable state
     /\ (left, leftState) ∈ state.nodes
     /\ (right, rightState) ∈ state.nodes
@@ -61,12 +57,9 @@ def LogInvWitness : Prop :=
 /-- `CommittedLogAppendOnlyProp`: every enabled step from a reachable state
 extends or keeps each node's committed log. -/
 def CommittedLogAppendOnlyProp : Prop :=
-  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
-          [LinearOrder Node],
-  forall (config : InitialConfig Node),
-  forall (nodes : List Node) (before after : Model.State Node TxId)
-          (action : Model.Action Node TxId),
-  forall (node : Node) (nodeBefore nodeAfter : NodeState Node TxId),
+  forall (config : ModelConfig),
+  forall (nodes : List NodeID) (before after : Model.State) (action : Model.Action),
+  forall (node : NodeID) (nodeBefore nodeAfter : NodeState),
     ((Model.transitionSystem config nodes).Reachable before
       /\ (Model.transitionSystem config nodes).step before action = some after
       /\ (node, nodeBefore) ∈ before.nodes
@@ -76,14 +69,9 @@ def CommittedLogAppendOnlyProp : Prop :=
 /-- Witness: an enabled step from a reachable state strictly extends a node's
 nonempty committed log. -/
 def CommittedLogAppendOnlyPropWitness : Prop :=
-  exists (Node TxId : Type),
-  exists (_ : DecidableEq Node) (_ : DecidableEq TxId),
-  exists (_ : Inhabited TxId) (_ : LinearOrder Node),
-  exists (config : InitialConfig Node),
-  exists
-  (nodes : List Node) (before after : Model.State Node TxId) (action
-                                                              : Model.Action Node TxId),
-  exists (node : Node) (nodeBefore nodeAfter : NodeState Node TxId),
+  exists (config : ModelConfig),
+  exists (nodes : List NodeID) (before after : Model.State) (action : Model.Action),
+  exists (node : NodeID) (nodeBefore nodeAfter : NodeState),
     (Model.transitionSystem config nodes).Reachable before
     /\ (Model.transitionSystem config nodes).step before action = some after
     /\ (node, nodeBefore) ∈ before.nodes
@@ -93,7 +81,7 @@ def CommittedLogAppendOnlyPropWitness : Prop :=
 
 /-- `THEOREM Spec => []LogInv` -/
 theorem spec_logInv : LogInv :=
-  fun _ _ _ _ _ _ config _ _ _ _ _ _ ⟨reachable, leftMember, rightMember⟩ =>
+  fun config _ _ _ _ _ _ ⟨reachable, leftMember, rightMember⟩ =>
     ProofTLA.logInv config reachable leftMember rightMember
 
 theorem logInv_witness : LogInvWitness :=
@@ -101,7 +89,7 @@ theorem logInv_witness : LogInvWitness :=
 
 /-- `THEOREM Spec => CommittedLogAppendOnlyProp` -/
 theorem spec_committedLogAppendOnlyProp : CommittedLogAppendOnlyProp :=
-  fun _ _ _ _ _ _ config _ _ _ _ _ _ _ ⟨reachable, stepped, beforeMember, afterMember⟩ =>
+  fun config _ _ _ _ _ _ _ ⟨reachable, stepped, beforeMember, afterMember⟩ =>
     ProofTLA.committedLog_step config reachable stepped beforeMember afterMember
 
 theorem committedLogAppendOnlyProp_witness : CommittedLogAppendOnlyPropWitness :=

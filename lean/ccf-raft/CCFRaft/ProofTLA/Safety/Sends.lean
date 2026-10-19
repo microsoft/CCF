@@ -5,6 +5,8 @@ module
 
 public import CCFRaft.ProofTLA.Concrete
 
+import all Init.Control.State
+
 @[expose] public section
 
 set_option linter.unusedSectionVars false
@@ -86,7 +88,7 @@ theorem guard' {c : Prop} [Decidable c]
   · simp [guard, holds] at ran
     obtain ⟨_, rfl⟩ := ran
     exact ⟨[], by simp, holds, rfl⟩
-  · simp [guard, holds] at ran
+  · simp [guard, holds, StateT.run, failure, StateT.failure] at ran
 
 theorem guard_bind {P : α -> List (Envelope Node Message) -> Prop} {c : Prop}
     [Decidable c] {m : Effect Node Message Notification α} (rest : c -> Sends P m)
@@ -137,7 +139,8 @@ theorem foldlM' {I : α -> List (Envelope Node Message) -> Prop}
     : forall (items : List γ) (init : α) (sent : List (Envelope Node Message)),
         I init sent
         -> Sends (fun result later => I result (sent ++ later)) (items.foldlM f init)
-  | [], _, _, holds => by simpa using pure' (P := fun result later => I result (_ ++ later)) (by simpa using holds)
+  | [], _, _, holds => by
+    simpa using pure' (P := fun result later => I result (_ ++ later)) (by simpa using holds)
   | item :: items, init, sent, holds => by
       simp only [List.foldlM_cons]
       refine bind' (step init sent item holds) fun value later kept => ?_

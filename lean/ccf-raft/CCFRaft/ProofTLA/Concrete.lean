@@ -23,28 +23,24 @@ namespace CCFRaft.ProofTLA.Concrete
 open CCFRaft.ProofTLA.Config
 
 open CCF CCF.MultiNodeTransitionSystem
-open Model.Node (NodeState InitialConfig)
+open Model.Node (NodeID NodeState)
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
 /-- Replace the state of `node` in a node table. -/
-def replaceNode (nodes : List (Node × NodeState Node TxId)) (node : Node)
-    (value : NodeState Node TxId)
-    : List (Node × NodeState Node TxId) :=
+def replaceNode (nodes : List (NodeID × NodeState)) (node : NodeID) (value : NodeState)
+    : List (NodeID × NodeState) :=
   nodes.map fun entry => if entry.1 == node then (node, value) else entry
 
 theorem step_local
-    {nodes : List Node} {before after : Model.State Node TxId}
-    {node : Node} {input : Model.Node.Input Node TxId}
+    {nodes : List NodeID} {before after : Model.State}
+    {node : NodeID} {input : Model.Node.Input}
     (stepped
       : (Model.transitionSystem (inferInstance) nodes).step before (.local node input)
         = some after)
     : exists state next outputs,
         nodeState before node = some state
-        /\ (Model.Node.act (inferInstance) (Capabilities.record node) node
-              state input).run
-              {}
+        /\ (Model.Node.act (Capabilities.record node) node state input).run {}
             = some (next, outputs)
         /\ after
             = {
@@ -59,15 +55,15 @@ theorem step_local
   exact ran
 
 theorem step_deliver
-    {nodes : List Node} {before after : Model.State Node TxId}
-    {envelope : Model.Envelope Node TxId}
+    {nodes : List NodeID} {before after : Model.State}
+    {envelope : Model.Envelope}
     (stepped
       : (Model.transitionSystem (inferInstance) nodes).step before (.deliver envelope)
         = some after)
     : envelope ∈ before.network
       /\ exists state next outputs,
           nodeState before envelope.target = some state
-          /\ (Model.Node.receive (inferInstance) (Capabilities.record envelope.target)
+          /\ (Model.Node.receive (Capabilities.record envelope.target)
                 envelope.target envelope.source state
                 envelope.payload).run
                 {}
@@ -83,8 +79,8 @@ theorem step_deliver
   obtain ⟨queued, _, state, found, next, outputs, ran, rfl⟩ := stepped
   exact ⟨queued, state, next, outputs, found, ran, by simp [replaceNode]⟩
 
-theorem mem_replaceNode {nodes : List (Node × NodeState Node TxId)} {node member : Node}
-    {value state : NodeState Node TxId}
+theorem mem_replaceNode {nodes : List (NodeID × NodeState)} {node member : NodeID}
+    {value state : NodeState}
     (found : (member, state) ∈ replaceNode nodes node value)
     : (member = node /\ state = value)
       \/ (Not (member = node) /\ (member, state) ∈ nodes) := by
@@ -98,16 +94,16 @@ theorem mem_replaceNode {nodes : List (Node × NodeState Node TxId)} {node membe
     obtain ⟨rfl, rfl⟩ := same
     exact Or.inr ⟨here, listed⟩
 
-theorem replaceNode_keys (nodes : List (Node × NodeState Node TxId)) (node : Node)
-    (value : NodeState Node TxId)
+theorem replaceNode_keys (nodes : List (NodeID × NodeState)) (node : NodeID)
+    (value : NodeState)
     : (replaceNode nodes node value).map Prod.fst = nodes.map Prod.fst := by
   simp only [replaceNode, List.map_map]
   congr 1
   funext entry
   by_cases here : entry.1 = node <;> simp [here]
 
-theorem mem_of_nodeState {concrete : Model.State Node TxId} {node : Node}
-    {state : NodeState Node TxId} (found : nodeState concrete node = some state)
+theorem mem_of_nodeState {concrete : Model.State} {node : NodeID}
+    {state : NodeState} (found : nodeState concrete node = some state)
     : (node, state) ∈ concrete.nodes := by
   simp only [nodeState, Option.map_eq_some_iff] at found
   obtain ⟨⟨key, value⟩, located, rfl⟩ := found
@@ -115,14 +111,12 @@ theorem mem_of_nodeState {concrete : Model.State Node TxId} {node : Node}
   subst same
   exact List.mem_of_find?_eq_some located
 
-theorem observeTerm_log (state : NodeState Node TxId)
-    (message : Model.Node.Message Node TxId)
+theorem observeTerm_log (state : NodeState) (message : Model.Node.Message)
     : (Model.Node.observeTerm state message).log = state.log := by
   unfold Model.Node.observeTerm Model.Node.updateTerm
   split <;> (try split) <;> (try split) <;> rfl
 
-theorem observeTerm_commitIndex (state : NodeState Node TxId)
-    (message : Model.Node.Message Node TxId)
+theorem observeTerm_commitIndex (state : NodeState) (message : Model.Node.Message)
     : (Model.Node.observeTerm state message).commitIndex = state.commitIndex := by
   unfold Model.Node.observeTerm Model.Node.updateTerm
   split <;> (try split) <;> (try split) <;> rfl

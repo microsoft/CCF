@@ -20,49 +20,49 @@ namespace CCFRaft.ProofTLA.Safety
 open CCF
 open Model.Node
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
 section Initial
 
-variable {nodes : List Node} {initial : Model.State Node TxId}
+variable {nodes : List NodeID} {initial : Model.State}
   (initialized : (Model.transitionSystem (inferInstance) nodes).init initial)
 include initialized
 
-theorem initial_state {node : Node} {state : NodeState Node TxId}
+theorem initial_state {node : NodeID} {state : NodeState}
     (member : (node, state) ∈ initial.nodes)
-    : state = initialNodeState (inferInstance) node :=
+    : state = Model.initialNodeState (inferInstance) node :=
   initialized.2.2.2.2.2 _ member
 
-theorem initial_seen {node : Node} {state : NodeState Node TxId}
+theorem initial_seen {node : NodeID} {state : NodeState}
     (seen : Seen [initial] node state)
-    : state = initialNodeState (inferInstance) node := by
+    : state = Model.initialNodeState (inferInstance) node := by
   obtain ⟨current, member, mem⟩ := seen
   rw [List.mem_singleton.mp member] at mem
   exact initial_state initialized mem
 
 omit initialized in
-theorem not_elected_single {current : Model.State Node TxId} {node : Node}
-    {term commit : Nat} {log : List (Entry Node TxId)}
+theorem not_elected_single {current : Model.State} {node : NodeID}
+    {term commit : Nat} {log : List (Entry)}
     : Not (Elected [current] node term log commit) := by
   rintro ⟨after, before, rest, suffix, -⟩
   have := suffix.length_le
   simp at this
 
 omit initialized in
-theorem led_single {current : Model.State Node TxId} {node : Node} {term : Nat}
+theorem led_single {current : Model.State} {node : NodeID} {term : Nat}
     (led : Led [current] node term)
-    : term = BOOTSTRAP_TERM /\ node = (inferInstance : InitialConfig Node).leader := by
+    : term = Model.BOOTSTRAP_TERM
+      /\ node = ((inferInstance : Model.ModelConfig).primary : NodeID) := by
   rcases led with bootstrap | ⟨log, commit, elected⟩
   · exact bootstrap
   · exact absurd elected not_elected_single
 
-theorem initial_canon {term : Nat} {log : List (Entry Node TxId)}
-    (canon : Canon [initial] term log)
-    : term = BOOTSTRAP_TERM
+theorem initial_canon {term : Nat} {log : List (Entry)} (canon : Canon [initial] term log)
+    : term = Model.BOOTSTRAP_TERM
       /\ log
-          = (initialNodeState (inferInstance) (inferInstance : InitialConfig Node).leader
-              : NodeState Node TxId).log := by
+          = (Model.initialNodeState (inferInstance)
+                ((inferInstance : Model.ModelConfig).primary : NodeID)
+              : NodeState).log := by
   obtain ⟨earlier, suffix, node, state, ⟨now, termEq, -, led⟩, rfl⟩ := canon
   rcases List.suffix_cons_iff.mp suffix with rfl | inner
   · obtain ⟨bootstrap, rfl⟩ := led_single led
@@ -71,46 +71,46 @@ theorem initial_canon {term : Nat} {log : List (Entry Node TxId)}
     exact absurd now id
 
 theorem inv_initial : Inv [initial] := by
-  have leaderMem := (inferInstance : InitialConfig Node).leader_mem
-  have stateOf : forall {node : Node} {state : NodeState Node TxId},
-      Now [initial] node state -> state = initialNodeState (inferInstance) node :=
+  have leaderMem := ((inferInstance : Model.ModelConfig).primary).2
+  have stateOf : forall {node : NodeID} {state : NodeState},
+      Now [initial] node state -> state = Model.initialNodeState (inferInstance) node :=
     fun now => initial_state initialized now
   constructor
   · intro node state now entry member
     rw [stateOf now] at member ⊢
-    by_cases leader : node = (inferInstance : InitialConfig Node).leader
+    by_cases leader : node = ((inferInstance : Model.ModelConfig).primary : NodeID)
     · subst leader
-      simp_all [initialNodeState]
-    · simp [initialNodeState, leader] at member
+      simp_all [Model.initialNodeState]
+    · simp [Model.initialNodeState, leader] at member
   · intro node state now
     rw [stateOf now]
-    unfold initialNodeState
+    unfold Model.initialNodeState
     split <;> simp
   · intro node state now active
     rw [stateOf now] at active ⊢
-    simp only [initialNodeState] at active ⊢
-    split_ifs at active ⊢ <;> simp_all [BOOTSTRAP_TERM]
+    simp only [Model.initialNodeState] at active ⊢
+    split_ifs at active ⊢ <;> simp_all [Model.BOOTSTRAP_TERM]
   · intro node state earlier now seen
     rw [stateOf now, initial_seen initialized seen]
   · intro node state earlier candidate now seen voted
     rw [initial_seen initialized seen] at voted
-    simp [initialNodeState] at voted
+    simp [Model.initialNodeState] at voted
   · intro node state term now led
     obtain ⟨rfl, rfl⟩ := led_single led
     rw [stateOf now]
     right
-    simp [initialNodeState, leaderMem]
+    simp [Model.initialNodeState, leaderMem]
   · intro node state now leader
     left
     rw [stateOf now] at leader ⊢
-    by_cases isLeader : node = (inferInstance : InitialConfig Node).leader
+    by_cases isLeader : node = ((inferInstance : Model.ModelConfig).primary : NodeID)
     · subst isLeader
-      simp [initialNodeState, leaderMem]
-    · simp only [initialNodeState, isLeader, ite_false] at leader
+      simp [Model.initialNodeState, leaderMem]
+    · simp only [Model.initialNodeState, isLeader, ite_false] at leader
       split at leader <;> cases leader
   · intro node state now candidate
     rw [stateOf now] at candidate
-    simp only [initialNodeState] at candidate
+    simp only [Model.initialNodeState] at candidate
     split_ifs at candidate
   · intro after before rest node term log commit suffix
     have := suffix.length_le
@@ -123,23 +123,23 @@ theorem inv_initial : Inv [initial] := by
     rw [(initial_canon initialized canon).2, stateOf now]
   · intro node state index now positive bound
     rw [stateOf now] at bound ⊢
-    by_cases isLeader : node = (inferInstance : InitialConfig Node).leader
+    by_cases isLeader : node = ((inferInstance : Model.ModelConfig).primary : NodeID)
     · subst isLeader
       have one : index = 1 := by
-        simp [initialNodeState] at bound
+        simp [Model.initialNodeState] at bound
         omega
       subst one
       refine ⟨_, ⟨[initial], List.suffix_refl _, _, _,
         ⟨now, ?_, ?_, Or.inl ⟨?_, rfl⟩⟩, rfl⟩, ?_, ?_⟩
       · rw [stateOf now]
-        simp [initialNodeState, leaderMem, BOOTSTRAP_TERM, termAt, entryAt?]
+        simp [Model.initialNodeState, leaderMem, Model.BOOTSTRAP_TERM, termAt, entryAt?]
       · rw [stateOf now]
-        simp [initialNodeState]
-      · simp [initialNodeState, BOOTSTRAP_TERM, termAt, entryAt?]
+        simp [Model.initialNodeState]
+      · simp [Model.initialNodeState, Model.BOOTSTRAP_TERM, termAt, entryAt?]
       · rw [stateOf now]
         exact bound
       · rw [stateOf now]
-    · simp [initialNodeState, isLeader] at bound
+    · simp [Model.initialNodeState, isLeader] at bound
       omega
   · intro term part node later log commit _ elected
     exact absurd elected not_elected_single
@@ -153,11 +153,19 @@ theorem inv_initial : Inv [initial] := by
     exact List.take_prefix _ _
   · intro node state peer now _ _ positive
     rw [stateOf now] at positive
-    simp [initialNodeState] at positive
+    simp [Model.initialNodeState] at positive
   · intro envelope pending
     simp [Pending, initialized.2.2.2.2.1] at pending
   · intro envelope pending
     simp [Pending, initialized.2.2.2.2.1] at pending
+  · intro node state now
+    rw [stateOf now]
+    by_cases isLeader : node = ((inferInstance : Model.ModelConfig).primary : NodeID)
+    · subst isLeader
+      simp [Model.initialNodeState, genesisEntry]
+    · simp only [Model.initialNodeState, isLeader, ite_false]
+      refine ⟨by simp, ?_⟩
+      split <;> simp
 
 end Initial
 

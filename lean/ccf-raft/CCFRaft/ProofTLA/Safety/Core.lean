@@ -23,8 +23,7 @@ open CCF
 open Model.Node
 open CCFRaft.ProofTLA.Ledger
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
 theorem suffix_of_cons_suffix {α : Type} {x y : α} {first second : List α}
     (suffix : x :: first <:+ y :: second)
@@ -34,9 +33,9 @@ theorem suffix_of_cons_suffix {α : Type} {x y : α} {first second : List α}
   · exact (List.suffix_cons _ _).trans inner
 
 /-- A state with a lower term than one at `a` was seen before `a`. -/
-theorem seen_split {history : History Node TxId} (termMono : Everywhere TermMono history)
-    {a : Model.State Node TxId} {rest : History Node TxId}
-    (suffix : a :: rest <:+ history) {node : Node} {granted state : NodeState Node TxId}
+theorem seen_split {history : History} (termMono : Everywhere TermMono history)
+    {a : Model.State} {rest : History}
+    (suffix : a :: rest <:+ history) {node : NodeID} {granted state : NodeState}
     (mem : (node, granted) ∈ a.nodes) (seen : Seen history node state)
     (lt : state.currentTerm < granted.currentTerm)
     : Seen rest node state := by
@@ -65,14 +64,15 @@ A commit step at `term` and a later election whose logs agree up to both
 commit indices: the committed part is in the elected log, provided `clean`:
 every leader log of a term in `(term, later]` before the election contains it.
 -/
-theorem core {small large : History Node TxId} (within : small <:+ large)
+theorem core {small large : History} (within : small <:+ large)
     (termMono : Everywhere TermMono large) (canonMono : Everywhere CanonMono small)
-    (sorted : Everywhere Sorted small) {current : Model.State Node TxId}
-    {past : History Node TxId} {leader : Node} {state : NodeState Node TxId}
+    (sorted : Everywhere Sorted small) (genesis : Everywhere Genesis small)
+    {current : Model.State}
+    {past : History} {leader : NodeID} {state : NodeState}
     {term base index : Nat} (commitSuffix : current :: past <:+ small)
     (step : CommitStep (current :: past) leader state term base index)
-    {a b : Model.State Node TxId} {r : History Node TxId} {node : Node}
-    {later commit : Nat} {log : List (Entry Node TxId)}
+    {a b : Model.State} {r : History} {node : NodeID}
+    {later commit : Nat} {log : List (Entry)}
     (electSuffix : a :: b :: r <:+ large) (electInner : b :: r <:+ small)
     (elect : ElectStep a b r node later log commit)
     (persist : Everywhere Persist (b :: r)) (anchor : Everywhere Anchor (b :: r))
@@ -89,8 +89,17 @@ theorem core {small large : History Node TxId} (within : small <:+ large)
     ackers, ackQuorum, acked⟩ := step
   obtain ⟨candidate, _, candidateMem, _, candidateLog, _, frontier, termCase, _, _, _, _,
     voters, voteQuorum, granted⟩ := elect
+  have leaderGenesis :=
+    genesis _ commitSuffix (List.cons_ne_nil _ _) leader state leaderNow
+  have candidateGenesis :=
+    genesis _ electInner (List.cons_ne_nil _ _) node candidate candidateMem
+  rw [candidateLog] at candidateGenesis
+  obtain ⟨agree', named⟩ :=
+    genesis_agree leaderGenesis.1 candidateGenesis.1 (log_ne_nil_of_quorum ackQuorum)
+      (log_ne_nil_of_quorum voteQuorum) agree
   obtain ⟨voter, ackMem, voteMem⟩ :=
-    quorums_intersect inferInstance agree baseLe commitLe ackQuorum voteQuorum
+    quorums_intersect agree' (le_max_of_le_left baseLe) (le_max_of_le_left commitLe) named
+      ackQuorum voteQuorum
   obtain ⟨acker, ackerSeen, ackerTerm, ackerLog⟩ := acked voter ackMem
   obtain ⟨a', b', r', grantSuffix, granting, grantedState, grantingMem, grantedMem,
     grantingTerm, grantedTerm, _, upToDate⟩ := granted voter voteMem

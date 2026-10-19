@@ -24,24 +24,22 @@ open CCFRaft.ProofTLA.Config
 open CCF CCF.MultiNodeTransitionSystem Concrete Direct
 open Model.Node
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
 /-- An execution of the network of `nodes`, newest state first. -/
-inductive Exec (nodes : List Node) : List (Model.State Node TxId) -> Prop where
-  | initial {state : Model.State Node TxId}
+inductive Exec (nodes : List NodeID) : List (Model.State) -> Prop where
+  | initial {state : Model.State}
     (initialized : (Model.transitionSystem (inferInstance) nodes).init state)
     : Exec nodes [state]
-  | step {before after : Model.State Node TxId} {history : List (Model.State Node TxId)}
-    {action : Model.Action Node TxId}
+  | step {before after : Model.State} {history : List (Model.State)}
+    {action : Model.Action}
     (prior : Exec nodes (before :: history))
     (stepped
       : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
     : Exec nodes (after :: before :: history)
 
-theorem exec_of_reachable {nodes : List Node} {state : Model.State Node TxId}
-    (reachable
-      : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable state)
+theorem exec_of_reachable {nodes : List NodeID} {state : Model.State}
+    (reachable : (Model.transitionSystem (inferInstance) nodes).Reachable state)
     : exists history, Exec nodes (state :: history) := by
   induction reachable with
   | initial initialized => exact ⟨[], .initial initialized⟩
@@ -49,9 +47,9 @@ theorem exec_of_reachable {nodes : List Node} {state : Model.State Node TxId}
       obtain ⟨history, prior⟩ := ih
       exact ⟨_, .step prior stepped⟩
 
-theorem Exec.reachable {nodes : List Node} {state : Model.State Node TxId}
-    {history : List (Model.State Node TxId)} (exec : Exec nodes (state :: history))
-    : (Model.transitionSystem (inferInstance) (TxId := TxId) nodes).Reachable state := by
+theorem Exec.reachable {nodes : List NodeID} {state : Model.State}
+    {history : List (Model.State)} (exec : Exec nodes (state :: history))
+    : (Model.transitionSystem (inferInstance) nodes).Reachable state := by
   generalize equal : state :: history = states at exec
   induction exec generalizing state history with
   | initial initialized =>
@@ -62,8 +60,8 @@ theorem Exec.reachable {nodes : List Node} {state : Model.State Node TxId}
       exact .step (ih rfl) stepped
 
 /-- Every nonempty suffix of an execution is an execution. -/
-theorem Exec.suffix {nodes : List Node} {history : List (Model.State Node TxId)}
-    (exec : Exec nodes history) {earlier : List (Model.State Node TxId)}
+theorem Exec.suffix {nodes : List NodeID} {history : List (Model.State)}
+    (exec : Exec nodes history) {earlier : List (Model.State)}
     (suffix : earlier <:+ history) (nonempty : Not (earlier = []))
     : Exec nodes earlier := by
   induction exec with
@@ -78,8 +76,8 @@ theorem Exec.suffix {nodes : List Node} {history : List (Model.State Node TxId)}
         exact .step prior stepped
       · exact ih inner
 
-theorem Exec.keys {nodes : List Node} {history : List (Model.State Node TxId)}
-    (exec : Exec nodes history) {state : Model.State Node TxId} (member : state ∈ history)
+theorem Exec.keys {nodes : List NodeID} {history : List (Model.State)}
+    (exec : Exec nodes history) {state : Model.State} (member : state ∈ history)
     : (state.nodes.map Prod.fst).Nodup := by
   obtain ⟨front, back, split⟩ := List.append_of_mem member
   have tail : Exec nodes (state :: back) :=
@@ -88,16 +86,16 @@ theorem Exec.keys {nodes : List Node} {history : List (Model.State Node TxId)}
 
 /-- One node step: the actor's local step, other nodes unchanged, the network
 losing at most the delivered envelope and gaining the actor's sends. -/
-structure LocalTransition (before after : Model.State Node TxId) where
-  actor : Node
-  pre : NodeState Node TxId
-  post : NodeState Node TxId
-  event : Event Node TxId
-  outputs : Outputs Node (Message Node TxId) Notification
-  pending : List (Model.Envelope Node TxId)
+structure LocalTransition (before after : Model.State) where
+  actor : NodeID
+  pre : NodeState
+  post : NodeState
+  event : Event
+  outputs : Outputs NodeID Message Notification
+  pending : List (Model.Envelope)
   found : nodeState before actor = some pre
   ran
-    : (Model.Node.step (inferInstance) (Capabilities.record actor) actor pre event).run {}
+    : (Model.Node.step (Capabilities.record actor) actor pre event).run {}
       = some (post, outputs)
   nodesEq : after.nodes = replaceNode before.nodes actor post
   networkEq : after.network = pending ++ outputs.outgoing
@@ -123,8 +121,8 @@ theorem mem_removeOne {α : Type} [BEq α] {value item : α} {items : List α}
         · exact List.mem_cons_self
         · exact List.mem_cons_of_mem _ (ih later)
 
-theorem LocalTransition.ofStep {nodes : List Node} {before after : Model.State Node TxId}
-    {action : Model.Action Node TxId}
+theorem LocalTransition.ofStep {nodes : List NodeID} {before after : Model.State}
+    {action : Model.Action}
     (stepped
       : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
     : Nonempty (LocalTransition before after) := by
@@ -158,28 +156,28 @@ theorem LocalTransition.ofStep {nodes : List Node} {before after : Model.State N
         source := Or.inr ⟨envelope, queued, rfl, rfl, rfl⟩
       }⟩
 
-theorem LocalTransition.mem_after {before after : Model.State Node TxId}
-    (transition : LocalTransition before after) {node : Node}
-    {state : NodeState Node TxId} (member : (node, state) ∈ after.nodes)
+theorem LocalTransition.mem_after {before after : Model.State}
+    (transition : LocalTransition before after) {node : NodeID}
+    {state : NodeState} (member : (node, state) ∈ after.nodes)
     : (node = transition.actor /\ state = transition.post)
       \/ (Not (node = transition.actor) /\ (node, state) ∈ before.nodes) := by
   rw [transition.nodesEq] at member
   exact mem_replaceNode member
 
-theorem LocalTransition.pre_mem {before after : Model.State Node TxId}
+theorem LocalTransition.pre_mem {before after : Model.State}
     (transition : LocalTransition before after)
     : (transition.actor, transition.pre) ∈ before.nodes :=
   mem_of_nodeState transition.found
 
-theorem LocalTransition.post_mem {before after : Model.State Node TxId}
+theorem LocalTransition.post_mem {before after : Model.State}
     (transition : LocalTransition before after)
     : (transition.actor, transition.post) ∈ after.nodes := by
   rw [transition.nodesEq]
   simp only [replaceNode, List.mem_map]
   exact ⟨_, transition.pre_mem, by simp⟩
 
-theorem LocalTransition.mem_network {before after : Model.State Node TxId}
-    (transition : LocalTransition before after) {envelope : Model.Envelope Node TxId}
+theorem LocalTransition.mem_network {before after : Model.State}
+    (transition : LocalTransition before after) {envelope : Model.Envelope}
     (member : envelope ∈ after.network)
     : envelope ∈ before.network \/ envelope ∈ transition.outputs.outgoing := by
   rw [transition.networkEq] at member
@@ -188,9 +186,9 @@ theorem LocalTransition.mem_network {before after : Model.State Node TxId}
   · exact Or.inr new
 
 /-- Two entries of one reachable state for the same node agree. -/
-theorem state_unique {state : Model.State Node TxId}
-    (distinct : (state.nodes.map Prod.fst).Nodup) {node : Node}
-    {first second : NodeState Node TxId} (left : (node, first) ∈ state.nodes)
+theorem state_unique {state : Model.State}
+    (distinct : (state.nodes.map Prod.fst).Nodup) {node : NodeID}
+    {first second : NodeState} (left : (node, first) ∈ state.nodes)
     (right : (node, second) ∈ state.nodes)
     : first = second := by
   have := (nodeState_of_mem distinct left).symm.trans (nodeState_of_mem distinct right)

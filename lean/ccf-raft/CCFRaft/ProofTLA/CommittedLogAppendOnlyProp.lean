@@ -16,18 +16,15 @@ namespace CCFRaft.ProofTLA
 
 open Model.Node
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
-  [LinearOrder Node]
-
 /-- `CommittedLogAppendOnlyProp` for one step from a reachable state and one node. -/
-theorem committedLog_step (config : InitialConfig Node) {nodes : List Node}
-    {before after : Model.State Node TxId} {action : Model.Action Node TxId}
+theorem committedLog_step (config : Model.ModelConfig) {nodes : List NodeID}
+    {before after : Model.State} {action : Model.Action}
     (reachable : (Model.transitionSystem config nodes).Reachable before)
     (stepped : (Model.transitionSystem config nodes).step before action = some after)
-    {i : Node} {bi ai : NodeState Node TxId} (beforeMember : (i, bi) ∈ before.nodes)
+    {i : NodeID} {bi ai : NodeState} (beforeMember : (i, bi) ∈ before.nodes)
     (afterMember : (i, ai) ∈ after.nodes)
     : bi.committedLog <+: ai.committedLog := by
-  let _ : InitialConfig Node := config
+  let _ : Model.ModelConfig := config
   exact Direct.committed_log_step (Direct.keys_nodup reachable) stepped beforeMember afterMember
 
 end CCFRaft.ProofTLA

@@ -18,21 +18,16 @@ open CCFRaft.ProofTLA.Config
 
 open CCFRaft.Model.Node
 
-variable {Node TxId : Type}
-variable [DecidableEq Node] [DecidableEq TxId]
-
-omit [DecidableEq Node] [DecidableEq TxId] in
 @[simp]
-lemma EntryContent.isSignature_eq_true {content : EntryContent Node TxId}
+lemma EntryContent.isSignature_eq_true {content : EntryContent}
     : content.isSignature = true <-> content = .signature := by
   cases content <;> simp [EntryContent.isSignature]
 
-omit [DecidableEq Node] [DecidableEq TxId] in
 /-- A successful one-based lookup proves the index lies within the log. -/
 lemma entryAtSomeIndexBound
-    {log : List (Entry Node TxId)}
+    {log : List (Entry)}
     {index : Nat}
-    {entry : Entry Node TxId}
+    {entry : Entry}
     (found : entryAt? log index = some entry)
     : index <= log.length := by
   unfold entryAt? at found
@@ -43,12 +38,11 @@ lemma entryAtSomeIndexBound
     rcases found with ⟨within, _⟩
     omega
 
-omit [DecidableEq Node] [DecidableEq TxId] in
 /-- A successful one-based lookup is membership evidence. -/
 lemma entryAt_mem
-    {log : List (Entry Node TxId)}
+    {log : List (Entry)}
     {index : Nat}
-    {entry : Entry Node TxId}
+    {entry : Entry}
     (found : entryAt? log index = some entry)
     : entry ∈ log := by
   unfold entryAt? at found
@@ -59,13 +53,12 @@ lemma entryAt_mem
     rw [← value]
     exact List.getElem_mem within
 
-omit [DecidableEq Node] [DecidableEq TxId] in
 /-- A successful lookup is unchanged when the log is extended at the end. -/
 lemma entryAt_of_prefix
-    {left right : List (Entry Node TxId)}
+    {left right : List (Entry)}
     (isPrefix : left <+: right)
     {index : Nat}
-    {entry : Entry Node TxId}
+    {entry : Entry}
     (found : entryAt? left index = some entry)
     : entryAt? right index = some entry := by
   rcases isPrefix with ⟨suffix, rightEq⟩
@@ -82,7 +75,7 @@ lemma entryAt_of_prefix
 
 /-- A positive signature test identifies a concrete signature entry. -/
 lemma isSignatureAtTrue
-    {log : List (Entry Node TxId)}
+    {log : List (Entry)}
     {index : Nat}
     (signature : isSignatureAt log index = true)
     : Exists
@@ -96,7 +89,7 @@ lemma isSignatureAtTrue
       simpa [isSignatureAt, found] using signature
 
 /-- The latest signature index lies within the log. -/
-lemma maxCommittableIndexBounded (log : List (Entry Node TxId))
+lemma maxCommittableIndexBounded (log : List (Entry))
     : maxCommittableIndex log <= log.length := by
   unfold maxCommittableIndex
   let candidates := List.range (log.length + 1)
@@ -133,7 +126,7 @@ lemma maxCommittableIndexBounded (log : List (Entry Node TxId))
 
 /-- A positive latest committable index points to a signature. -/
 lemma maxCommittableIndexPositiveIsSignature
-    {log : List (Entry Node TxId)}
+    {log : List (Entry)}
     (positive : 0 < maxCommittableIndex log)
     : isSignatureAt log (maxCommittableIndex log) = true := by
   unfold maxCommittableIndex at positive ⊢
@@ -176,7 +169,7 @@ lemma maxCommittableIndexPositiveIsSignature
 
 /-- Every signature index is no later than the latest signature index. -/
 lemma signatureIndex_le_maxCommittableIndex
-    {log : List (Entry Node TxId)}
+    {log : List (Entry)}
     {index : Nat}
     (signature : isSignatureAt log index = true)
     : index <= maxCommittableIndex log := by
@@ -234,7 +227,7 @@ lemma signatureIndex_le_maxCommittableIndex
 
 /-- Extending a log preserves every earlier signature lookup. -/
 lemma isSignatureAt_of_prefix
-    {left right : List (Entry Node TxId)}
+    {left right : List (Entry)}
     (isPrefix : left <+: right)
     {index : Nat}
     (signature : isSignatureAt left index = true)
@@ -245,7 +238,7 @@ lemma isSignatureAt_of_prefix
 
 /-- Extending a log cannot move its latest signature backwards. -/
 lemma maxCommittableIndex_le_of_prefix
-    {left right : List (Entry Node TxId)}
+    {left right : List (Entry)}
     (isPrefix : left <+: right)
     : maxCommittableIndex left <= maxCommittableIndex right := by
   by_cases zero : maxCommittableIndex left = 0
@@ -259,7 +252,7 @@ lemma maxCommittableIndex_le_of_prefix
 
 /-- Taking a log prefix leaves lookups inside that prefix unchanged. -/
 lemma isSignatureAt_take_of_le
-    {log : List (Entry Node TxId)}
+    {log : List (Entry)}
     {index count : Nat}
     (within : index <= count)
     (signature : isSignatureAt log index = true)
@@ -278,7 +271,7 @@ lemma isSignatureAt_take_of_le
   simp [isSignatureAt, taken, content]
 
 /-- The bounded committable frontier does not exceed the complete log. -/
-lemma maxCommittableIndexUpTo_le_length (log : List (Entry Node TxId)) (frontier : Nat)
+lemma maxCommittableIndexUpTo_le_length (log : List (Entry)) (frontier : Nat)
     : maxCommittableIndexUpTo log frontier <= log.length := by
   unfold maxCommittableIndexUpTo
   have bounded :=
@@ -288,7 +281,7 @@ lemma maxCommittableIndexUpTo_le_length (log : List (Entry Node TxId)) (frontier
 
 /-- A positive bounded committable frontier points to a signature in the log. -/
 lemma maxCommittableIndexUpToPositiveIsSignature
-    {log : List (Entry Node TxId)}
+    {log : List (Entry)}
     {frontier : Nat}
     (positive : 0 < maxCommittableIndexUpTo log frontier)
     : isSignatureAt log (maxCommittableIndexUpTo log frontier) = true := by
@@ -299,33 +292,49 @@ lemma maxCommittableIndexUpToPositiveIsSignature
       (maxCommittableIndexPositiveIsSignature positive)
 
 @[simp]
-lemma activeConfigurations_eq (config : InitialConfig Node) (state : NodeState Node TxId)
-    : Model.Node.activeConfigurations config state.log state.commitIndex
-      = activeConfigurationsOf config state := by
+lemma activeConfigurations_eq (state : NodeState)
+    : Model.Node.activeConfigurations state.log state.commitIndex
+      = activeConfigurationsOf state := by
   rfl
 
 @[simp]
-lemma NodeState.activeConfigurations_eq (config : InitialConfig Node)
-    (state : NodeState Node TxId)
-    : state.activeConfigurations config = activeConfigurationsOf config state :=
-  CCFRaft.ProofTLA.Ledger.activeConfigurations_eq config state
+lemma NodeState.activeConfigurations_eq (state : NodeState)
+    : state.activeConfigurations = activeConfigurationsOf state :=
+  CCFRaft.ProofTLA.Ledger.activeConfigurations_eq state
 
 @[simp]
-lemma NodeState.activeMembers_eq (config : InitialConfig Node)
-    (state : NodeState Node TxId)
-    : state.activeMembers config = activeNodeUnion config state := by
+lemma NodeState.activeMembers_eq (state : NodeState)
+    : state.activeMembers = activeNodeUnion state := by
   simp [Model.Node.NodeState.activeMembers, activeNodeUnion, configurationMembers]
 
 /-- Extending a log cannot move its bounded committable frontier backwards. -/
-lemma maxCommittableIndexUpTo_mono {left right : List (Entry Node TxId)}
+lemma maxCommittableIndexUpTo_mono {left right : List (Entry)}
     (isPrefix : left <+: right) (frontier : Nat)
     : maxCommittableIndexUpTo left frontier <= maxCommittableIndexUpTo right frontier :=
   maxCommittableIndex_le_of_prefix (isPrefix.take frontier)
 
-/-- The follower append loop changes only the log and commit fields. -/
-lemma fromLeader_loop (self : Node) (limit : Nat) (entries : List (Entry Node TxId))
-    : forall (state : NodeState Node TxId),
-        exists commitIndex retiredCommittedIndex,
+/--
+Recording a commit changes only the commit, retirement, role and primary knowledge
+fields, and the role is either kept or cleared.
+-/
+lemma recordCommit_eq (self : NodeID) (state : NodeState) (commitIndex : Nat)
+    : exists retiredCommittedIndex role primaryKnown,
+        state.recordCommit self commitIndex
+          = { state with commitIndex, retiredCommittedIndex, role, primaryKnown }
+        /\ (role = state.role \/ role = .none) := by
+  unfold NodeState.recordCommit
+  dsimp only
+  split
+  · exact ⟨_, _, _, rfl, Or.inr rfl⟩
+  · exact ⟨_, _, _, rfl, Or.inl rfl⟩
+
+/--
+The follower append loop changes only the log, commit, retirement, role and
+primary knowledge fields, and the role is either kept or cleared.
+-/
+lemma fromLeader_loop (self : NodeID) (limit : Nat) (entries : List (Entry))
+    : forall (state : NodeState),
+        exists commitIndex retiredCommittedIndex role primaryKnown,
           entries.foldl
               (fun state entry =>
                 let state := { state with log := state.log ++ [entry] }
@@ -337,8 +346,13 @@ lemma fromLeader_loop (self : Node) (limit : Nat) (entries : List (Entry Node Tx
               state
             = {
               state with
-                log := state.log ++ entries, commitIndex, retiredCommittedIndex
+                log := state.log ++ entries,
+                commitIndex,
+                retiredCommittedIndex,
+                role,
+                primaryKnown
             }
+          /\ (role = state.role \/ role = .none)
           /\ state.commitIndex <= commitIndex
           /\ commitIndex
               <= max state.commitIndex
@@ -349,57 +363,90 @@ lemma fromLeader_loop (self : Node) (limit : Nat) (entries : List (Entry Node Tx
       exact ⟨
         state.commitIndex,
         state.retiredCommittedIndex,
+        state.role,
+        state.primaryKnown,
         by simp,
+        Or.inl rfl,
         le_rfl,
         le_max_left _ _
       ⟩
   | cons entry entries ih =>
       intro state
       simp only [List.foldl_cons]
-      obtain ⟨commitIndex, retired, eq, lower, upper⟩ := ih _
-      rw [eq]
-      have mono := maxCommittableIndexUpTo_mono (List.prefix_append (state.log ++ [entry]) entries) limit
-      refine ⟨commitIndex, retired, ?_⟩
-      by_cases signature : entry.content.isSignature <;>
-        simp only [signature, ↓reduceIte, Bool.false_eq_true, NodeState.recordCommit] at lower upper ⊢ <;>
-        simp only [List.append_assoc, List.cons_append, List.nil_append] at mono upper ⊢
-      · exact ⟨trivial, by omega, by omega⟩
-      · exact ⟨trivial, by omega, by omega⟩
+      have mono :=
+        maxCommittableIndexUpTo_mono (List.prefix_append (state.log ++ [entry]) entries) limit
+      by_cases signature : entry.content.isSignature
+      · simp only [signature, ↓reduceIte]
+        obtain ⟨retired₁, role₁, known₁, eq₁, roleEq₁⟩ := recordCommit_eq self
+          { state with log := state.log ++ [entry] }
+          (max state.commitIndex (maxCommittableIndexUpTo (state.log ++ [entry]) limit))
+        rw [eq₁]
+        obtain ⟨commitIndex, retired, role, known, eq, roleEq, lower, upper⟩ := ih _
+        rw [eq]
+        simp only [List.append_assoc, List.cons_append, List.nil_append] at mono lower upper ⊢
+        refine ⟨commitIndex, retired, role, known, rfl, ?_, by omega, by omega⟩
+        rcases roleEq with roleEq | roleEq <;> rcases roleEq₁ with roleEq₁ | roleEq₁ <;>
+          simp_all
+      · simp only [signature, Bool.false_eq_true, ↓reduceIte]
+        obtain ⟨commitIndex, retired, role, known, eq, roleEq, lower, upper⟩ := ih _
+        rw [eq]
+        simp only [List.append_assoc, List.cons_append, List.nil_append] at mono lower upper ⊢
+        exact ⟨commitIndex, retired, role, known, rfl, roleEq, lower, by omega⟩
 
 /--
 Intermediate commits use prefixes of the final log, so the follower's final
 commit index is the bounded committable frontier of the extended log.
 -/
-lemma handleAppendEntiresFromLeader_eq (self : Node) (state : NodeState Node TxId)
-    (request : AppendEntriesRequest Node TxId)
+lemma handleAppendEntiresFromPrimary_eq (self : NodeID) (state : NodeState)
+    (request : AppendEntriesRequest)
     : let log :=
         state.log ++ request.entries.drop (state.log.length - request.prevLogIndex)
-      exists retiredCommittedIndex,
-        handleAppendEntiresFromLeader self state request
-        = (
-          {
-            state with
-              log
-              commitIndex :=
-                max state.commitIndex
-                  (maxCommittableIndexUpTo log
-                    (min request.leaderCommit
-                      (request.prevLogIndex + request.entries.length)))
-              retiredCommittedIndex
-          },
-          {
-            term := state.currentTerm
-            success := true
-            lastLogIndex := request.prevLogIndex + request.entries.length
-          }
-        ) := by
+      exists retiredCommittedIndex role primaryKnown,
+        handleAppendEntiresFromPrimary self state request
+          = (
+            {
+              state with
+                log
+                commitIndex :=
+                  max state.commitIndex
+                    (maxCommittableIndexUpTo log
+                      (min request.primaryCommit
+                        (request.prevLogIndex + request.entries.length)))
+                retiredCommittedIndex
+                role
+                primaryKnown
+            },
+            {
+              term := state.currentTerm
+              success := true
+              lastLogIndex := request.prevLogIndex + request.entries.length
+            }
+          )
+        /\ (role = state.role \/ role = .none) := by
   intro log
-  obtain ⟨commitIndex, retired, eq, lower, upper⟩ :=
-    fromLeader_loop self (min request.leaderCommit (request.prevLogIndex + request.entries.length))
+  obtain ⟨commitIndex, retired, role, known, eq, roleEq, lower, upper⟩ :=
+    fromLeader_loop self (min request.primaryCommit (request.prevLogIndex + request.entries.length))
       (request.entries.drop (state.log.length - request.prevLogIndex)) state
-  unfold handleAppendEntiresFromLeader
+  unfold handleAppendEntiresFromPrimary
   dsimp only
   rw [eq]
-  simp only [NodeState.recordCommit]
-  exact ⟨_, by congr 2; simp only [log]; omega⟩
+  obtain ⟨retired₁, role₁, known₁, eq₁, roleEq₁⟩ := recordCommit_eq self _ _
+  rw [eq₁]
+  refine ⟨retired₁, role₁, known₁, ?_, ?_⟩
+  · congr 2
+    simp only [log]
+    omega
+  · rcases roleEq with roleEq | roleEq <;> rcases roleEq₁ with roleEq₁ | roleEq₁ <;>
+      simp_all
+
+/-- A term conflict lies strictly after the request's previous index. -/
+lemma firstTermConflictIndex_gt {state : NodeState} {request : AppendEntriesRequest}
+    {index : Nat} (found : firstTermConflictIndex state request = some index)
+    : request.prevLogIndex < index := by
+  unfold firstTermConflictIndex at found
+  obtain ⟨⟨pair, position⟩, hit, rfl⟩ := Option.map_eq_some_iff.mp found
+  have := (List.mem_zipIdx (List.mem_of_find?_eq_some hit)).1
+  simp only at this ⊢
+  omega
+
 end CCFRaft.ProofTLA.Ledger

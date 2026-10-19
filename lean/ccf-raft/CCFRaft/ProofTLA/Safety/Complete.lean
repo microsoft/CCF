@@ -22,8 +22,7 @@ open CCF
 open Model.Node
 open CCFRaft.ProofTLA.Ledger
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId] [InitialConfig Node]
-  [LinearOrder Node] [Inhabited TxId]
+variable [Model.ModelConfig]
 
 /--
 Either the committed part is already in `log`, or the two logs agree on a
@@ -66,7 +65,7 @@ theorem agree_or_contained {α : Type} {state log : List α} {base index commit 
           omega
       exact this.trans (List.take_prefix _ _)
 
-theorem termAt_append_right {front back : List (Entry Node TxId)} {index : Nat}
+theorem termAt_append_right {front back : List (Entry)} {index : Nat}
     (above : front.length < index) (bound : index <= (front ++ back).length)
     : exists entry, entry ∈ back /\ termAt (front ++ back) index = entry.term := by
   rw [termAt_eq (by omega) bound, List.getElem_append_right (by omega)]
@@ -74,8 +73,8 @@ theorem termAt_append_right {front back : List (Entry Node TxId)} {index : Nat}
 
 namespace Ctx
 
-variable {nodes : List Node} {after before : Model.State Node TxId}
-  {rest : History Node TxId} (c : Ctx nodes after before rest)
+variable {nodes : List NodeID} {after before : Model.State}
+  {rest : History} (c : Ctx nodes after before rest)
 
 include c
 
@@ -85,16 +84,19 @@ theorem termMonos : Everywhere TermMono (after :: before :: rest) :=
 theorem sortedAll : Everywhere Sorted (after :: before :: rest) :=
   (c.all Inv.sorted).cons c.sorted
 
+theorem genesisAll : Everywhere Genesis (after :: before :: rest) :=
+  (c.all Inv.genesis).cons c.genesis
+
 theorem votes : Everywhere VoteRecord (after :: before :: rest) :=
   (c.all Inv.vote_record).cons c.vote_record
 
 /-! ## Parts committed before the step -/
 
-theorem old_step_in_new {node : Node} {later commit : Nat} {log : List (Entry Node TxId)}
+theorem old_step_in_new {node : NodeID} {later commit : Nat} {log : List (Entry)}
     (elect : ElectStep after before rest node later log commit)
-    {current : Model.State Node TxId} {past : History Node TxId}
-    (suffix : current :: past <:+ before :: rest) {leader : Node}
-    {state : NodeState Node TxId} {term base index : Nat}
+    {current : Model.State} {past : History}
+    (suffix : current :: past <:+ before :: rest) {leader : NodeID}
+    {state : NodeState} {term base index : Nat}
     (step : CommitStep (current :: past) leader state term base index)
     (committed : Committed (current :: past) term (state.log.take index))
     (lt : term < later) (low : commit <= base -> state.log.take base <+: log)
@@ -113,15 +115,16 @@ theorem old_step_in_new {node : Node} {later commit : Nat} {log : List (Entry No
   rcases agree_or_contained step.2.1 step.2.2.1 frontier low high with
     done | ⟨k, agree, baseLe, commitLe⟩
   · exact done
-  · exact core c.suffix_tail c.termMonos c.monos (c.all Inv.sorted) suffix step
+  · exact core c.suffix_tail c.termMonos c.monos (c.all Inv.sorted) (c.all Inv.genesis)
+      suffix step
       (List.suffix_refl _) (List.suffix_refl _) elect (c.all Inv.persist) c.anchors
       (c.all Inv.terms) lt agree baseLe commitLe
       fun _ _ above _ canon => committed_in_canon c.inv.completeness c.monos committedH canon above
 
 /-- A part committed before the step is in the log of a new election. -/
-theorem old_in_new {node : Node} {later commit : Nat} {log : List (Entry Node TxId)}
+theorem old_in_new {node : NodeID} {later commit : Nat} {log : List (Entry)}
     (elect : ElectStep after before rest node later log commit)
-    {history : History Node TxId} {term : Nat} {part : List (Entry Node TxId)}
+    {history : History} {term : Nat} {part : List (Entry)}
     (committed : Committed history term part) (suffix : history <:+ before :: rest)
     (lt : term < later)
     : part <+: log := by
@@ -135,8 +138,8 @@ theorem old_in_new {node : Node} {later commit : Nat} {log : List (Entry Node Tx
   | past _ ih => exact ih ((List.suffix_cons _ _).trans suffix) lt
 
 /-- A part committed before the step is in every later elected log. -/
-theorem old_complete {term later commit : Nat} {node : Node}
-    {part log : List (Entry Node TxId)} (committed : Committed (before :: rest) term part)
+theorem old_complete {term later commit : Nat} {node : NodeID}
+    {part log : List (Entry)} (committed : Committed (before :: rest) term part)
     (elected : Elected (after :: before :: rest) node later log commit)
     (lt : term < later)
     : part <+: log := by
@@ -146,15 +149,17 @@ theorem old_complete {term later commit : Nat} {node : Node}
 
 /-! ## Election safety -/
 
-theorem new_old_unique {node other : Node} {term commit : Nat}
-    {log : List (Entry Node TxId)}
+theorem new_old_unique {node other : NodeID} {term commit : Nat}
+    {log : List (Entry)}
     (elect : ElectStep after before rest node term log commit)
     (led : Led (before :: rest) other term)
     : node = other := by
-  have ⟨_, _, _, _, _, _, frontier, _, _, _, _, three, voters, quorum, granted⟩ := elect
+  have ⟨candidate, _, candidateMem, _, candidateLog, _, frontier, _, _, _, _, three, voters,
+    quorum, granted⟩ := elect
   rcases led with ⟨rfl, _⟩ | ⟨log', commit', a, b, r, suffix, elect'⟩
-  · simp [BOOTSTRAP_TERM] at three
-  have ⟨_, _, _, _, _, _, frontier', _, _, _, _, _, voters', quorum', granted'⟩ := elect'
+  · simp [Model.BOOTSTRAP_TERM] at three
+  have ⟨candidate', _, candidateMem', _, candidateLog', _, frontier', _, _, _, _, _, voters',
+    quorum', granted'⟩ := elect'
   have agreement : exists k, log.take k = log'.take k /\ commit <= k /\ commit' <= k := by
     rcases Nat.le_total commit' commit with le | le
     · refine ⟨commit, ?_, le_rfl, le⟩
@@ -171,7 +176,18 @@ theorem new_old_unique {node other : Node} {term commit : Nat}
       · have := c.old_in_new elect committed ((List.suffix_cons _ _).trans suffix) (by omega)
         exact (take_of_prefix_length (inPart.trans this) (by simp; omega)).symm
   obtain ⟨k, agree, le, le'⟩ := agreement
-  obtain ⟨voter, mem, mem'⟩ := quorums_intersect inferInstance agree le le' quorum quorum'
+  have genesis := c.inv.genesis _ candidate candidateMem
+  have genesis' :=
+    (c.all Inv.genesis) _ ((List.suffix_cons _ _).trans suffix) (List.cons_ne_nil _ _) _ candidate'
+      candidateMem'
+  rw [candidateLog] at genesis
+  rw [candidateLog'] at genesis'
+  obtain ⟨agree', named⟩ :=
+    genesis_agree genesis.1 genesis'.1 (log_ne_nil_of_quorum quorum)
+      (log_ne_nil_of_quorum quorum') agree
+  obtain ⟨voter, mem, mem'⟩ :=
+    quorums_intersect agree' (le_max_of_le_left le) (le_max_of_le_left le') named quorum
+      quorum'
   exact vote_unique c.exec c.votes (granted voter mem)
     ((granted' voter mem').mono (suffix.trans c.suffix_tail))
 
@@ -318,7 +334,7 @@ theorem anchor : Anchor (after :: before :: rest) := by
 /-! ## Parts committed at the step -/
 
 /-- A part committed at the step is in every later elected log. -/
-theorem new_in_elected {leader : Node} {state : NodeState Node TxId}
+theorem new_in_elected {leader : NodeID} {state : NodeState}
     {term base index : Nat}
     (step : CommitStep (after :: before :: rest) leader state term base index)
     (backing
@@ -419,7 +435,7 @@ theorem new_in_elected {leader : Node} {state : NodeState Node TxId}
       rcases agree_or_contained baseLe indexLe frontier low high with
         done | ⟨k, agree, baseLe', commitLe⟩
       · exact done
-      · exact core (List.suffix_refl _) c.termMonos canonMonos c.sortedAll
+      · exact core (List.suffix_refl _) c.termMonos canonMonos c.sortedAll c.genesisAll
           (List.suffix_refl _)
           ⟨⟨leaderNow, rfl, leaderRole, leaderLed⟩, baseLe, indexLe, signature, ‹_›⟩
           electSuffix electInner elect ((c.all Inv.persist).suffix innerH)
