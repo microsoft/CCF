@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Fixed
 
 - Nodes becoming primary at the end of public recovery now always wait for their certificate to be recorded successfully before emitting ledger signatures, so that private recovery, joining nodes and later recoveries accept the ledger (#8597).
+- Nodes which join a recovered service from a snapshot taken before the recovery now stop tracking the previous service's nodes in consensus once the recovery transaction is committed, see [Disaster Recovery](doc/operations/recovery.rst) (#8596).
 
 ## [7.0.20]
 
