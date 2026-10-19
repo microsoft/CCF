@@ -39,8 +39,11 @@ deriving Repr, BEq
 /-- A recovery protocol message in flight. -/
 abbrev Envelope := CCF.Envelope Location Message
 
-/-- The local states, active nodes, and queued recovery messages. -/
-abbrev State := MultiNodeTransitionSystem.State Location NodeState Message
+/-- The recovery network and the fixed subset of locations permitted to act. -/
+structure State extends MultiNodeTransitionSystem.State Location NodeState Message where
+  /-- Locations allowed to take local steps and receive messages. -/
+  active : List Location
+deriving Repr, BEq
 
 /-- A local retry or timeout, or one queued message delivery. -/
 abbrev Action := MultiNodeTransitionSystem.Action Location Message Input
@@ -64,10 +67,28 @@ def protocol (config : Config)
     | .retry => .retry
     | .timeout => .timeout
 
-/-- Composes the nodes and requires a valid configuration in every initial state. -/
+/-- Composes recovery nodes and gates their actions by the fixed active subset.
+Initial states include every expected location but may also contain unused nodes. -/
 def transitionSystem (config : Config) : TransitionSystem State Action :=
-  let network :=
-    MultiNodeTransitionSystem.lift config.protocol.expectedLocations (protocol config)
-  { network with init := fun state => config.Valid /\ network.init state }
+  let network := MultiNodeTransitionSystem.lift (protocol config)
+  {
+    init :=
+      fun state =>
+        config.Valid
+        /\ state.active.Nodup
+        /\ (forall node, node ∈ state.active -> node ∈ config.protocol.expectedLocations)
+        /\ (forall node,
+              node ∈ config.protocol.expectedLocations -> node ∈ state.nodes.map Prod.fst)
+        /\ network.init state.toState
+    step :=
+      fun state action => do
+        let node :=
+          match action with
+          | .local node _ => node
+          | .deliver envelope => envelope.target
+        guard (state.active.contains node)
+        let next <- network.step state.toState action
+        pure { next with active := state.active }
+  }
 
 end DisasterRecovery.Model

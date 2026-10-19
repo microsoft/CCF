@@ -160,15 +160,17 @@ lemma nodeState_location
 lemma initial_well_formed
     (config : Config)
     (active : List Location)
-    (valid : config.Valid)
+    (nodes : List Location)
+    (nodesNodup : nodes.Nodup)
+    (covered : forall node, node ∈ config.protocol.expectedLocations -> node ∈ nodes)
     (activeNodup : active.Nodup)
     (activeConfigured
       : forall node, node ∈ active -> node ∈ config.protocol.expectedLocations)
-    : WellFormed config (initial config active) := by
+    : WellFormed config (initial config active nodes) := by
   constructor
-  · simp [Execution.Global.initial, initialSystem, Function.comp_def]
-  · simpa [Execution.Global.initial, initialSystem, Function.comp_def] using valid.2.1
-  · simp [Execution.Global.initial, initialSystem, initialNode]
+  · simpa [Execution.Global.initial, Function.comp_def] using covered
+  · simpa [Execution.Global.initial, Function.comp_def] using nodesNodup
+  · simp [Execution.Global.initial, initialNode]
   · exact activeNodup
   · exact activeConfigured
   · simp [Execution.Global.initial]
@@ -747,8 +749,8 @@ lemma deliver_preserves_well_formed
   rw [←stateEq]
   constructor
   · simp only [recordEffects_system]
-    exact (systemStep_node_keys_eq systemStep).trans
-      wellFormed.nodeKeys
+    rw [systemStep_node_keys_eq systemStep]
+    exact wellFormed.nodeKeys
   · rw [recordEffects_system, systemStep_node_keys_eq systemStep]
     exact wellFormed.nodeKeysNodup
   · simp only [recordEffects_system]
@@ -788,8 +790,8 @@ lemma timeout_preserves_well_formed
   rw [←stateEq]
   constructor
   · simp only [recordEffects_system]
-    exact (systemStep_node_keys_eq systemStep).trans
-      wellFormed.nodeKeys
+    rw [systemStep_node_keys_eq systemStep]
+    exact wellFormed.nodeKeys
   · rw [recordEffects_system, systemStep_node_keys_eq systemStep]
     exact wellFormed.nodeKeysNodup
   · simp only [recordEffects_system]
@@ -837,8 +839,9 @@ lemma reachable_well_formed
     : WellFormed config state := by
   induction reachable with
   | initial initialized =>
-      rcases initialized with ⟨active, valid, nodup, configured, rfl⟩
-      exact initial_well_formed config active valid nodup configured
+      rcases initialized with
+        ⟨active, _, nodup, configured, nodes, nodesNodup, covered, rfl⟩
+      exact initial_well_formed config active nodes nodesNodup covered nodup configured
   | step _ transition wellFormed =>
       exact next_preserves_well_formed wellFormed transition
 

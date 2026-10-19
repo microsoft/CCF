@@ -94,9 +94,10 @@ private def actions : List Model.Action :=
   ]
 
 private theorem initialized : (Model.transitionSystem config).init initial := by
-  refine ⟨by unfold Model.Config.Valid; decide, by decide, rfl, by decide, ?_, rfl, ?_⟩
+  refine ⟨by unfold Model.Config.Valid; decide, by decide, ?_, ?_, by decide, rfl, ?_⟩
   · intro node member
     exact member
+  · simp [initial, Tests.initial, config]
   · simp [initial, Tests.initial, config, Model.protocol]
 
 private theorem valid : trace.Valid (Model.transitionSystem config) := by

@@ -24,8 +24,10 @@ structure HistoriesActive (state : State) : Prop where
 
 /-- Node identities, active membership, and message provenance are consistent. -/
 structure WellFormed (config : Config) (state : State) : Prop where
-  /-- The node-table keys exactly match the configured locations, in order. -/
-  nodeKeys : state.system.nodes.map Prod.fst = config.protocol.expectedLocations
+  /-- Every configured location has a node-table entry; unused nodes may also exist. -/
+  nodeKeys
+    : forall node,
+        node ∈ config.protocol.expectedLocations -> node ∈ state.system.nodes.map Prod.fst
   /-- Each location has at most one node-table entry. -/
   nodeKeysNodup : (state.system.nodes.map Prod.fst).Nodup
   /-- Every local state's location agrees with its node-table key. -/

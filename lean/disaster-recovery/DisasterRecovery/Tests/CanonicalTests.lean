@@ -55,8 +55,9 @@ example (config : Model.Config) (active : List Location)
     (configured : forall node, node ∈ active -> node ∈ config.protocol.expectedLocations)
     : (Model.transitionSystem config).Reachable (Tests.initial config active) := by
   apply TransitionSystem.Reachable.initial
-  refine ⟨valid, valid.2.1, ?_, nodup, configured, rfl, ?_⟩
+  refine ⟨valid, nodup, configured, ?_, ?_, rfl, ?_⟩
   · simp [Tests.initial, List.map_map, Function.comp_def]
+  · simpa [Tests.initial, List.map_map, Function.comp_def] using valid.2.1
   · intro entry member
     rcases List.mem_map.mp member with ⟨node, _, rfl⟩
     rfl
@@ -352,12 +353,12 @@ def run : IO Unit := do
   let delivered <- runGlobal globalConfig sent (.deliver message)
   expect (delivered.network.length == 1) "delivery did not consume one envelope"
   expect
-    (MultiNodeTransitionSystem.nodeState delivered "A"
+    (MultiNodeTransitionSystem.nodeState delivered.toState "A"
       == some { initial with gossips := [("A", { view := 1, seqno := 10 })] })
     "global delivery did not apply local receive"
   expect
-    (MultiNodeTransitionSystem.nodeState delivered "B"
-      == MultiNodeTransitionSystem.nodeState sent "B")
+    (MultiNodeTransitionSystem.nodeState delivered.toState "B"
+      == MultiNodeTransitionSystem.nodeState sent.toState "B")
     "delivery changed another node"
 
   let envelope : Model.Envelope :=
@@ -402,13 +403,13 @@ def run : IO Unit := do
   let voteBoth <- runGlobal globalConfig voteA (.local "B" .retry)
   let receivedA <- deliverMessage globalConfig voteBoth "A" "B" .vote
   let receivedBoth <- deliverMessage globalConfig receivedA "B" "B" .vote
-  let opener <- requireSome (MultiNodeTransitionSystem.nodeState receivedBoth "B")
+  let opener <- requireSome (MultiNodeTransitionSystem.nodeState receivedBoth.toState "B")
                   "opener disappeared"
   expect (opener.phase == .opening && opener.openKind == some .quorum)
     "global strict-majority votes did not open the selected node"
   let advertised <- runGlobal globalConfig receivedBoth (.local "B" .retry)
   let joined <- deliverMessage globalConfig advertised "B" "A" .iAmOpen
-  let joiner <- requireSome (MultiNodeTransitionSystem.nodeState joined "A")
+  let joiner <- requireSome (MultiNodeTransitionSystem.nodeState joined.toState "A")
                   "joiner disappeared"
   expect
     (joiner.phase == .joining && joiner.chosen == some "B" && joiner.restartRequested)
@@ -416,7 +417,7 @@ def run : IO Unit := do
   let timeout1 <- runGlobal globalConfig joined (.local "B" .timeout)
   let timeout2 <- runGlobal globalConfig timeout1 (.local "B" .timeout)
   let timeout3 <- runGlobal globalConfig timeout2 (.local "B" .timeout)
-  let opened <- requireSome (MultiNodeTransitionSystem.nodeState timeout3 "B")
+  let opened <- requireSome (MultiNodeTransitionSystem.nodeState timeout3.toState "B")
                   "opened node disappeared"
   expect (opened.phase == .open) "global timeout lane did not complete opening"
   expect

@@ -40,10 +40,11 @@ private def initial (config : Model.Config) : Model.State :=
 
 private theorem initialized {config : Model.Config} (valid : config.Valid)
     : (Model.transitionSystem config).init (initial config) := by
-  refine ⟨valid, valid.2.1, ?_, valid.2.1, ?_, rfl, ?_⟩
-  · simp [initial, Function.comp_def]
+  refine ⟨valid, valid.2.1, ?_, ?_, ?_, rfl, ?_⟩
   · intro node member
     exact member
+  · simp [initial, Function.comp_def]
+  · simpa [initial, Function.comp_def] using valid.2.1
   · intro entry member
     obtain ⟨node, _, rfl⟩ := List.mem_map.mp member
     rfl
@@ -315,7 +316,7 @@ theorem full_gossip_preserves_commit_witness
     rfl
   ⟩
   · rfl
-  · intro node nodeState member entry
+  · intro node nodeState _ member entry
     simp only [fullGossiped, List.mem_cons, List.not_mem_nil, or_false, Prod.mk.injEq] at member
     rcases member with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> rfl
   · rfl

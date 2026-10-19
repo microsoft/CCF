@@ -107,8 +107,8 @@ lemma reachable_opening_thresholds {config : Model.Config} {state : State}
     : OpeningThresholds config state := by
   induction reachable with
   | initial initialized =>
-      rcases initialized with ⟨active, _, _, _, rfl⟩
-      simp [OpeningThresholds, initial, initialSystem, initialNode]
+      rcases initialized with ⟨active, _, _, _, nodes, _, _, rfl⟩
+      simp [OpeningThresholds, initial, initialNode]
   | step _ trans ih =>
       exact next_preserves_opening_thresholds config _ _ _ ih trans
 

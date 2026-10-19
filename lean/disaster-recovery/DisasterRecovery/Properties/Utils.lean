@@ -62,8 +62,8 @@ def NotificationAt (config : Model.Config) (trace : GlobalTrace) (step : Nat)
     /\ trace.states[step + 1]? = some after
     /\ (Model.transitionSystem config).step before action = some after
     /\ actor action = node
-    /\ CCF.MultiNodeTransitionSystem.nodeState before node = some nodeBefore
-    /\ CCF.MultiNodeTransitionSystem.nodeState after node = some nodeAfter
+    /\ CCF.MultiNodeTransitionSystem.nodeState before.toState node = some nodeBefore
+    /\ CCF.MultiNodeTransitionSystem.nodeState after.toState node = some nodeAfter
     /\ ((Model.protocol config).step (CCF.Capabilities.record node) node nodeBefore
           (event action)).run
           {}

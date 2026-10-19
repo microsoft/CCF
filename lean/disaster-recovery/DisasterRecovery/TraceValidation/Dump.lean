@@ -163,7 +163,7 @@ private def guards (config : Model.Config) (state : Model.State) (action : Model
           (Model.protocol config).receive envelope.source envelope.payload,
           some (state.network.contains envelope)
         )
-  let before := nodeState state node
+  let before := nodeState state.toState node
   let localStep :=
     before.bind
       fun before =>
@@ -192,7 +192,7 @@ by the replayer, or the guards of a disabled action.
 -/
 private def diagnose (config : Model.Config) (current : ReplayState) : Instruction → Json
   | .state node fields origins =>
-      let model := nodeState current.state node
+      let model := nodeState current.state.toState node
       let checks :=
         (splitFields fields).map
           fun field =>

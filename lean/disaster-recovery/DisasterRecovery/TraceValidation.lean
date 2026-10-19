@@ -133,7 +133,7 @@ private def runAction (config : Model.Config) (state : Model.State)
   let some next := (Model.transitionSystem config).step state action
   | throw s!"disabled model action '{actionName action}'"
   let (node, event) := localEvent config action
-  let some before := nodeState state node
+  let some before := nodeState state.toState node
   | throw s!"node '{node}' is not in the network"
   let some (_, effects) :=
     ((Model.protocol config).step (Capabilities.record node) node before event).run {}
@@ -172,7 +172,7 @@ private def execute (config : Model.Config) (current : ReplayState)
       let (state, node, outputs) ← runAction config current.state action
       return { state, latest := some (node, outputs) }
   | .state node fields _ => do
-      let some state := nodeState current.state node
+      let some state := nodeState current.state.toState node
       | throw s!"node '{node}' is not in the network"
       checkState fields state
       return current

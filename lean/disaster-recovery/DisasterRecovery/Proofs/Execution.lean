@@ -48,7 +48,7 @@ deriving Repr, BEq
 
 /-- The network decorated with send snapshots and terminal-notification histories. -/
 structure State where
-  /-- Current local states of the configured nodes. -/
+  /-- Current local states of the stored recovery nodes. -/
   system : SystemState
   /-- Nodes permitted to take steps. -/
   active : List Location
@@ -134,10 +134,12 @@ def recordEffects
     : State :=
   effects.foldl (recordEffect node nodeState) state
 
-/-- Initializes the local states and active set with empty queues and histories. -/
-def initial (config : Config) (active : List Location) : State :=
+/-- Initializes the given nodes and active set with empty queues and histories. -/
+def initial (config : Config) (active : List Location)
+    (nodes : List Location := config.protocol.expectedLocations)
+    : State :=
   {
-    system := initialSystem config.protocol
+    system := { nodes := nodes.map fun node => (node, initialNode node) }
     active
   }
 
@@ -180,7 +182,10 @@ def transitionSystem (config : Config) : TransitionSystem State Action where
         config.Valid
         /\ active.Nodup
         /\ (forall node, node ∈ active -> node ∈ config.protocol.expectedLocations)
-        /\ state = initial config active
+        /\ exists nodes : List Location,
+            nodes.Nodup
+            /\ (forall node, node ∈ config.protocol.expectedLocations -> node ∈ nodes)
+            /\ state = initial config active nodes
   step := next config
 
 /-- States reachable by enabled actions in the decorated execution system. -/
