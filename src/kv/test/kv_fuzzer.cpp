@@ -710,17 +710,25 @@ namespace
       switch (choice % 4)
       {
         case 0:
+        {
           value->get();
           break;
+        }
         case 1:
+        {
           value->has();
           break;
+        }
         case 2:
+        {
           value->get_globally_committed();
           break;
+        }
         default:
+        {
           value->get_version_of_previous_write();
           break;
+        }
       }
       coverage.add(Counter::TypedValue);
     }
@@ -750,14 +758,20 @@ namespace
       switch (choice % 5)
       {
         case 0:
+        {
           set->contains(key);
           break;
+        }
         case 1:
+        {
           set->contains_globally_committed(key);
           break;
+        }
         case 2:
+        {
           set->get_version_of_previous_write(key);
           break;
+        }
         case 3:
         {
           size_t visited = 0;
@@ -765,8 +779,10 @@ namespace
           break;
         }
         default:
+        {
           set->size();
           break;
+        }
       }
       key_used(key);
       coverage.add(Counter::TypedSet);
@@ -779,14 +795,20 @@ namespace
       switch (choice % 3)
       {
         case 0:
+        {
           set->insert(key);
           break;
+        }
         case 1:
+        {
           set->remove(key);
           break;
+        }
         default:
+        {
           set->clear();
           break;
+        }
       }
       key_used(key);
       coverage.add(Counter::TypedSet);
@@ -855,6 +877,7 @@ namespace
       switch (result)
       {
         case Result::SUCCESS:
+        {
           coverage.add(Counter::CommitSuccess);
           if (random_worker)
           {
@@ -865,12 +888,17 @@ namespace
             coverage.add(Counter::ReadOnly);
           }
           break;
+        }
         case Result::FAIL_CONFLICT:
+        {
           coverage.add(Counter::CommitConflict);
           break;
+        }
         case Result::FAIL_NO_REPLICATE:
+        {
           coverage.add(Counter::CommitNoReplicate);
           break;
+        }
       }
       return result;
     }
@@ -1067,39 +1095,58 @@ namespace
     switch (instruction.kind)
     {
       case Kind::Get:
+      {
         operations.get(a, key);
         break;
+      }
       case Kind::Has:
+      {
         operations.has(a, key);
         break;
+      }
       case Kind::Previous:
+      {
         operations.previous(a, key);
         break;
+      }
       case Kind::Global:
+      {
         operations.global(a, key);
         break;
+      }
       case Kind::HasGlobal:
+      {
         operations.has_global(a, key);
         break;
+      }
       case Kind::Put:
+      {
         operations.put(a, key, value);
         if (instruction.key == instruction.other_key)
         {
           operations.put(a, key, universe.values[instruction.other_value]);
         }
         break;
+      }
       case Kind::Remove:
+      {
         operations.remove(a, key);
         break;
+      }
       case Kind::Clear:
+      {
         operations.clear(a);
         break;
+      }
       case Kind::Size:
+      {
         operations.size(a);
         break;
+      }
       case Kind::Foreach:
       case Kind::Mutate:
       case Kind::Nested:
+      {
         operations.foreach(
           a,
           b,
@@ -1109,12 +1156,17 @@ namespace
           instruction.kind == Kind::Nested,
           instruction.limit);
         break;
+      }
       case Kind::ForeachKey:
+      {
         operations.foreach_key(a, instruction.limit);
         break;
+      }
       case Kind::ForeachValue:
+      {
         operations.foreach_value(a, instruction.limit);
         break;
+      }
       case Kind::Copy:
       {
         const auto observed = operations.get(a, key);
@@ -1122,38 +1174,60 @@ namespace
         break;
       }
       case Kind::SameValue:
+      {
         operations.same_value(a, key, value);
         break;
+      }
       case Kind::MissingRemove:
+      {
         operations.remove(a, key);
         operations.remove_checked(a, key);
         break;
+      }
       case Kind::Alias:
+      {
         operations.pin(tx, universe.maps[program.a]);
         break;
+      }
       case Kind::ValueRead:
+      {
         operations.value_read(a, instruction.other_value);
         break;
+      }
       case Kind::ValueWrite:
+      {
         operations.value_write(a, value, instruction.other_value);
         break;
+      }
       case Kind::SetRead:
+      {
         operations.set_read(a, key, instruction.other_value, instruction.limit);
         break;
+      }
       case Kind::SetWrite:
+      {
         operations.set_write(a, key, instruction.other_value);
         break;
+      }
       case Kind::UnitRead:
+      {
         operations.unit_read(a, instruction.other_value);
         break;
+      }
       case Kind::UnitWrite:
+      {
         operations.unit_write(a, instruction.other_value);
         break;
+      }
       case Kind::Range:
+      {
         operations.range(a, b, key, other_key, instruction.other_value);
         break;
+      }
       case Kind::Count:
+      {
         throw std::logic_error("Invalid generated operation");
+      }
     }
   }
 
