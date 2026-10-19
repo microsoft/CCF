@@ -779,7 +779,9 @@ if(BUILD_TESTS)
           ${CCF_KV_FUZZ_SEEDS} --seed-start ${CCF_KV_FUZZ_SEED_START} --timeout
           ${CCF_KV_TRACE_TIMEOUT}
       )
-      set_property(TEST kv_trace_validation PROPERTY LABELS kv_trace)
+      # The Lean checker is built outside CMake and passed in by path.
+      add_test_target(kv_trace_validation kv_test)
+      add_test_label(kv_trace_validation kv_trace)
     endif()
 
     add_unit_test(
