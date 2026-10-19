@@ -26,11 +26,12 @@
     "common": ["crypto", "ds", "service"],
     "crypto": ["ds"],
     "ds": [],
-    "msgpack": [],
+    "msgpack": ["ds"],
     "pal": ["crypto", "ds"],
     "tasks": ["ds"],
     "tcp": [],
     "threading": [],
+    "tracing": ["ccf-api", "ds", "msgpack"],
     "uv": [],
     "http": ["ccf-api", "crypto", "ds"],
     "http_client": ["ccf-api", "ds", "uv"],
@@ -41,7 +42,16 @@
     "kv": ["ccf-api", "crypto", "ds"],
     "service": ["ccf-api", "crypto", "ds", "kv"],
     "rust": ["ccf-api", "kv"],
-    "consensus": ["ccf-api", "crypto", "ds", "kv", "service", "tasks"],
+    "consensus": [
+      "ccf-api",
+      "crypto",
+      "ds",
+      "kv",
+      "msgpack",
+      "service",
+      "tasks",
+      "tracing"
+    ],
     "endpoints": ["ccf-api", "crypto", "ds", "http", "kv", "service"],
     "js": ["ccf-api", "crypto", "ds", "endpoints", "kv", "pal", "service"],
     "node": [
@@ -78,6 +88,7 @@
       "service",
       "snapshots",
       "tasks",
+      "tracing",
       "uv"
     ],
     "enclave": [
