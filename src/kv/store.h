@@ -182,7 +182,14 @@ namespace ccf::kv
         if (committable)
         {
           // Replayed signatures count towards committable_gap(), so that a
-          // node which later becomes primary does not see a stale gap
+          // node which later becomes primary does not see a stale gap.
+          // committable is derived from the tables written by the entry, and
+          // the signature itself is only verified by the caller after this
+          // returns. If that verification fails, version and last_committable
+          // both remain at v until the entry is re-applied, when fill_maps()
+          // rolls back to v - 1 and clamps last_committable with it. The gap
+          // can then briefly undercount, which only delays an on-demand
+          // signature; the periodic signature task does not depend on it.
           last_committable = v;
         }
       }
