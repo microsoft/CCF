@@ -1,3 +1,6 @@
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+
 module
 
 public import Kv.Properties.Invariants
@@ -132,7 +135,7 @@ theorem HeadEffect.serial_witness (before after : Store) (txs : List Tx)
   cases effect with
   | stutter data version => simp [serialTransactions, data, version]
   | apply tx one =>
-      have h := tryApply_serial_witness before after tx one
+      have h := tryApply_serial before after tx one
       constructor
       · simpa [serialTransactions, h.1] using congrArg some h.2.symm
       · unfold tryApply at one

@@ -50,32 +50,36 @@ def layeringErrors (env : Environment) (root : Name) : Array String :=
               s!"Forbidden model/property dependency: {owner} imports {dependency.module}"
     return errors
 
+/-- Whether a claim's statement has a premise: a leading `∀` binder whose type is a proposition. -/
+def hasPremise (statement : Expr) : MetaM Bool :=
+  Meta.forallTelescope statement
+    fun binders _ => binders.anyM fun binder => do Meta.isProp (← Meta.inferType binder)
+
 /-- Claims without an exported theorem. A claim is a `Prop` constant directly in
 `root.Properties`; it is covered by a theorem directly in `root.Proof` whose type is the
-claim. With `requireWitness`, each claim not ending in `Witness` also needs a
-`...Witness` non-vacuity claim. -/
-def coverageErrors (env : Environment) (root : Name) (requireWitness : Bool)
-    : Array String :=
-  Id.run do
-    let properties := root ++ `Properties
-    let proof := root ++ `Proof
-    let declarations := env.constants.toList
-    let mut errors := #[]
-    for (name, info) in declarations do
-      if name.getPrefix != properties || info.type != mkSort .zero then
-        continue
-      let covered :=
-        declarations.any
-          fun (proofName, proofInfo) =>
-            proofName.getPrefix == proof
-            && (match proofInfo with
-                | .thmInfo theoremInfo => theoremInfo.type.isConstOf name
-                | _ => false)
-      unless covered do
-        errors := errors.push s!"Property has no exported theorem: {name}"
-      if requireWitness && !name.getString!.endsWith "Witness" then
-        unless env.contains (Name.str properties (name.getString! ++ "Witness")) do
-          errors := errors.push s!"Property has no non-vacuity claim: {name}"
-    return errors
+claim. Each claim with a premise also needs a `...Witness` claim that its premises can hold. -/
+def coverageErrors (root : Name) : MetaM (Array String) := do
+  let env ← getEnv
+  let properties := root ++ `Properties
+  let proof := root ++ `Proof
+  let declarations := env.constants.toList
+  let mut errors := #[]
+  for (name, info) in declarations do
+    if name.getPrefix != properties || info.type != mkSort .zero then
+      continue
+    let covered :=
+      declarations.any
+        fun (proofName, proofInfo) =>
+          proofName.getPrefix == proof
+          && (match proofInfo with
+              | .thmInfo theoremInfo => theoremInfo.type.isConstOf name
+              | _ => false)
+    unless covered do
+      errors := errors.push s!"Property has no exported theorem: {name}"
+    let witness := Name.str properties (name.getString! ++ "Witness")
+    if let some statement := info.value? then
+      if !env.contains witness && (← hasPremise statement) then
+        errors := errors.push s!"Property has no non-vacuity claim: {name}"
+  return errors
 
 end CCF.Architecture

@@ -61,7 +61,7 @@ The second requires a state in which every node's gossip equals `config.recovere
 Each property has a `Witness` claim asserting that some valid trace or step satisfies its premises.
 `Proofs/Witnesses.lean` proves all seven witnesses using concrete executions.
 The full-gossip witness includes a failover opening.
-`Tests/Witnesses.lean` applies each witness to its corresponding property, and `Tests/ProofCoverage.lean` requires an exported theorem for every claim.
+`Tests/Witnesses.lean` applies each witness to its corresponding property, and `Tests/ProofCoverage.lean` requires an exported theorem for every claim and a `Witness` claim for every claim with premises.
 
 Freshness is a necessary condition for election, not a definition of Raft commitment.
 `update_commit` additionally requires a current-term signature replicated on a majority, and the Raft safety specification (`tla/consensus/ccfraft.tla`) is stated on log prefixes.

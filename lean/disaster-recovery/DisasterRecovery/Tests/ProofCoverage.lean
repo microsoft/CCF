@@ -11,11 +11,9 @@ public import DisasterRecovery.Proof
 
 namespace DisasterRecovery.Tests.ProofCoverage
 
-open Lean
-
--- Every public claim, including each non-vacuity claim, needs an exported theorem.
+-- Every public claim needs an exported theorem, and a non-vacuity claim if it has premises.
 run_cmd do
-  for error in CCF.Architecture.coverageErrors (← getEnv) `DisasterRecovery true do
-    throwError error
+  for error in ← Lean.Elab.Command.liftTermElabM (CCF.Architecture.coverageErrors `DisasterRecovery) do
+    Lean.throwError error
 
 end DisasterRecovery.Tests.ProofCoverage

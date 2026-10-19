@@ -70,5 +70,5 @@ See the validation commands for [disaster recovery](disaster-recovery/README.md#
 
 Each package's `Tests/Architecture.lean` checks the property import graph during the build.
 It rejects proof dependencies and imports that reverse the shared, model, and property layers.
-Each package's `Tests/ProofCoverage.lean` requires an exported theorem for every property claim.
+Each package's `Tests/ProofCoverage.lean` requires an exported theorem for every property claim, and a `Witness` claim for every claim with premises.
 Both use the shared checks in `common/CCF/Architecture.lean`, so new packages should reuse them.

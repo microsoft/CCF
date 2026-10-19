@@ -1,3 +1,6 @@
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+
 module
 
 public import Kv.Properties.Programs
@@ -203,7 +206,7 @@ theorem normalRun_prefix_valid (snapshot current : DB M K V)
 /-- Arbitrary finite OCC programs, including cross-map/absent/scan reads,
 replay with identical observations immediately before their application.
 The only rebase premise is the executable dependency check, not a serial oracle. -/
-theorem normalRun_serial_witness (snapshot current : DB M K V)
+theorem normalRun_serial (snapshot current : DB M K V)
     (ops : List (NormalOp M K V)) (n n' : Normal M K V)
     (hr : normalRun snapshot n ops = some n')
     (hv : validates current n'.deps = true)
@@ -244,10 +247,10 @@ theorem normalRun_snapshot_valid (snapshot : DB M K V) (ops : List (NormalOp M K
             next h => simp at hs
           · simpa [normalRun, hs] using hr
 
-theorem readonly_snapshot_witness (snapshot : DB M K V) (ops : List (NormalOp M K V))
+theorem readonly_snapshot_serial (snapshot : DB M K V) (ops : List (NormalOp M K V))
     (n : Normal M K V) (hr : normalRun snapshot {} ops = some n)
     : serialRun snapshot [] ops = some n.writes :=
-  normalRun_serial_witness snapshot snapshot ops {} n hr
+  normalRun_serial snapshot snapshot ops {} n hr
     (normalRun_snapshot_valid snapshot ops {} n (by rfl) hr)
 
 /-- A genuine application-order witness for every finite branch of normal
@@ -259,7 +262,7 @@ theorem branch_normal_serializability (db final : DB M K V)
   induction h with
   | nil db => rfl
   | apply db tail p ps hex hval _rest ih =>
-      have hw := normalRun_serial_witness p.snapshot db p.ops {} p.result hex hval
+      have hw := normalRun_serial p.snapshot db p.ops {} p.result hex hval
       simpa [serialBranch, hw] using ih
 
 end Generic
@@ -399,24 +402,24 @@ theorem canApply_validates (s : Store) (t : Tx) (h : canApply s t = true)
       validates s.head.data t.normal.deps = true := by simpa [canApply] using h
   exact hh.2
 
-theorem transaction_snapshot_witness (t : Tx) (snap : Snapshot)
+theorem transaction_snapshot_serial (t : Tx) (snap : Snapshot)
     (hs : t.snapshot = some snap)
     : serialRun snap.current.data [] t.normal.log = some t.normal.writes := by
   have hc : normalRun snap.current.data {} t.normal.log = some t.normal := by
     simpa [hs] using t.certificate
-  exact readonly_snapshot_witness snap.current.data t.normal.log t.normal hc
+  exact readonly_snapshot_serial snap.current.data t.normal.log t.normal hc
 
 /-- This applies directly to the transactions consumed by the trace checker:
 their stored, erased certificate is maintained by runOp, not assumed by replay. -/
-theorem transaction_application_serial_witness (s : Store) (t : Tx) (snap : Snapshot)
+theorem transaction_application_serial (s : Store) (t : Tx) (snap : Snapshot)
     (hs : t.snapshot = some snap) (hv : canApply s t = true)
     : serialRun s.head.data [] t.normal.log = some t.normal.writes := by
   have hc : normalRun snap.current.data {} t.normal.log = some t.normal := by
     simpa [hs] using t.certificate
-  exact normalRun_serial_witness snap.current.data s.head.data t.normal.log {} t.normal hc
+  exact normalRun_serial snap.current.data s.head.data t.normal.log {} t.normal hc
     (canApply_validates s t hv)
 
-theorem tryApply_serial_witness (s next : Store) (t : Tx) (ha : tryApply s t = some next)
+theorem tryApply_serial (s next : Store) (t : Tx) (ha : tryApply s t = some next)
     : serialRun s.head.data [] t.normal.log = some t.normal.writes
       ∧ next.head.data = publish s.head.data (s.head.version + 1) t.normal.writes := by
   unfold tryApply at ha
@@ -428,7 +431,7 @@ theorem tryApply_serial_witness (s next : Store) (t : Tx) (ha : tryApply s t = s
     | none =>
         have hc : t.normal = {} := by simpa [hs] using t.certificate
         simp [hc, serialRun]
-    | some snap => exact transaction_application_serial_witness s t snap hs hv
+    | some snap => exact transaction_application_serial s t snap hs hv
   next => simp at ha
 
 theorem executable_branch_serializability (s final : Store) (ts : List Tx)
@@ -439,7 +442,7 @@ theorem executable_branch_serializability (s final : Store) (ts : List Tx)
   | compact s final v ts _rest ih =>
       simpa only [compact_preserves_head] using ih
   | cons s middle final t ts one rest ih =>
-      have hw := tryApply_serial_witness s middle t one
+      have hw := tryApply_serial s middle t one
       have hversion : middle.head.version = s.head.version + 1 := by
         unfold tryApply at one
         split at one

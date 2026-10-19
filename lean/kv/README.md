@@ -32,105 +32,81 @@ Properties of executions use the shared `CCF.Execution.Run` and `TransitionSyste
 
 ## Model
 
-`Kv/Model/Types.lean` defines finite association lists over arbitrary equality-bearing
-map/key/value types. The executable instance uses opaque map-name strings and
-lossless serialized bytes encoded as lowercase hex. There are no fixed bounds
-on map/key/transaction counts. `Unique`, `set_unique`, `publish_unique` and
-`publish_lookup` describe the finite-map representation. Empty bytes and
-absence are distinct: `""` denotes a present zero-byte value, `null` denotes
-absence, and a missing required `value` field is an invalid trace.
+`Kv/Model/Types.lean` defines finite association lists over arbitrary equality-bearing map/key/value types.
+The executable instance uses opaque map-name strings and lossless serialized bytes encoded as lowercase hex.
+There are no fixed bounds on map/key/transaction counts.
+`Unique`, `set_unique`, `publish_unique` and `publish_lookup` describe the finite-map representation.
+Empty bytes and absence are distinct: `""` denotes a present zero-byte value, `null` denotes absence, and a missing required `value` field is an invalid trace.
 
 `Kv/Model.lean` implements the **one transition used by replay**:
 
-- First access captures one current snapshot R shared by all maps and validates
-  the initial global frontier without storing it. All acquired handles share staged
-  writes. Normal reads overlay writes; previous-write observations ignore them.
-- Each map's first `map_acquire` captures its globally committed view from the
-  **then-current** global prefix. Even the first map can be acquired after a
-  compaction between `snapshot` and `map_acquire`. The observed global map
-  revision must exactly match that derived view, although an unchanged map's
-  revision can be older than the store-wide frontier.
+- First access captures one current snapshot R shared by all maps and validates the initial global frontier without storing it.
+  All acquired handles share staged writes.
+  Normal reads overlay writes; previous-write observations ignore them.
+- Each map's first `map_acquire` captures its globally committed view from the **then-current** global prefix.
+  Even the first map can be acquired after a compaction between `snapshot` and `map_acquire`.
+  The observed global map revision must exactly match that derived view, although an unchanged map's revision can be older than the store-wide frontier.
   Reused ro/rw/wo handles and all keys in the same map share that one capture.
   `get_global` and `has_global` never refresh it and ignore pending writes.
-  Different maps can intentionally observe different global cuts. There is no
-  single cross-map globally committed snapshot guarantee in this profile.
-- Schema 1 omits the store's initial term from `store_create`, so the initially
-  unobserved term is established once by the first snapshot or rollback. This
-  does not initialize or replace any database contents, version or global cut.
-  Subsequent snapshots must match the tracked term; later untraced term changes
-  are not inferred. This permits initial `initialise_term(1)` before first use
-  without manufacturing a rollback event.
-- Normal key reads (including absence) and whole-map reads create OCC
-  dependencies. Reading an own write creates no dependency. Global reads create
-  no normal dependency. Blind concurrent writes may both apply.
-- Iteration freezes visible entries at begin, checks membership/value/uniqueness,
-  permits arbitrary order, supports nested callbacks and explicit early stop.
-  Iteration identity is `(store, tx, map, iteration)`; different maps may use
-  the same numeric iteration ID.
+  Different maps can intentionally observe different global cuts.
+  There is no single cross-map globally committed snapshot guarantee in this profile.
+- Schema 1 omits the store's initial term from `store_create`, so the initially unobserved term is established once by the first snapshot or rollback.
+  This does not initialize or replace any database contents, version or global cut.
+  Subsequent snapshots must match the tracked term; later untraced term changes are not inferred.
+  This permits initial `initialise_term(1)` before first use without manufacturing a rollback event.
+- Normal key reads (including absence) and whole-map reads create OCC dependencies.
+  Reading an own write creates no dependency.
+  Global reads create no normal dependency.
+  Blind concurrent writes may both apply.
+- Iteration freezes visible entries at begin, checks membership/value/uniqueness, permits arbitrary order, supports nested callbacks and explicit early stop.
+  Iteration identity is `(store, tx, map, iteration)`; different maps may use the same numeric iteration ID.
   `size` and `clear` take the same whole-map dependency.
-- Application validates dependencies/lineage/term and publishes the entire
-  reconstructed staged write set, not the logged `writes` array. The array is
-  only an exact, order-independent cross-check. Even an absent-key deletion may
-  allocate a version without changing a map revision.
-- `apply` and the eventual `commit_result` are separate. `no_replicate` after
-  application retains local effects. Read-only success allocates no version.
-  Pre-application conflict is permitted conservatively; the checker does not
-  claim that all admissible attempts must succeed.
-- Compaction advances the irrevocable cut, preserving current data and pinned
-  handles. Full frames are ghost history: late acquisition of an existing map
-  is gated only by its retained **local** revision at R. Unchanged sparse maps
-  may remain available even below the store-wide cut. Retention of the initial
-  global frontier is irrelevant to subsequent acquisitions. Already captured
-  per-map global views remain readable through later compaction and rollback.
-  Map birth is tracked separately from its effective revision, from the first
-  applied write to that map, including remove-missing. A map not yet created
-  at the captured **local** cut R has a fresh empty placeholder for both normal
-  and global reads, even if another transaction subsequently creates and
-  compacts the real map. Its global revision is zero, not the current real
-  map's committed revision. This does not recover discarded contents from ghost
-  history or claim the placeholder is the latest committed map. An
-  already-existing empty map with revision zero remains subject to retention
-  checks; zero revision alone is not evidence that the map was absent.
-  A request above the current head is an observed no-op: its effective boundary
-  must equal the previous global cut. A backward request also leaves the
-  effective cut unchanged. Neither request permits a fabricated global advance.
-  C++ `Store::compact` instead lowers its compaction point on a backward
-  request, so the checker rejects a trace containing one; the traced tests and
-  fuzzer only compact forward.
+- Application validates dependencies/lineage/term and publishes the entire reconstructed staged write set, not the logged `writes` array.
+  The array is only an exact, order-independent cross-check.
+  Even an absent-key deletion may allocate a version without changing a map revision.
+- `apply` and the eventual `commit_result` are separate.
+  `no_replicate` after application retains local effects.
+  Read-only success allocates no version.
+  Pre-application conflict is permitted conservatively; the checker does not claim that all admissible attempts must succeed.
+- Compaction advances the irrevocable cut, preserving current data and pinned handles.
+  Full frames are ghost history: late acquisition of an existing map is gated only by its retained **local** revision at R.
+  Unchanged sparse maps may remain available even below the store-wide cut.
+  Retention of the initial global frontier is irrelevant to subsequent acquisitions.
+  Already captured per-map global views remain readable through later compaction and rollback.
+  Map birth is tracked separately from its effective revision, from the first applied write to that map, including remove-missing.
+  A map not yet created at the captured **local** cut R has a fresh empty placeholder for both normal and global reads, even if another transaction subsequently creates and compacts the real map.
+  Its global revision is zero, not the current real map's committed revision.
+  This does not recover discarded contents from ghost history or claim the placeholder is the latest committed map.
+  An already-existing empty map with revision zero remains subject to retention checks; zero revision alone is not evidence that the map was absent.
+  A request above the current head is an observed no-op: its effective boundary must equal the previous global cut.
+  A backward request also leaves the effective cut unchanged.
+  Neither request permits a fabricated global advance.
+  C++ `Store::compact` instead lowers its compaction point on a backward request, so the checker rejects a trace containing one; the traced tests and fuzzer only compact forward.
 - Rollback keeps the irrevocable prefix and discards the provisional suffix.
-  Pinned handles remain readable. Per-map application identities prevent reuse
-  of a rolled-back version from restoring lineage. Map-birth identities also
-  distinguish removed/recreated empty maps whose effective revision stayed zero.
-  A changed commit term also invalidates writing attempts. Unrelated same-term
-  rollback does not automatically invalidate all handles.
+  Pinned handles remain readable.
+  Per-map application identities prevent reuse of a rolled-back version from restoring lineage.
+  Map-birth identities also distinguish removed/recreated empty maps whose effective revision stayed zero.
+  A changed commit term also invalidates writing attempts.
+  Unrelated same-term rollback does not automatically invalidate all handles.
 
-`Tx.certificate` is a kernel-checked, runtime-erased invariant that the exact
-normal-operation log was executed against its captured snapshot. It is
-constructed by ordinary execution and maintained by `normalRun_extend`; it
-is not a serializability assumption or an extra acceptance test.
+`Tx.certificate` is a kernel-checked, runtime-erased invariant that the exact normal-operation log was executed against its captured snapshot.
+It is constructed by ordinary execution and maintained by `normalRun_extend`; it is not a serializability assumption or an extra acceptance test.
 
 `Store.historyShape`, `headFirst` and `globalBound` are also erased certificates.
-They are constructed at store creation and maintained by application,
-compaction and rollback. History starts with the empty version-zero frame,
-contains every descending version through the current head, and each successor
-frame results from publishing a finite write set over its predecessor.
+They are constructed at store creation and maintained by application, compaction and rollback.
+History starts with the empty version-zero frame, contains every descending version through the current head, and each successor frame results from publishing a finite write set over its predecessor.
 The head is the first history frame and the global cut never exceeds it.
-`Snapshot` retains the current frame and captured commit term; its erased
-`origin` certifies the current frame's provenance. The initial global frontier
-is checked at capture, not retained as transaction state. Store and transaction
-terms drive stale-term rejection.
-`Tx.globalViews` is the acquired-map table, storing one immutable `GlobalView`
-per map. Its erased provenance is explicitly either an empty
-genesis/placeholder frame or a frame from a store's committed prefix. The
-actual acquisition theorem selects the placeholder only when the map did not
-exist at R; otherwise it selects the prefix current at acquisition.
-None of these certificates is obtained by checking serial execution as an
-acceptance condition.
+`Snapshot` retains the current frame and captured commit term; its erased `origin` certifies the current frame's provenance.
+The initial global frontier is checked at capture, not retained as transaction state.
+Store and transaction terms drive stale-term rejection.
+`Tx.globalViews` is the acquired-map table, storing one immutable `GlobalView` per map.
+Its erased provenance is explicitly either an empty genesis/placeholder frame or a frame from a store's committed prefix.
+The actual acquisition theorem selects the placeholder only when the map did not exist at R; otherwise it selects the prefix current at acquisition.
+None of these certificates is obtained by checking serial execution as an acceptance condition.
 
-Some public C++ API wording suggests a stronger transaction-wide global
-snapshot interpretation. This implementation profile does not establish that
-stronger contract. The production implementation, public comments and wire
-schema are not changed by choosing this model profile.
+Some public C++ API wording suggests a stronger transaction-wide global snapshot interpretation.
+This implementation profile does not establish that stronger contract.
+The production implementation, public comments and wire schema are not changed by choosing this model profile.
 
 ## Properties
 
@@ -139,15 +115,18 @@ The reviewed statements are `Prop` definitions in `Kv/Properties.lean`.
 No `sorry`, custom axioms, unsafe declarations, or external solver are used.
 The trace projection and history theorems use Lean's standard `propext` and `Quot.sound`; the snapshot/global-observation proofs additionally use standard `Classical.choice`.
 
-The theorem names below are in `Kv.Proof`; additional supporting lemmas
-remain available in their proof namespaces.
+Each claim with premises has a `Witness` claim asserting that some concrete state, trace or program satisfies them, so the claim is not vacuous.
+`Kv/Proofs/Witnesses.lean` proves these witnesses, mostly from prefixes and segments of one accepted trace that the kernel evaluates with `decide +kernel`, and `Kv/Proof.lean` exports each one as the claim's theorem name with a `_witness` suffix.
+The five claims without premises (`ReadYourWrite`, `ReadYourDeletion`, `PreviousIgnoresPending`, `PublishLookup` and `ApplyAtomic`) need no witness.
+
+The theorem names below are in `Kv.Proof`; additional supporting lemmas remain available in their proof namespaces.
 
 | Theorems                                                                                                                | Established scope                                                                                                                                                               |
 | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `read_your_write`, `read_your_deletion`, `absent_read`, `staged_noninterference`, `previous_ignores_pending`            | Point-read and overlay semantics                                                                                                                                                |
 | `publish_lookup`, `publication_noninterference`, `publish_unique`, `apply_atomic`                                       | Entire finite multi-map publication and unrelated-key preservation                                                                                                              |
-| `transaction_snapshot_witness`                                                                                          | Every certified attempt's normal log has its captured current snapshot witness, including read-only completions                                                                 |
-| `transaction_application_serial_witness`                                                                                | The same executable application primitive used by replay has an independent sequential transaction witness                                                                      |
+| `transaction_snapshot_serial`                                                                                           | Every certified attempt's normal log has its captured current snapshot witness, including read-only completions                                                                 |
+| `transaction_application_serial`                                                                                        | The same executable application primitive used by replay has an independent sequential transaction witness                                                                      |
 | `executable_branch_serializability`                                                                                     | Every finite branch of executable applications, with compaction interleavings, admits application order as a serial witness, including locally applied `no_replicate` attempts  |
 | `branch_normal_serializability`                                                                                         | Type-parameterized version for arbitrary finite OCC programs                                                                                                                    |
 | `replay_segment_serializability`                                                                                        | Actual successful replay projects to a selected live store's application-order serial witness; the attempts come from pre-event `txOf`                                          |
@@ -161,46 +140,30 @@ remain available in their proof namespaces.
 | `stale_term_cannot_apply`, `discarded_handle_cannot_apply`, `discarded_birth_cannot_apply`, `compacted_map_unavailable` | Stale-term/removed-lineage rejection, including recreated empty maps, and retained-base gating for existing maps                                                                |
 | `absent_map_available`, `absent_placeholder_has_no_values`                                                              | Truly absent map cuts permit empty placeholders independently of retention; this path cannot expose old map values                                                              |
 
-The sequential reference (`serialStep`, `serialRun`, `serialTransactions`) has
-no dependency validation and is not consulted by the checker. Serializability
-is derived from the OCC check. It applies to **normal** observations on a local
-branch, not a single global serial read view combining normal and historical
-reads, and not one permanent serial order across rollback.
-Per-map global observations need not agree with either the current snapshot
-or each other across maps.
+The sequential reference (`serialStep`, `serialRun`, `serialTransactions`) has no dependency validation and is not consulted by the checker.
+Serializability is derived from the OCC check.
+It applies to **normal** observations on a local branch, not a single global serial read view combining normal and historical reads, and not one permanent serial order across rollback.
+Per-map global observations need not agree with either the current snapshot or each other across maps.
 
-Read-only completions use `transaction_snapshot_witness`: they are placed at
-their captured snapshot in the history they observed, not at completion time,
-and do not appear as new applications in `executable_branch_serializability`.
+Read-only completions use `transaction_snapshot_serial`: they are placed at their captured snapshot in the history they observed, not at completion time, and do not appear as new applications in `executable_branch_serializability`.
 An already pinned snapshot may belong to a subsequently discarded branch.
-Conversely, every local application belongs to its application-order witness
-even if its later `commit_result` is `no_replicate`. A pre-application
-`no_replicate` contributes no application. Only an explicit rollback changes
-the local branch; a failed replication reply does not erase an application.
+Conversely, every local application belongs to its application-order witness even if its later `commit_result` is `no_replicate`.
+A pre-application `no_replicate` contributes no application.
+Only an explicit rollback changes the local branch; a failed replication reply does not erase an application.
 
-`replay_segment_serializability` assumes a successful typed replay, a selected
-store live at the segment's start, and no `store_create`, `store_end` or
-`rollback` for that selected store within the segment. It does **not** assume
-`AppliedBranch` or a sequential result. `projectApplications` runs the same
-steps and extracts only that store's actual `apply` attempts via pre-event
-`txOf`. Compaction, initial-term establishment, read-only/failed returns and
-all other-store operations stutter on the selected head data/version.
-Other stores may even roll back or end within the segment. Selected-store
-rollback partitions branches; the durable-prefix theorems cover that boundary.
-Snapshot preservation requires no creation/end of the selected attempt during
-its segment, but permits store rollback: the current snapshot and each acquired
-map's committed view remain pinned. Their replay-preservation proofs reuse
-`replay_attempt_invariant`, which lifts an already-proved single-step property
-through a successful replay while retaining the live attempt.
+`replay_segment_serializability` assumes a successful typed replay, a selected store live at the segment's start, and no `store_create`, `store_end` or `rollback` for that selected store within the segment.
+It does **not** assume `AppliedBranch` or a sequential result.
+`projectApplications` runs the same steps and extracts only that store's actual `apply` attempts via pre-event `txOf`.
+Compaction, initial-term establishment, read-only/failed returns and all other-store operations stutter on the selected head data/version.
+Other stores may even roll back or end within the segment.
+Selected-store rollback partitions branches; the durable-prefix theorems cover that boundary.
+Snapshot preservation requires no creation/end of the selected attempt during its segment, but permits store rollback: the current snapshot and each acquired map's committed view remain pinned.
+Their replay-preservation proofs reuse `replay_attempt_invariant`, which lifts an already-proved single-step property through a successful replay while retaining the live attempt.
 
-The principal guarantees are proved directly from successful executable
-`step` and `replay` results, without optional graph-wrapper relations.
-They cover typed replay, not the JSON parser. The trace-to-property theorems cover
-normal-view serial projection, history safety, current-snapshot consistency,
-and per-map global provenance/immutability.
-They do not prove that arbitrary C++ executions refine this model or that the
-instrumentation is complete; iteration protocol and acquisition-availability
-checks are not claimed as independently verified C++ algorithms.
+The principal guarantees are proved directly from successful executable `step` and `replay` results, without optional graph-wrapper relations.
+They cover typed replay, not the JSON parser.
+The trace-to-property theorems cover normal-view serial projection, history safety, current-snapshot consistency, and per-map global provenance/immutability.
+They do not prove that arbitrary C++ executions refine this model or that the instrumentation is complete; iteration protocol and acquisition-availability checks are not claimed as independently verified C++ algorithms.
 
 ## Trace validation
 
@@ -218,18 +181,16 @@ Accepted prefixes retain model history and lifecycle metadata, so total model me
 
 ### Strict schema 1
 
-Every NDJSON record is an object with `type` and strictly increasing run-wide
-uint64 `seq`. Numeric fields must be lexical nonnegative JSON integers, not
-floats, exponents, signed values or strings. Duplicate keys (including escaped
-aliases), unknown fields/events, malformed hex, missing fields, blank records,
-truncation, open lifecycles and empty coverage are rejected. One terminal
-newline is allowed. Failed test cases cannot establish conformance.
-Numbers are parsed using arbitrary-precision integers and then bounded by
-18446744073709551615; no floating-point conversion occurs.
+Every NDJSON record is an object with `type` and strictly increasing run-wide uint64 `seq`.
+Numeric fields must be lexical nonnegative JSON integers, not floats, exponents, signed values or strings.
+Duplicate keys (including escaped aliases), unknown fields/events, malformed hex, missing fields, blank records, truncation, open lifecycles and empty coverage are rejected.
+One terminal newline is allowed.
+Failed test cases cannot establish conformance.
+Numbers are parsed using arbitrary-precision integers and then bounded by 18446744073709551615; no floating-point conversion occurs.
 
-Common fields: `store` is a stable incarnation, `tx` a run-unique attempt,
-`map` an exact opaque string. Stores and transactions have explicit create/end
-events; an active `tx_end` abandons writes. Retries need new attempt IDs.
+Common fields: `store` is a stable incarnation, `tx` a run-unique attempt, `map` an exact opaque string.
+Stores and transactions have explicit create/end events; an active `tx_end` abandons writes.
+Retries need new attempt IDs.
 
 | Type                                         | Additional fields                                                                                   |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -258,41 +219,29 @@ events; an active `tx_end` abandons writes. Retries need new attempt IDs.
 | `unsupported`                                | optional `store`, `operation:string`                                                                |
 | `trace_end`                                  | `events:uint64` counting all prior records                                                          |
 
-`Tests/Replay.lean` retains a basic accepted history and two acceptance relationships
-not guaranteed by generated-trace event coverage. It exercises expected
-rejections, including forbidden map-view refreshes, wrong global
-values/presence/revisions, partial applications, absent/phantom/write-skew
-conflicts, stale lineage, iteration lifecycle errors, exact uint64 decoding, and
-damaged streams. Every case is replayed from a temporary file through the same
-streaming reader as the replayer. They run with `#eval` when the module is built, and failures fail the build. Other positive implementation schedules come from
-the focused C++ tests and concurrent fuzzer.
+`Tests/Replay.lean` retains a basic accepted history and two acceptance relationships not guaranteed by generated-trace event coverage.
+It exercises expected rejections, including forbidden map-view refreshes, wrong global values/presence/revisions, partial applications, absent/phantom/write-skew conflicts, stale lineage, iteration lifecycle errors, exact uint64 decoding, and damaged streams.
+Every case is replayed from a temporary file through the same streaming reader as the replayer.
+They run with `#eval` when the module is built, and failures fail the build.
+Other positive implementation schedules come from the focused C++ tests and concurrent fuzzer.
 
 ## Recorded finding
 
-The concurrent fuzzer found a whole-map conflict that C++ failed to detect. An
-iteration over a map at revision zero recorded its map-read version as zero,
-which was also `NoVersion`, the marker for "no whole-map read". Commit
-validation therefore skipped the check, and C++ applied a transaction whose
-iterated map had since gained an entry, while the model rejected the `apply`.
-[#8320](https://github.com/microsoft/CCF/pull/8320) fixed this by tracking the
-map-read version as `std::optional<Version>`. The model's whole-map dependency
-check, which caught it, is exercised by the `map-wide phantom dependency` case
-in `Tests/Replay.lean`.
+The concurrent fuzzer found a whole-map conflict that C++ failed to detect.
+An iteration over a map at revision zero recorded its map-read version as zero, which was also `NoVersion`, the marker for "no whole-map read".
+Commit validation therefore skipped the check, and C++ applied a transaction whose iterated map had since gained an entry, while the model rejected the `apply`.
+[#8320](https://github.com/microsoft/CCF/pull/8320) fixed this by tracking the map-read version as `std::optional<Version>`.
+The model's whole-map dependency check, which caught it, is exercised by the `map-wide phantom dependency` case in `Tests/Replay.lean`.
 
 ## Trust and exclusions
 
-Consensus supplies valid irrevocability decisions. Liveness, successful retry,
-quorums, crash recovery, encryption, serialization formats, imported snapshots,
-cross-store swaps, ledger/signature metadata, permission/domain policy and
-external hook side effects are not modeled. Such traced operations must be
-reported as `unsupported`, not skipped.
+Consensus supplies valid irrevocability decisions.
+Liveness, successful retry, quorums, crash recovery, encryption, serialization formats, imported snapshots, cross-store swaps, ledger/signature metadata, permission/domain policy and external hook side effects are not modeled.
+Such traced operations must be reported as `unsupported`, not skipped.
 
-The remaining trust boundary includes the trace emitter's completeness and
-linearization order, accurate typed-result/byte capture, UTF-8/JSON decoding,
-Lean's kernel/compiler/runtime, filesystem IO and the correspondence of emitted
-events to actual C++ actions. Positive finite traces are conformance evidence,
-not a proof of C++ refinement. Rejections remain diagnostic evidence and must
-not be hidden by reseeding state or accepting arbitrary global revisions.
+The remaining trust boundary includes the trace emitter's completeness and linearization order, accurate typed-result/byte capture, UTF-8/JSON decoding, Lean's kernel/compiler/runtime, filesystem IO and the correspondence of emitted events to actual C++ actions.
+Positive finite traces are conformance evidence, not a proof of C++ refinement.
+Rejections remain diagnostic evidence and must not be hidden by reseeding state or accepting arbitrary global revisions.
 
 ## Validation
 
@@ -310,9 +259,8 @@ lake check --inadvisably-no-sandbox
 
 These are the same checks as the [disaster-recovery validation](../disaster-recovery/README.md#validation), which describes each of them and the package's linter options.
 The build runs `Tests/Replay.lean`, `Tests/Architecture.lean` and `Tests/ProofCoverage.lean`.
-The architecture test rejects imports that reverse the shared, model, and property layers, and reintroduced removed names.
-The proof-coverage test requires an exported theorem for every claim in `Properties.lean`.
-Unlike disaster recovery, the KV properties do not yet have `Witness` claims, so coverage does not require them.
+The architecture test rejects imports that reverse the shared, model, and property layers.
+The proof-coverage test requires an exported theorem for every claim in `Properties.lean`, and a `Witness` claim for every claim with premises.
 
 To check C++ traces against the model, build the replayer and pass it to CMake as described in [Reproducing a run](../../doc/build_apps/kv/semantics.rst).
 The Lean CI workflow runs these checks and the trace conformance tests in an Azure Linux 3 job.
