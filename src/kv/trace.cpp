@@ -154,10 +154,7 @@ namespace ccf::kv::trace
     }
   }
 
-  bool enabled()
-  {
-    return active.load(std::memory_order_acquire) != nullptr;
-  }
+  std::atomic<bool> capturing = false;
 
   void start()
   {
@@ -172,6 +169,7 @@ namespace ccf::kv::trace
     }
     owner = std::make_unique<Sink>(path);
     active.store(owner.get(), std::memory_order_release);
+    capturing.store(true, std::memory_order_release);
     event("trace_start", {{"schema", 1}});
   }
 
@@ -192,6 +190,7 @@ namespace ccf::kv::trace
       sink->append("trace_end", {{"events", sink->seq}});
       sink->output.flush();
     }
+    capturing.store(false, std::memory_order_release);
     active.store(nullptr, std::memory_order_release);
     const bool written = sink->output.good();
     owner.reset();
@@ -288,9 +287,9 @@ namespace ccf::kv::trace
     });
   }
 
-  Attempt::~Attempt()
+  void Attempt::end()
   {
-    if (auto* sink = active.load(std::memory_order_acquire); sink && id.tx != 0)
+    if (auto* sink = active.load(std::memory_order_acquire))
     {
       std::lock_guard guard(sink->mutex);
       sink->append("tx_end", {{"store", id.store}, {"tx", id.tx}});
@@ -299,11 +298,11 @@ namespace ccf::kv::trace
     }
   }
 
-  Context::Context(Identity id, const Json* writes, Commit* commit) :
-    previous(current),
-    previous_writes(current_writes),
-    previous_commit(current_commit)
+  void Context::enter(Identity id, const Json* writes, Commit* commit)
   {
+    previous = current;
+    previous_writes = current_writes;
+    previous_commit = current_commit;
     current = id;
     current_writes = writes;
     current_commit = commit;
@@ -313,7 +312,7 @@ namespace ccf::kv::trace
     }
   }
 
-  Context::~Context()
+  void Context::leave()
   {
     if (current_writes == nullptr)
     {

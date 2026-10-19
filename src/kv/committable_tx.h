@@ -243,17 +243,21 @@ namespace ccf::kv
       std::optional<Version> c;
       std::optional<Version> expected_rollback_count;
 #ifdef CCF_KV_TRACING
-      auto trace_writes = trace::Json::array();
-      KV_TRACE(for (const auto& [map_name, mc]
-                    : all_changes) {
-        for (const auto& [key, value] : mc.changeset->writes)
+      trace::Json trace_writes;
+      if (trace::enabled())
+      {
+        trace_writes = trace::Json::array();
+        for (const auto& [map_name, mc] : all_changes)
         {
-          trace_writes.push_back(
-            {{"map", map_name},
-             {"key", ccf::ds::to_hex(key)},
-             {"value", trace::bytes(value.has_value() ? &*value : nullptr)}});
+          for (const auto& [key, value] : mc.changeset->writes)
+          {
+            trace_writes.push_back(
+              {{"map", map_name},
+               {"key", ccf::ds::to_hex(key)},
+               {"value", trace::bytes(value.has_value() ? &*value : nullptr)}});
+          }
         }
-      });
+      }
 #endif
       {
         MapSetLockGuard map_set_guard(*pimpl->store, maps_created);

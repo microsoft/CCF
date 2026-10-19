@@ -10,6 +10,7 @@
 #ifdef CCF_KV_TRACING
 #  include "ccf/ds/hex.h"
 
+#  include <atomic>
 #  include <nlohmann/json.hpp>
 #  include <string>
 
@@ -28,7 +29,15 @@ namespace ccf::kv::trace
     uint64_t tx = 0;
   };
 
-  bool enabled();
+  // Set only while a sink is active. Inline so that inactive builds pay one
+  // load per hook, rather than a call.
+  extern std::atomic<bool> capturing;
+
+  inline bool enabled()
+  {
+    return capturing.load(std::memory_order_acquire);
+  }
+
   void start();
   void finish();
   void event(const char* type, Json fields = Json::object());
@@ -42,27 +51,54 @@ namespace ccf::kv::trace
   void store_create(const AbstractStore* store);
   void store_end(const AbstractStore* store);
 
+  // id is only set by bind() while capturing.
   struct Attempt
   {
     Identity id;
     void bind(const AbstractStore* store);
-    ~Attempt();
+    void end();
+    ~Attempt()
+    {
+      if (id.tx != 0)
+      {
+        end();
+      }
+    }
   };
 
   // These contexts only identify the caller at existing KV lock boundaries.
-  // They never acquire a KV lock, nor extend its lifetime.
+  // They never acquire a KV lock, nor extend its lifetime. A context created
+  // while not capturing does nothing; hooks that later find no context record
+  // the access as unsupported.
   class Commit;
 
   class Context
   {
+    bool engaged;
     Identity previous;
-    const Json* previous_writes;
-    Commit* previous_commit;
+    const Json* previous_writes = nullptr;
+    Commit* previous_commit = nullptr;
+
+    void enter(Identity id, const Json* writes, Commit* commit);
+    void leave();
 
   public:
     Context(
-      Identity id, const Json* writes = nullptr, Commit* commit = nullptr);
-    ~Context();
+      Identity id, const Json* writes = nullptr, Commit* commit = nullptr) :
+      engaged(enabled())
+    {
+      if (engaged)
+      {
+        enter(id, writes, commit);
+      }
+    }
+    ~Context()
+    {
+      if (engaged)
+      {
+        leave();
+      }
+    }
     Context(const Context&) = delete;
     Context& operator=(const Context&) = delete;
   };
@@ -99,13 +135,18 @@ namespace ccf::kv::trace
     uint64_t recorded_version = 0;
 
   public:
+    // Records are built only while capturing, so that inactive commits do not
+    // allocate.
     explicit Commit(Identity id_) : id(id_)
     {
-      transaction(id, "commit_begin");
+      if (enabled())
+      {
+        transaction(id, "commit_begin");
+      }
     }
     ~Commit()
     {
-      if (!complete)
+      if (!complete && enabled())
       {
         transaction(
           id, "unsupported", {{"operation", "commit exited without result"}});
