@@ -298,8 +298,14 @@ TEST_CASE("Certificate conversions accept any public key type")
   const auto cert_der = cert_pem_to_der(cert_pem);
   CHECK(cert_der_to_pem(cert_der).str() == cert_pem.str());
   CHECK(cert_pem_to_der(cert_der_to_pem(cert_der)) == cert_der);
-  // Either function accepts either encoding
-  CHECK(cert_der_to_pem(cert_pem.raw()).str() == cert_pem.str());
+  CHECK_THROWS_AS(cert_der_to_pem(cert_pem.raw()), std::invalid_argument);
+  // Pem only checks for a marker, so DER with that marker can reach the helper.
+  auto der_with_pem_marker = cert_der;
+  const std::string pem_marker = "-----BEGIN";
+  der_with_pem_marker.insert(
+    der_with_pem_marker.end(), pem_marker.begin(), pem_marker.end());
+  CHECK_THROWS_AS(
+    cert_pem_to_der(Pem(der_with_pem_marker)), std::invalid_argument);
   CHECK(COSEKey::from_der_cert(cert_der).kty() == COSEKeyType::OKP);
 
   // Anything that is not a certificate is still rejected

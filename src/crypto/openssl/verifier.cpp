@@ -20,20 +20,28 @@ namespace
   using namespace ccf::crypto;
   using namespace ccf::crypto::OpenSSL;
 
-  // Parse a certificate in PEM or DER format, whatever its public key type
-  Unique_X509 parse_x509(const std::vector<uint8_t>& c)
+  enum class CertificateFormat : uint8_t
+  {
+    AUTO,
+    PEM,
+    DER
+  };
+
+  // Parse a certificate in the selected format, whatever its public key type
+  Unique_X509 parse_x509(
+    const std::vector<uint8_t>& c, CertificateFormat format)
   {
     Unique_BIO certbio(c);
-    Unique_X509 cert(certbio, true);
-    if (cert == nullptr)
+    Unique_X509 cert(certbio, format != CertificateFormat::DER);
+    if (cert == nullptr && format == CertificateFormat::AUTO)
     {
       BIO_reset(certbio);
       cert = Unique_X509(certbio, false);
-      if (cert == nullptr)
-      {
-        throw std::invalid_argument(
-          fmt::format("OpenSSL error: {}", OpenSSL::first_error()));
-      }
+    }
+    if (cert == nullptr)
+    {
+      throw std::invalid_argument(
+        fmt::format("OpenSSL error: {}", OpenSSL::first_error()));
     }
     return cert;
   }
@@ -44,7 +52,8 @@ namespace
     CHECK1(i2d_X509_bio(mem, cert));
 
     BUF_MEM* bptr = nullptr;
-    BIO_get_mem_ptr(mem, &bptr);
+    CHECKPOSITIVE(BIO_get_mem_ptr(mem, &bptr));
+    CHECKNULL(bptr);
     return {
       reinterpret_cast<uint8_t*>(bptr->data),
       reinterpret_cast<uint8_t*>(bptr->data) + bptr->length};
@@ -56,7 +65,8 @@ namespace
     CHECK1(PEM_write_bio_X509(mem, cert));
 
     BUF_MEM* bptr = nullptr;
-    BIO_get_mem_ptr(mem, &bptr);
+    CHECKPOSITIVE(BIO_get_mem_ptr(mem, &bptr));
+    CHECKNULL(bptr);
     return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 }
@@ -67,16 +77,16 @@ namespace ccf::crypto
 
   Pem cert_der_to_pem(const std::vector<uint8_t>& der)
   {
-    return x509_to_pem(parse_x509(der));
+    return x509_to_pem(parse_x509(der, CertificateFormat::DER));
   }
 
   std::vector<uint8_t> cert_pem_to_der(const Pem& pem)
   {
-    return x509_to_der(parse_x509(pem.raw()));
+    return x509_to_der(parse_x509(pem.raw(), CertificateFormat::PEM));
   }
 
   Verifier_OpenSSL::Verifier_OpenSSL(const std::vector<uint8_t>& c) :
-    cert(parse_x509(c))
+    cert(parse_x509(c, CertificateFormat::AUTO))
   {
     EVP_PKEY* pk = X509_get_pubkey(cert);
     if (pk == nullptr)

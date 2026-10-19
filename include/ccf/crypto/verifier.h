@@ -193,11 +193,17 @@ namespace ccf::crypto
   VerifierPtr make_verifier(const Pem& pem);
 
   /**
-   * Re-encode a certificate in DER or PEM format as PEM, or as DER.
-   * These accept certificates with any public key type.
-   * @throws std::invalid_argument if the certificate cannot be parsed
+   * Convert a DER-encoded certificate to PEM.
+   * Accepts certificates with any public key type.
+   * @throws std::invalid_argument if the input is not a DER-encoded certificate
    */
   ccf::crypto::Pem cert_der_to_pem(const std::vector<uint8_t>& der);
+
+  /**
+   * Convert a PEM-encoded certificate to DER.
+   * Accepts certificates with any public key type.
+   * @throws std::invalid_argument if the input is not a PEM-encoded certificate
+   */
   std::vector<uint8_t> cert_pem_to_der(const Pem& pem);
 
   std::vector<uint8_t> public_key_der_from_cert(
