@@ -79,8 +79,7 @@ In contrast to normal transactions, reconfiguration transactions will only commi
 Disaster recovery is an exception to this retirement sequence.
 Replaying the public ledger reconstructs the previous service's trusted-node configuration in the new consensus instance.
 When the recovery service is created, its recovery transaction deletes the previous service's entries from ``nodes.info`` directly, and those deletions remove the old nodes from the new consensus configuration.
-Once the deletions are globally committed, consensus also stops tracking the deleted nodes, as it does for ``retired_committed`` nodes, so that no later primary sends them ``AppendEntries`` and they no longer appear in :http:GET:`/node/consensus`.
-This includes nodes which joined the recovered service from a snapshot taken before the recovery, and so initially knew of the previous service's nodes.
+Once the deletions are globally committed, every node, including those which joined from a snapshot taken before the recovery, also stops tracking the deleted nodes, as it does for ``retired_committed`` nodes: they are no longer sent ``AppendEntries`` and no longer appear in :http:GET:`/node/consensus`.
 The previous nodes do not transition through ``RETIRED`` or ``retired_committed`` because the old service is unavailable and does not participate in the recovery service's consensus.
 See :ref:`operations/recovery:Disaster Recovery`.
 

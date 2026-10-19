@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Fixed
 
-- After a disaster recovery, nodes which joined from a snapshot taken before the recovery no longer keep tracking the previous service's nodes in consensus once the recovery transaction is committed. Previously, such a node elected primary kept contacting the previous service's node IDs, which could prevent elections from completing when their addresses had been reused by current nodes. See the [Disaster Recovery](doc/operations/recovery.rst) operations documentation (#8596).
+- Nodes which join a recovered service from a snapshot taken before the recovery now stop tracking the previous service's nodes in consensus once the recovery transaction is committed, see [Disaster Recovery](doc/operations/recovery.rst) (#8596).
 
 ## [7.0.20]
 
