@@ -9,27 +9,26 @@ public import CCF.Execution
 @[expose] public section
 
 /-!
-Each claim quantifies every node and transaction identifier type, every
-explicit `InitialConfig` value and every node list. Claims concern valid traces
+`NodeID` and `ReqID` are natural numbers.
+Each claim quantifies every explicit `ModelConfig` value and every node list. Claims concern valid traces
 or individual successful steps of `Model.transitionSystem`. Each has a `Witness`
 claim exhibiting a nontrivial execution relevant to the property.
 -/
 
 namespace CCFRaft.Properties
 
-abbrev GlobalTrace (Node TxId : Type) := CCF.Execution.Trace (Model.State Node TxId)
+abbrev GlobalTrace := CCF.Execution.Trace Model.State
 
 open Model.Node
+open Model (ModelConfig)
 
 /-- Any two committed logs in a valid trace are prefix-comparable: those of
 any two nodes, in any two states of the trace. -/
 def CommittedLogsPrefix : Prop :=
-  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
-          [LinearOrder Node],
-  forall (config : InitialConfig Node),
-  forall (nodes : List Node) (trace : GlobalTrace Node TxId),
-  forall (first second : Model.State Node TxId),
-  forall (left right : Node) (leftState rightState : NodeState Node TxId),
+  forall (config : ModelConfig),
+  forall (nodes : List NodeID) (trace : GlobalTrace),
+  forall (first second : Model.State),
+  forall (left right : NodeID) (leftState rightState : NodeState),
     (trace.Valid (Model.transitionSystem config nodes)
       /\ first ∈ trace.states
       /\ second ∈ trace.states
@@ -41,13 +40,10 @@ def CommittedLogsPrefix : Prop :=
 /-- Witness: a valid trace has two states in which two distinct nodes have
 nonempty committed logs. -/
 def CommittedLogsPrefixWitness : Prop :=
-  exists (Node TxId : Type),
-  exists (_ : DecidableEq Node) (_ : DecidableEq TxId),
-  exists (_ : Inhabited TxId) (_ : LinearOrder Node),
-  exists (config : InitialConfig Node),
-  exists (nodes : List Node) (trace : GlobalTrace Node TxId),
-  exists (first second : Model.State Node TxId),
-  exists (left right : Node) (leftState rightState : NodeState Node TxId),
+  exists (config : ModelConfig),
+  exists (nodes : List NodeID) (trace : GlobalTrace),
+  exists (first second : Model.State),
+  exists (left right : NodeID) (leftState rightState : NodeState),
     trace.Valid (Model.transitionSystem config nodes)
     /\ first ∈ trace.states
     /\ second ∈ trace.states
@@ -60,12 +56,10 @@ def CommittedLogsPrefixWitness : Prop :=
 /-- A successful network step from a state with unique node IDs preserves each
 node's committed prefix. -/
 def SingleNodeCommittedLogMonotonic : Prop :=
-  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
-          [LinearOrder Node],
-  forall (config : InitialConfig Node) (nodes : List Node),
-  forall (pre post : Model.State Node TxId),
-  forall (nodeId : Node) (nodePre nodePost : NodeState Node TxId),
-  forall (action : Model.Action Node TxId),
+  forall (config : ModelConfig) (nodes : List NodeID),
+  forall (pre post : Model.State),
+  forall (nodeId : NodeID) (nodePre nodePost : NodeState),
+  forall (action : Model.Action),
     ((pre.nodes.map Prod.fst).Nodup
       /\ (Model.transitionSystem config nodes).step pre action = some post
       /\ (nodeId, nodePre) ∈ pre.nodes
@@ -75,13 +69,10 @@ def SingleNodeCommittedLogMonotonic : Prop :=
 /-- Witness: a successful step from a state with unique node IDs strictly extends
 one node's nonempty committed log. -/
 def SingleNodeCommittedLogMonotonicWitness : Prop :=
-  exists (Node TxId : Type),
-  exists (_ : DecidableEq Node) (_ : DecidableEq TxId),
-  exists (_ : Inhabited TxId) (_ : LinearOrder Node),
-  exists (config : InitialConfig Node) (nodes : List Node),
-  exists (pre post : Model.State Node TxId),
-  exists (nodeId : Node) (nodePre nodePost : NodeState Node TxId),
-  exists (action : Model.Action Node TxId),
+  exists (config : ModelConfig) (nodes : List NodeID),
+  exists (pre post : Model.State),
+  exists (nodeId : NodeID) (nodePre nodePost : NodeState),
+  exists (action : Model.Action),
     (pre.nodes.map Prod.fst).Nodup
     /\ (Model.transitionSystem config nodes).step pre action = some post
     /\ (nodeId, nodePre) ∈ pre.nodes
@@ -89,48 +80,39 @@ def SingleNodeCommittedLogMonotonicWitness : Prop :=
     /\ nodePre.committedLog ≠ []
     /\ nodePre.committedLog.length < nodePost.committedLog.length
 
-/-- No two distinct nodes lead in the same term. -/
+/-- No two distinct nodes are primary in the same term. -/
 def ElectionSafety : Prop :=
-  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
-          [LinearOrder Node],
-  forall (config : InitialConfig Node),
-  forall (nodes : List Node) (trace : GlobalTrace Node TxId)
-          (state : Model.State Node TxId),
-  forall (left right : Node) (leftState rightState : NodeState Node TxId),
+  forall (config : ModelConfig),
+  forall (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
+  forall (left right : NodeID) (leftState rightState : NodeState),
     (trace.Valid (Model.transitionSystem config nodes)
       /\ state ∈ trace.states
       /\ (left, leftState) ∈ state.nodes
       /\ (right, rightState) ∈ state.nodes
-      /\ leftState.role = .leader
-      /\ rightState.role = .leader
+      /\ leftState.role = .primary
+      /\ rightState.role = .primary
       /\ leftState.currentTerm = rightState.currentTerm)
     -> left = right
 
-/-- Witness: a valid trace has a state in which two nodes are leaders. -/
+/-- Witness: a valid trace has a state in which two nodes are primaries. -/
 def ElectionSafetyWitness : Prop :=
-  exists (Node TxId : Type),
-  exists (_ : DecidableEq Node) (_ : DecidableEq TxId),
-  exists (_ : Inhabited TxId) (_ : LinearOrder Node),
-  exists (config : InitialConfig Node),
+  exists (config : ModelConfig),
   exists
-  (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),
-  exists (left right : Node) (leftState rightState : NodeState Node TxId),
+  (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
+  exists (left right : NodeID) (leftState rightState : NodeState),
     trace.Valid (Model.transitionSystem config nodes)
     /\ state ∈ trace.states
     /\ (left, leftState) ∈ state.nodes
     /\ (right, rightState) ∈ state.nodes
-    /\ leftState.role = .leader
-    /\ rightState.role = .leader
+    /\ leftState.role = .primary
+    /\ rightState.role = .primary
     /\ left ≠ right
 
 /-- Every positive commit index points to a signature entry. -/
 def CommittedFrontierIsSignature : Prop :=
-  forall (Node TxId : Type) [DecidableEq Node] [DecidableEq TxId] [Inhabited TxId]
-          [LinearOrder Node],
-  forall (config : InitialConfig Node),
-  forall (nodes : List Node) (trace : GlobalTrace Node TxId)
-          (state : Model.State Node TxId),
-  forall (node : Node) (nodeState : NodeState Node TxId),
+  forall (config : ModelConfig),
+  forall (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
+  forall (node : NodeID) (nodeState : NodeState),
     (trace.Valid (Model.transitionSystem config nodes)
       /\ state ∈ trace.states
       /\ (node, nodeState) ∈ state.nodes
@@ -139,13 +121,10 @@ def CommittedFrontierIsSignature : Prop :=
 
 /-- Witness: a valid trace has a state with a positive commit index. -/
 def CommittedFrontierIsSignatureWitness : Prop :=
-  exists (Node TxId : Type),
-  exists (_ : DecidableEq Node) (_ : DecidableEq TxId),
-  exists (_ : Inhabited TxId) (_ : LinearOrder Node),
-  exists (config : InitialConfig Node),
+  exists (config : ModelConfig),
   exists
-  (nodes : List Node) (trace : GlobalTrace Node TxId) (state : Model.State Node TxId),
-  exists (node : Node) (nodeState : NodeState Node TxId),
+  (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
+  exists (node : NodeID) (nodeState : NodeState),
     trace.Valid (Model.transitionSystem config nodes)
     /\ state ∈ trace.states
     /\ (node, nodeState) ∈ state.nodes

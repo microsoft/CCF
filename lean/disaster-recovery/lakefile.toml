@@ -2,7 +2,7 @@ name = "disaster_recovery"
 version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]
 builtinLint = true
-lintDriver = "mathlib/runLinter"
+lintDriver = "batteries/runLinter"
 lintDriverArgs = ["--no-build", "CCF", "DisasterRecovery", "replayer.Main"]
 defaultTargets = [
   "DisasterRecovery",

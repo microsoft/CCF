@@ -109,7 +109,7 @@ Public imports preserve existing names and exports.
 Proofs that evaluate upstream implementations use narrowly scoped `import all` directives to retain access to those definitions.
 The proof-coverage check also loads implementation metadata to distinguish checked theorems from axioms after module interface erasure.
 
-`lake lint` also runs Mathlib's `runLinter` declaration-lint driver, including the slow checks, over every module imported by `CCF.lean`, `DisasterRecovery.lean`, and `replayer.Main`.
+`lake lint` also runs the `batteries/runLinter` declaration-lint driver used by Mathlib, including the slow checks, over every module imported by `CCF.lean`, `DisasterRecovery.lean`, and `replayer.Main`.
 It lints our declarations rather than dependencies, and findings fail the command.
 The package's default targets are the complete library and the replayer executable.
 Canonical scenario and state-enumeration checks run with `#eval` when `Tests/CanonicalTests.lean` is built, and assertion failures fail the build.

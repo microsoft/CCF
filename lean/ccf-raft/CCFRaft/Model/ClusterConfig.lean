@@ -10,7 +10,7 @@ public import CCFRaft.Model.NodeState
 /-!
 # Configurations
 
-Cluster initialization, membership history and retirement queries.
+Ledger-derived membership history and retirement queries.
 -/
 
 namespace CCFRaft.Model.Node
@@ -24,64 +24,35 @@ inductive MembershipState where
   | retiredCommitted
 deriving DecidableEq, Repr
 
-/--
-Whether a node only answers pre-vote packets, or also starts its elections with
-a pre-vote round.
--/
-inductive PreVoteStatus where
-  | capable
-  | enabled
-deriving DecidableEq, Repr
-
-/-- Fixed for an execution; later membership changes come from the log. -/
-structure InitialConfig (Node : Type) [DecidableEq Node] where
-  configuration : Finset Node
-  leader : Node
-  leader_mem : leader ∈ configuration
-  preVoteStatus : Node -> PreVoteStatus := fun _ => .capable
-
-/-- The term of the initial leader, matching CCF's forced-primary startup. -/
-def BOOTSTRAP_TERM : Nat := 2
-
-variable {Node TxId : Type}
-
-variable [DecidableEq Node] [DecidableEq TxId]
-
-/-- Membership and its log index; index zero denotes the initial configuration. -/
-structure Configuration (Node : Type) where
+/-- Membership and the one-based index of its configuration transaction. -/
+structure Configuration where
   index : Nat
-  nodes : Finset Node
+  nodes : Finset NodeID
 deriving DecidableEq
 
-/-- Initial membership has index zero; each entry records at most one change. -/
-def configurationHistory (config : InitialConfig Node) (log : List (Entry Node TxId))
-    : List (Configuration Node) :=
-  { index := 0, nodes := config.configuration }
-  :: (log.zipIdx 1).filterMap
-      fun (entry, index) =>
-        entry.content.metadata.configuration.map fun nodes => { index, nodes }
+/-- Each configuration comes from one transaction in the local log. -/
+def configurationHistory (log : List Entry) : List Configuration :=
+  (log.zipIdx 1).filterMap
+    fun (entry, index) =>
+      entry.content.metadata.configuration.map fun nodes => { index, nodes }
 
 /--
 The last committed configuration and every pending configuration. Earlier
 configurations cease to participate once a later one is committed.
 -/
-def activeConfigurations (config : InitialConfig Node) (log : List (Entry Node TxId))
-    (commitIndex : Nat)
-    : List (Configuration Node) :=
-  let history := configurationHistory config log
+def activeConfigurations (log : List Entry) (commitIndex : Nat) : List Configuration :=
+  let history := configurationHistory log
   let committed := history.filter fun configuration => configuration.index <= commitIndex
   history.drop (committed.length - 1)
 
-def configurationMembers (configurations : List (Configuration Node)) : Finset Node :=
+def configurationMembers (configurations : List Configuration) : Finset NodeID :=
   configurations.foldl (fun nodes configuration => nodes ∪ configuration.nodes) ∅
 
 /-- Members of the last supplied configuration, or none for an empty list. -/
-def latestConfigurationMembers (configurations : List (Configuration Node))
-    : Finset Node :=
+def latestConfigurationMembers (configurations : List Configuration) : Finset NodeID :=
   configurations.getLast?.map Configuration.nodes |>.getD ∅
 
-def latestMembershipIndex (configurations : List (Configuration Node)) (node : Node)
-    : Nat :=
+def latestMembershipIndex (configurations : List Configuration) (node : NodeID) : Nat :=
   configurations.foldl
     (fun highest configuration =>
       if node ∈ configuration.nodes then max highest configuration.index else highest)
@@ -91,10 +62,8 @@ def latestMembershipIndex (configurations : List (Configuration Node)) (node : N
 The first transition from membership to absence. Absence before a node joins
 is not retirement, and later rejoining does not change the first removal.
 -/
-def retirementIndexInLog (config : InitialConfig Node) (node : Node)
-    (log : List (Entry Node TxId))
-    : Option Nat :=
-  let history := configurationHistory config log
+def retirementIndexInLog (node : NodeID) (log : List Entry) : Option Nat :=
+  let history := configurationHistory log
   ((history.zip history.tail).find?
     fun (before, after) => decide (node ∈ before.nodes /\ node ∉ after.nodes)).map
     fun (_, after) => after.index
@@ -103,81 +72,45 @@ def retirementIndexInLog (config : InitialConfig Node) (node : Node)
 Nodes named by retirement records in the supplied log or prefix. Pass
 `log.take commitIndex` to restrict this to locally committed records.
 -/
-def retiredCommittedNodes (log : List (Entry Node TxId)) : Finset Node :=
-  log.foldl (fun retired entry => retired ∪ entry.content.metadata.retiredCommitted) ∅
+def retiredCommittedNodes (log : List Entry) : Finset NodeID :=
+  log.foldl
+    (fun retired entry => retired ∪ entry.content.metadata.retirementConfirmations) ∅
 
-def hasConfigurationMajority (support : Finset Node) (configuration : Configuration Node)
+def hasConfigurationMajority (support : Finset NodeID) (configuration : Configuration)
     : Prop :=
   (support ∩ configuration.nodes).card * 2 > configuration.nodes.card
 
-instance (support : Finset Node) (configuration : Configuration Node)
+instance (support : Finset NodeID) (configuration : Configuration)
     : Decidable (hasConfigurationMajority support configuration) := by
   unfold hasConfigurationMajority
   infer_instance
 
-abbrev hasQuorum (configurations : List (Configuration Node)) (voters : Finset Node)
-    : Prop :=
-  configurations.all
-    fun configuration =>
-      decide (hasConfigurationMajority voters configuration)
+abbrev hasQuorum (configurations : List Configuration) (voters : Finset NodeID) : Prop :=
+  configurations ≠ []
+  /\ configurations.all
+      fun configuration =>
+        decide (hasConfigurationMajority voters configuration)
 
-/--
-The bootstrap transaction uses `default` as its identifier.
--/
-def initialNodeState [Inhabited TxId] (config : InitialConfig Node) (node : Node)
-    : NodeState Node TxId where
-  role :=
-    if node = config.leader then
-      .leader
-    else if node ∈ config.configuration then
-      .follower
-    else
-      .none
-  currentTerm := if node ∈ config.configuration then BOOTSTRAP_TERM else 0
-  log :=
-    if node = config.leader then
-      [{
-        term := BOOTSTRAP_TERM
-        content := .transaction default { configuration := some config.configuration }
-      }]
-    else
-      []
-  commitIndex := 0
-  sentIndex := fun _ => 0
-  matchIndex := fun _ => 0
-  isNewFollower := false
-  votedFor := none
-  leaderKnown := node = config.leader
-  votesGranted := ∅
-
-def NodeState.activeConfigurations (config : InitialConfig Node)
-    (state : NodeState Node TxId)
-    : List (Configuration Node) :=
-  CCFRaft.Model.Node.activeConfigurations config state.log state.commitIndex
+def NodeState.activeConfigurations (state : NodeState) : List Configuration :=
+  CCFRaft.Model.Node.activeConfigurations state.log state.commitIndex
 
 /--
 Active configurations covered by the latest signature, whether committed or not.
-Index zero qualifies even before the first signature.
 -/
-def NodeState.signedActiveConfigurations (config : InitialConfig Node)
-    (state : NodeState Node TxId)
-    : List (Configuration Node) :=
-  (state.activeConfigurations config).filter
+def NodeState.signedActiveConfigurations (state : NodeState) : List Configuration :=
+  state.activeConfigurations.filter
     fun configuration => configuration.index <= maxCommittableIndex state.log
 
-def NodeState.activeMembers (config : InitialConfig Node) (state : NodeState Node TxId)
-    : Finset Node :=
-  configurationMembers (state.activeConfigurations config)
+def NodeState.activeMembers (state : NodeState) : Finset NodeID :=
+  configurationMembers state.activeConfigurations
 
 /--
 Nodes removed by committed configurations but not retired-committed yet.
 Prior membership and absence from the latest committed configuration imply removal.
 -/
-def NodeState.retirementCompletedNodes (config : InitialConfig Node)
-    (state : NodeState Node TxId)
-    : Finset Node :=
+def NodeState.retirementCompletedNodes (state : NodeState) : Finset NodeID :=
   let committedLog := state.committedLog
-  let committed := configurationHistory config committedLog
+  let committed := configurationHistory committedLog
   let currentNodes := latestConfigurationMembers committed
   (configurationMembers committed \ currentNodes) \ retiredCommittedNodes committedLog
 
@@ -187,10 +120,8 @@ structure RetirementInfo where
   phase : MembershipState
 deriving DecidableEq, Repr
 
-def NodeState.retirement (config : InitialConfig Node) (node : Node)
-    (state : NodeState Node TxId)
-    : RetirementInfo :=
-  let retirementIndex := retirementIndexInLog config node state.log
+def NodeState.retirement (node : NodeID) (state : NodeState) : RetirementInfo :=
+  let retirementIndex := retirementIndexInLog node state.log
   let retirementCommittableIndex :=
     retirementIndex.bind
       fun index =>
@@ -213,9 +144,7 @@ def NodeState.retirement (config : InitialConfig Node) (node : Node)
     phase := membershipState
   }
 
-abbrev NodeState.isRetiredCommitted (config : InitialConfig Node) (node : Node)
-    (state : NodeState Node TxId)
-    : Prop :=
-  (state.retirement config node).phase = .retiredCommitted
+abbrev NodeState.isRetiredCommitted (node : NodeID) (state : NodeState) : Prop :=
+  (state.retirement node).phase = .retiredCommitted
 
 end CCFRaft.Model.Node

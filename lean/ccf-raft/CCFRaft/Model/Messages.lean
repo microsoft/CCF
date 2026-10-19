@@ -16,12 +16,12 @@ increment the term, but receiving a newer-term pre-vote can advance it.
 
 namespace CCFRaft.Model.Node
 
-structure AppendEntriesRequest (Node TxId : Type) where
+structure AppendEntriesRequest where
   term : Nat
   prevLogIndex : Nat
   prevLogTerm : Nat
-  entries : List (Entry Node TxId)
-  leaderCommit : Nat
+  entries : List Entry
+  primaryCommit : Nat
 deriving DecidableEq
 
 structure AppendEntriesResponse where
@@ -42,22 +42,20 @@ structure RequestVoteResponse where
   voteGranted : Bool
 deriving DecidableEq, Repr
 
-inductive Message (Node TxId : Type) where
-  | appendEntriesRequest (request : AppendEntriesRequest Node TxId)
+inductive Message where
+  | appendEntriesRequest (request : AppendEntriesRequest)
   | appendEntriesResponse (response : AppendEntriesResponse)
   | requestVoteRequest (request : RequestVoteRequest)
   | requestVoteResponse (response : RequestVoteResponse)
   | requestPreVote (request : RequestVoteRequest)
   | requestPreVoteResponse (response : RequestVoteResponse)
-  /-- A leader's same-term request that a replica start an election. -/
+  /-- A primary's same-term request that a replica start an election. -/
   | proposeVoteRequest (term : Nat)
 deriving DecidableEq
 
 abbrev Notification := Empty
 
-variable {Node TxId : Type}
-
-def Message.term : Message Node TxId -> Nat
+def Message.term : Message -> Nat
   | .appendEntriesRequest request => request.term
   | .appendEntriesResponse response => response.term
   | .requestVoteRequest request => request.term

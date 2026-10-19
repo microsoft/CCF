@@ -16,12 +16,34 @@ namespace CCFRaft.Tests.Architecture
 
 open Lean
 
+example : Model.Node.NodeID = Nat := rfl
+
+example : Model.Node.ReqID = Nat := rfl
+
+example (config : Model.ModelConfig)
+    : (config.primary : Model.Node.NodeID) ∈ config.configuration :=
+  config.primary.property
+
+example
+    : Model.Node.Caps -> Model.Node.NodeID -> Model.Node.NodeState
+      -> Model.Node.Event -> Model.Node.NodeEffect Model.Node.NodeState :=
+  Model.Node.step
+
+example : List Model.Node.Entry -> List Model.Node.Configuration :=
+  Model.Node.configurationHistory
+
+example (config other : Model.ModelConfig)
+    : (Model.protocol config).step = (Model.protocol other).step :=
+  rfl
+
 private def allowedImport (owner dependency : Name) : Bool :=
   if (`CCF).isPrefixOf owner then
     !(`CCFRaft).isPrefixOf dependency
   else if !(`CCFRaft).isPrefixOf dependency then
     true
-  else if (`CCFRaft.Model).isPrefixOf owner then
+  else if (`CCFRaft.Model).isPrefixOf owner && owner != `CCFRaft.Model then
+    dependency != `CCFRaft.Model && (`CCFRaft.Model).isPrefixOf dependency
+  else if owner == `CCFRaft.Model then
     (`CCFRaft.Model).isPrefixOf dependency
   else if (`CCFRaft.Properties).isPrefixOf owner then
     (`CCFRaft.Model).isPrefixOf dependency || (`CCFRaft.Properties).isPrefixOf dependency
@@ -37,6 +59,10 @@ example : allowedImport `CCFRaft.Properties `CCFRaft.Proofs.Model = false := rfl
 example : allowedImport `CCFRaft.Properties `CCFRaft.Proof = false := rfl
 
 example : allowedImport `CCFRaft.Model.Node `CCFRaft.Properties = false := rfl
+
+example : allowedImport `CCFRaft.Model.Node `CCFRaft.Model = false := rfl
+
+example : allowedImport `CCFRaft.Model.ClusterConfig `CCFRaft.Model = false := rfl
 
 example : allowedImport `CCF.MultiNodeTransitionSystem `CCFRaft.Model = false :=
   rfl

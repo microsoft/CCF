@@ -23,30 +23,60 @@ namespace CCFRaft.Model
 open CCF
 open Node
 
-variable {Node TxId : Type} [DecidableEq Node] [DecidableEq TxId]
+abbrev Envelope := CCF.Envelope NodeID Message
 
-abbrev Envelope (Node TxId : Type) := CCF.Envelope Node (Message Node TxId)
+abbrev State :=
+  MultiNodeTransitionSystem.State NodeID NodeState Message
 
-abbrev State (Node TxId : Type) :=
-  MultiNodeTransitionSystem.State Node (NodeState Node TxId) (Message Node TxId)
+abbrev Action :=
+  MultiNodeTransitionSystem.Action NodeID Message Input
 
-abbrev Action (Node TxId : Type) :=
-  MultiNodeTransitionSystem.Action Node (Message Node TxId) (Input Node TxId)
+/-- Initialization only; nodes learn subsequent membership from their own logs. -/
+structure ModelConfig where
+  configuration : Finset NodeID
+  primary : configuration
 
-def protocol [LinearOrder Node] [Inhabited TxId] (config : InitialConfig Node)
+/-- The term of the initial primary, matching CCF's forced-primary startup. -/
+def BOOTSTRAP_TERM : Nat := 2
+
+/-- Only the initial primary starts with the unsigned configuration transaction. -/
+def initialNodeState (config : ModelConfig) (node : NodeID) : NodeState where
+  role :=
+    if node = config.primary then
+      .primary
+    else if node ∈ config.configuration then
+      .follower
+    else
+      .none
+  currentTerm := if node ∈ config.configuration then BOOTSTRAP_TERM else 0
+  log :=
+    if node = config.primary then
+      [{
+        term := BOOTSTRAP_TERM
+        content := .transaction 0 { configuration := some config.configuration }
+      }]
+    else
+      []
+  commitIndex := 0
+  sentIndex := fun _ => 0
+  matchIndex := fun _ => 0
+  isNewFollower := false
+  votedFor := none
+  primaryKnown := node = config.primary
+  votesGranted := ∅
+
+def protocol (config : ModelConfig)
     : MultiNodeTransitionSystem.Protocol
-        Node (NodeState Node TxId) (Event Node TxId) (Message Node TxId) Notification
-        (Input Node TxId) where
+        NodeID NodeState Event Message Notification
+        Input where
   init node state := state = initialNodeState config node
-  step := CCFRaft.Model.Node.step config
+  step := CCFRaft.Model.Node.step
   receive := .receive
   internal := .internal
 
-/-- The network of `nodes`. Initial membership, the initial leader, and
-pre-vote modes are supplied explicitly by `config`. -/
-def transitionSystem [LinearOrder Node] [Inhabited TxId]
-    (config : InitialConfig Node) (nodes : List Node)
-    : TransitionSystem (State Node TxId) (Action Node TxId) :=
+/-- The network of `nodes`, with initial membership and primary supplied by `config`. -/
+def transitionSystem (config : ModelConfig) (nodes : List NodeID)
+    : TransitionSystem State Action :=
   MultiNodeTransitionSystem.lift nodes (protocol config)
 
 end CCFRaft.Model
