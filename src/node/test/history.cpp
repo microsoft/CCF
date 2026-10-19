@@ -514,8 +514,8 @@ TEST_CASE("Signatures are not emitted on demand until signing is enabled")
   store.set_encryptor(encryptor);
   store.set_consensus(consensus);
 
-  // With an interval of 1, try_emit_signature() would otherwise sign after
-  // every transaction
+  // With an interval of 1, a single transaction makes try_emit_signature()
+  // immediately eligible to sign
   constexpr size_t sig_tx_interval = 1;
   constexpr size_t sig_ms_interval = 1000;
   auto history = std::make_shared<ccf::MerkleTxHistory>(
@@ -545,7 +545,7 @@ TEST_CASE("Signatures are not emitted on demand until signing is enabled")
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
   REQUIRE(consensus->number_of_replicas() == 1);
-  REQUIRE(store.committable_gap() >= sig_tx_interval);
+  REQUIRE(store.committable_gap() == 1);
 
   INFO("No signature before start_signature_emit_timer(), despite the gap");
   history->try_emit_signature();

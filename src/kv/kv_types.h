@@ -417,6 +417,9 @@ namespace ccf::kv
     virtual void set_term(ccf::kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
     virtual void set_endorsed_certificate(const ccf::crypto::Pem& cert) = 0;
+    // Called once the node is part of the network and may sign. Also enables
+    // on-demand signatures via try_emit_signature(), which are suppressed
+    // until then.
     virtual void start_signature_emit_timer() = 0;
     virtual void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> keypair,
