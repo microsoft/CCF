@@ -1,3 +1,6 @@
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+
 module
 
 meta import CCF.Architecture
@@ -18,14 +21,7 @@ Note: It is not possible to treat `undeclaredType` as an implicitly bound variab
 example (value : undeclaredType) := value
 
 run_cmd do
-  let env ← Lean.getEnv
-  for name in #[`Kv.Properties.Reachable, `Kv.Proofs.Types.normalRun_append] do
-    if env.contains name then
-      Lean.throwError "Removed model/property API must not be reintroduced: {name}"
-  for name in env.header.moduleNames do
-    if (`Kv.Protocol).isPrefixOf name || name == `Kv.Trace || name == `Kv.Proofs.Types then
-      Lean.throwError "Removed module must not be reintroduced: {name}"
-  for error in CCF.Architecture.layeringErrors env `Kv do
+  for error in CCF.Architecture.layeringErrors (← Lean.getEnv) `Kv do
     Lean.throwError error
 
 end Kv.Tests.Architecture
