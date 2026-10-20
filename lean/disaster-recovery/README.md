@@ -145,7 +145,6 @@ scripts/lean-format-checks.sh -f
 ```
 
 The script builds each package's imported modules and runs its pinned leanfmt dependency.
-By default it checks both disaster recovery and CCF Raft; pass `disaster-recovery` to check only the recovery package and Lean files outside the Raft package.
 The Lean CI workflow runs the same check before linting.
 Files outside `lean/` are included; untracked files and downloaded dependencies are excluded.
 Add new Lean files to Git before running the check.
