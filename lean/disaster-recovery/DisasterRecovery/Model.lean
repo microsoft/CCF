@@ -16,17 +16,13 @@ structure Config where
   protocol : DisasterRecovery.Model.Local.Config
   /-- Recovered ledger tips, in expected-location order. -/
   recovered : List (Location × TxID)
-  /-- The fixed subset of expected locations permitted to act. -/
-  active : List Location
 deriving Repr, BEq
 
-/-- Valid recovery parameters, recovered ledgers, and a distinct active subset. -/
+/-- Valid recovery parameters and recovered ledgers. -/
 def Config.Valid (config : Config) : Prop :=
   config.protocol.isValid = true
   /\ config.protocol.expectedLocations.Nodup
   /\ config.recovered.map Prod.fst = config.protocol.expectedLocations
-  /\ config.active.Nodup
-  /\ (forall node, node ∈ config.active -> node ∈ config.protocol.expectedLocations)
 
 /-- Looks up the recovered ledger tip of a configured node. -/
 def recoveredTxID (config : Config) (source : Location) : Option TxID :=
@@ -61,7 +57,6 @@ def protocol (config : Config)
         Input where
   init node state := state = initialNode node
   step host source state action := do
-    guard (config.active.contains source)
     let recovered <- liftM (recoveredTxID config source)
     DisasterRecovery.Model.Local.step host config.protocol recovered state action
   receive := receive
@@ -69,7 +64,7 @@ def protocol (config : Config)
     | .retry => .retry
     | .timeout => .timeout
 
-/-- Composes recovery nodes using the configured activity policy.
+/-- Composes recovery nodes.
 Initial states include every expected location but may also contain unused nodes. -/
 def transitionSystem (config : Config) : TransitionSystem State Action :=
   let network := MultiNodeTransitionSystem.lift (protocol config)

@@ -18,6 +18,21 @@ open Execution.Global Predicates
 
 attribute [local simp] Execution.Local.transitionSystem rejectionReason guard failure
 
+lemma recovered_configured
+    {config : Config}
+    {node : Location}
+    (keys : config.recovered.map Prod.fst = config.protocol.expectedLocations)
+    (found : recoveredTxID config node ≠ none)
+    : node ∈ config.protocol.expectedLocations := by
+  obtain ⟨txid, found⟩ := Option.ne_none_iff_exists.mp found
+  obtain ⟨entry, selected, _⟩ := Option.map_eq_some_iff.mp found.symm
+  have member := List.mem_of_find?_eq_some selected
+  have key : entry.1 = node :=
+    beq_iff_eq.mp
+      (List.find?_some (p := fun entry : Location × TxID => entry.1 == node) selected)
+  rw [←keys, ←key]
+  exact List.mem_map_of_mem member
+
 lemma messageForEffect_source
     {config : Config}
     {source : Location}
@@ -168,8 +183,7 @@ lemma initial_well_formed
   · simpa [Execution.Global.initial, Function.comp_def] using covered
   · simpa [Execution.Global.initial, Function.comp_def] using nodesNodup
   · simp [Execution.Global.initial, initialNode]
-  · exact valid.2.2.2.1
-  · exact valid.2.2.2.2
+  · exact valid.2.2
   · simp [Execution.Global.initial]
   · simp [Execution.Global.initial]
   · simp [Execution.Global.initial]
@@ -226,35 +240,35 @@ lemma recordEffects_sent
       rw [ih]
       cases effect <;> rfl
 
-lemma recordEffect_preserves_histories_active
+lemma recordEffect_preserves_histories_configured
     {config : Config}
     {node : Location}
     {nodeState : NodeState}
     {state : State}
     {effect : Effect}
-    (wellFormed : HistoriesActive config state)
-    (nodeActive : node ∈ config.active)
-    : HistoriesActive config (recordEffect node nodeState state effect) := by
+    (wellFormed : HistoriesConfigured config state)
+    (nodeConfigured : node ∈ config.protocol.expectedLocations)
+    : HistoriesConfigured config (recordEffect node nodeState state effect) := by
   rcases wellFormed with ⟨openings, restarts, completed⟩
   cases effect <;>
     constructor <;>
     simp_all [recordEffect]
 
-lemma recordEffects_preserves_histories_active
+lemma recordEffects_preserves_histories_configured
     {config : Config}
     {node : Location}
     {nodeState : NodeState}
     {effects : List Effect}
     {state : State}
-    (wellFormed : HistoriesActive config state)
-    (nodeActive : node ∈ config.active)
-    : HistoriesActive config (recordEffects node nodeState effects state) := by
+    (wellFormed : HistoriesConfigured config state)
+    (nodeConfigured : node ∈ config.protocol.expectedLocations)
+    : HistoriesConfigured config (recordEffects node nodeState effects state) := by
   induction effects generalizing state with
   | nil => exact wellFormed
   | cons effect tail ih =>
       simp only [recordEffects, List.foldl_cons]
       apply ih
-      exact recordEffect_preserves_histories_active wellFormed nodeActive
+      exact recordEffect_preserves_histories_configured wellFormed nodeConfigured
 
 lemma mem_of_mem_removeOne {α : Type _} [BEq α] (value member : α) (values : List α)
     : member ∈ removeOne value values -> member ∈ values := by
@@ -665,7 +679,7 @@ lemma retry_preserves_well_formed
     : WellFormed config after := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
-    ⟨sourceActive, sourceState, found, _, stateEq⟩
+    ⟨sourceRecovered, sourceState, found, _, stateEq⟩
   have sourceLocation : sourceState.location = source :=
     nodeState_location wellFormed.nodeLocations found
   rw [←stateEq]
@@ -673,8 +687,7 @@ lemma retry_preserves_well_formed
   · exact wellFormed.nodeKeys
   · exact wellFormed.nodeKeysNodup
   · exact wellFormed.nodeLocations
-  · exact wellFormed.activeNodup
-  · exact wellFormed.activeConfigured
+  · exact wellFormed.recoveredKeys
   · intro envelope membership
     rw [List.mem_append] at membership
     rcases membership with membership | membership
@@ -684,18 +697,18 @@ lemma retry_preserves_well_formed
   · intro envelope membership
     rw [List.mem_append] at membership
     rcases membership with membership | membership
-    · exact wellFormed.sentSourceActive envelope membership
+    · exact wellFormed.sentSourceConfigured envelope membership
     · rw [(retryMessages_source membership).1]
-      exact sourceActive
+      exact recovered_configured wellFormed.recoveredKeys sourceRecovered
   · intro envelope membership
     rw [List.mem_append] at membership ⊢
     rcases membership with membership | membership
     · exact Or.inl (wellFormed.networkSent envelope membership)
     · exact Or.inr membership
   · constructor
-    · exact wellFormed.historiesActive.openings
-    · exact wellFormed.historiesActive.restarts
-    · exact wellFormed.historiesActive.completed
+    · exact wellFormed.historiesConfigured.openings
+    · exact wellFormed.historiesConfigured.restarts
+    · exact wellFormed.historiesConfigured.completed
 
 lemma deliver_preserves_well_formed
     {config : Config}
@@ -706,7 +719,7 @@ lemma deliver_preserves_well_formed
     : WellFormed config after := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
-    ⟨_, targetActive, system, output, systemStep, stateEq⟩
+    ⟨_, targetRecovered, system, output, systemStep, stateEq⟩
   rw [←stateEq]
   constructor
   · simp only [recordEffects_system]
@@ -717,25 +730,24 @@ lemma deliver_preserves_well_formed
   · simp only [recordEffects_system]
     exact systemStep_preserves_node_locations
       wellFormed.nodeLocations systemStep
-  · simpa using wellFormed.activeNodup
-  · simpa using wellFormed.activeConfigured
+  · simpa using wellFormed.recoveredKeys
   · intro sent membership
     rw [recordEffects_sent] at membership
     exact wellFormed.sentValid sent membership
   · intro sent membership
     rw [recordEffects_sent] at membership
-    exact wellFormed.sentSourceActive sent membership
+    exact wellFormed.sentSourceConfigured sent membership
   · intro pending membership
     rw [recordEffects_network] at membership
     rw [recordEffects_sent]
     exact wellFormed.networkSent pending
       (mem_of_mem_removeOne envelope pending before.network membership)
-  · apply recordEffects_preserves_histories_active
+  · apply recordEffects_preserves_histories_configured
     · constructor
-      · simpa using wellFormed.historiesActive.openings
-      · simpa using wellFormed.historiesActive.restarts
-      · simpa using wellFormed.historiesActive.completed
-    · simpa using targetActive
+      · simpa using wellFormed.historiesConfigured.openings
+      · simpa using wellFormed.historiesConfigured.restarts
+      · simpa using wellFormed.historiesConfigured.completed
+    · exact recovered_configured wellFormed.recoveredKeys targetRecovered
 
 lemma timeout_preserves_well_formed
     {config : Config}
@@ -746,7 +758,7 @@ lemma timeout_preserves_well_formed
     : WellFormed config after := by
   simp [next, Option.bind_eq_some_iff] at transition
   rcases transition with
-    ⟨targetActive, system, output, systemStep, _, stateEq⟩
+    ⟨targetRecovered, system, output, systemStep, _, stateEq⟩
   rw [←stateEq]
   constructor
   · simp only [recordEffects_system]
@@ -757,24 +769,23 @@ lemma timeout_preserves_well_formed
   · simp only [recordEffects_system]
     exact systemStep_preserves_node_locations
       wellFormed.nodeLocations systemStep
-  · simpa using wellFormed.activeNodup
-  · simpa using wellFormed.activeConfigured
+  · simpa using wellFormed.recoveredKeys
   · intro sent membership
     rw [recordEffects_sent] at membership
     exact wellFormed.sentValid sent membership
   · intro sent membership
     rw [recordEffects_sent] at membership
-    exact wellFormed.sentSourceActive sent membership
+    exact wellFormed.sentSourceConfigured sent membership
   · intro pending membership
     rw [recordEffects_network] at membership
     rw [recordEffects_sent]
     exact wellFormed.networkSent pending membership
-  · apply recordEffects_preserves_histories_active
+  · apply recordEffects_preserves_histories_configured
     · constructor
-      · simpa using wellFormed.historiesActive.openings
-      · simpa using wellFormed.historiesActive.restarts
-      · simpa using wellFormed.historiesActive.completed
-    · simpa using targetActive
+      · simpa using wellFormed.historiesConfigured.openings
+      · simpa using wellFormed.historiesConfigured.restarts
+      · simpa using wellFormed.historiesConfigured.completed
+    · exact recovered_configured wellFormed.recoveredKeys targetRecovered
 
 lemma next_preserves_well_formed
     {config : Config}

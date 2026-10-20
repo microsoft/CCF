@@ -19,7 +19,7 @@ const KINDS = ["retry", "gossip", "vote", "iamopen", "timeout"];
 const TICK = { retry: 3, receive: 5, timeout: 8 };
 const GUARDS = {
   queued: "envelope queued",
-  active: "node active",
+  recovered: "node has a recovered ledger",
   known: "node in the network",
   localStep: "local step enabled",
 };
@@ -220,8 +220,8 @@ const originText = (run, o) =>
 const messageKey = (e) => e.message + (e.txid ? " " + e.txid : "");
 const nodeIn = (run, state, node) =>
   state ? state.nodes[run.slot.get(node)] : null;
-const isActive = (run, node) =>
-  !run.states.length || run.states[0].active.includes(node);
+const isParticipant = (run, node) =>
+  run.dump.header.participants.includes(node);
 const visible = (s) =>
   !ui.hidden.has("node " + s.node) && !ui.hidden.has("kind " + s.kind);
 
@@ -420,13 +420,13 @@ function renderOverview() {
   run.nodes.forEach((node, j) => {
     const y = geo.top + j * geo.lane;
     p.push(end(geo.left - 6, y + 10, node, "node " + node, "lane"));
-    if (!isActive(run, node))
+    if (!isParticipant(run, node))
       p.push(
         end(
           geo.left - 6,
           y + 21,
-          "inactive",
-          `node ${node} takes no part, so it never acts`,
+          "no records",
+          `node ${node} has no records in this replay`,
         ),
       );
     for (const [field, dy, h, what] of [
@@ -691,12 +691,13 @@ function renderTrace() {
   }
   if (!run.steps.length)
     return void (rows.innerHTML = `<p class="empty">Nothing was replayed. The log order shows the records that the replayer read.</p>`);
-  const inactive = ' <span class="note">inactive</span>';
+  const unrecorded = ' <span class="note">no records</span>';
   const head = run.nodes.map(
-    (node) => `<th>${esc(node)}${isActive(run, node) ? "" : inactive}</th>`,
+    (node) =>
+      `<th>${esc(node)}${isParticipant(run, node) ? "" : unrecorded}</th>`,
   );
   const cols = run.nodes.map((node) =>
-    isActive(run, node) ? "<col>" : '<col class="narrow">',
+    isParticipant(run, node) ? "<col>" : '<col class="narrow">',
   );
   const body = run.steps.map((s) => {
     const html = stepHtml(run, s);
@@ -800,9 +801,9 @@ function nodesHtml(run, s, cur, prev) {
   const head = run.nodes.map((node) =>
     node === s.node
       ? `<th class="actor" title="node ${esc(node)} acts in this step">${esc(node)} ${glyph(s.kind)}</th>`
-      : cur.active.includes(node)
+      : isParticipant(run, node)
         ? `<th>${esc(node)}</th>`
-        : `<th class="inactive" title="node ${esc(node)} takes no part">${esc(node)} <span class="note">inactive</span></th>`,
+        : `<th title="node ${esc(node)} has no records in this replay">${esc(node)} <span class="note">no records</span></th>`,
   );
   const row = (label, cell) =>
     `<tr><th>${label}</th>${run.nodes.map((node, j) => cell(nodeIn(run, cur, node), nodeIn(run, prev, node), j)).join("")}</tr>`;

@@ -184,8 +184,7 @@ lemma current_quorum_unique_of_thresholds {config : Model.Config} {state : State
       (voter : Location) (vote : voter ∈ entry.2.votes) :
       voter ∈ config.protocol.expectedLocations := by
     obtain ⟨sent, sentMember, source, _, _⟩ := invariant.votesSent entry member voter vote
-    exact wf.activeConfigured voter
-      (by simpa [source] using wf.sentSourceActive sent sentMember)
+    simpa [source] using wf.sentSourceConfigured sent sentMember
   obtain ⟨voter, firstVote, secondVote⟩ :=
     Quorum.quorum_lists_intersect config.protocol.expectedLocations
       first.2.votes second.2.votes

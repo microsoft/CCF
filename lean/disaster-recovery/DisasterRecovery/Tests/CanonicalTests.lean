@@ -31,7 +31,6 @@ private def stepConfig : Model.Config :=
   {
     protocol := { instanceId := "local-step-tests", expectedLocations := ["A"] }
     recovered := [("A", { view := 1, seqno := 10 })]
-    active := ["A"]
   }
 
 private def frozenStep
@@ -277,7 +276,6 @@ def run : IO Unit := do
     {
       protocol := config
       recovered := [("A", { view := 1, seqno := 10 }), ("B", { view := 2, seqno := 1 })]
-      active := ["A", "B"]
     }
   let retry (config : Model.Config) (state : NodeState)
       : Option (NodeState × List Model.Envelope) := do
@@ -343,7 +341,7 @@ def run : IO Unit := do
   expect
     (((Model.transitionSystem globalConfig).step globalInitial
         (.local "C" .retry)).isNone)
-    "inactive nodes must not send messages"
+    "absent nodes must not send messages"
   let sent <- runGlobal globalConfig globalInitial (.local "A" .retry)
   expect (sent.network.length == 2 && sent.nodes == globalInitial.nodes)
     "retry must enqueue messages without changing node state"
@@ -378,17 +376,6 @@ def run : IO Unit := do
   let ignoredAgain <- runGlobal globalConfig ignored (.deliver envelope)
   expect (ignoredAgain.network.isEmpty && ignoredAgain.nodes == ignored.nodes)
     "second ignored delivery did not consume the remaining occurrence"
-  let inactiveConfig := { globalConfig with active := ["A"] }
-  let toInactive := Tests.initial inactiveConfig
-  let inactiveSent <- runGlobal inactiveConfig toInactive (.local "A" .retry)
-  let inactiveMessage <- requireSome
-                          (inactiveSent.network.find? fun env => env.target == "B")
-                          "inactive gossip missing"
-  expect
-    (((Model.transitionSystem inactiveConfig).step inactiveSent
-        (.deliver inactiveMessage)).isNone)
-    "an inactive destination accepted a delivery"
-
   let sentA <- runGlobal globalConfig globalInitial (.local "A" .retry)
   let sentBoth <- runGlobal globalConfig sentA (.local "B" .retry)
   let gossipAA <- deliverMessage globalConfig sentBoth "A" "A"
@@ -428,7 +415,6 @@ def run : IO Unit := do
     {
       protocol := { instanceId := "different-snapshots", expectedLocations := ["A"] }
       recovered := [("A", { view := 1, seqno := 10 })]
-      active := ["A"]
     }
   let singleInitial := Tests.initial singleConfig
   let singleSend1 <- runGlobal singleConfig singleInitial (.local "A" .retry)

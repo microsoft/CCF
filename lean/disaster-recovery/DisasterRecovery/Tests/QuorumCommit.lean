@@ -21,7 +21,6 @@ private def config : Model.Config :=
   {
     protocol := { instanceId := "quorum-timeout", expectedLocations := ["A", "B", "C"] }
     recovered := [("A", high), ("B", high), ("C", low)]
-    active := ["A", "B", "C"]
   }
 
 private def gossip (source target : Location) (txid : TxID) : Model.Envelope :=
