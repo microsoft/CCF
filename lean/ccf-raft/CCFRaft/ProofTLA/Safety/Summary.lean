@@ -298,16 +298,20 @@ local notation "caps" => (Capabilities.record self : Caps)
 
 theorem nominate_sends (state : NodeState)
     : Sends
-        (fun _ sent =>
-          forall e,
-            e ∈ sent
-            -> e.source = self
-                /\ e.payload = .proposeRequestVoteRequest state.currentTerm)
+        (fun after sent =>
+          after = state
+          /\ state.role = .primary
+          /\ forall e,
+              e ∈ sent
+              -> e.source = self
+                  /\ e.payload = .proposeRequestVoteRequest state.currentTerm)
         (nominateSuccessor caps state self) := by
   unfold nominateSuccessor
+  refine Sends.guard_bind fun leader => ?_
+  dsimp only
   split
-  · exact Sends.mono (Sends.send _ _ _) fun _ sent eq => by simp [eq]
-  · exact Sends.pure' (by simp)
+  · exact Sends.bind' (Sends.send _ _ _) fun _ sent eq => Sends.pure' ⟨rfl, leader, by simp [eq]⟩
+  · exact Sends.pure' ⟨rfl, leader, by simp⟩
 
 theorem advanceCommit_sends (middle : NodeState)
     : Sends
@@ -332,7 +336,7 @@ theorem advanceCommit_sends (middle : NodeState)
     fun _ => Sends.pure' ⟨advanced, by simp⟩
   exact Sends.bind' (nominate_sends self middle)
     fun _ sent nominated =>
-      Sends.pure' ⟨advanced, by simpa using nominated⟩
+      Sends.pure' ⟨advanced, by simpa using nominated.2.2⟩
 
 theorem broadcast_sends (state : NodeState) (message : Message)
     : Sends
@@ -650,9 +654,8 @@ theorem nominate_summary (state : NodeState)
         (fun after sent => Summary self state (.internal .nominateSuccessor) after sent)
         (act caps self state .nominateSuccessor) := by
   simp only [act]
-  refine Sends.bind' Sends.guard' fun _ sent ⟨leader, empty⟩ => ?_
-  subst empty
-  refine Sends.bind' (nominate_sends self state) fun _ sent nominated => Sends.pure' ?_
+  refine Sends.mono (nominate_sends self state) fun _ sent ⟨eq, leader, nominated⟩ => ?_
+  subst eq
   refine quiet_summary rfl rfl rfl rfl rfl rfl rfl
     (fun _ => Or.inl (by rw [leader]; simp)) fun e member => ?_
   obtain ⟨source, payload⟩ := nominated e (by simpa using member)

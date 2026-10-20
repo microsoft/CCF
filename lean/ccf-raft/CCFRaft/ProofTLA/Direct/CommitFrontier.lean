@@ -290,9 +290,12 @@ theorem CommitFrontier.act {state : NodeState}
           unfold Model.Node.act Model.Node.checkQuorum
           exact Keeps.seq' fun _ => Keeps.pure' (frontier.of_log rfl rfl)
   | nominateSuccessor =>
-      unfold Model.Node.act
-      exact Keeps.seq' fun _ => Keeps.seq' fun _ =>
-        Keeps.pure' (frontier.of_log rfl rfl)
+      unfold Model.Node.act Model.Node.nominateSuccessor
+      refine Keeps.seq' fun _ => ?_
+      dsimp only
+      split
+      · exact Keeps.seq' fun _ => Keeps.pure' (frontier.of_log rfl rfl)
+      · exact Keeps.pure' (frontier.of_log rfl rfl)
 
 theorem CommitFrontier.receive {state : NodeState}
     (frontier : CommitFrontier state) (source : NodeID) (message : Message)

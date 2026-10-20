@@ -217,9 +217,12 @@ theorem Extends.act (state : NodeState) (input : Input)
           unfold Model.Node.act Model.Node.checkQuorum
           exact Keeps.seq' fun _ => Keeps.pure' (Extends.of_log rfl rfl)
   | nominateSuccessor =>
-      unfold Model.Node.act
-      exact Keeps.seq' fun _ => Keeps.seq' fun _ =>
-        Keeps.pure' (Extends.of_log rfl rfl)
+      unfold Model.Node.act Model.Node.nominateSuccessor
+      refine Keeps.seq' fun _ => ?_
+      dsimp only
+      split
+      · exact Keeps.seq' fun _ => Keeps.pure' (Extends.of_log rfl rfl)
+      · exact Keeps.pure' (Extends.of_log rfl rfl)
 
 theorem Extends.receive (state : NodeState) (source : NodeID) (message : Message)
     : Keeps (Extends state) (Model.Node.receive caps self source state message) := by
