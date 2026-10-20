@@ -287,7 +287,7 @@ jobs:
           sh /tmp/elan-init.sh -y --default-toolchain none
           rm /tmp/elan-init.sh
           export PATH="${HOME}/.elan/bin:${PATH}"
-          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          elan toolchain install "$(cat lean/lean-toolchain)"
           cd lean/disaster-recovery
           lake build disaster-recovery-replay
         shell: bash
