@@ -1704,6 +1704,22 @@ if(BUILD_TESTS)
   # Blocking commit benchmark driven by locust. Its concurrent connections
   # exercise every configured worker thread, so this also covers the
   # multi-threaded basic workload.
+  set(
+    BASIC_BLOCKING_LOCUST_ARGS
+    --package
+    "samples/apps/basic/basic"
+    # Keep snapshot disk activity out of the measurement.
+    --snapshot-tx-interval
+    10000
+    --users
+    320
+    --spawn-rate
+    320
+    --locust-processes
+    10
+    --measure-time-s
+    20
+  )
   add_e2e_test(
     NAME basic_blocking_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
@@ -1711,21 +1727,9 @@ if(BUILD_TESTS)
     CONFIGURATIONS perf
     BUILD_DEPENDS basic
     ADDITIONAL_ARGS
-      --package
-      "samples/apps/basic/basic"
+      ${BASIC_BLOCKING_LOCUST_ARGS}
       --perf-label
       "Basic Blocking"
-      # Keep snapshot disk activity out of the measurement.
-      --snapshot-tx-interval
-      10000
-      --users
-      320
-      --spawn-rate
-      320
-      --locust-processes
-      10
-      --measure-time-s
-      20
       # Blocking writes return on commit, and commit cannot outpace the
       # signature interval, so this sweeps from latency-bound to capacity-bound.
       --sig-ms-intervals
@@ -1735,29 +1739,25 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME fluentd_emission
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fluentd_benchmark.py
+    NAME fluentd
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
     LABEL perf
     CONFIGURATIONS perf
     BUILD_DEPENDS basic
     ADDITIONAL_ARGS
-      --package
-      "samples/apps/basic/basic"
-      --worker-threads
-      2
-      --snapshot-tx-interval
-      1000000000
-      --users
-      320
-      --spawn-rate
-      320
-      --locust-processes
-      4
-      --measure-time-s
-      20
+      ${BASIC_BLOCKING_LOCUST_ARGS}
+      --perf-label
+      "FluentD"
       --sig-ms-intervals
-      100
+      20
   )
+  if(BUILD_END_TO_END_TESTS)
+    set_property(
+      TEST fluentd
+      APPEND
+      PROPERTY ENVIRONMENT "CCF_BENCHMARK_FLUENTD=1"
+    )
+  endif()
 
   # JWT-authenticated blocking logging workload, driven by locust so that the
   # number of concurrent clients can be varied.

@@ -16,8 +16,8 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 
 ## Bencher
 
-Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
-The end-to-end tests include `fluentd_emission`, which measures two-node throughput and latency with Raft trace export disabled and then enabled, sending events to a local Fluentd-compatible TCP collector.
+Builds and runs CCF performance tests, both end to end and micro-benchmarks.
+Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
 Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
@@ -29,7 +29,20 @@ File: `bencher.yml`
 
 Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing up to five recent branch runs against the recent trend on `main`. Two nested shaded blue bands show the shared seven-run-half-life EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs. Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run. Triggered on PRs that have the label `bench-ab`.
 
-The end-to-end tests run with `CCF_BENCHMARK_FLUENTD=1`. For each workload and signature interval, this starts a local Fluentd-compatible TCP collector and configures every node to export Raft trace events to it. The collector decodes and counts events without storing them, and the run fails if any node sends none. The radar charts therefore compare branch runs with export enabled against `main` runs without export. `fluentd_emission` is excluded because it configures its own collector. Collector counts, node logs and configurations, and Locust statistics are uploaded as the `benchmark-diagnostics` artifact. To reproduce a run locally, set `CCF_BENCHMARK_FLUENTD=1` when running a Locust benchmark.
+Both benchmark workflows include `fluentd`, a one-node Basic Blocking workload with 20 ms signatures, reported as `FluentD`.
+It uses the same load settings as Basic Blocking but enables trace export to a lightweight local decoding collector, which drains all event tags without retaining records.
+The other benchmarks leave export disabled.
+The existing throughput, latency, and node-memory summaries and A/B charts include `FluentD` automatically.
+Collector CPU and memory are not reported separately, but its CPU use competes with the workload on the same machine.
+
+Received records, bytes, node process count, exporter drops, and drop rate are logged once and saved in `*_fluentd.json`, uploaded with the main benchmark logs and as `fluentd-counts` in A/B runs.
+These counts cover the whole node lifetime, including startup and shutdown, rather than just the measurement window.
+The drop count comes from the exporter's final shutdown report; the drop rate is `dropped / (received + dropped)`, not a delivery acknowledgement.
+Counts are validation data, not performance-chart metrics, and a run with no events from any node or a missing shutdown report fails.
+
+For a local Locust benchmark with export enabled, set `CCF_BENCHMARK_FLUENTD=1`.
+This starts a local Fluentd-compatible TCP collector for each workload and signature interval and requires events from every node.
+Alternatively, pass `--observability` with a JSON configuration to use an external collector without setting `CCF_BENCHMARK_FLUENTD`.
 
 File: `bencher-ab.yml`
 3rd party dependencies: None
