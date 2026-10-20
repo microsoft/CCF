@@ -21,12 +21,14 @@ Run from `lean/ccf-raft`:
 lake build --wfail ccfraft-replay replay-checks
 lake exe ccfraft-replay capture.stdout
 lake exe ccfraft-replay events.ndjson
+cmake -S ../.. -B /tmp/ccf-raft-build -GNinja
+cmake --build /tmp/ccf-raft-build --target raft_driver
 python3 ../../tests/raft_trace_capture.py /tmp/ccf-raft-build/raft_driver ../../tests/raft_scenarios /tmp/ccf-raft-captures
 lake exe ccfraft-replay suite --raw-directory /tmp/ccf-raft-captures --output /tmp/ccf-raft-results
 lake exe replay-checks
 ```
 
-Build the driver as described in the [package README](../README.md#trace-validation).
+The collector needs the `msgpack` dependency from `tests/requirements.txt` in the active Python environment.
 The removed `CCF_RAFT_TRACING` switch no longer enables stdout tracing.
 The current collector connects the driver's Fluentd endpoint on loopback and writes the original `process_id`, `h_ts` and `msg` records as NDJSON, retaining native stdout/stderr in `.driver.stdout` and `.driver.stderr` files.
 It uses the existing MessagePack transport helper, not a Python protocol reducer; it never sorts or edits events to make a replay succeed.
@@ -153,3 +155,23 @@ Current-envelope regressions cover sequence gaps, reordering, process identity, 
 `python3 tests/raft_trace_capture_test.py` from the repository root exercises transport ordering, duplicate keys, unchanged records and stale-success removal.
 Replay-only builds do not replace the separately integrated proof build and kernel checks.
 Successful replay witnesses a finite model execution compatible with these observations, not universal production inclusion, infinite extension, fairness or liveness.
+
+## Kernel checks
+
+The executable roots have distinct `main` declarations, so export/check each root separately, as CI does:
+
+```sh
+(
+  set -euo pipefail
+  config=$(mktemp)
+  cp lakefile.toml "$config"
+  trap 'cp "$config" lakefile.toml; rm "$config"' EXIT
+  for target in CCFRaft ccfraft-replay replay-checks; do
+    sed "s/^defaultTargets = .*/defaultTargets = [\"$target\"]/" "$config" > lakefile.toml
+    lake check --inadvisably-no-sandbox
+  done
+)
+```
+
+These checks allow only `propext`, `Classical.choice` and `Quot.sound`.
+They do not establish sandboxed build provenance; configuration and build code must be trusted.

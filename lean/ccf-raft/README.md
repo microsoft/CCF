@@ -47,7 +47,7 @@ lake exe cache get
 lake exe mk_all --check --module --lib CCFRaft
 lake build --wfail --fail-fast
 lake lint
-lake check --inadvisably-no-sandbox
+lake exe replay-checks
 ../../scripts/lean-format-checks.sh ccf-raft
 ```
 
@@ -55,7 +55,7 @@ lake check --inadvisably-no-sandbox
 The reconfiguration trace checks each node's ledger before delivery, after setup, after replication and commitment, after election, and after the new primary's client request.
 These are regression examples, not exhaustive checking.
 `Tests/ProofCoverage.lean` fails the build unless every property and witness has an exported theorem in `Proof.lean`.
-`lake check` re-checks the build in Lean's kernel and rejects nonstandard axioms; it runs without sandboxing, so build-time code must be trusted.
+The [per-root kernel checks](replay/README.md#kernel-checks) reject nonstandard axioms; they run without sandboxing, so build-time code must be trusted.
 After adding or removing a module, regenerate `CCFRaft.lean` with `lake exe mk_all --module --lib CCFRaft`.
 
 ## Proofs
