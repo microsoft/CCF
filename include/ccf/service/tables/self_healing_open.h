@@ -31,6 +31,7 @@ namespace ccf
     DECLARE_JSON_REQUIRED_FIELDS(Location, name, address);
 
   }
+
   namespace recovery_decision_protocol
   {
     inline std::string service_fingerprint_from_pem(const ccf::crypto::Pem& pem)
@@ -46,6 +47,7 @@ namespace ccf
       sealing_recovery::Location location;
       std::vector<uint8_t> service_cert_der;
     };
+
     DECLARE_JSON_TYPE(RequestNodeInfo);
     DECLARE_JSON_REQUIRED_FIELDS(
       RequestNodeInfo, quote_info, location, service_cert_der);

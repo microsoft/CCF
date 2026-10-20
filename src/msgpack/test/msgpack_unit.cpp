@@ -27,6 +27,7 @@ namespace records
 {
   struct Empty
   {};
+
   DECLARE_MSGPACK_TYPE(Empty);
   DECLARE_MSGPACK_FIELDS(Empty);
 
@@ -34,12 +35,14 @@ namespace records
   {
     int number;
   };
+
   DECLARE_MSGPACK_TYPE(Child);
 
   enum class Kind
   {
     first
   };
+
   inline void to_json(std::string_view& out, Kind)
   {
     out = "first";
@@ -52,6 +55,7 @@ namespace records
     Custom& operator=(const Custom&) = delete;
     mutable size_t calls = 0;
   };
+
   inline void write_msgpack(std::vector<uint8_t>& out, const Custom& value)
   {
     ++value.calls;
@@ -65,6 +69,7 @@ namespace records
     Custom custom;
     std::string text;
   };
+
   DECLARE_MSGPACK_TYPE(Record);
   DECLARE_MSGPACK_FIELDS(Record, number, child, kind, custom, text);
   DECLARE_MSGPACK_FIELDS(Child, number);
@@ -130,6 +135,7 @@ TEST_CASE("write_uint boundary table")
     std::vector<uint8_t> expected;
     FormatFamily family;
   };
+
   const Row rows[] = {
     {0, {0x00}, FormatFamily::POSITIVE_FIXINT},
     {127, {0x7F}, FormatFamily::POSITIVE_FIXINT},
@@ -202,6 +208,7 @@ TEST_CASE("write_int negative boundary table")
     size_t size;
     FormatFamily family;
   };
+
   const Row rows[] = {
     {-1, 0xFF, 1, FormatFamily::NEGATIVE_FIXINT},
     {-32, 0xE0, 1, FormatFamily::NEGATIVE_FIXINT},
@@ -281,6 +288,7 @@ TEST_CASE("write_str boundary table")
     size_t header_size;
     FormatFamily family;
   };
+
   const Row rows[] = {
     {0, 0xA0, 1, FormatFamily::FIXSTR},
     {31, 0xBF, 1, FormatFamily::FIXSTR},
@@ -369,6 +377,7 @@ TEST_CASE("write_bin length prefix and family")
     size_t header_size;
     FormatFamily family;
   };
+
   const Row rows[] = {
     {0, 0xC4, 2, FormatFamily::BIN_8},
     {1, 0xC4, 2, FormatFamily::BIN_8},
@@ -442,6 +451,7 @@ TEST_CASE("write_array_header boundary table")
     size_t size;
     FormatFamily family;
   };
+
   const Row rows[] = {
     {0, 0x90, 1, FormatFamily::FIXARRAY},
     {15, 0x9F, 1, FormatFamily::FIXARRAY},
@@ -469,6 +479,7 @@ TEST_CASE("write_map_header boundary table")
     std::vector<uint8_t> expected;
     FormatFamily family;
   };
+
   const Row rows[] = {
     {0, {0x80}, FormatFamily::FIXMAP},
     {15, {0x8F}, FormatFamily::FIXMAP},
@@ -526,6 +537,7 @@ TEST_CASE("FluentdEventTime::make boundary table")
     uint32_t nanoseconds;
     bool valid;
   };
+
   const Row rows[] = {
     {-1, 0, false},
     {-1, 999'999'999U, false},
@@ -674,6 +686,7 @@ TEST_CASE("write_float passes through non-finite bit-patterns unchanged")
     uint64_t bits;
     const char* label;
   };
+
   const Row rows[] = {
     {0x7FF8000000000000ULL, "quiet NaN"},
     {0x7FF0000000000001ULL, "signalling NaN"},

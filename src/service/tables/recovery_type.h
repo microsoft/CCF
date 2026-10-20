@@ -22,6 +22,7 @@ namespace ccf
      {RecoveryType::LOCAL_UNSEALING, "LOCAL_UNSEALING"}});
 
   using LastRecoveryType = ServiceValue<RecoveryType>;
+
   namespace Tables
   {
     static constexpr auto LAST_RECOVERY_TYPE =

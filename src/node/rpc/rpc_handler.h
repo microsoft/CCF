@@ -37,10 +37,13 @@ namespace ccf
       size_t sig_tx_interval, size_t sig_ms_interval) = 0;
     virtual void set_cmd_forwarder(
       std::shared_ptr<AbstractForwarder> cmd_forwarder_) = 0;
+
     virtual void tick(std::chrono::milliseconds /*elapsed*/) {}
+
     virtual void start_periodic_tick(
       ccf::tasks::JobBoard& /*job_board*/, std::chrono::milliseconds /*period*/)
     {}
+
     virtual void open() = 0;
     virtual bool is_open() = 0;
     virtual void set_consensus_and_history(

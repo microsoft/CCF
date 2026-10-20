@@ -74,6 +74,7 @@ struct Foo
   size_t n;
   std::string s;
 };
+
 DECLARE_JSON_TYPE(Foo);
 DECLARE_JSON_REQUIRED_FIELDS(Foo, n, s);
 
@@ -99,6 +100,7 @@ struct Bar
   std::string name;
   double f;
 };
+
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Bar);
 DECLARE_JSON_REQUIRED_FIELDS(Bar, name);
 DECLARE_JSON_OPTIONAL_FIELDS(Bar, f);
@@ -123,6 +125,7 @@ struct Baz : public Bar
   double y;
   Vehicle v;
 };
+
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(Baz, Bar);
 DECLARE_JSON_REQUIRED_FIELDS(Baz, n, v);
 DECLARE_JSON_OPTIONAL_FIELDS(Baz, x, y);
@@ -144,6 +147,7 @@ struct Buzz : public Baz
   Foo required_and_only_in_c;
   uint16_t optional_and_only_in_c;
 };
+
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(Buzz, Baz);
 DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
   Buzz, required_and_only_in_c, "RequiredJsonField");
@@ -225,6 +229,7 @@ namespace bbb
     aaa::FriendlyName name;
     size_t age;
   };
+
   DECLARE_JSON_TYPE(Person);
   DECLARE_JSON_REQUIRED_FIELDS(Person, name, age);
 }
@@ -276,6 +281,7 @@ struct WithRequiredOptionalField
 {
   std::optional<Foo> maybe_foo;
 };
+
 DECLARE_JSON_TYPE(WithRequiredOptionalField);
 DECLARE_JSON_REQUIRED_FIELDS(WithRequiredOptionalField, maybe_foo);
 

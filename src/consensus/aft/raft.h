@@ -108,6 +108,7 @@ namespace aft
       std::unordered_set<ccf::NodeId> votes;
       size_t quorum = 0;
     };
+
     std::map<Index, Votes> votes_for_me;
 
     std::chrono::milliseconds timeout_elapsed;
@@ -2238,6 +2239,7 @@ namespace aft
       RAFT_INFO_FMT("Proposing that {} becomes candidate", successor);
       channels->send_consensus_message(successor, prv);
     }
+
     void become_retired(Index idx, ccf::kv::RetirementPhase phase)
     {
       RAFT_INFO_FMT(

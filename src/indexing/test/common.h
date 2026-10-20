@@ -162,6 +162,7 @@ static inline bool check_seqnos(
 }
 
 using Action = std::function<bool(size_t, ccf::kv::Tx&)>;
+
 struct ActionDesc
 {
   ExpectedSeqNos& expected;

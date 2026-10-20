@@ -43,11 +43,13 @@ struct IAction
 using ActionPtr = std::unique_ptr<IAction>;
 
 static std::atomic<size_t> action_id_generator = 0;
+
 struct OrderedAction : public IAction
 {
   const size_t id;
 
   OrderedAction() : id(++action_id_generator) {}
+
   OrderedAction(size_t id_) : id(id_) {}
 
   SerialisedAction serialise() const override
@@ -89,6 +91,7 @@ struct SignAction : public OrderedAction
   {
     LOG_DEBUG_FMT("Created a new SignAction id={}", id);
   }
+
   SignAction(size_t id_, const std::vector<uint8_t>& tbs_) :
     OrderedAction(id_),
     tbs(tbs_)

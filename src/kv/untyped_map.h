@@ -21,6 +21,7 @@ namespace ccf::kv::untyped
   struct LocalCommit
   {
     LocalCommit() = default;
+
     LocalCommit(Version v, State&& s, Write w) :
       version(v),
       state(std::move(s)),
@@ -33,6 +34,7 @@ namespace ccf::kv::untyped
     LocalCommit* next = nullptr;
     LocalCommit* prev = nullptr;
   };
+
   using LocalCommits = ::ds::DLList<LocalCommit>;
 
   struct Roll

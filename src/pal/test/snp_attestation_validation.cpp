@@ -226,11 +226,13 @@ TEST_CASE("SNP endorsement configuration rejects empty owners")
 TEST_CASE("VCEK chip ID uses the product-specific prefix")
 {
   using namespace ccf::pal::snp;
+
   struct TestCase
   {
     const std::vector<uint8_t>& report;
     size_t chip_id_size;
   };
+
   for (const auto& [raw_report, expected_size] :
        {TestCase{testing::milan_attestation, 64},
         TestCase{testing::genoa_attestation, 64},
@@ -323,6 +325,7 @@ TEST_CASE("SNP request rejects oversized report data before ioctl")
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 TEST_CASE("legacy SNP report layout matches the AMD specification")
 {
   using ccf::pal::snp::Attestation;
@@ -393,6 +396,7 @@ TEST_CASE("legacy SNP report layout matches the AMD specification")
     ccf::pal::snp::make_endorsement_endpoint_configuration(report);
   CHECK(config.servers.size() == 1);
 }
+
 #pragma clang diagnostic pop
 
 TEST_CASE("milan validation")

@@ -392,16 +392,19 @@ namespace asynchost
       std::string host;
       std::string port;
     };
+
     struct CloseOutbound
     {
       ccf::NodeId node_id;
     };
+
     struct SendFrame
     {
       ccf::NodeId to;
       ccf::NodeId from;
       std::vector<uint8_t> frame;
     };
+
     using OutboundItem =
       std::variant<AssociateAddress, CloseOutbound, SendFrame>;
 

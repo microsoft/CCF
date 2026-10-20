@@ -10,16 +10,21 @@
 namespace ccf
 {
   using GovernanceHistory = ServiceMap<MemberId, SignedReq>;
+
   namespace Tables
   {
     static constexpr auto GOV_HISTORY = "public:ccf.gov.history";
   }
+
   using COSEGovernanceHistory = ServiceMap<MemberId, std::vector<uint8_t>>;
+
   namespace Tables
   {
     static constexpr auto COSE_GOV_HISTORY = "public:ccf.gov.cose_history";
   }
+
   using COSERecentProposals = ServiceMap<std::string, ProposalId>;
+
   namespace Tables
   {
     static constexpr auto COSE_RECENT_PROPOSALS =

@@ -48,7 +48,9 @@ namespace ccf
 
   public:
     RESTVerb() : verb(std::numeric_limits<int>::min()) {}
+
     RESTVerb(const llhttp_method& hm) : verb(hm) {}
+
     RESTVerb(const std::string& s)
     {
       verb = http_method_from_str(s);

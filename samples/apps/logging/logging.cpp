@@ -55,6 +55,7 @@ namespace loggingapp
   // SNIPPET_START: indexing_strategy_definition
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
     ccf::indexing::strategies::SeqnosByKey_Bucketed<RecordsMap>>;
+
   // SNIPPET_END: indexing_strategy_definition
 
   // SNIPPET_START: custom_identity
@@ -63,6 +64,7 @@ namespace loggingapp
     std::string name;
     size_t age = 0;
   };
+
   // SNIPPET_END: custom_identity
 
   struct MatchHeaders
@@ -170,6 +172,7 @@ namespace loggingapp
       return "CustomAuthPolicy";
     }
   };
+
   // SNIPPET_END: custom_auth_policy
 
   class CommittedRecords : public ccf::indexing::Strategy
@@ -593,6 +596,7 @@ namespace loggingapp
       records_handle->put(in.id, in.msg);
       return ccf::make_success(true);
     }
+
     // SNIPPET_END: record
 
     // SNIPPET_START: blocking_record
@@ -603,6 +607,7 @@ namespace loggingapp
         ccf::samples::default_respond_on_commit);
       return handle_record(ctx, std::move(params));
     }
+
     // SNIPPET_END: blocking_record
 
     ccf::jsonhandler::JsonAdapterResponse handle_blocking_record_with_receipt(
@@ -633,6 +638,7 @@ namespace loggingapp
       }
       return handle_record(ctx, std::move(params));
     }
+
     // SNIPPET_END: optional_commit
 
     static void handle_add_txid_in_body_put(
@@ -721,6 +727,7 @@ namespace loggingapp
         ccf::errors::ResourceNotFound,
         fmt::format("No such record: {}.", id));
     }
+
     // SNIPPET_END: get
 
     static ccf::jsonhandler::JsonAdapterResponse handle_blocking_get(
@@ -967,6 +974,7 @@ namespace loggingapp
 
       return ccf::make_success(true);
     }
+
     // SNIPPET_END: record_public
 
     // SNIPPET_START: get_public
@@ -1064,6 +1072,7 @@ namespace loggingapp
         ccf::errors::ResourceNotFound,
         fmt::format("No such record: {}.", id));
     }
+
     // SNIPPET_END: get_public
 
     static ccf::jsonhandler::JsonAdapterResponse handle_remove_public(
@@ -1197,6 +1206,7 @@ namespace loggingapp
 
       ctx.rpc_ctx->set_response_json(true, HTTP_STATUS_OK);
     }
+
     // SNIPPET_END: log_record_prefix_cert
 
     static ccf::jsonhandler::JsonAdapterResponse handle_log_record_anonymous(
@@ -1284,6 +1294,7 @@ namespace loggingapp
 
       ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     }
+
     // SNIPPET_END: log_record_text
 
     // SNIPPET_START: get_historical
@@ -1322,6 +1333,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       }
     }
+
     // SNIPPET_END: get_historical
 
     // SNIPPET_START: get_historical_with_handle
@@ -1399,6 +1411,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       }
     }
+
     // SNIPPET_END: get_historical_with_handle
 
     // SNIPPET_START: get_historical_with_receipt
@@ -1482,6 +1495,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       }
     }
+
     // SNIPPET_END: get_historical_with_receipt
 
     void handle_get_historical_range(
@@ -2834,5 +2848,6 @@ namespace ccf
   {
     return std::make_unique<loggingapp::LoggerHandlers>(context);
   }
+
   // SNIPPET_END: app_interface
 }

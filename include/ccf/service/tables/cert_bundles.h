@@ -7,6 +7,7 @@
 namespace ccf
 {
   using CACertBundlePEMs = ServiceMap<std::string, std::string>;
+
   namespace Tables
   {
     static constexpr auto CA_CERT_BUNDLE_PEMS =

@@ -1132,6 +1132,7 @@ TEST_CASE("File range parsing preserves half-open bounds")
     size_t start;
     size_t end;
   };
+
   const auto max = std::numeric_limits<size_t>::max();
   const std::vector<Case> cases = {
     {"bytes=0-0", 100, 0, 1},
@@ -1188,6 +1189,7 @@ TEST_CASE("File range parsing preserves exact errors")
     std::string header;
     std::string error;
   };
+
   const auto overflow =
     std::to_string(std::numeric_limits<size_t>::max()) + "0";
   const std::vector<Case> cases = {
@@ -1258,12 +1260,14 @@ TEST_CASE("File range responses preserve GET and HEAD metadata")
   const std::vector<uint8_t> bytes(contents.begin(), contents.end());
   const auto full_digest = ccf::node::format_repr_digest(
     "sha-256", ccf::crypto::MDType::SHA256, bytes.data(), bytes.size());
+
   struct Case
   {
     std::optional<std::string> header;
     size_t start;
     size_t end;
   };
+
   const std::vector<Case> cases = {
     {std::nullopt, 0, 100},
     {"bytes=10-19", 10, 20},
@@ -1354,11 +1358,13 @@ TEST_CASE("File range responses reject invalid and empty ranges before reading")
 {
   const ScopedTempDir dir;
   const auto path = write_test_file(dir, "range.bin", std::string(100, 'x'));
+
   struct Case
   {
     std::string header;
     std::string error;
   };
+
   const std::vector<Case> cases = {
     {"items=0-1", "Only 'bytes' is supported as a Range header unit"},
     {"bytes=0-1,2-3", "Multiple ranges are not supported"},
