@@ -1,4 +1,4 @@
-pre_vote_enabled,false
+pre_vote_enabled,true
 # Reproduce a stale-leader shape where an entry from an old term is only
 # committed indirectly by a later leader's signature.
 #
@@ -34,6 +34,12 @@ assert_last_txid,0,2.6
 # Node 1 times out and wins term 3 with node 2. Node 0 observes the newer-term
 # vote request and steps down, but Node 1 only needs node 2's vote to win.
 periodic_one,1,110
+assert_detail,1,leadership_state,PreVoteCandidate
+dispatch_single,1,0
+dispatch_single,1,2
+dispatch_single,0,1
+dispatch_single,2,1
+assert_detail,1,leadership_state,Candidate
 dispatch_single,1,0
 dispatch_single,1,2
 dispatch_single,0,1
@@ -53,6 +59,10 @@ assert_commit_idx,2,4
 # Node 0's committable suffix is at least as up-to-date as Node 2's prefix.
 disconnect_node,1
 periodic_one,0,110
+assert_detail,0,leadership_state,PreVoteCandidate
+dispatch_single,0,2
+dispatch_single,2,0
+assert_detail,0,leadership_state,Candidate
 dispatch_single,0,2
 dispatch_single,2,0
 assert_detail,0,leadership_state,Leader

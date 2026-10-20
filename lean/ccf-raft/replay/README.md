@@ -116,7 +116,9 @@ Timeout elections with pre-vote disabled are explicitly unsupported; same-term n
 No synthetic nominations or mode toggle are inserted into the model.
 
 The model's `retiredCommittedIndex` is the confirmation transaction's index, not the covering signature's index.
-The current native test stub passes its compact frontier instead; terminal-retirement captures exhibiting that discrepancy fail explicitly.
+The native test stub's [`LoggingStubStoreConfig::compact`](../../../src/consensus/aft/test/logging_stub.h) passes its compact frontier instead of the stored transaction version; production [`on_nodes_global_commit`](../../../src/node/node_state.h) passes the transaction's `hook_version`.
+For a confirmation transaction at index 5 covered by a signature at index 6, the stub reports 6 where the model expects 5.
+Terminal-retirement captures exhibiting that discrepancy fail explicitly rather than having their indices rewritten.
 The retained terminal fixture is a negative correspondence regression, not a successful replay fixture.
 
 ## Packet accounting
@@ -152,6 +154,10 @@ The test executable doubles as a deterministic fake driver for capture byte pres
 Neither it nor the replayer imports proof modules.
 Identity/init regressions cover lexical ordinals, a nonzero bootstrap ordinal, population preservation, genesis, undeclared IDs and duplicate request provenance.
 Current-envelope regressions cover sequence gaps, reordering, process identity, field-layout decoding and explicit disabled-mode rejection.
+The native scenarios use pre-vote for timeout elections, including delayed nomination, partial-prefix overcommit, stale leaders and competing signed suffixes.
+`soft_rollback` uses five nodes so a short-log candidate obtains a genuine pre-vote quorum before its higher-term vote request reaches a node with an unsigned suffix.
+`retire_backup` checks that a removed node cannot inflate the term or depose the leader, then learns its retirement through ordinary prefix repair.
+These migrations retain the disabled-mode rejection boundary; they do not synthesize nominations or introduce a model toggle.
 `python3 tests/raft_trace_capture_test.py` from the repository root exercises transport ordering, duplicate keys, unchanged records and stale-success removal.
 Replay-only builds do not replace the separately integrated proof build and kernel checks.
 Successful replay witnesses a finite model execution compatible with these observations, not universal production inclusion, infinite extension, fairness or liveness.

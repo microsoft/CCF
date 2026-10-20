@@ -1,4 +1,4 @@
-pre_vote_enabled,false
+pre_vote_enabled,true
 start_node,0
 assert_detail,0,leadership_state,Leader
 emit_signature,2
@@ -72,9 +72,10 @@ dispatch_all_once
 
 # Eventually Node 2 is partitioned for so long that it calls an election
 periodic_one,2,100
-assert_detail,2,leadership_state,Candidate
+assert_detail,2,leadership_state,PreVoteCandidate
+assert_detail,2,current_view,2
 
-# But this RequestVote is lost!
+# But this pre-vote request is lost!
 periodic_all,10
 assert_detail,1,leadership_state,Follower
 drop_pending,1  #< The ACKs from 1 are constantly dropped
@@ -96,31 +97,23 @@ drop_pending,2
 periodic_one,2,100
 drop_pending,2
 
-assert_detail,2,leadership_state,Candidate
+assert_detail,2,leadership_state,PreVoteCandidate
+assert_detail,2,current_view,2
 
 # Eventually Node 1 stops hearing from Node 0, and calls an election
 state_all
 drop_pending,1
 periodic_one,1,100
-assert_detail,1,leadership_state,Candidate
+assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_all_once  #< Finally, everyone hears about this!
 
-drop_pending,0  #< Node 0's response (in favour is dropped)
-dispatch_all_once  #< Node 2's response, denying and giving a higher term, is received
+drop_pending,0  #< Node 0's pre-vote response is dropped.
+dispatch_all_once  #< Node 2 grants the more up-to-date node 1 a pre-vote.
+assert_detail,1,leadership_state,Candidate
+assert_detail,1,current_view,3
 
-# Node 2 tries yet again for an election, and this time is able to send that to Node 1
-periodic_one,2,100
-drop_pending_to,2,0
+# The regular vote round also succeeds using only node 2's response.
 dispatch_all_once
-
-# But Node 1 votes against, because it is further ahead than Node 2
-dispatch_all_once
-
-# Now Node 1 tries for an election
-periodic_one,1,100
-dispatch_all_once
-
-# It gets positive votes from both, but we only deliver the one from Node 2
 drop_pending,0
 dispatch_all_once
 

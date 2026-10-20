@@ -1,4 +1,4 @@
-pre_vote_enabled,false
+pre_vote_enabled,true
 start_node,0
 emit_signature,2
 swap_nodes,2,in,1
@@ -26,7 +26,7 @@ assert_config,2,5,0,1,2
 assert_detail,2,leadership_state,Follower
 
 
-# Node 2 (Pre-Vote enabled) can be elected
+# Node 2 completes both election phases while node 0 is partitioned.
 disconnect_node,0
 periodic_one,2,100
 assert_detail,2,leadership_state,PreVoteCandidate
@@ -45,10 +45,14 @@ assert_detail,2,leadership_state,Leader
 
 loop_until_sync
 
-# Node 1 (Pre-Vote disabled) can be elected
+# Node 1 can then complete both phases and replace node 2.
 
 disconnect_node,0
 periodic_one,1,100
+assert_detail,1,leadership_state,PreVoteCandidate
+assert_detail,1,current_view,3
+dispatch_single,1,2
+dispatch_single,2,1
 assert_detail,1,leadership_state,Candidate
 assert_detail,1,current_view,4
 
