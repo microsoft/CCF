@@ -1,13 +1,9 @@
 module
 
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
-
 import all Init.Prelude
 import all Lean.Data.Name
 
 public import CCFRaft.Properties
-public import CCFRaft.Tests.AppendTransactions
 public import Lean
 
 @[expose] public section

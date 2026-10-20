@@ -13,7 +13,7 @@ The properties are stated but not yet proved.
 | `CCFRaft/Model/Node.lean`          | `Node.step`: one node's response to an input or a message      |
 | `CCFRaft/Model.lean`               | Initial node states and network composition                    |
 | `CCFRaft/Properties.lean`          | Safety property statements and their witnesses                 |
-| `CCFRaft/Tests/`                   | Regression theorems, behavior checks and import-boundary rules |
+| `CCFRaft/Tests/`                   | Initialized action traces and import-boundary rules            |
 | `CCFRaft.lean`                     | Generated root importing every module                          |
 
 Transition systems, traces, output-recording effects and network composition come from the local [`ccf_common` package](../common/README.md), under the `CCF` namespace.
@@ -95,7 +95,10 @@ The `ccf_common` package also depends on Mathlib for finite or infinite traces a
 
 - `mk_all --check` fails if `CCFRaft.lean` does not import every module.
 - `lake build --wfail` builds the library, treating warnings, including `sorry`, as errors.
-- Canonical behavior checks run through `#eval` when `Tests/CanonicalTests.lean` is compiled; failures fail the build.
+- Canonical action traces run through `#eval` when `Tests/CanonicalTests.lean` is compiled; failures fail the build.
+  Each starts from an initialized network, executes an explicit ordered list of local actions and message deliveries, and asserts the final state.
+  The traces cover committing a client request and adding two nodes before electing a new leader and committing another request.
+  They check the exact committed ledger, including configuration entries, signatures and terms, on every node, together with final roles and membership.
 - `lake check` re-checks all default targets with Lean's kernel and fails on any axiom other than `propext`, `Classical.choice` and `Quot.sound`.
   It runs without sandbox isolation, so build-time code must be trusted; Lake prints a warning saying so.
 - The formatting script runs the pinned [leanfmt](https://github.com/duckki/leanfmt).

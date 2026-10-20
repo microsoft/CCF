@@ -6,6 +6,5 @@ public import CCFRaft.Model.Messages
 public import CCFRaft.Model.Node
 public import CCFRaft.Model.NodeState
 public import CCFRaft.Properties
-public import CCFRaft.Tests.AppendTransactions
 public import CCFRaft.Tests.Architecture
 public import CCFRaft.Tests.CanonicalTests

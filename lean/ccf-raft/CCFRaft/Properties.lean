@@ -1,18 +1,13 @@
 module
 
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
-
 public import CCFRaft.Model
 public import CCF.Execution
 
 @[expose] public section
 
 /-!
-`NodeID` and `ReqID` are natural numbers.
-Each claim quantifies every initial membership set and every node list. Claims concern valid traces
-or individual successful steps of `Model.transitionSystem`. Each has a `Witness`
-claim exhibiting a nontrivial execution relevant to the property.
+Safety properties to prove about the Raft model, each paired with a witness
+statement describing a nontrivial execution relevant to that property.
 -/
 
 namespace CCFRaft.Properties
