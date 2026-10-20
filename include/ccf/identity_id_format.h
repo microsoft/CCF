@@ -4,9 +4,11 @@
 
 #include "ccf/ds/json.h"
 
+#include <cstdint>
+
 namespace ccf
 {
-  enum class IdentityIdFormat
+  enum class IdentityIdFormat : std::uint8_t
   {
     SHA256,
     DIDKey

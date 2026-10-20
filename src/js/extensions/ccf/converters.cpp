@@ -188,7 +188,7 @@ namespace ccf::js::extensions
       try
       {
         auto format = IdentityIdFormat::SHA256;
-        if (argc == 2 && !JS_IsUndefined(argv[1]))
+        if (argc == 2 && JS_IsUndefined(argv[1]) == 0)
         {
           auto format_str = jsctx.to_str(argv[1]);
           if (!format_str.has_value())
@@ -225,7 +225,8 @@ namespace ccf::js::extensions
       }
       try
       {
-        return JS_NewBool(ctx, ccf::is_valid_identity_id(*id));
+        return JS_NewBool(
+          ctx, static_cast<int>(ccf::is_valid_identity_id(*id)));
       }
       catch (const std::exception& e)
       {
@@ -252,9 +253,9 @@ namespace ccf::js::extensions
       {
         return JS_NewBool(
           ctx,
-          ccf::crypto::certs_have_same_public_key(
+          static_cast<int>(ccf::crypto::certs_have_same_public_key(
             ccf::crypto::make_verifier(ccf::crypto::Pem(*lhs))->cert_der(),
-            ccf::crypto::make_verifier(ccf::crypto::Pem(*rhs))->cert_der()));
+            ccf::crypto::make_verifier(ccf::crypto::Pem(*rhs))->cert_der())));
       }
       catch (const std::exception& e)
       {

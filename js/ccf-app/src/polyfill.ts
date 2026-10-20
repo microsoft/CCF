@@ -111,10 +111,15 @@ function validateDidKey(id: string): boolean {
   try {
     let key: jscrypto.KeyObject;
     if (bytes[0] === 0x85) {
-      key = jscrypto.createPublicKey({
+      const rsaKey = jscrypto.createPublicKey({
         key: raw,
         format: "der",
         type: "pkcs1",
+      });
+      // Normalize through JWK to support PKCS#1 re-export on Node 24.
+      key = jscrypto.createPublicKey({
+        key: rsaKey.export({ format: "jwk" }),
+        format: "jwk",
       });
     } else {
       const curves: Record<number, [string, string, number]> = {
