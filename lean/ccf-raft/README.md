@@ -35,7 +35,6 @@ Actions are local inputs (including timeouts) or delivery of a queued message; n
 - Commit: a signature commits once it has a majority in every active configuration at or before it; a later pending configuration does not block it.
   This intentionally differs from the current C++ `update_commit` policy; see [#8606](https://github.com/microsoft/CCF/issues/8606).
 - Peers: `eligiblePeers` approximates C++'s retained `all_other_nodes` from ledger-derived membership and completed retirements, so peers introduced only by rolled-back configurations are not retained.
-- Elections: timeouts always start pre-vote; the native `pre_vote_enabled` toggle is not modeled.
 - Not modeled: service creation (replaced by initialization), node join and snapshot installation.
 - Only safety is stated; there are no liveness or fairness properties.
 
