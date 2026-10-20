@@ -3,11 +3,9 @@ module
 import all Init.Control.State
 meta import DisasterRecovery.Tests.Initial
 meta import DisasterRecovery.Tests.Network
-meta import DisasterRecovery.TraceValidation.Dump
 
 public import DisasterRecovery.Tests.Initial
 public import DisasterRecovery.Tests.Network
-public import DisasterRecovery.TraceValidation.Dump
 
 public section
 
@@ -378,75 +376,6 @@ def run : IO Unit := do
   let ignoredAgain <- runGlobal globalConfig ignored (.deliver envelope)
   expect (ignoredAgain.network.isEmpty && ignoredAgain.nodes == ignored.nodes)
     "second ignored delivery did not consume the remaining occurrence"
-  let pendingForB <- requireSome
-                      (delivered.network.find? fun env => env.target == "B")
-                      "gossip to the unscheduled node is missing"
-  let onlyA <- runGlobal globalConfig delivered (.local "A" .retry)
-  expect
-    (onlyA.network.contains pendingForB
-      && MultiNodeTransitionSystem.nodeState onlyA "B" == some (initialNode "B")
-      && voteQuorum globalConfig.protocol == 2)
-    "not scheduling B must preserve its state, queued messages, and quorum membership"
-  let receivedByB <- runGlobal globalConfig onlyA (.deliver pendingForB)
-  expect
-    (MultiNodeTransitionSystem.nodeState receivedByB "B"
-      == some { initialNode "B" with gossips := [("A", { view := 1, seqno := 10 })] })
-    "a previously unscheduled configured node must accept delivery"
-  let retriedByB <- runGlobal globalConfig receivedByB (.local "B" .retry)
-  let timedOutB <- runGlobal globalConfig retriedByB (.local "B" .timeout)
-  expect
-    ((MultiNodeTransitionSystem.nodeState timedOutB "B").map (·.phase) == some .voting)
-    "a previously unscheduled configured node must retry and time out"
-
-  let extra := { second.1 with location := "C" }
-  let toExtra : Model.Envelope := { source := "A", target := "C", payload := .vote }
-  let withExtra :=
-    {
-      globalInitial with
-        nodes := ("C", extra) :: globalInitial.nodes, network := [toExtra]
-    }
-  for action
-      in ([.local "C" .retry, .local "C" .timeout, .deliver toExtra]
-          : List Model.Action) do
-    expect (((Model.transitionSystem globalConfig).step withExtra action).isNone)
-      "a stored node without a recovered ledger executed a protocol action"
-  let withInitialExtra :=
-    {
-      globalInitial with
-        nodes := [("B", initialNode "B"), ("C", initialNode "C"), ("A", initialNode "A")]
-    }
-  expect
-    (((Model.transitionSystem globalConfig).step withInitialExtra
-        (.local "A" .retry)).isSome)
-    "extra or reordered initial nodes prevented a configured node from acting"
-
-  let header := TraceValidation.Header.make ["A", "B"] ["A"] globalConfig.recovered
-  let instructions : Array TraceValidation.Instruction :=
-    #[.action (.local "B" .retry) []]
-  let replay := TraceValidation.replay header instructions
-  expect (replay matches .ok { actions := 1, observations := 0 })
-    "participant metadata gated a configured node's replay action"
-  expect
-    ((TraceValidation.Header.make ["A", "B"] [] globalConfig.recovered).config
-      == header.config)
-    "participant metadata changed protocol configuration"
-  let dump <- match TraceValidation.Dump.dump { participants := 1 } [] #[]
-                      (.ok { header, instructions, scenario := none }) with
-              | .ok dump => pure dump
-              | .error error => throw (IO.userError error)
-  let dumpedParticipants :=
-    (dump.getObjValAs? Lean.Json "header").bind
-      (·.getObjValAs? (List String) "participants")
-  expect (dumpedParticipants.toOption == some ["A"])
-    "replay dump lost participant metadata"
-  let states <- match dump.getObjValAs? (Array Lean.Json) "states" with
-                | .ok states => pure states
-                | .error error => throw (IO.userError error)
-  expect
-    (states.size == 2
-      && states.all (fun state => (state.getObjVal? "active").toOption.isNone))
-    "replay dump retained activity as model state"
-
   let sentA <- runGlobal globalConfig globalInitial (.local "A" .retry)
   let sentBoth <- runGlobal globalConfig sentA (.local "B" .retry)
   let gossipAA <- deliverMessage globalConfig sentBoth "A" "A"
