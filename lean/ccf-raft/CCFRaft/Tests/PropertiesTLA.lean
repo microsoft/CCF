@@ -45,6 +45,34 @@ theorem committed_length (config : Finset NodeID) {nodes : List NodeID}
   have frontier := Direct.commitFrontier_invariant.reachable reachable i s listed
   simpa [NodeState.committedLog] using frontier.1
 
+/-- `[]LogInv` over behaviours: the reachable-state claim covers every state of every
+valid finite or infinite trace. -/
+theorem logInv_trace (config : Finset NodeID) {nodes : List NodeID}
+    {trace : CCF.Execution.Trace Model.State}
+    (valid : trace.Valid (Model.transitionSystem config nodes)) {state : Model.State}
+    (member : state ∈ trace) {left right : NodeID} {leftState rightState : NodeState}
+    (leftMember : (left, leftState) ∈ state.nodes)
+    (rightMember : (right, rightState) ∈ state.nodes)
+    : leftState.committedLog <+: rightState.committedLog
+      \/ rightState.committedLog <+: leftState.committedLog :=
+  PropertiesTLA.spec_logInv config nodes state left right leftState rightState
+    ⟨valid.reachable member, leftMember, rightMember⟩
+
+/-- `[][A]_vars` over behaviours: the step claim covers each adjacent pair of states of
+every valid finite or infinite trace. -/
+theorem committedLogAppendOnlyProp_trace (config : Finset NodeID) {nodes : List NodeID}
+    {trace : CCF.Execution.Trace Model.State}
+    (valid : trace.Valid (Model.transitionSystem config nodes)) {index : Nat}
+    {before after : Model.State} (present : trace.get? index = some before)
+    (next : trace.get? (index + 1) = some after) {node : NodeID}
+    {nodeBefore nodeAfter : NodeState} (beforeMember : (node, nodeBefore) ∈ before.nodes)
+    (afterMember : (node, nodeAfter) ∈ after.nodes)
+    : nodeBefore.committedLog <+: nodeAfter.committedLog := by
+  obtain ⟨action, stepped⟩ := valid.2 index before after present next
+  exact PropertiesTLA.spec_committedLogAppendOnlyProp config nodes before after action node
+    nodeBefore nodeAfter
+    ⟨valid.reachable (Stream'.Seq.get?_mem present), stepped, beforeMember, afterMember⟩
+
 end Execution
 
 end CCFRaft.Tests.PropertiesTLA
