@@ -7,10 +7,10 @@ public import CCF.TransitionSystem
 namespace CCF.Execution
 
 /-!
-Finite executions of a `TransitionSystem`. `Run` relates a start state, an
-action list, and an end state. `Trace` is the state list an execution passes
-through; properties quantify over every valid `Trace`. Actions are not stored
-in a trace, so a step's action is existentially quantified where needed.
+Executions of a `TransitionSystem`. `Run` relates a start state, an action list,
+and an end state. `FiniteTrace` records a finite state list; `Trace` records a
+countably infinite sequence indexed by `Nat`. Actions are not stored in either
+trace, so each step's action is existentially quantified in validity.
 -/
 
 /-- `Run system start actions final`: executing `actions` from `start` reaches `final`. -/
@@ -25,13 +25,13 @@ inductive Run {State Action : Type} (system : TransitionSystem State Action)
     : Run system before (action :: actions) after
 
 /-- The states an execution passes through, initial state first. Actions are not recorded. -/
-structure Trace (State : Type) where
+structure FiniteTrace (State : Type) where
   /-- States visited by the execution, including its initial state. -/
   states : List State
 
 /-- The trace is nonempty, its first state is initial, and each later state
 follows its predecessor by some enabled action. -/
-def Trace.Valid {State Action : Type} (trace : Trace State)
+def FiniteTrace.Valid {State Action : Type} (trace : FiniteTrace State)
     (system : TransitionSystem State Action)
     : Prop :=
   (exists initial, trace.states[0]? = some initial /\ system.init initial)
@@ -41,9 +41,9 @@ def Trace.Valid {State Action : Type} (trace : Trace State)
       -> exists action, system.step before action = some after
 
 /-- Every state in a valid trace is reachable. -/
-theorem Trace.Valid.reachable {State Action : Type}
+theorem FiniteTrace.Valid.reachable {State Action : Type}
     {system : TransitionSystem State Action}
-    {trace : Trace State} (valid : trace.Valid system) {state : State}
+    {trace : FiniteTrace State} (valid : trace.Valid system) {state : State}
     (member : state ∈ trace.states)
     : system.Reachable state := by
   obtain ⟨i, found⟩ := List.mem_iff_getElem?.mp member
@@ -66,13 +66,14 @@ theorem Trace.Valid.reachable {State Action : Type}
   exact reaches i state found
 
 /-- Valid traces cover exactly the reachable states. -/
-theorem reachable_iff_trace {State Action : Type}
+theorem reachable_iff_finiteTrace {State Action : Type}
     {system : TransitionSystem State Action} {state : State}
     : system.Reachable state
-      <-> exists trace : Trace State, trace.Valid system /\ state ∈ trace.states := by
+      <-> exists trace : FiniteTrace State,
+            trace.Valid system /\ state ∈ trace.states := by
   constructor
   · intro reachable
-    have witness : exists trace : Trace State, trace.Valid system /\
+    have witness : exists trace : FiniteTrace State, trace.Valid system /\
         trace.states.getLast? = some state := by
       induction reachable with
       | initial initialized =>
@@ -111,5 +112,39 @@ theorem reachable_iff_trace {State Action : Type}
     exact ⟨trace, valid, List.mem_iff_getElem?.mpr ⟨_, last⟩⟩
   · rintro ⟨trace, valid, member⟩
     exact valid.reachable member
+
+/-- A countably infinite sequence of execution states, initial state first. -/
+structure Trace (State : Type) where
+  /-- The state at each natural-number position. States may repeat. -/
+  states : Nat -> State
+
+/-- A state occurs in a trace when it appears at some finite index. -/
+instance {State : Type} : Membership State (Trace State) where
+  mem trace state := exists index, trace.states index = state
+
+/-- The first state is initial, and every adjacent pair has an enabled action. -/
+def Trace.Valid {State Action : Type} (trace : Trace State)
+    (system : TransitionSystem State Action)
+    : Prop :=
+  system.init (trace.states 0)
+  /\ forall index,
+      exists action,
+        system.step (trace.states index) action = some (trace.states (index + 1))
+
+/-- Every state in a valid infinite trace is reachable by finitely many steps. -/
+theorem Trace.Valid.reachable {State Action : Type}
+    {system : TransitionSystem State Action}
+    {trace : Trace State} (valid : trace.Valid system) {state : State}
+    (member : state ∈ trace)
+    : system.Reachable state := by
+  obtain ⟨index, rfl⟩ := member
+  have reaches : forall index, system.Reachable (trace.states index) := by
+    intro index
+    induction index with
+    | zero => exact .initial valid.1
+    | succ index ih =>
+        obtain ⟨action, step⟩ := valid.2 index
+        exact .step ih step
+  exact reaches index
 
 end CCF.Execution
