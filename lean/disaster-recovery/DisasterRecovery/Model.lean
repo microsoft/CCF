@@ -18,7 +18,7 @@ structure Config where
   recovered : List (Location × TxID)
 deriving Repr, BEq
 
-/-- Valid recovery parameters and exactly one recovered ledger per expected location. -/
+/-- Valid recovery parameters and recovered ledgers. -/
 def Config.Valid (config : Config) : Prop :=
   config.protocol.isValid = true
   /\ config.protocol.expectedLocations.Nodup
@@ -64,7 +64,7 @@ def protocol (config : Config)
     | .retry => .retry
     | .timeout => .timeout
 
-/-- Composes recovery nodes without constraining their action schedule.
+/-- Composes recovery nodes.
 Initial states include every expected location but may also contain unused nodes. -/
 def transitionSystem (config : Config) : TransitionSystem State Action :=
   let network := MultiNodeTransitionSystem.lift (protocol config)

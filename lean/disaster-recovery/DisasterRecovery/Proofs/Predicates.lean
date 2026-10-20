@@ -26,7 +26,7 @@ structure HistoriesConfigured (config : Config) (state : State) : Prop where
   completed
     : forall node, node ∈ state.completed -> node ∈ config.protocol.expectedLocations
 
-/-- Node identities, recovered ledger membership, and message provenance are consistent. -/
+/-- Node identities and message provenance are consistent. -/
 structure WellFormed (config : Config) (state : State) : Prop where
   /-- Every configured location has a node-table entry; unused nodes may also exist. -/
   nodeKeys
