@@ -25,12 +25,12 @@ Actions are local inputs (including timeouts) or delivery of a queued message; n
 
 [`Properties.lean`](CCFRaft/Properties.lean) states four properties of `Model.transitionSystem`, each with a `Witness` statement exhibiting the situation it constrains:
 
-- `ElectionSafety`: no two distinct nodes are primary in the same term.
 - `CommittedLogsPrefix`: any two committed logs in a trace are prefix-comparable.
-- `CommittedFrontierIsSignature`: every positive commit index points to a signature.
 - `SingleNodeCommittedLogMonotonic`: a successful step from any state with unique node IDs preserves each node's committed prefix.
+- `ElectionSafety`: no two distinct nodes are primary in the same term.
+- `CommittedFrontierIsSignature`: every positive commit index points to a signature.
 
-The first three quantify over valid finite or infinite traces (`Stream'.Seq` from `ccf_common`) that start in an initial state, without fairness or implicit stuttering.
+The trace properties quantify over valid finite or infinite traces (`Stream'.Seq` from `ccf_common`) that start in an initial state, without fairness or implicit stuttering.
 `SingleNodeCommittedLogMonotonic` is a single-step property over arbitrary states, not only reachable ones.
 
 ## Scope and differences from `raft.h`
