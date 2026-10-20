@@ -84,13 +84,13 @@ theorem Extends.handleAppendEntriesRequest (caps : Caps) (source : NodeID)
   unfold Model.Node.handleAppendEntriesRequest
   have stepped : Extends state (if request.term = state.currentTerm /\
       (state.role = .candidate \/ state.role = .preVoteCandidate) then
-        { state with role := .follower, isNewFollower := true } else state) := by
+        Model.Node.becomeAwareOfNewTerm state request.term else state) := by
     split
     · exact Extends.of_log rfl rfl
     · exact Extends.refl _
   generalize (if request.term = state.currentTerm /\
       (state.role = .candidate \/ state.role = .preVoteCandidate) then
-        { state with role := .follower, isNewFollower := true } else state) = current
+        Model.Node.becomeAwareOfNewTerm state request.term else state) = current
     at stepped
   refine Keeps.ite' (fun _ => by
     dsimp only
@@ -226,6 +226,7 @@ theorem Extends.receive (state : NodeState) (source : NodeID) (message : Message
   have observedExtends : Extends state (observeTerm state message) :=
     Extends.of_log (Concrete.observeTerm_log _ _) (Concrete.observeTerm_commitIndex _ _)
   unfold Model.Node.receive
+  refine Keeps.ite' (fun _ => Keeps.pure' (Extends.refl _)) fun _ => ?_
   dsimp only
   generalize observeTerm state message = current at observedExtends ⊢
   refine Keeps.mono (P := Extends current) ?_ fun _ next => observedExtends.trans next
@@ -247,8 +248,8 @@ theorem Extends.receive (state : NodeState) (source : NodeID) (message : Message
       refine Keeps.ite' (fun _ => ?_) fun _ => Keeps.pure' (Extends.refl _)
       exact (Extends.electIfQuorum caps self _).mono fun _ next =>
         (Extends.of_log rfl rfl).trans next
-  | requestPreVote request =>
-      unfold Model.Node.handleRequestPreVote
+  | requestPreVoteRequest request =>
+      unfold Model.Node.handleRequestPreVoteRequest
       exact Keeps.seq' fun _ => Keeps.pure' (Extends.refl _)
   | requestPreVoteResponse response =>
       unfold Model.Node.handleRequestPreVoteResponse
@@ -257,8 +258,8 @@ theorem Extends.receive (state : NodeState) (source : NodeID) (message : Message
       refine Keeps.ite' (fun _ => ?_) fun _ => Keeps.pure' (Extends.of_log rfl rfl)
       exact (Extends.becomeCandidate caps self _).mono fun _ next =>
         (Extends.of_log rfl rfl).trans next
-  | proposeVoteRequest term =>
-      unfold Model.Node.handleProposeVoteRequest
+  | proposeRequestVoteRequest term =>
+      unfold Model.Node.handleProposeRequestVoteRequest
       exact Keeps.ite' (fun _ => Extends.becomeCandidate caps self current)
         fun _ => Keeps.pure' (Extends.refl _)
 

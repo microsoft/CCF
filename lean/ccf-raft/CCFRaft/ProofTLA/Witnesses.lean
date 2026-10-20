@@ -60,23 +60,15 @@ def bootstrapOf (configuration : Finset NodeID) (primary : NodeID)
   configuration
   primary := ⟨primary, member⟩
 
-/-- Every listed node in its initial state, all active, with an empty network. -/
+/-- Every listed node in its initial state, with an empty network. -/
 def start [Model.ModelConfig] (nodes : List NodeID) : CCFRaft.Model.State :=
-  {
-    nodes := nodes.map fun node => (node, Model.initialNodeState (inferInstance) node),
-    active := nodes
-  }
+  { nodes := nodes.map fun node => (node, Model.initialNodeState (inferInstance) node) }
 
 theorem start_initial [Model.ModelConfig] {nodes : List NodeID} (distinct : nodes.Nodup)
     : (CCFRaft.Model.transitionSystem (inferInstance) nodes).init (start nodes) := by
-  refine ⟨
-    distinct,
-    by simp [start, Function.comp_def],
-    distinct,
-    fun _ member => member,
-    rfl,
-    ?_
-  ⟩
+  have keys : (start nodes).nodes.map Prod.fst = nodes := by
+    simp [start, Function.comp_def]
+  refine ⟨keys, by rw [keys]; exact distinct, rfl, ?_⟩
   intro entry member
   obtain ⟨node, _, rfl⟩ := List.mem_map.mp member
   rfl
@@ -138,7 +130,7 @@ macro "sort_by_insertion" : tactic =>
     CCFRaft.Model.Node.handleAppendEntriesResponse,
     CCFRaft.Model.Node.handleRequestVoteResponse,
     CCFRaft.Model.Node.handleRequestPreVoteResponse,
-    CCFRaft.Model.Node.handleProposeVoteRequest, sort_eq_insertionSorted])
+    CCFRaft.Model.Node.handleProposeRequestVoteRequest, sort_eq_insertionSorted])
 
 section Commit
 

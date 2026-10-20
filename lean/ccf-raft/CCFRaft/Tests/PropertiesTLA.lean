@@ -24,7 +24,7 @@ theorem servers (config : Model.ModelConfig) {nodes : List NodeID}
     : state.nodes.map Prod.fst = nodes /\ nodes.Nodup := by
   let _ : Model.ModelConfig := config
   induction reachable with
-  | initial initialized => exact ⟨initialized.2.1, initialized.1⟩
+  | initial initialized => exact ⟨initialized.1, initialized.1 ▸ initialized.2.1⟩
   | @step before after action _ stepped ih =>
       cases action with
       | «local» actor input =>

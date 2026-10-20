@@ -45,7 +45,7 @@ theorem NodeInvariant.reachable {P : NodeID -> NodeState -> Prop}
   | initial initialized =>
       intro node local_ member
       have initial : local_ = Model.initialNodeState (inferInstance) node :=
-        initialized.2.2.2.2.2 (node, local_) member
+        initialized.2.2.2 (node, local_) member
       subst initial
       exact invariant.initial node
   | @step before after action _ stepped ih =>
@@ -74,7 +74,7 @@ theorem keys_nodup {nodes : List NodeID} {state : Model.State}
     (reachable : (Model.transitionSystem (inferInstance) nodes).Reachable state)
     : (state.nodes.map Prod.fst).Nodup := by
   induction reachable with
-  | initial initialized => exact initialized.2.1 ▸ initialized.1
+  | initial initialized => exact initialized.2.1
   | @step before after action _ stepped ih =>
       cases action with
       | «local» actor input =>

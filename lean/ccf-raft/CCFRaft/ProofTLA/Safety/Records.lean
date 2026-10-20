@@ -114,6 +114,18 @@ theorem log_ne_nil_of_quorum {log : List (Entry)} {commit : Nat}
   rintro rfl
   exact quorum.1 (by simp [activeConfigurations, configurationHistory])
 
+/-- A quorum of some active configurations needs a configuration in the log. -/
+theorem log_ne_nil_of_filtered_quorum {log : List (Entry)} {commit bound : Nat}
+    {voters : Finset NodeID}
+    (quorum
+      : hasQuorum
+          ((activeConfigurations log commit).filter
+            fun configuration => configuration.index <= bound)
+          voters)
+    : Not (log = []) := by
+  rintro rfl
+  exact quorum.1 (by simp [activeConfigurations, configurationHistory])
+
 /-- Two nonempty logs starting with the genesis entry agree on their first
 entry, which names a configuration. -/
 theorem genesis_agree {left right : List (Entry)} {k : Nat}

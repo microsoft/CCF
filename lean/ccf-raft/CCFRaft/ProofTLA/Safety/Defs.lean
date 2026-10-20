@@ -123,7 +123,7 @@ def Canon (history : History) (term : Nat) (log : List (Entry)) : Prop :=
     /\ exists node state, CanonNow earlier node state term /\ state.log = log
 
 /-- A leader of `term` with `state` has its first `index` entries acknowledged
-by a quorum of the configurations active at `base`. -/
+by a quorum of the configurations active at `base` and starting at or before `index`. -/
 def CommitStep (history : History) (leader : NodeID) (state : NodeState)
     (term base index : Nat)
     : Prop :=
@@ -133,7 +133,10 @@ def CommitStep (history : History) (leader : NodeID) (state : NodeState)
   /\ isSignatureAt state.log index = true
   /\ termAt state.log index = term
   /\ exists voters,
-      hasQuorum (activeConfigurations state.log base) voters
+      hasQuorum
+        ((activeConfigurations state.log base).filter
+          fun configuration => configuration.index <= index)
+        voters
       /\ forall voter,
           voter ∈ voters
           -> exists acker,

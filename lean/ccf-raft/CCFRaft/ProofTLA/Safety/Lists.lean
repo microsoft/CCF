@@ -331,7 +331,8 @@ theorem activeConfigurations_overlap
     (rightLe : rightCommit <= k) (named : configurationHistory (right.take k) ≠ [])
     : exists configuration,
         configuration ∈ activeConfigurations left leftCommit
-        /\ configuration ∈ activeConfigurations right rightCommit := by
+        /\ configuration ∈ activeConfigurations right rightCommit
+        /\ configuration.index <= k := by
   obtain ⟨leftRest, leftEq, leftLater⟩ := configurationHistory_split left k
   obtain ⟨rightRest, rightEq, rightLater⟩ := configurationHistory_split right k
   rw [agree] at leftEq
@@ -358,6 +359,11 @@ theorem activeConfigurations_overlap
     rw [List.getElem_append_left (by omega)]
     congr 1
     omega
+  have below : forall {p : Nat} (lt : p < common.length), common[p].index <= k := by
+    intro p lt
+    have := mem_history_filterMap (List.getElem_mem lt)
+    simp only [List.length_take] at this
+    omega
   unfold activeConfigurations
   simp only
   rw [count leftEq leftLater leftLe, count rightEq rightLater rightLe]
@@ -365,13 +371,13 @@ theorem activeConfigurations_overlap
   · have mono := length_filter_index_mono common ordered
     have bound := length_filter_le common rightCommit
     have pos := commonPos
-    refine ⟨common[_ - 1]'(by omega), inDrop (by omega) leftEq (by omega),
-      inDrop (by omega) rightEq le_rfl⟩
+    exact ⟨common[_ - 1]'(by omega), inDrop (by omega) leftEq (by omega),
+      inDrop (by omega) rightEq le_rfl, below _⟩
   · have mono := length_filter_index_mono common ordered
     have bound := length_filter_le common leftCommit
     have pos := commonPos
-    refine ⟨common[_ - 1]'(by omega), inDrop (by omega) leftEq le_rfl,
-      inDrop (by omega) rightEq (by omega)⟩
+    exact ⟨common[_ - 1]'(by omega), inDrop (by omega) leftEq le_rfl,
+      inDrop (by omega) rightEq (by omega), below _⟩
 
 /-- Two strict majorities of one configuration share a member. -/
 theorem majorities_intersect {configuration : Configuration}
@@ -403,9 +409,33 @@ theorem quorums_intersect
     (leftQuorum : hasQuorum (activeConfigurations left leftCommit) leftVoters)
     (rightQuorum : hasQuorum (activeConfigurations right rightCommit) rightVoters)
     : exists node, node ∈ leftVoters /\ node ∈ rightVoters := by
-  obtain ⟨configuration, leftMember, rightMember⟩ :=
+  obtain ⟨configuration, leftMember, rightMember, _⟩ :=
     activeConfigurations_overlap agree leftLe rightLe named
   exact majorities_intersect (hasQuorum_majority leftQuorum leftMember)
+    (hasQuorum_majority rightQuorum rightMember)
+
+/-- As `quorums_intersect`, where the left quorum covers only the active
+configurations starting at or before `bound`, with agreement up to `k <= bound`. -/
+theorem quorums_intersect_below
+    {left right : List (Entry)} {leftCommit rightCommit k bound : Nat}
+    (agree : left.take k = right.take k) (leftLe : leftCommit <= k)
+    (rightLe : rightCommit <= k) (named : configurationHistory (right.take k) ≠ [])
+    (kLe : k <= bound) {leftVoters rightVoters : Finset NodeID}
+    (leftQuorum
+      : hasQuorum
+          ((activeConfigurations left leftCommit).filter
+            fun configuration => configuration.index <= bound)
+          leftVoters)
+    (rightQuorum : hasQuorum (activeConfigurations right rightCommit) rightVoters)
+    : exists node, node ∈ leftVoters /\ node ∈ rightVoters := by
+  obtain ⟨configuration, leftMember, rightMember, low⟩ :=
+    activeConfigurations_overlap agree leftLe rightLe named
+  have filtered
+      : configuration
+        ∈ (activeConfigurations left leftCommit).filter
+            fun configuration => configuration.index <= bound :=
+    List.mem_filter.mpr ⟨leftMember, by simp; omega⟩
+  exact majorities_intersect (hasQuorum_majority leftQuorum filtered)
     (hasQuorum_majority rightQuorum rightMember)
 
 end CCFRaft.ProofTLA.Safety

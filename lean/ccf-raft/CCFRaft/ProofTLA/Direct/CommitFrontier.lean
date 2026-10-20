@@ -155,13 +155,13 @@ theorem CommitFrontier.handleAppendEntriesRequest (frontier : CommitFrontier sta
   unfold Model.Node.handleAppendEntriesRequest
   have stepped : CommitFrontier (if request.term = state.currentTerm /\
       (state.role = .candidate \/ state.role = .preVoteCandidate) then
-        { state with role := .follower, isNewFollower := true } else state) := by
+        Model.Node.becomeAwareOfNewTerm state request.term else state) := by
     split
     · exact frontier.of_log rfl rfl
     · exact frontier
   generalize (if request.term = state.currentTerm /\
       (state.role = .candidate \/ state.role = .preVoteCandidate) then
-        { state with role := .follower, isNewFollower := true } else state) = current
+        Model.Node.becomeAwareOfNewTerm state request.term else state) = current
     at stepped
   refine Keeps.ite' (fun _ => by
     dsimp only
@@ -300,6 +300,7 @@ theorem CommitFrontier.receive {state : NodeState}
   have observed : CommitFrontier (observeTerm state message) :=
     frontier.of_log (Concrete.observeTerm_log _ _) (Concrete.observeTerm_commitIndex _ _)
   unfold Model.Node.receive
+  refine Keeps.ite' (fun _ => Keeps.pure' frontier) fun _ => ?_
   dsimp only
   generalize observeTerm state message = current at observed ⊢
   cases message with
@@ -318,8 +319,8 @@ theorem CommitFrontier.receive {state : NodeState}
       unfold Model.Node.handleRequestVoteResponse
       exact Keeps.ite' (fun _ => CommitFrontier.electIfQuorum caps self (observed.of_log rfl rfl))
         fun _ => Keeps.pure' observed
-  | requestPreVote request =>
-      unfold Model.Node.handleRequestPreVote
+  | requestPreVoteRequest request =>
+      unfold Model.Node.handleRequestPreVoteRequest
       exact Keeps.seq' fun _ => Keeps.pure' observed
   | requestPreVoteResponse response =>
       unfold Model.Node.handleRequestPreVoteResponse
@@ -327,8 +328,8 @@ theorem CommitFrontier.receive {state : NodeState}
       dsimp only
       exact Keeps.ite' (fun _ => CommitFrontier.becomeCandidate caps self (observed.of_log rfl rfl))
         fun _ => Keeps.pure' (observed.of_log rfl rfl)
-  | proposeVoteRequest term =>
-      unfold Model.Node.handleProposeVoteRequest
+  | proposeRequestVoteRequest term =>
+      unfold Model.Node.handleProposeRequestVoteRequest
       exact Keeps.ite' (fun _ => CommitFrontier.becomeCandidate caps self observed)
         fun _ => Keeps.pure' observed
 

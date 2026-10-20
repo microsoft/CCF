@@ -94,12 +94,19 @@ theorem core {small large : History} (within : small <:+ large)
   have candidateGenesis :=
     genesis _ electInner (List.cons_ne_nil _ _) node candidate candidateMem
   rw [candidateLog] at candidateGenesis
+  by_cases covered : index <= k
+  · have same : state.log.take index = log.take index := by
+      simpa [List.take_take, Nat.min_eq_left covered]
+        using congrArg (List.take index) agree
+    rw [same]
+    exact List.take_prefix _ _
+  have positive : 1 <= index := by omega
   obtain ⟨agree', named⟩ :=
-    genesis_agree leaderGenesis.1 candidateGenesis.1 (log_ne_nil_of_quorum ackQuorum)
+    genesis_agree leaderGenesis.1 candidateGenesis.1 (log_ne_nil_of_filtered_quorum ackQuorum)
       (log_ne_nil_of_quorum voteQuorum) agree
   obtain ⟨voter, ackMem, voteMem⟩ :=
-    quorums_intersect agree' (le_max_of_le_left baseLe) (le_max_of_le_left commitLe) named
-      ackQuorum voteQuorum
+    quorums_intersect_below agree' (le_max_of_le_left baseLe) (le_max_of_le_left commitLe)
+      named (max_le (by omega) positive) ackQuorum voteQuorum
   obtain ⟨acker, ackerSeen, ackerTerm, ackerLog⟩ := acked voter ackMem
   obtain ⟨a', b', r', grantSuffix, granting, grantedState, grantingMem, grantedMem,
     grantingTerm, grantedTerm, _, upToDate⟩ := granted voter voteMem

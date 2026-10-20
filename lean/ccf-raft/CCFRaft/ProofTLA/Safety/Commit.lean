@@ -108,7 +108,10 @@ theorem advance_backed {middle : NodeState}
   obtain ⟨bound, signature, termEq, quorum⟩ := highestCommittableIndex_spec middle c.actor ahead
   obtain ⟨voters, quorum, members⟩
       : exists voters,
-          hasQuorum (middle.activeConfigurations) voters
+          hasQuorum
+            (middle.activeConfigurations.filter
+              fun configuration => configuration.index <= highestCommittableIndex middle c.actor)
+            voters
           /\ forall voter, voter ∈ voters
               -> voter = c.actor
                   \/ middle.matchIndex voter >= highestCommittableIndex middle
@@ -129,7 +132,7 @@ theorem advance_backed {middle : NodeState}
     · rw [log, eq]
       exact signature
     · rw [log, eq, termEq, term]
-    · rw [log]
+    · rw [log, eq]
       exact quorum
     · intro voter mem
       by_cases self : voter = c.actor
@@ -477,9 +480,9 @@ theorem old_message {envelope : Model.Envelope} (ok : MessageOK (before :: rest)
       intro granted
       obtain ⟨request, grantedBy, seen, stable⟩ := ok granted
       exact ⟨request, grantedBy.mono c.suffix_tail, c.seen_term seen, c.rv_stable seen stable⟩
-  | requestPreVote _ => simp only [MessageOK, h]
+  | requestPreVoteRequest _ => simp only [MessageOK, h]
   | requestPreVoteResponse _ => simp only [MessageOK, h]
-  | proposeVoteRequest _ => simp only [MessageOK, h]
+  | proposeRequestVoteRequest _ => simp only [MessageOK, h]
 
 theorem new_message {envelope : Model.Envelope} (new : envelope ∈ c.sent)
     : MessageOK (after :: before :: rest) envelope := by
@@ -531,9 +534,9 @@ theorem new_message {envelope : Model.Envelope} (new : envelope ∈ c.sent)
       rw [sourceEq]
       exact ⟨after, before, rest, List.suffix_refl _, c.pre, c.post, c.tr.pre_mem,
         c.tr.post_mem, c.term_le, rfl, voted, upToDate⟩
-  | requestPreVote _ => simp only [MessageOK, h]
+  | requestPreVoteRequest _ => simp only [MessageOK, h]
   | requestPreVoteResponse _ => simp only [MessageOK, h]
-  | proposeVoteRequest _ => simp only [MessageOK, h]
+  | proposeRequestVoteRequest _ => simp only [MessageOK, h]
 
 theorem messages : Messages (after :: before :: rest) := by
   intro envelope pending
@@ -566,13 +569,13 @@ theorem message_terms : MessageTerms (after :: before :: rest) := by
         simp only [Message.term]
         have := ok.1
         omega
-    | requestPreVote request =>
+    | requestPreVoteRequest request =>
         simp only [h, Message.term] at ok ⊢
         omega
     | requestPreVoteResponse response =>
         simp only [h, Message.term] at ok ⊢
         omega
-    | proposeVoteRequest _ =>
+    | proposeRequestVoteRequest _ =>
         rw [h] at bumping
         exact bumping.elim
 

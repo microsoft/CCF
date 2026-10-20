@@ -49,8 +49,8 @@ theorem step_local
                 network := before.network ++ outputs.outgoing
             } := by
   simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
-  simp [Model.Node.step, guard, Option.bind_eq_some_iff] at stepped
-  obtain ⟨_, state, found, next, outputs, ran, rfl⟩ := stepped
+  simp [Model.Node.step, Option.bind_eq_some_iff] at stepped
+  obtain ⟨state, found, next, outputs, ran, rfl⟩ := stepped
   refine ⟨state, next, outputs, found, ?_, by simp [replaceNode]⟩
   exact ran
 
@@ -75,8 +75,8 @@ theorem step_deliver
                   network := removeOne envelope before.network ++ outputs.outgoing
               } := by
   simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
-  simp [Model.Node.step, guard, Option.bind_eq_some_iff] at stepped
-  obtain ⟨queued, _, state, found, next, outputs, ran, rfl⟩ := stepped
+  simp [Model.Node.step, Option.bind_eq_some_iff] at stepped
+  obtain ⟨queued, state, found, next, outputs, ran, rfl⟩ := stepped
   exact ⟨queued, state, next, outputs, found, ran, by simp [replaceNode]⟩
 
 theorem mem_replaceNode {nodes : List (NodeID × NodeState)} {node member : NodeID}

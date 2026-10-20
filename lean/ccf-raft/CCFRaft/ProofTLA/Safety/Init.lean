@@ -31,7 +31,7 @@ include initialized
 theorem initial_state {node : NodeID} {state : NodeState}
     (member : (node, state) ∈ initial.nodes)
     : state = Model.initialNodeState (inferInstance) node :=
-  initialized.2.2.2.2.2 _ member
+  initialized.2.2.2 _ member
 
 theorem initial_seen {node : NodeID} {state : NodeState}
     (seen : Seen [initial] node state)
@@ -155,9 +155,9 @@ theorem inv_initial : Inv [initial] := by
     rw [stateOf now] at positive
     simp [Model.initialNodeState] at positive
   · intro envelope pending
-    simp [Pending, initialized.2.2.2.2.1] at pending
+    simp [Pending, initialized.2.2.1] at pending
   · intro envelope pending
-    simp [Pending, initialized.2.2.2.2.1] at pending
+    simp [Pending, initialized.2.2.1] at pending
   · intro node state now
     rw [stateOf now]
     by_cases isLeader : node = ((inferInstance : Model.ModelConfig).primary : NodeID)
