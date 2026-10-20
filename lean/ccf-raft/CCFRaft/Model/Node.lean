@@ -71,9 +71,11 @@ def findSuccessor (state : NodeState) (self : NodeID) : Option NodeID :=
     none
 
 def nominateSuccessor (caps : Caps) (state : NodeState) (self : NodeID)
-    : NodeEffect Unit := do
+    : NodeEffect NodeState := do
+  guard (state.role = .primary)
   if let some successor := findSuccessor state self then
     caps.send (.proposeRequestVoteRequest state.currentTerm) successor
+  return state
 
 abbrev canStartElection (state : NodeState) (self : NodeID) : Prop :=
   (state.role = .follower \/ state.role = .preVoteCandidate \/ state.role = .candidate)
@@ -139,7 +141,7 @@ def advanceCommit (caps : Caps) (state : NodeState) (self : NodeID)
     let state := state.recordCommit self commitIndex
     if state.isRetiredCommitted self then
       if preCommitState.role = .primary then
-        nominateSuccessor caps preCommitState self
+        let _ ← nominateSuccessor caps preCommitState self
       return state
     else
       return state
@@ -586,10 +588,7 @@ def act (caps : Caps) (self : NodeID) (state : NodeState) : Input -> NodeEffect 
       sendEntries caps self state destination endIndex
   | .timeout .election => startElection caps state self
   | .timeout .checkQuorum => checkQuorum state self
-  | .nominateSuccessor => do
-      guard (state.role = .primary)
-      nominateSuccessor caps state self
-      return state
+  | .nominateSuccessor => nominateSuccessor caps state self
 
 def step (caps : Caps) (self : NodeID) (state : NodeState) : Event -> NodeEffect NodeState
   | .internal input => act caps self state input
