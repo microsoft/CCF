@@ -111,10 +111,15 @@ example
   cases result
 
 private def initial : MultiNodeTransitionSystem.State Nat Nat Nat :=
-  {
-    nodes := [(0, 0), (1, 0)]
-    active := [0, 1]
-  }
+  { nodes := [(0, 0), (1, 0)] }
+
+example
+    : (MultiNodeTransitionSystem.lift protocol).init { nodes := [(9, 0), (1, 0)] } := by
+  simp [MultiNodeTransitionSystem.lift, protocol, or_imp, and_imp]
+
+example
+    : ¬ (MultiNodeTransitionSystem.lift protocol).init { nodes := [(1, 0), (1, 0)] } := by
+  simp [MultiNodeTransitionSystem.lift]
 
 private def expect (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError message)
@@ -126,7 +131,7 @@ private def requireSome {α : Type} (value : Option α) (message : String) : IO 
 
 /-- Checks message multiplicity, delivery guards, and output ordering in the shared network. -/
 def run : IO Unit := do
-  let machine := MultiNodeTransitionSystem.lift [0, 1] protocol
+  let machine := MultiNodeTransitionSystem.lift protocol
   let message : Envelope Nat Nat := { source := 0, target := 1, payload := 5 }
   let reply : Envelope Nat Nat := { source := 1, target := 0, payload := 1 }
   let queued := { initial with network := [message, message] }
@@ -146,10 +151,8 @@ def run : IO Unit := do
     "non-head delivery failed to preserve other queued messages and append its reply"
   expect ((machine.step initial (.deliver message)).isNone)
     "delivery fabricated a queued message"
-  expect ((machine.step { queued with active := [0] } (.deliver message)).isNone)
-    "inactive receiver accepted a message"
   expect ((machine.step { queued with nodes := [(0, 0)] } (.deliver message)).isNone)
-    "an active receiver with no local state accepted a message"
+    "a receiver with no local state accepted a message"
 
   let blocked : Envelope Nat Nat := { message with payload := 0 }
   expect
@@ -176,7 +179,7 @@ def run : IO Unit := do
     "synthetic receive failed to update local state"
   expect (synthetic.network == [message, message, reply])
     "synthetic receive removed a queued message"
-  let isolated := { queued with nodes := [(1, 0)], active := [1] }
+  let isolated := { queued with nodes := [(1, 0)] }
   let isolatedSent <- requireSome (machine.step isolated (.local 1 (.receive 0 5)))
                         "sending to an absent node disabled the local step"
   expect
@@ -186,15 +189,6 @@ def run : IO Unit := do
     "other nodes influenced a local step or its sends"
   expect ((machine.step isolatedSent (.deliver reply)).isNone)
     "an absent recipient accepted a queued message"
-  let inactiveSent <- requireSome
-                        (machine.step { initial with active := [1] }
-                          (.local 1 (.receive 0 5)))
-                        "sending to an inactive node disabled the local step"
-  expect
-    (MultiNodeTransitionSystem.nodeState inactiveSent 1
-        == MultiNodeTransitionSystem.nodeState synthetic 1
-      && inactiveSent.network == [reply])
-    "recipient activity or the existing queue influenced a local step"
   let incremented <- requireSome (machine.step synthetic (.local 1 .increment))
                       "internal increment disabled"
   expect (incremented.network == synthetic.network)

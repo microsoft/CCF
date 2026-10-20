@@ -7,9 +7,9 @@ import sys
 from collections import defaultdict
 from contextlib import contextmanager
 from heapq import merge
-from subprocess import PIPE, Popen
 
 from raft_scenarios_gen import generate_scenarios
+from raft_trace import as_log_lines, check_connection_timeout, run_driver
 
 
 @contextmanager
@@ -44,7 +44,7 @@ def preprocess_for_trace_validation(log):
     expected sequence of "become_leader", "add_configuration", "replicate" (committable),
     followed by "commit", and replace it with a "bootstrap" entry.
     """
-    # Log may be empty if CCF_RAFT_TRACING=OFF
+    # Scenarios without commands produce no trace records.
     if not log:
         return log
     log_by_node = defaultdict(list)
@@ -88,7 +88,7 @@ def preprocess_for_trace_validation(log):
     assert signature["msg"]["globally_committable"], signature
     commit = head()
     assert commit["msg"]["function"] == "commit", commit
-    assert commit["msg"]["args"]["idx"] == 2, commit
+    assert commit["msg"]["idx"] == 2, commit
     # Commit becomes bootstrap, the entry point into the trace validation
     commit["msg"]["function"] = "bootstrap"
     log_by_node[initial_node].insert(0, commit)
@@ -102,17 +102,15 @@ def noop(log):
     return log
 
 
-def separate_log_lines(text, preprocess):
+def separate_log_lines(text, records, preprocess):
     mermaid = []
-    log = []
     for line in text.split(os.linesep):
         if line.startswith("<RaftDriver>"):
             mermaid.append(line[len("<RaftDriver>") :])
-        elif '"raft_trace"' in line:
-            log.append(line)
+    log = preprocess([json.dumps(entry) for entry in as_log_lines(records)])
     return (
         os.linesep.join(mermaid) + os.linesep,
-        os.linesep.join(preprocess(log)) + os.linesep,
+        os.linesep.join(log) + os.linesep if log else "",
     )
 
 
@@ -154,6 +152,9 @@ if __name__ == "__main__":
 
     ostream = sys.stdout
 
+    if files:
+        check_connection_timeout(args.driver, files[0])
+
     # Create consensus-specific output directory
     os.makedirs(args.output, exist_ok=True)
 
@@ -161,29 +162,24 @@ if __name__ == "__main__":
         ostream.write(f"## {os.path.basename(scenario)}\n\n")
         with block(ostream, "steps", 3), open(scenario, "r", encoding="utf-8") as scen:
             ostream.write(scen.read())
-        proc = Popen(
-            [args.driver, os.path.realpath(scenario)],
-            stdout=PIPE,
-            stderr=PIPE,
-            stdin=PIPE,
-        )
-        out, err = proc.communicate()
+        proc, records = run_driver(args.driver, scenario)
+        out, err = proc.stdout, proc.stderr
         test_result = test_result and proc.returncode == 0
 
         if err:
-            err_list.append([os.path.basename(scenario), err.decode()])
+            err_list.append([os.path.basename(scenario), err])
             with block(ostream, "stderr", 3):
-                ostream.write(err.decode())
+                ostream.write(err)
 
         mermaid, log = separate_log_lines(
-            out.decode(),
+            out,
+            records,
             noop if "deprecated" in scenario else preprocess_for_trace_validation,
         )
 
         with block(ostream, "diagram", 3, "mermaid", ["sequenceDiagram"]):
             ostream.write(mermaid)
 
-        ## Do not create an empty ndjson file if log is emtpy.
         if log:
             with open(
                 os.path.join(args.output, f"{os.path.basename(scenario)}.ndjson"),
