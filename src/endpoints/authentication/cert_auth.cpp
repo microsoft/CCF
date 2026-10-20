@@ -30,7 +30,7 @@ namespace ccf
       }
       try
       {
-        const auto did = crypto::did_key_from_public_key_der(
+        auto did = crypto::did_key_from_public_key_der(
           crypto::public_key_der_from_cert(session.caller_cert));
         auto enrolled = certs->get(did);
         if (enrolled.has_value())

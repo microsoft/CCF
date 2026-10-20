@@ -82,7 +82,7 @@ class Consortium:
         )
         return new_member
 
-    def generate_existing_member(self, local_id, recovery_role):
+    def generate_existing_member(self, local_id, recovery_role, id_format="sha256"):
         new_member = infra.member.Member(
             local_id,
             self.common_dir,
@@ -90,6 +90,7 @@ class Consortium:
             recovery_role=recovery_role,
             authenticate_session=self.authenticate_session,
             gov_api_impl=self.gov_api_impl,
+            id_format=id_format,
         )
         return new_member
 

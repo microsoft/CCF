@@ -265,10 +265,36 @@ function checkIdentityEnrollment(args, tableName) {
     format === "sha256"
       ? ccf.pemToId(args.cert)
       : ccf.pemToId(args.cert, format);
+  if (format === "sha256") {
+    if (typeof ccf.certificatesHaveSamePublicKey !== "function") {
+      return id;
+    }
+    let did;
+    try {
+      did = ccf.pemToId(args.cert, "did:key");
+    } catch (e) {
+      // Keys outside the did:key profile cannot have a DID enrollment.
+      const reason = e.message.replace(/^Failed to parse PEM: /, "");
+      if (
+        reason === "Unsupported did:key EC curve" ||
+        reason === "Unsupported did:key public key type" ||
+        reason === "did:key RSA keys must be between 2048 and 16384 bits"
+      ) {
+        return id;
+      }
+      throw e;
+    }
+    if (ccf.kv[tableName].has(ccf.strToBuf(did))) {
+      throw new Error(
+        `Public key is already enrolled under a different ID format: ${did}`,
+      );
+    }
+    return id;
+  }
   ccf.kv[tableName].forEach((cert, key) => {
     const existingId = ccf.bufToStr(key);
     if (
-      existingId.startsWith("did:key:") !== (format === "did:key") &&
+      !existingId.startsWith("did:key:") &&
       ccf.certificatesHaveSamePublicKey(ccf.bufToStr(cert), args.cert)
     ) {
       throw new Error(

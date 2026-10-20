@@ -812,6 +812,65 @@ TEST_CASE("Add a node to an opening service")
   }
 }
 
+TEST_CASE("Node identity paths preserve canonical IDs")
+{
+  auto id_format = IdentityIdFormat::SHA256;
+  SUBCASE("Legacy node ID") {}
+  SUBCASE("DID node ID")
+  {
+    id_format = IdentityIdFormat::DIDKey;
+  }
+
+  NetworkState network;
+  network.tables->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  StubNodeContext context;
+  NodeRpcFrontend frontend(network, context);
+  frontend.open();
+
+  const auto node_kp = ccf::crypto::make_ec_key_pair();
+  const auto canonical_id = compute_node_id_from_kp(node_kp, id_format);
+  const auto encoded_id = id_format == IdentityIdFormat::DIDKey ?
+    "did%3Akey%3A" + canonical_id.value().substr(8) :
+    canonical_id.value();
+  NodeInfo info;
+  info.encryption_pub_key = node_kp->public_key_pem();
+  info.public_key = node_kp->public_key_pem();
+  info.status = NodeStatus::RETIRED;
+  info.retired_committed = true;
+  {
+    auto tx = network.tables->create_tx();
+    tx.rw(network.nodes)->put(canonical_id, info);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  for (const auto& id : {canonical_id.value(), encoded_id})
+  {
+    const auto response = frontend_process(
+      frontend, nullptr, "network/nodes/" + id, member_cert, HTTP_GET);
+    INFO(parse_response_body(response));
+    REQUIRE(response.status == HTTP_STATUS_OK);
+    CHECK(parse_response_body<GetNode::Out>(response).node_id == canonical_id);
+  }
+
+  auto response = frontend_process(
+    frontend, nullptr, "network/nodes/" + encoded_id, member_cert, HTTP_DELETE);
+  check_error(response, HTTP_STATUS_BAD_REQUEST);
+  check_error_message(response, "Node is not completely retired");
+
+  network.tables->compact(network.tables->current_version());
+  response = frontend_process(
+    frontend, nullptr, "network/nodes/" + encoded_id, member_cert, HTTP_DELETE);
+  REQUIRE(response.status == HTTP_STATUS_OK);
+  CHECK(parse_response_body<bool>(response));
+  {
+    auto tx = network.tables->create_tx();
+    CHECK_FALSE(tx.ro(network.nodes)->has(canonical_id));
+  }
+  response = frontend_process(
+    frontend, nullptr, "network/nodes/" + encoded_id, member_cert, HTTP_GET);
+  check_error(response, HTTP_STATUS_NOT_FOUND);
+}
+
 TEST_CASE("JWT refresh metrics are thread-safe")
 {
   NetworkState network;

@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum, IntEnum, auto
 from typing import ClassVar
+from urllib.parse import quote
 
 import ccf.ledger
 from ccf.tx_id import TxID
@@ -761,31 +762,35 @@ class Network:
                     self.share_script,
                     gov_api_version=args.gov_api_version,
                 )
+                r = c.get("/gov/service/members")
+                assert r.status_code == http.HTTPStatus.OK, r
+                members = {
+                    member["memberId"]: member for member in r.body.json()["value"]
+                }
                 for f in os.listdir(self.common_dir):
                     if re.search("member(.*)_cert.pem", f) is not None:
                         local_id = f.split("_")[0]
-                        recovery_role = (
-                            infra.member.RecoveryRole.Participant
-                            if os.path.isfile(
-                                os.path.join(
-                                    self.common_dir, f"{local_id}_enc_privk.pem"
-                                )
+                        cert = slurp_file(os.path.join(self.common_dir, f))
+                        id_format = "sha256"
+                        service_id = infra.crypto.identity_id_from_cert(cert)
+                        if service_id not in members:
+                            id_format = "did:key"
+                            service_id = infra.crypto.identity_id_from_cert(
+                                cert, id_format
                             )
-                            else infra.member.RecoveryRole.NonParticipant
+                        if service_id not in members:
+                            raise ValueError(
+                                f"Member {local_id} is not enrolled in the recovered service"
+                            )
+                        member_info = members[service_id]
+                        recovery_role = infra.member.RecoveryRole(
+                            member_info["recoveryRole"]
                         )
-
                         new_member = self.consortium.generate_existing_member(
-                            local_id, recovery_role
+                            local_id, recovery_role, id_format=id_format
                         )
 
-                        r = c.get(f"/gov/service/members/{new_member.service_id}")
-                        assert r.status_code == 200
-                        member_info = r.body.json()
                         assert member_info["memberId"] == new_member.service_id
-                        assert (
-                            infra.member.RecoveryRole(member_info["recoveryRole"])
-                            == new_member.recovery_role
-                        )
                         new_member.member_data = member_info["memberData"]
                         if (
                             infra.member.MemberStatus(member_info["status"])
@@ -1561,7 +1566,7 @@ class Network:
                         if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
                             check_commit = infra.checker.Checker(c)
                             r = c.delete(
-                                f"/node/network/nodes/{node_to_retire.node_id}"
+                                f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
                             )
                             if self._is_retryable_node_removal_response(r):
                                 LOG.warning(f"Retrying node removal after {r}")
@@ -1580,7 +1585,7 @@ class Network:
                                 break
                         else:
                             r = c.get(
-                                f"/node/network/nodes/{node_to_retire.node_id}"
+                                f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
                             ).body.json()
                 except ConnectionRefusedError:
                     pass
@@ -1717,7 +1722,9 @@ class Network:
                     r = c.get("/node/network/removable_nodes").body.json()
                     if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
                         check_commit = infra.checker.Checker(c)
-                        r = c.delete(f"/node/network/nodes/{node_to_retire.node_id}")
+                        r = c.delete(
+                            f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
+                        )
                         if self._is_retryable_node_removal_response(r):
                             LOG.warning(f"Retrying node removal after {r}")
                             try:
@@ -1735,7 +1742,7 @@ class Network:
                             break
                     else:
                         r = c.get(
-                            f"/node/network/nodes/{node_to_retire.node_id}"
+                            f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
                         ).body.json()
             except ConnectionRefusedError:
                 pass
@@ -2051,7 +2058,7 @@ class Network:
         **kwargs,
     ):
         with remote_node.client(**kwargs) as c:
-            r = c.get(f"/node/network/nodes/{node_id}")
+            r = c.get(f"/node/network/nodes/{quote(node_id, safe='')}")
             resp = r.body.json()
             return (
                 r.status_code == http.HTTPStatus.NOT_FOUND.value

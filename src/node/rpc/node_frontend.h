@@ -1157,7 +1157,10 @@ namespace ccf
       std::string node_id;
       std::string error;
       if (!get_path_param(
-            args.rpc_ctx->get_request_path_params(), "node_id", node_id, error))
+            args.rpc_ctx->get_decoded_request_path_params(),
+            "node_id",
+            node_id,
+            error))
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
@@ -1214,7 +1217,10 @@ namespace ccf
       std::string node_id;
       std::string error;
       if (!get_path_param(
-            args.rpc_ctx->get_request_path_params(), "node_id", node_id, error))
+            args.rpc_ctx->get_decoded_request_path_params(),
+            "node_id",
+            node_id,
+            error))
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);

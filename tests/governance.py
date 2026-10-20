@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import copy
 import http
 import importlib.util
 import json
@@ -936,6 +937,10 @@ def did_key_identities(args):
         assert node.node_id.startswith("did:key:z")
         network.trust_node(node, args)
         node.verify_certificate_validity_period()
+        with primary.client() as c:
+            r = c.get(f"/node/network/nodes/{quote(node.node_id, safe='')}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert r.body.json()["node_id"] == node.node_id, r
         with node.client(replacement_identity) as c:
             r = c.post("/app/log/private", {"id": 2, "msg": "Mixed node IDs"})
             assert r.status_code == http.HTTPStatus.OK, r
@@ -944,6 +949,13 @@ def did_key_identities(args):
             node.get_receipt(r.view, r.seqno).json(), network.cert
         )
         test_each_node_cert_renewal(network, args)
+        primary, _ = network.find_primary()
+        network.retire_node(primary, node)
+        node.stop()
+        primary, _ = network.find_primary()
+        with primary.client() as c:
+            r = c.get(f"/node/network/nodes/{quote(node.node_id, safe='')}")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND, r
 
         network.consortium.remove_user(primary, user.service_id)
         with primary.client(replacement_identity) as c:
@@ -960,23 +972,44 @@ def did_key_identities(args):
         snapshots_dir = network.get_committed_snapshots(
             primary, target_seqno=snapshot.seqno, wait_for_target_seqno=True
         )
+        with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+            r = c.get("/gov/service/members")
+            assert r.status_code == http.HTTPStatus.OK, r
+            members_before_recovery = {
+                info["memberId"]: info for info in r.body.json()["value"]
+            }
         network.save_service_identity(args)
         network.stop_all_nodes()
         ledger_dir, committed_ledger_dirs = primary.get_ledger()
+        recovery_args = copy.deepcopy(args)
+        recovery_args.label = f"{args.label}_disk_recovery"
         with infra.network.network(
             args.nodes,
             args.binary_dir,
             args.debug_nodes,
-            existing_network=network,
         ) as recovered:
             recovered.start_in_recovery(
-                args,
+                recovery_args,
                 ledger_dir=ledger_dir,
                 committed_ledger_dirs=committed_ledger_dirs,
                 snapshots_dir=snapshots_dir,
+                common_dir=network.common_dir,
                 node_id_format="did:key",
             )
-            recovered.recover(args, via_recovery_owner=True)
+            for original in network.consortium.members:
+                restored = recovered.consortium.get_member_by_local_id(
+                    original.local_id
+                )
+                assert restored is not None, original.local_id
+                assert restored.service_id == original.service_id
+                assert restored.id_format == original.id_format
+                assert restored.recovery_role == original.recovery_role
+                assert (
+                    restored.member_data
+                    == members_before_recovery[original.service_id]["memberData"]
+                )
+                assert restored.status == original.status
+            recovered.recover(recovery_args, via_recovery_owner=True)
             recovered_primary, _ = recovered.find_primary()
             assert recovered_primary.node_id.startswith("did:key:z")
             with recovered_primary.client(replacement_identity) as c:
