@@ -191,6 +191,7 @@ namespace ccf
         struct ClearOnExit
         {
           NodeState* owner;
+
           ~ClearOnExit()
           {
             std::lock_guard<ds::Mutex> guard(owner->lock);
@@ -289,6 +290,7 @@ namespace ccf
         {
           NodeState* owner;
           BackupSnapshotFetch* task;
+
           ~ClearOnExit()
           {
             std::lock_guard<ds::Mutex> guard(

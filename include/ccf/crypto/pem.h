@@ -26,6 +26,7 @@ namespace ccf::crypto
     Pem(const uint8_t* data, size_t size);
 
     explicit Pem(std::span<const uint8_t> s) : Pem(s.data(), s.size()) {}
+
     explicit Pem(const std::vector<uint8_t>& v) : Pem(v.data(), v.size()) {}
 
     bool operator==(const Pem& rhs) const

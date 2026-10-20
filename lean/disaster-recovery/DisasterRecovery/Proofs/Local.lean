@@ -89,7 +89,7 @@ lemma validStep_run {config : Model.Config}
               s.action).run
               {}
             = some (s.after, s.effects) := by
-  simpa [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol,
+  simpa [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
     Option.bind_eq_some_iff, Option.map_eq_some_iff]
     using valid
 

@@ -107,8 +107,8 @@ lemma reachable_opening_thresholds {config : Model.Config} {state : State}
     : OpeningThresholds config state := by
   induction reachable with
   | initial initialized =>
-      rcases initialized with ⟨active, _, _, _, rfl⟩
-      simp [OpeningThresholds, initial, initialSystem, initialNode]
+      rcases initialized with ⟨_, nodes, _, _, rfl⟩
+      simp [OpeningThresholds, initial, initialNode]
   | step _ trans ih =>
       exact next_preserves_opening_thresholds config _ _ _ ih trans
 
@@ -137,13 +137,14 @@ lemma notification_opening_state {config : Model.Config} {trace : Properties.Glo
     (notification
       : Properties.Trace.NotificationAt config trace index node (.opening kind))
     : exists after current,
-        after ∈ trace.states
+        trace.get? (index + 1) = some after
         /\ (node, current) ∈ after.nodes
         /\ current.openKind = some kind := by
   obtain ⟨before, after, action, nodeBefore, nodeAfter, outputs,
     _, atAfter, _, _, _, foundAfter, enabled, notified⟩ := notification
-  simp [Model.protocol, Option.bind_eq_some_iff] at enabled
-  obtain ⟨recovered, _, enabled⟩ := enabled
+  obtain ⟨recovered, _, enabled⟩ :=
+    DisasterRecovery.Proofs.Local.validStep_run
+      (s := ⟨node, nodeBefore, Properties.Trace.event action, nodeAfter, outputs⟩) enabled
   have erased := Lifting.step_erases config.protocol recovered nodeBefore (source := node)
     (Properties.Trace.event action) { state := nodeAfter, effects := outputs.notifications }
     (by simp [enabled, Lifting.capture])
@@ -161,7 +162,7 @@ lemma notification_opening_state {config : Model.Config} {trace : Properties.Glo
   have opened := (Quorum.opening_effect_state config.protocol nodeBefore
     (Properties.Trace.event action) kind recorded).2
   rw [stateEq] at opened
-  refine ⟨after, nodeAfter, List.mem_iff_getElem?.mpr ⟨_, atAfter⟩, ?_, opened⟩
+  refine ⟨after, nodeAfter, atAfter, ?_, opened⟩
   obtain ⟨entry, found, value⟩ := Option.map_eq_some_iff.mp foundAfter
   have key := beq_iff_eq.mp
     (List.find?_some (p := fun entry : Location × NodeState => entry.1 == node) found)
@@ -183,8 +184,7 @@ lemma current_quorum_unique_of_thresholds {config : Model.Config} {state : State
       (voter : Location) (vote : voter ∈ entry.2.votes) :
       voter ∈ config.protocol.expectedLocations := by
     obtain ⟨sent, sentMember, source, _, _⟩ := invariant.votesSent entry member voter vote
-    exact wf.activeConfigured voter
-      (by simpa [source] using wf.sentSourceActive sent sentMember)
+    simpa [source] using wf.sentSourceConfigured sent sentMember
   obtain ⟨voter, firstVote, secondVote⟩ :=
     Quorum.quorum_lists_intersect config.protocol.expectedLocations
       first.2.votes second.2.votes

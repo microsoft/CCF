@@ -41,6 +41,7 @@ namespace ccf::historical
 };
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<ccf::historical::CompoundHandle>
 {
@@ -62,6 +63,7 @@ struct formatter<ccf::historical::CompoundHandle>
       std::get<1>(p));
   }
 };
+
 FMT_END_NAMESPACE
 
 namespace ccf::historical
@@ -216,6 +218,7 @@ namespace ccf::historical
         return std::nullopt;
       }
     };
+
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
     using RequestedStores = std::map<ccf::SeqNo, StoreDetailsPtr>;
 
@@ -365,6 +368,7 @@ namespace ccf::historical
       ccf::LedgerSecretPtr secret = nullptr;
 
       VersionedSecret() = default;
+
       // NB: Can't use VersionedLedgerSecret directly because the first element
       // is const, so the whole thing is non-copyable
       VersionedSecret(const ccf::VersionedLedgerSecret& vls) :
@@ -941,6 +945,7 @@ namespace ccf::historical
       size_t released_seqnos_checked = 0;
       size_t pending_fetches_visited = 0;
     };
+
     TickWork last_tick_work;
 
     // Reset for every handle_ledger_entry attempt, including rejected entries.
@@ -949,6 +954,7 @@ namespace ccf::historical
     {
       size_t requests_visited = 0;
     };
+
     ReplyWork last_reply_work;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);

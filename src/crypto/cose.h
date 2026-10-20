@@ -65,6 +65,7 @@ namespace ccf
         // https://www.ietf.org/archive/id/draft-ietf-cose-merkle-tree-proofs-18.html#name-cose-header-parameter
         static constexpr int64_t INCLUSION_PROOFS = -1;
       }
+
       namespace custom
       {
         static constexpr std::string_view CCF_V1 = "ccf.v1";
@@ -75,6 +76,7 @@ namespace ccf
           "epoch.end.merkle.root";
       }
     }
+
     namespace value
     {
       // https://www.ietf.org/archive/id/draft-birkholz-cose-receipts-ccf-profile-05.html#section-2
@@ -84,6 +86,7 @@ namespace ccf
       static constexpr std::string_view CT_OCTET_STREAM =
         "application/octet-stream";
     }
+
     namespace alg // https://www.iana.org/assignments/cose/cose.xhtml
     {
       static constexpr int64_t ES256 = -7;
@@ -119,6 +122,7 @@ namespace ccf
         cose_alg == alg::PS512;
     }
   }
+
   namespace cwt::header
   {
     namespace iana // https://www.iana.org/assignments/cwt/cwt.xhtml
@@ -138,6 +142,7 @@ namespace ccf
        */
       static constexpr int64_t IAT = 6;
     }
+
     namespace custom
     {
       static constexpr std::string_view SVN = "svn";

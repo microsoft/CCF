@@ -33,6 +33,7 @@ namespace ccf::js::extensions
         double double_value = 0;
         uint64_t uint_value;
       } value;
+
       try
       {
         value.uint_value = entropy->random64();

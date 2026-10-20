@@ -42,6 +42,7 @@ namespace ccf::crypto
   using namespace OpenSSL;
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL() = default;
+
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* key) :
     key(key, EVP_PKEY_free)
   {
@@ -51,9 +52,11 @@ namespace ccf::crypto
         "Cannot construct RSAPublicKey_OpenSSL from non-RSA key");
     }
   }
+
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(Unique_PKEY&& pkey) :
     RSAPublicKey_OpenSSL(pkey.release())
   {}
+
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
@@ -66,6 +69,7 @@ namespace ccf::crypto
         "Cannot construct RSAPublicKey_OpenSSL from non-RSA key");
     }
   }
+
   RSAPublicKey_OpenSSL::~RSAPublicKey_OpenSSL() = default;
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(std::span<const uint8_t> der)

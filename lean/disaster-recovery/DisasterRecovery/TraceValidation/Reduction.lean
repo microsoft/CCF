@@ -208,7 +208,7 @@ private def linearize (queues : Array (Array Item)) : Checked (Array Instruction
 
 /-- Replay configuration, ordered instructions, and the scenario's terminal outcome. -/
 structure Reduced where
-  /-- Reconstructed protocol configuration and active participants. -/
+  /-- Reconstructed protocol configuration and participants. -/
   header : Header
   /-- Actions and observations in an order consistent with commits and deliveries. -/
   instructions : Array Instruction

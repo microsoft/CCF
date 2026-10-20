@@ -25,6 +25,7 @@ namespace ccf::crypto
   using namespace OpenSSL;
 
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL() = default;
+
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(EVP_PKEY* key) :
     key(key, EVP_PKEY_free)
   {
@@ -34,9 +35,11 @@ namespace ccf::crypto
         "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
+
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(Unique_PKEY&& pkey) :
     ECPublicKey_OpenSSL(pkey.release())
   {}
+
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
@@ -49,6 +52,7 @@ namespace ccf::crypto
         "Cannot construct ECPublicKey_OpenSSL from non-EC key");
     }
   }
+
   ECPublicKey_OpenSSL::~ECPublicKey_OpenSSL() = default;
 
   ECPublicKey_OpenSSL::ECPublicKey_OpenSSL(std::span<const uint8_t> der)

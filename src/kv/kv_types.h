@@ -417,6 +417,9 @@ namespace ccf::kv
     virtual void set_term(ccf::kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
     virtual void set_endorsed_certificate(const ccf::crypto::Pem& cert) = 0;
+    // Called once the node is part of the network and may sign. Also enables
+    // on-demand signatures via try_emit_signature(), which are suppressed
+    // until then.
     virtual void start_signature_emit_timer() = 0;
     virtual void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> keypair,
@@ -569,6 +572,7 @@ namespace ccf::kv
       const ccf::TxID& tx_id,
       EntryType entry_type = EntryType::WriteSet,
       bool historical_hint = false) = 0;
+
     virtual bool encrypt(
       std::span<const uint8_t> plain,
       std::span<const uint8_t> additional_data,
@@ -617,6 +621,7 @@ namespace ccf::kv
       }
       return true;
     }
+
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
@@ -642,6 +647,7 @@ namespace ccf::kv
         "ce:{}.{}:{}", tx_id.view, tx_id.seqno, ccf::ds::to_hex(nonce));
     }
   };
+
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
 
   class AbstractSnapshotter
@@ -654,6 +660,7 @@ namespace ccf::kv
     virtual void commit(ccf::kv::Version v, bool generate_snapshot) = 0;
     virtual void rollback(ccf::kv::Version v) = 0;
   };
+
   using SnapshotterPtr = std::shared_ptr<AbstractSnapshotter>;
 
   class AbstractChangeSet
@@ -676,6 +683,7 @@ namespace ccf::kv
   };
 
   class AbstractStore;
+
   class AbstractMap : public std::enable_shared_from_this<AbstractMap>,
                       public GetName
   {
@@ -819,10 +827,12 @@ namespace ccf::kv
   {
   public:
     ScopedStoreMapsLock() = delete;
+
     ScopedStoreMapsLock(StorePointer _store) : store(std::move(_store))
     {
       store->lock_maps();
     }
+
     ~ScopedStoreMapsLock()
     {
       store->unlock_maps();

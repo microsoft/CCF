@@ -35,6 +35,7 @@
 #include "sig_term.h"
 #include "task_ticker.h"
 #include "tcp.h"
+#include "tracing/fluentd_sink.h"
 
 #include <CLI11/CLI11.hpp>
 #include <chrono>
@@ -229,6 +230,7 @@ namespace ccf
       {
         return;
       }
+      ccf::tracing::FluentdSink::bind_producer(thread_id);
       try
       {
         LOG_INFO_FMT("Starting thread: {}", thread_id);
@@ -472,6 +474,11 @@ namespace ccf
       return CreateNodeStatus::ReconfigurationMethodNotSupported;
     }
 
+    ccf::tracing::FluentdSink::configure(
+      config.observability.fluentd, config.worker_threads + 2);
+    ccf::tracing::FluentdSink::bind_producer(config.worker_threads + 1);
+    ccf::tracing::FluentdSink::Lifetime trace_lifetime;
+
     // The stop callback's owner must outlive RuntimeControl, but the runtime
     // itself must be destroyed before its host dependencies.
     struct RuntimeCleanup
@@ -481,6 +488,7 @@ namespace ccf
       std::optional<http_client::CurlmLibuvContextSingleton>& curl_context;
       asynchost::Sigterm& sigterm;
       asynchost::Sighup& sighup;
+
       ~RuntimeCleanup()
       {
         sigterm = nullptr;
@@ -677,6 +685,11 @@ namespace ccf
     try
     {
       validate_ledger_transaction_size(config);
+      if (config.observability.fluentd)
+      {
+        ccf::tracing::FluentdSink::validate(
+          *config.observability.fluentd, config.worker_threads + 3);
+      }
       const auto pending_node_timeout =
         std::chrono::microseconds(config.pending_node_timeout);
       if (

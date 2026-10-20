@@ -7,6 +7,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/entity_id.h"
+#include "ccf/fluentd_config.h"
 #include "ccf/node/start_type.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_config.h"
@@ -71,6 +72,7 @@ namespace ccf
 
       bool operator==(const NodeToNode&) const = default;
     };
+
     NodeToNode node_to_node = {};
 
     ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
@@ -95,6 +97,7 @@ namespace ccf
 
       bool operator==(const NodeCertificateInfo&) const = default;
     };
+
     NodeCertificateInfo node_certificate = {};
 
     struct Ledger
@@ -109,6 +112,7 @@ namespace ccf
 
       bool operator==(const Ledger&) const = default;
     };
+
     Ledger ledger = {};
 
     struct LedgerSignatures
@@ -118,6 +122,7 @@ namespace ccf
 
       bool operator==(const LedgerSignatures&) const = default;
     };
+
     LedgerSignatures ledger_signatures = {};
 
     struct JWT
@@ -127,6 +132,7 @@ namespace ccf
 
       bool operator==(const JWT&) const = default;
     };
+
     JWT jwt = {};
 
     struct Attestation
@@ -146,10 +152,12 @@ namespace ccf
 
         bool operator==(const Environment&) const = default;
       };
+
       Environment environment = {};
 
       bool operator==(const Attestation&) const = default;
     };
+
     Attestation attestation = {};
 
     struct Snapshots
@@ -170,10 +178,12 @@ namespace ccf
 
         bool operator==(const BackupFetch&) const = default;
       };
+
       BackupFetch backup_fetch = {};
 
       bool operator==(const Snapshots&) const = default;
     };
+
     Snapshots snapshots = {};
 
     struct FilesCleanup
@@ -184,6 +194,7 @@ namespace ccf
 
       bool operator==(const FilesCleanup&) const = default;
     };
+
     FilesCleanup files_cleanup = {};
 
     struct IdentityHistoryFetch
@@ -193,7 +204,21 @@ namespace ccf
 
       bool operator==(const IdentityHistoryFetch&) const = default;
     };
+
     IdentityHistoryFetch identity_history_fetch = {};
+
+    struct Observability
+    {
+      using Fluentd = FluentdConfig;
+
+      // Absent means the feature is off: no thread ever opens a socket.
+      std::optional<Fluentd> fluentd = std::nullopt;
+
+      bool operator==(const Observability&) const = default;
+    };
+
+    Observability observability = {};
+
     ccf::ds::TimeString tick_interval = {"10ms"};
     ccf::ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
@@ -214,6 +239,7 @@ namespace ccf
 
       bool operator==(const OutputFiles&) const = default;
     };
+
     OutputFiles output_files = {};
 
     struct Logging
@@ -222,6 +248,7 @@ namespace ccf
 
       bool operator==(const Logging&) const = default;
     };
+
     Logging logging = {};
 
     struct Memory
@@ -232,6 +259,7 @@ namespace ccf
 
       bool operator==(const Memory&) const = default;
     };
+
     Memory memory = {};
 
     // Keep explicit new values distinct from defaults so legacy aliases only
@@ -269,6 +297,7 @@ namespace ccf
 
         bool operator==(const Start&) const = default;
       };
+
       Start start = {};
 
       struct Join
@@ -285,6 +314,7 @@ namespace ccf
 
         bool operator==(const Join&) const = default;
       };
+
       Join join = {};
 
       struct Recover
@@ -293,8 +323,10 @@ namespace ccf
         std::string previous_service_identity_file;
         bool operator==(const Recover&) const = default;
       };
+
       Recover recover = {};
     };
+
     Command command = {};
   };
 
@@ -383,6 +415,15 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::IdentityHistoryFetch);
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig::IdentityHistoryFetch, max_attempts, retry_interval);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability::Fluentd);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability::Fluentd, host, port);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Observability::Fluentd, queue_capacity);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability);
+  DECLARE_JSON_OPTIONAL_FIELDS(CCFConfig::Observability, fluentd);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoveryDecisionProtocolConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -477,6 +518,7 @@ namespace ccf
     node_to_node,
     historical_cache_soft_limit,
     identity_history_fetch,
+    observability,
     tick_interval,
     slow_io_logging_threshold,
     node_client_interface,

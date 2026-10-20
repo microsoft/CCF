@@ -64,6 +64,7 @@ namespace ccf
 
   struct Attestation : public Quote
   {};
+
   DECLARE_JSON_TYPE_WITH_BASE(Attestation, Quote);
   DECLARE_JSON_REQUIRED_FIELDS(Attestation);
 

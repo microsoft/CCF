@@ -68,6 +68,7 @@ namespace ccf
 
       Storage() noexcept : small() {}
     } storage;
+
     size_t length_and_heap = 0;
 
     static_assert(std::is_trivially_copyable_v<Storage>);
@@ -315,62 +316,77 @@ namespace ccf
     {
       return length_and_heap >> 1;
     }
+
     [[nodiscard]] size_t size_in_bytes() const noexcept
     {
       return size();
     }
+
     [[nodiscard]] bool empty() const noexcept
     {
       return size() == 0;
     }
+
     [[nodiscard]] constexpr size_t max_size() const noexcept
     {
       return MAX_SIZE;
     }
+
     [[nodiscard]] size_t capacity() const noexcept
     {
       return allocated() ? storage.large.capacity : INLINE_CAPACITY;
     }
+
     [[nodiscard]] size_t capacity_in_bytes() const noexcept
     {
       return capacity();
     }
+
     iterator begin() noexcept
     {
       return data();
     }
+
     [[nodiscard]] const_iterator begin() const noexcept
     {
       return data();
     }
+
     [[nodiscard]] const_iterator cbegin() const noexcept
     {
       return data();
     }
+
     iterator end() noexcept
     {
       return data() + size();
     }
+
     [[nodiscard]] const_iterator end() const noexcept
     {
       return data() + size();
     }
+
     [[nodiscard]] const_iterator cend() const noexcept
     {
       return end();
     }
+
     reverse_iterator rbegin() noexcept
     {
       return reverse_iterator(end());
     }
+
     [[nodiscard]] const_reverse_iterator rbegin() const noexcept
     {
       return const_reverse_iterator(end());
     }
+
     reverse_iterator rend() noexcept
     {
       return reverse_iterator(begin());
     }
+
     [[nodiscard]] const_reverse_iterator rend() const noexcept
     {
       return const_reverse_iterator(begin());
@@ -381,23 +397,28 @@ namespace ccf
       assert(index < size());
       return data()[index];
     }
+
     const_reference operator[](size_t index) const
     {
       assert(index < size());
       return data()[index];
     }
+
     reference front()
     {
       return (*this)[0];
     }
+
     [[nodiscard]] const_reference front() const
     {
       return (*this)[0];
     }
+
     reference back()
     {
       return (*this)[size() - 1];
     }
+
     [[nodiscard]] const_reference back() const
     {
       return (*this)[size() - 1];
@@ -407,6 +428,7 @@ namespace ccf
     {
       set_length(0);
     }
+
     void reserve(size_t count)
     {
       if (count > capacity())
@@ -414,10 +436,12 @@ namespace ccf
         grow(count);
       }
     }
+
     void resize(size_t count)
     {
       resize(count, 0);
     }
+
     void resize(size_t count, uint8_t value)
     {
       const auto previous_size = size();
@@ -449,16 +473,19 @@ namespace ccf
       data()[previous_size] = value;
       length_and_heap += 2;
     }
+
     template <typename... Args>
     void emplace_back(Args&&... args)
     {
       push_back(uint8_t(std::forward<Args>(args)...));
     }
+
     void pop_back()
     {
       assert(!empty());
       length_and_heap -= 2;
     }
+
     uint8_t pop_back_val()
     {
       const auto value = back();
@@ -489,6 +516,7 @@ namespace ccf
         append_bytes(copy.data(), copy.size());
       }
     }
+
     void append(size_t count, uint8_t value)
     {
       const auto previous_size = size();
@@ -497,16 +525,19 @@ namespace ccf
       std::memset(data() + previous_size, value, count);
       set_length(next_size);
     }
+
     void append(std::initializer_list<uint8_t> values)
     {
       append(values.begin(), values.end());
     }
+
     void assign(size_t count, uint8_t value)
     {
       reserve(count);
       std::memset(data(), value, count);
       set_length(count);
     }
+
     void assign(std::initializer_list<uint8_t> values)
     {
       reserve(values.size());
@@ -527,15 +558,18 @@ namespace ccf
       set_length(size() - count);
       return destination;
     }
+
     iterator erase(const_iterator position)
     {
       assert(position != end());
       return erase(position, position + 1);
     }
+
     iterator insert(iterator position, uint8_t value)
     {
       return insert(position, size_t{1}, value);
     }
+
     iterator insert(iterator position, size_t count, uint8_t value)
     {
       assert(position >= begin() && position <= end());
@@ -549,6 +583,7 @@ namespace ccf
       set_length(next_size);
       return position;
     }
+
     template <std::input_iterator Iter>
     iterator insert(iterator position, Iter first, Iter last)
     {
@@ -578,6 +613,7 @@ namespace ccf
       const ByteVector copy(first, last);
       return insert(position, copy.begin(), copy.end());
     }
+
     void insert(iterator position, std::initializer_list<uint8_t> values)
     {
       insert(position, values.begin(), values.end());
@@ -588,19 +624,23 @@ namespace ccf
       std::swap(storage, other.storage);
       std::swap(length_and_heap, other.length_and_heap);
     }
+
     friend void swap(ByteVector& left, ByteVector& right) noexcept
     {
       left.swap(right);
     }
+
     bool operator==(const ByteVector& other) const noexcept
     {
       return size() == other.size() &&
         (empty() || std::memcmp(data(), other.data(), size()) == 0);
     }
+
     bool operator!=(const ByteVector& other) const noexcept
     {
       return !(*this == other);
     }
+
     bool operator<(const ByteVector& other) const noexcept
     {
       const auto common = std::min(size(), other.size());
@@ -626,6 +666,7 @@ namespace std
 }
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<ccf::ByteVector>
 {
@@ -656,4 +697,5 @@ struct formatter<ccf::ByteVector>
       ctx.out(), "<uint8[{}]: hex={:02x}>", e.size(), fmt::join(e, " "));
   }
 };
+
 FMT_END_NAMESPACE

@@ -17,6 +17,7 @@ namespace ccf
     nlohmann::json user_data = nullptr;
     IdentityIdFormat id_format = IdentityIdFormat::SHA256;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewUser);
   DECLARE_JSON_REQUIRED_FIELDS(NewUser, cert);
   DECLARE_JSON_OPTIONAL_FIELDS(NewUser, user_data, id_format);
@@ -27,6 +28,7 @@ namespace ccf
         example. */
     nlohmann::json user_data = nullptr;
   };
+
   DECLARE_JSON_TYPE(UserDetails);
   DECLARE_JSON_REQUIRED_FIELDS(UserDetails, user_data);
 

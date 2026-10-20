@@ -42,7 +42,12 @@ FINAL_RELEASE_TAG = re.compile(r"^ccf-(\d+)\.0\.(\d+)$")
 DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 
 
-def validate_compatibility_report(report):
+def validate_compatibility_report(report, branch):
+    # A development branch can still point at a final release tag, but discovery
+    # uses development-branch targets rather than release-validation targets.
+    if not infra.github.is_release_branch(infra.github.sanitise_branch_name(branch)):
+        return
+
     current_tag = report["version"]
     current_match = FINAL_RELEASE_TAG.fullmatch(current_tag)
     if current_match is None:
@@ -997,6 +1002,9 @@ if __name__ == "__main__":
             with open(
                 args.compatibility_report_file, encoding="utf-8"
             ) as compatibility_report_file:
-                validate_compatibility_report(json.load(compatibility_report_file))
+                validate_compatibility_report(
+                    json.load(compatibility_report_file),
+                    os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch),
+                )
 
     LOG.success(f"Compatibility report:\n {json.dumps(compatibility_report, indent=2)}")

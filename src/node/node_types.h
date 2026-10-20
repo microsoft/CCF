@@ -23,6 +23,7 @@ namespace ccf
     consensus_msg,
     forwarded_msg
   };
+
   // NB: The node-to-node channels assume only 2 types of messages exist, and
   // treat them differently. Adding a new message type will likely need
   // additional changes.
@@ -58,6 +59,7 @@ namespace ccf
   // NOLINTEND(performance-enum-size)
 
 #pragma pack(push, 1)
+
   // Channel-specific header for key exchange
   struct ChannelHeader
   {
@@ -81,6 +83,7 @@ namespace ccf
   struct ForwardedCommandHeader_v3 : public ForwardedHeader_v2
   {
     ForwardedCommandHeader_v3() = default;
+
     ForwardedCommandHeader_v3(
       ForwardedHeader_v2::ForwardedCommandId cmd_id, ccf::View view) :
       active_view(view)
@@ -97,6 +100,7 @@ namespace ccf
   struct ForwardedResponseHeader_v3 : public ForwardedHeader_v2
   {
     ForwardedResponseHeader_v3() = default;
+
     ForwardedResponseHeader_v3(
       ForwardedHeader_v2::ForwardedCommandId cmd_id, bool terminate) :
       terminate_session(terminate)
@@ -113,6 +117,7 @@ namespace ccf
   struct MessageHash
   {
     MessageHash() = default;
+
     MessageHash(ForwardedMsg msg_, ccf::crypto::Sha256Hash&& hash_) :
       msg(msg_),
       hash(std::move(hash_))
@@ -121,5 +126,6 @@ namespace ccf
     ForwardedMsg msg{};
     ccf::crypto::Sha256Hash hash;
   };
+
 #pragma pack(pop)
 }

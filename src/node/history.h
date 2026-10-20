@@ -91,6 +91,7 @@ namespace ccf
   // Use optimised CCF openssl_sha256 function to avoid performance regression
   // on OpenSSL 3.x
   static constexpr size_t sha256_byte_size = 32;
+
   static inline void sha256_history(
     const merkle::HashT<sha256_byte_size>& l,
     const merkle::HashT<sha256_byte_size>& r,
@@ -397,6 +398,13 @@ namespace ccf
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
+    // Set by start_signature_emit_timer(), once the node is part of the
+    // network and may sign. Until then, try_emit_signature() does nothing,
+    // so that a signature triggered by an unrelated request cannot precede
+    // this node's certificate in the ledger (e.g. the create transaction at
+    // the end of public recovery), which would make it unverifiable on replay.
+    std::atomic<bool> signing_enabled = false;
+
     ccf::ds::Mutex state_lock;
     ccf::kv::Term term_of_last_version = 0;
     ccf::kv::Term term_of_next_version{};
@@ -470,6 +478,8 @@ namespace ccf
 
     void start_signature_emit_timer() override
     {
+      signing_enabled.store(true, std::memory_order_release);
+
       const auto delay = std::chrono::milliseconds(sig_ms_interval);
 
       emit_signature_periodic_task = ccf::tasks::make_basic_task([this]() {
@@ -734,6 +744,11 @@ namespace ccf
 
     void try_emit_signature() override
     {
+      if (!signing_enabled.load(std::memory_order_acquire))
+      {
+        return;
+      }
+
       std::unique_lock<ccf::ds::Mutex> mguard(signature_lock, std::defer_lock);
       if (store.committable_gap() < sig_tx_interval || !mguard.try_lock())
       {

@@ -85,6 +85,7 @@ namespace std
   };
 
 }
+
 // NOLINTEND(cert-dcl58-cpp)
 
 namespace ccf::ds

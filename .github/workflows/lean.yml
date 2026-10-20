@@ -15,51 +15,69 @@ concurrency:
 permissions: read-all
 
 jobs:
-  disaster-recovery:
-    name: Disaster recovery model and proofs
+  models:
+    name: Lean models and proofs
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Lean
+      - name: Install Lean and check prerequisites
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y elan
-          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          sudo apt-get install -y elan python3-jsonschema
+          elan toolchain install "$(cat lean/lean-toolchain)"
 
-      - name: Restore Mathlib cache
-        working-directory: lean/disaster-recovery
+      - name: Restore Mathlib caches
         shell: bash
         run: |
           set -euo pipefail
-          lake exe cache get
+          for config in lean/*/lakefile.toml; do
+            grep -q '^name = "mathlib"$' "$config" || continue
+            package="$(dirname "$config")"
+            echo "::group::Mathlib cache: $package"
+            (cd "$package" && lake exe cache get)
+            echo "::endgroup::"
+          done
 
-      - name: Build and check canonical model
-        working-directory: lean/disaster-recovery
+      - name: Lint packages
         shell: bash
         run: |
           set -euo pipefail
-          lake exe mk_all --check --module --lib DisasterRecovery
-          lake build --wfail --fail-fast
-          lake build CCF
-          lake lint
+          ./scripts/lean-format-checks.sh
+          for config in lean/*/lakefile.toml; do
+            package="$(dirname "$config")"
+            echo "::group::Lint: $package"
+            (cd "$package" && lake lint)
+            echo "::endgroup::"
+          done
 
-      - name: Check Mathlib linters
-        working-directory: lean/disaster-recovery
+      - name: Check packages
         shell: bash
         run: |
           set -euo pipefail
-          lake exe runLinter --no-build CCF DisasterRecovery replayer.Main
+          export TMPDIR="$RUNNER_TEMP"
+          for config in lean/*/lakefile.toml; do
+            package="$(dirname "$config")"
+            echo "::group::Check: $package"
+            (
+              cd "$package"
+              if grep -q '^name = "mathlib"$' lakefile.toml; then
+                lake exe mk_all --check --module
+              fi
+              lake build --wfail --fail-fast
+              lake check --inadvisably-no-sandbox
+            )
+            echo "::endgroup::"
+          done
 
       - name: Check recovery trace fixtures against their schema
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get install -y python3-jsonschema
           python3 lean/disaster-recovery/replayer/check-schema.py \
             lean/disaster-recovery/replayer/fixtures/*/*.out
 
@@ -73,36 +91,3 @@ jobs:
       - name: Dump replays for the trace viewer
         shell: bash
         run: python3 lean/disaster-recovery/replayer/viewer/build.py
-
-      - name: Check Lean formatting
-        run: ./scripts/lean-format-checks.sh
-
-  kernel-checks:
-    name: Kernel checks (disaster-recovery)
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Lean
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y elan
-          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
-
-      - name: Restore Mathlib cache
-        working-directory: lean/disaster-recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          lake exe cache get
-
-      - name: Check with Lean's kernel
-        working-directory: lean/disaster-recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          export TMPDIR="$RUNNER_TEMP"
-          lake check --inadvisably-no-sandbox

@@ -43,6 +43,7 @@ namespace ccf
     return ccf::TxID{
       .view = txid.view - aft::starting_view_change, .seqno = txid.seqno - 1};
   }
+
   inline ccf::TxID next_tx_if_recovery(ccf::TxID txid)
   {
     return ccf::TxID{

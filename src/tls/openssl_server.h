@@ -210,6 +210,7 @@ namespace ccf::tls
       // Loop to register this server's handles on.
       uv_loop_t* loop = uv_default_loop();
     };
+
     // NOLINTEND(readability-redundant-member-init)
 
   private:
@@ -270,11 +271,13 @@ namespace ccf::tls
       ::tcp::ConnID id = 0;
       // Admission decision from OnAccept, passed to OnData.
       bool soft_limited = false;
+
       enum State : uint8_t
       {
         Handshaking,
         Ready
       } state = Handshaking;
+
       std::vector<uint8_t> peer_cert;
       // Pending plaintext to be encrypted/written; out_off bytes already sent.
       std::vector<uint8_t> outbuf;

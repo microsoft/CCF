@@ -270,6 +270,7 @@ namespace ccf::endpoints
   using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
 
   using EndpointsMap = ccf::ServiceMap<EndpointKey, EndpointProperties>;
+
   namespace Tables
   {
     static constexpr auto ENDPOINTS = "public:ccf.gov.endpoints";
@@ -306,6 +307,7 @@ namespace ccf::endpoints
       virtual void install(Endpoint&) = 0;
       virtual ~Installer() = default;
     };
+
     Installer* installer = nullptr;
 
     using SchemaBuilderFn =
@@ -546,6 +548,7 @@ namespace ccf::endpoints
 }
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<ccf::endpoints::ForwardingRequired>
 {
@@ -581,4 +584,5 @@ struct formatter<ccf::endpoints::ForwardingRequired>
     }
   }
 };
+
 FMT_END_NAMESPACE
