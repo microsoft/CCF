@@ -6,6 +6,7 @@
   "properties": {
     "observability": {
       "type": "object",
+      "default": {},
       "description": "Observability settings, read at node startup",
       "properties": {
         "fluentd": {

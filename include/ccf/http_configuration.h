@@ -39,6 +39,7 @@ namespace ccf::http
 
     bool operator==(const ParserConfiguration& other) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ParserConfiguration);
   DECLARE_JSON_REQUIRED_FIELDS(ParserConfiguration);
   DECLARE_JSON_OPTIONAL_FIELDS(

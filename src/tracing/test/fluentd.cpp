@@ -13,6 +13,7 @@ namespace request_trace
   {
     bool& encoded;
   };
+
   inline void write_msgpack(std::vector<uint8_t>&, const EncodingProbe& probe)
   {
     probe.encoded = true;
@@ -40,12 +41,14 @@ namespace
   std::atomic<bool> fail_next_close = false;
   std::atomic<bool> wrong_thread = false;
   std::thread::id producer;
+
   struct DropLogger : ccf::logger::AbstractLogger
   {
     std::atomic<size_t> reports = 0;
     std::atomic<size_t> close_errors = 0;
     size_t shutdown_reports = 0;
     std::string shutdown_message;
+
     void write(const ccf::logger::LogLine& line) override
     {
       if (line.msg.find("trace events") != std::string::npos)
@@ -64,6 +67,7 @@ namespace
 extern "C" ssize_t __real_send(int, const void*, size_t, int);
 extern "C" int __real_close(int);
 extern "C" void* __real__Znwm(size_t);
+
 extern "C" void* __wrap__Znwm(size_t size)
 {
   ++allocations;
@@ -71,6 +75,7 @@ extern "C" void* __wrap__Znwm(size_t size)
     throw std::bad_alloc();
   return __real__Znwm(size);
 }
+
 extern "C" ssize_t __wrap_send(int fd, const void* data, size_t size, int flags)
 {
   const auto call = ++calls;

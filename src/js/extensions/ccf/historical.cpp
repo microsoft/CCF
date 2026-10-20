@@ -24,6 +24,7 @@ namespace ccf::js::extensions
       std::unordered_map<std::string, ccf::kv::untyped::Map::ReadOnlyHandle*>
         kv_handles;
     };
+
     std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
 
     Impl(ccf::historical::AbstractStateCache* hs) : historical_state(hs) {}

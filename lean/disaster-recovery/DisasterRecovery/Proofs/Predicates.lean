@@ -13,37 +13,41 @@ open Execution.Global
 
 /-! ## Well-formedness and message provenance -/
 
-/-- Only active nodes appear in terminal-notification histories. -/
-structure HistoriesActive (state : State) : Prop where
-  /-- Only active locations have recorded opening notifications. -/
-  openings : forall opening, opening ∈ state.openings -> opening.node ∈ state.active
-  /-- Only active locations have recorded restart notifications. -/
-  restarts : forall node, node ∈ state.restarts -> node ∈ state.active
-  /-- Only active locations have recorded completion notifications. -/
-  completed : forall node, node ∈ state.completed -> node ∈ state.active
+/-- Only configured nodes appear in terminal-notification histories. -/
+structure HistoriesConfigured (config : Config) (state : State) : Prop where
+  /-- Only configured locations have recorded opening notifications. -/
+  openings
+    : forall opening,
+        opening ∈ state.openings -> opening.node ∈ config.protocol.expectedLocations
+  /-- Only configured locations have recorded restart notifications. -/
+  restarts
+    : forall node, node ∈ state.restarts -> node ∈ config.protocol.expectedLocations
+  /-- Only configured locations have recorded completion notifications. -/
+  completed
+    : forall node, node ∈ state.completed -> node ∈ config.protocol.expectedLocations
 
-/-- Node identities, active membership, and message provenance are consistent. -/
+/-- Node identities and message provenance are consistent. -/
 structure WellFormed (config : Config) (state : State) : Prop where
-  /-- The node-table keys exactly match the configured locations, in order. -/
-  nodeKeys : state.system.nodes.map Prod.fst = config.protocol.expectedLocations
+  /-- Every configured location has a node-table entry; unused nodes may also exist. -/
+  nodeKeys
+    : forall node,
+        node ∈ config.protocol.expectedLocations -> node ∈ state.system.nodes.map Prod.fst
   /-- Each location has at most one node-table entry. -/
   nodeKeysNodup : (state.system.nodes.map Prod.fst).Nodup
   /-- Every local state's location agrees with its node-table key. -/
   nodeLocations : forall entry, entry ∈ state.system.nodes -> entry.2.location = entry.1
-  /-- The active-location list has no duplicates. -/
-  activeNodup : state.active.Nodup
-  /-- Every active location is configured. -/
-  activeConfigured
-    : forall node, node ∈ state.active -> node ∈ config.protocol.expectedLocations
+  /-- Recovered ledgers belong exactly to the configured locations. -/
+  recoveredKeys : config.recovered.map Prod.fst = config.protocol.expectedLocations
   /-- Every recorded send has valid local-step evidence. -/
   sentValid : forall envelope, envelope ∈ state.sent -> envelope.Valid config
-  /-- Only active locations have sent messages. -/
-  sentSourceActive
-    : forall envelope, envelope ∈ state.sent -> envelope.source ∈ state.active
+  /-- Only configured locations have sent messages. -/
+  sentSourceConfigured
+    : forall envelope,
+        envelope ∈ state.sent -> envelope.source ∈ config.protocol.expectedLocations
   /-- Every queued envelope has a corresponding recorded send. -/
   networkSent : forall envelope, envelope ∈ state.network -> envelope ∈ state.sent
-  /-- Host-notification histories refer only to active locations. -/
-  historiesActive : HistoriesActive state
+  /-- Host-notification histories refer only to configured locations. -/
+  historiesConfigured : HistoriesConfigured config state
 
 /-! ## Votes, quorums, and openings -/
 

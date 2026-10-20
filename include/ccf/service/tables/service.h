@@ -41,6 +41,7 @@ namespace ccf
     /// TxID at which current service was created
     std::optional<ccf::TxID> current_service_create_txid = std::nullopt;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -53,6 +54,7 @@ namespace ccf
   // As there is only one service active at a given time, it is stored in single
   // Value in the KV
   using Service = ServiceValue<ServiceInfo>;
+
   namespace Tables
   {
     static constexpr auto SERVICE = "public:ccf.gov.service.info";

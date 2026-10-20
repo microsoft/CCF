@@ -288,6 +288,7 @@ namespace aft
     ReplicatedDataType type;
     std::vector<uint8_t> data;
   };
+
   DECLARE_JSON_TYPE(ReplicatedData);
   DECLARE_JSON_REQUIRED_FIELDS(ReplicatedData, type, data);
 

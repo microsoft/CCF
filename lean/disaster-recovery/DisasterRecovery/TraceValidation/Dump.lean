@@ -149,7 +149,7 @@ private def stateJson (config : Model.Config) (state : Model.State) (copies : Li
           envelope: $envelope, count: $(senders.size),
           deliverable: $(enabled (.deliver envelope)), sentBy: $senders
         }
-  json% {nodes: $nodes, active: $(state.active), network: $network}
+  json% {nodes: $nodes, network: $network}
 
 /-- Which of the model network's guards a disabled action fails. -/
 private def guards (config : Model.Config) (state : Model.State) (action : Model.Action)
@@ -170,7 +170,7 @@ private def guards (config : Model.Config) (state : Model.State) (action : Model
         ((Model.protocol config).step (Capabilities.record node) node before event).run {}
   let holding :=
     json% {
-      active: $(state.active.contains node), known: $(before.isSome),
+      recovered: $((Model.recoveredTxID config node).isSome), known: $(before.isSome),
       localStep: $(localStep.isSome)
     }
   match queued with

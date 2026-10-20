@@ -46,6 +46,7 @@ namespace ccf
       std::string commit_evidence;
       ccf::ClaimsDigest claims_digest;
     };
+
     Components leaf_components;
 
     struct ProofStep
@@ -64,6 +65,7 @@ namespace ccf
         return direction == other.direction && hash == other.hash;
       }
     };
+
     using Proof = std::vector<ProofStep>;
 
     // A merkle-tree path from the leaf digest to the signed root
@@ -142,6 +144,7 @@ namespace ccf
     MERKLE_PROOF_LEAF_LABEL = 1,
     MERKLE_PROOF_PATH_LABEL = 2
   };
+
   // NOLINTNEXTLINE(performance-enum-size)
   enum MerkleProofPathBranch : int64_t
   {
@@ -150,6 +153,7 @@ namespace ccf
     LEFT = 0,
     RIGHT = 1
   };
+
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
     const TxReceiptImpl& receipt);
 

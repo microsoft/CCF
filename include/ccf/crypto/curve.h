@@ -39,6 +39,7 @@ namespace ccf::crypto
      {CurveID::SECP521R1, "Secp521R1"}});
 
   static constexpr CurveID service_identity_curve_choice = CurveID::SECP384R1;
+
   // SNIPPET_END: supported_curves
 
   // Get message digest algorithm to use for given elliptic curve

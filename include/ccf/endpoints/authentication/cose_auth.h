@@ -197,6 +197,7 @@ namespace ccf
       msg_type_name(std::move(msg_type_name_)),
       msg_created_at_name(std::move(msg_created_at_name_))
     {}
+
     ~UserCOSESign1AuthnPolicy() override;
 
     std::unique_ptr<AuthnIdentity> authenticate(

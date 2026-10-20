@@ -129,6 +129,7 @@ namespace ccf::http_client
 
     // Move semantics
     UniqueCURL(UniqueCURL&& other) noexcept : p(std::move(other.p)) {}
+
     UniqueCURL& operator=(UniqueCURL&& other) noexcept
     {
       p = std::move(other.p);
@@ -187,7 +188,9 @@ namespace ccf::http_client
     ~UniqueCURLM() = default;
     UniqueCURLM(const UniqueCURLM&) = delete;
     UniqueCURLM& operator=(const UniqueCURLM&) = delete;
+
     UniqueCURLM(UniqueCURLM&& other) noexcept : p(std::move(other.p)) {}
+
     UniqueCURLM& operator=(UniqueCURLM&& other) noexcept
     {
       p = std::move(other.p);
@@ -212,10 +215,13 @@ namespace ccf::http_client
 
   public:
     UniqueSlist() : p(nullptr, [](auto x) { curl_slist_free_all(x); }) {}
+
     ~UniqueSlist() = default;
     UniqueSlist(const UniqueSlist&) = delete;
     UniqueSlist& operator=(const UniqueSlist&) = delete;
+
     UniqueSlist(UniqueSlist&& other) noexcept : p(std::move(other.p)) {}
+
     UniqueSlist& operator=(UniqueSlist&& other) noexcept
     {
       p = std::move(other.p);
@@ -1451,6 +1457,7 @@ namespace ccf::http_client
         LOG_FAIL_FMT("Unknown error closing CurlmLibuvContext");
       }
     }
+
     static void on_close(uv_handle_t* handle)
     {
       auto& close_count = static_cast<CurlmLibuvContextImpl*>(handle->data)
@@ -1461,6 +1468,7 @@ namespace ccf::http_client
         static_cast<CurlmLibuvContextImpl*>(handle->data)->on_close();
       }
     }
+
     void on_close()
     {
       // We are being notified asynchronously that libuv has finished closing
@@ -1497,6 +1505,7 @@ namespace ccf::http_client
       }
       return *instance();
     }
+
     CurlmLibuvContextSingleton(uv_loop_t* loop)
     {
       if (instance() != nullptr)
@@ -1506,6 +1515,7 @@ namespace ccf::http_client
       }
       instance() = std::make_unique<CurlmLibuvContext>(loop);
     }
+
     ~CurlmLibuvContextSingleton()
     {
       instance().reset(); // Clean up the instance

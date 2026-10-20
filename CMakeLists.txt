@@ -1203,6 +1203,14 @@ if(BUILD_TESTS)
     )
     add_test_target(github_version_lts_test)
     add_test_label(github_version_lts_test bucket_c)
+
+    add_test(
+      NAME lts_compatibility_report_test
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/lts_compatibility_report_test.py
+    )
+    add_test_target(lts_compatibility_report_test)
+    add_test_label(lts_compatibility_report_test unit)
   endif()
 
   if(NOT TSAN)
@@ -1449,6 +1457,22 @@ if(BUILD_TESTS)
     DETECT_DEADLOCKS
     TSAN_SUPPRESSIONS ${CCF_DIR}/tsan_e2e_logging_suppressions
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
+
+  add_e2e_test(
+    NAME sandbox_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/start_network.py
+    BUCKET bucket_c
+    BUILD_DEPENDS js_generic
+    ADDITIONAL_ARGS
+      --use-defaults-from-host-config
+      --package
+      js_generic
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      --node
+      local://127.0.0.1:0
+      --auto-shutdown
   )
 
   find_program(FLUENTD_EXECUTABLE fluentd)

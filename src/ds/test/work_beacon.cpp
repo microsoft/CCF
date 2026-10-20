@@ -45,6 +45,7 @@ struct WorkQueue
 struct NopBeacon
 {
   void wait_for_work() {}
+
   void notify_work_available() {}
 };
 

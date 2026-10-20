@@ -91,6 +91,7 @@ namespace ccf
   // Use optimised CCF openssl_sha256 function to avoid performance regression
   // on OpenSSL 3.x
   static constexpr size_t sha256_byte_size = 32;
+
   static inline void sha256_history(
     const merkle::HashT<sha256_byte_size>& l,
     const merkle::HashT<sha256_byte_size>& r,

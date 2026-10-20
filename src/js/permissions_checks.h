@@ -95,6 +95,7 @@ namespace ccf::js
       }
     }
   }
+
   static std::string explain_kv_map_access(
     ccf::js::KVAccessPermissions permission, ccf::js::TxAccess access)
   {

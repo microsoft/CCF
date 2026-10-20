@@ -28,10 +28,12 @@ namespace ccf::pal
     }
 
     AttestationMeasurement() = default;
+
     AttestationMeasurement(const std::string& hex_str)
     {
       ds::from_hex(hex_str, measurement);
     }
+
     AttestationMeasurement(std::span<const uint8_t> data)
     {
       if (data.size() != size())
@@ -146,6 +148,7 @@ namespace ccf::pal
       return data;
     }
   };
+
   DECLARE_JSON_TYPE(PlatformAttestationMeasurement);
   DECLARE_JSON_REQUIRED_FIELDS(PlatformAttestationMeasurement, data);
 }

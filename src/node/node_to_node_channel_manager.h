@@ -33,6 +33,7 @@ namespace ccf
       ccf::crypto::ECKeyPairPtr node_kp;
       std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     };
+
     std::unique_ptr<ThisNode> this_node; //< Not available at construction, only
                                          // after calling initialize()
 

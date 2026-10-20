@@ -188,6 +188,7 @@ namespace ccf::pal
 
     return raw;
   }
+
 #undef RETRIEVE_TCB_FIELD
 
   std::optional<snp::TcbVersionRaw> get_endorsed_tcb_from_cert(

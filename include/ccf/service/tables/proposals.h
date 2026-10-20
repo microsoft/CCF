@@ -42,6 +42,7 @@ namespace ccf
 }
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<ccf::ProposalState>
 {
@@ -89,4 +90,5 @@ struct formatter<ccf::ProposalState>
     }
   }
 };
+
 FMT_END_NAMESPACE

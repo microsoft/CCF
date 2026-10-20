@@ -39,9 +39,9 @@ private def openedC : NodeState :=
   { selected "C" with phase := .opening, votes := ["A", "B"], openKind := some .quorum }
 
 private def snapshot (a b c : NodeState) (network : List Model.Envelope) : Model.State :=
-  { nodes := [("A", a), ("B", b), ("C", c)], active := ["A", "B", "C"], network }
+  { nodes := [("A", a), ("B", b), ("C", c)], network }
 
-private def initial : Model.State := Tests.initial config ["A", "B", "C"]
+private def initial : Model.State := Tests.initial config
 private def aGossips := [gossip "A" "A" high, gossip "A" "B" high, gossip "A" "C" high]
 private def bGossips := [gossip "B" "A" high, gossip "B" "B" high, gossip "B" "C" high]
 
@@ -76,7 +76,7 @@ private def s10 :=
 private def s11 := snapshot (selected "A") (selected "B") openedC (aGossips ++ bGossips)
 
 private def trace : Properties.GlobalTrace :=
-  { states := [initial, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11] }
+  Stream'.Seq.ofList [initial, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11]
 
 private def actions : List Model.Action :=
   [
@@ -94,20 +94,20 @@ private def actions : List Model.Action :=
   ]
 
 private theorem initialized : (Model.transitionSystem config).init initial := by
-  refine ⟨by unfold Model.Config.Valid; decide, by decide, rfl, by decide, ?_, rfl, ?_⟩
-  · intro node member
-    exact member
+  refine ⟨by unfold Model.Config.Valid; decide, ?_, by decide, rfl, ?_⟩
+  · simp [initial, Tests.initial, config]
   · simp [initial, Tests.initial, config, Model.protocol]
 
 private theorem valid : trace.Valid (Model.transitionSystem config) := by
   refine ⟨⟨initial, rfl, initialized⟩, ?_⟩
   intro i before after first second
+  simp only [trace, Stream'.Seq.ofList_get?] at first second
   have bound : i < 11 := by
     have := (List.getElem?_eq_some_iff.mp second).1
-    simp only [trace, List.length_cons, List.length_nil] at this
+    simp only [List.length_cons, List.length_nil] at this
     omega
   refine ⟨actions[i]'(by simpa [actions] using bound), ?_⟩
-  interval_cases i <;> simp only [trace, List.getElem?_cons_zero,
+  interval_cases i <;> simp only [List.getElem?_cons_zero,
     List.getElem?_cons_succ, Nat.reduceAdd, Option.some.injEq] at first second <;>
     subst before <;> subst after
   all_goals
@@ -121,8 +121,8 @@ private theorem valid : trace.Valid (Model.transitionSystem config) := by
 private theorem opened : ("C", openedC) ∈ s11.nodes := by
   simp [s11, snapshot]
 
-private theorem final_in_trace : s11 ∈ trace.states := by
-  simp [trace]
+private theorem final_in_trace : s11 ∈ trace :=
+  Stream'.Seq.get?_mem (n := 11) rfl
 
 private theorem stale : ¬ Properties.UpToDateWithQuorum config low := by
   unfold Properties.UpToDateWithQuorum
@@ -130,7 +130,7 @@ private theorem stale : ¬ Properties.UpToDateWithQuorum config low := by
 
 example
     : trace.Valid (Model.transitionSystem config)
-      /\ s11 ∈ trace.states
+      /\ s11 ∈ trace
       /\ ("C", openedC) ∈ s11.nodes
       /\ openedC.openKind = some .quorum
       /\ Model.recoveredTxID config "C" = some low
@@ -139,7 +139,9 @@ example
 
 private theorem missing_own : ¬ Properties.ReceivedOwnGossip trace "A" := by
   rintro ⟨state, member, current, txid, present, gossipPresent⟩
-  simp only [trace, List.mem_cons, List.not_mem_nil, or_false] at member
+  obtain ⟨i, found⟩ := Stream'.Seq.mem_iff_exists_get?.mp member
+  replace member := List.mem_of_getElem? found.symm
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
   all_goals
     simp [initial, Tests.initial, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9,

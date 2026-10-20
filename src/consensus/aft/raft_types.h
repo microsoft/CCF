@@ -96,6 +96,7 @@ namespace aft
     raft_request_pre_vote,
     raft_request_pre_vote_response,
   };
+
   DECLARE_JSON_ENUM(
     RaftMsgType,
     {
@@ -113,6 +114,7 @@ namespace aft
     });
 
 #pragma pack(push, 1)
+
   template <RaftMsgType M>
   struct RaftHeader
   {
@@ -121,6 +123,7 @@ namespace aft
 
   DECLARE_JSON_TYPE(RaftHeader<raft_append_entries>);
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries>, msg);
+
   struct AppendEntries : RaftHeader<raft_append_entries>,
                          ::consensus::AppendEntriesIndex
   {
@@ -136,6 +139,7 @@ namespace aft
     // wire compatibility with previous versions of the code.
     bool contains_new_view = false;
   };
+
   DECLARE_JSON_TYPE_WITH_2BASES(
     AppendEntries,
     RaftHeader<raft_append_entries>,
@@ -160,6 +164,7 @@ namespace aft
 
   DECLARE_JSON_TYPE(RaftHeader<raft_append_entries_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries_response>, msg);
+
   struct AppendEntriesResponse : RaftHeader<raft_append_entries_response>
   {
     // This term and idx usually refer to the tail of the sender's log. The
@@ -174,6 +179,7 @@ namespace aft
     Index last_log_idx;
     AppendEntriesResponseType success;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(
     AppendEntriesResponse, RaftHeader<raft_append_entries_response>);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -184,6 +190,7 @@ namespace aft
     PreVote = 0,
     RegularVote = 1
   };
+
   DECLARE_JSON_ENUM(
     ElectionType,
     {{ElectionType::PreVote, "PreVote"},
@@ -191,24 +198,28 @@ namespace aft
 
   DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg);
+
   struct RequestVote : RaftHeader<raft_request_vote>
   {
     Term term;
     Index last_committable_idx;
     Term term_of_last_committable_idx;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(RequestVote, RaftHeader<raft_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(
     RequestVote, term, last_committable_idx, term_of_last_committable_idx);
 
   DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote>, msg);
+
   struct RequestPreVote : RaftHeader<raft_request_pre_vote>
   {
     Term term;
     Index last_committable_idx;
     Term term_of_last_committable_idx;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(
     RequestPreVote, RaftHeader<raft_request_pre_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -216,34 +227,40 @@ namespace aft
 
   DECLARE_JSON_TYPE(RaftHeader<raft_request_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote_response>, msg);
+
   struct RequestVoteResponse : RaftHeader<raft_request_vote_response>
   {
     Term term;
     bool vote_granted;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(
     RequestVoteResponse, RaftHeader<raft_request_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
 
   DECLARE_JSON_TYPE(RaftHeader<raft_request_pre_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_pre_vote_response>, msg);
+
   struct RequestPreVoteResponse : RaftHeader<raft_request_pre_vote_response>
   {
     Term term;
     bool vote_granted;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(
     RequestPreVoteResponse, RaftHeader<raft_request_pre_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestPreVoteResponse, term, vote_granted);
 
   DECLARE_JSON_TYPE(RaftHeader<raft_propose_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_propose_request_vote>, msg);
+
   struct ProposeRequestVote : RaftHeader<raft_propose_request_vote>
   {
     // A node sends this to nudge another node to begin an election, for
     // instance because the sender is a retiring primary
     Term term;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(
     ProposeRequestVote, RaftHeader<raft_propose_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(ProposeRequestVote, term);
@@ -252,6 +269,7 @@ namespace aft
 }
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<aft::RaftMsgType>
 {
@@ -307,4 +325,5 @@ struct formatter<aft::RaftMsgType>
     }
   }
 };
+
 FMT_END_NAMESPACE

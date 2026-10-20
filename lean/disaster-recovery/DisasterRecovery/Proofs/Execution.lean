@@ -48,10 +48,8 @@ deriving Repr, BEq
 
 /-- The network decorated with send snapshots and terminal-notification histories. -/
 structure State where
-  /-- Current local states of the configured nodes. -/
+  /-- Current local states of the stored recovery nodes. -/
   system : SystemState
-  /-- Nodes permitted to take steps. -/
-  active : List Location
   /-- Messages still queued for delivery. -/
   network : List Envelope := []
   /-- All messages emitted so far, retaining their send-time snapshots. -/
@@ -134,17 +132,15 @@ def recordEffects
     : State :=
   effects.foldl (recordEffect node nodeState) state
 
-/-- Initializes the local states and active set with empty queues and histories. -/
-def initial (config : Config) (active : List Location) : State :=
-  {
-    system := initialSystem config.protocol
-    active
-  }
+/-- Initializes the given nodes with empty queues and histories. -/
+def initial (config : Config) (nodes : List Location := config.protocol.expectedLocations)
+    : State :=
+  { system := { nodes := nodes.map fun node => (node, initialNode node) } }
 
 /-- Executes a decorated network action and updates its proof-only histories. -/
 def next (config : Config) (state : State) : Action -> Option State
   | .retry source => do
-      guard (state.active.contains source)
+      guard (recoveredTxID config source).isSome
       let sourceState <- nodeState state source
       let messages := retryMessages config source sourceState
       guard (!messages.isEmpty)
@@ -156,7 +152,7 @@ def next (config : Config) (state : State) : Action -> Option State
         }
   | .deliver envelope => do
       guard (state.network.contains envelope)
-      guard (state.active.contains envelope.target)
+      guard (recoveredTxID config envelope.target).isSome
       let (system, output) <- systemStep config.protocol state.system envelope.target
                                 (eventFor envelope)
       let delivered :=
@@ -167,20 +163,20 @@ def next (config : Config) (state : State) : Action -> Option State
         }
       pure (recordEffects envelope.target output.state output.effects delivered)
   | .timeout target => do
-      guard (state.active.contains target)
+      guard (recoveredTxID config target).isSome
       let (system, output) <- systemStep config.protocol state.system target .timeout
       guard output.accepted
       pure (recordEffects target output.state output.effects { state with system })
 
-/-- The decorated execution system with valid configurations and active-node subsets. -/
+/-- The decorated execution system with valid recovery configurations. -/
 def transitionSystem (config : Config) : TransitionSystem State Action where
   init :=
     fun state =>
-      exists active : List Location,
-        config.Valid
-        /\ active.Nodup
-        /\ (forall node, node ∈ active -> node ∈ config.protocol.expectedLocations)
-        /\ state = initial config active
+      config.Valid
+      /\ exists nodes : List Location,
+          nodes.Nodup
+          /\ (forall node, node ∈ config.protocol.expectedLocations -> node ∈ nodes)
+          /\ state = initial config nodes
   step := next config
 
 /-- States reachable by enabled actions in the decorated execution system. -/

@@ -15,15 +15,18 @@ namespace ccf::jsgov
   {
     std::string reason;
     std::optional<std::string> trace;
+
     bool operator==(const Failure& rhs) const
     {
       return reason == rhs.reason && trace == rhs.trace;
     }
+
     bool operator!=(const Failure& rhs) const
     {
       return !(*this == rhs);
     }
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Failure);
   DECLARE_JSON_REQUIRED_FIELDS(Failure, reason);
   DECLARE_JSON_OPTIONAL_FIELDS(Failure, trace);
@@ -55,6 +58,7 @@ namespace ccf::jsgov
     /// final_votes
     std::optional<Failure> failure = std::nullopt;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposalInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposer_id, state, ballots);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -71,6 +75,7 @@ namespace ccf::jsgov
     std::optional<VoteFailures> vote_failures = std::nullopt;
     std::optional<Failure> failure = std::nullopt;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposalInfoSummary);
   DECLARE_JSON_REQUIRED_FIELDS(
     ProposalInfoSummary, proposal_id, proposer_id, state, ballot_count);
@@ -92,6 +97,7 @@ namespace ccf::jsgov
     std::string name;
     nlohmann::json args;
   };
+
   DECLARE_JSON_TYPE(Action);
   DECLARE_JSON_REQUIRED_FIELDS(Action, name, args);
 
@@ -99,6 +105,7 @@ namespace ccf::jsgov
   {
     std::vector<Action> actions;
   };
+
   DECLARE_JSON_TYPE(Proposal);
   DECLARE_JSON_REQUIRED_FIELDS(Proposal, actions);
 
@@ -106,11 +113,13 @@ namespace ccf::jsgov
   {
     std::string ballot;
   };
+
   DECLARE_JSON_TYPE(Ballot);
   DECLARE_JSON_REQUIRED_FIELDS(Ballot, ballot);
 }
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<std::optional<ccf::jsgov::Failure>>
 {
@@ -132,4 +141,5 @@ struct formatter<std::optional<ccf::jsgov::Failure>>
     return format_to(ctx.out(), "N/A");
   }
 };
+
 FMT_END_NAMESPACE

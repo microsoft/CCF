@@ -23,6 +23,7 @@ namespace ccf
     'C', 'o', 'm', 'm', 'i', 't', ' ', 'S'};
   static std::span<const uint8_t> commit_secret_label{
     commit_secret_label_, sizeof(commit_secret_label_)};
+
   struct LedgerSecret
   {
     std::vector<uint8_t> raw_key;
