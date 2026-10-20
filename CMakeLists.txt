@@ -1451,6 +1451,22 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
+  add_e2e_test(
+    NAME sandbox_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/start_network.py
+    BUCKET bucket_c
+    BUILD_DEPENDS js_generic
+    ADDITIONAL_ARGS
+      --use-defaults-from-host-config
+      --package
+      js_generic
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      --node
+      local://127.0.0.1:0
+      --auto-shutdown
+  )
+
   find_program(FLUENTD_EXECUTABLE fluentd)
   set(FLUENTD_TEST_ARGS)
   if(FLUENTD_EXECUTABLE)
