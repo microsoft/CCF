@@ -46,8 +46,19 @@ private def opening : NodeState :=
 private def opened : Model.State :=
   { ready with nodes := [unused, ("A", opening)], network := [gossip] }
 
+private def lane (timeoutState : Phase) : Model.State :=
+  { opened with nodes := [unused, ("A", { opening with timeoutState })] }
+
+-- A finishes opening; its aligned opening timeout leaves the final state unchanged.
+private def completed : Model.State :=
+  {
+    opened with
+      nodes := [unused, ("A", { opening with phase := .open, timeoutState := .opening })]
+  }
+
 private def trace : Properties.GlobalTrace :=
-  { states := [initial, gossipSent, ready, voteSent, opened] }
+  Proofs.Trace.lasso
+    [initial, gossipSent, ready, voteSent, opened, lane .voting, lane .opening] completed
 
 private theorem initialized : (Model.transitionSystem config).init initial := by
   refine ⟨by unfold Model.Config.Valid; decide, ?_, by decide, rfl, ?_⟩
@@ -55,24 +66,32 @@ private theorem initialized : (Model.transitionSystem config).init initial := by
   · simp [initial, unused, Model.protocol]
 
 private theorem valid : trace.Valid (Model.transitionSystem config) := by
-  refine ⟨⟨initial, rfl, initialized⟩, ?_⟩
-  intro i before after first second
-  have bound : i < 4 := by
-    have := (List.getElem?_eq_some_iff.mp second).1
-    simp only [trace, List.length_cons, List.length_nil] at this
-    omega
   let actions : List Model.Action :=
-    [.local "A" .retry, .deliver gossip, .local "A" .retry, .deliver vote]
-  refine ⟨actions[i]'(by simpa [actions] using bound), ?_⟩
-  interval_cases i <;> simp only [trace, List.getElem?_cons_zero,
-    List.getElem?_cons_succ, Nat.reduceAdd, Option.some.injEq] at first second <;>
-    subst before <;> subst after
-  all_goals
-    simp [actions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+    [
+      .local "A" .retry,
+      .deliver gossip,
+      .local "A" .retry,
+      .deliver vote,
+      .local "A" .timeout,
+      .local "A" .timeout,
+      .local "A" .timeout
+    ]
+  refine Proofs.Trace.lasso_valid initialized ?_ ⟨.local "A" .timeout, ?_⟩
+  · intro i
+    refine ⟨actions[i.val]'(by simp [actions]), ?_⟩
+    fin_cases i
+    all_goals
+      simp [actions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+        MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
+        MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
+        Model.receive, step, guard, initial, Tests.initial, config,
+        gossipSent, ready, voteSent, opened, lane, opening, selected, gossip, vote,
+        recovered, unused]
+      cbv
+  · simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
-      MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.receive, step, guard, initial, Tests.initial, config,
-      gossipSent, ready, voteSent, opened, gossip, vote, recovered, unused]
+      Model.protocol, Model.recoveredTxID, step, guard, config, completed, opened,
+      opening, selected, gossip, recovered, unused]
     cbv
 
 private theorem observedOpening
@@ -102,7 +121,7 @@ private theorem observedOpening
     cbv
 
 example : (Model.transitionSystem config).Reachable opened :=
-  valid.reachable (by simp [trace])
+  valid.reachable ⟨4, rfl⟩
 
 example : NotificationAt config trace 3 "A" (.opening .quorum) := observedOpening
 
@@ -111,7 +130,7 @@ example
         Model.recoveredTxID config "A" = some openerTxID
         /\ Properties.UpToDateWithQuorum config openerTxID := by
   apply Proof.full_gossip_preserves_commit config trace ready opened "A" opening
-  refine ⟨valid, by simp [trace], ?_, by simp [trace], by simp [opened], rfl⟩
+  refine ⟨valid, ⟨2, rfl⟩, ?_, ⟨4, rfl⟩, by simp [opened], rfl⟩
   intro node nodeState configured member entry
   have nodeEq : node = "A" := by simpa [config] using configured
   subst node
@@ -120,24 +139,16 @@ example
   rfl
 
 example (notification : Notification)
-    : ¬ NotificationAt config trace 4 "A" notification := by
-  rintro ⟨_, _, _, _, _, _, _, after, _⟩
-  simp [trace] at after
-
-example (notification : Notification)
     : ¬ NotificationAt config trace 3 "missing-node" notification := by
   rintro ⟨before, _, _, _, _, _, first, _, _, _, found, _⟩
-  have same : before = voteSent := by simpa [trace] using first.symm
+  change voteSent = before at first
   subst before
   simp [voteSent, ready, unused, MultiNodeTransitionSystem.nodeState] at found
 
 -- The local run alone is insufficient: its successor must match the trace.
-example
-    : ¬ NotificationAt config { states := [voteSent, voteSent] } 0 "A"
-          (.opening .quorum) := by
+example : ¬ NotificationAt config ⟨fun _ => voteSent⟩ 0 "A" (.opening .quorum) := by
   rintro ⟨before, after, action, nodeBefore, nodeAfter, outputs,
     first, second, transition, actor, foundBefore, foundAfter, run, notified⟩
-  simp only [List.getElem?_cons_zero, List.getElem?_cons_succ, Option.some.injEq] at first second
   subst before after
   have beforeEq : nodeBefore = selected := by
     simpa [voteSent, ready, unused, MultiNodeTransitionSystem.nodeState]
@@ -230,12 +241,9 @@ example
     ⟩
 
 example
-    : ¬ ({ states := [ready, voteSent] } : Properties.GlobalTrace).Valid
-          (Model.transitionSystem config) := by
-  rintro ⟨⟨start, first, _, _, _, _, nodes⟩, _⟩
-  have same : start = ready := by simpa using first.symm
-  subst start
-  have invalid := nodes ("A", selected) (by simp [ready])
+    : ¬ (Proofs.Trace.lasso [ready] voteSent).Valid (Model.transitionSystem config) := by
+  rintro ⟨⟨_, _, _, _, nodes⟩, _⟩
+  have invalid := nodes ("A", selected) (by simp [Proofs.Trace.lasso, ready])
   have phase := congrArg NodeState.phase invalid
   cases phase
 
