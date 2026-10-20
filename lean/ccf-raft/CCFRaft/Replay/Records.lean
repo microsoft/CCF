@@ -122,14 +122,16 @@ def parseLog (file input : String) (stdout : Bool) : Except String (Array Record
       let _ ← object value
       return value
     let value ← parsed.mapError (fun error => s!"{file}:{line}: {error}")
-    if !stdout || optional value "tag" == some (.str "raft_trace") then
+    if !stdout
+        || [some (.str "raft_trace"), some (.str "ccf.raft_trace")].contains
+            (optional value "tag") then
       records := records.push { file, line, value }
     else
       require
         (["h_ts", "level", "tag", "msg"].all (fun key => (optional value key).isSome))
         s!"{file}:{line}: unrecognized driver output"
   require (!records.isEmpty)
-    s!"{file}: empty trace; no Raft events (CCF_RAFT_TRACING=ON required)"
+    s!"{file}: empty trace; no Raft events (configure the driver's trace collector)"
   return records
 
 def readLog (path : System.FilePath) : IO (Except String (Array Record)) := do
@@ -359,6 +361,47 @@ private def commands : List String :=
     "reconnect_node"
   ]
 
+/-- Decode current transport envelopes without reordering or changing protocol fields. -/
+private def normalize (row : Json) : Except String Json := do
+  if optional row "tag" != some (.str "ccf.raft_trace") then return row
+  keys row ["tag", "process_id", "h_ts", "msg"] []
+  let _ ← string row "process_id"
+  let _ ← nat row "h_ts"
+  let message ← field row "msg"
+  if let some command := optional message "cmd" then
+    keys message ["cmd"] []
+    return Json.mkObj [("tag", toJson "raft_trace"), ("cmd", command)]
+  let function ← string message "function"
+  let message ←
+    if function == "commit" then do
+      keys message ["function", "state", "idx", "configurations"] []
+      pure
+        (Json.mkObj
+          ((← object message).filter (·.1 != "idx")
+            ++ [("args", Json.mkObj [("idx", ← field message "idx")])]))
+    else if function == "add_configuration" then do
+      keys message ["function", "state", "idx", "nodes", "rid", "configurations"] []
+      pure
+        (Json.mkObj
+          ((← object message).filter
+              (fun pair => !["idx", "nodes", "rid"].contains pair.1)
+            ++ [(
+                  "args",
+                  Json.mkObj
+                    [(
+                      "configuration",
+                      Json.mkObj
+                        [
+                          ("idx", ← field message "idx"),
+                          ("nodes", ← field message "nodes"),
+                          ("rid", ← field message "rid")
+                        ]
+                    )]
+                )]))
+    else
+      pure message
+  return Json.mkObj [("tag", toJson "raft_trace"), ("msg", message)]
+
 /-- Preserve capture order, associate commands, and declare fixed per-node modes. -/
 def associate (records : Array Record)
     : Except String (Array Event × List (String × Bool)) := do
@@ -366,14 +409,31 @@ def associate (records : Array Record)
   let mut command : Option Record := none
   let mut modes : List (String × Bool) := []
   let mut defaultMode := true
+  let mut process : Option String := none
+  let mut sequence := 0
+  let current :=
+    records.any
+      (fun record =>
+        optional record.value "tag" == some (.str "ccf.raft_trace"))
   for record in records do
+    require (!current || optional record.value "tag" == some (.str "ccf.raft_trace"))
+      s!"{record.location}: mixed legacy/current trace records"
+    if optional record.value "tag" == some (.str "ccf.raft_trace") then
+      let identity ← string record.value "process_id"
+      require (process.all (· == identity)) s!"{record.location}: mixed trace processes"
+      require ((← nat record.value "h_ts") == sequence)
+        s!"{record.location}: missing, duplicate or reordered trace sequence"
+      process := some identity
+      sequence := sequence + 1
+    else
+      require process.isNone s!"{record.location}: mixed legacy/current trace records"
     let parse
         : Except String (Array Event × Option Record × List (String × Bool) × Bool) := do
       let mut events := events
       let mut command := command
       let mut modes := modes
       let mut defaultMode := defaultMode
-      let row := record.value
+      let row ← normalize record.value
       require ((← string row "tag") == "raft_trace") "expected raft_trace record"
       if let some cmd := optional row "cmd" then
         keys row ["tag", "cmd"] []
@@ -405,7 +465,7 @@ def associate (records : Array Record)
           let _ ← text (.str node)
           require (!(modes.lookup node).isSome) s!"duplicate node creation '{node}'"
           modes := modes ++ [(node, defaultMode)]
-        command := some record
+        command := some { record with value := row }
       else
         let some cmd := command | throw "event before command"
         keys row ["tag", "msg"] ["h_ts", "thread_id", "level", "file", "number"]
@@ -432,7 +492,10 @@ def associate (records : Array Record)
         if function == "add_configuration" then let _ ← configurationArg message; pure ()
         if let some packet := optional message "packet" then validatePacket packet
         let node ← string state "node_id"
-        if !(modes.lookup node).isSome then
+        if let some enabled := modes.lookup node then
+          require ((← boolean state "pre_vote_enabled") == enabled)
+            "preVoteEnabled differs from fixed node configuration"
+        else
           modes := modes ++ [(node, ← boolean state "pre_vote_enabled")]
         events :=
           events.push { record, command := cmd, function, node, message, state, facts }

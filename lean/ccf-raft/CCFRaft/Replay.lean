@@ -14,7 +14,7 @@ namespace CCFRaft.Replay
 open Lean Model.Node
 open CCF.MultiNodeTransitionSystem (nodeState removeOne)
 
-abbrev Envelope := Model.Envelope String String
+abbrev Envelope := Model.Envelope
 
 /-- Source evidence and the named rule which uses it. -/
 structure Origin where
@@ -36,18 +36,26 @@ def Origin.label (origin : Origin) : String :=
 
 /-- Bootstrap and every driver-created node, including nodes with no events yet. -/
 structure Header where
-  bootstrap : InitialConfig String
+  bootstrap : Finset NodeID
   declared : List String
+  requests : List String := [""]
+  preVoteModes : List (String × Bool) := []
 
-def Header.initial (header : Header) : Model.State String String :=
+def Header.nodeId (header : Header) (node : String) : Except String NodeID := do
+  let some index := header.declared.findIdx? (· == node)
+  | throw s!"undeclared node '{node}'"
+  return index
+
+def Header.initial (header : Header) : Model.State :=
   {
     nodes :=
-      header.declared.map fun node => (node, initialNodeState header.bootstrap node)
-    active := header.declared
+      (List.range header.declared.length).map
+        fun node =>
+          (node, Model.initialNodeState header.bootstrap node)
   }
 
 inductive Step where
-  | local (node : String) (input : Input String String)
+  | local (node : String) (input : Input)
   | receive (source destination : String) (packet : Json)
   | drop (source destination : String)
 
@@ -78,7 +86,7 @@ def Instruction.origins : Instruction → List Origin
   | .state _ _ _ origin | .entry _ _ _ origin | .message _ _ _ _ origin => [origin]
 
 structure ReplayState where
-  state : Model.State String String
+  state : Model.State
   dropped : List Envelope := []
 
 /--
@@ -88,20 +96,17 @@ def ReplayState.live (replay : ReplayState) : List Envelope :=
   replay.dropped.foldl (fun network envelope => removeOne envelope network)
     replay.state.network
 
-def ReplayState.pending (replay : ReplayState) (source destination : String)
+def ReplayState.pending (replay : ReplayState) (source destination : NodeID)
     : List Envelope :=
   replay.live.filter
     fun envelope => envelope.source == source && envelope.target == destination
-
-private def declared (header : Header) (node : String) : Except String Unit :=
-  unless node ∈ header.declared do throw s!"undeclared node '{node}'"
 
 private def roleName : Role → String
   | .none => "none"
   | .follower => "follower"
   | .preVoteCandidate => "preVoteCandidate"
   | .candidate => "candidate"
-  | .leader => "leader"
+  | .primary => "leader"
 
 private def membershipName : MembershipState → String
   | .noRetirementObserved => "active"
@@ -120,25 +125,28 @@ private def checkFields (expected actual : Json) : Except String Unit := do
       throw s!"{key}: observed {expectedValue.compress}, model {actualValue.compress}"
 
 private def lookup (header : Header) (replay : ReplayState) (node : String)
-    : Except String (NodeState String String) := do
-  declared header node
-  let some state := nodeState replay.state node
+    : Except String NodeState := do
+  let nodeId ← header.nodeId node
+  let some state := nodeState replay.state nodeId
   | throw s!"node '{node}' is not in the network"
   return state
 
-private def members (header : Header) (nodes : Finset String) : Json :=
-  toJson (header.declared.filter fun member => member ∈ nodes)
+private def members (header : Header) (nodes : Finset NodeID) : Json :=
+  toJson
+    ((header.declared.zipIdx).filterMap
+      fun (name, index) =>
+        if index ∈ nodes then some name else none)
 
 private def observeState (header : Header) (replay : ReplayState) (node : String)
     (peer : Option String) (expected : Json)
     : Except String Unit := do
   let state ← lookup header replay node
-  let retirement := state.retirement header.bootstrap node
+  let retirement := state.retirement (← header.nodeId node)
   let markers :=
     (List.range' 1 state.log.length).filter
       fun index => index > state.commitIndex && isSignatureAt state.log index
   let configurations :=
-    (activeConfigurations header.bootstrap state.log state.commitIndex).filterMap
+    (activeConfigurations state.log state.commitIndex).filterMap
       fun configuration =>
         if configuration.index == 0 then
           none
@@ -161,10 +169,10 @@ private def observeState (header : Header) (replay : ReplayState) (node : String
       ("retirementIndex", toJson retirement.index),
       ("retirementCommittableIndex", toJson retirement.committableIndex),
       ("retiredCommittedIndex", toJson state.retiredCommittedIndex),
-      ("preVoteEnabled", toJson (decide (header.bootstrap.preVoteStatus node = .enabled)))
+      ("preVoteEnabled", toJson ((header.preVoteModes.lookup node).getD true))
     ]
   if let some peer := peer then
-    declared header peer
+    let peer ← header.nodeId peer
     fields :=
       fields
       ++ [
@@ -180,16 +188,22 @@ private def observeEntry (header : Header) (replay : ReplayState) (node : String
   let state ← lookup header replay node
   let some entry := entryAt? state.log index
   | throw s!"node '{node}' has no log entry at index {index}"
-  let content :=
+  let content ←
     match entry.content with
-    | .transaction transaction metadata =>
-        [
-          ("kind", toJson "transaction"),
-          ("transaction", toJson transaction),
-          ("retiredCommitted", members header metadata.retiredCommitted),
-          ("configurations", toJson (metadata.configuration.toList.map (members header)))
-        ]
-    | .signature => [("kind", toJson "signature")]
+    | .transaction transaction metadata => do
+        let some request := header.requests[transaction]?
+        | throw s!"unknown model request identifier {transaction}"
+        pure
+          [
+            ("kind", toJson "transaction"),
+            ("transaction", toJson request),
+            ("retiredCommitted", members header metadata.retirementConfirmations),
+            (
+              "configurations",
+              toJson (metadata.configuration.toList.map (members header))
+            )
+          ]
+    | .signature => pure [("kind", toJson "signature")]
   checkFields expected
     (Json.mkObj
       ([
@@ -199,7 +213,7 @@ private def observeEntry (header : Header) (replay : ReplayState) (node : String
         ++ content))
 
 /-- Physical packet coordinates; lower-term NACK hints are not election terms. -/
-def messageJson (message : Message String String) : Json :=
+def messageJson (message : Model.Node.Message) : Json :=
   let fields :=
     match message with
     | .appendEntriesRequest request =>
@@ -208,7 +222,7 @@ def messageJson (message : Message String String) : Json :=
           ("prev_idx", toJson request.prevLogIndex),
           ("prev_term", toJson request.prevLogTerm),
           ("idx", toJson (request.prevLogIndex + request.entries.length)),
-          ("leader_commit_idx", toJson request.leaderCommit),
+          ("leader_commit_idx", toJson request.primaryCommit),
           (
             "term_of_idx",
             toJson (request.entries.getLast?.map Entry.term |>.getD request.prevLogTerm)
@@ -227,7 +241,7 @@ def messageJson (message : Message String String) : Json :=
           ("last_committable_idx", toJson request.lastCommittableIndex),
           ("term_of_last_committable_idx", toJson request.lastCommittableTerm)
         ]
-    | .requestPreVote request =>
+    | .requestPreVoteRequest request =>
         [
           ("msg", toJson "raft_request_pre_vote"),
           ("last_committable_idx", toJson request.lastCommittableIndex),
@@ -243,10 +257,10 @@ def messageJson (message : Message String String) : Json :=
           ("msg", toJson "raft_request_pre_vote_response"),
           ("vote_granted", toJson response.voteGranted)
         ]
-    | .proposeVoteRequest _ => [("msg", toJson "raft_propose_request_vote")]
+    | .proposeRequestVoteRequest _ => [("msg", toJson "raft_propose_request_vote")]
   Json.mkObj (("term", toJson message.term) :: fields)
 
-private def selectPacket (state : ReplayState) (source destination : String)
+private def selectPacket (state : ReplayState) (source destination : NodeID)
     (packet : Json) (selection : PacketSelection)
     : Except String Envelope := do
   let pending := state.pending source destination
@@ -273,32 +287,43 @@ private def selectPacket (state : ReplayState) (source destination : String)
 
 private def runStep (header : Header) (replay : ReplayState) (step : Step)
     : Except String ReplayState := do
-  let system := Model.transitionSystem (TxId := String) header.bootstrap header.declared
+  let system :=
+    Model.transitionSystem header.bootstrap (List.range header.declared.length)
   match step with
   | .local node input =>
-      declared header node
+      if let .timeout .election := input then
+        unless (header.preVoteModes.lookup node).getD true do
+          throw "unsupported disabled-pre-vote timeout election: model requires pre-vote"
+      let node ← header.nodeId node
       match input with
-      | .sendEntries destination _ => declared header destination
+      | .sendEntries destination _ =>
+          unless destination < header.declared.length do
+            throw s!"undeclared model node {destination}"
       | .append entries =>
           for entry in entries do
+            if let .transaction request _ := entry then
+              unless request > 0 && request < header.requests.length do
+                throw s!"undeclared or reserved model request {request}"
             let metadata := entry.metadata
             for member
-                in metadata.configuration.getD ∅ ∪ metadata.retiredCommitted |>.sort do
-              declared header member
+                in metadata.configuration.getD ∅ ∪ metadata.retirementConfirmations
+                    |>.sort do
+              unless member < header.declared.length do
+                throw s!"undeclared model node {member}"
       | _ => pure ()
       let some state := system.step replay.state (.local node input)
       | throw s!"disabled model action '{step.name}'"
       return { replay with state }
   | .receive source destination packet =>
-      declared header source
-      declared header destination
+      let source ← header.nodeId source
+      let destination ← header.nodeId destination
       let envelope ← selectPacket replay source destination packet .matching
       let some state := system.step replay.state (.deliver envelope)
       | throw "disabled model action 'receive'"
       return { replay with state }
   | .drop source destination =>
-      declared header source
-      declared header destination
+      let source ← header.nodeId source
+      let destination ← header.nodeId destination
       let some envelope := (replay.pending source destination).head?
       | throw s!"no pending packet from '{source}' to '{destination}'"
       return { replay with dropped := replay.dropped ++ [envelope] }
@@ -315,8 +340,8 @@ def runInstruction (header : Header) (state : ReplayState) (instruction : Instru
       observeEntry header state node index fields
       return state
   | .message source destination packet selection _ =>
-      declared header source
-      declared header destination
+      let source ← header.nodeId source
+      let destination ← header.nodeId destination
       let _ ← selectPacket state source destination packet selection
       return state
 
@@ -332,8 +357,22 @@ def replay (header : Header) (instructions : Array Instruction)
           && header.declared.all (!·.isEmpty)
           && header.declared.eraseDups == header.declared do
     throw "declared nodes must be nonempty and distinct"
-  for node in header.bootstrap.configuration.sort do
-    declared header node
+  unless header.declared == header.declared.mergeSort do
+    throw "declared nodes must be sorted lexically"
+  unless header.bootstrap.Nonempty do
+    throw "initial membership must be nonempty"
+  for node in header.bootstrap.sort do
+    unless node < header.declared.length do
+      throw s!"undeclared model node {node}"
+  unless header.requests.head? == some "" && (header.requests.drop 1).all (!·.isEmpty) do
+    throw "request identifiers must reserve zero for genesis"
+  unless header.requests.eraseDups == header.requests do
+    throw "request identifiers must be distinct"
+  unless (header.preVoteModes.map Prod.fst).eraseDups
+          == header.preVoteModes.map Prod.fst do
+    throw "pre-vote mode declarations must be distinct"
+  for (node, _) in header.preVoteModes do
+    let _ ← header.nodeId node
   if instructions.isEmpty then throw "replay instructions must not be empty"
   let mut state : ReplayState := { state := header.initial }
   let mut actions := 0

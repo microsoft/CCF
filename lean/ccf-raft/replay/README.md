@@ -1,9 +1,9 @@
 # Trace replay
 
-The production path is entirely Lean, following [DisasterRecovery's records, reduction and direct replay](../../disaster-recovery/replayer/README.md):
+Protocol validation is entirely Lean, following [DisasterRecovery's records, reduction and direct replay](../../disaster-recovery/replayer/README.md):
 
 ```text
-raft_driver stdout -(CCFRaft/Replay/Records.lean)-> validated records
+raft_driver records -(CCFRaft/Replay/Records.lean)-> validated records
                    -(CCFRaft/Replay/Reduction.lean)-> actions and observations
                    -(CCFRaft/Replay.lean)-> model execution or discrepancy
 ```
@@ -18,15 +18,20 @@ The old Python reducer, harness and JSON replay input are retired.
 Run from `lean/ccf-raft`:
 
 ```sh
-lake build --wfail ccfraft-replay replay-checks canonical-checks
+lake build --wfail ccfraft-replay replay-checks
 lake exe ccfraft-replay capture.stdout
 lake exe ccfraft-replay events.ndjson
-lake exe ccfraft-replay suite --driver ../../build/raft_driver --output ../../build/raft-replay
+python3 ../../tests/raft_trace_capture.py /tmp/ccf-raft-build/raft_driver ../../tests/raft_scenarios /tmp/ccf-raft-captures
+lake exe ccfraft-replay suite --raw-directory /tmp/ccf-raft-captures --output /tmp/ccf-raft-results
 lake exe replay-checks
-lake exe canonical-checks
 ```
 
-Build the driver with `CCF_RAFT_TRACING=ON`, as described in the [package README](../README.md#trace-validation).
+Build the driver as described in the [package README](../README.md#trace-validation).
+The removed `CCF_RAFT_TRACING` switch no longer enables stdout tracing.
+The current collector connects the driver's Fluentd endpoint on loopback and writes the original `process_id`, `h_ts` and `msg` records as NDJSON, retaining native stdout/stderr in `.driver.stdout` and `.driver.stderr` files.
+It uses the existing MessagePack transport helper, not a Python protocol reducer; it never sorts or edits events to make a replay succeed.
+Collection failures preserve partial records under `.partial`, never as successful replay inputs.
+The legacy `suite --driver PATH` option remains for executables that already emit trace NDJSON on stdout, including the regression fake driver; it is not the current native driver's interface.
 `suite` selects every regular file under `../../tests/raft_scenarios`, recursively and sorted, matching `tests/raft_scenarios_runner.py`.
 Use `--scenarios DIR` to select another inventory and `--timeout-ms N` to change the positive per-capture timeout from 120000 milliseconds.
 A capture failure, nonempty driver stderr, malformed or unsupported event, disabled action, impossible delivery or observation mismatch fails that scenario.
@@ -48,6 +53,8 @@ JSON duplicate keys, including escaped equivalent spellings, fail before object 
 Event names, fields, state fields, packet families and coordinates are checked in `Records.lean`; unsupported extensions cannot silently disappear from observations.
 Timestamps do not influence order.
 Creation commands declare fixed pre-vote modes even for future nodes that have not emitted any Raft event.
+Current `ccf.raft_trace` envelopes must have one process identity and contiguous sequence numbers starting at zero; mixed legacy/current records, missing, repeated or reordered sequences fail.
+Lean converts only the current structural layout (`commit.idx` and flat `add_configuration` fields) to the named reducer's fields; their values and raw source records are retained unchanged.
 
 The named branches of `reduce` in `Reduction.lean` consume every event:
 
@@ -74,6 +81,9 @@ The model and its guards are unchanged.
 A globally committable entry is a signature; another entry is a transaction identified by its source `file:line`.
 Configuration callbacks supply the optional configuration metadata, and `cleanup_nodes` supplies its retired-committed node set.
 The preloaded bootstrap configuration has the empty transaction identifier.
+Model node IDs are lexical ordinals in the distinct sorted declared-name list, never numeric interpretations of textual names.
+The initial membership contains the bootstrap node's ordinal; its minimum starts as primary even when earlier lexical nodes exist elsewhere in the population.
+Request ID zero is reserved for genesis; other IDs map injectively to transaction source locations, which remain available in entry observations.
 Adjacent callbacks do not establish a general multi-entry production batch boundary; replaying such calls needs additional trace evidence.
 
 `raft.h` traces `replicate`, `add_configuration`, `execute_append_entries_sync`, `commit` and sends before their mutations, whereas role-change events trace after changing role.
@@ -98,6 +108,14 @@ Commits and promotions are never standalone model actions.
 Terminal retirement nominates inside its committing action, using the precommit eligible peers and configurations before pruning and clearing leadership.
 The reducer audits the raw leader/completed-retirement snapshot and observes the proposal rather than substituting its destination into the action.
 The model selects the maximum acknowledged index, latest containing active configuration index, then lexical node ID; `"2"` ranks above `"10"`.
+
+`preVoteEnabled` checks the fixed driver configuration, not a mutable model field.
+Timeout elections with pre-vote disabled are explicitly unsupported; same-term nominations retain their direct-election behavior.
+No synthetic nominations or mode toggle are inserted into the model.
+
+The model's `retiredCommittedIndex` is the confirmation transaction's index, not the covering signature's index.
+The current native test stub passes its compact frontier instead; terminal-retirement captures exhibiting that discrepancy fail explicitly.
+The retained terminal fixture is a negative correspondence regression, not a successful replay fixture.
 
 ## Packet accounting
 
@@ -125,9 +143,13 @@ It does not relax record parsing, source callback ordering, action guards or sta
 ## Regression coverage
 
 `replay/tests/Main.lean` replaces the old Python regression suite.
-It runs the retained bootstrap, startup, vote-response, missing-prefix, configuration, drop/resend and retirement fixtures, checks instruction consumption, mutates every projected observation field, and exercises raw callback/packet mutations, malformed and unsupported records, disabled actions, missing packets, wrong drop heads and repeated/drop message occurrences.
+It runs the retained compatible bootstrap, startup, vote-response, missing-prefix, configuration, drop/resend and follower-retirement fixtures, checks instruction consumption, mutates every projected observation field, and exercises raw callback/packet mutations, malformed and unsupported records, disabled actions, missing packets, wrong drop heads and repeated/drop message occurrences.
 Receive regressions deliver a later heartbeat before an earlier data packet, require the NACK and retention of the earlier packet, reject unavailable and ambiguous selectors, and preserve equal-copy multiplicity.
 Focused cases cover the relaxed send-telemetry semantics, transaction metadata, undeclared metadata members, and rejected duplicate configuration callbacks and cache indices.
 The test executable doubles as a deterministic fake driver for capture byte preservation, timeout/nonzero-exit/stderr failures, recursive inventory, invalid encoding, missing captures and stale-summary removal.
 Neither it nor the replayer imports proof modules.
-The combined package still includes every model/proof import and required proof checks; replay-only builds do not replace the full proof build and kernel checks.
+Identity/init regressions cover lexical ordinals, a nonzero bootstrap ordinal, population preservation, genesis, undeclared IDs and duplicate request provenance.
+Current-envelope regressions cover sequence gaps, reordering, process identity, field-layout decoding and explicit disabled-mode rejection.
+`python3 tests/raft_trace_capture_test.py` from the repository root exercises transport ordering, duplicate keys, unchanged records and stale-success removal.
+Replay-only builds do not replace the separately integrated proof build and kernel checks.
+Successful replay witnesses a finite model execution compatible with these observations, not universal production inclusion, infinite extension, fairness or liveness.

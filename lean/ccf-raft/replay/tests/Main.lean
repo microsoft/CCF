@@ -202,7 +202,7 @@ private def reductionTests : IO Nat := do
         (bootstrap ++ #[command "pre_vote_enabled,true", command "create_new_node,1"]))
   check
     (modes.header.declared == ["0", "1"]
-      && modes.header.bootstrap.preVoteStatus "1" == .enabled)
+      && modes.header.preVoteModes.lookup "1" == some true)
     "future node pre-vote declaration"
   let assertions ← ok (reduce (bootstrap.push (command "assert_commit_idx,0,2")))
   check (assertions.instructions.size == reduced.instructions.size)
@@ -328,7 +328,6 @@ private def fixtureMutations : IO Nat := do
         "bootstrap.ndjson",
         "startup.ndjson",
         "vote_responses.ndjson",
-        "terminal_retirement.stdout",
         "retire_follower.stdout"
       ] do
     let records ← fixture name
@@ -424,6 +423,7 @@ private def fixtureMutations : IO Nat := do
       "does not match request"
     count := count + 1
   let terminal ← fixture "terminal_retirement.stdout"
+  rejects (replayRecords terminal) "retiredCommittedIndex: observed 6, model 5"
   let nomination ← find terminal "step_down_and_nominate_successor"
   rejects (replayRecords (mutate terminal nomination ["msg", "to_node_id"] (toJson "0")))
     "no pending packet"
@@ -501,13 +501,8 @@ private def origin : Origin :=
 private def header : Header :=
   {
     declared := ["alpha", "beta", "future"]
-    bootstrap :=
-      {
-        configuration := {"alpha", "beta"},
-        leader := "alpha",
-        leader_mem := by decide
-        preVoteStatus := fun node => if node == "future" then .enabled else .capable
-      }
+    bootstrap := {0, 1}
+    requests := ["", "tx-1", "configuration", "retired", "tx", "other", "unknown"]
   }
 
 private def act (step : Step) : Instruction := .action step [origin]
@@ -531,9 +526,9 @@ private def directTests : IO Nat := do
           ("preVoteEnabled", .bool true),
           ("membershipState", toJson "active")
         ],
-      act (.local "alpha" (.append [.transaction "tx-1" {}])),
+      act (.local "alpha" (.append [.transaction 1 {}])),
       act (.local "alpha" (.append [.signature])),
-      act (.local "alpha" (.sendEntries "beta" 3)),
+      act (.local "alpha" (.sendEntries 1 3)),
       sent "alpha" "beta"
         [
           ("msg", toJson "raft_append_entries"),
@@ -571,7 +566,7 @@ private def directTests : IO Nat := do
         (.local "beta" (.append [.signature]), "disabled model action 'append'"),
         (.local "alpha" (.append []), "disabled model action 'append'"),
         (.local "unknown" (.timeout .election), "undeclared node"),
-        (.local "alpha" (.sendEntries "beta" 99), "disabled model action 'sendEntries'")
+        (.local "alpha" (.sendEntries 1 99), "disabled model action 'sendEntries'")
       ] do
     rejects (replay header #[act step]) diagnostic
   rejects (replay header #[observe "alpha" []]) "at least one"
@@ -594,7 +589,7 @@ private def directTests : IO Nat := do
   let twice :=
     start
     ++ #[
-      act (.local "alpha" (.sendEntries "beta" 3)),
+      act (.local "alpha" (.sendEntries 1 3)),
       sent "alpha" "beta" [("prev_idx", toJson (3 : Nat)), ("idx", toJson (3 : Nat))]
     ]
   let head :=
@@ -613,7 +608,7 @@ private def directTests : IO Nat := do
   -- Equal copies remain distinct: dropping one cannot hide/deliver both.
   let heartbeat :=
     #[
-      act (.local "alpha" (.sendEntries "beta" 0)),
+      act (.local "alpha" (.sendEntries 1 0)),
       sent "alpha" "beta" [("idx", toJson (0 : Nat))]
     ]
   let duplicate :=
@@ -631,7 +626,7 @@ private def directTests : IO Nat := do
   let _ ← ok (replay header (start.extract 0 4))
   let _ ← ok (replay header (complete.extract 0 4 ++ complete.extract 5 complete.size))
   let envelope : Envelope :=
-    { source := "alpha", target := "beta", payload := .proposeVoteRequest 2 }
+    { source := 0, target := 1, payload := .proposeRequestVoteRequest 2 }
   let repeated : ReplayState :=
     { state := { header.initial with network := [envelope, envelope] } }
   let observation :=
@@ -662,9 +657,7 @@ private def directTests : IO Nat := do
   rejects (replay header early) "direct.ndjson:17 [unit]"
   let configured :=
     #[
-      act
-        (.local "alpha"
-          (.append [.transaction "configuration" { configuration := some {"alpha"} }])),
+      act (.local "alpha" (.append [.transaction 2 { configuration := some {0} }])),
       .entry "alpha" 2
         (Json.mkObj
           [
@@ -677,12 +670,10 @@ private def directTests : IO Nat := do
     configured
     ++ #[
       act (.local "alpha" (.append [.signature])),
-      act (.local "alpha" (.sendEntries "beta" 3)),
+      act (.local "alpha" (.sendEntries 1 3)),
       act (.receive "alpha" "beta" append),
       act (.receive "beta" "alpha" response),
-      act
-        (.local "alpha"
-          (.append [.transaction "retired" { retiredCommitted := {"beta"} }]))
+      act (.local "alpha" (.append [.transaction 3 { retirementConfirmations := {1} }]))
     ]
   let retirementEntry (nodes : List String) :=
     Instruction.entry "alpha" 4
@@ -694,24 +685,23 @@ private def directTests : IO Nat := do
       origin
   let _ ← ok (replay header (retired.push (retirementEntry ["beta"])))
   rejects (replay header (retired.push (retirementEntry []))) "retiredCommitted"
-  for metadata
-      in [{ configuration := some {"missing"} }, { retiredCommitted := {"missing"} }] do
+  for metadata in [{ configuration := some {99} }, { retirementConfirmations := {99} }] do
     rejects
-      (replay header #[act (.local "alpha" (.append [.transaction "unknown" metadata]))])
-      "undeclared node 'missing'"
+      (replay header #[act (.local "alpha" (.append [.transaction 6 metadata]))])
+      "undeclared model node 99"
   return 35
 
 private def receiveMatchingTests : IO Unit := do
   let setup :=
     #[
-      act (.local "alpha" (.append [.transaction "tx" {}, .signature])),
-      act (.local "alpha" (.sendEntries "beta" 3)),
-      act (.local "alpha" (.sendEntries "beta" 3))
+      act (.local "alpha" (.append [.transaction 4 {}, .signature])),
+      act (.local "alpha" (.sendEntries 1 3)),
+      act (.local "alpha" (.sendEntries 1 3))
     ]
   let initial : ReplayState := { state := header.initial }
   let queued ←
     setup.foldlM (fun state next => ok (runInstruction header state next)) initial
-  let packets := queued.pending "alpha" "beta"
+  let packets := queued.pending 0 1
   check (packets.length == 2) "expected data followed by heartbeat"
   let some first := packets.head? | throw (IO.userError "missing first packet")
   let some second := packets.getLast? | throw (IO.userError "missing second packet")
@@ -731,13 +721,13 @@ private def receiveMatchingTests : IO Unit := do
             receive firstFields
           ]))
   let observedOnly ← ok (runInstruction header queued (observed secondFields))
-  check (observedOnly.pending "alpha" "beta" == packets)
+  check (observedOnly.pending 0 1 == packets)
     "matching observation changed packet occurrences"
   let afterSecond ← ok (runInstruction header queued (receive secondFields))
-  check (afterSecond.pending "alpha" "beta" == [first])
+  check (afterSecond.pending 0 1 == [first])
     "out-of-order receive lost the earlier packet"
   let afterFirst ← ok (runInstruction header afterSecond (receive firstFields))
-  check ((afterFirst.pending "alpha" "beta").isEmpty) "receive did not consume one copy"
+  check ((afterFirst.pending 0 1).isEmpty) "receive did not consume one copy"
   rejects (runInstruction header afterFirst (receive secondFields)) "no pending packet"
   rejects (runInstruction header queued (receive (Json.mkObj []))) "at least one field"
   rejects (runInstruction header queued (receive (Json.mkObj [("unknown", .null)])))
@@ -763,7 +753,7 @@ private def receiveMatchingTests : IO Unit := do
                           fun entry =>
                             match entry.content with
                             | .transaction _ metadata =>
-                                { entry with content := .transaction "other" metadata }
+                                { entry with content := .transaction 5 metadata }
                             | .signature => entry
                   }
           }
@@ -780,7 +770,7 @@ private def receiveMatchingTests : IO Unit := do
   let equalCopies :=
     { queued with state := { queued.state with network := [first, first] } }
   let one ← ok (runInstruction header equalCopies (receive firstFields))
-  check (one.pending "alpha" "beta" == [first]) "equal envelopes lost multiplicity"
+  check (one.pending 0 1 == [first]) "equal envelopes lost multiplicity"
   let exhausted ← ok (runInstruction header one (receive firstFields))
   rejects (runInstruction header exhausted (receive firstFields)) "no pending packet"
 
@@ -790,6 +780,101 @@ private def expectIOError (action : IO Unit) (expected : String) : IO Unit := do
   | .ok _ => throw (IO.userError s!"unexpected IO success: {expected}")
   | .error error =>
       check ((toString error).contains expected) s!"expected {expected}, got {error}"
+
+private def identityTests : IO Unit := do
+  let lexical : Header :=
+    { declared := ["1", "10", "2"], bootstrap := {2}, requests := ["", "request"] }
+  check ((← ok (lexical.nodeId "10")) == 1 && (← ok (lexical.nodeId "2")) == 2)
+    "node names must map by lexical rank, not numeric parsing"
+  check (lexical.initial.nodes.map Prod.fst == [0, 1, 2])
+    "initialization changed the declared population"
+  let _ ←
+    ok
+      (replay lexical
+        #[
+          observe "2" [("role", toJson "leader"), ("logLength", toJson (1 : Nat))],
+          observe "1" [("role", toJson "none"), ("logLength", toJson (0 : Nat))],
+          .entry "2" 1
+            (Json.mkObj [("transaction", toJson ""), ("configurations", toJson [["2"]])])
+            origin
+        ])
+  for (invalid, diagnostic)
+      in [
+        ({ lexical with bootstrap := ∅ }, "membership must be nonempty"),
+        ({ lexical with bootstrap := {3} }, "undeclared model node"),
+        ({ lexical with declared := ["1", "2", "10"] }, "sorted lexically"),
+        ({ lexical with requests := ["not-genesis"] }, "reserve zero"),
+        ({ lexical with requests := ["", "same", "same"] }, "must be distinct"),
+        ({ lexical with requests := ["", ""] }, "reserve zero"),
+        ({ lexical with preVoteModes := [("missing", true)] }, "undeclared node"),
+        ({ lexical with preVoteModes := [("2", true), ("2", false)] }, "distinct")
+      ] do
+    rejects (replay invalid #[observe "2" [("role", toJson "leader")]]) diagnostic
+  for request in [0, 2] do
+    rejects (replay lexical #[act (.local "2" (.append [.transaction request {}]))])
+      "undeclared or reserved model request"
+  rejects
+    (replay { lexical with preVoteModes := [("2", false)] }
+      #[act (.local "2" (.timeout .election))])
+    "unsupported disabled-pre-vote"
+  let _ ←
+    ok
+      (replay lexical
+        #[
+          act (.local "2" (.append [.transaction 1 {}])),
+          .entry "2" 2 (Json.mkObj [("transaction", toJson "request")]) origin
+        ])
+
+/-- Current Fluentd records retain order and decode only the native field layout. -/
+private def transportTests : IO Unit := do
+  let original ← fixture "startup.ndjson"
+  let records ←
+    original.mapIdxM
+      fun index record => do
+        let message ←
+          if let some command := optional record.value "cmd" then
+            pure (Json.mkObj [("cmd", command)])
+          else do
+            let message ← ok (field record.value "msg")
+            let fields ← ok (object message)
+            if function record == "commit" then
+              pure
+                (Json.mkObj
+                  (fields.filter (·.1 != "args")
+                    ++ [("idx", ← ok (field message "args" >>= (field · "idx")))]))
+            else if function record == "add_configuration" then
+              let config ← ok (field message "args" >>= (field · "configuration"))
+              pure (Json.mkObj (fields.filter (·.1 != "args") ++ (← ok (object config))))
+            else
+              pure message
+        pure
+          {
+            record with
+              value :=
+                Json.mkObj
+                  [
+                    ("tag", toJson "ccf.raft_trace"),
+                    ("process_id", toJson "test-process"),
+                    ("h_ts", toJson index),
+                    ("msg", message)
+                  ]
+          }
+  check ((← ok (replayRecords records)) == (← ok (replayRecords original)))
+    "transport decoding changed replay instructions"
+  for sequence in [0, 2] do
+    rejects (reduce (mutate records 1 ["h_ts"] (toJson sequence))) "trace sequence"
+  rejects (reduce (mutate records 1 ["process_id"] (toJson "another"))) "mixed trace"
+  rejects (reduce (records.set! 1 original[1]!)) "mixed legacy/current"
+  rejects (reduce (records.set! 0 original[0]!)) "mixed legacy/current"
+  rejects (reduce (mutate records 0 ["unexpected"] .null)) "unsupported field"
+  let config ← find original "add_configuration"
+  rejects (reduce (mutate records config ["msg", "rid"] (toJson (99 : Nat))))
+    "rid differs"
+  let bootstrap ← fixture "bootstrap.ndjson"
+  let disabled :=
+    bootstrap.push
+      (record "become_candidate" [("configurations", toJson ([] : List Json))])
+  rejects (reduce disabled) "unsupported disabled-pre-vote timeout election"
 
 /-- The test executable itself supplies deterministic driver failure modes. -/
 private def fakeDriver (scenario : System.FilePath) : IO UInt32 := do
@@ -901,6 +986,8 @@ def main (args : List String) : IO UInt32 := do
   let _ ← fixtureMutations
   let _ ← directTests
   receiveMatchingTests
+  identityTests
+  transportTests
   let _ ← suiteTests
   IO.println "Lean replay regressions passed."
   return 0

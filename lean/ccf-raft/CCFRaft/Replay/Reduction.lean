@@ -20,6 +20,7 @@ open Lean Model.Node
 
 private structure Cursor where
   events : Array Event
+  header : Header
   position : Nat := 0
   instructions : Array Instruction := #[]
 
@@ -45,6 +46,18 @@ private def checked (event : Event) (condition : Bool) (message : String)
 private def read {α : Type} (event : Event) (result : Except String α) : Reduction α :=
   liftM
     (result.mapError fun error => s!"{event.record.location}: {event.function}: {error}")
+
+private def modelNode (event : Event) (name : String) : Reduction NodeID := do
+  read event ((← get).header.nodeId name)
+
+private def modelMembers (event : Event) (names : List String)
+    : Reduction (Finset NodeID) := do
+  return (← names.mapM (modelNode event)).toFinset
+
+private def requestId (event : Event) : Reduction ReqID := do
+  let some index := (← get).header.requests.findIdx? (· == event.record.location)
+  | throw s!"{event.record.location}: undeclared request"
+  return index
 
 private def emit (instruction : Instruction) : Reduction Unit :=
   modify
@@ -140,12 +153,14 @@ private def takeCommit (anchor : Event) : Reduction (List Event) := do
     return [commit]
   let nomination ← take
   let target ← read commit (field commit.message "args" >>= (nat · "idx"))
+  let confirmation ← read nomination (nat nomination.facts "retiredCommittedIndex")
   checked nomination
     (optional nomination.facts "role" == some (toJson "leader")
       && optional nomination.facts "membershipState"
           == some (toJson "retirementCompleted")
       && optional nomination.facts "commitIndex" == some (toJson target)
-      && optional nomination.facts "retiredCommittedIndex" == some (toJson target))
+      && confirmation > 0
+      && confirmation <= target)
     "unexpected terminal-retirement nomination boundary"
   return [commit, nomination]
 
@@ -312,7 +327,7 @@ private def appendRule (write : Event) : Reduction Unit := do
     "write coordinates differ from the recorded state"
   let mut configurations := []
   let mut callbacks := []
-  let mut metadata : TransactionMetadata String := {}
+  let mut metadata : TransactionMetadata := {}
   observe write "write-pre"
   while ← nextIs "add_configuration" (some write) do
     let config ← take
@@ -325,7 +340,7 @@ private def appendRule (write : Event) : Reduction Unit := do
         && !(← read write (boolean write.message "globally_committable")))
       "configuration write pair mismatch"
     let nodes ← read config (configurationArg config.message)
-    metadata := { metadata with configuration := some nodes.toFinset }
+    metadata := { metadata with configuration := some (← modelMembers config nodes) }
     configurations := configurations ++ [config]
     observe config "configuration-pair"
     let previous ← activePeers config
@@ -363,9 +378,11 @@ private def appendRule (write : Event) : Reduction Unit := do
         "invalid retirement node set"
       checked write metadata.configuration.isNone
         "cleanup_nodes with configuration metadata"
-      pure (.transaction write.record.location { retiredCommitted := nodes.toFinset })
+      pure
+        (.transaction (← requestId write)
+          { retirementConfirmations := (← modelMembers write nodes) })
     else
-      pure (.transaction write.record.location metadata)
+      pure (.transaction (← requestId write) metadata)
   let tail ← takeCommit write
   action write "atomic-append" (.local write.node (.append [content]))
     ([write] ++ configurations ++ callbacks ++ tail)
@@ -564,6 +581,13 @@ structure Reduced where
 /-- Consumes every event exactly once; an ungrouped callback is never a stutter. -/
 def reduce (records : Array Record) : Except String Reduced := do
   let (events, modes) ← associate records
+  let declared := modes.map Prod.fst
+  let locations :=
+    (events.toList.filter (fun event => event.function == "replicate")).map
+      (·.record.location)
+  require (locations.eraseDups == locations) "duplicate transaction source location"
+  let requests := "" :: locations
+  let header : Header := { bootstrap := ∅, declared, requests, preVoteModes := modes }
   let run : Reduction String := do
     let leader ← bootstrap
     while let some event ← peek do
@@ -580,7 +604,8 @@ def reduce (records : Array Record) : Except String Reduced := do
           peers event "send-pre"
           action event "atomic-send"
             (.local event.node
-              (.sendEntries (← read event (string event.message "to_node_id"))
+              (.sendEntries
+                (← modelNode event (← read event (string event.message "to_node_id")))
                 (← read event (nat packet "idx"))))
           message event "send-post" false
       | "drop_pending_to" =>
@@ -595,6 +620,8 @@ def reduce (records : Array Record) : Except String Reduced := do
               .head (event.origin "drop"))
           action event "drop" (.drop event.node destination)
       | "become_candidate" | "become_pre_vote_candidate" =>
+          checked event (← read event (boolean event.state "pre_vote_enabled"))
+            "unsupported disabled-pre-vote timeout election: model requires pre-vote"
           checked event
             ((← read event (boolean event.state "pre_vote_enabled"))
               == (event.function == "become_pre_vote_candidate"))
@@ -620,20 +647,8 @@ def reduce (records : Array Record) : Except String Reduced := do
           else
             throw s!"{event.record.location}: ungrouped callback {event.function}"
     return leader
-  let (leader, cursor) ← run.run { events }
-  let configuration : Finset String := {leader}
-  let header : Header :=
-    {
-      declared := modes.map Prod.fst
-      bootstrap :=
-        {
-          configuration,
-          leader,
-          leader_mem := by simp [configuration]
-          preVoteStatus :=
-            fun node => if modes.lookup node == some true then .enabled else .capable
-        }
-    }
+  let (leader, cursor) ← run.run { events, header }
+  let header := { header with bootstrap := {← header.nodeId leader} }
   return { header, instructions := cursor.instructions }
 
 def replayRecords (records : Array Record) : Except String Result := do

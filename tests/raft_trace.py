@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-"""Capture and order Fluentd Message-mode records from the Raft driver."""
+"""Capture Fluentd Message-mode records in the Raft driver's recorded order."""
 
 import pathlib
 import socket
@@ -89,9 +89,10 @@ def run_driver(driver, scenario, timeout=60):
                 if line.startswith("===="):
                     break
                 assert not line, f"No Raft trace records captured for {scenario}"
-    records.sort(key=lambda record: record["h_ts"])
     for sequence, record in enumerate(records):
-        assert record["h_ts"] == sequence, "Missing or duplicate trace sequence"
+        assert (
+            record["h_ts"] == sequence
+        ), "Missing, duplicate or reordered trace sequence"
         assert record["process_id"] == records[0]["process_id"]
     return result, records
 
