@@ -25,11 +25,11 @@ open CCFRaft.ProofTLA.Config
 open CCF CCF.MultiNodeTransitionSystem Concrete
 open Model.Node (NodeID NodeState)
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 /-- A node-local predicate that holds initially and survives every local step. -/
 structure NodeInvariant (P : NodeID -> NodeState -> Prop) : Prop where
-  initial : forall node, P node (Model.initialNodeState (inferInstance) node)
+  initial : forall node, P node (Model.initialNodeState Initial.configuration node)
   step
     : forall node state event after outputs,
         P node state
@@ -39,13 +39,13 @@ structure NodeInvariant (P : NodeID -> NodeState -> Prop) : Prop where
 
 theorem NodeInvariant.reachable {P : NodeID -> NodeState -> Prop}
     (invariant : NodeInvariant P) {nodes : List NodeID} {state : Model.State}
-    (reachable : (Model.transitionSystem (inferInstance) nodes).Reachable state)
+    (reachable : (Model.transitionSystem Initial.configuration nodes).Reachable state)
     : forall node local_, (node, local_) ∈ state.nodes -> P node local_ := by
   induction reachable with
   | initial initialized =>
       intro node local_ member
-      have initial : local_ = Model.initialNodeState (inferInstance) node :=
-        initialized.2.2.2 (node, local_) member
+      have initial : local_ = Model.initialNodeState Initial.configuration node :=
+        initialized.2.2.2.2 (node, local_) member
       subst initial
       exact invariant.initial node
   | @step before after action _ stepped ih =>
@@ -71,10 +71,10 @@ theorem NodeInvariant.reachable {P : NodeID -> NodeState -> Prop}
           exact preserved (event := .receive envelope.source envelope.payload) found received
 
 theorem keys_nodup {nodes : List NodeID} {state : Model.State}
-    (reachable : (Model.transitionSystem (inferInstance) nodes).Reachable state)
+    (reachable : (Model.transitionSystem Initial.configuration nodes).Reachable state)
     : (state.nodes.map Prod.fst).Nodup := by
   induction reachable with
-  | initial initialized => exact initialized.2.1
+  | initial initialized => exact initialized.2.2.1
   | @step before after action _ stepped ih =>
       cases action with
       | «local» actor input =>

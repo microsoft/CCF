@@ -22,7 +22,7 @@ open CCF
 open Model.Node
 open CCFRaft.ProofTLA.Ledger
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 theorem Advance.facts {self : NodeID} {middle state : NodeState}
     (advance : Advance self middle state)

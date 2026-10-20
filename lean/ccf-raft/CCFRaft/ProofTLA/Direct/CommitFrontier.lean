@@ -31,7 +31,7 @@ open Ledger (
     maxCommittableIndexUpToPositiveIsSignature
   )
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 /-- The commit index lies within the log and, when positive, is a signature. -/
 def CommitFrontier (state : NodeState) : Prop :=

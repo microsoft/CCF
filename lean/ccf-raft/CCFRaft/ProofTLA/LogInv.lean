@@ -17,13 +17,13 @@ namespace CCFRaft.ProofTLA
 
 open Model.Node
 
-theorem logInv (config : Model.ModelConfig) {nodes : List NodeID} {state : Model.State}
+theorem logInv (config : Finset NodeID) {nodes : List NodeID} {state : Model.State}
     (reachable : (Model.transitionSystem config nodes).Reachable state)
     {i j : NodeID}
     {si sj : NodeState} (iMember : (i, si) ∈ state.nodes)
     (jMember : (j, sj) ∈ state.nodes)
     : si.committedLog <+: sj.committedLog \/ sj.committedLog <+: si.committedLog := by
-  let _ : Model.ModelConfig := config
+  let _ : Initial := ⟨config⟩
   obtain ⟨history, exec⟩ := Safety.exec_of_reachable reachable
   exact Safety.committed_logs_comparable exec iMember jMember
 

@@ -21,7 +21,7 @@ namespace CCFRaft.ProofTLA.Safety
 open CCF
 open Model.Node
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 section Mono
 

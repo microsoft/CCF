@@ -28,7 +28,7 @@ open CCFRaft.ProofTLA.Config CCFRaft.ProofTLA.Ledger
 open CCF
 open Model.Node
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 /-- An AppendEntries request consistent with its sender's resulting state. -/
 def AEOk (self target : NodeID) (state : NodeState) (request : AppendEntriesRequest)

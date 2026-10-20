@@ -25,7 +25,7 @@ open CCFRaft.ProofTLA.Config
 open CCF CCF.MultiNodeTransitionSystem
 open Model.Node (NodeID NodeState)
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 /-- Replace the state of `node` in a node table. -/
 def replaceNode (nodes : List (NodeID × NodeState)) (node : NodeID) (value : NodeState)
@@ -36,7 +36,8 @@ theorem step_local
     {nodes : List NodeID} {before after : Model.State}
     {node : NodeID} {input : Model.Node.Input}
     (stepped
-      : (Model.transitionSystem (inferInstance) nodes).step before (.local node input)
+      : (Model.transitionSystem Initial.configuration nodes).step before
+          (.local node input)
         = some after)
     : exists state next outputs,
         nodeState before node = some state
@@ -58,7 +59,8 @@ theorem step_deliver
     {nodes : List NodeID} {before after : Model.State}
     {envelope : Model.Envelope}
     (stepped
-      : (Model.transitionSystem (inferInstance) nodes).step before (.deliver envelope)
+      : (Model.transitionSystem Initial.configuration nodes).step before
+          (.deliver envelope)
         = some after)
     : envelope ∈ before.network
       /\ exists state next outputs,

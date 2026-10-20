@@ -22,7 +22,7 @@ open CCF
 open Model.Node
 open CCFRaft.ProofTLA.Ledger
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 /--
 Either the committed part is already in `log`, or the two logs agree on a

@@ -20,19 +20,19 @@ property, `Spec => []P` says `P` holds in every reachable state, and
 `Spec => [][A]_vars` says `A` holds on every enabled step from a reachable state
 (stuttering steps satisfy it trivially). `Fairness` is irrelevant to both.
 Reachability is in `Model.transitionSystem`; `Servers` are the nodes in a state;
-`Committed(i)` is `committedLog`; `IsPrefix` is `<+:`. The Lean model is not
-proved equivalent to the TLA+ specification.
+`Committed(i)` is `committedLog`; `IsPrefix` is `<+:`. Claims quantify every
+initial membership set and node list. The Lean model is not proved equivalent to
+the TLA+ specification.
 -/
 
 namespace CCFRaft.PropertiesTLA
 
 open Model.Node
-open Model (ModelConfig)
 
 /-- `LogInv`: in every reachable state, the committed logs of any two nodes are
 prefix-comparable. -/
 def LogInv : Prop :=
-  forall (config : ModelConfig),
+  forall (config : Finset NodeID),
   forall (nodes : List NodeID) (state : Model.State),
   forall (left right : NodeID) (leftState rightState : NodeState),
     ((Model.transitionSystem config nodes).Reachable state
@@ -44,7 +44,7 @@ def LogInv : Prop :=
 /-- Witness: a reachable state in which two distinct nodes have nonempty
 committed logs. -/
 def LogInvWitness : Prop :=
-  exists (config : ModelConfig),
+  exists (config : Finset NodeID),
   exists (nodes : List NodeID) (state : Model.State),
   exists (left right : NodeID) (leftState rightState : NodeState),
     (Model.transitionSystem config nodes).Reachable state
@@ -57,7 +57,7 @@ def LogInvWitness : Prop :=
 /-- `CommittedLogAppendOnlyProp`: every enabled step from a reachable state
 extends or keeps each node's committed log. -/
 def CommittedLogAppendOnlyProp : Prop :=
-  forall (config : ModelConfig),
+  forall (config : Finset NodeID),
   forall (nodes : List NodeID) (before after : Model.State) (action : Model.Action),
   forall (node : NodeID) (nodeBefore nodeAfter : NodeState),
     ((Model.transitionSystem config nodes).Reachable before
@@ -69,7 +69,7 @@ def CommittedLogAppendOnlyProp : Prop :=
 /-- Witness: an enabled step from a reachable state strictly extends a node's
 nonempty committed log. -/
 def CommittedLogAppendOnlyPropWitness : Prop :=
-  exists (config : ModelConfig),
+  exists (config : Finset NodeID),
   exists (nodes : List NodeID) (before after : Model.State) (action : Model.Action),
   exists (node : NodeID) (nodeBefore nodeAfter : NodeState),
     (Model.transitionSystem config nodes).Reachable before

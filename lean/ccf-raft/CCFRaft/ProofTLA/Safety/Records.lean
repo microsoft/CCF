@@ -23,7 +23,7 @@ open CCF
 open Model.Node
 open CCFRaft.ProofTLA.Ledger
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 /-! ## Clauses at every suffix -/
 

@@ -28,7 +28,7 @@ open CCFRaft.ProofTLA.Config
 open CCF CCF.MultiNodeTransitionSystem Concrete
 open Model.Node
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 /-- `after` commits no less than `before` and its log extends the committed log
 of `before`. No relation between `before`'s commit index and log is assumed. -/
@@ -271,7 +271,8 @@ theorem committed_log_step {nodes : List NodeID} {before after : Model.State}
     {action : Model.Action}
     (distinct : (before.nodes.map Prod.fst).Nodup)
     (stepped
-      : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
+      : (Model.transitionSystem Initial.configuration nodes).step before action
+        = some after)
     {node : NodeID} {beforeState afterState : NodeState}
     (beforeMember : (node, beforeState) ∈ before.nodes)
     (afterMember : (node, afterState) ∈ after.nodes)

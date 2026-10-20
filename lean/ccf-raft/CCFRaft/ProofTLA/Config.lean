@@ -8,16 +8,22 @@ public import CCFRaft.Model
 @[expose] public section
 
 /-!
-Proof-only configuration shorthand. The model takes an explicit `Model.ModelConfig`
-value; proofs use instance inference to avoid repeating that value in every
-supporting lemma.
+Proof-only configuration shorthand. The model takes the initial membership as an
+explicit `Finset NodeID`; proofs carry it in the `Initial` class to avoid repeating
+that value in every supporting lemma.
 
 This file also names node-level configuration views used by the proofs.
 `ProofTLA/Ledger.lean` proves that the model's definitions agree with them.
 These conveniences do not change the model or its properties.
 -/
 
-attribute [class] CCFRaft.Model.ModelConfig
+namespace CCFRaft.ProofTLA
+
+/-- The initial membership the model is instantiated with. -/
+class Initial where
+  configuration : Finset Model.Node.NodeID
+
+end CCFRaft.ProofTLA
 
 namespace CCFRaft.ProofTLA.Config
 

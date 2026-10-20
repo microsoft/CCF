@@ -52,23 +52,20 @@ theorem run_reachable {system : TransitionSystem State Action} {start final : St
 
 end Runs
 
-/-- Initial membership and primary vary per witness. -/
-@[reducible]
-def bootstrapOf (configuration : Finset NodeID) (primary : NodeID)
-    (member : primary ∈ configuration)
-    : Model.ModelConfig where
-  configuration
-  primary := ⟨primary, member⟩
-
 /-- Every listed node in its initial state, with an empty network. -/
-def start [Model.ModelConfig] (nodes : List NodeID) : CCFRaft.Model.State :=
-  { nodes := nodes.map fun node => (node, Model.initialNodeState (inferInstance) node) }
+def start [Initial] (nodes : List NodeID) : CCFRaft.Model.State :=
+  {
+    nodes :=
+      nodes.map fun node => (node, Model.initialNodeState Initial.configuration node)
+  }
 
-theorem start_initial [Model.ModelConfig] {nodes : List NodeID} (distinct : nodes.Nodup)
-    : (CCFRaft.Model.transitionSystem (inferInstance) nodes).init (start nodes) := by
+theorem start_initial [Initial] {nodes : List NodeID}
+    (nonempty : Initial.configuration.Nonempty) (distinct : nodes.Nodup)
+    : (CCFRaft.Model.transitionSystem Initial.configuration nodes).init
+        (start nodes) := by
   have keys : (start nodes).nodes.map Prod.fst = nodes := by
     simp [start, Function.comp_def]
-  refine ⟨keys, by rw [keys]; exact distinct, rfl, ?_⟩
+  refine ⟨nonempty, keys, by rw [keys]; exact distinct, rfl, ?_⟩
   intro entry member
   obtain ⟨node, _, rfl⟩ := List.mem_map.mp member
   rfl
@@ -134,7 +131,7 @@ macro "sort_by_insertion" : tactic =>
 
 section Commit
 
-local instance : Model.ModelConfig := bootstrapOf {0, 1} 0 (by decide)
+local instance : Initial := ⟨{0, 1}⟩
 
 /-- Node 0 commits the bootstrap signature with node 1, then tells node 1. -/
 def commitChoices : List (CCFRaft.Model.State -> CCFRaft.Model.Action) :=
@@ -147,7 +144,7 @@ def commitChoices : List (CCFRaft.Model.State -> CCFRaft.Model.Action) :=
     deliverOldest
   ]
 
-def commitSystem := CCFRaft.Model.transitionSystem (inferInstance) [0, 1]
+def commitSystem := CCFRaft.Model.transitionSystem Initial.configuration [0, 1]
 
 theorem commit_finished : (run commitSystem (start [0, 1]) commitChoices).isSome := by
   decide
@@ -164,13 +161,13 @@ end Commit
 
 section Single
 
-local instance : Model.ModelConfig := bootstrapOf {0} 0 (by decide)
+local instance : Initial := ⟨{0}⟩
 
 /-- A single bootstrap leader commits its first signature. -/
 def singleChoices : List (CCFRaft.Model.State -> CCFRaft.Model.Action) :=
   [input 0 (.append [.signature])]
 
-def singleSystem := CCFRaft.Model.transitionSystem (inferInstance) [0]
+def singleSystem := CCFRaft.Model.transitionSystem Initial.configuration [0]
 
 theorem single_finished : (run singleSystem (start [0]) singleChoices).isSome := by
   decide
@@ -210,7 +207,7 @@ end Single
 
 /-- `PropertiesTLA.LogInvWitness`: nodes 0 and 1 have both committed. -/
 theorem logInv_witness
-    : exists (config : Model.ModelConfig),
+    : exists (config : Finset NodeID),
     exists (nodes : List NodeID) (state : CCFRaft.Model.State),
     exists (left right : NodeID) (leftState rightState : NodeState),
       (CCFRaft.Model.transitionSystem config nodes).Reachable state
@@ -219,16 +216,17 @@ theorem logInv_witness
       /\ left ≠ right
       /\ leftState.committedLog ≠ []
       /\ rightState.committedLog ≠ [] := by
-  let _ : Model.ModelConfig := bootstrapOf {0, 1} 0 (by decide)
+  let _ : Initial := ⟨{0, 1}⟩
   exact ⟨
-    bootstrapOf {0, 1} 0 (by decide),
+    {0, 1},
     [0, 1],
     commitFinal,
     0,
     1,
     (nodeState commitFinal 0).get (commit_present 0 (by simp)),
     (nodeState commitFinal 1).get (commit_present 1 (by simp)),
-    run_reachable (.initial (start_initial (by decide))) (Option.some_get _).symm,
+    run_reachable (.initial (start_initial ⟨0, by decide⟩ (by decide)))
+      (Option.some_get _).symm,
     member_of_nodeState _,
     member_of_nodeState _,
     by decide,
@@ -239,7 +237,7 @@ theorem logInv_witness
 /-- `PropertiesTLA.CommittedLogAppendOnlyPropWitness`: a single leader's
 nonempty committed log grows in one batch append. -/
 theorem committedLogAppendOnlyProp_witness
-    : exists (config : Model.ModelConfig),
+    : exists (config : Finset NodeID),
     exists (nodes : List NodeID) (before after : CCFRaft.Model.State),
     exists (action : CCFRaft.Model.Action),
     exists (node : NodeID) (nodeBefore nodeAfter : NodeState),
@@ -249,9 +247,9 @@ theorem committedLogAppendOnlyProp_witness
       /\ (node, nodeAfter) ∈ after.nodes
       /\ nodeBefore.committedLog ≠ []
       /\ nodeBefore.committedLog.length < nodeAfter.committedLog.length := by
-  let _ : Model.ModelConfig := bootstrapOf {0} 0 (by decide)
+  let _ : Initial := ⟨{0}⟩
   exact ⟨
-    bootstrapOf {0} 0 (by decide),
+    {0},
     [0],
     singleFinal,
     extendFinal,
@@ -259,7 +257,7 @@ theorem committedLogAppendOnlyProp_witness
     0,
     (nodeState singleFinal 0).get single_final_present,
     (nodeState extendFinal 0).get extend_final_present,
-    run_reachable (.initial (start_initial (by decide)))
+    run_reachable (.initial (start_initial ⟨0, by decide⟩ (by decide)))
       (Option.some_get single_finished).symm,
     (Option.some_get extend_enabled).symm,
     member_of_nodeState _,

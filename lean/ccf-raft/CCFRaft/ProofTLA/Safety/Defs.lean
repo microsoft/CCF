@@ -30,7 +30,7 @@ namespace CCFRaft.ProofTLA.Safety
 open CCF
 open Model.Node
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 abbrev History := List (Model.State)
 
@@ -104,8 +104,7 @@ def Elected (history : History) (node : NodeID) (term : Nat)
 
 /-- `node` led `term`: the bootstrap leader, or elected. -/
 def Led (history : History) (node : NodeID) (term : Nat) : Prop :=
-  (term = Model.BOOTSTRAP_TERM
-    /\ node = ((inferInstance : Model.ModelConfig).primary : NodeID))
+  (term = Model.BOOTSTRAP_TERM /\ Initial.configuration.min = (node : WithTop NodeID))
   \/ exists log commit, Elected history node term log commit
 
 /-- `node` now has `state` as the leader of `term`, possibly stepped down. -/
@@ -333,8 +332,7 @@ def MessageTerms (history : History) : Prop :=
 def genesisEntry : Entry where
   term := Model.BOOTSTRAP_TERM
   content :=
-    .transaction 0
-      { configuration := some (inferInstance : Model.ModelConfig).configuration }
+    .transaction 0 { configuration := some Initial.configuration }
 
 /-- Logs start with the genesis entry, and leaders' logs are nonempty. -/
 def Genesis (history : History) : Prop :=

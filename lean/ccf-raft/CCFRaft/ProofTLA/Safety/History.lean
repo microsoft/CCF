@@ -24,22 +24,23 @@ open CCFRaft.ProofTLA.Config
 open CCF CCF.MultiNodeTransitionSystem Concrete Direct
 open Model.Node
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 /-- An execution of the network of `nodes`, newest state first. -/
 inductive Exec (nodes : List NodeID) : List (Model.State) -> Prop where
   | initial {state : Model.State}
-    (initialized : (Model.transitionSystem (inferInstance) nodes).init state)
+    (initialized : (Model.transitionSystem Initial.configuration nodes).init state)
     : Exec nodes [state]
   | step {before after : Model.State} {history : List (Model.State)}
     {action : Model.Action}
     (prior : Exec nodes (before :: history))
     (stepped
-      : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
+      : (Model.transitionSystem Initial.configuration nodes).step before action
+        = some after)
     : Exec nodes (after :: before :: history)
 
 theorem exec_of_reachable {nodes : List NodeID} {state : Model.State}
-    (reachable : (Model.transitionSystem (inferInstance) nodes).Reachable state)
+    (reachable : (Model.transitionSystem Initial.configuration nodes).Reachable state)
     : exists history, Exec nodes (state :: history) := by
   induction reachable with
   | initial initialized => exact ⟨[], .initial initialized⟩
@@ -49,7 +50,7 @@ theorem exec_of_reachable {nodes : List NodeID} {state : Model.State}
 
 theorem Exec.reachable {nodes : List NodeID} {state : Model.State}
     {history : List (Model.State)} (exec : Exec nodes (state :: history))
-    : (Model.transitionSystem (inferInstance) nodes).Reachable state := by
+    : (Model.transitionSystem Initial.configuration nodes).Reachable state := by
   generalize equal : state :: history = states at exec
   induction exec generalizing state history with
   | initial initialized =>
@@ -124,7 +125,8 @@ theorem mem_removeOne {α : Type} [BEq α] {value item : α} {items : List α}
 theorem LocalTransition.ofStep {nodes : List NodeID} {before after : Model.State}
     {action : Model.Action}
     (stepped
-      : (Model.transitionSystem (inferInstance) nodes).step before action = some after)
+      : (Model.transitionSystem Initial.configuration nodes).step before action
+        = some after)
     : Nonempty (LocalTransition before after) := by
   cases action with
   | «local» actor input =>

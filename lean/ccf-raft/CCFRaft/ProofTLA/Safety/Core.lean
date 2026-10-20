@@ -23,7 +23,7 @@ open CCF
 open Model.Node
 open CCFRaft.ProofTLA.Ledger
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 theorem suffix_of_cons_suffix {α : Type} {x y : α} {first second : List α}
     (suffix : x :: first <:+ y :: second)

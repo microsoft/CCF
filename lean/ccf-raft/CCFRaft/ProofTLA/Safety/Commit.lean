@@ -23,7 +23,7 @@ open CCF
 open Model.Node
 open CCFRaft.ProofTLA.Ledger
 
-variable [Model.ModelConfig]
+variable [Initial]
 
 theorem Backed.transfer {history : History} {log log' : List (Entry)}
     {commit term : Nat} (backed : Backed history log commit term)
