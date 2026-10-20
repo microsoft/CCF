@@ -14,26 +14,45 @@ public section
 namespace CCFRaft.Tests.CanonicalTests
 
 open CCFRaft CCFRaft.Model.Node
-open CCFRaft.Model (ModelConfig initialNodeState BOOTSTRAP_TERM)
+open CCFRaft.Model (initialNodeState BOOTSTRAP_TERM)
 open CCF.MultiNodeTransitionSystem (nodeState)
 
-private def modelConfig : ModelConfig where
-  configuration := Finset.range 5
-  primary := ⟨0, by decide⟩
+private def initialConfiguration : Finset NodeID := Finset.range 5
 
 private abbrev State := Model.State
 private abbrev Envelope := Model.Envelope
 
 private def allNodes : List NodeID := List.range 15
 
-private def system := Model.transitionSystem modelConfig allNodes
+private def system := Model.transitionSystem initialConfiguration allNodes
 
 private def initial : State :=
-  { nodes := allNodes.map fun node => (node, initialNodeState modelConfig node) }
+  { nodes := allNodes.map fun node => (node, initialNodeState initialConfiguration node) }
 
 private def check (condition : Bool) (message : String) : IO Unit :=
   unless condition do
     throw (IO.userError message)
+
+private def initialPrimaryOrdering : IO Unit := do
+  let config : Finset NodeID := {20, 2, 10}
+  for node in [0, 2, 10, 20, 21] do
+    let state := initialNodeState config node
+    let member := node ∈ config
+    let primary := node == 2
+    check
+      (state.role == (if primary then .primary else if member then .follower else .none)
+        && state.currentTerm == (if member then BOOTSTRAP_TERM else 0)
+        && state.primaryKnown == primary
+        && state.commitIndex == 0
+        && state.log
+            == (if primary then
+                  [{
+                    term := BOOTSTRAP_TERM,
+                    content := .transaction 0 { configuration := some config }
+                  }]
+                else
+                  []))
+      "only the smallest initial member must start as primary with the genesis log"
 
 example (left right : NodeID) (leftMatch rightMatch leftIndex rightIndex : Nat)
     : (toLex (leftMatch, toLex (leftIndex, left))
@@ -53,13 +72,13 @@ private def configurationQueries : IO Unit := do
     "an empty configuration list must have no latest members"
   check (latestConfigurationMembers initialHistory == ∅)
     "an empty log must have no latest membership"
-  check (!decide (hasQuorum [] modelConfig.configuration))
+  check (!decide (hasQuorum [] initialConfiguration))
     "votes must not form a quorum without a locally known configuration"
   let log : List Entry :=
     [
       {
         term := 1,
-        content := .transaction 10 { configuration := some modelConfig.configuration }
+        content := .transaction 10 { configuration := some initialConfiguration }
       },
       { term := 1, content := .transaction 101 { configuration := some {0, 1} } },
       { term := 1, content := .signature },
@@ -73,7 +92,7 @@ private def configurationQueries : IO Unit := do
   for (length, expected)
       in [
         (0, ∅),
-        (1, modelConfig.configuration),
+        (1, initialConfiguration),
         (2, {0, 1}),
         (3, {0, 1}),
         (4, {1, 5}),
@@ -115,7 +134,7 @@ private def configurationQueries : IO Unit := do
       ] do
     let state : NodeState :=
       {
-        (initialNodeState modelConfig 0 : NodeState) with
+        (initialNodeState initialConfiguration 0 : NodeState) with
           log := log.take length
           commitIndex
       }
@@ -128,7 +147,7 @@ private def configurationQueries : IO Unit := do
         for role in [Role.none, .follower, .preVoteCandidate, .candidate, .primary] do
           let state : NodeState :=
             {
-              (initialNodeState modelConfig node : NodeState) with
+              (initialNodeState initialConfiguration node : NodeState) with
                 log := log.take length
                 commitIndex
                 role
@@ -148,7 +167,7 @@ private def configurationQueries : IO Unit := do
           check (decide (canStartElection state node) == expected)
             s!"election eligibility changed at length {length}, commit {commitIndex}"
   let tied : NodeState :=
-    { (initialNodeState modelConfig 0 : NodeState) with log, commitIndex := 4 }
+    { (initialNodeState initialConfiguration 0 : NodeState) with log, commitIndex := 4 }
   check (decide ((5 : NodeID) ∈ eligiblePeers tied 0))
     "latest active membership must make a peer eligible for nomination"
   check (decide ((1 : NodeID) ∈ eligiblePeers tied 0))
@@ -171,7 +190,7 @@ private def configurationQueries : IO Unit := do
         (7, {1, 2, 3, 4})
       ] do
     let state : NodeState :=
-      { (initialNodeState modelConfig 0 : NodeState) with log, commitIndex }
+      { (initialNodeState initialConfiguration 0 : NodeState) with log, commitIndex }
     check (state.retirementCompletedNodes == expected)
       s!"wrong completed retirements at commit index {commitIndex}"
   let rejoined :=
@@ -181,7 +200,7 @@ private def configurationQueries : IO Unit := do
     "rejoining must not change the first removal index"
   let rejoinedState : NodeState :=
     {
-      (initialNodeState modelConfig 0 : NodeState) with
+      (initialNodeState initialConfiguration 0 : NodeState) with
         log := rejoined
         commitIndex := 8
     }
@@ -213,7 +232,7 @@ private def configurationQueries : IO Unit := do
       && retiredCommittedNodes (combined.take 0) == ∅)
     "rolling back a transaction must remove both metadata fields from log queries"
   let combinedState : NodeState :=
-    { (initialNodeState modelConfig 0 : NodeState) with log := combined }
+    { (initialNodeState initialConfiguration 0 : NodeState) with log := combined }
   check
     (combinedState.signedActiveConfigurations.map (·.nodes) == [{1}])
     "a signature must cover the transaction's pending configuration"
@@ -244,7 +263,7 @@ private def configurationQueries : IO Unit := do
 
 private def retirementQueries : IO Unit := do
   for node in [(0 : NodeID), 6] do
-    let state : NodeState := initialNodeState modelConfig node
+    let state : NodeState := initialNodeState initialConfiguration node
     check ((state.retirement node).phase == .noRetirementObserved)
       "no observed retirement must cover both initial members and never-joined nodes"
     let state := { state with retiredCommittedIndex := some 0 }
@@ -254,7 +273,7 @@ private def retirementQueries : IO Unit := do
     [
       {
         term := 1,
-        content := .transaction 100 { configuration := some modelConfig.configuration }
+        content := .transaction 100 { configuration := some initialConfiguration }
       },
       { term := 1, content := .signature },
       { term := 1, content := .transaction 105 { configuration := some {1, 5} } },
@@ -328,7 +347,7 @@ private def retirementQueries : IO Unit := do
     let state :=
       NodeState.recordCommit (0 : NodeID)
         {
-          (initialNodeState modelConfig 0 : NodeState) with
+          (initialNodeState initialConfiguration 0 : NodeState) with
             log := log.take length
             commitIndex
         } commitIndex
@@ -347,7 +366,7 @@ private def retirementQueries : IO Unit := do
   let rejoined :=
     log ++ [{ term := 1, content := .transaction 106 { configuration := some {0, 1} } }]
   let state : NodeState :=
-    { (initialNodeState modelConfig 0 : NodeState) with log := log.take 5 }
+    { (initialNodeState initialConfiguration 0 : NodeState) with log := log.take 5 }
   check ((state.retirement 0).phase == .retirementSigned)
     "a signature after removal must make retirement signed"
   let state := { state with log := state.log.take 3 }
@@ -364,7 +383,7 @@ private def retirementQueries : IO Unit := do
     "a retirement record alone must not imply prior membership"
 
 private def get (state : State) (node : NodeID) : NodeState :=
-  (nodeState state node).getD (initialNodeState modelConfig node)
+  (nodeState state node).getD (initialNodeState initialConfiguration node)
 
 /-- Pending envelopes from `source` to `destination`, oldest first. -/
 private def pending (state : State) (source destination : NodeID) : List Envelope :=
@@ -393,7 +412,7 @@ private def ledgerLocalStartup : IO Unit := do
   let source : NodeID := 0
   let primary := get initial source
   check
-    (primary.activeMembers == modelConfig.configuration
+    (primary.activeMembers == initialConfiguration
       && primary.signedActiveConfigurations.isEmpty)
     "the primary must know only its unsigned genesis configuration"
   for destination in ([1, 6] : List NodeID) do
@@ -426,7 +445,7 @@ private def ledgerLocalStartup : IO Unit := do
           (.local source
             (.append
               [.transaction 400
-                { configuration := some (modelConfig.configuration ∪ {destination}) }]))
+                { configuration := some (initialConfiguration ∪ {destination}) }]))
       state ← receive state source destination
       state ← receive state destination source
     let unsignedLength := (get state source).log.length
@@ -469,7 +488,7 @@ private def ledgerLocalStartup : IO Unit := do
             { term := BOOTSTRAP_TERM, content := .transaction 401 {} },
             { term := BOOTSTRAP_TERM, content := .signature }
           ]
-        votesGranted := modelConfig.configuration
+        votesGranted := initialConfiguration
     }
   check (highestCommittableIndex unconfigured source == 0)
     "a signature without a configuration must not commit by a vacuous quorum"
@@ -496,7 +515,7 @@ private def bootstrapAndNoMatchingPrefixTerms : IO Unit := do
         == [{
               term := BOOTSTRAP_TERM
               content :=
-                .transaction 0 { configuration := some modelConfig.configuration }
+                .transaction 0 { configuration := some initialConfiguration }
             }]
       && (get initial destination).log.isEmpty
       && (get initial source).commitIndex == 0)
@@ -535,9 +554,9 @@ private def nominationSelection : IO Unit := do
     CCF.Capabilities.record (Message := Message) (Notification := Notification) primary
   let before : NodeState :=
     {
-      (initialNodeState modelConfig primary : NodeState) with
+      (initialNodeState initialConfiguration primary : NodeState) with
         log :=
-          (initialNodeState modelConfig primary).log
+          (initialNodeState initialConfiguration primary).log
           ++ [
             {
               term := BOOTSTRAP_TERM,
@@ -593,7 +612,7 @@ private def nominationSelection : IO Unit := do
       && envelope.payload == .proposeRequestVoteRequest BOOTSTRAP_TERM)
     "retirement nomination must use the precommit peer view and term"
   check (nominate retired).isNone "retired nonprimaries must not nominate after commit"
-  let solo : ModelConfig := { configuration := {primary}, primary := ⟨primary, by simp⟩ }
+  let solo : Finset NodeID := {primary}
   let alone : NodeState := initialNodeState solo primary
   check (findSuccessor alone primary == none)
     "a node must not nominate itself when no eligible peer exists"
@@ -601,8 +620,7 @@ private def nominationSelection : IO Unit := do
     (step caps primary alone (.internal .nominateSuccessor)).run {}
   | throw (IO.userError "a lone primary nomination must be an enabled no-op")
   check soloEffects.outgoing.isEmpty "a lone primary must not send a nomination"
-  let numericConfig : ModelConfig :=
-    { configuration := {0, 20, 2}, primary := ⟨0, by decide⟩ }
+  let numericConfig : Finset NodeID := {0, 20, 2}
   let numeric := initialNodeState numericConfig 0
   check (findSuccessor numeric 0 == some 20)
     "node IDs must be unbounded natural numbers, ordered numerically"
@@ -613,13 +631,13 @@ private def appendCommitTriggers : IO Unit := do
     CCF.Capabilities.record (Message := Message) (Notification := Notification) primary
   let state : NodeState :=
     {
-      (initialNodeState modelConfig primary : NodeState) with
+      (initialNodeState initialConfiguration primary : NodeState) with
         log :=
           [
             {
               term := BOOTSTRAP_TERM,
               content :=
-                .transaction 301 { configuration := some modelConfig.configuration }
+                .transaction 301 { configuration := some initialConfiguration }
             },
             { term := BOOTSTRAP_TERM, content := .signature }
           ]
@@ -655,8 +673,7 @@ private def appendCommitTriggers : IO Unit := do
 private def commitQuorumAtSignature : IO Unit := do
   let primary : NodeID := 0
   let caps := CCF.Capabilities.record primary
-  let config : ModelConfig :=
-    { configuration := {0, 1, 2}, primary := ⟨primary, by decide⟩ }
+  let config : Finset NodeID := {0, 1, 2}
   let state := initialNodeState config primary
   let some (state, _) := (appendBatch caps primary state [.signature]).run {}
   | throw (IO.userError "the old configuration's signature must append")
@@ -771,7 +788,7 @@ example (caps : Caps) (self source : NodeID) (state : NodeState)
 
 private def appendEntriesZeroPrefix : IO Unit := do
   for node in [0, 1] do
-    let state := initialNodeState modelConfig node
+    let state := initialNodeState initialConfiguration node
     for previousTerm in [0, 1, BOOTSTRAP_TERM] do
       let request : AppendEntriesRequest :=
         {
@@ -802,7 +819,7 @@ private def retiredSendBoundary : IO Unit := do
   let self : NodeID := 0
   let state : NodeState :=
     {
-      (initialNodeState modelConfig self) with
+      (initialNodeState initialConfiguration self) with
         log :=
           [
             {
@@ -850,7 +867,7 @@ private def responseAdmission : IO Unit := do
       for term in [1, BOOTSTRAP_TERM, BOOTSTRAP_TERM + 1] do
         let state : NodeState :=
           {
-            (initialNodeState modelConfig self) with
+            (initialNodeState initialConfiguration self) with
               role
               votedFor := some self
               primaryKnown := true
@@ -889,7 +906,7 @@ private def responseAdmission : IO Unit := do
               && received.commitIndex == state.commitIndex
               && effects.outgoing.isEmpty)
             "response admission must precede term adoption without filtering known peers"
-  let state := initialNodeState modelConfig self
+  let state := initialNodeState initialConfiguration self
   let vote : RequestVoteRequest :=
     { term := state.currentTerm + 1, lastCommittableTerm := 0, lastCommittableIndex := 0 }
   let requests : List Message :=
@@ -997,7 +1014,7 @@ private def overlappingAppendEntries : IO Unit := do
   let replacement : Entry := { term := 4, content := .transaction 40 {} }
   let before : NodeState :=
     {
-      (initialNodeState modelConfig node : NodeState) with
+      (initialNodeState initialConfiguration node : NodeState) with
         currentTerm := 6
         log :=
           [
@@ -1108,7 +1125,7 @@ private def reorderedDelivery : IO Unit := do
     "an envelope that is not pending cannot be delivered"
 
 private def singleNodePreVote : IO Unit := do
-  let config : ModelConfig := { configuration := {0}, primary := ⟨0, by decide⟩ }
+  let config : Finset NodeID := {0}
   let some (state, _) :=
     (appendBatch (CCF.Capabilities.record 0) 0 (initialNodeState config 0)
       [.signature]).run
@@ -1305,7 +1322,7 @@ private def retirementConfirmationIndices : IO Unit := do
     ]
   let before : NodeState :=
     {
-      (initialNodeState modelConfig node : NodeState) with
+      (initialNodeState initialConfiguration node : NodeState) with
         role := .follower
         currentTerm := 1
         log := log.take 5
@@ -1420,7 +1437,7 @@ private def appendEntriesStepDown : IO Unit := do
       for prefixMatches in [false, true] do
         let state : NodeState :=
           {
-            (initialNodeState modelConfig 1) with
+            (initialNodeState initialConfiguration 1) with
               role
               currentTerm := 6
               votedFor := some 1
@@ -1474,6 +1491,7 @@ private def appendEntriesStepDown : IO Unit := do
 
 /-- Runs the canonical CCF Raft behavior checks. -/
 def run : IO Unit := do
+  initialPrimaryOrdering
   configurationQueries
   retirementQueries
   ledgerLocalStartup

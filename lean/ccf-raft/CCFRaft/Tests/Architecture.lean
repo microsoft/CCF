@@ -20,9 +20,10 @@ example : Model.Node.NodeID = Nat := rfl
 
 example : Model.Node.ReqID = Nat := rfl
 
-example (config : Model.ModelConfig)
-    : (config.primary : Model.Node.NodeID) ∈ config.configuration :=
-  config.primary.property
+example (config : Finset Model.Node.NodeID) (node : Model.Node.NodeID)
+    (primary : config.min = (node : WithTop Model.Node.NodeID))
+    : node ∈ config :=
+  Finset.mem_of_min primary
 
 example
     : Model.Node.Caps -> Model.Node.NodeID -> Model.Node.NodeState
@@ -32,9 +33,13 @@ example
 example : List Model.Node.Entry -> List Model.Node.Configuration :=
   Model.Node.configurationHistory
 
-example (config other : Model.ModelConfig)
+example (config other : Finset Model.Node.NodeID)
     : (Model.protocol config).step = (Model.protocol other).step :=
   rfl
+
+example (nodes : List Model.Node.NodeID) (state : Model.State)
+    : Not ((Model.transitionSystem ∅ nodes).init state) := by
+  simp [Model.transitionSystem]
 
 private def allowedImport (owner dependency : Name) : Bool :=
   if (`CCF).isPrefixOf owner then

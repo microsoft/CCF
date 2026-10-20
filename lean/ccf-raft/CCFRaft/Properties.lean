@@ -10,7 +10,7 @@ public import CCF.Execution
 
 /-!
 `NodeID` and `ReqID` are natural numbers.
-Each claim quantifies every explicit `ModelConfig` value and every node list. Claims concern valid traces
+Each claim quantifies every initial membership set and every node list. Claims concern valid traces
 or individual successful steps of `Model.transitionSystem`. Each has a `Witness`
 claim exhibiting a nontrivial execution relevant to the property.
 -/
@@ -20,12 +20,11 @@ namespace CCFRaft.Properties
 abbrev GlobalTrace := CCF.Execution.Trace Model.State
 
 open Model.Node
-open Model (ModelConfig)
 
 /-- Any two committed logs in a valid trace are prefix-comparable: those of
 any two nodes, in any two states of the trace. -/
 def CommittedLogsPrefix : Prop :=
-  forall (config : ModelConfig),
+  forall (config : Finset NodeID),
   forall (nodes : List NodeID) (trace : GlobalTrace),
   forall (first second : Model.State),
   forall (left right : NodeID) (leftState rightState : NodeState),
@@ -40,7 +39,7 @@ def CommittedLogsPrefix : Prop :=
 /-- Witness: a valid trace has two states in which two distinct nodes have
 nonempty committed logs. -/
 def CommittedLogsPrefixWitness : Prop :=
-  exists (config : ModelConfig),
+  exists (config : Finset NodeID),
   exists (nodes : List NodeID) (trace : GlobalTrace),
   exists (first second : Model.State),
   exists (left right : NodeID) (leftState rightState : NodeState),
@@ -56,7 +55,7 @@ def CommittedLogsPrefixWitness : Prop :=
 /-- A successful network step from a state with unique node IDs preserves each
 node's committed prefix. -/
 def SingleNodeCommittedLogMonotonic : Prop :=
-  forall (config : ModelConfig) (nodes : List NodeID),
+  forall (config : Finset NodeID) (nodes : List NodeID),
   forall (pre post : Model.State),
   forall (nodeId : NodeID) (nodePre nodePost : NodeState),
   forall (action : Model.Action),
@@ -69,7 +68,7 @@ def SingleNodeCommittedLogMonotonic : Prop :=
 /-- Witness: a successful step from a state with unique node IDs strictly extends
 one node's nonempty committed log. -/
 def SingleNodeCommittedLogMonotonicWitness : Prop :=
-  exists (config : ModelConfig) (nodes : List NodeID),
+  exists (config : Finset NodeID) (nodes : List NodeID),
   exists (pre post : Model.State),
   exists (nodeId : NodeID) (nodePre nodePost : NodeState),
   exists (action : Model.Action),
@@ -82,7 +81,7 @@ def SingleNodeCommittedLogMonotonicWitness : Prop :=
 
 /-- No two distinct nodes are primary in the same term. -/
 def ElectionSafety : Prop :=
-  forall (config : ModelConfig),
+  forall (config : Finset NodeID),
   forall (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
   forall (left right : NodeID) (leftState rightState : NodeState),
     (trace.Valid (Model.transitionSystem config nodes)
@@ -96,7 +95,7 @@ def ElectionSafety : Prop :=
 
 /-- Witness: a valid trace has a state in which two nodes are primaries. -/
 def ElectionSafetyWitness : Prop :=
-  exists (config : ModelConfig),
+  exists (config : Finset NodeID),
   exists
   (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
   exists (left right : NodeID) (leftState rightState : NodeState),
@@ -110,7 +109,7 @@ def ElectionSafetyWitness : Prop :=
 
 /-- Every positive commit index points to a signature entry. -/
 def CommittedFrontierIsSignature : Prop :=
-  forall (config : ModelConfig),
+  forall (config : Finset NodeID),
   forall (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
   forall (node : NodeID) (nodeState : NodeState),
     (trace.Valid (Model.transitionSystem config nodes)
@@ -121,7 +120,7 @@ def CommittedFrontierIsSignature : Prop :=
 
 /-- Witness: a valid trace has a state with a positive commit index. -/
 def CommittedFrontierIsSignatureWitness : Prop :=
-  exists (config : ModelConfig),
+  exists (config : Finset NodeID),
   exists
   (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
   exists (node : NodeID) (nodeState : NodeState),

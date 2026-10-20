@@ -8,6 +8,7 @@ public import CCFRaft.Model.Node
 public import CCFRaft.Model.Messages
 public import CCFRaft.Model.NodeState
 public import CCF.MultiNodeTransitionSystem
+public import Mathlib.Data.Finset.Max
 
 @[expose] public section
 
@@ -31,56 +32,58 @@ abbrev State :=
 abbrev Action :=
   MultiNodeTransitionSystem.Action NodeID Message Input
 
-/-- Initialization only; nodes learn subsequent membership from their own logs. -/
-structure ModelConfig where
-  configuration : Finset NodeID
-  primary : configuration
-
 /-- The term of the initial primary, matching CCF's forced-primary startup. -/
 def BOOTSTRAP_TERM : Nat := 2
 
-/-- Only the initial primary starts with the unsigned configuration transaction. -/
-def initialNodeState (config : ModelConfig) (node : NodeID) : NodeState where
-  role :=
-    if node = config.primary then
-      .primary
-    else if node ∈ config.configuration then
-      .follower
-    else
-      .none
-  currentTerm := if node ∈ config.configuration then BOOTSTRAP_TERM else 0
-  log :=
-    if node = config.primary then
-      [{
-        term := BOOTSTRAP_TERM
-        content := .transaction 0 { configuration := some config.configuration }
-      }]
-    else
-      []
-  commitIndex := 0
-  sentIndex := fun _ => 0
-  matchIndex := fun _ => 0
-  isNewFollower := false
-  votedFor := none
-  primaryKnown := node = config.primary
-  votesGranted := ∅
+/-- The smallest initial member is primary and holds the unsigned configuration. -/
+def initialNodeState (initialConfiguration : Finset NodeID) (node : NodeID) : NodeState :=
+  let primary := initialConfiguration.min = (node : WithTop NodeID)
+  {
+    role :=
+      if primary then
+        .primary
+      else if node ∈ initialConfiguration then
+        .follower
+      else
+        .none
+    currentTerm := if node ∈ initialConfiguration then BOOTSTRAP_TERM else 0
+    log :=
+      if primary then
+        [{
+          term := BOOTSTRAP_TERM
+          content := .transaction 0 { configuration := some initialConfiguration }
+        }]
+      else
+        []
+    commitIndex := 0
+    sentIndex := fun _ => 0
+    matchIndex := fun _ => 0
+    isNewFollower := false
+    votedFor := none
+    primaryKnown := primary
+    votesGranted := ∅
+  }
 
-def protocol (config : ModelConfig)
+def protocol (initialConfiguration : Finset NodeID)
     : MultiNodeTransitionSystem.Protocol
         NodeID NodeState Event Message Notification
         Input where
-  init node state := state = initialNodeState config node
+  init node state := state = initialNodeState initialConfiguration node
   step := CCFRaft.Model.Node.step
   receive := .receive
   internal := .internal
 
-/-- The network of `nodes`, with initial membership and primary supplied by `config`. -/
-def transitionSystem (config : ModelConfig) (nodes : List NodeID)
+/-- The network of `nodes`, initialized from a nonempty membership configuration. -/
+def transitionSystem (initialConfiguration : Finset NodeID) (nodes : List NodeID)
     : TransitionSystem State Action :=
-  let system := MultiNodeTransitionSystem.lift (protocol config)
+  let system := MultiNodeTransitionSystem.lift (protocol initialConfiguration)
   {
     system with
-      init := fun state => state.nodes.map Prod.fst = nodes /\ system.init state
+      init :=
+        fun state =>
+          initialConfiguration.Nonempty
+          /\ state.nodes.map Prod.fst = nodes
+          /\ system.init state
   }
 
 end CCFRaft.Model

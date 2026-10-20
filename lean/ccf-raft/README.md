@@ -11,7 +11,7 @@ The properties are stated but not yet proved.
 | `CCFRaft/Model/ClusterConfig.lean` | Ledger-derived membership and retirement queries               |
 | `CCFRaft/Model/Messages.lean`      | Messages exchanged between nodes                               |
 | `CCFRaft/Model/Node.lean`          | `Node.step`: one node's response to an input or a message      |
-| `CCFRaft/Model.lean`               | Model configuration, initialization and network composition    |
+| `CCFRaft/Model.lean`               | Initial node states and network composition                    |
 | `CCFRaft/Properties.lean`          | Safety property statements and their witnesses                 |
 | `CCFRaft/Tests/`                   | Regression theorems, behavior checks and import-boundary rules |
 | `CCFRaft.lean`                     | Generated root importing every module                          |
@@ -35,7 +35,8 @@ Once a node's confirmation commits, `NodeState.retiredCommittedIndex` records th
 That first commitment also clears the node's role and primary knowledge on both primary and follower paths; a retiring primary still nominates a successor using its precommit state.
 This is a one-time retirement effect, not a restriction on role changes caused by later messages.
 Successor nomination orders node IDs numerically when replication progress and configuration membership tie.
-`ModelConfig` lives in `Model.lean` and supplies initial voting membership and a primary of type `configuration`, so it is a member by construction.
+Initialization takes one nonempty `Finset NodeID` for the initial voting membership; there is no separate `ModelConfig` or explicit primary choice.
+The smallest member starts as primary, independent of the order of the modeled node list.
 The modeled node list is supplied separately and may include nodes outside the initial voting membership.
 Election timeouts always start a pre-vote round; a same-term primary nomination still starts a regular election directly.
 On same-term AppendEntries, a candidate or pre-vote candidate becomes a follower and clears both received-vote tallies and primary knowledge before checking the log, while preserving its vote cast in that term.
@@ -53,7 +54,8 @@ Pre-vote and regular-vote messages still share the `RequestVoteRequest` and `Req
 
 ## Initialization and local knowledge
 
-`ModelConfig` is used only to initialize node states; `Node.step` and the membership queries take no model-wide configuration.
+The initial membership set is used only to initialize node states; `Node.step` and the membership queries take no model-wide configuration.
+An empty initial membership is rejected by the network's initial-state predicate.
 Only the initial primary starts with the unsigned configuration transaction.
 Other initial members start as followers with empty logs; nodes outside the initial membership start without a protocol role.
 An empty log has no known membership, and no configuration is injected at index zero.

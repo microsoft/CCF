@@ -18,11 +18,9 @@ retains every entry in order.
 namespace CCFRaft.Tests.AppendTransactions
 
 open Model.Node
-open Model (ModelConfig initialNodeState BOOTSTRAP_TERM)
+open Model (initialNodeState BOOTSTRAP_TERM)
 
-def config : ModelConfig where
-  configuration := {0, 1}
-  primary := ⟨0, by decide⟩
+def config : Finset NodeID := {0, 1}
 
 def initial : NodeState := initialNodeState config 0
 
