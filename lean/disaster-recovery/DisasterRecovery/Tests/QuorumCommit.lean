@@ -4,7 +4,6 @@ import all Init.Control.State
 import all Init.Data.List.Sort.Basic
 
 public import DisasterRecovery.Properties
-public import DisasterRecovery.Proofs.Trace
 public import DisasterRecovery.Tests.Initial
 public import Mathlib.Tactic
 
@@ -76,17 +75,8 @@ private def s10 :=
 
 private def s11 := snapshot (selected "A") (selected "B") openedC (aGossips ++ bGossips)
 
--- C then finishes opening; its aligned opening timeout leaves the final state unchanged.
-private def s12 :=
-  snapshot (selected "A") (selected "B") { openedC with timeoutState := .opening }
-    (aGossips ++ bGossips)
-
-private def s13 :=
-  snapshot (selected "A") (selected "B")
-    { openedC with phase := .open, timeoutState := .opening } (aGossips ++ bGossips)
-
 private def trace : Properties.GlobalTrace :=
-  Proofs.Trace.lasso [initial, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12] s13
+  Stream'.Seq.ofList [initial, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11]
 
 private def actions : List Model.Action :=
   [
@@ -100,9 +90,7 @@ private def actions : List Model.Action :=
     .deliver (gossip "C" "C" low),
     .local "C" .timeout,
     .deliver (vote "A"),
-    .deliver (vote "B"),
-    .local "C" .timeout,
-    .local "C" .timeout
+    .deliver (vote "B")
   ]
 
 private theorem initialized : (Model.transitionSystem config).init initial := by
@@ -111,27 +99,30 @@ private theorem initialized : (Model.transitionSystem config).init initial := by
   · simp [initial, Tests.initial, config, Model.protocol]
 
 private theorem valid : trace.Valid (Model.transitionSystem config) := by
-  refine Proofs.Trace.lasso_valid initialized ?_ ⟨.local "C" .timeout, ?_⟩
-  · intro i
-    refine ⟨actions[i.val]'(by simp [actions]), ?_⟩
-    fin_cases i
-    all_goals
-      dsimp only [Model.transitionSystem, MultiNodeTransitionSystem.lift]
-      simp [actions, MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
-        MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-        Model.receive, step, guard, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9,
-        s10, s11, s12, s13, openedC, aGossips, bGossips, gossip, vote, high, low]
-    all_goals cbv
-  · dsimp only [Model.transitionSystem, MultiNodeTransitionSystem.lift]
-    simp [MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
-      Model.protocol, Model.recoveredTxID, step, guard, config, snapshot, s13, openedC,
-      aGossips, bGossips, gossip, high, low]
-    cbv
+  refine ⟨⟨initial, rfl, initialized⟩, ?_⟩
+  intro i before after first second
+  simp only [trace, Stream'.Seq.ofList_get?] at first second
+  have bound : i < 11 := by
+    have := (List.getElem?_eq_some_iff.mp second).1
+    simp only [List.length_cons, List.length_nil] at this
+    omega
+  refine ⟨actions[i]'(by simpa [actions] using bound), ?_⟩
+  interval_cases i <;> simp only [List.getElem?_cons_zero,
+    List.getElem?_cons_succ, Nat.reduceAdd, Option.some.injEq] at first second <;>
+    subst before <;> subst after
+  all_goals
+    dsimp only [Model.transitionSystem, MultiNodeTransitionSystem.lift]
+    simp [actions, MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
+      MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
+      Model.receive, step, guard, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9,
+      s10, s11, aGossips, bGossips, gossip, vote, high, low]
+  all_goals cbv
 
 private theorem opened : ("C", openedC) ∈ s11.nodes := by
   simp [s11, snapshot]
 
-private theorem final_in_trace : s11 ∈ trace := ⟨11, rfl⟩
+private theorem final_in_trace : s11 ∈ trace :=
+  Stream'.Seq.get?_mem (n := 11) rfl
 
 private theorem stale : ¬ Properties.UpToDateWithQuorum config low := by
   unfold Properties.UpToDateWithQuorum
@@ -147,19 +138,14 @@ example
   ⟨valid, final_in_trace, opened, rfl, rfl, stale⟩
 
 private theorem missing_own : ¬ Properties.ReceivedOwnGossip trace "A" := by
-  rintro ⟨_, ⟨index, rfl⟩, current, txid, present, gossipPresent⟩
-  have member
-      : trace.states index
-        ∈ [initial, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12] ++ [s13] :=
-    Proofs.Trace.lasso_states_mem _ _ index
-  generalize trace.states index = state at member present
-  simp only [List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil,
-    or_false] at member
-  rcases member with
-    rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  rintro ⟨state, member, current, txid, present, gossipPresent⟩
+  obtain ⟨i, found⟩ := Stream'.Seq.mem_iff_exists_get?.mp member
+  replace member := List.mem_of_getElem? found.symm
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
   all_goals
     simp [initial, Tests.initial, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9,
-      s10, s11, s12, s13, openedC, selected, heard, initialNode] at present
+      s10, s11, openedC, selected, heard, initialNode] at present
     subst current
     simp at gossipPresent
 

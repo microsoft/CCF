@@ -47,12 +47,9 @@ The local properties are invariants of `Local.step`.
 They hold for every node state, not only reachable ones.
 Each quantifies a `LocalStep` record and assumes `ValidStep`: re-executing the step yields exactly the recorded after-state and outputs.
 
-The global properties quantify a `GlobalTrace`, an infinite sequence of states indexed by `Nat`.
-`trace.Valid` requires an initial state at index 0 and an enabled action from every index to the next; no stuttering or fairness is added.
+The global properties quantify a `GlobalTrace`, a finite or infinite sequence of states beginning with the initial state.
+`trace.Valid` requires an initial first state and an enabled action between each adjacent pair.
 `Trace.NotificationAt` states that a step by `node` between states `i` and `i + 1` emitted a given notification.
-The properties therefore cover every finite execution that extends to an infinite one.
-Every reachable state has an enabled configured-node retry or timeout, so every finite execution extends, but this extension is not yet proved in Lean.
-The witnesses and tests use lasso traces whose final state repeats through the opener's aligned opening timeout, which leaves the state unchanged.
 
 `QuorumOpenerUnique` states that all `opening quorum` notifications in a trace originate from one node.
 
