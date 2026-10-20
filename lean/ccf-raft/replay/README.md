@@ -51,16 +51,16 @@ Creation commands declare fixed pre-vote modes even for future nodes that have n
 
 The named branches of `reduce` in `Reduction.lean` consume every event:
 
-| Source event                                                      | Model action and checks                                                                                                |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Exact five-event bootstrap                                        | Audit the preloaded singleton configuration, append the bootstrap signature, observe its internal commit               |
-| `replicate`                                                       | One nonempty `append`, with its configuration hooks, new-peer heartbeats and internal commit                           |
-| `send_append_entries` outside a callback group                    | `sendEntries(destination, endIndex)`; check the recorded `sent_idx` against `prev_idx`                                 |
-| `recv_*`                                                          | FIFO driver delivery, with term adoption, synchronous promotions, commits and response observations in the same action |
-| `become_candidate`, `become_pre_vote_candidate` outside a receive | Election timeout with nested self-quorum promotions, complete ordered request loop and leadership heartbeats           |
-| `become_follower` outside a receive                               | Check-quorum timeout                                                                                                   |
-| `step_down_and_nominate_successor` outside a commit               | Nullary `nominateSuccessor`, only under a `nominate_successor` command; observe the model-chosen destination           |
-| `drop_pending_to`                                                 | Check and exclude one FIFO queue-head occurrence without stepping the model                                            |
+| Source event                                                      | Model action and checks                                                                                                         |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Exact five-event bootstrap                                        | Audit the preloaded singleton configuration, append the bootstrap signature, observe its internal commit                        |
+| `replicate`                                                       | One nonempty `append`, with its configuration hooks, new-peer heartbeats and internal commit                                    |
+| `send_append_entries` outside a callback group                    | `sendEntries(destination, endIndex)`; check the recorded `sent_idx` against `prev_idx`                                          |
+| `recv_*`                                                          | Observation-selected delivery, with term adoption, synchronous promotions, commits and response observations in the same action |
+| `become_candidate`, `become_pre_vote_candidate` outside a receive | Election timeout with nested self-quorum promotions, complete ordered request loop and leadership heartbeats                    |
+| `become_follower` outside a receive                               | Check-quorum timeout                                                                                                            |
+| `step_down_and_nominate_successor` outside a commit               | Nullary `nominateSuccessor`, only under a `nominate_successor` command; observe the model-chosen destination                    |
+| `drop_pending_to`                                                 | Check and exclude one FIFO queue-head occurrence without stepping the model                                                     |
 
 Commands alone do not invent protocol actions.
 Shuffled queues (`shuffle_one`, `shuffle_all`), ungrouped callbacks, missing required group members and invalid group order are rejected.
@@ -102,10 +102,18 @@ The model selects the maximum acknowledged index, latest containing active confi
 ## Packet accounting
 
 The model's network is an unordered multiset, and remains so.
-The replayer implements only the driver's observed FIFO scheduling: receives select the oldest live envelope from source to destination, and recorded packet headers must match that envelope.
+The replayer preserves recorded event order, but does not impose send order on receives.
+A receive selects a live model envelope with the recorded source, destination and packet fields, even if an earlier envelope remains pending on that pair.
+The receive observation and action use the same selector; unavailable or mismatching packets fail explicitly before delivery, without searching for a different execution or discarding earlier packets.
 A drop excludes exactly one occurrence from future observations and deliveries, but leaves it undelivered in the model network.
 Equal envelopes retain their multiplicity.
-The replayer never searches for a later matching packet to excuse a wrong queue head.
+Explicit driver drops still check and exclude the queue head for that directed pair.
+
+Equal full model envelopes are interchangeable occurrences.
+If different full model envelopes match the same recorded fields, replay fails with an ambiguous-packet diagnostic rather than guessing unobserved payload contents.
+This conservative rejection can exclude otherwise admissible traces; replay does not backtrack over alternative payloads.
+Packet headers do not encode physical nonces or channel epochs, and reconnect commands do not reset replay queues or invent drops.
+Native authentication losses and channel-buffer replacement are not reconstructed; an unreceived envelope may simply remain pending.
 
 Send telemetry is deliberately **not** required to enumerate every model emission exactly once.
 A send observation checks compatibility with the latest pending packet for its endpoints; it neither creates nor consumes a packet.
@@ -117,7 +125,8 @@ It does not relax record parsing, source callback ordering, action guards or sta
 ## Regression coverage
 
 `replay/tests/Main.lean` replaces the old Python regression suite.
-It runs the retained bootstrap, startup, vote-response, missing-prefix, configuration, drop/resend and retirement fixtures, checks instruction consumption, mutates every projected observation field, and exercises raw callback/packet mutations, malformed and unsupported records, disabled actions, missing packets, wrong FIFO heads and repeated/drop message occurrences.
+It runs the retained bootstrap, startup, vote-response, missing-prefix, configuration, drop/resend and retirement fixtures, checks instruction consumption, mutates every projected observation field, and exercises raw callback/packet mutations, malformed and unsupported records, disabled actions, missing packets, wrong drop heads and repeated/drop message occurrences.
+Receive regressions deliver a later heartbeat before an earlier data packet, require the NACK and retention of the earlier packet, reject unavailable and ambiguous selectors, and preserve equal-copy multiplicity.
 Focused cases cover the relaxed send-telemetry semantics, transaction metadata, undeclared metadata members, and rejected duplicate configuration callbacks and cache indices.
 The test executable doubles as a deterministic fake driver for capture byte preservation, timeout/nonzero-exit/stderr failures, recursive inventory, invalid encoding, missing captures and stale-summary removal.
 Neither it nor the replayer imports proof modules.

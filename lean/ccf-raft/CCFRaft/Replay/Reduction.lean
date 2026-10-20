@@ -88,7 +88,8 @@ private def message (event : Event) (rule : String) (receiving : Bool)
   let packet ← read event (field event.message "packet")
   emit
     (.message (if receiving then other else event.node)
-      (if receiving then event.node else other) packet (!receiving) (event.origin rule))
+      (if receiving then event.node else other) packet
+      (if receiving then .matching else .latest) (event.origin rule))
 
 private def proposal (event : Event) (rule : String) : Reduction Unit := do
   let destination ← read event (string event.message "to_node_id")
@@ -96,7 +97,7 @@ private def proposal (event : Event) (rule : String) : Reduction Unit := do
   emit
     (.message event.node destination
       (Json.mkObj [("msg", toJson "raft_propose_request_vote"), ("term", toJson term)])
-      true (event.origin rule))
+      .latest (event.origin rule))
 
 private def peers (event : Event) (rule : String) : Reduction Unit := do
   let mut fields := []
@@ -539,7 +540,7 @@ private def receiveRule (event : Event) : Reduction Unit := do
     callbacks := head :: tail
   else if event.function == "recv_append_entries_response" then
     callbacks ← takeCommit event
-  action event "atomic-receive" (.receive sender event.node)
+  action event "atomic-receive" (.receive sender event.node packet)
     ([event] ++ followers ++ callbacks)
   for follower in followers do
     observe follower "receive-follower-post" none
@@ -591,7 +592,7 @@ def reduce (records : Array Record) : Except String Reduced := do
           let destination ← read event (string event.message "to_node_id")
           emit
             (.message event.node destination (← read event (field event.message "packet"))
-              false (event.origin "drop"))
+              .head (event.origin "drop"))
           action event "drop" (.drop event.node destination)
       | "become_candidate" | "become_pre_vote_candidate" =>
           checked event

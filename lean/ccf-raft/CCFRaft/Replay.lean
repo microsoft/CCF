@@ -48,7 +48,7 @@ def Header.initial (header : Header) : Model.State String String :=
 
 inductive Step where
   | local (node : String) (input : Input String String)
-  | receive (source destination : String)
+  | receive (source destination : String) (packet : Json)
   | drop (source destination : String)
 
 def Step.name : Step → String
@@ -59,13 +59,18 @@ def Step.name : Step → String
   | .receive .. => "receive"
   | .drop .. => "drop"
 
+inductive PacketSelection where
+  | latest
+  | head
+  | matching
+
 /-- Direct model actions and sparse observations; there is no replay wire schema. -/
 inductive Instruction where
   | action (step : Step) (origins : List Origin)
   | state (node : String) (peer : Option String) (fields : Json) (origin : Origin)
   | entry (node : String) (index : Nat) (fields : Json) (origin : Origin)
-  /-- Sends observe the latest queued packet; receives and drops observe the head. -/
-  | message (source destination : String) (packet : Json) (latest : Bool)
+  /-- Sends observe the latest packet, drops the head, and receives a matching packet. -/
+  | message (source destination : String) (packet : Json) (selection : PacketSelection)
     (origin : Origin)
 
 def Instruction.origins : Instruction → List Origin
@@ -77,7 +82,6 @@ structure ReplayState where
   dropped : List Envelope := []
 
 /--
-FIFO belongs to the driver, not the model's multiset network.
 Dropped copies remain undelivered model envelopes, excluded with multiplicity.
 -/
 def ReplayState.live (replay : ReplayState) : List Envelope :=
@@ -91,40 +95,6 @@ def ReplayState.pending (replay : ReplayState) (source destination : String)
 
 private def declared (header : Header) (node : String) : Except String Unit :=
   unless node ∈ header.declared do throw s!"undeclared node '{node}'"
-
-private def runStep (header : Header) (replay : ReplayState) (step : Step)
-    : Except String ReplayState := do
-  let system := Model.transitionSystem (TxId := String) header.bootstrap header.declared
-  match step with
-  | .local node input =>
-      declared header node
-      match input with
-      | .sendEntries destination _ => declared header destination
-      | .append entries =>
-          for entry in entries do
-            let metadata := entry.metadata
-            for member
-                in metadata.configuration.getD ∅ ∪ metadata.retiredCommitted |>.sort do
-              declared header member
-      | _ => pure ()
-      let some state := system.step replay.state (.local node input)
-      | throw s!"disabled model action '{step.name}'"
-      return { replay with state }
-  | .receive source destination =>
-      declared header source
-      declared header destination
-      let some envelope := (replay.pending source destination).head?
-      | throw
-          s!"disabled model action 'receive': no pending packet from '{source}' to '{destination}'"
-      let some state := system.step replay.state (.deliver envelope)
-      | throw "disabled model action 'receive'"
-      return { replay with state }
-  | .drop source destination =>
-      declared header source
-      declared header destination
-      let some envelope := (replay.pending source destination).head?
-      | throw s!"no pending packet from '{source}' to '{destination}'"
-      return { replay with dropped := replay.dropped ++ [envelope] }
 
 private def roleName : Role → String
   | .none => "none"
@@ -276,6 +246,63 @@ def messageJson (message : Message String String) : Json :=
     | .proposeVoteRequest _ => [("msg", toJson "raft_propose_request_vote")]
   Json.mkObj (("term", toJson message.term) :: fields)
 
+private def selectPacket (state : ReplayState) (source destination : String)
+    (packet : Json) (selection : PacketSelection)
+    : Except String Envelope := do
+  let pending := state.pending source destination
+  let some first := pending.head?
+  | throw s!"no pending packet from '{source}' to '{destination}'"
+  let envelope ←
+    match selection with
+    | .head => pure first
+    | .latest => pure (pending.getLast?.getD first)
+    | .matching =>
+        let matching :=
+          pending.filter
+            fun envelope =>
+              (checkFields packet (messageJson envelope.payload)).isOk
+        match matching with
+        | [] => pure first
+        | envelope :: rest =>
+            unless rest.all (· == envelope) do
+              throw
+                s!"ambiguous pending packets from '{source}' to '{destination}': recorded fields do not distinguish their payloads"
+            pure envelope
+  checkFields packet (messageJson envelope.payload)
+  return envelope
+
+private def runStep (header : Header) (replay : ReplayState) (step : Step)
+    : Except String ReplayState := do
+  let system := Model.transitionSystem (TxId := String) header.bootstrap header.declared
+  match step with
+  | .local node input =>
+      declared header node
+      match input with
+      | .sendEntries destination _ => declared header destination
+      | .append entries =>
+          for entry in entries do
+            let metadata := entry.metadata
+            for member
+                in metadata.configuration.getD ∅ ∪ metadata.retiredCommitted |>.sort do
+              declared header member
+      | _ => pure ()
+      let some state := system.step replay.state (.local node input)
+      | throw s!"disabled model action '{step.name}'"
+      return { replay with state }
+  | .receive source destination packet =>
+      declared header source
+      declared header destination
+      let envelope ← selectPacket replay source destination packet .matching
+      let some state := system.step replay.state (.deliver envelope)
+      | throw "disabled model action 'receive'"
+      return { replay with state }
+  | .drop source destination =>
+      declared header source
+      declared header destination
+      let some envelope := (replay.pending source destination).head?
+      | throw s!"no pending packet from '{source}' to '{destination}'"
+      return { replay with dropped := replay.dropped ++ [envelope] }
+
 /-- Observations never change model state or repair a disabled action. -/
 def runInstruction (header : Header) (state : ReplayState) (instruction : Instruction)
     : Except String ReplayState := do
@@ -287,13 +314,10 @@ def runInstruction (header : Header) (state : ReplayState) (instruction : Instru
   | .entry node index fields _ =>
       observeEntry header state node index fields
       return state
-  | .message source destination packet latest _ =>
+  | .message source destination packet selection _ =>
       declared header source
       declared header destination
-      let pending := state.pending source destination
-      let some envelope := if latest then pending.getLast? else pending.head?
-      | throw s!"no pending packet from '{source}' to '{destination}'"
-      checkFields packet (messageJson envelope.payload)
+      let _ ← selectPacket state source destination packet selection
       return state
 
 structure Result where

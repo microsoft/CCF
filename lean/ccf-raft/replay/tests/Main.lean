@@ -353,8 +353,8 @@ private def fixtureMutations : IO Nat := do
             match instruction with
             | .state node peer _ origin => .state node peer replacement origin
             | .entry node index _ origin => .entry node index replacement origin
-            | .message source target _ latest origin =>
-                .message source target replacement latest origin
+            | .message source target _ selection origin =>
+                .message source target replacement selection origin
             | other => other
           rejects (replay reduced.header (reduced.instructions.set! position changed)) key
           count := count + 1
@@ -517,9 +517,11 @@ private def observe (node : String) (fields : List (String × Json)) : Instructi
 
 private def sent (source destination : String) (fields : List (String × Json))
     : Instruction :=
-  .message source destination (Json.mkObj fields) true origin
+  .message source destination (Json.mkObj fields) .latest origin
 
 private def directTests : IO Nat := do
+  let append := Json.mkObj [("msg", toJson "raft_append_entries")]
+  let response := Json.mkObj [("msg", toJson "raft_append_entries_response")]
   let start :=
     #[
       observe "future"
@@ -542,11 +544,11 @@ private def directTests : IO Nat := do
   let complete :=
     start
     ++ #[
-      act (.receive "alpha" "beta"),
+      act (.receive "alpha" "beta" append),
       sent "beta" "alpha"
         [("msg", toJson "raft_append_entries_response"), ("success", toJson "OK")],
       observe "beta" [("role", toJson "follower"), ("logLength", toJson (3 : Nat))],
-      act (.receive "beta" "alpha"),
+      act (.receive "beta" "alpha" response),
       .state "alpha" (some "beta")
         (Json.mkObj
           [
@@ -561,10 +563,10 @@ private def directTests : IO Nat := do
       == { instructions := 10, actions := 5, observations := 5 })
     "direct instruction consumption"
   rejects (replay header #[]) "must not be empty"
-  rejects (replay header #[.action (.receive "alpha" "beta") []]) "missing origin"
+  rejects (replay header #[.action (.receive "alpha" "beta" append) []]) "missing origin"
   for (step, diagnostic)
       in [
-        (Step.receive "alpha" "beta", "disabled model action 'receive'"),
+        (Step.receive "alpha" "beta" append, "no pending packet"),
         (.drop "alpha" "beta", "no pending packet"),
         (.local "beta" (.append [.signature]), "disabled model action 'append'"),
         (.local "alpha" (.append []), "disabled model action 'append'"),
@@ -597,11 +599,11 @@ private def directTests : IO Nat := do
     ]
   let head :=
     Instruction.message "alpha" "beta"
-      (Json.mkObj [("prev_idx", toJson (0 : Nat)), ("idx", toJson (3 : Nat))]) false
+      (Json.mkObj [("prev_idx", toJson (0 : Nat)), ("idx", toJson (3 : Nat))]) .head
       origin
   let _ ← ok (replay header (twice.push head))
   let wrong :=
-    Instruction.message "alpha" "beta" (Json.mkObj [("prev_idx", toJson (3 : Nat))]) false
+    Instruction.message "alpha" "beta" (Json.mkObj [("prev_idx", toJson (3 : Nat))]) .head
       origin
   rejects (replay header (twice.push wrong)) "prev_idx"
   let dropped :=
@@ -619,11 +621,11 @@ private def directTests : IO Nat := do
     ++ heartbeat
     ++ #[
       act (.drop "alpha" "beta"),
-      act (.receive "alpha" "beta"),
+      act (.receive "alpha" "beta" append),
       sent "beta" "alpha" [("success", toJson "OK")]
     ]
   let _ ← ok (replay header duplicate)
-  rejects (replay header (duplicate.push (act (.receive "alpha" "beta"))))
+  rejects (replay header (duplicate.push (act (.receive "alpha" "beta" append))))
     "no pending packet"
   -- Send telemetry is not a complete or exactly-once enumeration of model outputs.
   let _ ← ok (replay header (start.extract 0 4))
@@ -646,16 +648,16 @@ private def directTests : IO Nat := do
     ++ #[
       sent "alpha" "beta" [("idx", toJson (0 : Nat))],
       sent "alpha" "beta" [("idx", toJson (0 : Nat))],
-      act (.receive "alpha" "beta"),
+      act (.receive "alpha" "beta" append),
       sent "beta" "alpha" [("success", toJson "OK")]
     ]
   let _ ← ok (replay header observedRepeatedly)
-  rejects (replay header (observedRepeatedly.push (act (.receive "alpha" "beta"))))
+  rejects (replay header (observedRepeatedly.push (act (.receive "alpha" "beta" append))))
     "no pending packet"
   rejects (replay header (observedRepeatedly.push (act (.drop "alpha" "beta"))))
     "no pending packet"
   let early := start.push (observe "alpha" [("logLength", toJson (99 : Nat))])
-  rejects (replay header (early.push (act (.receive "missing" "missing"))))
+  rejects (replay header (early.push (act (.receive "missing" "missing" append))))
     "instruction 6"
   rejects (replay header early) "direct.ndjson:17 [unit]"
   let configured :=
@@ -676,8 +678,8 @@ private def directTests : IO Nat := do
     ++ #[
       act (.local "alpha" (.append [.signature])),
       act (.local "alpha" (.sendEntries "beta" 3)),
-      act (.receive "alpha" "beta"),
-      act (.receive "beta" "alpha"),
+      act (.receive "alpha" "beta" append),
+      act (.receive "beta" "alpha" response),
       act
         (.local "alpha"
           (.append [.transaction "retired" { retiredCommitted := {"beta"} }]))
@@ -698,6 +700,89 @@ private def directTests : IO Nat := do
       (replay header #[act (.local "alpha" (.append [.transaction "unknown" metadata]))])
       "undeclared node 'missing'"
   return 35
+
+private def receiveMatchingTests : IO Unit := do
+  let setup :=
+    #[
+      act (.local "alpha" (.append [.transaction "tx" {}, .signature])),
+      act (.local "alpha" (.sendEntries "beta" 3)),
+      act (.local "alpha" (.sendEntries "beta" 3))
+    ]
+  let initial : ReplayState := { state := header.initial }
+  let queued ←
+    setup.foldlM (fun state next => ok (runInstruction header state next)) initial
+  let packets := queued.pending "alpha" "beta"
+  check (packets.length == 2) "expected data followed by heartbeat"
+  let some first := packets.head? | throw (IO.userError "missing first packet")
+  let some second := packets.getLast? | throw (IO.userError "missing second packet")
+  let firstFields := messageJson first.payload
+  let secondFields := messageJson second.payload
+  let receive packet := act (.receive "alpha" "beta" packet)
+  let observed packet := Instruction.message "alpha" "beta" packet .matching origin
+  let _ ←
+    ok
+      (replay header
+        (setup
+          ++ #[
+            observed secondFields,
+            receive secondFields,
+            sent "beta" "alpha" [("success", toJson "FAIL")],
+            observed firstFields,
+            receive firstFields
+          ]))
+  let observedOnly ← ok (runInstruction header queued (observed secondFields))
+  check (observedOnly.pending "alpha" "beta" == packets)
+    "matching observation changed packet occurrences"
+  let afterSecond ← ok (runInstruction header queued (receive secondFields))
+  check (afterSecond.pending "alpha" "beta" == [first])
+    "out-of-order receive lost the earlier packet"
+  let afterFirst ← ok (runInstruction header afterSecond (receive firstFields))
+  check ((afterFirst.pending "alpha" "beta").isEmpty) "receive did not consume one copy"
+  rejects (runInstruction header afterFirst (receive secondFields)) "no pending packet"
+  rejects (runInstruction header queued (receive (Json.mkObj []))) "at least one field"
+  rejects (runInstruction header queued (receive (Json.mkObj [("unknown", .null)])))
+    "unsupported observation field"
+  let unavailable := secondFields.setObjVal! "prev_idx" (toJson (99 : Nat))
+  rejects (runInstruction header queued (observed unavailable)) "prev_idx"
+  rejects (runInstruction header queued (receive unavailable)) "prev_idx"
+  let dropped ← ok (runInstruction header queued (act (.drop "alpha" "beta")))
+  let delivered ← ok (runInstruction header dropped (receive secondFields))
+  rejects (runInstruction header delivered (receive firstFields)) "no pending packet"
+  let some differing :=
+    match first.payload with
+    | .appendEntriesRequest request =>
+        some
+          {
+            first with
+              payload :=
+                .appendEntriesRequest
+                  {
+                    request with
+                      entries :=
+                        request.entries.map
+                          fun entry =>
+                            match entry.content with
+                            | .transaction _ metadata =>
+                                { entry with content := .transaction "other" metadata }
+                            | .signature => entry
+                  }
+          }
+    | _ => none
+  | throw (IO.userError "expected AppendEntries payload")
+  check (first != differing && messageJson differing.payload == firstFields)
+    "ambiguous-payload test requires equal projected headers, different contents"
+  let ambiguous :=
+    { queued with state := { queued.state with network := [first, differing] } }
+  rejects (runInstruction header ambiguous (observed firstFields))
+    "ambiguous pending packets"
+  rejects (runInstruction header ambiguous (receive firstFields))
+    "ambiguous pending packets"
+  let equalCopies :=
+    { queued with state := { queued.state with network := [first, first] } }
+  let one ← ok (runInstruction header equalCopies (receive firstFields))
+  check (one.pending "alpha" "beta" == [first]) "equal envelopes lost multiplicity"
+  let exhausted ← ok (runInstruction header one (receive firstFields))
+  rejects (runInstruction header exhausted (receive firstFields)) "no pending packet"
 
 private def expectIOError (action : IO Unit) (expected : String) : IO Unit := do
   let result ← action.toBaseIO
@@ -815,6 +900,7 @@ def main (args : List String) : IO UInt32 := do
   let _ ← reductionTests
   let _ ← fixtureMutations
   let _ ← directTests
+  receiveMatchingTests
   let _ ← suiteTests
   IO.println "Lean replay regressions passed."
   return 0
