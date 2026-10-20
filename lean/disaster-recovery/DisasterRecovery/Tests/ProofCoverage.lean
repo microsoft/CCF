@@ -2,33 +2,18 @@ module
 
 -- The public interface erases theorem bodies; inspect their implementation metadata.
 import all DisasterRecovery.Proof
+meta import CCF.Architecture
 
+public import CCF.Architecture
 public import DisasterRecovery.Proof
-public import Lean
 
 @[expose] public section
 
 namespace DisasterRecovery.Tests.ProofCoverage
 
-open Lean
-
--- Every public claim, including each non-vacuity claim, needs an exported theorem.
+-- Every public claim needs an exported theorem, and a non-vacuity claim if it has premises.
 run_cmd do
-  let env ← getEnv
-  let declarations := env.constants.toList
-  for (name, info) in declarations do
-    if name.getPrefix != `DisasterRecovery.Properties || info.type != mkSort .zero then
-      continue
-    let covered := declarations.any fun (proofName, proofInfo) =>
-      proofName.getPrefix == `DisasterRecovery.Proof &&
-        (match proofInfo with
-        | .thmInfo proof => proof.type.isConstOf name
-        | _ => false)
-    unless covered do
-      throwError "Property has no exported theorem: {name}"
-    unless name.getString!.endsWith "Witness" do
-      let witness := Name.str `DisasterRecovery.Properties (name.getString! ++ "Witness")
-      unless env.contains witness do
-        throwError "Property has no non-vacuity claim: {name}"
+  for error in ← Lean.Elab.Command.liftTermElabM (CCF.Architecture.coverageErrors `DisasterRecovery) do
+    Lean.throwError error
 
 end DisasterRecovery.Tests.ProofCoverage

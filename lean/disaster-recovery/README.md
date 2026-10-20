@@ -61,7 +61,7 @@ The second requires a state in which every node's gossip equals `config.recovere
 Each property has a `Witness` claim asserting that some valid trace or step satisfies its premises.
 `Proofs/Witnesses.lean` proves all seven witnesses using concrete executions.
 The full-gossip witness includes a failover opening.
-`Tests/Witnesses.lean` applies each witness to its corresponding property, and `Tests/ProofCoverage.lean` requires an exported theorem for every claim.
+`Tests/Witnesses.lean` applies each witness to its corresponding property, and `Tests/ProofCoverage.lean` requires an exported theorem for every claim and a `Witness` claim for every claim with premises.
 
 Freshness is a necessary condition for election, not a definition of Raft commitment.
 `update_commit` additionally requires a current-term signature replicated on a majority, and the Raft safety specification (`tla/consensus/ccfraft.tla`) is stated on log prefixes.
@@ -129,7 +129,7 @@ To update a tool dependency without changing the toolchain, run `lake update --k
 
 ## Formatting
 
-Install Lean via [elan](https://lean-lang.org/install/) and run `lake exe cache get` from this directory before the first formatting check.
+Install Lean via [elan](https://lean-lang.org/install/) and run `lake exe cache get` in each Lean package directory (this one and [`lean/kv`](../kv/README.md)) before the first formatting check.
 From the repository root, check every tracked `.lean` file:
 
 ```console
@@ -142,7 +142,9 @@ To apply formatting fixes, run:
 scripts/lean-format-checks.sh -f
 ```
 
-The script builds the model's imported modules and runs the pinned leanfmt dependency.
-The Lean CI workflow runs the same check after the proof checks.
-Files outside `lean/` are included; untracked files and downloaded dependencies are excluded.
+Pass package directories, such as `lean/kv`, to check or fix only the files those packages format.
+For each package, the script builds its modules, which leanfmt imports to parse project-specific syntax, and runs the package's pinned leanfmt dependency on the package's files.
+This package also formats tracked `.lean` files outside the other packages, including `lean/common` and files outside `lean/`.
+The Lean CI workflow runs the same check after each package's proof checks.
+Untracked files and downloaded dependencies are excluded.
 Add new Lean files to Git before running the check.
