@@ -116,10 +116,10 @@ Timeout elections with pre-vote disabled are explicitly unsupported; same-term n
 No synthetic nominations or mode toggle are inserted into the model.
 
 The model's `retiredCommittedIndex` is the confirmation transaction's index, not the covering signature's index.
-The native test stub's [`LoggingStubStoreConfig::compact`](../../../src/consensus/aft/test/logging_stub.h) passes its compact frontier instead of the stored transaction version; production [`on_nodes_global_commit`](../../../src/node/node_state.h) passes the transaction's `hook_version`.
-For a confirmation transaction at index 5 covered by a signature at index 6, the stub reports 6 where the model expects 5.
-Terminal-retirement captures exhibiting that discrepancy fail explicitly rather than having their indices rewritten.
-The retained terminal fixture is a negative correspondence regression, not a successful replay fixture.
+The native test stub's [`LoggingStubStoreConfig::compact`](../../../src/consensus/aft/test/logging_stub.h) passes the stored transaction version, matching production [`on_nodes_global_commit`](../../../src/node/node_state.h), and consumes every processed hook entry, including one exactly at the compact frontier.
+For a confirmation transaction at index 5 covered by a signature at index 6, the hook reports 5, not 6.
+The retained terminal fixture records the old stub's incorrect compact-frontier index and remains a negative correspondence regression.
+Replay rejects that historical discrepancy rather than rewriting its observations; fresh native captures exercise the corrected stub.
 
 ## Packet accounting
 
