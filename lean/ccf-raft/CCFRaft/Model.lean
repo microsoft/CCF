@@ -77,6 +77,10 @@ def protocol (config : ModelConfig)
 /-- The network of `nodes`, with initial membership and primary supplied by `config`. -/
 def transitionSystem (config : ModelConfig) (nodes : List NodeID)
     : TransitionSystem State Action :=
-  MultiNodeTransitionSystem.lift nodes (protocol config)
+  let system := MultiNodeTransitionSystem.lift (protocol config)
+  {
+    system with
+      init := fun state => state.nodes.map Prod.fst = nodes /\ system.init state
+  }
 
 end CCFRaft.Model

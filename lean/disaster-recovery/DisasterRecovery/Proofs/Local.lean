@@ -89,9 +89,12 @@ lemma validStep_run {config : Model.Config}
               s.action).run
               {}
             = some (s.after, s.effects) := by
-  simpa [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol,
-    Option.bind_eq_some_iff, Option.map_eq_some_iff]
-    using valid
+  by_cases active : s.node ∈ config.active
+  · simpa [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
+      Option.bind_eq_some_iff, Option.map_eq_some_iff, guard, failure, active]
+      using valid
+  · simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
+      guard, failure, active] at valid
 
 lemma gossip_freezes_after_choice : Properties.GossipFreezesAfterChoice := by
   rintro config s source txid ⟨valid, action, chosen⟩

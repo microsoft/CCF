@@ -198,7 +198,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -L -GNinja .. -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DCCF_RAFT_TRACING=ON
+          cmake -L -GNinja .. -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
           ninja raft_driver
         shell: bash
 

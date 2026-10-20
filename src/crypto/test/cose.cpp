@@ -30,7 +30,6 @@
 #include <limits>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tav/cbor.hpp>
@@ -127,22 +126,6 @@ static void verify_envelope(
       authned_content.begin(), authned_content.end());
     REQUIRE(payload == payload_copy);
   }
-}
-
-// cert_pem_to_der() throws for some keys, such as Ed25519 ones, so this
-// base64-decodes the PEM body to get the DER
-static std::vector<uint8_t> der_from_pem_cert(const ccf::crypto::Pem& cert)
-{
-  std::string der_b64;
-  std::istringstream pem_lines(cert.str());
-  for (std::string line; std::getline(pem_lines, line);)
-  {
-    if (!line.starts_with("-----"))
-    {
-      der_b64 += line;
-    }
-  }
-  return ccf::crypto::raw_from_b64(der_b64);
 }
 
 // An Ed25519 public key imported from its 32 raw bytes, as OpenSSL accepts
@@ -500,7 +483,7 @@ TEST_CASE("COSE EdDSA verification")
     ccf::crypto::make_cose_verifier_from_key(key->public_key_pem()),
     ccf::crypto::make_cose_verifier_from_pem_cert(cert),
     ccf::crypto::make_cose_verifier_from_key(
-      ccf::crypto::COSEKey::from_der_cert(der_from_pem_cert(cert)))};
+      ccf::crypto::COSEKey::from_der_cert(ccf::crypto::cert_pem_to_der(cert)))};
   auto wrong_payload = detached_payload;
   wrong_payload.back() ^= 0xff;
 
@@ -1029,7 +1012,7 @@ TEST_CASE("COSE verifier imports public keys and certificates")
         std::invalid_argument);
       CHECK_THROWS_AS(
         std::ignore = ccf::crypto::COSEKey::from_der_cert(
-          der_from_pem_cert(unsupported_cert)),
+          ccf::crypto::cert_pem_to_der(unsupported_cert)),
         std::invalid_argument);
       CHECK_THROWS_AS(
         ccf::crypto::make_cose_verifier_from_key(subject_key),

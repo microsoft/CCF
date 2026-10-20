@@ -223,7 +223,7 @@ def sendEntries (caps : Caps) (self : NodeID)
             fun entry =>
               entry.term == termAt state.log endIndex)
           = true
-      /\ (Not (state.isRetiredCommitted self) \/ previousIndex < endIndex))
+      /\ (Not (state.isRetiredCommitted self) \/ previousIndex + 1 < endIndex))
   caps.send
     (.appendEntriesRequest (makeAppendEntriesRequest state destination endIndex))
     destination
@@ -243,9 +243,8 @@ def findHighestPossibleMatch (log : List Entry) (index term : Nat) : Nat :=
 
 abbrev appendEntryMatchesLog (state : NodeState) (request : AppendEntriesRequest)
     : Prop :=
-  request.prevLogIndex = 0
-  \/ (request.prevLogIndex <= state.log.length
-      /\ termAt state.log request.prevLogIndex = request.prevLogTerm)
+  request.prevLogIndex <= state.log.length
+  /\ termAt state.log request.prevLogIndex = request.prevLogTerm
 
 /-- One-based index of the first overlapping entry with a different term. -/
 def firstTermConflictIndex (state : NodeState) (request : AppendEntriesRequest)

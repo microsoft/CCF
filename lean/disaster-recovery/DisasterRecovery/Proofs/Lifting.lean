@@ -67,11 +67,7 @@ def eraseEnvelope (envelope : Execution.Global.Envelope) : Model.Envelope :=
 
 /-- Removes send snapshots and histories to recover the executable network state. -/
 def erase (state : Execution.Global.State) : Model.State :=
-  {
-    nodes := state.system.nodes,
-    active := state.active,
-    network := state.network.map eraseEnvelope
-  }
+  { nodes := state.system.nodes, network := state.network.map eraseEnvelope }
 
 /-- Translates a decorated action into its executable model counterpart. -/
 def eraseAction : Execution.Global.Action -> Model.Action
@@ -280,7 +276,6 @@ lemma scheduled_step_some (config : Model.Config) (before after : Model.State)
     (node : Location) (event : Event)
     (h
       : (do
-          guard (before.active.contains node)
           let current <- MultiNodeTransitionSystem.nodeState before node
           let (next, effects) <- ((Model.protocol config).step (Capabilities.record node)
                                     node current event).run
@@ -295,7 +290,7 @@ lemma scheduled_step_some (config : Model.Config) (before after : Model.State)
             })
         = some after)
     : exists state output recovered,
-        node ∈ before.active
+        node ∈ config.active
         /\ MultiNodeTransitionSystem.nodeState before node = some state
         /\ ((step (Capabilities.record node) config.protocol recovered state event).run
               {}).map
@@ -317,8 +312,12 @@ lemma scheduled_step_some (config : Model.Config) (before after : Model.State)
                   ++ messages node recovered
                       (Execution.Local.step config.protocol state event).effects
             } := by
-  simp [Model.protocol, Option.bind_assoc, Option.bind_eq_some_iff, guard, failure] at h
-  rcases h with ⟨active, state, found, recovered, recoveredFound, next, sent, enabled, result⟩
+  have active : node ∈ config.active := by
+    by_contra inactive
+    simp [Model.protocol, guard, failure, inactive] at h
+  simp [Model.protocol, Option.bind_assoc, Option.bind_eq_some_iff, guard, failure,
+    active] at h
+  rcases h with ⟨state, found, recovered, recoveredFound, next, sent, enabled, result⟩
   have run := enabled
   change (step (Capabilities.record node) config.protocol recovered state event).run {}
     = some (next, sent) at run
@@ -429,7 +428,7 @@ lemma step_lifts (config : Model.Config)
           }, rfl, ?_, ?_⟩
           · have ghostFound : Execution.Global.nodeState before node = some state := found
             simp [Execution.Global.next, guard, failure, hasMessages, ghostFound,
-              show node ∈ before.active from active]
+              show node ∈ config.active from active]
           · rw [result, outputState]
             have unchanged := replace_found before.system.nodes node state nodup found
             simp only [erase, unchanged, List.map_append, projectedMessages]
@@ -449,7 +448,7 @@ lemma step_lifts (config : Model.Config)
                   if entry.1 == node then (node, output.state) else entry } },
             rfl, ?_, ?_⟩
           · simp [Execution.Global.next, system, accepted, guard, failure,
-              show node ∈ before.active from active]
+              show node ∈ config.active from active]
           · rw [erase_recordEffects, result, noMessages]
             simp [erase]
   | deliver envelope =>
@@ -463,7 +462,7 @@ lemma step_lifts (config : Model.Config)
           after envelope.target (Model.receive envelope.source envelope.payload)
           (by
             simp [Model.transitionSystem, MultiNodeTransitionSystem.lift, MultiNodeTransitionSystem.next,
-              membership, guard, failure, MultiNodeTransitionSystem.nodeState] at h ⊢
+              membership, guard, MultiNodeTransitionSystem.nodeState] at h ⊢
             exact h) with
         ⟨state, output, recovered, active, found, trans, _, _, result⟩
       have eventEq : Execution.Global.eventFor decorated =
@@ -511,7 +510,7 @@ lemma step_lifts (config : Model.Config)
       ⟩
       · simp [eraseAction, projected]
       · simp [Execution.Global.next, member, system, guard,
-          show decorated.target ∈ before.active from targetEq ▸ active]
+          show decorated.target ∈ config.active from targetEq ▸ active]
       · rw [erase_recordEffects, result, noMessages]
         simp [erase, removed, targetEq]
 
@@ -544,21 +543,21 @@ theorem model_initial_lifts (config : Model.Config) (state : Model.State)
         (Execution.Global.transitionSystem config).init decorated
         /\ erase decorated = state := by
   rcases initialized with
-    ⟨valid, _, keys, activeNodup, configured, network, nodes⟩
+    ⟨valid, covered, nodesNodup, network, nodes⟩
   have initialNodes :
-      config.protocol.expectedLocations.map (fun node => (node, initialNode node)) =
+      (state.nodes.map Prod.fst).map (fun node => (node, initialNode node)) =
         state.nodes := by
-    rw [← keys, List.map_map]
+    rw [List.map_map]
     conv_rhs => rw [← List.map_id state.nodes]
     apply List.map_congr_left
     intro entry member
     have initialized := nodes entry member
     change entry.2 = initialNode entry.1 at initialized
     exact Prod.ext rfl initialized.symm
-  refine ⟨Execution.Global.initial config state.active,
-    ⟨state.active, valid, activeNodup, configured, rfl⟩, ?_⟩
-  cases state
-  simp_all [erase, Execution.Global.initial, Execution.Local.initialSystem]
+  refine ⟨Execution.Global.initial config (state.nodes.map Prod.fst),
+    ⟨valid, _, nodesNodup, covered, rfl⟩, ?_⟩
+  rcases state with ⟨nodes, network⟩
+  simp_all [erase, Execution.Global.initial]
 
 theorem model_reachable_lifts {config : Model.Config} {state : Model.State}
     (reachable : (Model.transitionSystem config).Reachable state)

@@ -29,10 +29,7 @@ private def allNodes : List NodeID := List.range 15
 private def system := Model.transitionSystem modelConfig allNodes
 
 private def initial : State :=
-  {
-    nodes := allNodes.map fun node => (node, initialNodeState modelConfig node)
-    active := allNodes
-  }
+  { nodes := allNodes.map fun node => (node, initialNodeState modelConfig node) }
 
 private def check (condition : Bool) (message : String) : IO Unit :=
   unless condition do
@@ -450,8 +447,8 @@ private def ledgerLocalStartup : IO Unit := do
     check
       (decide (canStartElection configured destination)
         && configured.role == .follower
-        && state.active == initial.active)
-      "a covering signature must enable campaigning without changing network activity"
+        && state.nodes.map Prod.fst == initial.nodes.map Prod.fst)
+      "a covering signature must enable campaigning without changing network population"
     state ← apply state (.local destination (.timeout .election))
     check
       ((get state destination).role == .preVoteCandidate
@@ -771,6 +768,80 @@ example (caps : Caps) (self source : NodeID) (state : NodeState)
     : Model.Node.receive caps self source state (.requestPreVoteResponse response)
       = pure state := by
   simp [Model.Node.receive, unknown]
+
+private def appendEntriesZeroPrefix : IO Unit := do
+  for node in [0, 1] do
+    let state := initialNodeState modelConfig node
+    for previousTerm in [0, 1, BOOTSTRAP_TERM] do
+      let request : AppendEntriesRequest :=
+        {
+          term := BOOTSTRAP_TERM
+          prevLogIndex := 0
+          prevLogTerm := previousTerm
+          entries := []
+          primaryCommit := 0
+        }
+      check (decide (appendEntryMatchesLog state request) == (previousTerm == 0))
+        "index zero must match only previous term zero, regardless of the local log"
+      let some (received, effects) :=
+        (Model.Node.receive (CCF.Capabilities.record node) node 10 state
+          (.appendEntriesRequest request)).run
+          {}
+      | throw (IO.userError "a zero-prefix request must remain receivable")
+      let some { payload := .appendEntriesResponse response, .. } :=
+        effects.outgoing.head?
+      | throw (IO.userError "a zero-prefix request must receive a response")
+      check
+        (effects.outgoing.length == 1
+          && response.success == (previousTerm == 0)
+          && received.log == state.log
+          && received.commitIndex == state.commitIndex)
+        "a nonzero previous term at index zero must be rejected without changing the log"
+
+private def retiredSendBoundary : IO Unit := do
+  let self : NodeID := 0
+  let state : NodeState :=
+    {
+      (initialNodeState modelConfig self) with
+        log :=
+          [
+            {
+              term := BOOTSTRAP_TERM,
+              content := .transaction 0 { configuration := some {0, 1} }
+            },
+            {
+              term := BOOTSTRAP_TERM,
+              content := .transaction 1 { configuration := some {1} }
+            },
+            { term := BOOTSTRAP_TERM, content := .signature },
+            {
+              term := BOOTSTRAP_TERM,
+              content := .transaction 2 { retirementConfirmations := {0} }
+            },
+            { term := BOOTSTRAP_TERM, content := .signature }
+          ]
+        commitIndex := 5
+        sentIndex := fun _ => 3
+    }
+  for retired in [false, true] do
+    let state := { state with retiredCommittedIndex := if retired then some 4 else none }
+    check (decide (state.isRetiredCommitted self) == retired)
+      "the send-boundary fixture must distinguish final retirement"
+    for endIndex in [3, 4, 5] do
+      let result :=
+        (sendEntries (CCF.Capabilities.record self) self state 1 endIndex).run {}
+      let shouldSend := !retired || endIndex > 4
+      check (result.isSome == shouldSend)
+        "final retirement must suppress both empty and single-entry ranges, like C++"
+      if let some (received, effects) := result then
+        let some { payload := .appendEntriesRequest request, .. } :=
+          effects.outgoing.head?
+        | throw (IO.userError "an enabled range must send AppendEntries")
+        check
+          (effects.outgoing.length == 1
+            && request.entries.length == endIndex - 3
+            && received.sentIndex 1 == endIndex)
+          "an allowed range must send all selected entries and update the frontier"
 
 private def responseAdmission : IO Unit := do
   let self : NodeID := 0
@@ -1413,6 +1484,8 @@ def run : IO Unit := do
   nominationTerms
   appendEntriesResponseTerms
   responseAdmission
+  appendEntriesZeroPrefix
+  retiredSendBoundary
   batches
   overlappingAppendEntries
   reorderedDelivery

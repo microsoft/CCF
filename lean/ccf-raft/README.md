@@ -60,10 +60,12 @@ An empty log has no known membership, and no configuration is injected at index 
 
 Membership, quorum and retirement queries read each node's own ledger.
 No quorum exists without a configuration, and campaigning requires locally signed membership or locally recorded completed retirement.
-A running node can receive replication before it is eligible to campaign; the network's `active` list controls execution independently of membership.
+A running node can receive replication before it is eligible to campaign; there is no separate network activity filter.
 The initial primary can replicate and sign its genesis transaction through ordinary primary actions, without a persistent initial-primary exception.
 Rolling back a configuration or its covering signature immediately changes the corresponding local queries.
 When AppendEntries overlaps the local log, matching terms retain the existing entries; a new follower rolls back only to immediately before the first term conflict, matching C++.
+At previous index zero, the previous term must also be zero; a nonzero previous term is rejected, matching C++.
+The final-retirement send guard suppresses empty and single-entry ranges, matching C++'s inclusive-start comparison; longer ranges remain permitted by that guard.
 Committing a signature requires a separate majority in every active configuration whose transaction is at or before that signature.
 A later pending configuration does not block an earlier signature; this intentionally differs from the current C++ `update_commit` policy, tracked in [#8606](https://github.com/microsoft/CCF/issues/8606).
 Election quorums still require majorities in every active configuration.

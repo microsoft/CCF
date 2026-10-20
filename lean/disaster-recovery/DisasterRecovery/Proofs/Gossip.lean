@@ -246,9 +246,9 @@ lemma reachable_gossip_invariant {config : Config} {state : State}
     : Genuine config state.system.nodes /\ FrozenVotes state := by
   induction reachable with
   | initial initialized =>
-      obtain ⟨active, _, _, _, rfl⟩ := initialized
+      obtain ⟨_, nodes, _, _, rfl⟩ := initialized
       constructor
-      · simp [Genuine, initial, initialSystem, initialNode]
+      · simp [Genuine, initial, initialNode]
       · simp [FrozenVotes, initial]
   | step reachable transition ih =>
       have wf := reachable_well_formed reachable
@@ -384,7 +384,8 @@ lemma sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace}
     (inTrace : gossiped ∈ trace.states)
     (full
       : forall node nodeState,
-          (node, nodeState) ∈ gossiped.nodes
+          node ∈ config.protocol.expectedLocations
+          -> (node, nodeState) ∈ gossiped.nodes
           -> forall gossip, gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
     {envelope : Envelope} (sent : envelope ∈ ghost.sent) (vote : envelope.payload = .vote)
     : forall gossip,
@@ -396,8 +397,7 @@ lemma sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace}
     Lifting.model_reachable_lifts (valid.reachable inTrace)
   have configured := wf.activeConfigured _ (wf.sentSourceActive envelope sent)
   have sourceKey : envelope.source ∈ atGossip.system.nodes.map Prod.fst := by
-    rw [(reachable_well_formed gossipReachable).nodeKeys]
-    exact configured
+    exact (reachable_well_formed gossipReachable).nodeKeys _ configured
   obtain ⟨entry, entryMember, key⟩ := List.mem_map.mp sourceKey
   have originalPresent : (envelope.source, entry.2) ∈ gossiped.nodes := by
     simpa only [← projected, Lifting.erase, ← key] using entryMember
@@ -409,7 +409,7 @@ lemma sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace}
   · intro member
     exact genuine _ present (same.symm ▸ member)
   · intro member
-    have original := (full envelope.source entry.2 originalPresent gossip).mpr member
+    have original := (full envelope.source entry.2 configured originalPresent gossip).mpr member
     have finalGossip := evolves.gossips original
     simpa only [states, same] using finalGossip
 

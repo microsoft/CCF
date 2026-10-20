@@ -1671,6 +1671,121 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
+  "Deleted nodes are removed from nodes known to consensus" *
+  doctest::test_suite("multiple"))
+{
+  ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = ccf::kv::test::SecondBackupNodeId;
+
+  TestNode node0(node_id0);
+  auto& r0 = node0.raft;
+  auto r0c = channel_stub_proxy(r0);
+
+  aft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  config[node_id2] = {};
+  r0.add_configuration(0, config);
+  r0.force_become_primary();
+
+  DOCTEST_INFO("Node 2 is deleted from the configuration without retiring");
+  config.erase(node_id2);
+  auto deletion_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+  deletion_hooks->push_back(
+    std::make_unique<aft::ConfigurationChangeHook>(config, 1));
+  auto data = std::make_shared<std::vector<uint8_t>>(3, 1);
+  DOCTEST_REQUIRE(r0.replicate(
+    ccf::kv::BatchVector{{1, data, true, deletion_hooks}}, r0.get_view()));
+  const auto ack = as_bytes(aft::AppendEntriesResponse{
+    .term = r0.get_view(),
+    .last_log_idx = 1,
+    .success = aft::AppendEntriesResponseType::OK});
+  r0.recv_message(node_id1, ack.data(), ack.size());
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
+  DOCTEST_REQUIRE(r0.get_details().configs.size() == 1);
+
+  DOCTEST_INFO(
+    "Committing the new configuration alone does not stop the primary from "
+    "sending to node 2");
+  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
+  r0c->messages.clear();
+  r0.periodic(request_timeout);
+  DOCTEST_REQUIRE(
+    r0c->pop_first(aft::raft_append_entries, node_id2).has_value());
+
+  DOCTEST_INFO("The globally committed deletion does");
+  r0.remove_deleted_nodes(1, {node_id2});
+  DOCTEST_REQUIRE_FALSE(r0.get_details().acks.contains(node_id2));
+  r0c->messages.clear();
+  r0.periodic(request_timeout);
+  DOCTEST_REQUIRE_FALSE(
+    r0c->pop_first(aft::raft_append_entries, node_id2).has_value());
+  DOCTEST_REQUIRE(
+    r0c->pop_first(aft::raft_append_entries, node_id1).has_value());
+  DOCTEST_REQUIRE(r0.is_primary());
+}
+
+DOCTEST_TEST_CASE(
+  "Deleted nodes present in a later configuration remain known to consensus" *
+  doctest::test_suite("multiple"))
+{
+  ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = ccf::kv::test::SecondBackupNodeId;
+
+  TestNode node0(node_id0);
+  auto& r0 = node0.raft;
+
+  aft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  r0.add_configuration(0, config);
+  r0.force_become_primary();
+
+  DOCTEST_INFO(
+    "Node 2 is deleted while pending, which does not change the "
+    "configuration");
+  auto no_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+  auto data = std::make_shared<std::vector<uint8_t>>(3, 1);
+  DOCTEST_REQUIRE(r0.replicate(
+    ccf::kv::BatchVector{{1, data, true, no_hooks}}, r0.get_view()));
+
+  DOCTEST_INFO("Node 2 rejoins with the same identity and is trusted");
+  config[node_id2] = {};
+  auto trust_hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
+  trust_hooks->push_back(
+    std::make_unique<aft::ConfigurationChangeHook>(config, 2));
+  DOCTEST_REQUIRE(r0.replicate(
+    ccf::kv::BatchVector{{2, data, true, trust_hooks}}, r0.get_view()));
+  DOCTEST_REQUIRE(r0.get_details().configs.size() == 2);
+  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
+
+  DOCTEST_INFO(
+    "The deletion commits before the configuration which trusts node 2 "
+    "again");
+  auto ack = as_bytes(aft::AppendEntriesResponse{
+    .term = r0.get_view(),
+    .last_log_idx = 1,
+    .success = aft::AppendEntriesResponseType::OK});
+  r0.recv_message(node_id1, ack.data(), ack.size());
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
+  r0.remove_deleted_nodes(1, {node_id2});
+  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
+
+  DOCTEST_INFO("Commit continues to advance through the new configuration");
+  ack = as_bytes(aft::AppendEntriesResponse{
+    .term = r0.get_view(),
+    .last_log_idx = 2,
+    .success = aft::AppendEntriesResponseType::OK});
+  r0.recv_message(node_id1, ack.data(), ack.size());
+  DOCTEST_REQUIRE(r0.get_committed_seqno() == 2);
+  DOCTEST_REQUIRE(r0.get_details().configs.size() == 1);
+  DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
+  DOCTEST_REQUIRE(r0.is_primary());
+}
+
+DOCTEST_TEST_CASE(
   "Raft messages that cannot be parsed or authenticated are ignored" *
   doctest::test_suite("multiple"))
 {
@@ -2418,6 +2533,54 @@ DOCTEST_TEST_CASE(
     r1.force_become_primary(
       recovered_idx, recovered_view, view_history, recovered_idx),
     std::logic_error);
+}
+
+DOCTEST_TEST_CASE(
+  "Retired node cleanup is triggered by election, not forced leadership" *
+  doctest::test_suite("single"))
+{
+  ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
+  auto kv_store = std::make_shared<Store>(node_id);
+
+  size_t cleanup_count = 0;
+  TRaft r0(
+    raft_settings,
+    std::make_unique<Adaptor>(kv_store),
+    std::make_unique<aft::LedgerStubProxy>(node_id),
+    std::make_shared<aft::ChannelStubProxy>(),
+    std::make_shared<aft::State>(node_id),
+    [&cleanup_count]() { ++cleanup_count; });
+
+  aft::Configuration::Nodes config;
+  config[node_id] = {};
+  r0.add_configuration(0, config);
+
+  DOCTEST_SUBCASE("Forced at service start")
+  {
+    r0.force_become_primary();
+    DOCTEST_REQUIRE(r0.is_primary());
+    DOCTEST_REQUIRE(cleanup_count == 0);
+  }
+
+  DOCTEST_SUBCASE("Forced at the end of public recovery")
+  {
+    // As in node_state.h, a recovered primary's commit index is the last
+    // recovered seqno
+    const aft::Index recovered_idx = 7;
+    const aft::Term recovered_view = 3;
+    r0.force_become_primary(
+      recovered_idx, recovered_view, {1, 4, 6}, recovered_idx);
+    DOCTEST_REQUIRE(r0.is_primary());
+    DOCTEST_REQUIRE(cleanup_count == 0);
+  }
+
+  DOCTEST_SUBCASE("Elected")
+  {
+    r0.start_ticking();
+    r0.periodic(election_timeout * 2);
+    DOCTEST_REQUIRE(r0.is_primary());
+    DOCTEST_REQUIRE(cleanup_count == 1);
+  }
 }
 
 DOCTEST_TEST_CASE(
