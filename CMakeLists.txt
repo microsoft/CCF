@@ -1704,22 +1704,6 @@ if(BUILD_TESTS)
   # Blocking commit benchmark driven by locust. Its concurrent connections
   # exercise every configured worker thread, so this also covers the
   # multi-threaded basic workload.
-  set(
-    BASIC_BLOCKING_LOCUST_ARGS
-    --package
-    "samples/apps/basic/basic"
-    # Keep snapshot disk activity out of the measurement.
-    --snapshot-tx-interval
-    10000
-    --users
-    320
-    --spawn-rate
-    320
-    --locust-processes
-    10
-    --measure-time-s
-    20
-  )
   add_e2e_test(
     NAME basic_blocking_locust
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
@@ -1727,9 +1711,21 @@ if(BUILD_TESTS)
     CONFIGURATIONS perf
     BUILD_DEPENDS basic
     ADDITIONAL_ARGS
-      ${BASIC_BLOCKING_LOCUST_ARGS}
+      --package
+      "samples/apps/basic/basic"
       --perf-label
       "Basic Blocking"
+      # Keep snapshot disk activity out of the measurement.
+      --snapshot-tx-interval
+      10000
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      10
+      --measure-time-s
+      20
       # Blocking writes return on commit, and commit cannot outpace the
       # signature interval, so this sweeps from latency-bound to capacity-bound.
       --sig-ms-intervals
@@ -1745,9 +1741,20 @@ if(BUILD_TESTS)
     CONFIGURATIONS perf
     BUILD_DEPENDS basic
     ADDITIONAL_ARGS
-      ${BASIC_BLOCKING_LOCUST_ARGS}
+      --package
+      "samples/apps/basic/basic"
       --perf-label
       "FluentD"
+      --snapshot-tx-interval
+      10000
+      --users
+      320
+      --spawn-rate
+      320
+      --locust-processes
+      10
+      --measure-time-s
+      20
       --sig-ms-intervals
       20
   )
