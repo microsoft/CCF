@@ -185,6 +185,7 @@ namespace aft
       node_id(std::move(node_id_)),
       pre_vote_enabled(pre_vote_enabled_)
     {}
+
     State() = default;
 
     ccf::ds::Mutex lock;
@@ -233,6 +234,7 @@ namespace aft
 
     bool pre_vote_enabled = true;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
   DECLARE_JSON_REQUIRED_FIELDS(
     State,

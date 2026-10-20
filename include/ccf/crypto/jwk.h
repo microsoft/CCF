@@ -30,6 +30,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKey&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, kty);
   DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c);
@@ -60,6 +61,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyData&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKeyData);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyData, kty);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -162,6 +164,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyECPublic&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPublic, JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyECPublic, crv, x, y);
 
@@ -171,6 +174,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyECPrivate&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyECPrivate, JsonWebKeyECPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyECPrivate, d);
 
@@ -181,6 +185,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyRSAPublic&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSAPublic, JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSAPublic, n, e);
 
@@ -195,6 +200,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyRSAPrivate&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyRSAPrivate, JsonWebKeyRSAPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyRSAPrivate, d, p, q, dp, dq, qi);
 
@@ -205,6 +211,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyEdDSAPublic&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyEdDSAPublic, JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyEdDSAPublic, crv, x);
 
@@ -214,6 +221,7 @@ namespace ccf::crypto
 
     bool operator==(const JsonWebKeyEdDSAPrivate&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(JsonWebKeyEdDSAPrivate, JsonWebKeyEdDSAPublic);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyEdDSAPrivate, d);
 }

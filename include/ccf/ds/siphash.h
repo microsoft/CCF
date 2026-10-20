@@ -205,4 +205,5 @@ namespace ccf::siphash
       in.data(), in.size(), key);
   }
 }
+
 // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)

@@ -20,6 +20,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(SnapshotHash, hash, version);
 
   using SnapshotEvidence = ServiceValue<SnapshotHash>;
+
   namespace Tables
   {
     static constexpr auto SNAPSHOT_EVIDENCE =

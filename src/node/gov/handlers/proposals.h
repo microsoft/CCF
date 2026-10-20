@@ -29,6 +29,7 @@ namespace ccf::gov::endpoints
       std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
       std::optional<ccf::jsgov::Failure> failure = std::nullopt;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Proposal);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       Proposal,
@@ -55,6 +56,7 @@ namespace ccf::gov::endpoints
     {
       std::vector<Proposal> value;
     };
+
     DECLARE_JSON_TYPE(ProposalList);
     DECLARE_JSON_REQUIRED_FIELDS(ProposalList, value);
   }

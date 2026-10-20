@@ -31,11 +31,13 @@ namespace ccf
   struct Endorsement
   {
     Authority authority;
+
     bool operator==(const Endorsement& other) const
     {
       return authority == other.authority;
     }
   };
+
   DECLARE_JSON_TYPE(Endorsement);
   DECLARE_JSON_REQUIRED_FIELDS(Endorsement, authority);
 
@@ -48,6 +50,7 @@ namespace ccf
     std::string rpcport;
     std::string pubport;
   };
+
   DECLARE_JSON_TYPE(NodeInfoNetwork_v1);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v1, rpchost, pubhost, nodehost, nodeport, rpcport, pubport);
@@ -71,6 +74,7 @@ namespace ccf
 
     bool operator==(const RedirectionResolverConfig&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RedirectionResolverConfig);
   DECLARE_JSON_REQUIRED_FIELDS(RedirectionResolverConfig, kind);
   DECLARE_JSON_OPTIONAL_FIELDS(RedirectionResolverConfig, target);
@@ -181,6 +185,7 @@ namespace ccf
   struct NodeInfoNetwork : public NodeInfoNetwork_v2
   {
     NodeInfoNetwork() = default;
+
     NodeInfoNetwork(const NodeInfoNetwork_v2& other) : NodeInfoNetwork_v2(other)
     {}
 
@@ -282,4 +287,5 @@ struct formatter<ccf::Authority>
     }
   }
 };
+
 FMT_END_NAMESPACE

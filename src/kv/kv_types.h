@@ -572,6 +572,7 @@ namespace ccf::kv
       const ccf::TxID& tx_id,
       EntryType entry_type = EntryType::WriteSet,
       bool historical_hint = false) = 0;
+
     virtual bool encrypt(
       std::span<const uint8_t> plain,
       std::span<const uint8_t> additional_data,
@@ -620,6 +621,7 @@ namespace ccf::kv
       }
       return true;
     }
+
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
@@ -645,6 +647,7 @@ namespace ccf::kv
         "ce:{}.{}:{}", tx_id.view, tx_id.seqno, ccf::ds::to_hex(nonce));
     }
   };
+
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
 
   class AbstractSnapshotter
@@ -657,6 +660,7 @@ namespace ccf::kv
     virtual void commit(ccf::kv::Version v, bool generate_snapshot) = 0;
     virtual void rollback(ccf::kv::Version v) = 0;
   };
+
   using SnapshotterPtr = std::shared_ptr<AbstractSnapshotter>;
 
   class AbstractChangeSet
@@ -679,6 +683,7 @@ namespace ccf::kv
   };
 
   class AbstractStore;
+
   class AbstractMap : public std::enable_shared_from_this<AbstractMap>,
                       public GetName
   {
@@ -822,10 +827,12 @@ namespace ccf::kv
   {
   public:
     ScopedStoreMapsLock() = delete;
+
     ScopedStoreMapsLock(StorePointer _store) : store(std::move(_store))
     {
       store->lock_maps();
     }
+
     ~ScopedStoreMapsLock()
     {
       store->unlock_maps();

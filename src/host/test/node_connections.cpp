@@ -50,7 +50,9 @@ namespace
 
   public:
     MockSocket();
+
     MockSocket(std::nullptr_t) : impl(nullptr) {}
+
     MockSocket(bool /*is_client*/, std::optional<std::chrono::milliseconds>);
 
     MockSocketImpl* operator->() const
@@ -225,6 +227,7 @@ namespace
   };
 
   MockSocket::MockSocket() : impl(std::make_shared<MockSocketImpl>()) {}
+
   MockSocket::MockSocket(bool, std::optional<std::chrono::milliseconds>) :
     impl(std::make_shared<MockSocketImpl>())
   {}

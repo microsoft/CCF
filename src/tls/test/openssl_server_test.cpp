@@ -535,6 +535,7 @@ namespace
     }
 
     void send_data(std::vector<uint8_t>&& /*data*/) override {}
+
     void close_session() override {}
   };
 }
@@ -845,6 +846,7 @@ TEST_CASE("Transport shutdown drains TLS tasks with no background workers")
       ccf::tasks::set_task_threads(4);
     }
   } restore_workers;
+
   ccf::tasks::set_task_threads(0);
 
   auto [cert, key] = make_server_cert();
@@ -1312,6 +1314,7 @@ TEST_CASE("Idle expiry closes connections with blocked output")
   struct StopOnExit
   {
     std::shared_ptr<OpenSSLServer> server;
+
     ~StopOnExit()
     {
       server->stop(OpenSSLServer::LoopState::Running);
@@ -1320,14 +1323,17 @@ TEST_CASE("Idle expiry closes connections with blocked output")
 
   const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   REQUIRE(fd >= 0);
+
   struct CloseSocketOnExit
   {
     int fd;
+
     ~CloseSocketOnExit()
     {
       ::close(fd);
     }
   } close_socket_on_exit{fd};
+
   const int receive_buffer_size = 4096;
   REQUIRE(
     setsockopt(
@@ -1511,14 +1517,17 @@ TEST_CASE("Coalesced concurrent notifications deliver every queued response")
   UVLoopRunner loop;
   server->start();
   loop.start();
+
   struct StopOnExit
   {
     std::shared_ptr<OpenSSLServer> server;
+
     ~StopOnExit()
     {
       server->stop(OpenSSLServer::LoopState::Running);
     }
   } stop_on_exit{server};
+
   const auto responses = tls_collect_http_responses(
     server->port(), {}, producers * responses_per_producer);
   server->stop(OpenSSLServer::LoopState::Running);

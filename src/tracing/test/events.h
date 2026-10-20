@@ -16,6 +16,7 @@ namespace request_trace
     int number;
     bool flag;
   };
+
   DECLARE_MSGPACK_TYPE(Nested);
   DECLARE_MSGPACK_FIELDS(Nested, number, flag);
 

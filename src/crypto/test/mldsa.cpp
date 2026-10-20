@@ -75,6 +75,7 @@ namespace
     }
     throw std::logic_error("Unknown parameter set in test table");
   }
+
   constexpr size_t MAX_CONTEXT_BYTES = 255;
 
   constexpr std::array<uint8_t, 7> message = {0, 1, 2, 127, 128, 254, 255};

@@ -866,6 +866,7 @@ struct CustomClass
 // These macros allow the default nlohmann JSON serialiser to be used
 DECLARE_JSON_TYPE(CustomClass);
 DECLARE_JSON_REQUIRED_FIELDS(CustomClass, s, n);
+
 // SNIPPET_END: CustomClass definition
 
 // Not really intended to be extended, but lets us use the BlitSerialiser for
@@ -921,6 +922,7 @@ struct CustomSerialiser
 
   static constexpr auto size_of_n = 8;
   static constexpr auto size_of_size_of_s = 8;
+
   static ccf::kv::serialisers::SerialisedEntry to_serialised(
     const CustomClass& cc)
   {
@@ -950,6 +952,7 @@ struct CustomSerialiser
     return cc;
   }
 };
+
 // SNIPPET_END: CustomSerialiser definition
 
 struct CustomJsonSerialiser

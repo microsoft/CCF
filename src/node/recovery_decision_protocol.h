@@ -21,6 +21,7 @@ namespace ccf::recovery_decision_protocol
   public:
     RequestNodeInfo info;
   };
+
   DECLARE_JSON_TYPE(TaggedWithNodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(TaggedWithNodeInfo, info);
 
@@ -28,6 +29,7 @@ namespace ccf::recovery_decision_protocol
   {
     ccf::TxID txid{};
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(GossipRequest, TaggedWithNodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(GossipRequest, txid);
 
@@ -51,6 +53,7 @@ namespace ccf::recovery_decision_protocol
     std::optional<OpenKinds> open_kind = std::nullopt;
     bool restart = false;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(AdvanceTrace);
   DECLARE_JSON_REQUIRED_FIELDS(
     AdvanceTrace, pre, pre_timeout, post, post_timeout);
@@ -60,6 +63,7 @@ namespace ccf::recovery_decision_protocol
 namespace ccf
 {
   class NodeState;
+
   class RecoveryDecisionProtocolSubsystem
   {
   private:

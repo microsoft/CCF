@@ -1534,6 +1534,7 @@ TEST_CASE("x509 time")
         ccf::nonstd::SystemClock::time_point to;
         std::optional<uint32_t> maximum_validity_period_days = std::nullopt;
       };
+
       Input input;
 
       bool expected_verification_result;
