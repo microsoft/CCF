@@ -136,9 +136,8 @@ lemma notification_opening_state {config : Model.Config} {trace : Properties.Glo
     {index : Nat} {node : Location} {kind : OpenKind}
     (notification
       : Properties.Trace.NotificationAt config trace index node (.opening kind))
-    : exists after current,
-        after ∈ trace.states
-        /\ (node, current) ∈ after.nodes
+    : exists current,
+        (node, current) ∈ (trace.states (index + 1)).nodes
         /\ current.openKind = some kind := by
   obtain ⟨before, after, action, nodeBefore, nodeAfter, outputs,
     _, atAfter, _, _, _, foundAfter, enabled, notified⟩ := notification
@@ -162,7 +161,8 @@ lemma notification_opening_state {config : Model.Config} {trace : Properties.Glo
   have opened := (Quorum.opening_effect_state config.protocol nodeBefore
     (Properties.Trace.event action) kind recorded).2
   rw [stateEq] at opened
-  refine ⟨after, nodeAfter, List.mem_iff_getElem?.mpr ⟨_, atAfter⟩, ?_, opened⟩
+  refine ⟨nodeAfter, ?_, opened⟩
+  rw [atAfter]
   obtain ⟨entry, found, value⟩ := Option.map_eq_some_iff.mp foundAfter
   have key := beq_iff_eq.mp
     (List.find?_some (p := fun entry : Location × NodeState => entry.1 == node) found)

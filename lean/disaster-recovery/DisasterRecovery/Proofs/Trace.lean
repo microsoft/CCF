@@ -38,68 +38,78 @@ lemma Path.run {system : TransitionSystem State Action} {before tail after}
       obtain ⟨actions, rest⟩ := ih
       exact ⟨_, .cons step rest⟩
 
-lemma Path.valid {system : TransitionSystem State Action} {before tail after}
-    (path : Path system before tail after) (initialized : system.init before)
-    : (Execution.Trace.mk (before :: tail)).Valid system := by
-  refine ⟨⟨before, rfl, initialized⟩, ?_⟩
-  clear initialized
-  induction path with
-  | nil =>
-      intro i left right first second
-      cases i <;> simp at second
-  | cons step _ ih =>
-      intro i left right first second
-      cases i with
-      | zero =>
-          simp only [Nat.zero_add, List.getElem?_cons_zero, List.getElem?_cons_succ,
-            Option.some.injEq] at first second
-          subst left right
-          exact ⟨_, step⟩
-      | succ i => exact ih i left right first second
-
 lemma valid_path {system : TransitionSystem State Action} {trace : Execution.Trace State}
-    (valid : trace.Valid system)
-    : exists before tail after,
-        trace.states = before :: tail
-        /\ system.init before
-        /\ Path system before tail after := by
-  obtain ⟨before, first, initialized⟩ := valid.1
-  cases states : trace.states with
-  | nil => simp [states] at first
-  | cons head tail =>
-      have equal : head = before := by simpa [states] using first
-      subst head
-      refine ⟨before, tail, ?_⟩
-      have adjacent := valid.2
-      rw [states] at adjacent
-      have paths : forall (before : State) (tail : List State),
-          (forall (i : Nat) left right, (before :: tail)[i]? = some left ->
-            (before :: tail)[i + 1]? = some right ->
-            exists action, system.step left action = some right) ->
-          exists after, Path system before tail after := by
-        intro before tail
-        induction tail generalizing before with
-        | nil => exact fun _ => ⟨before, .nil _⟩
-        | cons middle tail ih =>
-            intro linked
-            obtain ⟨action, step⟩ := linked 0 before middle rfl rfl
-            obtain ⟨after, rest⟩ := ih middle (fun i => linked (i + 1))
-            exact ⟨after, .cons step rest⟩
-      obtain ⟨after, path⟩ := paths before tail adjacent
-      exact ⟨after, rfl, initialized, path⟩
+    (valid : trace.Valid system) (start count : Nat)
+    : Path system (trace.states start)
+        ((List.range count).map fun offset => trace.states (start + offset + 1))
+        (trace.states (start + count)) := by
+  induction count generalizing start with
+  | zero => exact .nil _
+  | succ count ih =>
+      obtain ⟨action, step⟩ := valid.2 start
+      have rest := ih (start + 1)
+      rw [List.range_succ_eq_map, List.map_cons, List.map_map]
+      refine .cons step ?_
+      simpa only [Function.comp_def, Nat.add_assoc, Nat.add_comm 1, Nat.add_zero]
+        using rest
 
-lemma Path.suffix {system : TransitionSystem State Action} {before tail after}
-    (path : Path system before tail after) {state : State}
-    (member : state ∈ before :: tail)
-    : exists rest, Path system state rest after := by
-  induction path with
-  | nil =>
-      simp only [List.mem_singleton] at member
-      subst state
-      exact ⟨[], .nil _⟩
-  | cons step rest ih =>
+/-- Every finite collection of trace indices lies below one bound. -/
+lemma exists_bound {α : Type} {P : α -> Nat -> Prop} (items : List α)
+    (indexed : forall item, item ∈ items -> exists index, P item index)
+    : exists bound,
+        forall item, item ∈ items -> exists index, index <= bound /\ P item index := by
+  induction items with
+  | nil => exact ⟨0, by simp⟩
+  | cons head tail ih =>
+      obtain ⟨headIndex, headHolds⟩ := indexed head (by simp)
+      obtain ⟨bound, bounded⟩ := ih fun item member => indexed item (by simp [member])
+      refine ⟨headIndex + bound, fun item member => ?_⟩
       rcases List.mem_cons.mp member with rfl | member
-      · exact ⟨_, .cons step rest⟩
-      · exact ih member
+      · exact ⟨headIndex, by omega, headHolds⟩
+      · obtain ⟨index, le, holds⟩ := bounded item member
+        exact ⟨index, by omega, holds⟩
+
+/-- An infinite trace that visits `states`, then `final` forever. -/
+def lasso (states : List State) (final : State) : Execution.Trace State :=
+  ⟨fun index => (states ++ [final]).getD index final⟩
+
+lemma lasso_states_beyond {states : List State} {final : State} {index : Nat}
+    (beyond : states.length <= index)
+    : (lasso states final).states index = final := by
+  simp only [lasso, List.getD_eq_getElem?_getD, List.getElem?_append_right beyond]
+  cases same : index - states.length <;> simp
+
+/-- Every lasso state is one of its listed states or its final state. -/
+lemma lasso_states_mem (states : List State) (final : State) (index : Nat)
+    : (lasso states final).states index ∈ states ++ [final] := by
+  simp only [lasso, List.getD_eq_getElem?_getD]
+  cases found : (states ++ [final])[index]? with
+  | none =>
+      simp
+  | some state =>
+      exact List.mem_iff_getElem?.mpr ⟨index, found⟩
+
+/-- A lasso is valid when it starts initially, each listed step is enabled, and
+`final` has an enabled action returning to itself. -/
+lemma lasso_valid {system : TransitionSystem State Action} {states : List State}
+    {final : State}
+    (initialized : system.init ((states ++ [final]).getD 0 final))
+    (adjacent
+      : forall index : Fin ((states ++ [final]).length - 1),
+          exists action,
+            system.step ((states ++ [final])[index.val]'(by omega)) action
+            = some ((states ++ [final])[index.val + 1]'(by omega)))
+    (loop : exists action, system.step final action = some final)
+    : (lasso states final).Valid system := by
+  refine ⟨initialized, fun index => ?_⟩
+  by_cases inside : index < states.length
+  · obtain ⟨action, step⟩ := adjacent ⟨index, by simp; omega⟩
+    refine ⟨action, ?_⟩
+    simpa only [lasso, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem (show index < (states ++ [final]).length by simp; omega),
+      List.getElem?_eq_getElem (show index + 1 < (states ++ [final]).length by simp; omega),
+      Option.getD_some] using step
+  · rw [lasso_states_beyond (by omega), lasso_states_beyond (by omega)]
+    exact loop
 
 end DisasterRecovery.Proofs.Trace
