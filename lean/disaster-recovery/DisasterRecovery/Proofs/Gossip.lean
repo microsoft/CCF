@@ -279,13 +279,13 @@ lemma steps_evolve {config : Model.Config} {before after : Model.State} {steps}
       exact ⟨updated, present', evolves_trans evolves evolves'⟩
 
 lemma trace_node_final {config : Model.Config} {trace : Properties.GlobalTrace}
-    (valid : trace.Valid (Model.transitionSystem config)) {bound : Nat} {ghost : State}
-    (linked : History.Correspondence config trace bound ghost) {index : Nat}
-    (le : index <= bound) {node : Location} {current : NodeState}
-    (present : (node, current) ∈ (trace.states index).nodes)
+    (valid : trace.Valid (Model.transitionSystem config)) {bound : Nat}
+    {ghost : State} (linked : History.Correspondence config trace bound ghost)
+    {i : Nat} {state : Model.State} (le : i <= bound) (found : trace.get? i = some state)
+    {node : Location} {current : NodeState} (present : (node, current) ∈ state.nodes)
     : exists final, (node, final) ∈ ghost.system.nodes /\ Evolves current final := by
-  obtain ⟨suffix, run⟩ := linked.suffix index le
-  exact steps_evolve run (valid.reachable ⟨index, rfl⟩) present
+  obtain ⟨suffix, run⟩ := linked.suffix i state le found
+  exact steps_evolve run (valid.reachable (Stream'.Seq.get?_mem found)) present
 
 lemma quorum_notification_final_votes {config : Model.Config}
     {trace : Properties.GlobalTrace} (valid : trace.Valid (Model.transitionSystem config))
@@ -297,14 +297,15 @@ lemma quorum_notification_final_votes {config : Model.Config}
     : exists final,
         (node, final) ∈ ghost.system.nodes
         /\ voteQuorum config.protocol <= final.votes.length := by
-  obtain ⟨current, present, opened⟩ := Observed.notification_opening_state notification
+  obtain ⟨after, current, inTrace, present, opened⟩ :=
+    Observed.notification_opening_state notification
   obtain ⟨atOpening, openingReachable, projected⟩ :=
-    Lifting.model_reachable_lifts (valid.reachable ⟨index + 1, rfl⟩)
+    Lifting.model_reachable_lifts (valid.reachable (Stream'.Seq.get?_mem inTrace))
   have openingPresent : (node, current) ∈ atOpening.system.nodes := by
     simpa only [← projected, Lifting.erase] using present
   have nodup := (reachable_quorum_invariant openingReachable).votesNodup _ openingPresent
   have threshold := Observed.reachable_quorum_thresholds openingReachable _ openingPresent opened
-  obtain ⟨final, finalMember, evolves⟩ := trace_node_final valid linked le present
+  obtain ⟨final, finalMember, evolves⟩ := trace_node_final valid linked le inTrace present
   have subset : current.votes.toFinset ⊆ final.votes.toFinset := by
     intro voter member
     exact List.mem_toFinset.mpr (evolves.votes (List.mem_toFinset.mp member))
@@ -312,12 +313,13 @@ lemma quorum_notification_final_votes {config : Model.Config}
   rw [List.toFinset_card_of_nodup nodup] at count
   exact ⟨final, finalMember, threshold.trans (count.trans (List.toFinset_card_le _))⟩
 
-/-- `node` has received its own gossip in some trace state up to `bound`. -/
+/-- `node` has accepted gossip from itself in a trace state up to `bound`. -/
 def OwnGossipBy (trace : Properties.GlobalTrace) (bound : Nat) (node : Location) : Prop :=
-  exists index,
-    index <= bound
+  exists i state,
+    i <= bound
+    /\ trace.get? i = some state
     /\ exists nodeState txid,
-        (node, nodeState) ∈ (trace.states index).nodes /\ (node, txid) ∈ nodeState.gossips
+        (node, nodeState) ∈ state.nodes /\ (node, txid) ∈ nodeState.gossips
 
 lemma sent_vote_preserves_own {config : Config} {trace : Properties.GlobalTrace}
     {bound : Nat} {ghost : State} (valid : trace.Valid (Model.transitionSystem config))
@@ -331,8 +333,8 @@ lemma sent_vote_preserves_own {config : Config} {trace : Properties.GlobalTrace}
   have wf := reachable_well_formed linked.reachable
   obtain ⟨genuine, frozen⟩ := reachable_gossip_invariant linked.reachable
   obtain ⟨current, present, _, same⟩ := frozen envelope sent vote
-  obtain ⟨index, le, original, txid, originalPresent, ownGossip⟩ := own
-  obtain ⟨final, finalMember, evolves⟩ := trace_node_final valid linked le originalPresent
+  obtain ⟨i, witness, le, found, original, txid, originalPresent, ownGossip⟩ := own
+  obtain ⟨final, finalMember, evolves⟩ := trace_node_final valid linked le found originalPresent
   have states : final = current :=
     congrArg Prod.snd (eq_of_key_eq wf.nodeKeysNodup finalMember present rfl)
   have ownCurrent : (envelope.source, txid) ∈ current.gossips := by
@@ -353,24 +355,30 @@ lemma sent_vote_preserves_own {config : Config} {trace : Properties.GlobalTrace}
     Committed.maximumGossip_upper_bound greatest ownSnapshot⟩
 
 lemma quorum_open_preserves_commit : Properties.QuorumOpenPreservesCommit := by
-  rintro config trace _ opener current ⟨valid, ⟨openIndex, rfl⟩, present, opened, own⟩
-  obtain ⟨ownBound, ownBounded⟩ := Trace.exists_bound current.votes fun voter voted => by
-    obtain ⟨_, ⟨index, rfl⟩, rest⟩ := own voter voted
-    exact ⟨index, rest⟩
-  have own : forall voter, voter ∈ current.votes -> OwnGossipBy trace (openIndex + ownBound) voter :=
+  rintro config trace state opener current ⟨valid, inTrace, present, opened, own⟩
+  obtain ⟨openIndex, found⟩ := Stream'.Seq.mem_iff_exists_get?.mp inTrace
+  obtain ⟨bound, boundIn, openLe, bounded⟩ :=
+    Trace.exists_bound (P := fun voter i => exists witness, trace.get? i = some witness
+        /\ exists nodeState txid,
+            (voter, nodeState) ∈ witness.nodes /\ (voter, txid) ∈ nodeState.gossips)
+      (Option.isSome_iff_exists.mpr ⟨_, found.symm⟩) current.votes fun voter voted => by
+        obtain ⟨witness, member, rest⟩ := own voter voted
+        obtain ⟨i, atI⟩ := Stream'.Seq.mem_iff_exists_get?.mp member
+        exact ⟨i, Option.isSome_iff_exists.mpr ⟨_, atI.symm⟩, witness, atI.symm, rest⟩
+  have own : forall voter, voter ∈ current.votes -> OwnGossipBy trace bound voter :=
     fun voter voted => by
-      obtain ⟨index, le, rest⟩ := ownBounded voter voted
-      exact ⟨index, by omega, rest⟩
-  obtain ⟨ghost, linked⟩ := History.history_correspondence trace valid (openIndex + ownBound)
+      obtain ⟨i, le, witness, atI, rest⟩ := bounded voter voted
+      exact ⟨i, witness, le, atI, rest⟩
+  obtain ⟨ghost, linked⟩ := History.history_correspondence trace valid boundIn
   have invariant := reachable_quorum_invariant linked.reachable
-  have stateReachable := valid.reachable ⟨openIndex, rfl⟩
+  have stateReachable := valid.reachable inTrace
   obtain ⟨atOpening, openingReachable, projected⟩ := Lifting.model_reachable_lifts stateReachable
   have openingPresent : (opener, current) ∈ atOpening.system.nodes := by
     simpa only [← projected, Lifting.erase] using present
   have nodup := (reachable_quorum_invariant openingReachable).votesNodup _ openingPresent
   have threshold := Observed.reachable_quorum_thresholds openingReachable _ openingPresent opened
   obtain ⟨final, finalMember, evolves⟩ :=
-    trace_node_final valid linked (Nat.le_add_right _ _) present
+    trace_node_final valid linked openLe found.symm present
   have votesSent : forall voter, voter ∈ current.votes -> Predicates.SentVote ghost voter opener :=
     fun voter member => invariant.votesSent _ finalMember voter (evolves.votes member)
   have anyVote : exists voter, voter ∈ current.votes := by
@@ -395,12 +403,12 @@ lemma quorum_open_preserves_commit : Properties.QuorumOpenPreservesCommit := by
 
 lemma sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace}
     {bound : Nat} {ghost : State} (valid : trace.Valid (Model.transitionSystem config))
-    (linked : History.Correspondence config trace bound ghost) {index : Nat}
-    (le : index <= bound)
+    (linked : History.Correspondence config trace bound ghost) {i : Nat}
+    {gossiped : Model.State} (le : i <= bound) (inTrace : trace.get? i = some gossiped)
     (full
       : forall node nodeState,
           node ∈ config.protocol.expectedLocations
-          -> (node, nodeState) ∈ (trace.states index).nodes
+          -> (node, nodeState) ∈ gossiped.nodes
           -> forall gossip, gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
     {envelope : Envelope} (sent : envelope ∈ ghost.sent) (vote : envelope.payload = .vote)
     : forall gossip,
@@ -409,14 +417,15 @@ lemma sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace}
   obtain ⟨genuine, frozen⟩ := reachable_gossip_invariant linked.reachable
   obtain ⟨current, present, _, same⟩ := frozen envelope sent vote
   obtain ⟨atGossip, gossipReachable, projected⟩ :=
-    Lifting.model_reachable_lifts (valid.reachable ⟨index, rfl⟩)
+    Lifting.model_reachable_lifts (valid.reachable (Stream'.Seq.get?_mem inTrace))
   have configured := wf.sentSourceConfigured envelope sent
   have sourceKey : envelope.source ∈ atGossip.system.nodes.map Prod.fst := by
     exact (reachable_well_formed gossipReachable).nodeKeys _ configured
   obtain ⟨entry, entryMember, key⟩ := List.mem_map.mp sourceKey
-  have originalPresent : (envelope.source, entry.2) ∈ (trace.states index).nodes := by
+  have originalPresent : (envelope.source, entry.2) ∈ gossiped.nodes := by
     simpa only [← projected, Lifting.erase, ← key] using entryMember
-  obtain ⟨final, finalMember, evolves⟩ := trace_node_final valid linked le originalPresent
+  obtain ⟨final, finalMember, evolves⟩ :=
+    trace_node_final valid linked le inTrace originalPresent
   have states : final = current :=
     congrArg Prod.snd (eq_of_key_eq wf.nodeKeysNodup finalMember present rfl)
   intro gossip
@@ -429,21 +438,26 @@ lemma sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace}
     simpa only [states, same] using finalGossip
 
 lemma full_gossip_preserves_commit : Properties.FullGossipPreservesCommit := by
-  rintro config trace _ _ opener current
-    ⟨valid, ⟨gossipIndex, rfl⟩, full, ⟨openIndex, rfl⟩, present, opening⟩
-  obtain ⟨ghost, linked⟩ := History.history_correspondence trace valid (gossipIndex + openIndex)
+  rintro config trace gossiped opened opener current
+    ⟨valid, gossipedMember, full, openedMember, present, opening⟩
+  obtain ⟨gossipIndex, gossipFound⟩ := Stream'.Seq.mem_iff_exists_get?.mp gossipedMember
+  obtain ⟨openIndex, openFound⟩ := Stream'.Seq.mem_iff_exists_get?.mp openedMember
+  obtain ⟨ghost, linked⟩ := History.history_correspondence trace valid
+    (Trace.max_isSome (Option.isSome_iff_exists.mpr ⟨_, gossipFound.symm⟩)
+      (Option.isSome_iff_exists.mpr ⟨_, openFound.symm⟩))
   obtain ⟨atOpening, openingReachable, projected⟩ :=
-    Lifting.model_reachable_lifts (valid.reachable ⟨openIndex, rfl⟩)
+    Lifting.model_reachable_lifts (valid.reachable openedMember)
   have openingPresent : (opener, current) ∈ atOpening.system.nodes := by
     simpa only [← projected, Lifting.erase] using present
   obtain ⟨voter, voted⟩ :=
     Observed.reachable_opening_has_vote openingReachable _ openingPresent opening
   obtain ⟨final, finalMember, evolves⟩ :=
-    trace_node_final valid linked (Nat.le_add_left _ _) present
+    trace_node_final valid linked (le_max_right _ _) openFound.symm present
   have invariant := reachable_quorum_invariant linked.reachable
   obtain ⟨envelope, sent, _, target, vote⟩ :=
     invariant.votesSent _ finalMember voter (evolves.votes voted)
-  have complete := sent_vote_full_gossip valid linked (Nat.le_add_right _ _) full sent vote
+  have complete :=
+    sent_vote_full_gossip valid linked (le_max_left _ _) gossipFound.symm full sent vote
   obtain ⟨selected, txid, choice, maximum⟩ := invariant.sentVotesSelected envelope sent vote
   have wf := reachable_well_formed linked.reachable
   have selectedEq : selected = envelope.target :=

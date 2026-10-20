@@ -38,78 +38,59 @@ lemma Path.run {system : TransitionSystem State Action} {before tail after}
       obtain ⟨actions, rest⟩ := ih
       exact ⟨_, .cons step rest⟩
 
+/-- Enabled steps connect a state of a valid trace to every later state of the trace. -/
 lemma valid_path {system : TransitionSystem State Action} {trace : Execution.Trace State}
-    (valid : trace.Valid system) (start count : Nat)
-    : Path system (trace.states start)
-        ((List.range count).map fun offset => trace.states (start + offset + 1))
-        (trace.states (start + count)) := by
-  induction count generalizing start with
-  | zero => exact .nil _
+    (valid : trace.Valid system) (start count : Nat) {before after : State}
+    (first : trace.get? start = some before)
+    (last : trace.get? (start + count) = some after)
+    : exists tail, Path system before tail after := by
+  induction count generalizing start before with
+  | zero =>
+      cases first.symm.trans last
+      exact ⟨[], .nil _⟩
   | succ count ih =>
-      obtain ⟨action, step⟩ := valid.2 start
-      have rest := ih (start + 1)
-      rw [List.range_succ_eq_map, List.map_cons, List.map_map]
-      refine .cons step ?_
-      simpa only [Function.comp_def, Nat.add_assoc, Nat.add_comm 1, Nat.add_zero]
-        using rest
+      cases next : trace.get? (start + 1) with
+      | none =>
+          simp [trace.le_stable (show start + 1 <= start + (count + 1) by omega) next] at last
+      | some middle =>
+          obtain ⟨action, step⟩ := valid.2 start before middle first next
+          obtain ⟨tail, rest⟩ :=
+            ih (start + 1) next (by rwa [show start + 1 + count = start + (count + 1) by omega])
+          exact ⟨_, .cons step rest⟩
 
-/-- Every finite collection of trace indices lies below one bound. -/
-lemma exists_bound {α : Type} {P : α -> Nat -> Prop} (items : List α)
-    (indexed : forall item, item ∈ items -> exists index, P item index)
+/-- The later of two trace positions is also a trace position. -/
+lemma max_isSome {trace : Execution.Trace State} {first second : Nat}
+    (firstIn : (trace.get? first).isSome) (secondIn : (trace.get? second).isSome)
+    : (trace.get? (max first second)).isSome := by
+  rcases le_total first second with le | le
+  · rwa [max_eq_right le]
+  · rwa [max_eq_left le]
+
+/-- Finitely many trace positions all lie at or before one trace position after `start`. -/
+lemma exists_bound {α : Type} {trace : Execution.Trace State} {P : α -> Nat -> Prop}
+    {start : Nat} (startIn : (trace.get? start).isSome) (items : List α)
+    (indexed
+      : forall item,
+          item ∈ items -> exists index, (trace.get? index).isSome /\ P item index)
     : exists bound,
-        forall item, item ∈ items -> exists index, index <= bound /\ P item index := by
+        (trace.get? bound).isSome
+        /\ start <= bound
+        /\ forall item, item ∈ items -> exists index, index <= bound /\ P item index := by
   induction items with
-  | nil => exact ⟨0, by simp⟩
+  | nil => exact ⟨start, startIn, le_rfl, by simp⟩
   | cons head tail ih =>
-      obtain ⟨headIndex, headHolds⟩ := indexed head (by simp)
-      obtain ⟨bound, bounded⟩ := ih fun item member => indexed item (by simp [member])
-      refine ⟨headIndex + bound, fun item member => ?_⟩
+      obtain ⟨headIndex, headIn, headHolds⟩ := indexed head (by simp)
+      obtain ⟨bound, boundIn, startLe, bounded⟩ :=
+        ih fun item member => indexed item (by simp [member])
+      refine ⟨
+        max headIndex bound,
+        max_isSome headIn boundIn,
+        startLe.trans (le_max_right _ _),
+        fun item member => ?_
+      ⟩
       rcases List.mem_cons.mp member with rfl | member
-      · exact ⟨headIndex, by omega, headHolds⟩
+      · exact ⟨headIndex, le_max_left _ _, headHolds⟩
       · obtain ⟨index, le, holds⟩ := bounded item member
-        exact ⟨index, by omega, holds⟩
-
-/-- An infinite trace that visits `states`, then `final` forever. -/
-def lasso (states : List State) (final : State) : Execution.Trace State :=
-  ⟨fun index => (states ++ [final]).getD index final⟩
-
-lemma lasso_states_beyond {states : List State} {final : State} {index : Nat}
-    (beyond : states.length <= index)
-    : (lasso states final).states index = final := by
-  simp only [lasso, List.getD_eq_getElem?_getD, List.getElem?_append_right beyond]
-  cases same : index - states.length <;> simp
-
-/-- Every lasso state is one of its listed states or its final state. -/
-lemma lasso_states_mem (states : List State) (final : State) (index : Nat)
-    : (lasso states final).states index ∈ states ++ [final] := by
-  simp only [lasso, List.getD_eq_getElem?_getD]
-  cases found : (states ++ [final])[index]? with
-  | none =>
-      simp
-  | some state =>
-      exact List.mem_iff_getElem?.mpr ⟨index, found⟩
-
-/-- A lasso is valid when it starts initially, each listed step is enabled, and
-`final` has an enabled action returning to itself. -/
-lemma lasso_valid {system : TransitionSystem State Action} {states : List State}
-    {final : State}
-    (initialized : system.init ((states ++ [final]).getD 0 final))
-    (adjacent
-      : forall index : Fin ((states ++ [final]).length - 1),
-          exists action,
-            system.step ((states ++ [final])[index.val]'(by omega)) action
-            = some ((states ++ [final])[index.val + 1]'(by omega)))
-    (loop : exists action, system.step final action = some final)
-    : (lasso states final).Valid system := by
-  refine ⟨initialized, fun index => ?_⟩
-  by_cases inside : index < states.length
-  · obtain ⟨action, step⟩ := adjacent ⟨index, by simp; omega⟩
-    refine ⟨action, ?_⟩
-    simpa only [lasso, List.getD_eq_getElem?_getD,
-      List.getElem?_eq_getElem (show index < (states ++ [final]).length by simp; omega),
-      List.getElem?_eq_getElem (show index + 1 < (states ++ [final]).length by simp; omega),
-      Option.getD_some] using step
-  · rw [lasso_states_beyond (by omega), lasso_states_beyond (by omega)]
-    exact loop
+        exact ⟨index, le.trans (le_max_right _ _), holds⟩
 
 end DisasterRecovery.Proofs.Trace
