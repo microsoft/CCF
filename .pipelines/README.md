@@ -22,6 +22,10 @@ The Azure DevOps pipeline must reference `/.pipelines/pypi.official.yml` and hav
 The service connection, Key Vault, certificates, client registration, owners, and approvers must belong to the CCF ESRP PyPI registration.
 Owners and approvers must be different people.
 
+The build step sets `UV_INDEX_URL` to `https://packagefeedproxy.microsoft.io/pypi/simple/`, matching CCF's previous GitHub Actions proxy configuration.
+Both wheel building and clean-install validation use this proxy instead of public PyPI.
+The proxy and its package-download destinations must be reachable under OneBranch network isolation.
+
 This pipeline is the only Python package publisher.
 GitHub Actions no longer builds, attaches, or publishes Python wheels as part of the main CCF release.
 Release-build tests use the latest package already released on PyPI; normal development and CI tests continue to use the local package.

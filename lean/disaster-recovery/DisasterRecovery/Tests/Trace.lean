@@ -20,7 +20,6 @@ private def config : Model.Config :=
   {
     protocol := { instanceId := "trace-tests", expectedLocations := ["A"] }
     recovered := [("A", { view := 1, seqno := 10 })]
-    active := ["A"]
   }
 
 private def recovered : TxID := { view := 1, seqno := 10 }
@@ -99,7 +98,7 @@ private theorem observedOpening
       MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne,
       Model.protocol, config, guard]
     cbv
-  · simp [Model.protocol, config, guard]
+  · simp [Model.protocol, config]
     cbv
 
 example : (Model.transitionSystem config).Reachable opened :=
@@ -147,7 +146,7 @@ example
     simpa [voteSent, ready, unused, MultiNodeTransitionSystem.nodeState]
       using foundAfter.symm
   subst nodeBefore nodeAfter
-  simp [Model.protocol, config, guard] at run
+  simp [Model.protocol, config] at run
   cases action with
   | «local» node input =>
       simp only [Properties.Trace.actor] at actor
@@ -201,7 +200,7 @@ example
     ⟨
       by
         simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, config,
-          quorumVote, guard]
+          quorumVote]
         cbv,
       Or.inr ⟨"A", rfl⟩,
       rfl,
@@ -223,7 +222,7 @@ example
     ⟨
       by
         simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, config,
-          quorumTimeout, guard]
+          quorumTimeout]
         cbv,
       Or.inl rfl,
       rfl,

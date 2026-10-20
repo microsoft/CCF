@@ -1298,8 +1298,7 @@ lemma opening_vote_configured
     : voter ∈ config.protocol.expectedLocations := by
   rcases valid.votesSent voter vote with
     ⟨envelope, sent, sourceEq, _, _⟩
-  apply wellFormed.activeConfigured voter
-  simpa [sourceEq] using wellFormed.sentSourceActive envelope sent
+  simpa [sourceEq] using wellFormed.sentSourceConfigured envelope sent
 
 lemma quorum_opener_unique
     {config : Config}
