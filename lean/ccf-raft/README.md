@@ -31,13 +31,10 @@ Actions are local inputs (including timeouts) or delivery of a queued message; n
 - `ElectionSafety`: no two distinct nodes are primary in the same term.
 - `CommittedFrontierIsSignature`: every positive commit index points to a signature.
 
-## Scope and differences from `raft.h`
+## Scope
 
-- Commit: a signature commits once it has a majority in every active configuration at or before it; a later pending configuration does not block it.
-  This intentionally differs from the current C++ `update_commit` policy; see [#8606](https://github.com/microsoft/CCF/issues/8606).
-- Peers: `eligiblePeers` approximates C++'s retained `all_other_nodes` from ledger-derived membership and completed retirements, so peers introduced only by rolled-back configurations are not retained.
-- Not modeled: service creation (replaced by initialization), node join and snapshot installation.
-- Only safety is stated; there are no liveness or fairness properties.
+Node join and snapshot installation are not modeled.
+There are no liveness properties or fairness assumptions.
 
 ## Validation
 
