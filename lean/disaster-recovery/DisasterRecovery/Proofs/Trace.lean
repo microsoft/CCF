@@ -38,68 +38,59 @@ lemma Path.run {system : TransitionSystem State Action} {before tail after}
       obtain ⟨actions, rest⟩ := ih
       exact ⟨_, .cons step rest⟩
 
-lemma Path.valid {system : TransitionSystem State Action} {before tail after}
-    (path : Path system before tail after) (initialized : system.init before)
-    : (Execution.Trace.mk (before :: tail)).Valid system := by
-  refine ⟨⟨before, rfl, initialized⟩, ?_⟩
-  clear initialized
-  induction path with
-  | nil =>
-      intro i left right first second
-      cases i <;> simp at second
-  | cons step _ ih =>
-      intro i left right first second
-      cases i with
-      | zero =>
-          simp only [Nat.zero_add, List.getElem?_cons_zero, List.getElem?_cons_succ,
-            Option.some.injEq] at first second
-          subst left right
-          exact ⟨_, step⟩
-      | succ i => exact ih i left right first second
-
+/-- Enabled steps connect a state of a valid trace to every later state of the trace. -/
 lemma valid_path {system : TransitionSystem State Action} {trace : Execution.Trace State}
-    (valid : trace.Valid system)
-    : exists before tail after,
-        trace.states = before :: tail
-        /\ system.init before
-        /\ Path system before tail after := by
-  obtain ⟨before, first, initialized⟩ := valid.1
-  cases states : trace.states with
-  | nil => simp [states] at first
-  | cons head tail =>
-      have equal : head = before := by simpa [states] using first
-      subst head
-      refine ⟨before, tail, ?_⟩
-      have adjacent := valid.2
-      rw [states] at adjacent
-      have paths : forall (before : State) (tail : List State),
-          (forall (i : Nat) left right, (before :: tail)[i]? = some left ->
-            (before :: tail)[i + 1]? = some right ->
-            exists action, system.step left action = some right) ->
-          exists after, Path system before tail after := by
-        intro before tail
-        induction tail generalizing before with
-        | nil => exact fun _ => ⟨before, .nil _⟩
-        | cons middle tail ih =>
-            intro linked
-            obtain ⟨action, step⟩ := linked 0 before middle rfl rfl
-            obtain ⟨after, rest⟩ := ih middle (fun i => linked (i + 1))
-            exact ⟨after, .cons step rest⟩
-      obtain ⟨after, path⟩ := paths before tail adjacent
-      exact ⟨after, rfl, initialized, path⟩
-
-lemma Path.suffix {system : TransitionSystem State Action} {before tail after}
-    (path : Path system before tail after) {state : State}
-    (member : state ∈ before :: tail)
-    : exists rest, Path system state rest after := by
-  induction path with
-  | nil =>
-      simp only [List.mem_singleton] at member
-      subst state
+    (valid : trace.Valid system) (start count : Nat) {before after : State}
+    (first : trace.get? start = some before)
+    (last : trace.get? (start + count) = some after)
+    : exists tail, Path system before tail after := by
+  induction count generalizing start before with
+  | zero =>
+      cases first.symm.trans last
       exact ⟨[], .nil _⟩
-  | cons step rest ih =>
+  | succ count ih =>
+      cases next : trace.get? (start + 1) with
+      | none =>
+          simp [trace.le_stable (show start + 1 <= start + (count + 1) by omega) next] at last
+      | some middle =>
+          obtain ⟨action, step⟩ := valid.2 start before middle first next
+          obtain ⟨tail, rest⟩ :=
+            ih (start + 1) next (by rwa [show start + 1 + count = start + (count + 1) by omega])
+          exact ⟨_, .cons step rest⟩
+
+/-- The later of two trace positions is also a trace position. -/
+lemma max_isSome {trace : Execution.Trace State} {first second : Nat}
+    (firstIn : (trace.get? first).isSome) (secondIn : (trace.get? second).isSome)
+    : (trace.get? (max first second)).isSome := by
+  rcases le_total first second with le | le
+  · rwa [max_eq_right le]
+  · rwa [max_eq_left le]
+
+/-- Finitely many trace positions all lie at or before one trace position after `start`. -/
+lemma exists_bound {α : Type} {trace : Execution.Trace State} {P : α -> Nat -> Prop}
+    {start : Nat} (startIn : (trace.get? start).isSome) (items : List α)
+    (indexed
+      : forall item,
+          item ∈ items -> exists index, (trace.get? index).isSome /\ P item index)
+    : exists bound,
+        (trace.get? bound).isSome
+        /\ start <= bound
+        /\ forall item, item ∈ items -> exists index, index <= bound /\ P item index := by
+  induction items with
+  | nil => exact ⟨start, startIn, le_rfl, by simp⟩
+  | cons head tail ih =>
+      obtain ⟨headIndex, headIn, headHolds⟩ := indexed head (by simp)
+      obtain ⟨bound, boundIn, startLe, bounded⟩ :=
+        ih fun item member => indexed item (by simp [member])
+      refine ⟨
+        max headIndex bound,
+        max_isSome headIn boundIn,
+        startLe.trans (le_max_right _ _),
+        fun item member => ?_
+      ⟩
       rcases List.mem_cons.mp member with rfl | member
-      · exact ⟨_, .cons step rest⟩
-      · exact ih member
+      · exact ⟨headIndex, le_max_left _ _, headHolds⟩
+      · obtain ⟨index, le, holds⟩ := bounded item member
+        exact ⟨index, le.trans (le_max_right _ _), holds⟩
 
 end DisasterRecovery.Proofs.Trace

@@ -32,7 +32,7 @@ def QuorumOpenPreservesCommit : Prop :=
   forall (config : Model.Config) (trace : GlobalTrace) (openedState : Model.State),
   forall (opener : Location) (openerState : NodeState),
     (trace.Valid (Model.transitionSystem config)
-      /\ openedState ∈ trace.states
+      /\ openedState ∈ trace
       /\ (opener, openerState) ∈ openedState.nodes
       /\ openerState.openKind = some .quorum
       /\ (forall voter, voter ∈ openerState.votes -> ReceivedOwnGossip trace voter))
@@ -46,7 +46,7 @@ def QuorumOpenPreservesCommitWitness : Prop :=
   exists (config : Model.Config) (trace : GlobalTrace) (openedState : Model.State),
   exists (opener : Location) (openerState : NodeState),
     trace.Valid (Model.transitionSystem config)
-    /\ openedState ∈ trace.states
+    /\ openedState ∈ trace
     /\ (opener, openerState) ∈ openedState.nodes
     /\ openerState.openKind = some .quorum
     /\ (forall voter, voter ∈ openerState.votes -> ReceivedOwnGossip trace voter)
@@ -58,12 +58,12 @@ def FullGossipPreservesCommit : Prop :=
           (gossipedState openedState : Model.State),
   forall (opener : Location) (openerState : NodeState),
     (trace.Valid (Model.transitionSystem config)
-      /\ gossipedState ∈ trace.states
+      /\ gossipedState ∈ trace
       /\ (forall node nodeState,
             node ∈ config.protocol.expectedLocations
             -> (node, nodeState) ∈ gossipedState.nodes
             -> forall gossip, gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
-      /\ openedState ∈ trace.states
+      /\ openedState ∈ trace
       /\ (opener, openerState) ∈ openedState.nodes
       /\ openerState.openKind.isSome = true)
     -> exists openerTxID,
@@ -77,12 +77,12 @@ def FullGossipPreservesCommitWitness : Prop :=
   (config : Model.Config) (trace : GlobalTrace) (gossipedState openedState : Model.State),
   exists (opener : Location) (openerState : NodeState),
     trace.Valid (Model.transitionSystem config)
-    /\ gossipedState ∈ trace.states
+    /\ gossipedState ∈ trace
     /\ (forall node nodeState,
           node ∈ config.protocol.expectedLocations
           -> (node, nodeState) ∈ gossipedState.nodes
           -> forall gossip, gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
-    /\ openedState ∈ trace.states
+    /\ openedState ∈ trace
     /\ (opener, openerState) ∈ openedState.nodes
     /\ openerState.openKind = some .failover
 
