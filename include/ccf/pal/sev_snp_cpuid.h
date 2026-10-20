@@ -13,6 +13,7 @@ namespace ccf::pal::snp
 {
 
 #pragma pack(push, 1)
+
   // AMD CPUID specification. Chapter 2 Fn0000_0001_EAX
   // Milan: 0x00A00F11
   // Genoa: 0x00A10F11
@@ -29,6 +30,7 @@ namespace ccf::pal::snp
     uint8_t reserved2 : 4;
 
     bool operator==(const CPUID&) const = default;
+
     [[nodiscard]] std::string hex_str() const
     {
       CPUID buf = *this;
@@ -38,21 +40,25 @@ namespace ccf::pal::snp
       return fmt::format(
         "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
     }
+
     [[nodiscard]] uint8_t get_family_id() const
     {
       return this->base_family + this->extended_family;
     }
+
     [[nodiscard]] uint8_t get_model_id() const
     {
       return (this->extended_model << 4) | this->base_model;
     }
   };
+
 #pragma pack(pop)
   DECLARE_JSON_TYPE(CPUID);
   DECLARE_JSON_REQUIRED_FIELDS(
     CPUID, stepping, base_model, base_family, extended_model, extended_family);
   static_assert(
     sizeof(CPUID) == sizeof(uint32_t), "Cannot cast CPUID to uint32_t");
+
   static CPUID cpuid_from_hex(const std::string& hex_str)
   {
     CPUID ret{};

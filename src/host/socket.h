@@ -27,6 +27,7 @@ namespace asynchost
       name(name),
       conn_name(conn_name)
     {}
+
     virtual ~SocketBehaviour() = default;
 
     /// To be implemented by clients
@@ -49,10 +50,12 @@ namespace asynchost
     {
       LOG_INFO_FMT("{} {} listening on {}:{}", conn_name, name, host, service);
     }
+
     virtual void on_connect()
     {
       LOG_INFO_FMT("{} {} connected", conn_name, name);
     }
+
     virtual void on_disconnect()
     {
       LOG_TRACE_FMT("{} {} disconnected", conn_name, name);
@@ -63,6 +66,7 @@ namespace asynchost
     {
       LOG_INFO_FMT("{} {} bind failed", conn_name, name);
     }
+
     virtual void on_connect_failed()
     {
       LOG_INFO_FMT("{} {} connect failed", conn_name, name);
@@ -74,6 +78,7 @@ namespace asynchost
       LOG_FATAL_FMT("{} {} resolve failed", conn_name, name);
       abort();
     }
+
     virtual void on_listen_failed()
     {
       LOG_FATAL_FMT("{} {} listen failed", conn_name, name);

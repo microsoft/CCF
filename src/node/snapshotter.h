@@ -84,6 +84,7 @@ namespace ccf
 
       SnapshotInfo() = default;
     };
+
     // Queue of pending snapshots that have been generated, but are not yet
     // committed
     std::map<uint32_t, SnapshotInfo> pending_snapshots;
@@ -110,6 +111,7 @@ namespace ccf
       bool forced;
       bool done;
     };
+
     std::deque<SnapshotEntry> next_snapshot_indices;
 
     static TimePoint time_point_from_snapshot_status(uint64_t timestamp)

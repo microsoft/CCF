@@ -339,11 +339,13 @@ TEST_CASE("ByteVector iterator ranges" * doctest::test_suite("byte_vector"))
   struct ConvertedByte
   {
     uint8_t value;
+
     operator uint8_t() const
     {
       return value ^ 0xff;
     }
   };
+
   static_assert(sizeof(ConvertedByte) == 1);
   const std::array<ConvertedByte, 3> converted{{{1}, {2}, {3}}};
   Bytes converted_bytes(converted.begin(), converted.end());
@@ -431,6 +433,7 @@ TEST_CASE(
   struct ThrowingByte
   {
     uint8_t value;
+
     operator uint8_t() const
     {
       if (value == 24)
@@ -438,6 +441,7 @@ TEST_CASE(
       return value;
     }
   };
+
   std::array<ThrowingByte, 32> input{};
   for (size_t i = 0; i < input.size(); ++i)
     input[i].value = static_cast<uint8_t>(i);

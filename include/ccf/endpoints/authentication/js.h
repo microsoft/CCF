@@ -150,6 +150,7 @@ namespace ccf
 
   CCF_DEPRECATED(
     "This JS authentication helper is deprecated and will be removed in 8.0")
+
   static inline NamedAuthPolicies& auth_policies_by_name()
   {
     return detail::js_authentication::auth_policies_by_name();
@@ -157,6 +158,7 @@ namespace ccf
 
   CCF_DEPRECATED(
     "This JS authentication helper is deprecated and will be removed in 8.0")
+
   static inline std::shared_ptr<ccf::AuthnPolicy> get_policy_by_name(
     const std::string& name)
   {
@@ -173,6 +175,7 @@ namespace ccf
 
   CCF_DEPRECATED(
     "This JS authentication helper is deprecated and will be removed in 8.0")
+
   static inline void instantiate_authn_policies(
     ccf::endpoints::EndpointDefinition& endpoint)
   {

@@ -96,12 +96,15 @@ struct LedgerEntry
   }
 
   LedgerEntry() = default;
+
   LedgerEntry(T v) : value_(v) {}
+
   LedgerEntry(const uint8_t* data, size_t size)
   {
     value_ = serialized::read<T>(data, size);
   }
 };
+
 using TestLedgerEntry = LedgerEntry<uint32_t>;
 
 size_t number_of_files_in_ledger_dir()
@@ -259,6 +262,7 @@ size_t read_entries_range_from_ledger(
 
 using LedgerDirCapture =
   std::vector<std::tuple<std::string, size_t, ccf::crypto::Sha256Hash>>;
+
 LedgerDirCapture capture_ledger_dir()
 {
   LedgerDirCapture capture = {};

@@ -17,6 +17,7 @@
 namespace
 {
   using Endorsements = std::vector<std::vector<uint8_t>>;
+
   struct FetchResult
   {
     std::optional<Endorsements> endorsements{std::nullopt};

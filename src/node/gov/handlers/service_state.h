@@ -19,6 +19,7 @@ namespace ccf::gov::endpoints
 
       bool operator==(const ServiceConfiguration&) const = default;
     };
+
     DECLARE_JSON_TYPE(ServiceConfiguration);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       ServiceConfiguration,
@@ -42,6 +43,7 @@ namespace ccf::gov::endpoints
       nlohmann::json service_data = nullptr;
       std::optional<ServiceConfiguration> configuration = std::nullopt;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceInfo);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       ServiceInfo,
@@ -66,6 +68,7 @@ namespace ccf::gov::endpoints
     {
       nlohmann::json endpoints = nlohmann::json::object();
     };
+
     DECLARE_JSON_TYPE(JavascriptApp);
     DECLARE_JSON_REQUIRED_FIELDS(JavascriptApp, endpoints);
 
@@ -80,6 +83,7 @@ namespace ccf::gov::endpoints
     {
       std::string module_name;
     };
+
     DECLARE_JSON_TYPE(JavascriptModule);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       JavascriptModule, module_name, "moduleName");
@@ -88,6 +92,7 @@ namespace ccf::gov::endpoints
     {
       std::vector<JavascriptModule> value;
     };
+
     DECLARE_JSON_TYPE(JavascriptModules);
     DECLARE_JSON_REQUIRED_FIELDS(JavascriptModules, value);
 
@@ -95,6 +100,7 @@ namespace ccf::gov::endpoints
     {
       std::vector<std::string> measurements;
     };
+
     DECLARE_JSON_TYPE(BasicJoinPolicy);
     DECLARE_JSON_REQUIRED_FIELDS(BasicJoinPolicy, measurements);
 
@@ -103,6 +109,7 @@ namespace ccf::gov::endpoints
       std::vector<std::string> measurements;
       std::vector<std::string> host_data;
     };
+
     DECLARE_JSON_TYPE(VirtualJoinPolicy);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       VirtualJoinPolicy, measurements, "measurements", host_data, "hostData");
@@ -114,6 +121,7 @@ namespace ccf::gov::endpoints
       std::map<ccf::DID, ccf::FeedToEndorsementsDataMap> uvm_endorsements;
       std::map<std::string, pal::snp::TcbVersionPolicy> tcb_versions;
     };
+
     DECLARE_JSON_TYPE(SnpJoinPolicy);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       SnpJoinPolicy,
@@ -132,6 +140,7 @@ namespace ccf::gov::endpoints
       VirtualJoinPolicy virtual_;
       SnpJoinPolicy snp;
     };
+
     DECLARE_JSON_TYPE(JoinPolicy);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       JoinPolicy, sgx, "sgx", virtual_, "virtual", snp, "snp");
@@ -141,6 +150,7 @@ namespace ccf::gov::endpoints
       bool auto_refresh = false;
       std::optional<std::string> ca_cert_bundle_name = std::nullopt;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtIssuer);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       JwtIssuer, auto_refresh, "autoRefresh");
@@ -153,6 +163,7 @@ namespace ccf::gov::endpoints
       std::string issuer;
       nlohmann::json constraint = nullptr;
     };
+
     DECLARE_JSON_TYPE(Jwk);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       Jwk, public_key, "publicKey", issuer, "issuer", constraint, "constraint");
@@ -163,6 +174,7 @@ namespace ccf::gov::endpoints
       std::map<ccf::JwtKeyId, std::vector<Jwk>> keys;
       std::map<std::string, std::string> ca_cert_bundles;
     };
+
     DECLARE_JSON_TYPE(JwkInfo);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       JwkInfo,
@@ -183,6 +195,7 @@ namespace ccf::gov::endpoints
       ccf::MemberRecoveryRole recovery_role =
         ccf::MemberRecoveryRole::NonParticipant;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Member);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       Member,
@@ -205,6 +218,7 @@ namespace ccf::gov::endpoints
     {
       std::vector<Member> value;
     };
+
     DECLARE_JSON_TYPE(Members);
     DECLARE_JSON_REQUIRED_FIELDS(Members, value);
 
@@ -214,6 +228,7 @@ namespace ccf::gov::endpoints
       std::string certificate;
       nlohmann::json user_data = nullptr;
     };
+
     DECLARE_JSON_TYPE(User);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       User,
@@ -228,6 +243,7 @@ namespace ccf::gov::endpoints
     {
       std::vector<User> value;
     };
+
     DECLARE_JSON_TYPE(Users);
     DECLARE_JSON_REQUIRED_FIELDS(Users, value);
 
@@ -236,6 +252,7 @@ namespace ccf::gov::endpoints
       std::string published_address;
       std::optional<std::string> protocol = std::nullopt;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NetworkInterface);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       NetworkInterface, published_address, "publishedAddress");
@@ -251,6 +268,7 @@ namespace ccf::gov::endpoints
       nlohmann::json quote_info = nlohmann::json::object();
       std::map<std::string, NetworkInterface> rpc_interfaces;
     };
+
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Node);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       Node,
@@ -272,6 +290,7 @@ namespace ccf::gov::endpoints
     {
       std::vector<Node> value;
     };
+
     DECLARE_JSON_TYPE(Nodes);
     DECLARE_JSON_REQUIRED_FIELDS(Nodes, value);
   }

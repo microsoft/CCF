@@ -64,6 +64,7 @@ namespace ccf::crypto
     {
       return RSAPublicKey_OpenSSL::public_key_pem();
     }
+
     [[nodiscard]] std::vector<uint8_t> public_key_der() const override
     {
       return RSAPublicKey_OpenSSL::public_key_der();
