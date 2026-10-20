@@ -30,9 +30,6 @@ Actions are local inputs (including timeouts) or delivery of a queued message; n
 - `ElectionSafety`: no two distinct nodes are primary in the same term.
 - `CommittedFrontierIsSignature`: every positive commit index points to a signature.
 
-The trace properties quantify over valid finite or infinite traces (`Stream'.Seq` from `ccf_common`) that start in an initial state, without fairness or implicit stuttering.
-`SingleNodeCommittedLogMonotonic` is a single-step property over arbitrary states, not only reachable ones.
-
 ## Scope and differences from `raft.h`
 
 - Commit: a signature commits once it has a majority in every active configuration at or before it; a later pending configuration does not block it.
