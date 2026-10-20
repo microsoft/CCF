@@ -6,6 +6,7 @@
 #include "ccf/node_context.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/nodes.h"
+#include "ds/internal_logger.h"
 
 namespace ccf
 {
@@ -41,9 +42,10 @@ namespace ccf
             IdentityIdFormat::DIDKey :
             IdentityIdFormat::SHA256);
       }
-      catch (const std::invalid_argument& e)
+      catch (const std::exception& e)
       {
-        error_reason = e.what();
+        error_reason = "Only the node itself can call this endpoint.";
+        LOG_TRACE_FMT("Caller node ID cannot be derived: {}", e.what());
         return nullptr;
       }
       // The node ID may not be set yet when this policy is constructed.

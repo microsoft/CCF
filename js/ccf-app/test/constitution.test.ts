@@ -151,3 +151,46 @@ for (const tableName of [
     });
   });
 }
+
+describe("set_member re-enrollment", () => {
+  function applySetMember(args: Record<string, unknown>): void {
+    runInNewContext(
+      `${constitution}\nconst action = actions.get("set_member");\naction.validate(args);\naction.apply(args);`,
+      { ccf, args },
+    );
+  }
+
+  it("updates an existing DID member like a legacy member", () => {
+    ccf.kv["public:ccf.gov.service.info"].set(
+      new ArrayBuffer(8),
+      ccf.jsonCompatibleToBuf({ status: "Open" }),
+    );
+    const did = ccf.pemToId(cert, "did:key");
+    const rawDid = ccf.strToBuf(did);
+    applySetMember({ cert, id_format: "did:key", member_data: { v: 1 } });
+    ccf.kv["public:ccf.gov.members.info"].set(
+      rawDid,
+      ccf.jsonCompatibleToBuf({ member_data: { v: 1 }, status: "Active" }),
+    );
+    ccf.kv["public:ccf.gov.members.acks"].set(rawDid, ccf.strToBuf("ack"));
+
+    applySetMember({
+      cert: replacement,
+      id_format: "did:key",
+      member_data: { v: 2 },
+    });
+
+    assert.equal(
+      ccf.bufToStr(ccf.kv["public:ccf.gov.members.certs"].get(rawDid)!),
+      replacement,
+    );
+    assert.deepEqual(
+      ccf.bufToJsonCompatible(
+        ccf.kv["public:ccf.gov.members.info"].get(rawDid)!,
+      ),
+      { member_data: { v: 2 }, status: "Accepted" },
+    );
+    assert.equal(ccf.kv["public:ccf.gov.members.acks"].has(rawDid), false);
+    assert.equal(ccf.kv["public:ccf.gov.members.certs"].size, 1);
+  });
+});

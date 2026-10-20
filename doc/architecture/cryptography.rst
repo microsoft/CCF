@@ -120,7 +120,9 @@ The stored ID and COSE ``kid`` remain the unencoded canonical DID.
 
 The selected ID is the key stored in the role's governance tables and returned by APIs, not an alias.
 For members and users, replacing a certificate with another containing the same public key preserves the DID and its authorization, subject to the existing role-specific authentication checks.
+Re-enrolling an existing DID member or user with ``set_member`` or ``set_user`` replaces its stored certificate, keys, and data exactly as it does for a legacy identity, so a re-enrolled member must ack again before it is active.
 Changing the public key changes the DID.
+Because any certificate carrying the enrolled key authenticates, and callers issue those certificates themselves, the validity period of the enrolled certificate does not bound a DID identity's access.
 Removing the enrolled identity revokes its access to that role.
 The DID itself is not an authorization grant: the identity must still be enrolled and satisfy the endpoint's authentication policy.
 

@@ -704,12 +704,6 @@ const actions = new Map([
           "public:ccf.gov.members.certs",
         );
         const rawMemberId = ccf.strToBuf(memberId);
-        if (
-          memberId.startsWith("did:key:") &&
-          ccf.kv["public:ccf.gov.members.certs"].has(rawMemberId)
-        ) {
-          return;
-        }
         checkRecoveryMemberChange(
           rawMemberId,
           args.encryption_pub_key !== null &&
@@ -723,12 +717,6 @@ const actions = new Map([
           "public:ccf.gov.members.certs",
         );
         const rawMemberId = ccf.strToBuf(memberId);
-        if (
-          memberId.startsWith("did:key:") &&
-          ccf.kv["public:ccf.gov.members.certs"].has(rawMemberId)
-        ) {
-          return;
-        }
 
         checkRecoveryMemberChange(
           rawMemberId,

@@ -1,9 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/node/node_configuration_interface.h"
+#include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
@@ -759,6 +761,29 @@ TEST_CASE("Add a node to an opening service")
     check_error(response, HTTP_STATUS_BAD_REQUEST);
     check_error_message(
       response, "already enrolled under a different ID format");
+    auto verify_tx = network.tables->create_tx();
+    CHECK(verify_tx.ro(network.nodes)->size() == 1);
+  }
+
+  INFO("A key outside the did:key profile cannot request a DID node ID");
+  {
+    const auto eddsa_kp =
+      ccf::crypto::make_eddsa_key_pair(ccf::crypto::CurveID::CURVE25519);
+    const auto unsupported_caller = ccf::crypto::create_endorsed_cert(
+      eddsa_kp->public_key_pem(),
+      "CN=Unsupported Joiner",
+      {},
+      ccf::crypto::make_verifier(caller)->validity_period(),
+      node_kp->private_key_pem(),
+      caller);
+    JoinNetworkNodeToNode::In join_input;
+    join_input.id_format = IdentityIdFormat::DIDKey;
+    join_input.public_encryption_key = node_public_encryption_key;
+    const auto response =
+      frontend_process(frontend, join_input, "join", unsupported_caller);
+    check_error(response, HTTP_STATUS_BAD_REQUEST);
+    check_error_message(
+      response, "cannot be identified in the requested format");
     auto verify_tx = network.tables->create_tx();
     CHECK(verify_tx.ro(network.nodes)->size() == 1);
   }

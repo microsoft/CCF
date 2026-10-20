@@ -484,6 +484,24 @@ namespace ccf
     {
       const auto in = params.get<JoinNetworkNodeToNode::In>();
 
+      NodeId requested_id;
+      try
+      {
+        requested_id = compute_node_id_from_cert_der(
+          args.rpc_ctx->get_session_context()->caller_cert, in.id_format);
+      }
+      catch (const std::exception& e)
+      {
+        // Covers both keys outside the did:key profile and key types the
+        // certificate parser does not support.
+        const std::string payload = fmt::format(
+          "Node public key cannot be identified in the requested format: {}",
+          e.what());
+        LOG_INFO_FMT("Join request rejected: {}", payload);
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, payload);
+      }
+
       // Not part of network => Internal error
       if (
         !this->node_operation.is_part_of_network() &&
@@ -565,8 +583,6 @@ namespace ccf
         in.id_format);
       if (existing_node_info.has_value())
       {
-        const auto requested_id = compute_node_id_from_cert_der(
-          args.rpc_ctx->get_session_context()->caller_cert, in.id_format);
         if (existing_node_info->node_id != requested_id)
         {
           return make_error(

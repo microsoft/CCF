@@ -44,10 +44,12 @@ namespace ccf
           return did;
         }
       }
-      catch (const std::invalid_argument& e)
+      catch (const std::exception& e)
       {
-        error_reason = e.what();
-        return std::nullopt;
+        // A key outside the did:key profile (or one the certificate parser
+        // does not support) cannot have a DID enrollment, so this is simply
+        // an unknown caller. Keep the reason generic.
+        LOG_TRACE_FMT("No did:key derivable for {} caller: {}", role, e.what());
       }
       error_reason =
         fmt::format("Could not find matching {} certificate", role);
@@ -231,13 +233,12 @@ namespace ccf
       {
         node_caller_id =
           compute_node_id_from_cert_der(caller_cert, IdentityIdFormat::DIDKey);
+        node = nodes->get(node_caller_id);
       }
-      catch (const std::invalid_argument& e)
+      catch (const std::exception& e)
       {
-        error_reason = e.what();
-        return nullptr;
+        LOG_TRACE_FMT("No did:key derivable for node caller: {}", e.what());
       }
-      node = nodes->get(node_caller_id);
     }
     if (node.has_value())
     {

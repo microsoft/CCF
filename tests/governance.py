@@ -881,14 +881,55 @@ def did_key_identities(args):
         network.consortium.vote_using_majority(
             primary, member.propose(primary, proposal), ballot
         )
-        share = member.get_and_decrypt_recovery_share(primary)
+        # Re-enrolling an existing DID member follows legacy set_member semantics:
+        # the stored certificate, encryption key and data are replaced, and the
+        # member must ack again before regaining its active role.
+        with open(
+            os.path.join(network.common_dir, f"{member.local_id}_privk.pem"),
+            encoding="ascii",
+        ) as f:
+            rotated_cert = infra.crypto.generate_cert(f.read(), cn="rotated")
+        assert rotated_cert != member.cert
+        with open(
+            os.path.join(network.common_dir, f"{member.local_id}_enc_pubk.pem"),
+            encoding="ascii",
+        ) as f:
+            enc_pubk = f.read()
         proposal, ballot = network.consortium.make_proposal(
-            "set_member", cert=member.cert, id_format="did:key"
+            "set_member",
+            cert=rotated_cert,
+            id_format="did:key",
+            encryption_pub_key=enc_pubk,
+            member_data={"format": "did:key", "rotated": True},
+            recovery_role="Owner",
         )
         network.consortium.vote_using_majority(
-            primary, member.propose(primary, proposal), ballot
+            primary,
+            network.consortium.get_any_active_member().propose(primary, proposal),
+            ballot,
         )
-        assert member.get_and_decrypt_recovery_share(primary) == share
+        with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+            r = c.get(f"/gov/service/members/{quote(member.service_id, safe='')}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            body = r.body.json()
+            assert body["memberId"] == member.service_id, body
+            assert body["certificate"] == rotated_cert, body
+            assert body["memberData"] == {"format": "did:key", "rotated": True}, body
+            assert body["recoveryRole"] == "Owner", body
+            assert body["status"] == "Accepted", body
+        with primary.api_versioned_client(
+            *member.auth(write=True), api_version=args.gov_api_version
+        ) as c:
+            r = c.post("/gov/members/proposals:create", proposal)
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+            assert "not an ACTIVE member" in r.body.text(), r
+        # The original certificate still authenticates the member, since the
+        # DID identifies its public key rather than any one certificate.
+        member.ack(primary)
+        assert member.get_and_decrypt_recovery_share(primary)
+        with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+            r = c.get(f"/gov/service/members/{quote(member.service_id, safe='')}")
+            assert r.body.json()["status"] == "Active", r
 
         user = network.create_user(
             "did_user", args.participants_curve, id_format="did:key"

@@ -10,6 +10,6 @@ Requests sent by users can be authenticated one of two ways:
 
 By default, the user ID is the SHA-256 fingerprint of the registered certificate.
 Users enrolled with ``"id_format": "did:key"`` are instead identified by their public key, and TLS authentication accepts a replacement certificate containing that same key.
-Certificate validity checks still apply.
+TLS validity checks apply to the certificate presented by the caller, which the key holder issues, so the validity period of the enrolled certificate does not limit a DID identity's access; revoke access by removing the user.
 COSE requests must carry the canonical enrolled user ID in the protected ``kid`` header.
 See :ref:`architecture/cryptography:Identity IDs` for supported key encodings, revocation, and migration requirements.
