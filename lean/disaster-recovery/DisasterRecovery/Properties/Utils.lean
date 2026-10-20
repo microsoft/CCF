@@ -8,7 +8,7 @@ public import CCF.Execution
 namespace DisasterRecovery.Properties
 
 /-- A finite sequence of network states used to state global recovery properties. -/
-abbrev GlobalTrace := CCF.Execution.Trace Model.State
+abbrev GlobalTrace := CCF.Execution.FiniteTrace Model.State
 
 open Model.Local in
 /-- A recorded local step of one DR node: its before and after states, input, and outputs. -/

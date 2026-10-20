@@ -30,8 +30,8 @@ def CommittedLogsPrefix : Prop :=
   forall (first second : Model.State),
   forall (left right : NodeID) (leftState rightState : NodeState),
     (trace.Valid (Model.transitionSystem config nodes)
-      /\ first ∈ trace.states
-      /\ second ∈ trace.states
+      /\ first ∈ trace
+      /\ second ∈ trace
       /\ (left, leftState) ∈ first.nodes
       /\ (right, rightState) ∈ second.nodes)
     -> leftState.committedLog <+: rightState.committedLog
@@ -45,8 +45,8 @@ def CommittedLogsPrefixWitness : Prop :=
   exists (first second : Model.State),
   exists (left right : NodeID) (leftState rightState : NodeState),
     trace.Valid (Model.transitionSystem config nodes)
-    /\ first ∈ trace.states
-    /\ second ∈ trace.states
+    /\ first ∈ trace
+    /\ second ∈ trace
     /\ (left, leftState) ∈ first.nodes
     /\ (right, rightState) ∈ second.nodes
     /\ left ≠ right
@@ -86,7 +86,7 @@ def ElectionSafety : Prop :=
   forall (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
   forall (left right : NodeID) (leftState rightState : NodeState),
     (trace.Valid (Model.transitionSystem config nodes)
-      /\ state ∈ trace.states
+      /\ state ∈ trace
       /\ (left, leftState) ∈ state.nodes
       /\ (right, rightState) ∈ state.nodes
       /\ leftState.role = .primary
@@ -101,7 +101,7 @@ def ElectionSafetyWitness : Prop :=
   (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
   exists (left right : NodeID) (leftState rightState : NodeState),
     trace.Valid (Model.transitionSystem config nodes)
-    /\ state ∈ trace.states
+    /\ state ∈ trace
     /\ (left, leftState) ∈ state.nodes
     /\ (right, rightState) ∈ state.nodes
     /\ leftState.role = .primary
@@ -114,7 +114,7 @@ def CommittedFrontierIsSignature : Prop :=
   forall (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
   forall (node : NodeID) (nodeState : NodeState),
     (trace.Valid (Model.transitionSystem config nodes)
-      /\ state ∈ trace.states
+      /\ state ∈ trace
       /\ (node, nodeState) ∈ state.nodes
       /\ 0 < nodeState.commitIndex)
     -> isSignatureAt nodeState.log nodeState.commitIndex = true
@@ -126,7 +126,7 @@ def CommittedFrontierIsSignatureWitness : Prop :=
   (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
   exists (node : NodeID) (nodeState : NodeState),
     trace.Valid (Model.transitionSystem config nodes)
-    /\ state ∈ trace.states
+    /\ state ∈ trace
     /\ (node, nodeState) ∈ state.nodes
     /\ 0 < nodeState.commitIndex
 

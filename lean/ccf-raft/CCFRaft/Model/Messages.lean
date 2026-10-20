@@ -47,10 +47,10 @@ inductive Message where
   | appendEntriesResponse (response : AppendEntriesResponse)
   | requestVoteRequest (request : RequestVoteRequest)
   | requestVoteResponse (response : RequestVoteResponse)
-  | requestPreVote (request : RequestVoteRequest)
+  | requestPreVoteRequest (request : RequestVoteRequest)
   | requestPreVoteResponse (response : RequestVoteResponse)
   /-- A primary's same-term request that a replica start an election. -/
-  | proposeVoteRequest (term : Nat)
+  | proposeRequestVoteRequest (term : Nat)
 deriving DecidableEq
 
 abbrev Notification := Empty
@@ -60,8 +60,8 @@ def Message.term : Message -> Nat
   | .appendEntriesResponse response => response.term
   | .requestVoteRequest request => request.term
   | .requestVoteResponse response => response.term
-  | .requestPreVote request => request.term
+  | .requestPreVoteRequest request => request.term
   | .requestPreVoteResponse response => response.term
-  | .proposeVoteRequest term => term
+  | .proposeRequestVoteRequest term => term
 
 end CCFRaft.Model.Node

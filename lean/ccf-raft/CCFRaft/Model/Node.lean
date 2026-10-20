@@ -76,7 +76,7 @@ def findSuccessor (state : NodeState) (self : NodeID) : Option NodeID :=
 def nominateSuccessor (caps : Caps) (state : NodeState) (self : NodeID)
     : NodeEffect Unit := do
   if let some successor := findSuccessor state self then
-    caps.send (.proposeVoteRequest state.currentTerm) successor
+    caps.send (.proposeRequestVoteRequest state.currentTerm) successor
 
 abbrev canStartElection (state : NodeState) (self : NodeID) : Prop :=
   (state.role = .follower \/ state.role = .preVoteCandidate \/ state.role = .candidate)
@@ -86,7 +86,8 @@ abbrev canStartElection (state : NodeState) (self : NodeID) : Prop :=
 
 /--
 The highest current-term signature above the primary's commit index which a
-majority of every active configuration has reached, or zero when there is none.
+majority of every active configuration at or before that signature has reached,
+or zero when there is none.
 -/
 def highestCommittableIndex (state : NodeState) (self : NodeID) : Nat :=
   let replicatedBy index :=
@@ -96,7 +97,10 @@ def highestCommittableIndex (state : NodeState) (self : NodeID) : Nat :=
       if index > state.commitIndex
           /\ isSignatureAt state.log index = true
           /\ termAt state.log index = state.currentTerm
-          /\ hasQuorum state.activeConfigurations (replicatedBy index) then
+          /\ hasQuorum
+              (state.activeConfigurations.filter
+                fun configuration => configuration.index <= index)
+              (replicatedBy index) then
         max highest index
       else
         highest)
@@ -278,6 +282,19 @@ def handleAppendEntiresFromPrimary
     }
   )
 
+/-- Reset election bookkeeping like C++'s `become_aware_of_new_term`, even in the same term. -/
+def becomeAwareOfNewTerm (state : NodeState) (term : Nat) : NodeState :=
+  {
+    state with
+      role := .follower
+      currentTerm := term
+      votedFor := if state.currentTerm = term then state.votedFor else none
+      primaryKnown := false
+      isNewFollower := true
+      votesGranted := ∅
+      preVotesGranted := ∅
+  }
+
 def handleAppendEntriesRequest
     (caps : Caps)
     (self source : NodeID)
@@ -287,7 +304,7 @@ def handleAppendEntriesRequest
   let state :=
     if request.term = state.currentTerm
         /\ (state.role = .candidate \/ state.role = .preVoteCandidate) then
-      { state with role := .follower, isNewFollower := true }
+      becomeAwareOfNewTerm state request.term
     else
       state
   if request.term < state.currentTerm \/ Not (appendEntryMatchesLog state request) then
@@ -376,7 +393,7 @@ def handleRequestVoteRequest
   caps.send (.requestVoteResponse { term := state.currentTerm, voteGranted }) source
   return if voteGranted then { state with votedFor := some source } else state
 
-def handleRequestPreVote
+def handleRequestPreVoteRequest
     (caps : Caps)
     (state : NodeState)
     (source : NodeID)
@@ -464,7 +481,8 @@ def becomePreVoteCandidate (caps : Caps) (state : NodeState) (self : NodeID)
   if hasQuorum state.activeConfigurations state.preVotesGranted then
     becomeCandidate caps state self
   else
-    broadcastToOthers caps self state (.requestPreVote (makeRequestVoteRequest state))
+    broadcastToOthers caps self state
+      (.requestPreVoteRequest (makeRequestVoteRequest state))
     return state
 
 def startElection (caps : Caps) (state : NodeState) (self : NodeID)
@@ -509,7 +527,7 @@ def checkQuorum (state : NodeState) (self : NodeID) : NodeEffect NodeState := do
   guard (state.role = .primary /\ (state.activeMembers.erase self).Nonempty)
   return { state with role := .follower, primaryKnown := false }
 
-def handleProposeVoteRequest
+def handleProposeRequestVoteRequest
     (caps : Caps)
     (state : NodeState)
     (self : NodeID)
@@ -522,15 +540,7 @@ def handleProposeVoteRequest
 
 def updateTerm (state : NodeState) (term : Nat) : NodeState :=
   if state.currentTerm < term then
-    {
-      state with
-        role := .follower
-        currentTerm := term
-        votedFor := none
-        primaryKnown := false
-        isNewFollower := true
-        preVotesGranted := ∅
-    }
+    becomeAwareOfNewTerm state term
   else
     state
 
@@ -540,7 +550,7 @@ never advance a term, and only a primary reads the term of an AppendEntries
 response.
 -/
 def observeTerm (state : NodeState) : Message -> NodeState
-  | .proposeVoteRequest _ => state
+  | .proposeRequestVoteRequest _ => state
   | .appendEntriesResponse response =>
       if state.role = .primary then updateTerm state response.term else state
   | message => updateTerm state message.term
@@ -549,22 +559,30 @@ def observeTerm (state : NodeState) : Message -> NodeState
 
 def receive (caps : Caps) (self source : NodeID) (state : NodeState) (message : Message)
     : NodeEffect NodeState :=
-  let state := observeTerm state message
-  match message with
-  | .appendEntriesRequest request =>
-      handleAppendEntriesRequest caps self source state request
-  | .appendEntriesResponse response =>
-      handleAppendEntriesResponse caps self state source response
-  | .requestVoteRequest request =>
-      handleRequestVoteRequest caps state source request
-  | .requestVoteResponse response =>
-      handleRequestVoteResponse caps self state source response
-  | .requestPreVote request =>
-      handleRequestPreVote caps state source request
-  | .requestPreVoteResponse response =>
-      handleRequestPreVoteResponse caps self state source response
-  | .proposeVoteRequest term =>
-      handleProposeVoteRequest caps state self term
+  let requiresKnownPeer : Bool :=
+    match message with
+    | .appendEntriesResponse _ | .requestVoteResponse _ | .requestPreVoteResponse _ =>
+        true
+    | _ => false
+  if requiresKnownPeer /\ source ∉ eligiblePeers state self then
+    pure state
+  else
+    let state := observeTerm state message
+    match message with
+    | .appendEntriesRequest request =>
+        handleAppendEntriesRequest caps self source state request
+    | .appendEntriesResponse response =>
+        handleAppendEntriesResponse caps self state source response
+    | .requestVoteRequest request =>
+        handleRequestVoteRequest caps state source request
+    | .requestVoteResponse response =>
+        handleRequestVoteResponse caps self state source response
+    | .requestPreVoteRequest request =>
+        handleRequestPreVoteRequest caps state source request
+    | .requestPreVoteResponse response =>
+        handleRequestPreVoteResponse caps self state source response
+    | .proposeRequestVoteRequest term =>
+        handleProposeRequestVoteRequest caps state self term
 
 def act (caps : Caps) (self : NodeID) (state : NodeState) : Input -> NodeEffect NodeState
   | .append entries => appendBatch caps self state entries

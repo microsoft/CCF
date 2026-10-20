@@ -411,7 +411,11 @@ private def ledgerLocalStartup : IO Unit := do
     check (system.step initial (.local destination (.timeout .election))).isNone
       "an empty-ledger election timeout must be disabled"
     let nomination : Envelope :=
-      { source, target := destination, payload := .proposeVoteRequest fresh.currentTerm }
+      {
+        source,
+        target := destination,
+        payload := .proposeRequestVoteRequest fresh.currentTerm
+      }
     let nominated ← apply { initial with network := [nomination] } (.deliver nomination)
     check
       (nominated.network.isEmpty
@@ -569,7 +573,7 @@ private def nominationSelection : IO Unit := do
   check
     (envelope.source == primary
       && envelope.target == 4
-      && envelope.payload == .proposeVoteRequest BOOTSTRAP_TERM)
+      && envelope.payload == .proposeRequestVoteRequest BOOTSTRAP_TERM)
     "standalone nomination must use the internally selected destination and current term"
   let some (retired, effects) := (advanceCommit caps ahead primary).run {}
   | throw (IO.userError "retirement commit must be enabled")
@@ -589,7 +593,7 @@ private def nominationSelection : IO Unit := do
   check
     (envelope.source == primary
       && envelope.target == 4
-      && envelope.payload == .proposeVoteRequest BOOTSTRAP_TERM)
+      && envelope.payload == .proposeRequestVoteRequest BOOTSTRAP_TERM)
     "retirement nomination must use the precommit peer view and term"
   check (nominate retired).isNone "retired nonprimaries must not nominate after commit"
   let solo : ModelConfig := { configuration := {primary}, primary := ⟨primary, by simp⟩ }
@@ -651,6 +655,40 @@ private def appendCommitTriggers : IO Unit := do
   check (state.commitIndex == 2 && state.matchIndex 1 == 0)
     "promotion must reset stale peer progress before attempting commit"
 
+private def commitQuorumAtSignature : IO Unit := do
+  let primary : NodeID := 0
+  let caps := CCF.Capabilities.record primary
+  let config : ModelConfig :=
+    { configuration := {0, 1, 2}, primary := ⟨primary, by decide⟩ }
+  let state := initialNodeState config primary
+  let some (state, _) := (appendBatch caps primary state [.signature]).run {}
+  | throw (IO.userError "the old configuration's signature must append")
+  let some (state, _) :=
+    (appendBatch caps primary state
+      [.transaction 302 { configuration := some {0, 1, 2, 3, 4} }, .signature]).run
+      {}
+  | throw (IO.userError "the pending configuration and its signature must append")
+  let some (state, _) :=
+    (handleAppendEntriesResponse caps primary state 1
+      { term := BOOTSTRAP_TERM, success := true, lastLogIndex := 4 }).run
+      {}
+  | throw (IO.userError "the old-configuration quorum acknowledgement must be enabled")
+  check (state.commitIndex == 2)
+    "a later pending configuration must not block an earlier signature's quorum"
+  check (highestCommittableIndex state primary == 0)
+    "the signature after the new configuration must require its majority too"
+  check (!decide (hasQuorum state.activeConfigurations {primary, 1}))
+    "elections must still require a majority in every active configuration"
+  let some (state, _) :=
+    (handleAppendEntriesResponse caps primary state 3
+      { term := BOOTSTRAP_TERM, success := true, lastLogIndex := 4 }).run
+      {}
+  | throw (IO.userError "the new-configuration quorum acknowledgement must be enabled")
+  check (state.commitIndex == 4)
+    "both configuration majorities must commit the later signature"
+  check (state.activeConfigurations.map (·.index) == [3])
+    "committing the new configuration must discard the obsolete quorum requirement"
+
 private def nominationTerms : IO Unit := do
   let source : NodeID := 0
   let destination : NodeID := 1
@@ -660,7 +698,7 @@ private def nominationTerms : IO Unit := do
   let configured ← receive configured destination source
   for term in [0, 1, BOOTSTRAP_TERM + 1] do
     let nomination : Envelope :=
-      { source, target := destination, payload := .proposeVoteRequest term }
+      { source, target := destination, payload := .proposeRequestVoteRequest term }
     let state := { configured with network := [nomination] }
     let after ← apply state (.deliver nomination)
     check after.network.isEmpty s!"nomination term {term}: message was not consumed"
@@ -669,7 +707,9 @@ private def nominationTerms : IO Unit := do
     check (decide ((get after destination).role = (get state destination).role))
       s!"nomination term {term}: role changed"
   let nomination : Envelope :=
-    { source, target := destination, payload := .proposeVoteRequest BOOTSTRAP_TERM }
+    {
+      source, target := destination, payload := .proposeRequestVoteRequest BOOTSTRAP_TERM
+    }
   let after ← apply { configured with network := [nomination] } (.deliver nomination)
   check (decide ((get after destination).role = .candidate))
     "same-term nomination: eligible follower did not become candidate"
@@ -713,6 +753,121 @@ private def appendEntriesResponseTerms : IO Unit := do
     ((get after primary).currentTerm == 5
       && decide ((get after primary).role = .follower))
     "a primary must adopt a newer AppendEntries response term as a follower"
+
+example (caps : Caps) (self source : NodeID) (state : NodeState)
+    (response : AppendEntriesResponse) (unknown : source ∉ eligiblePeers state self)
+    : Model.Node.receive caps self source state (.appendEntriesResponse response)
+      = pure state := by
+  simp [Model.Node.receive, unknown]
+
+example (caps : Caps) (self source : NodeID) (state : NodeState)
+    (response : RequestVoteResponse) (unknown : source ∉ eligiblePeers state self)
+    : Model.Node.receive caps self source state (.requestVoteResponse response)
+      = pure state := by
+  simp [Model.Node.receive, unknown]
+
+example (caps : Caps) (self source : NodeID) (state : NodeState)
+    (response : RequestVoteResponse) (unknown : source ∉ eligiblePeers state self)
+    : Model.Node.receive caps self source state (.requestPreVoteResponse response)
+      = pure state := by
+  simp [Model.Node.receive, unknown]
+
+private def responseAdmission : IO Unit := do
+  let self : NodeID := 0
+  for role in [Role.follower, .preVoteCandidate, .candidate, .primary] do
+    for source in [1, 10] do
+      for term in [1, BOOTSTRAP_TERM, BOOTSTRAP_TERM + 1] do
+        let state : NodeState :=
+          {
+            (initialNodeState modelConfig self) with
+              role
+              votedFor := some self
+              primaryKnown := true
+              votesGranted := {self}
+              preVotesGranted := {self}
+          }
+        let messages : List Message :=
+          [
+            .appendEntriesResponse { term, success := false, lastLogIndex := 0 },
+            .requestVoteResponse { term, voteGranted := false },
+            .requestPreVoteResponse { term, voteGranted := false }
+          ]
+        for message in messages do
+          let some (received, effects) :=
+            (Model.Node.receive (CCF.Capabilities.record self) self source state
+              message).run
+              {}
+          | throw (IO.userError "a discarded response must not disable receipt")
+          let readsTerm :=
+            source == 1
+            && (match message with
+                | .appendEntriesResponse _ => role == .primary
+                | _ => true)
+          let advancesTerm := readsTerm && term > state.currentTerm
+          check
+            (received.currentTerm
+                == (if readsTerm then max term state.currentTerm else state.currentTerm)
+              && received.role == (if advancesTerm then .follower else role)
+              && received.votedFor == (if advancesTerm then none else state.votedFor)
+              && received.primaryKnown
+                  == (if advancesTerm then false else state.primaryKnown)
+              && received.votesGranted == (if advancesTerm then ∅ else state.votesGranted)
+              && received.preVotesGranted
+                  == (if advancesTerm then ∅ else state.preVotesGranted)
+              && received.log == state.log
+              && received.commitIndex == state.commitIndex
+              && effects.outgoing.isEmpty)
+            "response admission must precede term adoption without filtering known peers"
+  let state := initialNodeState modelConfig self
+  let vote : RequestVoteRequest :=
+    { term := state.currentTerm + 1, lastCommittableTerm := 0, lastCommittableIndex := 0 }
+  let requests : List Message :=
+    [
+      .appendEntriesRequest
+        {
+          term := vote.term,
+          prevLogIndex := 0,
+          prevLogTerm := 0,
+          entries := [],
+          primaryCommit := 0
+        },
+      .requestVoteRequest vote,
+      .requestPreVoteRequest vote
+    ]
+  for request in requests do
+    let some (received, effects) :=
+      (Model.Node.receive (CCF.Capabilities.record self) self 10 state request).run {}
+    | throw (IO.userError "an unknown sender's request must remain receivable")
+    check (received.currentTerm == vote.term && effects.outgoing.length == 1)
+      "unknown requests must still advance the term and receive a response"
+  let state : NodeState :=
+    {
+      state with
+        log :=
+          state.log
+          ++ [
+            {
+              term := state.currentTerm,
+              content := .transaction 1 { configuration := some {self} }
+            },
+            { term := state.currentTerm, content := .signature }
+          ]
+        commitIndex := 3
+    }
+  check (decide (1 ∉ state.activeMembers /\ 1 ∈ state.retirementCompletedNodes))
+    "response admission fixture must distinguish completed retirement from active membership"
+  for response
+      in [
+        Message.appendEntriesResponse
+          { term := vote.term, success := false, lastLogIndex := 0 },
+        .requestVoteResponse { term := vote.term, voteGranted := false },
+        .requestPreVoteResponse { term := vote.term, voteGranted := false }
+      ] do
+    let some (received, _) :=
+      (Model.Node.receive (CCF.Capabilities.record self) self 1 state response).run {}
+    | throw (IO.userError "a completed-retirement peer response must remain receivable")
+    check (received.currentTerm == vote.term)
+      "response admission must not be restricted to active configuration members"
 
 private def batches : IO Unit := do
   let source : NodeID := 0
@@ -1188,6 +1343,64 @@ private def retirementConfirmationIndices : IO Unit := do
           && later.retiredCommittedIndex == expectedRetirement)
         "final retirement must clear role once, not force later states to remain role-less"
 
+private def appendEntriesStepDown : IO Unit := do
+  for role in [Role.none, .follower, .preVoteCandidate, .candidate, .primary] do
+    for term in [5, 6, 7] do
+      for prefixMatches in [false, true] do
+        let state : NodeState :=
+          {
+            (initialNodeState modelConfig 1) with
+              role
+              currentTerm := 6
+              votedFor := some 1
+              primaryKnown := true
+              votesGranted := {1, 2}
+              preVotesGranted := {1, 3}
+              isNewFollower := false
+          }
+        let request : AppendEntriesRequest :=
+          {
+            term
+            prevLogIndex := if prefixMatches then 0 else 1
+            prevLogTerm := 0
+            entries := []
+            primaryCommit := 0
+          }
+        let some (received, effects) :=
+          (Model.Node.receive (CCF.Capabilities.record 1) 1 0 state
+            (.appendEntriesRequest request)).run
+            {}
+        | throw (IO.userError "AppendEntries step-down must not disable receipt")
+        let stepsDown :=
+          term > state.currentTerm
+          || (term == state.currentTerm
+              && (role == .candidate || role == .preVoteCandidate))
+        check
+          (received.role == (if stepsDown then .follower else role)
+            && received.currentTerm == max term state.currentTerm
+            && received.votedFor == (if term > state.currentTerm then none else some 1)
+            && received.votesGranted == (if stepsDown then ∅ else state.votesGranted)
+            && received.preVotesGranted
+                == (if stepsDown then ∅ else state.preVotesGranted)
+            && received.isNewFollower == stepsDown
+            && received.primaryKnown
+                == (if term >= state.currentTerm && prefixMatches then
+                      true
+                    else
+                      !stepsDown))
+          s!"AppendEntries step-down state mismatch: term {term}, prefix {prefixMatches}"
+        check (received.log == state.log && received.commitIndex == state.commitIndex)
+          "an empty AppendEntries must preserve the empty log and commit index"
+        let some { payload := .appendEntriesResponse response, .. } :=
+          effects.outgoing.head?
+        | throw (IO.userError "AppendEntries step-down must send a response")
+        check
+          (effects.outgoing.length == 1
+            && response.term == received.currentTerm
+            && response.success == (term >= state.currentTerm && prefixMatches)
+            && response.lastLogIndex == 0)
+          "AppendEntries step-down must still send the expected ACK or NACK"
+
 /-- Runs the canonical CCF Raft behavior checks. -/
 def run : IO Unit := do
   configurationQueries
@@ -1196,8 +1409,10 @@ def run : IO Unit := do
   bootstrapAndNoMatchingPrefixTerms
   nominationSelection
   appendCommitTriggers
+  commitQuorumAtSignature
   nominationTerms
   appendEntriesResponseTerms
+  responseAdmission
   batches
   overlappingAppendEntries
   reorderedDelivery
@@ -1207,6 +1422,7 @@ def run : IO Unit := do
   networkSnapshots
   repliesAfterStepDown
   retirementConfirmationIndices
+  appendEntriesStepDown
   IO.println "Canonical behavior checks passed."
 
 #eval run

@@ -38,6 +38,18 @@ Successor nomination orders node IDs numerically when replication progress and c
 `ModelConfig` lives in `Model.lean` and supplies initial voting membership and a primary of type `configuration`, so it is a member by construction.
 The modeled node list is supplied separately and may include nodes outside the initial voting membership.
 Election timeouts always start a pre-vote round; a same-term primary nomination still starts a regular election directly.
+On same-term AppendEntries, a candidate or pre-vote candidate becomes a follower and clears both received-vote tallies and primary knowledge before checking the log, while preserving its vote cast in that term.
+Adopting a higher term uses the same reset and also clears the vote cast, matching C++'s `become_aware_of_new_term`.
+Vote, pre-vote and AppendEntries responses from outside `eligiblePeers` are discarded before term adoption.
+Requests are not subject to that sender filter; higher-term requests can still advance the term even if their vote or entries are subsequently rejected.
+`eligiblePeers` approximates C++'s retained `all_other_nodes` using ledger-derived membership and completed retirements; peers introduced only by rolled-back configurations are still not retained in this model.
+
+## Message names
+
+`Message` constructors use the protocol names from `raft.h`, in lower camel case with an explicit `Request` or `Response` suffix.
+The C++ `raft_request_pre_vote` and `raft_propose_request_vote` messages correspond to `requestPreVoteRequest` and `proposeRequestVoteRequest`; their handlers are `handleRequestPreVoteRequest` and `handleProposeRequestVoteRequest`.
+The other constructors are `appendEntriesRequest`, `appendEntriesResponse`, `requestVoteRequest`, `requestVoteResponse` and `requestPreVoteResponse`.
+Pre-vote and regular-vote messages still share the `RequestVoteRequest` and `RequestVoteResponse` payload structures; the names do not change their contents or behavior.
 
 ## Initialization and local knowledge
 
@@ -52,6 +64,9 @@ A running node can receive replication before it is eligible to campaign; the ne
 The initial primary can replicate and sign its genesis transaction through ordinary primary actions, without a persistent initial-primary exception.
 Rolling back a configuration or its covering signature immediately changes the corresponding local queries.
 When AppendEntries overlaps the local log, matching terms retain the existing entries; a new follower rolls back only to immediately before the first term conflict, matching C++.
+Committing a signature requires a separate majority in every active configuration whose transaction is at or before that signature.
+A later pending configuration does not block an earlier signature; this intentionally differs from the current C++ `update_commit` policy, tracked in [#8606](https://github.com/microsoft/CCF/issues/8606).
+Election quorums still require majorities in every active configuration.
 
 Service creation is represented by initialization rather than an action.
 Explicit join and snapshot-install lifecycle actions are not modeled.
@@ -89,7 +104,9 @@ The Mathlib-free `ccf_common` package also receives build, lint and kernel check
 - `SingleNodeCommittedLogMonotonic`: a successful network step from a state with unique node IDs preserves each node's committed prefix, without assuming reachability.
 - `CommittedFrontierIsSignature`: every positive commit index points to a signature.
 
-The other three properties quantify over valid traces.
+The other three properties quantify over valid countably infinite traces, with states indexed by `Nat`.
+Validity requires an initial state and an enabled action between every adjacent pair, without fairness or implicit stuttering.
+These claims only cover states on infinite executions; they do not independently cover finite executions that cannot extend forever.
 Each has a `Witness` statement exhibiting the situation it constrains, such as two distinct primaries.
 The single-node witness requires unique starting node IDs and a successful step that strictly extends a nonempty committed log.
 Liveness is not stated.

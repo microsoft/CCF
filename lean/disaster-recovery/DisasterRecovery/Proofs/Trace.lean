@@ -40,7 +40,7 @@ lemma Path.run {system : TransitionSystem State Action} {before tail after}
 
 lemma Path.valid {system : TransitionSystem State Action} {before tail after}
     (path : Path system before tail after) (initialized : system.init before)
-    : (Execution.Trace.mk (before :: tail)).Valid system := by
+    : (Execution.FiniteTrace.mk (before :: tail)).Valid system := by
   refine ⟨⟨before, rfl, initialized⟩, ?_⟩
   clear initialized
   induction path with
@@ -57,8 +57,8 @@ lemma Path.valid {system : TransitionSystem State Action} {before tail after}
           exact ⟨_, step⟩
       | succ i => exact ih i left right first second
 
-lemma valid_path {system : TransitionSystem State Action} {trace : Execution.Trace State}
-    (valid : trace.Valid system)
+lemma valid_path {system : TransitionSystem State Action}
+    {trace : Execution.FiniteTrace State} (valid : trace.Valid system)
     : exists before tail after,
         trace.states = before :: tail
         /\ system.init before
