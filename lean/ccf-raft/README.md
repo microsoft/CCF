@@ -6,15 +6,15 @@ The properties are stated but not proved here.
 
 ## Source map
 
-| Area                                   | Source                                                                                                                         |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Node state, log entries, log queries   | [`Model/NodeState.lean`](CCFRaft/Model/NodeState.lean)                                                                         |
-| Configurations, quorums, retirement    | [`Model/ClusterConfig.lean`](CCFRaft/Model/ClusterConfig.lean) (`activeConfigurations`, `hasQuorum`, `NodeState.retirement`)   |
-| Messages                               | [`Model/Messages.lean`](CCFRaft/Model/Messages.lean)                                                                           |
-| Protocol policy (one node's step)      | [`Model/Node.lean`](CCFRaft/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)       |
-| Initial states and network composition | [`Model.lean`](CCFRaft/Model.lean) (`initialNodeState`, `transitionSystem`)                                                    |
-| Safety properties and witnesses        | [`Properties.lean`](CCFRaft/Properties.lean)                                                                                   |
-| Action-trace tests and import layering | [`Tests/CanonicalTests.lean`](CCFRaft/Tests/CanonicalTests.lean), [`Tests/Architecture.lean`](CCFRaft/Tests/Architecture.lean) |
+| Area                                   | Source                                                                                                                           |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Node state, log entries, log queries   | [`Model/NodeState.lean`](CCFRaft/Model/NodeState.lean)                                                                           |
+| Configurations, quorums, retirement    | [`Model/ClusterConfig.lean`](CCFRaft/Model/ClusterConfig.lean) (`activeConfigurations`, `hasQuorum`, `NodeState.retirement`)     |
+| Messages                               | [`Model/Messages.lean`](CCFRaft/Model/Messages.lean)                                                                             |
+| Protocol policy (one node's step)      | [`Model/Node.lean`](CCFRaft/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)         |
+| Initial states and network composition | [`Model.lean`](CCFRaft/Model.lean) (`initialNodeState`, `transitionSystem`)                                                      |
+| Safety properties and witnesses        | [`Properties.lean`](CCFRaft/Properties.lean)                                                                                     |
+| Action-trace tests and import layering | [`Tests/CanonicalTraces.lean`](CCFRaft/Tests/CanonicalTraces.lean), [`Tests/Architecture.lean`](CCFRaft/Tests/Architecture.lean) |
 
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
 Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
@@ -50,6 +50,7 @@ lake check --inadvisably-no-sandbox
 ```
 
 `lake build --wfail` rejects warnings, including `sorry`, and runs two explicit action traces from an initialized network: committing a client request, and adding two nodes then electing a new primary and committing another request.
+The reconfiguration trace checks each node's ledger before delivery, after setup, after replication and commitment, after election, and after the new primary's client request.
 These are regression examples, not exhaustive checking.
 `lake check` re-checks the build in Lean's kernel and rejects nonstandard axioms; it runs without sandboxing, so build-time code must be trusted.
 After adding or removing a module, regenerate `CCFRaft.lean` with `lake exe mk_all --module --lib CCFRaft`.

@@ -6,7 +6,7 @@ public import CCFRaft.Model
 
 public section
 
-namespace CCFRaft.Tests.CanonicalTests
+namespace CCFRaft.Tests.CanonicalTraces
 
 open CCFRaft CCFRaft.Model.Node
 open CCFRaft.Model (initialNodeState BOOTSTRAP_TERM)
@@ -26,12 +26,25 @@ private def get (state : Model.State) (node : NodeID) : IO NodeState :=
   | some state => pure state
   | none => throw (IO.userError s!"missing node {node}")
 
+private def initialState (configuration : Finset NodeID) (nodes : List NodeID)
+    : Model.State :=
+  { nodes := nodes.map fun node => (node, initialNodeState configuration node) }
+
+private def checkLedger (name : String) (state : Model.State) (node : NodeID)
+    (expected : List Entry) (commitIndex : Nat)
+    : IO Unit := do
+  let localState ← get state node
+  check
+    (localState.log == expected
+      && localState.commitIndex == commitIndex
+      && localState.committedLog == expected.take commitIndex)
+    s!"{name}: node {node} has the wrong ledger or committed prefix"
+
 private def runTrace (name : String) (configuration : Finset NodeID)
-    (nodes : List NodeID) (actions : List Action)
+    (nodes : List NodeID) (start : Model.State) (actions : List Action)
     : IO Model.State := do
   let system := Model.transitionSystem configuration nodes
-  let mut state : Model.State :=
-    { nodes := nodes.map fun node => (node, initialNodeState configuration node) }
+  let mut state := start
   check (decide (configuration.Nonempty /\ nodes.Nodup))
     s!"{name}: initial membership must be nonempty and node IDs unique"
   for (action, index) in actions.zipIdx do
@@ -59,6 +72,7 @@ private def clientRequestCommits : IO Unit := do
   let nodes := [0, 1, 2]
   let state ←
     runTrace "client request commits" configuration nodes
+      (initialState configuration nodes)
       [
         .local 0 (.append [.transaction 10 {}]),
         .local 0 (.append [.signature]),
@@ -93,28 +107,68 @@ private def clientRequestCommits : IO Unit := do
 
 private def reconfigureElectAndCommit : IO Unit := do
   let nodes := [0, 1, 2]
+  let expected : List Entry :=
+    [
+      { term := BOOTSTRAP_TERM, content := .transaction 0 { configuration := some {0} } },
+      { term := BOOTSTRAP_TERM, content := .transaction 10 {} },
+      { term := BOOTSTRAP_TERM, content := .signature },
+      {
+        term := BOOTSTRAP_TERM,
+        content := .transaction 20 { configuration := some {0, 1, 2} }
+      },
+      { term := BOOTSTRAP_TERM, content := .signature }
+    ]
   let state ←
-    runTrace "reconfigure, elect and commit" {0} nodes
+    runTrace "reconfiguration before delivery" {0} nodes (initialState {0} nodes)
       [
         .local 0 (.append [.transaction 10 {}]),
         .local 0 (.append [.signature]),
         .local 0 (.append [.transaction 20 { configuration := some {0, 1, 2} }]),
-        .local 0 (.append [.signature]),
-        -- New-peer heartbeats start at the old ledger end; NACKs enable full replication.
+        .local 0 (.append [.signature])
+      ]
+  checkLedger "reconfiguration before delivery" state 0 expected 3
+  for node in [1, 2] do
+    checkLedger "reconfiguration before delivery" state node [] 0
+
+  -- New-peer heartbeats start at the old ledger end; NACKs enable full replication.
+  let state ←
+    runTrace "initial setup delivery" {0} nodes state
+      [.deliver 0 1, .deliver 1 0, .deliver 0 2, .deliver 2 0]
+  checkLedger "initial setup delivery" state 0 expected 3
+  for node in [1, 2] do
+    checkLedger "initial setup delivery" state node [] 0
+
+  let state ←
+    runTrace "replication" {0} nodes state
+      [
+        .local 0 (.sendEntries 1 5),
+        .local 0 (.sendEntries 2 5),
         .deliver 0 1,
         .deliver 1 0,
         .deliver 0 2,
-        .deliver 2 0,
+        .deliver 2 0
+      ]
+  checkLedger "replication" state 0 expected 5
+  for node in [1, 2] do
+    checkLedger "replication" state node expected 3
+
+  let state ←
+    runTrace "commit notification" {0} nodes state
+      [
         .local 0 (.sendEntries 1 5),
         .deliver 0 1,
         .deliver 1 0,
         .local 0 (.sendEntries 2 5),
         .deliver 0 2,
-        .deliver 2 0,
-        .local 0 (.sendEntries 1 5),
-        .deliver 0 1,
-        .deliver 1 0,
-        -- Node 1 wins pre-vote and the election with node 0's vote.
+        .deliver 2 0
+      ]
+  for node in nodes do
+    checkLedger "commit notification" state node expected 5
+
+  -- Node 1 wins pre-vote and the election with node 0's vote.
+  let state ←
+    runTrace "election" {0} nodes state
+      [
         .local 1 (.timeout .election),
         .deliver 1 0,
         .deliver 0 1,
@@ -128,7 +182,19 @@ private def reconfigureElectAndCommit : IO Unit := do
         .deliver 1 2,
         .deliver 2 1,
         .deliver 1 0,
-        .deliver 0 1,
+        .deliver 0 1
+      ]
+  for node in nodes do
+    checkLedger "election" state node expected 5
+    let localState ← get state node
+    check
+      (localState.currentTerm == BOOTSTRAP_TERM + 1
+        && localState.role == (if node == 1 then .primary else .follower))
+      s!"election: node {node} has the wrong term or role"
+
+  let state ←
+    runTrace "new primary client request" {0} nodes state
+      [
         .local 1 (.append [.transaction 30 {}]),
         .local 1 (.append [.signature]),
         .local 1 (.sendEntries 0 7),
@@ -141,23 +207,15 @@ private def reconfigureElectAndCommit : IO Unit := do
         .deliver 1 0,
         .deliver 0 1
       ]
-  let expected : List Entry :=
-    [
-      { term := BOOTSTRAP_TERM, content := .transaction 0 { configuration := some {0} } },
-      { term := BOOTSTRAP_TERM, content := .transaction 10 {} },
-      { term := BOOTSTRAP_TERM, content := .signature },
-      {
-        term := BOOTSTRAP_TERM,
-        content := .transaction 20 { configuration := some {0, 1, 2} }
-      },
-      { term := BOOTSTRAP_TERM, content := .signature },
+  let expected :=
+    expected
+    ++ [
       { term := BOOTSTRAP_TERM + 1, content := .transaction 30 {} },
       { term := BOOTSTRAP_TERM + 1, content := .signature }
     ]
   for node in nodes do
+    checkLedger "new primary client request" state node expected 7
     let localState ← get state node
-    check (localState.log == expected && localState.committedLog == expected)
-      s!"reconfigure, elect and commit: node {node} must commit both requests and the reconfiguration in order"
     check
       (localState.currentTerm == BOOTSTRAP_TERM + 1
         && localState.role == (if node == 1 then .primary else .follower)
@@ -165,7 +223,7 @@ private def reconfigureElectAndCommit : IO Unit := do
       s!"reconfigure, elect and commit: node {node} has the wrong term, role or membership"
   check state.network.isEmpty "reconfigure, elect and commit: undelivered messages remain"
 
-/-- Runs initialized action traces and checks their final ledgers. -/
+/-- Runs initialized action traces and checks their ledgers at each stage. -/
 def run : IO Unit := do
   clientRequestCommits
   reconfigureElectAndCommit
@@ -173,4 +231,4 @@ def run : IO Unit := do
 
 #eval run
 
-end CCFRaft.Tests.CanonicalTests
+end CCFRaft.Tests.CanonicalTraces

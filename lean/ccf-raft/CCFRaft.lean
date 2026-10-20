@@ -7,4 +7,4 @@ public import CCFRaft.Model.Node
 public import CCFRaft.Model.NodeState
 public import CCFRaft.Properties
 public import CCFRaft.Tests.Architecture
-public import CCFRaft.Tests.CanonicalTests
+public import CCFRaft.Tests.CanonicalTraces
