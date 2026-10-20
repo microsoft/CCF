@@ -10,11 +10,12 @@ namespace DisasterRecovery.Proofs.Model
 
 lemma quorum_opener_unique : Properties.QuorumOpenerUnique := by
   rintro config trace firstStep secondStep firstOpener secondOpener ⟨valid, first, second⟩
-  obtain ⟨_, _, ghost, _, _, _, linked⟩ := History.history_correspondence trace valid
+  obtain ⟨ghost, linked⟩ :=
+    History.history_correspondence trace valid (firstStep + secondStep + 1)
   obtain ⟨firstState, firstMember, firstThreshold⟩ :=
-    Gossip.quorum_notification_final_votes valid linked first
+    Gossip.quorum_notification_final_votes valid linked (by omega) first
   obtain ⟨secondState, secondMember, secondThreshold⟩ :=
-    Gossip.quorum_notification_final_votes valid linked second
+    Gossip.quorum_notification_final_votes valid linked (by omega) second
   exact Observed.current_quorum_unique_of_thresholds linked.reachable
     (firstOpener, firstState) (secondOpener, secondState)
     firstMember secondMember firstThreshold secondThreshold
