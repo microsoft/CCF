@@ -1,83 +1,48 @@
 # CCF Raft model
 
-This Lake package is an executable Lean model of CCF's Raft implementation (`src/consensus/aft/raft.h`), together with the safety properties it is intended to satisfy.
-The properties are stated but not yet proved.
+An executable Lean model of CCF's consensus implementation ([`src/consensus/aft/raft.h`](../../src/consensus/aft/raft.h)) and the safety properties it is intended to satisfy.
+It assumes familiarity with the [CCF consensus documentation](../../doc/architecture/consensus/index.rst).
+The properties are stated but not proved here.
 
-## Layout
+## Source map
 
-| Module                             | Contents                                                       |
-| ---------------------------------- | -------------------------------------------------------------- |
-| `CCFRaft/Model/NodeState.lean`     | Node state, log entries and pure log queries                   |
-| `CCFRaft/Model/ClusterConfig.lean` | Ledger-derived membership and retirement queries               |
-| `CCFRaft/Model/Messages.lean`      | Messages exchanged between nodes                               |
-| `CCFRaft/Model/Node.lean`          | `Node.step`: one node's response to an input or a message      |
-| `CCFRaft/Model.lean`               | Initial node states and network composition                    |
-| `CCFRaft/Properties.lean`          | Safety property statements and their witnesses                 |
-| `CCFRaft/Tests/`                   | Initialized action traces and import-boundary rules            |
-| `CCFRaft.lean`                     | Generated root importing every module                          |
+| To change or review                    | Look at                                                                                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Node state, log entries, log queries   | [`Model/NodeState.lean`](CCFRaft/Model/NodeState.lean)                                                                         |
+| Configurations, quorums, retirement    | [`Model/ClusterConfig.lean`](CCFRaft/Model/ClusterConfig.lean) (`activeConfigurations`, `hasQuorum`, `NodeState.retirement`)   |
+| Messages                               | [`Model/Messages.lean`](CCFRaft/Model/Messages.lean)                                                                           |
+| Protocol policy (one node's step)      | [`Model/Node.lean`](CCFRaft/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)       |
+| Initial states and network composition | [`Model.lean`](CCFRaft/Model.lean) (`initialNodeState`, `transitionSystem`)                                                    |
+| Safety properties and witnesses        | [`Properties.lean`](CCFRaft/Properties.lean)                                                                                   |
+| Action-trace tests and import layering | [`Tests/CanonicalTests.lean`](CCFRaft/Tests/CanonicalTests.lean), [`Tests/Architecture.lean`](CCFRaft/Tests/Architecture.lean) |
 
-Transition systems, traces, output-recording effects and network composition come from the local [`ccf_common` package](../common/README.md), under the `CCF` namespace.
-Both `lakefile.toml` and `lake-manifest.json` reference `../common`, without copying or fetching another CCF checkout.
+Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
+Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
+Initialization takes a nonempty initial voting membership, whose smallest member starts as primary with the genesis configuration transaction.
+Actions are local inputs (including timeouts) or delivery of a queued message; no clock is modeled.
 
-`Properties.lean` defines `GlobalTrace` alongside the property statements.
+## Properties
 
-`NodeState.lean` holds the state and simple log accessors.
-`ClusterConfig.lean` holds configuration and membership queries, including `MembershipState` and `latestMembershipIndex`, plus the configuration-majority and quorum predicates.
-`MembershipState.noRetirementObserved` means no membership removal is recorded in the local log; it does not imply that the node has joined.
-`NodeState.isRetiredCommitted` queries the derived membership phase, not just the historical commit latch.
-`latestConfigurationMembers` reads the final supplied configuration's membership.
-Protocol helpers such as `NodeState.recordCommit` and `findHighestPossibleMatch` live in `Node.lean`.
+[`Properties.lean`](CCFRaft/Properties.lean) states four properties of `Model.transitionSystem`, each with a `Witness` statement exhibiting the situation it constrains:
 
-`NodeID` and `ReqID` are aliases for `Nat`; the model, messages and properties take no identifier-type parameters.
-Each transaction entry records a request identifier and its consensus metadata.
-`TransactionMetadata.retirementConfirmations` names the nodes whose retirement that transaction confirms; the field does not imply that the confirmation transaction has committed.
-Once a node's confirmation commits, `NodeState.retiredCommittedIndex` records the confirmation transaction's original one-based log index, matching the version supplied by C++'s nodes-table global commit hook, rather than the covering signature's index.
-That first commitment also clears the node's role and primary knowledge on both primary and follower paths; a retiring primary still nominates a successor using its precommit state.
-This is a one-time retirement effect, not a restriction on role changes caused by later messages.
-Successor nomination orders node IDs numerically when replication progress and configuration membership tie.
-Initialization takes one nonempty `Finset NodeID` for the initial voting membership; there is no separate `ModelConfig` or explicit primary choice.
-The smallest member starts as primary, independent of the order of the modeled node list.
-The modeled node list is supplied separately and may include nodes outside the initial voting membership.
-Election timeouts always start a pre-vote round; a same-term primary nomination still starts a regular election directly.
-On same-term AppendEntries, a candidate or pre-vote candidate becomes a follower and clears both received-vote tallies and primary knowledge before checking the log, while preserving its vote cast in that term.
-Adopting a higher term uses the same reset and also clears the vote cast, matching C++'s `become_aware_of_new_term`.
-Vote, pre-vote and AppendEntries responses from outside `eligiblePeers` are discarded before term adoption.
-Requests are not subject to that sender filter; higher-term requests can still advance the term even if their vote or entries are subsequently rejected.
-`eligiblePeers` approximates C++'s retained `all_other_nodes` using ledger-derived membership and completed retirements; peers introduced only by rolled-back configurations are still not retained in this model.
+- `ElectionSafety`: no two distinct nodes are primary in the same term.
+- `CommittedLogsPrefix`: any two committed logs in a trace are prefix-comparable.
+- `CommittedFrontierIsSignature`: every positive commit index points to a signature.
+- `SingleNodeCommittedLogMonotonic`: a successful step from any state with unique node IDs preserves each node's committed prefix.
 
-## Message names
+The first three quantify over valid finite or infinite traces (`Stream'.Seq` from `ccf_common`) that start in an initial state, without fairness or implicit stuttering.
+`SingleNodeCommittedLogMonotonic` is a single-step property over arbitrary states, not only reachable ones.
 
-`Message` constructors use the protocol names from `raft.h`, in lower camel case with an explicit `Request` or `Response` suffix.
-The C++ `raft_request_pre_vote` and `raft_propose_request_vote` messages correspond to `requestPreVoteRequest` and `proposeRequestVoteRequest`; their handlers are `handleRequestPreVoteRequest` and `handleProposeRequestVoteRequest`.
-The other constructors are `appendEntriesRequest`, `appendEntriesResponse`, `requestVoteRequest`, `requestVoteResponse` and `requestPreVoteResponse`.
-Pre-vote and regular-vote messages still share the `RequestVoteRequest` and `RequestVoteResponse` payload structures; the names do not change their contents or behavior.
+## Scope and differences from `raft.h`
 
-## Initialization and local knowledge
-
-The initial membership set is used only to initialize node states; `Node.step` and the membership queries take no model-wide configuration.
-An empty initial membership is rejected by the network's initial-state predicate.
-Only the initial primary starts with the unsigned configuration transaction.
-Other initial members start as followers with empty logs; nodes outside the initial membership start without a protocol role.
-An empty log has no known membership, and no configuration is injected at index zero.
-
-Membership, quorum and retirement queries read each node's own ledger.
-No quorum exists without a configuration, and campaigning requires locally signed membership or locally recorded completed retirement.
-A running node can receive replication before it is eligible to campaign; there is no separate network activity filter.
-The initial primary can replicate and sign its genesis transaction through ordinary primary actions, without a persistent initial-primary exception.
-Rolling back a configuration or its covering signature immediately changes the corresponding local queries.
-When AppendEntries overlaps the local log, matching terms retain the existing entries; a new follower rolls back only to immediately before the first term conflict, matching C++.
-At previous index zero, the previous term must also be zero; a nonzero previous term is rejected, matching C++.
-The final-retirement send guard suppresses empty and single-entry ranges, matching C++'s inclusive-start comparison; longer ranges remain permitted by that guard.
-Committing a signature requires a separate majority in every active configuration whose transaction is at or before that signature.
-A later pending configuration does not block an earlier signature; this intentionally differs from the current C++ `update_commit` policy, tracked in [#8606](https://github.com/microsoft/CCF/issues/8606).
-Election quorums still require majorities in every active configuration.
-
-Service creation is represented by initialization rather than an action.
-Explicit join and snapshot-install lifecycle actions are not modeled.
+- Commit: a signature commits once it has a majority in every active configuration at or before it; a later pending configuration does not block it.
+  This intentionally differs from the current C++ `update_commit` policy; see [#8606](https://github.com/microsoft/CCF/issues/8606).
+- Peers: `eligiblePeers` approximates C++'s retained `all_other_nodes` from ledger-derived membership and completed retirements, so peers introduced only by rolled-back configurations are not retained.
+- Elections: timeouts always start pre-vote; the native `pre_vote_enabled` toggle is not modeled.
+- Not modeled: service creation (replaced by initialization), node join and snapshot installation.
+- Only safety is stated; there are no liveness or fairness properties.
 
 ## Validation
-
-The package's `lean-toolchain` is a symlink to [`../lean-toolchain`](../lean-toolchain), shared with the disaster recovery package.
 
 Install Lean via [elan](https://lean-lang.org/install/), then run from this directory:
 
@@ -90,36 +55,7 @@ lake check --inadvisably-no-sandbox
 ../../scripts/lean-format-checks.sh ccf-raft
 ```
 
-The Lean CI workflow groups formatting and linting in one step and import-root, build and kernel checks in another.
-The `ccf_common` package also depends on Mathlib for finite or infinite traces and receives the same package checks.
-
-- `mk_all --check` fails if `CCFRaft.lean` does not import every module.
-- `lake build --wfail` builds the library, treating warnings, including `sorry`, as errors.
-- Canonical action traces run through `#eval` when `Tests/CanonicalTests.lean` is compiled; failures fail the build.
-  Each starts from an initialized network, executes an explicit ordered list of local actions and message deliveries, and asserts the final state.
-  The traces cover committing a client request and adding two nodes before electing a new leader and committing another request.
-  They check the exact committed ledger, including configuration entries, signatures and terms, on every node, together with final roles and membership.
-- `lake check` re-checks all default targets with Lean's kernel and fails on any axiom other than `propext`, `Classical.choice` and `Quot.sound`.
-  It runs without sandbox isolation, so build-time code must be trusted; Lake prints a warning saying so.
-- The formatting script runs the pinned [leanfmt](https://github.com/duckki/leanfmt).
-  Pass `-f` before the package name to rewrite files in place.
-
-`Properties.lean` states four properties of `Model.transitionSystem`:
-
-- `ElectionSafety`: no two distinct nodes are primary in the same term.
-- `CommittedLogsPrefix`: any two committed logs in a trace are prefix-comparable.
-- `SingleNodeCommittedLogMonotonic`: a successful network step from a state with unique node IDs preserves each node's committed prefix, without assuming reachability.
-- `CommittedFrontierIsSignature`: every positive commit index points to a signature.
-
-The other three properties quantify over valid finite or infinite traces, represented by `Stream'.Seq`.
-Validity requires an initial first state and an enabled action between every adjacent pair of present states, without fairness or implicit stuttering.
-A finite trace may stop at any point, including a deadlock; `CCF.Execution.reachable_iff_trace` relates trace membership to reachability.
-Each has a `Witness` statement exhibiting the situation it constrains, such as two distinct primaries.
-The single-node witness requires unique starting node IDs and a successful step that strictly extends a nonempty committed log.
-Liveness is not stated.
-
-Modules are layered in order: `ccf_common`, then the model, then the properties.
-A module may import only from its own layer or an earlier one, and nothing may import a proof module or a package-local `CCFRaft.Shared` copy of `ccf_common`.
-`Tests/Architecture.lean` enforces this ordering when the package builds.
-
+`lake build --wfail` rejects warnings, including `sorry`, and runs two explicit action traces from an initialized network: committing a client request, and adding two nodes then electing a new primary and committing another request.
+These are regression examples, not exhaustive checking.
+`lake check` re-checks the build in Lean's kernel and rejects nonstandard axioms; it runs without sandboxing, so build-time code must be trusted.
 After adding or removing a module, regenerate `CCFRaft.lean` with `lake exe mk_all --module --lib CCFRaft`.
