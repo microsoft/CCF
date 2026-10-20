@@ -21,7 +21,6 @@ private def config : Model.Config :=
   {
     protocol := { instanceId := "quorum-timeout", expectedLocations := ["A", "B", "C"] }
     recovered := [("A", high), ("B", high), ("C", low)]
-    active := ["A", "B", "C"]
   }
 
 private def gossip (source target : Location) (txid : TxID) : Model.Envelope :=
@@ -77,7 +76,7 @@ private def s10 :=
 private def s11 := snapshot (selected "A") (selected "B") openedC (aGossips ++ bGossips)
 
 private def trace : Properties.GlobalTrace :=
-  { states := [initial, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11] }
+  Stream'.Seq.ofList [initial, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11]
 
 private def actions : List Model.Action :=
   [
@@ -102,12 +101,13 @@ private theorem initialized : (Model.transitionSystem config).init initial := by
 private theorem valid : trace.Valid (Model.transitionSystem config) := by
   refine ⟨⟨initial, rfl, initialized⟩, ?_⟩
   intro i before after first second
+  simp only [trace, Stream'.Seq.ofList_get?] at first second
   have bound : i < 11 := by
     have := (List.getElem?_eq_some_iff.mp second).1
-    simp only [trace, List.length_cons, List.length_nil] at this
+    simp only [List.length_cons, List.length_nil] at this
     omega
   refine ⟨actions[i]'(by simpa [actions] using bound), ?_⟩
-  interval_cases i <;> simp only [trace, List.getElem?_cons_zero,
+  interval_cases i <;> simp only [List.getElem?_cons_zero,
     List.getElem?_cons_succ, Nat.reduceAdd, Option.some.injEq] at first second <;>
     subst before <;> subst after
   all_goals
@@ -121,8 +121,8 @@ private theorem valid : trace.Valid (Model.transitionSystem config) := by
 private theorem opened : ("C", openedC) ∈ s11.nodes := by
   simp [s11, snapshot]
 
-private theorem final_in_trace : s11 ∈ trace.states := by
-  simp [trace]
+private theorem final_in_trace : s11 ∈ trace :=
+  Stream'.Seq.get?_mem (n := 11) rfl
 
 private theorem stale : ¬ Properties.UpToDateWithQuorum config low := by
   unfold Properties.UpToDateWithQuorum
@@ -130,7 +130,7 @@ private theorem stale : ¬ Properties.UpToDateWithQuorum config low := by
 
 example
     : trace.Valid (Model.transitionSystem config)
-      /\ s11 ∈ trace.states
+      /\ s11 ∈ trace
       /\ ("C", openedC) ∈ s11.nodes
       /\ openedC.openKind = some .quorum
       /\ Model.recoveredTxID config "C" = some low
@@ -139,7 +139,9 @@ example
 
 private theorem missing_own : ¬ Properties.ReceivedOwnGossip trace "A" := by
   rintro ⟨state, member, current, txid, present, gossipPresent⟩
-  simp only [trace, List.mem_cons, List.not_mem_nil, or_false] at member
+  obtain ⟨i, found⟩ := Stream'.Seq.mem_iff_exists_get?.mp member
+  replace member := List.mem_of_getElem? found.symm
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
   all_goals
     simp [initial, Tests.initial, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9,

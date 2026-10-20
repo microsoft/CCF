@@ -14,7 +14,7 @@ private def counter : TransitionSystem Nat Bool where
   step state increment := if increment then some (state + 1) else some state
 
 -- Stutters are allowed: each adjacent pair needs only some enabled action.
-private def counting : FiniteTrace Nat := { states := [0, 0, 1, 2] }
+private def counting : Trace Nat := Stream'.Seq.ofList [0, 0, 1, 2]
 
 private theorem counting_valid : counting.Valid counter := by
   refine ⟨⟨0, rfl, rfl⟩, ?_⟩
@@ -24,68 +24,52 @@ private theorem counting_valid : counting.Valid counter := by
   · exact ⟨true, by simp [counter]⟩
   · exact ⟨true, by simp [counter]⟩
 
-example : counter.Reachable 2 := counting_valid.reachable (by simp [counting])
+example : counter.Reachable 2 :=
+  counting_valid.reachable (Stream'.Seq.get?_mem (n := 3) rfl)
+
+-- Traces may be infinite.
+private def forever : Trace Nat := Stream'.Seq.ofStream id
+
+example : forever.Valid counter :=
+  ⟨
+    ⟨0, rfl, rfl⟩,
+    fun _ _ _ first second => by
+      cases first
+      cases second
+      exact ⟨true, rfl⟩
+  ⟩
+
+-- A finite trace need not end in a deadlock: the counter can still step after 2.
+example : counter.step 2 true = some 3 := rfl
 
 example (state : Nat)
     : counter.Reachable state
-      <-> exists trace : FiniteTrace Nat, trace.Valid counter /\ state ∈ trace.states :=
-  reachable_iff_finiteTrace
+      <-> exists trace : Trace Nat, trace.Valid counter /\ state ∈ trace :=
+  reachable_iff_trace
 
 -- An empty trace has no initial state.
-example : ¬ (⟨[]⟩ : FiniteTrace Nat).Valid counter := by
+example : ¬ Trace.Valid (Stream'.Seq.ofList []) counter := by
   rintro ⟨⟨_, first, _⟩, _⟩
   simp at first
 
-example : ¬ (⟨[1]⟩ : FiniteTrace Nat).Valid counter := by
+example : ¬ Trace.Valid (Stream'.Seq.ofList [1]) counter := by
   rintro ⟨⟨initial, first, initialized⟩, _⟩
   simp at first
   subst first
   simp [counter] at initialized
 
 -- Adjacent states must be related by an enabled action.
-example : ¬ (⟨[0, 2]⟩ : FiniteTrace Nat).Valid counter := by
+example : ¬ Trace.Valid (Stream'.Seq.ofList [0, 2]) counter := by
   rintro ⟨_, steps⟩
   obtain ⟨action, step⟩ := steps 0 0 2 rfl rfl
   cases action <;> simp [counter] at step
 
 example
-    : ¬ (⟨[0, 0]⟩ : FiniteTrace Nat).Valid
+    : ¬ Trace.Valid (Stream'.Seq.ofList [0, 0])
           ({ init := fun state => state = 0, step := fun _ _ => none }
             : TransitionSystem Nat Unit) := by
   rintro ⟨_, steps⟩
   obtain ⟨_, step⟩ := steps 0 0 0 rfl rfl
-  cases step
-
-private def infiniteCounting : Trace Nat := { states := id }
-
-private theorem infiniteCounting_valid : infiniteCounting.Valid counter := by
-  refine ⟨rfl, ?_⟩
-  intro index
-  exact ⟨true, rfl⟩
-
-example (index : Nat) : counter.Reachable index :=
-  infiniteCounting_valid.reachable ⟨index, rfl⟩
-
-example : (⟨fun _ => 0⟩ : Trace Nat).Valid counter := by
-  exact ⟨rfl, fun _ => ⟨false, rfl⟩⟩
-
-example : ¬ (⟨fun index => index + 1⟩ : Trace Nat).Valid counter := by
-  intro valid
-  have initial := valid.1
-  change 1 = 0 at initial
-  contradiction
-
-example : ¬ (⟨fun index => index * 2⟩ : Trace Nat).Valid counter := by
-  intro valid
-  obtain ⟨action, step⟩ := valid.2 0
-  cases action <;> simp [counter] at step
-
-example
-    : ¬ (⟨fun _ => 0⟩ : Trace Nat).Valid
-          ({ init := fun state => state = 0, step := fun _ _ => none }
-            : TransitionSystem Nat Unit) := by
-  intro valid
-  obtain ⟨_, step⟩ := valid.2 0
   cases step
 
 end DisasterRecovery.Tests.Execution

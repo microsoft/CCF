@@ -47,7 +47,7 @@ The local properties are invariants of `Local.step`.
 They hold for every node state, not only reachable ones.
 Each quantifies a `LocalStep` record and assumes `ValidStep`: re-executing the step yields exactly the recorded after-state and outputs.
 
-The global properties quantify a `GlobalTrace`, a list of states beginning with the initial state.
+The global properties quantify a `GlobalTrace`, a finite or infinite sequence of states beginning with the initial state.
 `trace.Valid` requires an initial first state and an enabled action between each adjacent pair.
 `Trace.NotificationAt` states that a step by `node` between states `i` and `i + 1` emitted a given notification.
 
@@ -75,8 +75,6 @@ Liveness properties are out of scope.
 
 ## Validation
 
-The package's `lean-toolchain` is a symlink to [`../lean-toolchain`](../lean-toolchain), shared with the CCF Raft package.
-
 Run the following commands from this directory:
 
 ```console
@@ -85,6 +83,7 @@ lake exe mk_all --check --module --lib DisasterRecovery
 lake build --wfail --fail-fast
 lake build CCF
 lake lint
+lake exe runLinter --no-build CCF DisasterRecovery replayer.Main
 ./replayer/check-fixtures.sh
 lake check --inadvisably-no-sandbox
 ```
@@ -109,7 +108,7 @@ Public imports preserve existing names and exports.
 Proofs that evaluate upstream implementations use narrowly scoped `import all` directives to retain access to those definitions.
 The proof-coverage check also loads implementation metadata to distinguish checked theorems from axioms after module interface erasure.
 
-`lake lint` also runs the `batteries/runLinter` declaration-lint driver used by Mathlib, including the slow checks, over every module imported by `CCF.lean`, `DisasterRecovery.lean`, and `replayer.Main`.
+`runLinter` uses Mathlib's declaration-lint driver, including the slow checks, over every module imported by `CCF.lean`, `DisasterRecovery.lean`, and `replayer.Main`.
 It lints our declarations rather than dependencies, and findings fail the command.
 The package's default targets are the complete library and the replayer executable.
 Canonical scenario and state-enumeration checks run with `#eval` when `Tests/CanonicalTests.lean` is built, and assertion failures fail the build.
@@ -119,10 +118,9 @@ Their runner is namespaced, leaving the replayer as the only `main` entrypoint s
 It also checks axiom dependencies, rejecting any use of axioms other than `propext`, `Classical.choice`, and `Quot.sound`, so a separate axiom-audit dependency is unnecessary.
 The checked targets include the complete library import root, canonical tests, and replayer, not just the exported property theorems.
 These supplement the import and proof coverage checks and executable model and trace tests.
-CI checks the package without sandbox isolation, using disk-backed temporary storage.
-Build-time code must therefore be trusted; kernel rechecking and the axiom allowlist remain enabled.
-The `--inadvisably-no-sandbox` flag also allows the check to build the shared modules directly from `../common`.
-The Lean workflow runs formatting, linting, import-root, build, executable and kernel checks in one job, in that order.
+The `--inadvisably-no-sandbox` flag allows the check to build the shared modules directly from `../common`.
+It disables build isolation, not proof or axiom checking; run it only on code you trust.
+CI checks the package in an Ubuntu 26.04 job using disk-backed temporary storage.
 Additional bundled checkers are not enabled.
 
 `Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof module or if a removed name is reintroduced.
@@ -144,7 +142,7 @@ To apply formatting fixes, run:
 scripts/lean-format-checks.sh -f
 ```
 
-The script builds each package's imported modules and runs its pinned leanfmt dependency.
-The Lean CI workflow runs the same check before linting.
+The script builds the model's imported modules and runs the pinned leanfmt dependency.
+The Lean CI workflow runs the same check after the proof checks.
 Files outside `lean/` are included; untracked files and downloaded dependencies are excluded.
 Add new Lean files to Git before running the check.

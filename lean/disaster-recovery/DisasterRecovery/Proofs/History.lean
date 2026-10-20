@@ -45,42 +45,35 @@ lemma trace_lifts {config : Model.Config} {before after : Model.State} {tail}
         finalEq
       ⟩
 
-/-- A reachable decorated state with a model execution suffix from every trace state. -/
+/-- A reachable decorated state with a model execution suffix from every trace state
+up to `bound`. -/
 structure Correspondence (config : Model.Config) (trace : Properties.GlobalTrace)
-    (ghost : Execution.Global.State)
+    (bound : Nat) (ghost : Execution.Global.State)
     : Prop where
   /-- The instrumented state is reachable under the same recovery configuration. -/
   reachable : Execution.Global.Reachable config ghost
-  /-- Every trace state has a model path to the erased ghost state. -/
+  /-- Every trace state up to `bound` has a model path to the erased ghost state. -/
   suffix
-    : forall state,
-        state ∈ trace.states
+    : forall i state,
+        i <= bound
+        -> trace.get? i = some state
         -> exists tail,
             Trace.Path (Model.transitionSystem config) state tail (erase ghost)
 
+/-- The prefix of a valid trace up to any of its positions is decorated by a reachable
+ghost execution. -/
 theorem history_correspondence {config : Model.Config} (trace : Properties.GlobalTrace)
-    (valid : trace.Valid (Model.transitionSystem config))
-    : exists initial tail final,
-        trace.states = erase initial :: tail
-        /\ (Execution.Global.transitionSystem config).init initial
-        /\ Decoration config initial tail final
-        /\ Correspondence config trace final := by
-  obtain ⟨before, tail, after, states, initialized, path⟩ := Trace.valid_path valid
+    (valid : trace.Valid (Model.transitionSystem config)) {bound : Nat}
+    (inTrace : (trace.get? bound).isSome)
+    : exists ghost, Correspondence config trace bound ghost := by
+  obtain ⟨last, found⟩ := Option.isSome_iff_exists.mp inTrace
+  obtain ⟨before, first, initialized⟩ := valid.1
   obtain ⟨initial, init, linked⟩ := model_initial_lifts config before initialized
-  obtain ⟨final, decorated, reachable, finalEq⟩ := trace_lifts path initial (.initial init) linked
-  refine ⟨
-    initial,
-    tail,
-    final,
-    by simpa only [linked] using states,
-    init,
-    decorated,
-    reachable,
-    ?_
-  ⟩
-  intro state member
-  rw [states] at member
-  obtain ⟨suffix, rest⟩ := path.suffix member
+  obtain ⟨tail, path⟩ := Trace.valid_path valid 0 bound first (by simpa using found)
+  obtain ⟨final, _, reachable, finalEq⟩ := trace_lifts path initial (.initial init) linked
+  refine ⟨final, reachable, fun i state le atI => ?_⟩
+  obtain ⟨suffix, rest⟩ :=
+    Trace.valid_path valid i (bound - i) atI (by rwa [Nat.add_sub_cancel' le])
   exact ⟨suffix, finalEq ▸ rest⟩
 
 end DisasterRecovery.Proofs.History

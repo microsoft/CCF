@@ -91,7 +91,7 @@ lake check --inadvisably-no-sandbox
 ```
 
 The Lean CI workflow groups formatting and linting in one step and import-root, build and kernel checks in another.
-The Mathlib-free `ccf_common` package also receives build, lint and kernel checks; it does not run the Mathlib cache or `mk_all` tools.
+The `ccf_common` package also depends on Mathlib for finite or infinite traces and receives the same package checks.
 
 - `mk_all --check` fails if `CCFRaft.lean` does not import every module.
 - `lake build --wfail` builds the library, treating warnings, including `sorry`, as errors.
@@ -108,9 +108,9 @@ The Mathlib-free `ccf_common` package also receives build, lint and kernel check
 - `SingleNodeCommittedLogMonotonic`: a successful network step from a state with unique node IDs preserves each node's committed prefix, without assuming reachability.
 - `CommittedFrontierIsSignature`: every positive commit index points to a signature.
 
-The other three properties quantify over valid countably infinite traces, with states indexed by `Nat`.
-Validity requires an initial state and an enabled action between every adjacent pair, without fairness or implicit stuttering.
-These claims only cover states on infinite executions; they do not independently cover finite executions that cannot extend forever.
+The other three properties quantify over valid finite or infinite traces, represented by `Stream'.Seq`.
+Validity requires an initial first state and an enabled action between every adjacent pair of present states, without fairness or implicit stuttering.
+A finite trace may stop at any point, including a deadlock; `CCF.Execution.reachable_iff_trace` relates trace membership to reachability.
 Each has a `Witness` statement exhibiting the situation it constrains, such as two distinct primaries.
 The single-node witness requires unique starting node IDs and a successful step that strictly extends a nonempty committed log.
 Liveness is not stated.
