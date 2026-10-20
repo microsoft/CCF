@@ -6,7 +6,7 @@ The properties are stated but not proved here.
 
 ## Source map
 
-| To change or review                    | Look at                                                                                                                        |
+| Area                                   | Source                                                                                                                         |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Node state, log entries, log queries   | [`Model/NodeState.lean`](CCFRaft/Model/NodeState.lean)                                                                         |
 | Configurations, quorums, retirement    | [`Model/ClusterConfig.lean`](CCFRaft/Model/ClusterConfig.lean) (`activeConfigurations`, `hasQuorum`, `NodeState.retirement`)   |
