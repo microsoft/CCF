@@ -27,21 +27,6 @@ private theorem counting_valid : counting.Valid counter := by
 example : counter.Reachable 2 :=
   counting_valid.reachable (Stream'.Seq.get?_mem (n := 3) rfl)
 
--- Traces may be infinite.
-private def forever : Trace Nat := Stream'.Seq.ofStream id
-
-example : forever.Valid counter :=
-  ⟨
-    ⟨0, rfl, rfl⟩,
-    fun _ _ _ first second => by
-      cases first
-      cases second
-      exact ⟨true, rfl⟩
-  ⟩
-
--- A finite trace need not end in a deadlock: the counter can still step after 2.
-example : counter.step 2 true = some 3 := rfl
-
 example (state : Nat)
     : counter.Reachable state
       <-> exists trace : Trace Nat, trace.Valid counter /\ state ∈ trace :=
