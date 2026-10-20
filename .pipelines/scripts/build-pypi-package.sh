@@ -18,7 +18,7 @@ output_dir=${BUILD_SOURCESDIRECTORY:-$PWD}/out
 mkdir -p "$output_dir"
 
 python3 -c 'import sys; sys.exit("CCF requires Python 3.12 or newer") if sys.version_info < (3, 12) else None'
-./scripts/extract-release-notes.py --target-git-version >/dev/null
+# ./scripts/extract-release-notes.py --target-git-version >/dev/null
 
 uv_install_dir=/tmp/ccf-uv
 export PATH="$uv_install_dir:$PATH"
