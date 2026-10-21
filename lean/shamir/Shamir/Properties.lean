@@ -51,20 +51,30 @@ def SharingRefinement : Prop :=
                   → limbValue s' limb.val k = share params coeffs secret i)
               ∧ ∀ m, m ≠ limb.val → s'.val[k]!.y.val[m]! = s.val[k]!.y.val[m]!⦄
 
-/-- Extracted recovery terminates and refines CSLib reconstruction for all ten limbs. -/
+/-- Extracted recovery terminates and refines CSLib reconstruction for all ten limbs.
+
+The secret is written in place into the caller's array, whatever its initial contents. -/
 def RecoveryRefinement : Prop :=
-  ∀ (s : Slice ccf_shamir.Share) (w : Slice U64)
+  ∀ (s : Slice ccf_shamir.Share) (w : Slice U64) (secret : Array U32 10#usize)
     (_ : s.val ≠ []) (_ : Distinct s) (_ : w.val.length = s.val.length),
-    ccf_shamir.recover s w
-    ⦃r w'
+    ccf_shamir.recover s w secret
+    ⦃r _w' out
     =>
-      ∃ out,
-        r = core.result.Result.Ok out
+      r = core.result.Result.Ok ()
         ∧ ∀ k,
             (hk : k < out.val.length)
             → (out.val[k].val : F)
               = Cslib.Crypto.Protocols.SecretSharing.Shamir.Polynomial.reconstruct
                   (fun i : Fin s.val.length => point s i.val)
                   (fun i => limbValue s k i.val)⦄
+
+/-- Recovery that reports an error leaves the caller's secret untouched, for any inputs. -/
+def RecoveryErrorPreservesSecret : Prop :=
+  ∀ (s : Slice ccf_shamir.Share) (w : Slice U64) (secret : Array U32 10#usize)
+    (r : core.result.Result Unit ccf_shamir.Error) (w' : Slice U64)
+    (secret' : Array U32 10#usize),
+    ccf_shamir.recover s w secret = ok (r, w', secret')
+    → r ≠ core.result.Result.Ok ()
+    → secret' = secret
 
 end CCF.Shamir.Properties

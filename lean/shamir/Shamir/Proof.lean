@@ -15,4 +15,7 @@ theorem sharing_refines_cslib : Properties.SharingRefinement :=
 theorem recovery_refines_cslib : Properties.RecoveryRefinement :=
   recovery_refinement
 
+theorem recovery_error_preserves_secret : Properties.RecoveryErrorPreservesSecret :=
+  recover_error_preserves_secret
+
 end CCF.Shamir

@@ -279,7 +279,7 @@ def lagrange
     else lagrange_loop0 shares weights 0#usize
 
 /-- [ccf_shamir::recover]: loop 1:
-    Source: 'src/lib.rs', lines 159:8-162:9
+    Source: 'src/lib.rs', lines 166:8-169:9
     Visibility: public -/
 @[rust_loop]
 def recover_loop0_loop0
@@ -303,7 +303,7 @@ def recover_loop0_loop0
 partial_fixpoint
 
 /-- [ccf_shamir::recover]: loop 0:
-    Source: 'src/lib.rs', lines 156:4-165:5
+    Source: 'src/lib.rs', lines 163:4-172:5
     Visibility: public -/
 @[rust_loop]
 def recover_loop0
@@ -322,24 +322,24 @@ def recover_loop0
 partial_fixpoint
 
 /-- [ccf_shamir::recover]:
-    Source: 'src/lib.rs', lines 152:0-167:1
+    Source: 'src/lib.rs', lines 156:0-174:1
     Visibility: public -/
 def recover
-  (shares : Slice Share) (weights : Slice Std.U64) :
-  Result ((core.result.Result (Array Std.U32 10#usize) Error) × (Slice
-    Std.U64))
+  (shares : Slice Share) (weights : Slice Std.U64)
+  (secret : Array Std.U32 10#usize) :
+  Result ((core.result.Result Unit Error) × (Slice Std.U64) × (Array Std.U32
+    10#usize))
   := do
   let (r, weights1) ← lagrange shares weights
   let cf ← core.result.Result.Insts.CoreOpsTry.branch r
   match cf with
   | core.ops.control_flow.ControlFlow.Continue _ =>
-    let secret := Array.repeat 10#usize 0#u32
     let secret1 ← recover_loop0 shares weights1 secret 0#usize
-    ok (core.result.Result.Ok secret1, weights1)
+    ok (core.result.Result.Ok (), weights1, secret1)
   | core.ops.control_flow.ControlFlow.Break residual =>
     let r1 ←
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-        (Array Std.U32 10#usize) (core.convert.FromSame Error) residual
-    ok (r1, weights1)
+        Unit (core.convert.FromSame Error) residual
+    ok (r1, weights1, secret)
 
 end ccf_shamir

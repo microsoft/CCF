@@ -112,20 +112,47 @@ decreasing_by scalar_decr_tac
 
 @[step]
 theorem recover_spec (s : Slice ccf_shamir.Share) (w : Slice U64)
-    (hne : s.val ≠ []) (hs : Distinct s) (hw : w.val.length = s.val.length)
-    : ccf_shamir.recover s w
-      ⦃r _w'
+    (secret : Array U32 10#usize) (hne : s.val ≠ []) (hs : Distinct s)
+    (hw : w.val.length = s.val.length)
+    : ccf_shamir.recover s w secret
+      ⦃r _w' out
       =>
-        ∃ out,
-          r = core.result.Result.Ok out
+        r = core.result.Result.Ok ()
           ∧ ∀ k, (hk : k < out.val.length) → (out.val[k].val : F) = recoveredLimb s k
         ⦄ := by
   unfold ccf_shamir.recover
   step as ⟨r, w1, hr, hwl, hw1⟩
   simp [hr, core.result.Result.Insts.CoreOpsTry.branch]
   step as ⟨out, hout⟩
-  refine ⟨out, rfl, ?_⟩
   intro k hk
   exact hout k (by simpa using hk)
+
+/-- A recovery that reports an error, for any inputs, leaves the caller's secret untouched. -/
+theorem recover_error_preserves_secret (s : Slice ccf_shamir.Share) (w : Slice U64)
+    (secret : Array U32 10#usize) (r : core.result.Result Unit ccf_shamir.Error)
+    (w' : Slice U64) (secret' : Array U32 10#usize)
+    (h : ccf_shamir.recover s w secret = ok (r, w', secret'))
+    (herr : r ≠ core.result.Result.Ok ())
+    : secret' = secret := by
+  unfold ccf_shamir.recover at h
+  cases hl : ccf_shamir.lagrange s w with
+  | ret rw =>
+      obtain ⟨r0, w1⟩ := rw
+      cases r0 with
+      | Ok u =>
+          simp only [hl, core.result.Result.Insts.CoreOpsTry.branch] at h
+          cases hl2 : ccf_shamir.recover_loop0 s w1 secret 0#usize with
+          | ret out =>
+              simp [hl2] at h
+              exact absurd h.1.symm herr
+          | vis i k => simp [hl2] at h
+          | div => simp [hl2] at h
+      | Err e =>
+          simp [hl, core.result.Result.Insts.CoreOpsTry.branch,
+            core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual]
+            at h
+          exact h.2.2.symm
+  | vis i k => simp [hl] at h
+  | div => simp [hl] at h
 
 end CCF.Shamir
