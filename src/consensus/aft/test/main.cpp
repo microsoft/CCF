@@ -14,6 +14,32 @@
 using ms = std::chrono::milliseconds;
 
 DOCTEST_TEST_CASE(
+  "Boundary snapshots retain the complete native cache" *
+  doctest::test_suite("tracing"))
+{
+  aft::State state(ccf::kv::test::PrimaryNodeId);
+  state.committable_indices = {2, 4, 6};
+  std::vector<uint8_t> bytes;
+  aft::write_msgpack(bytes, state);
+  auto expected = nlohmann::json::from_msgpack(bytes);
+  DOCTEST_CHECK(
+    expected.at("committable_indices") == nlohmann::json::array({2, 6}));
+
+  bytes.clear();
+  aft::write_msgpack(bytes, aft::BoundaryState{state});
+  expected["committable_indices"] = {2, 4, 6};
+  DOCTEST_CHECK(nlohmann::json::from_msgpack(bytes) == expected);
+
+  bytes.clear();
+  const std::vector<aft::trace::PeerState> peers = {{"peer", 7, 3}};
+  aft::trace::write_msgpack(bytes, peers);
+  DOCTEST_CHECK(
+    nlohmann::json::from_msgpack(bytes) ==
+    nlohmann::json::array(
+      {{{"node_id", "peer"}, {"sent_idx", 7}, {"match_idx", 3}}}));
+}
+
+DOCTEST_TEST_CASE(
   "Retirement hooks use transaction versions" * doctest::test_suite("store"))
 {
   const auto self = ccf::kv::test::PrimaryNodeId;

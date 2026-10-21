@@ -98,6 +98,11 @@ def run_driver(driver, scenario, timeout=60):
 
 
 def as_log_lines(records):
+    """Adapt protocol callbacks for the legacy TLA consumer, not Lean replay.
+
+    Native operation boundaries are observations, not TLA protocol steps.
+    The Lean collector preserves the original records without this adapter.
+    """
     return [
         (
             {"tag": "raft_trace", **record["msg"]}
@@ -109,4 +114,5 @@ def as_log_lines(records):
             }
         )
         for record in records
+        if record["msg"].get("function") != "operation_boundary"
     ]

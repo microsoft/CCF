@@ -10,7 +10,8 @@ public section
 /-!
 Named rules for the globally ordered `raft_driver` capture. A rule consumes one
 C++ operation and its synchronous callbacks, emits its one composite model
-action, and checks recorded fields at their pre/post-mutation boundaries.
+action, and checks fixed pre/post boundaries and endpoint-equivalent projections.
+Native operation boundaries surround zero or more such actions.
 No rule computes protocol state or reconstructs packet payloads.
 -/
 
@@ -73,9 +74,10 @@ private def entry (event : Event) (index : Nat) (fields : List (String × Json))
     : Reduction Unit :=
   emit (.entry event.node index (Json.mkObj fields) (event.origin rule))
 
-/-- Unspecified fields are always checked; every intentional omission has evidence and a reason. -/
+/-- Selected boundaries check every unexcluded field; phase omissions have fixed reasons. -/
 private def observe (event : Event) (rule : String) (properties : Option Json := none)
     (exclusions : List (String × String) := []) (peer : Option String := none)
+    (frontier : Option Nat := none)
     : Reduction Unit := do
   let facts ← read event (object (properties.getD event.facts))
   let mut omitted := []
@@ -88,11 +90,21 @@ private def observe (event : Event) (rule : String) (properties : Option Json :=
   let fields := facts.filter fun (key, _) => !(exclusions.lookup key).isSome
   let state := fields.filter (·.1 != "committableIndices")
   checked event (!state.isEmpty) s!"{rule} has no state properties to observe"
-  emit (.state event.node peer (Json.mkObj state) { event.origin rule with omitted })
+  let origin := { event.origin rule with omitted }
+  if let some frontier := frontier then
+    checked event peer.isNone "pre-commit observation cannot select a peer"
+    emit (.stateBeforeCommit event.node frontier (Json.mkObj state) origin)
+  else
+    emit (.state event.node peer (Json.mkObj state) origin)
   if let some markers := fields.lookup "committableIndices" then
     for marker in ← read event markers.getArr? do
       entry event (← read event (natural marker)) [("kind", toJson "signature")]
         "signature-marker"
+
+/-- Unlike internal cache evidence, boundary fields assert complete projected equality. -/
+private def observeBoundary (event : Event) : Reduction Unit := do
+  let phase ← read event (string event.message "phase")
+  emit (.state event.node none event.facts (event.origin s!"native-{phase}"))
 
 private def message (event : Event) (rule : String) (receiving : Bool)
     : Reduction Unit := do
@@ -134,9 +146,6 @@ private def retirementFields : List String :=
     "retiredCommittedIndex"
   ]
 
-private def commitChanged : List String :=
-  ["commitIndex", "role", "configurations"] ++ retirementFields
-
 private def omitPresent (facts : Json) (names : List String) (reason : String)
     : List (String × String) :=
   names.filterMap
@@ -164,17 +173,53 @@ private def takeCommit (anchor : Event) : Reduction (List Event) := do
     "unexpected terminal-retirement nomination boundary"
   return [commit, nomination]
 
+private def observeCommitPre (anchor : Event) (tail : List Event) : Reduction Unit := do
+  let some commit := tail.find? (·.function == "commit") | return
+  let previous ← read anchor (nat anchor.facts "commitIndex")
+  checked commit (optional commit.facts "commitIndex" == some (toJson previous))
+    "commitIndex differs from anchored pre-frontier"
+  let target ← read commit (field commit.message "args" >>= (nat · "idx"))
+  checked commit (previous < target)
+    "commitIndex target does not advance the pre-frontier"
+  observe commit "commit-frontier-pre"
+    (some
+      (Json.mkObj
+        [
+          ("commitIndex", toJson previous),
+          (
+            "retiredCommittedIndex",
+            ← read commit (field commit.facts "retiredCommittedIndex")
+          )
+        ]))
+
 private def observeCommit (tail : List Event) : Reduction Unit := do
   let commit :: rest := tail | return
   observe commit "commit-in-action" none
-    (omitPresent commit.facts commitChanged
-      "commit traces before applying itself inside the atomic step; checked after commit")
+    [("role", "commit traces before terminal role clearing; exact leader role audited")]
+    none (some (← read commit (nat commit.facts "commitIndex")))
   if let nomination :: _ := rest then
+    checked nomination
+      (optional nomination.facts "configurations"
+        == optional commit.facts "configurations")
+      "nomination configurations differ from checked precommit cache"
     let post := ["commitIndex", "retiredCommittedIndex", "committableIndices"]
     observe nomination "terminal-nomination-pre" none
-      (omitPresent nomination.facts
-        (["role", "membershipState", "configurations"] ++ post)
-        "nomination precedes terminal role/phase assignment and configuration pruning; raw boundary checked by takeCommit")
+      ([
+          (
+            "role",
+            "nomination precedes role clearing; takeCommit checks exact leader role"
+          ),
+          (
+            "membershipState",
+            "nomination precedes terminal phase assignment; takeCommit checks completed retirement"
+          ),
+          (
+            "configurations",
+            "nomination precedes pruning; cache equals the checked commit pre-cache"
+          )
+        ]
+        ++ omitPresent nomination.facts post
+            "commit already advanced at nomination; these fields are observed at the final boundary below")
     proposal nomination "terminal-nomination-message"
     observe nomination "terminal-nomination-post"
       (some
@@ -182,7 +227,8 @@ private def observeCommit (tail : List Event) : Reduction Unit := do
           ((← read nomination (object nomination.facts)).filter
             (fun p => post.contains p.1))))
   let target ← read commit (field commit.message "args" >>= (nat · "idx"))
-  observe commit "commit-post" (some (Json.mkObj [("commitIndex", toJson target)]))
+  -- The target constrains the effect; the trace does not record a post-commit snapshot.
+  observe commit "commit-target" (some (Json.mkObj [("commitIndex", toJson target)]))
 
 private def activePeers (event : Event) : Reduction (List String) := do
   let configurations ← read event (field event.message "configurations" >>= Json.getArr?)
@@ -211,6 +257,7 @@ private def takeLeaderTail (anchor : Event) : Reduction (List Event) := do
 private def observeLeaderTail (tail : List Event) : Reduction Unit := do
   observeCommit (tail.filter (·.function != "send_append_entries"))
   for event in tail.filter (·.function == "send_append_entries") do
+    observe event "leader-heartbeat-post"
     peers event "leader-heartbeat-pre"
     message event "send-post" false
 
@@ -251,38 +298,61 @@ private def takeElection (head : Event)
 private def observeElection (head : Event) (nested sends tail : List Event)
     (rule : String)
     : Reduction Unit := do
-  let roles := head :: nested
-  let last := roles.getLast!
-  for event in roles.dropLast do
-    let facts ← read event (object event.facts)
-    observe event rule none
-      (facts.filterMap
-        fun (key, value) =>
-          if optional last.facts key == some value then
-            none
-          else
-            some
-              (
-                key,
-                "synchronous self-quorum promotion changes this field in the same step"
-              ))
-  observe last rule none
-    (if tail.any (·.function == "commit") then
-        omitPresent last.facts commitChanged "become_leader precedes its internal commit"
-      else
-        [])
+  -- Earlier promotions are internal, not observations chosen by value disagreement.
+  let last := (head :: nested).getLast!
+  if let some commit := tail.find? (·.function == "commit") then
+    checked last (optional last.facts "role" == some (toJson "leader"))
+      "pre-commit promotion role must be leader"
+    observe last rule none
+      [(
+        "role",
+        "leader snapshot precedes terminal commit role clearing; exact phase role checked locally"
+      )]
+      none (some (← read commit (nat commit.facts "commitIndex")))
+  else
+    observe last rule
   observeLeaderTail tail
   for send in sends do
     observe send "send-post"
     message send "send-post" false
 
-private def bootstrap : Reduction String := do
+private def bootstrap (initial signature : Chunk) : Reduction String := do
+  checked initial.pre
+    (optional initial.pre.message "operation" == some (toJson "bootstrap")
+      && (← read initial.pre (string initial.pre.command.value "cmd"))
+          == s!"start_node,{initial.pre.node}")
+    "expected native bootstrap operation"
+  let mode := ((← get).header.preVoteModes.lookup initial.pre.node).getD true
+  let expected :=
+    [
+      ("role", toJson "none"),
+      ("currentTerm", toJson (0 : Nat)),
+      ("logLength", toJson (0 : Nat)),
+      ("commitIndex", toJson (0 : Nat)),
+      ("preVoteEnabled", toJson mode),
+      ("membershipState", toJson "active"),
+      ("retirementIndex", Json.null),
+      ("retirementCommittableIndex", Json.null),
+      ("retiredCommittedIndex", Json.null),
+      ("committableIndices", toJson ([] : List Nat)),
+      ("configurations", toJson ([] : List Json)),
+      ("leaderActivePeerProgress", toJson ([] : List Json))
+    ]
+  for (key, value) in expected do
+    checked initial.pre (optional initial.pre.facts key == some value)
+      s!"initialization PRE {key} differs from the native constructor"
+  checked initial.pre
+    (optional initial.pre.message "peers" == some (toJson ([] : List Json)))
+    "initialization PRE peers must be empty"
+  checked signature.pre
+    (optional signature.pre.message "operation" == some (toJson "replicate"))
+    "expected bootstrap signature operation"
+  let prelude := initial.events ++ signature.events
   let names := ["become_leader", "replicate", "add_configuration", "replicate", "commit"]
-  let mut prelude := #[]
-  for name in names do
-    let event ← take
+  checked initial.pre (initial.events.size == 3 && signature.events.size == 2)
+    "expected exact five-event bootstrap"
+  for event in prelude, name in names do
     checked event (event.function == name) "expected exact five-event bootstrap"
-    prelude := prelude.push event
   let leader := prelude[0]!.node
   for event in prelude, length in [0, 0, 0, 1, 2], markers in [[], [], [], [], [2]] do
     checked event
@@ -295,6 +365,13 @@ private def bootstrap : Reduction String := do
       "bootstrap state differs from audited prelude"
     checked event (optional event.state "committable_indices" == some (toJson markers))
       "bootstrap committable indices"
+  let initialEvent := prelude[0]!
+  for key in ["retirementIndex", "retirementCommittableIndex", "retiredCommittedIndex"] do
+    checked initialEvent (optional initialEvent.facts key == some .null)
+      s!"bootstrap {key} must be absent"
+  checked initialEvent
+    (optional initialEvent.facts "configurations" == some (toJson ([] : List Json)))
+    "bootstrap configurations must be empty before genesis"
   let config := prelude[2]!
   checked config ((← read config (configurationArg config.message)) == [leader])
     "bootstrap is not singleton"
@@ -311,10 +388,9 @@ private def bootstrap : Reduction String := do
   let commit := prelude[4]!
   checked commit ((← read commit (field commit.message "args" >>= (nat · "idx"))) == 2)
     "bootstrap commit target"
-  observe prelude[3]! "bootstrap"
-  action prelude[3]! "bootstrap" (.local leader (.append [.signature]))
-    [prelude[3]!, commit]
-  observeCommit [commit]
+  -- Genesis is preloaded by Model.initialNodeState, not an invented transition.
+  -- The real initialization POST must agree before any model action executes.
+  observeBoundary initial.post
   return leader
 
 /-- The driver's singleton BatchVector, including hooks and new-peer heartbeats. -/
@@ -384,6 +460,7 @@ private def appendRule (write : Event) : Reduction Unit := do
     else
       pure (.transaction (← requestId write) metadata)
   let tail ← takeCommit write
+  observeCommitPre write tail
   action write "atomic-append" (.local write.node (.append [content]))
     ([write] ++ configurations ++ callbacks ++ tail)
   for callback in callbacks do
@@ -514,15 +591,7 @@ private def receiveRule (event : Event) : Reduction Unit := do
   message event "receive-pre" true
   let mut followers := []
   if ← nextIs "become_follower" (some event) then
-    let follower ← take
-    let term ← read follower (nat follower.state "current_view")
-    checked follower (term == (← read event (nat packet "term")))
-      "follower term differs from packet"
-    checked event
-      (term > (← read event (nat event.state "current_view"))
-        || event.function == "recv_append_entries")
-      "unexplained same-term fallback"
-    followers := [follower]
+    followers := [← take]
   let mut callbacks := []
   let mut election : Option (Event × List Event × List Event × List Event) := none
   if event.function == "recv_append_entries" then
@@ -557,16 +626,16 @@ private def receiveRule (event : Event) : Reduction Unit := do
     callbacks := head :: tail
   else if event.function == "recv_append_entries_response" then
     callbacks ← takeCommit event
+  if let some (_, _, _, tail) := election then
+    observeCommitPre event tail
+  else if event.function == "recv_append_entries_response" then
+    observeCommitPre event callbacks
   action event "atomic-receive" (.receive sender event.node packet)
     ([event] ++ followers ++ callbacks)
-  for follower in followers do
-    observe follower "receive-follower-post" none
-      ((← read follower (object follower.facts)).filterMap
-        fun (key, _) =>
-          if ["role", "currentTerm"].contains key then
-            none
-          else
-            some (key, "become_follower precedes the rest of the atomic receive"))
+  -- Adoption is a full endpoint only when no later receive callback supplies one.
+  if callbacks.isEmpty then
+    for follower in followers do
+      observe follower "receive-follower-post"
   if let some (head, nested, sends, tail) := election then
     observeElection head nested sends tail "receive-post"
   else if event.function == "recv_append_entries_response" then
@@ -581,6 +650,9 @@ structure Reduced where
 /-- Consumes every event exactly once; an ungrouped callback is never a stutter. -/
 def reduce (records : Array Record) : Except String Reduced := do
   let (events, modes) ← associate records
+  let chunks ← boundaries events
+  let some initial := chunks[0]? | throw "missing native bootstrap boundaries"
+  let some signature := chunks[1]? | throw "missing native bootstrap signature boundaries"
   let declared := modes.map Prod.fst
   let locations :=
     (events.toList.filter (fun event => event.function == "replicate")).map
@@ -589,63 +661,95 @@ def reduce (records : Array Record) : Except String Reduced := do
   let requests := "" :: locations
   let header : Header := { bootstrap := ∅, declared, requests, preVoteModes := modes }
   let run : Reduction String := do
-    let leader ← bootstrap
-    while let some event ← peek do
-      let _ ← take
-      match event.function with
-      | "replicate" => appendRule event
-      | "send_append_entries" =>
-          let packet ← read event (field event.message "packet")
-          checked event
-            ((← read event (nat packet "prev_idx"))
-              == (← read event (nat event.message "sent_idx")))
-            "send prev_idx differs from sent_idx"
-          observe event "send-pre"
-          peers event "send-pre"
-          action event "atomic-send"
-            (.local event.node
-              (.sendEntries
-                (← modelNode event (← read event (string event.message "to_node_id")))
-                (← read event (nat packet "idx"))))
-          message event "send-post" false
-      | "drop_pending_to" =>
-          checked event
-            ((← read event (string event.message "from_node_id")) == event.node)
-            "drop sender mismatch"
-          observe event "drop"
-          -- Drop checks the head, unlike a send's latest packet.
-          let destination ← read event (string event.message "to_node_id")
-          emit
-            (.message event.node destination (← read event (field event.message "packet"))
-              .head (event.origin "drop"))
-          action event "drop" (.drop event.node destination)
-      | "become_candidate" | "become_pre_vote_candidate" =>
-          checked event (← read event (boolean event.state "pre_vote_enabled"))
-            "unsupported disabled-pre-vote timeout election: model requires pre-vote"
-          checked event
-            ((← read event (boolean event.state "pre_vote_enabled"))
-              == (event.function == "become_pre_vote_candidate"))
-            "election entry differs from pre-vote mode"
-          let (nested, sends, tail) ← takeElection event
-          action event "atomic-election" (.local event.node (.timeout .election))
-            ([event] ++ nested ++ tail ++ sends)
-          observeElection event nested sends tail "role-post"
-      | "become_follower" =>
-          action event "role-post" (.local event.node (.timeout .checkQuorum))
-          observe event "role-post"
-      | "step_down_and_nominate_successor" =>
-          checked event
-            ((← read event (string event.command.value "cmd")).startsWith
-              "nominate_successor,")
-            "nomination outside a nominate_successor command"
-          observe event "nomination"
-          action event "nomination" (.local event.node .nominateSuccessor)
-          proposal event "nomination-message"
-      | _ =>
-          if !(receiveFamily event.function).isEmpty then
-            receiveRule event
-          else
-            throw s!"{event.record.location}: ungrouped callback {event.function}"
+    for chunk in chunks do
+      for endpoint in [chunk.pre, chunk.post] do
+        for peer in ← read endpoint (field endpoint.message "peers" >>= Json.getArr?) do
+          let _ ← modelNode endpoint (← read endpoint (string peer "node_id"))
+    let leader ← bootstrap initial signature
+    for chunk in chunks.toList.drop 1 do
+      let operation ← read chunk.pre (string chunk.pre.message "operation")
+      checked chunk.pre (operation != "bootstrap")
+        "bootstrap operation after initialization"
+      observeBoundary chunk.pre
+      modify fun cursor => { cursor with events := chunk.events, position := 0 }
+      while let some event ← peek do
+        let _ ← take
+        let allowed :=
+          match operation with
+          | "replicate" => ["replicate", "send_append_entries"].contains event.function
+          | "receive" => !(receiveFamily event.function).isEmpty
+          | "periodic" =>
+              [
+                "send_append_entries",
+                "become_candidate",
+                "become_pre_vote_candidate",
+                "become_follower"
+              ].contains
+                event.function
+          | "nominate" => event.function == "step_down_and_nominate_successor"
+          | "drop" => event.function == "drop_pending_to"
+          | _ => false
+        checked event allowed
+          s!"ungrouped callback {event.function} in {operation} boundary"
+        match event.function with
+        | "replicate" => appendRule event
+        | "send_append_entries" =>
+            let packet ← read event (field event.message "packet")
+            checked event
+              ((← read event (nat packet "prev_idx"))
+                == (← read event (nat event.message "sent_idx")))
+              "send prev_idx differs from sent_idx"
+            observe event "send-pre"
+            peers event "send-pre"
+            action event "atomic-send"
+              (.local event.node
+                (.sendEntries
+                  (← modelNode event (← read event (string event.message "to_node_id")))
+                  (← read event (nat packet "idx"))))
+            message event "send-post" false
+        | "drop_pending_to" =>
+            checked event
+              ((← read event (string event.message "from_node_id")) == event.node)
+              "drop sender mismatch"
+            observe event "drop"
+            let destination ← read event (string event.message "to_node_id")
+            emit
+              (.message event.node destination
+                (← read event (field event.message "packet")) .head (event.origin "drop"))
+            action event "drop" (.drop event.node destination)
+        | "become_candidate" | "become_pre_vote_candidate" =>
+            checked event (← read event (boolean event.state "pre_vote_enabled"))
+              "unsupported disabled-pre-vote timeout election: model requires pre-vote"
+            checked event
+              ((← read event (boolean event.state "pre_vote_enabled"))
+                == (event.function == "become_pre_vote_candidate"))
+              "election entry differs from pre-vote mode"
+            let (nested, sends, tail) ← takeElection event
+            checked event
+              (optional event.facts "role" == some (toJson "preVoteCandidate"))
+              "election boundary role must be preVoteCandidate"
+            observe event "election-pre" none
+              [(
+                "role",
+                "timeout entry follows phase-role assignment; all other fields still equal the pre-state"
+              )]
+            observeCommitPre event tail
+            action event "atomic-election" (.local event.node (.timeout .election))
+              ([event] ++ nested ++ tail ++ sends)
+            observeElection event nested sends tail "role-post"
+        | "become_follower" =>
+            action event "role-post" (.local event.node (.timeout .checkQuorum))
+            observe event "role-post"
+        | "step_down_and_nominate_successor" =>
+            checked event
+              ((← read event (string event.command.value "cmd")).startsWith
+                "nominate_successor,")
+              "nomination outside a nominate_successor command"
+            observe event "nomination"
+            action event "nomination" (.local event.node .nominateSuccessor)
+            proposal event "nomination-message"
+        | _ => receiveRule event
+      observeBoundary chunk.post
     return leader
   let (leader, cursor) ← run.run { events, header }
   let header := { header with bootstrap := {← header.nodeId leader} }

@@ -193,6 +193,8 @@ def validatePacket (packet : Json) : Except String Unit := do
     require ((← nat packet "prev_idx") <= (← nat packet "idx")) "reversed append batch"
 
 private def messageFields : String → Option (List String × List String)
+  | "operation_boundary" =>
+      some (["configurations", "peers", "operation_id", "operation", "phase"], [])
   | "add_configuration" => some (["args", "configurations"], [])
   | "become_candidate"
   | "become_follower"
@@ -288,6 +290,50 @@ def stateFacts (state message : Json) : Except String Json := do
     facts := facts ++ [("configurations", .arr projected)]
   return Json.mkObj facts
 
+/-- Complete boundary projection; unused nonleader/retained-peer progress is a fixed quotient. -/
+private def boundaryFacts (state message facts : Json) : Except String Json := do
+  let _ ← field state "committable_indices"
+  let operation ← string message "operation"
+  require
+    (["bootstrap", "replicate", "periodic", "receive", "nominate", "drop"].contains
+      operation)
+    s!"unsupported boundary operation '{operation}'"
+  require (["pre", "post"].contains (← string message "phase")) "invalid boundary phase"
+  let _ ← nat message "operation_id"
+  let self ← string state "node_id"
+  let mut peers : List (String × Json) := []
+  for peer in ← field message "peers" >>= Json.getArr? do
+    keys peer ["node_id", "sent_idx", "match_idx"] []
+    let node ← string peer "node_id"
+    require (node != self) "boundary peer is self"
+    peers :=
+      peers
+      ++ [(
+            node,
+            Json.mkObj
+              [
+                ("node", toJson node),
+                ("sentIndex", toJson (← nat peer "sent_idx")),
+                ("matchIndex", toJson (← nat peer "match_idx"))
+              ]
+          )]
+  let names := peers.map Prod.fst
+  require (names == names.mergeSort && names == names.eraseDups)
+    "unordered/duplicate boundary peers"
+  let configurations ← field message "configurations" >>= Json.getArr?
+  let active :=
+    ((← configurations.toList.mapM configuration).flatten.eraseDups.filter
+      (· != self)).mergeSort
+  for node in active do
+    require ((peers.lookup node).isSome) s!"missing active boundary peer '{node}'"
+  let role ← string state "leadership_state"
+  let progress :=
+    if role == "Leader" then
+      active.filterMap (fun node => peers.lookup node)
+    else
+      []
+  return facts.setObjVal! "leaderActivePeerProgress" (toJson progress)
+
 structure Event where
   record : Record
   command : Record
@@ -362,7 +408,7 @@ private def commands : List String :=
   ]
 
 /-- Decode current transport envelopes without reordering or changing protocol fields. -/
-private def normalize (row : Json) : Except String Json := do
+def normalize (row : Json) : Except String Json := do
   if optional row "tag" != some (.str "ccf.raft_trace") then return row
   keys row ["tag", "process_id", "h_ts", "msg"] []
   let _ ← string row "process_id"
@@ -479,6 +525,11 @@ def associate (records : Array Record)
         keys message (["function", "state"] ++ required) optionalKeys
         let state ← field message "state"
         let facts ← stateFacts state message
+        let facts ←
+          if function == "operation_boundary" then
+            boundaryFacts state message facts
+          else
+            pure facts
         for endpoint in ["from_node_id", "to_node_id"] do
           if let some value := optional message endpoint then let _ ← text value; pure ()
         for key in ["sent_idx", "match_idx", "seqno", "view"] do
@@ -509,5 +560,45 @@ def associate (records : Array Record)
     defaultMode := nextDefault
   require (!events.isEmpty) "trace contains commands but no Raft events"
   return (events, modes.mergeSort (fun a b => a.1 <= b.1))
+
+structure Chunk where
+  pre : Event
+  events : Array Event
+  post : Event
+
+/-- Pair actual native endpoints, independently of callback or action counts. -/
+def boundaries (events : Array Event) : Except String (Array Chunk) := do
+  require (events.any (·.function == "operation_boundary"))
+    "unsupported capture: required native PRE/POST boundary observations are missing"
+  let mut chunks := #[]
+  let mut opening : Option Event := none
+  let mut body := #[]
+  for event in events do
+    let check (condition : Bool) (message : String) :=
+      require condition s!"{event.record.location}: {message}"
+    if event.function == "operation_boundary" then
+      let id ← nat event.message "operation_id"
+      if (← string event.message "phase") == "pre" then
+        check opening.isNone "boundary PRE before the required POST"
+        check (id == chunks.size) "missing, duplicate or reordered boundary operation_id"
+        opening := some event
+        body := #[]
+      else
+        let some pre := opening | throw
+                                    s!"{event.record.location}: boundary POST without PRE"
+        check
+          (pre.sameContext event
+            && optional pre.message "operation_id" == some (toJson id)
+            && optional pre.message "operation" == optional event.message "operation")
+          "misassociated boundary PRE/POST pair"
+        chunks := chunks.push { pre, events := body, post := event }
+        opening := none
+    else
+      let some pre := opening
+      | throw s!"{event.record.location}: Raft event outside required PRE/POST boundaries"
+      check (pre.sameContext event) "interleaved boundary operation context"
+      body := body.push event
+  require opening.isNone "end of trace: missing required boundary POST"
+  return chunks
 
 end CCFRaft.Replay

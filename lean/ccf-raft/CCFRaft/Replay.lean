@@ -76,6 +76,8 @@ inductive PacketSelection where
 inductive Instruction where
   | action (step : Step) (origins : List Origin)
   | state (node : String) (peer : Option String) (fields : Json) (origin : Origin)
+  /-- Read-only view of the final log at an independently checked old commit frontier. -/
+  | stateBeforeCommit (node : String) (frontier : Nat) (fields : Json) (origin : Origin)
   | entry (node : String) (index : Nat) (fields : Json) (origin : Origin)
   /-- Sends observe the latest packet, drops the head, and receives a matching packet. -/
   | message (source destination : String) (packet : Json) (selection : PacketSelection)
@@ -83,7 +85,10 @@ inductive Instruction where
 
 def Instruction.origins : Instruction → List Origin
   | .action _ origins => origins
-  | .state _ _ _ origin | .entry _ _ _ origin | .message _ _ _ _ origin => [origin]
+  | .state _ _ _ origin
+  | .stateBeforeCommit _ _ _ origin
+  | .entry _ _ _ origin
+  | .message _ _ _ _ origin => [origin]
 
 structure ReplayState where
   state : Model.State
@@ -137,11 +142,11 @@ private def members (header : Header) (nodes : Finset NodeID) : Json :=
       fun (name, index) =>
         if index ∈ nodes then some name else none)
 
-private def observeState (header : Header) (replay : ReplayState) (node : String)
+private def observeNodeState (header : Header) (node : String) (state : NodeState)
     (peer : Option String) (expected : Json)
     : Except String Unit := do
-  let state ← lookup header replay node
-  let retirement := state.retirement (← header.nodeId node)
+  let self ← header.nodeId node
+  let retirement := state.retirement self
   let markers :=
     (List.range' 1 state.log.length).filter
       fun index => index > state.commitIndex && isSignatureAt state.log index
@@ -157,6 +162,18 @@ private def observeState (header : Header) (replay : ReplayState) (node : String
                 ("index", toJson configuration.index),
                 ("nodes", members header configuration.nodes)
               ])
+  let leaderActivePeerProgress :=
+    if state.role == .primary then
+      ((state.activeMembers.erase self).sort).map
+        fun peer =>
+          Json.mkObj
+            [
+              ("node", toJson (header.declared[peer]?.getD "")),
+              ("sentIndex", toJson (state.sentIndex peer)),
+              ("matchIndex", toJson (state.matchIndex peer))
+            ]
+    else
+      []
   let mut fields :=
     [
       ("role", toJson (roleName state.role)),
@@ -169,6 +186,7 @@ private def observeState (header : Header) (replay : ReplayState) (node : String
       ("retirementIndex", toJson retirement.index),
       ("retirementCommittableIndex", toJson retirement.committableIndex),
       ("retiredCommittedIndex", toJson state.retiredCommittedIndex),
+      ("leaderActivePeerProgress", toJson leaderActivePeerProgress),
       ("preVoteEnabled", toJson ((header.preVoteModes.lookup node).getD true))
     ]
   if let some peer := peer then
@@ -180,6 +198,21 @@ private def observeState (header : Header) (replay : ReplayState) (node : String
         ("matchIndex", toJson (state.matchIndex peer))
       ]
   checkFields expected (Json.mkObj fields)
+
+private def observeBeforeCommit (header : Header) (replay : ReplayState)
+    (node : String) (frontier : Nat) (expected : Json)
+    : Except String Unit := do
+  let state ← lookup header replay node
+  unless frontier < state.commitIndex do
+    throw "pre-commit frontier must precede final commitIndex"
+  let self ← header.nodeId node
+  let confirmation :=
+    firstLogIndexAfter (state.log.take frontier) 0
+      fun content => decide (self ∈ content.metadata.retirementConfirmations)
+  -- Commit does not change the log. This view is only observed, never executed.
+  let view :=
+    { state with commitIndex := frontier, retiredCommittedIndex := confirmation }
+  observeNodeState header node view none expected
 
 private def observeEntry (header : Header) (replay : ReplayState) (node : String)
     (index : Nat) (expected : Json)
@@ -334,7 +367,10 @@ def runInstruction (header : Header) (state : ReplayState) (instruction : Instru
   match instruction with
   | .action step _ => runStep header state step
   | .state node peer fields _ =>
-      observeState header state node peer fields
+      observeNodeState header node (← lookup header state node) peer fields
+      return state
+  | .stateBeforeCommit node frontier fields _ =>
+      observeBeforeCommit header state node frontier fields
       return state
   | .entry node index fields _ =>
       observeEntry header state node index fields
