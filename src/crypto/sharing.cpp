@@ -32,27 +32,27 @@ namespace ccf::crypto::sharing
       }
     };
 
-    void check_status(int32_t status)
+    void check_status(ccf_shamir_status status)
     {
       switch (status)
       {
-        case 0:
+        case CCF_SHAMIR_OK:
         {
           return;
         }
-        case 1:
+        case CCF_SHAMIR_INVALID_ARGUMENTS:
         {
           throw std::invalid_argument("invalid threshold");
         }
-        case 2:
+        case CCF_SHAMIR_INVALID_COEFFICIENT:
         {
           throw std::invalid_argument("invalid polynomial coefficient");
         }
-        case 3:
+        case CCF_SHAMIR_DUPLICATE_SHARE:
         {
           throw std::invalid_argument("duplicate input share");
         }
-        case 4:
+        case CCF_SHAMIR_INVALID_WORKSPACE:
         {
           throw std::logic_error("invalid Shamir workspace");
         }
