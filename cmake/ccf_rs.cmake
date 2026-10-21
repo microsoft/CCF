@@ -75,7 +75,7 @@ add_custom_target(
   # can link its own runtime without duplicate symbols.
   COMMAND
     "${CMAKE_OBJCOPY}" --wildcard "--keep-global-symbol=tav_*"
-    "${CCF_RS_COMBINED_OBJECT}"
+    "--keep-global-symbol=ccf_shamir_*" "${CCF_RS_COMBINED_OBJECT}"
   COMMAND
     "${CMAKE_COMMAND}" "-DNM=${CMAKE_NM}" "-DOBJECT=${CCF_RS_COMBINED_OBJECT}"
     -P "${CCF_DIR}/cmake/verify_ccf_rs_exports.cmake"
@@ -88,6 +88,7 @@ add_custom_target(
     "${CCF_RS_MANIFEST_PATH}"
     "${CCF_RS_DIR}/Cargo.lock"
     "${CCF_RS_DIR}/rust-toolchain.toml"
+    "${CCF_RS_DIR}/shamir/Cargo.toml"
     "${CCF_DIR}/3rdparty/internal/tee-attestation-verification/ffi/Cargo.toml"
   COMMENT
     "Building ${CCF_RS_PACKAGE} Rust static library (Cargo profile: ${CCF_RS_CARGO_PROFILE_NAME})"
