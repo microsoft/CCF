@@ -17,6 +17,7 @@ pub enum Status {
     InvalidCoefficient = 2,
     DuplicateShare = 3,
     InvalidWorkspace = 4,
+    OutOfMemory = 5,
 }
 
 impl From<Error> for Status {
@@ -95,34 +96,33 @@ pub unsafe extern "C" fn ccf_shamir_evaluate(
 /// # Safety
 ///
 /// Null, misaligned, empty, oversized, or overlapping buffers are rejected
-/// without dereferencing anything. Otherwise pointers must be valid for their
-/// indicated lengths: `threshold` shares and weights, and `LIMBS` secret limbs.
-/// Shares must not be mutated concurrently; outputs require exclusive access.
+/// without dereferencing anything. Otherwise `shares` must be valid for
+/// `threshold` elements and not mutated concurrently, and `secret` must be
+/// valid for exclusive access.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ccf_shamir_recover(
     shares: *const Share,
     threshold: usize,
-    weights: *mut u64,
-    secret: *mut u32,
+    secret: *mut [u32; LIMBS],
 ) -> Status {
-    let (Some(s), Some(w), Some(out)) = (
-        buffer(shares, threshold),
-        buffer(weights.cast_const(), threshold),
-        buffer(secret.cast_const(), LIMBS),
-    ) else {
+    let (Some(s), Some(out)) = (buffer(shares, threshold), buffer(secret.cast_const(), 1)) else {
         return Status::InvalidArguments;
     };
-    if !disjoint(s, w) || !disjoint(s, out) || !disjoint(w, out) {
+    if !disjoint(s, out) {
         return Status::InvalidArguments;
     }
+    let mut weights = Vec::new();
+    if weights.try_reserve_exact(threshold).is_err() {
+        return Status::OutOfMemory;
+    }
+    weights.resize(threshold, 0u64);
     // SAFETY: The buffers are nonnull, aligned, disjoint, and sized as checked
     // above; the caller guarantees they are live and not accessed concurrently.
     let shares = unsafe { slice::from_raw_parts(shares, threshold) };
-    let weights = unsafe { slice::from_raw_parts_mut(weights, threshold) };
-    let secret = unsafe { slice::from_raw_parts_mut(secret, LIMBS) };
-    match ccf_shamir::recover(shares, weights) {
+    let secret = unsafe { &mut *secret };
+    match ccf_shamir::recover(shares, &mut weights) {
         Ok(mut value) => {
-            secret.copy_from_slice(&value);
+            *secret = value;
             // SAFETY: This temporary is exclusively owned and live for all LIMBS.
             unsafe {
                 OPENSSL_cleanse(value.as_mut_ptr().cast(), size_of_val(&value));
@@ -148,6 +148,7 @@ mod tests {
         assert_eq!(Status::InvalidCoefficient as i32, 2);
         assert_eq!(Status::DuplicateShare as i32, 3);
         assert_eq!(Status::InvalidWorkspace as i32, 4);
+        assert_eq!(Status::OutOfMemory as i32, 5);
     }
 
     #[test]
@@ -171,18 +172,10 @@ mod tests {
             x: i as u32 + 1,
             y: [values[i]; LIMBS],
         });
-        let mut weights = [0; 3];
         let mut secret = [0; LIMBS];
         // SAFETY: All arrays are disjoint and have the indicated lengths.
         assert_eq!(
-            unsafe {
-                ccf_shamir_recover(
-                    shares.as_ptr(),
-                    shares.len(),
-                    weights.as_mut_ptr(),
-                    secret.as_mut_ptr(),
-                )
-            },
+            unsafe { ccf_shamir_recover(shares.as_ptr(), shares.len(), &raw mut secret) },
             Status::Ok
         );
         assert_eq!(secret, [123; LIMBS]);
@@ -194,31 +187,16 @@ mod tests {
             x: 1,
             y: [42; LIMBS],
         });
-        let mut weights = [0; 2];
         let mut secret = [17; LIMBS];
         // SAFETY: All arrays are disjoint and have the indicated lengths.
         assert_eq!(
-            unsafe {
-                ccf_shamir_recover(
-                    shares.as_ptr(),
-                    shares.len(),
-                    weights.as_mut_ptr(),
-                    secret.as_mut_ptr(),
-                )
-            },
+            unsafe { ccf_shamir_recover(shares.as_ptr(), shares.len(), &raw mut secret) },
             Status::DuplicateShare
         );
         assert_eq!(secret, [17; LIMBS]);
         // SAFETY: Null pointers and zero lengths are rejected before dereference.
         assert_eq!(
-            unsafe {
-                ccf_shamir_recover(
-                    std::ptr::null(),
-                    0,
-                    std::ptr::null_mut(),
-                    std::ptr::null_mut(),
-                )
-            },
+            unsafe { ccf_shamir_recover(std::ptr::null(), 0, std::ptr::null_mut()) },
             Status::InvalidArguments
         );
         // SAFETY: Null pointers and zero lengths are rejected before dereference.
@@ -259,30 +237,22 @@ mod tests {
             x: 1,
             y: [1; LIMBS],
         }];
-        let mut weights = [0u64; 1];
-        let aliased = shares.as_mut_ptr().cast::<u32>();
+        let aliased = shares.as_mut_ptr().cast::<[u32; LIMBS]>();
         // SAFETY: Overlapping buffers are rejected before dereference.
         assert_eq!(
-            unsafe { ccf_shamir_recover(shares.as_ptr(), 1, weights.as_mut_ptr(), aliased) },
+            unsafe { ccf_shamir_recover(shares.as_ptr(), 1, aliased) },
             Status::InvalidArguments
         );
         let mut secret = [0u32; LIMBS];
         let misaligned = shares.as_ptr().cast::<u8>().wrapping_add(2).cast::<Share>();
         // SAFETY: Misaligned buffers are rejected before dereference.
         assert_eq!(
-            unsafe { ccf_shamir_recover(misaligned, 1, weights.as_mut_ptr(), secret.as_mut_ptr()) },
+            unsafe { ccf_shamir_recover(misaligned, 1, &raw mut secret) },
             Status::InvalidArguments
         );
         // SAFETY: All arrays are disjoint, aligned and have the indicated lengths.
         assert_eq!(
-            unsafe {
-                ccf_shamir_recover(
-                    shares.as_ptr(),
-                    1,
-                    weights.as_mut_ptr(),
-                    secret.as_mut_ptr(),
-                )
-            },
+            unsafe { ccf_shamir_recover(shares.as_ptr(), 1, &raw mut secret) },
             Status::Ok
         );
         assert_eq!(secret, [1; LIMBS]);

@@ -33,8 +33,11 @@ extern "C"
     CCF_SHAMIR_INVALID_COEFFICIENT = 2,
     // Two input shares have the same x coordinate modulo the prime.
     CCF_SHAMIR_DUPLICATE_SHARE = 3,
-    // The weights workspace does not have one entry per input share.
+    // Internal workspace mismatch. Cannot occur through this interface, which
+    // sizes its own workspace, but kept so every core error has a name.
     CCF_SHAMIR_INVALID_WORKSPACE = 4,
+    // The workspace for the recovery could not be allocated.
+    CCF_SHAMIR_OUT_OF_MEMORY = 5,
   } ccf_shamir_status;
 
   // All buffers must be live, and are validated before use: null, misaligned,
@@ -46,13 +49,9 @@ extern "C"
     size_t coefficient_count,
     uint32_t* values,
     size_t share_count);
-  // Only the first threshold shares are read. weights has threshold entries;
-  // secret has ten entries, and is unchanged on error.
+  // Only the first threshold shares are read. secret is unchanged on error.
   CCF_SHAMIR_NODISCARD ccf_shamir_status ccf_shamir_recover(
-    const ccf_shamir_share* shares,
-    size_t threshold,
-    uint64_t* weights,
-    uint32_t* secret);
+    const ccf_shamir_share* shares, size_t threshold, uint32_t (*secret)[10]);
 #ifdef __cplusplus
 }
 #endif
