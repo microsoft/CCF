@@ -21,15 +21,6 @@ Each node reads membership, quorums and retirement from its own ledger; there is
 Initialization takes a nonempty initial voting membership, whose smallest member starts as primary with the genesis configuration transaction.
 Actions are local inputs (including timeouts) or delivery of a queued message; no clock is modeled.
 
-## Properties
-
-[`Properties.lean`](CCFRaft/Properties.lean) proves four safety theorems about `Model.transitionSystem`, each paired with a `_witness` lemma exhibiting the situation it constrains:
-
-- `committed_logs_prefix`: any two committed logs in a trace are prefix-comparable.
-- `single_node_committed_log_monotonic`: a successful step from any state with unique node IDs preserves each node's committed prefix.
-- `election_safety`: no two distinct nodes are primary in the same term.
-- `committed_frontier_is_signature`: every positive commit index points to a signature.
-
 ## Scope
 
 Node join and snapshot installation are not modeled.
