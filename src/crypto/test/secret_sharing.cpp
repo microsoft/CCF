@@ -212,9 +212,9 @@ TEST_CASE("C++ and Rust exchange serialized shares and derive identical keys")
   constexpr size_t num_shares = 7;
   const std::array backends = {
     std::pair{
-      sample_secret_and_shares, reference_recover_unauthenticated_secret},
+      &sample_secret_and_shares, &reference_recover_unauthenticated_secret},
     std::pair{
-      reference_sample_secret_and_shares, recover_unauthenticated_secret}};
+      &reference_sample_secret_and_shares, &recover_unauthenticated_secret}};
   for (size_t direction = 0; direction < backends.size(); ++direction)
   {
     const auto [generate, recover] = backends[direction];
