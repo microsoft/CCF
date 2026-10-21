@@ -15,9 +15,10 @@ extern "C"
     uint32_t y[10];
   } ccf_shamir_share;
 
-  // All buffers must be aligned, live, nonnull, and mutually nonoverlapping.
-  // Lengths are in elements. No concurrent access to output buffers is allowed.
-  // Return 0 on success, 1 for invalid lengths, 2 for noncanonical
+  // All buffers must be live, and are validated before use: null, misaligned,
+  // empty, oversized, or mutually overlapping buffers are rejected. Lengths
+  // are in elements. No concurrent access to output buffers is allowed.
+  // Return 0 on success, 1 for invalid buffers or lengths, 2 for noncanonical
   // coefficients, 3 for duplicate coordinates modulo the field prime, 4 for
   // invalid workspace.
   uint64_t ccf_shamir_reduce(uint64_t x);
