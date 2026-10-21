@@ -1,6 +1,6 @@
 module
 
-public import DisasterRecovery.Properties
+public import DisasterRecovery.Properties.Utils
 public import DisasterRecovery.Proofs.History
 public import DisasterRecovery.Proofs.Gossip
 
@@ -8,7 +8,15 @@ public import DisasterRecovery.Proofs.Gossip
 
 namespace DisasterRecovery.Proofs.Model
 
-lemma quorum_opener_unique : Properties.QuorumOpenerUnique := by
+open Properties Model.Local
+
+lemma quorum_opener_unique
+    : forall (config : Model.Config) (trace : GlobalTrace),
+      forall (firstStep secondStep : Nat) (firstOpener secondOpener : Location),
+        (trace.Valid (Model.transitionSystem config)
+          /\ Trace.NotificationAt config trace firstStep firstOpener (.opening .quorum)
+          /\ Trace.NotificationAt config trace secondStep secondOpener (.opening .quorum))
+        -> firstOpener = secondOpener := by
   rintro config trace firstStep secondStep firstOpener secondOpener ⟨valid, first, second⟩
   obtain ⟨_, _, firstFound, _⟩ := Observed.notification_opening_state first
   obtain ⟨_, _, secondFound, _⟩ := Observed.notification_opening_state second
@@ -23,10 +31,36 @@ lemma quorum_opener_unique : Properties.QuorumOpenerUnique := by
     (firstOpener, firstState) (secondOpener, secondState)
     firstMember secondMember firstThreshold secondThreshold
 
-lemma quorum_open_preserves_commit : Properties.QuorumOpenPreservesCommit :=
+lemma quorum_open_preserves_commit
+    : forall (config : Model.Config) (trace : GlobalTrace) (openedState : Model.State),
+      forall (opener : Location) (openerState : NodeState),
+        (trace.Valid (Model.transitionSystem config)
+          /\ openedState ∈ trace
+          /\ (opener, openerState) ∈ openedState.nodes
+          /\ openerState.openKind = some .quorum
+          /\ (forall voter, voter ∈ openerState.votes -> ReceivedOwnGossip trace voter))
+        -> exists openerTxID,
+            Model.recoveredTxID config opener = some openerTxID
+            /\ UpToDateWithQuorum config openerTxID :=
   Gossip.quorum_open_preserves_commit
 
-lemma full_gossip_preserves_commit : Properties.FullGossipPreservesCommit :=
+lemma full_gossip_preserves_commit
+    : forall (config : Model.Config) (trace : GlobalTrace)
+              (gossipedState openedState : Model.State),
+      forall (opener : Location) (openerState : NodeState),
+        (trace.Valid (Model.transitionSystem config)
+          /\ gossipedState ∈ trace
+          /\ (forall node nodeState,
+                node ∈ config.protocol.expectedLocations
+                -> (node, nodeState) ∈ gossipedState.nodes
+                -> forall gossip,
+                    gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
+          /\ openedState ∈ trace
+          /\ (opener, openerState) ∈ openedState.nodes
+          /\ openerState.openKind.isSome = true)
+        -> exists openerTxID,
+            Model.recoveredTxID config opener = some openerTxID
+            /\ UpToDateWithQuorum config openerTxID :=
   Gossip.full_gossip_preserves_commit
 
 end DisasterRecovery.Proofs.Model

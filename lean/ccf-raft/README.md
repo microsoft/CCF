@@ -2,7 +2,7 @@
 
 An executable Lean model of CCF's consensus implementation ([`src/consensus/aft/raft.h`](../../src/consensus/aft/raft.h)) and the safety properties it is intended to satisfy.
 It assumes familiarity with the [CCF consensus documentation](../../doc/architecture/consensus/index.rst).
-The properties are stated but not proved here.
+The safety claims and their witness statements are unproved and live in `Conjectures.lean`, not `Theorems.lean`.
 
 ## Source map
 
@@ -13,7 +13,7 @@ The properties are stated but not proved here.
 | Messages                               | [`Model/Messages.lean`](CCFRaft/Model/Messages.lean)                                                                             |
 | Protocol policy (one node's step)      | [`Model/Node.lean`](CCFRaft/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)         |
 | Initial states and network composition | [`Model.lean`](CCFRaft/Model.lean) (`initialNodeState`, `transitionSystem`)                                                      |
-| Safety properties and witnesses        | [`Properties.lean`](CCFRaft/Properties.lean)                                                                                     |
+| Unproved safety claims and witnesses   | [`Conjectures.lean`](CCFRaft/Conjectures.lean)                                                                                   |
 | Action-trace tests and import layering | [`Tests/CanonicalTraces.lean`](CCFRaft/Tests/CanonicalTraces.lean), [`Tests/Architecture.lean`](CCFRaft/Tests/Architecture.lean) |
 
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
@@ -21,15 +21,17 @@ Each node reads membership, quorums and retirement from its own ledger; there is
 Initialization takes a nonempty initial voting membership, whose smallest member starts as primary with the genesis configuration transaction.
 Actions are local inputs (including timeouts) or delivery of a queued message; no clock is modeled.
 
-## Properties
+## Conjectures
 
-[`Properties.lean`](CCFRaft/Properties.lean) states four properties of `Model.transitionSystem`, each with a `Witness` statement exhibiting the situation it constrains:
+[`Conjectures.lean`](CCFRaft/Conjectures.lean) defines four unproved claims in `CCFRaft.Conjectures`, each with an unproved `Witness` statement describing the situation it constrains:
 
 - Safety property:
   - `CommittedLogsPrefix`: any two committed logs in a trace are prefix-comparable.
   - `SingleNodeCommittedLogMonotonic`: a successful step from any state with unique node IDs preserves each node's committed prefix.
 - `ElectionSafety`: no two distinct nodes are primary in the same term.
 - `CommittedFrontierIsSignature`: every positive commit index points to a signature.
+
+Once proved, claims and their witnesses belong as explicit theorem statements in `Theorems.lean`, with proof implementations under `Proofs/`, as described in the [Lean module guide](../AGENT.md).
 
 ## Scope
 

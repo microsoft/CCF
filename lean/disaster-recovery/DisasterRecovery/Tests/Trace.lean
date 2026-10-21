@@ -3,7 +3,7 @@ module
 import all Init.Control.State
 import all Init.Data.List.Sort.Basic
 
-public import DisasterRecovery.Proof
+public import DisasterRecovery.Theorems
 public import DisasterRecovery.Tests.Initial
 
 @[expose] public section
@@ -111,7 +111,7 @@ example
     : exists openerTxID,
         Model.recoveredTxID config "A" = some openerTxID
         /\ Properties.UpToDateWithQuorum config openerTxID := by
-  apply Proof.full_gossip_preserves_commit config trace ready opened "A" opening
+  apply Theorems.full_gossip_preserves_commit config trace ready opened "A" opening
   refine ⟨
     valid,
     Stream'.Seq.get?_mem (n := 2) rfl,

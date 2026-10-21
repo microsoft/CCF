@@ -3,7 +3,7 @@ module
 import all Init.Prelude
 import all Lean.Data.Name
 
-public import DisasterRecovery.Properties
+public import DisasterRecovery.Properties.Utils
 public import Lean
 
 @[expose] public section
@@ -34,7 +34,9 @@ private def allowedImport (owner dependency : Name) : Bool :=
   else
     true
 
-example : allowedImport `DisasterRecovery.Properties `DisasterRecovery.Model = true := rfl
+example
+    : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Model = true :=
+  rfl
 
 example : allowedImport `DisasterRecovery.Properties.Utils `CCF.Execution = true :=
   rfl
@@ -44,7 +46,16 @@ example
       = false :=
   rfl
 
-example : allowedImport `DisasterRecovery.Properties `DisasterRecovery.Proof = false :=
+example
+    : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Theorems
+      = false :=
+  rfl
+
+example
+    : allowedImport `DisasterRecovery.Theorems `DisasterRecovery.Proofs.Model = true :=
+  rfl
+
+example : allowedImport `DisasterRecovery.Model `DisasterRecovery.Theorems = false :=
   rfl
 
 example
@@ -55,7 +66,8 @@ example
 example : allowedImport `CCF.MultiNodeTransitionSystem `DisasterRecovery.Model = false :=
   rfl
 
-example : allowedImport `DisasterRecovery.Properties `DisasterRecovery = false := rfl
+example : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery = false :=
+  rfl
 
 run_cmd do
   let env ← getEnv
@@ -114,8 +126,9 @@ run_cmd do
     if #[`CCF.Global, `DisasterRecovery.Properties.Trace, `DisasterRecovery.Properties.History].contains name then
       throwError "Removed module must not be reintroduced: {name}"
     if (`DisasterRecovery.Proof).isPrefixOf name ||
-        (`DisasterRecovery.Proofs).isPrefixOf name then
-      throwError "Property definitions import proof module {name}"
+        (`DisasterRecovery.Proofs).isPrefixOf name ||
+        (`DisasterRecovery.Theorems).isPrefixOf name then
+      throwError "Statement helpers import proof or theorem module {name}"
   for (owner, data) in header.moduleNames.zip header.moduleData do
     for dependency in data.imports do
       unless allowedImport owner dependency.module do

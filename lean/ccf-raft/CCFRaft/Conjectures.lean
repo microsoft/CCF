@@ -6,11 +6,11 @@ public import CCF.Execution
 @[expose] public section
 
 /-!
-Safety properties to prove about the Raft model, each paired with a witness
-statement describing a nontrivial execution relevant to that property.
+Unproved safety conjectures about the Raft model, each paired with an unproved witness
+statement describing a nontrivial execution relevant to that conjecture.
 -/
 
-namespace CCFRaft.Properties
+namespace CCFRaft.Conjectures
 
 abbrev GlobalTrace := CCF.Execution.Trace Model.State
 
@@ -124,4 +124,4 @@ def CommittedFrontierIsSignatureWitness : Prop :=
     /\ (node, nodeState) ∈ state.nodes
     /\ 0 < nodeState.commitIndex
 
-end CCFRaft.Properties
+end CCFRaft.Conjectures
