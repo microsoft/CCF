@@ -63,7 +63,7 @@ example : allowedImport `CCFRaft.Properties `CCFRaft.Proofs.Election = true := r
 
 example : allowedImport `CCFRaft.Proofs.Election `CCFRaft.Properties = false := rfl
 
-example : allowedImport `CCFRaft.Properties `CCFRaft.Tests.ProofCoverage = false := rfl
+example : allowedImport `CCFRaft.Properties `CCFRaft.Tests.CanonicalTraces = false := rfl
 
 example : allowedImport `CCFRaft.Model.Node `CCFRaft.Proofs.Election = false := rfl
 

@@ -26,13 +26,13 @@ any two nodes, in any two states of the trace. -/
 theorem committed_logs_prefix
     : forall (config : Finset NodeID),
       forall (nodes : List NodeID) (trace : GlobalTrace),
-      forall (first second : Model.State),
+      forall (stateA stateB : Model.State),
       forall (left right : NodeID) (leftState rightState : NodeState),
         (trace.Valid (Model.transitionSystem config nodes)
-          /\ first ∈ trace
-          /\ second ∈ trace
-          /\ (left, leftState) ∈ first.nodes
-          /\ (right, rightState) ∈ second.nodes)
+          /\ stateA ∈ trace
+          /\ stateB ∈ trace
+          /\ (left, leftState) ∈ stateA.nodes
+          /\ (right, rightState) ∈ stateB.nodes)
         -> leftState.committedLog <+: rightState.committedLog
             \/ rightState.committedLog <+: leftState.committedLog := by
   exact Proofs.CommittedLogs.committed_logs_prefix
@@ -42,13 +42,13 @@ nonempty committed logs. -/
 lemma committed_logs_prefix_witness
     : exists (config : Finset NodeID),
     exists (nodes : List NodeID) (trace : GlobalTrace),
-    exists (first second : Model.State),
+    exists (stateA stateB : Model.State),
     exists (left right : NodeID) (leftState rightState : NodeState),
       trace.Valid (Model.transitionSystem config nodes)
-      /\ first ∈ trace
-      /\ second ∈ trace
-      /\ (left, leftState) ∈ first.nodes
-      /\ (right, rightState) ∈ second.nodes
+      /\ stateA ∈ trace
+      /\ stateB ∈ trace
+      /\ (left, leftState) ∈ stateA.nodes
+      /\ (right, rightState) ∈ stateB.nodes
       /\ left ≠ right
       /\ leftState.committedLog ≠ []
       /\ rightState.committedLog ≠ [] := by

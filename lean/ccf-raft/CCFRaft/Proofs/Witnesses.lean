@@ -1,8 +1,5 @@
 module
 
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
-
 public import CCFRaft.Model
 public import CCFRaft.Proofs.Concrete
 public import CCF.Execution
@@ -480,13 +477,13 @@ end Single
 lemma committed_logs_prefix_witness
     : exists (config : Finset NodeID),
     exists (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State),
-    exists (first second : Model.State),
+    exists (stateA stateB : Model.State),
     exists (left right : NodeID) (leftState rightState : NodeState),
       trace.Valid (Model.transitionSystem config nodes)
-      /\ first ∈ trace
-      /\ second ∈ trace
-      /\ (left, leftState) ∈ first.nodes
-      /\ (right, rightState) ∈ second.nodes
+      /\ stateA ∈ trace
+      /\ stateB ∈ trace
+      /\ (left, leftState) ∈ stateA.nodes
+      /\ (right, rightState) ∈ stateB.nodes
       /\ left ≠ right
       /\ leftState.committedLog ≠ []
       /\ rightState.committedLog ≠ [] := by

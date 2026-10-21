@@ -1,8 +1,5 @@
 module
 
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
-
 public import CCFRaft.Proofs.Direct.Effects
 public import CCFRaft.Proofs.Direct.Framework
 public import CCFRaft.Proofs.Ledger

@@ -1,8 +1,5 @@
 module
 
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
-
 public import CCFRaft.Proofs.Direct.AppendOnly
 public import CCFRaft.Proofs.Safety.Commit
 
@@ -46,24 +43,24 @@ theorem committed_logs_prefix_of_le [Config.InitialConfiguration]
 theorem committed_logs_prefix
     : forall (config : Finset NodeID),
       forall (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State),
-      forall (first second : Model.State),
+      forall (stateA stateB : Model.State),
       forall (left right : NodeID) (leftState rightState : NodeState),
         (trace.Valid (Model.transitionSystem config nodes)
-          /\ first ∈ trace
-          /\ second ∈ trace
-          /\ (left, leftState) ∈ first.nodes
-          /\ (right, rightState) ∈ second.nodes)
+          /\ stateA ∈ trace
+          /\ stateB ∈ trace
+          /\ (left, leftState) ∈ stateA.nodes
+          /\ (right, rightState) ∈ stateB.nodes)
         -> leftState.committedLog <+: rightState.committedLog
             \/ rightState.committedLog <+: leftState.committedLog := by
-  intro config nodes trace first second left right leftState rightState
-    ⟨valid, firstMember, secondMember, leftMember, rightMember⟩
+  intro config nodes trace stateA stateB left right leftState rightState
+    ⟨valid, memberA, memberB, leftMember, rightMember⟩
   let _ : Proofs.Config.InitialConfiguration := ⟨config⟩
-  obtain ⟨firstIndex, firstFound⟩ := Stream'.Seq.mem_iff_exists_get?.mp firstMember
-  obtain ⟨secondIndex, secondFound⟩ := Stream'.Seq.mem_iff_exists_get?.mp secondMember
-  rcases Nat.le_total firstIndex secondIndex with ordered | ordered
+  obtain ⟨indexA, foundA⟩ := Stream'.Seq.mem_iff_exists_get?.mp memberA
+  obtain ⟨indexB, foundB⟩ := Stream'.Seq.mem_iff_exists_get?.mp memberB
+  rcases Nat.le_total indexA indexB with ordered | ordered
   · exact Proofs.CommittedLogs.committed_logs_prefix_of_le valid ordered
-      firstFound.symm secondFound.symm leftMember rightMember
+      foundA.symm foundB.symm leftMember rightMember
   · exact (Proofs.CommittedLogs.committed_logs_prefix_of_le valid ordered
-      secondFound.symm firstFound.symm rightMember leftMember).symm
+      foundB.symm foundA.symm rightMember leftMember).symm
 
 end CCFRaft.Proofs.CommittedLogs

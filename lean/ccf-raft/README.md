@@ -53,7 +53,6 @@ CI runs this before import coverage, formatting, and linting so the initial buil
 The build also runs two explicit action traces from an initialized network: committing a client request, and adding two nodes then electing a new primary and committing another request.
 The reconfiguration trace checks each node's ledger before delivery, after setup, after replication and commitment, after election, and after the new primary's client request.
 These are regression examples, not exhaustive checking.
-`Tests/ProofCoverage.lean` checks that the safety theorems and witness lemmas delegate to checked implementations in `Proofs/`, not axioms or unproved `Prop` definitions.
 `lake check` runs without sandboxing here, so build-time code must be trusted.
 `CCFRaft.lean` reexports `Properties.lean` and its public imports transitively, while importing tests privately.
 The shared `check-imports` command rejects modules missing from that import closure.
