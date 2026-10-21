@@ -2,8 +2,8 @@ module
 
 import all Init.Prelude
 import all Lean.Data.Name
+import all CCFRaft.Properties
 
-public import CCFRaft.Properties
 public import Lean
 
 @[expose] public section
@@ -47,7 +47,11 @@ private def allowedImport (owner dependency : Name) : Bool :=
   else if owner == `CCFRaft.Model then
     (`CCFRaft.Model).isPrefixOf dependency
   else if (`CCFRaft.Properties).isPrefixOf owner then
-    (`CCFRaft.Model).isPrefixOf dependency || (`CCFRaft.Properties).isPrefixOf dependency
+    (`CCFRaft.Model).isPrefixOf dependency
+    || (`CCFRaft.Proofs).isPrefixOf dependency
+    || (`CCFRaft.Properties).isPrefixOf dependency
+  else if (`CCFRaft.Proofs).isPrefixOf owner then
+    (`CCFRaft.Model).isPrefixOf dependency || (`CCFRaft.Proofs).isPrefixOf dependency
   else
     true
 
@@ -55,7 +59,13 @@ example : allowedImport `CCFRaft.Properties `CCFRaft.Model = true := rfl
 
 example : allowedImport `CCFRaft.Properties `CCF.Execution = true := rfl
 
-example : allowedImport `CCFRaft.Properties `CCFRaft.Proofs.Model = false := rfl
+example : allowedImport `CCFRaft.Properties `CCFRaft.Proofs.Election = true := rfl
+
+example : allowedImport `CCFRaft.Proofs.Election `CCFRaft.Properties = false := rfl
+
+example : allowedImport `CCFRaft.Properties `CCFRaft.Tests.ProofCoverage = false := rfl
+
+example : allowedImport `CCFRaft.Model.Node `CCFRaft.Proofs.Election = false := rfl
 
 example : allowedImport `CCFRaft.Properties `CCFRaft.Proof = false := rfl
 
@@ -70,18 +80,18 @@ example : allowedImport `CCF.MultiNodeTransitionSystem `CCFRaft.Model = false :=
 
 example : allowedImport `CCFRaft.Properties `CCFRaft = false := rfl
 
--- The model and properties must not depend on proofs.
+-- Model definitions remain independent of the proved properties.
 run_cmd do
   let env ← getEnv
   let header := env.header
   for name in header.moduleNames do
     if (`CCFRaft.Shared).isPrefixOf name then
       throwError "Use ccf_common instead of package-local Shared module {name}"
-    if (`CCFRaft.Proof).isPrefixOf name || (`CCFRaft.Proofs).isPrefixOf name then
-      throwError "Model or property definitions import proof module {name}"
+    if name == `CCFRaft.Proof then
+      throwError "Use CCFRaft.Properties instead of the removed proof wrapper"
   for (owner, data) in header.moduleNames.zip header.moduleData do
     for dependency in data.imports do
       unless allowedImport owner dependency.module do
-        throwError "Forbidden model/property dependency: {owner} imports {dependency.module}"
+        throwError "Forbidden layer dependency: {owner} imports {dependency.module}"
 
 end CCFRaft.Tests.Architecture

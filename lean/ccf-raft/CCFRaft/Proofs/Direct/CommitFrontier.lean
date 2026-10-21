@@ -5,7 +5,6 @@ module
 
 public import CCFRaft.Proofs.Direct.Effects
 public import CCFRaft.Proofs.Direct.Framework
-public import CCFRaft.Properties
 public import CCFRaft.Proofs.Ledger
 
 @[expose] public section
@@ -366,11 +365,5 @@ theorem commitFrontier_invariant [Config.InitialConfiguration]
   | receive source message =>
       simp only [Model.Node.step] at stepped
       exact frontier.receive _ self source message _ _ _ stepped
-
-theorem committed_frontier_is_signature : Properties.CommittedFrontierIsSignature := by
-  intro config nodes trace state node nodeState ⟨valid, member, listed, positive⟩
-  let _ : Config.InitialConfiguration := ⟨config⟩
-  exact (commitFrontier_invariant.reachable (valid.reachable member) node nodeState listed).2
-    positive
 
 end CCFRaft.Proofs.Direct

@@ -1,7 +1,7 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-import CCFRaft.Proof
+import CCFRaft.Properties
 
 /-!
 Print the kernel dependency closure of the public safety proofs, restricted to
@@ -18,7 +18,7 @@ open Lean in
 run_cmd do
   let env ← getEnv
   let mut pending := env.constants.fold (init := #[]) fun names name info =>
-    if (`CCFRaft.Proof).isPrefixOf name && info.isTheorem then names.push name else names
+    if name.getPrefix == `CCFRaft.Properties && info.isTheorem then names.push name else names
   let mut seen : NameSet := {}
   while !pending.isEmpty do
     let name := pending.back!

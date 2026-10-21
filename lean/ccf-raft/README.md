@@ -12,8 +12,8 @@ It assumes familiarity with the [CCF consensus documentation](../../doc/architec
 | Messages                               | [`Model/Messages.lean`](CCFRaft/Model/Messages.lean)                                                                             |
 | Protocol policy (one node's step)      | [`Model/Node.lean`](CCFRaft/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)         |
 | Initial states and network composition | [`Model.lean`](CCFRaft/Model.lean) (`initialNodeState`, `transitionSystem`)                                                      |
-| Safety properties and witnesses        | [`Properties.lean`](CCFRaft/Properties.lean)                                                                                     |
-| Proofs of properties and witnesses     | [`Proof.lean`](CCFRaft/Proof.lean) (exported theorems), [`Proofs/`](CCFRaft/Proofs) (implementations)                            |
+| Safety theorems and witness lemmas     | [`Properties.lean`](CCFRaft/Properties.lean)                                                                                     |
+| Supporting proofs and executions       | [`Proofs/`](CCFRaft/Proofs)                                                                                                      |
 | Action-trace tests and import layering | [`Tests/CanonicalTraces.lean`](CCFRaft/Tests/CanonicalTraces.lean), [`Tests/Architecture.lean`](CCFRaft/Tests/Architecture.lean) |
 
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
@@ -23,13 +23,12 @@ Actions are local inputs (including timeouts) or delivery of a queued message; n
 
 ## Properties
 
-[`Properties.lean`](CCFRaft/Properties.lean) states four properties of `Model.transitionSystem`, each with a `Witness` statement exhibiting the situation it constrains:
+[`Properties.lean`](CCFRaft/Properties.lean) proves four safety theorems about `Model.transitionSystem`, each paired with a `_witness` lemma exhibiting the situation it constrains:
 
-- Safety property:
-  - `CommittedLogsPrefix`: any two committed logs in a trace are prefix-comparable.
-  - `SingleNodeCommittedLogMonotonic`: a successful step from any state with unique node IDs preserves each node's committed prefix.
-- `ElectionSafety`: no two distinct nodes are primary in the same term.
-- `CommittedFrontierIsSignature`: every positive commit index points to a signature.
+- `committed_logs_prefix`: any two committed logs in a trace are prefix-comparable.
+- `single_node_committed_log_monotonic`: a successful step from any state with unique node IDs preserves each node's committed prefix.
+- `election_safety`: no two distinct nodes are primary in the same term.
+- `committed_frontier_is_signature`: every positive commit index points to a signature.
 
 ## Scope
 
@@ -54,14 +53,14 @@ CI runs this before import coverage, formatting, and linting so the initial buil
 The build also runs two explicit action traces from an initialized network: committing a client request, and adding two nodes then electing a new primary and committing another request.
 The reconfiguration trace checks each node's ledger before delivery, after setup, after replication and commitment, after election, and after the new primary's client request.
 These are regression examples, not exhaustive checking.
-`Tests/ProofCoverage.lean` fails the build unless every property and witness has an exported theorem in `Proof.lean`.
+`Tests/ProofCoverage.lean` checks that the safety theorems and witness lemmas are proved results, not axioms or unproved `Prop` definitions.
 `lake check` runs without sandboxing here, so build-time code must be trusted.
-`CCFRaft.lean` reexports `Proof.lean` and its public imports transitively, while importing tests privately.
+`CCFRaft.lean` reexports `Properties.lean` and its public imports transitively, while importing tests privately.
 The shared `check-imports` command rejects modules missing from that import closure.
 
 ## Proofs
 
-`Proof.lean` proves all four properties and their witnesses directly against `Model.transitionSystem`.
+`Properties.lean` states and proves all four properties and their witnesses directly against `Model.transitionSystem`.
 `Proofs/Direct/` establishes node-local commit invariants; `Proofs/Safety/` establishes the cross-node history invariant used for election safety and committed-log comparability.
 `Proofs/Witnesses.lean` supplies concrete executions checked by the kernel.
 

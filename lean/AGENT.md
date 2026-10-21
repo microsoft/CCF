@@ -13,29 +13,30 @@ To be clear being able to save 1 line of human readable code at the cost of 1000
 
 Within a model's library directory, use this layout:
 
-| Location               | Responsibility                                                                                       |
-| ---------------------- | ---------------------------------------------------------------------------------------------------- |
-| `Model.lean`           | Assemble the executable model, including configuration and network composition.                      |
-| `Model/`               | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`. |
-| `../common/CCF/`       | Reusable transition systems, network composition, and execution definitions in the `CCF` namespace.  |
-| `Properties.lean`      | Define the named claims as `def ... : Prop`.                                                         |
-| `Properties/`          | Definitions needed to state and understand those claims, such as state and trace predicates.         |
-| `Proof.lean`           | Export theorems establishing the named properties, linked to their checked implementations.          |
-| `Proofs/`              | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
-| `Tests/`               | Executable model checks and regression cases.                                                        |
-| `TraceValidation.lean` | Replay recorded implementation traces through the executable model.                                  |
-| `TraceValidation/`     | Parsing and ordering of those traces, for `TraceValidation.lean`.                                    |
+| Location               | Responsibility                                                                                                  |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `Model.lean`           | Assemble the executable model, including configuration and network composition.                                 |
+| `Model/`               | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`.            |
+| `../common/CCF/`       | Reusable transition systems, network composition, and execution definitions in the `CCF` namespace.             |
+| `Properties.lean`      | State safety theorems and witness lemmas directly for Raft; disaster recovery retains named `Prop` definitions. |
+| `Properties/`          | Definitions needed to state and understand those claims, such as state and trace predicates.                    |
+| `Proof.lean`           | For disaster recovery, establish the named property definitions using their checked implementations.            |
+| `Proofs/`              | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.                       |
+| `Tests/`               | Executable model checks and regression cases.                                                                   |
+| `TraceValidation.lean` | Replay recorded implementation traces through the executable model.                                             |
+| `TraceValidation/`     | Parsing and ordering of those traces, for `TraceValidation.lean`.                                               |
 
 ## Dependency direction
 
 - Keep `common/CCF/`, `Model/`, and `Model.lean` independent of property and proof modules.
   Shared infrastructure must not depend on a particular protocol.
-- Property definitions should depend on the model, shared definitions, and other property helpers.
-  Neither `Properties.lean` nor `Properties/` may import `Proof.lean` or `Proofs/`.
-- Let `Proofs/` depend on model and property definitions, plus other supporting proofs.
-  `Proof.lean` imports the property statements and their implementations.
+- Raft's `Properties.lean` imports the model and supporting proofs, and contains the full statements as theorems and witness lemmas.
+  Do not retain separate `Prop` definitions or a `Proof.lean` wrapper for those results.
+  Raft's `Proofs/` must not import `Properties.lean`; this keeps the result entrypoint free of cycles.
+- Disaster recovery's property definitions depend on the model, shared definitions, and other property helpers, but not `Proof.lean` or `Proofs/`.
+  Its `Proofs/` may depend on property definitions, and its `Proof.lean` imports both statements and implementations.
 
-The proof entrypoint should establish the named property rather than repeat its statement.
+For disaster recovery's split statement/proof layout, the proof entrypoint establishes the named property rather than repeating its statement.
 For example:
 
 ```lean
@@ -60,12 +61,12 @@ Moving ghost definitions into `Properties/` merely to remove an import does not 
 
 ## Review and validation
 
-Review the model, property definitions, their helpers, and the theorem links in `Proof.lean`.
+Review the model, property statements, their helpers, and the proof links in the result entrypoint (`Properties.lean` for Raft, `Proof.lean` for disaster recovery).
 Keep the detailed proof implementations machine-checked and within the axiom allowlist.
 
-Retain the generated package-level import-all module and the whole-package kernel and axiom-dependency checks with `lake check`.
+Retain package-level import coverage and the whole-package kernel and axiom-dependency checks with `lake check`.
 The proof entrypoint does not replace either check.
-After moving modules, regenerate the import root and run the package's existing checks.
+After moving modules, update the import root and run `lake exe check-imports` and the package's existing checks.
 For disaster recovery, see the [validation commands](disaster-recovery/README.md#validation).
 
 `DisasterRecovery/Tests/Architecture.lean` checks the property import graph during the build.

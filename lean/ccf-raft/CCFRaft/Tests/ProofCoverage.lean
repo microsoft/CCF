@@ -4,7 +4,7 @@ module
 -- Licensed under the Apache 2.0 License.
 
 -- `import all` keeps exported proofs as theorems rather than public axiom stubs.
-import all CCFRaft.Proof
+import all CCFRaft.Properties
 
 public import Lean
 
@@ -14,23 +14,28 @@ namespace CCFRaft.Tests.ProofCoverage
 
 open Lean
 
--- Every public claim, including each non-vacuity claim, needs an exported theorem.
+-- Properties are checked results, not unproved Prop definitions or axioms.
 run_cmd do
   let env ← getEnv
-  let declarations := env.constants.toList
-  for (name, info) in declarations do
-    if name.getPrefix != `CCFRaft.Properties || info.type != mkSort .zero then
-      continue
-    let covered := declarations.any fun (proofName, proofInfo) =>
-      proofName.getPrefix == `CCFRaft.Proof &&
-        (match proofInfo with
-        | .thmInfo proof => proof.type.isConstOf name
-        | _ => false)
-    unless covered do
-      throwError "Property has no exported theorem: {name}"
-    unless name.getString!.endsWith "Witness" do
-      let witness := Name.str `CCFRaft.Properties (name.getString! ++ "Witness")
-      unless env.contains witness do
-        throwError "Property has no non-vacuity claim: {name}"
+  for name in #[
+      `CCFRaft.Properties.election_safety,
+      `CCFRaft.Properties.committed_logs_prefix,
+      `CCFRaft.Properties.committed_frontier_is_signature,
+      `CCFRaft.Properties.single_node_committed_log_monotonic
+    ] do
+    unless (env.find? name).any (fun info => info.isTheorem) do
+      throwError "Missing safety theorem: {name}"
+  for (name, info) in env.constants.toList do
+    if name.getPrefix != `CCFRaft.Properties then continue
+    match info with
+    | .axiomInfo _ => throwError "Property is an axiom: {name}"
+    | .thmInfo _ =>
+        unless name.getString!.endsWith "_witness" do
+          let witness := Name.str `CCFRaft.Properties (name.getString! ++ "_witness")
+          unless (env.find? witness).any (fun info => info.isTheorem) do
+            throwError "Property has no witness lemma: {name}"
+    | _ =>
+        if info.type == mkSort .zero then
+          throwError "Property is an unproved Prop definition: {name}"
 
 end CCFRaft.Tests.ProofCoverage

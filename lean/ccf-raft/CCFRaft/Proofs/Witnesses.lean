@@ -3,8 +3,9 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-public import CCFRaft.Properties
+public import CCFRaft.Model
 public import CCFRaft.Proofs.Concrete
+public import CCF.Execution
 
 import all Init.Control.State
 import all Init.Data.List.Sort.Basic
@@ -338,30 +339,6 @@ theorem election_both_lead : bothLead electionFinal = true := by
 
 end Election
 
-theorem election_safety_witness : Properties.ElectionSafetyWitness := by
-  have lead := election_both_lead
-  simp only [bothLead, Bool.and_eq_true, Option.any_eq_true, decide_eq_true_eq] at lead
-  obtain ⟨⟨leftState, leftFound, leftPrimary⟩, ⟨rightState, rightFound, rightPrimary⟩⟩ := lead
-  have stemRun := election_run
-  exact ⟨
-    {0, 1, 2},
-    [0, 1, 2],
-    lassoTrace electionSystem electionStart electionChoices electionCycle,
-    electionFinal,
-    0,
-    1,
-    leftState,
-    rightState,
-    lasso_valid (start_initial (by decide) (by decide)) stemRun election_cycle
-      (by simp [electionCycle]),
-    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
-    mem_of_nodeState leftFound,
-    mem_of_nodeState rightFound,
-    leftPrimary,
-    rightPrimary,
-    by decide
-  ⟩
-
 section Commit
 
 def commitSystem := CCFRaft.Model.transitionSystem {0, 1} [0, 1]
@@ -439,30 +416,6 @@ theorem commit_follower_present : (nodeState commitFollowerCommitted 1).isSome :
 
 end Commit
 
-/-- Node 0 has committed in one state, and node 1 in a later one. -/
-theorem committed_logs_prefix_witness : Properties.CommittedLogsPrefixWitness := by
-  have stemRun := commit_run
-  exact ⟨
-    {0, 1},
-    [0, 1],
-    lassoTrace commitSystem commitStart commitChoices commitCycle,
-    commitPrimaryCommitted,
-    commitFollowerCommitted,
-    0,
-    1,
-    (nodeState commitPrimaryCommitted 0).get commit_primary_present,
-    (nodeState commitFollowerCommitted 1).get commit_follower_present,
-    lasso_valid (start_initial (by decide) (by decide)) stemRun commit_cycle
-      (by simp [commitCycle]),
-    lasso_mem stemRun (by decide) (eq_some_getD commit_primary_committed _),
-    lasso_mem stemRun (by decide) (eq_some_getD commit_follower_committed _),
-    member_of_nodeState _,
-    member_of_nodeState _,
-    by decide,
-    by decide,
-    by decide
-  ⟩
-
 section Single
 
 def singleSystem := CCFRaft.Model.transitionSystem {0} [0]
@@ -523,42 +476,5 @@ theorem extend_committed
   decide
 
 end Single
-
-theorem committed_frontier_is_signature_witness
-    : Properties.CommittedFrontierIsSignatureWitness := by
-  have stemRun := single_run
-  exact ⟨
-    {0},
-    [0],
-    lassoTrace singleSystem singleStart singleChoices singleCycle,
-    singleFinal,
-    0,
-    (nodeState singleFinal 0).get single_final_present,
-    lasso_valid (start_initial (by decide) (by decide)) stemRun single_cycle
-      (by simp [singleCycle]),
-    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
-    member_of_nodeState _,
-    by decide
-  ⟩
-
-/-- A single primary's nonempty committed log grows in one batch append. -/
-theorem single_node_committed_log_monotonic_witness
-    : Properties.SingleNodeCommittedLogMonotonicWitness :=
-  ⟨
-    {0},
-    [0],
-    singleFinal,
-    extendFinal,
-    0,
-    (nodeState singleFinal 0).get single_final_present,
-    (nodeState extendFinal 0).get extend_final_present,
-    extendAction,
-    single_final_distinct,
-    eq_some_getD extend_enabled _,
-    member_of_nodeState _,
-    member_of_nodeState _,
-    extend_committed.1,
-    extend_committed.2
-  ⟩
 
 end CCFRaft.Proofs.Witnesses

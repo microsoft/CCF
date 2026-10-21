@@ -18,36 +18,27 @@ namespace CCFRaft.Proofs.CommittedLogs
 
 open CCFRaft.Proofs.Config
 
-theorem committed_logs_prefix : Properties.CommittedLogsPrefix := by
-  intro config nodes trace first second left right leftState rightState
-    ⟨valid, firstMember, secondMember, leftMember, rightMember⟩
-  let _ : Config.InitialConfiguration := ⟨config⟩
-  obtain ⟨firstIndex, firstFound⟩ := Stream'.Seq.mem_iff_exists_get?.mp firstMember
-  obtain ⟨secondIndex, secondFound⟩ := Stream'.Seq.mem_iff_exists_get?.mp secondMember
-  /- Move the node of the earlier state to the later state, then compare there. -/
-  have across : forall {earlierIndex laterIndex : Nat} {earlier later : Model.State}
-      {earlierNode laterNode : Model.Node.NodeID}
-      {earlierState laterState : Model.Node.NodeState},
-      earlierIndex <= laterIndex
-      -> trace.get? earlierIndex = some earlier
-      -> trace.get? laterIndex = some later
-      -> (earlierNode, earlierState) ∈ earlier.nodes
-      -> (laterNode, laterState) ∈ later.nodes
-      -> earlierState.committedLog <+: laterState.committedLog
-          \/ laterState.committedLog <+: earlierState.committedLog := by
-    intro earlierIndex laterIndex earlier later earlierNode laterNode earlierState laterState
-      ordered earlierFound laterFound earlierMember laterMember
-    obtain ⟨carried, carriedMember, grown⟩ :=
-      Direct.committed_log_later valid earlierFound earlierMember (laterIndex - earlierIndex)
-        later (by rwa [Nat.add_sub_cancel' ordered])
-    obtain ⟨history, exec⟩ :=
-      Safety.exec_of_reachable (valid.reachable (Stream'.Seq.get?_mem laterFound))
-    rcases Safety.committed_logs_comparable exec carriedMember laterMember with
-      carriedFirst | laterFirst
-    · exact Or.inl (grown.trans carriedFirst)
-    · exact List.prefix_or_prefix_of_prefix grown laterFirst
-  rcases Nat.le_total firstIndex secondIndex with ordered | ordered
-  · exact across ordered firstFound.symm secondFound.symm leftMember rightMember
-  · exact (across ordered secondFound.symm firstFound.symm rightMember leftMember).symm
+theorem committed_logs_prefix_of_le [Config.InitialConfiguration]
+    {nodes : List Model.Node.NodeID} {trace : CCF.Execution.Trace Model.State}
+    (valid : trace.Valid (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes))
+    {earlierIndex laterIndex : Nat} {earlier later : Model.State}
+    {earlierNode laterNode : Model.Node.NodeID}
+    {earlierState laterState : Model.Node.NodeState}
+    (ordered : earlierIndex <= laterIndex)
+    (earlierFound : trace.get? earlierIndex = some earlier)
+    (laterFound : trace.get? laterIndex = some later)
+    (earlierMember : (earlierNode, earlierState) ∈ earlier.nodes)
+    (laterMember : (laterNode, laterState) ∈ later.nodes)
+    : earlierState.committedLog <+: laterState.committedLog
+      \/ laterState.committedLog <+: earlierState.committedLog := by
+  obtain ⟨carried, carriedMember, grown⟩ :=
+    Direct.committed_log_later valid earlierFound earlierMember (laterIndex - earlierIndex)
+      later (by rwa [Nat.add_sub_cancel' ordered])
+  obtain ⟨history, exec⟩ :=
+    Safety.exec_of_reachable (valid.reachable (Stream'.Seq.get?_mem laterFound))
+  rcases Safety.committed_logs_comparable exec carriedMember laterMember with
+    carriedFirst | laterFirst
+  · exact Or.inl (grown.trans carriedFirst)
+  · exact List.prefix_or_prefix_of_prefix grown laterFirst
 
 end CCFRaft.Proofs.CommittedLogs

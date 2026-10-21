@@ -4,7 +4,7 @@ module
 -- Licensed under the Apache 2.0 License.
 
 public import CCFRaft.Proofs.Direct.CommitFrontier
-public import CCFRaft.Properties
+public import CCF.Execution
 
 @[expose] public section
 
@@ -340,7 +340,8 @@ theorem present_after_step {nodes : List NodeID} {before after : Model.State}
 
 /-- A node's committed log at one state of a trace is a prefix of the same node's
 committed log at every later state of the trace. -/
-theorem committed_log_later {nodes : List NodeID} {trace : Properties.GlobalTrace}
+theorem committed_log_later {nodes : List NodeID}
+    {trace : CCF.Execution.Trace Model.State}
     (valid : trace.Valid (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes))
     {index : Nat} {state : Model.State} (found : trace.get? index = some state)
     {node : NodeID} {firstState : NodeState} (member : (node, firstState) ∈ state.nodes)
@@ -370,12 +371,5 @@ theorem committed_log_later {nodes : List NodeID} {trace : Properties.GlobalTrac
             stepped middleMember laterMember
 
 end Global
-
-theorem single_node_committed_log_monotonic
-    : Properties.SingleNodeCommittedLogMonotonic := by
-  intro config nodes pre post nodeId nodePre nodePost action
-    ⟨distinct, stepped, preMember, postMember⟩
-  let _ : Config.InitialConfiguration := ⟨config⟩
-  exact committed_log_step distinct stepped preMember postMember
 
 end CCFRaft.Proofs.Direct
