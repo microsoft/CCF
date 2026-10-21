@@ -78,7 +78,16 @@ namespace ccf
             "Ignoring consensus node message: consensus not initialised");
           return;
         }
-        consensus->recv_message(from, payload_data, payload_size);
+        if (n2n_channels == nullptr)
+        {
+          LOG_FAIL_FMT(
+            "Ignoring consensus node message: node-to-node channels not "
+            "initialised");
+          return;
+        }
+        const auto [message, payload] = n2n_channels->recv_consensus_message(
+          from, payload_data, payload_size);
+        consensus->recv_message(from, message, payload);
         return;
       }
       default:

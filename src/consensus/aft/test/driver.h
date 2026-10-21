@@ -766,20 +766,19 @@ public:
   {
     if (_connections.find(std::make_pair(src, dst)) != _connections.end())
     {
-      // If this is an AppendEntries, then append the corresponding entry from
-      // the sender's ledger
+      // If this is AppendEntries, fetch the corresponding ledger entries.
       const uint8_t* data = contents.data();
       auto size = contents.size();
       auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
       bool should_send = true;
+      std::vector<uint8_t> body;
       if (msg_type == aft::raft_append_entries)
       {
         // Parse the indices to be sent to the recipient.
         auto ae = *(aft::AppendEntries*)data;
 
         auto& sender_raft = _nodes.at(src).raft;
-        const auto payload_opt =
-          sender_raft->ledger->get_append_entries_payload(ae);
+        auto payload_opt = sender_raft->ledger->get_append_entries_payload(ae);
 
         if (!payload_opt.has_value())
         {
@@ -802,16 +801,14 @@ public:
         }
         else
         {
-          contents.insert(
-            contents.end(), payload_opt->begin(), payload_opt->end());
+          body = std::move(*payload_opt);
         }
       }
 
       if (should_send)
       {
         log_msg_details(src, dst, contents);
-        _nodes.at(dst).raft->recv_message(
-          src, contents.data(), contents.size());
+        _nodes.at(dst).raft->recv_message(src, contents, body);
         return true;
       }
     }

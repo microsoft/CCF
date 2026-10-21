@@ -736,8 +736,12 @@ namespace aft
     }
 
     void recv_message(
-      const ccf::NodeId& from, const uint8_t* data, size_t size) override
+      const ccf::NodeId& from,
+      std::span<const uint8_t> message,
+      std::span<const uint8_t> payload = {}) override
     {
+      auto* data = message.data();
+      auto size = message.size();
       auto type = serialized::peek<RaftMsgType>(data, size);
 
       try
@@ -746,9 +750,7 @@ namespace aft
         {
           case raft_append_entries:
           {
-            AppendEntries r =
-              channels->template recv_authenticated<AppendEntries>(
-                from, data, size);
+            const auto r = serialized::read<AppendEntries>(data, size);
             if (ledger->is_backlogged())
             {
               // Treat the whole message as lost. Check before term/log
@@ -761,59 +763,48 @@ namespace aft
                 "Dropping AppendEntries from {}: ledger write backlog", from);
               break;
             }
-            recv_append_entries(from, r, data, size);
+            recv_append_entries(from, r, payload.data(), payload.size());
             break;
           }
 
           case raft_append_entries_response:
           {
-            AppendEntriesResponse r =
-              channels->template recv_authenticated<AppendEntriesResponse>(
-                from, data, size);
+            const auto r = serialized::read<AppendEntriesResponse>(data, size);
             recv_append_entries_response(from, r);
             break;
           }
 
           case raft_request_pre_vote:
           {
-            RequestPreVote r =
-              channels->template recv_authenticated<RequestPreVote>(
-                from, data, size);
+            const auto r = serialized::read<RequestPreVote>(data, size);
             recv_request_pre_vote(from, r);
             break;
           }
 
           case raft_request_vote:
           {
-            RequestVote r = channels->template recv_authenticated<RequestVote>(
-              from, data, size);
+            const auto r = serialized::read<RequestVote>(data, size);
             recv_request_vote(from, r);
             break;
           }
 
           case raft_request_pre_vote_response:
           {
-            RequestPreVoteResponse r =
-              channels->template recv_authenticated<RequestPreVoteResponse>(
-                from, data, size);
+            const auto r = serialized::read<RequestPreVoteResponse>(data, size);
             recv_request_pre_vote_response(from, r);
             break;
           }
 
           case raft_request_vote_response:
           {
-            RequestVoteResponse r =
-              channels->template recv_authenticated<RequestVoteResponse>(
-                from, data, size);
+            const auto r = serialized::read<RequestVoteResponse>(data, size);
             recv_request_vote_response(from, r);
             break;
           }
 
           case raft_propose_request_vote:
           {
-            ProposeRequestVote r =
-              channels->template recv_authenticated<ProposeRequestVote>(
-                from, data, size);
+            const auto r = serialized::read<ProposeRequestVote>(data, size);
             recv_propose_request_vote(from, r);
             break;
           }
@@ -825,11 +816,6 @@ namespace aft
             return;
           }
         }
-      }
-      catch (const ConsensusChannels::DroppedMessageException& e)
-      {
-        RAFT_INFO_FMT("Dropped invalid message from {}", e.from);
-        return;
       }
       catch (const serialized::InsufficientSpaceException& ise)
       {
