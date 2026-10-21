@@ -100,26 +100,24 @@ namespace ccf::crypto::sharing
     }
 
     CleansedVector<element> polynomial(threshold);
-    CleansedVector<uint32_t> values(shares.size());
+    CleansedVector<ccf_shamir_share> outputs(shares.size());
     const auto entropy = ccf::crypto::get_entropy();
-    raw_secret.x = 0;
-    for (size_t s = 0; s < shares.size(); ++s)
-    {
-      shares[s].x = s + 1;
-    }
     for (size_t limb = 0; limb < LIMBS; ++limb)
     {
       for (auto& coefficient : polynomial)
       {
         coefficient = sample(entropy);
       }
-      check_status(ccf_shamir_evaluate(
-        polynomial.data(), threshold, values.data(), shares.size()));
+      check_status(ccf_shamir_share_limb(
+        polynomial.data(), threshold, limb, outputs.data(), outputs.size()));
       raw_secret.y[limb] = polynomial[0];
-      for (size_t s = 0; s < shares.size(); ++s)
-      {
-        shares[s].y[limb] = values[s];
-      }
+    }
+    raw_secret.x = 0;
+    // The shares' coordinates are assigned by the verified core.
+    for (size_t s = 0; s < shares.size(); ++s)
+    {
+      shares[s].x = outputs[s].x;
+      std::copy_n(outputs[s].y, LIMBS, shares[s].y);
     }
   }
 

@@ -18,7 +18,7 @@ if(NOT NM_RESULT EQUAL 0)
 endif()
 
 set(HAS_TAV_EXPORT FALSE)
-set(SHAMIR_EXPORTS ccf_shamir_reduce ccf_shamir_evaluate ccf_shamir_recover)
+set(SHAMIR_EXPORTS ccf_shamir_reduce ccf_shamir_share_limb ccf_shamir_recover)
 string(REPLACE "\n" ";" NM_LINES "${NM_OUTPUT}")
 foreach(LINE IN LISTS NM_LINES)
   string(STRIP "${LINE}" LINE)

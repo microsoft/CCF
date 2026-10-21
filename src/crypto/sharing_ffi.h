@@ -44,10 +44,15 @@ extern "C"
   // empty, oversized, or mutually overlapping buffers are rejected. Lengths
   // are in elements. No concurrent access to output buffers is allowed.
   CCF_SHAMIR_NODISCARD uint64_t ccf_shamir_reduce(uint64_t x);
-  CCF_SHAMIR_NODISCARD ccf_shamir_status ccf_shamir_evaluate(
+  // Evaluate the polynomial at x = i + 1 for the share at index i, record
+  // that coordinate in the share, and store the value in the given limb.
+  // Other limbs are unchanged. Requires limb < 10 and
+  // 0 < coefficient_count <= share_count < 2^31 - 1.
+  CCF_SHAMIR_NODISCARD ccf_shamir_status ccf_shamir_share_limb(
     const uint64_t* coefficients,
     size_t coefficient_count,
-    uint32_t* values,
+    size_t limb,
+    ccf_shamir_share* shares,
     size_t share_count);
   // Only the first threshold shares are read. secret is unchanged on error.
   CCF_SHAMIR_NODISCARD ccf_shamir_status ccf_shamir_recover(
