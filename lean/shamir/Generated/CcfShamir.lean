@@ -31,14 +31,14 @@ namespace ccf_shamir
 @[global_simps, irreducible] def LIMBS : Std.Usize := 10#usize
 
 /-- [ccf_shamir::Share]
-    Source: 'src/lib.rs', lines 11:0-14:1
+    Source: 'src/lib.rs', lines 15:0-18:1
     Visibility: public -/
 structure Share where
   x : Std.U32
   y : Array Std.U32 10#usize
 
 /-- [ccf_shamir::Error]
-    Source: 'src/lib.rs', lines 17:0-22:1
+    Source: 'src/lib.rs', lines 21:0-26:1
     Visibility: public -/
 @[discriminant isize]
 inductive Error where
@@ -48,7 +48,7 @@ inductive Error where
 | InvalidWorkspace : Error
 
 /-- [ccf_shamir::reduce]:
-    Source: 'src/lib.rs', lines 25:0-32:1
+    Source: 'src/lib.rs', lines 29:0-36:1
     Visibility: public -/
 def reduce (x : Std.U64) : Result Std.U64 := do
   let d ← x >>> 31#i32
@@ -63,26 +63,26 @@ def reduce (x : Std.U64) : Result Std.U64 := do
   x2 - i3
 
 /-- [ccf_shamir::mul]:
-    Source: 'src/lib.rs', lines 34:0-36:1 -/
+    Source: 'src/lib.rs', lines 38:0-40:1 -/
 def mul (x : Std.U64) (y : Std.U64) : Result Std.U64 := do
   let i ← x * y
   reduce i
 
 /-- [ccf_shamir::add]:
-    Source: 'src/lib.rs', lines 38:0-40:1 -/
+    Source: 'src/lib.rs', lines 42:0-44:1 -/
 def add (x : Std.U64) (y : Std.U64) : Result Std.U64 := do
   let i ← x + y
   reduce i
 
 /-- [ccf_shamir::sub]:
-    Source: 'src/lib.rs', lines 42:0-44:1 -/
+    Source: 'src/lib.rs', lines 46:0-48:1 -/
 def sub (x : Std.U64) (y : Std.U64) : Result Std.U64 := do
   let i ← PRIME + x
   let i1 ← i - y
   reduce i1
 
 /-- [ccf_shamir::inverse]: loop 0:
-    Source: 'src/lib.rs', lines 49:4-55:5 -/
+    Source: 'src/lib.rs', lines 53:4-59:5 -/
 @[rust_loop]
 def inverse_loop
   (x : Std.U64) (n : Std.U64) (y : Std.U64) : Result Std.U64 := do
@@ -99,13 +99,13 @@ def inverse_loop
 partial_fixpoint
 
 /-- [ccf_shamir::inverse]:
-    Source: 'src/lib.rs', lines 46:0-57:1 -/
+    Source: 'src/lib.rs', lines 50:0-61:1 -/
 def inverse (x : Std.U64) : Result Std.U64 := do
   let n ← PRIME - 2#u64
   inverse_loop x n 1#u64
 
 /-- [ccf_shamir::evaluate]: loop 0:
-    Source: 'src/lib.rs', lines 71:4-79:1
+    Source: 'src/lib.rs', lines 75:4-83:1
     Visibility: public -/
 @[rust_loop]
 def evaluate_loop
@@ -127,7 +127,7 @@ def evaluate_loop
 partial_fixpoint
 
 /-- [ccf_shamir::evaluate]:
-    Source: 'src/lib.rs', lines 64:0-79:1
+    Source: 'src/lib.rs', lines 68:0-83:1
     Visibility: public -/
 def evaluate
   (coefficients : Slice Std.U64) (x : Std.U32) :
@@ -143,7 +143,7 @@ def evaluate
     evaluate_loop coefficients x1 0#u64 i1
 
 /-- [ccf_shamir::lagrange]: loop 1:
-    Source: 'src/lib.rs', lines 97:8-105:9
+    Source: 'src/lib.rs', lines 101:8-109:9
     Visibility: public -/
 @[rust_loop]
 def lagrange_loop0_loop0
@@ -175,7 +175,7 @@ def lagrange_loop0_loop0
 partial_fixpoint
 
 /-- [ccf_shamir::lagrange]: loop 0:
-    Source: 'src/lib.rs', lines 93:4-113:1
+    Source: 'src/lib.rs', lines 97:4-117:1
     Visibility: public -/
 @[rust_loop]
 def lagrange_loop0
@@ -199,7 +199,7 @@ def lagrange_loop0
 partial_fixpoint
 
 /-- [ccf_shamir::lagrange]:
-    Source: 'src/lib.rs', lines 85:0-113:1
+    Source: 'src/lib.rs', lines 89:0-117:1
     Visibility: public -/
 def lagrange
   (shares : Slice Share) (weights : Slice Std.U64) :
@@ -216,7 +216,7 @@ def lagrange
     else lagrange_loop0 shares weights 0#usize
 
 /-- [ccf_shamir::recover]: loop 1:
-    Source: 'src/lib.rs', lines 126:8-129:9
+    Source: 'src/lib.rs', lines 130:8-133:9
     Visibility: public -/
 @[rust_loop]
 def recover_loop0_loop0
@@ -240,7 +240,7 @@ def recover_loop0_loop0
 partial_fixpoint
 
 /-- [ccf_shamir::recover]: loop 0:
-    Source: 'src/lib.rs', lines 123:4-132:5
+    Source: 'src/lib.rs', lines 127:4-136:5
     Visibility: public -/
 @[rust_loop]
 def recover_loop0
@@ -259,7 +259,7 @@ def recover_loop0
 partial_fixpoint
 
 /-- [ccf_shamir::recover]:
-    Source: 'src/lib.rs', lines 119:0-134:1
+    Source: 'src/lib.rs', lines 123:0-138:1
     Visibility: public -/
 def recover
   (shares : Slice Share) (weights : Slice Std.U64) :

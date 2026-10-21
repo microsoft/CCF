@@ -6,7 +6,11 @@
 pub const PRIME: u64 = 2147483647;
 pub const LIMBS: usize = 10;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A share of a secret: `y[k]` is the value at `x` of the polynomial for limb `k`.
+///
+/// Deliberately neither `Copy` nor `Debug`, so shares are moved or cloned
+/// explicitly and never end up in formatted output.
+#[derive(Clone, PartialEq, Eq)]
 #[repr(C)]
 pub struct Share {
     pub x: u32,
