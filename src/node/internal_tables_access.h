@@ -416,6 +416,7 @@ namespace ccf
 
       const ServiceInfo service_info{
         service_cert,
+        std::nullopt, // pq_cert
         recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
         prev_service_created_at,
         recovery_count,

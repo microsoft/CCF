@@ -71,6 +71,7 @@ namespace ccf
       ccf::crypto::Pem node_endorsed_certificate;
       ccf::crypto::Pem public_key;
       ccf::crypto::Pem service_cert;
+      std::optional<ccf::crypto::Pem> pq_service_cert = std::nullopt;
       QuoteInfo quote_info;
       ccf::crypto::Pem public_encryption_key;
       pal::PlatformAttestationMeasurement measurement;
