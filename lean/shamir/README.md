@@ -4,7 +4,7 @@
 The implementation uses ten independent limbs over `ZMod 2147483647`.
 The existing C++ API, `Share` serialization, HKDF derivation, entropy source, input reduction, duplicate-coordinate rejection, and ignoring shares beyond the recovery threshold are preserved.
 Zero recovery thresholds and share counts reaching the field characteristic are rejected.
-Secret-bearing C++ scratch buffers and the FFI's temporary recovered secret are cleansed with OpenSSL.
+Secret-bearing C++ scratch buffers are cleansed with OpenSSL; the recovered secret is written in place into the caller's buffer by the verified core, and neither Rust layer holds a copy of it.
 
 ## Proof boundary
 
@@ -17,9 +17,10 @@ The C++ adapter copies members into the C representation rather than type-punnin
 The core does not allocate, and recovery uses caller-owned storage linear in the threshold instead of variable-length stack arrays.
 
 [`Shamir/Properties.lean`](Shamir/Properties.lean) states the refinement claims independently of their proofs.
-[`Shamir/Proof.lean`](Shamir/Proof.lean) exports `sharing_refines_cslib` and `recovery_refines_cslib`.
+[`Shamir/Proof.lean`](Shamir/Proof.lean) exports `sharing_refines_cslib`, `recovery_refines_cslib`, and `recovery_error_preserves_secret`.
 Sharing refines CSLib's `Shamir.share` under the coefficient-vector encoding relation, for every canonical coefficient vector encoding that polynomial: filling a limb assigns coordinate `k + 1` to the share at index `k`, stores that coordinate's share value in the requested limb, and leaves every other limb unchanged.
-Recovery terminates successfully for every nonempty selection of distinct field coordinates and an appropriately sized workspace, and each of its ten limbs equals CSLib's `Shamir.Polynomial.reconstruct`.
+Recovery terminates successfully for every nonempty selection of distinct field coordinates and an appropriately sized workspace, and each of its ten limbs, written in place over whatever the caller's array held, equals CSLib's `Shamir.Polynomial.reconstruct`.
+For any inputs at all, a recovery that reports an error leaves the caller's array unchanged.
 `recoveredLimb_eq_secret` also connects this reconstruction to CSLib's reconstruction-correctness theorem for low-degree sharing polynomials.
 CCF's threshold counts shares; CSLib's `Params.threshold` is the polynomial-degree bound, one less.
 
@@ -71,7 +72,7 @@ bash scripts/check-shamir.sh --inadvisably-no-sandbox
 
 The check script verifies the import-all roots and enumerates every declaration owned by both project libraries, including private and automatically generated declarations.
 The standard `leanexport` exports all of these declarations and their transitive dependencies, and `lake check --from-export` kernel-checks that entire export and rejects axiom dependencies outside `propext`, `Classical.choice`, and `Quot.sound`.
-This is not limited to the three public correctness theorems.
+This is not limited to the exported correctness theorems.
 An unfiltered `lake check` also exports unused declarations from Aeneas's upstream test modules, including unfinished tests and unrelated opaque primitives, and fails its axiom audit on those declarations.
 They are not dependencies of this project's declarations and are not added to the axiom allowlist.
 The generated model is preserved exactly; only handwritten modules are subject to formatting and naming/documentation linting.

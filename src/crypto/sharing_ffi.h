@@ -54,7 +54,9 @@ extern "C"
     size_t limb,
     ccf_shamir_share* shares,
     size_t share_count);
-  // Only the first threshold shares are read. secret is unchanged on error.
+  // Only the first threshold shares are read. secret is written in place by
+  // the verified core, without an intermediate copy, and is unchanged on
+  // error.
   CCF_SHAMIR_NODISCARD ccf_shamir_status ccf_shamir_recover(
     const ccf_shamir_share* shares, size_t threshold, uint32_t (*secret)[10]);
 #ifdef __cplusplus

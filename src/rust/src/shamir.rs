@@ -4,10 +4,6 @@
 use ccf_shamir::{Error, LIMBS, Share};
 use std::slice;
 
-unsafe extern "C" {
-    fn OPENSSL_cleanse(ptr: *mut std::ffi::c_void, len: usize);
-}
-
 /// Status codes returned across the C ABI, mirroring `ccf_shamir_status`.
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -98,7 +94,8 @@ pub unsafe extern "C" fn ccf_shamir_share_limb(
 /// Null, misaligned, empty, oversized, or overlapping buffers are rejected
 /// without dereferencing anything. Otherwise `shares` must be valid for
 /// `threshold` elements and not mutated concurrently, and `secret` must be
-/// valid for exclusive access.
+/// valid for exclusive access. The secret is written in place by the core;
+/// this layer holds no copy of it.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ccf_shamir_recover(
     shares: *const Share,
@@ -120,15 +117,8 @@ pub unsafe extern "C" fn ccf_shamir_recover(
     // above; the caller guarantees they are live and not accessed concurrently.
     let shares = unsafe { slice::from_raw_parts(shares, threshold) };
     let secret = unsafe { &mut *secret };
-    match ccf_shamir::recover(shares, &mut weights) {
-        Ok(mut value) => {
-            *secret = value;
-            // SAFETY: This temporary is exclusively owned and live for all LIMBS.
-            unsafe {
-                OPENSSL_cleanse(value.as_mut_ptr().cast(), size_of_val(&value));
-            }
-            Status::Ok
-        }
+    match ccf_shamir::recover(shares, &mut weights, secret) {
+        Ok(()) => Status::Ok,
         Err(error) => error.into(),
     }
 }
