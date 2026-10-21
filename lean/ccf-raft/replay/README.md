@@ -31,17 +31,23 @@ lake exe replay-checks
 
 The collector needs the `msgpack` dependency from `tests/requirements.txt` in the active Python environment.
 The removed `CCF_RAFT_TRACING` switch no longer enables stdout tracing.
-The current collector connects the driver's Fluentd endpoint on loopback and writes the original `process_id`, `h_ts` and `msg` records as NDJSON, retaining native stdout/stderr in `.driver.stdout` and `.driver.stderr` files.
+The current collector connects the driver's Fluentd endpoint on loopback and writes the original `process_id`, `h_ts` and `msg` records as NDJSON, retaining native stdout/stderr bytes in `.driver.stdout` and `.driver.stderr` files even when they contain invalid UTF-8.
 This includes every native `operation_boundary` record, without synthesizing either endpoint.
 It uses the existing MessagePack transport helper, not a Python protocol reducer; it never sorts or edits events to make a replay succeed.
-Collection failures preserve partial records under `.partial`, never as successful replay inputs.
+Subprocess, transport, decoding and sequence failures preserve received records under `.partial`, never as successful replay inputs.
+Unsupported values that cannot be encoded as JSON also retain the decoded records unchanged in `.driver.records.msgpack`; they are rejected, not converted into supported protocol data.
+The shared `run_driver` helper still returns text stdout/stderr on success; its `CaptureError` carries binary stdout/stderr and received records on failure.
 The legacy `suite --driver PATH` option remains for executables that already emit trace NDJSON on stdout, including the regression fake driver; it is not the current native driver's interface.
 `suite` selects every regular file under `../../tests/raft_scenarios`, recursively and sorted, matching `tests/raft_scenarios_runner.py`.
 Use `--scenarios DIR` to select another inventory and `--timeout-ms N` to change the positive per-capture timeout from 120000 milliseconds.
+For legacy `--driver` capture, this single deadline includes process exit and draining both pipes, even when descendants retain them.
+Each capture owns a new process group and terminates that group on timeout before joining its readers.
 A capture failure, nonempty driver stderr, malformed or unsupported event, disabled action, impossible delivery or observation mismatch fails that scenario.
 The runner attempts every scenario, writes raw `<scenario>.stdout` and `.stderr` unchanged plus `.result.json` and `summary.json`, and exits nonzero if any scenario failed.
-It removes the previous summary before validating the inventory, so an empty inventory or interruption cannot leave a stale success.
-The output directory must be outside the scenario inventory.
+It resolves and validates that the output and scenario inventory trees are disjoint before creating directories or removing any previous summary.
+Neither directory may contain the other, since mirrored output paths could otherwise overwrite scenarios.
+Missing output directories are created automatically after this check; dangling symlinks, inaccessible paths and unresolved parent traversals fail without cleanup.
+Only after validating this separation does it remove the previous summary, so an empty inventory or interruption cannot leave a stale success at a safe output location.
 `replay-checks --no-cleanup` runs the parser, reduction, boundary, direct-model, identity and transport regressions without the temporary capture/suite tests or their filesystem cleanup.
 
 The separate legacy TLA adapter, `tests/raft_trace.py::as_log_lines`, omits only `operation_boundary` records because they are observations, not TLA protocol steps.

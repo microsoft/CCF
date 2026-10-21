@@ -1266,6 +1266,11 @@ private def fakeDriver (scenario : System.FilePath) : IO UInt32 := do
       (← IO.getStdout).flush
       IO.sleep 30000
       return 0
+  | "descendant" =>
+      let _ ← IO.Process.spawn { cmd := "sleep", args := #["30"] }
+      IO.println "partial trace"
+      (← IO.getStdout).flush
+      return 0
   | "invalid" =>
       (← IO.getStdout).write (ByteArray.mk #[255, 10])
       return 0
@@ -1283,6 +1288,26 @@ private def suiteTests : IO Nat :=
       IO.FS.createDirAll (scenarios / "nested")
       IO.FS.createDirAll output
       IO.FS.createDirAll raw
+      let guarded := root / "protected"
+      IO.FS.createDirAll guarded
+      let input := guarded / "summary.json"
+      IO.FS.writeFile input "scenario,not,a,suite,summary"
+      for destination
+          in [
+            guarded,
+            guarded / "missing" / "nested",
+            guarded / ".." / "protected",
+            root
+          ] do
+        expectIOError
+          (discard
+            (runSuite
+              { scenarios := guarded, output := destination, rawDirectory := some raw }))
+          "output directory must be disjoint"
+        check ((← IO.FS.readFile input) == "scenario,not,a,suite,summary")
+          "unsafe output changed the scenario inventory"
+        check (!(← (guarded / "missing").pathExists))
+          "unsafe output created a directory inside the inventory"
       IO.FS.writeFile (output / "summary.json") "{\"passed\":53,\"failed\":0}"
       expectIOError (discard (runSuite { scenarios, output, driver := some "missing" }))
         "empty scenario inventory"
@@ -1311,7 +1336,8 @@ private def suiteTests : IO Nat :=
           in [
             ("fail", "exited 3", "partial trace\n", "driver error\n"),
             ("stderr", "wrote to stderr", "", "driver warning\n"),
-            ("timeout", "exceeded", "partial trace\n", "")
+            ("timeout", "exceeded", "partial trace\n", ""),
+            ("descendant", "exceeded", "partial trace\n", "")
           ] do
         IO.FS.writeFile (scenarios / "plain") mode
         expectIOError (capture driver (scenarios / "plain") captured stderr 5000)
@@ -1356,7 +1382,7 @@ private def suiteTests : IO Nat :=
           { scenarios, output, rawDirectory := some raw, driver := some "must-not-run" }
       check (mixed.passed == 1 && mixed.failed == 2)
         "corpus mode recaptured or failed to check valid input"
-      return 15
+      return 20
 
 def main (args : List String) : IO UInt32 := do
   if args != ["--no-cleanup"] then

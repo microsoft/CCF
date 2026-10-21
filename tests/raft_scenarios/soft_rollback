@@ -80,11 +80,15 @@ assert_last_txid,1,3.10
 assert_detail,2,current_view,4
 assert_last_txid,2,2.6
 
+# Node 3's regular vote plus node 2's self-vote make node 1's vote decisive.
+dispatch_single,3,2
+assert_detail,2,leadership_state,Candidate
+
 # Node 1 should not vote for node 2!
 dispatch_one,1
-assert_!detail,2,leadership_state,Leader
+assert_detail,2,leadership_state,Candidate
 
-# Leave node 2's positive vote responses undelivered, then disconnect it.
+# Leave node 4's positive regular vote response undelivered, then disconnect node 2.
 # Node 1 can win a new election with node 0 and the short-log followers.
 reconnect_node,0
 disconnect_node,2
@@ -100,6 +104,8 @@ assert_detail,1,leadership_state,Leader
 reconnect_node,2
 replicate,5,place trace checker
 emit_signature,5
+periodic_all,10
+dispatch_all
 periodic_all,10
 dispatch_all
 periodic_all,10

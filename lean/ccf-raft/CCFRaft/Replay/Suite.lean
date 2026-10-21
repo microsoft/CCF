@@ -36,21 +36,25 @@ private def copyOutput (input output : IO.FS.Handle) : IO Unit := do
     output.write bytes
     output.flush
 
-private partial def waitUntil {config : IO.Process.StdioConfig}
-    (child : IO.Process.Child config) (deadline : Nat)
-    : IO (Option UInt32) := do
-  if let some code ← child.tryWait then return some code
-  if (← IO.monoMsNow) >= deadline then return none
+private partial def waitUntil (process : Task (Except IO.Error UInt32))
+    (output errors : Task (Except IO.Error Unit)) (deadline : Nat)
+    : IO Bool := do
+  if (← IO.hasFinished process)
+      && (← IO.hasFinished output)
+      && (← IO.hasFinished errors) then
+    return true
+  if (← IO.monoMsNow) >= deadline then return false
   IO.sleep 10
-  waitUntil child deadline
+  waitUntil process output errors deadline
 
-/-- Capture bytes unchanged, drain both pipes concurrently, and retain failures. -/
+/-- One deadline covers the owned process group and both unchanged byte streams. -/
 def capture (driver scenario stdout stderr : System.FilePath) (timeoutMs : Nat)
     : IO Unit := do
   let out ← IO.FS.Handle.mk stdout .write
   let err ← IO.FS.Handle.mk stderr .write
   let driver ← IO.FS.realPath driver
   let scenario ← IO.FS.realPath scenario
+  let deadline := (← IO.monoMsNow) + timeoutMs
   let child ←
     IO.Process.spawn
       {
@@ -58,26 +62,25 @@ def capture (driver scenario stdout stderr : System.FilePath) (timeoutMs : Nat)
         args := #[scenario.toString]
         stdin := .null,
         stdout := .piped,
-        stderr := .piped
+        stderr := .piped,
+        setsid := true
       }
+  let process ← IO.asTask child.wait .dedicated
   let output ← IO.asTask (copyOutput child.stdout out) .dedicated
   let errors ← IO.asTask (copyOutput child.stderr err) .dedicated
-  let code ←
-    try
-      waitUntil child ((← IO.monoMsNow) + timeoutMs)
-    catch error =>
-      child.kill
-      let _ ← child.wait
-      throw error
-  if code.isNone then
+  let completed ← waitUntil process output errors deadline
+  unless completed do
     child.kill
-    let _ ← child.wait
-  let _ ← IO.ofExcept output.get
-  let _ ← IO.ofExcept errors.get
-  let some code := code
-  | throw
+  let code ← IO.wait process
+  let output ← IO.wait output
+  let errors ← IO.wait errors
+  unless completed do
+    throw
       (IO.userError
         s!"{scenario}: raft_driver exceeded {timeoutMs}ms; see {stdout} and {stderr}")
+  let code ← IO.ofExcept code
+  let _ ← IO.ofExcept output
+  let _ ← IO.ofExcept errors
   unless code == 0 do
     throw
       (IO.userError s!"{scenario}: raft_driver exited {code}; see {stdout} and {stderr}")
@@ -124,23 +127,48 @@ private def removeIfPresent (path : System.FilePath) : IO Unit := do
     | .noFileOrDirectory .. => pure ()
     | error => throw error
 
+-- Resolve existing ancestors before appending missing names. A dangling symlink
+-- or an unresolvable "."/".." must not become a supposedly safe missing path.
+private partial def canonicalPath (path : System.FilePath) : IO System.FilePath := do
+  try
+    IO.FS.realPath path
+  catch
+    | error@(.noFileOrDirectory ..) =>
+        let path ←
+          if path.isAbsolute then
+            pure path
+          else do
+            pure ((← IO.currentDir) / path)
+        let some parent := path.parent | throw error
+        if path.toString.endsWith System.FilePath.pathSeparator.toString then
+          return ← canonicalPath parent
+        let some name := path.fileName | throw error
+        let parent ← canonicalPath parent
+        let path := parent / name
+        match ← path.symlinkMetadata.toBaseIO with
+        | .ok _ => IO.FS.realPath path
+        | .error (.noFileOrDirectory ..) => pure path
+        | .error error => throw error
+    | error => throw error
+
 /--
 Attempt the actual inventory, never a fixed count. No stale success survives
 an invalid inventory or interrupted run. Each failure keeps its stage and evidence.
 -/
 def runSuite (config : SuiteConfig) : IO SuiteResult := do
-  let summary := config.output / "summary.json"
+  let scenarios ← canonicalPath config.scenarios
+  let output ← canonicalPath config.output
+  if scenarios.components.isPrefixOf output.components
+      || output.components.isPrefixOf scenarios.components then
+    throw (IO.userError "output directory must be disjoint from the scenario inventory")
+  let summary := output / "summary.json"
   removeIfPresent summary
-  let scenarios ← IO.FS.realPath config.scenarios
   let selected ← inventory scenarios
   unless config.driver.isSome || config.rawDirectory.isSome do
     throw (IO.userError "provide --driver or --raw-directory")
   unless config.timeoutMs > 0 do
     throw (IO.userError "timeout-ms must be positive")
-  IO.FS.createDirAll config.output
-  let output ← IO.FS.realPath config.output
-  if scenarios.components.isPrefixOf output.components then
-    throw (IO.userError "output directory must not be inside the scenario inventory")
+  IO.FS.createDirAll output
   let mut results := #[]
   let mut passed := 0
   for scenario in selected do
