@@ -166,7 +166,7 @@ TEST_CASE("Check signature verification")
   }
 }
 
-TEST_CASE("Check signature verification with published signing identities")
+TEST_CASE("Check signature verification with the signing identities table")
 {
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   auto node_kp = ccf::crypto::make_ec_key_pair();
@@ -198,32 +198,31 @@ TEST_CASE("Check signature verification with published signing identities")
 
   ccf::Nodes nodes(ccf::Tables::NODES);
   ccf::Service service(ccf::Tables::SERVICE);
+  const auto service_cert =
+    service_kp->self_sign("CN=Service", valid_from, valid_to);
   {
     auto tx = primary_store.create_tx();
     ccf::NodeInfo node_info;
     node_info.encryption_pub_key = node_kp->public_key_pem();
     node_info.cert = self_signed;
     tx.rw(nodes)->put(ccf::kv::test::PrimaryNodeId, node_info);
-    tx.rw(service)->put(ccf::ServiceInfo{
-      .cert = service_kp->self_sign("CN=Service", valid_from, valid_to)});
+    tx.rw(service)->put(ccf::ServiceInfo{.cert = service_cert});
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
+  INFO("An empty table falls back to the service certificate");
   primary_history->emit_signature();
   REQUIRE(consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
 
   auto tx = primary_store.create_tx();
   auto* signing_identities =
     tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES);
-  signing_identities->put(
-    ccf::IdentityType::CLASSICAL,
-    {ccf::IdentityKind::X509_SPKI_DER, service_kp->public_key_der()});
 
-  SUBCASE("Published signing identity takes precedence over the certificate")
+  SUBCASE("A published signing identity verifies")
   {
-    const auto other_key = ccf::crypto::make_ec_key_pair();
-    tx.rw(service)->put(ccf::ServiceInfo{
-      .cert = other_key->self_sign("CN=Other", valid_from, valid_to)});
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      ccf::signing_identity_from_cert(service_cert));
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     primary_history->emit_signature();
@@ -231,8 +230,36 @@ TEST_CASE("Check signature verification with published signing identities")
       consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
   }
 
-  SUBCASE("Published signing identity works without legacy service information")
+  SUBCASE("A legacy public key entry verifies")
   {
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      {ccf::IdentityKind::X509_SPKI_DER, service_kp->public_key_der()});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    primary_history->emit_signature();
+    REQUIRE(
+      consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
+  }
+
+  SUBCASE("A signing identity for another key fails verification")
+  {
+    const auto other_key = ccf::crypto::make_ec_key_pair();
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      ccf::signing_identity_from_cert(
+        other_key->self_sign("CN=Other", valid_from, valid_to)));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+    primary_history->emit_signature();
+    REQUIRE(consensus->last_apply_result == ccf::kv::ApplyResult::FAIL);
+  }
+
+  SUBCASE("A published signing identity verifies without service information")
+  {
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      ccf::signing_identity_from_cert(service_cert));
     tx.rw(service)->clear();
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
@@ -241,26 +268,13 @@ TEST_CASE("Check signature verification with published signing identities")
       consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
   }
 
-  SUBCASE("Failed verification does not retry the legacy certificate")
+  SUBCASE("Missing service information fails verification without an entry")
   {
-    signing_identities->put(
-      ccf::IdentityType::CLASSICAL,
-      {ccf::IdentityKind::X509_SPKI_DER,
-       ccf::crypto::make_ec_key_pair()->public_key_der()});
+    tx.rw(service)->clear();
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     primary_history->emit_signature();
     REQUIRE(consensus->last_apply_result == ccf::kv::ApplyResult::FAIL);
-  }
-
-  SUBCASE("Malformed signing keys do not retry the legacy certificate")
-  {
-    signing_identities->put(
-      ccf::IdentityType::CLASSICAL,
-      {ccf::IdentityKind::X509_SPKI_DER, std::vector<uint8_t>{1, 2, 3}});
-    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-
-    REQUIRE_THROWS(primary_history->emit_signature());
   }
 }
 
