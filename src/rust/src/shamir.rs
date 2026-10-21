@@ -190,10 +190,10 @@ mod tests {
 
     #[test]
     fn c_abi_errors_preserve_the_secret() {
-        let shares = [Share {
+        let shares: [Share; 2] = std::array::from_fn(|_| Share {
             x: 1,
             y: [42; LIMBS],
-        }; 2];
+        });
         let mut weights = [0; 2];
         let mut secret = [17; LIMBS];
         // SAFETY: All arrays are disjoint and have the indicated lengths.
