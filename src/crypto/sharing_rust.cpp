@@ -9,6 +9,7 @@
 
 namespace ccf::crypto::sharing
 {
+  static_assert(CCF_SHAMIR_LIMBS == LIMBS, "C ABI limb count must match LIMBS");
   static_assert(
     sizeof(ccf_shamir_share::y) == sizeof(Share::y),
     "C ABI share layout must match Share");
@@ -35,27 +36,27 @@ namespace ccf::crypto::sharing
     {
       switch (status)
       {
-        case CCF_SHAMIR_OK:
+        case CCF_SHAMIR_STATUS_OK:
         {
           return;
         }
-        case CCF_SHAMIR_INVALID_ARGUMENTS:
+        case CCF_SHAMIR_STATUS_INVALID_ARGUMENTS:
         {
           throw std::invalid_argument("invalid threshold");
         }
-        case CCF_SHAMIR_INVALID_COEFFICIENT:
+        case CCF_SHAMIR_STATUS_INVALID_COEFFICIENT:
         {
           throw std::invalid_argument("invalid polynomial coefficient");
         }
-        case CCF_SHAMIR_DUPLICATE_SHARE:
+        case CCF_SHAMIR_STATUS_DUPLICATE_SHARE:
         {
           throw std::invalid_argument("duplicate input share");
         }
-        case CCF_SHAMIR_INVALID_WORKSPACE:
+        case CCF_SHAMIR_STATUS_INVALID_WORKSPACE:
         {
           throw std::logic_error("invalid Shamir workspace");
         }
-        case CCF_SHAMIR_OUT_OF_MEMORY:
+        case CCF_SHAMIR_STATUS_OUT_OF_MEMORY:
         {
           throw std::bad_alloc();
         }
