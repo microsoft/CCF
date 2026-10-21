@@ -17,6 +17,9 @@
 #  define CCF_SHAMIR_NODISCARD
 #endif
 
+// Preserve C syntax and the enum width required by Rust's C ABI.
+// NOLINTBEGIN(cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,modernize-use-using,performance-enum-size)
+
 // The number of 32-bit limbs in a secret and in each share.
 #define CCF_SHAMIR_LIMBS 10
 
@@ -93,3 +96,5 @@ extern "C"
 #ifdef __cplusplus
 } // extern "C"
 #endif // __cplusplus
+
+// NOLINTEND(cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,modernize-use-using,performance-enum-size)
