@@ -10,7 +10,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Changed
 
-- Recovery share secret sharing now uses a memory-safe Rust implementation whose extracted Lean model is proven to refine CSLib's Shamir secret sharing, see [lean/shamir](lean/shamir/README.md). Share formats and recovery behaviour are unchanged.
+- Recovery share secret sharing uses the Rust backend by default; the C++ backend remains available with `-DUSE_RUST_SHAMIR=OFF` (see [build switches](doc/contribute/build_ccf.rst#build-switches)).
+  Share formats are unchanged.
 
 ## [7.0.21]
 

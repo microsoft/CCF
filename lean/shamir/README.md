@@ -1,10 +1,38 @@
 # Rust Shamir refinement
 
-`src/crypto/sharing.cpp` is the C++ compatibility adapter for the safe Rust implementation in [`src/rust/shamir`](../../src/rust/shamir).
+`src/crypto/sharing_rust.cpp` is the C++ compatibility adapter for the safe Rust implementation in [`src/rust/shamir`](../../src/rust/shamir).
 The implementation uses ten independent limbs over `ZMod 2147483647`.
 The existing C++ API, `Share` serialization, HKDF derivation, entropy source, input reduction, duplicate-coordinate rejection, and ignoring shares beyond the recovery threshold are preserved.
 Zero recovery thresholds and share counts reaching the field characteristic are rejected.
-Secret-bearing C++ scratch buffers and the FFI's temporary recovered secret are cleansed with OpenSSL.
+Secret-bearing scratch buffers in the Rust adapter and the FFI's temporary recovered secret are cleansed with OpenSSL.
+
+## Compatibility requirement
+
+Full bidirectional compatibility with `main` is a mandatory acceptance requirement.
+Every valid serialized share emitted by `main` must be recoverable by the replacement implementation, and every valid serialized share emitted by the replacement must be recoverable by `main`, with identical recovered secrets and derived keys.
+This includes partial shares, full shares, and every valid threshold-sized selection from a sharing.
+Shares from independent sharings are not interchangeable.
+
+The computational implementation may change, including polynomial evaluation order, but results and serialization must not change.
+For identical sampled coefficients, both implementations must produce identical secret limbs, share coordinates, share limbs, serialized bytes, and HKDF output.
+The field, limb count, coefficient sampling, threshold interpretation, input reduction, byte order, and serialized layout must remain unchanged.
+Rejecting invalid inputs such as a zero recovery threshold is permitted and does not relax compatibility for valid shares.
+
+Acceptance requires cross-implementation generation, serialization, deserialization, and recovery tests in both directions against a recorded `main` revision, including byte-level fixtures and derived-key comparisons.
+Self-round-trips and refinement against CSLib alone do not establish this contract.
+`sharing_test` links both backends and exchanges serialized shares in both directions, checking recovered secret bytes and derived keys for every threshold-sized subset of seven-share distributions and for full shares.
+It also checks a fixed serialization fixture.
+The retained C++ arithmetic comes from `main` revision `41645c55675d246605b2e26d45f4282de3d83fba`, with input guards matching the Rust adapter.
+These unit checks do not replace network recovery compatibility tests.
+
+## Backend selection
+
+`USE_RUST_SHAMIR` defaults to `ON`.
+Configure with `-DUSE_RUST_SHAMIR=OFF` to use the retained C++ implementation in `src/crypto/sharing.cpp`; see [build switches](../../doc/contribute/build_ccf.rst#build-switches).
+Only the selected backend is compiled into `ccfcrypto`.
+The other backend is compiled separately with renamed entry points for `sharing_test`, so both implementations are exercised in either configuration.
+The C++ backend is not covered by the Rust refinement proofs.
+CCF still requires Rust for attestation when the C++ Shamir backend is selected.
 
 ## Proof boundary
 
@@ -12,8 +40,11 @@ Secret-bearing C++ scratch buffers and the FFI's temporary recovered secret are 
 The same core crate is linked into `ccf-rs` and used by the C ABI.
 `#![forbid(unsafe_code)]` applies to the entire core.
 Raw-pointer conversion is confined to `src/rust/src/shamir.rs`; callers must supply live, aligned, nonoverlapping buffers of the declared lengths.
+The shim checks null pointers, alignment, length arithmetic, and overlap, but cannot establish allocation validity, initialized contents, lifetimes, or the absence of concurrent access.
+Those obligations remain with the C++ caller.
 The C++ adapter copies members into the C representation rather than type-punning the nontrivially destructible C++ `Share`.
 The core does not allocate, and recovery uses caller-owned storage linear in the threshold instead of variable-length stack arrays.
+The unsafe FFI shim and its OpenSSL calls are outside the verified safe core.
 
 [`Shamir/Properties.lean`](Shamir/Properties.lean) states the refinement claims independently of their proofs.
 [`Shamir/Proof.lean`](Shamir/Proof.lean) exports `sharing_refines_cslib` and `recovery_refines_cslib`.

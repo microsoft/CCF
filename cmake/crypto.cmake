@@ -1,6 +1,17 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+option(USE_RUST_SHAMIR "Use the Rust Shamir secret-sharing backend" ON)
+if(USE_RUST_SHAMIR)
+  set(CCF_SHAMIR_SOURCE ${CCF_DIR}/src/crypto/sharing_rust.cpp)
+  set(CCF_SHAMIR_REFERENCE_SOURCE ${CCF_DIR}/src/crypto/sharing.cpp)
+  message(STATUS "Shamir secret-sharing backend: Rust")
+else()
+  set(CCF_SHAMIR_SOURCE ${CCF_DIR}/src/crypto/sharing.cpp)
+  set(CCF_SHAMIR_REFERENCE_SOURCE ${CCF_DIR}/src/crypto/sharing_rust.cpp)
+  message(STATUS "Shamir secret-sharing backend: C++")
+endif()
+
 set(
   CCFCRYPTO_SRC
   ${CCF_DIR}/src/crypto/base64.cpp
@@ -29,7 +40,7 @@ set(
   ${CCF_DIR}/src/crypto/openssl/rsa_key_pair.cpp
   ${CCF_DIR}/src/crypto/openssl/verifier.cpp
   ${CCF_DIR}/src/crypto/openssl/cose_verifier.cpp
-  ${CCF_DIR}/src/crypto/sharing.cpp
+  ${CCF_SHAMIR_SOURCE}
 )
 
 find_library(CRYPTO_LIBRARY crypto)
