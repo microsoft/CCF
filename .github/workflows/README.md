@@ -165,11 +165,12 @@ Runs all Lean verification for the repository. Future Lean checks should be adde
 The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.
 Canonical behavior checks run with `#eval` when their test module is built, and assertion failures fail the build.
 The build includes both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
-Each package's `scripts/check-imports.lean`, or the standard `mk_all --check --module` command when that script is absent, checks that the library root imports every library module, so newly added proofs cannot silently escape the checks.
+The shared `lake exe check-imports` command checks that each package's library roots transitively import every library source module, including private test imports, so newly added proofs cannot silently escape the checks.
+Build, import coverage, and kernel/axiom checks have separate package-labelled log groups.
 
 The kernel-check job runs `lake check --inadvisably-no-sandbox` on Ubuntu 26.04 for the disaster-recovery model and replayer package, including its imported common infrastructure.
 Build isolation is disabled so disaster recovery can use the sibling common sources directly; kernel rechecking and the axiom-dependency audit remain enabled.
-The replayer is the only executable entrypoint; the canonical test runner is namespaced within the library.
+The replayer is the only executable default target; the canonical test runner is namespaced within the library.
 The job builds and exports every default target, including the complete library import root and replayer, and requires Lean's kernel to accept the declarations with only the standard axioms.
 This provides the axiom-dependency check and supplements the build, linters, and executable tests.
 Temporary exports use disk-backed runner storage rather than `/tmp`.

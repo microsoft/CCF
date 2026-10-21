@@ -43,7 +43,7 @@ Install Lean via [elan](https://lean-lang.org/install/), then run from this dire
 ```sh
 lake exe cache get
 lake build --wfail --fail-fast
-lake env lean scripts/check-imports.lean
+lake exe check-imports
 lake lint
 lake check --inadvisably-no-sandbox
 ../../scripts/lean-format-checks.sh ccf-raft
@@ -55,7 +55,7 @@ These are regression examples, not exhaustive checking.
 `Tests/ProofCoverage.lean` fails the build unless every property and witness has an exported theorem in `Proof.lean`.
 `lake check` re-checks the build in Lean's kernel and rejects nonstandard axioms; it runs without sandboxing, so build-time code must be trusted.
 `CCFRaft.lean` reexports `Proof.lean` and its public imports transitively, while importing tests privately.
-`scripts/check-imports.lean` rejects modules missing from that import closure.
+The shared `check-imports` command rejects modules missing from that import closure.
 
 ## Proofs
 

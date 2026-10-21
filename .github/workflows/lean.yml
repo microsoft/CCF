@@ -62,18 +62,18 @@ jobs:
           export TMPDIR="$RUNNER_TEMP"
           for config in lean/*/lakefile.toml; do
             package="$(dirname "$config")"
-            echo "::group::Check: $package"
             (
               cd "$package"
+              echo "::group::Build: $package"
               lake build --wfail --fail-fast
-              if [[ -f scripts/check-imports.lean ]]; then
-                lake env lean scripts/check-imports.lean
-              elif grep -q '^name = "mathlib"$' lakefile.toml; then
-                lake exe mk_all --check --module
-              fi
+              echo "::endgroup::"
+              echo "::group::Import coverage: $package"
+              lake exe check-imports
+              echo "::endgroup::"
+              echo "::group::Kernel and axiom check: $package"
               lake check --inadvisably-no-sandbox
+              echo "::endgroup::"
             )
-            echo "::endgroup::"
           done
 
       - name: Check recovery trace fixtures against their schema
