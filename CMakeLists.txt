@@ -1759,29 +1759,36 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME fluentd_emission
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fluentd_benchmark.py
+    NAME fluentd
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/basicperf_locust.py
     LABEL perf
     CONFIGURATIONS perf
     BUILD_DEPENDS basic
     ADDITIONAL_ARGS
       --package
       "samples/apps/basic/basic"
-      --worker-threads
-      2
+      --perf-label
+      "FluentD"
       --snapshot-tx-interval
-      1000000000
+      10000
       --users
       320
       --spawn-rate
       320
       --locust-processes
-      4
+      10
       --measure-time-s
       20
       --sig-ms-intervals
-      100
+      20
   )
+  if(BUILD_END_TO_END_TESTS)
+    set_property(
+      TEST fluentd
+      APPEND
+      PROPERTY ENVIRONMENT "CCF_BENCHMARK_FLUENTD=1"
+    )
+  endif()
 
   # JWT-authenticated blocking logging workload, driven by locust so that the
   # number of concurrent clients can be varied.
