@@ -25,19 +25,31 @@ def EncodesPolynomial {Party : Type} [Fintype Party]
             (Polynomial.tailPolynomial params.threshold coeffs)).coeff
             j
 
-/-- Extracted evaluation terminates and agrees with CSLib sharing under the encoding. -/
+/-- Extracted share generation terminates and agrees with CSLib sharing under the encoding.
+
+Filling one limb assigns coordinate `k + 1` to the share at index `k`, stores the canonical
+polynomial value for that coordinate in the requested limb, and leaves every other limb of
+every share unchanged. -/
 def SharingRefinement : Prop :=
   ∀ (Party : Type) [Fintype Party] (params : Params F Party)
     (coeffs : Randomness params) (secret : F) (c : Slice U64)
-    (_ : EncodesPolynomial params coeffs secret c) (i : Party) (x : U32)
-    (_ : (x.val : F) = params.point i),
-    ccf_shamir.evaluate c x
-    ⦃r
+    (_ : EncodesPolynomial params coeffs secret c)
+    (limb : Usize) (_ : limb.val < 10)
+    (s : Slice ccf_shamir.Share) (_ : s.val ≠ []) (_ : s.val.length < prime)
+    (_ : c.val.length ≤ s.val.length),
+    ccf_shamir.share_limb c limb s
+    ⦃r s'
     =>
-      ∃ y,
-        r = core.result.Result.Ok y
-        ∧ y.val < prime
-        ∧ (y.val : F) = share params coeffs secret i⦄
+      r = core.result.Result.Ok ()
+        ∧ s'.val.length = s.val.length
+        ∧ ∀ k,
+            k < s.val.length
+            → s'.val[k]!.x.val = k + 1
+              ∧ s'.val[k]!.y.val[limb.val]!.val < prime
+              ∧ (∀ i : Party,
+                  point s' k = params.point i
+                  → limbValue s' limb.val k = share params coeffs secret i)
+              ∧ ∀ m, m ≠ limb.val → s'.val[k]!.y.val[m]! = s.val[k]!.y.val[m]!⦄
 
 /-- Extracted recovery terminates and refines CSLib reconstruction for all ten limbs. -/
 def RecoveryRefinement : Prop :=

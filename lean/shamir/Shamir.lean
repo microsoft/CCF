@@ -9,4 +9,5 @@ public import Shamir.Proofs.Evaluation
 public import Shamir.Proofs.Interpolation
 public import Shamir.Proofs.Inverse
 public import Shamir.Proofs.Recovery
+public import Shamir.Proofs.Sharing
 public import Shamir.Properties

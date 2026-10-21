@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-use ccf_shamir::{Error, LIMBS, PRIME, Share, evaluate, lagrange, recover, reduce};
+use ccf_shamir::{Error, LIMBS, PRIME, Share, evaluate, lagrange, recover, reduce, share_limb};
 
 fn polynomial(coefficients: &[u64], x: u32) -> u32 {
     let mut power = 1;
@@ -49,6 +49,54 @@ fn evaluation_matches_legacy_power_sum() {
     assert_eq!(evaluate(&[123, 456, 789], 1), Ok(1368));
     assert_eq!(evaluate(&[123, 456, 789], 2), Ok(4191));
     assert_eq!(evaluate(&[123, 456, 789], 3), Ok(8592));
+}
+
+#[test]
+fn sharing_fills_one_limb_at_consecutive_coordinates() {
+    let mut shares: [Share; 5] = std::array::from_fn(|_| Share {
+        x: 7,
+        y: [9; LIMBS],
+    });
+    assert_eq!(share_limb(&[123, 456, 789], 3, &mut shares), Ok(()));
+    for (i, share) in shares.iter().enumerate() {
+        assert_eq!(share.x, i as u32 + 1);
+        for (limb, value) in share.y.iter().enumerate() {
+            if limb == 3 {
+                assert_eq!(*value, polynomial(&[123, 456, 789], share.x));
+            } else {
+                assert_eq!(*value, 9);
+            }
+        }
+    }
+    assert_eq!(shares[0].y[3], 1368);
+    assert_eq!(shares[1].y[3], 4191);
+    assert_eq!(shares[2].y[3], 8592);
+    let untouched: [Share; 2] = std::array::from_fn(|_| Share {
+        x: 7,
+        y: [9; LIMBS],
+    });
+    let mut shares = untouched.clone();
+    assert_eq!(
+        share_limb(&[1, 2], LIMBS, &mut shares),
+        Err(Error::InvalidLimb)
+    );
+    assert_eq!(
+        share_limb(&[1, 2], 0, &mut []),
+        Err(Error::InvalidShareCount)
+    );
+    assert_eq!(
+        share_limb(&[], 0, &mut shares),
+        Err(Error::InvalidThreshold)
+    );
+    assert_eq!(
+        share_limb(&[1, 2, 3], 0, &mut shares),
+        Err(Error::InvalidThreshold)
+    );
+    assert_eq!(
+        share_limb(&[1, PRIME], 0, &mut shares),
+        Err(Error::InvalidCoefficient)
+    );
+    assert!(shares == untouched);
 }
 
 #[test]

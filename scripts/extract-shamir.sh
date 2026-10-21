@@ -22,6 +22,7 @@ cd "$ROOT_DIR/src/rust/shamir"
 "$CHARON_BIN" cargo --preset=aeneas --sysroot default \
   --start-from ccf_shamir::reduce \
   --start-from ccf_shamir::evaluate \
+  --start-from ccf_shamir::share_limb \
   --start-from ccf_shamir::recover -- --lib --locked
 
 cd "$ROOT_DIR"
