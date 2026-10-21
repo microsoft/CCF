@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Changed
 
 - Recovery share secret sharing uses the Rust backend by default; the C++ backend remains available with `-DUSE_RUST_SHAMIR=OFF` (see [build switches](doc/contribute/build_ccf.rst#build-switches)).
-  Share formats are unchanged.
+  Share formats are unchanged (#111).
 
 ## [7.0.21]
 
