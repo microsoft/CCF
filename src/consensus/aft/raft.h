@@ -740,7 +740,7 @@ namespace aft
       std::span<const uint8_t> message,
       std::span<const uint8_t> payload = {}) override
     {
-      auto* data = message.data();
+      const auto* data = message.data();
       auto size = message.size();
       auto type = serialized::peek<RaftMsgType>(data, size);
 
@@ -750,7 +750,7 @@ namespace aft
         {
           case raft_append_entries:
           {
-            const auto r = serialized::read<AppendEntries>(data, size);
+            const auto r = serialized::overlay<AppendEntries>(data, size);
             if (ledger->is_backlogged())
             {
               // Treat the whole message as lost. Check before term/log
@@ -769,42 +769,44 @@ namespace aft
 
           case raft_append_entries_response:
           {
-            const auto r = serialized::read<AppendEntriesResponse>(data, size);
+            const auto r =
+              serialized::overlay<AppendEntriesResponse>(data, size);
             recv_append_entries_response(from, r);
             break;
           }
 
           case raft_request_pre_vote:
           {
-            const auto r = serialized::read<RequestPreVote>(data, size);
+            const auto r = serialized::overlay<RequestPreVote>(data, size);
             recv_request_pre_vote(from, r);
             break;
           }
 
           case raft_request_vote:
           {
-            const auto r = serialized::read<RequestVote>(data, size);
+            const auto r = serialized::overlay<RequestVote>(data, size);
             recv_request_vote(from, r);
             break;
           }
 
           case raft_request_pre_vote_response:
           {
-            const auto r = serialized::read<RequestPreVoteResponse>(data, size);
+            const auto r =
+              serialized::overlay<RequestPreVoteResponse>(data, size);
             recv_request_pre_vote_response(from, r);
             break;
           }
 
           case raft_request_vote_response:
           {
-            const auto r = serialized::read<RequestVoteResponse>(data, size);
+            const auto r = serialized::overlay<RequestVoteResponse>(data, size);
             recv_request_vote_response(from, r);
             break;
           }
 
           case raft_propose_request_vote:
           {
-            const auto r = serialized::read<ProposeRequestVote>(data, size);
+            const auto r = serialized::overlay<ProposeRequestVote>(data, size);
             recv_propose_request_vote(from, r);
             break;
           }
