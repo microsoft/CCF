@@ -56,6 +56,10 @@ namespace ccf::crypto::sharing
         {
           throw std::logic_error("invalid Shamir workspace");
         }
+        case CCF_SHAMIR_OUT_OF_MEMORY:
+        {
+          throw std::bad_alloc();
+        }
         default:
         {
           throw std::logic_error("unknown Shamir error");
@@ -133,14 +137,12 @@ namespace ccf::crypto::sharing
     // Share has a cleansing destructor. Copy members rather than reinterpreting
     // its storage as a distinct C ABI type.
     CleansedVector<ccf_shamir_share> inputs(threshold);
-    std::vector<element> weights(threshold);
     for (size_t i = 0; i < threshold; ++i)
     {
       inputs[i].x = shares[i].x;
       std::copy_n(shares[i].y, LIMBS, inputs[i].y);
     }
-    check_status(ccf_shamir_recover(
-      inputs.data(), threshold, weights.data(), raw_secret.y));
+    check_status(ccf_shamir_recover(inputs.data(), threshold, &raw_secret.y));
     raw_secret.x = 0;
   }
 }
