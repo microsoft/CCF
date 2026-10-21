@@ -109,14 +109,12 @@ jobs:
               cd "$package"
               if [ "$package" == "lean/shamir" ]; then
                 export LEAN_NUM_THREADS=1
-              fi
-              if grep -q '^name = "mathlib"$' lakefile.toml; then
-                lake exe mk_all --check --module
-              fi
-              lake build --wfail --fail-fast
-              if [ "$package" == "lean/shamir" ]; then
                 bash ../../scripts/check-shamir.sh --inadvisably-no-sandbox
               else
+                if grep -q '^name = "mathlib"$' lakefile.toml; then
+                  lake exe mk_all --check --module
+                fi
+                lake build --wfail --fail-fast
                 lake check --inadvisably-no-sandbox
               fi
             )
