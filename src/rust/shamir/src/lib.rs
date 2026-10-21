@@ -3,13 +3,14 @@
 
 #![forbid(unsafe_code)]
 
+/// The Mersenne prime 2^31 - 1 over which every limb is shared.
 pub const PRIME: u64 = 2147483647;
+/// The number of independent limbs in a secret and in each share.
 pub const LIMBS: usize = 10;
 
 /// A share of a secret: `y[k]` is the value at `x` of the polynomial for limb `k`.
-///
-/// Deliberately neither `Copy` nor `Debug`, so shares are moved or cloned
-/// explicitly and never end up in formatted output.
+// Deliberately neither `Copy` nor `Debug`, so shares are moved or cloned
+// explicitly and never end up in formatted output.
 #[derive(Clone, PartialEq, Eq)]
 #[repr(C)]
 pub struct Share {
