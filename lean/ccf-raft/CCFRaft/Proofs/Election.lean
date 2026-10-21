@@ -9,6 +9,8 @@ public import CCFRaft.Proofs.Safety.Commit
 
 namespace CCFRaft.Proofs.Election
 
+open Model.Node
+
 theorem primary_eq_of_reachable [Config.InitialConfiguration]
     {nodes : List Model.Node.NodeID} {state : Model.State}
     (reachable
@@ -24,5 +26,24 @@ theorem primary_eq_of_reachable [Config.InitialConfiguration]
   rw [sameTerm] at leftLed
   exact inv.election_safety left right _ leftLed
     (inv.leader_led right rightState rightMember rightLeader)
+
+theorem election_safety
+    : forall (config : Finset NodeID),
+      forall (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State)
+              (state : Model.State),
+      forall (left right : NodeID) (leftState rightState : NodeState),
+        (trace.Valid (Model.transitionSystem config nodes)
+          /\ state ∈ trace
+          /\ (left, leftState) ∈ state.nodes
+          /\ (right, rightState) ∈ state.nodes
+          /\ leftState.role = .primary
+          /\ rightState.role = .primary
+          /\ leftState.currentTerm = rightState.currentTerm)
+        -> left = right := by
+  intro config nodes trace state left right leftState rightState
+    ⟨valid, member, leftMember, rightMember, leftLeader, rightLeader, sameTerm⟩
+  let _ : Proofs.Config.InitialConfiguration := ⟨config⟩
+  exact Proofs.Election.primary_eq_of_reachable (valid.reachable member)
+    leftMember rightMember leftLeader rightLeader sameTerm
 
 end CCFRaft.Proofs.Election

@@ -25,7 +25,7 @@ execution without stuttering. The kernel evaluates every step.
 namespace CCFRaft.Proofs.Witnesses
 
 open CCF CCF.Execution CCF.MultiNodeTransitionSystem
-open CCFRaft.Model.Node (NodeState)
+open CCFRaft.Model.Node
 open CCFRaft.Model (initialNodeState)
 
 section Runs
@@ -476,5 +476,127 @@ theorem extend_committed
   decide
 
 end Single
+
+lemma committed_logs_prefix_witness
+    : exists (config : Finset NodeID),
+    exists (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State),
+    exists (first second : Model.State),
+    exists (left right : NodeID) (leftState rightState : NodeState),
+      trace.Valid (Model.transitionSystem config nodes)
+      /\ first ∈ trace
+      /\ second ∈ trace
+      /\ (left, leftState) ∈ first.nodes
+      /\ (right, rightState) ∈ second.nodes
+      /\ left ≠ right
+      /\ leftState.committedLog ≠ []
+      /\ rightState.committedLog ≠ [] := by
+  have stemRun := commit_run
+  exact ⟨
+    {0, 1},
+    [0, 1],
+    lassoTrace commitSystem commitStart commitChoices commitCycle,
+    commitPrimaryCommitted,
+    commitFollowerCommitted,
+    0,
+    1,
+    (nodeState commitPrimaryCommitted 0).get commit_primary_present,
+    (nodeState commitFollowerCommitted 1).get commit_follower_present,
+    lasso_valid (start_initial (by decide) (by decide)) stemRun commit_cycle
+      (by simp [commitCycle]),
+    lasso_mem stemRun (by decide) (eq_some_getD commit_primary_committed _),
+    lasso_mem stemRun (by decide) (eq_some_getD commit_follower_committed _),
+    member_of_nodeState _,
+    member_of_nodeState _,
+    by decide,
+    by decide,
+    by decide
+  ⟩
+
+lemma single_node_committed_log_monotonic_witness
+    : exists (config : Finset NodeID) (nodes : List NodeID),
+    exists (pre post : Model.State),
+    exists (nodeId : NodeID) (nodePre nodePost : NodeState),
+    exists (action : Model.Action),
+      (pre.nodes.map Prod.fst).Nodup
+      /\ (Model.transitionSystem config nodes).step pre action = some post
+      /\ (nodeId, nodePre) ∈ pre.nodes
+      /\ (nodeId, nodePost) ∈ post.nodes
+      /\ nodePre.committedLog ≠ []
+      /\ nodePre.committedLog.length < nodePost.committedLog.length :=
+  ⟨
+    {0},
+    [0],
+    singleFinal,
+    extendFinal,
+    0,
+    (nodeState singleFinal 0).get single_final_present,
+    (nodeState extendFinal 0).get extend_final_present,
+    extendAction,
+    single_final_distinct,
+    eq_some_getD extend_enabled _,
+    member_of_nodeState _,
+    member_of_nodeState _,
+    extend_committed.1,
+    extend_committed.2
+  ⟩
+
+lemma election_safety_witness
+    : exists (config : Finset NodeID),
+    exists
+    (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State) (state : Model.State),
+    exists (left right : NodeID) (leftState rightState : NodeState),
+      trace.Valid (Model.transitionSystem config nodes)
+      /\ state ∈ trace
+      /\ (left, leftState) ∈ state.nodes
+      /\ (right, rightState) ∈ state.nodes
+      /\ leftState.role = .primary
+      /\ rightState.role = .primary
+      /\ left ≠ right := by
+  have lead := election_both_lead
+  simp only [bothLead, Bool.and_eq_true, Option.any_eq_true, decide_eq_true_eq] at lead
+  obtain ⟨⟨leftState, leftFound, leftPrimary⟩, ⟨rightState, rightFound, rightPrimary⟩⟩ := lead
+  have stemRun := election_run
+  exact ⟨
+    {0, 1, 2},
+    [0, 1, 2],
+    lassoTrace electionSystem electionStart electionChoices electionCycle,
+    electionFinal,
+    0,
+    1,
+    leftState,
+    rightState,
+    lasso_valid (start_initial (by decide) (by decide)) stemRun election_cycle
+      (by simp [electionCycle]),
+    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
+    mem_of_nodeState leftFound,
+    mem_of_nodeState rightFound,
+    leftPrimary,
+    rightPrimary,
+    by decide
+  ⟩
+
+lemma committed_frontier_is_signature_witness
+    : exists (config : Finset NodeID),
+    exists
+    (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State) (state : Model.State),
+    exists (node : NodeID) (nodeState : NodeState),
+      trace.Valid (Model.transitionSystem config nodes)
+      /\ state ∈ trace
+      /\ (node, nodeState) ∈ state.nodes
+      /\ 0 < nodeState.commitIndex := by
+  have stemRun := single_run
+  exact ⟨
+    {0},
+    [0],
+    lassoTrace singleSystem singleStart singleChoices singleCycle,
+    singleFinal,
+    0,
+    (nodeState singleFinal 0).get single_final_present,
+    lasso_valid (start_initial (by decide) (by decide)) stemRun single_cycle
+      (by simp [singleCycle]),
+    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
+    member_of_nodeState _,
+    by decide
+  ⟩
 
 end CCFRaft.Proofs.Witnesses

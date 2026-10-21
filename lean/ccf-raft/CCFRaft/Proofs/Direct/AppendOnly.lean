@@ -372,4 +372,19 @@ theorem committed_log_later {nodes : List NodeID}
 
 end Global
 
+theorem single_node_committed_log_monotonic
+    : forall (config : Finset NodeID) (nodes : List NodeID),
+      forall (pre post : Model.State),
+      forall (nodeId : NodeID) (nodePre nodePost : NodeState),
+      forall (action : Model.Action),
+        ((pre.nodes.map Prod.fst).Nodup
+          /\ (Model.transitionSystem config nodes).step pre action = some post
+          /\ (nodeId, nodePre) ∈ pre.nodes
+          /\ (nodeId, nodePost) ∈ post.nodes)
+        -> nodePre.committedLog <+: nodePost.committedLog := by
+  intro config nodes pre post nodeId nodePre nodePost action
+    ⟨distinct, stepped, preMember, postMember⟩
+  let _ : Proofs.Config.InitialConfiguration := ⟨config⟩
+  exact Proofs.Direct.committed_log_step distinct stepped preMember postMember
+
 end CCFRaft.Proofs.Direct

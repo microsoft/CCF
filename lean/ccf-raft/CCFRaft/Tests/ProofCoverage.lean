@@ -29,11 +29,15 @@ run_cmd do
     if name.getPrefix != `CCFRaft.Properties then continue
     match info with
     | .axiomInfo _ => throwError "Property is an axiom: {name}"
-    | .thmInfo _ =>
+    | .thmInfo proof =>
         unless name.getString!.endsWith "_witness" do
           let witness := Name.str `CCFRaft.Properties (name.getString! ++ "_witness")
           unless (env.find? witness).any (fun info => info.isTheorem) do
             throwError "Property has no witness lemma: {name}"
+        let .const implementation _ := proof.value.consumeMData
+          | throwError "Property proof must delegate to Proofs/: {name}"
+        unless (`CCFRaft.Proofs).isPrefixOf implementation do
+          throwError "Property proof must delegate to Proofs/: {name}"
     | _ =>
         if info.type == mkSort .zero then
           throwError "Property is an unproved Prop definition: {name}"

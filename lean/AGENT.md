@@ -31,6 +31,7 @@ Within a model's library directory, use this layout:
 - Keep `common/CCF/`, `Model/`, and `Model.lean` independent of property and proof modules.
   Shared infrastructure must not depend on a particular protocol.
 - Raft's `Properties.lean` imports the model and supporting proofs, and contains the full statements as theorems and witness lemmas.
+  Keep each proof body to a one-line call into `Proofs/`, where the implementation belongs.
   Do not retain separate `Prop` definitions or a `Proof.lean` wrapper for those results.
   Raft's `Proofs/` must not import `Properties.lean`; this keeps the result entrypoint free of cycles.
 - Disaster recovery's property definitions depend on the model, shared definitions, and other property helpers, but not `Proof.lean` or `Proofs/`.

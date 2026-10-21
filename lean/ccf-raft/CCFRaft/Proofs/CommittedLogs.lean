@@ -16,6 +16,8 @@ grown, then compare the two nodes' committed logs in that one state.
 
 namespace CCFRaft.Proofs.CommittedLogs
 
+open Model.Node
+
 open CCFRaft.Proofs.Config
 
 theorem committed_logs_prefix_of_le [Config.InitialConfiguration]
@@ -40,5 +42,28 @@ theorem committed_logs_prefix_of_le [Config.InitialConfiguration]
     carriedFirst | laterFirst
   · exact Or.inl (grown.trans carriedFirst)
   · exact List.prefix_or_prefix_of_prefix grown laterFirst
+
+theorem committed_logs_prefix
+    : forall (config : Finset NodeID),
+      forall (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State),
+      forall (first second : Model.State),
+      forall (left right : NodeID) (leftState rightState : NodeState),
+        (trace.Valid (Model.transitionSystem config nodes)
+          /\ first ∈ trace
+          /\ second ∈ trace
+          /\ (left, leftState) ∈ first.nodes
+          /\ (right, rightState) ∈ second.nodes)
+        -> leftState.committedLog <+: rightState.committedLog
+            \/ rightState.committedLog <+: leftState.committedLog := by
+  intro config nodes trace first second left right leftState rightState
+    ⟨valid, firstMember, secondMember, leftMember, rightMember⟩
+  let _ : Proofs.Config.InitialConfiguration := ⟨config⟩
+  obtain ⟨firstIndex, firstFound⟩ := Stream'.Seq.mem_iff_exists_get?.mp firstMember
+  obtain ⟨secondIndex, secondFound⟩ := Stream'.Seq.mem_iff_exists_get?.mp secondMember
+  rcases Nat.le_total firstIndex secondIndex with ordered | ordered
+  · exact Proofs.CommittedLogs.committed_logs_prefix_of_le valid ordered
+      firstFound.symm secondFound.symm leftMember rightMember
+  · exact (Proofs.CommittedLogs.committed_logs_prefix_of_le valid ordered
+      secondFound.symm firstFound.symm rightMember leftMember).symm
 
 end CCFRaft.Proofs.CommittedLogs
