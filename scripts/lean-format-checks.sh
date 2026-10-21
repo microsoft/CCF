@@ -46,12 +46,15 @@ for package in "${PACKAGES[@]}"; do
   (
     cd "$ROOT_DIR/lean/$package"
     jobs="$(( ($(nproc) + 1) >> 1 ))"
+    # leanfmt loads imported modules to parse project-specific syntax.
     if [ "$package" == "shamir" ]; then
       export LEAN_NUM_THREADS=1
       jobs=1
+      # ListDeclarations.lean imports the Generated root as well as Shamir.
+      lake build Generated "$library"
+    else
+      lake build "$library"
     fi
-    # leanfmt loads imported modules to parse project-specific syntax.
-    lake build "$library"
     git -C "$ROOT_DIR" ls-files -z -- "${PATHSPEC[@]}" |
       while IFS= read -r -d '' file; do
         printf '%s\0' "$ROOT_DIR/$file"

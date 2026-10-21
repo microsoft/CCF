@@ -21,7 +21,11 @@ after_includes = """
 #  define CCF_SHAMIR_NODISCARD __attribute__((warn_unused_result))
 #else
 #  define CCF_SHAMIR_NODISCARD
-#endif"""
+#endif
+
+// Preserve C syntax and the enum width required by Rust's C ABI.
+// NOLINTBEGIN(cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,modernize-use-using,performance-enum-size)"""
+trailer = """// NOLINTEND(cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,modernize-use-using,performance-enum-size)"""
 cpp_compat = true
 style = "type"
 documentation = true
