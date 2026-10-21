@@ -43,6 +43,7 @@ Raw-pointer conversion is confined to `src/rust/src/shamir.rs`; callers must sup
 The shim checks null pointers, alignment, length arithmetic, and overlap, but cannot establish allocation validity, initialized contents, lifetimes, or the absence of concurrent access.
 Those obligations remain with the C++ caller.
 The C header `src/crypto/sharing_ffi.h` is generated from those Rust declarations by cbindgen; CI checks that it matches the Rust signatures, layout, limb count, and status codes, and the adapter additionally checks the layout with `static_assert`.
+CI runs the C ABI tests under Miri with the Stacked Borrows and Tree Borrows aliasing models and strict provenance to check exercised pointer-handling paths for undefined behavior.
 Share coordinates and values for each limb are assigned by the verified core; the C++ adapter samples coefficients and copies completed shares without recomputing either.
 The C++ adapter copies members into the C representation rather than type-punning the nontrivially destructible C++ `Share`.
 The core does not allocate, and recovery uses caller-owned storage linear in the threshold instead of variable-length stack arrays.
@@ -103,6 +104,10 @@ Run from the repository root:
 ```bash
 cargo test --manifest-path src/rust/shamir/Cargo.toml --locked -j1
 cargo test --manifest-path src/rust/Cargo.toml --lib --locked -j1
+rustup component add miri --toolchain nightly-2026-09-17
+cargo +nightly-2026-09-17 miri test --manifest-path src/rust/Cargo.toml --lib --locked -j1
+MIRIFLAGS="-Zmiri-tree-borrows -Zmiri-strict-provenance" \
+  cargo +nightly-2026-09-17 miri test --manifest-path src/rust/Cargo.toml --lib --locked -j1
 cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
 CARGO_BUILD_JOBS=1 cmake --build build --target sharing_test -j1
 ctest --test-dir build -R '^sharing_test$' --no-tests=error --output-on-failure
