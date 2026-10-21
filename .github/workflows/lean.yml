@@ -39,13 +39,22 @@ jobs:
           echo '4b444e72e1e0bc475e952821bc081eb15665c984fd8032636c0346e766675794  build/shamir-tools/aeneas-linux-x86_64.tar.gz' | sha256sum --check
           tar -xzf build/shamir-tools/aeneas-linux-x86_64.tar.gz -C build/shamir-tools
           rustup toolchain install nightly-2026-09-17 --profile minimal \
-            --component rustc-dev,rust-src,llvm-tools
+            --component rustc-dev,rust-src,llvm-tools,miri
           AENEAS_BIN="$PWD/build/shamir-tools/aeneas" \
             CHARON_BIN="$PWD/build/shamir-tools/charon" \
             bash scripts/extract-shamir.sh
           git diff --exit-code -- lean/shamir/Generated/CcfShamir.lean
           cargo +nightly-2026-09-17 test \
             --manifest-path src/rust/shamir/Cargo.toml --locked -j1
+      - name: Run the C ABI tests under Miri
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +nightly-2026-09-17 miri test \
+            --manifest-path src/rust/Cargo.toml --locked --lib -j1
+          MIRIFLAGS="-Zmiri-tree-borrows -Zmiri-strict-provenance" \
+            cargo +nightly-2026-09-17 miri test \
+            --manifest-path src/rust/Cargo.toml --locked --lib -j1
       - name: Check the generated C header
         shell: bash
         run: |

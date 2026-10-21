@@ -13,6 +13,7 @@ The same core crate is linked into `ccf-rs` and used by the C ABI.
 `#![forbid(unsafe_code)]` applies to the entire core.
 Raw-pointer conversion is confined to `src/rust/src/shamir.rs`, which only marshals buffers into slices and status codes; callers must supply live, aligned, nonoverlapping buffers of the declared lengths, and null, misaligned, overlapping, or address-wrapping buffers are rejected with a status code.
 The C header `src/crypto/sharing_ffi.h` is generated from those Rust declarations by cbindgen, so the signatures, layout, limb count, and status codes seen by the C++ adapter cannot drift from the Rust side; the adapter additionally checks the layout with `static_assert`.
+The C ABI tests, which cover the accepted paths as well as rejected null, misaligned, overlapping, and address-wrapping buffers and error paths, run under Miri in CI with both the Stacked Borrows and Tree Borrows aliasing models and strict provenance, so undefined behaviour in that pointer-handling layer is detected rather than assumed absent.
 Share coordinates are assigned by the verified core, which fills one limb of every share per call; the C++ adapter does not compute coordinates or iterate over shares itself.
 The C++ adapter copies members into the C representation rather than type-punning the nontrivially destructible C++ `Share`.
 The core does not allocate, and recovery uses caller-owned storage linear in the threshold instead of variable-length stack arrays.
@@ -72,6 +73,10 @@ Run from the repository root:
 ```bash
 cargo test --manifest-path src/rust/shamir/Cargo.toml --locked -j1
 cargo test --manifest-path src/rust/Cargo.toml --lib --locked -j1
+rustup component add miri --toolchain nightly-2026-09-17
+cargo +nightly-2026-09-17 miri test --manifest-path src/rust/Cargo.toml --lib --locked -j1
+MIRIFLAGS="-Zmiri-tree-borrows -Zmiri-strict-provenance" \
+  cargo +nightly-2026-09-17 miri test --manifest-path src/rust/Cargo.toml --lib --locked -j1
 cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
 CARGO_BUILD_JOBS=1 cmake --build build --target sharing_test -j1
 ctest --test-dir build -R '^sharing_test$' --no-tests=error --output-on-failure
