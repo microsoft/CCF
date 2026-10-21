@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+cmake_policy(SET CMP0057 NEW)
+
 if(NOT DEFINED NM OR NOT DEFINED OBJECT)
   message(FATAL_ERROR "NM and OBJECT are required")
 endif()
@@ -16,6 +18,7 @@ if(NOT NM_RESULT EQUAL 0)
 endif()
 
 set(HAS_TAV_EXPORT FALSE)
+set(SHAMIR_EXPORTS ccf_shamir_reduce ccf_shamir_share_limb ccf_shamir_recover)
 string(REPLACE "\n" ";" NM_LINES "${NM_OUTPUT}")
 foreach(LINE IN LISTS NM_LINES)
   string(STRIP "${LINE}" LINE)
@@ -30,12 +33,14 @@ foreach(LINE IN LISTS NM_LINES)
   set(SYMBOL "${CMAKE_MATCH_1}")
   if(SYMBOL STREQUAL "tav_error_free")
     set(HAS_TAV_EXPORT TRUE)
+  elseif(SYMBOL IN_LIST SHAMIR_EXPORTS)
+    list(REMOVE_ITEM SHAMIR_EXPORTS "${SYMBOL}")
   elseif(NOT SYMBOL MATCHES "^tav_")
     message(FATAL_ERROR "Unexpected global symbol in ${OBJECT}: ${SYMBOL}")
   endif()
 endforeach()
 
-if(NOT HAS_TAV_EXPORT)
+if(NOT HAS_TAV_EXPORT OR SHAMIR_EXPORTS)
   message(
     FATAL_ERROR
     "Expected ccf-rs C ABI exports are missing from ${OBJECT}"

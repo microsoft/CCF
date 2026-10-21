@@ -892,6 +892,26 @@ if(BUILD_TESTS)
     target_include_directories(sharing_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(sharing_test PRIVATE ccfcrypto)
 
+    # Give the other backend distinct entry points for cross-recovery tests.
+    add_library(sharing_reference OBJECT ${CCF_SHAMIR_REFERENCE_SOURCE})
+    target_include_directories(sharing_reference PRIVATE src)
+    target_link_libraries(sharing_reference PRIVATE ccfcrypto)
+    target_compile_definitions(
+      sharing_reference
+      PRIVATE
+        ct_reduce=reference_ct_reduce
+        sample_secret_and_shares=reference_sample_secret_and_shares
+        recover_unauthenticated_secret=reference_recover_unauthenticated_secret
+    )
+    add_warning_checks(sharing_reference)
+    target_compile_options(
+      sharing_reference
+      PRIVATE $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-Wno-vla-cxx-extension>
+    )
+    add_san(sharing_reference)
+    enable_coverage(sharing_reference)
+    target_link_libraries(sharing_test PRIVATE sharing_reference)
+
     add_unit_test(
       key_exchange_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/key_exchange.cpp

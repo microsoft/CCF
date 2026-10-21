@@ -38,8 +38,13 @@ dependencies = [
 name = "ccf-rs"
 version = "0.1.0"
 dependencies = [
+ "ccf-shamir",
  "tee-attestation-verification-ffi",
 ]
+
+[[package]]
+name = "ccf-shamir"
+version = "0.1.0"
 
 [[package]]
 name = "cfg-if"

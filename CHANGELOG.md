@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.22]
+
+[7.0.22]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.22
+
+### Changed
+
+- Recovery share secret sharing uses the Rust backend by default; the C++ backend remains available with `-DUSE_RUST_SHAMIR=OFF` (see [build switches](doc/contribute/build_ccf.rst#build-switches)).
+  Share formats are unchanged (#8614).
+
 ## [7.0.21]
 
 [7.0.21]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.21

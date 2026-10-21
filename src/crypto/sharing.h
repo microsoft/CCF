@@ -96,7 +96,7 @@ namespace ccf::crypto::sharing
   element ct_reduce(element x);
 
   /** Sample a secret into @p raw_secret, and split it into @p shares.
-   * Enforces 1 < @p threshold <= number of shares.
+   * Enforces 1 <= @p threshold <= number of shares < 2^31 - 1.
    *
    * @param[out] raw_secret Sampled secret value.
    * @param[out] shares Shares of raw_secret. Note that the size of the span
@@ -119,8 +119,8 @@ namespace ccf::crypto::sharing
    * Note that shares passed in excess of the threshold are ignored,
    * and that recovery does not authenticate the shares or the threshold.
    *
-   * @throws std::invalid_argument if the number of shares is insufficient,
-   * or if two shares have the same x coordinate.
+   * @throws std::invalid_argument if the threshold is zero, the number of
+   * shares is insufficient, or if two shares have the same x coordinate.
    */
   void recover_unauthenticated_secret(
     Share& raw_secret, const std::span<Share const>& shares, size_t threshold);
