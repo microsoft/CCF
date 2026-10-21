@@ -1,0 +1,37 @@
+name = "ccf_shamir"
+version = "0.1.0"
+defaultTargets = ["Generated", "Shamir"]
+moreLeanArgs = ["-M", "4500"]
+builtinLint = true
+lintDriver = "batteries/runLinter"
+lintDriverArgs = ["--no-build", "Shamir"]
+
+[leanOptions]
+autoImplicit = false
+
+[[require]]
+name = "aeneas"
+git = "https://github.com/AeneasVerif/aeneas"
+subDir = "backends/lean"
+rev = "fc321a28317f458338ce01fe684927eae0fa8f9e"
+
+[[require]]
+name = "cslib"
+git = "https://github.com/leanprover/cslib"
+rev = "0b1e3680b43ad9cd482a66f183764f33fc8a4e8f"
+
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4.git"
+rev = "v4.35.0"
+
+[[require]]
+name = "leanfmt"
+git = "https://github.com/duckki/leanfmt.git"
+rev = "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef"
+
+[[lean_lib]]
+name = "Generated"
+
+[[lean_lib]]
+name = "Shamir"
