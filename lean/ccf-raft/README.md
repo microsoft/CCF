@@ -1,4 +1,4 @@
-# CCF Raft model
+# CCF-Raft model
 
 An executable Lean model of CCF's consensus implementation ([`src/consensus/aft/raft.h`](../../src/consensus/aft/raft.h)) and the safety properties it is intended to satisfy.
 It assumes familiarity with the [CCF consensus documentation](../../doc/architecture/consensus/index.rst).
