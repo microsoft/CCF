@@ -68,6 +68,7 @@ namespace
     {
       return part_of_network;
     }
+
     ccf::CurrentServiceIdentity get_current_service_identity() override
     {
       return {current_service_from, topmost};
@@ -312,6 +313,7 @@ namespace
       REQUIRE(!entries.empty());
       return entries.back();
     }
+
     std::map<ccf::SeqNo, ccf::CoseEndorsement> historical_entries() const
     {
       std::map<ccf::SeqNo, ccf::CoseEndorsement> m;

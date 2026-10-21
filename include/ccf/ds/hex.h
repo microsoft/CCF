@@ -12,6 +12,7 @@
 namespace ccf::ds
 {
   constexpr size_t ascii_offset = 10;
+
   static uint8_t hex_char_to_int(char c)
   {
     if (c <= '9')

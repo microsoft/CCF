@@ -19,6 +19,7 @@
 #include "node/tx_receipt_impl.h"
 
 #include <nlohmann/json.hpp>
+
 namespace ccf
 {
   struct StartupSnapshotInfo

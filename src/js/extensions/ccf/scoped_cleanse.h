@@ -25,7 +25,9 @@ namespace ccf::js
     }
 
     inline void cleanse(ccf::crypto::JsonWebKeyECPublic& jwk) {}
+
     inline void cleanse(ccf::crypto::JsonWebKeyRSAPublic& jwk) {}
+
     inline void cleanse(ccf::crypto::JsonWebKeyEdDSAPublic& jwk) {}
 
     inline void cleanse(ccf::crypto::JsonWebKeyECPrivate& jwk)

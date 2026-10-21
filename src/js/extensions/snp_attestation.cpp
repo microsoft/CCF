@@ -18,6 +18,7 @@
 namespace ccf::js::extensions
 {
 #pragma clang diagnostic push
+
   namespace
   {
 

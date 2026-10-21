@@ -200,6 +200,7 @@ namespace http
       return {response_string.begin(), response_string.end()};
     }
   }; // Most builder function are unused from enclave
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 

@@ -46,6 +46,7 @@ extends:
                 displayName: Build and validate release wheel
                 env:
                   BUILD_SOURCEBRANCH: $(Build.SourceBranch)
+                  UV_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
 
       - stage: release
         displayName: Publish CCF wheel to PyPI

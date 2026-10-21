@@ -51,6 +51,7 @@ namespace ccf
       cert(std::move(cert_))
     {}
   };
+
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
     PrimarySignature, NodeSignature);
   DECLARE_JSON_REQUIRED_FIELDS(

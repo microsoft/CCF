@@ -68,6 +68,7 @@ namespace ccf::tasks
 
       bool operator==(const Summary&) const = default;
     };
+
     Summary get_summary();
 
     void add_delayed_task(Task task, std::chrono::milliseconds delay);

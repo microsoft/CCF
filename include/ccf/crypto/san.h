@@ -22,6 +22,7 @@ namespace ccf::crypto
     bool operator==(const SubjectAltName& other) const = default;
     bool operator!=(const SubjectAltName& other) const = default;
   };
+
   DECLARE_JSON_TYPE(SubjectAltName);
   DECLARE_JSON_REQUIRED_FIELDS(SubjectAltName, san, is_ip);
 
@@ -55,6 +56,7 @@ namespace ccf::crypto
 }
 
 FMT_BEGIN_NAMESPACE
+
 template <>
 struct formatter<ccf::crypto::SubjectAltName>
 {
@@ -80,4 +82,5 @@ struct formatter<ccf::crypto::SubjectAltName>
     return format_to(ctx.out(), "{}:{}", prefix, san.san);
   }
 };
+
 FMT_END_NAMESPACE

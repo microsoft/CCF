@@ -488,6 +488,7 @@ namespace ccf
       std::optional<http_client::CurlmLibuvContextSingleton>& curl_context;
       asynchost::Sigterm& sigterm;
       asynchost::Sighup& sighup;
+
       ~RuntimeCleanup()
       {
         sigterm = nullptr;

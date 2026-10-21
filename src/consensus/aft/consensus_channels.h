@@ -24,6 +24,7 @@ namespace aft
     {
     public:
       ccf::NodeId from;
+
       DroppedMessageException(ccf::NodeId from_) : from(std::move(from_)) {}
     };
 

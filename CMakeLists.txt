@@ -1203,6 +1203,14 @@ if(BUILD_TESTS)
     )
     add_test_target(github_version_lts_test)
     add_test_label(github_version_lts_test bucket_c)
+
+    add_test(
+      NAME lts_compatibility_report_test
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/lts_compatibility_report_test.py
+    )
+    add_test_target(lts_compatibility_report_test)
+    add_test_label(lts_compatibility_report_test unit)
   endif()
 
   if(NOT TSAN)

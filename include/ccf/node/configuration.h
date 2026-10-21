@@ -71,6 +71,7 @@ namespace ccf
 
       bool operator==(const NodeToNode&) const = default;
     };
+
     NodeToNode node_to_node = {};
 
     ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
@@ -94,6 +95,7 @@ namespace ccf
 
       bool operator==(const NodeCertificateInfo&) const = default;
     };
+
     NodeCertificateInfo node_certificate = {};
 
     struct Ledger
@@ -108,6 +110,7 @@ namespace ccf
 
       bool operator==(const Ledger&) const = default;
     };
+
     Ledger ledger = {};
 
     struct LedgerSignatures
@@ -117,6 +120,7 @@ namespace ccf
 
       bool operator==(const LedgerSignatures&) const = default;
     };
+
     LedgerSignatures ledger_signatures = {};
 
     struct JWT
@@ -126,6 +130,7 @@ namespace ccf
 
       bool operator==(const JWT&) const = default;
     };
+
     JWT jwt = {};
 
     struct Attestation
@@ -145,10 +150,12 @@ namespace ccf
 
         bool operator==(const Environment&) const = default;
       };
+
       Environment environment = {};
 
       bool operator==(const Attestation&) const = default;
     };
+
     Attestation attestation = {};
 
     struct Snapshots
@@ -169,10 +176,12 @@ namespace ccf
 
         bool operator==(const BackupFetch&) const = default;
       };
+
       BackupFetch backup_fetch = {};
 
       bool operator==(const Snapshots&) const = default;
     };
+
     Snapshots snapshots = {};
 
     struct FilesCleanup
@@ -183,6 +192,7 @@ namespace ccf
 
       bool operator==(const FilesCleanup&) const = default;
     };
+
     FilesCleanup files_cleanup = {};
 
     struct IdentityHistoryFetch
@@ -192,6 +202,7 @@ namespace ccf
 
       bool operator==(const IdentityHistoryFetch&) const = default;
     };
+
     IdentityHistoryFetch identity_history_fetch = {};
 
     struct Observability
@@ -203,6 +214,7 @@ namespace ccf
 
       bool operator==(const Observability&) const = default;
     };
+
     Observability observability = {};
 
     ccf::ds::TimeString tick_interval = {"10ms"};
@@ -225,6 +237,7 @@ namespace ccf
 
       bool operator==(const OutputFiles&) const = default;
     };
+
     OutputFiles output_files = {};
 
     struct Logging
@@ -233,6 +246,7 @@ namespace ccf
 
       bool operator==(const Logging&) const = default;
     };
+
     Logging logging = {};
 
     struct Memory
@@ -243,6 +257,7 @@ namespace ccf
 
       bool operator==(const Memory&) const = default;
     };
+
     Memory memory = {};
 
     // Keep explicit new values distinct from defaults so legacy aliases only
@@ -280,6 +295,7 @@ namespace ccf
 
         bool operator==(const Start&) const = default;
       };
+
       Start start = {};
 
       struct Join
@@ -296,6 +312,7 @@ namespace ccf
 
         bool operator==(const Join&) const = default;
       };
+
       Join join = {};
 
       struct Recover
@@ -304,8 +321,10 @@ namespace ccf
         std::string previous_service_identity_file;
         bool operator==(const Recover&) const = default;
       };
+
       Recover recover = {};
     };
+
     Command command = {};
   };
 

@@ -162,6 +162,7 @@ struct Bar
   std::string b = {};
   size_t c = {};
 };
+
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Bar);
 DECLARE_JSON_REQUIRED_FIELDS(Bar, a);
 DECLARE_JSON_OPTIONAL_FIELDS(Bar, b, c);
@@ -212,6 +213,7 @@ struct Biz : public Bar
 {
   size_t f = {};
 };
+
 DECLARE_JSON_TYPE_WITH_BASE(Biz, Bar);
 DECLARE_JSON_REQUIRED_FIELDS(Biz, f);
 
@@ -220,6 +222,7 @@ struct Baz : public Bar
   size_t d = {};
   size_t e = {};
 };
+
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(Baz, Bar);
 DECLARE_JSON_REQUIRED_FIELDS(Baz, d);
 DECLARE_JSON_OPTIONAL_FIELDS(Baz, e);
@@ -276,6 +279,7 @@ struct Foo
   std::vector<std::string> vec_s = {};
   size_t ignored;
 };
+
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Foo);
 DECLARE_JSON_REQUIRED_FIELDS(Foo, n_0, i_0, i64_0, s_0);
 DECLARE_JSON_OPTIONAL_FIELDS(Foo, n_1, s_1, opt, vec_s);
@@ -351,6 +355,7 @@ struct RequiredOptional
 {
   std::optional<size_t> maybe_present = std::nullopt;
 };
+
 DECLARE_JSON_TYPE(RequiredOptional);
 DECLARE_JSON_REQUIRED_FIELDS(RequiredOptional, maybe_present);
 
@@ -436,6 +441,7 @@ namespace custom
         size_t a;
         int b;
       };
+
       DECLARE_JSON_TYPE(Y);
       DECLARE_JSON_REQUIRED_FIELDS(Y, a, b);
     }
@@ -457,6 +463,7 @@ struct Nest0
 {
   size_t n = {};
 };
+
 DECLARE_JSON_TYPE(Nest0);
 DECLARE_JSON_REQUIRED_FIELDS(Nest0, n);
 
@@ -470,6 +477,7 @@ struct Nest1
   Nest0 a = {};
   Nest0 b = {};
 };
+
 DECLARE_JSON_TYPE(Nest1);
 DECLARE_JSON_REQUIRED_FIELDS(Nest1, a, b);
 
@@ -483,6 +491,7 @@ struct Nest2
   Nest1 x;
   std::vector<Nest1> xs;
 };
+
 DECLARE_JSON_TYPE(Nest2);
 DECLARE_JSON_REQUIRED_FIELDS(Nest2, x, xs);
 
@@ -495,6 +504,7 @@ struct Nest3
 {
   Nest2 v;
 };
+
 DECLARE_JSON_TYPE(Nest3);
 DECLARE_JSON_REQUIRED_FIELDS(Nest3, v);
 
@@ -605,6 +615,7 @@ struct RequiredOptionalEnum
 {
   std::optional<EnumStruct::SampleEnum> maybe_enum = std::nullopt;
 };
+
 DECLARE_JSON_TYPE(RequiredOptionalEnum);
 DECLARE_JSON_REQUIRED_FIELDS(RequiredOptionalEnum, maybe_enum);
 
@@ -702,11 +713,14 @@ struct Stringable
 {
   std::string s;
   Stringable() = default;
+
   Stringable(const std::string& s_) : s(s_) {}
+
   operator std::string() const
   {
     return s;
   }
+
   bool operator<(const Stringable& other) const
   {
     return s < other.s;
@@ -769,6 +783,7 @@ namespace examples
   {
     int a, b;
   };
+
   DECLARE_JSON_TYPE(X);
   DECLARE_JSON_REQUIRED_FIELDS(X, a, b);
 
@@ -777,6 +792,7 @@ namespace examples
     bool c;
     std::string d;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Y);
   DECLARE_JSON_REQUIRED_FIELDS(Y, c);
   DECLARE_JSON_OPTIONAL_FIELDS(Y, d);
@@ -785,6 +801,7 @@ namespace examples
   {
     int m;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE(X_A, X);
   DECLARE_JSON_REQUIRED_FIELDS(X_A, m);
 
@@ -792,6 +809,7 @@ namespace examples
   {
     int n;
   };
+
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(X_B, X);
   DECLARE_JSON_REQUIRED_FIELDS(X_B);
   DECLARE_JSON_OPTIONAL_FIELDS(X_B, n);
@@ -809,6 +827,7 @@ namespace renamed
     size_t b;
     size_t c;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Foo);
   DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
     Foo, x, "X", y, "SOMETHING_ELSE", z, "z-z!?(),;");
