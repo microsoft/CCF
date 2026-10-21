@@ -8,8 +8,19 @@
 #define FMT_HEADER_ONLY
 #include "crypto/sharing.h"
 
+#include <array>
+#include <bit>
 #include <charconv>
 #include <fmt/format.h>
+
+namespace ccf::crypto::sharing
+{
+  void reference_sample_secret_and_shares(
+    Share& raw_secret, const std::span<Share>& shares, size_t threshold);
+
+  void reference_recover_unauthenticated_secret(
+    Share& raw_secret, const std::span<Share const>& shares, size_t threshold);
+}
 
 using namespace ccf::crypto::sharing;
 
@@ -196,6 +207,66 @@ TEST_CASE("Cover a range of share and recover combinations")
   share_and_recover(rng, 200000, 400, 8);
 }
 
+TEST_CASE("C++ and Rust exchange serialized shares and derive identical keys")
+{
+  constexpr size_t num_shares = 7;
+  const std::array backends = {
+    std::pair{
+      sample_secret_and_shares, reference_recover_unauthenticated_secret},
+    std::pair{
+      reference_sample_secret_and_shares, recover_unauthenticated_secret}};
+  for (size_t direction = 0; direction < backends.size(); ++direction)
+  {
+    const auto [generate, recover] = backends[direction];
+    for (size_t threshold = 1; threshold <= num_shares; ++threshold)
+    {
+      INFO(direction);
+      INFO(threshold);
+      Share secret;
+      std::vector<Share> shares(num_shares);
+      generate(secret, shares, threshold);
+      std::vector<uint8_t> secret_bytes(Share::serialised_size);
+      secret.serialise(secret_bytes);
+      const auto expected_key = secret.key(32);
+
+      std::array<Share, 1> full_share = {Share(secret_bytes)};
+      Share recovered_full;
+      recover(recovered_full, full_share, 1);
+      REQUIRE(recovered_full == secret);
+      REQUIRE(recovered_full.key(32) == expected_key);
+
+      for (unsigned mask = 1; mask < (1U << num_shares); ++mask)
+      {
+        if (static_cast<size_t>(std::popcount(mask)) != threshold)
+        {
+          continue;
+        }
+        INFO(mask);
+        std::vector<Share> subset;
+        for (size_t i = 0; i < num_shares; ++i)
+        {
+          if ((mask & (1U << i)) != 0)
+          {
+            std::vector<uint8_t> bytes(Share::serialised_size);
+            shares[i].serialise(bytes);
+            subset.emplace_back(bytes);
+            std::vector<uint8_t> round_trip(Share::serialised_size);
+            subset.back().serialise(round_trip);
+            REQUIRE(round_trip == bytes);
+          }
+        }
+        Share recovered;
+        recover(recovered, subset, threshold);
+        REQUIRE(recovered == secret);
+        REQUIRE(recovered.key(32) == expected_key);
+        std::vector<uint8_t> recovered_bytes(Share::serialised_size);
+        recovered.serialise(recovered_bytes);
+        REQUIRE(recovered_bytes == secret_bytes);
+      }
+    }
+  }
+}
+
 TEST_CASE("Serialisation")
 {
   Share share;
@@ -212,6 +283,10 @@ TEST_CASE("Serialisation")
   share.y[9] = 56;
   std::vector<uint8_t> serialised(share.serialised_size);
   share.serialise(serialised);
+  const std::vector<uint8_t> expected = {
+    42, 0, 0, 0, 34, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0,  0, 3, 0,
+    0,  0, 4, 0, 0,  0, 5, 0, 0, 0, 6, 0, 0, 0, 7, 0, 0, 0, 56, 0, 0, 0};
+  REQUIRE(serialised == expected);
   Share new_share(serialised);
 
   INFO(share.to_str());
