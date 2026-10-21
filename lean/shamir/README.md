@@ -11,18 +11,19 @@ Secret-bearing C++ scratch buffers and the FFI's temporary recovered secret are 
 [`Generated/CcfShamir.lean`](Generated/CcfShamir.lean) is extracted by Aeneas from the production, dependency-free Rust core, not a handwritten substitute.
 The same core crate is linked into `ccf-rs` and used by the C ABI.
 `#![forbid(unsafe_code)]` applies to the entire core.
-Raw-pointer conversion is confined to `src/rust/src/shamir.rs`; callers must supply live, aligned, nonoverlapping buffers of the declared lengths.
+Raw-pointer conversion is confined to `src/rust/src/shamir.rs`, which only marshals buffers into slices and status codes; callers must supply live, aligned, nonoverlapping buffers of the declared lengths, and null, misaligned, overlapping, or address-wrapping buffers are rejected with a status code.
+Share coordinates are assigned by the verified core, which fills one limb of every share per call; the C++ adapter does not compute coordinates or iterate over shares itself.
 The C++ adapter copies members into the C representation rather than type-punning the nontrivially destructible C++ `Share`.
 The core does not allocate, and recovery uses caller-owned storage linear in the threshold instead of variable-length stack arrays.
 
 [`Shamir/Properties.lean`](Shamir/Properties.lean) states the refinement claims independently of their proofs.
 [`Shamir/Proof.lean`](Shamir/Proof.lean) exports `sharing_refines_cslib` and `recovery_refines_cslib`.
-Sharing refines CSLib's `Shamir.share` under the coefficient-vector encoding relation, for every canonical coefficient vector encoding that polynomial.
+Sharing refines CSLib's `Shamir.share` under the coefficient-vector encoding relation, for every canonical coefficient vector encoding that polynomial: filling a limb assigns coordinate `k + 1` to the share at index `k`, stores that coordinate's share value in the requested limb, and leaves every other limb unchanged.
 Recovery terminates successfully for every nonempty selection of distinct field coordinates and an appropriately sized workspace, and each of its ten limbs equals CSLib's `Shamir.Polynomial.reconstruct`.
 `recoveredLimb_eq_secret` also connects this reconstruction to CSLib's reconstruction-correctness theorem for low-degree sharing polynomials.
 CCF's threshold counts shares; CSLib's `Params.threshold` is the polynomial-degree bound, one less.
 
-The supporting proofs cover all `u64` inputs to the three-fold Mersenne reduction, overflow/underflow safety on canonical arithmetic, Horner evaluation, exponentiation, inversion, Lagrange weights, and all-limb reconstruction.
+The supporting proofs cover all `u64` inputs to the three-fold Mersenne reduction, overflow/underflow safety on canonical arithmetic, Horner evaluation, the share-filling loop, exponentiation, inversion, Lagrange weights, and all-limb reconstruction.
 Field primality is certified with Mathlib's Lucas-Lehmer theorem.
 There are no project axioms, `sorry`, or `admit`.
 The extracted model and proofs do not verify pointer validity in the C adapter, OpenSSL, entropy uniformity or independence, secret erasure in compiled machine code, timing, the Rust compiler, or Aeneas's translation.

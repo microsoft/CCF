@@ -23,6 +23,8 @@ pub enum Error {
     InvalidCoefficient,
     DuplicateShare,
     InvalidWorkspace,
+    InvalidLimb,
+    InvalidShareCount,
 }
 
 /// Reduce any u64 without data-dependent branches or division.
@@ -80,6 +82,33 @@ pub fn evaluate(coefficients: &[u64], x: u32) -> Result<u32, Error> {
         y = add(coefficients[i], mul(x, y));
     }
     Ok(y as u32)
+}
+
+/// Fill one limb of every share from a polynomial, evaluating at `x = i + 1`.
+///
+/// The share at index `i` records its coordinate `i + 1`, so no share is at
+/// the secret's coordinate zero and coordinates are distinct below PRIME.
+/// Other limbs are unchanged. Nothing is written if any coefficient is
+/// invalid, as evaluation validates every coefficient before its first result.
+pub fn share_limb(coefficients: &[u64], limb: usize, shares: &mut [Share]) -> Result<(), Error> {
+    if limb >= LIMBS {
+        return Err(Error::InvalidLimb);
+    }
+    if shares.is_empty() || shares.len() >= PRIME as usize {
+        return Err(Error::InvalidShareCount);
+    }
+    if coefficients.is_empty() || coefficients.len() > shares.len() {
+        return Err(Error::InvalidThreshold);
+    }
+    let mut i = 0;
+    while i < shares.len() {
+        let x = (i + 1) as u32;
+        let y = evaluate(coefficients, x)?;
+        shares[i].x = x;
+        shares[i].y[limb] = y;
+        i += 1;
+    }
+    Ok(())
 }
 
 /// Precompute interpolation weights at zero. Coordinates are public.

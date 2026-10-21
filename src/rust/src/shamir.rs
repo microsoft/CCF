@@ -23,7 +23,9 @@ pub enum Status {
 impl From<Error> for Status {
     fn from(error: Error) -> Self {
         match error {
-            Error::InvalidThreshold => Status::InvalidArguments,
+            Error::InvalidThreshold | Error::InvalidLimb | Error::InvalidShareCount => {
+                Status::InvalidArguments
+            }
             Error::InvalidCoefficient => Status::InvalidCoefficient,
             Error::DuplicateShare => Status::DuplicateShare,
             Error::InvalidWorkspace => Status::InvalidWorkspace,
@@ -65,32 +67,30 @@ pub extern "C" fn ccf_shamir_reduce(x: u64) -> u64 {
 /// indicated lengths (in elements), and no buffer may be accessed concurrently
 /// for the duration of this call.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ccf_shamir_evaluate(
+pub unsafe extern "C" fn ccf_shamir_share_limb(
     coefficients: *const u64,
     coefficient_count: usize,
-    values: *mut u32,
+    limb: usize,
+    shares: *mut Share,
     share_count: usize,
 ) -> Status {
-    let (Some(c), Some(v)) = (
+    let (Some(c), Some(s)) = (
         buffer(coefficients, coefficient_count),
-        buffer(values.cast_const(), share_count),
+        buffer(shares.cast_const(), share_count),
     ) else {
         return Status::InvalidArguments;
     };
-    if !disjoint(c, v) || share_count >= ccf_shamir::PRIME as usize {
+    if !disjoint(c, s) {
         return Status::InvalidArguments;
     }
     // SAFETY: The buffers are nonnull, aligned, disjoint, and sized as checked
     // above; the caller guarantees they are live and not accessed concurrently.
     let coefficients = unsafe { slice::from_raw_parts(coefficients, coefficient_count) };
-    let values = unsafe { slice::from_raw_parts_mut(values, share_count) };
-    for (i, value) in values.iter_mut().enumerate() {
-        match ccf_shamir::evaluate(coefficients, (i + 1) as u32) {
-            Ok(y) => *value = y,
-            Err(error) => return error.into(),
-        }
+    let shares = unsafe { slice::from_raw_parts_mut(shares, share_count) };
+    match ccf_shamir::share_limb(coefficients, limb, shares) {
+        Ok(()) => Status::Ok,
+        Err(error) => error.into(),
     }
-    Status::Ok
 }
 
 /// # Safety
@@ -152,26 +152,31 @@ mod tests {
     }
 
     #[test]
-    fn c_abi_evaluation_and_recovery() {
+    fn c_abi_sharing_and_recovery() {
         let coefficients = [123, 456, 789];
-        let mut values = [0; 3];
-        // SAFETY: All arrays are disjoint and have the indicated lengths.
-        assert_eq!(
-            unsafe {
-                ccf_shamir_evaluate(
-                    coefficients.as_ptr(),
-                    coefficients.len(),
-                    values.as_mut_ptr(),
-                    values.len(),
-                )
-            },
-            Status::Ok
-        );
-        assert_eq!(values, [1368, 4191, 8592]);
-        let shares = std::array::from_fn::<_, 3, _>(|i| Share {
-            x: i as u32 + 1,
-            y: [values[i]; LIMBS],
+        let mut shares: [Share; 3] = std::array::from_fn(|_| Share {
+            x: 0,
+            y: [0; LIMBS],
         });
+        for limb in 0..LIMBS {
+            // SAFETY: All arrays are disjoint and have the indicated lengths.
+            assert_eq!(
+                unsafe {
+                    ccf_shamir_share_limb(
+                        coefficients.as_ptr(),
+                        coefficients.len(),
+                        limb,
+                        shares.as_mut_ptr(),
+                        shares.len(),
+                    )
+                },
+                Status::Ok
+            );
+        }
+        for (i, share) in shares.iter().enumerate() {
+            assert_eq!(share.x, i as u32 + 1);
+            assert_eq!(share.y, [[1368, 4191, 8592][i]; LIMBS]);
+        }
         let mut secret = [0; LIMBS];
         // SAFETY: All arrays are disjoint and have the indicated lengths.
         assert_eq!(
@@ -182,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn c_abi_errors_preserve_the_secret() {
+    fn c_abi_errors_preserve_the_outputs() {
         let shares: [Share; 2] = std::array::from_fn(|_| Share {
             x: 1,
             y: [42; LIMBS],
@@ -201,15 +206,41 @@ mod tests {
         );
         // SAFETY: Null pointers and zero lengths are rejected before dereference.
         assert_eq!(
-            unsafe { ccf_shamir_evaluate(std::ptr::null(), 0, std::ptr::null_mut(), 0) },
+            unsafe { ccf_shamir_share_limb(std::ptr::null(), 0, 0, std::ptr::null_mut(), 0) },
             Status::InvalidArguments
+        );
+        let coefficients = [1u64; 2];
+        let mut outputs: [Share; 2] = std::array::from_fn(|_| Share {
+            x: 0,
+            y: [0; LIMBS],
+        });
+        // SAFETY: All arrays are disjoint and have the indicated lengths.
+        assert_eq!(
+            unsafe {
+                ccf_shamir_share_limb(
+                    coefficients.as_ptr(),
+                    coefficients.len(),
+                    LIMBS,
+                    outputs.as_mut_ptr(),
+                    outputs.len(),
+                )
+            },
+            Status::InvalidArguments
+        );
+        assert!(
+            outputs
+                .iter()
+                .all(|share| share.x == 0 && share.y == [0; LIMBS])
         );
     }
 
     #[test]
     fn c_abi_rejects_misaligned_overlapping_and_wrapping_buffers() {
         let coefficients = [1u64; 4];
-        let mut values = [0u32; 4];
+        let mut outputs: [Share; 1] = std::array::from_fn(|_| Share {
+            x: 0,
+            y: [0; LIMBS],
+        });
         let misaligned = coefficients
             .as_ptr()
             .cast::<u8>()
@@ -217,20 +248,20 @@ mod tests {
             .cast::<u64>();
         // SAFETY: Misaligned buffers are rejected before dereference.
         assert_eq!(
-            unsafe { ccf_shamir_evaluate(misaligned, 2, values.as_mut_ptr(), 1) },
+            unsafe { ccf_shamir_share_limb(misaligned, 1, 0, outputs.as_mut_ptr(), 1) },
             Status::InvalidArguments
         );
-        let mut buffer = [0u64; 4];
-        let overlapping = buffer.as_mut_ptr().cast::<u32>();
+        let mut buffer = [0u64; 12];
+        let overlapping = buffer.as_mut_ptr().cast::<Share>();
         // SAFETY: Overlapping buffers are rejected before dereference.
         assert_eq!(
-            unsafe { ccf_shamir_evaluate(buffer.as_ptr(), 2, overlapping, 2) },
+            unsafe { ccf_shamir_share_limb(buffer.as_ptr(), 1, 0, overlapping, 1) },
             Status::InvalidArguments
         );
         let wrapping: *const u64 = std::ptr::without_provenance(usize::MAX - 7);
         // SAFETY: Extents that wrap the address space are rejected before dereference.
         assert_eq!(
-            unsafe { ccf_shamir_evaluate(wrapping, 2, values.as_mut_ptr(), 1) },
+            unsafe { ccf_shamir_share_limb(wrapping, 2, 0, outputs.as_mut_ptr(), 1) },
             Status::InvalidArguments
         );
         let mut shares = [Share {

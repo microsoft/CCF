@@ -38,7 +38,7 @@ structure Share where
   y : Array Std.U32 10#usize
 
 /-- [ccf_shamir::Error]
-    Source: 'src/lib.rs', lines 21:0-26:1
+    Source: 'src/lib.rs', lines 21:0-28:1
     Visibility: public -/
 @[discriminant isize]
 inductive Error where
@@ -46,9 +46,11 @@ inductive Error where
 | InvalidCoefficient : Error
 | DuplicateShare : Error
 | InvalidWorkspace : Error
+| InvalidLimb : Error
+| InvalidShareCount : Error
 
 /-- [ccf_shamir::reduce]:
-    Source: 'src/lib.rs', lines 29:0-36:1
+    Source: 'src/lib.rs', lines 31:0-38:1
     Visibility: public -/
 def reduce (x : Std.U64) : Result Std.U64 := do
   let d ← x >>> 31#i32
@@ -63,26 +65,26 @@ def reduce (x : Std.U64) : Result Std.U64 := do
   x2 - i3
 
 /-- [ccf_shamir::mul]:
-    Source: 'src/lib.rs', lines 38:0-40:1 -/
+    Source: 'src/lib.rs', lines 40:0-42:1 -/
 def mul (x : Std.U64) (y : Std.U64) : Result Std.U64 := do
   let i ← x * y
   reduce i
 
 /-- [ccf_shamir::add]:
-    Source: 'src/lib.rs', lines 42:0-44:1 -/
+    Source: 'src/lib.rs', lines 44:0-46:1 -/
 def add (x : Std.U64) (y : Std.U64) : Result Std.U64 := do
   let i ← x + y
   reduce i
 
 /-- [ccf_shamir::sub]:
-    Source: 'src/lib.rs', lines 46:0-48:1 -/
+    Source: 'src/lib.rs', lines 48:0-50:1 -/
 def sub (x : Std.U64) (y : Std.U64) : Result Std.U64 := do
   let i ← PRIME + x
   let i1 ← i - y
   reduce i1
 
 /-- [ccf_shamir::inverse]: loop 0:
-    Source: 'src/lib.rs', lines 53:4-59:5 -/
+    Source: 'src/lib.rs', lines 55:4-61:5 -/
 @[rust_loop]
 def inverse_loop
   (x : Std.U64) (n : Std.U64) (y : Std.U64) : Result Std.U64 := do
@@ -99,13 +101,13 @@ def inverse_loop
 partial_fixpoint
 
 /-- [ccf_shamir::inverse]:
-    Source: 'src/lib.rs', lines 50:0-61:1 -/
+    Source: 'src/lib.rs', lines 52:0-63:1 -/
 def inverse (x : Std.U64) : Result Std.U64 := do
   let n ← PRIME - 2#u64
   inverse_loop x n 1#u64
 
 /-- [ccf_shamir::evaluate]: loop 0:
-    Source: 'src/lib.rs', lines 75:4-83:1
+    Source: 'src/lib.rs', lines 77:4-85:1
     Visibility: public -/
 @[rust_loop]
 def evaluate_loop
@@ -127,7 +129,7 @@ def evaluate_loop
 partial_fixpoint
 
 /-- [ccf_shamir::evaluate]:
-    Source: 'src/lib.rs', lines 68:0-83:1
+    Source: 'src/lib.rs', lines 70:0-85:1
     Visibility: public -/
 def evaluate
   (coefficients : Slice Std.U64) (x : Std.U32) :
@@ -142,8 +144,69 @@ def evaluate
     let i1 := Slice.len coefficients
     evaluate_loop coefficients x1 0#u64 i1
 
+/-- [ccf_shamir::share_limb]: loop 0:
+    Source: 'src/lib.rs', lines 104:4-112:1
+    Visibility: public -/
+@[rust_loop]
+def share_limb_loop
+  (coefficients : Slice Std.U64) (limb : Std.Usize) (shares : Slice Share)
+  (i : Std.Usize) :
+  Result ((core.result.Result Unit Error) × (Slice Share))
+  := do
+  let i1 := Slice.len shares
+  if i < i1
+  then
+    let i2 ← i + 1#usize
+    let x ← lift (UScalar.cast .U32 i2)
+    let r ← evaluate coefficients x
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let (s, index_mut_back) ← Slice.index_mut_usize shares i
+      let shares1 := index_mut_back { s with x }
+      let (s1, index_mut_back1) ← Slice.index_mut_usize shares1 i
+      let a ← Array.update s1.y limb val
+      let s2 := index_mut_back1 { s1 with y := a }
+      share_limb_loop coefficients limb s2 i2
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame Error) residual
+      ok (r1, shares)
+  else ok (core.result.Result.Ok (), shares)
+partial_fixpoint
+
+/-- [ccf_shamir::share_limb]:
+    Source: 'src/lib.rs', lines 93:0-112:1
+    Visibility: public -/
+def share_limb
+  (coefficients : Slice Std.U64) (limb : Std.Usize) (shares : Slice Share) :
+  Result ((core.result.Result Unit Error) × (Slice Share))
+  := do
+  if limb >= LIMBS
+  then ok (core.result.Result.Err Error.InvalidLimb, shares)
+  else
+    let b ← core.slice.Slice.is_empty shares
+    if b
+    then ok (core.result.Result.Err Error.InvalidShareCount, shares)
+    else
+      let i := Slice.len shares
+      let i1 ← lift (UScalar.cast .Usize PRIME)
+      if i >= i1
+      then ok (core.result.Result.Err Error.InvalidShareCount, shares)
+      else
+        let b1 ← core.slice.Slice.is_empty coefficients
+        if b1
+        then ok (core.result.Result.Err Error.InvalidThreshold, shares)
+        else
+          let i2 := Slice.len coefficients
+          let i3 := Slice.len shares
+          if i2 > i3
+          then ok (core.result.Result.Err Error.InvalidThreshold, shares)
+          else share_limb_loop coefficients limb shares 0#usize
+
 /-- [ccf_shamir::lagrange]: loop 1:
-    Source: 'src/lib.rs', lines 101:8-109:9
+    Source: 'src/lib.rs', lines 130:8-138:9
     Visibility: public -/
 @[rust_loop]
 def lagrange_loop0_loop0
@@ -175,7 +238,7 @@ def lagrange_loop0_loop0
 partial_fixpoint
 
 /-- [ccf_shamir::lagrange]: loop 0:
-    Source: 'src/lib.rs', lines 97:4-117:1
+    Source: 'src/lib.rs', lines 126:4-146:1
     Visibility: public -/
 @[rust_loop]
 def lagrange_loop0
@@ -199,7 +262,7 @@ def lagrange_loop0
 partial_fixpoint
 
 /-- [ccf_shamir::lagrange]:
-    Source: 'src/lib.rs', lines 89:0-117:1
+    Source: 'src/lib.rs', lines 118:0-146:1
     Visibility: public -/
 def lagrange
   (shares : Slice Share) (weights : Slice Std.U64) :
@@ -216,7 +279,7 @@ def lagrange
     else lagrange_loop0 shares weights 0#usize
 
 /-- [ccf_shamir::recover]: loop 1:
-    Source: 'src/lib.rs', lines 130:8-133:9
+    Source: 'src/lib.rs', lines 159:8-162:9
     Visibility: public -/
 @[rust_loop]
 def recover_loop0_loop0
@@ -240,7 +303,7 @@ def recover_loop0_loop0
 partial_fixpoint
 
 /-- [ccf_shamir::recover]: loop 0:
-    Source: 'src/lib.rs', lines 127:4-136:5
+    Source: 'src/lib.rs', lines 156:4-165:5
     Visibility: public -/
 @[rust_loop]
 def recover_loop0
@@ -259,7 +322,7 @@ def recover_loop0
 partial_fixpoint
 
 /-- [ccf_shamir::recover]:
-    Source: 'src/lib.rs', lines 123:0-138:1
+    Source: 'src/lib.rs', lines 152:0-167:1
     Visibility: public -/
 def recover
   (shares : Slice Share) (weights : Slice Std.U64) :

@@ -2,8 +2,8 @@
 Licensed under the Apache 2.0 License. -/
 module
 
-public import Shamir.Proofs.Evaluation
 public import Shamir.Proofs.Recovery
+public import Shamir.Proofs.Sharing
 public import Shamir.Properties
 
 @[expose] public section
@@ -96,15 +96,22 @@ private theorem polynomialPrefix_eq_cslib
   rfl
 
 theorem sharing_refinement : Properties.SharingRefinement := by
-  intro Party _ params coeffs secret c hc i x hx
-  have hne : c.val ≠ [] := by
+  intro Party _ params coeffs secret c hc limb hl s hne hlen hct
+  have hcne : c.val ≠ [] := by
     intro heq
     have hlen := hc.1
     simp [heq] at hlen
   have hcanonical := hc.2.1
-  step with evaluate_spec as ⟨r, y, hr, hy, hyf⟩
-  refine ⟨y, hr, hy, ?_⟩
-  rw [hyf, polynomialPrefix_eq_cslib params coeffs secret c hc.1 hc.2.2, hx]
+  step with share_limb_spec as ⟨r, s', hr, hlen', hpost⟩
+  refine ⟨hr, hlen', ?_⟩
+  intro k hk
+  obtain ⟨⟨hx, hy, hyf⟩, hother⟩ := hpost k hk
+  refine ⟨hx, hy, ?_, hother⟩
+  intro i hi
+  unfold point at hi
+  rw [hx] at hi
+  unfold limbValue
+  rw [hyf, polynomialPrefix_eq_cslib params coeffs secret c hc.1 hc.2.2, hi]
   rfl
 
 theorem recovery_refinement : Properties.RecoveryRefinement := by
