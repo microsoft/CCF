@@ -14,11 +14,6 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 - Experimental support for exporting Raft trace events to a Fluentd collector, configured with [`observability.fluentd`](doc/host_config_schema/host_config.json).
   The configuration and event format may change in future releases (#8386).
 
-### Removed
-
-- Removed the `CCF_RAFT_TRACING` CMake option.
-  Raft tracing is always built in (#8386).
-
 ### Fixed
 
 - Nodes becoming primary at the end of public recovery now always wait for their certificate to be recorded successfully before emitting ledger signatures, so that private recovery, joining nodes and later recoveries accept the ledger (#8597).

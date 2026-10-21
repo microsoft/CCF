@@ -127,7 +127,7 @@ jobs:
             build/workspace/*/stack_trace
             build/workspace/*/locust_failures.csv
             build/workspace/**/openapi_coverage.json
-            build/*_fluentd.json
+            build/workspace/*/*_fluentd.json
           if-no-files-found: ignore
         if: success() || failure()
 
@@ -208,7 +208,7 @@ jobs:
             build/workspace/*/stack_trace
             build/workspace/*/locust_failures.csv
             build/workspace/**/openapi_coverage.json
-            build/*_fluentd.json
+            build/workspace/*/*_fluentd.json
           if-no-files-found: ignore
         if: success() || failure()
 

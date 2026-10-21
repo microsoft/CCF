@@ -17,21 +17,24 @@ The action also assigns uv a writable cache directory outside `/github/home/.cac
 ## Bencher
 
 Builds and runs CCF performance tests, both end to end and micro-benchmarks.
-Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
+Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with the same seven-run half-life for all benchmarks and metrics.
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
 Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
 
 The `FluentD` benchmark reuses Basic Blocking with one node and 20 ms signatures, exporting traces to a lightweight local decoding collector.
 Its throughput, latency, and node memory are charted alongside the other benchmarks, which run without trace export.
-Received-event counts, exporter drops, and drop rate are logged and uploaded in `*_fluentd.json` for validation, not charted.
+Received-event counts, exporter drops, and drop rate are logged and saved as `*_fluentd.json` in the network's common directory under `workspace`, then uploaded for validation, not charted.
 
 File: `bencher.yml`
 3rd party dependencies: None
 
 ## Bencher A/B
 
-Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing up to five recent branch runs against the recent trend on `main`. Two nested shaded blue bands show the shared seven-run-half-life EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs. Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run. Triggered on PRs that have the label `bench-ab`.
+Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing up to five recent branch runs against the recent trend on `main`.
+Two nested shaded blue bands show the EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs, using the same seven-run half-life as [Bencher](#bencher) for all benchmarks and metrics.
+Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run.
+Triggered on PRs that have the label `bench-ab`.
 
 Includes the same `FluentD` workload as [Bencher](#bencher), with validation counts uploaded as `fluentd-counts`.
 

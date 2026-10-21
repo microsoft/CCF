@@ -429,7 +429,7 @@ def measure(
                 else None
             ),
         }
-        Path(f"{args.label}_{sig_ms_interval}ms_fluentd.json").write_text(
+        (Path(network.common_dir) / f"{sig_ms_interval}ms_fluentd.json").write_text(
             json.dumps(counts, indent=2), encoding="utf-8"
         )
         LOG.info(f"Fluentd collector: {counts}")

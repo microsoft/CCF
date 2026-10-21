@@ -63,7 +63,7 @@ jobs:
         if: always()
         with:
           name: fluentd-counts
-          path: build/*_fluentd.json
+          path: build/workspace/*/*_fluentd.json
           if-no-files-found: warn
 
       - name: Restore recent main perf results
