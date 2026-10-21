@@ -132,6 +132,44 @@ TEST_CASE("Simple sharing and recovery with duplicate shares")
     std::invalid_argument);
 }
 
+TEST_CASE("Recovery rejects zero threshold without changing output")
+{
+  Share recovered;
+  recovered.x = 42;
+  recovered.y[0] = 17;
+  const Share before = recovered;
+  REQUIRE_THROWS_AS(
+    recover_unauthenticated_secret(recovered, {}, 0), std::invalid_argument);
+  REQUIRE(recovered == before);
+}
+
+TEST_CASE("Recovery preserves legacy field reduction and ignores extra shares")
+{
+  constexpr uint32_t field_prime = (1U << 31) - 1;
+  std::vector<Share> shares(3);
+  shares[0].x = field_prime + 1;
+  shares[1].x = field_prime + 2;
+  shares[2].x = shares[0].x;
+  for (size_t limb = 0; limb < LIMBS; ++limb)
+  {
+    shares[0].y[limb] = field_prime + 16;
+    shares[1].y[limb] = field_prime + 23;
+  }
+  Share recovered;
+  recover_unauthenticated_secret(recovered, shares, 2);
+  REQUIRE(recovered.x == 0);
+  for (const auto value : recovered.y)
+  {
+    REQUIRE(value == 9);
+  }
+  shares[1].x = 1;
+  const Share before = recovered;
+  REQUIRE_THROWS_AS(
+    recover_unauthenticated_secret(recovered, shares, 2),
+    std::invalid_argument);
+  REQUIRE(recovered == before);
+}
+
 TEST_CASE("Cover a range of share and recover combinations")
 {
   uint32_t seed = 0;

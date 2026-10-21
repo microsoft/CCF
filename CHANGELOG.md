@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.22]
+
+[7.0.22]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.22
+
+### Changed
+
+- Recovery share secret sharing now uses a memory-safe Rust implementation whose extracted Lean model is proven to refine CSLib's Shamir secret sharing, see [lean/shamir](lean/shamir/README.md). Share formats and recovery behaviour are unchanged.
+
 ## [7.0.21]
 
 [7.0.21]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.21

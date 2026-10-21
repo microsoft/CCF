@@ -7,6 +7,9 @@ on:
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
       - ".github/workflows/lean.yml"
+      - "src/rust/shamir/**"
+      - "scripts/extract-shamir.sh"
+      - "scripts/check-shamir.sh"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,6 +18,33 @@ concurrency:
 permissions: read-all
 
 jobs:
+  shamir-extraction:
+    name: Reproduce Rust Shamir extraction
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Extract the production Rust core
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/shamir-tools
+          gh release download nightly-2026.10.20-fc321a2 \
+            --repo AeneasVerif/aeneas --pattern aeneas-linux-x86_64.tar.gz \
+            --dir build/shamir-tools
+          echo '4b444e72e1e0bc475e952821bc081eb15665c984fd8032636c0346e766675794  build/shamir-tools/aeneas-linux-x86_64.tar.gz' | sha256sum --check
+          tar -xzf build/shamir-tools/aeneas-linux-x86_64.tar.gz -C build/shamir-tools
+          rustup toolchain install nightly-2026-09-17 --profile minimal \
+            --component rustc-dev,rust-src,llvm-tools
+          AENEAS_BIN="$PWD/build/shamir-tools/aeneas" \
+            CHARON_BIN="$PWD/build/shamir-tools/charon" \
+            bash scripts/extract-shamir.sh
+          git diff --exit-code -- lean/shamir/Generated/CcfShamir.lean
+          cargo +nightly-2026-09-17 test \
+            --manifest-path src/rust/shamir/Cargo.toml --locked -j1
+
   models:
     name: Lean models and proofs
     runs-on: ubuntu-26.04
@@ -39,7 +69,13 @@ jobs:
             grep -q '^name = "mathlib"$' "$config" || continue
             package="$(dirname "$config")"
             echo "::group::Mathlib cache: $package"
-            (cd "$package" && lake exe cache get)
+            (
+              cd "$package"
+              if [ "$package" == "lean/shamir" ]; then
+                export LEAN_NUM_THREADS=1
+              fi
+              lake exe cache get
+            )
             echo "::endgroup::"
           done
 
@@ -51,7 +87,13 @@ jobs:
           for config in lean/*/lakefile.toml; do
             package="$(dirname "$config")"
             echo "::group::Lint: $package"
-            (cd "$package" && lake lint)
+            (
+              cd "$package"
+              if [ "$package" == "lean/shamir" ]; then
+                export LEAN_NUM_THREADS=1
+              fi
+              lake lint
+            )
             echo "::endgroup::"
           done
 
@@ -65,11 +107,18 @@ jobs:
             echo "::group::Check: $package"
             (
               cd "$package"
+              if [ "$package" == "lean/shamir" ]; then
+                export LEAN_NUM_THREADS=1
+              fi
               if grep -q '^name = "mathlib"$' lakefile.toml; then
                 lake exe mk_all --check --module
               fi
               lake build --wfail --fail-fast
-              lake check --inadvisably-no-sandbox
+              if [ "$package" == "lean/shamir" ]; then
+                bash ../../scripts/check-shamir.sh --inadvisably-no-sandbox
+              else
+                lake check --inadvisably-no-sandbox
+              fi
             )
             echo "::endgroup::"
           done
