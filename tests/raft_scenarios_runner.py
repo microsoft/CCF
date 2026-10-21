@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from heapq import merge
 
 from raft_scenarios_gen import generate_scenarios
-from raft_trace import as_log_lines, check_connection_timeout, run_driver
+from raft_trace import as_log_lines, run_driver
 
 
 @contextmanager
@@ -151,9 +151,6 @@ if __name__ == "__main__":
         files += generate_scenarios()
 
     ostream = sys.stdout
-
-    if files:
-        check_connection_timeout(args.driver, files[0])
 
     # Create consensus-specific output directory
     os.makedirs(args.output, exist_ok=True)

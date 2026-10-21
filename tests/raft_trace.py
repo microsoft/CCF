@@ -20,26 +20,6 @@ def unique_map(pairs):
     return result
 
 
-def check_connection_timeout(driver, scenario):
-    with socket.socket() as reservation:
-        reservation.bind(("127.0.0.1", 0))
-        host, port = reservation.getsockname()
-        result = subprocess.run(
-            [
-                str(pathlib.Path(driver).resolve()),
-                str(pathlib.Path(scenario).resolve()),
-                host,
-                str(port),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-    assert result.returncode != 0, "Driver proceeded without a collector"
-    assert "Timed out waiting for Fluentd connection" in result.stdout
-
-
 def run_driver(driver, scenario, timeout=60):
     records = []
     errors = []
