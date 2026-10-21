@@ -53,20 +53,18 @@ fn evaluation_matches_legacy_power_sum() {
 
 #[test]
 fn every_three_share_subset_recovers_each_limb() {
-    let mut shares = [Share {
-        x: 0,
-        y: [0; LIMBS],
-    }; 8];
-    for (i, share) in shares.iter_mut().enumerate() {
-        share.x = i as u32 + 1;
-        for limb in 0..LIMBS {
-            share.y[limb] = polynomial(&[123 + limb as u64, 456, PRIME - 789], share.x);
+    let shares: [Share; 8] = std::array::from_fn(|i| {
+        let x = i as u32 + 1;
+        Share {
+            x,
+            y: std::array::from_fn(|limb| polynomial(&[123 + limb as u64, 456, PRIME - 789], x)),
         }
-    }
+    });
     for i in 0..8 {
         for j in i + 1..8 {
             for k in j + 1..8 {
-                let recovered = recover(&[shares[i], shares[j], shares[k]], &mut [0; 3]).unwrap();
+                let subset = [shares[i].clone(), shares[j].clone(), shares[k].clone()];
+                let recovered = recover(&subset, &mut [0; 3]).unwrap();
                 for (limb, value) in recovered.iter().enumerate() {
                     assert_eq!(*value, 123 + limb as u32);
                 }
@@ -104,7 +102,10 @@ fn invalid_inputs_are_explicit_errors() {
         x: 1,
         y: [42; LIMBS],
     };
-    assert_eq!(lagrange(&[share], &mut []), Err(Error::InvalidWorkspace));
+    assert_eq!(
+        lagrange(std::slice::from_ref(&share), &mut []),
+        Err(Error::InvalidWorkspace)
+    );
     let duplicate = Share {
         x: PRIME as u32 + 1,
         ..share
