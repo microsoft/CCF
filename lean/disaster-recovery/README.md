@@ -1,24 +1,23 @@
 # Lean disaster recovery model
 
 This package contains a Lean model of CCF's recovery decision protocol (`src/node/recovery_decision_protocol.cpp`), its safety properties, machine-checked proofs of those properties, and a replayer that checks recorded C++ runs against the model.
-[The Lean module guide](../AGENT.md) describes the module layout.
+The public proof API is `DisasterRecovery.Properties`; its full theorem statements link to implementations under `DisasterRecovery/Proofs/`.
 
 ## Contents
 
-| Purpose                               | Location                                                |
-| ------------------------------------- | ------------------------------------------------------- |
-| Property statements                   | `DisasterRecovery/Properties.lean`                      |
-| Proof of each property                | `DisasterRecovery/Proof.lean`, one theorem per property |
-| Single-node protocol                  | `DisasterRecovery/Model/Local.lean`                     |
-| Network composition                   | `DisasterRecovery/Model.lean`, `../common/CCF/`         |
-| Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`                |
-| Proof implementations                 | `DisasterRecovery/Proofs/`                              |
-| Executable checks and concrete traces | `DisasterRecovery/Tests/`                               |
-| Replay of recorded C++ traces         | `DisasterRecovery/TraceValidation.lean`                 |
-| Parsing and ordering of those traces  | `DisasterRecovery/TraceValidation/`                     |
-| Replayer executable and test traces   | `replayer/`                                             |
+| Purpose                               | Location                                        |
+| ------------------------------------- | ----------------------------------------------- |
+| Safety theorems and witness lemmas    | `DisasterRecovery/Properties.lean`              |
+| Single-node protocol                  | `DisasterRecovery/Model/Local.lean`             |
+| Network composition                   | `DisasterRecovery/Model.lean`, `../common/CCF/` |
+| Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`        |
+| Proof implementations                 | `DisasterRecovery/Proofs/`                      |
+| Executable checks and concrete traces | `DisasterRecovery/Tests/`                       |
+| Replay of recorded C++ traces         | `DisasterRecovery/TraceValidation.lean`         |
+| Parsing and ordering of those traces  | `DisasterRecovery/TraceValidation/`             |
+| Replayer executable and test traces   | `replayer/`                                     |
 
-Human review covers the model, the property statements, the definitions they use, and the theorem links in `Proof.lean`.
+Human review covers the model, the full theorem and lemma statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
 The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
 
 ## Model
@@ -51,17 +50,21 @@ The global properties quantify a `GlobalTrace`, a finite or infinite sequence of
 `trace.Valid` requires an initial first state and an enabled action between each adjacent pair.
 `Trace.NotificationAt` states that a step by `node` between states `i` and `i + 1` emitted a given notification.
 
-`QuorumOpenerUnique` states that all `opening quorum` notifications in a trace originate from one node.
+`quorum_opener_unique` states that all `opening quorum` notifications in a trace originate from one node.
 
-`QuorumOpenPreservesCommit` and `FullGossipPreservesCommit` conclude that the opener satisfies Raft's vote freshness check against a strict majority of the recovered ledgers.
+`quorum_open_preserves_commit` and `full_gossip_preserves_commit` conclude that the opener satisfies Raft's vote freshness check against a strict majority of the recovered ledgers.
 `LogUpToDate` is that check, comparing view and then sequence number, as in `recv_request_vote` in `src/consensus/aft/raft.h`.
 The first property requires each voter to have received its own gossip; without this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by quorum.
 The second requires a state in which every node's gossip equals `config.recovered`, and it also covers failover openings.
 
-Each property has a `Witness` claim asserting that some valid trace or step satisfies its premises.
-`Proofs/Witnesses.lean` proves all seven witnesses using concrete executions.
+Each safety theorem has a corresponding `_witness` lemma asserting that some valid trace or step satisfies its premises.
+`Proofs/Witnesses.lean` constructs all seven witnesses using concrete executions.
 The full-gossip witness includes a failover opening.
-`Tests/Witnesses.lean` applies each witness to its corresponding property, and `Tests/ProofCoverage.lean` requires an exported theorem for every claim.
+`Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
+
+Import `DisasterRecovery.Properties` and use `DisasterRecovery.Properties.<name>` for both safety theorems and witness lemmas.
+This replaces the `DisasterRecovery.Proof` entrypoint and the separate PascalCase proposition definitions.
+Property helpers in `Properties/` remain independent of proof implementations, and `Proofs/` depends on those helpers rather than the final `Properties.lean` entrypoint.
 
 Freshness is a necessary condition for election, not a definition of Raft commitment.
 `update_commit` additionally requires a current-term signature replicated on a majority, and the Raft safety specification (`tla/consensus/ccfraft.tla`) is stated on log prefixes.
@@ -101,12 +104,11 @@ The package also sets `autoImplicit = false`, requiring declaration headers to b
 This applies to ordinary Lake builds as well as CI.
 
 The model, proofs, tests, and replayer use Lean's module system, as required by the Mathlib dependency.
-Public imports preserve existing names and exports.
+The properties entrypoint publicly imports the model types and property helpers used by its statements, while its implementation imports remain private.
 `@[expose] public section` keeps definitions used by cross-module proofs transparent; runtime-only helpers remain private.
 `mk_all --module` generates the corresponding package-level import root.
 
 Proofs that evaluate upstream implementations use narrowly scoped `import all` directives to retain access to those definitions.
-The proof-coverage check also loads implementation metadata to distinguish checked theorems from axioms after module interface erasure.
 
 `runLinter` uses Mathlib's declaration-lint driver, including the slow checks, over every module imported by `CCF.lean`, `DisasterRecovery.lean`, and `replayer.Main`.
 It lints our declarations rather than dependencies, and findings fail the command.
@@ -117,13 +119,13 @@ Their runner is namespaced, leaving the replayer as the only `main` entrypoint s
 `lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/4.35.0/releases/v4.35.0/), builds and exports all default targets, then rechecks the export with Lean's kernel.
 It also checks axiom dependencies, rejecting any use of axioms other than `propext`, `Classical.choice`, and `Quot.sound`, so a separate axiom-audit dependency is unnecessary.
 The checked targets include the complete library import root, canonical tests, and replayer, not just the exported property theorems.
-These supplement the import and proof coverage checks and executable model and trace tests.
+These supplement the dependency-direction checks and executable model and trace tests.
 The `--inadvisably-no-sandbox` flag allows the check to build the shared modules directly from `../common`.
 It disables build isolation, not proof or axiom checking; run it only on code you trust.
 CI checks the package in an Ubuntu 26.04 job using disk-backed temporary storage.
 Additional bundled checkers are not enabled.
 
-`Tests/Architecture.lean` fails the build if `Properties.lean` imports a proof module or if a removed name is reintroduced.
+`Tests/Architecture.lean` enforces dependency direction: common and model modules remain independent of properties and proofs, property helpers remain independent of proofs, and proof implementations cannot import the final `Properties.lean` entrypoint.
 See [Formatting](#formatting) for the [leanfmt](https://github.com/duckki/leanfmt) check.
 To update a tool dependency without changing the toolchain, run `lake update --keep-toolchain <package>`.
 
