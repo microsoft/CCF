@@ -8,12 +8,25 @@ unsafe extern "C" {
     fn OPENSSL_cleanse(ptr: *mut std::ffi::c_void, len: usize);
 }
 
-fn status(error: Error) -> i32 {
-    match error {
-        Error::InvalidThreshold => 1,
-        Error::InvalidCoefficient => 2,
-        Error::DuplicateShare => 3,
-        Error::InvalidWorkspace => 4,
+/// Status codes returned across the C ABI, mirroring `ccf_shamir_status`.
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Status {
+    Ok = 0,
+    InvalidArguments = 1,
+    InvalidCoefficient = 2,
+    DuplicateShare = 3,
+    InvalidWorkspace = 4,
+}
+
+impl From<Error> for Status {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::InvalidThreshold => Status::InvalidArguments,
+            Error::InvalidCoefficient => Status::InvalidCoefficient,
+            Error::DuplicateShare => Status::DuplicateShare,
+            Error::InvalidWorkspace => Status::InvalidWorkspace,
+        }
     }
 }
 
@@ -56,15 +69,15 @@ pub unsafe extern "C" fn ccf_shamir_evaluate(
     coefficient_count: usize,
     values: *mut u32,
     share_count: usize,
-) -> i32 {
+) -> Status {
     let (Some(c), Some(v)) = (
         buffer(coefficients, coefficient_count),
         buffer(values.cast_const(), share_count),
     ) else {
-        return 1;
+        return Status::InvalidArguments;
     };
     if !disjoint(c, v) || share_count >= ccf_shamir::PRIME as usize {
-        return 1;
+        return Status::InvalidArguments;
     }
     // SAFETY: The buffers are nonnull, aligned, disjoint, and sized as checked
     // above; the caller guarantees they are live and not accessed concurrently.
@@ -73,10 +86,10 @@ pub unsafe extern "C" fn ccf_shamir_evaluate(
     for (i, value) in values.iter_mut().enumerate() {
         match ccf_shamir::evaluate(coefficients, (i + 1) as u32) {
             Ok(y) => *value = y,
-            Err(error) => return status(error),
+            Err(error) => return error.into(),
         }
     }
-    0
+    Status::Ok
 }
 
 /// # Safety
@@ -91,16 +104,16 @@ pub unsafe extern "C" fn ccf_shamir_recover(
     threshold: usize,
     weights: *mut u64,
     secret: *mut u32,
-) -> i32 {
+) -> Status {
     let (Some(s), Some(w), Some(out)) = (
         buffer(shares, threshold),
         buffer(weights.cast_const(), threshold),
         buffer(secret.cast_const(), LIMBS),
     ) else {
-        return 1;
+        return Status::InvalidArguments;
     };
     if !disjoint(s, w) || !disjoint(s, out) || !disjoint(w, out) {
-        return 1;
+        return Status::InvalidArguments;
     }
     // SAFETY: The buffers are nonnull, aligned, disjoint, and sized as checked
     // above; the caller guarantees they are live and not accessed concurrently.
@@ -114,9 +127,9 @@ pub unsafe extern "C" fn ccf_shamir_recover(
             unsafe {
                 OPENSSL_cleanse(value.as_mut_ptr().cast(), size_of_val(&value));
             }
-            0
+            Status::Ok
         }
-        Err(error) => status(error),
+        Err(error) => error.into(),
     }
 }
 
@@ -129,6 +142,12 @@ mod tests {
         assert_eq!(size_of::<Share>(), 44);
         assert_eq!(align_of::<Share>(), align_of::<u32>());
         assert_eq!(std::mem::offset_of!(Share, y), 4);
+        assert_eq!(size_of::<Status>(), size_of::<std::ffi::c_int>());
+        assert_eq!(Status::Ok as i32, 0);
+        assert_eq!(Status::InvalidArguments as i32, 1);
+        assert_eq!(Status::InvalidCoefficient as i32, 2);
+        assert_eq!(Status::DuplicateShare as i32, 3);
+        assert_eq!(Status::InvalidWorkspace as i32, 4);
     }
 
     #[test]
@@ -145,7 +164,7 @@ mod tests {
                     values.len(),
                 )
             },
-            0
+            Status::Ok
         );
         assert_eq!(values, [1368, 4191, 8592]);
         let shares = std::array::from_fn::<_, 3, _>(|i| Share {
@@ -164,7 +183,7 @@ mod tests {
                     secret.as_mut_ptr(),
                 )
             },
-            0
+            Status::Ok
         );
         assert_eq!(secret, [123; LIMBS]);
     }
@@ -187,7 +206,7 @@ mod tests {
                     secret.as_mut_ptr(),
                 )
             },
-            3
+            Status::DuplicateShare
         );
         assert_eq!(secret, [17; LIMBS]);
         // SAFETY: Null pointers and zero lengths are rejected before dereference.
@@ -200,12 +219,12 @@ mod tests {
                     std::ptr::null_mut(),
                 )
             },
-            1
+            Status::InvalidArguments
         );
         // SAFETY: Null pointers and zero lengths are rejected before dereference.
         assert_eq!(
             unsafe { ccf_shamir_evaluate(std::ptr::null(), 0, std::ptr::null_mut(), 0) },
-            1
+            Status::InvalidArguments
         );
     }
 
@@ -221,20 +240,20 @@ mod tests {
         // SAFETY: Misaligned buffers are rejected before dereference.
         assert_eq!(
             unsafe { ccf_shamir_evaluate(misaligned, 2, values.as_mut_ptr(), 1) },
-            1
+            Status::InvalidArguments
         );
         let mut buffer = [0u64; 4];
         let overlapping = buffer.as_mut_ptr().cast::<u32>();
         // SAFETY: Overlapping buffers are rejected before dereference.
         assert_eq!(
             unsafe { ccf_shamir_evaluate(buffer.as_ptr(), 2, overlapping, 2) },
-            1
+            Status::InvalidArguments
         );
         let wrapping: *const u64 = std::ptr::without_provenance(usize::MAX - 7);
         // SAFETY: Extents that wrap the address space are rejected before dereference.
         assert_eq!(
             unsafe { ccf_shamir_evaluate(wrapping, 2, values.as_mut_ptr(), 1) },
-            1
+            Status::InvalidArguments
         );
         let mut shares = [Share {
             x: 1,
@@ -245,14 +264,14 @@ mod tests {
         // SAFETY: Overlapping buffers are rejected before dereference.
         assert_eq!(
             unsafe { ccf_shamir_recover(shares.as_ptr(), 1, weights.as_mut_ptr(), aliased) },
-            1
+            Status::InvalidArguments
         );
         let mut secret = [0u32; LIMBS];
         let misaligned = shares.as_ptr().cast::<u8>().wrapping_add(2).cast::<Share>();
         // SAFETY: Misaligned buffers are rejected before dereference.
         assert_eq!(
             unsafe { ccf_shamir_recover(misaligned, 1, weights.as_mut_ptr(), secret.as_mut_ptr()) },
-            1
+            Status::InvalidArguments
         );
         // SAFETY: All arrays are disjoint, aligned and have the indicated lengths.
         assert_eq!(
@@ -264,7 +283,7 @@ mod tests {
                     secret.as_mut_ptr(),
                 )
             },
-            0
+            Status::Ok
         );
         assert_eq!(secret, [1; LIMBS]);
     }
