@@ -10,7 +10,7 @@ import dataclasses
 import json
 import math
 import os
-import pathlib
+import re
 import subprocess
 import tempfile
 import time
@@ -401,15 +401,36 @@ def measure(
                 throughput_unit=workload.throughput_unit,
             )
             network.stop_all_nodes()
+            if collector is not None:
+                dropped = 0
+                for node in network.nodes:
+                    out_path, _ = node.get_logs()
+                    if out_path is None:
+                        raise RuntimeError("Missing Fluentd exporter shutdown log")
+                    reports = re.findall(
+                        r"Fluentd exporter shutdown: (\d+) dropped events",
+                        Path(out_path).read_text(encoding="utf-8"),
+                    )
+                    if len(reports) != 1:
+                        raise RuntimeError(
+                            f"Expected one Fluentd exporter shutdown report in {out_path}"
+                        )
+                    dropped += int(reports[0])
     if collector is not None:
         counts = {
             "records": collector.records,
             "bytes": collector.bytes,
             "processes": len(collector.processes),
             "expected_processes": len(args.nodes),
+            "dropped": dropped,
+            "drop_rate": (
+                dropped / (collector.records + dropped)
+                if collector.records + dropped
+                else None
+            ),
         }
-        pathlib.Path(f"{args.label}_{sig_ms_interval}ms_received.json").write_text(
-            json.dumps(counts), encoding="utf-8"
+        (Path(network.common_dir) / f"{sig_ms_interval}ms_fluentd.json").write_text(
+            json.dumps(counts, indent=2), encoding="utf-8"
         )
         LOG.info(f"Fluentd collector: {counts}")
         if collector.records == 0 or len(collector.processes) != len(args.nodes):
