@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Added
 
-- Added the `network.node_to_node_tls_interface` configuration field for future compatibility.
+- Added the `network.node_to_node_tls_interface` configuration field for future compatibility (#8617).
 
 ## [7.0.21]
 
