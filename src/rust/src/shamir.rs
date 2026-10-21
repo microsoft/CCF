@@ -17,6 +17,28 @@ fn status(error: Error) -> i32 {
     }
 }
 
+type ByteRange = (usize, usize);
+
+/// Validate a buffer argument without dereferencing it.
+///
+/// Accepts only nonnull, aligned, nonempty buffers whose byte extent fits in
+/// `isize::MAX` and does not wrap around the address space, as `slice` requires.
+fn buffer<T>(ptr: *const T, len: usize) -> Option<ByteRange> {
+    if ptr.is_null() || !ptr.is_aligned() || len == 0 {
+        return None;
+    }
+    let bytes = len.checked_mul(size_of::<T>())?;
+    if bytes > isize::MAX as usize {
+        return None;
+    }
+    let start = ptr.addr();
+    Some((start, start.checked_add(bytes)?))
+}
+
+fn disjoint(a: ByteRange, b: ByteRange) -> bool {
+    a.1 <= b.0 || b.1 <= a.0
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn ccf_shamir_reduce(x: u64) -> u64 {
     ccf_shamir::reduce(x)
@@ -24,10 +46,10 @@ pub extern "C" fn ccf_shamir_reduce(x: u64) -> u64 {
 
 /// # Safety
 ///
-/// Null pointers and invalid lengths are rejected without dereferencing buffers.
-/// Otherwise pointers must be aligned and valid for their indicated lengths
-/// (in elements). Output must not overlap coefficients.
-/// No buffer may be concurrently accessed for the duration of this call.
+/// Null, misaligned, empty, oversized, or overlapping buffers are rejected
+/// without dereferencing anything. Otherwise pointers must be valid for their
+/// indicated lengths (in elements), and no buffer may be accessed concurrently
+/// for the duration of this call.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ccf_shamir_evaluate(
     coefficients: *const u64,
@@ -35,17 +57,17 @@ pub unsafe extern "C" fn ccf_shamir_evaluate(
     values: *mut u32,
     share_count: usize,
 ) -> i32 {
-    if coefficients.is_null()
-        || values.is_null()
-        || coefficient_count == 0
-        || coefficient_count > isize::MAX as usize / size_of::<u64>()
-        || share_count == 0
-        || share_count >= ccf_shamir::PRIME as usize
-        || share_count > isize::MAX as usize / size_of::<u32>()
-    {
+    let (Some(c), Some(v)) = (
+        buffer(coefficients, coefficient_count),
+        buffer(values.cast_const(), share_count),
+    ) else {
+        return 1;
+    };
+    if !disjoint(c, v) || share_count >= ccf_shamir::PRIME as usize {
         return 1;
     }
-    // SAFETY: The caller supplies disjoint, aligned, live buffers as documented.
+    // SAFETY: The buffers are nonnull, aligned, disjoint, and sized as checked
+    // above; the caller guarantees they are live and not accessed concurrently.
     let coefficients = unsafe { slice::from_raw_parts(coefficients, coefficient_count) };
     let values = unsafe { slice::from_raw_parts_mut(values, share_count) };
     for (i, value) in values.iter_mut().enumerate() {
@@ -59,9 +81,9 @@ pub unsafe extern "C" fn ccf_shamir_evaluate(
 
 /// # Safety
 ///
-/// Null pointers and invalid lengths are rejected without dereferencing buffers.
-/// Otherwise pointers must be aligned and valid for their indicated lengths.
-/// Shares, weights, and the LIMBS-element secret output must not overlap.
+/// Null, misaligned, empty, oversized, or overlapping buffers are rejected
+/// without dereferencing anything. Otherwise pointers must be valid for their
+/// indicated lengths: `threshold` shares and weights, and `LIMBS` secret limbs.
 /// Shares must not be mutated concurrently; outputs require exclusive access.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ccf_shamir_recover(
@@ -70,15 +92,18 @@ pub unsafe extern "C" fn ccf_shamir_recover(
     weights: *mut u64,
     secret: *mut u32,
 ) -> i32 {
-    if shares.is_null()
-        || weights.is_null()
-        || secret.is_null()
-        || threshold == 0
-        || threshold > isize::MAX as usize / size_of::<Share>()
-    {
+    let (Some(s), Some(w), Some(out)) = (
+        buffer(shares, threshold),
+        buffer(weights.cast_const(), threshold),
+        buffer(secret.cast_const(), LIMBS),
+    ) else {
+        return 1;
+    };
+    if !disjoint(s, w) || !disjoint(s, out) || !disjoint(w, out) {
         return 1;
     }
-    // SAFETY: The caller supplies disjoint, aligned, live buffers as documented.
+    // SAFETY: The buffers are nonnull, aligned, disjoint, and sized as checked
+    // above; the caller guarantees they are live and not accessed concurrently.
     let shares = unsafe { slice::from_raw_parts(shares, threshold) };
     let weights = unsafe { slice::from_raw_parts_mut(weights, threshold) };
     let secret = unsafe { slice::from_raw_parts_mut(secret, LIMBS) };
@@ -182,5 +207,65 @@ mod tests {
             unsafe { ccf_shamir_evaluate(std::ptr::null(), 0, std::ptr::null_mut(), 0) },
             1
         );
+    }
+
+    #[test]
+    fn c_abi_rejects_misaligned_overlapping_and_wrapping_buffers() {
+        let coefficients = [1u64; 4];
+        let mut values = [0u32; 4];
+        let misaligned = coefficients
+            .as_ptr()
+            .cast::<u8>()
+            .wrapping_add(1)
+            .cast::<u64>();
+        // SAFETY: Misaligned buffers are rejected before dereference.
+        assert_eq!(
+            unsafe { ccf_shamir_evaluate(misaligned, 2, values.as_mut_ptr(), 1) },
+            1
+        );
+        let mut buffer = [0u64; 4];
+        let overlapping = buffer.as_mut_ptr().cast::<u32>();
+        // SAFETY: Overlapping buffers are rejected before dereference.
+        assert_eq!(
+            unsafe { ccf_shamir_evaluate(buffer.as_ptr(), 2, overlapping, 2) },
+            1
+        );
+        let wrapping: *const u64 = std::ptr::without_provenance(usize::MAX - 7);
+        // SAFETY: Extents that wrap the address space are rejected before dereference.
+        assert_eq!(
+            unsafe { ccf_shamir_evaluate(wrapping, 2, values.as_mut_ptr(), 1) },
+            1
+        );
+        let mut shares = [Share {
+            x: 1,
+            y: [1; LIMBS],
+        }];
+        let mut weights = [0u64; 1];
+        let aliased = shares.as_mut_ptr().cast::<u32>();
+        // SAFETY: Overlapping buffers are rejected before dereference.
+        assert_eq!(
+            unsafe { ccf_shamir_recover(shares.as_ptr(), 1, weights.as_mut_ptr(), aliased) },
+            1
+        );
+        let mut secret = [0u32; LIMBS];
+        let misaligned = shares.as_ptr().cast::<u8>().wrapping_add(2).cast::<Share>();
+        // SAFETY: Misaligned buffers are rejected before dereference.
+        assert_eq!(
+            unsafe { ccf_shamir_recover(misaligned, 1, weights.as_mut_ptr(), secret.as_mut_ptr()) },
+            1
+        );
+        // SAFETY: All arrays are disjoint, aligned and have the indicated lengths.
+        assert_eq!(
+            unsafe {
+                ccf_shamir_recover(
+                    shares.as_ptr(),
+                    1,
+                    weights.as_mut_ptr(),
+                    secret.as_mut_ptr(),
+                )
+            },
+            0
+        );
+        assert_eq!(secret, [1; LIMBS]);
     }
 }
