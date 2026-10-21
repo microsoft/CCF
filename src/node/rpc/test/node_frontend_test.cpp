@@ -871,6 +871,18 @@ TEST_CASE("Add a node to an open service")
   join_input.certificate_signing_request = node_kp->create_csr("CN=Joiner");
 
   INFO("Add node once service is open");
+  SUBCASE("No TLS endpoint") {}
+  SUBCASE("TLS bind address only")
+  {
+    join_input.node_info_network.node_to_node_tls_interface =
+      NodeInfoNetwork::NodeToNodeInterface{"not-resolved.invalid:0", {}};
+  }
+  SUBCASE("TLS bind and published addresses")
+  {
+    join_input.node_info_network.node_to_node_tls_interface =
+      NodeInfoNetwork::NodeToNodeInterface{"[::1]:8082", "peer.example:8082"};
+  }
+
   {
     auto tx = network.tables->create_tx();
     auto http_response = frontend_process(frontend, join_input, "join", caller);
@@ -888,6 +900,9 @@ TEST_CASE("Add a node to an open service")
     CHECK(node_info.has_value());
     CHECK(node_info->status == NodeStatus::PENDING);
     CHECK(node_kp->public_key_pem() == node_info->public_key);
+    CHECK(
+      node_info->node_to_node_tls_interface ==
+      join_input.node_info_network.node_to_node_tls_interface);
   }
 
   INFO(
@@ -920,6 +935,13 @@ TEST_CASE("Add a node to an open service")
 
     // The network secrets are still not available to the joining node
     CHECK(!response.network_info.has_value());
+    auto verify_tx = network.tables->create_tx();
+    const auto node_info =
+      verify_tx.ro(network.nodes)->get(ccf::compute_node_id_from_kp(node_kp));
+    REQUIRE(node_info.has_value());
+    CHECK(
+      node_info->node_to_node_tls_interface ==
+      join_input.node_info_network.node_to_node_tls_interface);
   }
 
   INFO("Trust node and attempt to join");
@@ -948,6 +970,11 @@ TEST_CASE("Add a node to an open service")
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     auto verify_tx = network.tables->create_tx();
+    const auto node_info = verify_tx.ro(network.nodes)->get(joining_node_id);
+    REQUIRE(node_info.has_value());
+    CHECK(
+      node_info->node_to_node_tls_interface ==
+      join_input.node_info_network.node_to_node_tls_interface);
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.has_value());
     require_ledger_secrets_equal(
@@ -985,6 +1012,8 @@ TEST_CASE("Add a node to an open service")
       expired_node_kp->create_csr("CN=Expired Joiner");
     expired_join_input.node_info_network.node_to_node_interface
       .published_address = "localhost:1234";
+    expired_join_input.node_info_network.node_to_node_tls_interface =
+      join_input.node_info_network.node_to_node_tls_interface;
 
     auto http_response = frontend_process(
       frontend, expired_join_input, "join", expired_node_caller);
@@ -996,6 +1025,9 @@ TEST_CASE("Add a node to an open service")
       const auto node_info = nodes->get(expired_node_id);
       REQUIRE(node_info.has_value());
       REQUIRE(node_info->pending_last_seen.has_value());
+      CHECK(
+        node_info->node_to_node_tls_interface ==
+        expired_join_input.node_info_network.node_to_node_tls_interface);
 
       nlohmann::json node_info_json = node_info.value();
       CHECK(
@@ -1045,6 +1077,9 @@ TEST_CASE("Add a node to an open service")
       REQUIRE(last_seen.has_value());
       CHECK(last_seen.value() >= before);
       CHECK(last_seen.value() <= now_ms());
+      CHECK(
+        get_node(expired_node_id).node_to_node_tls_interface ==
+        expired_join_input.node_info_network.node_to_node_tls_interface);
     }
 
     const auto stale_pending_last_seen = now_ms() -

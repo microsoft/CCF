@@ -54,6 +54,19 @@
           "required": ["bind_address"],
           "additionalProperties": false
         },
+        "node_to_node_tls_interface": {
+          "type": "object",
+          "properties": {
+            "bind_address": {
+              "type": "string"
+            },
+            "published_address": {
+              "type": "string"
+            }
+          },
+          "required": ["bind_address"],
+          "additionalProperties": false
+        },
         "rpc_interfaces": {
           "type": "object",
           "additionalProperties": {

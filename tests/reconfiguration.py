@@ -120,6 +120,57 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
         assert time.time() <= end_time, "Reconfiguration did not complete in time"
 
 
+@reqs.description("Preserve inactive node-to-node TLS metadata through node lifecycle")
+def test_node_to_node_tls_metadata(network, args):
+    primary, _ = network.find_primary()
+    endpoints = {}
+    for endpoint in (
+        {"bind_address": "not-resolved.invalid:0"},
+        {
+            "bind_address": "not-resolved.invalid:0",
+            "published_address": "peer.example:8082",
+        },
+    ):
+        new_node = network.create_node()
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            from_snapshot=False,
+            node_to_node_tls_interface=endpoint,
+        )
+        endpoints[new_node.node_id] = endpoint
+        network.trust_node(new_node, args)
+        network.retire_node(primary, new_node)
+        new_node.stop()
+
+    statuses = {node_id: set() for node_id in endpoints}
+    retired_committed = set()
+    target_seqno = network.create_and_wait_for_ledger_chunk(primary)
+    with primary.get_ledger_from_api(target_seqno) as ledger:
+        for chunk in ledger:
+            for tx in chunk:
+                tables = tx.get_public_domain().get_tables()
+                for node_id_bytes, raw_info in tables.get(
+                    ccf.ledger.NODES_TABLE_NAME, {}
+                ).items():
+                    node_id = node_id_bytes.decode()
+                    if node_id not in endpoints or raw_info is None:
+                        continue
+                    info = json.loads(raw_info)
+                    assert (
+                        info["node_to_node_tls_interface"] == endpoints[node_id]
+                    ), info
+                    statuses[node_id].add(info["status"])
+                    if info.get("retired_committed"):
+                        retired_committed.add(node_id)
+
+    for node_id, seen in statuses.items():
+        assert seen == {"Pending", "Trusted", "Retired"}, (node_id, seen)
+    assert retired_committed == set(endpoints), retired_committed
+    return network
+
+
 @reqs.description("Adding a node with invalid target service certificate")
 def test_add_node_invalid_service_cert(network, args):
     primary, _ = network.find_primary()
@@ -1226,6 +1277,7 @@ def run_all(args, ipv6=False):
         test_add_node_on_other_curve(network, args)
         test_retire_backup(network, args)
         test_retire_primary(network, args)
+        test_node_to_node_tls_metadata(network, args)
 
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)

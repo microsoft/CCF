@@ -82,6 +82,56 @@ TEST_CASE("host configuration unsigned integer bounds")
   }
 }
 
+TEST_CASE("host configuration node-to-node TLS metadata")
+{
+  using Json = nlohmann::json;
+  const auto schema = Json::parse(host::host_config_schema);
+  const auto base = Json::parse(R"({
+    "network": {
+      "node_to_node_interface": {"bind_address": "127.0.0.1:8081"},
+      "rpc_interfaces": {}
+    },
+    "command": {
+      "type": "Start",
+      "start": {"constitution_files": [], "members": []}
+    }
+  })");
+  REQUIRE_FALSE(json::validate_json(base, schema).has_value());
+  CHECK_FALSE(
+    base.get<ccf::CCFConfig>().network.node_to_node_tls_interface.has_value());
+
+  for (const auto& endpoint :
+       {Json{{"bind_address", "not-resolved.invalid:0"}},
+        Json{
+          {"bind_address", "[::1]:8082"},
+          {"published_address", "peer.example:8082"}}})
+  {
+    auto config = base;
+    config["network"]["node_to_node_tls_interface"] = endpoint;
+    REQUIRE_FALSE(json::validate_json(config, schema).has_value());
+    const Json parsed = config.get<ccf::CCFConfig>();
+    CHECK(parsed["network"]["node_to_node_tls_interface"] == endpoint);
+
+    config["network"].erase("node_to_node_interface");
+    CHECK(json::validate_json(config, schema).has_value());
+    CHECK_THROWS_AS(config.get<ccf::CCFConfig>(), ccf::JsonParseError);
+  }
+
+  for (const auto& endpoint :
+       {Json::object(),
+        Json{{"published_address", "peer.example:8082"}},
+        Json{{"bind_address", 42}},
+        Json{{"bind_address", "localhost:8082"}, {"published_address", 42}},
+        Json{{"bind_address", "localhost:8082"}, {"protocol", "tcp"}},
+        Json("localhost:8082"),
+        Json(nullptr)})
+  {
+    auto config = base;
+    config["network"]["node_to_node_tls_interface"] = endpoint;
+    CHECK(json::validate_json(config, schema).has_value());
+  }
+}
+
 TEST_CASE("host configuration integer validation")
 {
   const auto config_schema = nlohmann::json::parse(host::host_config_schema);
