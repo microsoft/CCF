@@ -16,7 +16,7 @@ run_cmd do
       none
   for required in [`ccf_shamir.reduce, `ccf_shamir.evaluate, `ccf_shamir.share_limb,
       `ccf_shamir.recover, `CCF.Shamir.sharing_refines_cslib, `CCF.Shamir.recovery_refines_cslib,
-      `CCF.Shamir.recoveredLimb_eq_secret] do
+      `CCF.Shamir.recovery_error_preserves_secret, `CCF.Shamir.recoveredLimb_eq_secret] do
     unless names.contains required do
       throwError "Missing project declaration: {required}"
   for declName in names.mergeSort Name.lt do

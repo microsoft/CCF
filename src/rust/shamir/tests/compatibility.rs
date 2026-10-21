@@ -112,7 +112,8 @@ fn every_three_share_subset_recovers_each_limb() {
         for j in i + 1..8 {
             for k in j + 1..8 {
                 let subset = [shares[i].clone(), shares[j].clone(), shares[k].clone()];
-                let recovered = recover(&subset, &mut [0; 3]).unwrap();
+                let mut recovered = [0; LIMBS];
+                recover(&subset, &mut [0; 3], &mut recovered).unwrap();
                 for (limb, value) in recovered.iter().enumerate() {
                     assert_eq!(*value, 123 + limb as u32);
                 }
@@ -133,19 +134,26 @@ fn recovery_reduces_noncanonical_values_and_coordinates() {
             y: [PRIME as u32 + 23; LIMBS],
         },
     ];
-    assert_eq!(recover(&shares, &mut [0; 2]), Ok([9; LIMBS]));
+    let mut secret = [0; LIMBS];
+    assert_eq!(recover(&shares, &mut [0; 2], &mut secret), Ok(()));
+    assert_eq!(secret, [9; LIMBS]);
     let at_zero = Share {
         x: PRIME as u32,
         y: [u32::MAX; LIMBS],
     };
-    assert_eq!(recover(&[at_zero], &mut [0; 1]), Ok([1; LIMBS]));
+    assert_eq!(recover(&[at_zero], &mut [0; 1], &mut secret), Ok(()));
+    assert_eq!(secret, [1; LIMBS]);
 }
 
 #[test]
 fn invalid_inputs_are_explicit_errors() {
     assert_eq!(evaluate(&[], 1), Err(Error::InvalidThreshold));
     assert_eq!(evaluate(&[PRIME], 1), Err(Error::InvalidCoefficient));
-    assert_eq!(recover(&[], &mut []), Err(Error::InvalidThreshold));
+    let mut secret = [7; LIMBS];
+    assert_eq!(
+        recover(&[], &mut [], &mut secret),
+        Err(Error::InvalidThreshold)
+    );
     let share = Share {
         x: 1,
         y: [42; LIMBS],
@@ -159,7 +167,8 @@ fn invalid_inputs_are_explicit_errors() {
         ..share
     };
     assert_eq!(
-        recover(&[share, duplicate], &mut [0; 2]),
+        recover(&[share, duplicate], &mut [0; 2], &mut secret),
         Err(Error::DuplicateShare)
     );
+    assert_eq!(secret, [7; LIMBS], "the secret is untouched on error");
 }

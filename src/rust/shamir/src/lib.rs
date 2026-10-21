@@ -145,13 +145,20 @@ pub fn lagrange(shares: &[Share], weights: &mut [u64]) -> Result<(), Error> {
     Ok(())
 }
 
-/// Recover all limbs using the selected shares, reducing noncanonical inputs.
+/// Recover all limbs into `secret` using the selected shares, reducing
+/// noncanonical inputs.
 ///
 /// Working storage is caller-owned and linear in the threshold. No allocation,
 /// entropy source, raw pointer, or foreign call is part of the safe core.
-pub fn recover(shares: &[Share], weights: &mut [u64]) -> Result<[u32; LIMBS], Error> {
+/// The secret is written in place only once every weight has been computed,
+/// so it is unchanged on error and no copy of it exists outside the caller's
+/// buffer.
+pub fn recover(
+    shares: &[Share],
+    weights: &mut [u64],
+    secret: &mut [u32; LIMBS],
+) -> Result<(), Error> {
     lagrange(shares, weights)?;
-    let mut secret = [0; LIMBS];
     let mut limb = 0;
     while limb < LIMBS {
         let mut y = 0;
@@ -163,5 +170,5 @@ pub fn recover(shares: &[Share], weights: &mut [u64]) -> Result<[u32; LIMBS], Er
         secret[limb] = y as u32;
         limb += 1;
     }
-    Ok(secret)
+    Ok(())
 }

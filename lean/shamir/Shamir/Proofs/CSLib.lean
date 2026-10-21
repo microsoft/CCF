@@ -115,9 +115,9 @@ theorem sharing_refinement : Properties.SharingRefinement := by
   rfl
 
 theorem recovery_refinement : Properties.RecoveryRefinement := by
-  intro s w hne hs hw
+  intro s w secret hne hs hw
   step with recover_spec as ⟨r, w', out, hr, hout⟩
-  refine ⟨out, hr, ?_⟩
+  refine ⟨hr, ?_⟩
   intro k hk
   rw [hout k hk, recoveredLimb_eq_cslib]
 
