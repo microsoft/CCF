@@ -12,6 +12,7 @@ Secret-bearing C++ scratch buffers are cleansed with OpenSSL; the recovered secr
 The same core crate is linked into `ccf-rs` and used by the C ABI.
 `#![forbid(unsafe_code)]` applies to the entire core.
 Raw-pointer conversion is confined to `src/rust/src/shamir.rs`, which only marshals buffers into slices and status codes; callers must supply live, aligned, nonoverlapping buffers of the declared lengths, and null, misaligned, overlapping, or address-wrapping buffers are rejected with a status code.
+The C header `src/crypto/sharing_ffi.h` is generated from those Rust declarations by cbindgen, so the signatures, layout, limb count, and status codes seen by the C++ adapter cannot drift from the Rust side; the adapter additionally checks the layout with `static_assert`.
 Share coordinates are assigned by the verified core, which fills one limb of every share per call; the C++ adapter does not compute coordinates or iterate over shares itself.
 The C++ adapter copies members into the C representation rather than type-punning the nontrivially destructible C++ `Share`.
 The core does not allocate, and recovery uses caller-owned storage linear in the threshold instead of variable-length stack arrays.
@@ -52,6 +53,17 @@ git diff --exit-code -- lean/shamir/Generated/CcfShamir.lean
 The bundle pins Aeneas `fc321a28317f458338ce01fe684927eae0fa8f9e` and Charon `de8736f7c995ac54dc490345cef9ea5143c06c62`.
 The Lake manifest pins Aeneas, CSLib `0b1e3680b43ad9cd482a66f183764f33fc8a4e8f`, Mathlib, and the common Lean 4.35.0 toolchain.
 The generated LLBC is an ignored intermediate file.
+
+## Reproduce the C header
+
+The header is rendered with cbindgen 0.29.4 and formatted with the clang-format release pinned by `scripts/check-format.sh`:
+
+```bash
+cargo install cbindgen --version 0.29.4 --locked
+bash scripts/generate-shamir-header.sh --check
+```
+
+Omit `--check` to rewrite `src/crypto/sharing_ffi.h` after changing the Rust declarations or their documentation.
 
 ## Validation
 

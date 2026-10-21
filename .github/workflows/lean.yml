@@ -7,9 +7,11 @@ on:
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
       - ".github/workflows/lean.yml"
-      - "src/rust/shamir/**"
+      - "src/rust/**"
+      - "src/crypto/sharing_ffi.h"
       - "scripts/extract-shamir.sh"
       - "scripts/check-shamir.sh"
+      - "scripts/generate-shamir-header.sh"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,7 +21,7 @@ permissions: read-all
 
 jobs:
   shamir-extraction:
-    name: Reproduce Rust Shamir extraction
+    name: Reproduce Rust Shamir extraction and C header
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
@@ -44,6 +46,15 @@ jobs:
           git diff --exit-code -- lean/shamir/Generated/CcfShamir.lean
           cargo +nightly-2026-09-17 test \
             --manifest-path src/rust/shamir/Cargo.toml --locked -j1
+      - name: Check the generated C header
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/install_uv.sh "$HOME/.local/bin"
+          export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+          cargo +nightly-2026-09-17 install cbindgen --version 0.29.4 --locked
+          RUSTUP_TOOLCHAIN=nightly-2026-09-17 \
+            bash scripts/generate-shamir-header.sh --check
 
   models:
     name: Lean models and proofs

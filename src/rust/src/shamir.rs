@@ -1,18 +1,30 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-use ccf_shamir::{Error, LIMBS, Share};
+use ccf_shamir::{Error, Share};
 use std::slice;
 
-/// Status codes returned across the C ABI, mirroring `ccf_shamir_status`.
+/// The number of 32-bit limbs in a secret and in each share.
+pub const LIMBS: usize = 10;
+const _: () = assert!(LIMBS == ccf_shamir::LIMBS);
+
+/// Status codes returned by every fallible entry point of the C ABI.
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Status {
+    /// Success.
     Ok = 0,
+    /// Null, misaligned, empty, oversized or overlapping buffers, or lengths
+    /// outside the supported range.
     InvalidArguments = 1,
+    /// A polynomial coefficient is not canonical, i.e. not below the prime.
     InvalidCoefficient = 2,
+    /// Two input shares have the same x coordinate modulo the prime.
     DuplicateShare = 3,
+    /// Internal workspace mismatch. Cannot occur through this interface, which
+    /// sizes its own workspace, but kept so every core error has a name.
     InvalidWorkspace = 4,
+    /// The workspace for the recovery could not be allocated.
     OutOfMemory = 5,
 }
 
@@ -51,17 +63,25 @@ fn disjoint(a: ByteRange, b: ByteRange) -> bool {
     a.1 <= b.0 || b.1 <= a.0
 }
 
+/// Reduce any 64-bit value to its canonical representative below the prime.
+#[must_use]
 #[unsafe(no_mangle)]
 pub extern "C" fn ccf_shamir_reduce(x: u64) -> u64 {
     ccf_shamir::reduce(x)
 }
 
+/// Evaluate the polynomial at x = i + 1 for the share at index i, record that
+/// coordinate in the share, and store the value in the given limb. Other limbs
+/// are unchanged. Lengths are in elements. Requires limb < CCF_SHAMIR_LIMBS and
+/// 0 < coefficient_count <= share_count < 2^31 - 1.
+///
 /// # Safety
 ///
 /// Null, misaligned, empty, oversized, or overlapping buffers are rejected
-/// without dereferencing anything. Otherwise pointers must be valid for their
-/// indicated lengths (in elements), and no buffer may be accessed concurrently
-/// for the duration of this call.
+/// without dereferencing anything. Otherwise the buffers must be live for
+/// their indicated lengths, and no buffer may be accessed concurrently for the
+/// duration of this call.
+#[must_use]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ccf_shamir_share_limb(
     coefficients: *const u64,
@@ -89,13 +109,17 @@ pub unsafe extern "C" fn ccf_shamir_share_limb(
     }
 }
 
+/// Recover the secret from the first threshold shares. The secret is written
+/// in place by the verified core, without an intermediate copy, and is
+/// unchanged on error.
+///
 /// # Safety
 ///
 /// Null, misaligned, empty, oversized, or overlapping buffers are rejected
-/// without dereferencing anything. Otherwise `shares` must be valid for
+/// without dereferencing anything. Otherwise `shares` must be live for
 /// `threshold` elements and not mutated concurrently, and `secret` must be
-/// valid for exclusive access. The secret is written in place by the core;
-/// this layer holds no copy of it.
+/// live for exclusive access.
+#[must_use]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ccf_shamir_recover(
     shares: *const Share,
