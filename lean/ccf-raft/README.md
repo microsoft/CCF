@@ -42,18 +42,20 @@ Install Lean via [elan](https://lean-lang.org/install/), then run from this dire
 
 ```sh
 lake exe cache get
-lake build --wfail --fail-fast
+lake check --inadvisably-no-sandbox
 lake exe check-imports
 lake lint
-lake check --inadvisably-no-sandbox
 ../../scripts/lean-format-checks.sh ccf-raft
 ```
 
-`lake build --wfail` rejects warnings, including `sorry`, and runs two explicit action traces from an initialized network: committing a client request, and adding two nodes then electing a new primary and committing another request.
+`lake check` builds the default target with compiler warnings, including `sorry`, treated as errors, before separately replaying the compiled proofs in Lean's kernel and rejecting nonstandard axioms.
+Kernel tracing reports the declarations checked during compilation; cached modules do not emit fresh compilation traces.
+CI runs this before import coverage, formatting, and linting so the initial build and its traces occur in this step.
+The build also runs two explicit action traces from an initialized network: committing a client request, and adding two nodes then electing a new primary and committing another request.
 The reconfiguration trace checks each node's ledger before delivery, after setup, after replication and commitment, after election, and after the new primary's client request.
 These are regression examples, not exhaustive checking.
 `Tests/ProofCoverage.lean` fails the build unless every property and witness has an exported theorem in `Proof.lean`.
-`lake check` re-checks the build in Lean's kernel and rejects nonstandard axioms; it runs without sandboxing, so build-time code must be trusted.
+`lake check` runs without sandboxing here, so build-time code must be trusted.
 `CCFRaft.lean` reexports `Proof.lean` and its public imports transitively, while importing tests privately.
 The shared `check-imports` command rejects modules missing from that import closure.
 
