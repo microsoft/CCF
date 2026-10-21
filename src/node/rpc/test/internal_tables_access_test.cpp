@@ -2,12 +2,14 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/app_interface.h"
+#include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "crypto/certs.h"
+#include "crypto/cose.h"
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
 
@@ -40,6 +42,16 @@ namespace
       cert = key->self_sign("CN=test", "20200101000000Z", "20201231235959Z");
     }
   };
+
+  // Signing identity of a default service key, which is on P-384
+  ccf::Identity expected_signing_identity(
+    const std::vector<uint8_t>& public_key_der)
+  {
+    return {
+      ccf::IdentityKind::COSE_KEY,
+      ccf::crypto::COSEKey(ccf::crypto::make_ec_public_key(public_key_der))
+        .to_cbor(ccf::cose::alg::ES384)};
+  }
 
   class TestConsensus : public ccf::kv::ConfigurableConsensus
   {
@@ -798,8 +810,7 @@ TEST_CASE("Failed recovery creation preserves the previous service")
   REQUIRE(signing_identity.has_value());
   REQUIRE(
     signing_identity.value() ==
-    Identity{
-      IdentityKind::X509_SPKI_DER, previous_identity.key->public_key_der()});
+    expected_signing_identity(previous_identity.key->public_key_der()));
   REQUIRE_FALSE(
     ro.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
       ->has());
@@ -825,6 +836,32 @@ TEST_CASE("Self-endorsement requires a service creation transaction")
   REQUIRE_THROWS_WITH_AS(
     InternalTablesAccess::endorse_previous_identity(tx, *identity.key),
     "Active service or current_service_create_txid is not set",
+    std::logic_error);
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  REQUIRE(store.current_txid() == before);
+  auto ro = store.create_read_only_tx();
+  REQUIRE(
+    ro.ro<ccf::PreviousServiceIdentityEndorsement>(
+        Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+      ->size() == 0);
+}
+
+TEST_CASE("Endorsements must be signed by the service signing identity")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  const TestIdentity other_identity;
+  {
+    auto tx = store.create_tx();
+    InternalTablesAccess::create_service(tx, identity.cert, {1, 1});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto before = store.current_txid();
+  auto tx = store.create_tx();
+  REQUIRE_THROWS_WITH_AS(
+    InternalTablesAccess::endorse_previous_identity(tx, *other_identity.key),
+    "Endorsing key is not the service signing identity",
     std::logic_error);
   REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   REQUIRE(store.current_txid() == before);
@@ -1354,8 +1391,8 @@ TEST_CASE("create_service publishes the classical signing identity")
     ccf::crypto::compute_cert_valid_to_string(valid_from, 1);
   const auto service_cert =
     service_key->self_sign("CN=Service", valid_from, valid_to);
-  const ccf::Identity expected_identity{
-    ccf::IdentityKind::X509_SPKI_DER, service_key->public_key_der()};
+  const auto expected_identity =
+    expected_signing_identity(service_key->public_key_der());
 
   INFO("Creation publishes the existing service key, without a PQ identity");
   {
@@ -1370,6 +1407,9 @@ TEST_CASE("create_service publishes the classical signing identity")
     REQUIRE(handle->size() == 1);
     REQUIRE(handle->get(ccf::IdentityType::CLASSICAL) == expected_identity);
     REQUIRE_FALSE(handle->get(ccf::IdentityType::PQ).has_value());
+    REQUIRE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
+      expected_identity);
     REQUIRE(tx.ro<ccf::Service>(Tables::SERVICE)->get()->cert == service_cert);
   }
 
@@ -1386,8 +1426,8 @@ TEST_CASE("create_service publishes the classical signing identity")
   const auto recovered_key = ccf::crypto::make_ec_key_pair();
   const auto recovered_cert =
     recovered_key->self_sign("CN=Service", valid_from, valid_to);
-  const ccf::Identity recovered_identity{
-    ccf::IdentityKind::X509_SPKI_DER, recovered_key->public_key_der()};
+  const auto recovered_identity =
+    expected_signing_identity(recovered_key->public_key_der());
   ccf::MerkleTreeHistory tree;
 
   INFO("Recovery publishes the new key and preserves legacy recovery state");
@@ -1407,6 +1447,9 @@ TEST_CASE("create_service publishes the classical signing identity")
     REQUIRE(handle->get(ccf::IdentityType::CLASSICAL) == recovered_identity);
     REQUIRE_FALSE(handle->get(ccf::IdentityType::PQ).has_value());
     REQUIRE(recovered_identity != expected_identity);
+    REQUIRE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
+      recovered_identity);
     const auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
     REQUIRE(service.has_value());
     REQUIRE(service->cert == recovered_cert);
@@ -1421,32 +1464,98 @@ TEST_CASE("create_service publishes the classical signing identity")
   }
 }
 
-TEST_CASE("Signing identity lookup only falls back for legacy CLASSICAL state")
+TEST_CASE("create_service leaves other signing identity types untouched")
 {
   ccf::kv::Store store;
   store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
-  const auto service_key = ccf::crypto::make_ec_key_pair();
-  const auto valid_from =
-    ccf::ds::to_x509_time_string(std::chrono::system_clock::now());
-  const auto service_cert = service_key->self_sign(
-    "CN=Service",
-    valid_from,
-    ccf::crypto::compute_cert_valid_to_string(valid_from, 1));
-  const ccf::Identity identity{
-    ccf::IdentityKind::X509_SPKI_DER, service_key->public_key_der()};
+  const TestIdentity previous_identity;
+  const TestIdentity next_identity;
+  // There is no PQ service certificate to match yet, so an EC key stands in
+  const TestIdentity pq_identity;
+  const auto pq_signing_identity =
+    expected_signing_identity(pq_identity.key->public_key_der());
+  {
+    auto tx = store.create_tx();
+    InternalTablesAccess::create_service(tx, previous_identity.cert, {1, 1});
+    tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES)
+      ->put(IdentityType::PQ, pq_signing_identity);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  INFO("A recovery replaces CLASSICAL and keeps PQ");
+  {
+    auto tx = store.create_tx();
+    ccf::MerkleTreeHistory tree;
+    tx.wo<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
+      ->put(tree.serialise());
+    InternalTablesAccess::create_service(
+      tx, next_identity.cert, {3, 10}, nullptr, true /* recovering */);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  auto ro = store.create_read_only_tx();
+  auto* handle = ro.ro<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
+  REQUIRE(handle->size() == 2);
+  REQUIRE(
+    handle->get(IdentityType::CLASSICAL) ==
+    expected_signing_identity(next_identity.key->public_key_der()));
+  REQUIRE(handle->get(IdentityType::PQ) == pq_signing_identity);
+}
+
+TEST_CASE("Signing identity lookup prefers the table over the certificate")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity service_identity;
+  const TestIdentity other_identity;
+  const auto service_key =
+    expected_signing_identity(service_identity.key->public_key_der());
+  const auto other_key =
+    expected_signing_identity(other_identity.key->public_key_der());
+
   auto tx = store.create_tx();
   auto* service = tx.rw<ccf::Service>(Tables::SERVICE);
-  service->put(ccf::ServiceInfo{.cert = service_cert});
+  service->put(ccf::ServiceInfo{.cert = service_identity.cert});
   auto* signing_identities =
     tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
 
-  SUBCASE("Legacy certificate supplies only CLASSICAL")
+  SUBCASE("An empty table falls back to the certificate")
   {
     REQUIRE(
       ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
-      identity);
-    REQUIRE_FALSE(
-      ccf::get_service_signing_identity(tx, ccf::IdentityType::PQ).has_value());
+      service_key);
+  }
+
+  SUBCASE("PQ is rejected, with or without an entry")
+  {
+    REQUIRE_THROWS_WITH_AS(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::PQ),
+      "PQ signing identities are not supported yet",
+      std::logic_error);
+    signing_identities->put(ccf::IdentityType::PQ, other_key);
+    REQUIRE_THROWS_WITH_AS(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::PQ),
+      "PQ signing identities are not supported yet",
+      std::logic_error);
+  }
+
+  SUBCASE("Entries are returned as written, without matching the certificate")
+  {
+    const ccf::Identity legacy_entry{
+      ccf::IdentityKind::X509_SPKI_DER, other_identity.key->public_key_der()};
+    signing_identities->put(ccf::IdentityType::CLASSICAL, legacy_entry);
+    REQUIRE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
+      legacy_entry);
+  }
+
+  SUBCASE("Entries do not require service information")
+  {
+    signing_identities->put(ccf::IdentityType::CLASSICAL, service_key);
+    service->clear();
+    REQUIRE(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
+      service_key);
   }
 
   SUBCASE("No identity is available without either source")
@@ -1456,34 +1565,65 @@ TEST_CASE("Signing identity lookup only falls back for legacy CLASSICAL state")
       ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL)
         .has_value());
   }
+}
 
-  SUBCASE("Published keys do not require a legacy certificate")
+TEST_CASE("Signing identity check matches the table against the certificate")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity service_identity;
+  const TestIdentity other_identity;
+
+  auto tx = store.create_tx();
+  auto* service = tx.rw<ccf::Service>(Tables::SERVICE);
+  service->put(ccf::ServiceInfo{.cert = service_identity.cert});
+  auto* signing_identities =
+    tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
+
+  SUBCASE("Nothing to check without an entry or without service information")
   {
-    signing_identities->put(ccf::IdentityType::CLASSICAL, identity);
-    service->put(ccf::ServiceInfo{.cert = service_key->public_key_pem()});
-    REQUIRE(
-      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
-      identity);
-    REQUIRE_FALSE(
-      ccf::get_service_signing_identity(tx, ccf::IdentityType::PQ).has_value());
+    REQUIRE_NOTHROW(ccf::check_signing_identity_matches_service_cert(tx));
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      expected_signing_identity(other_identity.key->public_key_der()));
+    service->clear();
+    REQUIRE_NOTHROW(ccf::check_signing_identity_matches_service_cert(tx));
   }
 
-  SUBCASE("A populated table must contain CLASSICAL")
-  {
-    signing_identities->put(ccf::IdentityType::PQ, identity);
-    REQUIRE_THROWS_WITH(
-      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL),
-      "Non-empty signing identities table has no CLASSICAL identity");
-  }
-
-  SUBCASE("A certificate entry must not be interpreted as a public key")
+  SUBCASE("Matching entries pass in any encoding")
   {
     signing_identities->put(
       ccf::IdentityType::CLASSICAL,
+      expected_signing_identity(service_identity.key->public_key_der()));
+    REQUIRE_NOTHROW(ccf::check_signing_identity_matches_service_cert(tx));
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      {ccf::IdentityKind::X509_SPKI_DER,
+       service_identity.key->public_key_der()});
+    REQUIRE_NOTHROW(ccf::check_signing_identity_matches_service_cert(tx));
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
       {ccf::IdentityKind::X509_CERT_DER,
-       ccf::crypto::cert_pem_to_der(service_cert)});
-    REQUIRE_THROWS_WITH(
-      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL),
-      "Service signing identity must be a DER SubjectPublicKeyInfo");
+       ccf::crypto::cert_pem_to_der(service_identity.cert)});
+    REQUIRE_NOTHROW(ccf::check_signing_identity_matches_service_cert(tx));
+  }
+
+  SUBCASE("An entry for another key is rejected")
+  {
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      expected_signing_identity(other_identity.key->public_key_der()));
+    REQUIRE_THROWS_WITH_AS(
+      ccf::check_signing_identity_matches_service_cert(tx),
+      "Service signing identity does not match its service certificate",
+      std::logic_error);
+  }
+
+  SUBCASE("PQ entries are not matched against the certificate")
+  {
+    signing_identities->put(
+      ccf::IdentityType::PQ,
+      expected_signing_identity(other_identity.key->public_key_der()));
+    REQUIRE_NOTHROW(ccf::check_signing_identity_matches_service_cert(tx));
   }
 }
