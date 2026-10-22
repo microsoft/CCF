@@ -1,6 +1,6 @@
 module
 
-import all CCFRaft.Properties
+import all CCFRaft.Theorems
 import Lean
 
 namespace CCFRaft.Tests.Architecture
@@ -16,10 +16,8 @@ private def allowedImport (owner dependency : Name) : Bool :=
     dependency != `CCFRaft.Model && (`CCFRaft.Model).isPrefixOf dependency
   else if owner == `CCFRaft.Model then
     (`CCFRaft.Model).isPrefixOf dependency
-  else if (`CCFRaft.Properties).isPrefixOf owner then
-    (`CCFRaft.Model).isPrefixOf dependency
-    || (`CCFRaft.Proofs).isPrefixOf dependency
-    || (`CCFRaft.Properties).isPrefixOf dependency
+  else if (`CCFRaft.Theorems).isPrefixOf owner then
+    (`CCFRaft.Model).isPrefixOf dependency || (`CCFRaft.Proofs).isPrefixOf dependency
   else if (`CCFRaft.Proofs).isPrefixOf owner then
     (`CCFRaft.Model).isPrefixOf dependency || (`CCFRaft.Proofs).isPrefixOf dependency
   else

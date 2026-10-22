@@ -1,6 +1,6 @@
 module
 
-import all DisasterRecovery.Properties
+import all DisasterRecovery.Theorems
 import Lean
 
 namespace DisasterRecovery.Tests.Architecture
@@ -14,19 +14,17 @@ def allowedImport (owner dependency : Name) : Bool :=
     true
   else if (`DisasterRecovery.Model).isPrefixOf owner then
     (`DisasterRecovery.Model).isPrefixOf dependency
-  else if owner == `DisasterRecovery.Properties then
+  else if owner == `DisasterRecovery.Theorems then
     (`DisasterRecovery.Model).isPrefixOf dependency
     || (`DisasterRecovery.Properties).isPrefixOf dependency
     || (`DisasterRecovery.Proofs).isPrefixOf dependency
   else if (`DisasterRecovery.Properties).isPrefixOf owner then
     (`DisasterRecovery.Model).isPrefixOf dependency
-    || (dependency != `DisasterRecovery.Properties
-        && (`DisasterRecovery.Properties).isPrefixOf dependency)
+    || (`DisasterRecovery.Properties).isPrefixOf dependency
   else if (`DisasterRecovery.Proofs).isPrefixOf owner then
     (`DisasterRecovery.Model).isPrefixOf dependency
     || (`DisasterRecovery.Proofs).isPrefixOf dependency
-    || (dependency != `DisasterRecovery.Properties
-        && (`DisasterRecovery.Properties).isPrefixOf dependency)
+    || (`DisasterRecovery.Properties).isPrefixOf dependency
   else
     true
 

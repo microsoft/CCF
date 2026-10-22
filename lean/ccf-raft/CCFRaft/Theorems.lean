@@ -11,11 +11,11 @@ import CCFRaft.Proofs.Witnesses
 @[expose] public section
 
 /-!
-Safety theorems about the Raft model, each paired with a witness lemma
+Safety theorems about the CCF-Raft model, each paired with a witness lemma
 exhibiting a nontrivial execution relevant to that property.
 -/
 
-namespace CCFRaft.Properties
+namespace CCFRaft.Theorems
 
 abbrev GlobalTrace := CCF.Execution.Trace Model.State
 
@@ -137,4 +137,4 @@ lemma committed_frontier_is_signature_witness
       /\ 0 < nodeState.commitIndex := by
   exact Proofs.Witnesses.committed_frontier_is_signature_witness
 
-end CCFRaft.Properties
+end CCFRaft.Theorems

@@ -8,9 +8,9 @@ import DisasterRecovery.Proofs.Witnesses
 
 @[expose] public section
 
-namespace DisasterRecovery.Properties
+namespace DisasterRecovery.Theorems
 
-open Model.Local
+open Properties Model.Local
 
 -- Global invariants for all valid traces and corresponding witness
 
@@ -196,4 +196,4 @@ lemma aligned_opening_timeout_completes_witness
       /\ localStep.before.timeoutState = .opening := by
   exact Proofs.Witnesses.aligned_opening_timeout_completes_witness
 
-end DisasterRecovery.Properties
+end DisasterRecovery.Theorems
