@@ -72,9 +72,9 @@ Moving ghost definitions into `Properties/` merely to remove an import does not 
 Review the model, theorem statements and proof links in `Theorems.lean`, their statement helpers, and any unproved claims in `Conjectures.lean`.
 Keep the detailed proof implementations machine-checked and within the axiom allowlist.
 
-Retain the generated package-level import-all module and the whole-package kernel and axiom-dependency checks with `lake check`.
+Retain the package-level import root, whole-package import coverage with `lake exe check-imports`, and kernel and axiom-dependency checks with `lake check`.
 The proof entrypoint does not replace either check.
-After moving modules, regenerate the import root and run the package's existing checks.
+After moving modules, update the import root and run the package's existing checks.
 For disaster recovery, see the [validation commands](disaster-recovery/README.md#validation).
 
 The model packages' `Tests/Architecture.lean` modules check the import graph during the build.

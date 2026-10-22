@@ -80,8 +80,8 @@ Run the following commands from this directory:
 
 ```console
 lake exe cache get
-lake exe mk_all --check --module --lib DisasterRecovery
 lake build --wfail --fail-fast
+lake exe check-imports
 lake build CCF
 lake lint
 lake exe runLinter --no-build CCF DisasterRecovery replayer.Main
