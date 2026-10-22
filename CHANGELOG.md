@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Added
 
 - The header-only Valijson library is now available to C++ applications through the CCF development package (#8621).
+- Added the `network.node_to_node_tls_interface` configuration field for future compatibility (#8617).
 
 ## [7.0.21]
 
