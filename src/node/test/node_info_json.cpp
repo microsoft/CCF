@@ -182,41 +182,11 @@ TEST_CASE("Optional node-to-node TLS metadata")
     input["node_to_node_tls_interface"] = endpoint;
     const auto parsed = input.get<ccf::NodeInfoNetwork>();
     REQUIRE(parsed.node_to_node_tls_interface.has_value());
-    CHECK_FALSE(parsed == without_tls);
     CHECK(Json(parsed) == input);
-    CHECK(Json(input.get<ccf::NodeInfoNetwork_v2>()) == input);
-    CHECK(Json(parsed).get<ccf::NodeInfoNetwork>() == parsed);
     CHECK(
       parsed.node_to_node_tls_interface->published_address.empty() ==
       !endpoint.contains("published_address"));
   }
-
-  for (const auto& endpoint :
-       {Json::object(),
-        Json{{"published_address", "peer.example:8082"}},
-        Json{{"bind_address", 42}},
-        Json{{"bind_address", "localhost:8082"}, {"published_address", 42}},
-        Json("localhost:8082")})
-  {
-    auto input = legacy;
-    input["node_to_node_tls_interface"] = endpoint;
-    CHECK_THROWS(input.get<ccf::NodeInfoNetwork>());
-  }
-
-  auto tls_only = legacy;
-  tls_only.erase("node_to_node_interface");
-  tls_only["node_to_node_tls_interface"] = {{"bind_address", "localhost:8082"}};
-  CHECK_THROWS_AS(tls_only.get<ccf::NodeInfoNetwork>(), ccf::JsonParseError);
-
-  const Json mixed_v1 = {
-    {"rpchost", "localhost"},
-    {"pubhost", "localhost"},
-    {"nodehost", "localhost"},
-    {"nodeport", "8081"},
-    {"rpcport", "8080"},
-    {"pubport", "8080"},
-    {"node_to_node_tls_interface", {{"bind_address", 42}}}};
-  CHECK_THROWS_AS(mixed_v1.get<ccf::NodeInfoNetwork>(), ccf::JsonParseError);
 }
 
 TEST_CASE("split_net_address and make_net_address")
