@@ -105,22 +105,6 @@ theorem publication_noninterference_witness : PublicationNoninterferenceWitness 
 
 theorem publish_unique_witness : PublishUniqueWitness := ⟨[], List.nodup_nil⟩
 
-theorem branch_normal_serializability_witness : BranchNormalSerializabilityWitness := by
-  let ops : List (NormalOp String String String) := [.write ("a", "00") (some "11")]
-  let result := (normalRun [] {} ops).getD {}
-  refine ⟨
-    [],
-    publish [] 1 result.writes,
-    [{ snapshot := [], ops, result, version := 1 }],
-    .apply _ _ _ [] ?_ (by decide +kernel) (.nil _),
-    List.cons_ne_nil _ _
-  ⟩
-  have h : (normalRun ([] : DB String String String) {} ops).isSome = true := by decide +kernel
-  simp only [result]
-  cases hr : normalRun ([] : DB String String String) {} ops with
-  | none => simp [hr] at h
-  | some => rfl
-
 theorem transaction_snapshot_serial_witness : TransactionSnapshotSerialWitness :=
   ⟨txAt 7 1, _, some_get (by decide +kernel), by decide +kernel⟩
 

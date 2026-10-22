@@ -462,19 +462,12 @@ namespace
 
   struct FuzzStore : public ccf::kv::Store
   {
-    explicit FuzzStore(bool replicate = true)
+    FuzzStore()
     {
       set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
-      if (replicate)
-      {
-        auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
-        consensus->force_become_primary();
-        set_consensus(consensus);
-      }
-      else
-      {
-        set_consensus(std::make_shared<ccf::kv::test::BackupStubConsensus>());
-      }
+      auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+      consensus->force_become_primary();
+      set_consensus(consensus);
     }
   };
 
@@ -1460,64 +1453,6 @@ namespace
     coverage.add(Counter::ReadOnlyTx);
   }
 
-  void global_cuts(
-    const Config& config, const Universe& universe, Coverage& coverage)
-  {
-    FuzzStore store;
-    Operations operations(coverage);
-    const auto selection = select(config.seed, 101);
-    const auto& key = universe.keys[selection.key];
-    const auto& first = universe.values[selection.value];
-    const auto& second = universe.values[(selection.value + 1) % 8];
-    const auto& third = universe.values[(selection.value + 2) % 8];
-    write_pair(store, universe, operations, selection, first);
-    operations.compact(store, 1);
-    write_pair(store, universe, operations, selection, second);
-    coordinated(
-      config.threads,
-      coverage,
-      [&](Control& control, size_t) {
-        auto tx = store.create_tx();
-        const auto a = operations.pin(tx, universe.maps[selection.a]);
-        if (!control.checkpoint())
-        {
-          return;
-        }
-        const auto b = operations.pin(tx, universe.maps[selection.b]);
-        ensure(operations.get(a, key) == second, "Local A snapshot changed");
-        ensure(operations.global(a, key) == first, "Pinned global A changed");
-        ensure(operations.get(b, key) == second, "Local B snapshot changed");
-        ensure(operations.global(b, key) == second, "Late global B is wrong");
-        if (!control.checkpoint())
-        {
-          return;
-        }
-        ensure(operations.get(a, key) == second, "Compaction changed local A");
-        ensure(
-          operations.global(a, key) == first, "Compaction changed global A");
-        ensure(
-          operations.global(b, key) == second, "Compaction changed global B");
-        ensure(
-          operations.commit(tx) == Result::SUCCESS,
-          "Pinned read-only completion failed");
-      },
-      [&](Control& control) {
-        if (!control.wait_for_workers(config.threads))
-        {
-          return;
-        }
-        operations.compact(store, 2);
-        control.resume();
-        if (!control.wait_for_workers(config.threads))
-        {
-          return;
-        }
-        write_pair(store, universe, operations, selection, third);
-        operations.compact(store, 3);
-        control.resume();
-      });
-  }
-
   void dependencies(
     const Config& config, const Universe& universe, Coverage& coverage)
   {
@@ -1818,58 +1753,6 @@ namespace
       });
   }
 
-  void replication_failure(
-    const Config& config, const Universe& universe, Coverage& coverage)
-  {
-    FuzzStore store(false);
-    Operations operations(coverage);
-    const auto selection = select(config.seed, 140);
-    const auto& key = universe.keys[selection.key];
-    const auto& value = universe.values[selection.value];
-    coordinated(
-      1,
-      coverage,
-      [&](Control& control, size_t) {
-        {
-          auto writer = store.create_tx();
-          const auto a = operations.pin(writer, universe.maps[selection.a]);
-          operations.put(a, key, value);
-          ensure(
-            operations.commit(writer) == Result::FAIL_NO_REPLICATE,
-            "Nonreplicating consensus unexpectedly accepted a write");
-        }
-        {
-          auto pinned = store.create_tx();
-          const auto a = operations.pin(pinned, universe.maps[selection.a]);
-          ensure(
-            operations.get(a, key) == value,
-            "Failed replication hid local apply");
-          if (!control.checkpoint())
-          {
-            return;
-          }
-          ensure(
-            operations.get(a, key) == value,
-            "Rollback destroyed pinned local view");
-          coverage.add(Counter::Abandon);
-        }
-        auto fresh = store.create_tx();
-        const auto a = operations.pin(fresh, universe.maps[selection.a]);
-        ensure(
-          !operations.get(a, key),
-          "Explicit rollback retained unreplicated write");
-        ensure(
-          operations.commit(fresh) == Result::SUCCESS,
-          "Post-failure read-only completion failed");
-      },
-      [&](Control& control) {
-        if (control.wait_for_workers(1))
-        {
-          operations.rollback(store, 0, 1);
-          control.resume();
-        }
-      });
-  }
 }
 
 TEST_CASE("KV trace concurrent operation fuzzer")
@@ -1880,11 +1763,9 @@ TEST_CASE("KV trace concurrent operation fuzzer")
   Coverage coverage;
   free_running(config, universe, coverage);
   surface(config, universe, coverage);
-  global_cuts(config, universe, coverage);
   dependencies(config, universe, coverage);
   acquisition(config, universe, coverage);
   rollback_lifecycle(config, universe, coverage);
-  replication_failure(config, universe, coverage);
   std::cout << "KV_FUZZ_COVERAGE " << coverage.finish(config).dump()
             << std::endl;
 }

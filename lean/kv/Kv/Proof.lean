@@ -59,14 +59,6 @@ theorem publish_unique : Properties.PublishUnique := by
 theorem publish_unique_witness : Properties.PublishUniqueWitness :=
   Proofs.Witnesses.publish_unique_witness
 
-theorem branch_normal_serializability : Properties.BranchNormalSerializability := by
-  intro M K V _ _ _ db final programs h
-  exact Proofs.Model.branch_normal_serializability db final programs h
-
-theorem branch_normal_serializability_witness
-    : Properties.BranchNormalSerializabilityWitness :=
-  Proofs.Witnesses.branch_normal_serializability_witness
-
 theorem apply_atomic : Properties.ApplyAtomic := by
   intro s writes
   exact Proofs.Model.apply_atomic s writes

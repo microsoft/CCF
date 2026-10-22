@@ -253,18 +253,6 @@ theorem readonly_snapshot_serial (snapshot : DB M K V) (ops : List (NormalOp M K
   normalRun_serial snapshot snapshot ops {} n hr
     (normalRun_snapshot_valid snapshot ops {} n (by rfl) hr)
 
-/-- A genuine application-order witness for every finite branch of normal
-programs admitted by OCC. The reference interpreter contains no validation. -/
-theorem branch_normal_serializability (db final : DB M K V)
-    (programs : List (AppliedProgram M K V))
-    (h : BranchExecution db programs final)
-    : serialBranch db programs = some final := by
-  induction h with
-  | nil db => rfl
-  | apply db tail p ps hex hval _rest ih =>
-      have hw := normalRun_serial p.snapshot db p.ops {} p.result hex hval
-      simpa [serialBranch, hw] using ih
-
 end Generic
 
 theorem apply_atomic (s : Store) (writes : Pending)

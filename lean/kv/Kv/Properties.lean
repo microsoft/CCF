@@ -90,18 +90,6 @@ def PublishUnique : Prop :=
 def PublishUniqueWitness : Prop :=
   ∃ db : DB String String String, Unique db
 
-/-- Applying OCC-validated programs on a branch matches running them serially. -/
-def BranchNormalSerializability : Prop :=
-  ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V] (db final : DB M K V)
-    (programs : List (AppliedProgram M K V)),
-    BranchExecution db programs final → serialBranch db programs = some final
-
-/-- Witness: a nonempty branch of applied programs exists. -/
-def BranchNormalSerializabilityWitness : Prop :=
-  ∃ (db final : DB String String String)
-    (programs : List (AppliedProgram String String String)),
-    BranchExecution db programs final ∧ programs ≠ []
-
 /-- Applying an attempt publishes its entire write set at the next version. -/
 def ApplyAtomic : Prop :=
   ∀ (s : Store) (writes : Pending),

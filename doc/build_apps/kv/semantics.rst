@@ -49,6 +49,7 @@ Global reads follow the implementation's per-map capture described below, not a 
    * - ``get_globally_committed``
      - Read the global view captured for this map, ignoring pending writes and subsequent consensus progress.
        Reading another key does not refresh it.
+       Global reads add no current-state conflict dependency.
    * - ``foreach``
      - Capture the map's entries at iteration start.
        Visit them in unspecified order, with optional early termination.
@@ -61,6 +62,7 @@ Global reads follow the implementation's per-map capture described below, not a 
    * - Local application
      - Validate dependencies across all touched maps, then publish all writes atomically.
        Blind writes need not conflict; absent reads and map-wide reads introduce dependencies too.
+       Reading an own write adds no dependency.
    * - Abandonment or pre-application conflict
      - Publish none of the attempt's pending writes.
        A retry is a fresh attempt.
@@ -107,6 +109,7 @@ An application's local result is not itself a durability guarantee; see :doc:`/u
 The model distinguishes the point at which writes are applied from the later outcome of replication submission.
 A ``FAIL_NO_REPLICATE`` result must not be interpreted as proof that local application never happened.
 Conversely, a trace must not invent a rollback to explain a failed submission.
+Pre-application conflict is permitted conservatively; the checker does not claim that every admissible attempt must succeed.
 
 Read-only completion does not append a new write version.
 Local application order is the candidate serial order for writing transactions within a local branch; read-only transactions have witnesses at the snapshot positions they observed.
@@ -115,6 +118,8 @@ Not every locally acknowledged transaction belongs to one permanent history acro
 ``Compact(v)`` abstracts the environment's declaration that a prefix is irrevocable and the removal of obsolete history.
 Current contents and already materialized snapshots remain observable, but some old snapshots can no longer be acquired.
 Unchanged maps can retain an older effective revision, so availability cannot be decided solely by comparing a transaction's version with one store-wide number.
+An above-head or backward compaction request leaves the model's effective cut unchanged.
+C++ ``Store::compact`` instead lowers its compaction point on a backward request, so the checker rejects such a trace; the traced tests and fuzzer only compact forward.
 
 Map birth and effective revision are distinct.
 A map that did not exist at a captured cut can still have a fresh empty view at that cut after another transaction creates and compacts it.
@@ -169,6 +174,8 @@ The CI kernel check (``lake check``) requires every declaration to depend only o
 
 The consensus abstraction assumes a valid irrevocable prefix and permitted environment transitions.
 It does not prove quorum agreement, eventual commitment, successful retries, fairness, or network/crash-recovery behavior.
+Encryption, serialization formats, imported snapshots, cross-store swaps, ledger/signature metadata, permission/domain policy and external hook side effects are outside the model.
+Traced uses of excluded mechanisms must be reported as ``unsupported``, not skipped.
 The documentation's term "opaque" is interpreted as snapshot consistency; it is not an assertion of unrestricted network-wide strict serializability.
 
 Replay relies on complete observations of actual C++ operations, correct byte encoding/decoding and event ordering, and execution of the Lean checker.
@@ -196,6 +203,7 @@ Logged effects are evidence to check, not replacement model state.
 Event order must reflect logical transition boundaries, not wall-clock timestamps or the order buffered log lines reach disk.
 Concurrent workload recording must not add a global lock around KV operations.
 Iteration order remains unspecified, and callback operations remain visible in the trace.
+Iteration identity is the combination of store, attempt, map and iteration number; different maps may reuse the same numeric iteration ID.
 
 The checker distinguishes accepted executions, contract rejections, invalid traces, and unsupported operations.
 The runner also distinguishes C++ test or capture failure.

@@ -356,6 +356,17 @@ TEST_CASE("KV trace per-map global snapshots")
   CHECK(ha->get_globally_committed("other") == "one-other");
   CHECK(hb->get_globally_committed("key") == "two");
   CHECK(hb->get_globally_committed("other") == "two-other");
+  {
+    auto writer = store.create_tx();
+    writer.rw(a)->put("key", "three");
+    writer.rw(b)->put("key", "three");
+    REQUIRE(writer.commit() == Result::SUCCESS);
+  }
+  store.compact(3);
+  CHECK(ha->get("key") == "two");
+  CHECK(hb->get("key") == "two");
+  CHECK(ha->get_globally_committed("key") == "one");
+  CHECK(hb->get_globally_committed("key") == "two");
   CHECK(tx.commit() == Result::SUCCESS);
 }
 
@@ -411,4 +422,9 @@ TEST_CASE("KV trace replication failure after apply")
   CHECK(store.current_version() == 1);
   auto reader = store.create_tx();
   CHECK(reader.ro(map)->get("key") == "local");
+  store.rollback({0, 0}, 1);
+  CHECK(reader.ro(map)->get("key") == "local");
+  auto fresh = store.create_tx();
+  CHECK_FALSE(fresh.ro(map)->get("key").has_value());
+  CHECK(fresh.commit() == Result::SUCCESS);
 }

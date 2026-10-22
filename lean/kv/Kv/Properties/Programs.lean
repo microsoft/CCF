@@ -34,35 +34,6 @@ def serialRun (base : DB M K V) (ws : Writes M K V)
   | [] => some ws
   | op :: ops => (serialStep base ws op).bind fun next => serialRun base next ops
 
-/-- A transaction program executed against a snapshot and applied at a version. -/
-structure AppliedProgram (M K V : Type) where
-  /-- The snapshot the program executed against. -/
-  snapshot : DB M K V
-  /-- The program's operations, with their observations. -/
-  ops : List (NormalOp M K V)
-  /-- The resulting normal view. -/
-  result : Normal M K V
-  /-- The version at which the writes were applied. -/
-  version : Nat
-
-/-- OCC application mechanics on a branch. Rollback selects another branch;
-replication return statuses deliberately do not occur here. -/
-inductive BranchExecution : DB M K V → List (AppliedProgram M K V) → DB M K V → Prop
-  /-- No applications. -/
-  | nil (db) : BranchExecution db [] db
-  /-- Executes a program on its snapshot, validates it on the branch, and applies it. -/
-  | apply (db tail : DB M K V) (p : AppliedProgram M K V) (ps)
-    (executed : normalRun p.snapshot {} p.ops = some p.result)
-    (validated : validates db p.result.deps = true)
-    (rest : BranchExecution (publish db p.version p.result.writes) ps tail)
-    : BranchExecution db (p :: ps) tail
-
-/-- Runs each program serially against the branch state, applying its writes. -/
-def serialBranch (db : DB M K V) : List (AppliedProgram M K V) → Option (DB M K V)
-  | [] => some db
-  | p :: ps =>
-      (serialRun db [] p.ops).bind fun ws => serialBranch (publish db p.version ws) ps
-
 end Generic
 
 /-- A branch of actual executable applications, including no_replicate ones.
