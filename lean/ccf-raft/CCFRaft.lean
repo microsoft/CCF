@@ -1,10 +1,6 @@
-module  -- shake: keep-all --deprecated_module: ignore
+module
 
-public import CCFRaft.Model
-public import CCFRaft.Model.ClusterConfig
-public import CCFRaft.Model.Messages
-public import CCFRaft.Model.Node
-public import CCFRaft.Model.NodeState
 public import CCFRaft.Properties
-public import CCFRaft.Tests.Architecture
-public import CCFRaft.Tests.CanonicalTraces
+
+import CCFRaft.Tests.Architecture
+import CCFRaft.Tests.CanonicalTraces
