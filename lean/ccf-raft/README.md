@@ -30,8 +30,6 @@ Actions are local inputs (including timeouts) or delivery of a queued message; n
 - `ElectionSafety`: no two distinct nodes are primary in the same term.
 - `CommittedFrontierIsSignature`: every positive commit index points to a signature.
 
-Once proved, claims and their witnesses belong as explicit theorem statements in `Theorems.lean`, with proof implementations under `Proofs/`, as described in the [Lean module guide](../AGENT.md).
-
 ## Scope
 
 Node join and snapshot installation are not modeled.
