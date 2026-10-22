@@ -58,13 +58,8 @@ The first property requires each voter to have received its own gossip; without 
 The second requires a state in which every node's gossip equals `config.recovered`, and it also covers failover openings.
 
 Each safety theorem has a corresponding `_witness` lemma asserting that some valid trace or step satisfies its premises.
-`Proofs/Witnesses.lean` constructs all seven witnesses using concrete executions.
 The full-gossip witness includes a failover opening.
 `Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
-
-Import `DisasterRecovery.Properties` and use `DisasterRecovery.Properties.<name>` for both safety theorems and witness lemmas.
-This replaces the `DisasterRecovery.Proof` entrypoint and the separate PascalCase proposition definitions.
-Property helpers in `Properties/` remain independent of proof implementations, and `Proofs/` depends on those helpers rather than the final `Properties.lean` entrypoint.
 
 Freshness is a necessary condition for election, not a definition of Raft commitment.
 `update_commit` additionally requires a current-term signature replicated on a majority, and the Raft safety specification (`tla/consensus/ccfraft.tla`) is stated on log prefixes.

@@ -54,7 +54,6 @@ end DisasterRecovery.Properties
 ```
 
 Keep supporting proof statements explicit too, or use existing lower-level facts, so they do not depend on the final theorem entrypoint.
-The public APIs are `DisasterRecovery.Properties` and `CCFRaft.Properties` for the disaster recovery and CCF-Raft protocols respectively.
 Do not use axioms or unfinished theorems as placeholders for property statements.
 
 ## Statement definitions versus proof machinery
