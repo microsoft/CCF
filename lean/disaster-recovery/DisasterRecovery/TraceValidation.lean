@@ -9,7 +9,7 @@ set_option autoImplicit false
 /-!
 Replays reduced recovery-decision-protocol executions through
 `Model.transitionSystem`. Every expected location is in the network from the
-start, and the participants are its active nodes. Actions must be enabled, and
+start. Actions must be enabled, and
 observations compare selected fields of a node's state, or the messages and
 notifications of the node's latest action, with the model.
 -/
@@ -24,7 +24,7 @@ open CCF.MultiNodeTransitionSystem (nodeState)
 def instanceId : String :=
   "recovery-trace"
 
-/-- The recovered TxID of a location that sent no gossip, which no step reads. -/
+/-- Placeholder recovered TxID for a location with no recorded gossip. -/
 def unusedTxID : TxID :=
   { view := 0, seqno := 0 }
 
@@ -70,11 +70,11 @@ def Instruction.origins : Instruction → List Origin
   | .state _ _ origins
   | .outputs _ _ _ origins => origins
 
-/-- Model configuration and active participants reconstructed from the trace. -/
+/-- Model configuration reconstructed from the trace. -/
 structure Header where
-  /-- Recovery parameters and ledger tips reconstructed from start and send records. -/
+  /-- Recovery parameters and ledger tips reconstructed from the trace. -/
   config : Model.Config
-  /-- Nodes that participate in the recorded scenario. -/
+  /-- Nodes with records in this replay; does not constrain model actions. -/
   participants : List Location
 
 /-- The expected locations, the participants, and the TxIDs they gossiped. -/
@@ -91,12 +91,11 @@ def Header.make (expected participants : List Location)
     participants
   }
 
-/-- Every expected location in its initial state. Only participants act. -/
+/-- Every expected location in its initial state. -/
 def Header.initial (header : Header) : Model.State :=
   {
     nodes :=
       header.config.protocol.expectedLocations.map fun node => (node, initialNode node)
-    active := header.participants
   }
 
 /-- Lowercase phase name used in replay diagnostics. -/

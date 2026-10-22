@@ -75,6 +75,7 @@ run_cmd do
       `CCF.MultiNodeTransitionSystem.runLocal,
       `CCF.MultiNodeTransitionSystem.replaceNode,
       `DisasterRecovery.Model.Local.Result,
+      `DisasterRecovery.Model.Config.active,
       `DisasterRecovery.Model.initial,
       `DisasterRecovery.Model.next,
       `DisasterRecovery.Model.nodeState,

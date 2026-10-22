@@ -16,12 +16,10 @@ are not stored: `LocalStep` and `Protocol.ValidStep` let properties talk
 about them by re-running the local step.
 -/
 
-/-- Node states, the nodes allowed to act, and the messages in flight. -/
+/-- Node states and the messages in flight. -/
 structure State (Node LocalState Message : Type) where
-  /-- The local state associated with each configured node. -/
+  /-- The local state associated with each node. -/
   nodes : List (Node × LocalState)
-  /-- Nodes allowed to take local steps and receive messages. -/
-  active : List Node
   /-- Queued envelopes, including distinct copies of identical messages. -/
   network : List (Envelope Node Message) := []
 deriving Repr, BEq
@@ -62,8 +60,8 @@ structure LocalStep (Node LocalState LocalAction Message Notification : Type) wh
   effects : Outputs Node Message Notification
 
 /-- `s` is a real step: running the protocol from `s.before` on `s.action` with
-recording capabilities yields exactly `s.after` and `s.effects`. No reachability
-or activity is required. -/
+recording capabilities yields exactly `s.after` and `s.effects`. No global
+reachability is required. -/
 def Protocol.ValidStep
     {Node LocalState LocalAction Message Notification Input : Type}
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)
@@ -84,8 +82,8 @@ def removeOne {α : Type _} [BEq α] (value : α) : List α -> List α
   | head :: tail =>
       if head == value then tail else head :: removeOne value tail
 
-/-- One global step. `none` if the envelope is not queued, the node is not
-active, the node is unknown, or the local step is disabled. -/
+/-- One global step. `none` if the envelope is not queued, the node is unknown,
+or the local step is disabled. The node table's keys are unchanged. -/
 def next {Node Message LocalState LocalAction Notification Input : Type}
     [BEq Node] [BEq Message]
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)
@@ -102,7 +100,6 @@ def next {Node Message LocalState LocalAction Notification Input : Type}
                                         protocol.receive envelope.source envelope.payload,
                                         removeOne envelope state.network
                                       )
-  guard (state.active.contains node)
   let before <- nodeState state node
   let (after, effects) <- (protocol.step (Capabilities.record node) node before event).run
                             {}
@@ -114,19 +111,15 @@ def next {Node Message LocalState LocalAction Notification Input : Type}
         network := pending ++ effects.outgoing
     }
 
-/-- The network as a `TransitionSystem`. Initially every configured node has
-an initial local state, the active nodes are a subset of them, and the
-network is empty. -/
+/-- The network as a `TransitionSystem`. Initially node identities are distinct,
+every node has an initial local state, and the network is empty. Protocols
+choose which nodes must exist and which may act. -/
 def lift {Node Message LocalState LocalAction Notification Input : Type}
     [BEq Node] [BEq Message]
-    (configured : List Node)
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)
     : TransitionSystem (State Node LocalState Message) (Action Node Message Input) where
   init state :=
-    configured.Nodup
-    /\ state.nodes.map Prod.fst = configured
-    /\ state.active.Nodup
-    /\ (forall node, node ∈ state.active -> node ∈ configured)
+    (state.nodes.map Prod.fst).Nodup
     /\ state.network = []
     /\ (forall entry, entry ∈ state.nodes -> protocol.init entry.1 entry.2)
   step := next protocol

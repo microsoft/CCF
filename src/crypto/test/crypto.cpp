@@ -4,6 +4,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/base64.h"
+#include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
@@ -275,6 +276,45 @@ TEST_CASE("Verifier rejects unsupported public key type")
 
   CHECK_THROWS_WITH_AS(
     make_verifier(cert_pem), "unsupported public key type", std::logic_error);
+}
+
+TEST_CASE("Certificate conversions accept any public key type")
+{
+  // cert_der_to_pem() and cert_pem_to_der() only re-encode the certificate,
+  // so unlike make_verifier() they also accept certificates with Ed25519
+  // keys, which the COSE verifiers accept.
+  const auto issuer = make_ec_key_pair();
+  const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto subject = make_eddsa_key_pair(CurveID::CURVE25519);
+  const auto cert_pem = create_endorsed_cert(
+    subject->public_key_pem(),
+    "CN=Ed25519 subject",
+    {},
+    make_verifier(issuer_cert)->validity_period(),
+    issuer->private_key_pem(),
+    issuer_cert);
+  CHECK_THROWS_AS(make_verifier(cert_pem), std::logic_error);
+
+  const auto cert_der = cert_pem_to_der(cert_pem);
+  CHECK(cert_der_to_pem(cert_der).str() == cert_pem.str());
+  CHECK(cert_pem_to_der(cert_der_to_pem(cert_der)) == cert_der);
+  CHECK_THROWS_AS(cert_der_to_pem(cert_pem.raw()), std::invalid_argument);
+  // Pem only checks for a marker, so DER with that marker can reach the helper.
+  auto der_with_pem_marker = cert_der;
+  const std::string pem_marker = "-----BEGIN";
+  der_with_pem_marker.insert(
+    der_with_pem_marker.end(), pem_marker.begin(), pem_marker.end());
+  CHECK_THROWS_AS(
+    cert_pem_to_der(Pem(der_with_pem_marker)), std::invalid_argument);
+  CHECK(COSEKey::from_der_cert(cert_der).kty() == COSEKeyType::OKP);
+
+  // Anything that is not a certificate is still rejected
+  const std::vector<uint8_t> not_a_cert = {'n', 'o', 'p', 'e'};
+  CHECK_THROWS_AS(cert_der_to_pem(not_a_cert), std::invalid_argument);
+  CHECK_THROWS_AS(
+    cert_pem_to_der(Pem(
+      "-----BEGIN CERTIFICATE-----\nbm9wZQ==\n-----END CERTIFICATE-----\n")),
+    std::invalid_argument);
 }
 
 TEST_CASE("Private PEM imports enforce key family")
