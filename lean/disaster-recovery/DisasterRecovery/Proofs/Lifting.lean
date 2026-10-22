@@ -126,7 +126,7 @@ lemma step_erases (config : Config) (recovered : TxID) (state : NodeState) (even
   all_goals cases phase : state.phase
   all_goals
     dsimp only [Execution.Local.step]
-    simp [step, Execution.Local.transitionSystem,
+    simp [step,
       Execution.Local.rejectionReason, Execution.Local.rejected, rejected,
       advance, Execution.Local.advance, phase, validTimeout, guard, failure] at h ⊢
   all_goals
@@ -558,7 +558,8 @@ theorem model_reachable_lifts {config : Model.Config} {state : Model.State}
     (reachable : (Model.transitionSystem config).Reachable state)
     : exists decorated,
         Execution.Global.Reachable config decorated /\ erase decorated = state := by
-  induction reachable with
+  induction reachable
+    using @CCF.TransitionSystem.Reachable.rec (Model.transitionSystem config) with
   | initial initialized =>
       obtain ⟨decorated, init, projected⟩ := model_initial_lifts config _ initialized
       exact ⟨decorated, .initial init, projected⟩
@@ -601,8 +602,10 @@ lemma execution_lifts {config : Model.Config}
         Run (Execution.Global.transitionSystem config) decorated ghostActions ghostAfter
         /\ ghostActions.map eraseAction = actions
         /\ erase ghostAfter = after := by
-  induction run generalizing decorated with
-  | nil state => exact ⟨[], decorated, .nil decorated, rfl, linked⟩
+  induction run using @Run.rec (Model.transitionSystem config) generalizing decorated with
+  | nil state =>
+      exact ⟨[], decorated, .nil (system := Execution.Global.transitionSystem config) decorated,
+        rfl, linked⟩
   | @cons before middle after action actions step _ ih =>
       obtain ⟨ghostAction, ghostMiddle, erasedAction, ghostStep, erasedMiddle⟩ :=
         step_lifts config decorated action middle

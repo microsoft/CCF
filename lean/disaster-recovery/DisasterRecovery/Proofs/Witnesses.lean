@@ -24,8 +24,8 @@ private theorem valid_of_adjacent {config : Model.Config} {states : List Model.S
           exists action,
             (Model.transitionSystem config).step (states[i.val]'(by omega)) action
             = some (states[i.val + 1]'(by omega)))
-    : Execution.Trace.Valid (Stream'.Seq.ofList states)
-        (Model.transitionSystem config) := by
+    : Execution.Trace.Valid (Model.transitionSystem config)
+        (Stream'.Seq.ofList states) := by
   refine ⟨by simpa only [Stream'.Seq.ofList_get?] using initialized, ?_⟩
   intro i before after atBefore atAfter
   rw [Stream'.Seq.ofList_get?] at atBefore atAfter

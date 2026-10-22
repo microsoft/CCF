@@ -132,8 +132,9 @@ def rejected (state : NodeState) (reason : String) : StepOutput :=
   { state, effects := [.rejected reason], accepted := false }
 
 /-- Local instrumentation whose disabled transitions are converted to stutters by `step`. -/
-def transitionSystem (config : Config) (location : Location)
-    : TransitionSystem StepOutput Event where
+abbrev transitionSystem (config : Config) (location : Location) : TransitionSystem where
+  State := StepOutput
+  Action := Event
   init := fun current => current = { state := initialNode location }
   step current event :=
     let state := current.state

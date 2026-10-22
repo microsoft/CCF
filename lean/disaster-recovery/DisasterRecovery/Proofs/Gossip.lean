@@ -244,7 +244,8 @@ lemma next_frozen {config : Config} {before after : State} {action : Action}
 lemma reachable_gossip_invariant {config : Config} {state : State}
     (reachable : Reachable config state)
     : Genuine config state.system.nodes /\ FrozenVotes state := by
-  induction reachable with
+  induction reachable
+    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
   | initial initialized =>
       obtain ⟨_, nodes, _, _, rfl⟩ := initialized
       constructor
@@ -271,7 +272,8 @@ lemma steps_evolve {config : Model.Config} {before after : Model.State} {steps}
     (reachable : (Model.transitionSystem config).Reachable before)
     {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes)
     : exists updated, (node, updated) ∈ after.nodes /\ Evolves current updated := by
-  induction run generalizing current with
+  induction run
+    using @Trace.Path.rec (Model.transitionSystem config) generalizing current with
   | nil => exact ⟨current, member, evolves_refl current⟩
   | cons transition _ ih =>
       obtain ⟨middle, present, evolves⟩ := model_step_evolves reachable transition member
