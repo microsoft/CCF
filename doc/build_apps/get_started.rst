@@ -75,10 +75,6 @@ Build C++ app
 
 Please check `ccf-app-template build process <https://github.com/microsoft/ccf-app-template#build-c-app>`__
 
-CCF includes the header-only Valijson library for JSON Schema validation in C++ applications.
-Applications built with ``add_ccf_app`` can include headers such as ``<valijson/schema.hpp>``, ``<valijson/schema_parser.hpp>``, ``<valijson/validator.hpp>``, and ``<valijson/adapters/nlohmann_json_adapter.hpp>`` without fetching or linking a separate Valijson dependency.
-See the `Valijson documentation <https://github.com/tristanpenman/valijson/tree/v1.1.3>`__ for usage.
-
 Run C++ app: Using Sandbox.sh
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
