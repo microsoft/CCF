@@ -2,7 +2,6 @@
 
 An executable Lean model of CCF's consensus implementation ([`src/consensus/aft/raft.h`](../../src/consensus/aft/raft.h)) and the safety properties it is intended to satisfy.
 It assumes familiarity with the [CCF consensus documentation](../../doc/architecture/consensus/index.rst).
-The safety claims and their witness statements are unproved and live in `Conjectures.lean`, not `Theorems.lean`.
 
 ## Source map
 
@@ -30,8 +29,6 @@ Actions are local inputs (including timeouts) or delivery of a queued message; n
   - `SingleNodeCommittedLogMonotonic`: a successful step from any state with unique node IDs preserves each node's committed prefix.
 - `ElectionSafety`: no two distinct nodes are primary in the same term.
 - `CommittedFrontierIsSignature`: every positive commit index points to a signature.
-
-Once proved, claims and their witnesses belong as explicit theorem statements in `Theorems.lean`, with proof implementations under `Proofs/`, as described in the [Lean module guide](../AGENT.md).
 
 ## Scope
 

@@ -52,7 +52,6 @@ theorem rejected_gossip_stutters :
 
 Keep the supporting proof's statement explicit too, avoiding an import cycle through `Theorems.lean`.
 Place each witness theorem next to the claim whose premises it exercises.
-Every theorem declaration requires a proof, so a separate property-to-theorem coverage check is unnecessary.
 Unproved claims and witness statements belong in `Conjectures.lean` until their proofs exist; do not use axioms or unfinished theorems as placeholders.
 
 ## Statement definitions versus proof machinery
