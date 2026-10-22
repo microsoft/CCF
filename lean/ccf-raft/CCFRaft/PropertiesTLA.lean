@@ -4,16 +4,17 @@ module
 -- Licensed under the Apache 2.0 License.
 
 public import CCFRaft.Model
-public import CCFRaft.ProofTLA.CommittedLogAppendOnlyProp
-public import CCFRaft.ProofTLA.LogInv
-public import CCFRaft.ProofTLA.Witnesses
+
+import CCFRaft.ProofTLA.CommittedLogAppendOnlyProp
+import CCFRaft.ProofTLA.LogInv
+import CCFRaft.ProofTLA.Witnesses
 
 @[expose] public section
 
 /-!
 Lean counterparts of `LogInv` and `CommittedLogAppendOnlyProp` in
-`tla/consensus/ccfraft.tla`, proved in `CCFRaft/ProofTLA/`. Each has a `Witness`
-claim exhibiting a nontrivial reachable state or step relevant to the property.
+`tla/consensus/ccfraft.tla`, proved in `CCFRaft/ProofTLA/`. Each theorem is paired
+with a witness lemma exhibiting a nontrivial reachable state or step relevant to it.
 
 The statements match the TLA+ semantically, not syntactically. For a safety
 property, `Spec => []P` says `P` holds in every reachable state, and
@@ -29,70 +30,58 @@ namespace CCFRaft.PropertiesTLA
 
 open Model.Node
 
-/-- `LogInv`: in every reachable state, the committed logs of any two nodes are
-prefix-comparable. -/
-def LogInv : Prop :=
-  forall (config : Finset NodeID),
-  forall (nodes : List NodeID) (state : Model.State),
-  forall (left right : NodeID) (leftState rightState : NodeState),
-    ((Model.transitionSystem config nodes).Reachable state
+/-- `THEOREM Spec => []LogInv`: in every reachable state, the committed logs of any
+two nodes are prefix-comparable. -/
+theorem log_inv
+    : forall (config : Finset NodeID),
+      forall (nodes : List NodeID) (state : Model.State),
+      forall (left right : NodeID) (leftState rightState : NodeState),
+        ((Model.transitionSystem config nodes).Reachable state
+          /\ (left, leftState) ∈ state.nodes
+          /\ (right, rightState) ∈ state.nodes)
+        -> leftState.committedLog <+: rightState.committedLog
+            \/ rightState.committedLog <+: leftState.committedLog := by
+  exact ProofTLA.log_inv
+
+/-- Witness: a reachable state in which two distinct nodes have nonempty committed
+logs. -/
+lemma log_inv_witness
+    : exists (config : Finset NodeID),
+    exists (nodes : List NodeID) (state : Model.State),
+    exists (left right : NodeID) (leftState rightState : NodeState),
+      (Model.transitionSystem config nodes).Reachable state
       /\ (left, leftState) ∈ state.nodes
-      /\ (right, rightState) ∈ state.nodes)
-    -> leftState.committedLog <+: rightState.committedLog
-        \/ rightState.committedLog <+: leftState.committedLog
+      /\ (right, rightState) ∈ state.nodes
+      /\ left ≠ right
+      /\ leftState.committedLog ≠ []
+      /\ rightState.committedLog ≠ [] := by
+  exact ProofTLA.Witnesses.log_inv_witness
 
-/-- Witness: a reachable state in which two distinct nodes have nonempty
-committed logs. -/
-def LogInvWitness : Prop :=
-  exists (config : Finset NodeID),
-  exists (nodes : List NodeID) (state : Model.State),
-  exists (left right : NodeID) (leftState rightState : NodeState),
-    (Model.transitionSystem config nodes).Reachable state
-    /\ (left, leftState) ∈ state.nodes
-    /\ (right, rightState) ∈ state.nodes
-    /\ left ≠ right
-    /\ leftState.committedLog ≠ []
-    /\ rightState.committedLog ≠ []
-
-/-- `CommittedLogAppendOnlyProp`: every enabled step from a reachable state
-extends or keeps each node's committed log. -/
-def CommittedLogAppendOnlyProp : Prop :=
-  forall (config : Finset NodeID),
-  forall (nodes : List NodeID) (before after : Model.State) (action : Model.Action),
-  forall (node : NodeID) (nodeBefore nodeAfter : NodeState),
-    ((Model.transitionSystem config nodes).Reachable before
-      /\ (Model.transitionSystem config nodes).step before action = some after
-      /\ (node, nodeBefore) ∈ before.nodes
-      /\ (node, nodeAfter) ∈ after.nodes)
-    -> nodeBefore.committedLog <+: nodeAfter.committedLog
+/-- `THEOREM Spec => CommittedLogAppendOnlyProp`: every enabled step from a reachable
+state extends or keeps each node's committed log. -/
+theorem committed_log_append_only_prop
+    : forall (config : Finset NodeID),
+      forall (nodes : List NodeID) (before after : Model.State) (action : Model.Action),
+      forall (node : NodeID) (nodeBefore nodeAfter : NodeState),
+        ((Model.transitionSystem config nodes).Reachable before
+          /\ (Model.transitionSystem config nodes).step before action = some after
+          /\ (node, nodeBefore) ∈ before.nodes
+          /\ (node, nodeAfter) ∈ after.nodes)
+        -> nodeBefore.committedLog <+: nodeAfter.committedLog := by
+  exact ProofTLA.committed_log_append_only_prop
 
 /-- Witness: an enabled step from a reachable state strictly extends a node's
 nonempty committed log. -/
-def CommittedLogAppendOnlyPropWitness : Prop :=
-  exists (config : Finset NodeID),
-  exists (nodes : List NodeID) (before after : Model.State) (action : Model.Action),
-  exists (node : NodeID) (nodeBefore nodeAfter : NodeState),
-    (Model.transitionSystem config nodes).Reachable before
-    /\ (Model.transitionSystem config nodes).step before action = some after
-    /\ (node, nodeBefore) ∈ before.nodes
-    /\ (node, nodeAfter) ∈ after.nodes
-    /\ nodeBefore.committedLog ≠ []
-    /\ nodeBefore.committedLog.length < nodeAfter.committedLog.length
-
-/-- `THEOREM Spec => []LogInv` -/
-theorem spec_logInv : LogInv :=
-  fun config _ _ _ _ _ _ ⟨reachable, leftMember, rightMember⟩ =>
-    ProofTLA.logInv config reachable leftMember rightMember
-
-theorem logInv_witness : LogInvWitness :=
-  ProofTLA.Witnesses.logInv_witness
-
-/-- `THEOREM Spec => CommittedLogAppendOnlyProp` -/
-theorem spec_committedLogAppendOnlyProp : CommittedLogAppendOnlyProp :=
-  fun config _ _ _ _ _ _ _ ⟨reachable, stepped, beforeMember, afterMember⟩ =>
-    ProofTLA.committedLog_step config reachable stepped beforeMember afterMember
-
-theorem committedLogAppendOnlyProp_witness : CommittedLogAppendOnlyPropWitness :=
-  ProofTLA.Witnesses.committedLogAppendOnlyProp_witness
+lemma committed_log_append_only_prop_witness
+    : exists (config : Finset NodeID),
+    exists (nodes : List NodeID) (before after : Model.State) (action : Model.Action),
+    exists (node : NodeID) (nodeBefore nodeAfter : NodeState),
+      (Model.transitionSystem config nodes).Reachable before
+      /\ (Model.transitionSystem config nodes).step before action = some after
+      /\ (node, nodeBefore) ∈ before.nodes
+      /\ (node, nodeAfter) ∈ after.nodes
+      /\ nodeBefore.committedLog ≠ []
+      /\ nodeBefore.committedLog.length < nodeAfter.committedLog.length := by
+  exact ProofTLA.Witnesses.committed_log_append_only_prop_witness
 
 end CCFRaft.PropertiesTLA

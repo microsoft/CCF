@@ -9,21 +9,23 @@ public import CCFRaft.ProofTLA.Direct.AppendOnly
 
 /-!
 Per-step growth of each node's committed log, for
-`PropertiesTLA.spec_committedLogAppendOnlyProp`.
+`PropertiesTLA.committed_log_append_only_prop`.
 -/
 
 namespace CCFRaft.ProofTLA
 
 open Model.Node
 
-/-- `CommittedLogAppendOnlyProp` for one step from a reachable state and one node. -/
-theorem committedLog_step (config : Finset NodeID) {nodes : List NodeID}
-    {before after : Model.State} {action : Model.Action}
-    (reachable : (Model.transitionSystem config nodes).Reachable before)
-    (stepped : (Model.transitionSystem config nodes).step before action = some after)
-    {i : NodeID} {bi ai : NodeState} (beforeMember : (i, bi) ∈ before.nodes)
-    (afterMember : (i, ai) ∈ after.nodes)
-    : bi.committedLog <+: ai.committedLog := by
+theorem committed_log_append_only_prop
+    : forall (config : Finset NodeID),
+      forall (nodes : List NodeID) (before after : Model.State) (action : Model.Action),
+      forall (node : NodeID) (nodeBefore nodeAfter : NodeState),
+        ((Model.transitionSystem config nodes).Reachable before
+          /\ (Model.transitionSystem config nodes).step before action = some after
+          /\ (node, nodeBefore) ∈ before.nodes
+          /\ (node, nodeAfter) ∈ after.nodes)
+        -> nodeBefore.committedLog <+: nodeAfter.committedLog := by
+  intro config _ _ _ _ _ _ _ ⟨reachable, stepped, beforeMember, afterMember⟩
   let _ : Initial := ⟨config⟩
   exact Direct.committed_log_step (Direct.keys_nodup reachable) stepped beforeMember afterMember
 

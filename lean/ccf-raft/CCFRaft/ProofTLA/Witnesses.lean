@@ -205,8 +205,8 @@ theorem extend_committed
 
 end Single
 
-/-- `PropertiesTLA.LogInvWitness`: nodes 0 and 1 have both committed. -/
-theorem logInv_witness
+/-- `PropertiesTLA.log_inv_witness`: nodes 0 and 1 have both committed. -/
+theorem log_inv_witness
     : exists (config : Finset NodeID),
     exists (nodes : List NodeID) (state : CCFRaft.Model.State),
     exists (left right : NodeID) (leftState rightState : NodeState),
@@ -234,9 +234,9 @@ theorem logInv_witness
     by decide
   ⟩
 
-/-- `PropertiesTLA.CommittedLogAppendOnlyPropWitness`: a single leader's
+/-- `PropertiesTLA.committed_log_append_only_prop_witness`: a single leader's
 nonempty committed log grows in one batch append. -/
-theorem committedLogAppendOnlyProp_witness
+theorem committed_log_append_only_prop_witness
     : exists (config : Finset NodeID),
     exists (nodes : List NodeID) (before after : CCFRaft.Model.State),
     exists (action : CCFRaft.Model.Action),

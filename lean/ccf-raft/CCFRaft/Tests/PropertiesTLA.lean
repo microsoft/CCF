@@ -3,6 +3,8 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
+public import CCFRaft.ProofTLA.Concrete
+public import CCFRaft.ProofTLA.Direct.AppendOnly
 public import CCFRaft.PropertiesTLA
 
 @[expose] public section
@@ -47,7 +49,7 @@ theorem committed_length (config : Finset NodeID) {nodes : List NodeID}
 
 /-- `[]LogInv` over behaviours: the reachable-state claim covers every state of every
 valid finite or infinite trace. -/
-theorem logInv_trace (config : Finset NodeID) {nodes : List NodeID}
+theorem log_inv_trace (config : Finset NodeID) {nodes : List NodeID}
     {trace : CCF.Execution.Trace Model.State}
     (valid : trace.Valid (Model.transitionSystem config nodes)) {state : Model.State}
     (member : state ∈ trace) {left right : NodeID} {leftState rightState : NodeState}
@@ -55,13 +57,13 @@ theorem logInv_trace (config : Finset NodeID) {nodes : List NodeID}
     (rightMember : (right, rightState) ∈ state.nodes)
     : leftState.committedLog <+: rightState.committedLog
       \/ rightState.committedLog <+: leftState.committedLog :=
-  PropertiesTLA.spec_logInv config nodes state left right leftState rightState
+  PropertiesTLA.log_inv config nodes state left right leftState rightState
     ⟨valid.reachable member, leftMember, rightMember⟩
 
 /-- `[][A]_vars` over behaviours: the step claim covers each adjacent pair of states of
 every valid finite or infinite trace. -/
-theorem committedLogAppendOnlyProp_trace (config : Finset NodeID) {nodes : List NodeID}
-    {trace : CCF.Execution.Trace Model.State}
+theorem committed_log_append_only_prop_trace (config : Finset NodeID)
+    {nodes : List NodeID} {trace : CCF.Execution.Trace Model.State}
     (valid : trace.Valid (Model.transitionSystem config nodes)) {index : Nat}
     {before after : Model.State} (present : trace.get? index = some before)
     (next : trace.get? (index + 1) = some after) {node : NodeID}
@@ -69,7 +71,7 @@ theorem committedLogAppendOnlyProp_trace (config : Finset NodeID) {nodes : List 
     (afterMember : (node, nodeAfter) ∈ after.nodes)
     : nodeBefore.committedLog <+: nodeAfter.committedLog := by
   obtain ⟨action, stepped⟩ := valid.2 index before after present next
-  exact PropertiesTLA.spec_committedLogAppendOnlyProp config nodes before after action node
+  exact PropertiesTLA.committed_log_append_only_prop config nodes before after action node
     nodeBefore nodeAfter
     ⟨valid.reachable (Stream'.Seq.get?_mem present), stepped, beforeMember, afterMember⟩
 

@@ -66,10 +66,10 @@ run_cmd do
 -- Each statement is a theorem using only Lean's standard axioms.
 run_cmd do
   let standard := [``propext, ``Classical.choice, ``Quot.sound]
-  for root in [``CCFRaft.PropertiesTLA.spec_logInv,
-      ``CCFRaft.PropertiesTLA.logInv_witness,
-      ``CCFRaft.PropertiesTLA.spec_committedLogAppendOnlyProp,
-      ``CCFRaft.PropertiesTLA.committedLogAppendOnlyProp_witness] do
+  for root in [``CCFRaft.PropertiesTLA.log_inv,
+      ``CCFRaft.PropertiesTLA.log_inv_witness,
+      ``CCFRaft.PropertiesTLA.committed_log_append_only_prop,
+      ``CCFRaft.PropertiesTLA.committed_log_append_only_prop_witness] do
     unless (← getEnv).find? root matches some (.thmInfo _) do
       throwError "Missing TLA+ property theorem: {root}"
     for axiom_ in ← Elab.Command.liftCoreM (collectAxioms root) do
