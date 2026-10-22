@@ -1,6 +1,6 @@
 module
 
-public import CCFRaft.Theorems
+public import CCFRaft.Properties
 
 import CCFRaft.Tests.Architecture
 import CCFRaft.Tests.CanonicalTraces

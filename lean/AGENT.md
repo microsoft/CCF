@@ -18,7 +18,7 @@ Within a model's library directory, use this layout:
 | `Model.lean`           | Assemble the executable model, including configuration and network composition.                      |
 | `Model/`               | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`. |
 | `../common/CCF/`       | Reusable transition systems, network composition, and execution definitions in the `CCF` namespace.  |
-| `Theorems.lean`        | State safety theorems and witness lemmas explicitly, linked to checked implementations.              |
+| `Properties.lean`      | State safety theorems and witness lemmas explicitly, linked to checked implementations.              |
 | `Properties/`          | Definitions needed to state and understand those claims, such as state and trace predicates.         |
 | `Proofs/`              | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
 | `Tests/`               | Executable model checks and regression cases.                                                        |
@@ -30,16 +30,16 @@ Within a model's library directory, use this layout:
 - Keep `common/CCF/`, `Model/`, and `Model.lean` independent of property helpers, theorem entrypoints, and proof modules.
   Shared infrastructure must not depend on a particular protocol.
 - Property helpers in `Properties/` should depend on the model, shared definitions, and other property helpers.
-  They may not import `Theorems.lean` or `Proofs/`.
-- Let `Proofs/` depend on model definitions, property helpers, and other supporting proofs, but not `Theorems.lean`.
-  `Theorems.lean` publicly imports the types and helpers needed to understand its statements and privately imports proof implementations.
+  They may not import `Properties.lean` or `Proofs/`.
+- Let `Proofs/` depend on model definitions, property helpers, and other supporting proofs, but not `Properties.lean`.
+  `Properties.lean` publicly imports the types and helpers needed to understand its statements and privately imports proof implementations.
 
 Write the full logical statement in each public safety theorem and existential witness lemma, rather than defining a separate named proposition.
 Keep each proof body a one-line `by exact Proofs.<implementation>` reference, and place each witness lemma next to its corresponding safety theorem.
 For example:
 
 ```lean
-namespace DisasterRecovery.Theorems
+namespace DisasterRecovery.Properties
 
 theorem rejected_gossip_stutters
     : forall (config : Model.Config) (localStep : Properties.LocalStep),
@@ -50,11 +50,11 @@ theorem rejected_gossip_stutters
             /\ List.Mem (.rejected "quote-or-certificate") localStep.effects.notifications := by
   exact Proofs.Local.rejected_gossip_stutters
 
-end DisasterRecovery.Theorems
+end DisasterRecovery.Properties
 ```
 
 Keep supporting proof statements explicit too, or use existing lower-level facts, so they do not depend on the final theorem entrypoint.
-The public APIs are `DisasterRecovery.Theorems` and `CCFRaft.Theorems` for the disaster recovery and CCF-Raft protocols respectively.
+The public APIs are `DisasterRecovery.Properties` and `CCFRaft.Properties` for the disaster recovery and CCF-Raft protocols respectively.
 Do not use axioms or unfinished theorems as placeholders for property statements.
 
 ## Statement definitions versus proof machinery
@@ -72,7 +72,7 @@ Moving ghost definitions into `Properties/` merely to remove an import does not 
 
 ## Review and validation
 
-Review the model, full statements and proof links in `Theorems.lean`, and the property helpers used by those statements.
+Review the model, full statements and proof links in `Properties.lean`, and the property helpers used by those statements.
 Keep the detailed proof implementations machine-checked and within the axiom allowlist.
 
 Retain the package-level import root, whole-package import coverage with `lake exe check-imports`, and kernel and axiom-dependency checks with `lake check`.

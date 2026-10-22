@@ -12,7 +12,7 @@ It assumes familiarity with the [CCF consensus documentation](../../doc/architec
 | Messages                               | [`Model/Messages.lean`](CCFRaft/Model/Messages.lean)                                                                             |
 | Protocol policy (one node's step)      | [`Model/Node.lean`](CCFRaft/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)         |
 | Initial states and network composition | [`Model.lean`](CCFRaft/Model.lean) (`initialNodeState`, `transitionSystem`)                                                      |
-| Safety theorems and witness lemmas     | [`Theorems.lean`](CCFRaft/Theorems.lean)                                                                                         |
+| Safety theorems and witness lemmas     | [`Properties.lean`](CCFRaft/Properties.lean)                                                                                     |
 | Supporting proofs and executions       | [`Proofs/`](CCFRaft/Proofs)                                                                                                      |
 | Action-trace tests and import layering | [`Tests/CanonicalTraces.lean`](CCFRaft/Tests/CanonicalTraces.lean), [`Tests/Architecture.lean`](CCFRaft/Tests/Architecture.lean) |
 
@@ -45,13 +45,13 @@ The build also runs two explicit action traces from an initialized network: comm
 The reconfiguration trace checks each node's ledger before delivery, after setup, after replication and commitment, after election, and after the new primary's client request.
 These are regression examples, not exhaustive checking.
 `lake check` runs without sandboxing here, so build-time code must be trusted.
-`CCFRaft.lean` reexports `Theorems.lean` and its public imports transitively, while importing tests privately.
+`CCFRaft.lean` reexports `Properties.lean` and its public imports transitively, while importing tests privately.
 The shared `check-imports` command rejects modules missing from that import closure.
 
 ## Proofs
 
-`Theorems.lean` contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
-Import `CCFRaft.Theorems` and use `CCFRaft.Theorems.<name>` for these declarations, replacing `CCFRaft.Properties`.
+`Properties.lean` contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
+Import `CCFRaft.Properties` and use `CCFRaft.Properties.<name>` for these declarations.
 `Proofs/Direct/` establishes node-local commit invariants; `Proofs/Safety/` establishes the cross-node history invariant used for election safety and committed-log comparability.
 `Proofs/Witnesses.lean` supplies concrete executions checked by the kernel.
 

@@ -15,7 +15,7 @@ Safety theorems about the CCF-Raft model, each paired with a witness lemma
 exhibiting a nontrivial execution relevant to that property.
 -/
 
-namespace CCFRaft.Theorems
+namespace CCFRaft.Properties
 
 abbrev GlobalTrace := CCF.Execution.Trace Model.State
 
@@ -137,4 +137,4 @@ lemma committed_frontier_is_signature_witness
       /\ 0 < nodeState.commitIndex := by
   exact Proofs.Witnesses.committed_frontier_is_signature_witness
 
-end CCFRaft.Theorems
+end CCFRaft.Properties

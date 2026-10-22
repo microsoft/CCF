@@ -3,7 +3,7 @@ module
 import all Init.Control.State
 import all Init.Data.List.Sort.Basic
 
-public import DisasterRecovery.Theorems
+public import DisasterRecovery.Properties
 public import DisasterRecovery.Tests.Initial
 
 import Mathlib.Tactic
@@ -113,7 +113,7 @@ example
     : exists openerTxID,
         Model.recoveredTxID config "A" = some openerTxID
         /\ Properties.UpToDateWithQuorum config openerTxID := by
-  apply Theorems.full_gossip_preserves_commit config trace ready opened "A" opening
+  apply Properties.full_gossip_preserves_commit config trace ready opened "A" opening
   refine ⟨
     valid,
     Stream'.Seq.get?_mem (n := 2) rfl,
@@ -207,7 +207,7 @@ example
     : quorumVote.after.phase = .opening
       /\ quorumVote.after.openKind = some .quorum
       /\ .opening .quorum ∈ quorumVote.effects.notifications :=
-  Theorems.quorum_advance_opens config quorumVote
+  Properties.quorum_advance_opens config quorumVote
     ⟨
       by
         simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, config,
@@ -229,7 +229,7 @@ example
     : quorumTimeout.after.phase = .opening
       /\ quorumTimeout.after.openKind = some .quorum
       /\ .opening .quorum ∈ quorumTimeout.effects.notifications :=
-  Theorems.quorum_advance_opens config quorumTimeout
+  Properties.quorum_advance_opens config quorumTimeout
     ⟨
       by
         simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, config,

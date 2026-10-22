@@ -1,6 +1,6 @@
 module
 
-public import DisasterRecovery.Theorems
+public import DisasterRecovery.Properties
 
 @[expose] public section
 

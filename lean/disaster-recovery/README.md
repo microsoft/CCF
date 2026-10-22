@@ -1,13 +1,13 @@
 # Lean disaster recovery model
 
 This package contains a Lean model of CCF's recovery decision protocol (`src/node/recovery_decision_protocol.cpp`), its safety properties, machine-checked proofs of those properties, and a replayer that checks recorded C++ runs against the model.
-The public proof API is `DisasterRecovery.Theorems`; its full theorem statements link to implementations under `DisasterRecovery/Proofs/`.
+The public proof API is `DisasterRecovery.Properties`; its full theorem statements link to implementations under `DisasterRecovery/Proofs/`.
 
 ## Contents
 
 | Purpose                               | Location                                        |
 | ------------------------------------- | ----------------------------------------------- |
-| Safety theorems and witness lemmas    | `DisasterRecovery/Theorems.lean`                |
+| Safety theorems and witness lemmas    | `DisasterRecovery/Properties.lean`              |
 | Single-node protocol                  | `DisasterRecovery/Model/Local.lean`             |
 | Network composition                   | `DisasterRecovery/Model.lean`, `../common/CCF/` |
 | Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`        |
@@ -17,7 +17,7 @@ The public proof API is `DisasterRecovery.Theorems`; its full theorem statements
 | Parsing and ordering of those traces  | `DisasterRecovery/TraceValidation/`             |
 | Replayer executable and test traces   | `replayer/`                                     |
 
-Human review covers the model, the full theorem and lemma statements in `Theorems.lean`, the definitions they use, and their one-line references to proof implementations.
+Human review covers the model, the full theorem and lemma statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
 The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
 
 ## Model
@@ -40,7 +40,7 @@ Notifications are not stored in the global state.
 The model records no history.
 The proofs reconstruct sends and notifications by re-executing local steps.
 
-## Theorems
+## Properties
 
 The local properties are invariants of `Local.step`.
 They hold for every node state, not only reachable ones.
@@ -62,9 +62,9 @@ Each safety theorem has a corresponding `_witness` lemma asserting that some val
 The full-gossip witness includes a failover opening.
 `Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
 
-Import `DisasterRecovery.Theorems` and use `DisasterRecovery.Theorems.<name>` for both safety theorems and witness lemmas.
+Import `DisasterRecovery.Properties` and use `DisasterRecovery.Properties.<name>` for both safety theorems and witness lemmas.
 This replaces the `DisasterRecovery.Proof` entrypoint and the separate PascalCase proposition definitions.
-Property helpers in `Properties/` remain independent of proof implementations, and `Proofs/` depends on those helpers rather than the final `Theorems.lean` entrypoint.
+Property helpers in `Properties/` remain independent of proof implementations, and `Proofs/` depends on those helpers rather than the final `Properties.lean` entrypoint.
 
 Freshness is a necessary condition for election, not a definition of Raft commitment.
 `update_commit` additionally requires a current-term signature replicated on a majority, and the Raft safety specification (`tla/consensus/ccfraft.tla`) is stated on log prefixes.
@@ -125,7 +125,7 @@ It disables build isolation, not proof or axiom checking; run it only on code yo
 CI checks the package in an Ubuntu 26.04 job using disk-backed temporary storage.
 Additional bundled checkers are not enabled.
 
-`Tests/Architecture.lean` enforces dependency direction: common and model modules remain independent of properties and proofs, property helpers remain independent of proofs, and proof implementations cannot import the final `Theorems.lean` entrypoint.
+`Tests/Architecture.lean` enforces dependency direction: common and model modules remain independent of properties and proofs, property helpers remain independent of proofs, and proof implementations cannot import the final `Properties.lean` entrypoint.
 See [Formatting](#formatting) for the [leanfmt](https://github.com/duckki/leanfmt) check.
 To update a tool dependency without changing the toolchain, run `lake update --keep-toolchain <package>`.
 
