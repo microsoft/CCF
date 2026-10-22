@@ -43,7 +43,6 @@ The proofs reconstruct sends and notifications by re-executing local steps.
 ## Theorems
 
 `Theorems.lean` states each claim and its witness, with a reference to a lemma under `Proofs/`.
-There are no separate named property definitions or property-to-theorem coverage checks: Lean requires a proof for every theorem declaration.
 
 The local properties are invariants of `Local.step`.
 They hold for every node state, not only reachable ones.
