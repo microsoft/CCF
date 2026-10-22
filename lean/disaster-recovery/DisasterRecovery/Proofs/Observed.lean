@@ -105,7 +105,8 @@ lemma next_preserves_opening_thresholds (config : Model.Config) (before after : 
 lemma reachable_opening_thresholds {config : Model.Config} {state : State}
     (reachable : Reachable config state)
     : OpeningThresholds config state := by
-  induction reachable with
+  induction reachable
+    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
   | initial initialized =>
       rcases initialized with ⟨_, nodes, _, _, rfl⟩
       simp [OpeningThresholds, initial, initialNode]

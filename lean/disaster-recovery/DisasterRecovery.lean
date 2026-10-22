@@ -2,7 +2,6 @@ module  -- shake: keep-all --deprecated_module: ignore
 
 public import DisasterRecovery.Model
 public import DisasterRecovery.Model.Local
-public import DisasterRecovery.Proof
 public import DisasterRecovery.Proofs.Committed
 public import DisasterRecovery.Proofs.Execution
 public import DisasterRecovery.Proofs.ExecutionLocal
@@ -24,7 +23,6 @@ public import DisasterRecovery.Tests.CanonicalTests
 public import DisasterRecovery.Tests.Execution
 public import DisasterRecovery.Tests.Initial
 public import DisasterRecovery.Tests.Network
-public import DisasterRecovery.Tests.ProofCoverage
 public import DisasterRecovery.Tests.QuorumCommit
 public import DisasterRecovery.Tests.RaftFreshness
 public import DisasterRecovery.Tests.Trace

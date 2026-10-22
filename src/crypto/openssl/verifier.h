@@ -42,5 +42,7 @@ namespace ccf::crypto
       const ccf::nonstd::SystemClock::time_point& now) const override;
 
     std::string subject() const override;
+
+    std::vector<uint8_t> subject_der() const override;
   };
 }

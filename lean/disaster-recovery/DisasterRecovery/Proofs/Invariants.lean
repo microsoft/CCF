@@ -807,7 +807,8 @@ lemma reachable_well_formed
     {state : State}
     (reachable : Reachable config state)
     : WellFormed config state := by
-  induction reachable with
+  induction reachable
+    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
   | initial initialized =>
       rcases initialized with
         ⟨valid, nodes, nodesNodup, covered, rfl⟩
@@ -820,7 +821,8 @@ lemma reachable_config_valid
     {state : State}
     (reachable : Reachable config state)
     : config.Valid := by
-  induction reachable with
+  induction reachable
+    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
   | initial initialized =>
       rcases initialized with ⟨valid, _⟩
       exact valid

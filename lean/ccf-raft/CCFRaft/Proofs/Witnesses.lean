@@ -1,10 +1,8 @@
 module
 
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
-
-public import CCFRaft.Properties
+public import CCFRaft.Model
 public import CCFRaft.Proofs.Concrete
+public import CCF.Execution
 
 import all Init.Control.State
 import all Init.Data.List.Sort.Basic
@@ -24,25 +22,24 @@ execution without stuttering. The kernel evaluates every step.
 namespace CCFRaft.Proofs.Witnesses
 
 open CCF CCF.Execution CCF.MultiNodeTransitionSystem
-open CCFRaft.Model.Node (NodeState)
+open CCFRaft.Model.Node
 open CCFRaft.Model (initialNodeState)
 
 section Runs
 
-variable {State Action : Type}
-
 /-- The final state of choosing each action from the current state, when every
 chosen action is enabled. -/
-def run (system : TransitionSystem State Action) (start : State)
-    : List (State -> Action) -> Option State
+def run (system : TransitionSystem) (start : system.State)
+    : List (system.State -> system.Action) -> Option system.State
   | [] => some start
   | choose :: rest =>
       (system.step start (choose start)).bind fun next => run system next rest
 
 /-- Each prefix of a finished run finishes, and its next choice is enabled. -/
-theorem run_take_step {system : TransitionSystem State Action} {start final : State}
-    {choices : List (State -> Action)} (finished : run system start choices = some final)
-    {index : Nat} (bounded : index < choices.length)
+theorem run_take_step {system : TransitionSystem} {start final : system.State}
+    {choices : List (system.State -> system.Action)}
+    (finished : run system start choices = some final) {index : Nat}
+    (bounded : index < choices.length)
     : exists before after,
         run system start (choices.take index) = some before
         /\ run system start (choices.take (index + 1)) = some after
@@ -71,9 +68,9 @@ theorem run_take_step {system : TransitionSystem State Action} {start final : St
 The states of running `stem` from `start` and then repeating `cycle` forever.
 The default `start` is never used when the runs finish.
 -/
-def lasso (system : TransitionSystem State Action) (start : State)
-    (stem cycle : List (State -> Action)) (index : Nat)
-    : State :=
+def lasso (system : TransitionSystem) (start : system.State)
+    (stem cycle : List (system.State -> system.Action)) (index : Nat)
+    : system.State :=
   if index < stem.length then
     (run system start (stem.take index)).getD start
   else
@@ -82,21 +79,21 @@ def lasso (system : TransitionSystem State Action) (start : State)
       start
 
 /-- The lasso as an infinite trace. -/
-def lassoTrace (system : TransitionSystem State Action) (start : State)
-    (stem cycle : List (State -> Action))
-    : Trace State :=
+def lassoTrace (system : TransitionSystem) (start : system.State)
+    (stem cycle : List (system.State -> system.Action))
+    : Trace system.State :=
   Stream'.Seq.ofStream (lasso system start stem cycle)
 
-theorem lassoTrace_get? {system : TransitionSystem State Action} {start : State}
-    {stem cycle : List (State -> Action)} (index : Nat)
+theorem lassoTrace_get? {system : TransitionSystem} {start : system.State}
+    {stem cycle : List (system.State -> system.Action)} (index : Nat)
     : (lassoTrace system start stem cycle).get? index
       = some (lasso system start stem cycle index) :=
   rfl
 
 /-- A finished stem followed by a nonempty cycle back to its final state is a
 valid infinite trace. -/
-theorem lasso_valid {system : TransitionSystem State Action} {start final : State}
-    {stem cycle : List (State -> Action)} (initialized : system.init start)
+theorem lasso_valid {system : TransitionSystem} {start final : system.State}
+    {stem cycle : List (system.State -> system.Action)} (initialized : system.init start)
     (stemRun : run system start stem = some final)
     (cycleRun : run system final cycle = some final) (nonempty : cycle ≠ [])
     : (lassoTrace system start stem cycle).Valid system := by
@@ -152,9 +149,10 @@ theorem lasso_valid {system : TransitionSystem State Action} {start final : Stat
       exact enabled
 
 /-- Every state reached by a prefix of the stem occurs in the lasso. -/
-theorem lasso_mem {system : TransitionSystem State Action} {start final state : State}
-    {stem cycle : List (State -> Action)} (stemRun : run system start stem = some final)
-    {index : Nat} (bounded : index <= stem.length)
+theorem lasso_mem {system : TransitionSystem} {start final state : system.State}
+    {stem cycle : List (system.State -> system.Action)}
+    (stemRun : run system start stem = some final) {index : Nat}
+    (bounded : index <= stem.length)
     (reached : run system start (stem.take index) = some state)
     : state ∈ lassoTrace system start stem cycle := by
   apply Stream'.Seq.get?_mem (n := index)
@@ -274,7 +272,7 @@ elab "kernel_rfl" : tactic => closeMainGoalUsing `kernel_rfl fun target _ => do
 
 section Election
 
-def electionSystem := CCFRaft.Model.transitionSystem {0, 1, 2} [0, 1, 2]
+abbrev electionSystem := CCFRaft.Model.transitionSystem {0, 1, 2} [0, 1, 2]
 
 def electionStart := start {0, 1, 2} [0, 1, 2]
 
@@ -338,33 +336,9 @@ theorem election_both_lead : bothLead electionFinal = true := by
 
 end Election
 
-theorem election_safety_witness : Properties.ElectionSafetyWitness := by
-  have lead := election_both_lead
-  simp only [bothLead, Bool.and_eq_true, Option.any_eq_true, decide_eq_true_eq] at lead
-  obtain ⟨⟨leftState, leftFound, leftPrimary⟩, ⟨rightState, rightFound, rightPrimary⟩⟩ := lead
-  have stemRun := election_run
-  exact ⟨
-    {0, 1, 2},
-    [0, 1, 2],
-    lassoTrace electionSystem electionStart electionChoices electionCycle,
-    electionFinal,
-    0,
-    1,
-    leftState,
-    rightState,
-    lasso_valid (start_initial (by decide) (by decide)) stemRun election_cycle
-      (by simp [electionCycle]),
-    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
-    mem_of_nodeState leftFound,
-    mem_of_nodeState rightFound,
-    leftPrimary,
-    rightPrimary,
-    by decide
-  ⟩
-
 section Commit
 
-def commitSystem := CCFRaft.Model.transitionSystem {0, 1} [0, 1]
+abbrev commitSystem := CCFRaft.Model.transitionSystem {0, 1} [0, 1]
 
 def commitStart := start {0, 1} [0, 1]
 
@@ -439,33 +413,9 @@ theorem commit_follower_present : (nodeState commitFollowerCommitted 1).isSome :
 
 end Commit
 
-/-- Node 0 has committed in one state, and node 1 in a later one. -/
-theorem committed_logs_prefix_witness : Properties.CommittedLogsPrefixWitness := by
-  have stemRun := commit_run
-  exact ⟨
-    {0, 1},
-    [0, 1],
-    lassoTrace commitSystem commitStart commitChoices commitCycle,
-    commitPrimaryCommitted,
-    commitFollowerCommitted,
-    0,
-    1,
-    (nodeState commitPrimaryCommitted 0).get commit_primary_present,
-    (nodeState commitFollowerCommitted 1).get commit_follower_present,
-    lasso_valid (start_initial (by decide) (by decide)) stemRun commit_cycle
-      (by simp [commitCycle]),
-    lasso_mem stemRun (by decide) (eq_some_getD commit_primary_committed _),
-    lasso_mem stemRun (by decide) (eq_some_getD commit_follower_committed _),
-    member_of_nodeState _,
-    member_of_nodeState _,
-    by decide,
-    by decide,
-    by decide
-  ⟩
-
 section Single
 
-def singleSystem := CCFRaft.Model.transitionSystem {0} [0]
+abbrev singleSystem := CCFRaft.Model.transitionSystem {0} [0]
 
 def singleStart := start {0} [0]
 
@@ -524,26 +474,52 @@ theorem extend_committed
 
 end Single
 
-theorem committed_frontier_is_signature_witness
-    : Properties.CommittedFrontierIsSignatureWitness := by
-  have stemRun := single_run
+lemma committed_logs_prefix_witness
+    : exists (config : Finset NodeID),
+    exists (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State),
+    exists (stateA stateB : Model.State),
+    exists (left right : NodeID) (leftState rightState : NodeState),
+      trace.Valid (Model.transitionSystem config nodes)
+      /\ stateA ∈ trace
+      /\ stateB ∈ trace
+      /\ (left, leftState) ∈ stateA.nodes
+      /\ (right, rightState) ∈ stateB.nodes
+      /\ left ≠ right
+      /\ leftState.committedLog ≠ []
+      /\ rightState.committedLog ≠ [] := by
+  have stemRun := commit_run
   exact ⟨
-    {0},
-    [0],
-    lassoTrace singleSystem singleStart singleChoices singleCycle,
-    singleFinal,
+    {0, 1},
+    [0, 1],
+    lassoTrace commitSystem commitStart commitChoices commitCycle,
+    commitPrimaryCommitted,
+    commitFollowerCommitted,
     0,
-    (nodeState singleFinal 0).get single_final_present,
-    lasso_valid (start_initial (by decide) (by decide)) stemRun single_cycle
-      (by simp [singleCycle]),
-    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
+    1,
+    (nodeState commitPrimaryCommitted 0).get commit_primary_present,
+    (nodeState commitFollowerCommitted 1).get commit_follower_present,
+    lasso_valid (start_initial (by decide) (by decide)) stemRun commit_cycle
+      (by simp [commitCycle]),
+    lasso_mem stemRun (by decide) (eq_some_getD commit_primary_committed _),
+    lasso_mem stemRun (by decide) (eq_some_getD commit_follower_committed _),
     member_of_nodeState _,
+    member_of_nodeState _,
+    by decide,
+    by decide,
     by decide
   ⟩
 
-/-- A single primary's nonempty committed log grows in one batch append. -/
-theorem single_node_committed_log_monotonic_witness
-    : Properties.SingleNodeCommittedLogMonotonicWitness :=
+lemma single_node_committed_log_monotonic_witness
+    : exists (config : Finset NodeID) (nodes : List NodeID),
+    exists (pre post : Model.State),
+    exists (nodeId : NodeID) (nodePre nodePost : NodeState),
+    exists (action : Model.Action),
+      (pre.nodes.map Prod.fst).Nodup
+      /\ (Model.transitionSystem config nodes).step pre action = some post
+      /\ (nodeId, nodePre) ∈ pre.nodes
+      /\ (nodeId, nodePost) ∈ post.nodes
+      /\ nodePre.committedLog ≠ []
+      /\ nodePre.committedLog.length < nodePost.committedLog.length :=
   ⟨
     {0},
     [0],
@@ -559,6 +535,65 @@ theorem single_node_committed_log_monotonic_witness
     member_of_nodeState _,
     extend_committed.1,
     extend_committed.2
+  ⟩
+
+lemma election_safety_witness
+    : exists (config : Finset NodeID),
+    exists
+    (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State) (state : Model.State),
+    exists (left right : NodeID) (leftState rightState : NodeState),
+      trace.Valid (Model.transitionSystem config nodes)
+      /\ state ∈ trace
+      /\ (left, leftState) ∈ state.nodes
+      /\ (right, rightState) ∈ state.nodes
+      /\ leftState.role = .primary
+      /\ rightState.role = .primary
+      /\ left ≠ right := by
+  have lead := election_both_lead
+  simp only [bothLead, Bool.and_eq_true, Option.any_eq_true, decide_eq_true_eq] at lead
+  obtain ⟨⟨leftState, leftFound, leftPrimary⟩, ⟨rightState, rightFound, rightPrimary⟩⟩ := lead
+  have stemRun := election_run
+  exact ⟨
+    {0, 1, 2},
+    [0, 1, 2],
+    lassoTrace electionSystem electionStart electionChoices electionCycle,
+    electionFinal,
+    0,
+    1,
+    leftState,
+    rightState,
+    lasso_valid (start_initial (by decide) (by decide)) stemRun election_cycle
+      (by simp [electionCycle]),
+    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
+    mem_of_nodeState leftFound,
+    mem_of_nodeState rightFound,
+    leftPrimary,
+    rightPrimary,
+    by decide
+  ⟩
+
+lemma committed_frontier_is_signature_witness
+    : exists (config : Finset NodeID),
+    exists
+    (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State) (state : Model.State),
+    exists (node : NodeID) (nodeState : NodeState),
+      trace.Valid (Model.transitionSystem config nodes)
+      /\ state ∈ trace
+      /\ (node, nodeState) ∈ state.nodes
+      /\ 0 < nodeState.commitIndex := by
+  have stemRun := single_run
+  exact ⟨
+    {0},
+    [0],
+    lassoTrace singleSystem singleStart singleChoices singleCycle,
+    singleFinal,
+    0,
+    (nodeState singleFinal 0).get single_final_present,
+    lasso_valid (start_initial (by decide) (by decide)) stemRun single_cycle
+      (by simp [singleCycle]),
+    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
+    member_of_nodeState _,
+    by decide
   ⟩
 
 end CCFRaft.Proofs.Witnesses

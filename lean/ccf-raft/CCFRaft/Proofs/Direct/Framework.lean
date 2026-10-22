@@ -1,8 +1,5 @@
 module
 
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
-
 public import CCFRaft.Proofs.Concrete
 
 @[expose] public section
@@ -43,7 +40,9 @@ theorem NodeInvariant.reachable {P : NodeID -> NodeState -> Prop}
     (reachable
       : (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes).Reachable state)
     : forall node local_, (node, local_) ∈ state.nodes -> P node local_ := by
-  induction reachable with
+  induction reachable
+    using @TransitionSystem.Reachable.rec
+      (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes) with
   | initial initialized =>
       intro node local_ member
       have initial : local_ = initialNodeState Config.INITIAL_CONFIGURATION node := initialized.2.2.2.2 (node, local_) member
@@ -75,7 +74,9 @@ theorem keys_nodup {nodes : List NodeID} {state : Model.State}
     (reachable
       : (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes).Reachable state)
     : (state.nodes.map Prod.fst).Nodup := by
-  induction reachable with
+  induction reachable
+    using @TransitionSystem.Reachable.rec
+      (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes) with
   | initial initialized => exact initialized.2.2.1
   | @step before after action _ stepped ih =>
       cases action with
