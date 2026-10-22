@@ -1,6 +1,6 @@
 module
 
-public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Properties.Trace
 public import Mathlib.Tactic
 
 import all Init.Control.State

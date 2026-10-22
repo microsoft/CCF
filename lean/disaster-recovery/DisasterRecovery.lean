@@ -16,7 +16,8 @@ public import DisasterRecovery.Proofs.Predicates
 public import DisasterRecovery.Proofs.Quorum
 public import DisasterRecovery.Proofs.Trace
 public import DisasterRecovery.Proofs.Witnesses
-public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Properties.Freshness
+public import DisasterRecovery.Properties.Trace
 public import DisasterRecovery.Tests.Architecture
 public import DisasterRecovery.Tests.CanonicalTests
 public import DisasterRecovery.Tests.Execution

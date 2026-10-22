@@ -2,7 +2,7 @@ module
 
 public import DisasterRecovery.Proofs.Predicates
 public import DisasterRecovery.Proofs.Quorum
-public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Properties.Freshness
 public import Mathlib.Tactic
 
 @[expose] public section

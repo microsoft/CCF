@@ -3,7 +3,8 @@ module
 import all Init.Prelude
 import all Lean.Data.Name
 
-public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Properties.Freshness
+public import DisasterRecovery.Properties.Trace
 public import Lean
 
 @[expose] public section
@@ -35,19 +36,20 @@ private def allowedImport (owner dependency : Name) : Bool :=
     true
 
 example
-    : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Model = true :=
+    : allowedImport `DisasterRecovery.Properties.Freshness `DisasterRecovery.Model
+      = true :=
   rfl
 
-example : allowedImport `DisasterRecovery.Properties.Utils `CCF.Execution = true :=
+example : allowedImport `DisasterRecovery.Properties.Trace `CCF.Execution = true :=
   rfl
 
 example
-    : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Proofs.Model
+    : allowedImport `DisasterRecovery.Properties.Trace `DisasterRecovery.Proofs.Model
       = false :=
   rfl
 
 example
-    : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery.Theorems
+    : allowedImport `DisasterRecovery.Properties.Trace `DisasterRecovery.Theorems
       = false :=
   rfl
 
@@ -59,14 +61,14 @@ example : allowedImport `DisasterRecovery.Model `DisasterRecovery.Theorems = fal
   rfl
 
 example
-    : allowedImport `DisasterRecovery.Model.Local `DisasterRecovery.Properties.Utils
+    : allowedImport `DisasterRecovery.Model.Local `DisasterRecovery.Properties.Trace
       = false :=
   rfl
 
 example : allowedImport `CCF.MultiNodeTransitionSystem `DisasterRecovery.Model = false :=
   rfl
 
-example : allowedImport `DisasterRecovery.Properties.Utils `DisasterRecovery = false :=
+example : allowedImport `DisasterRecovery.Properties.Trace `DisasterRecovery = false :=
   rfl
 
 run_cmd do
@@ -123,7 +125,7 @@ run_cmd do
       throwError "Removed model/property API must not be reintroduced: {name}"
   let header := env.header
   for name in header.moduleNames do
-    if #[`CCF.Global, `DisasterRecovery.Properties.Trace, `DisasterRecovery.Properties.History].contains name then
+    if #[`CCF.Global, `DisasterRecovery.Properties.Utils, `DisasterRecovery.Properties.History].contains name then
       throwError "Removed module must not be reintroduced: {name}"
     if (`DisasterRecovery.Proof).isPrefixOf name ||
         (`DisasterRecovery.Proofs).isPrefixOf name ||

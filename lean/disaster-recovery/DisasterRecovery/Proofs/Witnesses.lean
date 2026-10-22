@@ -2,7 +2,7 @@ module
 
 import all Init.Data.List.Sort.Basic
 
-public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Properties.Trace
 public import DisasterRecovery.Proofs.Local
 public import Mathlib.Tactic
 

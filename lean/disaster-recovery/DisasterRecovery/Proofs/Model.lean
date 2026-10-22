@@ -1,6 +1,7 @@
 module
 
-public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Properties.Freshness
+public import DisasterRecovery.Properties.Trace
 public import DisasterRecovery.Proofs.History
 public import DisasterRecovery.Proofs.Gossip
 

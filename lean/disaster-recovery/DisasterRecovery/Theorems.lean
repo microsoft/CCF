@@ -1,6 +1,7 @@
 module
 
-public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Properties.Freshness
+public import DisasterRecovery.Properties.Trace
 public import DisasterRecovery.Proofs.Local
 public import DisasterRecovery.Proofs.Model
 public import DisasterRecovery.Proofs.Witnesses

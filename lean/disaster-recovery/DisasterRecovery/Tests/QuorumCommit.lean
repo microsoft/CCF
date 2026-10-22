@@ -3,7 +3,8 @@ module
 import all Init.Control.State
 import all Init.Data.List.Sort.Basic
 
-public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Properties.Freshness
+public import DisasterRecovery.Properties.Trace
 public import DisasterRecovery.Tests.Initial
 public import Mathlib.Tactic
 

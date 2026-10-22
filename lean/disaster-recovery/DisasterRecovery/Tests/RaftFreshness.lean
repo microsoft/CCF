@@ -1,6 +1,6 @@
 module
 
-public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Properties.Freshness
 
 @[expose] public section
 

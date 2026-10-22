@@ -10,7 +10,7 @@ This package contains a Lean model of CCF's recovery decision protocol (`src/nod
 | Theorem statements and proof links    | `DisasterRecovery/Theorems.lean`                |
 | Single-node protocol                  | `DisasterRecovery/Model/Local.lean`             |
 | Network composition                   | `DisasterRecovery/Model.lean`, `../common/CCF/` |
-| Definitions used by the statements    | `DisasterRecovery/Properties/Utils.lean`        |
+| Definitions used by the statements    | `DisasterRecovery/Properties/`                  |
 | Proof implementations                 | `DisasterRecovery/Proofs/`                      |
 | Executable checks and concrete traces | `DisasterRecovery/Tests/`                       |
 | Replay of recorded C++ traces         | `DisasterRecovery/TraceValidation.lean`         |

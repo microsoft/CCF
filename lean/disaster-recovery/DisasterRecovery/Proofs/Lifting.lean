@@ -2,7 +2,7 @@ module
 
 public import DisasterRecovery.Proofs.Quorum
 public import DisasterRecovery.Proofs.Local
-public import DisasterRecovery.Properties.Utils
+public import DisasterRecovery.Properties.Trace
 public import CCF.Execution
 
 @[expose] public section
