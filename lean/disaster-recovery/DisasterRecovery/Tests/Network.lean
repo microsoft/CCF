@@ -115,11 +115,11 @@ private def initial : MultiNodeTransitionSystem.State Nat Nat Nat :=
 
 example
     : (MultiNodeTransitionSystem.lift protocol).init { nodes := [(9, 0), (1, 0)] } := by
-  simp [MultiNodeTransitionSystem.lift, protocol, or_imp, and_imp]
+  simp [protocol, or_imp, and_imp]
 
 example
     : ¬ (MultiNodeTransitionSystem.lift protocol).init { nodes := [(1, 0), (1, 0)] } := by
-  simp [MultiNodeTransitionSystem.lift]
+  simp
 
 private def expect (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError message)
