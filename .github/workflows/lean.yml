@@ -44,6 +44,37 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Check packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TMPDIR="$RUNNER_TEMP"
+          for config in lean/*/lakefile.toml; do
+            package="$(dirname "$config")"
+            (
+              cd "$package"
+              echo "::group::Build, kernel and axiom check: $package"
+              if [ "$package" = "lean/ccf-raft" ]; then
+                original="$(mktemp)"
+                cp lakefile.toml "$original"
+                trap 'cp "$original" lakefile.toml; rm "$original"' EXIT
+                for target in CCFRaft ccfraft-replay replay-checks; do
+                  sed "s/^defaultTargets = .*/defaultTargets = [\"$target\"]/" "$original" > lakefile.toml
+                  lake check --inadvisably-no-sandbox
+                done
+                cp "$original" lakefile.toml
+                rm "$original"
+                trap - EXIT
+              else
+                lake check --inadvisably-no-sandbox
+              fi
+              echo "::endgroup::"
+              echo "::group::Import coverage: $package"
+              lake exe check-imports
+              echo "::endgroup::"
+            )
+          done
+
       - name: Lint packages
         shell: bash
         run: |
@@ -56,35 +87,9 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Check packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          export TMPDIR="$RUNNER_TEMP"
-          for config in lean/*/lakefile.toml; do
-            package="$(dirname "$config")"
-            echo "::group::Check: $package"
-            (
-              cd "$package"
-              if grep -q '^name = "mathlib"$' lakefile.toml; then
-                lake exe mk_all --check --module
-              fi
-              lake build --wfail --fail-fast
-              if [ "$package" = "lean/ccf-raft" ]; then
-                lake exe replay-checks
-                config="$(mktemp)"
-                cp lakefile.toml "$config"
-                trap 'cp "$config" lakefile.toml; rm "$config"' EXIT
-                for target in CCFRaft ccfraft-replay replay-checks; do
-                  sed "s/^defaultTargets = .*/defaultTargets = [\"$target\"]/" "$config" > lakefile.toml
-                  lake check --inadvisably-no-sandbox
-                done
-              else
-                lake check --inadvisably-no-sandbox
-              fi
-            )
-            echo "::endgroup::"
-          done
+      - name: Check Raft replay
+        working-directory: lean/ccf-raft
+        run: lake exe replay-checks
 
       - name: Check native trace collection
         run: python3 tests/raft_trace_capture_test.py

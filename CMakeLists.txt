@@ -1157,6 +1157,7 @@ if(BUILD_TESTS)
       raft_driver
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
     )
+    add_san(raft_driver)
     add_warning_checks(raft_driver)
     enable_coverage(raft_driver)
     target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)

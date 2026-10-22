@@ -1,12 +1,9 @@
 module
 
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
-
 public import CCFRaft.Proofs.Direct.Effects
 public import CCFRaft.Proofs.Direct.Framework
-public import CCFRaft.Properties
 public import CCFRaft.Proofs.Ledger
+public import CCF.Execution
 
 @[expose] public section
 
@@ -367,10 +364,20 @@ theorem commitFrontier_invariant [Config.InitialConfiguration]
       simp only [Model.Node.step] at stepped
       exact frontier.receive _ self source message _ _ _ stepped
 
-theorem committed_frontier_is_signature : Properties.CommittedFrontierIsSignature := by
+theorem committed_frontier_is_signature
+    : forall (config : Finset NodeID),
+      forall (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State)
+              (state : Model.State),
+      forall (node : NodeID) (nodeState : NodeState),
+        (trace.Valid (Model.transitionSystem config nodes)
+          /\ state ∈ trace
+          /\ (node, nodeState) ∈ state.nodes
+          /\ 0 < nodeState.commitIndex)
+        -> isSignatureAt nodeState.log nodeState.commitIndex = true := by
   intro config nodes trace state node nodeState ⟨valid, member, listed, positive⟩
-  let _ : Config.InitialConfiguration := ⟨config⟩
-  exact (commitFrontier_invariant.reachable (valid.reachable member) node nodeState listed).2
+  let _ : Proofs.Config.InitialConfiguration := ⟨config⟩
+  exact (Proofs.Direct.commitFrontier_invariant.reachable
+          (valid.reachable member) node nodeState listed).2
     positive
 
 end CCFRaft.Proofs.Direct

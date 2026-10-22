@@ -6,6 +6,7 @@
 #include "node/historical_queries.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/node_interface.h"
+#include "service/tables/signing_identities.h"
 #include "tasks/basic_task.h"
 #include "tasks/task_system.h"
 
@@ -28,6 +29,7 @@ namespace ccf
 
     auto* service_info_handle = tx.ro<ccf::Service>(ccf::Tables::SERVICE);
     auto service_info = service_info_handle->get();
+    check_signing_identity_matches_service_cert(tx);
     // A node can advance to part-of-network before the service-opening tx has
     // been replicated. Until the service is OPEN, its create-txid (and the
     // endorsement written in the same tx) may be stale, so leave create_txid
@@ -109,6 +111,7 @@ namespace ccf
           "historical state",
           seq));
       }
+      check_signing_identity_matches_service_cert(htx);
       return endorsement;
     }
   };

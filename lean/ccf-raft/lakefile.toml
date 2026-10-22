@@ -1,6 +1,6 @@
 name = "ccf_raft"
 version = "0.1.0"
-moreLeanArgs = ["-DwarningAsError=true"]
+moreLeanArgs = ["-DwarningAsError=true", "-Dtrace.Kernel=true"]
 leanOptions = { autoImplicit = false }
 builtinLint = true
 defaultTargets = ["CCFRaft", "ccfraft-replay", "replay-checks"]

@@ -1,6 +1,6 @@
 module
 
-public import DisasterRecovery.Properties
+public import DisasterRecovery.Properties.Utils
 public import Mathlib.Tactic
 
 import all Init.Control.State
@@ -93,7 +93,15 @@ lemma validStep_run {config : Model.Config}
     Option.bind_eq_some_iff, Option.map_eq_some_iff]
     using valid
 
-lemma gossip_freezes_after_choice : Properties.GossipFreezesAfterChoice := by
+lemma gossip_freezes_after_choice
+    : forall (config : Model.Config),
+      forall localStep : Properties.LocalStep,
+      forall (source : Model.Local.Location) (txid : Model.Local.TxID),
+        ((Model.protocol config).ValidStep localStep
+          /\ localStep.action = .receiveGossip source txid .accepted
+          /\ localStep.before.chosen.isSome = true)
+        -> localStep.after = localStep.before
+            /\ .rejected "gossip-frozen" ∈ localStep.effects.notifications := by
   rintro config s source txid ⟨valid, action, chosen⟩
   obtain ⟨recovered, _, run⟩ := validStep_run valid
   have selected : s.before.chosen ≠ none := by
@@ -103,7 +111,14 @@ lemma gossip_freezes_after_choice : Properties.GossipFreezesAfterChoice := by
   obtain ⟨states, effects⟩ := run
   exact ⟨states.symm, by rw [← effects]; simp⟩
 
-lemma rejected_gossip_stutters : Properties.RejectedGossipStutters := by
+lemma rejected_gossip_stutters
+    : forall (config : Model.Config),
+      forall localStep : Properties.LocalStep,
+      forall (source : Model.Local.Location) (txid : Model.Local.TxID),
+        ((Model.protocol config).ValidStep localStep
+          /\ localStep.action = .receiveGossip source txid .rejected)
+        -> localStep.after = localStep.before
+            /\ .rejected "quote-or-certificate" ∈ localStep.effects.notifications := by
   rintro config s source txid ⟨valid, action⟩
   obtain ⟨recovered, _, run⟩ := validStep_run valid
   simp [step, action, rejected, Capabilities.record,
@@ -128,7 +143,17 @@ lemma quorum_advance_opens (config : Config) (state : NodeState) (source : Locat
     simp [Capabilities.record, advanceTimeoutLane, advanceTimeoutState,
       ]
 
-lemma quorum_step_opens : Properties.QuorumAdvanceOpens := by
+lemma quorum_step_opens
+    : forall (config : Model.Config),
+      forall localStep : Properties.LocalStep,
+        ((Model.protocol config).ValidStep localStep
+          /\ (localStep.action = .timeout
+              \/ exists source, localStep.action = .receiveVote source .accepted)
+          /\ localStep.before.phase = .voting
+          /\ localStep.before.votes.length >= Model.Local.voteQuorum config.protocol)
+        -> localStep.after.phase = .opening
+            /\ localStep.after.openKind = some .quorum
+            /\ .opening .quorum ∈ localStep.effects.notifications := by
   rintro config s ⟨valid, action, phase, quorum⟩
   obtain ⟨recovered, _, run⟩ := validStep_run valid
   rcases action with action | ⟨source, action⟩
@@ -157,7 +182,15 @@ lemma quorum_step_opens : Properties.QuorumAdvanceOpens := by
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj run)
     exact ⟨opening, kind, notification⟩
 
-lemma aligned_opening_timeout_completes : Properties.AlignedOpeningTimeoutCompletes := by
+lemma aligned_opening_timeout_completes
+    : forall (config : Model.Config),
+      forall localStep : Properties.LocalStep,
+        ((Model.protocol config).ValidStep localStep
+          /\ localStep.action = .timeout
+          /\ localStep.before.phase = .opening
+          /\ localStep.before.timeoutState = .opening)
+        -> localStep.after = { localStep.before with phase := .open }
+            /\ .completed ∈ localStep.effects.notifications := by
   rintro config s ⟨valid, action, phase, timeout⟩
   obtain ⟨recovered, _, run⟩ := validStep_run valid
   simp [step, action, advance, phase, timeout, validTimeout, Capabilities.record,

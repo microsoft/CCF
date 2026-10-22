@@ -21,6 +21,11 @@ using IdentityTypeSerialiser =
 static constexpr std::array<ccf::IdentityType, 2> IDENTITY_TYPES = {
   ccf::IdentityType::CLASSICAL, ccf::IdentityType::PQ};
 
+static constexpr std::array<ccf::IdentityKind, 3> IDENTITY_KINDS = {
+  ccf::IdentityKind::X509_CERT_DER,
+  ccf::IdentityKind::X509_SPKI_DER,
+  ccf::IdentityKind::COSE_KEY};
+
 TEST_CASE("CLASSICAL shares the serialised key of a single-Value table")
 {
   // ServiceValue is a Map with a single entry, whose key is 8 null bytes. A
@@ -71,13 +76,29 @@ TEST_CASE("IdentityType names are distinct and stable")
   REQUIRE(names.size() == IDENTITY_TYPES.size());
 }
 
+TEST_CASE("IdentityKind names are distinct and stable")
+{
+  // These names will appear in the ledger, so they must not change.
+  REQUIRE(nlohmann::json(ccf::IdentityKind::X509_CERT_DER) == "X509_CERT_DER");
+  REQUIRE(nlohmann::json(ccf::IdentityKind::X509_SPKI_DER) == "X509_SPKI_DER");
+  REQUIRE(nlohmann::json(ccf::IdentityKind::COSE_KEY) == "COSE_KEY");
+
+  std::set<std::string> names;
+  for (const auto identity_kind : IDENTITY_KINDS)
+  {
+    const nlohmann::json name = identity_kind;
+    REQUIRE(names.insert(name.get<std::string>()).second);
+  }
+  REQUIRE(names.size() == IDENTITY_KINDS.size());
+}
+
 TEST_CASE("Identity round-trips through JSON")
 {
   const ccf::Identity identity{
-    ccf::IdentityKind::X509_SPKI_DER, std::vector<uint8_t>{1, 2, 3, 4}};
+    ccf::IdentityKind::COSE_KEY, std::vector<uint8_t>{1, 2, 3, 4}};
 
   const nlohmann::json j = identity;
-  REQUIRE(j["kind"] == "X509_SPKI_DER");
+  REQUIRE(j["kind"] == "COSE_KEY");
 
   REQUIRE(j.get<ccf::Identity>() == identity);
 }

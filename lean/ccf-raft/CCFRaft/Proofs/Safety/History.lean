@@ -1,8 +1,5 @@
 module
 
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
-
 public import CCFRaft.Proofs.Direct.Framework
 
 @[expose] public section
@@ -43,7 +40,9 @@ theorem exec_of_reachable {nodes : List NodeID} {state : Model.State}
     (reachable
       : (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes).Reachable state)
     : exists history, Exec nodes (state :: history) := by
-  induction reachable with
+  induction reachable
+    using @TransitionSystem.Reachable.rec
+      (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes) with
   | initial initialized => exact ⟨[], .initial initialized⟩
   | step _ stepped ih =>
       obtain ⟨history, prior⟩ := ih

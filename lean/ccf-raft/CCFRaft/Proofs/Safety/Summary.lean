@@ -1,8 +1,5 @@
 module
 
--- Copyright (c) Microsoft Corporation. All rights reserved.
--- Licensed under the Apache 2.0 License.
-
 public import CCFRaft.Proofs.Safety.History
 public import CCFRaft.Proofs.Safety.Sends
 public import CCFRaft.Proofs.Ledger
