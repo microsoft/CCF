@@ -66,7 +66,7 @@ def protocol (config : Config)
 
 /-- Composes recovery nodes.
 Initial states include every expected location but may also contain unused nodes. -/
-def transitionSystem (config : Config) : TransitionSystem State Action :=
+abbrev transitionSystem (config : Config) : TransitionSystem :=
   let network := MultiNodeTransitionSystem.lift (protocol config)
   {
     network with

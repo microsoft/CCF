@@ -241,8 +241,8 @@ example
     ⟩
 
 example
-    : ¬ Execution.Trace.Valid (Stream'.Seq.ofList [ready, voteSent])
-          (Model.transitionSystem config) := by
+    : ¬ Execution.Trace.Valid (Model.transitionSystem config)
+          (Stream'.Seq.ofList [ready, voteSent]) := by
   rintro ⟨⟨start, first, _, _, _, _, nodes⟩, _⟩
   have same : start = ready := by simpa using first.symm
   subst start
