@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Added
 
-- The header-only Valijson library is now available to C++ applications through the CCF development package, without a separate dependency download (#8621).
+- The header-only Valijson library is now available to C++ applications through the CCF development package (#8621).
 
 ## [7.0.21]
 
