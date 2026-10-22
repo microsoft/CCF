@@ -2,6 +2,7 @@ module
 
 public import CCFRaft.Model
 public import CCF.Execution
+public import CCF.WitnessedTheorem
 
 import CCFRaft.Proofs.CommittedLogs
 import CCFRaft.Proofs.Direct.CommitFrontier
@@ -114,27 +115,20 @@ lemma election_safety_witness
   exact Proofs.Witnesses.election_safety_witness
 
 /-- Every positive commit index points to a signature entry. -/
-theorem committed_frontier_is_signature
-    : forall (config : Finset NodeID),
-      forall (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
-      forall (node : NodeID) (nodeState : NodeState),
-        (trace.Valid (Model.transitionSystem config nodes)
-          /\ state ∈ trace
-          /\ (node, nodeState) ∈ state.nodes
-          /\ 0 < nodeState.commitIndex)
-        -> isSignatureAt nodeState.log nodeState.commitIndex = true := by
-  exact Proofs.Direct.committed_frontier_is_signature
-
-/-- Witness: a valid trace has a state with a positive commit index. -/
-lemma committed_frontier_is_signature_witness
-    : exists (config : Finset NodeID),
-    exists
-    (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
-    exists (node : NodeID) (nodeState : NodeState),
-      trace.Valid (Model.transitionSystem config nodes)
-      /\ state ∈ trace
-      /\ (node, nodeState) ∈ state.nodes
-      /\ 0 < nodeState.commitIndex := by
-  exact Proofs.Witnesses.committed_frontier_is_signature_witness
+witnessed_theorem committed_frontier_is_signature
+  for
+  (config : Finset NodeID) (nodes : List NodeID) (trace : GlobalTrace) (state
+                                                                        : Model.State) (node
+                                                                                        : NodeID) (nodeState
+                                                                                                    : NodeState)
+requires
+  trace.Valid (Model.transitionSystem config nodes)
+  /\ state ∈ trace
+  /\ (node, nodeState) ∈ state.nodes
+  /\ 0 < nodeState.commitIndex
+ensures
+  isSignatureAt nodeState.log nodeState.commitIndex = true
+  proof := Proofs.Direct.committed_frontier_is_signature
+  witness_proof := Proofs.Witnesses.committed_frontier_is_signature_witness
 
 end CCFRaft.Properties
