@@ -17,9 +17,7 @@ private def allowedImport (owner dependency : Name) : Bool :=
   else if owner == `CCFRaft.Model then
     (`CCFRaft.Model).isPrefixOf dependency
   else if (`CCFRaft.Properties).isPrefixOf owner then
-    (`CCFRaft.Model).isPrefixOf dependency
-    || (`CCFRaft.Proofs).isPrefixOf dependency
-    || (`CCFRaft.Properties).isPrefixOf dependency
+    (`CCFRaft.Model).isPrefixOf dependency || (`CCFRaft.Proofs).isPrefixOf dependency
   else if (`CCFRaft.Proofs).isPrefixOf owner then
     (`CCFRaft.Model).isPrefixOf dependency || (`CCFRaft.Proofs).isPrefixOf dependency
   else
