@@ -5,6 +5,8 @@ module
 
 public import CCFRaft.Replay.Records
 
+import Std.Internal.Parsec.Basic
+
 public section
 
 /-!
@@ -19,16 +21,40 @@ namespace CCFRaft.Replay
 
 open Lean Model.Node
 
-private structure Cursor where
+private structure EventInput where
   events : Array Event
-  header : Header
   position : Nat := 0
+
+private instance : Std.Internal.Parsec.Input EventInput Nat Nat where
+  pos := (·.position)
+  next input := { input with position := input.position + 1 }
+  curr := (·.position)
+  hasNext input := input.position < input.events.size
+  next' input _ := { input with position := input.position + 1 }
+  curr' input _ := input.position
+
+private abbrev EventParser := Std.Internal.Parsec EventInput
+
+private structure ReductionState where
+  header : Header
   instructions : Array Instruction := #[]
 
-private abbrev Reduction := StateT Cursor (Except String)
+private abbrev Reduction := StateT ReductionState EventParser
 
-private def peek : Reduction (Option Event) := do
-  return (← get).events[(← get).position]?
+private def failure {α : Type} (message : String) : Reduction α :=
+  liftM (Std.Internal.Parsec.fail message : EventParser α)
+
+private def validated {α : Type} : Except String α → Reduction α
+  | .ok value => pure value
+  | .error error => failure error
+
+private def peek : Reduction (Option Event) :=
+  liftM (m := EventParser)
+    ((fun input =>
+        match Std.Internal.Parsec.peek? input with
+        | .success remaining index => .success remaining (index.bind (input.events[·]?))
+        | .error remaining error => .error remaining error)
+      : EventParser (Option Event))
 
 private def nextIs (name : String) (anchor : Option Event := none) : Reduction Bool := do
   return (← peek).any
@@ -36,16 +62,16 @@ private def nextIs (name : String) (anchor : Option Event := none) : Reduction B
       event.function == name && anchor.all (·.sameContext event)
 
 private def take : Reduction Event := do
-  let some event ← peek | throw "end of trace: incomplete event group"
-  modify fun cursor => { cursor with position := cursor.position + 1 }
+  let some event ← peek | failure "end of trace: incomplete event group"
+  let _ ← liftM (Std.Internal.Parsec.any : EventParser Nat)
   return event
 
 private def checked (event : Event) (condition : Bool) (message : String)
     : Reduction Unit :=
-  liftM (require condition s!"{event.record.location}: {event.function}: {message}")
+  validated (require condition s!"{event.record.location}: {event.function}: {message}")
 
 private def read {α : Type} (event : Event) (result : Except String α) : Reduction α :=
-  liftM
+  validated
     (result.mapError fun error => s!"{event.record.location}: {event.function}: {error}")
 
 private def modelNode (event : Event) (name : String) : Reduction NodeID := do
@@ -57,7 +83,7 @@ private def modelMembers (event : Event) (names : List String)
 
 private def requestId (event : Event) : Reduction ReqID := do
   let some index := (← get).header.requests.findIdx? (· == event.record.location)
-  | throw s!"{event.record.location}: undeclared request"
+  | failure s!"{event.record.location}: undeclared request"
   return index
 
 private def emit (instruction : Instruction) : Reduction Unit :=
@@ -83,7 +109,7 @@ private def observe (event : Event) (rule : String) (properties : Option Json :=
   let mut omitted := []
   for (key, reason) in exclusions do
     let some value := facts.lookup key
-    | throw s!"{event.record.location}: exclusion names unknown property '{key}'"
+    | failure s!"{event.record.location}: exclusion names unknown property '{key}'"
     checked event (!reason.trimAscii.toString.isEmpty)
       "observation exclusion requires a reason"
     omitted := omitted ++ [(key, value, reason)]
@@ -240,7 +266,7 @@ private def takeLeaderTail (anchor : Event) : Reduction (List Event) := do
   let commits ← takeCommit anchor
   let mut heartbeats := []
   while ← nextIs "send_append_entries" (some anchor) do
-    let some event ← peek | throw "missing leadership heartbeat"
+    let some event ← peek | failure "missing leadership heartbeat"
     let packet ← read event (field event.message "packet")
     let previous ← read event (nat packet "prev_idx")
     let last ← read event (nat event.state "last_idx")
@@ -647,6 +673,121 @@ structure Reduced where
   header : Header
   instructions : Array Instruction
 
+private def headRule (operation : String) (operations functions : List String)
+    : Reduction Event := do
+  let some event ← peek | failure "end of trace: incomplete event group"
+  unless functions.contains event.function do
+    failure "operation head mismatch"
+  let event ← take
+  checked event (operations.contains operation)
+    s!"ungrouped callback {event.function} in {operation} boundary"
+  return event
+
+private def appendOperation (operation : String) : Reduction Unit := do
+  appendRule (← headRule operation ["replicate"] ["replicate"])
+
+private def sendOperation (operation : String) : Reduction Unit := do
+  let event ← headRule operation ["replicate", "periodic"] ["send_append_entries"]
+  let packet ← read event (field event.message "packet")
+  checked event
+    ((← read event (nat packet "prev_idx"))
+      == (← read event (nat event.message "sent_idx")))
+    "send prev_idx differs from sent_idx"
+  observe event "send-pre"
+  peers event "send-pre"
+  action event "atomic-send"
+    (.local event.node
+      (.sendEntries
+        (← modelNode event (← read event (string event.message "to_node_id")))
+        (← read event (nat packet "idx"))))
+  message event "send-post" false
+
+private def receiveOperation (operation : String) : Reduction Unit := do
+  let some event ← peek | failure "end of trace: incomplete event group"
+  unless !(receiveFamily event.function).isEmpty do
+    failure "operation head mismatch"
+  let event ← take
+  checked event (operation == "receive")
+    s!"ungrouped callback {event.function} in {operation} boundary"
+  receiveRule event
+
+private def electionOperation (operation : String) : Reduction Unit := do
+  let event ←
+    headRule operation ["periodic"] ["become_candidate", "become_pre_vote_candidate"]
+  checked event (← read event (boolean event.state "pre_vote_enabled"))
+    "unsupported disabled-pre-vote timeout election: model requires pre-vote"
+  checked event
+    ((← read event (boolean event.state "pre_vote_enabled"))
+      == (event.function == "become_pre_vote_candidate"))
+    "election entry differs from pre-vote mode"
+  let (nested, sends, tail) ← takeElection event
+  checked event (optional event.facts "role" == some (toJson "preVoteCandidate"))
+    "election boundary role must be preVoteCandidate"
+  observe event "election-pre" none
+    [(
+      "role",
+      "timeout entry follows phase-role assignment; all other fields still equal the pre-state"
+    )]
+  observeCommitPre event tail
+  action event "atomic-election" (.local event.node (.timeout .election))
+    ([event] ++ nested ++ tail ++ sends)
+  observeElection event nested sends tail "role-post"
+
+private def checkQuorumOperation (operation : String) : Reduction Unit := do
+  let event ← headRule operation ["periodic"] ["become_follower"]
+  action event "role-post" (.local event.node (.timeout .checkQuorum))
+  observe event "role-post"
+
+private def nominationOperation (operation : String) : Reduction Unit := do
+  let event ← headRule operation ["nominate"] ["step_down_and_nominate_successor"]
+  checked event
+    ((← read event (string event.command.value "cmd")).startsWith "nominate_successor,")
+    "nomination outside a nominate_successor command"
+  observe event "nomination"
+  action event "nomination" (.local event.node .nominateSuccessor)
+  proposal event "nomination-message"
+
+private def dropOperation (operation : String) : Reduction Unit := do
+  let event ← headRule operation ["drop"] ["drop_pending_to"]
+  checked event ((← read event (string event.message "from_node_id")) == event.node)
+    "drop sender mismatch"
+  observe event "drop"
+  let destination ← read event (string event.message "to_node_id")
+  emit
+    (.message event.node destination (← read event (field event.message "packet")) .head
+      (event.origin "drop"))
+  action event "drop" (.drop event.node destination)
+
+private def operationRule (operation : String) : Reduction Unit :=
+  appendOperation operation
+  <|> sendOperation operation
+  <|> receiveOperation operation
+  <|> electionOperation operation
+  <|> checkQuorumOperation operation
+  <|> nominationOperation operation
+  <|> dropOperation operation
+
+private def chunkBody (header : Header) (operation : String)
+    : EventParser (Array Instruction) := do
+  let batches ←
+    Std.Internal.Parsec.many do
+      let (_, state) ← (operationRule operation).run { header }
+      return state.instructions
+  if let some index ← Std.Internal.Parsec.peek? then
+    return ← fun input =>
+              let event := input.events[index]!
+              Std.Internal.Parsec.fail
+                s!"{event.record.location}: {event.function}: ungrouped callback {event.function} in {operation} boundary"
+                input
+  Std.Internal.Parsec.eof
+  return batches.foldl (· ++ ·) #[]
+
+private def parseEvents {α : Type} (events : Array Event) (parser : EventParser α)
+    : Except String α :=
+  match parser { events } with
+  | .success _ value => .ok value
+  | .error _ error => .error (toString error)
+
 /-- Consumes every event exactly once; an ungrouped callback is never a stutter. -/
 def reduce (records : Array Record) : Except String Reduced := do
   let (events, modes) ← associate records
@@ -660,100 +801,27 @@ def reduce (records : Array Record) : Except String Reduced := do
   require (locations.eraseDups == locations) "duplicate transaction source location"
   let requests := "" :: locations
   let header : Header := { bootstrap := ∅, declared, requests, preVoteModes := modes }
-  let run : Reduction String := do
+  let initialization : Reduction String := do
     for chunk in chunks do
       for endpoint in [chunk.pre, chunk.post] do
         for peer in ← read endpoint (field endpoint.message "peers" >>= Json.getArr?) do
           let _ ← modelNode endpoint (← read endpoint (string peer "node_id"))
-    let leader ← bootstrap initial signature
-    for chunk in chunks.toList.drop 1 do
+    bootstrap initial signature
+  let (leader, initialState) ← parseEvents #[] (initialization.run { header })
+  let mut instructions := initialState.instructions
+  for chunk in chunks.toList.drop 1 do
+    let boundary : Reduction String := do
       let operation ← read chunk.pre (string chunk.pre.message "operation")
       checked chunk.pre (operation != "bootstrap")
         "bootstrap operation after initialization"
       observeBoundary chunk.pre
-      modify fun cursor => { cursor with events := chunk.events, position := 0 }
-      while let some event ← peek do
-        let _ ← take
-        let allowed :=
-          match operation with
-          | "replicate" => ["replicate", "send_append_entries"].contains event.function
-          | "receive" => !(receiveFamily event.function).isEmpty
-          | "periodic" =>
-              [
-                "send_append_entries",
-                "become_candidate",
-                "become_pre_vote_candidate",
-                "become_follower"
-              ].contains
-                event.function
-          | "nominate" => event.function == "step_down_and_nominate_successor"
-          | "drop" => event.function == "drop_pending_to"
-          | _ => false
-        checked event allowed
-          s!"ungrouped callback {event.function} in {operation} boundary"
-        match event.function with
-        | "replicate" => appendRule event
-        | "send_append_entries" =>
-            let packet ← read event (field event.message "packet")
-            checked event
-              ((← read event (nat packet "prev_idx"))
-                == (← read event (nat event.message "sent_idx")))
-              "send prev_idx differs from sent_idx"
-            observe event "send-pre"
-            peers event "send-pre"
-            action event "atomic-send"
-              (.local event.node
-                (.sendEntries
-                  (← modelNode event (← read event (string event.message "to_node_id")))
-                  (← read event (nat packet "idx"))))
-            message event "send-post" false
-        | "drop_pending_to" =>
-            checked event
-              ((← read event (string event.message "from_node_id")) == event.node)
-              "drop sender mismatch"
-            observe event "drop"
-            let destination ← read event (string event.message "to_node_id")
-            emit
-              (.message event.node destination
-                (← read event (field event.message "packet")) .head (event.origin "drop"))
-            action event "drop" (.drop event.node destination)
-        | "become_candidate" | "become_pre_vote_candidate" =>
-            checked event (← read event (boolean event.state "pre_vote_enabled"))
-              "unsupported disabled-pre-vote timeout election: model requires pre-vote"
-            checked event
-              ((← read event (boolean event.state "pre_vote_enabled"))
-                == (event.function == "become_pre_vote_candidate"))
-              "election entry differs from pre-vote mode"
-            let (nested, sends, tail) ← takeElection event
-            checked event
-              (optional event.facts "role" == some (toJson "preVoteCandidate"))
-              "election boundary role must be preVoteCandidate"
-            observe event "election-pre" none
-              [(
-                "role",
-                "timeout entry follows phase-role assignment; all other fields still equal the pre-state"
-              )]
-            observeCommitPre event tail
-            action event "atomic-election" (.local event.node (.timeout .election))
-              ([event] ++ nested ++ tail ++ sends)
-            observeElection event nested sends tail "role-post"
-        | "become_follower" =>
-            action event "role-post" (.local event.node (.timeout .checkQuorum))
-            observe event "role-post"
-        | "step_down_and_nominate_successor" =>
-            checked event
-              ((← read event (string event.command.value "cmd")).startsWith
-                "nominate_successor,")
-              "nomination outside a nominate_successor command"
-            observe event "nomination"
-            action event "nomination" (.local event.node .nominateSuccessor)
-            proposal event "nomination-message"
-        | _ => receiveRule event
-      observeBoundary chunk.post
-    return leader
-  let (leader, cursor) ← run.run { events, header }
+      return operation
+    let (operation, pre) ← parseEvents #[] (boundary.run { header })
+    let body ← parseEvents chunk.events (chunkBody header operation)
+    let (_, post) ← parseEvents #[] ((observeBoundary chunk.post).run { header })
+    instructions := instructions ++ pre.instructions ++ body ++ post.instructions
   let header := { header with bootstrap := {← header.nodeId leader} }
-  return { header, instructions := cursor.instructions }
+  return { header, instructions }
 
 def replayRecords (records : Array Record) : Except String Result := do
   let reduced ← reduce records
