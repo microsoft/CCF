@@ -17,7 +17,6 @@
 # commits node 2's local signature at 8, although the request verified only
 # through index 6. Node 2 commits [7,8]@3 while node 0 committed [7,8]@4.
 
-pre_vote_enabled,true
 start_node,0
 emit_signature,2
 trust_nodes,2,1,2,3,4

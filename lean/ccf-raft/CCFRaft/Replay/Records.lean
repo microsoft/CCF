@@ -225,8 +225,7 @@ def stateFacts (state message : Json) : Except String Json := do
       "membership_state",
       "current_view",
       "last_idx",
-      "commit_idx",
-      "pre_vote_enabled"
+      "commit_idx"
     ]
     [
       "retirement_phase",
@@ -258,7 +257,6 @@ def stateFacts (state message : Json) : Except String Json := do
       ("currentTerm", toJson (← nat state "current_view")),
       ("logLength", toJson (← nat state "last_idx")),
       ("commitIndex", toJson (← nat state "commit_idx")),
-      ("preVoteEnabled", toJson (← boolean state "pre_vote_enabled")),
       ("membershipState", toJson membership)
     ]
   for (raw, target)
@@ -365,7 +363,6 @@ def Event.sameContext (first second : Event) : Bool :=
 
 private def commands : List String :=
   [
-    "pre_vote_enabled",
     "start_node",
     "trust_node",
     "trust_nodes",
@@ -448,13 +445,11 @@ def normalize (row : Json) : Except String Json := do
       pure message
   return Json.mkObj [("tag", toJson "raft_trace"), ("msg", message)]
 
-/-- Preserve capture order, associate commands, and declare fixed per-node modes. -/
-def associate (records : Array Record)
-    : Except String (Array Event × List (String × Bool)) := do
+/-- Preserve capture order, associate commands, and discover node identities. -/
+def associate (records : Array Record) : Except String (Array Event × List String) := do
   let mut events := #[]
   let mut command : Option Record := none
-  let mut modes : List (String × Bool) := []
-  let mut defaultMode := true
+  let mut nodes : List String := []
   let mut process : Option String := none
   let mut sequence := 0
   let current :=
@@ -473,12 +468,10 @@ def associate (records : Array Record)
       sequence := sequence + 1
     else
       require process.isNone s!"{record.location}: mixed legacy/current trace records"
-    let parse
-        : Except String (Array Event × Option Record × List (String × Bool) × Bool) := do
+    let parse : Except String (Array Event × Option Record × List String) := do
       let mut events := events
       let mut command := command
-      let mut modes := modes
-      let mut defaultMode := defaultMode
+      let mut nodes := nodes
       let row ← normalize record.value
       require ((← string row "tag") == "raft_trace") "expected raft_trace record"
       if let some cmd := optional row "cmd" then
@@ -487,12 +480,7 @@ def associate (records : Array Record)
         let name := parts.head!
         require (commands.contains name) s!"unsupported command '{name}'"
         let mut created := []
-        if name == "pre_vote_enabled" then
-          match parts with
-          | [_, "true"] => defaultMode := true
-          | [_, "false"] => defaultMode := false
-          | _ => throw "invalid pre_vote_enabled command"
-        else if ["start_node", "create_new_node", "nodes"].contains name then
+        if ["start_node", "create_new_node", "nodes"].contains name then
           created := parts.drop 1
         else if ["trust_node", "trust_nodes"].contains name then
           created := parts.drop 2
@@ -509,8 +497,8 @@ def associate (records : Array Record)
               created := created ++ [part]
         for node in created do
           let _ ← text (.str node)
-          require (!(modes.lookup node).isSome) s!"duplicate node creation '{node}'"
-          modes := modes ++ [(node, defaultMode)]
+          require (!nodes.contains node) s!"duplicate node creation '{node}'"
+          nodes := nodes ++ [node]
         command := some { record with value := row }
       else
         let some cmd := command | throw "event before command"
@@ -543,23 +531,19 @@ def associate (records : Array Record)
         if function == "add_configuration" then let _ ← configurationArg message; pure ()
         if let some packet := optional message "packet" then validatePacket packet
         let node ← string state "node_id"
-        if let some enabled := modes.lookup node then
-          require ((← boolean state "pre_vote_enabled") == enabled)
-            "preVoteEnabled differs from fixed node configuration"
-        else
-          modes := modes ++ [(node, ← boolean state "pre_vote_enabled")]
+        unless nodes.contains node do
+          nodes := nodes ++ [node]
         events :=
           events.push { record, command := cmd, function, node, message, state, facts }
-      return (events, command, modes, defaultMode)
+      return (events, command, nodes)
     -- All semantic errors retain the raw source location.
-    let (nextEvents, nextCommand, nextModes, nextDefault) ←
+    let (nextEvents, nextCommand, nextNodes) ←
       parse.mapError (fun error => s!"{record.location}: {error}")
     events := nextEvents
     command := nextCommand
-    modes := nextModes
-    defaultMode := nextDefault
+    nodes := nextNodes
   require (!events.isEmpty) "trace contains commands but no Raft events"
-  return (events, modes.mergeSort (fun a b => a.1 <= b.1))
+  return (events, nodes.mergeSort)
 
 structure Chunk where
   pre : Event

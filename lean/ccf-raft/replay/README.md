@@ -66,7 +66,8 @@ Blank, malformed and unknown output lines fail rather than being filtered.
 JSON duplicate keys, including escaped equivalent spellings, fail before object construction can erase them.
 Event names, fields, state fields, packet families and coordinates are checked in `Records.lean`; unsupported extensions cannot silently disappear from observations.
 Timestamps do not influence order.
-Creation commands declare fixed pre-vote modes even for future nodes that have not emitted any Raft event.
+Creation commands declare node identities even for future nodes that have not emitted any Raft event.
+Timeout elections always use pre-vote in both native Raft and the model; there is no per-node mode flag or driver toggle.
 Current `ccf.raft_trace` envelopes must have one process identity and contiguous sequence numbers starting at zero; mixed legacy/current records, missing, repeated or reordered sequences fail.
 Lean converts only the current structural layout (`commit.idx` and flat `add_configuration` fields) to the named reducer's fields; their values and raw source records are retained unchanged.
 
@@ -134,7 +135,6 @@ The boundary projection is fixed, with no value-dependent exemptions:
 | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Leadership, term, last index, commit index                                | Role, current term, log length and commit index                                                                                                     |
 | Membership/retirement phase and all three optional retirement coordinates | Ledger-derived membership phase, removal index, first covering signature index and committed confirmation transaction index; absence is checked too |
-| Fixed `pre_vote_enabled`                                                  | The node's creation-time declaration                                                                                                                |
 | Complete `committable_indices`                                            | Exactly all signature positions above the model commit frontier, not just a positive subset or the cache's extrema                                  |
 | Complete configuration cache                                              | Exactly the last committed configuration and pending configurations, with lexical member names and transaction indices                              |
 | Complete raw peer table                                                   | The named `leaderActivePeerProgress` quotient below                                                                                                 |
@@ -150,7 +150,7 @@ Votes, follower flags, clocks, store state and native queue enumeration are not 
 No application-content or complete native send-enumeration claim is added.
 
 Initialization is explicit rather than a fabricated model action.
-The bootstrap PRE is audited against the native constructor's empty log/cache, no role, term zero, absent retirement coordinates and fixed pre-vote declaration.
+The bootstrap PRE is audited against the native constructor's empty log/cache, no role, term zero and absent retirement coordinates.
 The existing forced-leader/genesis/signature/commit prelude and singleton genesis argument are still audited.
 The genuine genesis POST must match `Model.initialNodeState` before the first signature action; the signature itself then has both required external checks.
 No model output or commit target supplies an observed POST.
@@ -158,7 +158,7 @@ No model output or commit target supplies an observed POST.
 Existing internal phase checks are supplemental, never substitutes for these external boundaries.
 For a timeout's first pre-vote callback, the role is already assigned while the other fields still describe the pre-state.
 Earlier nested candidate and term-adoption snapshots are internal, not additional model states.
-Their unused values may differ without invalidating matching external endpoints; schema checks, fixed pre-vote declarations and facts used by the existing action/group recognizer still apply.
+Their unused values may differ without invalidating matching external endpoints; schema checks and facts used by the existing action/group recognizer still apply.
 Each internal field exclusion retains its raw value and fixed phase reason in its instruction origin.
 
 Internal committable-index evidence remains a positive signature check because callbacks can precede cache insertion or pruning.
@@ -192,15 +192,16 @@ The role is checked at its named leader phase rather than compared to a potentia
 The commit target must advance the old frontier and equal the model effect, but is not presented as a native post-state observation.
 The separate required operation POST observes the actual advanced frontier, final role and retirement phase, pruned cache and peer progress.
 
-`preVoteEnabled` checks the fixed driver configuration, not a mutable model field.
-Timeout elections with pre-vote disabled are explicitly unsupported; same-term nominations retain their direct-election behavior.
+Timeout elections must start in the pre-vote phase; same-term nominations retain their direct-election behavior.
+The removed `pre_vote_enabled` state field and driver command are rejected rather than interpreted as a configuration.
+Older captures containing that field must be recaptured; the fixture refresh script preserves actual new native records rather than stripping fields from old captures.
 No synthetic nominations or mode toggle are inserted into the model.
 
 The model's `retiredCommittedIndex` is the confirmation transaction's index, not the covering signature's index.
 The native test stub's [`LoggingStubStoreConfig::compact`](../../../src/consensus/aft/test/logging_stub.h) passes the stored transaction version, matching production [`on_nodes_global_commit`](../../../src/node/node_state.h), and consumes every processed hook entry, including one exactly at the compact frontier.
 For a confirmation transaction at index 5 covered by a signature at index 6, the hook reports 5, not 6.
 The retained `terminal_retirement.stdout` records the old stub's incorrect compact-frontier index and lacks the new boundaries.
-It remains unmodified historical negative evidence and is rejected as unsupported, not repaired with invented endpoints.
+It remains unmodified historical negative evidence and is rejected as unsupported, including its removed mode field, not repaired with invented endpoints.
 Fresh native retirement fixtures record transaction index 5, and an independent raw POST mutation to 6 must fail the boundary comparison.
 
 ## Packet accounting
@@ -240,11 +241,11 @@ Paired positives deliberately change unused internal candidate, follower-adoptio
 The test executable doubles as a deterministic fake driver for capture byte preservation, timeout/nonzero-exit/stderr failures, recursive inventory, invalid encoding, missing captures and stale-summary removal.
 Neither it nor the replayer imports proof modules.
 Identity/init regressions cover lexical ordinals, a nonzero bootstrap ordinal, population preservation, genesis, undeclared IDs and duplicate request provenance.
-Current-envelope regressions cover sequence gaps, reordering, process identity, field-layout decoding and explicit disabled-mode rejection.
+Current-envelope regressions cover sequence gaps, reordering, process identity, field-layout decoding, rejection of removed mode fields and mandatory pre-vote election entry.
 The native scenarios use pre-vote for timeout elections, including delayed nomination, partial-prefix overcommit, stale leaders and competing signed suffixes.
 `soft_rollback` uses five nodes so a short-log candidate obtains a genuine pre-vote quorum before its higher-term vote request reaches a node with an unsigned suffix.
 `retire_backup` checks that a removed node cannot inflate the term or depose the leader, then learns its retirement through ordinary prefix repair.
-These migrations retain the disabled-mode rejection boundary; they do not synthesize nominations or introduce a model toggle.
+These migrations retain genuine pre-vote exchanges; they do not synthesize nominations or introduce a model toggle.
 `python3 tests/raft_trace_capture_test.py` from the repository root exercises transport ordering, duplicate keys, unchanged records and stale-success removal.
 Replay-only builds do not replace the separately integrated proof build and kernel checks.
 Successful replay witnesses a finite model execution compatible with these observations, not universal production inclusion, infinite extension, fairness or liveness.

@@ -75,7 +75,6 @@ private def state : Json :=
       ("current_view", toJson (2 : Nat)),
       ("last_idx", toJson (2 : Nat)),
       ("commit_idx", toJson (2 : Nat)),
-      ("pre_vote_enabled", toJson true),
       ("committable_indices", toJson ([] : List Nat))
     ]
 
@@ -197,22 +196,15 @@ private def reductionTests : IO Nat := do
         }
   check ((← ok (replayRecords withoutTimestamps)) == result)
     "timestamps affected capture order"
-  let modes ←
-    ok
-      (reduce
-        (bootstrap ++ #[command "pre_vote_enabled,true", command "create_new_node,1"]))
-  check
-    (modes.header.declared == ["0", "1"]
-      && modes.header.preVoteModes.lookup "1" == some true)
-    "future node pre-vote declaration"
+  let modes ← ok (reduce (bootstrap ++ #[command "create_new_node,1"]))
+  check (modes.header.declared == ["0", "1"]) "future node declaration"
   let assertions ← ok (reduce (bootstrap.push (command "assert_commit_idx,0,2")))
   check (assertions.instructions.size == reduced.instructions.size)
     "assertion invented an action"
   let mut count := 4
   for cmd
       in ["shuffle_one,0", "shuffle_all", "new_command,0", "pre_vote_enabled,maybe"] do
-    rejects (reduce (bootstrap.push (command cmd)))
-      (if cmd.startsWith "pre_vote" then "invalid" else "unsupported command")
+    rejects (reduce (bootstrap.push (command cmd))) "unsupported command"
     count := count + 1
   let startup ← fixture "startup.ndjson"
   let some write :=
@@ -452,8 +444,7 @@ private def fixtureMutations : IO Nat := do
           ("commit_idx", "commitIndex"),
           ("retirement_idx", "retirementIndex"),
           ("retirement_committable_idx", "retirementCommittableIndex"),
-          ("retired_committed_idx", "retiredCommittedIndex"),
-          ("pre_vote_enabled", "preVoteEnabled")
+          ("retired_committed_idx", "retiredCommittedIndex")
         ] do
       for instruction in reduced.instructions do
         if let .state _ _ fields origin := instruction then
@@ -467,8 +458,6 @@ private def fixtureMutations : IO Nat := do
             let replacement :=
               if projected == "role" then
                 toJson "Candidate"
-              else if projected == "preVoteEnabled" then
-                .bool (!(optional fields projected == some (.bool true)))
               else
                 toJson (999 : Nat)
             rejects
@@ -504,7 +493,7 @@ private def fixtureMutations : IO Nat := do
       "does not match request"
     count := count + 1
   let historical ← fixture "terminal_retirement.stdout"
-  rejects (replayRecords historical) "required native PRE/POST"
+  rejects (replayRecords historical) "unsupported field 'pre_vote_enabled'"
   let terminal ← fixture "self_quorum.stdout"
   let _ ← ok (replayRecords terminal)
   let nomination ← find terminal "step_down_and_nominate_successor"
@@ -801,7 +790,7 @@ private def nativeBoundaryTests : IO Nat := do
       rejects
         (replayRecords
           (mutate records index ["msg", "state", "pre_vote_enabled"] (.bool false)))
-        "preVoteEnabled"
+        "unsupported field 'pre_vote_enabled'"
       let node ←
         ok
           (field (records[index]!.value.getObjValD "msg") "state"
@@ -977,7 +966,6 @@ private def directTests : IO Nat := do
         [
           ("role", toJson "none"),
           ("currentTerm", toJson (0 : Nat)),
-          ("preVoteEnabled", .bool true),
           ("membershipState", toJson "active")
         ],
       act (.local "alpha" (.append [.transaction 1 {}])),
@@ -1259,18 +1247,15 @@ private def identityTests : IO Unit := do
         ({ lexical with declared := ["1", "2", "10"] }, "sorted lexically"),
         ({ lexical with requests := ["not-genesis"] }, "reserve zero"),
         ({ lexical with requests := ["", "same", "same"] }, "must be distinct"),
-        ({ lexical with requests := ["", ""] }, "reserve zero"),
-        ({ lexical with preVoteModes := [("missing", true)] }, "undeclared node"),
-        ({ lexical with preVoteModes := [("2", true), ("2", false)] }, "distinct")
+        ({ lexical with requests := ["", ""] }, "reserve zero")
       ] do
     rejects (replay invalid #[observe "2" [("role", toJson "leader")]]) diagnostic
   for request in [0, 2] do
     rejects (replay lexical #[act (.local "2" (.append [.transaction request {}]))])
       "undeclared or reserved model request"
   rejects
-    (replay { lexical with preVoteModes := [("2", false)] }
-      #[act (.local "2" (.timeout .election))])
-    "unsupported disabled-pre-vote"
+    (replay lexical #[observe "2" [("preVoteEnabled", .bool false)]])
+    "unsupported observation field"
   let _ ←
     ok
       (replay lexical
@@ -1327,18 +1312,7 @@ private def transportTests : IO Unit := do
   let votes ← fixture "vote_responses.ndjson"
   let timeout ← find votes "become_pre_vote_candidate"
   let disabled := mutate votes timeout ["msg", "function"] (toJson "become_candidate")
-  let disabled :=
-    disabled.map
-      fun row =>
-        if (optional (row.value.getObjValD "msg") "state").isSome then
-          {
-            row with
-              value := change row.value ["msg", "state", "pre_vote_enabled"] (.bool false)
-          }
-        else
-          row
-  let disabled := #[command "pre_vote_enabled,false"] ++ disabled
-  rejects (reduce disabled) "unsupported disabled-pre-vote timeout election"
+  rejects (reduce disabled) "timeout election must start in the pre-vote phase"
 
 /-- The test executable itself supplies deterministic driver failure modes. -/
 private def fakeDriver (scenario : System.FilePath) : IO UInt32 := do
