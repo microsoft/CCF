@@ -374,6 +374,82 @@ TEST_CASE("Verifier reports certificate properties")
     "CN=https:\\/\\/sharedeus2.eus2.attest.azure.net");
 }
 
+TEST_CASE("Certificate subject names are copied exactly from DER")
+{
+  using namespace ccf::crypto::OpenSSL;
+
+  // A subject which the printed form cannot express unambiguously: RDNs out
+  // of alphabetical order, a repeated attribute type, a value containing the
+  // separator, and values containing characters that printing escapes.
+  const std::vector<std::pair<std::string, std::string>> rdns = {
+    {"O", "Last"}, {"CN", "Smith, John"}, {"OU", "https://a.b"}, {"OU", "x+y"}};
+  std::vector<uint8_t> subject_der;
+  {
+    Unique_SSL_OBJECT<X509_NAME, X509_NAME_new, X509_NAME_free> name;
+    for (const auto& [type, value] : rdns)
+    {
+      CHECK1(X509_NAME_add_entry_by_txt(
+        name,
+        type.c_str(),
+        MBSTRING_ASC,
+        reinterpret_cast<const unsigned char*>(value.data()),
+        value.size(),
+        -1,
+        0));
+    }
+    const unsigned char* der = nullptr;
+    size_t der_size = 0;
+    CHECK1(X509_NAME_get0_der(name, &der, &der_size));
+    subject_der.assign(der, der + der_size);
+  }
+  const std::string printed =
+    "O=Last, CN=Smith, John, OU=https:\\/\\/a.b, OU=x\\+y";
+
+  const auto kp = make_ec_key_pair();
+  // The printed form is not a valid input to the string overloads
+  CHECK_THROWS((void)kp->create_csr(printed, {}));
+
+  constexpr size_t validity_period_days = 365;
+  using namespace std::literals;
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() - 24h);
+  const auto self_signed = create_self_signed_cert(
+    kp, subject_der, {}, valid_from, validity_period_days);
+  const auto renewed = create_self_signed_cert(
+    kp,
+    make_verifier(self_signed)->subject_der(),
+    {},
+    valid_from,
+    validity_period_days);
+  const auto issuer = make_ec_key_pair();
+  const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto endorsed = create_endorsed_cert(
+    kp->public_key_pem(),
+    subject_der,
+    {},
+    make_verifier(issuer_cert)->validity_period(),
+    issuer->private_key_pem(),
+    issuer_cert);
+
+  for (const auto& cert : {self_signed, renewed, endorsed})
+  {
+    const auto verifier = make_verifier(cert);
+    CHECK(verifier->subject_der() == subject_der);
+    CHECK(verifier->subject() == printed);
+  }
+  CHECK(make_verifier(endorsed)->verify_certificate({&issuer_cert}));
+
+  // Exactly one DER-encoded Name is accepted
+  const std::vector<uint8_t> not_a_name = {'n', 'o', 'p', 'e'};
+  CHECK_THROWS_AS((void)kp->create_csr(not_a_name, {}), std::invalid_argument);
+  CHECK_THROWS_AS(
+    (void)kp->create_csr(std::vector<uint8_t>{}, {}), std::invalid_argument);
+  auto trailing_byte = subject_der;
+  trailing_byte.push_back(0);
+  CHECK_THROWS_AS(
+    (void)kp->create_csr(trailing_byte, {}), std::invalid_argument);
+}
+
 TEST_CASE("Private PEM imports enforce key family")
 {
   const auto ec = make_ec_key_pair();

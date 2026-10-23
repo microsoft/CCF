@@ -2629,25 +2629,46 @@ def run_max_uncommitted_tx_count(const_args):
 
 
 def run_service_subject_name_check(args):
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        pdb=args.pdb,
-    ) as network:
-        network.start_and_open(args, service_subject_name="CN=This test service")
+    # Several RDNs, and a character which OpenSSL's printed form escapes. RFC
+    # 4514 strings list the RDNs in reverse order.
+    service_subject_name = "CN=https://this.test.service,O=CCF User"
+    expected_subject = "O=CCF User,CN=https://this.test.service"
+
+    def check_service_subject_name(network):
         # Check service_cert.pem
         with open(network.cert_path, "rb") as cert_file:
             cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
-            assert cert.subject.rfc4514_string() == "CN=This test service", cert
-        # Check /node/service endpoint
+            assert cert.subject.rfc4514_string() == expected_subject, cert
+        # Check /node/network endpoint
         primary, _ = network.find_primary()
         with primary.client() as c:
             r = c.get("/node/network")
             assert r.status_code == http.HTTPStatus.OK.value, r
             cert_pem = r.body.json()["service_certificate"]
             cert = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
-            assert cert.subject.rfc4514_string() == "CN=This test service", cert
+            assert cert.subject.rfc4514_string() == expected_subject, cert
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args, service_subject_name=service_subject_name)
+        check_service_subject_name(network)
+
+        LOG.info("Renewing service certificate preserves its subject name")
+        primary, _ = network.find_primary()
+        renewed_validity_days = args.maximum_service_certificate_validity_days
+        assert renewed_validity_days != args.initial_service_cert_validity_days
+        network.consortium.set_service_certificate_validity(
+            primary,
+            valid_from=str(datetime.now(UTC)),
+            validity_period_days=renewed_validity_days,
+        )
+        network.verify_service_certificate_validity_period(renewed_validity_days)
+        network.refresh_service_identity_file(args)
+        check_service_subject_name(network)
 
 
 def run_cose_only_mode_upgrade(args):

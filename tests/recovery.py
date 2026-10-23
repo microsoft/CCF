@@ -1814,6 +1814,11 @@ def check_snapshots(args, network):
 
 def run(args, ipv6=False):
     recoveries_count = 3
+    # Several RDNs: recovery copies the subject name from the previous service
+    # identity rather than from the configuration. RFC 4514 strings list the
+    # RDNs in reverse order.
+    service_subject_name = "CN=https://this.test.service,O=CCF User"
+    expected_subject = "O=CCF User,CN=https://this.test.service"
 
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -1824,7 +1829,8 @@ def run(args, ipv6=False):
         txs=txs,
         ipv6=ipv6,
     ) as network:
-        network.start_and_open(args)
+        network.start_and_open(args, service_subject_name=service_subject_name)
+        assert network.cert.subject.rfc4514_string() == expected_subject, network.cert
         primary, _ = network.find_primary()
 
         if ipv6:
@@ -1883,6 +1889,10 @@ def run(args, ipv6=False):
 
             for node in network.get_joined_nodes():
                 node.verify_certificate_validity_period()
+
+            assert (
+                network.cert.subject.rfc4514_string() == expected_subject
+            ), network.cert
 
             check_snapshots(args, network)
             ref_msg = get_and_verify_historical_receipt(network, ref_msg)
