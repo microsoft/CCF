@@ -1750,7 +1750,8 @@ TEST_CASE("Certificate validity period")
   // before it starts, but a verifier does not check the signature of the
   // certificate it is given, so it can be constructed from either.
   {
-    OpenSSL::Unique_BIO in(cert_pem_to_der(cert));
+    const auto der = cert_pem_to_der(cert);
+    OpenSSL::Unique_BIO in(der);
     OpenSSL::Unique_X509 x509(in, false, /*check_null=*/true);
     const auto with_not_before = [&](const std::string& from) {
       OpenSSL::Unique_X509_TIME tp(from);
