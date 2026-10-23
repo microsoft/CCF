@@ -3,6 +3,7 @@
 
 #include "ccf/endpoints/authentication/cose_auth.h"
 
+#include "ccf/crypto/cert_id.h"
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/http_consts.h"
@@ -263,6 +264,14 @@ namespace ccf
     auto member_cert = member_certs->get(phdr.kid);
     if (member_cert.has_value())
     {
+      if (
+        phdr.kid.starts_with("did:key:") &&
+        crypto::compute_cert_id(*member_cert, IdentityIdFormat::DIDKey) !=
+          phdr.kid)
+      {
+        error_reason = "Enrolled did:key does not match its public key";
+        return nullptr;
+      }
       auto verifier =
         ccf::crypto::make_cose_verifier_from_pem_cert(member_cert.value());
 
@@ -407,6 +416,14 @@ namespace ccf
     auto user_cert = user_certs->get(phdr.kid);
     if (user_cert.has_value())
     {
+      if (
+        phdr.kid.starts_with("did:key:") &&
+        crypto::compute_cert_id(*user_cert, IdentityIdFormat::DIDKey) !=
+          phdr.kid)
+      {
+        error_reason = "Enrolled did:key does not match its public key";
+        return nullptr;
+      }
       auto verifier =
         ccf::crypto::make_cose_verifier_from_pem_cert(user_cert.value());
 

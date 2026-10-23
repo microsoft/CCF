@@ -10,6 +10,7 @@ function usage()
     echo "Usage:"
     echo "  $0 https://<node-address> --member-enc-privk /path/to/member_enc_privk.pem --api-version api_version --member-id-privk /path/to/member_id_privk.pem --member-id-cert /path/to/member_cert.pem [CURL_OPTIONS]"
     echo "Retrieves the encrypted recovery share for a given member, decrypts the share and submits it for recovery."
+    echo "Use --identity-id-format did:key for a member enrolled with a did:key ID (default: sha256)."
     echo ""
     echo "A sufficient number of recovery shares must be submitted by members to initiate the end of recovery procedure."
 }
@@ -27,6 +28,8 @@ node_rpc_address=$1
 shift
 
 api_version="2024-07-01"
+identity_id_format="sha256"
+identity_args=()
 while [ "$1" != "" ]; do
     case $1 in
         -h|-\?|--help)
@@ -44,6 +47,9 @@ while [ "$1" != "" ]; do
             ;;
         --api-version)
             api_version="$2"
+            ;;
+        --identity-id-format)
+            identity_id_format="$2"
             ;;
         *)
             break
@@ -72,12 +78,20 @@ if ! command -v ccf_cose_sign1 > /dev/null; then
     exit 1
 fi
 
-# Compute member ID, as the SHA-256 fingerprint of the signing certificate
-member_id=$(openssl x509 -in "$member_id_cert" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
+if [ "$identity_id_format" = "sha256" ]; then
+    member_id=$(openssl x509 -in "$member_id_cert" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
+elif [ "$identity_id_format" = "did:key" ]; then
+    member_id=$(python3 -m ccf.identity --cert "$member_id_cert" --id-format "$identity_id_format")
+    identity_args=(--identity-id-format "$identity_id_format")
+else
+    echo "Error: Unsupported identity ID format: $identity_id_format" >&2
+    exit 1
+fi
 
-get_share_path="gov/recovery/encrypted-shares/${member_id}?api-version=${api_version}"
+url_member_id="${member_id//:/%3A}"
+get_share_path="gov/recovery/encrypted-shares/${url_member_id}?api-version=${api_version}"
 share_field="encryptedShare"
-submit_share_path="gov/recovery/members/${member_id}:recover?api-version=${api_version}"
+submit_share_path="gov/recovery/members/${url_member_id}:recover?api-version=${api_version}"
 
 # First, retrieve the encrypted recovery share
 encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}/${get_share_path}" "${@}" | jq -r ".${share_field}")
@@ -88,5 +102,5 @@ echo "${encrypted_share}" \
     | openssl base64 -d \
     | openssl pkeyutl -inkey "${member_enc_privk}" -decrypt -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
     | openssl base64 -A | jq -c -R '{share: (.)}' \
-    | ccf_cose_sign1 --ccf-gov-msg-type recovery_share --ccf-gov-msg-created_at "$(date -uIs)" --signing-key "${member_id_privk}" --signing-cert "${member_id_cert}" --content "-" \
+    | ccf_cose_sign1 "${identity_args[@]}" --ccf-gov-msg-type recovery_share --ccf-gov-msg-created_at "$(date -uIs)" --signing-key "${member_id_privk}" --signing-cert "${member_id_cert}" --content "-" \
     | curl -i -sS --fail -H "Content-Type: application/cose" -X POST "${node_rpc_address}/${submit_share_path}" "${@}" --data-binary @-

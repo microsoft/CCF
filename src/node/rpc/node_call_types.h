@@ -100,6 +100,7 @@ namespace ccf
   {
     struct In
     {
+      IdentityIdFormat id_format = IdentityIdFormat::SHA256;
       NodeInfoNetwork node_info_network;
       QuoteInfo quote_info;
       ccf::crypto::Pem public_encryption_key;

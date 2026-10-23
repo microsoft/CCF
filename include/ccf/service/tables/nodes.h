@@ -2,10 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/did_key.h"
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/entity_id.h"
+#include "ccf/identity_id_format.h"
 #include "ccf/kv/map.h"
 #include "ccf/service/blit_serialiser_pem.h"
 #include "ccf/service/map.h"
@@ -28,21 +30,29 @@ namespace ccf
   }
 
   inline NodeId compute_node_id_from_pubk_der(
-    const std::vector<uint8_t>& node_pubk_der)
+    const std::vector<uint8_t>& node_pubk_der,
+    IdentityIdFormat format = IdentityIdFormat::SHA256)
   {
+    if (format == IdentityIdFormat::DIDKey)
+    {
+      return ccf::crypto::did_key_from_public_key_der(node_pubk_der);
+    }
     return ccf::crypto::Sha256Hash(node_pubk_der).hex_str();
   }
 
   inline NodeId compute_node_id_from_cert_der(
-    const std::vector<uint8_t>& node_cert_der)
+    const std::vector<uint8_t>& node_cert_der,
+    IdentityIdFormat format = IdentityIdFormat::SHA256)
   {
     return compute_node_id_from_pubk_der(
-      ccf::crypto::public_key_der_from_cert(node_cert_der));
+      ccf::crypto::public_key_der_from_cert(node_cert_der), format);
   }
 
   inline NodeId compute_node_id_from_kp(
-    const ccf::crypto::ECKeyPairPtr& node_sign_kp)
+    const ccf::crypto::ECKeyPairPtr& node_sign_kp,
+    IdentityIdFormat format = IdentityIdFormat::SHA256)
   {
-    return compute_node_id_from_pubk_der(node_sign_kp->public_key_der());
+    return compute_node_id_from_pubk_der(
+      node_sign_kp->public_key_der(), format);
   }
 }

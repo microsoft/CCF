@@ -6,6 +6,7 @@ import datetime
 
 import cbor2
 import ccf.cose
+import cwt
 import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
@@ -76,7 +77,8 @@ def make_self_signed_cert(priv, subject_name: str):
 
 
 @pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])
-def test_create_cose_sign1_finish(curve):
+@pytest.mark.parametrize("id_format", ["sha256", "did:key"])
+def test_create_cose_sign1_finish(curve, id_format):
     """
     Check create_cose_sign1_finish() produces the same output when passed
     a signature as create_cose_sign1().
@@ -87,18 +89,28 @@ def test_create_cose_sign1_finish(curve):
 
     payload = b"Hello World"
 
-    cose_sign1 = ccf.cose.create_cose_sign1(payload, priv_pem, cert)
+    cose_sign1 = ccf.cose.create_cose_sign1(
+        payload, priv_pem, cert, id_format=id_format
+    )
 
-    _, _, _, sig = cbor2.loads(cose_sign1).value
+    protected, _, _, sig = cbor2.loads(cose_sign1).value
+    assert cbor2.loads(protected)[int(cwt.COSEHeaders.KID)] == (
+        ccf.identity.identity_id_from_cert(cert, id_format).encode()
+    )
     b64_sig = base64.urlsafe_b64encode(sig)
 
-    ccf.cose.verify_cose_sign1_with_cert(cert.encode(), cose_sign1, use_key=False)
-    finished_cose_sign1 = ccf.cose.create_cose_sign1_finish(payload, cert, b64_sig)
+    ccf.cose.verify_cose_sign1_with_cert(
+        cert.encode(), cose_sign1, use_key=False, id_format=id_format
+    )
+    finished_cose_sign1 = ccf.cose.create_cose_sign1_finish(
+        payload, cert, b64_sig, id_format=id_format
+    )
     assert cose_sign1 == finished_cose_sign1
 
 
 @pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])
-def test_create_cose_sign1_prepare_and_finish(curve):
+@pytest.mark.parametrize("id_format", ["sha256", "did:key"])
+def test_create_cose_sign1_prepare_and_finish(curve, id_format):
     """
     Check adding performing a signature externally on the output of
     cose.create_cose_sign1_prepare() and packaging it with
@@ -108,7 +120,7 @@ def test_create_cose_sign1_prepare_and_finish(curve):
     cert = make_self_signed_cert(priv, "example.com")
     payload = b"Hello"
 
-    tbs = ccf.cose.create_cose_sign1_prepare(payload, cert)
+    tbs = ccf.cose.create_cose_sign1_prepare(payload, cert, id_format=id_format)
 
     alg = tbs["alg"]
     raw_value = base64.b64decode(tbs["value"])
@@ -120,7 +132,9 @@ def test_create_cose_sign1_prepare_and_finish(curve):
     raw_signature = i2osp(r, num_bytes) + i2osp(s, num_bytes)
 
     b64_sig = base64.urlsafe_b64encode(raw_signature)
-    finished_cose_sign1 = ccf.cose.create_cose_sign1_finish(payload, cert, b64_sig)
+    finished_cose_sign1 = ccf.cose.create_cose_sign1_finish(
+        payload, cert, b64_sig, id_format=id_format
+    )
     ccf.cose.verify_cose_sign1_with_cert(
-        cert.encode(), finished_cose_sign1, use_key=False
+        cert.encode(), finished_cose_sign1, use_key=False, id_format=id_format
     )

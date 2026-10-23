@@ -1,9 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/node/node_configuration_interface.h"
+#include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
@@ -107,6 +109,7 @@ TEST_CASE("Node configuration retains operator file paths")
 {
   const json input = {
     {"network", CCFConfig{}.network},
+    {"node_certificate", {{"id_format", "did:key"}}},
     {"node_data_json_file", "not-loaded/node.json"},
     {"service_data_json_file", "not-loaded/service.json"},
     {"tick_interval", "25ms"},
@@ -120,7 +123,8 @@ TEST_CASE("Node configuration retains operator file paths")
          {{{"certificate_file", "not-loaded/member.pem"},
            {"encryption_public_key_file", "not-loaded/member_enc.pem"},
            {"data_json_file", "not-loaded/member.json"},
-           {"recovery_role", MemberRecoveryRole::Owner}}}},
+           {"recovery_role", MemberRecoveryRole::Owner},
+           {"id_format", "did:key"}}}},
         {"constitution_files", {"not-loaded/first.js", "not-loaded/second.js"}},
         {"initial_service_certificate_validity_days", 7},
         {"service_subject_name", "CN=Configured Service"}}},
@@ -138,6 +142,9 @@ TEST_CASE("Node configuration retains operator file paths")
         {"initial_service_certificate_validity_days", 13}}}}}};
 
   auto config = input.get<CCFConfig>();
+  CHECK(config.node_certificate.id_format == IdentityIdFormat::DIDKey);
+  CHECK(
+    config.command.start.members.front().id_format == IdentityIdFormat::DIDKey);
   CHECK(config.command.type == StartType::Start);
   CHECK(
     config.command.start.members.front().certificate_file ==
@@ -196,6 +203,7 @@ TEST_CASE("Node configuration retains operator file paths")
      {{"type", "Join"}}}}.get<CCFConfig>();
   CHECK(defaults.command.join.retry_timeout.count_ms() == 1000);
   CHECK(defaults.command.join.follow_redirect);
+  CHECK(defaults.node_certificate.id_format == IdentityIdFormat::SHA256);
   CHECK(defaults.command.join.fetch_recent_snapshot);
   CHECK(
     defaults.command.recover.initial_service_certificate_validity_days == 1);
@@ -660,6 +668,13 @@ TEST_CASE("Pending-node cleanup uses renewed client certificates")
 
 TEST_CASE("Add a node to an opening service")
 {
+  auto id_format = IdentityIdFormat::SHA256;
+  SUBCASE("Legacy node ID") {}
+  SUBCASE("DID node ID")
+  {
+    id_format = IdentityIdFormat::DIDKey;
+  }
+
   NetworkState network;
   auto tx_encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(tx_encryptor);
@@ -689,6 +704,7 @@ TEST_CASE("Add a node to an opening service")
   INFO("Add first node before a service exists");
   {
     JoinNetworkNodeToNode::In join_input;
+    join_input.id_format = id_format;
     join_input.public_encryption_key = node_public_encryption_key;
     const auto response =
       frontend_process(frontend, join_input, "join", caller);
@@ -705,6 +721,7 @@ TEST_CASE("Add a node to an opening service")
   INFO("Add first node which should be trusted straight away");
   {
     JoinNetworkNodeToNode::In join_input;
+    join_input.id_format = id_format;
     join_input.public_encryption_key = node_public_encryption_key;
     // Join input does not include CSR (1.x)
     join_input.certificate_signing_request = std::nullopt;
@@ -722,14 +739,53 @@ TEST_CASE("Add a node to an opening service")
     // No endorsed certificate since no CSR was passed in
     CHECK(response.network_info->endorsed_certificate == std::nullopt);
 
-    auto pk_der = node_kp->public_key_der();
-    const NodeId joiner_node_id = ccf::crypto::Sha256Hash(pk_der).hex_str();
+    const auto joiner_node_id = compute_node_id_from_kp(node_kp, id_format);
+    CHECK(response.node_id == joiner_node_id);
     auto nodes = tx.rw(network.nodes);
     auto node_info = nodes->get(joiner_node_id);
 
     CHECK(node_info.has_value());
     CHECK(node_info->status == NodeStatus::TRUSTED);
     CHECK(node_kp->public_key_pem() == node_info->public_key);
+  }
+
+  INFO("Adding the same key under a different ID format is rejected");
+  {
+    JoinNetworkNodeToNode::In join_input;
+    join_input.id_format = id_format == IdentityIdFormat::DIDKey ?
+      IdentityIdFormat::SHA256 :
+      IdentityIdFormat::DIDKey;
+    join_input.public_encryption_key = node_public_encryption_key;
+    const auto response =
+      frontend_process(frontend, join_input, "join", caller);
+    check_error(response, HTTP_STATUS_BAD_REQUEST);
+    check_error_message(
+      response, "already enrolled under a different ID format");
+    auto verify_tx = network.tables->create_tx();
+    CHECK(verify_tx.ro(network.nodes)->size() == 1);
+  }
+
+  INFO("A key outside the did:key profile cannot request a DID node ID");
+  {
+    const auto eddsa_kp =
+      ccf::crypto::make_eddsa_key_pair(ccf::crypto::CurveID::CURVE25519);
+    const auto unsupported_caller = ccf::crypto::create_endorsed_cert(
+      eddsa_kp->public_key_pem(),
+      "CN=Unsupported Joiner",
+      {},
+      ccf::crypto::make_verifier(caller)->validity_period(),
+      node_kp->private_key_pem(),
+      caller);
+    JoinNetworkNodeToNode::In join_input;
+    join_input.id_format = IdentityIdFormat::DIDKey;
+    join_input.public_encryption_key = node_public_encryption_key;
+    const auto response =
+      frontend_process(frontend, join_input, "join", unsupported_caller);
+    check_error(response, HTTP_STATUS_BAD_REQUEST);
+    check_error_message(
+      response, "cannot be identified in the requested format");
+    auto verify_tx = network.tables->create_tx();
+    CHECK(verify_tx.ro(network.nodes)->size() == 1);
   }
 
   INFO("Adding the same node should return the same result");
@@ -740,9 +796,13 @@ TEST_CASE("Add a node to an opening service")
       up_to_ledger_secret_seqno + 1, make_ledger_secret());
 
     JoinNetworkNodeToNode::In join_input;
+    join_input.id_format = id_format;
     join_input.public_encryption_key = node_public_encryption_key;
 
-    auto http_response = frontend_process(frontend, join_input, "join", caller);
+    const auto replacement =
+      node_kp->self_sign("CN=Replacement", valid_from, valid_to);
+    auto http_response =
+      frontend_process(frontend, join_input, "join", replacement);
     CHECK(http_response.status == HTTP_STATUS_OK);
 
     const auto response =
@@ -775,6 +835,65 @@ TEST_CASE("Add a node to an opening service")
     check_error_message(
       http_response, "A node with the same published node address");
   }
+}
+
+TEST_CASE("Node identity paths preserve canonical IDs")
+{
+  auto id_format = IdentityIdFormat::SHA256;
+  SUBCASE("Legacy node ID") {}
+  SUBCASE("DID node ID")
+  {
+    id_format = IdentityIdFormat::DIDKey;
+  }
+
+  NetworkState network;
+  network.tables->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  StubNodeContext context;
+  NodeRpcFrontend frontend(network, context);
+  frontend.open();
+
+  const auto node_kp = ccf::crypto::make_ec_key_pair();
+  const auto canonical_id = compute_node_id_from_kp(node_kp, id_format);
+  const auto encoded_id = id_format == IdentityIdFormat::DIDKey ?
+    "did%3Akey%3A" + canonical_id.value().substr(8) :
+    canonical_id.value();
+  NodeInfo info;
+  info.encryption_pub_key = node_kp->public_key_pem();
+  info.public_key = node_kp->public_key_pem();
+  info.status = NodeStatus::RETIRED;
+  info.retired_committed = true;
+  {
+    auto tx = network.tables->create_tx();
+    tx.rw(network.nodes)->put(canonical_id, info);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  for (const auto& id : {canonical_id.value(), encoded_id})
+  {
+    const auto response = frontend_process(
+      frontend, nullptr, "network/nodes/" + id, member_cert, HTTP_GET);
+    INFO(parse_response_body(response));
+    REQUIRE(response.status == HTTP_STATUS_OK);
+    CHECK(parse_response_body<GetNode::Out>(response).node_id == canonical_id);
+  }
+
+  auto response = frontend_process(
+    frontend, nullptr, "network/nodes/" + encoded_id, member_cert, HTTP_DELETE);
+  check_error(response, HTTP_STATUS_BAD_REQUEST);
+  check_error_message(response, "Node is not completely retired");
+
+  network.tables->compact(network.tables->current_version());
+  response = frontend_process(
+    frontend, nullptr, "network/nodes/" + encoded_id, member_cert, HTTP_DELETE);
+  REQUIRE(response.status == HTTP_STATUS_OK);
+  CHECK(parse_response_body<bool>(response));
+  {
+    auto tx = network.tables->create_tx();
+    CHECK_FALSE(tx.ro(network.nodes)->has(canonical_id));
+  }
+  response = frontend_process(
+    frontend, nullptr, "network/nodes/" + encoded_id, member_cert, HTTP_GET);
+  check_error(response, HTTP_STATUS_NOT_FOUND);
 }
 
 TEST_CASE("JWT refresh metrics are thread-safe")
@@ -825,6 +944,13 @@ TEST_CASE("JWT refresh metrics are thread-safe")
 
 TEST_CASE("Add a node to an open service")
 {
+  auto id_format = IdentityIdFormat::SHA256;
+  SUBCASE("Legacy node ID") {}
+  SUBCASE("DID node ID")
+  {
+    id_format = IdentityIdFormat::DIDKey;
+  }
+
   NetworkState network;
   auto gen_tx = network.tables->create_tx();
   auto tx_encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
@@ -867,6 +993,7 @@ TEST_CASE("Add a node to an open service")
     ccf::crypto::make_ec_key_pair()->public_key_pem();
 
   JoinNetworkNodeToNode::In join_input;
+  join_input.id_format = id_format;
   join_input.public_encryption_key = node_public_encryption_key;
   join_input.certificate_signing_request = node_kp->create_csr("CN=Joiner");
 
@@ -881,8 +1008,8 @@ TEST_CASE("Add a node to an open service")
 
     CHECK(!response.network_info.has_value());
 
-    auto pk_der = node_kp->public_key_der();
-    const NodeId joiner_node_id = ccf::crypto::Sha256Hash(pk_der).hex_str();
+    const auto joiner_node_id = compute_node_id_from_kp(node_kp, id_format);
+    CHECK(response.node_id == joiner_node_id);
     auto nodes = tx.rw(network.nodes);
     auto node_info = nodes->get(joiner_node_id);
     CHECK(node_info.has_value());
@@ -926,7 +1053,7 @@ TEST_CASE("Add a node to an open service")
   {
     auto tx = network.tables->create_tx();
     // In a real scenario, nodes are trusted via member governance.
-    auto joining_node_id = ccf::compute_node_id_from_kp(node_kp);
+    auto joining_node_id = ccf::compute_node_id_from_kp(node_kp, id_format);
     InternalTablesAccess::trust_node(
       tx, joining_node_id, network.ledger_secrets->get_latest(tx).first);
     const auto dummy_endorsed_certificate =
@@ -1094,7 +1221,8 @@ TEST_CASE("Add a node to an open service")
       std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::hours(2))
         .count();
-    const auto trusted_node_id = ccf::compute_node_id_from_kp(node_kp);
+    const auto trusted_node_id =
+      ccf::compute_node_id_from_kp(node_kp, id_format);
     set_last_seen(expired_node_id, expired);
     set_last_seen(trusted_node_id, expired);
 

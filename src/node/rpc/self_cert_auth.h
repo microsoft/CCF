@@ -6,6 +6,7 @@
 #include "ccf/node_context.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/nodes.h"
+#include "ds/internal_logger.h"
 
 namespace ccf
 {
@@ -32,8 +33,21 @@ namespace ccf
         return nullptr;
       }
 
-      const auto caller_node_id =
-        compute_node_id_from_cert_der(ctx->get_session_context()->caller_cert);
+      NodeId caller_node_id;
+      try
+      {
+        caller_node_id = compute_node_id_from_cert_der(
+          ctx->get_session_context()->caller_cert,
+          node_context.get_node_id().value().starts_with("did:key:") ?
+            IdentityIdFormat::DIDKey :
+            IdentityIdFormat::SHA256);
+      }
+      catch (const std::exception& e)
+      {
+        error_reason = "Only the node itself can call this endpoint.";
+        LOG_TRACE_FMT("Caller node ID cannot be derived: {}", e.what());
+        return nullptr;
+      }
       // The node ID may not be set yet when this policy is constructed.
       if (caller_node_id != node_context.get_node_id())
       {

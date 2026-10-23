@@ -27,6 +27,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Added
 
+- Added opt-in `did:key` node, member, and user IDs, with matching enrollment and COSE signing options.
+  See [Identity IDs](doc/architecture/cryptography.rst#identity-ids) for upgrade and migration requirements (#8602).
 - Added Ed25519 certificate support to `ccf::crypto::cert_der_to_pem()` and `cert_pem_to_der()` (#8598).
 - Experimental support for exporting Raft trace events to a Fluentd collector, configured with [`observability.fluentd`](doc/host_config_schema/host_config.json).
   The configuration and event format may change in future releases (#8386).
