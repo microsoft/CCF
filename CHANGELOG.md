@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.23]
+
+[7.0.23]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.23
+
+### Changed
+
+- `ccf::crypto::OpenSSL::Unique_BIO` no longer accepts temporary `std::vector<uint8_t>`, `Pem` or `std::string` arguments, which would have left the BIO reading freed memory. Pass a named buffer that outlives the BIO instead.
+
 ## [7.0.22]
 
 [7.0.22]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.22
