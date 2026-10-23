@@ -66,6 +66,23 @@ private def take : Reduction Event := do
   let _ ← liftM (Std.Internal.Parsec.any : EventParser Nat)
   return event
 
+private def eventIs (name : String) : Reduction Event := do
+  let some event ← peek | failure "end of trace: incomplete event group"
+  unless event.function == name do
+    failure s!"expected {name}"
+  take
+
+-- Parsec's repetition is specialized to its base monad; thread reduction output too.
+-- Each repeated rule below consumes an event before it can succeed.
+private partial def many {α : Type} (parser : Reduction α) : Reduction (List α) :=
+  (do
+    let first ← parser
+    return first :: (← many parser))
+  <|> pure []
+
+private def many_ (parser : Reduction Unit) : Reduction Unit :=
+  discard (many parser)
+
 private def checked (event : Event) (condition : Bool) (message : String)
     : Reduction Unit :=
   validated (require condition s!"{event.record.location}: {event.function}: {message}")
@@ -415,6 +432,12 @@ private def bootstrap (initial signature : Chunk) : Reduction String := do
   -- Genesis is preloaded by Model.initialNodeState, not an invented transition.
   -- The real initialization POST must agree before any model action executes.
   observeBoundary initial.post
+  let _ ←
+    eventIs "operation_boundary"
+    *> eventIs "become_leader"
+    *> eventIs "replicate"
+    *> eventIs "add_configuration"
+    *> eventIs "operation_boundary"
   return leader
 
 /-- The driver's singleton BatchVector, including hooks and new-peer heartbeats. -/
@@ -512,14 +535,6 @@ private def receiveFamily : String → List String
       ["raft_request_vote_response", "raft_request_pre_vote_response"]
   | "recv_propose_request_vote" => ["raft_propose_request_vote"]
   | _ => []
-
-private def appendCallbacks : List String :=
-  [
-    "execute_append_entries_sync",
-    "add_configuration",
-    "commit",
-    "send_append_entries_response"
-  ]
 
 private def observeAppendCallbacks (sender : String) (callbacks : List Event)
     : Reduction Unit := do
@@ -619,11 +634,15 @@ private def receiveRule (event : Event) : Reduction Unit := do
   let mut callbacks := []
   let mut election : Option (Event × List Event × List Event × List Event) := none
   if event.function == "recv_append_entries" then
-    while (← peek).any (fun e => appendCallbacks.contains e.function) do
-      let callback ← take
+    callbacks ←
+      many
+        (eventIs "execute_append_entries_sync"
+          <|> eventIs "add_configuration"
+          <|> eventIs "commit")
+    if ← nextIs "send_append_entries_response" then
+      callbacks := callbacks ++ [← eventIs "send_append_entries_response"]
+    for callback in callbacks do
       checked callback (event.sameContext callback) "interleaved receive callback"
-      callbacks := callbacks ++ [callback]
-      if callback.function == "send_append_entries_response" then break
   else if
     event.function == "recv_request_vote"
     && (← nextIs "send_request_vote_response" (some event)) then
@@ -700,14 +719,15 @@ private def sendOperation (operation : String) : Reduction Unit := do
         (← read event (nat packet "idx"))))
   message event "send-post" false
 
-private def receiveOperation (operation : String) : Reduction Unit := do
-  let some event ← peek | failure "end of trace: incomplete event group"
-  unless !(receiveFamily event.function).isEmpty do
-    failure "operation head mismatch"
-  let event ← take
-  checked event (operation == "receive")
-    s!"ungrouped callback {event.function} in {operation} boundary"
-  receiveRule event
+private def receiveRequestVote (operation : String) : Reduction Unit := do
+  receiveRule
+    (← headRule operation ["receive"]
+        ["recv_request_vote", "recv_request_vote_response", "recv_propose_request_vote"])
+
+private def receiveAppendEntries (operation : String) : Reduction Unit := do
+  receiveRule
+    (← headRule operation ["receive"]
+        ["recv_append_entries", "recv_append_entries_response"])
 
 private def electionOperation (operation : String) : Reduction Unit := do
   let event ←
@@ -752,29 +772,39 @@ private def dropOperation (operation : String) : Reduction Unit := do
       (event.origin "drop"))
   action event "drop" (.drop event.node destination)
 
-private def operationRule (operation : String) : Reduction Unit :=
+private def tick (operation : String) : Reduction Unit :=
+  electionOperation operation <|> checkQuorumOperation operation
+
+private def reductionRules (operation : String) : Reduction Unit :=
   appendOperation operation
+  <|> receiveRequestVote operation
+  <|> receiveAppendEntries operation
+  <|> tick operation
   <|> sendOperation operation
-  <|> receiveOperation operation
-  <|> electionOperation operation
-  <|> checkQuorumOperation operation
   <|> nominationOperation operation
   <|> dropOperation operation
 
-private def chunkBody (header : Header) (operation : String)
-    : EventParser (Array Instruction) := do
-  let batches ←
-    Std.Internal.Parsec.many do
-      let (_, state) ← (operationRule operation).run { header }
-      return state.instructions
-  if let some index ← Std.Internal.Parsec.peek? then
-    return ← fun input =>
-              let event := input.events[index]!
-              Std.Internal.Parsec.fail
-                s!"{event.record.location}: {event.function}: ungrouped callback {event.function} in {operation} boundary"
-                input
-  Std.Internal.Parsec.eof
-  return batches.foldl (· ++ ·) #[]
+private def boundary (phase : String) : Reduction Event := do
+  let event ← eventIs "operation_boundary"
+  checked event (optional event.message "phase" == some (toJson phase))
+    s!"expected native {phase} boundary"
+  return event
+
+private def observed : Reduction Unit := do
+  let pre ← boundary "pre"
+  let operation ← read pre (string pre.message "operation")
+  checked pre (operation != "bootstrap") "bootstrap operation after initialization"
+  let post : Reduction Unit := do
+    let some event ← peek | failure "end of trace: missing required boundary POST"
+    checked event (event.function == "operation_boundary")
+      s!"ungrouped callback {event.function} in {operation} boundary"
+    observeBoundary (← boundary "post")
+  observeBoundary pre *> many_ (reductionRules operation) <* post
+
+private def trace (initial signature : Chunk) : Reduction String :=
+  bootstrap initial signature
+  <* many_ observed
+  <* liftM (Std.Internal.Parsec.eof : EventParser Unit)
 
 private def parseEvents {α : Type} (events : Array Event) (parser : EventParser α)
     : Except String α :=
@@ -799,22 +829,10 @@ def reduce (records : Array Record) : Except String Reduced := do
       for endpoint in [chunk.pre, chunk.post] do
         for peer in ← read endpoint (field endpoint.message "peers" >>= Json.getArr?) do
           let _ ← modelNode endpoint (← read endpoint (string peer "node_id"))
-    bootstrap initial signature
-  let (leader, initialState) ← parseEvents #[] (initialization.run { header })
-  let mut instructions := initialState.instructions
-  for chunk in chunks.toList.drop 1 do
-    let boundary : Reduction String := do
-      let operation ← read chunk.pre (string chunk.pre.message "operation")
-      checked chunk.pre (operation != "bootstrap")
-        "bootstrap operation after initialization"
-      observeBoundary chunk.pre
-      return operation
-    let (operation, pre) ← parseEvents #[] (boundary.run { header })
-    let body ← parseEvents chunk.events (chunkBody header operation)
-    let (_, post) ← parseEvents #[] ((observeBoundary chunk.post).run { header })
-    instructions := instructions ++ pre.instructions ++ body ++ post.instructions
+    trace initial signature
+  let (leader, state) ← parseEvents events (initialization.run { header })
   let header := { header with bootstrap := {← header.nodeId leader} }
-  return { header, instructions }
+  return { header, instructions := state.instructions }
 
 def replayRecords (records : Array Record) : Except String Result := do
   let reduced ← reduce records

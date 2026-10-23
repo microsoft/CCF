@@ -71,11 +71,15 @@ Timeout elections always use pre-vote in both native Raft and the model; there i
 Current `ccf.raft_trace` envelopes must have one process identity and contiguous sequence numbers starting at zero; mixed legacy/current records, missing, repeated or reordered sequences fail.
 Lean converts only the current structural layout (`commit.idx` and flat `add_configuration` fields) to the named reducer's fields; their values and raw source records are retained unchanged.
 
-`Reduction.lean` parses each already-delimited native chunk with Lean's `Std.Internal.Parsec` combinators.
+`Reduction.lean` parses the ordered native event stream with Lean's `Std.Internal.Parsec` combinators.
 The immutable event array is exposed through natural-number tokens, keeping parser position separate from the header and accumulated instructions without requiring equality on JSON events.
 Named operation alternatives recognize their head without consuming on a mismatch, then commit to that rule: a malformed callback after a consumed head cannot backtrack into another interpretation.
-`many` collects instruction batches in order, followed by an explicit leftover-callback diagnostic and `eof`, so an empty body is a valid projected stutter but an unconsumed callback is an error.
-Bootstrap auditing and whole-trace peer validation remain explicit; the bootstrap signature chunk is still replayed normally.
+The top-level grammar is bootstrap followed by repeated `observe PRE *> many reductionRules <* observe POST`, then `eof`.
+The state-threading `many` bridge uses Parsec's committed-choice behavior and accumulates instructions directly, without reparsing individual chunks or flattening separately initialized output batches.
+Append, vote/proposal receive, AppendEntries receive, tick, send, nomination and drop are named alternatives.
+The AppendEntries callback branch composes event recognizers; it permits zero execution callbacks for empty heartbeats and NACKs rather than requiring `many1` unconditionally.
+An explicit leftover-callback diagnostic and `eof` reject unconsumed events, while an empty body remains a projected stutter checked on both sides.
+Bootstrap auditing and whole-trace peer validation remain explicit; bootstrap consumes only the initialization operation, so the signature is still replayed normally.
 
 The named operation rules consume every event:
 
