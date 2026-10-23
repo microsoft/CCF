@@ -76,8 +76,20 @@ The immutable event array is exposed through natural-number tokens, keeping pars
 Named operation alternatives recognize their head without consuming on a mismatch, then commit to that rule: a malformed callback after a consumed head cannot backtrack into another interpretation.
 The top-level grammar is bootstrap followed by repeated `observe PRE *> many reductionRules <* observe POST`, then `eof`.
 The state-threading `many` bridge uses Parsec's committed-choice behavior and accumulates instructions directly, without reparsing individual chunks or flattening separately initialized output batches.
-Append, vote/proposal receive, AppendEntries receive, tick, send, nomination and drop are named alternatives.
-The AppendEntries callback branch composes event recognizers; it permits zero execution callbacks for empty heartbeats and NACKs rather than requiring `many1` unconditionally.
+Append, receive, tick, send, nomination and drop are named alternatives.
+The receive grammar is an explicit choice between independently defined message families:
+
+```lean
+recvAppendEntries operation
+<|> recvProposeRequestVote operation
+<|> recvRequestVote operation
+<|> recvRequestVoteResponse operation
+<|> recvAppendEntriesResponse operation
+```
+
+Each family states its own callback pattern and observations, sharing only receive-head validation and the single delivery emission.
+Candidate/leader promotion, commit/retirement nomination, configuration hooks and new-peer heartbeats are separate composable rules rather than mutations of a dispatcher accumulator.
+AppendEntries composes repeated execution/configuration/commit events followed by an optional response; it permits zero execution callbacks for empty heartbeats and NACKs rather than requiring `many1` unconditionally.
 An explicit leftover-callback diagnostic and `eof` reject unconsumed events, while an empty body remains a projected stutter checked on both sides.
 Bootstrap auditing and whole-trace peer validation remain explicit; bootstrap consumes only the initialization operation, so the signature is still replayed normally.
 
