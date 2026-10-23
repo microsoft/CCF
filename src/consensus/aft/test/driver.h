@@ -111,9 +111,17 @@ private:
     std::shared_ptr<TRaft> raft;
   };
 
-  bool pre_vote_enabled = true;
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
+  uint64_t next_operation_id = 0;
+
+  uint64_t begin_operation(
+    const std::shared_ptr<TRaft>& raft, std::string_view operation)
+  {
+    const auto id = next_operation_id++;
+    raft->trace_operation_boundary(id, operation, "pre");
+    return id;
+  }
 
   void _replicate(
     const std::string& term_s,
@@ -123,7 +131,8 @@ private:
     const std::optional<ccf::kv::Configuration::Nodes>& configuration =
       std::nullopt,
     const std::optional<ccf::kv::Configuration::Nodes>& retired_committed =
-      std::nullopt)
+      std::nullopt,
+    bool initializing = false)
   {
     const auto opt = find_primary_in_term(term_s, lineno);
     if (!opt.has_value())
@@ -181,7 +190,13 @@ private:
 
     auto s = nlohmann::json(aft::ReplicatedData{type, data}).dump();
     auto d = std::make_shared<std::vector<uint8_t>>(s.begin(), s.end());
+    const auto operation_id =
+      initializing ? 0 : begin_operation(raft, "replicate");
     raft->replicate(ccf::kv::BatchVector{{idx, d, committable, hooks}}, term);
+    if (!initializing)
+    {
+      raft->trace_operation_boundary(operation_id, "replicate", "post");
+    }
   }
 
   void add_node(ccf::NodeId node_id)
@@ -193,7 +208,7 @@ private:
       std::make_unique<Adaptor>(kv),
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
       std::make_shared<aft::ChannelStubProxy>(),
-      std::make_shared<aft::State>(node_id, pre_vote_enabled),
+      std::make_shared<aft::State>(node_id),
       nullptr);
     kv->set_set_retired_committed_hook(
       [raft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
@@ -248,8 +263,11 @@ public:
     ccf::kv::Configuration::Nodes configuration;
     add_node(start_node_id);
     configuration.try_emplace(start_node_id);
-    _nodes[start_node_id].raft->force_become_primary();
-    _replicate("2", {}, lineno, false, configuration);
+    const auto& raft = _nodes.at(start_node_id).raft;
+    const auto operation_id = begin_operation(raft, "bootstrap");
+    raft->force_become_primary();
+    _replicate("2", {}, lineno, false, configuration, std::nullopt, true);
+    raft->trace_operation_boundary(operation_id, "bootstrap", "post");
     RAFT_DRIVER_PRINT(
       "Note over {}: Node {} created",
       ccf::NodeId(start_node_id),
@@ -268,7 +286,10 @@ public:
     RAFT_DRIVER_PRINT(
       "Note over {}: Node {} nominates a successor", node_id, node_id_s);
 
-    _nodes.at(node_id).raft->nominate_successor();
+    const auto& raft = _nodes.at(node_id).raft;
+    const auto operation_id = begin_operation(raft, "nominate");
+    raft->nominate_successor();
+    raft->trace_operation_boundary(operation_id, "nominate", "post");
   }
 
   void cleanup_nodes(
@@ -518,11 +539,14 @@ public:
       log_msg_details(node_id, tgt_node_id, packet, dropped);
       if (dropped)
       {
+        const auto& raft = _nodes.at(node_id).raft;
+        const auto operation_id = begin_operation(raft, "drop");
         aft::trace::drop_pending_to(
-          _nodes.at(node_id).raft->get_state_for_trace(),
+          raft->get_state_for_trace(),
           node_id.value(),
           tgt_node_id.value(),
           packet);
+        raft->trace_operation_boundary(operation_id, "drop", "post");
       }
     };
 
@@ -596,7 +620,10 @@ public:
     std::ostringstream s;
     s << "periodic for " << std::to_string(ms_.count()) << " ms";
     log(node_id, node_id, s.str());
-    _nodes.at(node_id).raft->periodic(ms_);
+    const auto& raft = _nodes.at(node_id).raft;
+    const auto operation_id = begin_operation(raft, "periodic");
+    raft->periodic(ms_);
+    raft->trace_operation_boundary(operation_id, "periodic", "post");
   }
 
   void periodic_all(ms ms_)
@@ -810,8 +837,10 @@ public:
       if (should_send)
       {
         log_msg_details(src, dst, contents);
-        _nodes.at(dst).raft->recv_message(
-          src, contents.data(), contents.size());
+        const auto& raft = _nodes.at(dst).raft;
+        const auto operation_id = begin_operation(raft, "receive");
+        raft->recv_message(src, contents.data(), contents.size());
+        raft->trace_operation_boundary(operation_id, "receive", "post");
         return true;
       }
     }
@@ -1046,11 +1075,6 @@ public:
     {
       drop_pending_to(from, to);
     }
-  }
-
-  void set_pre_vote_enabled(bool enabled)
-  {
-    pre_vote_enabled = enabled;
   }
 
   using Discrepancies = std::map<ccf::NodeId, std::vector<std::string>>;

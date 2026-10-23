@@ -918,15 +918,8 @@ namespace aft
           !is_retired_committed() && ticking &&
           timeout_elapsed >= election_timeout)
         {
-          // Start an election.
-          if (state->pre_vote_enabled)
-          {
-            become_pre_vote_candidate();
-          }
-          else
-          {
-            become_candidate();
-          }
+          // Start an election with pre-vote.
+          become_pre_vote_candidate();
         }
       }
     }
@@ -2669,6 +2662,31 @@ namespace aft
     const State& get_state_for_trace() const
     {
       return *state;
+    }
+
+    void trace_operation_boundary(
+      uint64_t operation_id,
+      std::string_view operation,
+      std::string_view phase) const
+    {
+      if (!ccf::tracing::FluentdSink::is_configured())
+      {
+        return;
+      }
+      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
+      std::vector<trace::PeerState> peers;
+      peers.reserve(all_other_nodes.size());
+      for (const auto& [node_id, peer] : all_other_nodes)
+      {
+        peers.push_back({node_id.value(), peer.sent_idx, peer.match_idx});
+      }
+      trace::operation_boundary(
+        BoundaryState{*state},
+        configurations,
+        peers,
+        operation_id,
+        operation,
+        phase);
     }
 
   private:

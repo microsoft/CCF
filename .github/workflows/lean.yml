@@ -6,6 +6,7 @@ on:
       - "lean/**"
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
+      - "tests/raft_trace*.py"
       - ".github/workflows/lean.yml"
 
 concurrency:
@@ -28,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y elan python3-jsonschema
+          sudo apt-get install -y elan python3-jsonschema python3-msgpack
           elan toolchain install "$(cat lean/lean-toolchain)"
 
       - name: Restore Mathlib caches
@@ -53,7 +54,20 @@ jobs:
             (
               cd "$package"
               echo "::group::Build, kernel and axiom check: $package"
-              lake check --inadvisably-no-sandbox
+              if [ "$package" = "lean/ccf-raft" ]; then
+                original="$(mktemp)"
+                cp lakefile.toml "$original"
+                trap 'cp "$original" lakefile.toml; rm "$original"' EXIT
+                for target in CCFRaft ccfraft-replay replay-checks; do
+                  sed "s/^defaultTargets = .*/defaultTargets = [\"$target\"]/" "$original" > lakefile.toml
+                  lake check --inadvisably-no-sandbox
+                done
+                cp "$original" lakefile.toml
+                rm "$original"
+                trap - EXIT
+              else
+                lake check --inadvisably-no-sandbox
+              fi
               echo "::endgroup::"
               echo "::group::Import coverage: $package"
               lake exe check-imports
@@ -72,6 +86,13 @@ jobs:
             (cd "$package" && lake lint)
             echo "::endgroup::"
           done
+
+      - name: Check Raft replay
+        working-directory: lean/ccf-raft
+        run: lake exe replay-checks
+
+      - name: Check native trace collection
+        run: python3 tests/raft_trace_capture_test.py
 
       - name: Check recovery trace fixtures against their schema
         shell: bash

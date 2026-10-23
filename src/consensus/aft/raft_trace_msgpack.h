@@ -50,13 +50,19 @@ namespace aft
   DECLARE_MSGPACK_TYPE(ProposeRequestVote);
   DECLARE_MSGPACK_FIELDS(ProposeRequestVote, msg, term);
 
-  inline void write_msgpack(std::vector<uint8_t>& out, const State& state)
+  struct BoundaryState
+  {
+    const State& state;
+  };
+
+  inline void write_state_msgpack(
+    std::vector<uint8_t>& out, const State& state, bool complete_cache)
   {
     using namespace ccf::msgpack;
     using ccf::msgpack::write_msgpack;
     write_map_header(
       out,
-      8 + static_cast<uint32_t>(state.retirement_phase.has_value()) +
+      7 + static_cast<uint32_t>(state.retirement_phase.has_value()) +
         static_cast<uint32_t>(state.retirement_idx.has_value()) +
         static_cast<uint32_t>(state.retirement_committable_idx.has_value()) +
         static_cast<uint32_t>(state.retired_committed_idx.has_value()));
@@ -72,8 +78,6 @@ namespace aft
     write_msgpack(out, state.leadership_state.load());
     write_str(out, "membership_state");
     write_msgpack(out, state.membership_state);
-    write_str(out, "pre_vote_enabled");
-    write_msgpack(out, state.pre_vote_enabled);
     if (state.retirement_phase.has_value())
     {
       write_str(out, "retirement_phase");
@@ -95,17 +99,39 @@ namespace aft
       write_msgpack(out, *state.retired_committed_idx);
     }
     write_str(out, "committable_indices");
-    const auto count = static_cast<uint32_t>(
-      std::min<size_t>(state.committable_indices.size(), 2));
-    write_array_header(out, count);
-    if (count > 0)
+    if (complete_cache)
     {
-      write_msgpack(out, state.committable_indices.front());
+      write_array_header(out, container_size(state.committable_indices.size()));
+      for (const auto index : state.committable_indices)
+      {
+        write_msgpack(out, index);
+      }
     }
-    if (count > 1)
+    else
     {
-      write_msgpack(out, state.committable_indices.back());
+      const auto count = static_cast<uint32_t>(
+        std::min<size_t>(state.committable_indices.size(), 2));
+      write_array_header(out, count);
+      if (count > 0)
+      {
+        write_msgpack(out, state.committable_indices.front());
+      }
+      if (count > 1)
+      {
+        write_msgpack(out, state.committable_indices.back());
+      }
     }
+  }
+
+  inline void write_msgpack(std::vector<uint8_t>& out, const State& state)
+  {
+    write_state_msgpack(out, state, false);
+  }
+
+  inline void write_msgpack(
+    std::vector<uint8_t>& out, const BoundaryState& state)
+  {
+    write_state_msgpack(out, state.state, true);
   }
 }
 
@@ -143,6 +169,37 @@ namespace ccf::kv
 namespace aft::trace
 {
   constexpr std::string_view raft_trace_tag = "ccf.raft_trace";
+
+  struct PeerState
+  {
+    std::string node_id;
+    Index sent_idx;
+    Index match_idx;
+  };
+
+  DECLARE_MSGPACK_TYPE(PeerState);
+  DECLARE_MSGPACK_FIELDS(PeerState, node_id, sent_idx, match_idx);
+
+  inline void write_msgpack(
+    std::vector<uint8_t>& out, const std::vector<PeerState>& peers)
+  {
+    ccf::msgpack::write_array_header(
+      out, ccf::msgpack::container_size(peers.size()));
+    for (const auto& peer : peers)
+    {
+      write_msgpack(out, peer);
+    }
+  }
+
+  DECLARE_TRACE_EVENT(
+    operation_boundary,
+    raft_trace_tag,
+    state,
+    configurations,
+    peers,
+    operation_id,
+    operation,
+    phase);
 
   DECLARE_TRACE_EVENT(
     send_append_entries,
