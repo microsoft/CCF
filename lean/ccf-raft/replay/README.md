@@ -87,7 +87,11 @@ recvAppendEntries operation
 <|> recvAppendEntriesResponse operation
 ```
 
-Each family states its own callback pattern and observations, sharing only receive-head validation and the single delivery emission.
+Each family explicitly calls `emitAction` for its receive, then parses callbacks whose rules call `emitObservation`, `emitEntryObservation` or `emitPacketObservation` immediately.
+The parser produces instructions; it does not execute the model while parsing.
+There is no callback-event buffer, later observation pass or list of future callbacks used to choose which state fields to compare.
+The receive action retains the head's origin; each callback's observations retain that callback's origin.
+The packet is a value carried from the parsed head, not a separate binding instruction.
 Candidate/leader promotion, commit/retirement nomination, configuration hooks and new-peer heartbeats are separate composable rules rather than mutations of a dispatcher accumulator.
 AppendEntries composes repeated execution/configuration/commit events followed by an optional response; it permits zero execution callbacks for empty heartbeats and NACKs rather than requiring `many1` unconditionally.
 An explicit leftover-callback diagnostic and `eof` reject unconsumed events, while an empty body remains a projected stutter checked on both sides.
@@ -171,16 +175,18 @@ The existing forced-leader/genesis/signature/commit prelude and singleton genesi
 The genuine genesis POST must match `Model.initialNodeState` before the first signature action; the signature itself then has both required external checks.
 No model output or commit target supplies an observed POST.
 
-Existing internal phase checks are supplemental, never substitutes for these external boundaries.
+Internal evidence is supplemental, never a substitute for these external boundaries.
 For a timeout's first pre-vote callback, the role is already assigned while the other fields still describe the pre-state.
 Earlier nested candidate and term-adoption snapshots are internal, not additional model states.
-Their unused values may differ without invalidating matching external endpoints; schema checks and facts used by the existing action/group recognizer still apply.
-Each internal field exclusion retains its raw value and fixed phase reason in its instruction origin.
+Their unused values may differ without invalidating matching external endpoints; schema checks and facts used by the action recognizer still apply.
+Execution, configuration and follower-commit rules check callback context, sender where applicable, the raw follower role, the stable term, signature-kind evidence, configuration-entry evidence and positive committed-prefix evidence.
+They do not compare intermediate log length, membership phase or retirement coordinates to the final model state.
+The complete native PRE/POST projection still compares all those fields.
+Remaining fixed phase omissions, such as a leader commit snapshot before role clearing, retain their raw values and phase reasons in the observation origin; they do not depend on future callback inspection.
 
 Internal committable-index evidence remains a positive signature check because callbacks can precede cache insertion or pruning.
 External boundary caches, by contrast, are compared completely.
 Configuration caches within a receive are checked against log-entry configurations, and a positive callback commit frontier must already point to a committed signature.
-Present retirement indices remain checked even when later callbacks may set an index that was absent.
 Follower delivery commits at each newly applied signature and once at the end, preserving the first frontier covering its retirement record while allowing a later final commit index.
 Replay still executes this as one model delivery and checks callback evidence against the resulting log and state; it does not insert intermediate commit actions.
 The model's `noRetirementObserved` membership phase maps to the trace's `active` label, including declared nodes that have not yet joined.
@@ -188,8 +194,9 @@ The model's `noRetirementObserved` membership phase maps to the trace's `active`
 New-peer configuration heartbeats belong to the append and use the constructor's next-index sentinel, one past the model's sent frontier.
 Ordinary sends do not use this adjustment.
 Vote and pre-vote responses share `send_request_vote_response`; `packet.msg` distinguishes them, and each supplied response snapshot and packet is checked after its receive.
-A `become_follower` that ends a receive checks its full snapshot after the action, including unchanged log, cache and retirement facts.
-When later response or promotion callbacks follow it, that adoption snapshot is internal and is not compared to either endpoint.
+`become_follower` is an optional internal adoption event, not an additional model state or a conditionally selected endpoint.
+Its snapshot is not promoted to a full-state observation based on whether another callback follows.
+Response-send events retain their stable state and packet observations; actual receive POST remains mandatory even without a response.
 Lower-term NACK hints remain log terms, not new election terms.
 A higher-term nomination is consumed without adopting its term or forcing an election.
 
@@ -201,8 +208,8 @@ Its configuration cache must equal the checked pre-pruning commit cache.
 The model selects the maximum acknowledged index, latest containing active configuration index, then lexical node ID; `"2"` ranks above `"10"`.
 
 The leader commit snapshot records the old frontier, not the post-commit state.
-Before the action, replay checks its old `commitIndex` against the enclosing pre-state and observes its old confirmation index.
-After the action, `stateBeforeCommit` compares the recorded post-append log and its retirement/configuration projections at that independently checked old frontier.
+The commit rule checks its old `commitIndex` against the already-parsed action head and requires an advancing target.
+It emits `stateBeforeCommit` after the action, comparing the recorded post-append log and its retirement/configuration projections at that checked old frontier, including the old confirmation coordinate.
 This read-only view uses the final log, the old frontier, and confirmation transactions in that committed prefix; it does not execute an intermediate action or modify model state.
 The role is checked at its named leader phase rather than compared to a potentially cleared final role.
 The commit target must advance the old frontier and equal the model effect, but is not presented as a native post-state observation.
@@ -225,7 +232,8 @@ Fresh native retirement fixtures record transaction index 5, and an independent 
 The model's network is an unordered multiset, and remains so.
 The replayer preserves recorded event order, but does not impose send order on receives.
 A receive selects a live model envelope with the recorded source, destination and packet fields, even if an earlier envelope remains pending on that pair.
-The receive observation and action use the same selector; unavailable or mismatching packets fail explicitly before delivery, without searching for a different execution or discarding earlier packets.
+The emitted receive action uses that selector directly; there is no redundant incoming-packet observation.
+Unavailable, mismatching or ambiguous packets fail when replay executes the action, without searching for a different execution or discarding earlier packets.
 A drop excludes exactly one occurrence from future observations and deliveries, but leaves it undelivered in the model network.
 Equal envelopes retain their multiplicity.
 Explicit driver drops still check and exclude the queue head for that directed pair.
@@ -252,7 +260,9 @@ Independent typed raw PRE and POST mutations cover scalar state, retirement abse
 Receive regressions deliver a later heartbeat before an earlier data packet, require the NACK and retention of the earlier packet, reject unavailable and ambiguous selectors, and preserve equal-copy multiplicity.
 Focused cases cover the relaxed send-telemetry semantics, transaction metadata, undeclared metadata members, and rejected duplicate configuration callbacks and cache indices.
 Independent typed raw boundary mutations cover commit frontiers and stable fields, leadership heartbeats, receive pre/post states, terminal adoption, timeout phases and bootstrap initialization.
-Paired positives deliberately change unused internal candidate, follower-adoption and genesis details while keeping the chosen endpoints fixed.
+Paired positives deliberately change unused internal candidate, follower-adoption, execution/configuration/commit and genesis details while keeping the chosen endpoints fixed.
+Emission tests require receive actions to precede their callback observations, retain only their head origin, and omit redundant incoming-packet matching observations.
+They pair allowed internal snapshot changes with rejected actual POST changes, while retaining malformed-field, entry/configuration, packet and callback-context rejection.
 `self_quorum.stdout` is a fresh native `reconfig_0_1` capture from the corrected test stub, including the required endpoints.
 The test executable doubles as a deterministic fake driver for capture byte preservation, timeout/nonzero-exit/stderr failures, recursive inventory, invalid encoding, missing captures and stale-summary removal.
 Neither it nor the replayer imports proof modules.
