@@ -41,7 +41,9 @@ theorem NodeInvariant.reachable {P : NodeID -> NodeState -> Prop}
     (invariant : NodeInvariant P) {nodes : List NodeID} {state : Model.State}
     (reachable : (Model.transitionSystem Initial.configuration nodes).Reachable state)
     : forall node local_, (node, local_) ∈ state.nodes -> P node local_ := by
-  induction reachable with
+  induction reachable
+    using @TransitionSystem.Reachable.rec
+      (Model.transitionSystem Initial.configuration nodes) with
   | initial initialized =>
       intro node local_ member
       have initial : local_ = Model.initialNodeState Initial.configuration node :=
@@ -73,7 +75,9 @@ theorem NodeInvariant.reachable {P : NodeID -> NodeState -> Prop}
 theorem keys_nodup {nodes : List NodeID} {state : Model.State}
     (reachable : (Model.transitionSystem Initial.configuration nodes).Reachable state)
     : (state.nodes.map Prod.fst).Nodup := by
-  induction reachable with
+  induction reachable
+    using @TransitionSystem.Reachable.rec
+      (Model.transitionSystem Initial.configuration nodes) with
   | initial initialized => exact initialized.2.2.1
   | @step before after action _ stepped ih =>
       cases action with

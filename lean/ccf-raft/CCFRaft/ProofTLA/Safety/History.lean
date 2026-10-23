@@ -42,7 +42,9 @@ inductive Exec (nodes : List NodeID) : List (Model.State) -> Prop where
 theorem exec_of_reachable {nodes : List NodeID} {state : Model.State}
     (reachable : (Model.transitionSystem Initial.configuration nodes).Reachable state)
     : exists history, Exec nodes (state :: history) := by
-  induction reachable with
+  induction reachable
+    using @TransitionSystem.Reachable.rec
+      (Model.transitionSystem Initial.configuration nodes) with
   | initial initialized => exact ⟨[], .initial initialized⟩
   | step _ stepped ih =>
       obtain ⟨history, prior⟩ := ih

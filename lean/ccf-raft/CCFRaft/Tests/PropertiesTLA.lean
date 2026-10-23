@@ -25,7 +25,8 @@ theorem servers (config : Finset NodeID) {nodes : List NodeID}
     (reachable : (Model.transitionSystem config nodes).Reachable state)
     : state.nodes.map Prod.fst = nodes /\ nodes.Nodup := by
   let _ : Initial := ⟨config⟩
-  induction reachable with
+  induction reachable
+    using @CCF.TransitionSystem.Reachable.rec (Model.transitionSystem config nodes) with
   | initial initialized => exact ⟨initialized.2.1, initialized.2.1 ▸ initialized.2.2.1⟩
   | @step before after action _ stepped ih =>
       cases action with

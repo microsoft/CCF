@@ -26,18 +26,16 @@ open CCFRaft.Model.Node (NodeID NodeState)
 
 section Runs
 
-variable {State Action : Type}
-
 /-- The final state after choosing each action from the current state, when
 every chosen action is enabled. -/
-def run (system : TransitionSystem State Action) (start : State)
-    : List (State -> Action) -> Option State
+def run (system : TransitionSystem) (start : system.State)
+    : List (system.State -> system.Action) -> Option system.State
   | [] => some start
   | choose :: rest =>
       (system.step start (choose start)).bind fun next => run system next rest
 
-theorem run_reachable {system : TransitionSystem State Action} {start final : State}
-    {choices : List (State -> Action)} (reachable : system.Reachable start)
+theorem run_reachable {system : TransitionSystem} {start final : system.State}
+    {choices : List (system.State -> system.Action)} (reachable : system.Reachable start)
     (finished : run system start choices = some final)
     : system.Reachable final := by
   induction choices generalizing start with
@@ -144,7 +142,7 @@ def commitChoices : List (CCFRaft.Model.State -> CCFRaft.Model.Action) :=
     deliverOldest
   ]
 
-def commitSystem := CCFRaft.Model.transitionSystem Initial.configuration [0, 1]
+abbrev commitSystem := CCFRaft.Model.transitionSystem Initial.configuration [0, 1]
 
 theorem commit_finished : (run commitSystem (start [0, 1]) commitChoices).isSome := by
   decide
@@ -167,7 +165,7 @@ local instance : Initial := ⟨{0}⟩
 def singleChoices : List (CCFRaft.Model.State -> CCFRaft.Model.Action) :=
   [input 0 (.append [.signature])]
 
-def singleSystem := CCFRaft.Model.transitionSystem Initial.configuration [0]
+abbrev singleSystem := CCFRaft.Model.transitionSystem Initial.configuration [0]
 
 theorem single_finished : (run singleSystem (start [0]) singleChoices).isSome := by
   decide
