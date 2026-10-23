@@ -166,9 +166,7 @@ namespace ccf::crypto
     /** The subject name of the certificate */
     [[nodiscard]] virtual std::string subject() const = 0;
 
-    /** The DER encoding of the subject name of the certificate. Unlike
-     * subject(), this preserves the name exactly, so it can be passed to
-     * ECKeyPair::create_csr() to issue a certificate for the same subject. */
+    /** The DER-encoded subject name of the certificate */
     [[nodiscard]] virtual std::vector<uint8_t> subject_der() const = 0;
   };
 

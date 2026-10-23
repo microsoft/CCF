@@ -1814,9 +1814,7 @@ def check_snapshots(args, network):
 
 def run(args, ipv6=False):
     recoveries_count = 3
-    # Several RDNs: recovery copies the subject name from the previous service
-    # identity rather than from the configuration. RFC 4514 strings list the
-    # RDNs in reverse order.
+    # Multi-RDN, to check recovery copies it; RFC 4514 lists RDNs in reverse
     service_subject_name = "CN=https://this.test.service,O=CCF User"
     expected_subject = "O=CCF User,CN=https://this.test.service"
 

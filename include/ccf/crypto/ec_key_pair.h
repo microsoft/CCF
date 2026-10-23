@@ -57,11 +57,8 @@ namespace ccf::crypto
       return create_csr(subject_name, {});
     }
 
-    /** Create a CSR whose subject is the DER-encoded X.501 Name
-     * @p subject_name_der, such as returned by Verifier::subject_der(), so
-     * that the subject of an existing certificate can be copied exactly
-     * @throws std::invalid_argument if @p subject_name_der is not exactly one
-     * DER-encoded Name
+    /** Create a CSR for a DER-encoded subject name
+     * @throws std::invalid_argument if @p subject_name_der is not one DER Name
      */
     [[nodiscard]] virtual Pem create_csr(
       const std::vector<uint8_t>& subject_name_der,

@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Fixed
 
 - `ccf::crypto::Verifier::remaining_seconds()` now returns the whole validity period before that period starts, and `remaining_percentage()` always returns a fraction between 0.0 and 1.0, including for a certificate whose validity period ends before it starts (#8626).
-- Service certificate renewal, disaster recovery and receipt endorsements of previous service identities now copy the subject name of the existing certificate exactly, so they no longer fail or alter it when `service_subject_name` has several RDNs, such as `CN=CCF Service,O=CCF User`, or contains `/` or `+` (#8627).
+- Service certificate renewal, recovery and previous-identity endorsements now preserve multi-RDN `service_subject_name` values such as `CN=CCF Service,O=CCF User` (#8627).
 
 ## [7.0.22]
 

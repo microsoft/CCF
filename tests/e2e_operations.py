@@ -2629,8 +2629,7 @@ def run_max_uncommitted_tx_count(const_args):
 
 
 def run_service_subject_name_check(args):
-    # Several RDNs, and a character which OpenSSL's printed form escapes. RFC
-    # 4514 strings list the RDNs in reverse order.
+    # RFC 4514 strings list RDNs in reverse order
     service_subject_name = "CN=https://this.test.service,O=CCF User"
     expected_subject = "O=CCF User,CN=https://this.test.service"
 

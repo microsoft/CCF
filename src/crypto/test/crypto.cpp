@@ -387,9 +387,7 @@ TEST_CASE("Certificate subject names are copied exactly from DER")
 {
   using namespace ccf::crypto::OpenSSL;
 
-  // A subject which the printed form cannot express unambiguously: RDNs out
-  // of alphabetical order, a repeated attribute type, a value containing the
-  // separator, and values containing characters that printing escapes.
+  // Out of order, repeated type, separator and escaped characters in values
   const std::vector<std::pair<std::string, std::string>> rdns = {
     {"O", "Last"}, {"CN", "Smith, John"}, {"OU", "https://a.b"}, {"OU", "x+y"}};
   std::vector<uint8_t> subject_der;
@@ -415,7 +413,6 @@ TEST_CASE("Certificate subject names are copied exactly from DER")
     "O=Last, CN=Smith, John, OU=https:\\/\\/a.b, OU=x\\+y";
 
   const auto kp = make_ec_key_pair();
-  // The printed form is not a valid input to the string overloads
   CHECK_THROWS((void)kp->create_csr(printed, {}));
 
   constexpr size_t validity_period_days = 365;

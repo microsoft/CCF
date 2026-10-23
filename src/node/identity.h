@@ -39,8 +39,6 @@ namespace ccf
         validity_period_days);
     }
 
-    // Issues a new identity for an existing subject, copied exactly from the
-    // DER encoding of that subject's name (see Verifier::subject_der())
     NetworkIdentity(
       const std::vector<uint8_t>& subject_name_der,
       ccf::crypto::CurveID curve_id,
