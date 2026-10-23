@@ -10,6 +10,7 @@
 #include "ds/internal_logger.h"
 #include "x509_time.h"
 
+#include <algorithm>
 #include <openssl/evp.h>
 #include <openssl/ossl_typ.h>
 #include <openssl/x509.h>
@@ -68,6 +69,30 @@ namespace
     CHECKPOSITIVE(BIO_get_mem_ptr(mem, &bptr));
     CHECKNULL(bptr);
     return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
+  }
+
+  using TimePoint = ccf::nonstd::SystemClock::time_point;
+
+  std::pair<TimePoint, TimePoint> validity_time_points(const X509* cert)
+  {
+    return {
+      ccf::ds::time_point_from_string(
+        to_x509_time_string(X509_get0_notBefore(cert))),
+      ccf::ds::time_point_from_string(
+        to_x509_time_string(X509_get0_notAfter(cert)))};
+  }
+
+  // Both ends of the validity period are included. Before it starts, the whole
+  // period remains; after it ends, or if it is inverted, nothing does.
+  size_t remaining_seconds_of(
+    const TimePoint& from, const TimePoint& to, const TimePoint& now)
+  {
+    const auto effective_now = std::max(now, from);
+    const auto remaining =
+      std::chrono::duration_cast<std::chrono::seconds>(to - effective_now)
+        .count() +
+      1;
+    return remaining > 0 ? static_cast<size_t>(remaining) : 0;
   }
 }
 
@@ -261,25 +286,22 @@ namespace ccf::crypto
   size_t Verifier_OpenSSL::remaining_seconds(
     const ccf::nonstd::SystemClock::time_point& now) const
   {
-    auto [from, to] = validity_period();
-    auto tp_to = ccf::ds::time_point_from_string(to);
-    const auto remaining =
-      std::chrono::duration_cast<std::chrono::seconds>(tp_to - now).count() + 1;
-    return remaining > 0 ? static_cast<size_t>(remaining) : 0;
+    const auto [from, to] = validity_time_points(cert);
+    return remaining_seconds_of(from, to, now);
   }
 
   double Verifier_OpenSSL::remaining_percentage(
     const ccf::nonstd::SystemClock::time_point& now) const
   {
-    auto [from, to] = validity_period();
-    auto tp_from = ccf::ds::time_point_from_string(from);
-    auto tp_to = ccf::ds::time_point_from_string(to);
-    auto total_sec =
-      std::chrono::duration_cast<std::chrono::seconds>(tp_to - tp_from)
-        .count() +
-      1;
-    auto rem_sec =
-      std::chrono::duration_cast<std::chrono::seconds>(tp_to - now).count() + 1;
-    return rem_sec / (double)total_sec;
+    const auto [from, to] = validity_time_points(cert);
+    const auto total_sec =
+      std::chrono::duration_cast<std::chrono::seconds>(to - from).count() + 1;
+    if (total_sec <= 0)
+    {
+      // Inverted validity period, so the certificate is never valid
+      return 0.0;
+    }
+    return static_cast<double>(remaining_seconds_of(from, to, now)) /
+      static_cast<double>(total_sec);
   }
 }

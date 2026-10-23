@@ -317,6 +317,63 @@ TEST_CASE("Certificate conversions accept any public key type")
     std::invalid_argument);
 }
 
+TEST_CASE("Verifier reports certificate properties")
+{
+  const auto issuer = make_ec_key_pair();
+  const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto endorsed_cert = create_endorsed_cert(
+    make_ec_key_pair()->public_key_pem(),
+    "CN=subject,O=org",
+    {},
+    make_verifier(issuer_cert)->validity_period(),
+    issuer->private_key_pem(),
+    issuer_cert);
+
+  // PEM and DER inputs describe the same certificate
+  for (const auto& cert : {issuer_cert, endorsed_cert})
+  {
+    const auto der = cert_pem_to_der(cert);
+    const auto from_pem = make_verifier(cert);
+    const auto from_der = make_unique_verifier(der);
+    CHECK(from_pem->cert_pem() == cert);
+    CHECK(from_der->cert_pem() == cert);
+    CHECK(from_pem->cert_der() == der);
+    CHECK(from_der->cert_der() == der);
+    CHECK(from_pem->subject() == from_der->subject());
+    CHECK(from_pem->serial_number() == from_der->serial_number());
+    CHECK(from_pem->is_self_signed() == from_der->is_self_signed());
+  }
+
+  const auto issuer_verifier = make_verifier(issuer_cert);
+  const auto endorsed_verifier = make_verifier(endorsed_cert);
+  CHECK(issuer_verifier->is_self_signed());
+  CHECK_FALSE(endorsed_verifier->is_self_signed());
+
+  // RDNs are separated by ", "
+  CHECK(issuer_verifier->subject() == "CN=issuer");
+  CHECK(get_subject_name(issuer_cert) == "CN=issuer");
+  CHECK(endorsed_verifier->subject() == "CN=subject, O=org");
+
+  // Serial numbers are random 16-byte integers, printed as upper-case hex
+  for (const auto& serial :
+       {issuer_verifier->serial_number(), endorsed_verifier->serial_number()})
+  {
+    CHECK_FALSE(serial.empty());
+    CHECK(serial.size() <= 32);
+    CHECK(serial.find_first_not_of("0123456789ABCDEF") == std::string::npos);
+  }
+  CHECK(issuer_verifier->serial_number() != endorsed_verifier->serial_number());
+
+  // Fixed certificate, so the exact values are known
+  const auto nested_verifier = make_verifier(raw_from_b64(nested_cert));
+  CHECK(nested_verifier->is_self_signed());
+  CHECK(nested_verifier->serial_number() == "01");
+  // Forward slashes in attribute values are escaped
+  CHECK(
+    nested_verifier->subject() ==
+    "CN=https:\\/\\/sharedeus2.eus2.attest.azure.net");
+}
+
 TEST_CASE("Private PEM imports enforce key family")
 {
   const auto ec = make_ec_key_pair();
@@ -740,7 +797,7 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
     auto verifier = make_verifier(cert);
     CHECK(verifier->verify_hash(hash, signature, MDType::SHA256));
     corrupt(hash);
-    CHECK_FALSE(verifier->verify(hash, signature, MDType::SHA256));
+    CHECK_FALSE(verifier->verify_hash(hash, signature, MDType::SHA256));
   }
 }
 
@@ -1659,15 +1716,80 @@ TEST_CASE("Certificate validity period")
     (void)kp->self_sign("CN=name", "20240102000000Z", "20240101000000Z"),
     std::logic_error);
 
-  const auto verifier = make_verifier(
-    kp->self_sign("CN=name", "20240101000000Z", "20240102000000Z"));
+  const auto cert =
+    kp->self_sign("CN=name", "20240101000000Z", "20240102000000Z");
+  const auto verifier = make_verifier(cert);
   const auto midpoint = ccf::ds::time_point_from_string("20240101120000Z");
+  const auto not_before = midpoint - 12h;
+  const auto not_after = midpoint + 12h;
   // Both ends of the validity period are included, so it lasts 86401s
   CHECK(verifier->remaining_seconds(midpoint) == 43201);
   CHECK(
     verifier->remaining_percentage(midpoint) ==
     doctest::Approx(43201.0 / 86401));
+  CHECK(verifier->remaining_seconds(not_before) == 86401);
+  CHECK(verifier->remaining_percentage(not_before) == doctest::Approx(1.0));
+  CHECK(verifier->remaining_seconds(not_after) == 1);
+  CHECK(
+    verifier->remaining_percentage(not_after) == doctest::Approx(1.0 / 86401));
+
+  // Before the period starts, all of it remains
+  CHECK(verifier->remaining_seconds(not_before - 1s) == 86401);
+  CHECK(
+    verifier->remaining_percentage(not_before - 1s) == doctest::Approx(1.0));
+  CHECK(verifier->remaining_seconds(midpoint - 24h) == 86401);
+  CHECK(verifier->remaining_percentage(midpoint - 24h) == doctest::Approx(1.0));
+
+  // After it ends, none of it does
+  CHECK(verifier->remaining_seconds(not_after + 1s) == 0);
+  CHECK(verifier->remaining_percentage(not_after + 1s) == doctest::Approx(0.0));
   CHECK(verifier->remaining_seconds(midpoint + 24h) == 0);
+  CHECK(verifier->remaining_percentage(midpoint + 24h) == doctest::Approx(0.0));
+
+  // CCF refuses to issue a certificate whose period is a single second or
+  // ends before it starts, but a verifier accepts any certificate without
+  // checking its signature, so forge both by rewriting notBefore on an
+  // issued certificate.
+  {
+    const auto der = cert_pem_to_der(cert);
+    OpenSSL::Unique_BIO in(der);
+    OpenSSL::Unique_X509 x509(in, false, /*check_null=*/true);
+    const auto with_not_before = [&](const std::string& from) {
+      OpenSSL::Unique_X509_TIME tp(from);
+      REQUIRE(X509_set1_notBefore(x509, tp) == 1);
+      OpenSSL::Unique_BIO out;
+      REQUIRE(i2d_X509_bio(out, x509) == 1);
+      BUF_MEM* bptr = nullptr;
+      REQUIRE(BIO_get_mem_ptr(out, &bptr) > 0);
+      const auto v = make_verifier(std::vector<uint8_t>(
+        reinterpret_cast<uint8_t*>(bptr->data),
+        reinterpret_cast<uint8_t*>(bptr->data) + bptr->length));
+      REQUIRE(v->validity_period() == std::make_pair(from, "20240102000000Z"s));
+      return v;
+    };
+
+    // A period of a single second is all or nothing
+    const auto single_second = with_not_before("20240102000000Z");
+    CHECK(single_second->remaining_seconds(not_after - 1s) == 1);
+    CHECK(
+      single_second->remaining_percentage(not_after - 1s) ==
+      doctest::Approx(1.0));
+    CHECK(single_second->remaining_seconds(not_after) == 1);
+    CHECK(
+      single_second->remaining_percentage(not_after) == doctest::Approx(1.0));
+    CHECK(single_second->remaining_seconds(not_after + 1s) == 0);
+    CHECK(
+      single_second->remaining_percentage(not_after + 1s) ==
+      doctest::Approx(0.0));
+
+    // Nothing of an inverted period remains
+    const auto inverted = with_not_before("20240102000001Z");
+    for (const auto now : {not_before, midpoint, not_after, not_after + 1s})
+    {
+      CHECK(inverted->remaining_seconds(now) == 0);
+      CHECK(inverted->remaining_percentage(now) == doctest::Approx(0.0));
+    }
+  }
 }
 
 TEST_CASE("hmac")
@@ -1907,6 +2029,29 @@ TEST_CASE("Sign and verify with RSA key")
     constexpr auto bad_salt_length = std::numeric_limits<size_t>::max();
     REQUIRE_THROWS_AS(
       (void)kp->sign(payload, mdtype, bad_salt_length), std::invalid_argument);
+
+    const auto issuer = make_ec_key_pair();
+    const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+    const auto cert = create_endorsed_cert(
+      kp->public_key_pem(),
+      "CN=RSA subject",
+      {},
+      make_verifier(issuer_cert)->validity_period(),
+      issuer->private_key_pem(),
+      issuer_cert);
+    auto bad_payload = payload;
+    corrupt(bad_payload);
+    auto bad_hash = hash;
+    corrupt(bad_hash);
+    for (const auto& encoded_cert : {cert.raw(), cert_pem_to_der(cert)})
+    {
+      const auto verifier = make_verifier(encoded_cert);
+      CHECK(verifier->public_key_der() == kp->public_key_der());
+      CHECK(verifier->verify(payload, sig, mdtype));
+      CHECK(verifier->verify_hash(hash, sig, mdtype));
+      CHECK_FALSE(verifier->verify(bad_payload, sig, mdtype));
+      CHECK_FALSE(verifier->verify_hash(bad_hash, sig, mdtype));
+    }
   }
 }
 
