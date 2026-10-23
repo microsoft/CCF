@@ -125,26 +125,6 @@ namespace ccf::crypto
 
   static Pem create_endorsed_cert(
     const Pem& public_key,
-    const std::string& subject_name,
-    const std::vector<SubjectAltName>& subject_alt_names,
-    const std::pair<std::string, std::string>& validity_period,
-    const Pem& issuer_private_key,
-    const Pem& issuer_cert,
-    bool ca = false)
-  {
-    return create_endorsed_cert(
-      public_key,
-      subject_name,
-      subject_alt_names,
-      validity_period.first,
-      validity_period.second,
-      issuer_private_key,
-      issuer_cert,
-      ca);
-  }
-
-  static Pem create_endorsed_cert(
-    const Pem& public_key,
     const std::vector<uint8_t>& subject_name_der,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::pair<std::string, std::string>& validity_period,

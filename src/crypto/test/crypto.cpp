@@ -265,12 +265,15 @@ TEST_CASE("Verifier rejects unsupported public key type")
 {
   const auto issuer = make_ec_key_pair();
   const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto [valid_from, valid_to] =
+    make_verifier(issuer_cert)->validity_period();
   const auto subject = make_eddsa_key_pair(CurveID::CURVE25519);
   const auto cert_pem = create_endorsed_cert(
     subject->public_key_pem(),
     "CN=unsupported key type",
     {},
-    make_verifier(issuer_cert)->validity_period(),
+    valid_from,
+    valid_to,
     issuer->private_key_pem(),
     issuer_cert);
 
@@ -285,12 +288,15 @@ TEST_CASE("Certificate conversions accept any public key type")
   // keys, which the COSE verifiers accept.
   const auto issuer = make_ec_key_pair();
   const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto [valid_from, valid_to] =
+    make_verifier(issuer_cert)->validity_period();
   const auto subject = make_eddsa_key_pair(CurveID::CURVE25519);
   const auto cert_pem = create_endorsed_cert(
     subject->public_key_pem(),
     "CN=Ed25519 subject",
     {},
-    make_verifier(issuer_cert)->validity_period(),
+    valid_from,
+    valid_to,
     issuer->private_key_pem(),
     issuer_cert);
   CHECK_THROWS_AS(make_verifier(cert_pem), std::logic_error);
@@ -321,11 +327,14 @@ TEST_CASE("Verifier reports certificate properties")
 {
   const auto issuer = make_ec_key_pair();
   const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto [valid_from, valid_to] =
+    make_verifier(issuer_cert)->validity_period();
   const auto endorsed_cert = create_endorsed_cert(
     make_ec_key_pair()->public_key_pem(),
     "CN=subject,O=org",
     {},
-    make_verifier(issuer_cert)->validity_period(),
+    valid_from,
+    valid_to,
     issuer->private_key_pem(),
     issuer_cert);
 
@@ -2108,11 +2117,14 @@ TEST_CASE("Sign and verify with RSA key")
 
     const auto issuer = make_ec_key_pair();
     const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+    const auto [valid_from, valid_to] =
+      make_verifier(issuer_cert)->validity_period();
     const auto cert = create_endorsed_cert(
       kp->public_key_pem(),
       "CN=RSA subject",
       {},
-      make_verifier(issuer_cert)->validity_period(),
+      valid_from,
+      valid_to,
       issuer->private_key_pem(),
       issuer_cert);
     auto bad_payload = payload;
