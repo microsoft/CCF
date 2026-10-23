@@ -66,9 +66,10 @@ private def take : Reduction Event := do
   let _ ← liftM (Std.Internal.Parsec.any : EventParser Nat)
   return event
 
-private def eventIs (name : String) : Reduction Event := do
+private def eventIs (name : String) (anchor : Option Event := none)
+    : Reduction Event := do
   let some event ← peek | failure "end of trace: incomplete event group"
-  unless event.function == name do
+  unless event.function == name && anchor.all (·.sameContext event) do
     failure s!"expected {name}"
   take
 
@@ -83,6 +84,9 @@ private partial def many {α : Type} (parser : Reduction α) : Reduction (List �
 private def many_ (parser : Reduction Unit) : Reduction Unit :=
   discard (many parser)
 
+private def optionalRule {α : Type} (parser : Reduction α) : Reduction (Option α) :=
+  (some <$> parser) <|> pure none
+
 private def checked (event : Event) (condition : Bool) (message : String)
     : Reduction Unit :=
   validated (require condition s!"{event.record.location}: {event.function}: {message}")
@@ -90,6 +94,16 @@ private def checked (event : Event) (condition : Bool) (message : String)
 private def read {α : Type} (event : Event) (result : Except String α) : Reduction α :=
   validated
     (result.mapError fun error => s!"{event.record.location}: {event.function}: {error}")
+
+private def headRule (operation : String) (operations functions : List String)
+    : Reduction Event := do
+  let some event ← peek | failure "end of trace: incomplete event group"
+  unless functions.contains event.function do
+    failure "operation head mismatch"
+  let event ← take
+  checked event (operations.contains operation)
+    s!"ungrouped callback {event.function} in {operation} boundary"
+  return event
 
 private def modelNode (event : Event) (name : String) : Reduction NodeID := do
   read event ((← get).header.nodeId name)
@@ -195,15 +209,8 @@ private def omitPresent (facts : Json) (names : List String) (reason : String)
     fun name => if (optional facts name).isSome then some (name, reason) else none
 
 /-- `commit` traces before advancing and may nominate before clearing leadership. -/
-private def takeCommit (anchor : Event) : Reduction (List Event) := do
-  unless ← nextIs "commit" (some anchor) do
-    return []
-  let commit ← take
-  checked commit ((← read commit (string commit.state "leadership_state")) == "Leader")
-    "internal commit outside leadership"
-  unless ← nextIs "step_down_and_nominate_successor" (some commit) do
-    return [commit]
-  let nomination ← take
+private def retirementNomination (commit : Event) : Reduction Event := do
+  let nomination ← eventIs "step_down_and_nominate_successor" (some commit)
   let target ← read commit (field commit.message "args" >>= (nat · "idx"))
   let confirmation ← read nomination (nat nomination.facts "retiredCommittedIndex")
   checked nomination
@@ -214,7 +221,15 @@ private def takeCommit (anchor : Event) : Reduction (List Event) := do
       && confirmation > 0
       && confirmation <= target)
     "unexpected terminal-retirement nomination boundary"
-  return [commit, nomination]
+  return nomination
+
+private def takeCommit (anchor : Event) : Reduction (List Event) :=
+  (do
+    let commit ← eventIs "commit" (some anchor)
+    checked commit ((← read commit (string commit.state "leadership_state")) == "Leader")
+      "internal commit outside leadership"
+    return commit :: (← optionalRule (retirementNomination commit)).toList)
+  <|> pure []
 
 private def observeCommitPre (anchor : Event) (tail : List Event) : Reduction Unit := do
   let some commit := tail.find? (·.function == "commit") | return
@@ -278,17 +293,21 @@ private def activePeers (event : Event) : Reduction (List String) := do
   let nodes ← configurations.toList.mapM fun value => read event (configuration value)
   return (nodes.flatten.eraseDups.filter (· != event.node)).mergeSort
 
+private def leaderHeartbeat (anchor : Event) : Reduction Event := do
+  let some event ← peek | failure "missing leadership heartbeat"
+  unless event.function == "send_append_entries" && anchor.sameContext event do
+    failure "expected leadership heartbeat"
+  let packet ← read event (field event.message "packet")
+  let previous ← read event (nat packet "prev_idx")
+  let last ← read event (nat event.state "last_idx")
+  unless previous == last && (← read event (nat packet "idx")) == last do
+    failure "not a leadership heartbeat"
+  eventIs "send_append_entries" (some anchor)
+
 /-- `become_leader`: possible lone-leader commit, then one empty send per peer. -/
 private def takeLeaderTail (anchor : Event) : Reduction (List Event) := do
   let commits ← takeCommit anchor
-  let mut heartbeats := []
-  while ← nextIs "send_append_entries" (some anchor) do
-    let some event ← peek | failure "missing leadership heartbeat"
-    let packet ← read event (field event.message "packet")
-    let previous ← read event (nat packet "prev_idx")
-    let last ← read event (nat event.state "last_idx")
-    if previous != last || (← read event (nat packet "idx")) != last then break
-    heartbeats := heartbeats ++ [← take]
+  let heartbeats ← many (leaderHeartbeat anchor)
   let destinations ←
     heartbeats.mapM fun event => read event (string event.message "to_node_id")
   checked anchor (destinations.eraseDups == destinations)
@@ -304,39 +323,41 @@ private def observeLeaderTail (tail : List Event) : Reduction Unit := do
     peers event "leader-heartbeat-pre"
     message event "send-post" false
 
-/-- Self-quorum promotion is nested before the enclosing election request loop. -/
-private def takeElection (head : Event)
+private def voteRequest (head : Event) (family : String) : Reduction Event := do
+  let send ← eventIs "send_request_vote" (some head)
+  let packet ← read send (field send.message "packet")
+  checked send ((← read send (string packet "msg")) == family) "wrong vote request packet"
+  return send
+
+private def electionRequests (head : Event) (family : String) (nested tail : List Event)
     : Reduction (List Event × List Event × List Event) := do
-  let mut nested := []
-  if head.function == "become_pre_vote_candidate"
-      && (← nextIs "become_candidate" (some head)) then
-    nested := [← take]
-  let last := nested.getLast?.getD head
-  if last.function == "become_candidate" && (← nextIs "become_leader" (some head)) then
-    nested := nested ++ [← take]
-  let tail ←
-    if let some last := nested.getLast? then
-      if last.function == "become_leader" then takeLeaderTail last else pure []
-    else
-      pure []
-  let family :=
-    if head.function == "become_pre_vote_candidate" && nested.isEmpty then
-      "raft_request_pre_vote"
-    else
-      "raft_request_vote"
-  let mut sends := []
-  while ← nextIs "send_request_vote" (some head) do
-    let send ← take
-    let packet ← read send (field send.message "packet")
-    checked send ((← read send (string packet "msg")) == family)
-      "wrong vote request packet"
-    sends := sends ++ [send]
+  let sends ← many (voteRequest head family)
   let others ← activePeers head
   let destinations ← sends.mapM fun send => read send (string send.message "to_node_id")
   checked head (destinations == others) "vote requests differ from other active members"
   checked head (nested.isEmpty || others.isEmpty)
     "self-quorum promotion with other active members"
   return (nested, sends, tail)
+
+private def leaderPromotion (anchor : Event) : Reduction (List Event × List Event) :=
+  (do
+    let leader ← eventIs "become_leader" (some anchor)
+    return ([leader], ← takeLeaderTail leader))
+  <|> pure ([], [])
+
+private def candidateElection (head : Event)
+    : Reduction (List Event × List Event × List Event) := do
+  let (nested, tail) ← leaderPromotion head
+  electionRequests head "raft_request_vote" nested tail
+
+/-- A pre-vote either sends probes or synchronously obtains a self-quorum. -/
+private def preVoteElection (head : Event)
+    : Reduction (List Event × List Event × List Event) :=
+  (do
+    let candidate ← eventIs "become_candidate" (some head)
+    let (nested, tail) ← leaderPromotion head
+    electionRequests head "raft_request_vote" (candidate :: nested) tail)
+  <|> electionRequests head "raft_request_pre_vote" [] []
 
 private def observeElection (head : Event) (nested sends tail : List Event)
     (rule : String)
@@ -440,6 +461,45 @@ private def bootstrap (initial signature : Chunk) : Reduction String := do
     *> eventIs "operation_boundary"
   return leader
 
+private def configurationHeartbeat (write config : Event) : Reduction Event := do
+  checked config (← nextIs "send_append_entries" (some write))
+    "missing new-peer configuration callback"
+  let callback ← eventIs "send_append_entries" (some write)
+  let oldLength ← read write (nat write.state "last_idx")
+  let packet ← read callback (field callback.message "packet")
+  checked callback
+    ((← read callback (nat callback.state "last_idx")) == oldLength
+      && (← read callback (nat packet "prev_idx")) == oldLength
+      && (← read callback (nat packet "idx")) == oldLength
+      && (← read callback (nat callback.message "sent_idx")) == oldLength + 1
+      && (← read callback (nat callback.message "match_idx")) == 0)
+    "unsupported configuration callback heartbeat"
+  observe callback "configuration-callback-pre" none
+    (omitPresent callback.facts retirementFields
+      "configuration hook changed retirement before append; checked after append")
+  return callback
+
+private def appendConfiguration (write : Event)
+    : Reduction (Event × Finset NodeID × List Event) := do
+  let config ← eventIs "add_configuration" (some write)
+  let value ← read config (field config.message "args" >>= (field · "configuration"))
+  checked config
+    (config.state == write.state
+      && (← read config (nat value "idx")) == (← read write (nat write.message "seqno"))
+      && !(← read write (boolean write.message "globally_committable")))
+    "configuration write pair mismatch"
+  let nodes ← read config (configurationArg config.message)
+  let members ← modelMembers config nodes
+  observe config "configuration-pair"
+  let previous ← activePeers config
+  let added := nodes.filter fun node => node != write.node && !previous.contains node
+  let callbacks ← added.mapM fun _ => configurationHeartbeat write config
+  let destinations ←
+    callbacks.mapM fun event => read event (string event.message "to_node_id")
+  checked config (destinations.mergeSort == added.mergeSort)
+    "new-peer configuration callback destinations differ"
+  return (config, members, callbacks)
+
 /-- The driver's singleton BatchVector, including hooks and new-peer heartbeats. -/
 private def appendRule (write : Event) : Reduction Unit := do
   checked write
@@ -448,49 +508,17 @@ private def appendRule (write : Event) : Reduction Unit := do
       && (← read write (nat write.message "view"))
           == (← read write (nat write.state "current_view")))
     "write coordinates differ from the recorded state"
-  let mut configurations := []
-  let mut callbacks := []
-  let mut metadata : TransactionMetadata := {}
   observe write "write-pre"
-  while ← nextIs "add_configuration" (some write) do
-    let config ← take
-    checked config metadata.configuration.isNone
-      "multiple configuration callbacks for one transaction"
-    let value ← read config (field config.message "args" >>= (field · "configuration"))
-    checked config
-      (config.state == write.state
-        && (← read config (nat value "idx")) == (← read write (nat write.message "seqno"))
-        && !(← read write (boolean write.message "globally_committable")))
-      "configuration write pair mismatch"
-    let nodes ← read config (configurationArg config.message)
-    metadata := { metadata with configuration := some (← modelMembers config nodes) }
-    configurations := configurations ++ [config]
-    observe config "configuration-pair"
-    let previous ← activePeers config
-    let added := nodes.filter fun node => node != write.node && !previous.contains node
-    let mut addedCallbacks := []
-    for _ in added do
-      checked config (← nextIs "send_append_entries" (some write))
-        "missing new-peer configuration callback"
-      let callback ← take
-      let oldLength ← read write (nat write.state "last_idx")
-      let packet ← read callback (field callback.message "packet")
-      checked callback
-        ((← read callback (nat callback.state "last_idx")) == oldLength
-          && (← read callback (nat packet "prev_idx")) == oldLength
-          && (← read callback (nat packet "idx")) == oldLength
-          && (← read callback (nat callback.message "sent_idx")) == oldLength + 1
-          && (← read callback (nat callback.message "match_idx")) == 0)
-        "unsupported configuration callback heartbeat"
-      observe callback "configuration-callback-pre" none
-        (omitPresent callback.facts retirementFields
-          "configuration hook changed retirement before append; checked after append")
-      addedCallbacks := addedCallbacks ++ [callback]
-    let destinations ←
-      addedCallbacks.mapM fun event => read event (string event.message "to_node_id")
-    checked config (destinations.mergeSort == added.mergeSort)
-      "new-peer configuration callback destinations differ"
-    callbacks := callbacks ++ addedCallbacks
+  let configuration ← optionalRule (appendConfiguration write)
+  let _ ←
+    optionalRule do
+      let duplicate ← eventIs "add_configuration" (some write)
+      checked duplicate false "multiple configuration callbacks for one transaction"
+  let (configurations, metadata, callbacks) :=
+    match configuration with
+    | none => ([], ({} : TransactionMetadata), [])
+    | some (config, members, callbacks) =>
+        ([config], { configuration := some members }, callbacks)
   let command ← read write (string write.command.value "cmd")
   let content ←
     if ← read write (boolean write.message "globally_committable") then
@@ -527,15 +555,7 @@ private def appendRule (write : Event) : Reduction Unit := do
     message callback "send-post" false
   observeCommit tail
 
-private def receiveFamily : String → List String
-  | "recv_append_entries" => ["raft_append_entries"]
-  | "recv_append_entries_response" => ["raft_append_entries_response"]
-  | "recv_request_vote" => ["raft_request_vote", "raft_request_pre_vote"]
-  | "recv_request_vote_response" =>
-      ["raft_request_vote_response", "raft_request_pre_vote_response"]
-  | "recv_propose_request_vote" => ["raft_propose_request_vote"]
-  | _ => []
-
+/-- Check already-parsed effects against the resulting log; consume no input. -/
 private def observeAppendCallbacks (sender : String) (callbacks : List Event)
     : Reduction Unit := do
   for callback in callbacks, position in [:callbacks.length] do
@@ -618,87 +638,116 @@ private def observeAppendCallbacks (sender : String) (callbacks : List Event)
           "callback-configuration"
     observe callback "append-callback" none exclusions
 
-/-- Receive, term adoption, promotions, commits and responses are one model step. -/
-private def receiveRule (event : Event) : Reduction Unit := do
+private structure Receive where
+  event : Event
+  sender : String
+  packet : Json
+  followers : List Event
+
+private def receiveHead (operation function : String) (families : List String)
+    : Reduction Receive := do
+  let event ← headRule operation ["receive"] [function]
   let sender ← read event (string event.message "from_node_id")
   let packet ← read event (field event.message "packet")
   let family ← read event (string packet "msg")
-  checked event ((receiveFamily event.function).contains family)
-    "receive function/packet mismatch"
+  checked event (families.contains family) "receive function/packet mismatch"
   observe event "receive-pre"
   peers event "receive-pre"
   message event "receive-pre" true
-  let mut followers := []
-  if ← nextIs "become_follower" (some event) then
-    followers := [← take]
-  let mut callbacks := []
-  let mut election : Option (Event × List Event × List Event × List Event) := none
-  if event.function == "recv_append_entries" then
-    callbacks ←
-      many
-        (eventIs "execute_append_entries_sync"
-          <|> eventIs "add_configuration"
-          <|> eventIs "commit")
-    if ← nextIs "send_append_entries_response" then
-      callbacks := callbacks ++ [← eventIs "send_append_entries_response"]
-    for callback in callbacks do
-      checked callback (event.sameContext callback) "interleaved receive callback"
-  else if
-    event.function == "recv_request_vote"
-    && (← nextIs "send_request_vote_response" (some event)) then
-    let response ← take
-    let responsePacket ← read response (field response.message "packet")
-    checked response
-      ((← read response (string response.message "to_node_id")) == sender
-        && (← read response (string responsePacket "msg")) == family ++ "_response")
-      "vote response does not match request"
-    callbacks := [response]
-  else if
-    ["recv_propose_request_vote", "recv_request_vote_response"].contains event.function
-    && (← nextIs "become_candidate" (some event)) then
-    let head ← take
-    let (nested, sends, tail) ← takeElection head
-    election := some (head, nested, sends, tail)
-    callbacks := [head] ++ nested ++ tail ++ sends
-  else if
-    event.function == "recv_request_vote_response"
-    && (← nextIs "become_leader" (some event)) then
-    let head ← take
-    let tail ← takeLeaderTail head
-    election := some (head, [], [], tail)
-    callbacks := head :: tail
-  else if event.function == "recv_append_entries_response" then
-    callbacks ← takeCommit event
-  if let some (_, _, _, tail) := election then
-    observeCommitPre event tail
-  else if event.function == "recv_append_entries_response" then
-    observeCommitPre event callbacks
-  action event "atomic-receive" (.receive sender event.node packet)
-    ([event] ++ followers ++ callbacks)
+  let followers ← optionalRule (eventIs "become_follower" (some event))
+  return { event, sender, packet, followers := followers.toList }
+
+private def deliver (receive : Receive) (callbacks : List Event) : Reduction Unit := do
+  action receive.event "atomic-receive"
+    (.receive receive.sender receive.event.node receive.packet)
+    ([receive.event] ++ receive.followers ++ callbacks)
   -- Adoption is a full endpoint only when no later receive callback supplies one.
   if callbacks.isEmpty then
-    for follower in followers do
+    for follower in receive.followers do
       observe follower "receive-follower-post"
-  if let some (head, nested, sends, tail) := election then
-    observeElection head nested sends tail "receive-post"
-  else if event.function == "recv_append_entries_response" then
-    observeCommit callbacks
-  else
-    observeAppendCallbacks sender callbacks
+
+private def recvAppendEntries (operation : String) : Reduction Unit := do
+  let receive ← receiveHead operation "recv_append_entries" ["raft_append_entries"]
+  let applied ←
+    many
+      (eventIs "execute_append_entries_sync"
+        <|> eventIs "add_configuration"
+        <|> eventIs "commit")
+  let response ← optionalRule (eventIs "send_append_entries_response")
+  let callbacks := applied ++ response.toList
+  for callback in callbacks do
+    checked callback (receive.event.sameContext callback) "interleaved receive callback"
+  deliver receive callbacks
+  observeAppendCallbacks receive.sender callbacks
+
+private def recvAppendEntriesResponse (operation : String) : Reduction Unit := do
+  let receive ←
+    receiveHead operation "recv_append_entries_response" ["raft_append_entries_response"]
+  let commits ← takeCommit receive.event
+  observeCommitPre receive.event commits
+  deliver receive commits
+  observeCommit commits
+
+private def voteResponse (receive : Receive) : Reduction Event := do
+  let response ← eventIs "send_request_vote_response" (some receive.event)
+  let packet ← read response (field response.message "packet")
+  let family ← read receive.event (string receive.packet "msg")
+  checked response
+    ((← read response (string response.message "to_node_id")) == receive.sender
+      && (← read response (string packet "msg")) == family ++ "_response")
+    "vote response does not match request"
+  return response
+
+private def recvRequestVote (operation : String) : Reduction Unit := do
+  let receive ←
+    receiveHead operation "recv_request_vote"
+      ["raft_request_vote", "raft_request_pre_vote"]
+  let callbacks := (← optionalRule (voteResponse receive)).toList
+  deliver receive callbacks
+  observeAppendCallbacks receive.sender callbacks
+
+private abbrev Election := Event × List Event × List Event × List Event
+
+private def becomeCandidate (anchor : Event) : Reduction Election := do
+  let head ← eventIs "become_candidate" (some anchor)
+  let (nested, sends, tail) ← candidateElection head
+  return (head, nested, sends, tail)
+
+private def becomeLeader (anchor : Event) : Reduction Election := do
+  let head ← eventIs "become_leader" (some anchor)
+  return (head, [], [], ← takeLeaderTail head)
+
+private def receiveElection (receive : Receive) (promotion : Reduction Election)
+    : Reduction Unit := do
+  match ← optionalRule promotion with
+  | none => deliver receive []
+  | some (head, nested, sends, tail) =>
+      observeCommitPre receive.event tail
+      deliver receive ([head] ++ nested ++ tail ++ sends)
+      observeElection head nested sends tail "receive-post"
+
+private def recvProposeRequestVote (operation : String) : Reduction Unit := do
+  let receive ←
+    receiveHead operation "recv_propose_request_vote" ["raft_propose_request_vote"]
+  receiveElection receive (becomeCandidate receive.event)
+
+private def recvRequestVoteResponse (operation : String) : Reduction Unit := do
+  let receive ←
+    receiveHead operation "recv_request_vote_response"
+      ["raft_request_vote_response", "raft_request_pre_vote_response"]
+  receiveElection receive (becomeCandidate receive.event <|> becomeLeader receive.event)
+
+/-- Each receive grammar contains one delivery and its synchronous effects. -/
+private def receiveRule (operation : String) : Reduction Unit :=
+  recvAppendEntries operation
+  <|> recvProposeRequestVote operation
+  <|> recvRequestVote operation
+  <|> recvRequestVoteResponse operation
+  <|> recvAppendEntriesResponse operation
 
 structure Reduced where
   header : Header
   instructions : Array Instruction
-
-private def headRule (operation : String) (operations functions : List String)
-    : Reduction Event := do
-  let some event ← peek | failure "end of trace: incomplete event group"
-  unless functions.contains event.function do
-    failure "operation head mismatch"
-  let event ← take
-  checked event (operations.contains operation)
-    s!"ungrouped callback {event.function} in {operation} boundary"
-  return event
 
 private def appendOperation (operation : String) : Reduction Unit := do
   appendRule (← headRule operation ["replicate"] ["replicate"])
@@ -719,22 +768,12 @@ private def sendOperation (operation : String) : Reduction Unit := do
         (← read event (nat packet "idx"))))
   message event "send-post" false
 
-private def receiveRequestVote (operation : String) : Reduction Unit := do
-  receiveRule
-    (← headRule operation ["receive"]
-        ["recv_request_vote", "recv_request_vote_response", "recv_propose_request_vote"])
-
-private def receiveAppendEntries (operation : String) : Reduction Unit := do
-  receiveRule
-    (← headRule operation ["receive"]
-        ["recv_append_entries", "recv_append_entries_response"])
-
 private def electionOperation (operation : String) : Reduction Unit := do
   let event ←
     headRule operation ["periodic"] ["become_candidate", "become_pre_vote_candidate"]
   checked event (event.function == "become_pre_vote_candidate")
     "timeout election must start in the pre-vote phase"
-  let (nested, sends, tail) ← takeElection event
+  let (nested, sends, tail) ← preVoteElection event
   checked event (optional event.facts "role" == some (toJson "preVoteCandidate"))
     "election boundary role must be preVoteCandidate"
   observe event "election-pre" none
@@ -777,8 +816,7 @@ private def tick (operation : String) : Reduction Unit :=
 
 private def reductionRules (operation : String) : Reduction Unit :=
   appendOperation operation
-  <|> receiveRequestVote operation
-  <|> receiveAppendEntries operation
+  <|> receiveRule operation
   <|> tick operation
   <|> sendOperation operation
   <|> nominationOperation operation

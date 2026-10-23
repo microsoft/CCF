@@ -393,6 +393,49 @@ private def parsecReductionTests : IO Unit := do
         | _ => false
   check (sends.size > 1) "many stopped after the first operation in a chunk"
 
+private def receiveGrammarTests : IO Unit := do
+  for (family, capture)
+      in [
+        ("recv_append_entries", "vote_responses.ndjson"),
+        ("recv_append_entries_response", "vote_responses.ndjson"),
+        ("recv_request_vote", "vote_responses.ndjson"),
+        ("recv_request_vote_response", "vote_responses.ndjson"),
+        ("recv_propose_request_vote", "nominate_successor.stdout")
+      ] do
+    let records ← fixture capture
+    let _ ← ok (replayRecords records)
+    let head ← find records family
+    -- All fields are valid, but the named grammar must reject another family.
+    let packet :=
+      if family == "recv_propose_request_vote" then
+        Json.mkObj
+          [
+            ("msg", toJson "raft_request_vote"),
+            ("term", toJson (2 : Nat)),
+            ("last_committable_idx", toJson (2 : Nat)),
+            ("term_of_last_committable_idx", toJson (2 : Nat))
+          ]
+      else
+        Json.mkObj
+          [("msg", toJson "raft_propose_request_vote"), ("term", toJson (2 : Nat))]
+    rejects (reduce (mutate records head ["msg", "packet"] packet))
+      "receive function/packet mismatch"
+  let votes ← fixture "vote_responses.ndjson"
+  let response ← find votes "send_request_vote_response"
+  let packet :=
+    ((votes[response]!.value.getObjValD "msg").getObjValD "packet")
+    |>.setObjVal! "msg" (toJson "raft_append_entries_response")
+  let packet :=
+    Json.mkObj
+      [
+        ("msg", packet.getObjValD "msg"),
+        ("term", packet.getObjValD "term"),
+        ("last_log_idx", toJson (0 : Nat)),
+        ("success", toJson "FAIL")
+      ]
+  rejects (reduce (mutate votes response ["msg", "packet"] packet))
+    "vote response does not match request"
+
 /-- Raw mutations exercise the reducer's projections, not merely the final checker. -/
 private def fixtureMutations : IO Nat := do
   let mut count := 0
@@ -1449,6 +1492,7 @@ def main (args : List String) : IO UInt32 := do
   let _ ← parserTests
   let _ ← reductionTests
   parsecReductionTests
+  receiveGrammarTests
   let _ ← fixtureMutations
   let boundaries ← boundaryTests
   let nativeBoundaries ← nativeBoundaryTests
