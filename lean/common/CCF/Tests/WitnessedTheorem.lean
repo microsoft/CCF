@@ -2,173 +2,71 @@ module
 
 public import CCF.WitnessedTheorem
 
-open Lean Elab Command
-
-namespace CCF.Tests.WitnessedTheorem.Private
-
-/-- The example without an extra witness condition, under default private visibility. -/
-witnessed_theorem zero_add
-  for (n : Nat)
-requires n = 0
-ensures 0 + n = n
-  proof :=
-  by
-    intro n _
-    exact Nat.zero_add n
-  witness_proof := by exact ⟨0, rfl⟩
-
-example : ∃ n : Nat, n = 0 := zero_add_witness
-
-run_cmd do
-  for name in #[``zero_add, ``zero_add_witness] do
-    unless (← findDeclarationRanges? name).isSome do
-      throwError "Missing navigation for private declaration {name}"
-    if (← getEnv).contains (privateToUserName name) then
-      throwError "Expected default module-private declaration {name}"
-
-end CCF.Tests.WitnessedTheorem.Private
-
 public section
 
 namespace CCF.Tests.WitnessedTheorem
 
-/-- Grouped dependent parameters and the witness condition share the same scope. -/
-witnessed_theorem dependent_safety
-  for (size : Nat) (left right : Fin (size + 1))
-requires left.val = size
-ensures left.val < size + 1 ∧ right.val < size + 1
-  witness_satisfies size = 2 ∧ left ≠ right
-  proof :=
-  by
-    intro size left right _
-    exact ⟨left.isLt, right.isLt⟩
-  witness_proof := by exact ⟨2, ⟨2, by decide⟩, ⟨0, by decide⟩, rfl, rfl, by decide⟩
+/-- The README example. -/
+theorem zero_add
+    : CCF.WitnessedTheorem
+        (requires := fun n : Nat => n = 0)
 
-example
-    : ∀ (size : Nat) (left right : Fin (size + 1)),
-        left.val = size → left.val < size + 1 ∧ right.val < size + 1 :=
-  dependent_safety
+        (ensures := fun n => 0 + n = n)
 
-example
-    : ∃ (size : Nat) (left right : Fin (size + 1)),
-        left.val = size ∧ (size = 2 ∧ left ≠ right) :=
-  dependent_safety_witness
+        (witness_satisfies := fun n => n < 1) where
 
-/-- The README example, also used to inspect the formatter's layout. -/
-witnessed_theorem zero_add
-  for (n : Nat)
-requires n = 0
-ensures 0 + n = n
-  witness_satisfies n < 1
-  proof :=
-  by
+  proof := by
     intro n _
     exact Nat.zero_add n
+
   witness_proof := by exact ⟨0, rfl, by decide⟩
 
-example : ∃ n : Nat, n = 0 ∧ n < 1 := zero_add_witness
+example : forall n : Nat, n = 0 -> 0 + n = n := zero_add.proof
 
--- Both ordinary declarations navigate to the same command and theorem name token.
-run_cmd do
-  let env ← getEnv
-  for (safetyName, witnessName) in #[
-      (``dependent_safety, ``dependent_safety_witness),
-      (``zero_add, ``zero_add_witness)] do
-    for name in #[safetyName, witnessName] do
-      unless (env.find? name).any (fun info => info matches .thmInfo _) do
-        throwError "Not an ordinary theorem: {name}"
-      unless (← findDocString? env name).isSome do
-        throwError "Missing documentation: {name}"
-    let some a ← findDeclarationRanges? safetyName
-      | throwError "Missing safety navigation"
-    let some b ← findDeclarationRanges? witnessName
-      | throwError "Missing witness navigation"
-    unless a.range == b.range && a.selectionRange == b.selectionRange do
-      throwError "Expected shared declaration and selection ranges"
-    let fileMap ← getFileMap
-    for selection in #[a.selectionRange, b.selectionRange] do
-      let start := fileMap.ofPosition selection.pos
-      let stop := fileMap.ofPosition selection.endPos
-      unless start.extract fileMap.source stop == safetyName.getString! do
-        throwError "Selection range does not select the theorem name token"
+example : exists n : Nat, n = 0 /\ n < 1 := zero_add.witness_proof
 
-/-- error: `CCF.Tests.WitnessedTheorem.zero_add` has already been declared -/
-#guard_msgs in
-witnessed_theorem zero_add
-  for (value : Nat)
-requires value = 0
-  ensures True
-  proof := by intros; trivial
-  witness_proof := by exact ⟨0, rfl⟩
+/-- Omitting the extra predicate requires only an applicable case. -/
+theorem zero_add_without_extra
+    : CCF.WitnessedTheorem
+        (requires := fun _ : Nat => True)
 
-/-- An existing witness name must prevent either declaration from being generated. -/
-theorem fresh_safety_witness : True := True.intro
+        (ensures := fun n => 0 + n = n) where
 
-/-- error: `CCF.Tests.WitnessedTheorem.fresh_safety_witness` has already been declared -/
-#guard_msgs in
-witnessed_theorem fresh_safety
-  for (value : Nat)
-requires value = 0
-  ensures True
-  proof := by intros; trivial
-  witness_proof := by exact ⟨0, rfl⟩
+  proof := by
+    intro n _
+    exact Nat.zero_add n
 
-run_cmd do
-  if (← getEnv).contains `CCF.Tests.WitnessedTheorem.fresh_safety then
-    throwError "A witness name collision left a partial safety declaration"
+  witness_proof := by exact ⟨0, trivial, trivial⟩
 
-/--
-error: Type mismatch
-  True.intro
-has type
-  True
-but is expected to have type
-  ∃ value, value = 0
--/
-#guard_msgs in
-run_cmd withoutModifyingEnv do
-  elabCommand (← `(command|
-    witnessed_theorem invalid_witness_safety
-      for (value : Nat)
-      requires value = 0
-      ensures True
-      proof := by intros; trivial
-      witness_proof := True.intro))
+example : exists _ : Nat, True := by
+  obtain ⟨n, applicable, _⟩ := zero_add_without_extra.witness_proof
+  exact ⟨n, applicable⟩
 
-/--
-error: Type mismatch
-  True.intro
-has type
-  True
-but is expected to have type
-  ∀ (value : Nat), value = 0 → False
--/
-#guard_msgs in
-run_cmd withoutModifyingEnv do
-  elabCommand (← `(command|
-    witnessed_theorem invalid_safety
-      for (value : Nat)
-      requires value = 0
-      ensures False
-      proof := True.intro
-      witness_proof := by exact ⟨0, rfl⟩))
+/-- A sigma type bundles dependent parameters without a separate case record. -/
+theorem dependent_safety
+    : CCF.WitnessedTheorem
+        (Case := (size : Nat) × Fin (size + 1) × Fin (size + 1))
 
-/-- error: witnessed_theorem requires a simple declaration name -/
-#guard_msgs in
-witnessed_theorem Nested.safety
-  for (value : Nat)
-requires value = 0
-  ensures True
-  proof := by intros; trivial
-  witness_proof := by exact ⟨0, rfl⟩
+        (requires := fun ⟨size, left, _⟩ => left.val = size)
 
-/-- error: witnessed_theorem parameter types cannot contain placeholders -/
-#guard_msgs in
-witnessed_theorem inferred_domain
-  for (value : _)
-requires value = 0
-ensures value + (0 : Int) = value
-  proof := by intro value _; exact Int.add_zero value
-  witness_proof := by exact ⟨0, rfl⟩
+        (ensures :=
+          fun ⟨size, left, right⟩ => left.val < size + 1 /\ right.val < size + 1)
+
+        (witness_satisfies := fun ⟨size, left, right⟩ => size = 2 /\ left ≠ right) where
+
+  proof := by
+    intro ⟨_, left, right⟩ _
+    exact ⟨left.isLt, right.isLt⟩
+
+  witness_proof := by exact ⟨⟨2, ⟨2, by decide⟩, ⟨0, by decide⟩⟩, rfl, rfl, by decide⟩
+
+-- The universal proof also covers cases that fail the extra witness predicate.
+example : (0 : Nat) < 1 /\ (0 : Nat) < 1 :=
+  dependent_safety.proof ⟨0, ⟨0, by decide⟩, ⟨0, by decide⟩⟩ rfl
+
+example
+    : exists c : (size : Nat) × Fin (size + 1) × Fin (size + 1),
+        c.2.1.val = c.1 /\ (c.1 = 2 /\ c.2.1 ≠ c.2.2) :=
+  dependent_safety.witness_proof
 
 end CCF.Tests.WitnessedTheorem

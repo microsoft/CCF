@@ -50,8 +50,8 @@ The shared `check-imports` command rejects modules missing from that import clos
 
 ## Proofs
 
-`Properties.lean` contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
-The committed-frontier pair uses the shared [`witnessed_theorem` command](../common/README.md#witnessed-theorems) to state its parameters and assumptions once, preserving both public theorem names and types.
+`Properties.lean` contains the full theorem and witness statements linked to implementations in `Proofs/`.
+Election safety and the committed-frontier property use [`CCF.WitnessedTheorem`](../common/README.md#witnessed-theorems) with context types defined beside their statements to bundle safety and existence proofs.
 `Proofs/Direct/` establishes node-local commit invariants; `Proofs/Safety/` establishes the cross-node history invariant used for election safety and committed-log comparability.
 `Proofs/Witnesses.lean` supplies concrete executions checked by the kernel.
 

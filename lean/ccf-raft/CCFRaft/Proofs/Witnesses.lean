@@ -538,62 +538,73 @@ lemma single_node_committed_log_monotonic_witness
   ⟩
 
 lemma election_safety_witness
-    : exists (config : Finset NodeID),
-    exists
-    (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State) (state : Model.State),
-    exists (left right : NodeID) (leftState rightState : NodeState),
-      trace.Valid (Model.transitionSystem config nodes)
-      /\ state ∈ trace
-      /\ (left, leftState) ∈ state.nodes
-      /\ (right, rightState) ∈ state.nodes
-      /\ leftState.role = .primary
-      /\ rightState.role = .primary
-      /\ left ≠ right := by
+    {Context : Type} {predicate : Context -> Prop}
+    (pack
+      : Finset NodeID -> List NodeID -> CCF.Execution.Trace Model.State
+        -> Model.State -> NodeID -> NodeID -> NodeState -> NodeState -> Context)
+    (applicable
+      : forall config nodes trace state left right leftState rightState,
+          ((trace.Valid (Model.transitionSystem config nodes)
+              /\ state ∈ trace
+              /\ (left, leftState) ∈ state.nodes
+              /\ (right, rightState) ∈ state.nodes
+              /\ leftState.role = .primary
+              /\ rightState.role = .primary)
+            /\ left ≠ right)
+          -> predicate (pack config nodes trace state left right leftState rightState))
+    : exists c, predicate c := by
   have lead := election_both_lead
   simp only [bothLead, Bool.and_eq_true, Option.any_eq_true, decide_eq_true_eq] at lead
   obtain ⟨⟨leftState, leftFound, leftPrimary⟩, ⟨rightState, rightFound, rightPrimary⟩⟩ := lead
   have stemRun := election_run
   exact ⟨
-    {0, 1, 2},
-    [0, 1, 2],
-    lassoTrace electionSystem electionStart electionChoices electionCycle,
-    electionFinal,
-    0,
-    1,
-    leftState,
-    rightState,
-    lasso_valid (start_initial (by decide) (by decide)) stemRun election_cycle
-      (by simp [electionCycle]),
-    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
-    mem_of_nodeState leftFound,
-    mem_of_nodeState rightFound,
-    leftPrimary,
-    rightPrimary,
-    by decide
+    pack {0, 1, 2} [0, 1, 2]
+      (lassoTrace electionSystem electionStart electionChoices electionCycle)
+      electionFinal 0 1 leftState rightState,
+    applicable _ _ _ _ _ _ _ _
+      ⟨
+        ⟨
+          lasso_valid (start_initial (by decide) (by decide)) stemRun election_cycle
+            (by simp [electionCycle]),
+          lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
+          mem_of_nodeState leftFound,
+          mem_of_nodeState rightFound,
+          leftPrimary,
+          rightPrimary
+        ⟩,
+        by decide
+      ⟩
   ⟩
 
 lemma committed_frontier_is_signature_witness
-    : exists (config : Finset NodeID),
-    exists
-    (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State) (state : Model.State),
-    exists (node : NodeID) (nodeState : NodeState),
-      trace.Valid (Model.transitionSystem config nodes)
-      /\ state ∈ trace
-      /\ (node, nodeState) ∈ state.nodes
-      /\ 0 < nodeState.commitIndex := by
+    {Context : Type} {predicate : Context -> Prop}
+    (pack
+      : Finset NodeID -> List NodeID -> CCF.Execution.Trace Model.State
+        -> Model.State -> NodeID -> NodeState -> Context)
+    (applicable
+      : forall config nodes trace state node nodeState,
+          ((trace.Valid (Model.transitionSystem config nodes)
+              /\ state ∈ trace
+              /\ (node, nodeState) ∈ state.nodes
+              /\ 0 < nodeState.commitIndex)
+            /\ True)
+          -> predicate (pack config nodes trace state node nodeState))
+    : exists c, predicate c := by
   have stemRun := single_run
   exact ⟨
-    {0},
-    [0],
-    lassoTrace singleSystem singleStart singleChoices singleCycle,
-    singleFinal,
-    0,
-    (nodeState singleFinal 0).get single_final_present,
-    lasso_valid (start_initial (by decide) (by decide)) stemRun single_cycle
-      (by simp [singleCycle]),
-    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
-    member_of_nodeState _,
-    by decide
+    pack {0} [0] (lassoTrace singleSystem singleStart singleChoices singleCycle)
+      singleFinal 0 ((nodeState singleFinal 0).get single_final_present),
+    applicable _ _ _ _ _ _
+      ⟨
+        ⟨
+          lasso_valid (start_initial (by decide) (by decide)) stemRun single_cycle
+            (by simp [singleCycle]),
+          lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
+          member_of_nodeState single_final_present,
+          by decide
+        ⟩,
+        trivial
+      ⟩
   ⟩
 
 end CCFRaft.Proofs.Witnesses

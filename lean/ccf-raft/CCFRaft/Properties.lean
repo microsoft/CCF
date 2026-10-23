@@ -13,7 +13,7 @@ import CCFRaft.Proofs.Witnesses
 
 /-!
 Safety theorems about the Raft model, each paired with a witness lemma
-exhibiting a nontrivial execution relevant to that property.
+or bundled with a witness proof exhibiting an execution relevant to that property.
 -/
 
 namespace CCFRaft.Properties
@@ -84,51 +84,68 @@ lemma single_node_committed_log_monotonic_witness
       /\ nodePre.committedLog.length < nodePost.committedLog.length := by
   exact Proofs.Witnesses.single_node_committed_log_monotonic_witness
 
+/-- A trace state and two node states for election safety. -/
+structure ElectionSafetyContext where
+  config : Finset NodeID
+  nodes : List NodeID
+  trace : GlobalTrace
+  state : Model.State
+  left : NodeID
+  right : NodeID
+  leftState : NodeState
+  rightState : NodeState
+
 /-- No two distinct nodes are primary in the same term. -/
 theorem election_safety
-    : forall (config : Finset NodeID),
-      forall (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
-      forall (left right : NodeID) (leftState rightState : NodeState),
-        (trace.Valid (Model.transitionSystem config nodes)
-          /\ state ∈ trace
-          /\ (left, leftState) ∈ state.nodes
-          /\ (right, rightState) ∈ state.nodes
-          /\ leftState.role = .primary
-          /\ rightState.role = .primary
-          /\ leftState.currentTerm = rightState.currentTerm)
-        -> left = right := by
-  exact Proofs.Election.election_safety
+    : CCF.WitnessedTheorem
+        (requires :=
+          fun c : ElectionSafetyContext =>
+            c.trace.Valid (Model.transitionSystem c.config c.nodes)
+            /\ c.state ∈ c.trace
+            /\ (c.left, c.leftState) ∈ c.state.nodes
+            /\ (c.right, c.rightState) ∈ c.state.nodes
+            /\ c.leftState.role = .primary
+            /\ c.rightState.role = .primary)
 
-/-- Witness: a valid trace has a state in which two nodes are primaries. -/
-lemma election_safety_witness
-    : exists (config : Finset NodeID),
-    exists
-    (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
-    exists (left right : NodeID) (leftState rightState : NodeState),
-      trace.Valid (Model.transitionSystem config nodes)
-      /\ state ∈ trace
-      /\ (left, leftState) ∈ state.nodes
-      /\ (right, rightState) ∈ state.nodes
-      /\ leftState.role = .primary
-      /\ rightState.role = .primary
-      /\ left ≠ right := by
-  exact Proofs.Witnesses.election_safety_witness
+        (ensures :=
+          fun c =>
+            c.leftState.currentTerm = c.rightState.currentTerm -> c.left = c.right)
+
+        (witness_satisfies := fun c => c.left ≠ c.right) where
+
+  proof := by intro c; exact Proofs.Election.election_safety
+
+  witness_proof := by
+    exact Proofs.Witnesses.election_safety_witness ElectionSafetyContext.mk
+      (by intros; assumption)
+
+/-- A trace state and a node state for the committed-frontier property. -/
+structure CommitFrontierContext where
+  config : Finset NodeID
+  nodes : List NodeID
+  trace : GlobalTrace
+  state : Model.State
+  node : NodeID
+  nodeState : NodeState
 
 /-- Every positive commit index points to a signature entry. -/
-witnessed_theorem committed_frontier_is_signature
-  for
-  (config : Finset NodeID) (nodes : List NodeID) (trace : GlobalTrace) (state
-                                                                        : Model.State) (node
-                                                                                        : NodeID) (nodeState
-                                                                                                    : NodeState)
-requires
-  trace.Valid (Model.transitionSystem config nodes)
-  /\ state ∈ trace
-  /\ (node, nodeState) ∈ state.nodes
-  /\ 0 < nodeState.commitIndex
-ensures
-  isSignatureAt nodeState.log nodeState.commitIndex = true
-  proof := Proofs.Direct.committed_frontier_is_signature
-  witness_proof := Proofs.Witnesses.committed_frontier_is_signature_witness
+theorem committed_frontier_is_signature
+    : CCF.WitnessedTheorem
+        (requires :=
+          fun c : CommitFrontierContext =>
+            c.trace.Valid (Model.transitionSystem c.config c.nodes)
+            /\ c.state ∈ c.trace
+            /\ (c.node, c.nodeState) ∈ c.state.nodes
+            /\ 0 < c.nodeState.commitIndex)
+
+        (ensures :=
+          fun c =>
+            isSignatureAt c.nodeState.log c.nodeState.commitIndex = true) where
+
+  proof := by intro c; exact Proofs.Direct.committed_frontier_is_signature
+
+  witness_proof := by
+    exact Proofs.Witnesses.committed_frontier_is_signature_witness
+      CommitFrontierContext.mk (by intros; assumption)
 
 end CCFRaft.Properties
