@@ -36,6 +36,14 @@ The witness is always named `<theorem_name>_witness`; both declarations navigate
 Use a simple theorem name in the current namespace and named, explicitly typed parameters without placeholders.
 Shared regression tests run with `lake build CCF.Tests.WitnessedTheorem`.
 
+## Transition systems
+
+`CCF.TransitionSystem` bundles the `State` and `Action` types with the initial-state predicate `init` and the partial transition function `step`.
+Define a model as `system : TransitionSystem`, setting `State` and `Action` in the structure rather than supplying type parameters.
+Use `abbrev` for concrete systems so Lean can unfold their bundled types during typeclass inference.
+Generic helpers use `system.State` and `system.Action`, while `system.Reachable state` and `Execution.Run system start actions final` describe executions.
+Traces remain state sequences of type `Execution.Trace system.State`; `Execution.Trace.Valid system trace` (or `trace.Valid system`) checks them against the bundled system.
+
 ## Import coverage
 
 After `lake build`, run `lake exe check-imports` from any package using `ccf_common`.

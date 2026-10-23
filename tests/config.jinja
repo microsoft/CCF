@@ -1,6 +1,9 @@
 {
   "network": {
     "node_to_node_interface": { "bind_address": "{{ node_address }}", "published_address": "{{ published_node_address }}" },
+    {% if node_to_node_tls_interface is defined %}
+    "node_to_node_tls_interface": {{ node_to_node_tls_interface|tojson }},
+    {% endif %}
     "rpc_interfaces": {{ rpc_interfaces|tojson }}
   },
   "node_certificate":
