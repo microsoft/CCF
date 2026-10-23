@@ -1,6 +1,5 @@
 # Deliver a leadership nomination after its recipient has advanced to a later
 # term. The delayed proposal must be ignored without changing the candidate.
-pre_vote_enabled,true
 
 start_node,0
 emit_signature,2

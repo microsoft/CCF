@@ -1,10 +1,8 @@
-pre_vote_enabled,true
 start_node,0
 emit_signature,2
 swap_nodes,2,in,1
 emit_signature,2
 
-pre_vote_enabled,true
 swap_nodes,2,in,2
 emit_signature,2
 

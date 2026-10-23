@@ -348,14 +348,12 @@ private def bootstrap (initial signature : Chunk) : Reduction String := do
       && (← read initial.pre (string initial.pre.command.value "cmd"))
           == s!"start_node,{initial.pre.node}")
     "expected native bootstrap operation"
-  let mode := ((← get).header.preVoteModes.lookup initial.pre.node).getD true
   let expected :=
     [
       ("role", toJson "none"),
       ("currentTerm", toJson (0 : Nat)),
       ("logLength", toJson (0 : Nat)),
       ("commitIndex", toJson (0 : Nat)),
-      ("preVoteEnabled", toJson mode),
       ("membershipState", toJson "active"),
       ("retirementIndex", Json.null),
       ("retirementCommittableIndex", Json.null),
@@ -714,12 +712,8 @@ private def receiveOperation (operation : String) : Reduction Unit := do
 private def electionOperation (operation : String) : Reduction Unit := do
   let event ←
     headRule operation ["periodic"] ["become_candidate", "become_pre_vote_candidate"]
-  checked event (← read event (boolean event.state "pre_vote_enabled"))
-    "unsupported disabled-pre-vote timeout election: model requires pre-vote"
-  checked event
-    ((← read event (boolean event.state "pre_vote_enabled"))
-      == (event.function == "become_pre_vote_candidate"))
-    "election entry differs from pre-vote mode"
+  checked event (event.function == "become_pre_vote_candidate")
+    "timeout election must start in the pre-vote phase"
   let (nested, sends, tail) ← takeElection event
   checked event (optional event.facts "role" == some (toJson "preVoteCandidate"))
     "election boundary role must be preVoteCandidate"
@@ -790,17 +784,16 @@ private def parseEvents {α : Type} (events : Array Event) (parser : EventParser
 
 /-- Consumes every event exactly once; an ungrouped callback is never a stutter. -/
 def reduce (records : Array Record) : Except String Reduced := do
-  let (events, modes) ← associate records
+  let (events, declared) ← associate records
   let chunks ← boundaries events
   let some initial := chunks[0]? | throw "missing native bootstrap boundaries"
   let some signature := chunks[1]? | throw "missing native bootstrap signature boundaries"
-  let declared := modes.map Prod.fst
   let locations :=
     (events.toList.filter (fun event => event.function == "replicate")).map
       (·.record.location)
   require (locations.eraseDups == locations) "duplicate transaction source location"
   let requests := "" :: locations
-  let header : Header := { bootstrap := ∅, declared, requests, preVoteModes := modes }
+  let header : Header := { bootstrap := ∅, declared, requests }
   let initialization : Reduction String := do
     for chunk in chunks do
       for endpoint in [chunk.pre, chunk.post] do

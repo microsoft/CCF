@@ -39,7 +39,6 @@ structure Header where
   bootstrap : Finset NodeID
   declared : List String
   requests : List String := [""]
-  preVoteModes : List (String × Bool) := []
 
 def Header.nodeId (header : Header) (node : String) : Except String NodeID := do
   let some index := header.declared.findIdx? (· == node)
@@ -186,8 +185,7 @@ private def observeNodeState (header : Header) (node : String) (state : NodeStat
       ("retirementIndex", toJson retirement.index),
       ("retirementCommittableIndex", toJson retirement.committableIndex),
       ("retiredCommittedIndex", toJson state.retiredCommittedIndex),
-      ("leaderActivePeerProgress", toJson leaderActivePeerProgress),
-      ("preVoteEnabled", toJson ((header.preVoteModes.lookup node).getD true))
+      ("leaderActivePeerProgress", toJson leaderActivePeerProgress)
     ]
   if let some peer := peer then
     let peer ← header.nodeId peer
@@ -324,9 +322,6 @@ private def runStep (header : Header) (replay : ReplayState) (step : Step)
     Model.transitionSystem header.bootstrap (List.range header.declared.length)
   match step with
   | .local node input =>
-      if let .timeout .election := input then
-        unless (header.preVoteModes.lookup node).getD true do
-          throw "unsupported disabled-pre-vote timeout election: model requires pre-vote"
       let node ← header.nodeId node
       match input with
       | .sendEntries destination _ =>
@@ -404,11 +399,6 @@ def replay (header : Header) (instructions : Array Instruction)
     throw "request identifiers must reserve zero for genesis"
   unless header.requests.eraseDups == header.requests do
     throw "request identifiers must be distinct"
-  unless (header.preVoteModes.map Prod.fst).eraseDups
-          == header.preVoteModes.map Prod.fst do
-    throw "pre-vote mode declarations must be distinct"
-  for (node, _) in header.preVoteModes do
-    let _ ← header.nodeId node
   if instructions.isEmpty then throw "replay instructions must not be empty"
   let mut state : ReplayState := { state := header.initial }
   let mut actions := 0
