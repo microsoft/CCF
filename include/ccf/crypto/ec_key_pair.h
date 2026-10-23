@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/csr.h"
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/jwk.h"
@@ -62,22 +63,7 @@ namespace ccf::crypto
       const std::vector<SubjectAltName>& subject_alt_names,
       const std::optional<Pem>& public_key = std::nullopt) const = 0;
 
-    // Note about the signed_by_issuer parameter to sign_csr: when issuing a new
-    // certificate for an old subject, which does not exist anymore, we cannot
-    // sign the CSR with that old subject's private key. Instead, the issuer
-    // signs the CSR itself, which is slightly unusal. Instead, we could also
-    // ask the subject to produce a CSR right after it becomes alive and keep it
-    // around until we need it, but those complications are not stricly
-    // necessary. In our case, we use this to re-endorse previous service
-    // identities, which are self-signed, and replace them with new endorsements
-    // by the current service identity (which doesn't have the private key of
-    // previous ones).
-
-    enum class Signer : std::uint8_t
-    {
-      SUBJECT = 0,
-      ISSUER = 1
-    };
+    using Signer = CSRSigner;
 
   private:
     [[nodiscard]] virtual Pem sign_csr_impl(

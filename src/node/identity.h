@@ -9,6 +9,7 @@
 #include "crypto/openssl/ec_key_pair.h"
 
 #include <openssl/crypto.h>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,7 @@ namespace ccf
   {
     ccf::crypto::Pem priv_key;
     ccf::crypto::Pem cert;
+    std::optional<ccf::crypto::Pem> pq_cert = std::nullopt;
 
     bool operator==(const NetworkIdentity& other) const = default;
 

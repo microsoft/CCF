@@ -40,8 +40,9 @@ namespace ccf
     ledger_sign_mode,
     join_fetch_count);
 
-  DECLARE_JSON_TYPE(NetworkIdentity);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NetworkIdentity);
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key);
+  DECLARE_JSON_OPTIONAL_FIELDS(NetworkIdentity, pq_cert);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo);
@@ -82,7 +83,8 @@ namespace ccf
     service_data,
     snp_security_policy,
     snp_uvm_endorsements,
-    sealing_recovery_data);
+    sealing_recovery_data,
+    pq_service_cert);
 
   DECLARE_JSON_TYPE(GetNetworkInfo::Out);
   DECLARE_JSON_REQUIRED_FIELDS(

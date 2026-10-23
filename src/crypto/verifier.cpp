@@ -62,6 +62,10 @@ namespace ccf::crypto
       return std::get<ECPublicKeyPtr>(public_key)
         ->verify_hash(hash, hash_size, sig, sig_size, md_type);
     }
+    if (std::holds_alternative<MLDSAPublicKeyPtr>(public_key))
+    {
+      throw std::logic_error("Pure ML-DSA does not support pre-hashed input");
+    }
     throw std::runtime_error("Invalid public key type");
   }
 
@@ -82,6 +86,15 @@ namespace ccf::crypto
       return std::get<ECPublicKeyPtr>(public_key)
         ->verify(contents, contents_size, sig, sig_size, md_type);
     }
+    if (std::holds_alternative<MLDSAPublicKeyPtr>(public_key))
+    {
+      if (md_type != MDType::NONE)
+      {
+        throw std::invalid_argument("Pure ML-DSA requires MDType::NONE");
+      }
+      return std::get<MLDSAPublicKeyPtr>(public_key)
+        ->verify({contents, contents_size}, {sig, sig_size});
+    }
     throw std::runtime_error("Invalid public key type");
   }
 
@@ -95,6 +108,10 @@ namespace ccf::crypto
     {
       return std::get<ECPublicKeyPtr>(public_key)->public_key_pem();
     }
+    if (std::holds_alternative<MLDSAPublicKeyPtr>(public_key))
+    {
+      return std::get<MLDSAPublicKeyPtr>(public_key)->public_key_pem();
+    }
     throw std::runtime_error("Invalid public key type");
   }
 
@@ -107,6 +124,10 @@ namespace ccf::crypto
     if (std::holds_alternative<ECPublicKeyPtr>(public_key))
     {
       return std::get<ECPublicKeyPtr>(public_key)->public_key_der();
+    }
+    if (std::holds_alternative<MLDSAPublicKeyPtr>(public_key))
+    {
+      return std::get<MLDSAPublicKeyPtr>(public_key)->public_key_der();
     }
     throw std::runtime_error("Invalid public key type");
   }

@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/jwk.h"
+#include "ccf/crypto/mldsa_public_key.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/rsa_public_key.h"
 #include "ccf/ds/nonstd.h"
@@ -15,7 +16,10 @@ namespace ccf::crypto
   class Verifier
   {
   protected:
-    std::variant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::ECPublicKeyPtr>
+    std::variant<
+      ccf::crypto::RSAPublicKeyPtr,
+      ccf::crypto::ECPublicKeyPtr,
+      ccf::crypto::MLDSAPublicKeyPtr>
       public_key;
 
   public:
@@ -30,7 +34,7 @@ namespace ccf::crypto
      * @param contents_size Size of @p contents
      * @param sig Signature
      * @param sig_size Size of @p sig
-     * @param md_type Hash algorithm
+     * @param md_type Hash algorithm. Pure ML-DSA accepts only MDType::NONE
      * @return Boolean indicating success
      */
     [[nodiscard]] virtual bool verify(
@@ -81,6 +85,7 @@ namespace ccf::crypto
      * @param sig_size Size of @p sig
      * @param md_type Hash algorithm
      * @return Boolean indicating success
+     * @throws std::logic_error for pure ML-DSA (no pre-hashed input support)
      */
     virtual bool verify_hash(
       const uint8_t* hash,
