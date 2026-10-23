@@ -18,9 +18,8 @@ Within a model's library directory, use this layout:
 | `Model.lean`           | Assemble the executable model, including configuration and network composition.                      |
 | `Model/`               | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`. |
 | `../common/CCF/`       | Reusable transition systems, network composition, and execution definitions in the `CCF` namespace.  |
-| `Properties.lean`      | Define the named claims as `def ... : Prop`.                                                         |
+| `Properties.lean`      | State safety theorems and witness lemmas explicitly, linked to checked implementations.              |
 | `Properties/`          | Definitions needed to state and understand those claims, such as state and trace predicates.         |
-| `Proof.lean`           | Export theorems establishing the named properties, linked to their checked implementations.          |
 | `Proofs/`              | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
 | `Tests/`               | Executable model checks and regression cases.                                                        |
 | `TraceValidation.lean` | Replay recorded implementation traces through the executable model.                                  |
@@ -28,21 +27,33 @@ Within a model's library directory, use this layout:
 
 ## Dependency direction
 
-- Keep `common/CCF/`, `Model/`, and `Model.lean` independent of property and proof modules.
+- Keep `common/CCF/`, `Model/`, and `Model.lean` independent of property helpers, theorem entrypoints, and proof modules.
   Shared infrastructure must not depend on a particular protocol.
-- Property definitions should depend on the model, shared definitions, and other property helpers.
-  Neither `Properties.lean` nor `Properties/` may import `Proof.lean` or `Proofs/`.
-- Let `Proofs/` depend on model and property definitions, plus other supporting proofs.
-  `Proof.lean` imports the property statements and their implementations.
+- Property helpers in `Properties/` should depend on the model, shared definitions, and other property helpers.
+  They may not import `Properties.lean` or `Proofs/`.
+- Let `Proofs/` depend on model definitions, property helpers, and other supporting proofs, but not `Properties.lean`.
+  `Properties.lean` publicly imports the types and helpers needed to understand its statements and privately imports proof implementations.
 
-The proof entrypoint should establish the named property rather than repeat its statement.
+Write the full logical statement in each public safety theorem and existential witness lemma, rather than defining a separate named proposition.
+Keep each proof body a one-line `by exact Proofs.<implementation>` reference, and place each witness lemma next to its corresponding safety theorem.
 For example:
 
 ```lean
-theorem quorum_opener_unique : Properties.QuorumOpenerUnique :=
-	Proofs.Model.quorum_opener_unique
+namespace DisasterRecovery.Properties
+
+theorem rejected_gossip_stutters
+    : forall (config : Model.Config) (localStep : Properties.LocalStep),
+      forall (source : Model.Local.Location) (txid : Model.Local.TxID),
+        ((Model.protocol config).ValidStep localStep
+          /\ localStep.action = .receiveGossip source txid .rejected)
+        -> localStep.after = localStep.before
+            /\ List.Mem (.rejected "quote-or-certificate") localStep.effects.notifications := by
+  exact Proofs.Local.rejected_gossip_stutters
+
+end DisasterRecovery.Properties
 ```
 
+Keep supporting proof statements explicit too, or use existing lower-level facts, so they do not depend on the final theorem entrypoint.
 Do not use axioms or unfinished theorems as placeholders for property statements.
 
 ## Statement definitions versus proof machinery
@@ -60,13 +71,13 @@ Moving ghost definitions into `Properties/` merely to remove an import does not 
 
 ## Review and validation
 
-Review the model, property definitions, their helpers, and the theorem links in `Proof.lean`.
+Review the model, full statements and proof links in `Properties.lean`, and the property helpers used by those statements.
 Keep the detailed proof implementations machine-checked and within the axiom allowlist.
 
-Retain the generated package-level import-all module and the whole-package kernel and axiom-dependency checks with `lake check`.
+Retain the package-level import root, whole-package import coverage with `lake exe check-imports`, and kernel and axiom-dependency checks with `lake check`.
 The proof entrypoint does not replace either check.
-After moving modules, regenerate the import root and run the package's existing checks.
+After moving modules, update the import root and run the package's existing checks.
 For disaster recovery, see the [validation commands](disaster-recovery/README.md#validation).
 
-`DisasterRecovery/Tests/Architecture.lean` checks the property import graph during the build.
-It rejects proof dependencies and imports that reverse the shared, model, and property layers.
+Each model package's `Tests/Architecture.lean` checks dependency direction during the build.
+It keeps common and model modules independent of properties and proofs, property helpers independent of proofs and theorem entrypoints, and proof implementations independent of the final theorem entrypoint.

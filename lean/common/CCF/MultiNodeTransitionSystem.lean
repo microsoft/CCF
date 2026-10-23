@@ -114,10 +114,12 @@ def next {Node Message LocalState LocalAction Notification Input : Type}
 /-- The network as a `TransitionSystem`. Initially node identities are distinct,
 every node has an initial local state, and the network is empty. Protocols
 choose which nodes must exist and which may act. -/
-def lift {Node Message LocalState LocalAction Notification Input : Type}
+abbrev lift {Node Message LocalState LocalAction Notification Input : Type}
     [BEq Node] [BEq Message]
     (protocol : Protocol Node LocalState LocalAction Message Notification Input)
-    : TransitionSystem (State Node LocalState Message) (Action Node Message Input) where
+    : TransitionSystem where
+  State := State Node LocalState Message
+  Action := Action Node Message Input
   init state :=
     (state.nodes.map Prod.fst).Nodup
     /\ state.network = []

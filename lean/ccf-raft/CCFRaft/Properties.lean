@@ -12,7 +12,7 @@ import CCFRaft.Proofs.Witnesses
 @[expose] public section
 
 /-!
-Safety theorems about the Raft model, each paired with a witness lemma
+Safety theorems about the CCF-Raft model, each paired with a witness lemma
 or bundled with a witness proof exhibiting an execution relevant to that property.
 -/
 
