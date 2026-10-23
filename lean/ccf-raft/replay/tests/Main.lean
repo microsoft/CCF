@@ -316,6 +316,91 @@ private def reductionTests : IO Nat := do
     "drop/resend reduction changed"
   return count + 15
 
+private def parsecReductionTests : IO Unit := do
+  let bootstrap ← fixture "bootstrap.ndjson"
+  let config ← fixture "configuration_callback.ndjson"
+  let configured := bootstrap ++ config
+  let baseline ← ok (reduce configured)
+  -- Alternatives must not lose or duplicate the instruction batches they emit.
+  check
+    (baseline.instructions.toList.filterMap
+        (fun instruction =>
+          match instruction with
+          | .action step _ => some step.name
+          | _ => none)
+      == ["append", "append", "append"])
+    "operation alternatives lost or duplicated append instructions"
+  let heartbeat ← find config "send_append_entries"
+  rejects (reduce (bootstrap ++ erase config heartbeat)) "missing new-peer"
+  rejects
+    (reduce
+      (bootstrap ++ mutate config heartbeat ["msg", "sent_idx"] (toJson (999 : Nat))))
+    "callback heartbeat"
+  let wrongOperation :=
+    config.map
+      fun row =>
+        if function row == "operation_boundary" then
+          { row with value := change row.value ["msg", "operation"] (toJson "receive") }
+        else
+          row
+  rejects (reduce (bootstrap ++ wrongOperation))
+    "ungrouped callback replicate in receive boundary"
+  let some closing :=
+    config.findIdx?
+      (fun row =>
+        function row == "operation_boundary"
+        && optional (row.value.getObjValD "msg") "phase" == some (toJson "post"))
+  | throw (IO.userError "missing configuration POST")
+  let source := config[← find config "add_configuration"]!
+  let message :=
+    Json.mkObj
+      [
+        ("function", toJson "execute_append_entries_sync"),
+        ("state", (source.value.getObjValD "msg").getObjValD "state"),
+        ("from_node_id", toJson "0")
+      ]
+  let callback := { source with value := source.value.setObjVal! "msg" message }
+  let trailing :=
+    config.extract 0 closing ++ #[callback] ++ config.extract closing config.size
+  rejects (reduce (bootstrap ++ trailing))
+    "ungrouped callback execute_append_entries_sync"
+  let startup ← fixture "startup.ndjson"
+  let emptyPre := startup.size - 2
+  check
+    (function startup[emptyPre]! == "operation_boundary"
+      && optional (startup[emptyPre]!.value.getObjValD "msg") "phase"
+          == some (toJson "pre"))
+    "missing empty periodic chunk"
+  let before ← ok (reduce (startup.extract 0 emptyPre))
+  let after ← ok (reduce startup)
+  check (after.instructions.size == before.instructions.size + 2)
+    "empty chunk did not preserve both observations"
+  let endpoints :=
+    after.instructions.extract before.instructions.size after.instructions.size
+  check
+    (endpoints.toList.map (fun instruction => instruction.origins.head!.rule)
+      == ["native-pre", "native-post"])
+    "empty chunk observation order changed"
+  let votes ← fixture "vote_responses.ndjson"
+  let (events, _) ← ok (associate votes)
+  let chunks ← ok (boundaries events)
+  let some multiple :=
+    chunks.find?
+      (fun chunk =>
+        optional chunk.pre.message "operation" == some (toJson "periodic")
+        && (chunk.events.filter (·.function == "send_append_entries")).size > 1)
+  | throw (IO.userError "missing multiple-operation periodic chunk")
+  let reduced ← ok (reduce votes)
+  let sends :=
+    reduced.instructions.filter
+      fun instruction =>
+        match instruction with
+        | .action (.local node (.sendEntries ..)) origins =>
+            node == multiple.pre.node
+            && origins.any (fun origin => origin.commandLine == multiple.pre.command.line)
+        | _ => false
+  check (sends.size > 1) "many stopped after the first operation in a chunk"
+
 /-- Raw mutations exercise the reducer's projections, not merely the final checker. -/
 private def fixtureMutations : IO Nat := do
   let mut count := 0
@@ -1389,6 +1474,7 @@ def main (args : List String) : IO UInt32 := do
     if let [scenario] := args then return ← fakeDriver scenario
   let _ ← parserTests
   let _ ← reductionTests
+  parsecReductionTests
   let _ ← fixtureMutations
   let boundaries ← boundaryTests
   let nativeBoundaries ← nativeBoundaryTests
