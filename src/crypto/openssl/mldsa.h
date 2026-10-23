@@ -3,6 +3,7 @@
 #pragma once
 
 #include <openssl/opensslv.h>
+#include <stdexcept>
 
 #if OPENSSL_VERSION_PREREQ(3, 5)
 
@@ -14,7 +15,7 @@
 #  include <openssl/params.h>
 #  include <optional>
 #  include <span>
-#  include <stdexcept>
+#  include <string_view>
 
 namespace ccf::crypto::mldsa
 {
@@ -41,6 +42,33 @@ namespace ccf::crypto::mldsa
     }
   }
 
+  /// The key's parameter set, or nullopt when it is not an ML-DSA key.
+  inline std::optional<MLDSAParameterSet> find_parameter_set(
+    const EVP_PKEY* key)
+  {
+    const auto* type_name = EVP_PKEY_get0_type_name(key);
+    if (type_name == nullptr)
+    {
+      throw std::runtime_error(fmt::format(
+        "OpenSSL error loading key type name: {}", OpenSSL::first_error()));
+    }
+
+    const std::string_view name(type_name);
+    if (name == LN_ML_DSA_44)
+    {
+      return MLDSAParameterSet::ML_DSA_44;
+    }
+    if (name == LN_ML_DSA_65)
+    {
+      return MLDSAParameterSet::ML_DSA_65;
+    }
+    if (name == LN_ML_DSA_87)
+    {
+      return MLDSAParameterSet::ML_DSA_87;
+    }
+    return std::nullopt;
+  }
+
   /// Returns the key's parameter set; with an expected set, a mismatch throws.
   inline MLDSAParameterSet parameter_set(
     EVP_PKEY* key, std::optional<MLDSAParameterSet> expected = std::nullopt)
@@ -50,22 +78,17 @@ namespace ccf::crypto::mldsa
       throw std::logic_error("ML-DSA key is not initialized");
     }
 
-    for (const auto candidate :
-         {MLDSAParameterSet::ML_DSA_44,
-          MLDSAParameterSet::ML_DSA_65,
-          MLDSAParameterSet::ML_DSA_87})
+    const auto found = find_parameter_set(key);
+    if (!found.has_value())
     {
-      if (EVP_PKEY_is_a(key, openssl_name(candidate)) == 1)
-      {
-        if (expected.has_value() && candidate != expected.value())
-        {
-          throw std::invalid_argument(
-            "ML-DSA key uses an unexpected parameter set");
-        }
-        return candidate;
-      }
+      throw std::invalid_argument("Expected an ML-DSA key");
     }
-    throw std::invalid_argument("Expected an ML-DSA key");
+    if (expected.has_value() && found.value() != expected.value())
+    {
+      throw std::invalid_argument(
+        "ML-DSA key uses an unexpected parameter set");
+    }
+    return found.value();
   }
 
   /// Binds a caller-supplied context string to a signature operation.
@@ -99,6 +122,16 @@ namespace ccf::crypto::mldsa
         context.size()),
       OSSL_PARAM_construct_end()};
     OpenSSL::CHECK1(EVP_PKEY_CTX_set_params(ctx, params));
+  }
+}
+#else // Remove this fallback after dropping AL3 support.
+
+namespace ccf::crypto::mldsa
+{
+  /// Body of every ML-DSA factory on builds without ML-DSA support.
+  [[noreturn]] inline void unsupported()
+  {
+    throw std::runtime_error("ML-DSA requires OpenSSL 3.5 or newer");
   }
 }
 #endif // OPENSSL_VERSION_PREREQ

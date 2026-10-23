@@ -2,11 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <openssl/opensslv.h>
-
-#if OPENSSL_VERSION_PREREQ(3, 5)
-
-#  include <cstdint>
+#include <cstdint>
 
 namespace ccf::crypto
 {
@@ -17,4 +13,3 @@ namespace ccf::crypto
     ML_DSA_87
   };
 }
-#endif // OPENSSL_VERSION_PREREQ
