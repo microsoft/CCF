@@ -1746,9 +1746,10 @@ TEST_CASE("Certificate validity period")
   CHECK(verifier->remaining_seconds(midpoint + 24h) == 0);
   CHECK(verifier->remaining_percentage(midpoint + 24h) == doctest::Approx(0.0));
 
-  // No CCF API issues a certificate whose period is a single second, or ends
-  // before it starts, but a verifier does not check the signature of the
-  // certificate it is given, so it can be constructed from either.
+  // CCF refuses to issue a certificate whose period is a single second or
+  // ends before it starts, but a verifier accepts any certificate without
+  // checking its signature, so forge both by rewriting notBefore on an
+  // issued certificate.
   {
     const auto der = cert_pem_to_der(cert);
     OpenSSL::Unique_BIO in(der);
