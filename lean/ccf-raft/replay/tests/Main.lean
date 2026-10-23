@@ -184,8 +184,14 @@ private def reductionTests : IO Nat := do
   let bootstrap ← fixture "bootstrap.ndjson"
   let reduced ← ok (reduce bootstrap)
   let result ← ok (replay reduced.header reduced.instructions)
-  check (result == { instructions := 9, actions := 1, observations := 8 })
-    "bootstrap instruction contract"
+  check
+    (result.actions == 1 && result.instructions == result.actions + result.observations)
+    "bootstrap action contract"
+  check
+    ((reduced.instructions.filter
+        (fun instruction => instruction.origins.any (·.rule.startsWith "native-"))).size
+      == 3)
+    "bootstrap lost a required native endpoint"
   let withoutTimestamps :=
     bootstrap.map
       fun row =>
@@ -491,8 +497,8 @@ private def fixtureMutations : IO Nat := do
         ] do
       for instruction in reduced.instructions do
         if let .state _ _ fields origin := instruction then
-          if ["append-callback", "receive-follower-post", "receive-post"].contains
-                origin.rule
+          if ["callback-term", "receive-post"].contains origin.rule
+              && origin.function != "add_configuration"
               && (optional fields projected).isSome then
             let some index :=
               records.findIdx?
@@ -591,7 +597,9 @@ private def fixtureMutations : IO Nat := do
     reduced.instructions.find?
       (fun instruction =>
         match instruction with
-        | .entry _ _ _ origin => origin.rule == "callback-committed-prefix"
+        | .entry _ _ _ origin =>
+            origin.rule == "callback-committed-prefix"
+            && origin.function == "become_leader"
         | _ => false)
   | throw (IO.userError "missing committed-prefix coverage")
   let some prefixIndex :=
@@ -602,6 +610,102 @@ private def fixtureMutations : IO Nat := do
       (mutate terminal prefixIndex ["msg", "state", "commit_idx"] (toJson (999 : Nat))))
     "callback-committed-prefix"
   return count + 6
+
+private def emissionTests : IO Unit := do
+  let records ← fixture "vote_responses.ndjson"
+  let reduced ← ok (reduce records)
+  let (events, _) ← ok (associate records)
+  let chunks ← ok (boundaries events)
+  let sameOrigin (origin : Origin) (event : CCFRaft.Replay.Event) :=
+    origin.file == event.record.file && origin.line == event.record.line
+  check
+    (!(reduced.instructions.any
+        fun instruction =>
+          match instruction with
+          | .message _ _ _ .matching _ => true
+          | _ => false))
+    "receive emitted a redundant packet-binding observation"
+  for instruction in reduced.instructions, position in [:reduced.instructions.size] do
+    if let .action (.receive ..) origins := instruction then
+      check (origins.length == 1) "receive action retained a callback buffer"
+      let head := origins.head!
+      let some chunk := chunks.find? (fun chunk => chunk.events.any (sameOrigin head))
+      | throw (IO.userError "receive action lost its source chunk")
+      for later in reduced.instructions, observedAt in [:reduced.instructions.size] do
+        let callback :=
+          later.origins.any
+            fun origin =>
+              chunk.events.any
+                fun event =>
+                  event.record.line > head.line && sameOrigin origin event
+        if callback then
+          check (observedAt > position) "callback evidence preceded its receive action"
+  let baseline ← ok (replayRecords records)
+  for name in ["execute_append_entries_sync", "add_configuration", "commit"] do
+    let some index :=
+      records.findIdx?
+        fun row =>
+          function row == name
+          && optional ((row.value.getObjValD "msg").getObjValD "state") "leadership_state"
+              == some (toJson "Follower")
+    | throw (IO.userError s!"missing follower {name} evidence")
+    let some post :=
+      records.findIdx?
+        fun row =>
+          row.line > records[index]!.line
+          && function row == "operation_boundary"
+          && optional (row.value.getObjValD "msg") "phase" == some (toJson "post")
+    | throw (IO.userError "missing enclosing receive POST")
+    for raw
+        in [
+          "last_idx",
+          "retirement_idx",
+          "retirement_committable_idx",
+          "retired_committed_idx"
+        ] do
+      let internal := mutate records index ["msg", "state", raw] (toJson (999 : Nat))
+      check ((← ok (replayRecords internal)) == baseline)
+        s!"{name} {raw} still depended on later callback snapshots"
+      rejects
+        (replayRecords (mutate records post ["msg", "state", raw] (toJson (999 : Nat))))
+        "native-post"
+    rejects
+      (replayRecords
+        (mutate records index ["msg", "state", "retirement_idx"] (.bool true)))
+      "natural"
+    if name == "commit" then
+      rejects
+        (replayRecords (mutate records index ["msg", "args", "idx"] (toJson (999 : Nat))))
+        "no log entry"
+    if name == "add_configuration" then
+      let bad :=
+        mutate records index ["msg", "args", "configuration", "idx"] (toJson (999 : Nat))
+      let bad :=
+        mutate bad index ["msg", "args", "configuration", "rid"] (toJson (999 : Nat))
+      rejects (replayRecords bad) "no log entry"
+  let receive ← find records "recv_append_entries"
+  rejects
+    (replayRecords
+      (mutate records receive ["msg", "packet", "term"] (toJson (999 : Nat))))
+    "atomic-receive"
+  let some adoption :=
+    records.findIdx?
+      fun row =>
+        function row == "become_follower"
+        && optional ((row.value.getObjValD "msg").getObjValD "state") "current_view"
+            == some (toJson (3 : Nat))
+  | throw (IO.userError "missing term adoption")
+  check (function records[adoption + 1]! == "send_request_vote_response")
+    "missing optional response after adoption"
+  let terminalAdoption := erase records (adoption + 1)
+  let baseline ← ok (replayRecords terminalAdoption)
+  check
+    ((← ok
+          (replayRecords
+            (mutate terminalAdoption adoption ["msg", "state", "last_idx"]
+              (toJson (999 : Nat)))))
+      == baseline)
+    "terminal adoption was conditionally promoted to an endpoint"
 
 private def configurationCache (index : Nat) (nodes : List String) : Json :=
   toJson
@@ -661,8 +765,20 @@ private def boundaryTests : IO Nat := do
   | throw (IO.userError "missing check-quorum endpoint")
   check (function votes[adoption + 1]! == "send_request_vote_response")
     "adoption response fixture changed"
-  -- Removing optional send telemetry leaves an endpoint-equivalent adoption snapshot.
+  -- The actual native POST, not the adoption callback, supplies endpoint equality.
   let adoptionEnd := erase votes (adoption + 1)
+  let closing (records : Array Record) (index : Nat) : IO Nat := do
+    let some post :=
+      records.findIdx?
+        (fun record =>
+          record.line > records[index]!.line
+          && function record == "operation_boundary"
+          && optional (record.value.getObjValD "msg") "phase" == some (toJson "post"))
+    | throw (IO.userError "missing actual POST after callback")
+    return post
+  let candidatePost ← closing votes candidate
+  let leaderPost ← closing votes leader
+  let adoptionPost ← closing adoptionEnd adoption
   let corruptions := stateCorruptions
   let mut count := 0
   for (records, index)
@@ -671,9 +787,9 @@ private def boundaryTests : IO Nat := do
         (votes, timeout),
         (votes, receive),
         (votes, response),
-        (votes, candidate),
-        (votes, leader),
-        (adoptionEnd, adoption),
+        (votes, candidatePost),
+        (votes, leaderPost),
+        (adoptionEnd, adoptionPost),
         (votes, quorum)
       ] do
     let _ ← ok (replayRecords records)
@@ -681,7 +797,10 @@ private def boundaryTests : IO Nat := do
       let current := (records[index]!.value.getObjValD "msg").getObjValD "state"
       let value := if optional current raw == some value then toJson "None" else value
       let diagnostic :=
-        if raw == "leadership_state" && function records[index]! == "commit" then
+        if raw == "leadership_state"
+            && function records[index]! == "operation_boundary" then
+          "native-"
+        else if raw == "leadership_state" && function records[index]! == "commit" then
           "outside leadership"
         else
           projected
@@ -698,9 +817,9 @@ private def boundaryTests : IO Nat := do
   for (records, index, nodes)
       in [
         (startup, startup.size - 1, ["0"]),
-        (votes, candidate, ["0", "1", "2"]),
-        (votes, leader, ["0", "1", "2"]),
-        (adoptionEnd, adoption, ["0", "1", "2"]),
+        (votes, candidatePost, ["0", "1", "2"]),
+        (votes, leaderPost, ["0", "1", "2"]),
+        (adoptionEnd, adoptionPost, ["0", "1", "2"]),
         (votes, quorum, ["0", "1", "2"])
       ] do
     rejects
@@ -721,6 +840,7 @@ private def boundaryTests : IO Nat := do
   check (function selfQuorum[selfCandidate + 1]! == "become_leader")
     "missing nested promotion"
   let baseline ← ok (replayRecords selfQuorum)
+  let selfPost ← closing selfQuorum (selfCandidate + 1)
   for (raw, value, projected) in corruptions do
     check
       ((← ok
@@ -728,7 +848,7 @@ private def boundaryTests : IO Nat := do
         == baseline)
       s!"internal candidate {raw} changed the endpoint contract"
     rejects
-      (replayRecords (mutate selfQuorum (selfCandidate + 1) ["msg", "state", raw] value))
+      (replayRecords (mutate selfQuorum selfPost ["msg", "state", raw] value))
       projected
     let _ ← ok (replayRecords (mutate votes internalFollower ["msg", "state", raw] value))
     count := count + 3
@@ -1493,6 +1613,7 @@ def main (args : List String) : IO UInt32 := do
   let _ ← reductionTests
   parsecReductionTests
   receiveGrammarTests
+  emissionTests
   let _ ← fixtureMutations
   let boundaries ← boundaryTests
   let nativeBoundaries ← nativeBoundaryTests

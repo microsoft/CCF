@@ -10,11 +10,11 @@ import Std.Internal.Parsec.Basic
 public section
 
 /-!
-Named rules for the globally ordered `raft_driver` capture. A rule consumes one
-C++ operation and its synchronous callbacks, emits its one composite model
-action, and checks fixed pre/post boundaries and endpoint-equivalent projections.
-Native operation boundaries surround zero or more such actions.
-No rule computes protocol state or reconstructs packet payloads.
+Named rules for the globally ordered `raft_driver` capture. Head rules emit
+model actions; callback rules emit observations as they consume events.
+Native operation boundaries surround zero or more actions with complete PRE/POST
+observations. The parser produces instructions, never executes protocol state,
+reconstructs packet payloads, or compares snapshots using future callbacks.
 -/
 
 namespace CCFRaft.Replay
@@ -81,8 +81,8 @@ private partial def many {α : Type} (parser : Reduction α) : Reduction (List �
     return first :: (← many parser))
   <|> pure []
 
-private def many_ (parser : Reduction Unit) : Reduction Unit :=
-  discard (many parser)
+private partial def many_ (parser : Reduction Unit) : Reduction Unit :=
+  (parser *> many_ parser) <|> pure ()
 
 private def optionalRule {α : Type} (parser : Reduction α) : Reduction (Option α) :=
   (some <$> parser) <|> pure none
@@ -117,24 +117,22 @@ private def requestId (event : Event) : Reduction ReqID := do
   | failure s!"{event.record.location}: undeclared request"
   return index
 
-private def emit (instruction : Instruction) : Reduction Unit :=
+private def emitInstruction (instruction : Instruction) : Reduction Unit :=
   modify
     fun cursor => { cursor with instructions := cursor.instructions.push instruction }
 
-private def action (event : Event) (rule : String) (step : Step)
-    (group : List Event := [])
-    : Reduction Unit :=
-  emit (.action step ((if group.isEmpty then [event] else group).map (·.origin rule)))
+private def emitAction (event : Event) (rule : String) (step : Step) : Reduction Unit :=
+  emitInstruction (.action step [event.origin rule])
 
-private def entry (event : Event) (index : Nat) (fields : List (String × Json))
-    (rule : String := "callback-entry")
+private def emitEntryObservation (event : Event) (index : Nat)
+    (fields : List (String × Json)) (rule : String := "callback-entry")
     : Reduction Unit :=
-  emit (.entry event.node index (Json.mkObj fields) (event.origin rule))
+  emitInstruction (.entry event.node index (Json.mkObj fields) (event.origin rule))
 
 /-- Selected boundaries check every unexcluded field; phase omissions have fixed reasons. -/
-private def observe (event : Event) (rule : String) (properties : Option Json := none)
-    (exclusions : List (String × String) := []) (peer : Option String := none)
-    (frontier : Option Nat := none)
+private def emitObservation (event : Event) (rule : String)
+    (properties : Option Json := none) (exclusions : List (String × String) := [])
+    (peer : Option String := none) (frontier : Option Nat := none)
     : Reduction Unit := do
   let facts ← read event (object (properties.getD event.facts))
   let mut omitted := []
@@ -150,38 +148,35 @@ private def observe (event : Event) (rule : String) (properties : Option Json :=
   let origin := { event.origin rule with omitted }
   if let some frontier := frontier then
     checked event peer.isNone "pre-commit observation cannot select a peer"
-    emit (.stateBeforeCommit event.node frontier (Json.mkObj state) origin)
+    emitInstruction (.stateBeforeCommit event.node frontier (Json.mkObj state) origin)
   else
-    emit (.state event.node peer (Json.mkObj state) origin)
+    emitInstruction (.state event.node peer (Json.mkObj state) origin)
   if let some markers := fields.lookup "committableIndices" then
     for marker in ← read event markers.getArr? do
-      entry event (← read event (natural marker)) [("kind", toJson "signature")]
-        "signature-marker"
+      emitEntryObservation event (← read event (natural marker))
+        [("kind", toJson "signature")] "signature-marker"
 
 /-- Unlike internal cache evidence, boundary fields assert complete projected equality. -/
-private def observeBoundary (event : Event) : Reduction Unit := do
+private def emitBoundaryObservation (event : Event) : Reduction Unit := do
   let phase ← read event (string event.message "phase")
-  emit (.state event.node none event.facts (event.origin s!"native-{phase}"))
+  emitInstruction (.state event.node none event.facts (event.origin s!"native-{phase}"))
 
-private def message (event : Event) (rule : String) (receiving : Bool)
+private def emitPacketObservation (event : Event) (rule : String)
+    (selection : PacketSelection := .latest)
     : Reduction Unit := do
-  let other ←
-    read event (string event.message (if receiving then "from_node_id" else "to_node_id"))
+  let destination ← read event (string event.message "to_node_id")
   let packet ← read event (field event.message "packet")
-  emit
-    (.message (if receiving then other else event.node)
-      (if receiving then event.node else other) packet
-      (if receiving then .matching else .latest) (event.origin rule))
+  emitInstruction (.message event.node destination packet selection (event.origin rule))
 
-private def proposal (event : Event) (rule : String) : Reduction Unit := do
+private def emitProposalObservation (event : Event) (rule : String) : Reduction Unit := do
   let destination ← read event (string event.message "to_node_id")
   let term ← read event (nat event.state "current_view")
-  emit
+  emitInstruction
     (.message event.node destination
       (Json.mkObj [("msg", toJson "raft_propose_request_vote"), ("term", toJson term)])
       .latest (event.origin rule))
 
-private def peers (event : Event) (rule : String) : Reduction Unit := do
+private def emitPeerObservation (event : Event) (rule : String) : Reduction Unit := do
   let mut fields := []
   for (raw, target) in [("sent_idx", "sentIndex"), ("match_idx", "matchIndex")] do
     if let some value := optional event.message raw then
@@ -193,23 +188,33 @@ private def peers (event : Event) (rule : String) : Reduction Unit := do
           ((optional event.message "to_node_id"
             <|> optional event.message "from_node_id").getD
             .null))
-    observe event rule (some (Json.mkObj fields)) [] (some peer)
+    emitObservation event rule (some (Json.mkObj fields)) [] (some peer)
 
-private def retirementFields : List String :=
-  [
-    "membershipState",
-    "retirementIndex",
-    "retirementCommittableIndex",
-    "retiredCommittedIndex"
-  ]
+private def emitInternalEvidence (event : Event) : Reduction Unit := do
+  emitObservation event "callback-term"
+    (some (Json.mkObj [("currentTerm", ← read event (field event.facts "currentTerm"))]))
+  if let some markers := optional event.facts "committableIndices" then
+    for marker in ← read event markers.getArr? do
+      emitEntryObservation event (← read event (natural marker))
+        [("kind", toJson "signature")] "signature-marker"
+  let committed ← read event (nat event.facts "commitIndex")
+  if committed > 0 then
+    emitEntryObservation event committed
+      [("kind", toJson "signature"), ("committed", toJson true)]
+      "callback-committed-prefix"
+  if let some configurations := optional event.facts "configurations" then
+    for configuration in ← read event configurations.getArr? do
+      emitEntryObservation event (← read event (nat configuration "index"))
+        [
+          ("kind", toJson "transaction"),
+          ("configurations", toJson [← read event (field configuration "nodes")])
+        ]
+        "callback-configuration"
 
-private def omitPresent (facts : Json) (names : List String) (reason : String)
-    : List (String × String) :=
-  names.filterMap
-    fun name => if (optional facts name).isSome then some (name, reason) else none
+private def optional_ (parser : Reduction Unit) : Reduction Unit :=
+  discard (optionalRule parser)
 
-/-- `commit` traces before advancing and may nominate before clearing leadership. -/
-private def retirementNomination (commit : Event) : Reduction Event := do
+private def retirementNomination (commit : Event) : Reduction Unit := do
   let nomination ← eventIs "step_down_and_nominate_successor" (some commit)
   let target ← read commit (field commit.message "args" >>= (nat · "idx"))
   let confirmation ← read nomination (nat nomination.facts "retiredCommittedIndex")
@@ -221,79 +226,43 @@ private def retirementNomination (commit : Event) : Reduction Event := do
       && confirmation > 0
       && confirmation <= target)
     "unexpected terminal-retirement nomination boundary"
-  return nomination
+  checked nomination
+    (optional nomination.facts "configurations" == optional commit.facts "configurations")
+    "nomination configurations differ from checked precommit cache"
+  emitProposalObservation nomination "terminal-nomination-message"
+  emitObservation nomination "terminal-nomination-post" none
+    [
+      ("role", "nomination precedes role clearing; raw leader role checked locally"),
+      (
+        "membershipState",
+        "nomination precedes terminal phase assignment; raw completed retirement checked locally"
+      ),
+      ("configurations", "nomination cache equals the checked pre-pruning commit cache")
+    ]
 
-private def takeCommit (anchor : Event) : Reduction (List Event) :=
-  (do
-    let commit ← eventIs "commit" (some anchor)
-    checked commit ((← read commit (string commit.state "leadership_state")) == "Leader")
-      "internal commit outside leadership"
-    return commit :: (← optionalRule (retirementNomination commit)).toList)
-  <|> pure []
-
-private def observeCommitPre (anchor : Event) (tail : List Event) : Reduction Unit := do
-  let some commit := tail.find? (·.function == "commit") | return
+private def commitLeader (anchor : Event) : Reduction Unit := do
+  let commit ← eventIs "commit" (some anchor)
+  checked commit ((← read commit (string commit.state "leadership_state")) == "Leader")
+    "internal commit outside leadership"
   let previous ← read anchor (nat anchor.facts "commitIndex")
   checked commit (optional commit.facts "commitIndex" == some (toJson previous))
     "commitIndex differs from anchored pre-frontier"
   let target ← read commit (field commit.message "args" >>= (nat · "idx"))
   checked commit (previous < target)
     "commitIndex target does not advance the pre-frontier"
-  observe commit "commit-frontier-pre"
-    (some
-      (Json.mkObj
-        [
-          ("commitIndex", toJson previous),
-          (
-            "retiredCommittedIndex",
-            ← read commit (field commit.facts "retiredCommittedIndex")
-          )
-        ]))
-
-private def observeCommit (tail : List Event) : Reduction Unit := do
-  let commit :: rest := tail | return
-  observe commit "commit-in-action" none
+  emitObservation commit "commit-in-action" none
     [("role", "commit traces before terminal role clearing; exact leader role audited")]
-    none (some (← read commit (nat commit.facts "commitIndex")))
-  if let nomination :: _ := rest then
-    checked nomination
-      (optional nomination.facts "configurations"
-        == optional commit.facts "configurations")
-      "nomination configurations differ from checked precommit cache"
-    let post := ["commitIndex", "retiredCommittedIndex", "committableIndices"]
-    observe nomination "terminal-nomination-pre" none
-      ([
-          (
-            "role",
-            "nomination precedes role clearing; takeCommit checks exact leader role"
-          ),
-          (
-            "membershipState",
-            "nomination precedes terminal phase assignment; takeCommit checks completed retirement"
-          ),
-          (
-            "configurations",
-            "nomination precedes pruning; cache equals the checked commit pre-cache"
-          )
-        ]
-        ++ omitPresent nomination.facts post
-            "commit already advanced at nomination; these fields are observed at the final boundary below")
-    proposal nomination "terminal-nomination-message"
-    observe nomination "terminal-nomination-post"
-      (some
-        (Json.mkObj
-          ((← read nomination (object nomination.facts)).filter
-            (fun p => post.contains p.1))))
-  let target ← read commit (field commit.message "args" >>= (nat · "idx"))
-  -- The target constrains the effect; the trace does not record a post-commit snapshot.
-  observe commit "commit-target" (some (Json.mkObj [("commitIndex", toJson target)]))
+    none (some previous)
+  emitObservation commit "commit-target"
+    (some (Json.mkObj [("commitIndex", toJson target)]))
+  optional_ (retirementNomination commit)
 
 private def activePeers (event : Event) : Reduction (List String) := do
   let configurations ← read event (field event.message "configurations" >>= Json.getArr?)
   let nodes ← configurations.toList.mapM fun value => read event (configuration value)
   return (nodes.flatten.eraseDups.filter (· != event.node)).mergeSort
 
-private def leaderHeartbeat (anchor : Event) : Reduction Event := do
+private def leaderHeartbeat (anchor : Event) : Reduction String := do
   let some event ← peek | failure "missing leadership heartbeat"
   unless event.function == "send_append_entries" && anchor.sameContext event do
     failure "expected leadership heartbeat"
@@ -302,83 +271,52 @@ private def leaderHeartbeat (anchor : Event) : Reduction Event := do
   let last ← read event (nat event.state "last_idx")
   unless previous == last && (← read event (nat packet "idx")) == last do
     failure "not a leadership heartbeat"
-  eventIs "send_append_entries" (some anchor)
+  let event ← eventIs "send_append_entries" (some anchor)
+  emitObservation event "leader-heartbeat-post"
+  emitPeerObservation event "leader-heartbeat-pre"
+  emitPacketObservation event "send-post"
+  read event (string event.message "to_node_id")
 
-/-- `become_leader`: possible lone-leader commit, then one empty send per peer. -/
-private def takeLeaderTail (anchor : Event) : Reduction (List Event) := do
-  let commits ← takeCommit anchor
-  let heartbeats ← many (leaderHeartbeat anchor)
-  let destinations ←
-    heartbeats.mapM fun event => read event (string event.message "to_node_id")
-  checked anchor (destinations.eraseDups == destinations)
-    "duplicate leadership heartbeat destination"
-  checked anchor ((← activePeers anchor).all destinations.contains)
-    "missing active-peer leadership heartbeat"
-  return commits ++ heartbeats
-
-private def observeLeaderTail (tail : List Event) : Reduction Unit := do
-  observeCommit (tail.filter (·.function != "send_append_entries"))
-  for event in tail.filter (·.function == "send_append_entries") do
-    observe event "leader-heartbeat-post"
-    peers event "leader-heartbeat-pre"
-    message event "send-post" false
-
-private def voteRequest (head : Event) (family : String) : Reduction Event := do
+private def voteRequest (head : Event) (family : String) : Reduction String := do
   let send ← eventIs "send_request_vote" (some head)
   let packet ← read send (field send.message "packet")
   checked send ((← read send (string packet "msg")) == family) "wrong vote request packet"
-  return send
+  emitObservation send "send-post"
+  emitPacketObservation send "send-post"
+  read send (string send.message "to_node_id")
 
-private def electionRequests (head : Event) (family : String) (nested tail : List Event)
-    : Reduction (List Event × List Event × List Event) := do
-  let sends ← many (voteRequest head family)
-  let others ← activePeers head
-  let destinations ← sends.mapM fun send => read send (string send.message "to_node_id")
-  checked head (destinations == others) "vote requests differ from other active members"
-  checked head (nested.isEmpty || others.isEmpty)
-    "self-quorum promotion with other active members"
-  return (nested, sends, tail)
-
-private def leaderPromotion (anchor : Event) : Reduction (List Event × List Event) :=
-  (do
-    let leader ← eventIs "become_leader" (some anchor)
-    return ([leader], ← takeLeaderTail leader))
-  <|> pure ([], [])
-
-private def candidateElection (head : Event)
-    : Reduction (List Event × List Event × List Event) := do
-  let (nested, tail) ← leaderPromotion head
-  electionRequests head "raft_request_vote" nested tail
-
-/-- A pre-vote either sends probes or synchronously obtains a self-quorum. -/
-private def preVoteElection (head : Event)
-    : Reduction (List Event × List Event × List Event) :=
-  (do
-    let candidate ← eventIs "become_candidate" (some head)
-    let (nested, tail) ← leaderPromotion head
-    electionRequests head "raft_request_vote" (candidate :: nested) tail)
-  <|> electionRequests head "raft_request_pre_vote" [] []
-
-private def observeElection (head : Event) (nested sends tail : List Event)
-    (rule : String)
+private def electionRequests (head : Event) (family : String) (selfQuorum : Bool)
     : Reduction Unit := do
-  -- Earlier promotions are internal, not observations chosen by value disagreement.
-  let last := (head :: nested).getLast!
-  if let some commit := tail.find? (·.function == "commit") then
-    checked last (optional last.facts "role" == some (toJson "leader"))
-      "pre-commit promotion role must be leader"
-    observe last rule none
-      [(
-        "role",
-        "leader snapshot precedes terminal commit role clearing; exact phase role checked locally"
-      )]
-      none (some (← read commit (nat commit.facts "commitIndex")))
-  else
-    observe last rule
-  observeLeaderTail tail
-  for send in sends do
-    observe send "send-post"
-    message send "send-post" false
+  let destinations ← many (voteRequest head family)
+  let others ← activePeers head
+  checked head (destinations == others) "vote requests differ from other active members"
+  checked head (!selfQuorum || others.isEmpty)
+    "self-quorum promotion with other active members"
+
+private def becomeLeader (anchor : Event) : Reduction Unit := do
+  let leader ← eventIs "become_leader" (some anchor)
+  checked leader (optional leader.facts "role" == some (toJson "leader"))
+    "promotion role must be leader"
+  emitInternalEvidence leader
+  emitObservation leader "leader-log"
+    (some (Json.mkObj [("logLength", ← read leader (field leader.facts "logLength"))]))
+  optional_ (commitLeader anchor)
+  let destinations ← many (leaderHeartbeat leader)
+  checked leader (destinations.eraseDups == destinations)
+    "duplicate leadership heartbeat destination"
+  checked leader ((← activePeers leader).all destinations.contains)
+    "missing active-peer leadership heartbeat"
+
+private def becomeCandidate (anchor : Event) : Reduction Unit := do
+  let candidate ← eventIs "become_candidate" (some anchor)
+  let promotion ← optionalRule (becomeLeader anchor)
+  electionRequests candidate "raft_request_vote" promotion.isSome
+
+private def preVoteElection (head : Event) : Reduction Unit :=
+  (eventIs "become_candidate" (some head)
+    *> optional_ (becomeLeader head)
+    *> electionRequests head "raft_request_vote" true)
+  <|> electionRequests head "raft_request_pre_vote" false
 
 private def bootstrap (initial signature : Chunk) : Reduction String := do
   checked initial.pre
@@ -452,7 +390,7 @@ private def bootstrap (initial signature : Chunk) : Reduction String := do
     "bootstrap commit target"
   -- Genesis is preloaded by Model.initialNodeState, not an invented transition.
   -- The real initialization POST must agree before any model action executes.
-  observeBoundary initial.post
+  emitBoundaryObservation initial.post
   let _ ←
     eventIs "operation_boundary"
     *> eventIs "become_leader"
@@ -461,7 +399,7 @@ private def bootstrap (initial signature : Chunk) : Reduction String := do
     *> eventIs "operation_boundary"
   return leader
 
-private def configurationHeartbeat (write config : Event) : Reduction Event := do
+private def configurationHeartbeat (write config : Event) : Reduction String := do
   checked config (← nextIs "send_append_entries" (some write))
     "missing new-peer configuration callback"
   let callback ← eventIs "send_append_entries" (some write)
@@ -474,13 +412,16 @@ private def configurationHeartbeat (write config : Event) : Reduction Event := d
       && (← read callback (nat callback.message "sent_idx")) == oldLength + 1
       && (← read callback (nat callback.message "match_idx")) == 0)
     "unsupported configuration callback heartbeat"
-  observe callback "configuration-callback-pre" none
-    (omitPresent callback.facts retirementFields
-      "configuration hook changed retirement before append; checked after append")
-  return callback
+  let sent ← read callback (nat callback.message "sent_idx")
+  let matched ← read callback (nat callback.message "match_idx")
+  let peer ← read callback (string callback.message "to_node_id")
+  emitObservation callback "configuration-callback-peer"
+    (some (Json.mkObj [("sentIndex", toJson (sent - 1)), ("matchIndex", toJson matched)]))
+    [] (some peer)
+  emitPacketObservation callback "send-post"
+  return peer
 
-private def appendConfiguration (write : Event)
-    : Reduction (Event × Finset NodeID × List Event) := do
+private def configurationHead (write : Event) : Reduction (Event × Finset NodeID) := do
   let config ← eventIs "add_configuration" (some write)
   let value ← read config (field config.message "args" >>= (field · "configuration"))
   checked config
@@ -490,15 +431,21 @@ private def appendConfiguration (write : Event)
     "configuration write pair mismatch"
   let nodes ← read config (configurationArg config.message)
   let members ← modelMembers config nodes
-  observe config "configuration-pair"
+  return (config, members)
+
+private def configurationEvidence (write config : Event) : Reduction Unit := do
+  let nodes ← read config (configurationArg config.message)
+  let index ←
+    read config
+      (field config.message "args" >>= (field · "configuration") >>= (nat · "idx"))
+  emitEntryObservation config index
+    [("kind", toJson "transaction"), ("configurations", toJson [nodes])]
+  emitInternalEvidence config
   let previous ← activePeers config
   let added := nodes.filter fun node => node != write.node && !previous.contains node
-  let callbacks ← added.mapM fun _ => configurationHeartbeat write config
-  let destinations ←
-    callbacks.mapM fun event => read event (string event.message "to_node_id")
+  let destinations ← added.mapM fun _ => configurationHeartbeat write config
   checked config (destinations.mergeSort == added.mergeSort)
     "new-peer configuration callback destinations differ"
-  return (config, members, callbacks)
 
 /-- The driver's singleton BatchVector, including hooks and new-peer heartbeats. -/
 private def appendRule (write : Event) : Reduction Unit := do
@@ -508,17 +455,9 @@ private def appendRule (write : Event) : Reduction Unit := do
       && (← read write (nat write.message "view"))
           == (← read write (nat write.state "current_view")))
     "write coordinates differ from the recorded state"
-  observe write "write-pre"
-  let configuration ← optionalRule (appendConfiguration write)
-  let _ ←
-    optionalRule do
-      let duplicate ← eventIs "add_configuration" (some write)
-      checked duplicate false "multiple configuration callbacks for one transaction"
-  let (configurations, metadata, callbacks) :=
-    match configuration with
-    | none => ([], ({} : TransactionMetadata), [])
-    | some (config, members, callbacks) =>
-        ([config], { configuration := some members }, callbacks)
+  emitObservation write "write-pre"
+  let configuration ← optionalRule (configurationHead write)
+  let metadata : TransactionMetadata := { configuration := configuration.map (·.2) }
   let command ← read write (string write.command.value "cmd")
   let content ←
     if ← read write (boolean write.message "globally_committable") then
@@ -534,115 +473,24 @@ private def appendRule (write : Event) : Reduction Unit := do
           { retirementConfirmations := (← modelMembers write nodes) })
     else
       pure (.transaction (← requestId write) metadata)
-  let tail ← takeCommit write
-  observeCommitPre write tail
-  action write "atomic-append" (.local write.node (.append [content]))
-    ([write] ++ configurations ++ callbacks ++ tail)
-  for callback in callbacks do
-    observe callback "configuration-callback-post"
-      (some
-        (Json.mkObj
-          ((← read callback (object callback.facts)).filter
-            (fun p => retirementFields.contains p.1))))
-    let sent ← read callback (nat callback.message "sent_idx")
-    let matched ← read callback (nat callback.message "match_idx")
-    let peer ← read callback (string callback.message "to_node_id")
-    -- The new-peer constructor stores next-index, unlike ordinary sends.
-    observe callback "configuration-callback-peer"
-      (some
-        (Json.mkObj [("sentIndex", toJson (sent - 1)), ("matchIndex", toJson matched)]))
-      [] (some peer)
-    message callback "send-post" false
-  observeCommit tail
+  emitAction write "atomic-append" (.local write.node (.append [content]))
+  if let some (config, _) := configuration then
+    configurationEvidence write config
+  let _ ←
+    optionalRule do
+      let duplicate ← eventIs "add_configuration" (some write)
+      checked duplicate false "multiple configuration callbacks for one transaction"
+  optional_ (commitLeader write)
 
-/-- Check already-parsed effects against the resulting log; consume no input. -/
-private def observeAppendCallbacks (sender : String) (callbacks : List Event)
-    : Reduction Unit := do
-  for callback in callbacks, position in [:callbacks.length] do
-    if ["send_append_entries_response", "send_request_vote_response"].contains
-        callback.function then
-      checked callback
-        ((← read callback (string callback.message "to_node_id")) == sender)
-        "response destination mismatch"
-      observe callback "receive-post"
-      message callback "response-post" false
-      continue
-    if callback.function == "execute_append_entries_sync" then
-      checked callback
-        ((← read callback (string callback.message "from_node_id")) == sender)
-        "execute source mismatch"
-    else if callback.function == "add_configuration" then
-      let value ←
-        read callback (field callback.message "args" >>= (field · "configuration"))
-      entry callback (← read callback (nat value "idx"))
-        [
-          ("kind", toJson "transaction"),
-          ("configurations", toJson [← read callback (configurationArg callback.message)])
-        ]
-    else if callback.function == "commit" then
-      entry callback (← read callback (field callback.message "args" >>= (nat · "idx")))
-        [("kind", toJson "signature"), ("committed", toJson true)]
-    checked callback (optional callback.facts "role" == some (toJson "follower"))
-      "receive callback requires follower role"
-    let pending := (callbacks.drop position).map (·.function)
-    let mut exclusions :=
-      [(
-        "membershipState",
-        "configuration hooks, signatures and commit change retirement within the atomic receive"
-      )]
-    if pending.contains "execute_append_entries_sync" then
-      exclusions :=
-        exclusions
-        ++ [(
-              "logLength",
-              "execute traces before applying; remaining callbacks extend the log"
-            )]
-    if pending.contains "commit" then
-      exclusions :=
-        exclusions
-        ++ [
-          ("role", "raw follower role checked; terminal commit may clear final role"),
-          (
-            "commitIndex",
-            "commit traces before advancing; check the already-committed signature instead"
-          )
-        ]
-      let committed ← read callback (nat callback.facts "commitIndex")
-      if committed > 0 then
-        entry callback committed
-          [("kind", toJson "signature"), ("committed", toJson true)]
-          "callback-committed-prefix"
-    for (key, writer)
-        in [
-          ("retirementIndex", "add_configuration"),
-          ("retirementCommittableIndex", "execute_append_entries_sync"),
-          ("retiredCommittedIndex", "commit")
-        ] do
-      if optional callback.facts key == some .null && pending.contains writer then
-        exclusions :=
-          exclusions
-          ++ [(key, s!"absent here; pending {writer} can set it in the same receive")]
-    if let some configurations := optional callback.facts "configurations" then
-      exclusions :=
-        exclusions
-        ++ [(
-              "configurations",
-              "hooks insert and commit prunes; check the recorded log entries instead"
-            )]
-      for configuration in ← read callback configurations.getArr? do
-        entry callback (← read callback (nat configuration "index"))
-          [
-            ("kind", toJson "transaction"),
-            ("configurations", toJson [← read callback (field configuration "nodes")])
-          ]
-          "callback-configuration"
-    observe callback "append-callback" none exclusions
+private def emitFollowerEvidence (event : Event) : Reduction Unit := do
+  checked event (optional event.facts "role" == some (toJson "follower"))
+    "receive callback requires follower role"
+  emitInternalEvidence event
 
 private structure Receive where
   event : Event
   sender : String
   packet : Json
-  followers : List Event
 
 private def receiveHead (operation function : String) (families : List String)
     : Reduction Receive := do
@@ -651,44 +499,61 @@ private def receiveHead (operation function : String) (families : List String)
   let packet ← read event (field event.message "packet")
   let family ← read event (string packet "msg")
   checked event (families.contains family) "receive function/packet mismatch"
-  observe event "receive-pre"
-  peers event "receive-pre"
-  message event "receive-pre" true
-  let followers ← optionalRule (eventIs "become_follower" (some event))
-  return { event, sender, packet, followers := followers.toList }
+  emitObservation event "receive-pre"
+  emitPeerObservation event "receive-pre"
+  return { event, sender, packet }
 
-private def deliver (receive : Receive) (callbacks : List Event) : Reduction Unit := do
-  action receive.event "atomic-receive"
-    (.receive receive.sender receive.event.node receive.packet)
-    ([receive.event] ++ receive.followers ++ callbacks)
-  -- Adoption is a full endpoint only when no later receive callback supplies one.
-  if callbacks.isEmpty then
-    for follower in receive.followers do
-      observe follower "receive-follower-post"
+private def becomeFollower (receive : Receive) : Reduction Unit :=
+  discard (eventIs "become_follower" (some receive.event))
+
+private def executeAppendEntries (receive : Receive) : Reduction Unit := do
+  let event ← eventIs "execute_append_entries_sync" (some receive.event)
+  checked event ((← read event (string event.message "from_node_id")) == receive.sender)
+    "execute source mismatch"
+  emitFollowerEvidence event
+
+private def addConfiguration (receive : Receive) : Reduction Unit := do
+  let event ← eventIs "add_configuration" (some receive.event)
+  let value ← read event (field event.message "args" >>= (field · "configuration"))
+  emitEntryObservation event (← read event (nat value "idx"))
+    [
+      ("kind", toJson "transaction"),
+      ("configurations", toJson [← read event (configurationArg event.message)])
+    ]
+  emitFollowerEvidence event
+
+private def commitFollower (receive : Receive) : Reduction Unit := do
+  let event ← eventIs "commit" (some receive.event)
+  emitEntryObservation event (← read event (field event.message "args" >>= (nat · "idx")))
+    [("kind", toJson "signature"), ("committed", toJson true)]
+  emitFollowerEvidence event
+
+private def sendAppendEntriesResponse (receive : Receive) : Reduction Unit := do
+  let response ← eventIs "send_append_entries_response" (some receive.event)
+  checked response
+    ((← read response (string response.message "to_node_id")) == receive.sender)
+    "response destination mismatch"
+  emitObservation response "receive-post"
+  emitPacketObservation response "response-post"
 
 private def recvAppendEntries (operation : String) : Reduction Unit := do
   let receive ← receiveHead operation "recv_append_entries" ["raft_append_entries"]
-  let applied ←
-    many
-      (eventIs "execute_append_entries_sync"
-        <|> eventIs "add_configuration"
-        <|> eventIs "commit")
-  let response ← optionalRule (eventIs "send_append_entries_response")
-  let callbacks := applied ++ response.toList
-  for callback in callbacks do
-    checked callback (receive.event.sameContext callback) "interleaved receive callback"
-  deliver receive callbacks
-  observeAppendCallbacks receive.sender callbacks
+  emitAction receive.event "atomic-receive"
+    (.receive receive.sender receive.event.node receive.packet)
+  optional_ (becomeFollower receive)
+  many_
+    (executeAppendEntries receive <|> addConfiguration receive <|> commitFollower receive)
+  optional_ (sendAppendEntriesResponse receive)
 
 private def recvAppendEntriesResponse (operation : String) : Reduction Unit := do
   let receive ←
     receiveHead operation "recv_append_entries_response" ["raft_append_entries_response"]
-  let commits ← takeCommit receive.event
-  observeCommitPre receive.event commits
-  deliver receive commits
-  observeCommit commits
+  emitAction receive.event "atomic-receive"
+    (.receive receive.sender receive.event.node receive.packet)
+  optional_ (becomeFollower receive)
+  optional_ (commitLeader receive.event)
 
-private def voteResponse (receive : Receive) : Reduction Event := do
+private def sendRequestVoteResponse (receive : Receive) : Reduction Unit := do
   let response ← eventIs "send_request_vote_response" (some receive.event)
   let packet ← read response (field response.message "packet")
   let family ← read receive.event (string receive.packet "msg")
@@ -696,46 +561,34 @@ private def voteResponse (receive : Receive) : Reduction Event := do
     ((← read response (string response.message "to_node_id")) == receive.sender
       && (← read response (string packet "msg")) == family ++ "_response")
     "vote response does not match request"
-  return response
+  emitObservation response "receive-post"
+  emitPacketObservation response "response-post"
 
 private def recvRequestVote (operation : String) : Reduction Unit := do
   let receive ←
     receiveHead operation "recv_request_vote"
       ["raft_request_vote", "raft_request_pre_vote"]
-  let callbacks := (← optionalRule (voteResponse receive)).toList
-  deliver receive callbacks
-  observeAppendCallbacks receive.sender callbacks
-
-private abbrev Election := Event × List Event × List Event × List Event
-
-private def becomeCandidate (anchor : Event) : Reduction Election := do
-  let head ← eventIs "become_candidate" (some anchor)
-  let (nested, sends, tail) ← candidateElection head
-  return (head, nested, sends, tail)
-
-private def becomeLeader (anchor : Event) : Reduction Election := do
-  let head ← eventIs "become_leader" (some anchor)
-  return (head, [], [], ← takeLeaderTail head)
-
-private def receiveElection (receive : Receive) (promotion : Reduction Election)
-    : Reduction Unit := do
-  match ← optionalRule promotion with
-  | none => deliver receive []
-  | some (head, nested, sends, tail) =>
-      observeCommitPre receive.event tail
-      deliver receive ([head] ++ nested ++ tail ++ sends)
-      observeElection head nested sends tail "receive-post"
+  emitAction receive.event "atomic-receive"
+    (.receive receive.sender receive.event.node receive.packet)
+  optional_ (becomeFollower receive)
+  optional_ (sendRequestVoteResponse receive)
 
 private def recvProposeRequestVote (operation : String) : Reduction Unit := do
   let receive ←
     receiveHead operation "recv_propose_request_vote" ["raft_propose_request_vote"]
-  receiveElection receive (becomeCandidate receive.event)
+  emitAction receive.event "atomic-receive"
+    (.receive receive.sender receive.event.node receive.packet)
+  optional_ (becomeFollower receive)
+  optional_ (becomeCandidate receive.event)
 
 private def recvRequestVoteResponse (operation : String) : Reduction Unit := do
   let receive ←
     receiveHead operation "recv_request_vote_response"
       ["raft_request_vote_response", "raft_request_pre_vote_response"]
-  receiveElection receive (becomeCandidate receive.event <|> becomeLeader receive.event)
+  emitAction receive.event "atomic-receive"
+    (.receive receive.sender receive.event.node receive.packet)
+  optional_ (becomeFollower receive)
+  optional_ (becomeCandidate receive.event <|> becomeLeader receive.event)
 
 /-- Each receive grammar contains one delivery and its synchronous effects. -/
 private def receiveRule (operation : String) : Reduction Unit :=
@@ -759,57 +612,52 @@ private def sendOperation (operation : String) : Reduction Unit := do
     ((← read event (nat packet "prev_idx"))
       == (← read event (nat event.message "sent_idx")))
     "send prev_idx differs from sent_idx"
-  observe event "send-pre"
-  peers event "send-pre"
-  action event "atomic-send"
+  emitObservation event "send-pre"
+  emitPeerObservation event "send-pre"
+  emitAction event "atomic-send"
     (.local event.node
       (.sendEntries
         (← modelNode event (← read event (string event.message "to_node_id")))
         (← read event (nat packet "idx"))))
-  message event "send-post" false
+  emitPacketObservation event "send-post"
 
 private def electionOperation (operation : String) : Reduction Unit := do
   let event ←
     headRule operation ["periodic"] ["become_candidate", "become_pre_vote_candidate"]
   checked event (event.function == "become_pre_vote_candidate")
     "timeout election must start in the pre-vote phase"
-  let (nested, sends, tail) ← preVoteElection event
   checked event (optional event.facts "role" == some (toJson "preVoteCandidate"))
     "election boundary role must be preVoteCandidate"
-  observe event "election-pre" none
+  emitObservation event "election-pre" none
     [(
       "role",
       "timeout entry follows phase-role assignment; all other fields still equal the pre-state"
     )]
-  observeCommitPre event tail
-  action event "atomic-election" (.local event.node (.timeout .election))
-    ([event] ++ nested ++ tail ++ sends)
-  observeElection event nested sends tail "role-post"
+  emitAction event "atomic-election" (.local event.node (.timeout .election))
+  preVoteElection event
 
 private def checkQuorumOperation (operation : String) : Reduction Unit := do
   let event ← headRule operation ["periodic"] ["become_follower"]
-  action event "role-post" (.local event.node (.timeout .checkQuorum))
-  observe event "role-post"
+  emitAction event "role-post" (.local event.node (.timeout .checkQuorum))
+  emitObservation event "role-post"
 
 private def nominationOperation (operation : String) : Reduction Unit := do
   let event ← headRule operation ["nominate"] ["step_down_and_nominate_successor"]
   checked event
     ((← read event (string event.command.value "cmd")).startsWith "nominate_successor,")
     "nomination outside a nominate_successor command"
-  observe event "nomination"
-  action event "nomination" (.local event.node .nominateSuccessor)
-  proposal event "nomination-message"
+  emitObservation event "nomination"
+  emitAction event "nomination" (.local event.node .nominateSuccessor)
+  emitProposalObservation event "nomination-message"
 
 private def dropOperation (operation : String) : Reduction Unit := do
   let event ← headRule operation ["drop"] ["drop_pending_to"]
   checked event ((← read event (string event.message "from_node_id")) == event.node)
     "drop sender mismatch"
-  observe event "drop"
+  emitObservation event "drop"
   let destination ← read event (string event.message "to_node_id")
-  emit
-    (.message event.node destination (← read event (field event.message "packet")) .head
-      (event.origin "drop"))
-  action event "drop" (.drop event.node destination)
+  emitPacketObservation event "drop" .head
+  emitAction event "drop" (.drop event.node destination)
 
 private def tick (operation : String) : Reduction Unit :=
   electionOperation operation <|> checkQuorumOperation operation
@@ -836,8 +684,8 @@ private def observed : Reduction Unit := do
     let some event ← peek | failure "end of trace: missing required boundary POST"
     checked event (event.function == "operation_boundary")
       s!"ungrouped callback {event.function} in {operation} boundary"
-    observeBoundary (← boundary "post")
-  observeBoundary pre *> many_ (reductionRules operation) <* post
+    emitBoundaryObservation (← boundary "post")
+  emitBoundaryObservation pre *> many_ (reductionRules operation) <* post
 
 private def trace (initial signature : Chunk) : Reduction String :=
   bootstrap initial signature
