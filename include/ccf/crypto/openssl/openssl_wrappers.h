@@ -184,9 +184,7 @@ namespace ccf::crypto::OpenSSL
         BIO_new_mem_buf(pem.data(), -1), [](auto x) { BIO_free(x); })
     {}
 
-    // The BIO only views the buffer, so a temporary would leave it dangling
-    // as soon as the constructor returns. The Pem overload also rejects
-    // std::string arguments, which would otherwise convert to a temporary Pem.
+    // The BIO only views the buffer; reject temporaries, which would dangle.
     Unique_BIO(const std::vector<uint8_t>&&) = delete;
     Unique_BIO(const Pem&&) = delete;
 
