@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Changed
 
-- `ccf::crypto::OpenSSL::Unique_BIO` no longer accepts temporary `std::vector<uint8_t>`, `Pem` or `std::string` arguments, which would have left the BIO reading freed memory. Pass a named buffer that outlives the BIO instead.
+- `ccf::crypto::OpenSSL::Unique_BIO` no longer accepts temporary `std::vector<uint8_t>`, `Pem` or `std::string` arguments, which would have left the BIO reading freed memory. Pass a named buffer that outlives the BIO instead (#8628).
 
 ## [7.0.22]
 
