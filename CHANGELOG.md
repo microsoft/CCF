@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - `ccf::crypto::OpenSSL::Unique_BIO` no longer accepts temporary `std::vector<uint8_t>` or `Pem` arguments, which would leave it dangling (#8628).
 
+### Fixed
+
+- `ccf::crypto::Verifier::remaining_seconds()` now returns the whole validity period before that period starts, and `remaining_percentage()` always returns a fraction between 0.0 and 1.0, including for a certificate whose validity period ends before it starts (#8626).
+
 ## [7.0.22]
 
 [7.0.22]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.22
