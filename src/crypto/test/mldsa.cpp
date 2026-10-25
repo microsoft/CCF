@@ -11,6 +11,7 @@ static_assert(
 #include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "crypto/openssl/mldsa.h"
 #include "crypto/openssl/mldsa_key_pair.h"
@@ -20,7 +21,10 @@ static_assert(
 #include <doctest/doctest.h>
 #include <future>
 #include <openssl/core_names.h>
+#include <openssl/err.h>
 #include <openssl/objects.h>
+#include <openssl/x509.h>
+#include <string>
 #include <type_traits>
 
 using namespace ccf::crypto;
@@ -621,6 +625,176 @@ TEST_CASE("ML-DSA parameter-set pinning at admission")
         check_rejected_import(
           [&] { make_mldsa_public_key(public_der, expected); });
       }
+    }
+  }
+}
+
+namespace
+{
+  OpenSSL::Unique_X509 parse_cert(const Pem& cert)
+  {
+    OpenSSL::Unique_BIO bio(cert);
+    return {bio, true, true};
+  }
+
+  bool has_subject_alt_name(const Pem& cert)
+  {
+    return X509_get_ext_by_NID(parse_cert(cert), NID_subject_alt_name, -1) >= 0;
+  }
+}
+
+TEST_CASE("ML-DSA certificates")
+{
+  const std::string subject = "CN=CCF Service";
+  const std::string valid_from = "20260101000000Z";
+  const std::string valid_to = "20270101000000Z";
+  const std::vector<SubjectAltName> node_sans = {
+    {"node.example.com", false}, {"10.0.0.1", true}};
+  // Both service certificates must encode one name and validity period.
+  const auto classical =
+    make_verifier(make_ec_key_pair()->self_sign(subject, valid_from, valid_to));
+
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      auto key = make_mldsa_key_pair(info.id);
+      const auto cert = key->self_sign(subject, valid_from, valid_to);
+      const auto signature = key->sign(message);
+
+      for (const auto& verifier :
+           {make_verifier(cert), make_verifier(cert_pem_to_der(cert))})
+      {
+        CHECK(verifier->public_key_der() == key->public_key_der());
+        CHECK(verifier->public_key_pem() == key->public_key_pem());
+        CHECK(verifier->subject() == classical->subject());
+        CHECK(verifier->validity_period() == classical->validity_period());
+        CHECK(verifier->is_self_signed());
+        CHECK(verifier->verify_certificate({&cert}, {}, true));
+        CHECK(verifier->verify(message, signature));
+        CHECK_FALSE(verifier->verify(context, signature));
+        CHECK_THROWS_AS(
+          (void)verifier->verify(message, signature, MDType::SHA256),
+          std::invalid_argument);
+        CHECK_THROWS_AS(
+          (void)verifier->verify_hash(std::vector<uint8_t>(32, 0), signature),
+          std::logic_error);
+      }
+      CHECK(get_subject_name(cert) == subject);
+      CHECK(
+        make_mldsa_public_key(make_verifier(cert)->public_key_der(), info.id)
+          ->verify(message, signature));
+      CHECK(
+        make_verifier(key->self_sign(subject, valid_from, valid_to))
+          ->serial_number() != make_verifier(cert)->serial_number());
+      CHECK_FALSE(has_subject_alt_name(cert));
+
+      auto other = make_mldsa_key_pair(info.id);
+      const auto other_cert = other->self_sign(subject, valid_from, valid_to);
+      {
+        const auto x509 = parse_cert(cert);
+        CHECK(X509_get_signature_nid(x509) == info.nid);
+        CHECK(X509_verify(x509, X509_get0_pubkey(x509)) == 1);
+        CHECK(X509_check_ca(x509) == 1);
+        CHECK(X509_verify(x509, native_public(other->public_key_der())) != 1);
+        ERR_clear_error();
+      }
+
+      // A node requests a certificate for its own key, the service issues it.
+      auto node_key = make_mldsa_key_pair(info.id);
+      const auto csr = node_key->create_csr("CN=CCF Node", node_sans);
+      const auto endorsed = key->sign_csr(cert, csr, valid_from, valid_to);
+      const auto endorsed_verifier = make_verifier(endorsed);
+      CHECK(endorsed_verifier->public_key_der() == node_key->public_key_der());
+      CHECK(get_subject_name(endorsed) == "CN=CCF Node");
+      CHECK(
+        endorsed_verifier->validity_period() == classical->validity_period());
+      CHECK_FALSE(endorsed_verifier->is_self_signed());
+      CHECK(endorsed_verifier->verify_certificate({&cert}, {}, true));
+      CHECK_FALSE(
+        endorsed_verifier->verify_certificate({&other_cert}, {}, true));
+      CHECK(endorsed_verifier->verify(message, node_key->sign(message)));
+      CHECK_FALSE(endorsed_verifier->verify(message, signature));
+      CHECK(has_subject_alt_name(endorsed));
+      {
+        const auto x509 = parse_cert(endorsed);
+        CHECK(X509_get_signature_nid(x509) == info.nid);
+        CHECK(X509_check_ca(x509) == 0);
+        CHECK(X509_verify(x509, native_public(key->public_key_der())) == 1);
+      }
+
+      // The issuer requests on behalf of a key it does not hold, as when
+      // re-endorsing a previous identity, so the request carries the
+      // issuer's signature instead of the subject's.
+      const auto reissue_csr =
+        key->create_csr("CN=Previous Service", {}, node_key->public_key_pem());
+      const auto reissued = key->sign_csr(
+        cert,
+        reissue_csr,
+        valid_from,
+        valid_to,
+        true,
+        MLDSAKeyPair::Signer::ISSUER);
+      CHECK(
+        make_verifier(reissued)->public_key_der() ==
+        node_key->public_key_der());
+      CHECK(get_subject_name(reissued) == "CN=Previous Service");
+      CHECK(make_verifier(reissued)->verify_certificate({&cert}, {}, true));
+      CHECK(X509_check_ca(parse_cert(reissued)) == 1);
+
+      // A request must carry the signature of the party named as its signer.
+      CHECK_THROWS_AS(
+        (void)key->sign_csr(cert, reissue_csr, valid_from, valid_to),
+        std::runtime_error);
+      CHECK_THROWS_AS(
+        (void)key->sign_csr(
+          cert, csr, valid_from, valid_to, false, MLDSAKeyPair::Signer::ISSUER),
+        std::runtime_error);
+      CHECK_THROWS_AS(
+        (void)key->sign_csr(cert, cert, valid_from, valid_to),
+        std::runtime_error);
+      ERR_clear_error();
+
+      CHECK_THROWS_AS(
+        (void)key->self_sign(subject, valid_to, valid_from), std::logic_error);
+      CHECK_THROWS_AS(
+        (void)key->self_sign(subject, "not a time", valid_to),
+        std::runtime_error);
+      CHECK_THROWS_AS(
+        (void)key->self_sign("NOTAFIELD=x", valid_from, valid_to),
+        std::runtime_error);
+      ERR_clear_error();
+
+      // A multi-RDN subject whose printed form cannot be parsed back is
+      // copied exactly when passed as DER, as when the PQ certificate takes
+      // the classical certificate's subject.
+      const auto multi_rdn = make_ec_key_pair()->self_sign(
+        "CN=CCF Service,O=CCF User", valid_from, valid_to);
+      const auto subject_der = make_verifier(multi_rdn)->subject_der();
+      CHECK_THROWS((void)key->self_sign(
+        get_subject_name(multi_rdn), valid_from, valid_to));
+      const auto copied = key->self_sign(subject_der, valid_from, valid_to);
+      CHECK(make_verifier(copied)->subject_der() == subject_der);
+      CHECK(make_verifier(copied)->subject() == get_subject_name(multi_rdn));
+      const auto copied_csr =
+        key->create_csr(subject_der, {}, node_key->public_key_pem());
+      CHECK(
+        make_verifier(key->sign_csr(
+                        cert,
+                        copied_csr,
+                        valid_from,
+                        valid_to,
+                        false,
+                        MLDSAKeyPair::Signer::ISSUER))
+          ->subject_der() == subject_der);
+      CHECK_THROWS_AS(
+        (void)key->create_csr(std::vector<uint8_t>{'n', 'o', 'p', 'e'}),
+        std::invalid_argument);
+      auto trailing_byte = subject_der;
+      trailing_byte.push_back(0);
+      CHECK_THROWS_AS(
+        (void)key->create_csr(trailing_byte), std::invalid_argument);
+      ERR_clear_error();
     }
   }
 }
