@@ -389,8 +389,8 @@ TEST_CASE("Certificate subject names are copied exactly from DER")
 
   // Out of order, repeated type, separator and escaped characters in values
   const std::vector<std::pair<std::string, std::string>> rdns = {
-    {"O", "Name Surname"},
-    {"CN", "Smith, John"},
+    {"O", "Org"},
+    {"CN", "Surname, Name"},
     {"OU", "https://a.b"},
     {"OU", "x+y"}};
   std::vector<uint8_t> subject_der;
@@ -413,7 +413,7 @@ TEST_CASE("Certificate subject names are copied exactly from DER")
     subject_der.assign(der, der + der_size);
   }
   const std::string printed =
-    "O=Name Surname, CN=Smith, John, OU=https:\\/\\/a.b, OU=x\\+y";
+    "O=Org, CN=Surname, Name, OU=https:\\/\\/a.b, OU=x\\+y";
 
   const auto kp = make_ec_key_pair();
   CHECK_THROWS((void)kp->create_csr(printed, {}));
