@@ -146,9 +146,6 @@ private def observeNodeState (header : Header) (node : String) (state : NodeStat
     : Except String Unit := do
   let self ← header.nodeId node
   let retirement := state.retirement self
-  let markers :=
-    (List.range' 1 state.log.length).filter
-      fun index => index > state.commitIndex && isSignatureAt state.log index
   let configurations :=
     (activeConfigurations state.log state.commitIndex).filterMap
       fun configuration =>
@@ -161,31 +158,17 @@ private def observeNodeState (header : Header) (node : String) (state : NodeStat
                 ("index", toJson configuration.index),
                 ("nodes", members header configuration.nodes)
               ])
-  let leaderActivePeerProgress :=
-    if state.role == .primary then
-      ((state.activeMembers.erase self).sort).map
-        fun peer =>
-          Json.mkObj
-            [
-              ("node", toJson (header.declared[peer]?.getD "")),
-              ("sentIndex", toJson (state.sentIndex peer)),
-              ("matchIndex", toJson (state.matchIndex peer))
-            ]
-    else
-      []
   let mut fields :=
     [
       ("role", toJson (roleName state.role)),
       ("currentTerm", toJson state.currentTerm),
       ("logLength", toJson state.log.length),
       ("commitIndex", toJson state.commitIndex),
-      ("committableIndices", toJson markers),
       ("configurations", toJson configurations),
       ("membershipState", toJson (membershipName retirement.phase)),
       ("retirementIndex", toJson retirement.index),
       ("retirementCommittableIndex", toJson retirement.committableIndex),
-      ("retiredCommittedIndex", toJson state.retiredCommittedIndex),
-      ("leaderActivePeerProgress", toJson leaderActivePeerProgress)
+      ("retiredCommittedIndex", toJson state.retiredCommittedIndex)
     ]
   if let some peer := peer then
     let peer ← header.nodeId peer

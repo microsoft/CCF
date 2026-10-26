@@ -328,22 +328,6 @@ class CaptureTests(unittest.TestCase):
 
     def test_writes_records_without_protocol_mapping(self):
         result, records = self.collect([0, 1])
-        for phase in ("pre", "post"):
-            records.append(
-                {
-                    "process_id": "one",
-                    "h_ts": len(records),
-                    "msg": {
-                        "function": "operation_boundary",
-                        "operation_id": 0,
-                        "operation": "periodic",
-                        "phase": phase,
-                        "state": {"node_id": "0"},
-                        "configurations": [],
-                        "peers": [],
-                    },
-                }
-            )
         with tempfile.TemporaryDirectory() as directory:
             output = pathlib.Path(directory) / "nested" / "trace.stdout"
             with patch("raft_trace.run_driver", return_value=(result, records)):
@@ -356,19 +340,18 @@ class CaptureTests(unittest.TestCase):
                 pathlib.Path(str(output) + ".driver.stdout").read_text(), result.stdout
             )
 
-    def test_legacy_adapter_omits_only_boundary_observations(self):
+    def test_legacy_adapter_preserves_callback_order(self):
         command = {"cmd": "periodic_one,0,10"}
-        boundary = {"function": "operation_boundary", "phase": "pre"}
         callback = {"function": "send_append_entries"}
         records = [
             {"process_id": "one", "h_ts": index, "msg": message}
-            for index, message in enumerate((command, boundary, callback))
+            for index, message in enumerate((command, callback))
         ]
         self.assertEqual(
             raft_trace.as_log_lines(records),
             [
                 {"tag": "raft_trace", **command},
-                {"tag": "raft_trace", "h_ts": "2", "msg": callback},
+                {"tag": "raft_trace", "h_ts": "1", "msg": callback},
             ],
         )
 

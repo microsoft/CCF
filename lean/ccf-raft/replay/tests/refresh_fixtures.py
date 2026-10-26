@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-"""Refresh positive fixtures from actual native captures, retaining raw endpoints."""
+"""Refresh positive fixtures from actual native event captures."""
 
 import argparse
 import hashlib
@@ -27,7 +27,7 @@ def main():
     args = parser.parse_args()
     args.evidence.mkdir(parents=True, exist_ok=False)
     args.output.mkdir(parents=True, exist_ok=True)
-    scenario = args.evidence / "boundaries.scenario"
+    scenario = args.evidence / "events.scenario"
     scenario.write_text(
         "start_node,0\n"
         "emit_signature,2\n"
@@ -41,7 +41,7 @@ def main():
         "state_all\n",
         encoding="utf-8",
     )
-    raw = args.evidence / "boundaries.stdout"
+    raw = args.evidence / "events.stdout"
     capture(args.driver, scenario, raw)
     lines = raw.read_text(encoding="utf-8").splitlines(keepends=True)
     records = [json.loads(line) for line in lines]

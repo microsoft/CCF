@@ -2664,31 +2664,6 @@ namespace aft
       return *state;
     }
 
-    void trace_operation_boundary(
-      uint64_t operation_id,
-      std::string_view operation,
-      std::string_view phase) const
-    {
-      if (!ccf::tracing::FluentdSink::is_configured())
-      {
-        return;
-      }
-      std::lock_guard<ccf::ds::Mutex> guard(state->lock);
-      std::vector<trace::PeerState> peers;
-      peers.reserve(all_other_nodes.size());
-      for (const auto& [node_id, peer] : all_other_nodes)
-      {
-        peers.push_back({node_id.value(), peer.sent_idx, peer.match_idx});
-      }
-      trace::operation_boundary(
-        BoundaryState{*state},
-        configurations,
-        peers,
-        operation_id,
-        operation,
-        phase);
-    }
-
   private:
     void nominate_successor_unsafe()
     {
