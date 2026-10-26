@@ -355,6 +355,7 @@ namespace ccf
     static void create_service(
       ccf::kv::Tx& tx,
       const ccf::crypto::Pem& service_cert,
+      const std::optional<ccf::crypto::Pem>& pq_service_cert,
       ccf::TxID create_txid,
       nlohmann::json service_data = nullptr,
       bool recovering = false)
@@ -415,12 +416,14 @@ namespace ccf
         ->put(IdentityType::CLASSICAL, signing_identity);
 
       const ServiceInfo service_info{
-        service_cert,
-        recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
-        prev_service_created_at,
-        recovery_count,
-        service_data,
-        create_txid};
+        .cert = service_cert,
+        .pq_cert = pq_service_cert,
+        .status =
+          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
+        .previous_service_identity_version = prev_service_created_at,
+        .recovery_count = recovery_count,
+        .service_data = service_data,
+        .current_service_create_txid = create_txid};
       service->put(service_info);
     }
 

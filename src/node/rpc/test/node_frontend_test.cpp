@@ -123,7 +123,8 @@ TEST_CASE("Node configuration retains operator file paths")
            {"recovery_role", MemberRecoveryRole::Owner}}}},
         {"constitution_files", {"not-loaded/first.js", "not-loaded/second.js"}},
         {"initial_service_certificate_validity_days", 7},
-        {"service_subject_name", "CN=Configured Service"}}},
+        {"service_subject_name", "CN=Configured Service"},
+        {"service_mldsa_parameter_set", "ML-DSA-87"}}},
       {"join",
        {{"target_rpc_address", "localhost:1234"},
         {"retry_timeout", "2s"},
@@ -135,7 +136,8 @@ TEST_CASE("Node configuration retains operator file paths")
         {"host_data_transparent_statement_path", "not-loaded/statement.cose"}}},
       {"recover",
        {{"previous_service_identity_file", "not-loaded/previous.pem"},
-        {"initial_service_certificate_validity_days", 13}}}}}};
+        {"initial_service_certificate_validity_days", 13},
+        {"service_mldsa_parameter_set", "ML-DSA-44"}}}}}};
 
   auto config = input.get<CCFConfig>();
   CHECK(config.command.type == StartType::Start);
@@ -147,6 +149,9 @@ TEST_CASE("Node configuration retains operator file paths")
     MemberRecoveryRole::Owner);
   CHECK(config.command.start.initial_service_certificate_validity_days == 7);
   CHECK(config.command.start.service_subject_name == "CN=Configured Service");
+  CHECK(
+    config.command.start.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_87);
   CHECK(config.snapshots.tx_count == 42);
   CHECK(config.memory.max_msg_size.count_bytes() == 128 * 1024 * 1024);
   CHECK(config.tick_interval.count_ms() == 25);
@@ -189,6 +194,9 @@ TEST_CASE("Node configuration retains operator file paths")
     config.command.recover.previous_service_identity_file ==
     "not-loaded/previous.pem");
   CHECK(config.command.recover.initial_service_certificate_validity_days == 13);
+  CHECK(
+    config.command.recover.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_44);
 
   const auto defaults = json{
     {"network", CCFConfig{}.network},
@@ -199,6 +207,12 @@ TEST_CASE("Node configuration retains operator file paths")
   CHECK(defaults.command.join.fetch_recent_snapshot);
   CHECK(
     defaults.command.recover.initial_service_certificate_validity_days == 1);
+  CHECK(
+    defaults.command.start.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_65);
+  CHECK(
+    defaults.command.recover.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_65);
 }
 
 TEST_CASE("Node configuration resolves ringbuffer-era limit aliases")
@@ -698,7 +712,7 @@ TEST_CASE("Add a node to an opening service")
   }
 
   InternalTablesAccess::create_service(
-    gen_tx, network.identity->cert, ccf::TxID{2, 1});
+    gen_tx, network.identity->cert, network.identity->pq_cert, ccf::TxID{2, 1});
   REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
 
@@ -847,7 +861,7 @@ TEST_CASE("Add a node to an open service")
     up_to_ledger_secret_seqno, make_ledger_secret());
 
   InternalTablesAccess::create_service(
-    gen_tx, network.identity->cert, ccf::TxID{2, 1});
+    gen_tx, network.identity->cert, network.identity->pq_cert, ccf::TxID{2, 1});
   InternalTablesAccess::init_configuration(gen_tx, {1});
   InternalTablesAccess::activate_member(
     gen_tx,
