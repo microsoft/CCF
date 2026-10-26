@@ -32,6 +32,8 @@ namespace ccf::crypto
   {
     using Unique_ASN1_INTEGER =
       Unique_SSL_OBJECT<ASN1_INTEGER, ASN1_INTEGER_new, ASN1_INTEGER_free>;
+    using Unique_X509_NAME =
+      Unique_SSL_OBJECT<X509_NAME, X509_NAME_new, X509_NAME_free>;
 
     std::map<std::string, std::string> parse_name(const std::string& name)
     {
@@ -45,6 +47,50 @@ namespace ccf::crypto
           std::string(value.data(), value.size()));
       }
       return result;
+    }
+
+    Unique_X509_NAME subject_name_from_string(const std::string& name)
+    {
+      Unique_X509_NAME subject_name;
+      for (const auto& [k, v] : parse_name(name))
+      {
+        CHECK1(X509_NAME_add_entry_by_txt(
+          subject_name,
+          k.c_str(),
+          MBSTRING_ASC,
+          reinterpret_cast<const unsigned char*>(v.data()),
+          v.size(),
+          -1,
+          0));
+      }
+      return subject_name;
+    }
+
+    Unique_X509_NAME subject_name_from_der(const std::vector<uint8_t>& der)
+    {
+      const unsigned char* p = der.data();
+      Unique_X509_NAME subject_name(
+        d2i_X509_NAME(nullptr, &p, static_cast<long>(der.size())),
+        X509_NAME_free,
+        /*check_null=*/false);
+      if (subject_name == nullptr)
+      {
+        throw std::invalid_argument(fmt::format(
+          "Subject name is not a DER-encoded X.501 Name: {}", first_error()));
+      }
+      if (p != der.data() + der.size())
+      {
+        throw std::invalid_argument(
+          "Subject name has trailing bytes after the DER-encoded X.501 Name");
+      }
+      return subject_name;
+    }
+
+    Pem csr_to_pem(X509_REQ* req)
+    {
+      Unique_BIO mem;
+      CHECK1(PEM_write_bio_X509_REQ(mem, req));
+      return Pem(bio_contents(mem));
     }
   }
 
@@ -217,7 +263,7 @@ namespace ccf::crypto
   }
 
   Unique_X509_REQ ECKeyPair_OpenSSL::create_req(
-    const std::string& subject_name,
+    const X509_NAME* subject_name,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::optional<Pem>& public_key) const
   {
@@ -234,23 +280,7 @@ namespace ccf::crypto
       OpenSSL::CHECK1(X509_REQ_set_pubkey(req, key));
     }
 
-    X509_NAME* subj_name = nullptr;
-    OpenSSL::CHECKNULL(subj_name = X509_NAME_new());
-
-    for (const auto& [k, v] : parse_name(subject_name))
-    {
-      OpenSSL::CHECK1(X509_NAME_add_entry_by_txt(
-        subj_name,
-        k.c_str(),
-        MBSTRING_ASC,
-        reinterpret_cast<const unsigned char*>(v.data()),
-        v.size(),
-        -1,
-        0));
-    }
-
-    OpenSSL::CHECK1(X509_REQ_set_subject_name(req, subj_name));
-    X509_NAME_free(subj_name);
+    OpenSSL::CHECK1(X509_REQ_set_subject_name(req, subject_name));
 
     if (!subject_alt_names.empty())
     {
@@ -280,15 +310,17 @@ namespace ccf::crypto
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::optional<Pem>& public_key) const
   {
-    Unique_X509_REQ req =
-      create_req(subject_name, subject_alt_names, public_key);
+    return csr_to_pem(create_req(
+      subject_name_from_string(subject_name), subject_alt_names, public_key));
+  }
 
-    Unique_BIO mem;
-    OpenSSL::CHECK1(PEM_write_bio_X509_REQ(mem, req));
-
-    BUF_MEM* bptr = nullptr;
-    BIO_get_mem_ptr(mem, &bptr);
-    return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
+  Pem ECKeyPair_OpenSSL::create_csr(
+    const std::vector<uint8_t>& subject_name_der,
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::optional<Pem>& public_key) const
+  {
+    return csr_to_pem(create_req(
+      subject_name_from_der(subject_name_der), subject_alt_names, public_key));
   }
 
   std::vector<uint8_t> ECKeyPair_OpenSSL::create_csr_der(
@@ -296,8 +328,8 @@ namespace ccf::crypto
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::optional<Pem>& public_key) const
   {
-    Unique_X509_REQ req =
-      create_req(subject_name, subject_alt_names, public_key);
+    Unique_X509_REQ req = create_req(
+      subject_name_from_string(subject_name), subject_alt_names, public_key);
 
     Unique_BIO mem;
     CHECK1(i2d_X509_REQ_bio(mem, req));
