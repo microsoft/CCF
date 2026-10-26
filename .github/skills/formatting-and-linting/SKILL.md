@@ -53,6 +53,8 @@ Run it with `./scripts/clang-tidier.py -p build`; use `--all` for a full scan an
 
 The Lean formatting check runs in `.github/workflows/lean.yml`, not `scripts/ci-checks.sh`.
 It requires elan and the package's Lean toolchain.
+It checks the disaster-recovery, ccf-raft, and consistency packages by default; pass package names to select checks.
+Each package uses its own Lake environment; the disaster-recovery selection also includes tracked Lean files outside the other model packages.
 See [Lean formatting setup](../../../lean/disaster-recovery/README.md#formatting).
 
 The ASCII check includes Rust and TLA+, but exempts Lean source files (`*.lean`) and excludes `3rdparty/`. Vendored third-party dependencies are exempt from the authoring policy; preserve their upstream contents. In checked files, existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.
