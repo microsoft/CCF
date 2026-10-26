@@ -283,6 +283,14 @@ namespace ccf::crypto
     return {bptr->data, bptr->length};
   }
 
+  std::vector<uint8_t> Verifier_OpenSSL::subject_der() const
+  {
+    const unsigned char* der = nullptr;
+    size_t der_size = 0;
+    CHECK1(X509_NAME_get0_der(X509_get_subject_name(cert), &der, &der_size));
+    return {der, der + der_size};
+  }
+
   size_t Verifier_OpenSSL::remaining_seconds(
     const ccf::nonstd::SystemClock::time_point& now) const
   {

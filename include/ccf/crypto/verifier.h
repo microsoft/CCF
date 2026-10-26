@@ -165,6 +165,9 @@ namespace ccf::crypto
 
     /** The subject name of the certificate */
     [[nodiscard]] virtual std::string subject() const = 0;
+
+    /** The DER-encoded subject name of the certificate */
+    [[nodiscard]] virtual std::vector<uint8_t> subject_der() const = 0;
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;
