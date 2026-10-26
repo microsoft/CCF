@@ -99,6 +99,7 @@ Events must match the expected node and protocol fields; grouping does not depen
 An unmatched or malformed Event still rejects the complete trace through the leftover-Event check rather than disappearing.
 When a speculative pattern consumed Events before failing, its farthest diagnostic survives rollback and is reported if no successful interpretation reaches that position.
 Each grammar names its local recognizers with `let subrule := event "event_name" fun e => ...`, auditing only that event with `checked` and `read`.
+`checked` establishes grouping, supported native phases or action-construction constraints; model compatibility belongs in observations emitted by the rule.
 Its consumption phase binds ordinary values in trace order; its emission phase explicitly produces actions and observations from that evidence.
 Larger content-preparation and subgrammar blocks are defined locally in the rule header, keeping the consumption section focused on sequencing.
 Shared commit, promotion and election evidence has parse-only grammars and separate emission helpers, so optional or repeated recognizers never emit instructions while matching.
@@ -107,7 +108,8 @@ Each rule explicitly emits its head Event's pre-action observation with a rule-s
 There is no trailing observation or invented snapshot at end of input.
 The state-threading `many` bridge attempts each repeated pattern and accumulates instructions directly, without reparsing individual chunks or flattening separately initialized output batches.
 The same common combinators handle optional rules and repetitions; each repeated grammar must consume an event before succeeding.
-Leadership-heartbeat recognition checks packet coordinates and promotion term, consumes at most one send per distinct destination, and requires coverage of the active peers.
+Leadership-heartbeat recognition checks empty-packet coordinates and consumes at most one send per distinct destination, without requiring coverage of every active peer.
+State and packet observations check the term and destination during replay.
 Retired peers can also receive promotion heartbeats even though they are absent from active configurations.
 A subsequent send to an already observed destination remains available as an ordinary send action.
 The declared population bounds the loop; no driver-command fence is used.
@@ -146,7 +148,7 @@ The named operation rules consume every event:
 | `replicate`                                                       | One nonempty `append`, with its configuration hooks, new-peer heartbeats and internal commit                    |
 | `send_append_entries` outside a event group                       | `sendEntries(destination, endIndex)`; check the recorded `sent_idx` against `prev_idx`                          |
 | `recv_*`                                                          | FIFO delivery, with term adoption, synchronous promotions, commits and response observations in the same action |
-| `become_candidate`, `become_pre_vote_candidate` outside a receive | Election timeout with nested self-quorum promotions, complete ordered request loop and leadership heartbeats    |
+| `become_candidate`, `become_pre_vote_candidate` outside a receive | Election timeout with nested self-quorum promotions, request observations and leadership heartbeats             |
 | `become_follower` outside a receive                               | Check-quorum timeout                                                                                            |
 | `step_down_and_nominate_successor` outside a commit               | Nullary `nominateSuccessor`, only under a `nominate_successor` command; observe the model-chosen destination    |
 | `drop_pending_to`                                                 | Check and exclude one FIFO queue-head occurrence without stepping the model                                     |
@@ -165,6 +167,9 @@ The model and its guards are unchanged.
 `RaftDriver::_replicate` in `src/consensus/aft/test/driver.h` passes a singleton `BatchVector`, so each `replicate` event is one append action.
 A globally committable entry is a signature; another entry is a transaction identified by its source `file:line`.
 Configuration events supply the optional configuration metadata, and `cleanup_nodes` supplies its retired-committed node set.
+Configuration/write pairing checks the index and transaction kind; the configuration snapshot is observed before the append, rather than compared to another raw snapshot during reduction.
+The append's recorded `seqno` and `view` are observed as the resulting model log length and term.
+Retirement-confirmation names resolve to a model set, so duplicates and an empty set need no separate input restriction.
 The preloaded bootstrap configuration has the empty transaction identifier.
 Model node IDs are lexical ordinals in the distinct sorted declared-name list, never numeric interpretations of textual names.
 The initial membership contains the bootstrap node's ordinal; its minimum starts as primary even when earlier lexical nodes exist elsewhere in the population.
@@ -202,6 +207,7 @@ Replay still executes this as one model delivery and checks event evidence again
 The model's `noRetirementObserved` membership phase maps to the trace's `active` label, including declared nodes that have not yet joined.
 
 New-peer configuration heartbeats belong to the append and use the constructor's next-index sentinel, one past the model's sent frontier.
+The rule consumes the constructor heartbeats that are present, without requiring one for every new peer.
 Ordinary sends do not use this adjustment.
 Vote and pre-vote responses share `send_request_vote_response`; `packet.msg` distinguishes them, and each supplied response snapshot and packet is checked after its receive.
 `become_follower` is an optional internal adoption event, not an additional model state or a conditionally selected endpoint.
@@ -218,8 +224,8 @@ Its configuration cache must equal the checked pre-pruning commit cache.
 The model selects the maximum acknowledged index, latest containing active configuration index, then lexical node ID; `"2"` ranks above `"10"`.
 
 The leader commit snapshot records the old frontier, not the post-commit state.
-The commit rule checks its old `commitIndex` against the already-parsed action head and requires an advancing target.
-It emits an observation using `observeBeforeCommit` after the action, comparing the recorded post-append log and its retirement/configuration projections at that checked old frontier, including the old confirmation coordinate.
+The commit rule takes the old frontier from the already-parsed action head.
+Its `observeBeforeCommit` observation checks the recorded frontier, post-append log and retirement/configuration projections after the action, including the old confirmation coordinate.
 This read-only view uses the final log, the old frontier, and confirmation transactions in that committed prefix; it does not execute an intermediate action or modify model state.
 The role is checked at its named leader phase rather than compared to a potentially cleared final role.
 The commit target must advance the old frontier and equal the model effect, but is not presented as a native post-state observation.
@@ -248,6 +254,7 @@ An unavailable or mismatching head fails when replay executes the action; there 
 A drop excludes exactly one occurrence from future observations and deliveries, but leaves it undelivered in the model network.
 Equal envelopes retain their multiplicity.
 Explicit driver drops still check and exclude the queue head for that directed pair.
+Sender consistency is a rule-local observation, not a condition for recognizing a drop event.
 
 If different full model envelopes have identical recorded fields, FIFO determines which actual payload is delivered; no uniqueness or ambiguity check is needed.
 Successful replay witnesses a compatible execution under this policy.
@@ -259,6 +266,9 @@ An unreceived head blocks later receives on that pair unless an explicit drop ex
 Send telemetry is deliberately **not** required to enumerate every model emission exactly once.
 A send observation checks compatibility with the latest pending packet for its endpoints; it neither creates nor consumes a packet.
 Repeated observations may check the same occurrence, unobserved emissions may remain pending between actions or at EOF, and omitted optional response-send telemetry does not itself fail replay.
+Election vote/pre-vote requests and new-peer constructor heartbeat observations may be omitted, repeated or reordered; reduction does not compare their destinations to a complete ordered peer list.
+Promotion heartbeat coverage is also optional; a repeated destination still ends that group so a later independent send is not swallowed as an observation.
+Each observed send must still match a model-generated packet during replay.
 Actual delivery still requires a live compatible model packet and an enabled transition.
 This relaxation checks observations and delivery feasibility, not completeness or exactly-once correspondence of implementation sends.
 It does not relax record parsing, source event ordering, action guards or state observations.
@@ -275,6 +285,7 @@ Only synthetic protocol splices in the regression tests receive new contiguous s
 The historical negative `terminal_retirement.stdout` remains unchanged and explicitly tests unsupported mixed-console input.
 Receive regressions reject a later heartbeat while an earlier data packet remains pending, check head selection when distinct payloads have identical headers, and preserve equal-copy multiplicity and explicit drops.
 Focused cases cover the relaxed send-telemetry semantics, transaction metadata, undeclared metadata members, rejected duplicate configuration events and preservation of recorded cache evidence.
+Corrupted append coordinates, configuration snapshots, commit frontiers, send coordinates and drop senders are accepted by their grammars where grouping remains valid, then rejected by replay observations.
 Typed raw event mutations cover observed state and timeout-phase fields.
 Positive cases deliberately change unused internal candidate, follower-adoption and execution/configuration/commit details.
 Emission tests require receive actions to precede their event observations, retain only their head origin, and omit redundant incoming-packet matching observations.

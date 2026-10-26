@@ -372,9 +372,14 @@ private def reductionTests : IO Nat := do
         function row == "replicate"
         && optional (row.value.getObjValD "msg") "seqno" == some (toJson (3 : Nat)))
   | throw (IO.userError "missing post-bootstrap append")
-  for (path, value)
-      in [(["msg", "seqno"], toJson (4 : Nat)), (["msg", "view"], toJson (3 : Nat))] do
-    rejects (reduce (mutate startup write path value)) "write coordinates"
+  for (path, value, diagnostic)
+      in [
+        (["msg", "seqno"], toJson (0 : Nat), "logLength"),
+        (["msg", "seqno"], toJson (4 : Nat), "logLength"),
+        (["msg", "view"], toJson (3 : Nat), "currentTerm")
+      ] do
+    let reduced ← ok (reduce (mutate startup write path value))
+    rejects (replay reduced.header reduced.instructions) diagnostic
     count := count + 1
   for key in ["seqno", "view", "globally_committable"] do
     let message ← ok (object (startup[write]!.value.getObjValD "msg"))
@@ -398,6 +403,13 @@ private def reductionTests : IO Nat := do
       "ungrouped event"
     count := count + 1
   let commit ← find bootstrap "commit"
+  for (path, value)
+      in [
+        (["msg", "state", "commit_idx"], toJson (1 : Nat)),
+        (["msg", "idx"], toJson (0 : Nat))
+      ] do
+    let reduced ← ok (reduce (mutate bootstrap commit path value))
+    rejects (replay reduced.header reduced.instructions) "commitIndex"
   for (path, value, diagnostic)
       in [
         (["msg", "idx"], toJson (3 : Nat), "commit-target"),
@@ -435,24 +447,30 @@ private def reductionTests : IO Nat := do
               (bootstrap ++ mutate config index ["msg", "state", "unused"] (.bool true))))
         == configuredResult)
       "unused paired state metadata changed replay"
-  for (key, value)
+  for (key, value, diagnostic)
       in [
-        ("current_view", toJson (999 : Nat)),
-        ("last_idx", toJson (999 : Nat)),
-        ("commit_idx", toJson (999 : Nat)),
-        ("leadership_state", toJson "Candidate"),
-        ("committable_indices", toJson [1])
+        ("current_view", toJson (999 : Nat), "currentTerm"),
+        ("last_idx", toJson (999 : Nat), "logLength"),
+        ("commit_idx", toJson (999 : Nat), "commitIndex"),
+        ("leadership_state", toJson "Candidate", "role"),
+        ("committable_indices", toJson [1], "signature-marker")
       ] do
-    rejects (reduce (bootstrap ++ mutate config configIndex ["msg", "state", key] value))
-      "configuration write pair mismatch"
+    let reduced ←
+      ok (reduce (bootstrap ++ mutate config configIndex ["msg", "state", key] value))
+    rejects (replay reduced.header reduced.instructions) diagnostic
   let heartbeat ← find config "send_append_entries"
-  rejects (reduce (bootstrap ++ erase config heartbeat)) "expected send_append_entries"
-  rejects
-    (reduce (bootstrap ++ mutate config heartbeat ["msg", "to_node_id"] (toJson "0")))
-    "destinations differ"
-  rejects
-    (reduce (bootstrap ++ mutate config heartbeat ["msg", "sent_idx"] (toJson (2 : Nat))))
-    "event heartbeat"
+  check
+    ((← ok (replayRecords (bootstrap ++ erase config heartbeat))).actions
+      == configuredResult.actions)
+    "omitted constructor heartbeat changed model actions"
+  let wrongDestination ←
+    ok (reduce (bootstrap ++ mutate config heartbeat ["msg", "to_node_id"] (toJson "0")))
+  rejects (replay wrongDestination.header wrongDestination.instructions) "sentIndex"
+  let wrongSentinel ←
+    ok
+      (reduce
+        (bootstrap ++ mutate config heartbeat ["msg", "sent_idx"] (toJson (2 : Nat))))
+  rejects (replay wrongSentinel.header wrongSentinel.instructions) "logLength"
   let duplicated :=
     config.extract 0 (heartbeat + 1)
     ++ #[config[configIndex]!]
@@ -470,7 +488,9 @@ private def reductionTests : IO Nat := do
                   (((object (row.value.getObjValD "msg")).toOption.getD []).filter
                     (·.1 != "configurations"))))
         }
-  rejects (reduce (bootstrap ++ missing)) "configurations: property not found"
+  check
+    ((← ok (replayRecords (bootstrap ++ missing))).actions == configuredResult.actions)
+    "omitted configuration cache changed model actions"
   let missingPrefix := configured ++ (← fixture "missing_prefix_response.ndjson")
   let prefixReduction ← ok (reduce missingPrefix)
   let _ ← ok (replay prefixReduction.header prefixReduction.instructions)
@@ -502,7 +522,31 @@ private def reductionTests : IO Nat := do
               }
           | _ => envelope
     rejects (observe { current with state := { current.state with network } }) diagnostic
-  let drop ← ok (reduce (← fixture "drop_resend.ndjson"))
+  let dropRecords ← fixture "drop_resend.ndjson"
+  let drop ← ok (reduce dropRecords)
+  let dropIndex ← find dropRecords "drop_pending_to"
+  let wrongSender ←
+    ok (reduce (mutate dropRecords dropIndex ["msg", "from_node_id"] (toJson "1")))
+  rejects (replay wrongSender.header wrongSender.instructions) "drop sender mismatch"
+  let some ordinarySend :=
+    drop.instructions.find?
+      fun instruction =>
+        match instruction with
+        | .action (.local _ (.sendEntries ..)) _ => true
+        | _ => false
+  | throw (IO.userError "missing standalone send")
+  let some send :=
+    dropRecords.findIdx?
+      fun row =>
+        row.file == ordinarySend.origin.file && row.line == ordinarySend.origin.line
+  | throw (IO.userError "missing standalone send record")
+  for (path, diagnostic)
+      in [
+        (["msg", "packet", "prev_idx"], "prev_idx"),
+        (["msg", "sent_idx"], "sentIndex")
+      ] do
+    let reduced ← ok (reduce (mutate dropRecords send path (toJson (999 : Nat))))
+    rejects (replay reduced.header reduced.instructions) diagnostic
   let actions :=
     drop.instructions.toList.filterMap
       fun instruction =>
@@ -530,11 +574,12 @@ private def parsecReductionTests : IO Unit := do
       == ["append", "append", "append"])
     "operation alternatives lost or duplicated append instructions"
   let heartbeat ← find config "send_append_entries"
-  rejects (reduce (bootstrap ++ erase config heartbeat)) "expected send_append_entries"
-  rejects
-    (reduce
-      (bootstrap ++ mutate config heartbeat ["msg", "sent_idx"] (toJson (999 : Nat))))
-    "event heartbeat"
+  let _ ← ok (replayRecords (bootstrap ++ erase config heartbeat))
+  let wrongSentinel ←
+    ok
+      (reduce
+        (bootstrap ++ mutate config heartbeat ["msg", "sent_idx"] (toJson (999 : Nat))))
+  rejects (replay wrongSentinel.header wrongSentinel.instructions) "logLength"
   let source := config[← find config "add_configuration"]!
   let message :=
     Json.mkObj
@@ -600,6 +645,86 @@ private def receiveGrammarTests : IO Unit := do
   rejects (reduce (mutate votes response ["msg", "packet"] packet))
     "vote response does not match request"
 
+private def sendObservationTests : IO Unit := do
+  let records ← fixture "vote_responses.ndjson"
+  let baseline ← ok (replayRecords records)
+  let heartbeat ← find records "send_append_entries"
+  check
+    (function records[heartbeat - 1]! == "add_configuration"
+      && function records[heartbeat + 1]! == "send_append_entries")
+    "fixture needs two constructor heartbeats"
+  for changed
+      in [
+        erase records heartbeat,
+        resequence
+          (records.extract 0 heartbeat ++ records.extract (heartbeat + 2) records.size),
+        resequence
+          (records.set! heartbeat records[heartbeat + 1]!
+            |>.set! (heartbeat + 1) records[heartbeat]!),
+        resequence
+          (records.extract 0 heartbeat
+            ++ #[records[heartbeat]!]
+            ++ records.extract heartbeat records.size)
+      ] do
+    check ((← ok (replayRecords changed)).actions == baseline.actions)
+      "constructor heartbeat observations changed model actions"
+  for family in ["raft_request_pre_vote", "raft_request_vote"] do
+    let isRequest (record : Record) :=
+      function record == "send_request_vote"
+      && optional ((record.value.getObjValD "msg").getObjValD "packet") "msg"
+          == some (toJson family)
+    let some index := records.findIdx? isRequest
+    | throw (IO.userError s!"missing {family}")
+    check (isRequest records[index + 1]!) "election fixture needs adjacent requests"
+    for changed
+        in [
+          erase records index,
+          resequence
+            (records.extract 0 index ++ records.extract (index + 2) records.size),
+          resequence
+            (records.set! index records[index + 1]! |>.set! (index + 1) records[index]!),
+          resequence
+            (records.extract 0 index
+              ++ #[records[index]!]
+              ++ records.extract index records.size)
+        ] do
+      let result ← ok (replayRecords changed)
+      check (result.actions == baseline.actions)
+        "election send observations changed model actions"
+    let source ←
+      ok (field (records[index]!.value.getObjValD "msg") "state" >>= (string · "node_id"))
+    for (path, value, diagnostic)
+        in [
+          (["msg", "to_node_id"], toJson source, "no pending packet"),
+          (["msg", "packet", "term"], toJson (999 : Nat), "term")
+        ] do
+      let reduced ← ok (reduce (mutate records index path value))
+      rejects (replay reduced.header reduced.instructions) diagnostic
+
+private def retirementNodeSetTests : IO Unit := do
+  let records ← fixture "self_quorum.stdout"
+  let baseline ← ok (replayRecords records)
+  let some cleanup :=
+    records.findIdx?
+      fun row =>
+        ((row.value.getObjValD "msg").getObjValD "cmd").getStr?.toOption
+        |>.any (·.startsWith "cleanup_nodes,")
+  | throw (IO.userError "missing retirement confirmation command")
+  let command ← ok (field records[cleanup]!.value "msg" >>= (string · "cmd"))
+  let some node := (command.splitOn ",").getLast?
+  | throw (IO.userError "missing retirement node")
+  let duplicate := mutate records cleanup ["msg", "cmd"] (toJson s!"{command},{node}")
+  check ((← ok (replayRecords duplicate)) == baseline)
+    "duplicate retirement node changed its model set"
+  check (function records[cleanup + 1]! == "replicate")
+    "retirement command must precede its append"
+  let throughAppend := records.extract 0 (cleanup + 2)
+  let empty := String.intercalate "," ((command.splitOn ",").take 2)
+  let empty ← ok (reduce (mutate throughAppend cleanup ["msg", "cmd"] (toJson empty)))
+  let _ ← ok (replay empty.header empty.instructions)
+  rejects (reduce (mutate throughAppend cleanup ["msg", "cmd"] (toJson s!"{command},")))
+    "undeclared"
+
 private def speculativeGrammarTests : IO Unit := do
   let votes ← fixture "vote_responses.ndjson"
   let some promotion :=
@@ -618,6 +743,12 @@ private def speculativeGrammarTests : IO Unit := do
   let endOfPromotion := promotion + 1 + peers.length
   let promotionRecords := votes.extract 0 endOfPromotion
   let baseline ← ok (reduce promotionRecords)
+  let changedTerm ←
+    ok
+      (reduce
+        (mutate promotionRecords (promotion + 1)
+          ["msg", "state", "current_view"] (toJson (999 : Nat))))
+  rejects (replay changedTerm.header changedTerm.instructions) "currentTerm"
   let periodic := { votes[promotion + 1]! with file := "periodic.ndjson", line := 1 }
   let extended :=
     resequence (promotionRecords ++ #[command "periodic_one,1,10", periodic])
@@ -631,14 +762,26 @@ private def speculativeGrammarTests : IO Unit := do
   check ((sends reduced).size == (sends baseline).size + 1)
     "promotion consumed the following periodic heartbeat"
   let _ ← ok (replayRecords extended)
-  rejects (reduce (promotionRecords.extract 0 (endOfPromotion - 1)))
-    "missing active-peer leadership heartbeat"
+  let baselineResult ← ok (replay baseline.header baseline.instructions)
+  for endOfGroup in [promotion + 1, endOfPromotion - 1] do
+    check
+      ((← ok (replayRecords (promotionRecords.extract 0 endOfGroup))).actions
+        == baselineResult.actions)
+      "omitted promotion heartbeat changed model actions"
+  let selfHeartbeat ←
+    ok
+      (reduce
+        (mutate promotionRecords (promotion + 1) ["msg", "to_node_id"] (toJson "1")))
+  rejects (replay selfHeartbeat.header selfHeartbeat.instructions) "no pending packet"
   let destination ← ok (string (periodic.value.getObjValD "msg") "to_node_id")
-  rejects
-    (reduce
-      (mutate promotionRecords (endOfPromotion - 1) ["msg", "to_node_id"]
-        (toJson destination)))
-    "duplicate leadership heartbeat destination"
+  let duplicate ←
+    ok
+      (reduce
+        (mutate promotionRecords (endOfPromotion - 1) ["msg", "to_node_id"]
+          (toJson destination)))
+  check ((sends duplicate).size == (sends baseline).size + 1)
+    "duplicate promotion destination did not become a standalone send"
+  let _ ← ok (replay duplicate.header duplicate.instructions)
   let retired ← fixture "self_quorum.stdout"
   let some promotion :=
     retired.findIdx?
@@ -865,9 +1008,9 @@ private def fixtureMutations : IO Nat := do
     reduced.instructions.find?
       (fun instruction =>
         match instruction with
-        | .observe _ origin => origin.rule == "event-configuration"
+        | .observe _ origin => origin.rule == "configuration-pre"
         | _ => false)
-  | throw (IO.userError "missing event configuration coverage")
+  | throw (IO.userError "missing configuration snapshot coverage")
   let origin := cache.origin
   let some index := terminal.findIdx? (fun row => row.line == origin.line)
   | throw (IO.userError "missing event configuration raw record")
@@ -881,7 +1024,7 @@ private def fixtureMutations : IO Nat := do
         value.setObjVal! "nodes"
           (Json.mkObj [("unexpected-node", Json.mkObj [("address", toJson ":")])]))
   rejects (replayRecords (mutate terminal index ["msg", "configurations"] (.arr mutated)))
-    "event-configuration"
+    "configuration-pre"
   let startup ← fixture "startup.ndjson"
   let some write :=
     startup.findIdx?
@@ -951,7 +1094,7 @@ private def emissionTests : IO Unit := do
   for (name, key, value, diagnostic)
       in [
         ("send_append_entries", "term", .bool true, "term"),
-        ("send_append_entries", "idx", toJson (999 : Nat), "event heartbeat"),
+        ("send_append_entries", "idx", toJson (999 : Nat), "logLength"),
         ("send_append_entries_response", "success", .arr #[], "success")
       ] do
     let index ← find records name
@@ -1629,6 +1772,8 @@ def main : IO UInt32 := do
   parsecInfrastructureTests
   parsecReductionTests
   receiveGrammarTests
+  sendObservationTests
+  retirementNodeSetTests
   speculativeGrammarTests
   emissionTests
   let _ ← fixtureMutations

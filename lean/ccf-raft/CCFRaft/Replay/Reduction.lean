@@ -90,7 +90,6 @@ private def emitObserve (event : Event) (rule : String)
   let facts ← read event (object (properties.getD event.facts))
   let fields := facts.filter fun (key, _) => !exclusions.contains key
   let state := fields.filter (·.1 != "committableIndices")
-  checked event (!state.isEmpty) s!"{rule} has no state properties to observe"
   let origin := event.origin rule
   if let some frontier := frontier then
     checked event peer.isNone "pre-commit observation cannot select a peer"
@@ -201,11 +200,7 @@ private def ruleLeaderCommit (anchor : Event) : Reduction LeaderCommit :=
         checked e ((← read e (string e.state "leadership_state")) == "Leader")
           "internal commit outside leadership"
         let previous ← read anchor (nat anchor.facts "commitIndex")
-        checked e (optional e.facts "commitIndex" == some (toJson previous))
-          "commitIndex differs from anchored pre-frontier"
         let target ← read e (nat e.message "idx")
-        checked e (previous < target)
-          "commitIndex target does not advance the pre-frontier"
         return (e, previous, target)
   do
     let (e, previous, target) ← commit
@@ -229,47 +224,27 @@ private def activePeers (event : Event) : Reduction (List String) := do
   return (nodes.flatten.eraseDups.filter (· != event.node)).mergeSort
 
 /-- Consumes:
-send_append_entries, with an empty packet at the local log frontier
--/
-private def leaderHeartbeat (anchor : Event) : Reduction (Event × String) :=
-  event "send_append_entries" (source := some anchor)
-    fun e => do
-      let packet ← read e (field e.message "packet")
-      let previous ← read e (nat packet "prev_idx")
-      let last ← read e (nat e.state "last_idx")
-      checked e (previous == last && (← read e (nat packet "idx")) == last)
-        "not a leadership heartbeat"
-      checked e
-        (optional e.state "current_view" == optional anchor.state "current_view")
-        "leadership heartbeat term differs from promotion"
-      let destination ← read e (string e.message "to_node_id")
-      checked e (destination != e.node) "leadership heartbeat targets self"
-      return (e, destination)
-
-/-- Consumes:
 send_request_vote, with the requested vote or pre-vote packet family
 -/
-private def voteRequest (head : Event) (family : String) : Reduction (Event × String) :=
+private def voteRequest (head : Event) (family : String) : Reduction Event :=
   let request :=
     event "send_request_vote" (source := some head)
       fun e => do
         let packet ← read e (field e.message "packet")
         checked e ((← read e (string packet "msg")) == family) "wrong vote request packet"
-        return (e, ← read e (string e.message "to_node_id"))
+        return e
   request
 
 /-- Consumes:
-send_request_vote*, requiring destinations to equal the other active members
+send_request_vote*, with the requested vote or pre-vote packet family
 -/
 private def electionRequests (head : Event) (family : String) (selfQuorum : Bool)
     : Reduction (List Event) := do
   let requests ← many (voteRequest head family)
-  let destinations := requests.map (·.2)
-  let others ← activePeers head
-  checked head (destinations == others) "vote requests differ from other active members"
-  checked head (!selfQuorum || others.isEmpty)
-    "self-quorum promotion with other active members"
-  return requests.map (·.1)
+  if selfQuorum then
+    checked head (← activePeers head).isEmpty
+      "self-quorum promotion with other active members"
+  return requests
 
 private structure Leadership where
   event : Event
@@ -279,7 +254,7 @@ private structure Leadership where
 /-- Consumes:
 become_leader
 (ruleLeaderCommit)?
-send_append_entries*, with distinct destinations covering all active peers
+send_append_entries*, with distinct destinations
 The next send to an already observed destination is left for a later rule.
 -/
 private def ruleBecomeLeader (anchor : Event) : Reduction Leadership :=
@@ -289,25 +264,31 @@ private def ruleBecomeLeader (anchor : Event) : Reduction Leadership :=
         checked e (optional e.facts "role" == some (toJson "leader"))
           "promotion role must be leader"
         return e
+  let heartbeat (leader : Event) :=
+    event "send_append_entries" (source := some leader)
+      fun e => do
+        let packet ← read e (field e.message "packet")
+        let previous ← read e (nat packet "prev_idx")
+        let last ← read e (nat e.state "last_idx")
+        checked e (previous == last && (← read e (nat packet "idx")) == last)
+          "not a leadership heartbeat"
+        let destination ← read e (string e.message "to_node_id")
+        return (e, destination)
   do
     let leader ← promotion
     let commit ← optionalRule (ruleLeaderCommit anchor)
-    let peers ← activePeers leader
     -- Native peers also include retired nodes absent from the active configurations.
     let mut heartbeats : List (Event × String) := []
     for _ in (← get).header.declared do
       let seen := heartbeats.map (·.2)
       let next ←
         optionalRule do
-          let (event, destination) ← leaderHeartbeat leader
+          let (event, destination) ← heartbeat leader
           checked event (!seen.contains destination)
             "duplicate leadership heartbeat destination"
           return (event, destination)
       let some next := next | break
       heartbeats := heartbeats ++ [next]
-    let destinations := heartbeats.map (·.2)
-    checked leader (peers.all destinations.contains)
-      "missing active-peer leadership heartbeat"
     return { event := leader, commit, heartbeats := heartbeats.map (·.1) }
 
 private structure Election where
@@ -317,7 +298,7 @@ private structure Election where
 /-- Consumes:
 become_candidate
 (ruleBecomeLeader)? -- for self quorum
-send_request_vote*, with vote packets for the other active members
+send_request_vote*, with vote packets
 -/
 private def becomeCandidate (anchor : Event) : Reduction Election :=
   let candidate :=
@@ -416,28 +397,16 @@ private def ruleBootstrap : Reduction String :=
 /-- Consumes the driver's singleton BatchVector and its synchronous effects:
 replicate
 (add_configuration)?
-send_append_entries, once per new peer if the configuration adds peers
+send_append_entries*, for observed new-peer constructor heartbeats
 (ruleLeaderCommit)? -- possibly including retirement nomination
 -/
 private def ruleAppend : Reduction Unit :=
-  let write :=
-    event "replicate"
-      fun e => do
-        checked e
-          ((← read e (nat e.message "seqno")) == (← read e (nat e.state "last_idx")) + 1
-            && (← read e (nat e.message "view"))
-                == (← read e (nat e.state "current_view")))
-          "write coordinates differ from the recorded state"
-        return e
+  let write := event "replicate" fun e => pure e
   let configuration (write : Event) :=
     event "add_configuration" (source := some write)
       fun e => do
-        let state ← read e (stateFacts e.state (Json.mkObj []))
-        let before ← read write (stateFacts write.state (Json.mkObj []))
         checked e
-          (state == before
-            && (← read e (nat e.message "idx"))
-                == (← read write (nat write.message "seqno"))
+          ((← read e (nat e.message "idx")) == (← read write (nat write.message "seqno"))
             && !(← read write (boolean write.message "globally_committable")))
           "configuration write pair mismatch"
         let nodes ← read e (configuration e.message)
@@ -449,9 +418,6 @@ private def ruleAppend : Reduction Unit :=
       pure EntryContent.signature
     else if command.startsWith "cleanup_nodes," then do
       let nodes := command.splitOn "," |>.drop 2
-      checked write
-        (!nodes.isEmpty && nodes.all (!·.isEmpty) && nodes.eraseDups == nodes)
-        "invalid retirement node set"
       checked write metadata.configuration.isNone
         "cleanup_nodes with configuration metadata"
       pure
@@ -477,13 +443,6 @@ private def ruleAppend : Reduction Unit :=
           ← read e (nat e.message "sent_idx"),
           ← read e (nat e.message "match_idx")
         )
-  let newPeerHeartbeats (write config : Event) (nodes : List String) := do
-    let previous ← activePeers config
-    let added := nodes.filter fun node => node != write.node && !previous.contains node
-    let heartbeats ← added.mapM fun _ => heartbeat write
-    checked config ((heartbeats.map (·.2.1)).mergeSort == added.mergeSort)
-      "new-peer configuration event destinations differ"
-    pure heartbeats
   do
     -- Consumption
     let writeEvent ← write
@@ -494,15 +453,23 @@ private def ruleAppend : Reduction Unit :=
     let heartbeats ←
       match configurationEvent with
       | none => pure []
-      | some (config, _, nodes, _) => newPeerHeartbeats writeEvent config nodes
+      | some _ => many (heartbeat writeEvent)
     let commit ← optionalRule (ruleLeaderCommit writeEvent)
     -- Emission
     emitObserve writeEvent "write-pre"
+    if let some (config, _, _, _) := configurationEvent then
+      emitObserve config "configuration-pre"
     emitAction writeEvent "atomic-append" (.local writeEvent.node (.append [content]))
+    emitObserve writeEvent "write-post"
+      (some
+        (Json.mkObj
+          [
+            ("logLength", ← read writeEvent (field writeEvent.message "seqno")),
+            ("currentTerm", ← read writeEvent (field writeEvent.message "view"))
+          ]))
     if let some (config, _, nodes, index) := configurationEvent then
       emitObserveEntry config index
         [("kind", toJson "transaction"), ("configurations", toJson [nodes])]
-      emitObserveInternal config
     for (event, peer, sent, matched) in heartbeats do
       emitObserve event "configuration-event-peer"
         (some
@@ -756,7 +723,7 @@ private def ruleRecvRequestVoteResponse : Reduction Unit :=
 become_pre_vote_candidate
 (
   become_candidate (ruleBecomeLeader)? send_request_vote* -- for self quorum
-  | send_request_vote* -- pre-vote packets for the other active members
+  | send_request_vote* -- pre-vote packets
 )
 -/
 private def ruleElectionTimeout : Reduction Unit :=
@@ -802,16 +769,13 @@ private def ruleCheckQuorumTimeout : Reduction Unit :=
     emitObserve head "role-post"
 
 /-- Consumes:
-send_append_entries, with packet prev_idx equal to recorded sent_idx
+send_append_entries
 -/
 private def ruleSend : Reduction Unit :=
   let send :=
     event "send_append_entries"
       fun e => do
         let packet ← read e (field e.message "packet")
-        checked e
-          ((← read e (nat packet "prev_idx")) == (← read e (nat e.message "sent_idx")))
-          "send prev_idx differs from sent_idx"
         let destination ← modelNode e (← read e (string e.message "to_node_id"))
         return (e, destination, ← read e (nat packet "idx"))
   do
@@ -850,13 +814,15 @@ private def ruleDrop : Reduction Unit :=
   let drop :=
     event "drop_pending_to"
       fun e => do
-        checked e ((← read e (string e.message "from_node_id")) == e.node)
-          "drop sender mismatch"
         return (e, ← read e (string e.message "to_node_id"))
   do
     -- Consumption
     let (head, destination) ← drop
     -- Emission
+    let sender ← read head (string head.message "from_node_id")
+    emitInstruction
+      (.observe (fun _ => require (sender == head.node) "drop sender mismatch")
+        (head.origin "drop-sender"))
     emitObserve head "drop"
     emitObservePacket head "drop" .head
     emitAction head "drop" (.drop head.node destination)
