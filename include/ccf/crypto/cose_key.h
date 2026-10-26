@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/crypto/eddsa_key_pair.h"
+#include "ccf/crypto/mldsa_public_key.h"
 #include "ccf/crypto/rsa_public_key.h"
 #include "ccf/crypto/sha256_hash.h"
 
@@ -22,13 +23,15 @@ namespace ccf::crypto
     OKP = 1,
     EC2 = 2,
     RSA = 3,
+    AKP = 7,
   };
 
   /**
    * A public key that verifies COSE_Sign1 signatures, as carried in a COSE_Key
    * (RFC 9052 Section 7): an EC2 key on P-256, P-384 or P-521 (RFC 9053
-   * Section 7.1.1), an OKP key on Ed25519 (RFC 9053 Section 7.2), or an RSA
-   * key (RFC 8230 Section 4).
+   * Section 7.1.1), an OKP key on Ed25519 (RFC 9053 Section 7.2), an RSA
+   * key (RFC 8230 Section 4), or an AKP key holding an ML-DSA public key
+   * (RFC 9964 Section 3).
    *
    * The key parameters, the encoding and the RFC 9679 thumbprint are derived
    * from the key on each call, so callers that use them repeatedly should keep
@@ -67,6 +70,14 @@ namespace ccf::crypto
       std::vector<uint8_t> x;
     };
 
+    /// AKP key parameters. The algorithm, which AKP keys always carry, gives
+    /// the ML-DSA parameter set.
+    struct AKPParameters
+    {
+      /// FIPS 204 encoded public key
+      std::vector<uint8_t> pub;
+    };
+
     /**
      * @throws std::invalid_argument if key is null
      * @throws std::runtime_error if the curve is not P-256, P-384 or P-521
@@ -89,20 +100,30 @@ namespace ccf::crypto
     explicit COSEKey(EdDSAPublicKeyPtr key);
 
     /**
+     * An ML-DSA key, carried as an AKP key whose alg is that of the key's
+     * parameter set.
+     * @throws std::invalid_argument if key is null
+     */
+    explicit COSEKey(MLDSAPublicKeyPtr key);
+
+    /**
      * Parse an encoded COSE_Key, which may be untrusted.
      *
      * Only public keys are accepted: EC2 keys whose coordinates have the
      * curve's field size and form a point on the curve, OKP keys on Ed25519
      * whose x is 32 bytes long and encodes a y coordinate below the field
-     * prime, and RSA keys of 2048 to 16384 bits whose public exponent is odd,
-     * at least 3 and at most 64 bits long. Compressed EC2 points, Ed25519 y
-     * coordinates that are not below the field prime, and RSA parameters with
-     * leading zero octets, are rejected, so that each key has a single
-     * encoding and thumbprint. "alg", if present, must be an algorithm that
-     * CCF can verify with the key, and "key_ops", if present, must allow
-     * verify. "kid" is not retained, and unknown labels are ignored.
+     * prime, RSA keys of 2048 to 16384 bits whose public exponent is odd,
+     * at least 3 and at most 64 bits long, and AKP keys whose alg is an
+     * ML-DSA algorithm and whose pub has that parameter set's public key
+     * size. Compressed EC2 points, Ed25519 y coordinates that are not below
+     * the field prime, and RSA parameters with leading zero octets, are
+     * rejected, so that each key has a single encoding and thumbprint. "alg",
+     * if present, must be an algorithm that CCF can verify with the key, and
+     * is required for AKP keys; "key_ops", if present, must allow verify.
+     * "kid" is not retained, and unknown labels are ignored.
      *
-     * @throws std::invalid_argument if cose_key is malformed or unsupported
+     * @throws std::invalid_argument if cose_key is malformed or unsupported,
+     * including every AKP key on a build without ML-DSA
      */
     [[nodiscard]] static COSEKey from_cbor(std::span<const uint8_t> cose_key);
 
@@ -114,6 +135,16 @@ namespace ccf::crypto
      * key is not supported
      */
     [[nodiscard]] static COSEKey from_der_cert(std::span<const uint8_t> der);
+
+    /**
+     * A DER SubjectPublicKeyInfo public key, which may be untrusted, with the
+     * same requirements as from_der_cert().
+     *
+     * @throws std::invalid_argument if the key cannot be parsed, or is not
+     * supported
+     */
+    [[nodiscard]] static COSEKey from_der_public_key(
+      std::span<const uint8_t> der);
 
     [[nodiscard]] COSEKeyType kty() const;
 
@@ -132,6 +163,9 @@ namespace ccf::crypto
     /// The key parameters, or std::nullopt if kty() is not OKP.
     [[nodiscard]] std::optional<OKPParameters> okp_parameters() const;
 
+    /// The key parameters, or std::nullopt if kty() is not AKP.
+    [[nodiscard]] std::optional<AKPParameters> akp_parameters() const;
+
     /// The key, or nullptr if kty() is not EC2.
     [[nodiscard]] ECPublicKeyPtr ec_public_key() const;
 
@@ -140,6 +174,9 @@ namespace ccf::crypto
 
     /// The key, or nullptr if kty() is not OKP.
     [[nodiscard]] EdDSAPublicKeyPtr eddsa_public_key() const;
+
+    /// The key, or nullptr if kty() is not AKP.
+    [[nodiscard]] MLDSAPublicKeyPtr mldsa_public_key() const;
 
     /**
      * Deterministically encoded COSE_Key (RFC 8949 Section 4.2.1), with kty,
@@ -169,12 +206,16 @@ namespace ccf::crypto
     [[nodiscard]] std::vector<uint8_t> to_cbor(
       int64_t alg, std::string_view kid) const;
 
-    /// COSE Key Thumbprint (RFC 9679) with SHA-256.
+    /// COSE Key Thumbprint (RFC 9679) with SHA-256. AKP thumbprints include
+    /// the key's algorithm (RFC 9964 Section 6).
     [[nodiscard]] Sha256Hash thumbprint_sha256() const;
 
   private:
-    using PublicKey =
-      std::variant<ECPublicKeyPtr, RSAPublicKeyPtr, EdDSAPublicKeyPtr>;
+    using PublicKey = std::variant<
+      ECPublicKeyPtr,
+      RSAPublicKeyPtr,
+      EdDSAPublicKeyPtr,
+      MLDSAPublicKeyPtr>;
 
     COSEKey(PublicKey public_key_, std::optional<int64_t> alg_);
 

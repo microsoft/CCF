@@ -18,6 +18,7 @@
 #include "crypto/openssl/ec_key_pair.h"
 #include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/eddsa_public_key.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "crypto/openssl/rsa_public_key.h"
 #include "crypto/test/cbor_printer.h"
 #include "node/cose_common.h"
@@ -1150,6 +1151,8 @@ constexpr int64_t LABEL_RSA_PRIVATE_FIRST = -12;
 constexpr int64_t LABEL_OKP_CRV = -1;
 constexpr int64_t LABEL_OKP_X = -2;
 constexpr int64_t LABEL_OKP_D = -4;
+constexpr int64_t LABEL_AKP_PUB = -1;
+constexpr int64_t LABEL_AKP_PRIV = -2;
 
 // Values of COSE_Key fields, to build valid and malformed keys
 using CoseKeyField = std::variant<
@@ -1408,6 +1411,8 @@ TEST_CASE("COSE_Key round trips")
   CHECK_THROWS_AS(
     COSEKey(ccf::crypto::EdDSAPublicKeyPtr{}), std::invalid_argument);
   CHECK_THROWS_AS(
+    COSEKey(ccf::crypto::MLDSAPublicKeyPtr{}), std::invalid_argument);
+  CHECK_THROWS_AS(
     COSEKey(ccf::crypto::make_rsa_key_pair(1024)), std::runtime_error);
 
   // alg must be an algorithm that CCF can verify with the key
@@ -1559,6 +1564,11 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
   const auto p256_key = ec2_fields(p256);
   const auto rsa_key = rsa_fields(rsa);
   const auto okp_key = okp_fields(ed25519);
+  // ML-DSA-65 AKP fields, checked before any ML-DSA import, so on every build
+  const CoseKeyFields akp_key = {
+    {LABEL_KTY, int64_t{7}},
+    {LABEL_ALG, int64_t{-49}},
+    {LABEL_AKP_PUB, std::vector<uint8_t>(1952, 0)}};
   std::vector<Value> mixed_key_ops;
   mixed_key_ops.push_back(make_string("unknown"));
   mixed_key_ops.push_back(make_signed(2));
@@ -1697,12 +1707,37 @@ TEST_CASE("COSE_Key parsing rejects malformed and unsupported keys")
      encode_with(okp_key, LABEL_OKP_X, okp_x_y_above_prime)},
     {"OKP private key",
      encode_with(okp_key, LABEL_OKP_D, std::vector<uint8_t>(32, 1))},
+    {"AKP alg missing", encode_without(akp_key, LABEL_ALG)},
+    {"AKP alg for EC2", encode_with(akp_key, LABEL_ALG, int64_t{-7})},
+    {"AKP pub missing", encode_without(akp_key, LABEL_AKP_PUB)},
+    {"AKP pub text", encode_with(akp_key, LABEL_AKP_PUB, std::string("pub"))},
+    {"AKP pub too short",
+     encode_with(akp_key, LABEL_AKP_PUB, std::vector<uint8_t>(1951, 0))},
+    {"AKP pub for ML-DSA-44",
+     encode_with(akp_key, LABEL_AKP_PUB, std::vector<uint8_t>(1312, 0))},
+    {"AKP private key",
+     encode_with(akp_key, LABEL_AKP_PRIV, std::vector<uint8_t>(32, 0))},
   };
   for (const auto& [name, encoded] : rejected)
   {
     CAPTURE(name);
     CHECK_THROWS_AS(
       std::ignore = COSEKey::from_cbor(encoded), std::invalid_argument);
+  }
+
+  // A well-formed AKP key needs ML-DSA to be imported; every FIPS 204 public
+  // key encoding of the right size decodes
+  const auto akp = encode_cose_key_fields(akp_key);
+  if (ccf::crypto::mldsa_supported())
+  {
+    CHECK(COSEKey::from_cbor(akp).kty() == ccf::crypto::COSEKeyType::AKP);
+  }
+  else
+  {
+    CHECK_THROWS_WITH_AS(
+      std::ignore = COSEKey::from_cbor(akp),
+      "Invalid COSE_Key: ML-DSA requires OpenSSL 3.5 or newer",
+      std::invalid_argument);
   }
 }
 

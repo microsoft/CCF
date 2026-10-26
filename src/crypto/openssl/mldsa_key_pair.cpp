@@ -111,6 +111,11 @@ namespace ccf::crypto
     return MLDSAPublicKey_OpenSSL::public_key_der();
   }
 
+  std::vector<uint8_t> MLDSAKeyPair_OpenSSL::public_key_raw() const
+  {
+    return MLDSAPublicKey_OpenSSL::public_key_raw();
+  }
+
   std::vector<uint8_t> MLDSAKeyPair_OpenSSL::sign(
     std::span<const uint8_t> contents, std::span<const uint8_t> context) const
   {

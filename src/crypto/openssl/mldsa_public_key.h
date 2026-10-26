@@ -31,10 +31,15 @@ namespace ccf::crypto
     MLDSAPublicKey_OpenSSL& operator=(const MLDSAPublicKey_OpenSSL&) = delete;
     ~MLDSAPublicKey_OpenSSL() override = default;
 
+    /// Import a FIPS 204 encoded public key of the given parameter set.
+    static std::shared_ptr<MLDSAPublicKey_OpenSSL> from_raw(
+      std::span<const uint8_t> raw_public_key, MLDSAParameterSet parameter_set);
+
     [[nodiscard]] MLDSAParameterSet get_parameter_set() const override;
 
     [[nodiscard]] Pem public_key_pem() const override;
     [[nodiscard]] std::vector<uint8_t> public_key_der() const override;
+    [[nodiscard]] std::vector<uint8_t> public_key_raw() const override;
 
     [[nodiscard]] bool verify(
       std::span<const uint8_t> contents,
