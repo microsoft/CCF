@@ -3,8 +3,9 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-public import CCFRaft.Replay.Suite
+public import CCFRaft.Replay.Replayer
 
+import all CCFRaft.Replay
 import CCF.Parsec
 
 public section
@@ -22,6 +23,18 @@ private def rejects {α : Type} (result : Except String α) (expected : String) 
   | .ok _ => throw (IO.userError s!"unexpectedly accepted: {expected}")
   | .error error =>
       check (error.contains expected) s!"expected '{expected}', got '{error}'"
+
+private def checkObservedFields (make : Json → ReplayState → Except String Unit)
+    (current : ReplayState) (fields : List (String × Json))
+    : IO Unit := do
+  let expected := Json.mkObj fields
+  let _ ← ok (make expected current)
+  for (key, _) in fields do
+    rejects (make (expected.setObjVal! key (toJson "__mismatch__")) current) key
+  rejects (make (Json.mkObj []) current) "at least one field"
+  rejects (make .null current) "object"
+  rejects (make (expected.setObjVal! "unknown" .null) current)
+    "unsupported observation field"
 
 -- A function-valued field deliberately prevents requiring equality on events.
 private structure ParserTestEvent where
@@ -92,7 +105,7 @@ private def parsecInfrastructureTests : IO Unit := do
     "deeper failure"
   let emitAndFail : CCF.Parsec.ParserT Nat (Array Instruction) Unit := do
     let _ ← CCF.Parsec.take
-    modify (·.push (.action (.local "0" .nominateSuccessor) []))
+    modify (·.push (.action (.local "0" .nominateSuccessor) default))
     CCF.Parsec.failure "failed emission"
   let (_, instructions) ←
     ok
@@ -122,20 +135,28 @@ private def parsecInfrastructureTests : IO Unit := do
     "unexpected end of input"
 
 private def fixture (name : String) : IO (Array Record) := do
-  let records ← ok (← readLog (System.FilePath.mk "replay/tests/fixtures" / name))
-  -- Isolate protocol mutations from transport-sequence failures.
-  records.mapM
-    fun record => do
-      let value ← ok (normalize record.value)
-      let value :=
-        match optional record.value "h_ts" with
-        | some timestamp =>
-            if (optional value "msg").isSome then
-              value.setObjVal! "h_ts" timestamp
-            else
-              value
-        | none => value
-      return { record with value }
+  ok (← readLog (System.FilePath.mk "replay/tests/fixtures" / name))
+
+private def observationStates (reduced : Reduced)
+    : IO (Array (ReplayState × (ReplayState → Except String Unit) × Origin)) := do
+  let mut current : ReplayState := { state := reduced.header.initial }
+  let mut observations := #[]
+  for instruction in reduced.instructions do
+    if let .observe observe origin := instruction then
+      observations := observations.push (current, observe, origin)
+    current ← ok (runInstruction reduced.header current instruction)
+  return observations
+
+-- Spliced protocol tests need a new transport sequence, not a different wire format.
+private def resequence (records : Array Record) (start : Nat := 0) : Array Record :=
+  records.mapIdx
+    fun index record =>
+      {
+        record with
+          value :=
+            record.value.setObjVal! "h_ts" (toJson (start + index))
+            |>.setObjVal! "process_id" (records[0]!.value.getObjValD "process_id")
+      }
 
 private def change (value : Json) (path : List String) (replacement : Json) : Json :=
   match path with
@@ -149,7 +170,8 @@ private def mutate (records : Array Record) (index : Nat) (path : List String)
     fun record => { record with value := change record.value path replacement }
 
 private def erase (records : Array Record) (index : Nat) : Array Record :=
-  records.extract 0 index ++ records.extract (index + 1) records.size
+  resequence (records.extract 0 index ++ records.extract (index + 1) records.size)
+    ((nat records[0]!.value "h_ts").toOption.getD 0)
 
 private def function (record : Record) : String :=
   ((record.value.getObjValD "msg").getObjValD "function").getStr?.toOption.getD ""
@@ -159,11 +181,20 @@ private def find (records : Array Record) (name : String) : IO Nat := do
   | throw (IO.userError s!"fixture has no {name}")
   return index
 
+private def envelope (message : Json) : Json :=
+  Json.mkObj
+    [
+      ("tag", toJson "ccf.raft_trace"),
+      ("process_id", toJson "test-process"),
+      ("h_ts", toJson (0 : Nat)),
+      ("msg", message)
+    ]
+
 private def command (cmd : String) : Record :=
   {
     file := "synthetic.ndjson",
     line := 1,
-    value := Json.mkObj [("tag", toJson "raft_trace"), ("cmd", toJson cmd)]
+    value := envelope (Json.mkObj [("cmd", toJson cmd)])
   }
 
 private def state : Json :=
@@ -197,17 +228,25 @@ private def parserTests : IO Nat := do
       in [
         "",
         "\n",
-        "[]",
-        "null",
-        "{\"x\":1,\"x\":2}",
-        "{\"x\":{\"y\":0,\"y\":1}}",
-        "{\"x\":1,\"\\u0078\":2}",
         "{\"x\":NaN}",
         "{\"x\":Infinity}",
         "{\"x\":",
         "{\"x\":true} garbage"
       ] do
-    rejects (parseLog "strict.ndjson" raw false) "strict.ndjson"
+    rejects (parseLog "strict.ndjson" raw) "strict.ndjson"
+    count := count + 1
+  for raw
+      in [
+        "[]",
+        "null",
+        "{\"x\":1,\"x\":2}",
+        "{\"x\":{\"y\":0,\"y\":1}}",
+        "{\"x\":1,\"\\u0078\":2}"
+      ] do
+    let records ← ok (parseLog "json.ndjson" raw)
+    check (records.size == 1 && records[0]!.value == (← ok (Json.parse raw)))
+      "record parsing diverged from Lean JSON parsing"
+    rejects (reduce records) "json.ndjson:1"
     count := count + 1
   for value
       in [
@@ -219,30 +258,22 @@ private def parserTests : IO Nat := do
         toJson (1.5 : Float)
       ] do
     rejects (natural value) "expected natural"
-    rejects (validatePacket (appendPacket.setObjVal! "term" value)) "expected natural"
+    rejects (nat (appendPacket.setObjVal! "term" value) "term") "expected natural"
     count := count + 2
   for term in [0, 1, 2, 4, 999] do
     let packet := appendPacket.setObjVal! "term" (toJson term)
-    ok (validatePacket packet)
+    check ((← ok (nat packet "term")) == term) "packet term changed"
     let facts ←
       ok (stateFacts (state.setObjVal! "current_view" (toJson term)) (Json.mkObj []))
     check (optional facts "currentTerm" == some (toJson term))
       "term coordinates were changed"
     count := count + 1
-  rejects (validatePacket (appendPacket.setObjVal! "unknown" .null)) "unsupported field"
-  rejects (validatePacket (appendPacket.setObjVal! "idx" (toJson (1 : Nat)))) "reversed"
-  rejects
-    (validatePacket
-      (Json.mkObj
-        [
-          ("msg", toJson "raft_append_entries_response"),
-          ("term", toJson (2 : Nat)),
-          ("last_log_idx", toJson (2 : Nat)),
-          ("success", .arr #[])
-        ]))
-    "String"
-  rejects (stateFacts (state.setObjVal! "unknown" .null) (Json.mkObj []))
-    "unsupported field"
+  rejects (nat (Json.mkObj []) "term") "term"
+  rejects (string (Json.mkObj [("success", .arr #[])]) "success") "String"
+  check
+    ((← ok (stateFacts (state.setObjVal! "unknown" .null) (Json.mkObj [])))
+      == (← ok (stateFacts state (Json.mkObj []))))
+    "unused state data changed projected facts"
   rejects
     (stateFacts (state.setObjVal! "leadership_state" (toJson "invented")) (Json.mkObj []))
     "invalid role"
@@ -250,10 +281,12 @@ private def parserTests : IO Nat := do
     (stateFacts (state.setObjVal! "membership_state" (toJson "Retired")) (Json.mkObj []))
     "retirement phase"
   for markers in [[3, 2], [2, 2]] do
-    rejects
-      (stateFacts (state.setObjVal! "committable_indices" (toJson markers))
-        (Json.mkObj []))
-      "unordered/duplicate"
+    let facts ←
+      ok
+        (stateFacts (state.setObjVal! "committable_indices" (toJson markers))
+          (Json.mkObj []))
+    check (optional facts "committableIndices" == some (toJson markers))
+      "record projection reordered or removed signature evidence"
   let facts ←
     ok
       (stateFacts (state.setObjVal! "committable_indices" (toJson [3, 5]))
@@ -267,17 +300,38 @@ private def parserTests : IO Nat := do
         ("rid", toJson (1 : Nat)),
         ("nodes", Json.mkObj [("0", Json.mkObj [("address", toJson ":")])])
       ]
-  rejects (configuration (config.setObjVal! "rid" (.bool true))) "natural"
-  rejects (configuration (config.setObjVal! "rid" (toJson (2 : Nat)))) "rid differs"
-  rejects (configuration (config.setObjVal! "nodes" (Json.mkObj []))) "empty"
+  rejects (configuration (config.setObjVal! "nodes" (.bool true))) "object"
+  rejects (configuration (Json.mkObj [])) "nodes"
+  for value in [.bool true, toJson (2 : Nat)] do
+    check ((← ok (configuration (config.setObjVal! "rid" value))) == ["0"])
+      "unused configuration rid changed membership"
+  for address in [":", "127.0.0.1:8000", "node.example:443"] do
+    let nodes := Json.mkObj [("0", Json.mkObj [("address", toJson address)])]
+    check ((← ok (configuration (config.setObjVal! "nodes" nodes))) == ["0"])
+      "transport address changed configuration membership"
+  for metadata
+      in [
+        Json.null,
+        .arr #[],
+        Json.mkObj [],
+        Json.mkObj [("address", .bool true)],
+        Json.mkObj [("address", toJson ":"), ("unknown", .null)]
+      ] do
+    check
+      ((← ok (configuration (config.setObjVal! "nodes" (Json.mkObj [("0", metadata)]))))
+        == ["0"])
+      "unused node metadata changed membership"
   let configs := Json.mkObj [("configurations", toJson [config, config])]
-  rejects (stateFacts state configs) "unordered/duplicate configurations"
-  let _ ←
+  let facts ← ok (stateFacts state configs)
+  check ((← ok (field facts "configurations" >>= Json.getArr?)).size == 2)
+    "record projection discarded configuration evidence"
+  let records ←
     ok
       (parseLog "capture.stdout"
-        "<RaftDriver> diagram\r\n{\"tag\":\"raft_trace\",\"cmd\":\"state_all\"}\r\n" true)
-  rejects (parseLog "capture.stdout" "not a logger record\n" true) "capture.stdout:1"
-  rejects (parseLog "capture.stdout" "{\"tag\":\"other\"}\n" true) "unrecognized"
+        ((envelope (Json.mkObj [("cmd", toJson "state_all")])).compress ++ "\r\n"))
+  check (records[0]!.line == 1) "lost physical JSON line"
+  rejects (parseLog "capture.stdout" "<RaftDriver> diagram\n") "capture.stdout:1"
+  rejects (parseLog "capture.stdout" "not a logger record\n") "capture.stdout:1"
   return count + 15
 
 private def reductionTests : IO Nat := do
@@ -288,8 +342,7 @@ private def reductionTests : IO Nat := do
     (result.actions == 1 && result.instructions == result.actions + result.observations)
     "bootstrap action contract"
   check
-    (reduced.instructions.any
-      fun instruction => instruction.origins.any (·.rule == "write-pre"))
+    (reduced.instructions.any fun instruction => instruction.origin.rule == "write-pre")
     "bootstrap signature lost its rule observation"
   let withoutTimestamps :=
     bootstrap.map
@@ -299,17 +352,18 @@ private def reductionTests : IO Nat := do
             value :=
               Json.mkObj ((object row.value).toOption.getD [] |>.filter (·.1 != "h_ts"))
         }
-  check ((← ok (replayRecords withoutTimestamps)) == result)
-    "timestamps affected capture order"
-  let modes ← ok (reduce (bootstrap ++ #[command "create_new_node,1"]))
+  rejects (replayRecords withoutTimestamps) "h_ts"
+  let modes ← ok (reduce (resequence (bootstrap ++ #[command "create_new_node,1"])))
   check (modes.header.declared == ["0", "1"]) "future node declaration"
-  let assertions ← ok (reduce (bootstrap.push (command "assert_commit_idx,0,2")))
+  let assertions ←
+    ok (reduce (resequence (bootstrap.push (command "assert_commit_idx,0,2"))))
   check (assertions.instructions.size == reduced.instructions.size)
     "assertion invented an action"
   let mut count := 4
   for cmd
       in ["shuffle_one,0", "shuffle_all", "new_command,0", "pre_vote_enabled,maybe"] do
-    rejects (reduce (bootstrap.push (command cmd))) "unsupported command"
+    check ((← ok (replayRecords (resequence (bootstrap.push (command cmd))))) == result)
+      "unused command invented an action"
     count := count + 1
   let startup ← fixture "startup.ndjson"
   let some write :=
@@ -322,6 +376,11 @@ private def reductionTests : IO Nat := do
       in [(["msg", "seqno"], toJson (4 : Nat)), (["msg", "view"], toJson (3 : Nat))] do
     rejects (reduce (mutate startup write path value)) "write coordinates"
     count := count + 1
+  for key in ["seqno", "view", "globally_committable"] do
+    let message ← ok (object (startup[write]!.value.getObjValD "msg"))
+    let missing := mutate startup write ["msg"] (Json.mkObj (message.filter (·.1 != key)))
+    rejects (reduce missing) key
+    rejects (reduce missing) startup[write]!.location
   for event
       in [
         "execute_append_entries_sync",
@@ -335,35 +394,57 @@ private def reductionTests : IO Nat := do
           else
             "retire_follower.stdout")
     let source := original[← find original event]!
-    rejects (reduce (bootstrap ++ #[command "dispatch_all", source])) "ungrouped event"
+    rejects (reduce (resequence (bootstrap ++ #[command "dispatch_all", source])))
+      "ungrouped event"
     count := count + 1
   let commit ← find bootstrap "commit"
   for (path, value, diagnostic)
       in [
-        (["msg", "args", "idx"], toJson (3 : Nat), "commit-target"),
+        (["msg", "idx"], toJson (3 : Nat), "commit-target"),
         (["msg", "state", "last_idx"], toJson (3 : Nat), "commit-in-action"),
         (["msg", "state", "committable_indices"], toJson [1], "signature-marker")
       ] do
     rejects (replayRecords (mutate bootstrap commit path value)) diagnostic
     count := count + 1
-  let unknown := mutate bootstrap 2 ["msg", "function"] (toJson "new_function")
-  rejects (reduce unknown) "unsupported function"
-  rejects (reduce (mutate bootstrap 0 ["tag"] (toJson "other"))) "expected raft_trace"
+  let unknown := mutate startup write ["msg", "function"] (toJson "new_function")
+  rejects (reduce unknown) "ungrouped event new_function"
+  rejects (reduce (mutate bootstrap 0 ["tag"] (toJson "other"))) "expected ccf.raft_trace"
   rejects (reduce (mutate bootstrap 2 ["tag"] (.bool true))) "String"
-  rejects (reduce (mutate bootstrap 2 ["msg", "unknown"] .null)) "unsupported field"
-  rejects (reduce (mutate bootstrap 2 ["unknown"] .null)) "unsupported field"
+  for path in [["unknown"], ["msg", "unknown"], ["msg", "state", "unknown"]] do
+    check ((← ok (replayRecords (mutate bootstrap 2 path .null))) == result)
+      "unused JSON changed replay"
   let configuration ← find bootstrap "add_configuration"
-  rejects
-    (reduce
-      (mutate bootstrap configuration ["msg", "args", "configuration", "rid"]
-        (.bool true)))
-    "natural"
-  rejects (reduce (bootstrap.extract 2 bootstrap.size)) "event before command"
+  check
+    ((← ok (replayRecords (mutate bootstrap configuration ["msg", "rid"] (.bool true))))
+      == result)
+    "unused configuration metadata changed replay"
+  rejects (reduce (resequence (bootstrap.extract 2 bootstrap.size)))
+    "event before command"
   rejects (reduce #[command "state_all"]) "no Raft events"
   let config ← fixture "configuration_callback.ndjson"
   let configured := bootstrap ++ config
   let configuredReduction ← ok (reduce configured)
-  let _ ← ok (replay configuredReduction.header configuredReduction.instructions)
+  let configuredResult ←
+    ok (replay configuredReduction.header configuredReduction.instructions)
+  let configWrite ← find config "replicate"
+  let configIndex ← find config "add_configuration"
+  for index in [configWrite, configIndex] do
+    check
+      ((← ok
+            (replayRecords
+              (bootstrap ++ mutate config index ["msg", "state", "unused"] (.bool true))))
+        == configuredResult)
+      "unused paired state metadata changed replay"
+  for (key, value)
+      in [
+        ("current_view", toJson (999 : Nat)),
+        ("last_idx", toJson (999 : Nat)),
+        ("commit_idx", toJson (999 : Nat)),
+        ("leadership_state", toJson "Candidate"),
+        ("committable_indices", toJson [1])
+      ] do
+    rejects (reduce (bootstrap ++ mutate config configIndex ["msg", "state", key] value))
+      "configuration write pair mismatch"
   let heartbeat ← find config "send_append_entries"
   rejects (reduce (bootstrap ++ erase config heartbeat)) "expected send_append_entries"
   rejects
@@ -372,12 +453,12 @@ private def reductionTests : IO Nat := do
   rejects
     (reduce (bootstrap ++ mutate config heartbeat ["msg", "sent_idx"] (toJson (2 : Nat))))
     "event heartbeat"
-  let configIndex ← find config "add_configuration"
   let duplicated :=
     config.extract 0 (heartbeat + 1)
     ++ #[config[configIndex]!]
     ++ config.extract (heartbeat + 1) config.size
-  rejects (reduce (bootstrap ++ duplicated)) "ungrouped event add_configuration"
+  rejects (reduce (resequence (bootstrap ++ duplicated)))
+    "ungrouped event add_configuration"
   let missing :=
     config.modify configIndex
       fun row =>
@@ -389,19 +470,38 @@ private def reductionTests : IO Nat := do
                   (((object (row.value.getObjValD "msg")).toOption.getD []).filter
                     (·.1 != "configurations"))))
         }
-  rejects (reduce (bootstrap ++ missing)) "missing field 'configurations'"
+  rejects (reduce (bootstrap ++ missing)) "configurations: property not found"
   let missingPrefix := configured ++ (← fixture "missing_prefix_response.ndjson")
   let prefixReduction ← ok (reduce missingPrefix)
   let _ ← ok (replay prefixReduction.header prefixReduction.instructions)
+  let response := missingPrefix[← find missingPrefix "send_append_entries_response"]!
+  let packet := (response.value.getObjValD "msg").getObjValD "packet"
   check
-    (prefixReduction.instructions.any
-      fun instruction =>
-        match instruction with
-        | .message _ _ packet _ _ =>
-            optional packet "success" == some (toJson "FAIL")
-            && optional packet "last_log_idx" == some (toJson (0 : Nat))
-        | _ => false)
-    "missing-prefix NACK lost"
+    (optional packet "success" == some (toJson "FAIL")
+      && optional packet "last_log_idx" == some (toJson (0 : Nat)))
+    "fixture lost its missing-prefix NACK"
+  let some (current, observe, _) :=
+    (← observationStates prefixReduction).find?
+      (fun (_, _, origin) =>
+        origin.rule == "response-post"
+        && origin.file == response.file
+        && origin.line == response.line)
+  | throw (IO.userError "missing-prefix NACK lost its observation")
+  for (success, index, diagnostic)
+      in [(true, 0, "success"), (false, 1, "last_log_idx")] do
+    let network :=
+      current.state.network.map
+        fun envelope =>
+          match envelope.payload with
+          | .appendEntriesResponse response =>
+              {
+                envelope with
+                  payload :=
+                    .appendEntriesResponse
+                      { response with success, lastLogIndex := index }
+              }
+          | _ => envelope
+    rejects (observe { current with state := { current.state with network } }) diagnostic
   let drop ← ok (reduce (← fixture "drop_resend.ndjson"))
   let actions :=
     drop.instructions.toList.filterMap
@@ -444,7 +544,8 @@ private def parsecReductionTests : IO Unit := do
         ("from_node_id", toJson "0")
       ]
   let event := { source with value := source.value.setObjVal! "msg" message }
-  rejects (reduce (configured.push event)) "ungrouped event execute_append_entries_sync"
+  rejects (reduce (resequence (configured.push event)))
+    "ungrouped event execute_append_entries_sync"
   let votes ← fixture "vote_responses.ndjson"
   let reduced ← ok (reduce votes)
   check
@@ -518,7 +619,8 @@ private def speculativeGrammarTests : IO Unit := do
   let promotionRecords := votes.extract 0 endOfPromotion
   let baseline ← ok (reduce promotionRecords)
   let periodic := { votes[promotion + 1]! with file := "periodic.ndjson", line := 1 }
-  let extended := promotionRecords ++ #[command "periodic_one,1,10", periodic]
+  let extended :=
+    resequence (promotionRecords ++ #[command "periodic_one,1,10", periodic])
   let reduced ← ok (reduce extended)
   let sends (reduced : Reduced) :=
     reduced.instructions.filter
@@ -552,11 +654,9 @@ private def speculativeGrammarTests : IO Unit := do
   check
     (reduced.instructions.any
       fun instruction =>
-        instruction.origins.any
-          fun origin =>
-            origin.file == retiredHeartbeat.file
-            && origin.line == retiredHeartbeat.line
-            && origin.rule == "leader-heartbeat-post")
+        instruction.origin.file == retiredHeartbeat.file
+        && instruction.origin.line == retiredHeartbeat.line
+        && instruction.origin.rule == "leader-heartbeat-post")
     "retired-peer promotion heartbeat became a separate send action"
 
   let bootstrap ← fixture "bootstrap.ndjson"
@@ -564,17 +664,16 @@ private def speculativeGrammarTests : IO Unit := do
   let configured := bootstrap ++ config
   let configMessage := config[← find config "add_configuration"]!.value.getObjValD "msg"
   let configurations ← ok (field configMessage "configurations" >>= Json.getArr?)
-  let newConfiguration ← ok (field configMessage "args" >>= (field · "configuration"))
+  let newConfiguration :=
+    Json.mkObj
+      ((← ok (object configMessage)).filter
+        (fun (key, _) => ["idx", "rid", "nodes"].contains key))
   let configurations := configurations.push newConfiguration
   let leaderState :=
     state.setObjVal! "last_idx" (toJson (4 : Nat))
     |>.setObjVal! "committable_indices" (toJson [4])
   let event (line : Nat) (message : Json) : Record :=
-    {
-      file := "receive-boundary.ndjson",
-      line,
-      value := Json.mkObj [("tag", toJson "raft_trace"), ("msg", message)]
-    }
+    { file := "receive-boundary.ndjson", line, value := envelope message }
   let receive (name : String) (packet : Json) (role : String) :=
     event 1
       (Json.mkObj
@@ -608,7 +707,7 @@ private def speculativeGrammarTests : IO Unit := do
   let adoptions (reduced : Reduced) :=
     reduced.instructions.filter
       fun instruction =>
-        instruction.origins.any (·.rule == "receive-term-adoption")
+        instruction.origin.rule == "receive-term-adoption"
   for family in ["raft_request_vote_response", "raft_request_pre_vote_response"] do
     let records :=
       configured
@@ -618,7 +717,7 @@ private def speculativeGrammarTests : IO Unit := do
         command "periodic_one,0,100",
         follower 2
       ]
-    let reduced ← ok (reduce records)
+    let reduced ← ok (reduce (resequence records))
     check ((timeouts reduced).size == 1 && (adoptions reduced).isEmpty)
       "ignored same-term response consumed a check-quorum transition"
     let records :=
@@ -628,7 +727,7 @@ private def speculativeGrammarTests : IO Unit := do
         receive "recv_request_vote_response" (voteResponse family 3) "Leader",
         follower 3
       ]
-    let reduced ← ok (reduce records)
+    let reduced ← ok (reduce (resequence records))
     check ((timeouts reduced).isEmpty && (adoptions reduced).size == 1)
       "higher-term response lost its term-adoption evidence"
   for role in ["Candidate", "PreVoteCandidate"] do
@@ -639,7 +738,7 @@ private def speculativeGrammarTests : IO Unit := do
         receive "recv_append_entries" appendPacket role,
         follower 2
       ]
-    let reduced ← ok (reduce records)
+    let reduced ← ok (reduce (resequence records))
     check ((timeouts reduced).isEmpty && (adoptions reduced).size == 1)
       "same-term AppendEntries demotion became a check-quorum action"
 
@@ -656,35 +755,25 @@ private def fixtureMutations : IO Nat := do
     let records ← fixture name
     let reduced ← ok (reduce records)
     let result ← ok (replay reduced.header reduced.instructions)
+    let (events, _) ← ok (associate records)
     check
       (result.instructions == reduced.instructions.size
         && result.actions + result.observations == result.instructions)
       s!"{name}: unconsumed instructions"
     count := count + 1
-    -- Every projected field must still be compared, including future additions.
-    for instruction in reduced.instructions, position in [:reduced.instructions.size] do
-      let fields :=
-        match instruction with
-        | .state _ _ fields _
-        | .stateBeforeCommit _ _ fields _
-        | .entry _ _ fields _
-        | .message _ _ fields _ _ =>
-            some fields
-        | _ => none
-      if let some fields := fields then
-        for (key, _) in ← ok (object fields) do
-          let replacement := fields.setObjVal! key (toJson "__mismatch__")
-          let changed :=
-            match instruction with
-            | .state node peer _ origin => .state node peer replacement origin
-            | .stateBeforeCommit node frontier _ origin =>
-                .stateBeforeCommit node frontier replacement origin
-            | .entry node index _ origin => .entry node index replacement origin
-            | .message source target _ selection origin =>
-                .message source target replacement selection origin
-            | other => other
-          rejects (replay reduced.header (reduced.instructions.set! position changed)) key
-          count := count + 1
+    for (current, observe, origin) in ← observationStates reduced do
+      let _ ← ok (observe current)
+      check (!(observe { state := { nodes := [] } }).isOk)
+        s!"{origin.label}: observation accepted missing model evidence"
+      if ["write-pre", "receive-pre", "receive-post"].contains origin.rule then
+        let some event :=
+          events.find?
+            (fun event =>
+              event.record.file == origin.file && event.record.line == origin.line)
+        | throw (IO.userError "observation lost its source event")
+        let fields := (← ok (object event.facts)).filter (·.1 != "committableIndices")
+        checkObservedFields (observeState reduced.header event.node none) current fields
+      count := count + 1
     -- Fields stable at a event are selected by event kind, not their values.
     for (raw, projected)
         in [
@@ -697,10 +786,15 @@ private def fixtureMutations : IO Nat := do
           ("retired_committed_idx", "retiredCommittedIndex")
         ] do
       for instruction in reduced.instructions do
-        if let .state _ _ fields origin := instruction then
-          if ["event-term", "receive-post"].contains origin.rule
-              && origin.function != "add_configuration"
-              && (optional fields projected).isSome then
+        if let .observe _ origin := instruction then
+          let some event :=
+            events.find?
+              (fun event =>
+                event.record.file == origin.file && event.record.line == origin.line)
+          | throw (IO.userError "observation lost its source event")
+          if (origin.rule == "receive-post"
+                || (origin.rule == "event-term" && projected == "currentTerm"))
+              && event.function != "add_configuration" then
             let some index :=
               records.findIdx?
                 (fun row => row.file == origin.file && row.line == origin.line)
@@ -710,10 +804,11 @@ private def fixtureMutations : IO Nat := do
                 toJson "Candidate"
               else
                 toJson (999 : Nat)
+            let command ← ok (field event.command.value "msg" >>= (string · "cmd"))
             rejects
               (replayRecords (mutate records index ["msg", "state", raw] replacement))
-              (if origin.function == "become_leader"
-                  && origin.command.startsWith "start_node," then
+              (if event.function == "become_leader"
+                  && command.startsWith "start_node," then
                   "bootstrap state differs from audited prelude"
                 else
                   projected)
@@ -722,7 +817,7 @@ private def fixtureMutations : IO Nat := do
   let original ← fixture "vote_responses.ndjson"
   let withoutResponseSends :=
     original.filter (fun row => function row != "send_request_vote_response")
-  let _ ← ok (replayRecords withoutResponseSends)
+  let _ ← ok (replayRecords (resequence withoutResponseSends))
   count := count + 1
   for family in ["raft_request_vote_response", "raft_request_pre_vote_response"] do
     let some index :=
@@ -746,8 +841,8 @@ private def fixtureMutations : IO Nat := do
     rejects (reduce (mutate original index ["msg", "to_node_id"] (toJson "unexpected")))
       "does not match request"
     count := count + 1
-  let historical ← fixture "terminal_retirement.stdout"
-  rejects (replayRecords historical) "unsupported field 'pre_vote_enabled'"
+  rejects (← readLog "replay/tests/fixtures/terminal_retirement.stdout")
+    "terminal_retirement.stdout:4"
   let terminal ← fixture "self_quorum.stdout"
   let _ ← ok (replayRecords terminal)
   let nomination ← find terminal "step_down_and_nominate_successor"
@@ -770,10 +865,10 @@ private def fixtureMutations : IO Nat := do
     reduced.instructions.find?
       (fun instruction =>
         match instruction with
-        | .entry _ _ _ origin => origin.rule == "event-configuration"
+        | .observe _ origin => origin.rule == "event-configuration"
         | _ => false)
   | throw (IO.userError "missing event configuration coverage")
-  let origin := cache.origins.head!
+  let origin := cache.origin
   let some index := terminal.findIdx? (fun row => row.line == origin.line)
   | throw (IO.userError "missing event configuration raw record")
   let configurations :=
@@ -802,12 +897,17 @@ private def fixtureMutations : IO Nat := do
     reduced.instructions.find?
       (fun instruction =>
         match instruction with
-        | .entry _ _ _ origin =>
-            origin.rule == "event-committed-prefix" && origin.function == "become_leader"
+        | .observe _ origin =>
+            origin.rule == "event-committed-prefix"
+            && terminal.any
+                (fun row =>
+                  row.file == origin.file
+                  && row.line == origin.line
+                  && function row == "become_leader")
         | _ => false)
   | throw (IO.userError "missing committed-prefix coverage")
   let some prefixIndex :=
-    terminal.findIdx? (fun row => row.line == committedPrefix.origins.head!.line)
+    terminal.findIdx? (fun row => row.line == committedPrefix.origin.line)
   | throw (IO.userError "lost prefix source record")
   rejects
     (replayRecords
@@ -821,31 +921,41 @@ private def emissionTests : IO Unit := do
   let (events, _) ← ok (associate records)
   let sameOrigin (origin : Origin) (event : CCFRaft.Replay.Event) :=
     origin.file == event.record.file && origin.line == event.record.line
-  check
-    (!(reduced.instructions.any
-        fun instruction =>
-          match instruction with
-          | .message _ _ _ .matching _ => true
-          | _ => false))
-    "receive emitted a redundant packet-binding observation"
+  for (current, observe, origin) in ← observationStates reduced do
+    let some event := events.find? (sameOrigin origin)
+    | throw (IO.userError "observation lost its source event")
+    if event.function.startsWith "recv_" then
+      let _ ← ok (observe { current with state := { current.state with network := [] } })
   for instruction in reduced.instructions, position in [:reduced.instructions.size] do
-    if let .action (.receive ..) origins := instruction then
-      check (origins.length == 1) "receive action retained a event buffer"
-      let head := origins.head!
+    if let .action (.receive ..) head := instruction then
       let some headEvent := events.find? (sameOrigin head)
       | throw (IO.userError "receive action lost its source event")
       for later in reduced.instructions, observedAt in [:reduced.instructions.size] do
         let event :=
-          later.origins.any
-            fun origin =>
-              events.any
-                fun event =>
-                  event.sameContext headEvent
-                  && event.record.line > head.line
-                  && sameOrigin origin event
+          events.any
+            fun event =>
+              event.sameContext headEvent
+              && event.record.line > head.line
+              && sameOrigin later.origin event
         if event then
           check (observedAt > position) "event evidence preceded its receive action"
   let baseline ← ok (replayRecords records)
+  for name in ["send_append_entries", "recv_append_entries_response"] do
+    let index ← find records name
+    let fields ← ok (object (records[index]!.value.getObjValD "msg"))
+    for key in ["sent_idx", "match_idx"] do
+      let missing :=
+        mutate records index ["msg"] (Json.mkObj (fields.filter (·.1 != key)))
+      rejects (replayRecords missing) key
+      rejects (replayRecords missing) records[index]!.location
+  for (name, key, value, diagnostic)
+      in [
+        ("send_append_entries", "term", .bool true, "term"),
+        ("send_append_entries", "idx", toJson (999 : Nat), "event heartbeat"),
+        ("send_append_entries_response", "success", .arr #[], "success")
+      ] do
+    let index ← find records name
+    rejects (replayRecords (mutate records index ["msg", "packet", key] value)) diagnostic
   for name in ["execute_append_entries_sync", "add_configuration", "commit"] do
     let some index :=
       records.findIdx?
@@ -870,13 +980,11 @@ private def emissionTests : IO Unit := do
       "natural"
     if name == "commit" then
       rejects
-        (replayRecords (mutate records index ["msg", "args", "idx"] (toJson (999 : Nat))))
+        (replayRecords (mutate records index ["msg", "idx"] (toJson (999 : Nat))))
         "no log entry"
     if name == "add_configuration" then
-      let bad :=
-        mutate records index ["msg", "args", "configuration", "idx"] (toJson (999 : Nat))
-      let bad :=
-        mutate bad index ["msg", "args", "configuration", "rid"] (toJson (999 : Nat))
+      let bad := mutate records index ["msg", "idx"] (toJson (999 : Nat))
+      let bad := mutate bad index ["msg", "rid"] (toJson (999 : Nat))
       rejects (replayRecords bad) "no log entry"
   let receive ← find records "recv_append_entries"
   rejects
@@ -945,7 +1053,7 @@ private def observationTests : IO Nat := do
   let startupReduction ← ok (reduce startup)
   check
     (startupReduction.instructions.any
-      fun instruction => instruction.origins.any (·.rule == "write-pre"))
+      fun instruction => instruction.origin.rule == "write-pre")
     "missing rule observations"
   let candidate ← find votes "become_candidate"
   let _ ←
@@ -959,14 +1067,7 @@ private def observationTests : IO Nat := do
   return count + 3
 
 private def origin : Origin :=
-  {
-    file := "direct.ndjson",
-    line := 17,
-    function := "test",
-    command := "test",
-    commandLine := 1,
-    rule := "unit"
-  }
+  { file := "direct.ndjson", line := 17, rule := "unit" }
 
 private def header : Header :=
   {
@@ -975,14 +1076,126 @@ private def header : Header :=
     requests := ["", "tx-1", "configuration", "retired", "tx", "other", "unknown"]
   }
 
-private def act (step : Step) : Instruction := .action step [origin]
+private def act (step : Step) : Instruction := .action step origin
 
-private def observe (node : String) (fields : List (String × Json)) : Instruction :=
-  .state node none (Json.mkObj fields) origin
+private def observe (node : String) (fields : List (String × Json))
+    (identities : Header := header)
+    : Instruction :=
+  .observe (observeState identities node none (Json.mkObj fields)) origin
 
 private def sent (source destination : String) (fields : List (String × Json))
     : Instruction :=
-  .message source destination (Json.mkObj fields) .latest origin
+  .observe (observeMessage header source destination (Json.mkObj fields) .latest) origin
+
+-- This includes function-valued peer tables and every dropped occurrence.
+example (identities : Header) (current : ReplayState)
+    (observer : ReplayState → Except String Unit) (source : Origin)
+    (succeeds : observer current = .ok ())
+    : runInstruction identities current (.observe observer source) = .ok current := by
+  simp [runInstruction, succeeds]
+
+private def observationClosureTests : IO Unit := do
+  let steps :=
+    #[
+      act (.local "alpha" (.append [.transaction 1 {}])),
+      act (.local "alpha" (.append [.signature])),
+      act (.local "alpha" (.sendEntries 1 3)),
+      act (.receive "alpha" "beta" (Json.mkObj [("msg", toJson "raft_append_entries")])),
+      act
+        (.receive "beta" "alpha"
+          (Json.mkObj [("msg", toJson "raft_append_entries_response")]))
+    ]
+  let current ←
+    steps.foldlM (fun current step => ok (runInstruction header current step))
+      { state := header.initial }
+  let identities := { header with bootstrap := ∅ }
+  let fields :=
+    [
+      ("role", toJson "leader"),
+      ("currentTerm", toJson (2 : Nat)),
+      ("logLength", toJson (3 : Nat)),
+      ("commitIndex", toJson (3 : Nat)),
+      (
+        "configurations",
+        toJson
+          [Json.mkObj [("index", toJson (1 : Nat)), ("nodes", toJson ["alpha", "beta"])]]
+      ),
+      ("membershipState", toJson "active"),
+      ("retirementIndex", Json.null),
+      ("retirementCommittableIndex", Json.null),
+      ("retiredCommittedIndex", Json.null)
+    ]
+  checkObservedFields (observeState identities "alpha" (some "beta")) current
+    (fields ++ [("sentIndex", toJson (3 : Nat)), ("matchIndex", toJson (3 : Nat))])
+  let before :=
+    fields.map
+      fun (key, value) =>
+        (key, if key == "commitIndex" then toJson (1 : Nat) else value)
+  checkObservedFields (observeBeforeCommit identities "alpha" 1) current before
+  rejects (observeBeforeCommit identities "alpha" 3 (Json.mkObj before) current)
+    "pre-commit frontier must precede final commitIndex"
+  checkObservedFields (observeEntry identities "alpha" 2) current
+    [
+      ("term", toJson (2 : Nat)),
+      ("committed", .bool true),
+      ("kind", toJson "transaction"),
+      ("transaction", toJson "tx-1"),
+      ("configurations", toJson ([] : List (List String))),
+      ("retiredCommitted", toJson ([] : List String))
+    ]
+  checkObservedFields (observeEntry identities "alpha" 3) current
+    [("term", toJson (2 : Nat)), ("committed", .bool true), ("kind", toJson "signature")]
+  rejects
+    (observeEntry { identities with requests := [""] } "alpha" 2
+      (Json.mkObj [("kind", toJson "transaction")]) current)
+    "unknown model request identifier"
+  let messages : List CCFRaft.Model.Node.Message :=
+    [
+      .appendEntriesRequest
+        {
+          term := 2,
+          prevLogIndex := 0,
+          prevLogTerm := 0,
+          entries := [],
+          primaryCommit := 0
+        },
+      .appendEntriesResponse { term := 2, success := false, lastLogIndex := 0 },
+      .requestVoteRequest
+        { term := 3, lastCommittableTerm := 2, lastCommittableIndex := 3 },
+      .requestVoteResponse { term := 3, voteGranted := true },
+      .requestPreVoteRequest
+        { term := 2, lastCommittableTerm := 2, lastCommittableIndex := 3 },
+      .requestPreVoteResponse { term := 2, voteGranted := true },
+      .proposeRequestVoteRequest 2
+    ]
+  for message in messages do
+    let envelope : Envelope := { source := 0, target := 1, payload := message }
+    let queued :=
+      {
+        current with
+          state := { current.state with network := [envelope, envelope] },
+          dropped := [envelope]
+      }
+    for selection in [PacketSelection.head, .latest] do
+      checkObservedFields
+        (fun fields => observeMessage identities "alpha" "beta" fields selection)
+        queued (← ok (object (messageJson message)))
+    let observer : ReplayState → Except String Unit :=
+      fun state => do
+        require (state.dropped == [envelope] && state.pending 0 1 == [envelope])
+          "closure lost packet multiplicity or dropped evidence"
+        observeState identities "alpha" (some "beta")
+          (Json.mkObj
+            [("commitIndex", toJson (3 : Nat)), ("matchIndex", toJson (3 : Nat))])
+          state
+    let unchanged ← ok (runInstruction header queued (.observe observer origin))
+    let _ ← ok (observer unchanged)
+    check
+      (unchanged.state.network == queued.state.network
+        && unchanged.dropped == queued.dropped)
+      "observation changed packet accounting"
+  let failure := Instruction.observe (fun _ => .error "closure sentinel") origin
+  rejects (replay header #[failure]) s!"instruction 1 at {origin.label}: closure sentinel"
 
 private def directTests : IO Nat := do
   let append := Json.mkObj [("msg", toJson "raft_append_entries")]
@@ -1013,13 +1226,14 @@ private def directTests : IO Nat := do
         [("msg", toJson "raft_append_entries_response"), ("success", toJson "OK")],
       observe "beta" [("role", toJson "follower"), ("logLength", toJson (3 : Nat))],
       act (.receive "beta" "alpha" response),
-      .state "alpha" (some "beta")
-        (Json.mkObj
-          [
-            ("commitIndex", toJson (3 : Nat)),
-            ("sentIndex", toJson (3 : Nat)),
-            ("matchIndex", toJson (3 : Nat))
-          ])
+      .observe
+        (observeState header "alpha" (some "beta")
+          (Json.mkObj
+            [
+              ("commitIndex", toJson (3 : Nat)),
+              ("sentIndex", toJson (3 : Nat)),
+              ("matchIndex", toJson (3 : Nat))
+            ]))
         origin
     ]
   check
@@ -1027,7 +1241,6 @@ private def directTests : IO Nat := do
       == { instructions := 10, actions := 5, observations := 5 })
     "direct instruction consumption"
   rejects (replay header #[]) "must not be empty"
-  rejects (replay header #[.action (.receive "alpha" "beta" append) []]) "missing origin"
   for (step, diagnostic)
       in [
         (Step.receive "alpha" "beta" append, "no pending packet"),
@@ -1042,18 +1255,33 @@ private def directTests : IO Nat := do
   rejects (replay header #[observe "alpha" [("unknown", toJson (0 : Nat))]])
     "unsupported observation field"
   rejects
-    (replay header #[.entry "alpha" 0 (Json.mkObj [("kind", toJson "signature")]) origin])
+    (replay header
+      #[
+        .observe
+          (observeEntry header "alpha" 0 (Json.mkObj [("kind", toJson "signature")]))
+          origin
+      ])
     "positive"
   rejects
-    (replay header #[.entry "alpha" 2 (Json.mkObj [("kind", toJson "signature")]) origin])
+    (replay header
+      #[
+        .observe
+          (observeEntry header "alpha" 2 (Json.mkObj [("kind", toJson "signature")]))
+          origin
+      ])
     "no log entry"
   rejects
     (replay header
-      (start.push (.entry "alpha" 1 (Json.mkObj [("kind", toJson "signature")]) origin)))
+      (start.push
+        (.observe
+          (observeEntry header "alpha" 1 (Json.mkObj [("kind", toJson "signature")]))
+          origin)))
     "kind"
   rejects
     (replay header
-      (start.push (.entry "alpha" 2 (Json.mkObj [("committed", .bool true)]) origin)))
+      (start.push
+        (.observe (observeEntry header "alpha" 2 (Json.mkObj [("committed", .bool true)]))
+          origin)))
     "committed"
   let twice :=
     start
@@ -1062,12 +1290,15 @@ private def directTests : IO Nat := do
       sent "alpha" "beta" [("prev_idx", toJson (3 : Nat)), ("idx", toJson (3 : Nat))]
     ]
   let head :=
-    Instruction.message "alpha" "beta"
-      (Json.mkObj [("prev_idx", toJson (0 : Nat)), ("idx", toJson (3 : Nat))]) .head
+    Instruction.observe
+      (observeMessage header "alpha" "beta"
+        (Json.mkObj [("prev_idx", toJson (0 : Nat)), ("idx", toJson (3 : Nat))]) .head)
       origin
   let _ ← ok (replay header (twice.push head))
   let wrong :=
-    Instruction.message "alpha" "beta" (Json.mkObj [("prev_idx", toJson (3 : Nat))]) .head
+    Instruction.observe
+      (observeMessage header "alpha" "beta" (Json.mkObj [("prev_idx", toJson (3 : Nat))])
+        .head)
       origin
   rejects (replay header (twice.push wrong)) "prev_idx"
   let dropped :=
@@ -1127,12 +1358,13 @@ private def directTests : IO Nat := do
   let configured :=
     #[
       act (.local "alpha" (.append [.transaction 2 { configuration := some {0} }])),
-      .entry "alpha" 2
-        (Json.mkObj
-          [
-            ("configurations", toJson [["alpha"]]),
-            ("retiredCommitted", toJson ([] : List String))
-          ]) origin
+      .observe
+        (observeEntry header "alpha" 2
+          (Json.mkObj
+            [
+              ("configurations", toJson [["alpha"]]),
+              ("retiredCommitted", toJson ([] : List String))
+            ])) origin
     ]
   let _ ← ok (replay header configured)
   let retired :=
@@ -1145,12 +1377,13 @@ private def directTests : IO Nat := do
       act (.local "alpha" (.append [.transaction 3 { retirementConfirmations := {1} }]))
     ]
   let retirementEntry (nodes : List String) :=
-    Instruction.entry "alpha" 4
-      (Json.mkObj
-        [
-          ("retiredCommitted", toJson nodes),
-          ("configurations", toJson ([] : List (List String)))
-        ])
+    Instruction.observe
+      (observeEntry header "alpha" 4
+        (Json.mkObj
+          [
+            ("retiredCommitted", toJson nodes),
+            ("configurations", toJson ([] : List (List String)))
+          ]))
       origin
   let _ ← ok (replay header (retired.push (retirementEntry ["beta"])))
   rejects (replay header (retired.push (retirementEntry []))) "retiredCommitted"
@@ -1158,9 +1391,9 @@ private def directTests : IO Nat := do
     rejects
       (replay header #[act (.local "alpha" (.append [.transaction 6 metadata]))])
       "undeclared model node 99"
-  return 35
+  return 34
 
-private def receiveMatchingTests : IO Unit := do
+private def receiveFifoTests : IO Unit := do
   let setup :=
     #[
       act (.local "alpha" (.append [.transaction 4 {}, .signature])),
@@ -1177,27 +1410,30 @@ private def receiveMatchingTests : IO Unit := do
   let firstFields := messageJson first.payload
   let secondFields := messageJson second.payload
   let receive packet := act (.receive "alpha" "beta" packet)
-  let observed packet := Instruction.message "alpha" "beta" packet .matching origin
+  let observed packet :=
+    Instruction.observe (observeMessage header "alpha" "beta" packet .head) origin
   let _ ←
     ok
       (replay header
         (setup
           ++ #[
-            observed secondFields,
-            receive secondFields,
-            sent "beta" "alpha" [("success", toJson "FAIL")],
             observed firstFields,
-            receive firstFields
+            receive firstFields,
+            sent "beta" "alpha" [("success", toJson "OK")],
+            observed secondFields,
+            receive secondFields
           ]))
-  let observedOnly ← ok (runInstruction header queued (observed secondFields))
+  let observedOnly ← ok (runInstruction header queued (observed firstFields))
   check (observedOnly.pending 0 1 == packets)
-    "matching observation changed packet occurrences"
-  let afterSecond ← ok (runInstruction header queued (receive secondFields))
-  check (afterSecond.pending 0 1 == [first])
-    "out-of-order receive lost the earlier packet"
-  let afterFirst ← ok (runInstruction header afterSecond (receive firstFields))
-  check ((afterFirst.pending 0 1).isEmpty) "receive did not consume one copy"
-  rejects (runInstruction header afterFirst (receive secondFields)) "no pending packet"
+    "head observation changed packet occurrences"
+  rejects (runInstruction header queued (observed secondFields)) "prev_idx"
+  rejects (runInstruction header queued (receive secondFields)) "prev_idx"
+  let afterFirst ← ok (runInstruction header queued (receive firstFields))
+  check (afterFirst.pending 0 1 == [second])
+    "FIFO receive did not retain the second packet"
+  let afterSecond ← ok (runInstruction header afterFirst (receive secondFields))
+  check ((afterSecond.pending 0 1).isEmpty) "receive did not consume one copy"
+  rejects (runInstruction header afterSecond (receive secondFields)) "no pending packet"
   rejects (runInstruction header queued (receive (Json.mkObj []))) "at least one field"
   rejects (runInstruction header queued (receive (Json.mkObj [("unknown", .null)])))
     "unsupported observation field"
@@ -1229,26 +1465,24 @@ private def receiveMatchingTests : IO Unit := do
     | _ => none
   | throw (IO.userError "expected AppendEntries payload")
   check (first != differing && messageJson differing.payload == firstFields)
-    "ambiguous-payload test requires equal projected headers, different contents"
-  let ambiguous :=
-    { queued with state := { queued.state with network := [first, differing] } }
-  rejects (runInstruction header ambiguous (observed firstFields))
-    "ambiguous pending packets"
-  rejects (runInstruction header ambiguous (receive firstFields))
-    "ambiguous pending packets"
+    "FIFO payload test requires equal projected headers, different contents"
+  for (head, tail, transaction)
+      in [(first, differing, "tx"), (differing, first, "other")] do
+    let indistinguishable :=
+      { queued with state := { queued.state with network := [head, tail] } }
+    let _ ← ok (runInstruction header indistinguishable (observed firstFields))
+    let delivered ← ok (runInstruction header indistinguishable (receive firstFields))
+    check (delivered.pending 0 1 == [tail]) "FIFO selected a later matching payload"
+    let _ ←
+      ok
+        (observeEntry header "beta" 2
+          (Json.mkObj [("transaction", toJson transaction)]) delivered)
   let equalCopies :=
     { queued with state := { queued.state with network := [first, first] } }
   let one ← ok (runInstruction header equalCopies (receive firstFields))
   check (one.pending 0 1 == [first]) "equal envelopes lost multiplicity"
   let exhausted ← ok (runInstruction header one (receive firstFields))
   rejects (runInstruction header exhausted (receive firstFields)) "no pending packet"
-
-private def expectIOError (action : IO Unit) (expected : String) : IO Unit := do
-  let result ← action.toBaseIO
-  match result with
-  | .ok _ => throw (IO.userError s!"unexpected IO success: {expected}")
-  | .error error =>
-      check ((toString error).contains expected) s!"expected {expected}, got {error}"
 
 private def identityTests : IO Unit := do
   let lexical : Header :=
@@ -1261,10 +1495,13 @@ private def identityTests : IO Unit := do
     ok
       (replay lexical
         #[
-          observe "2" [("role", toJson "leader"), ("logLength", toJson (1 : Nat))],
-          observe "1" [("role", toJson "none"), ("logLength", toJson (0 : Nat))],
-          .entry "2" 1
-            (Json.mkObj [("transaction", toJson ""), ("configurations", toJson [["2"]])])
+          observe "2" [("role", toJson "leader"), ("logLength", toJson (1 : Nat))]
+            lexical,
+          observe "1" [("role", toJson "none"), ("logLength", toJson (0 : Nat))] lexical,
+          .observe
+            (observeEntry lexical "2" 1
+              (Json.mkObj
+                [("transaction", toJson ""), ("configurations", toJson [["2"]])]))
             origin
         ])
   for (invalid, diagnostic)
@@ -1276,203 +1513,117 @@ private def identityTests : IO Unit := do
         ({ lexical with requests := ["", "same", "same"] }, "must be distinct"),
         ({ lexical with requests := ["", ""] }, "reserve zero")
       ] do
-    rejects (replay invalid #[observe "2" [("role", toJson "leader")]]) diagnostic
+    rejects (replay invalid #[observe "2" [("role", toJson "leader")] lexical]) diagnostic
   for request in [0, 2] do
     rejects (replay lexical #[act (.local "2" (.append [.transaction request {}]))])
       "undeclared or reserved model request"
   rejects
-    (replay lexical #[observe "2" [("preVoteEnabled", .bool false)]])
+    (replay lexical #[observe "2" [("preVoteEnabled", .bool false)] lexical])
     "unsupported observation field"
   let _ ←
     ok
       (replay lexical
         #[
           act (.local "2" (.append [.transaction 1 {}])),
-          .entry "2" 2 (Json.mkObj [("transaction", toJson "request")]) origin
+          .observe
+            (observeEntry lexical "2" 2 (Json.mkObj [("transaction", toJson "request")]))
+            origin
         ])
 
-/-- Current Fluentd records retain order and decode only the native field layout. -/
+/-- Current Fluentd records retain their envelope, order and native field layout. -/
 private def transportTests : IO Unit := do
-  let original ← fixture "startup.ndjson"
-  let records ←
-    original.mapIdxM
-      fun index record => do
-        let message ←
-          if let some command := optional record.value "cmd" then
-            pure (Json.mkObj [("cmd", command)])
-          else do
-            let message ← ok (field record.value "msg")
-            let fields ← ok (object message)
-            if function record == "commit" then
-              pure
-                (Json.mkObj
-                  (fields.filter (·.1 != "args")
-                    ++ [("idx", ← ok (field message "args" >>= (field · "idx")))]))
-            else if function record == "add_configuration" then
-              let config ← ok (field message "args" >>= (field · "configuration"))
-              pure (Json.mkObj (fields.filter (·.1 != "args") ++ (← ok (object config))))
-            else
-              pure message
-        pure
-          {
-            record with
-              value :=
-                Json.mkObj
-                  [
-                    ("tag", toJson "ccf.raft_trace"),
-                    ("process_id", toJson "test-process"),
-                    ("h_ts", toJson index),
-                    ("msg", message)
-                  ]
-          }
-  check ((← ok (replayRecords records)) == (← ok (replayRecords original)))
-    "transport decoding changed replay instructions"
+  let records ← fixture "startup.ndjson"
+  let baseline ← ok (replayRecords records)
+  let (events, _) ← ok (associate records)
+  for event in events do
+    check (event.message == event.record.value.getObjValD "msg")
+      "event projection changed the native message"
+    let _ ← ok (field event.command.value "msg" >>= (string · "cmd"))
+    check (event.command.line < event.record.line)
+      "event was not associated with its preceding command"
+    check (optional event.command.value "tag" == some (toJson "ccf.raft_trace"))
+      "command provenance lost the Fluentd envelope"
+  let addressed ←
+    records.mapM
+      fun record => do
+        let encoded :=
+          record.value.compress.replace "\"address\":\":\""
+            "\"address\":\"127.0.0.1:8000\""
+        return { record with value := ← ok (Json.parse encoded) }
+  check (addressed.any (fun record => record.value.compress.contains "127.0.0.1:8000"))
+    "address regression did not replace any configuration metadata"
+  check ((← ok (replayRecords addressed)) == baseline) "transport address changed replay"
   for sequence in [0, 2] do
     rejects (reduce (mutate records 1 ["h_ts"] (toJson sequence))) "trace sequence"
+  rejects (reduce (mutate records 0 ["h_ts"] (toJson (1 : Nat)))) "trace sequence"
+  rejects (reduce (records.extract 0 1 ++ records.extract 2 records.size))
+    "trace sequence"
+  rejects (reduce (records.set! 1 records[2]! |>.set! 2 records[1]!)) "trace sequence"
   rejects (reduce (mutate records 1 ["process_id"] (toJson "another"))) "mixed trace"
-  rejects (reduce (records.set! 1 original[1]!)) "mixed legacy/current"
-  rejects (reduce (records.set! 0 original[0]!)) "mixed legacy/current"
-  rejects (reduce (mutate records 0 ["unexpected"] .null)) "unsupported field"
-  let config ← find original "add_configuration"
-  rejects (reduce (mutate records config ["msg", "rid"] (toJson (99 : Nat))))
-    "rid differs"
+  for (key, value) in [("process_id", .bool true), ("h_ts", .bool true)] do
+    rejects (reduce (mutate records 1 [key] value)) records[1]!.location
+  for key in ["process_id", "h_ts", "msg"] do
+    let fields ← ok (object records[1]!.value)
+    let missing := mutate records 1 [] (Json.mkObj (fields.filter (·.1 != key)))
+    rejects (reduce missing) key
+    rejects (reduce missing) records[1]!.location
+  for index in [0, 1] do
+    rejects (reduce (mutate records index ["tag"] (toJson "raft_trace")))
+      "expected ccf.raft_trace"
+  for raw
+      in [
+        "{\"tag\":\"raft_trace\",\"cmd\":\"state_all\"}",
+        "{\"tag\":\"raft_trace\",\"h_ts\":0,\"level\":\"trace\",\"msg\":{}}"
+      ] do
+    rejects (reduce (← ok (parseLog "legacy.stdout" raw))) "expected ccf.raft_trace"
+    rejects (reduce (← ok (parseLog "legacy.ndjson" raw))) "expected ccf.raft_trace"
+  check
+    ((← ok (replayRecords (mutate records 0 ["unexpected"] .null))) == baseline)
+    "unused envelope data changed replay"
+  let config ← find records "add_configuration"
+  check
+    ((← ok (replayRecords (mutate records config ["msg", "rid"] (toJson (99 : Nat)))))
+      == baseline)
+    "unused native rid changed replay"
+  for (name, keys, required)
+      in [
+        ("commit", ["idx"], "idx"),
+        ("add_configuration", ["idx", "rid", "nodes"], "nodes")
+      ] do
+    let index ← find records name
+    let fields ← ok (object (records[index]!.value.getObjValD "msg"))
+    let native := Json.mkObj (fields.filter (fun (key, _) => keys.contains key))
+    let args :=
+      if name == "commit" then native else Json.mkObj [("configuration", native)]
+    let legacy :=
+      Json.mkObj (fields.filter (fun (key, _) => !keys.contains key) ++ [("args", args)])
+    rejects (reduce (mutate records index ["msg"] legacy)) required
+    check
+      ((← ok (replayRecords (mutate records index ["msg", "args"] (.bool false))))
+        == baseline)
+      "unused legacy-shaped metadata replaced native fields"
+    for key in keys.filter (· != "rid") do
+      rejects
+        (reduce (mutate records index ["msg"] (Json.mkObj (fields.filter (·.1 != key)))))
+        key
+  let message ← ok (object (records[0]!.value.getObjValD "msg"))
+  let legacyCommand := mutate records 0 ["cmd"] (toJson "start_node,0")
+  let legacyCommand :=
+    mutate legacyCommand 0 ["msg"] (Json.mkObj (message.filter (·.1 != "cmd")))
+  rejects (reduce legacyCommand) "event before command"
+  let located := mutate records 1 ["file"] (toJson "src/consensus/aft/raft.h")
+  let located := mutate located 1 ["number"] (toJson "123")
+  let (events, _) ← ok (associate located)
+  check ((events[0]!.origin "test").label == s!"{records[1]!.location} [test]")
+    "origin lost its trace location or reduction rule"
+  check ((← ok (replayRecords (mutate located 1 ["number"] (.bool false)))) == baseline)
+    "unused implementation metadata changed replay"
   let votes ← fixture "vote_responses.ndjson"
   let timeout ← find votes "become_pre_vote_candidate"
   let disabled := mutate votes timeout ["msg", "function"] (toJson "become_candidate")
   rejects (reduce disabled) "ungrouped event become_candidate"
 
-/-- The test executable itself supplies deterministic driver failure modes. -/
-private def fakeDriver (scenario : System.FilePath) : IO UInt32 := do
-  match ← IO.FS.readFile scenario with
-  | "empty" => return 0
-  | "fail" => IO.println "partial trace"; IO.eprintln "driver error"; return 3
-  | "stderr" => IO.eprintln "driver warning"; return 0
-  | "timeout" =>
-      IO.println "partial trace"
-      (← IO.getStdout).flush
-      IO.sleep 30000
-      return 0
-  | "descendant" =>
-      let _ ← IO.Process.spawn { cmd := "sleep", args := #["30"] }
-      IO.println "partial trace"
-      (← IO.getStdout).flush
-      return 0
-  | "invalid" =>
-      (← IO.getStdout).write (ByteArray.mk #[255, 10])
-      return 0
-  | _ =>
-      IO.print "<RaftDriver> diagram\r\n"
-      IO.print (← IO.FS.readFile "replay/tests/fixtures/bootstrap.ndjson")
-      return 0
-
-private def suiteTests : IO Nat :=
-  IO.FS.withTempDir
-    fun root => do
-      let scenarios := root / "scenarios"
-      let output := root / "output"
-      let raw := root / "raw"
-      IO.FS.createDirAll (scenarios / "nested")
-      IO.FS.createDirAll output
-      IO.FS.createDirAll raw
-      let guarded := root / "protected"
-      IO.FS.createDirAll guarded
-      let input := guarded / "summary.json"
-      IO.FS.writeFile input "scenario,not,a,suite,summary"
-      for destination
-          in [
-            guarded,
-            guarded / "missing" / "nested",
-            guarded / ".." / "protected",
-            root
-          ] do
-        expectIOError
-          (discard
-            (runSuite
-              { scenarios := guarded, output := destination, rawDirectory := some raw }))
-          "output directory must be disjoint"
-        check ((← IO.FS.readFile input) == "scenario,not,a,suite,summary")
-          "unsafe output changed the scenario inventory"
-        check (!(← (guarded / "missing").pathExists))
-          "unsafe output created a directory inside the inventory"
-      IO.FS.writeFile (output / "summary.json") "{\"passed\":53,\"failed\":0}"
-      expectIOError (discard (runSuite { scenarios, output, driver := some "missing" }))
-        "empty scenario inventory"
-      check (!(← (output / "summary.json").pathExists))
-        "stale success survived invalid inventory"
-      for name in ["plain", "dotted.1", "nested/inside"] do
-        IO.FS.writeFile (scenarios / name) "ok"
-      let paths ← inventory scenarios
-      check (paths.size == 3) "recursive inventory omitted a file"
-      let driver ← IO.appPath
-      let captured := root / "capture.stdout"
-      let stderr := root / "capture.stderr"
-      capture driver (scenarios / "plain") captured stderr 5000
-      check
-        ((← IO.FS.readBinFile captured)
-          == ("<RaftDriver> diagram\r\n"
-              ++ (← IO.FS.readFile "replay/tests/fixtures/bootstrap.ndjson")).toUTF8)
-        "capture changed stdout bytes"
-      let records ← ok (← readLog captured)
-      check (records[0]!.line == 2 && records[records.size - 1]!.line == records.size + 1)
-        "physical line provenance"
-      let positive ← runSuite { scenarios, output, driver := some driver }
-      check (positive.selected == 3 && positive.passed == 3 && positive.failed == 0)
-        "fresh suite"
-      for (mode, diagnostic, stdout, err)
-          in [
-            ("fail", "exited 3", "partial trace\n", "driver error\n"),
-            ("stderr", "wrote to stderr", "", "driver warning\n"),
-            ("timeout", "exceeded", "partial trace\n", ""),
-            ("descendant", "exceeded", "partial trace\n", "")
-          ] do
-        IO.FS.writeFile (scenarios / "plain") mode
-        expectIOError (capture driver (scenarios / "plain") captured stderr 5000)
-          diagnostic
-        check ((← IO.FS.readFile captured) == stdout && (← IO.FS.readFile stderr) == err)
-          s!"lost {mode} capture"
-      for (name, mode)
-          in [("plain", "empty"), ("dotted.1", "invalid"), ("nested/inside", "fail")] do
-        IO.FS.writeFile (scenarios / name) mode
-      let failures ← runSuite { scenarios, output, driver := some driver }
-      check (failures.selected == 3 && failures.failed == 3)
-        "did not attempt all capture/parser failures"
-      check
-        ((failures.results.filter
-            (fun result => optional result "stage" == some (toJson "capture"))).size
-          == 1)
-        "failure stages lost"
-      let absent ← runSuite { scenarios, output, rawDirectory := some raw }
-      check (absent.selected == 3 && absent.failed == 3) "missing captures were skipped"
-      for name in ["plain", "dotted.1", "nested/inside"] do
-        if name == "nested/inside" then IO.FS.createDirAll (raw / "nested")
-        IO.FS.writeBinFile (System.FilePath.mk ((raw / name).toString ++ ".stdout"))
-          (ByteArray.mk #[255, 10])
-      let encoding ← runSuite { scenarios, output, rawDirectory := some raw }
-      check
-        (encoding.failed == 3
-          && encoding.results.all
-              (fun result =>
-                (optional result "error" >>= (·.getStr?.toOption)).any
-                  (·.contains "invalid UTF-8")))
-        "invalid encoding aborted or passed corpus"
-      let invalid := "{malformed"
-      IO.FS.writeFile (raw / "plain.stdout") invalid
-      let corpus ←
-        runSuite
-          { scenarios, output, rawDirectory := some raw, driver := some "must-not-run" }
-      check (corpus.failed == 3) "corpus mode recaptured or skipped a missing file"
-      IO.FS.writeFile (raw / "plain.stdout")
-        (← IO.FS.readFile "replay/tests/fixtures/bootstrap.ndjson")
-      let mixed ←
-        runSuite
-          { scenarios, output, rawDirectory := some raw, driver := some "must-not-run" }
-      check (mixed.passed == 1 && mixed.failed == 2)
-        "corpus mode recaptured or failed to check valid input"
-      return 20
-
-def main (args : List String) : IO UInt32 := do
-  if args != ["--no-cleanup"] then
-    if let [scenario] := args then return ← fakeDriver scenario
+def main : IO UInt32 := do
   let _ ← parserTests
   let _ ← reductionTests
   parsecInfrastructureTests
@@ -1483,11 +1634,10 @@ def main (args : List String) : IO UInt32 := do
   let _ ← fixtureMutations
   let observations ← observationTests
   let _ ← directTests
-  receiveMatchingTests
+  observationClosureTests
+  receiveFifoTests
   identityTests
   transportTests
-  unless args == ["--no-cleanup"] do
-    let _ ← suiteTests
   IO.println s!"Raw event observation cases passed: {observations}."
   IO.println "Lean replay regressions passed."
   return 0

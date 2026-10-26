@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import raft_trace
 import raft_trace_capture
+from raft_scenarios_runner import preprocess_for_trace_validation
 
 import msgpack
 
@@ -82,7 +83,7 @@ class CaptureTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             self.assertEqual(records, [record])
 
-    def test_invalid_utf8_preserves_binary_output_and_records(self):
+    def test_binary_diagnostics_do_not_constrain_structured_capture(self):
         record = {"process_id": "one", "h_ts": 0, "msg": {"cmd": "state_all"}}
         for stdout, stderr in (
             (b"native progress\xff\n", b"stderr before failure\r\n"),
@@ -92,13 +93,9 @@ class CaptureTests(unittest.TestCase):
                 stdout=stdout, stderr=stderr
             ), tempfile.TemporaryDirectory() as directory:
                 root = pathlib.Path(directory)
-                driver = write_driver(root, pack_record(record), stdout, stderr, 3)
+                driver = write_driver(root, pack_record(record), stdout, stderr)
                 output = root / "capture.stdout"
-                with self.assertRaises(raft_trace.CaptureError) as failure:
-                    raft_trace_capture.capture(driver, root / "scenario", output)
-                self.assertIsInstance(failure.exception.__cause__, UnicodeError)
-                self.assertEqual(failure.exception.records, [record])
-                self.assertFalse(output.exists())
+                raft_trace_capture.capture(driver, root / "scenario", output)
                 self.assertEqual(
                     pathlib.Path(str(output) + ".driver.stdout").read_bytes(),
                     stdout,
@@ -108,14 +105,20 @@ class CaptureTests(unittest.TestCase):
                     stderr,
                 )
                 self.assertEqual(
-                    [
-                        json.loads(line)
-                        for line in output.with_suffix(".partial")
-                        .read_text()
-                        .splitlines()
-                    ],
+                    [json.loads(line) for line in output.read_text().splitlines()],
                     [{"tag": "ccf.raft_trace", **record}],
                 )
+
+    def test_text_consumers_still_reject_invalid_encoding(self):
+        record = {"process_id": "one", "h_ts": 0, "msg": {"cmd": "state_all"}}
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            driver = write_driver(root, pack_record(record), b"\xff", b"")
+            with self.assertRaises(raft_trace.CaptureError) as failure:
+                raft_trace.run_driver(driver, root / "scenario")
+            self.assertIsInstance(failure.exception.__cause__, UnicodeError)
+            self.assertEqual(failure.exception.stdout, b"\xff")
+            self.assertEqual(failure.exception.records, [record])
 
     def test_partial_transport_and_sequence_failures_preserve_records(self):
         first = {"process_id": "one", "h_ts": 0, "msg": {"cmd": "state_all"}}
@@ -177,12 +180,10 @@ class CaptureTests(unittest.TestCase):
             stdout, stderr = b"native progress\r\n", b"timeout diagnostic\xff\n"
             driver = write_driver(root, pack_record(record), stdout, stderr, delay=2)
             output = root / "capture.stdout"
-            run_driver = raft_trace.run_driver
-            with patch(
-                "raft_trace_capture.raft_trace.run_driver",
-                side_effect=lambda *args: run_driver(*args, timeout=0.5),
-            ), self.assertRaises(raft_trace.CaptureError) as failure:
-                raft_trace_capture.capture(driver, root / "scenario", output)
+            with self.assertRaises(raft_trace.CaptureError) as failure:
+                raft_trace_capture.capture(
+                    driver, root / "scenario", output, timeout=0.5
+                )
             self.assertIsInstance(
                 failure.exception.__cause__, subprocess.TimeoutExpired
             )
@@ -246,18 +247,20 @@ class CaptureTests(unittest.TestCase):
 
     def test_native_failures_publish_only_partial_records(self):
         record = {"process_id": "one", "h_ts": 0, "msg": {"cmd": "state_all"}}
-        for code, diagnostic in ((3, "exited 3"), (0, "wrote to stderr")):
-            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+        for stderr in (b"diagnostic\r\n", b"diagnostic\xff\n"):
+            with self.subTest(
+                stderr=stderr
+            ), tempfile.TemporaryDirectory() as directory:
                 root = pathlib.Path(directory)
                 driver = write_driver(
                     root,
                     pack_record(record),
                     b"native\r\n\x00",
-                    b"diagnostic\r\n",
-                    code,
+                    stderr,
+                    3,
                 )
                 output = root / "capture.stdout"
-                with self.assertRaisesRegex(RuntimeError, diagnostic):
+                with self.assertRaisesRegex(RuntimeError, "exited 3"):
                     raft_trace_capture.capture(driver, root / "scenario", output)
                 self.assertFalse(output.exists())
                 self.assertEqual(
@@ -266,7 +269,7 @@ class CaptureTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     pathlib.Path(str(output) + ".driver.stderr").read_bytes(),
-                    b"diagnostic\r\n",
+                    stderr,
                 )
                 self.assertEqual(
                     [
@@ -290,15 +293,16 @@ class CaptureTests(unittest.TestCase):
             for name in ("01-fail", "02-next"):
                 (scenarios / name).write_text("scenario")
             with patch(
-                "sys.argv", ["capture", "driver", str(scenarios), str(output)]
+                "sys.argv",
+                ["capture", str(scenarios), str(output), "--driver", "driver"],
             ), patch(
                 "raft_trace.run_driver",
                 side_effect=[
                     error,
-                    (subprocess.CompletedProcess([], 0, "native", ""), [record]),
+                    (subprocess.CompletedProcess([], 0, b"native", b""), [record]),
                 ],
             ), self.assertRaisesRegex(
-                RuntimeError, "1/2 captures failed"
+                RuntimeError, "1/2 scenarios failed"
             ):
                 raft_trace_capture.main()
             self.assertFalse((output / "01-fail.stdout").exists())
@@ -317,7 +321,7 @@ class CaptureTests(unittest.TestCase):
             victim = scenarios / "victim.stdout"
             victim.write_bytes(b"protected input\xff")
             with patch(
-                "sys.argv", ["capture", "driver", str(scenarios), str(root)]
+                "sys.argv", ["capture", str(scenarios), str(root), "--driver", "driver"]
             ), self.assertRaisesRegex(ValueError, "disjoint"):
                 raft_trace_capture.main()
             self.assertEqual(victim.read_bytes(), b"protected input\xff")
@@ -328,6 +332,12 @@ class CaptureTests(unittest.TestCase):
 
     def test_writes_records_without_protocol_mapping(self):
         result, records = self.collect([0, 1])
+        result = subprocess.CompletedProcess(
+            result.args,
+            result.returncode,
+            result.stdout.encode(),
+            result.stderr.encode(),
+        )
         with tempfile.TemporaryDirectory() as directory:
             output = pathlib.Path(directory) / "nested" / "trace.stdout"
             with patch("raft_trace.run_driver", return_value=(result, records)):
@@ -337,7 +347,7 @@ class CaptureTests(unittest.TestCase):
                 observed, [{"tag": "ccf.raft_trace", **r} for r in records]
             )
             self.assertEqual(
-                pathlib.Path(str(output) + ".driver.stdout").read_text(), result.stdout
+                pathlib.Path(str(output) + ".driver.stdout").read_bytes(), result.stdout
             )
 
     def test_legacy_adapter_preserves_callback_order(self):
@@ -355,6 +365,21 @@ class CaptureTests(unittest.TestCase):
             ],
         )
 
+    def test_legacy_adapter_supplies_native_pre_vote_without_mutating_records(self):
+        source = pathlib.Path(__file__).resolve().parents[1]
+        fixture = source / "lean/ccf-raft/replay/tests/fixtures/startup.ndjson"
+        records = [json.loads(line) for line in fixture.read_text().splitlines()]
+        original = json.dumps(records, sort_keys=True)
+        legacy = raft_trace.as_log_lines(records)
+        trace = preprocess_for_trace_validation([json.dumps(row) for row in legacy])
+        self.assertTrue(trace)
+        for line in trace:
+            self.assertIs(json.loads(line)["msg"]["state"]["pre_vote_enabled"], True)
+        self.assertEqual(json.dumps(records, sort_keys=True), original)
+        for record in records:
+            if "state" in record["msg"]:
+                self.assertNotIn("pre_vote_enabled", record["msg"]["state"])
+
     def test_failed_capture_cannot_leave_success_input(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
@@ -365,11 +390,14 @@ class CaptureTests(unittest.TestCase):
             output.mkdir()
             trace = output / "one.stdout"
             trace.write_text("stale success")
-            result = subprocess.CompletedProcess([], 1, "native failure", "")
+            result = subprocess.CompletedProcess([], 1, b"native failure", b"")
             with (
-                patch("sys.argv", ["capture", "driver", str(scenarios), str(output)]),
+                patch(
+                    "sys.argv",
+                    ["capture", str(scenarios), str(output), "--driver", "driver"],
+                ),
                 patch("raft_trace.run_driver", return_value=(result, [])),
-                self.assertRaisesRegex(RuntimeError, "1/1 captures failed"),
+                self.assertRaisesRegex(RuntimeError, "1/1 scenarios failed"),
             ):
                 raft_trace_capture.main()
             self.assertFalse(trace.exists())

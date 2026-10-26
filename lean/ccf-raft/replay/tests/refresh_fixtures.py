@@ -16,6 +16,24 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def copy_fixture(name, original, start, stop, output):
+    selected = original.read_bytes().splitlines(keepends=True)[start:stop]
+    if not selected or any(
+        json.loads(line).get("tag") != "ccf.raft_trace" for line in selected
+    ):
+        raise ValueError(f"{original}: expected current ccf.raft_trace envelopes")
+    destination = output / name
+    destination.write_bytes(b"".join(selected))
+    return {
+        "fixture": name,
+        "fixture_sha256": sha256(destination),
+        "capture": str(original.resolve()),
+        "capture_sha256": sha256(original),
+        "first_line": start + 1,
+        "last_line": start + len(selected),
+    }
+
+
 def main():
     from raft_trace_capture import capture
 
@@ -43,7 +61,7 @@ def main():
     )
     raw = args.evidence / "events.stdout"
     capture(args.driver, scenario, raw)
-    lines = raw.read_text(encoding="utf-8").splitlines(keepends=True)
+    lines = raw.read_bytes().splitlines(keepends=True)
     records = [json.loads(line) for line in lines]
 
     def command(name):
@@ -71,23 +89,10 @@ def main():
         ("nominate_successor.stdout", "nominate_successor"),
     ):
         fixtures.append((name, args.captures / f"{scenario_name}.stdout", 0, None))
-    origins = []
-    for name, original, start, stop in fixtures:
-        selected = original.read_text(encoding="utf-8").splitlines(keepends=True)[
-            start:stop
-        ]
-        destination = args.output / name
-        destination.write_text("".join(selected), encoding="utf-8")
-        origins.append(
-            {
-                "fixture": name,
-                "fixture_sha256": sha256(destination),
-                "capture": str(original.resolve()),
-                "capture_sha256": sha256(original),
-                "first_line": start + 1,
-                "last_line": start + len(selected),
-            }
-        )
+    origins = [
+        copy_fixture(name, original, start, stop, args.output)
+        for name, original, start, stop in fixtures
+    ]
     report = {
         "driver_sha256": sha256(args.driver),
         "scenario_sha256": sha256(scenario),

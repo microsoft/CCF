@@ -30,7 +30,8 @@ def unique_map(pairs):
     return result
 
 
-def run_driver(driver, scenario, timeout=60):
+def run_driver(driver, scenario, timeout=60, *, text=True):
+    """Collect structured records; optionally decode console output for text consumers."""
     records = []
     stdout = stderr = b""
     try:
@@ -115,8 +116,8 @@ def run_driver(driver, scenario, timeout=60):
             subprocess.CompletedProcess(
                 result.args,
                 result.returncode,
-                stdout.decode("utf-8"),
-                stderr.decode("utf-8"),
+                stdout.decode("utf-8") if text else stdout,
+                stderr.decode("utf-8") if text else stderr,
             ),
             records,
         )
@@ -126,15 +127,23 @@ def run_driver(driver, scenario, timeout=60):
 
 def as_log_lines(records):
     """Adapt protocol callbacks for the legacy TLA consumer, not Lean replay."""
-    return [
-        (
-            {"tag": "raft_trace", **record["msg"]}
-            if "cmd" in record["msg"]
-            else {
-                "tag": "raft_trace",
-                "h_ts": str(record["h_ts"]),
-                "msg": record["msg"],
-            }
-        )
-        for record in records
-    ]
+    lines = []
+    for record in records:
+        message = record["msg"]
+        if "cmd" in message:
+            lines.append({"tag": "raft_trace", **message})
+        else:
+            if "state" in message:
+                # TLA still expects a mode field; native pre-vote is unconditional.
+                message = {
+                    **message,
+                    "state": {**message["state"], "pre_vote_enabled": True},
+                }
+            lines.append(
+                {
+                    "tag": "raft_trace",
+                    "h_ts": str(record["h_ts"]),
+                    "msg": message,
+                }
+            )
+    return lines

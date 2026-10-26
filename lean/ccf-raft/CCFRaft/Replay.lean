@@ -20,19 +20,11 @@ abbrev Envelope := Model.Envelope
 structure Origin where
   file : String
   line : Nat
-  function : String
-  command : String
-  commandLine : Nat
-  implementation : Option (String × Nat) := none
   rule : String
-  /-- Pre-mutation fields intentionally not compared to the final atomic state. -/
-  omitted : List (String × Json × String) := []
 deriving Inhabited
 
 def Origin.label (origin : Origin) : String :=
-  let implementation :=
-    origin.implementation.map (fun (file, line) => s!" ({file}:{line})") |>.getD ""
-  s!"{origin.file}:{origin.line} [{origin.rule}] {origin.function}{implementation}, command {origin.commandLine}: {origin.command}"
+  s!"{origin.file}:{origin.line} [{origin.rule}]"
 
 /-- Bootstrap and every driver-created node, including nodes with no events yet. -/
 structure Header where
@@ -69,29 +61,19 @@ def Step.name : Step → String
 inductive PacketSelection where
   | latest
   | head
-  | matching
-
-/-- Direct model actions and sparse observations; there is no replay wire schema. -/
-inductive Instruction where
-  | action (step : Step) (origins : List Origin)
-  | state (node : String) (peer : Option String) (fields : Json) (origin : Origin)
-  /-- Read-only view of the final log at an independently checked old commit frontier. -/
-  | stateBeforeCommit (node : String) (frontier : Nat) (fields : Json) (origin : Origin)
-  | entry (node : String) (index : Nat) (fields : Json) (origin : Origin)
-  /-- Sends observe the latest packet, drops the head, and receives a matching packet. -/
-  | message (source destination : String) (packet : Json) (selection : PacketSelection)
-    (origin : Origin)
-
-def Instruction.origins : Instruction → List Origin
-  | .action _ origins => origins
-  | .state _ _ _ origin
-  | .stateBeforeCommit _ _ _ origin
-  | .entry _ _ _ origin
-  | .message _ _ _ _ origin => [origin]
 
 structure ReplayState where
   state : Model.State
   dropped : List Envelope := []
+
+/-- Direct model actions and read-only checks; there is no replay wire schema. -/
+inductive Instruction where
+  | action (step : Step) (origin : Origin)
+  | observe (check : ReplayState → Except String Unit) (origin : Origin)
+
+def Instruction.origin : Instruction → Origin
+  | .action _ origin
+  | .observe _ origin => origin
 
 /--
 Dropped copies remain undelivered model envelopes, excluded with multiplicity.
@@ -180,8 +162,15 @@ private def observeNodeState (header : Header) (node : String) (state : NodeStat
       ]
   checkFields expected (Json.mkObj fields)
 
-private def observeBeforeCommit (header : Header) (replay : ReplayState)
-    (node : String) (frontier : Nat) (expected : Json)
+/-- Capture stable identities, not the bootstrap membership finalized after reduction. -/
+def observeState (header : Header) (node : String) (peer : Option String)
+    (expected : Json) (replay : ReplayState)
+    : Except String Unit := do
+  observeNodeState header node (← lookup header replay node) peer expected
+
+/-- Read the final log at an independently checked old commit frontier. -/
+def observeBeforeCommit (header : Header) (node : String) (frontier : Nat)
+    (expected : Json) (replay : ReplayState)
     : Except String Unit := do
   let state ← lookup header replay node
   unless frontier < state.commitIndex do
@@ -195,8 +184,8 @@ private def observeBeforeCommit (header : Header) (replay : ReplayState)
     { state with commitIndex := frontier, retiredCommittedIndex := confirmation }
   observeNodeState header node view none expected
 
-private def observeEntry (header : Header) (replay : ReplayState) (node : String)
-    (index : Nat) (expected : Json)
+def observeEntry (header : Header) (node : String) (index : Nat)
+    (expected : Json) (replay : ReplayState)
     : Except String Unit := do
   if index == 0 then throw "log entry index must be positive"
   let state ← lookup header replay node
@@ -284,20 +273,17 @@ private def selectPacket (state : ReplayState) (source destination : NodeID)
     match selection with
     | .head => pure first
     | .latest => pure (pending.getLast?.getD first)
-    | .matching =>
-        let matching :=
-          pending.filter
-            fun envelope =>
-              (checkFields packet (messageJson envelope.payload)).isOk
-        match matching with
-        | [] => pure first
-        | envelope :: rest =>
-            unless rest.all (· == envelope) do
-              throw
-                s!"ambiguous pending packets from '{source}' to '{destination}': recorded fields do not distinguish their payloads"
-            pure envelope
   checkFields packet (messageJson envelope.payload)
   return envelope
+
+/-- Sends select the latest packet; explicit drops check the head before excluding it. -/
+def observeMessage (header : Header) (source destination : String) (packet : Json)
+    (selection : PacketSelection) (replay : ReplayState)
+    : Except String Unit := do
+  let source ← header.nodeId source
+  let destination ← header.nodeId destination
+  let _ ← selectPacket replay source destination packet selection
+  pure ()
 
 private def runStep (header : Header) (replay : ReplayState) (step : Step)
     : Except String ReplayState := do
@@ -328,7 +314,7 @@ private def runStep (header : Header) (replay : ReplayState) (step : Step)
   | .receive source destination packet =>
       let source ← header.nodeId source
       let destination ← header.nodeId destination
-      let envelope ← selectPacket replay source destination packet .matching
+      let envelope ← selectPacket replay source destination packet .head
       let some state := system.step replay.state (.deliver envelope)
       | throw "disabled model action 'receive'"
       return { replay with state }
@@ -344,19 +330,8 @@ def runInstruction (header : Header) (state : ReplayState) (instruction : Instru
     : Except String ReplayState := do
   match instruction with
   | .action step _ => runStep header state step
-  | .state node peer fields _ =>
-      observeNodeState header node (← lookup header state node) peer fields
-      return state
-  | .stateBeforeCommit node frontier fields _ =>
-      observeBeforeCommit header state node frontier fields
-      return state
-  | .entry node index fields _ =>
-      observeEntry header state node index fields
-      return state
-  | .message source destination packet selection _ =>
-      let source ← header.nodeId source
-      let destination ← header.nodeId destination
-      let _ ← selectPacket state source destination packet selection
+  | .observe check _ =>
+      check state
       return state
 
 structure Result where
@@ -364,6 +339,15 @@ structure Result where
   actions : Nat
   observations : Nat
 deriving Repr, BEq
+
+def Result.json (result : Result) : Json :=
+  Json.mkObj
+    [
+      ("status", toJson "ok"),
+      ("instructions", toJson result.instructions),
+      ("actions", toJson result.actions),
+      ("observations", toJson result.observations)
+    ]
 
 def replay (header : Header) (instructions : Array Instruction)
     : Except String Result := do
@@ -386,11 +370,10 @@ def replay (header : Header) (instructions : Array Instruction)
   let mut state : ReplayState := { state := header.initial }
   let mut actions := 0
   for instruction in instructions, index in [:instructions.size] do
-    if instruction.origins.isEmpty then throw s!"instruction {index + 1}: missing origin"
     state ←
       (runInstruction header state instruction).mapError
         fun error =>
-          s!"instruction {index + 1} at {String.intercalate ", " (instruction.origins.map Origin.label)}: {error}"
+          s!"instruction {index + 1} at {instruction.origin.label}: {error}"
     if let .action .. := instruction then actions := actions + 1
   return {
     instructions := instructions.size,

@@ -73,35 +73,34 @@ private def emitInstruction (instruction : Instruction) : Reduction Unit :=
     fun cursor => { cursor with instructions := cursor.instructions.push instruction }
 
 private def emitAction (event : Event) (rule : String) (step : Step) : Reduction Unit :=
-  emitInstruction (.action step [event.origin rule])
+  emitInstruction (.action step (event.origin rule))
 
 private def emitObserveEntry (event : Event) (index : Nat)
     (fields : List (String × Json)) (rule : String := "event-entry")
-    : Reduction Unit :=
-  emitInstruction (.entry event.node index (Json.mkObj fields) (event.origin rule))
+    : Reduction Unit := do
+  emitInstruction
+    (.observe (observeEntry (← get).header event.node index (Json.mkObj fields))
+      (event.origin rule))
 
-/-- Selected boundaries check every unexcluded field; phase omissions have fixed reasons. -/
+/-- Selected boundaries check every field except fixed native-phase exclusions. -/
 private def emitObserve (event : Event) (rule : String)
-    (properties : Option Json := none) (exclusions : List (String × String) := [])
+    (properties : Option Json := none) (exclusions : List String := [])
     (peer : Option String := none) (frontier : Option Nat := none)
     : Reduction Unit := do
   let facts ← read event (object (properties.getD event.facts))
-  let mut omitted := []
-  for (key, reason) in exclusions do
-    let some value := facts.lookup key
-    | failure s!"{event.record.location}: exclusion names unknown property '{key}'"
-    checked event (!reason.trimAscii.toString.isEmpty)
-      "observation exclusion requires a reason"
-    omitted := omitted ++ [(key, value, reason)]
-  let fields := facts.filter fun (key, _) => !(exclusions.lookup key).isSome
+  let fields := facts.filter fun (key, _) => !exclusions.contains key
   let state := fields.filter (·.1 != "committableIndices")
   checked event (!state.isEmpty) s!"{rule} has no state properties to observe"
-  let origin := { event.origin rule with omitted }
+  let origin := event.origin rule
   if let some frontier := frontier then
     checked event peer.isNone "pre-commit observation cannot select a peer"
-    emitInstruction (.stateBeforeCommit event.node frontier (Json.mkObj state) origin)
+    emitInstruction
+      (.observe
+        (observeBeforeCommit (← get).header event.node frontier (Json.mkObj state))
+        origin)
   else
-    emitInstruction (.state event.node peer (Json.mkObj state) origin)
+    emitInstruction
+      (.observe (observeState (← get).header event.node peer (Json.mkObj state)) origin)
   if let some markers := fields.lookup "committableIndices" then
     for marker in ← read event markers.getArr? do
       emitObserveEntry event (← read event (natural marker))
@@ -112,29 +111,35 @@ private def emitObservePacket (event : Event) (rule : String)
     : Reduction Unit := do
   let destination ← read event (string event.message "to_node_id")
   let packet ← read event (field event.message "packet")
-  emitInstruction (.message event.node destination packet selection (event.origin rule))
+  emitInstruction
+    (.observe (observeMessage (← get).header event.node destination packet selection)
+      (event.origin rule))
 
 private def emitObserveProposal (event : Event) (rule : String) : Reduction Unit := do
   let destination ← read event (string event.message "to_node_id")
   let term ← read event (nat event.state "current_view")
   emitInstruction
-    (.message event.node destination
-      (Json.mkObj [("msg", toJson "raft_propose_request_vote"), ("term", toJson term)])
-      .latest (event.origin rule))
+    (.observe
+      (observeMessage (← get).header event.node destination
+        (Json.mkObj [("msg", toJson "raft_propose_request_vote"), ("term", toJson term)])
+        .latest)
+      (event.origin rule))
 
 private def emitObservePeerProgress (event : Event) (rule : String) : Reduction Unit := do
-  let mut fields := []
-  for (raw, target) in [("sent_idx", "sentIndex"), ("match_idx", "matchIndex")] do
-    if let some value := optional event.message raw then
-      fields := fields ++ [(target, value)]
-  unless fields.isEmpty do
-    let peer ←
-      read event
-        (text
-          ((optional event.message "to_node_id"
-            <|> optional event.message "from_node_id").getD
-            .null))
-    emitObserve event rule (some (Json.mkObj fields)) [] (some peer)
+  let peer ←
+    read event do
+      if let some value := optional event.message "to_node_id" then
+        text value
+      else
+        string event.message "from_node_id"
+  let fields ←
+    read event do
+      return Json.mkObj
+        [
+          ("sentIndex", ← field event.message "sent_idx"),
+          ("matchIndex", ← field event.message "match_idx")
+        ]
+  emitObserve event rule (some fields) [] (some peer)
 
 private def emitObserveInternal (event : Event) : Reduction Unit := do
   emitObserve event "event-term"
@@ -164,7 +169,7 @@ private def retirementNomination (commit : Event) : Reduction Event :=
   let nomination :=
     event "step_down_and_nominate_successor" (source := some commit)
       fun e => do
-        let target ← read commit (field commit.message "args" >>= (nat · "idx"))
+        let target ← read commit (nat commit.message "idx")
         let confirmation ← read e (nat e.facts "retiredCommittedIndex")
         checked e
           (optional e.facts "role" == some (toJson "leader")
@@ -198,7 +203,7 @@ private def ruleLeaderCommit (anchor : Event) : Reduction LeaderCommit :=
         let previous ← read anchor (nat anchor.facts "commitIndex")
         checked e (optional e.facts "commitIndex" == some (toJson previous))
           "commitIndex differs from anchored pre-frontier"
-        let target ← read e (field e.message "args" >>= (nat · "idx"))
+        let target ← read e (nat e.message "idx")
         checked e (previous < target)
           "commitIndex target does not advance the pre-frontier"
         return (e, previous, target)
@@ -209,21 +214,14 @@ private def ruleLeaderCommit (anchor : Event) : Reduction LeaderCommit :=
 
 private def emitObserveLeaderCommit (evidence : LeaderCommit) : Reduction Unit := do
   let ⟨commit, previous, target, nomination⟩ := evidence
-  emitObserve commit "commit-in-action" none
-    [("role", "commit traces before terminal role clearing; exact leader role audited")]
-    none (some previous)
+  -- The callback precedes terminal role clearing; the grammar checks its leader role.
+  emitObserve commit "commit-in-action" none ["role"] none (some previous)
   emitObserve commit "commit-target" (some (Json.mkObj [("commitIndex", toJson target)]))
   if let some nomination := nomination then
     emitObserveProposal nomination "terminal-nomination-message"
+    -- The grammar checks the pre-clearing role/phase and pre-pruning cache.
     emitObserve nomination "terminal-nomination-post" none
-      [
-        ("role", "nomination precedes role clearing; raw leader role checked locally"),
-        (
-          "membershipState",
-          "nomination precedes terminal phase assignment; raw completed retirement checked locally"
-        ),
-        ("configurations", "nomination cache equals the checked pre-pruning commit cache")
-      ]
+      ["role", "membershipState", "configurations"]
 
 private def activePeers (event : Event) : Reduction (List String) := do
   let configurations ← read event (field event.message "configurations" >>= Json.getArr?)
@@ -370,7 +368,8 @@ private def ruleBootstrap : Reduction String :=
     event "become_leader"
       fun e => do
         checked e
-          ((← read e (string e.command.value "cmd")) == s!"start_node,{e.node}")
+          ((← read e (field e.command.value "msg" >>= (string · "cmd")))
+            == s!"start_node,{e.node}")
           "expected bootstrap start_node command"
         leading e.node e
         for key
@@ -397,11 +396,9 @@ private def ruleBootstrap : Reduction String :=
     event "add_configuration"
       fun e => do
         leading leader e
-        checked e ((← read e (configurationArg e.message)) == [leader])
+        checked e ((← read e (configuration e.message)) == [leader])
           "bootstrap is not singleton"
-        let configuration ← read e (field e.message "args" >>= (field · "configuration"))
-        checked e ((← read e (nat configuration "idx")) == 1)
-          "bootstrap configuration index"
+        checked e ((← read e (nat e.message "idx")) == 1) "bootstrap configuration index"
         return e
   do
     -- Consumption
@@ -435,17 +432,19 @@ private def ruleAppend : Reduction Unit :=
   let configuration (write : Event) :=
     event "add_configuration" (source := some write)
       fun e => do
-        let value ← read e (field e.message "args" >>= (field · "configuration"))
+        let state ← read e (stateFacts e.state (Json.mkObj []))
+        let before ← read write (stateFacts write.state (Json.mkObj []))
         checked e
-          (e.state == write.state
-            && (← read e (nat value "idx")) == (← read write (nat write.message "seqno"))
+          (state == before
+            && (← read e (nat e.message "idx"))
+                == (← read write (nat write.message "seqno"))
             && !(← read write (boolean write.message "globally_committable")))
           "configuration write pair mismatch"
-        let nodes ← read e (configurationArg e.message)
-        return (e, ← modelMembers e nodes, nodes, ← read e (nat value "idx"))
+        let nodes ← read e (configuration e.message)
+        return (e, ← modelMembers e nodes, nodes, ← read e (nat e.message "idx"))
   let content (write : Event) (metadata : TransactionMetadata)
       : Reduction EntryContent := do
-    let command ← read write (string write.command.value "cmd")
+    let command ← read write (field write.command.value "msg" >>= (string · "cmd"))
     if ← read write (boolean write.message "globally_committable") then
       pure EntryContent.signature
     else if command.startsWith "cleanup_nodes," then do
@@ -589,9 +588,8 @@ private def ruleRecvAppendEntries : Reduction Unit :=
   let addConfiguration (receive : Receive) :=
     event "add_configuration" (source := some receive.event)
       fun e => do
-        let value ← read e (field e.message "args" >>= (field · "configuration"))
-        let index ← read e (nat value "idx")
-        let nodes ← read e (configurationArg e.message)
+        let index ← read e (nat e.message "idx")
+        let nodes ← read e (configuration e.message)
         followerRole e
         return {
           event := e,
@@ -605,7 +603,7 @@ private def ruleRecvAppendEntries : Reduction Unit :=
   let commitFollower (receive : Receive) :=
     event "commit" (source := some receive.event)
       fun e => do
-        let index ← read e (field e.message "args" >>= (nat · "idx"))
+        let index ← read e (nat e.message "idx")
         followerRole e
         return {
           event := e,
@@ -781,8 +779,8 @@ private def ruleElectionTimeout : Reduction Unit :=
     let head ← preCandidate
     let election ← selfQuorum head <|> requests head
     -- Emission
-    emitObserve head "election-pre" none
-      [("role", "event follows role assignment; the reduction checks the transition")]
+    -- The callback follows role assignment; the grammar checks the transition.
+    emitObserve head "election-pre" none ["role"]
     emitAction head "atomic-election" (.local head.node (.timeout .election))
     emitObserveElection election
 
@@ -798,8 +796,8 @@ private def ruleCheckQuorumTimeout : Reduction Unit :=
     -- Consumption
     let head ← follower
     -- Emission
-    emitObserve head "check-quorum-pre" none
-      [("role", "event follows role assignment; the reduction checks the transition")]
+    -- The callback follows role assignment; the grammar checks the transition.
+    emitObserve head "check-quorum-pre" none ["role"]
     emitAction head "role-post" (.local head.node (.timeout .checkQuorum))
     emitObserve head "role-post"
 
@@ -833,7 +831,8 @@ private def ruleNomination : Reduction Unit :=
     event "step_down_and_nominate_successor"
       fun e => do
         checked e
-          ((← read e (string e.command.value "cmd")).startsWith "nominate_successor,")
+          ((← read e (field e.command.value "msg" >>= (string · "cmd"))).startsWith
+            "nominate_successor,")
           "nomination outside a nominate_successor command"
         return e
   do
