@@ -803,7 +803,11 @@ if(BUILD_TESTS)
     target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
     target_link_options(
       openssl_server_test
-      PRIVATE "LINKER:--wrap=uv_async_send"
+      PRIVATE
+        "LINKER:--wrap=uv_async_send"
+        "LINKER:--wrap=uv_poll_start"
+        "LINKER:--wrap=uv_getaddrinfo"
+        "LINKER:--wrap=socket"
     )
     add_unit_test(
       node_connections_test
