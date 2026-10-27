@@ -6,16 +6,15 @@ The package, library, root module, and namespace are all named `consistency`.
 
 ## Source map
 
-| Area                                          | Lean source                                                            |
-| --------------------------------------------- | ---------------------------------------------------------------------- |
-| Typed events, IDs, ledger entries, and state  | [`Model/Types.lean`](consistency/Model/Types.lean)                     |
-| Executable history queries                    | [`Model/History.lean`](consistency/Model/History.lean)                 |
-| Guarded actions                               | [`Model/Transitions.lean`](consistency/Model/Transitions.lean)         |
-| Initialization and four variants              | [`Model.lean`](consistency/Model.lean)                                 |
-| History selection and transaction-ID ordering | [`Properties/History.lean`](consistency/Properties/History.lean)       |
-| Property statements and proof links           | [`Properties.lean`](consistency/Properties.lean)                       |
-| Executable history predicates                 | [`Properties/Predicates.lean`](consistency/Properties/Predicates.lean) |
-| Supporting proofs                             | [`Proofs/`](consistency/Proofs)                                        |
+| Area                                          | Lean source                                                      |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| Typed events, IDs, ledger entries, and state  | [`Model/Types.lean`](consistency/Model/Types.lean)               |
+| Executable history queries                    | [`Model/History.lean`](consistency/Model/History.lean)           |
+| Guarded actions                               | [`Model/Transitions.lean`](consistency/Model/Transitions.lean)   |
+| Initialization and four variants              | [`Model.lean`](consistency/Model.lean)                           |
+| History selection and transaction-ID ordering | [`Properties/History.lean`](consistency/Properties/History.lean) |
+| Property statements and proof links           | [`Properties.lean`](consistency/Properties.lean)                 |
+| Supporting proofs                             | [`Proofs/`](consistency/Proofs)                                  |
 
 Shared transition systems and executions come from [`ccf_common`](../common/README.md).
 The package root publicly reexports the model and properties.
@@ -55,14 +54,13 @@ There is no refinement proof connecting this abstraction to the [Raft model](../
 ## Properties
 
 [`Properties.lean`](consistency/Properties.lean) exposes full theorem statements over valid executions of the actual model, following the other Lean packages' style.
-All 28 theorems have completed proofs, with implementations under [`Proofs/`](consistency/Proofs).
+All 26 safety theorems have completed proofs, with implementations under [`Proofs/`](consistency/Proofs).
 There are no unfinished proofs.
 Single-node-only theorems explicitly assume `config.multiNode = false`.
-`history_monotonic` and `ledgers_monotonic` state the temporal append-only claims.
+Each safety theorem has an adjacent witness lemma, except the inherently vacuous single-node invalid-write exclusion claim described below.
 
-Executable history predicates live in [`Properties/Predicates.lean`](consistency/Properties/Predicates.lean), independently of the theorem entrypoint.
-They remain transparent to decidability inference so the predicates can be evaluated without importing theorem implementations.
-Theorem names use snake_case; the corresponding predicate names use lowerCamelCase:
+History selection and transaction-ID ordering helpers live in [`Properties/History.lean`](consistency/Properties/History.lean).
+The theorem statements spell out each guarantee explicitly and use snake_case names:
 
 | Theorems                                                                                                                                           | Scope of guarantee                                                                               |
 | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -80,7 +78,7 @@ Theorem names use snake_case; the corresponding predicate names use lowerCamelCa
 | `committed_rw_serializable`, `committed_rw_linearizable`                                                                                           | Committed writes in all variants                                                                 |
 | `committed_rw_ordered_real_time`, `committed_rw_ordered_serializable`, `committed_rw_ordered_spec_linearizable`                                    | Committed writes in all variants                                                                 |
 
-The central theorem statement is `committed_rw_ordered_spec_linearizable`, corresponding to the executable `committedRwOrderedSpecLinearizable` predicate.
+The central theorem statement is `committed_rw_ordered_spec_linearizable`.
 Its real-time interval ends at the initial write response, not at the later notification that the write committed.
 Its serial ordering is the lexicographic transaction-ID order.
 Ordered serializability compares adjacent committed-response payloads after deduplication and sorting, requires strict observation extension, and requires the later response to end with its own write.
@@ -88,14 +86,32 @@ Intervening writes need not have received explicit committed-status notification
 The adjacent-pair condition is vacuous for empty and singleton response sets.
 Distinct equal-ID payloads retain first-occurrence order during sorting; intended uniqueness and same-observation properties rule out those ties.
 
-`commonGuarantees` and `variantGuarantees` collect the intended claims without treating the known non-guarantees as requirements.
-They are predicate definitions, not proved guarantees.
-
 ### Proof status
 
 Every theorem is proved without depending on unfinished theorems.
 This includes the primary `committed_rw_ordered_spec_linearizable` claim.
 Completed proofs use only the standard allowed axioms `propext`, `Classical.choice`, and `Quot.sound`, not `sorryAx`.
+
+### Witness coverage
+
+The 25 public witness lemmas exhibit valid executions with populated domains rather than initial states or empty observations.
+Their implementations in [`Witnesses.lean`](consistency/Proofs/Witnesses.lean) replay enabled model actions, prove the final states reachable, and obtain valid finite traces through the shared execution definitions.
+They do not assume the safety theorems they accompany.
+
+- A single-node execution has two committed writes and two read responses with nonempty observations.
+  The reads demonstrate that distinct requests can return the same transaction ID and observation.
+  The ordering witnesses include a later request arriving after the earlier write's initial response but before its committed-status notification.
+  The sorted committed responses contain an actual adjacent pair with strictly increasing observation lengths.
+- A multi-node execution invalidates two old-view writes, elects a replacement branch, and commits two replacement writes.
+  Distinct ledger positions activate all three status-propagation clauses.
+  An invalid write coexists with a nonempty committed observation that excludes it.
+- The four equality-guarded uniqueness claims have witnesses with multiple distinct committed writes.
+  Their equality antecedents are inhabited by comparing an actual response with itself; the witnesses do not assert that distinct colliding responses are reachable.
+
+`invalid_not_observed` is inherently vacuous under its single-node assumption: no invalid-status event can occur.
+Instead of supplying a misleading existential witness, the adjacent `invalid_not_observed_vacuous` lemma proves that the invalid-status list is empty in every such execution.
+
+### Supporting proofs
 
 The supporting invariants are separated from the public statements:
 
@@ -124,8 +140,8 @@ The theorem statement is unchanged; the proof covers both invalidation before co
 
 ### History associations
 
-`invalidNotObserved` associates an invalid-status event with a write by transaction ID before excluding that write from another write's observations.
-`invalidNotObservedByCommitted` additionally selects committed observers by transaction ID.
+`invalid_not_observed` associates an invalid-status event with a write by transaction ID before excluding that write from another write's observations.
+`invalid_not_observed_by_committed` additionally selects committed observers by transaction ID.
 `committedRequests` selects requests whose matching response is explicitly known committed.
 Typed event and ledger constructors enforce their shape constraints directly.
 

@@ -1,6 +1,6 @@
 module
 
-public import consistency.Properties.Predicates
+public import consistency.Properties.History
 public import CCF.Execution
 
 import Mathlib.Tactic
@@ -12,29 +12,6 @@ set_option linter.unusedSimpArgs false
 namespace consistency.Proofs.Structural
 
 open Model
-
-theorem step_history_prefix (config : Config) (before after : State) (action : Action)
-    (transition : step config before action = some after)
-    : before.history <+: after.history := by
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
-
-theorem history_monotonic
-    : forall (config : Config) (trace : CCF.Execution.Trace State),
-        trace.Valid (transitionSystem config)
-        -> forall (index : Nat) (before after : State),
-            (trace.get? index = some before /\ trace.get? (index + 1) = some after)
-            -> before.history <+: after.history := by
-  intro config trace valid index before after ⟨current, next⟩
-  obtain ⟨action, transition⟩ := valid.2 index before after current next
-  exact step_history_prefix config before after action transition
 
 def BranchExtension (before after : List (List Entry)) : Prop :=
   ∀ index ledger,
@@ -85,19 +62,6 @@ theorem step_branches (config : Config) (before after : State) (action : Action)
       | (exact branches_modify _ _ _)
       | (exact branches_append _ _)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
-
-theorem ledgers_monotonic
-    : forall (config : Config) (trace : CCF.Execution.Trace State),
-        trace.Valid (transitionSystem config)
-        -> forall (index : Nat) (before after : State),
-            (trace.get? index = some before /\ trace.get? (index + 1) = some after)
-            -> forall (branch : Nat) (ledger : List Entry),
-                at? before.branches branch = some ledger
-                -> exists extended,
-                    at? after.branches branch = some extended /\ ledger <+: extended := by
-  intro config trace valid index before after ⟨current, next⟩
-  obtain ⟨action, transition⟩ := valid.2 index before after current next
-  exact step_branches config before after action transition
 
 theorem step_no_invalid (config : Config) (single : config.multiNode = false)
     (before after : State) (action : Action)
