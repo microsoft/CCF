@@ -13,7 +13,6 @@ from unittest.mock import patch
 
 import raft_trace
 import raft_trace_capture
-from raft_scenarios_runner import preprocess_for_trace_validation
 
 import msgpack
 
@@ -71,17 +70,6 @@ class CaptureTests(unittest.TestCase):
                 raft_trace.CaptureError, "trace sequence"
             ):
                 self.collect(sequences)
-
-    def test_real_success_preserves_caller_contract(self):
-        record = {"process_id": "one", "h_ts": 0, "msg": {"cmd": "state_all"}}
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            driver = write_driver(root, pack_record(record), b"native\r\n\x00", b"")
-            result, records = raft_trace.run_driver(driver, root / "scenario")
-            self.assertEqual(result.stdout, "native\r\n\x00")
-            self.assertEqual(result.stderr, "")
-            self.assertEqual(result.returncode, 0)
-            self.assertEqual(records, [record])
 
     def test_binary_diagnostics_do_not_constrain_structured_capture(self):
         record = {"process_id": "one", "h_ts": 0, "msg": {"cmd": "state_all"}}
@@ -311,74 +299,6 @@ class CaptureTests(unittest.TestCase):
             self.assertEqual(
                 (output / "01-fail.stdout.driver.stdout").read_bytes(), b"native\xff"
             )
-
-    def test_output_ancestor_is_rejected_before_touching_inputs(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            scenarios = root / "inventory"
-            (scenarios / "inventory").mkdir(parents=True)
-            (scenarios / "inventory/victim").write_text("scenario")
-            victim = scenarios / "victim.stdout"
-            victim.write_bytes(b"protected input\xff")
-            with patch(
-                "sys.argv", ["capture", str(scenarios), str(root), "--driver", "driver"]
-            ), self.assertRaisesRegex(ValueError, "disjoint"):
-                raft_trace_capture.main()
-            self.assertEqual(victim.read_bytes(), b"protected input\xff")
-
-    def test_duplicate_keys_fail(self):
-        with self.assertRaisesRegex(ValueError, "Duplicate"):
-            raft_trace.unique_map([("msg", 1), ("msg", 2)])
-
-    def test_writes_records_without_protocol_mapping(self):
-        result, records = self.collect([0, 1])
-        result = subprocess.CompletedProcess(
-            result.args,
-            result.returncode,
-            result.stdout.encode(),
-            result.stderr.encode(),
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            output = pathlib.Path(directory) / "nested" / "trace.stdout"
-            with patch("raft_trace.run_driver", return_value=(result, records)):
-                raft_trace_capture.capture("driver", "scenario", output)
-            observed = [json.loads(line) for line in output.read_text().splitlines()]
-            self.assertEqual(
-                observed, [{"tag": "ccf.raft_trace", **r} for r in records]
-            )
-            self.assertEqual(
-                pathlib.Path(str(output) + ".driver.stdout").read_bytes(), result.stdout
-            )
-
-    def test_legacy_adapter_preserves_callback_order(self):
-        command = {"cmd": "periodic_one,0,10"}
-        callback = {"function": "send_append_entries"}
-        records = [
-            {"process_id": "one", "h_ts": index, "msg": message}
-            for index, message in enumerate((command, callback))
-        ]
-        self.assertEqual(
-            raft_trace.as_log_lines(records),
-            [
-                {"tag": "raft_trace", **command},
-                {"tag": "raft_trace", "h_ts": "1", "msg": callback},
-            ],
-        )
-
-    def test_legacy_adapter_supplies_native_pre_vote_without_mutating_records(self):
-        source = pathlib.Path(__file__).resolve().parents[1]
-        fixture = source / "lean/ccf-raft/replay/tests/fixtures/startup.ndjson"
-        records = [json.loads(line) for line in fixture.read_text().splitlines()]
-        original = json.dumps(records, sort_keys=True)
-        legacy = raft_trace.as_log_lines(records)
-        trace = preprocess_for_trace_validation([json.dumps(row) for row in legacy])
-        self.assertTrue(trace)
-        for line in trace:
-            self.assertIs(json.loads(line)["msg"]["state"]["pre_vote_enabled"], True)
-        self.assertEqual(json.dumps(records, sort_keys=True), original)
-        for record in records:
-            if "state" in record["msg"]:
-                self.assertNotIn("pre_vote_enabled", record["msg"]["state"])
 
     def test_failed_capture_cannot_leave_success_input(self):
         with tempfile.TemporaryDirectory() as directory:

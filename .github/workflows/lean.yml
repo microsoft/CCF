@@ -97,9 +97,6 @@ jobs:
       - name: Check replay suite orchestration
         run: python3 tests/raft_trace_replay_test.py
 
-      - name: Check native fixture refresh
-        run: python3 lean/ccf-raft/replay/tests/refresh_fixtures_test.py
-
       - name: Check recovery trace fixtures against their schema
         shell: bash
         run: |

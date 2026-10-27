@@ -168,14 +168,19 @@ private def observeNodeState (header : Header) (node : String) (state : NodeStat
       | [.field "last_idx"] => some (checkValue state.log.length)
       | [.field "commit_idx"] => some (checkValue state.commitIndex)
       | [.field "committable_indices"] =>
+          let indices :=
+            (state.log.zipIdx 1).filterMap
+              fun (entry, index) =>
+                if index > state.commitIndex && entry.content.isSignature then
+                  some index
+                else
+                  none
+          -- Native telemetry records only the first and last cache entries.
           some
             (checkValue
-              ((state.log.zipIdx 1).filterMap
-                fun (entry, index) =>
-                  if index > state.commitIndex && entry.content.isSignature then
-                    some index
-                  else
-                    none))
+              (match indices with
+                | [] => []
+                | first :: rest => first :: rest.getLast?.toList))
       | [.field "configurations"] =>
           some
             fun value => do

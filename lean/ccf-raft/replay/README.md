@@ -119,7 +119,8 @@ There are three basic observation kinds:
 
 A snapshot includes supported recorded role, term, log length, commit index, retirement fields, available signature/configuration caches and compatible recorded peer progress.
 It does not mean the entire model state, every peer, full log contents, votes, clocks, KV contents or network enumeration.
-At stable boundaries, a supplied signature cache must exactly match the ordered signature indices above the commit index, including omissions and duplicates.
+At stable boundaries, `committable_indices` must exactly match the native cache projection: empty, the sole uncommitted signature index, or the first and last such indices in order.
+This checks the recorded extrema, not unrecorded interior cache entries; extra, missing, reordered or duplicate markers are rejected.
 Entry and packet checks supplement snapshots rather than replace them.
 
 Native callbacks often occur before a mutation, while the model performs several effects atomically.
@@ -201,14 +202,28 @@ See [DisasterRecovery replay](../../disaster-recovery/replayer/README.md) for th
 
 ## Regression and CI checks
 
-From `lean/ccf-raft`, after building the replay targets:
+The [Virtual C CI job](../../../.github/workflows/ci.yml) captures and replays every `tests/raft_scenarios` scenario with the current native driver and Lean executable.
+There is no checked-in capture corpus or separate fixture-refresh pipeline.
+After the scenario run, targeted mutation checks use those fresh captures to verify that incorrect observations are rejected.
+
+The retained tests cover gaps that successful native scenarios cannot exercise:
+
+| Checks                                                                              | Coverage beyond successful scenarios                                                                                                                      |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`tests/Main.lean`](tests/Main.lean)                                                | Malformed input, speculative parser rollback, wrong state/entry/packet observations, read-only checks, FIFO ambiguity/multiplicity and invalid identities |
+| Capture-based checks in `tests/Main.lean`                                           | Corrupted combined peer snapshots, unchanged-field post checks and intermediate AppendEntries cache/commit observations                                   |
+| [`raft_trace_capture_test.py`](../../../tests/raft_trace_capture_test.py)           | Invalid transport/encoding, binary diagnostics, timeout/spawn failures, partial evidence and stale-success removal                                        |
+| [`raft_trace_replay_test.py`](../../../tests/raft_trace_replay_test.py)             | Failed scenarios, invalid inventories/output overlap, subprocess failures and malformed CLI input                                                         |
+| Retirement-hook unit test in [`main.cpp`](../../../src/consensus/aft/test/main.cpp) | Multiple hooks crossed by one compaction, repeated compaction and rollback of pending hooks                                                               |
+
+From `lean/ccf-raft`, after building the replay targets and capturing scenarios as above:
 
 ```sh
 lake exe replay-checks
+lake exe replay-checks /tmp/ccf-raft-captures
 ```
 
-[`tests/Main.lean`](tests/Main.lean) covers parsing and transactional rollback, rule grouping, instruction ordering/provenance, observation-field mutations, read-only execution, FIFO selection, multiplicity, identities and transport integrity.
-Boundary and receive-phase cases cover combined peer snapshots, unchanged-field post checks and exact pre-commit/cache/target observations.
+Without an argument, the executable runs only the fixture-free checks; the directory argument additionally enables capture mutations.
 Grouping-valid corruptions must reach replay and fail their observations, rather than disappear during reduction.
 
 From the repository root:
@@ -216,14 +231,9 @@ From the repository root:
 ```sh
 python3 tests/raft_trace_capture_test.py
 python3 tests/raft_trace_replay_test.py
-python3 lean/ccf-raft/replay/tests/refresh_fixtures_test.py
 ```
 
 Build `ccfraft-replay` first; set `CCF_RAFT_REPLAYER` to its actual executable when using an external build directory.
-The Python cases cover capture bytes/order, timeouts, failures, recursive inventories, invalid encoding, missing captures and stale-success removal.
-[`refresh_fixtures.py`](tests/refresh_fixtures.py) preserves actual native records and origin hashes; do not rewrite fixtures to make them match the model.
-The historical mixed-console `terminal_retirement.stdout` is retained as negative input evidence.
-Current retirement fixtures use the confirmation transaction index reported by the corrected native test stub, not its covering compact frontier.
 
 ### Kernel checks
 

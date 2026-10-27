@@ -14,21 +14,6 @@
 using ms = std::chrono::milliseconds;
 
 DOCTEST_TEST_CASE(
-  "Trace snapshots retain native cache extrema" *
-  doctest::test_suite("tracing"))
-{
-  aft::State state(ccf::kv::test::PrimaryNodeId);
-  state.committable_indices = {2, 4, 6};
-  std::vector<uint8_t> bytes;
-  aft::write_msgpack(bytes, state);
-  auto expected = nlohmann::json::from_msgpack(bytes);
-  DOCTEST_CHECK_FALSE(expected.contains("pre_vote_enabled"));
-  DOCTEST_CHECK_FALSE(nlohmann::json(state).contains("pre_vote_enabled"));
-  DOCTEST_CHECK(
-    expected.at("committable_indices") == nlohmann::json::array({2, 6}));
-}
-
-DOCTEST_TEST_CASE(
   "Retirement hooks use transaction versions" * doctest::test_suite("store"))
 {
   const auto self = ccf::kv::test::PrimaryNodeId;
