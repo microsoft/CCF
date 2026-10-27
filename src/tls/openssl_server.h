@@ -620,7 +620,7 @@ namespace ccf::tls
       cleanup();
     }
 
-    uint16_t port() const
+    [[nodiscard]] uint16_t port() const
     {
       return bound_port;
     }

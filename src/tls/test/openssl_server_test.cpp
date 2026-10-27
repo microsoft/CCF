@@ -79,6 +79,7 @@ namespace
 
   // Installed only while the test owns all threads using the gate.
   std::atomic<NotificationGate*> notification_gate = nullptr;
+  std::atomic<NotificationGate*> handshake_gate = nullptr;
   std::atomic<bool> suppress_connect_poll = false;
   std::atomic<size_t> suppressed_connect_polls = 0;
   std::atomic<size_t> socket_calls = 0;
@@ -96,6 +97,25 @@ namespace
   };
 
   std::atomic<ResolutionGate*> resolution_gate = nullptr;
+}
+
+extern "C" int __real_SSL_do_handshake(SSL* ssl);
+
+extern "C" int __wrap_SSL_do_handshake(SSL* ssl)
+{
+  const int result = __real_SSL_do_handshake(ssl);
+  if (result == 1 && SSL_is_server(ssl) == 0)
+  {
+    if (auto* gate = handshake_gate.load())
+    {
+      ccf::ds::MutexGuard guard(gate->mutex);
+      ++gate->calls;
+      gate->cv.notify_all();
+      gate->cv.wait(
+        guard, [&]() CCF_REQUIRES(gate->mutex) { return gate->released; });
+    }
+  }
+  return result;
 }
 
 extern "C" int __real_socket(int domain, int type, int protocol);
@@ -995,6 +1015,241 @@ TEST_CASE("Outbound admission callback send-and-close flushes application data")
   }));
   std::lock_guard<std::mutex> guard(pair.mutex);
   CHECK(pair.accepted_data == payload);
+}
+
+namespace
+{
+  TEST_CASE(
+    "Cancellation during the final TLS drive suppresses application I/O")
+  {
+    using namespace std::chrono_literals;
+    bool shutdown = false;
+    SUBCASE("Explicit close") {}
+    SUBCASE("Shutdown")
+    {
+      shutdown = true;
+    }
+    auto [cert, key] = make_server_cert();
+    std::shared_ptr<SSL_CTX> server_context(
+      SSL_CTX_new(TLS_server_method()), SSL_CTX_free);
+    std::shared_ptr<SSL_CTX> client_context(
+      SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
+    REQUIRE(server_context != nullptr);
+    REQUIRE(client_context != nullptr);
+    ccf::crypto::OpenSSL::Unique_BIO cert_bio(
+      cert.data(), static_cast<int>(cert.size()));
+    ccf::crypto::OpenSSL::Unique_X509 x509(cert_bio, true);
+    ccf::crypto::OpenSSL::Unique_BIO key_bio(
+      key.data(), static_cast<int>(key.size()));
+    ccf::crypto::OpenSSL::Unique_PKEY pkey(
+      PEM_read_bio_PrivateKey(key_bio, nullptr, nullptr, nullptr),
+      EVP_PKEY_free);
+    REQUIRE(SSL_CTX_use_certificate(server_context.get(), x509) == 1);
+    REQUIRE(SSL_CTX_use_PrivateKey(server_context.get(), pkey) == 1);
+    REQUIRE(SSL_CTX_set_num_tickets(server_context.get(), 0) == 1);
+
+    int sockets[2] = {-1, -1};
+    REQUIRE(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) == 0);
+    REQUIRE(fcntl(sockets[0], F_SETFL, O_NONBLOCK) == 0);
+    const int send_buffer = 4096;
+    REQUIRE(
+      setsockopt(
+        sockets[0], SOL_SOCKET, SO_SNDBUF, &send_buffer, sizeof(send_buffer)) ==
+      0);
+    timeval receive_timeout{.tv_sec = 5, .tv_usec = 0};
+    REQUIRE(
+      setsockopt(
+        sockets[1],
+        SOL_SOCKET,
+        SO_RCVTIMEO,
+        &receive_timeout,
+        sizeof(receive_timeout)) == 0);
+
+    std::mutex mutex;
+    std::condition_variable cv;
+    bool peer_ready = false;
+    bool peer_read = false;
+    size_t admission_calls = 0;
+    size_t received = 0;
+    size_t closes = 0;
+    bool cancellation_processed = false;
+    bool stop_barrier_posted = false;
+    std::function<void()> acknowledge_shutdown = [&]() {
+      std::lock_guard<std::mutex> guard(mutex);
+      cancellation_processed = true;
+      cv.notify_all();
+    };
+    constexpr ::tcp::ConnID connection_id = 1;
+    constexpr ::tcp::ConnID barrier_id = 2;
+    NotificationGate gate;
+    handshake_gate = &gate;
+    UVLoopRunner loop;
+    auto client = std::make_shared<OpenSSLConnectionEngine>(
+      OpenSSLConnectionEngine::Config{
+        .on_handshake =
+          [&](::tcp::ConnID, SSL*, bool) {
+            std::lock_guard<std::mutex> guard(mutex);
+            ++admission_calls;
+            return true;
+          },
+        .on_stop =
+          [&]() {
+            if (!shutdown || stop_barrier_posted)
+            {
+              return;
+            }
+            stop_barrier_posted = true;
+            auto timer = std::make_unique<uv_timer_t>();
+            const int rc = uv_timer_init(uv_default_loop(), timer.get());
+            CHECK(rc == 0);
+            if (rc != 0)
+            {
+              return;
+            }
+            timer->data = &acknowledge_shutdown;
+            // on_stop precedes connection cancellation. A subsequent loop
+            // callback acknowledges the whole teardown pass, not just on_stop.
+            const int start_rc = uv_timer_start(
+              timer.get(),
+              [](uv_timer_t* handle) {
+                (*static_cast<std::function<void()>*>(handle->data))();
+                ccf::tls::details::close_handle(handle);
+              },
+              0,
+              0);
+            CHECK(start_rc == 0);
+            auto* handle = timer.release();
+            if (start_rc != 0)
+            {
+              ccf::tls::details::close_handle(handle);
+            }
+          },
+        .on_unconnected =
+          [&](::tcp::ConnID id, std::vector<uint8_t>, bool) {
+            std::lock_guard<std::mutex> guard(mutex);
+            CHECK(id == barrier_id);
+            cancellation_processed = true;
+            cv.notify_all();
+          }},
+      [&](
+        ::tcp::ConnID,
+        std::vector<uint8_t> data,
+        const std::vector<uint8_t>&,
+        bool) {
+        std::lock_guard<std::mutex> guard(mutex);
+        received += data.size();
+      },
+      [&](::tcp::ConnID id) {
+        std::lock_guard<std::mutex> guard(mutex);
+        CHECK(id == connection_id);
+        ++closes;
+        cv.notify_all();
+      });
+    auto peer = std::async(std::launch::async, [&]() {
+      std::unique_ptr<SSL, decltype(&SSL_free)> ssl(
+        SSL_new(server_context.get()), SSL_free);
+      CHECK(ssl != nullptr);
+      CHECK(SSL_set_fd(ssl.get(), sockets[1]) == 1);
+      CHECK(SSL_accept(ssl.get()) == 1);
+      CHECK(SSL_write(ssl.get(), "hello", 5) == 5);
+      {
+        std::unique_lock<std::mutex> guard(mutex);
+        peer_ready = true;
+        cv.notify_all();
+        cv.wait(guard, [&]() { return peer_read; });
+      }
+      size_t bytes = 0;
+      std::array<uint8_t, 16384> buffer{};
+      for (;;)
+      {
+        const auto n = SSL_read(ssl.get(), buffer.data(), buffer.size());
+        if (n <= 0)
+        {
+          break;
+        }
+        bytes += static_cast<size_t>(n);
+      }
+      ccf::tls::details::close_socket(sockets[1]);
+      return bytes;
+    });
+    std::future<void> stopping;
+
+    struct Cleanup
+    {
+      NotificationGate& gate;
+      std::mutex& mutex;
+      std::condition_variable& cv;
+      bool& peer_read;
+      std::shared_ptr<OpenSSLConnectionEngine> client;
+      UVLoopRunner& loop;
+
+      ~Cleanup()
+      {
+        gate.release();
+        {
+          std::lock_guard<std::mutex> guard(mutex);
+          peer_read = true;
+          cv.notify_all();
+        }
+        client->stop(
+          loop.thread.joinable() ?
+            OpenSSLConnectionEngine::LoopState::Running :
+            OpenSSLConnectionEngine::LoopState::NotRunning);
+        handshake_gate = nullptr;
+      }
+    } cleanup{gate, mutex, cv, peer_read, client, loop};
+
+    client->start();
+    REQUIRE(client->adopt(
+      {.id = connection_id,
+       .fd = sockets[0],
+       .tls_context = client_context,
+       .outgoing = true,
+       .handshake_timeout = 5s,
+       .pending_commands = {
+         {connection_id,
+          std::vector<uint8_t>(size_t{4} * 1024 * 1024, 42),
+          false}}}));
+    loop.start();
+    REQUIRE(gate.wait_for_calls(1));
+    {
+      std::unique_lock<std::mutex> guard(mutex);
+      REQUIRE(cv.wait_for(guard, 5s, [&]() { return peer_ready; }));
+    }
+    if (shutdown)
+    {
+      stopping = std::async(std::launch::async, [&]() {
+        client->stop(OpenSSLConnectionEngine::LoopState::Running);
+      });
+    }
+    else
+    {
+      client->close_connection(connection_id);
+      // FIFO processing acknowledges cancellation while the worker is gated.
+      client->close_connection(barrier_id);
+    }
+    {
+      std::unique_lock<std::mutex> guard(mutex);
+      REQUIRE(cv.wait_for(guard, 5s, [&]() { return cancellation_processed; }));
+    }
+    gate.release();
+    {
+      std::unique_lock<std::mutex> guard(mutex);
+      CHECK(cv.wait_for(guard, 1s, [&]() { return closes == 1; }));
+      CHECK(admission_calls == 0);
+      CHECK(received == 0);
+      peer_read = true;
+      cv.notify_all();
+    }
+    CHECK(peer.get() == 0);
+    if (stopping.valid())
+    {
+      stopping.get();
+    }
+    client->stop(OpenSSLConnectionEngine::LoopState::Running);
+    CHECK(closes == 1);
+  }
+
 }
 
 TEST_CASE("Outbound stalled TLS establishment times out, cancels and stops")

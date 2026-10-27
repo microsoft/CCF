@@ -17,6 +17,8 @@ namespace ccf::tls
     using OnHandshake = OpenSSLConnectionEngine::OnHandshake;
     using LoopState = OpenSSLConnectionEngine::LoopState;
 
+    // Explicit defaults keep partial designated initializers warning-free.
+    // NOLINTBEGIN(readability-redundant-member-init)
     struct Config
     {
       uv_loop_t* loop = uv_default_loop();
@@ -38,6 +40,8 @@ namespace ccf::tls
       std::chrono::milliseconds timeout{5000};
       std::optional<std::chrono::milliseconds> tcp_user_timeout = std::nullopt;
     };
+
+    // NOLINTEND(readability-redundant-member-init)
 
   private:
     struct Address
@@ -144,7 +148,9 @@ namespace ccf::tls
         if (dial.fd < 0)
         {
           LOG_DEBUG_FMT(
-            "Connection {}: socket failed: {}", id, strerror(errno));
+            "Connection {}: socket failed: {}",
+            id,
+            std::generic_category().message(errno));
           continue;
         }
         bool bound =
@@ -190,7 +196,9 @@ namespace ccf::tls
         if (rc != 0 && errno != EINPROGRESS)
         {
           LOG_DEBUG_FMT(
-            "Connection {}: connect failed: {}", id, strerror(errno));
+            "Connection {}: connect failed: {}",
+            id,
+            std::generic_category().message(errno));
           discard_candidate(dial);
           continue;
         }
@@ -294,7 +302,7 @@ namespace ccf::tls
               ai->ai_addrlen <= sizeof(sockaddr_storage))
             {
               Address address;
-              address.size = static_cast<socklen_t>(ai->ai_addrlen);
+              address.size = ai->ai_addrlen;
               memcpy(&address.value, ai->ai_addr, ai->ai_addrlen);
               addresses.push_back(address);
             }

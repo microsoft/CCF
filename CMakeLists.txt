@@ -808,6 +808,7 @@ if(BUILD_TESTS)
         "LINKER:--wrap=uv_poll_start"
         "LINKER:--wrap=uv_getaddrinfo"
         "LINKER:--wrap=socket"
+        "LINKER:--wrap=SSL_do_handshake"
     )
     add_unit_test(
       node_connections_test
