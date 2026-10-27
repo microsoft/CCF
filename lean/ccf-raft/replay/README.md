@@ -1,350 +1,234 @@
-# Trace replay
+# CCF-Raft trace replay
 
-Protocol validation is entirely Lean, following [DisasterRecovery's records, reduction and direct replay](../../disaster-recovery/replayer/README.md):
+The replayer checks finite `raft_driver` captures against the existing Lean model.
+Python captures the native driver and runs scenario suites; Lean validates the recorded protocol behavior.
+A pass witnesses a compatible finite execution under the [replay policy](#replay-contract), not a proof of C++ correctness.
+A failure may indicate malformed input, unsupported evidence, a FIFO-policy mismatch or a model discrepancy; it is not automatically a native consensus bug.
 
 ```text
-Python capture -> JSON trace
-JSON trace -(CCFRaft/Replay/Input.lean)-> Events
-           -(CCFRaft/Replay/Reduction.lean)-> actions and observations
-           -(CCFRaft/Replay/Interpreter.lean)-> model execution or discrepancy
+Fluentd records -> prepareEvents (Input.lean) -> named reduction rules
+                -> model actions + read-only observations -> Interpreter
 ```
 
-[`tests/raft_trace_capture.py`](../../../tests/raft_trace_capture.py) owns capture, process lifecycle, scenario inventory and suite results, using the existing Python trace transport helper.
-Lean starts at a JSON trace; `ReplayMain.lean` accepts exactly one trace path.
-`Replay/Input.lean` owns JSON field access, capture records and event preparation, including input validation, command association and node discovery.
-`Replay/Reduction.lean` owns the event-to-instruction pipeline: `reduce` accepts associated events and declared node identities, prepares request identities and initialization, then invokes its named rules.
-`Replay/Interpreter.lean` owns model actions, read-only observations and their execution.
-`ReplayMain.lean` handles CLI arguments, files and result formatting, and explicitly calls `prepareEvents`, `reduce` and `replay` in order.
-There is no intermediate `Replayer` module or forwarding facade.
-Unlike DisasterRecovery's independent node logs, the single-threaded driver already records one global order, so there is no commit-order reconstruction, delivery search, or wait for growing logs.
-`Instruction` has only `action` and `observe` constructors, each carrying its trace location and reduction rule.
-An observation is a read-only `ReplayState -> Except String Unit` function that captures expected values and stable identities.
-The interpreter executes an action through the model, or runs an observation and returns the unchanged state.
-Instructions are Lean values, not a second JSON schema or a serialized observation language.
-The old Python reducer, harness and JSON replay input are retired.
+## Run replay
 
-## Commands
+Use the [supported CCF development environment](../../../doc/contribute/build_setup.rst) and [native build prerequisites](../../../doc/contribute/build_ccf.rst).
+Install the package's Lean toolchain and dependencies as described in [model validation](../README.md#validation).
+The Python collector also requires `msgpack` from [`tests/requirements.txt`](../../../tests/requirements.txt) in the active environment.
+
+### Capture and replay current scenarios
 
 Run from `lean/ccf-raft`:
 
 ```sh
 lake build --wfail ccfraft-replay replay-checks
-lake exe ccfraft-replay capture.stdout
-lake exe ccfraft-replay events.ndjson
 cmake -S ../.. -B /tmp/ccf-raft-build -GNinja
 cmake --build /tmp/ccf-raft-build --target raft_driver
 python3 ../../tests/raft_trace_capture.py ../../tests/raft_scenarios /tmp/ccf-raft-captures \
   --driver /tmp/ccf-raft-build/raft_driver --replayer .lake/build/bin/ccfraft-replay
+```
+
+The runner recursively selects every scenario file, attempts each one and reports per-scenario results.
+Omit `--replayer` for capture only.
+Use `--timeout N` to change the positive, finite per-scenario timeout from 60 seconds.
+The output directory and scenario inventory must be disjoint: neither may contain the other.
+
+### Replay existing captures
+
+For one trace produced by the preceding command, from `lean/ccf-raft`:
+
+```sh
+lake exe ccfraft-replay /tmp/ccf-raft-captures/retire_backup.stdout
+```
+
+For the same scenario inventory using saved captures, without starting a driver:
+
+```sh
 python3 ../../tests/raft_trace_capture.py ../../tests/raft_scenarios /tmp/ccf-raft-results \
   --raw-directory /tmp/ccf-raft-captures --replayer .lake/build/bin/ccfraft-replay
+```
+
+Reusing captures checks the selected replayer, not a changed native implementation.
+Missing captures and invalid encoding are failures, not skipped scenarios.
+If the replay executable is built elsewhere, pass its actual path to `--replayer`.
+
+### Results and failures
+
+| Artifact                           | Meaning                                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `<scenario>.stdout`                | Original Fluentd records serialized as NDJSON; despite the extension, this is not console output                                |
+| `.driver.stdout`, `.driver.stderr` | Native console bytes, retained separately; diagnostic stderr alone does not imply failure                                       |
+| `.result.json`, `summary.json`     | Per-scenario and suite results, including the failed stage; inspect the stage because capture-only success is not a replay pass |
+| `.partial`                         | Received records retained after capture, transport or decoding failure, not a successful trace                                  |
+| `.driver.records.msgpack`          | Original records retained when a value cannot be represented in JSON                                                            |
+
+The suite exits nonzero if any scenario fails.
+Single-trace replay prints JSON counts for instructions, actions and observations on success.
+Observation failures include the instruction position, trace file/line, reduction rule and discrepancy.
+Capture failures should be diagnosed from the native/transport artifacts; an `ungrouped event` points to input interpretation or reduction; an instruction failure points to execution or an observation.
+
+The collector uses the driver's loopback Fluentd endpoint, not redirected stdout or the removed `CCF_RAFT_TRACING` switch.
+It preserves capture order and original `process_id`, `h_ts` and `msg` values; it never sorts or repairs events to make replay succeed.
+
+## Replay contract
+
+### Input and reduction
+
+Input must be current Fluentd `ccf.raft_trace` NDJSON, regardless of filename extension.
+Mixed console logs, legacy `raft_trace` layouts, blank/malformed records, mixed process identities and noncontiguous sequence numbers are rejected.
+Ordinary Lean JSON parsing coalesces duplicate object keys; there is no separate duplicate-key scan.
+Consumed fields use fallible accessors; unrelated metadata is ignored.
+
+Commands declare identities and retain provenance, but do not independently create model actions.
+Some rules also use command meaning: bootstrap requires `start_node`, standalone nomination requires `nominate_successor`, and `cleanup_nodes` supplies retirement-confirmation metadata.
+Node identities are distinct names sorted lexically, not numeric interpretations of strings.
+Request identifiers refer to transaction source locations; zero is reserved for genesis.
+
+Every event must belong to a named rule, and all input must be consumed.
+Each rule first consumes its evidence, then emits instructions.
+Protocol-action rules emit the head's pre-action observation, the action, and comparable synchronous-event/post-action observations.
+Bootstrap emits only initialization observations; a drop checks its snapshot and packet before excluding the envelope, with no post-observation.
+Replay executes those instructions later; parsing does not execute the model.
+Actions retain the head's origin, and observations retain the source event's origin.
+There is no required terminal observation or invented snapshot at EOF: a finite prefix can end in an action or leave packets pending.
+
+| Source event                                  | Model action or evidence                                                                  |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Forced leader and singleton genesis           | Check initialization against the preloaded model state                                    |
+| `replicate`                                   | One append, including configuration hooks, constructor heartbeats and synchronous commit  |
+| Independent `send_append_entries`             | Send entries to the recorded peer/end index                                               |
+| `recv_*`                                      | Deliver the FIFO head; check adoption, execution, promotion, commit and response evidence |
+| `become_pre_vote_candidate` outside a receive | Election timeout, including self-quorum promotion when applicable                         |
+| `become_follower` outside a receive           | Check-quorum timeout                                                                      |
+| Standalone `step_down_and_nominate_successor` | Nominate using the model's successor selection                                            |
+| `drop_pending_to`                             | Exclude one pending FIFO-head occurrence                                                  |
+
+Timeout elections require pre-vote; same-term nominations retain their direct-election behavior.
+Commits and promotions are synchronous evidence, not extra model actions.
+The model and its guards are unchanged.
+
+### Observations and native phases
+
+There are three basic observation kinds:
+
+| Kind   | Purpose                                                                                                                                                                        |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| State  | `emitObserveSnapshot` checks a supported node snapshot minus explicit exclusions; `emitObserveState` checks explicit output coordinates such as a write index or commit target |
+| Entry  | Check a model log entry's term, kind, configuration, transaction identity or committed status                                                                                  |
+| Packet | Check recorded fields against a queued model packet; nomination uses a constructed proposal header                                                                             |
+
+A snapshot includes supported recorded role, term, log length, commit index, retirement fields, available signature/configuration caches and compatible recorded peer progress.
+It does not mean the entire model state, every peer, full log contents, votes, clocks, KV contents or network enumeration.
+At stable boundaries, a supplied signature cache must exactly match the ordered signature indices above the commit index, including omissions and duplicates.
+Entry and packet checks supplement snapshots rather than replace them.
+
+Native callbacks often occur before a mutation, while the model performs several effects atomically.
+The emitters document exclusions at the point where they are needed:
+
+| Native phase                                   | Comparison                                                                                                                                                                        |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Role change                                    | The callback already contains the new role; exclude that role before the action and check it afterwards where comparable                                                          |
+| Candidate followed by promotion                | Exclude fields affected by role change and unsigned-suffix rollback                                                                                                               |
+| Leader commit or an empty AppendEntries commit | Use `observeBeforeCommit` with the checked action head's old commit index; exclude a role that committing may clear, and check the commit target separately                       |
+| AppendEntries callbacks                        | Retain log-derived fields when the packet is empty, and commit-derived fields when its limit cannot advance the checked pre-state; otherwise exclude fields that can still change |
+| New-peer constructor heartbeat                 | Observe the applied configuration but exclude the pre-append log length; translate its next-index sentinel to the model's sent index                                              |
+| Ordinary send or standalone nomination         | Recheck unchanged recorded fields after the action; sending excludes the updated `sent_idx`                                                                                       |
+
+Committing does not change the log, so `observeBeforeCommit` reads the final log at an independently checked old commit index and derives retirement confirmation from that prefix.
+It checks a read-only view, never executes an intermediate action or changes replay state.
+Post-action checks of unchanged fields reuse existing evidence; they do not claim a new native post-action snapshot.
+The driver supplies no separate operation-boundary snapshots or operation IDs.
+
+For AppendEntries, caches and retirement phase depend on both log and commit progress.
+If neither can change, internal snapshots are checked fully; empty-request commits use the pre-commit view.
+Other intermediate callbacks retain positive signature/configuration-entry and committed-prefix evidence where exact cache comparison is not justified.
+Missing optional packet coordinates keep the conservative exclusions; malformed supplied coordinates fail the preceding model-packet check.
+These decisions use the packet and checked pre-state, not absence of later telemetry.
+
+### Packets, drops and delivery order
+
+The model network is an unordered multiset; replay imposes strict FIFO independently for each directed source/destination pair.
+A receive selects the oldest live envelope for that pair, checks the recorded fields and delivers its actual full model payload.
+It never searches ahead for a match or reconstructs unobserved payload data.
+If distinct payloads share the same recorded headers, FIFO selects the occurrence; there is no uniqueness/ambiguity check.
+A drop excludes one occurrence from future observations/deliveries but leaves it undelivered in the model network.
+Equal envelopes preserve multiplicity.
+
+Send observations check the latest pending packet for their endpoints without creating or consuming it.
+They need not enumerate every emission exactly once: repeated observations may inspect the same occurrence, and unobserved emissions may remain pending.
+Optional vote/pre-vote requests, constructor heartbeats and response-send telemetry need not cover every peer.
+Promotion-heartbeat coverage is also optional, but a repeated destination ends that group so a later independent send is not swallowed.
+Every observed send still needs a compatible model packet; every delivery needs an enabled model transition.
+
+Reconnect commands do not reset queues or invent drops.
+Native authentication losses and channel-buffer replacement are not reconstructed.
+An unreceived head blocks later receives on that pair unless explicitly dropped.
+A FIFO failure does not prove that no execution under another delivery order could match.
+
+### Limits
+
+Successful replay establishes finite compatibility under this policy, not universal C++ refinement, complete native entry-byte/KV equality, complete send accounting, infinite extension, fairness or liveness.
+Replay is independent of the model's safety proofs.
+
+The native driver supplies singleton append batches.
+Adjacent events do not establish an arbitrary multi-entry production batch boundary.
+A native byte-threshold flush can also send a new signature with the old commit index before a sole active leader commits it; replay rejects this intermediate packet because the model append commits atomically.
+Neither limitation is handled by inventing intermediate model states.
+
+## Maintaining the replayer
+
+| File                                                                  | Ownership                                                                                                   |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| [`ReplayMain.lean`](ReplayMain.lean)                                  | CLI/files/results; calls `prepareEvents`, `reduce` and `replay`                                             |
+| [`Input.lean`](../CCFRaft/Replay/Input.lean)                          | JSON access, records, transport validation, command association and node discovery                          |
+| [`Reduction.lean`](../CCFRaft/Replay/Reduction.lean)                  | `CCFRaft.Replay.reduce` prepares identities/header; `Reducer.reduce` consumes events and emits instructions |
+| [`Interpreter.lean`](../CCFRaft/Replay/Interpreter.lean)              | Actions, read-only state/entry/packet checks and direct model execution                                     |
+| [`tests/raft_trace_capture.py`](../../../tests/raft_trace_capture.py) | Native capture, scenario inventory, subprocess lifecycle and suite results                                  |
+
+After reduction identifies the forced leader, outer `reduce` finalizes the header's singleton genesis membership; `replay` initializes that state before executing instructions.
+
+Rules use [`CCF.Parsec`](../../common/README.md#event-parsing), which threads emitted instructions transactionally while parsing an event array.
+Keep local recognizers and consumption before emission; speculative matching must not leave instructions behind.
+Wrap alternatives and repeated/optional speculative subrules in `attempt`; a failed match restores both cursor and application state.
+Repeated rules must consume input, and the final leftover-event check rejects unmatched events.
+The farthest failed consumed pattern supplies the diagnostic when parsing ultimately fails before that position.
+
+To add a rule, register it in `reductionRules`, establish grouping/phase/action-construction constraints with `checked` and `read`, then emit model actions and observations.
+Model consistency belongs in observations, not in new parser guards that compare snapshots.
+Keep partial observations explicit, explain exclusions, and do not repair model state.
+For an `ungrouped event`, inspect the recognizer and neighboring native records; for an instruction failure, locate its emission tag and checker before changing the model.
+See [DisasterRecovery replay](../../disaster-recovery/replayer/README.md) for the same records/reduction/direct-execution separation.
+
+## Regression and CI checks
+
+From `lean/ccf-raft`, after building the replay targets:
+
+```sh
 lake exe replay-checks
 ```
 
-The collector needs the `msgpack` dependency from `tests/requirements.txt` in the active Python environment.
-The removed `CCF_RAFT_TRACING` switch no longer enables stdout tracing.
-The current collector connects the driver's Fluentd endpoint on loopback and writes the original `process_id`, `h_ts` and `msg` records as NDJSON, retaining native stdout/stderr bytes in `.driver.stdout` and `.driver.stderr` files even when they contain invalid UTF-8.
-It uses the existing MessagePack transport helper, not a Python protocol reducer; it never sorts or edits events to make a replay succeed.
-Subprocess, transport, decoding and sequence failures preserve received records under `.partial`, never as successful replay inputs.
-Unsupported values that cannot be encoded as JSON also retain the decoded records unchanged in `.driver.records.msgpack`; they are rejected, not converted into supported protocol data.
-The collector requests binary stdout/stderr from the shared `run_driver` helper, so console encoding does not constrain structured replay records.
-Other consumers retain the helper's default text output; its `CaptureError` carries binary stdout/stderr and received records on failure.
-The Python runner selects every regular file under its scenario directory, recursively and sorted, matching `tests/raft_scenarios_runner.py`.
-Omit `--replayer` with `--driver` for capture only; use `--raw-directory` with `--replayer` to check existing captures without launching a driver.
-Use `--timeout N` to change the positive, finite subprocess timeout from 60 seconds.
-Capture and replay use the standard Python subprocess infrastructure; there is no Lean process launcher or suite mode.
-A capture failure, malformed or unsupported event, disabled action, impossible delivery or observation mismatch fails that scenario.
-Successful drivers may write diagnostics to stderr; these are preserved and their location is reported, without treating warnings as protocol failures.
-The runner attempts every scenario, retains JSON traces as `<scenario>.stdout`, and writes `.result.json` and `summary.json`, with capture/replay failure stages and a nonzero exit if any scenario failed.
-Native console bytes remain in the separate `.driver.stdout` and `.driver.stderr` evidence files.
-It resolves and validates that the output and scenario inventory trees are disjoint before creating directories or removing any previous summary.
-Neither directory may contain the other, since mirrored output paths could otherwise overwrite scenarios.
-Missing output directories are created automatically after this check.
-Only after validating this separation does it remove the previous summary, so an empty inventory or interruption cannot leave a stale success at a safe output location.
-`replay-checks` runs parser, reduction, observation, direct-model, identity and transport regressions; capture and suite tests live in Python.
+[`tests/Main.lean`](tests/Main.lean) covers parsing and transactional rollback, rule grouping, instruction ordering/provenance, observation-field mutations, read-only execution, FIFO selection, multiplicity, identities and transport integrity.
+Boundary and receive-phase cases cover combined peer snapshots, unchanged-field post checks and exact pre-commit/cache/target observations.
+Grouping-valid corruptions must reach replay and fail their observations, rather than disappear during reduction.
 
-The separate legacy TLA adapter, `tests/raft_trace.py::as_log_lines`, changes the record layout while preserving event order.
-It supplies the TLA consumer's `pre_vote_enabled: true` field in copied snapshots, reflecting the native implementation's unconditional pre-vote without modifying captured records.
-The Lean collector does not use that adapter.
+From the repository root:
 
-`--raw-directory DIR` instead of `--driver PATH` checks existing `<scenario>.stdout` captures.
-Missing captures and invalid UTF-8 are per-scenario failures, not skips or reasons to stop checking the rest.
-Reusing captures does not validate a changed implementation.
-Single-trace success prints JSON counts of every consumed instruction, action and observation.
-An observation failure reports the instruction position, original trace file and line, reduction rule, and expected/actual discrepancy.
-Additional native function, command and implementation metadata remains in the original trace rather than being copied into each instruction.
-
-## Records and rules
-
-NDJSON contains only current Fluentd `ccf.raft_trace` envelopes, each retaining `process_id`, `h_ts` and `msg`.
-Commands use `msg.cmd`; events use `msg.function`, with flat `msg.idx` for commits and flat `msg.idx`, `msg.rid`, `msg.nodes` and `msg.configurations` for configuration events.
-Legacy `raft_trace` records and their nested `args` layout are unsupported.
-Every input is NDJSON regardless of its filename extension; `.stdout` is the collector's existing JSON trace naming convention, not mixed console output.
-Blank, malformed JSON and non-JSON output lines fail rather than being filtered.
-Records use ordinary Lean JSON parsing, including its duplicate-key coalescing; there is no separate schema validator or lexical duplicate-key scan.
-Association, reduction and replay read the fields they use with fallible accessors and preserve source locations on failure.
-Unrelated envelope, event, state and configuration metadata is ignored.
-Configuration membership uses node names, not address metadata or the unused `rid` field.
-Packet fields passed to replay remain observations and are checked against model-generated packets, rather than a separate packet schema.
-Records are never sorted by timestamp.
-Creation commands declare node identities even for future nodes that have not emitted any Raft event.
-Other command names are provenance, not a whitelist or independent model actions; an unrecognized Event still fails reduction.
-Timeout elections always use pre-vote in both native Raft and the model; there is no per-node mode flag or driver toggle.
-Envelopes must have one process identity and contiguous sequence numbers starting at zero; missing, repeated or reordered sequences fail.
-The reducer reads native message fields directly, without manufacturing a compatibility representation.
-Events retain the original command and event envelopes for provenance, without a cached state projection.
-State observations use native trace field names and values.
-`checkJsonPaths` traverses the supplied observation using object-key and array-index paths, resolving each path to an optional checking function.
-A registered function interprets the entire value at its path; otherwise traversal continues into objects and arrays, rejecting unsupported leaves and empty containers.
-State paths check the requested model fields directly, without rendering a full model-state JSON object.
-The configuration checker compares indices and node identities while ignoring transport metadata.
-
-`Reduction.lean` parses the ordered native event stream with [`CCF.Parsec`](../../common/README.md#event-parsing), the common package's generic event-array adapter and stateful combinators over Lean's `Std.Internal.Parsec`.
-Its rules live in `CCFRaft.Replay.Reducer`; `Reducer.reduce` accepts prepared Events and identity tables and returns the bootstrap leader and emitted instructions.
-The rule parser does not normalize records, discover identities, construct the replay header or execute the model; `reduce` prepares the header, while `ReplayMain.lean` calls association before reduction and replay afterwards.
-`CCF.Parsec.ParserT Event ReductionState` keeps parser position separate from the header and accumulated instructions without requiring equality on JSON events.
-Named reduction alternatives use `attempt`: a failed constrained pattern restores both input position and accumulated instructions before another alternative is tried.
-Optional and repeated subrules also use transactional attempts.
-Events must match the expected node and protocol fields; grouping does not depend on driver-command context.
-An unmatched or malformed Event still rejects the complete trace through the leftover-Event check rather than disappearing.
-When a speculative pattern consumed Events before failing, its farthest diagnostic survives rollback and is reported if no successful interpretation reaches that position.
-Each grammar names its local recognizers with `let subrule := event "event_name" fun e => ...`, auditing only that event with `checked` and `read`.
-`checked` establishes grouping, supported native phases or action-construction constraints; model compatibility belongs in observations emitted by the rule.
-Its consumption phase binds ordinary values in trace order; its emission phase explicitly produces actions and observations from that evidence.
-Larger content-preparation and subgrammar blocks are defined locally in the rule header, keeping the consumption section focused on sequencing.
-Shared commit, promotion and election evidence has parse-only grammars and separate emission helpers, so optional or repeated recognizers never emit instructions while matching.
-The top-level grammar is bootstrap followed by `many_ reductionRules`, then a single leftover-event check that requires the input to be exhausted.
-Each rule explicitly emits its head Event's pre-action observation with a rule-specific tag before emitting its action.
-There is no trailing observation or invented snapshot at end of input.
-Finite traces are accepted as prefixes; they do not need a terminal observation.
-The state-threading `many` bridge attempts each repeated pattern and accumulates instructions directly, without reparsing individual chunks or flattening separately initialized output batches.
-The same common combinators handle optional rules and repetitions; each repeated grammar must consume an event before succeeding.
-Leadership-heartbeat recognition checks empty-packet coordinates and consumes at most one send per distinct destination, without requiring coverage of every active peer.
-State and packet observations check the term and destination during replay.
-Retired peers can also receive promotion heartbeats even though they are absent from active configurations.
-A subsequent send to an already observed destination remains available as an ordinary send action.
-The declared population bounds the loop; no driver-command fence is used.
-Append, receive, tick, send, nomination and drop are named alternatives.
-The receive grammar is an explicit choice between independently defined message families:
-
-```lean
-ruleRecvAppendEntries
-<|> ruleRecvProposeRequestVote
-<|> ruleRecvRequestVote
-<|> ruleRecvRequestVoteResponse
-<|> ruleRecvAppendEntriesResponse
+```sh
+python3 tests/raft_trace_capture_test.py
+python3 tests/raft_trace_replay_test.py
+python3 lean/ccf-raft/replay/tests/refresh_fixtures_test.py
 ```
 
-Each family consumes its head and synchronous events, then explicitly calls `emitAction` for its receive before emitting any event's state, entry or packet observations.
-The parser produces instructions; it does not execute the model while parsing.
-Parsed evidence is local to its grammar, not a later whole-trace observation pass or a list of future events used to choose which state fields to compare.
-The receive action retains the head's origin; each event's observations retain that event's origin.
-Every instruction carries exactly one origin, enforced by its type rather than a runtime check on an origin list.
-The packet is a value carried from the parsed head, not a separate binding instruction.
-Candidate/leader promotion, commit/retirement nomination, configuration hooks and new-peer heartbeats are separate composable rules rather than mutations of a dispatcher accumulator.
-AppendEntries composes repeated execution/configuration/commit events followed by an optional response; it permits zero execution events for empty heartbeats and NACKs rather than requiring `many1` unconditionally.
-The central leftover-event check rejects unconsumed events with their source location and name.
-Commands with no events do not invent actions or observations.
-Bootstrap consumes only the forced-leader and singleton genesis events, so the signature is still replayed normally.
-Optional Events match their name, source node and rule-specific protocol constraints; a failed match leaves them for the next reduction rule.
-Follower-transition recognition checks whether the received packet's family, term and receiver's pre-state permit adoption, including same-term AppendEntries demotion of candidates.
-An ignored same-term vote response therefore cannot absorb a later check-quorum transition.
-Recognized follower Events contribute a state observation after the receive action, with explicit phase exclusions only when the rest of an AppendEntries delivery can still change that state.
-Response-peer eligibility remains enforced by the unchanged model rather than inferred from an incomplete native peer snapshot.
+Build `ccfraft-replay` first; set `CCF_RAFT_REPLAYER` to its actual executable when using an external build directory.
+The Python cases cover capture bytes/order, timeouts, failures, recursive inventories, invalid encoding, missing captures and stale-success removal.
+[`refresh_fixtures.py`](tests/refresh_fixtures.py) preserves actual native records and origin hashes; do not rewrite fixtures to make them match the model.
+The historical mixed-console `terminal_retirement.stdout` is retained as negative input evidence.
+Current retirement fixtures use the confirmation transaction index reported by the corrected native test stub, not its covering compact frontier.
 
-The named operation rules consume every event:
-
-| Source event                                                      | Model action and checks                                                                                         |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Forced-leader and genesis events                                  | Audit initial leadership and singleton genesis arguments against the preloaded model initialization             |
-| `replicate`                                                       | One nonempty `append`, with its configuration hooks, new-peer heartbeats and internal commit                    |
-| `send_append_entries` outside a event group                       | `sendEntries(destination, endIndex)`; check the recorded `sent_idx` against `prev_idx`                          |
-| `recv_*`                                                          | FIFO delivery, with term adoption, synchronous promotions, commits and response observations in the same action |
-| `become_candidate`, `become_pre_vote_candidate` outside a receive | Election timeout with nested self-quorum promotions, request observations and leadership heartbeats             |
-| `become_follower` outside a receive                               | Check-quorum timeout                                                                                            |
-| `step_down_and_nominate_successor` outside a commit               | Nullary `nominateSuccessor`, only under a `nominate_successor` command; observe the model-chosen destination    |
-| `drop_pending_to`                                                 | Check and exclude one FIFO queue-head occurrence without stepping the model                                     |
-
-Commands alone do not invent protocol actions.
-Out-of-order deliveries, ungrouped events, missing required group members and invalid group order are rejected.
-Shuffle commands do not themselves create model actions; a subsequent delivery must still obey the strict FIFO replay policy.
-Each transaction carries at most one configuration in its `TransactionMetadata`.
-Multiple configuration events for one append are rejected, not collapsed into one configuration or split into invented model actions.
-Configuration-cache lists retain their recorded order and entries; cache observations compare them to the model rather than prevalidating the list.
-Extra configuration Events have no standalone rule and are rejected by the central leftover-event check rather than a special duplicate lookahead.
-The model and its guards are unchanged.
-
-## Atomic boundaries and observations
-
-`RaftDriver::_replicate` in `src/consensus/aft/test/driver.h` passes a singleton `BatchVector`, so each `replicate` event is one append action.
-A globally committable entry is a signature; another entry is a transaction identified by its source `file:line`.
-Configuration events supply the optional configuration metadata, and `cleanup_nodes` supplies its retired-committed node set.
-Configuration/write pairing checks the index and transaction kind; the configuration snapshot is observed before the append, rather than compared to another raw snapshot during reduction.
-The append's recorded `seqno` and `view` are observed as the resulting model log length and term.
-Retirement-confirmation names resolve to a model set, so duplicates and an empty set need no separate input restriction.
-The preloaded bootstrap configuration has the empty transaction identifier.
-Model node IDs are lexical ordinals in the distinct sorted declared-name list, never numeric interpretations of textual names.
-The initial membership contains the bootstrap node's ordinal; its minimum starts as primary even when earlier lexical nodes exist elsewhere in the population.
-Request ID zero is reserved for genesis; other IDs map injectively to transaction source locations, which remain available in entry observations.
-Adjacent events do not establish a general multi-entry production batch boundary; replaying such calls needs additional trace evidence.
-
-A native byte-threshold flush can send a newly appended signature to a retired peer before a leader that is the sole active member commits it in the same call.
-The model commits that signature atomically with its append, so replay rejects the intermediate packet carrying the new entry with the old commit frontier rather than inventing an intermediate model state.
-
-`raft.h` traces `replicate`, `add_configuration`, `execute_append_entries_sync`, `commit` and sends before their mutations, whereas role-change events trace after changing role.
-Each rule emits actions executed through unchanged `Model.transitionSystem.step` and observations checked against that execution.
-One periodic driver call can produce several independently observed send or timeout rules.
-The driver does not emit separate operation snapshots, IDs, or complete peer/cache dumps.
-Observations use only existing event snapshots: role, term, log length, commit frontier, membership/retirement fields, available configuration caches and packet-specific peer progress.
-`emitObserveSnapshot` starts with every supported snapshot field and excludes only fields made incomparable by the named native phase, with the reason documented at the emission site.
-This means the available fields of that node's native snapshot, not equality of the entire model state, every peer, full log contents or network queues.
-Recorded peer progress is included in the same snapshot observation when its phase is compatible.
-`emitObserveState` makes explicit state-field checks, such as a write index, commit target or constructor peer coordinate, distinct from snapshot checks; `emitObserveEntry` and `emitObservePacket` are the other two basic kinds.
-Nomination proposals use the same packet emitter with their expected proposal header.
-Entry, packet and output-coordinate checks supplement those observations rather than replace them.
-Role-change Events already contain the assigned role; the timeout rules exclude that field from their pre-action observations while checking the transition.
-At stable boundaries, a supplied committable-index cache must exactly equal the ordered signature indices above the model's commit frontier, including multiplicity and omissions.
-This does not claim complete driver-entry/exit equality, complete peer-table equality, or a final snapshot when no event supplies one.
-Votes, clocks, store contents and native queue enumeration are not observed directly.
-
-Initialization is explicit rather than a fabricated model action.
-The forced-leader/genesis prelude and singleton genesis argument are audited locally.
-The following signature and commit use the ordinary append and leader-commit grammars, not bootstrap lookahead.
-Genesis is preloaded by `Model.initialNodeState`; every startup snapshot observes its unchanged fields, excluding the pre-genesis log length and configuration cache.
-The configuration entry is checked without inventing a bootstrap action or a constructor snapshot.
-
-For a timeout's first pre-vote event, the role is already assigned while the other fields still describe the pre-state.
-When the active configurations rule out a self-quorum, that snapshot also supplies a full post-action observation, even if request sends are omitted.
-Candidate snapshots are retained and observed fully when no promotion follows.
-When promotion follows, the candidate observation excludes its intermediate role and fields affected by unsigned-suffix rollback; a synchronous commit uses the independently checked old frontier.
-Promotion itself supplies a full observation after rollback, or a pre-commit view excluding the role that retirement confirmation may subsequently clear.
-Execution, configuration and follower-commit rules check event context, sender where applicable, the raw follower role, the stable term, signature-kind evidence, configuration-entry evidence and positive committed-prefix evidence.
-Their state observations exclude only fields that the packet permits the remaining atomic delivery to change.
-An empty AppendEntries cannot replace or append log entries, so its snapshots retain log length, membership and retirement entry/signature coordinates.
-When the packet's commit limit cannot advance the independently observed pre-action commit index, snapshots also retain role, commit index and retirement confirmation.
-If neither the log nor commit index can change, the intermediate snapshot is checked fully, including its caches and retirement phase.
-Otherwise those caches and the retirement phase remain excluded because they depend on both log and commit progress.
-An empty AppendEntries commit can use the existing pre-commit view: no entries were applied, so the checked receive head supplies its exact old frontier.
-That observation checks its complete pre-commit snapshot except the role that committing may clear, and separately checks the commit target against the final model frontier.
-Missing optional packet coordinates retain the conservative exclusions; malformed supplied coordinates still fail the model-packet check before any internal observation.
-These callbacks are not additional model states.
-Remaining fixed phase exclusions, such as a leader commit snapshot before role clearing, are documented at their emission sites rather than carried in observation metadata; they do not depend on future event inspection.
-
-Intermediate AppendEntries execution/configuration/commit callbacks retain positive signature checks because those events can precede cache insertion or pruning.
-Configuration caches within a receive are checked against log-entry configurations, and a positive event commit frontier must already point to a committed signature.
-Follower delivery commits at each newly applied signature and once at the end, preserving the first frontier covering its retirement record while allowing a later final commit index.
-Replay still executes this as one model delivery and checks event evidence against the resulting log and state; it does not insert intermediate commit actions.
-The model's `noRetirementObserved` membership phase maps to the trace's `Active` label, including declared nodes that have not yet joined.
-
-New-peer configuration heartbeats belong to the append and use the constructor's next-index sentinel, one past the model's sent frontier.
-Their node snapshots observe the already-applied configuration while excluding the still-old log length, using the old commit frontier if that append also commits.
-The rule consumes the constructor heartbeats that are present, without requiring one for every new peer.
-Ordinary sends do not use this adjustment.
-Their pre-action observation combines the node snapshot and peer progress; their post-action observation rechecks those same fields except `sent_idx`, which sending updates.
-Standalone nomination similarly rechecks the unchanged node fields after sending its proposal.
-These checks reuse existing snapshot evidence under the actions' unchanged-field guarantees; they do not claim a new native post-action snapshot.
-Vote and pre-vote responses share `send_request_vote_response`; `packet.msg` distinguishes them, and each supplied response snapshot and packet is checked after its receive.
-`become_follower` is an optional adoption event, not an additional model action.
-Vote requests and higher-term responses finish adoption without changing the recorded node fields further, so their adoption snapshots are observed fully whether or not a response-send event follows.
-AppendEntries adoption instead excludes fields that subsequent rollback, execution or commit may change.
-Response-send events retain their stable state and packet observations; an absent optional response does not invent a post-state snapshot.
-Lower-term NACK hints remain log terms, not new election terms.
-A higher-term nomination is consumed without adopting its term or forcing an election.
-
-Commits and promotions are never standalone model actions.
-`become_leader` may commit and heartbeat synchronously.
-Terminal retirement nominates inside its committing action, using the precommit eligible peers and configurations before pruning and clearing leadership.
-The reducer audits the raw leader/completed-retirement snapshot and observes the proposal rather than substituting its destination into the action.
-Its configuration cache must equal the checked pre-pruning commit cache.
-The model selects the maximum acknowledged index, latest containing active configuration index, then lexical node ID; `"2"` ranks above `"10"`.
-
-The leader commit snapshot records the old frontier, not the post-commit state.
-The commit rule takes the old frontier from the already-parsed action head.
-Its `observeBeforeCommit` observation checks the recorded frontier, post-append log and retirement/configuration projections after the action, including the old confirmation coordinate.
-This read-only view uses the final log, the old frontier, and confirmation transactions in that committed prefix; it does not execute an intermediate action or modify model state.
-The role is checked at its named leader phase rather than compared to a potentially cleared final role.
-The commit target must advance the old frontier and equal the model effect, but is not presented as a native post-state observation.
-Subsequent event snapshots check the advanced state when present.
-
-Timeout elections must start in the pre-vote phase; same-term nominations retain their direct-election behavior.
-Legacy `pre_vote_enabled` metadata and command labels are unused; they do not configure the model.
-Actual elections that skip the required pre-vote entry still fail reduction.
-The fixture refresh script preserves actual new native records rather than rewriting old captures to fit the model.
-No synthetic nominations or mode toggle are inserted into the model.
-
-The model's `retiredCommittedIndex` is the confirmation transaction's index, not the covering signature's index.
-The native test stub's [`LoggingStubStoreConfig::compact`](../../../src/consensus/aft/test/logging_stub.h) passes the stored transaction version, matching production [`on_nodes_global_commit`](../../../src/node/node_state.h), and consumes every processed hook entry, including one exactly at the compact frontier.
-For a confirmation transaction at index 5 covered by a signature at index 6, the hook reports 5, not 6.
-The retained `terminal_retirement.stdout` records the old stub's incorrect compact-frontier index.
-It remains unmodified historical negative evidence; its legacy mixed-console format is rejected before protocol replay.
-Fresh native retirement fixtures record transaction index 5.
-
-## Packet accounting
-
-The model's network is an unordered multiset, and remains so.
-The replayer assumes strict FIFO independently for each directed source/destination pair.
-A receive selects the oldest live pending envelope for that pair, checks the recorded packet fields against it, and delivers its actual full payload.
-It never searches ahead for a matching packet or reconstructs unobserved payload data.
-An unavailable or mismatching head fails when replay executes the action; there is no redundant incoming-packet observation.
-A drop excludes exactly one occurrence from future observations and deliveries, but leaves it undelivered in the model network.
-Equal envelopes retain their multiplicity.
-Explicit driver drops still check and exclude the queue head for that directed pair.
-Sender consistency is a rule-local observation, not a condition for recognizing a drop event.
-
-If different full model envelopes have identical recorded fields, FIFO determines which actual payload is delivered; no uniqueness or ambiguity check is needed.
-Successful replay witnesses a compatible execution under this policy.
-A FIFO replay failure does not prove that no execution with a different delivery order could match.
-Packet headers do not encode physical nonces or channel epochs, and reconnect commands do not reset replay queues or invent drops.
-Native authentication losses and channel-buffer replacement are not reconstructed; an unreceived envelope may simply remain pending.
-An unreceived head blocks later receives on that pair unless an explicit drop excludes it.
-
-Send telemetry is deliberately **not** required to enumerate every model emission exactly once.
-A send observation checks compatibility with the latest pending packet for its endpoints; it neither creates nor consumes a packet.
-Repeated observations may check the same occurrence, unobserved emissions may remain pending between actions or at EOF, and omitted optional response-send telemetry does not itself fail replay.
-Election vote/pre-vote requests and new-peer constructor heartbeat observations may be omitted, repeated or reordered; reduction does not compare their destinations to a complete ordered peer list.
-Promotion heartbeat coverage is also optional; a repeated destination still ends that group so a later independent send is not swallowed as an observation.
-Each observed send must still match a model-generated packet during replay.
-Actual delivery still requires a live compatible model packet and an enabled transition.
-This relaxation checks observations and delivery feasibility, not completeness or exactly-once correspondence of implementation sends.
-It does not relax record parsing, source event ordering, action guards or state observations.
-
-## Regression coverage
-
-`replay/tests/Main.lean` replaces the old Python regression suite.
-It runs freshly captured bootstrap, startup, vote-response, missing-prefix, configuration, drop/resend, nomination and follower-retirement fixtures, checks instruction consumption, mutates every projected observation field, and exercises raw event/packet mutations, malformed JSON, missing or mistyped consumed fields, disabled actions, missing packets, wrong drop heads and repeated/drop message occurrences.
-Unused metadata and command labels are accepted without changing replay, while unknown Events still fail.
-Generic parser tests cover event types without equality, state threading and rollback, committed failures, optional/repeated rules, non-consuming observation ordering, and EOF.
-[`tests/refresh_fixtures.py`](tests/refresh_fixtures.py) refreshes positive fixtures from actual native captures and complete event groups, retaining exact bytes and recording origin hashes; it rejects legacy input and never generates snapshot values or rewrites the historical terminal fixture.
-Fixture slices retain their native process and sequence coordinates, so the bootstrap, configuration-callback and missing-prefix slices concatenate into their original stream.
-Only synthetic protocol splices in the regression tests receive new contiguous sequence numbers; fixture loading and transport-integrity tests use unmodified envelopes.
-The historical negative `terminal_retirement.stdout` remains unchanged and explicitly tests unsupported mixed-console input.
-Receive regressions reject a later heartbeat while an earlier data packet remains pending, check head selection when distinct payloads have identical headers, and preserve equal-copy multiplicity and explicit drops.
-Focused cases cover the relaxed send-telemetry semantics, transaction metadata, undeclared metadata members, rejected duplicate configuration events and preservation of recorded cache evidence.
-Corrupted append coordinates, configuration snapshots, commit frontiers, send coordinates and drop senders are accepted by their grammars where grouping remains valid, then rejected by replay observations.
-Typed raw event mutations cover observed state and timeout-phase fields.
-Positive cases deliberately change unused internal candidate, follower-adoption and execution/configuration/commit details.
-Emission tests require receive actions to precede their event observations, retain only their head origin, and omit redundant incoming-packet matching observations.
-They retain malformed-field, entry/configuration, packet and event-context rejection.
-`self_quorum.stdout` is a fresh native `reconfig_0_1` capture from the corrected test stub.
-Python subprocess regressions cover capture byte preservation, timeout/nonzero-exit failures, successful diagnostic stderr, recursive inventory, invalid encoding, missing captures and stale-summary removal.
-Neither the Lean regression executable nor the replayer imports proof modules.
-Observation regressions exercise each checker against concrete states and corrupted fields, verify stable captured identities, and prove that successful observation execution returns the unchanged replay state.
-Identity/init regressions cover lexical ordinals, a nonzero bootstrap ordinal, population preservation, genesis, undeclared IDs and duplicate request provenance.
-Current-envelope regressions cover sequence gaps, reordering, process identity, direct flat-field consumption, legacy rejection, ignored unused metadata, command/source provenance and mandatory pre-vote election entry.
-`python3 lean/ccf-raft/replay/tests/refresh_fixtures_test.py` from the repository root checks byte-preserving fixture slices, origin hashes and rejection of legacy sources without writing a replacement.
-The native scenarios use pre-vote for timeout elections, including delayed nomination, partial-prefix overcommit, stale leaders and competing signed suffixes.
-`soft_rollback` uses five nodes so a short-log candidate obtains a genuine pre-vote quorum before its higher-term vote request reaches a node with an unsigned suffix.
-`retire_backup` checks that a removed node cannot inflate the term or depose the leader, then learns its retirement through ordinary prefix repair.
-These migrations retain genuine pre-vote exchanges; they do not synthesize nominations or introduce a model toggle.
-`python3 tests/raft_trace_capture_test.py` from the repository root exercises transport ordering, duplicate keys, unchanged records and stale-success removal.
-`python3 tests/raft_trace_replay_test.py` covers the Python capture/replay suite and its failure paths.
-Build `ccfraft-replay` first; set `CCF_RAFT_REPLAYER` to its executable when using an external build directory.
-Replay-only builds do not replace the separately integrated proof build and kernel checks.
-Successful replay witnesses a finite model execution compatible with these observations, not universal production inclusion, infinite extension, fairness or liveness.
-
-## Kernel checks
+### Kernel checks
 
 Run `lake check` only in CI, not locally.
-The [Lean workflow](../../../.github/workflows/lean.yml) exports/checks `CCFRaft`, `ccfraft-replay` and `replay-checks` separately because the executable roots have distinct `main` declarations.
-Local builds and regressions are separate evidence, not a kernel-check pass.
-The CI checks allow only `propext`, `Classical.choice` and `Quot.sound`.
-They run without build sandboxing, so configuration and build code must be trusted.
+The [Lean workflow](../../../.github/workflows/lean.yml) checks `CCFRaft`, `ccfraft-replay` and `replay-checks` separately because the executable roots have distinct `main` declarations.
+The allowed axioms are `propext`, `Classical.choice` and `Quot.sound`.
+Checks run without build sandboxing, so configuration/build code must be trusted.
+Local builds and regressions are not a CI kernel-check pass; replay-only builds do not replace the [model/proof validation](../README.md#validation).

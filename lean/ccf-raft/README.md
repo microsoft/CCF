@@ -62,9 +62,5 @@ To list the safety-invariant declarations used by the exported theorems, run `la
 ## Trace replay
 
 The [trace replayer](replay/README.md) checks finite driver observations against direct model transitions, independently of proofs.
-It preserves recorded delivery order and packet multiplicity, rejects ambiguous observations, and never repairs model state.
-The current native Fluentd capture path and its explicit pre-vote and retirement-index limitations are documented there.
-
-Build with `lake build --wfail --fail-fast` and run `lake exe replay-checks`.
-The CI kernel check selects `CCFRaft`, `ccfraft-replay` and `replay-checks` separately because the executables have distinct `main` declarations.
-Replay compatibility does not establish universal production inclusion, infinite extension, fairness or liveness.
+It uses strict FIFO selection per directed node pair, preserves packet multiplicity, and never repairs model state.
+The current native Fluentd capture path and replay's assurance limits are documented there.
