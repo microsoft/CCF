@@ -807,6 +807,7 @@ if(BUILD_TESTS)
         "LINKER:--wrap=uv_async_send"
         "LINKER:--wrap=uv_poll_start"
         "LINKER:--wrap=uv_getaddrinfo"
+        "LINKER:--wrap=uv_freeaddrinfo"
         "LINKER:--wrap=socket"
         "LINKER:--wrap=SSL_do_handshake"
     )

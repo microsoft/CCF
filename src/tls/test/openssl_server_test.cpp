@@ -97,6 +97,16 @@ namespace
   };
 
   std::atomic<ResolutionGate*> resolution_gate = nullptr;
+
+  struct OrderedResolution
+  {
+    std::array<sockaddr_in, 2> addresses{};
+    std::array<addrinfo, 2> candidates{};
+    uv_getaddrinfo_cb callback = nullptr;
+    std::atomic<size_t> completions = 0;
+  };
+
+  std::atomic<OrderedResolution*> ordered_resolution = nullptr;
 }
 
 extern "C" int __real_SSL_do_handshake(SSL* ssl);
@@ -134,6 +144,19 @@ extern "C" int __real_uv_getaddrinfo(
   const char*,
   const addrinfo*);
 
+extern "C" void __real_uv_freeaddrinfo(addrinfo* result);
+
+extern "C" void __wrap_uv_freeaddrinfo(addrinfo* result)
+{
+  const auto* ordered = ordered_resolution.load();
+  if (ordered != nullptr && result == ordered->candidates.data())
+  {
+    // The test fixture owns this synthetic list, not libuv's allocator.
+    return;
+  }
+  __real_uv_freeaddrinfo(result);
+}
+
 extern "C" int __wrap_uv_getaddrinfo(
   uv_loop_t* loop,
   uv_getaddrinfo_t* request,
@@ -142,6 +165,26 @@ extern "C" int __wrap_uv_getaddrinfo(
   const char* service,
   const addrinfo* hints)
 {
+  if (auto* ordered = ordered_resolution.load(); ordered != nullptr &&
+      node != nullptr && std::string_view(node) == "ordered-candidates.test")
+  {
+    ordered->callback = callback;
+    // Retain a real asynchronous request and its cancellation semantics, but
+    // replace its result with the fixture's ordered list on completion.
+    return __real_uv_getaddrinfo(
+      loop,
+      request,
+      [](uv_getaddrinfo_t* request, int status, addrinfo* result) {
+        auto* ordered = ordered_resolution.load();
+        __real_uv_freeaddrinfo(result);
+        ++ordered->completions;
+        ordered->callback(
+          request, status, status == 0 ? ordered->candidates.data() : nullptr);
+      },
+      "127.0.0.1",
+      service,
+      hints);
+  }
   auto* gate = resolution_gate.load();
   if (gate == nullptr || gate->submitted.exchange(true))
   {
@@ -1404,20 +1447,65 @@ TEST_CASE("Outbound late DNS completion is safe after timeout or destruction")
 
 TEST_CASE("Outbound candidate timeout falls back without losing queued data")
 {
+  OrderedResolution ordered;
+
+  struct ResetResolution
+  {
+    ~ResetResolution()
+    {
+      ordered_resolution = nullptr;
+      suppress_connect_poll = false;
+    }
+  } reset;
+
   EnginePair pair;
   auto config = pair.config();
-  // localhost resolves to IPv6 then IPv4. Do not bind to a v4 source so the
-  // first candidate reaches polling, which is deliberately left unarmed.
+  config.host = "ordered-candidates.test";
   config.source_host.clear();
+
+  for (size_t i = 0; i < ordered.candidates.size(); ++i)
+  {
+    auto& address = ordered.addresses[i];
+    address.sin_family = AF_INET;
+    address.sin_port = htons(config.port);
+
+    auto& candidate = ordered.candidates[i];
+    candidate.ai_family = AF_INET;
+    candidate.ai_socktype = SOCK_STREAM;
+    candidate.ai_protocol = IPPROTO_TCP;
+    candidate.ai_addrlen = sizeof(address);
+    candidate.ai_addr = reinterpret_cast<sockaddr*>(&address);
+  }
+
+  REQUIRE(inet_pton(AF_INET, "127.0.0.2", &ordered.addresses[0].sin_addr) == 1);
+  REQUIRE(inet_pton(AF_INET, "127.0.0.1", &ordered.addresses[1].sin_addr) == 1);
+  ordered.candidates[0].ai_next = &ordered.candidates[1];
+  ordered.candidates[1].ai_next = nullptr;
+
+  ordered_resolution = &ordered;
+
+  // The refused first candidate's completion is deliberately left unarmed;
+  // only the candidate timeout can advance to the reachable second address.
   suppressed_connect_polls = 0;
   suppress_connect_poll = true;
+
+  const auto sockets_before = socket_calls.load();
+  const auto started_at = std::chrono::steady_clock::now();
   const auto id = pair.client->connect(config);
   pair.client->send(id, std::vector<uint8_t>{42});
   pair.loop.start();
+
   const bool received = pair.wait([&]() { return pair.received.size() == 3; });
   suppress_connect_poll = false;
+
   REQUIRE(received);
+  CHECK(std::chrono::steady_clock::now() - started_at >= config.timeout);
   CHECK(suppressed_connect_polls == 1);
+  CHECK(ordered.completions == 1);
+  CHECK(socket_calls == sockets_before + ordered.candidates.size());
+
+  std::lock_guard<std::mutex> guard(pair.mutex);
+  CHECK(pair.received == std::vector<uint8_t>{'h', 'i', 42});
 }
 
 TEST_CASE("Outbound cancellation and shutdown during connect prevent retry")
