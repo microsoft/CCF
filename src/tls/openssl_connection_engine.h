@@ -75,6 +75,8 @@ namespace ccf::tls
       NotRunning,
     };
 
+    // Explicit defaults keep partial designated initializers warning-free.
+    // NOLINTBEGIN(readability-redundant-member-init)
     struct Config
     {
       uv_loop_t* loop = uv_default_loop();
@@ -110,6 +112,8 @@ namespace ccf::tls
       std::vector<OutItem> pending_commands = {};
     };
 
+    // NOLINTEND(readability-redundant-member-init)
+
   private:
     static constexpr size_t read_chunk = 16384;
     static constexpr size_t max_read_per_event = read_chunk * 4;
@@ -127,6 +131,25 @@ namespace ccf::tls
       bool soft_limited = false;
       bool outgoing = false;
       std::optional<std::chrono::steady_clock::time_point> handshake_deadline;
+
+      enum class Establishment : uint8_t
+      {
+        Pending,
+        Admitting,
+        Cancelled
+      };
+      // The loop can cancel while a worker is inside SSL_do_handshake.
+      // Admission claims this state before invoking owner callbacks, so a
+      // close from those callbacks retains flush-before-close semantics.
+      std::atomic<Establishment> establishment{Establishment::Pending};
+
+      bool cancel_establishment()
+      {
+        auto expected = Establishment::Pending;
+        return outgoing &&
+          establishment.compare_exchange_strong(
+            expected, Establishment::Cancelled);
+      }
 
       enum State : uint8_t
       {
@@ -344,6 +367,15 @@ namespace ccf::tls
       const int r = SSL_do_handshake(c.ssl);
       if (r == 1)
       {
+        if (c.outgoing)
+        {
+          auto expected = Conn::Establishment::Pending;
+          if (!c.establishment.compare_exchange_strong(
+                expected, Conn::Establishment::Admitting))
+          {
+            return false;
+          }
+        }
         // With no post-handshake session tickets, the peer may wait for the
         // delayed ACK of its Finished before Nagle sends its first request.
         if (const auto error = details::request_tcp_quickack(c.fd))
@@ -625,7 +657,9 @@ namespace ccf::tls
 
     void drive_connection(std::shared_ptr<Conn> conn, DriveInput input)
     {
-      if (input.force_close)
+      if (
+        input.force_close ||
+        conn->establishment.load() == Conn::Establishment::Cancelled)
       {
         if (conn->ssl != nullptr)
         {
@@ -845,6 +879,15 @@ namespace ccf::tls
       }
     }
 
+    void mark_dirty(const std::shared_ptr<Conn>& conn)
+    {
+      if (!conn->dirty_queued)
+      {
+        dirty_connections.push_back(conn);
+        conn->dirty_queued = true;
+      }
+    }
+
     // Apply worker completions and cross-thread commands on the libuv thread.
     void drain_pending_out() CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
@@ -862,14 +905,6 @@ namespace ccf::tls
       {
         owner_wake();
       }
-
-      const auto mark_dirty = [this](const std::shared_ptr<Conn>& conn) {
-        if (!conn->dirty_queued)
-        {
-          dirty_connections.push_back(conn);
-          conn->dirty_queued = true;
-        }
-      };
 
       for (auto& item : items)
       {
@@ -890,6 +925,10 @@ namespace ccf::tls
         if (item.close)
         {
           cit->second->close_requested = true;
+          if (cit->second->cancel_establishment())
+          {
+            cit->second->force_close = true;
+          }
         }
         else
         {
@@ -933,13 +972,6 @@ namespace ccf::tls
         if (conn->worker_active)
         {
           return;
-        }
-        // A handshake callback can queue send-and-close before its worker
-        // completion reaches the loop. Classify the close only after that
-        // completion, so admitted connections still flush their output.
-        if (conn->close_requested && conn->handshake_deadline.has_value())
-        {
-          conn->force_close = true;
         }
         if (
           conn->force_close || conn->close_requested ||
@@ -1024,8 +1056,11 @@ namespace ccf::tls
       bool handshaking = false;
       for (const auto& [fd, conn] : conns)
       {
-        handshaking |= conn->handshake_deadline.has_value();
-        if (conn->handshake_deadline && now >= *conn->handshake_deadline)
+        const auto deadline = conn->handshake_deadline;
+        handshaking |= deadline.has_value();
+        if (
+          deadline.has_value() && now >= *deadline &&
+          (!conn->outgoing || conn->cancel_establishment()))
         {
           conn->force_close = true;
           dispatch_connection(conn);
@@ -1144,6 +1179,7 @@ namespace ccf::tls
           continue;
         }
         conn->force_close = true;
+        (void)conn->cancel_establishment();
         dispatch_connection(conn);
       }
       if (!conns.empty())
@@ -1213,7 +1249,7 @@ namespace ccf::tls
         throw std::logic_error(
           "Connection submission requires a running engine");
       }
-      enqueue();
+      std::forward<Enqueue>(enqueue)();
       notify_loop();
     }
 
