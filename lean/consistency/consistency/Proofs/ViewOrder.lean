@@ -57,9 +57,9 @@ theorem ordered_elect (branches : List (List Entry)) (ordered : Ordered branches
     subst candidate
     exact (ordered ledger member).sublist (List.take_sublist _ _)
 
-theorem step_ordered (config : Config) (before after : State) (action : Action)
+theorem step_ordered (before after : State) (action : Action)
     (ordered : Ordered before.branches) (anchored : Anchored before.branches)
-    (transition : step config before action = some after)
+    (transition : step before action = some after)
     : Ordered after.branches := by
   cases action <;>
     simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
@@ -70,21 +70,19 @@ theorem step_ordered (config : Config) (before after : State) (action : Action)
       | (rcases transition with ⟨condition, transition⟩)
       | (split at transition)
       | (exact ordered)
-      | (solve | apply ordered_modify _ ordered anchored _ _ rfl; apply active_positive config before; assumption)
+      | (solve | apply ordered_modify _ ordered anchored _ _ rfl; apply active_positive before; assumption)
       | (solve | apply ordered_elect _ ordered; apply mem_of_at?; assumption)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
 
-theorem ordered_reachable (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state)
+theorem ordered_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Ordered state.branches := by
-  induction reachable
-    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
+  induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
-      change state = initialState config at initialized
+      change state = initialState at initialized
       subst state
       simp [Ordered, initialState, List.mem_replicate]
   | @step before after action reachable transition ih =>
-      exact step_ordered config before after action ih (anchored_reachable config reachable) transition
+      exact step_ordered before after action ih (anchored_reachable reachable) transition
 
 theorem entry_views {ledger : List Entry}
     (ordered : ledger.Pairwise (fun left right => left.view ≤ right.view))
@@ -107,18 +105,18 @@ theorem entry_views {ledger : List Entry}
       omega)
     simpa [leftValue, rightValue] using related
 
-theorem committed_views (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state) {left right : TxID}
+theorem committed_views {state : State}
+    (reachable : transitionSystem.Reachable state) {left right : TxID}
     (first : left ∈ statusIDs state.history .committed)
     (second : right ∈ statusIDs state.history .committed)
     (bound : left.seqno ≤ right.seqno)
     : left.view ≤ right.view := by
-  have current := current_reachable config reachable
+  have current := current_reachable reachable
   obtain ⟨leftLedger, leftFound, leftEntry, leftAt, leftView⟩ := current left first
   obtain ⟨rightLedger, rightFound, rightEntry, rightAt, rightView⟩ := current right second
   rw [leftFound] at rightFound
   cases rightFound
-  have ordered := ordered_reachable config reachable leftLedger (mem_of_at? leftFound)
+  have ordered := ordered_reachable reachable leftLedger (mem_of_at? leftFound)
   simpa [leftView, rightView] using entry_views ordered leftAt rightAt bound
 
 end consistency.Proofs.ViewOrder

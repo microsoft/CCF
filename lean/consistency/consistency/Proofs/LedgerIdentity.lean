@@ -112,16 +112,15 @@ theorem anchored_elect (branches : List (List Entry)) (anchored : Anchored branc
     rw [take_of_prefix (List.take_prefix count ledger) seqno (at_bounds atEntry).2] at isPrefix
     exact isPrefix
 
-theorem active_positive (config : Config) (state : State) {branch : Nat}
-    (active : activeBranch config state branch = true)
+theorem active_positive (state : State) {branch : Nat}
+    (active : activeBranch state branch = true)
     : 0 < branch := by
-  have positive := config.firstBranchPositive
   simp [activeBranch] at active
   omega
 
-theorem step_anchored (config : Config) (before after : State) (action : Action)
+theorem step_anchored (before after : State) (action : Action)
     (anchored : Anchored before.branches)
-    (transition : step config before action = some after)
+    (transition : step before action = some after)
     : Anchored after.branches := by
   cases action <;>
     simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
@@ -132,24 +131,22 @@ theorem step_anchored (config : Config) (before after : State) (action : Action)
       | (rcases transition with ⟨condition, transition⟩)
       | (split at transition)
       | (exact anchored)
-      | (solve | apply anchored_modify _ anchored _ _ rfl; apply active_positive config before; assumption)
+      | (solve | apply anchored_modify _ anchored _ _ rfl; apply active_positive before; assumption)
       | (solve | apply anchored_elect _ anchored; assumption)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
 
-theorem anchored_reachable (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state)
+theorem anchored_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Anchored state.branches := by
-  induction reachable
-    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
+  induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
-      change state = initialState config at initialized
+      change state = initialState at initialized
       subst state
       intro branch ledger found seqno entry atEntry
       have empty : ledger = [] :=
         (List.mem_replicate.mp (mem_of_at? found)).2
       simp [empty, at?] at atEntry
   | @step before after action _ transition ih =>
-      exact step_anchored config before after action ih transition
+      exact step_anchored before after action ih transition
 
 def Snapshot (branches : List (List Entry)) (kind : TxType) (tx : TxContent)
     (observed : List TxContent) (txid : TxID)
@@ -248,12 +245,12 @@ theorem snapshot_last (branches : List (List Entry)) (anchored : Anchored branch
   have snapshot := snapshot_source branches anchored found (at_last last) .ro tx (by simp)
   simpa using snapshot
 
-theorem step_snapshots (config : Config) (before after : State) (action : Action)
+theorem step_snapshots (before after : State) (action : Action)
     (anchored : Anchored before.branches)
     (snapshots : Snapshots before.branches before.history)
-    (transition : step config before action = some after)
+    (transition : step before action = some after)
     : Snapshots after.branches after.history := by
-  have extension := Structural.step_branches config before after action transition
+  have extension := Structural.step_branches before after action transition
   cases action <;>
     simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
       at transition
@@ -270,29 +267,27 @@ theorem step_snapshots (config : Config) (before after : State) (action : Action
           <;> assumption)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
 
-theorem snapshots_reachable (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state)
+theorem snapshots_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Snapshots state.branches state.history := by
-  induction reachable
-    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
+  induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
-      change state = initialState config at initialized
+      change state = initialState at initialized
       subst state
       simp [Snapshots, initialState]
   | @step before after action reachable transition ih =>
-      exact step_snapshots config before after action
-        (anchored_reachable config reachable) ih transition
+      exact step_snapshots before after action
+        (anchored_reachable reachable) ih transition
 
 theorem unique_txs
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → ∀ left ∈ responsesOf state.history .rw,
           ∀ right ∈ responsesOf state.history .rw,
             left.2.txid = right.2.txid → left.2.tx = right.2.tx := by
-  intro config trace state ⟨valid, member⟩ left first right second same
+  intro trace state ⟨valid, member⟩ left first right second same
   obtain ⟨leftKind, firstLookup⟩ := (History.mem_responsesOf_iff _ _ _).mp first
   obtain ⟨rightKind, secondLookup⟩ := (History.mem_responsesOf_iff _ _ _).mp second
-  have snapshots := snapshots_reachable config (valid.reachable member)
+  have snapshots := snapshots_reachable (valid.reachable member)
   obtain ⟨firstLedger, firstFound, _, firstEntry, firstAt, _, firstTx⟩ :=
     snapshots _ _ _ _ _ firstLookup
   obtain ⟨secondLedger, secondFound, _, secondEntry, secondAt, _, secondTx⟩ :=
@@ -304,13 +299,13 @@ theorem unique_txs
   exact Option.some.inj ((firstTx leftKind).symm.trans (secondTx rightKind))
 
 theorem same_observations
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → ∀ left ∈ responses state.history,
           ∀ right ∈ responses state.history,
             left.2.txid = right.2.txid → left.2.observed = right.2.observed := by
-  intro config trace state ⟨valid, member⟩ left first right second same
-  have snapshots := snapshots_reachable config (valid.reachable member)
+  intro trace state ⟨valid, member⟩ left first right second same
+  have snapshots := snapshots_reachable (valid.reachable member)
   obtain ⟨firstLedger, firstFound, firstObs, _⟩ :=
     snapshots _ _ _ _ _ ((History.mem_responses_iff _ _).mp first)
   obtain ⟨secondLedger, secondFound, secondObs, _⟩ :=

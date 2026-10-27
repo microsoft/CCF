@@ -54,14 +54,6 @@ structure State where
   branches : List (List Entry) := []
 deriving DecidableEq, Repr
 
-/-- Independent switches select single- or multi-node execution, with or without reads. -/
-structure Config where
-  multiNode : Bool := false
-  reads : Bool := false
-  /-- Initial view; the default is 1, while CCF starts at view 2. -/
-  firstBranch : Nat := 1
-  firstBranchPositive : 0 < firstBranch := by decide
-
 /-- Nondeterministic choices are explicit inputs; all indices are one-based. -/
 inductive Action where
   | request (kind : TxType)

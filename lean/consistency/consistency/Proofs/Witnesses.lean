@@ -3,23 +3,21 @@ module
 public import consistency.Properties.History
 public import CCF.Execution
 
-import consistency.Proofs.Structural
-
 @[expose] public section
 
 namespace consistency.Proofs.Witnesses
 
 open Model Properties
 
-private def replay (config : Config) (state : State) : List Action → Option State
+private def replay (state : State) : List Action → Option State
   | [] => some state
   | action :: actions =>
-      (step config state action).bind fun next => replay config next actions
+      (step state action).bind fun next => replay next actions
 
-private theorem replay_reachable (config : Config) (actions : List Action)
-    {before after : State} (reachable : (transitionSystem config).Reachable before)
-    (executed : replay config before actions = some after)
-    : (transitionSystem config).Reachable after := by
+private theorem replay_reachable (actions : List Action)
+    {before after : State} (reachable : transitionSystem.Reachable before)
+    (executed : replay before actions = some after)
+    : transitionSystem.Reachable after := by
   induction actions generalizing before with
   | nil =>
       simp only [replay, Option.some.injEq] at executed
@@ -34,38 +32,38 @@ private def writesAndReads : State :=
     history :=
       [
         .request .rw 0,
-        .response .rw 0 [0] ⟨1, 1⟩,
+        .response .rw 0 [0] ⟨2, 1⟩,
         .request .rw 1,
-        .response .rw 1 [0, 1] ⟨1, 2⟩,
-        .status ⟨1, 1⟩ .committed,
-        .status ⟨1, 2⟩ .committed,
+        .response .rw 1 [0, 1] ⟨2, 2⟩,
+        .status ⟨2, 1⟩ .committed,
+        .status ⟨2, 2⟩ .committed,
         .request .ro 2,
-        .response .ro 2 [0, 1] ⟨1, 2⟩,
+        .response .ro 2 [0, 1] ⟨2, 2⟩,
         .request .ro 3,
-        .response .ro 3 [0, 1] ⟨1, 2⟩
+        .response .ro 3 [0, 1] ⟨2, 2⟩
       ]
-    branches := [[⟨1, some 0⟩, ⟨1, some 1⟩]]
+    branches := [[], [⟨2, some 0⟩, ⟨2, some 1⟩]]
   }
 
 private theorem writes_and_reads_trace
     : ∃ trace : CCF.Execution.Trace State,
-        trace.Valid (transitionSystem singleNodeReads) ∧ writesAndReads ∈ trace := by
+        trace.Valid (transitionSystem) ∧ writesAndReads ∈ trace := by
   apply (CCF.Execution.reachable_iff_trace
-    (system := transitionSystem singleNodeReads) (state := writesAndReads)).mp
-  exact replay_reachable singleNodeReads
+    (system := transitionSystem) (state := writesAndReads)).mp
+  exact replay_reachable
     [
       .request .rw,
-      .execute 1 1,
-      .respond 1 1 1,
+      .execute 1 2,
+      .respond 1 2 1,
       .request .rw,
-      .execute 3 1,
-      .respond 3 1 2,
+      .execute 3 2,
+      .respond 3 2 2,
       .commit 2,
       .commit 4,
       .request .ro,
-      .read 7 1,
+      .read 7 2,
       .request .ro,
-      .read 9 1
+      .read 9 2
     ]
     (.initial rfl) (by decide)
 
@@ -74,52 +72,60 @@ private def replacedWrites : State :=
     history :=
       [
         .request .rw 0,
-        .response .rw 0 [0] ⟨1, 1⟩,
+        .response .rw 0 [0] ⟨2, 1⟩,
         .request .rw 1,
-        .response .rw 1 [0, 1] ⟨1, 2⟩,
-        .status ⟨1, 1⟩ .invalid,
-        .status ⟨1, 2⟩ .invalid,
+        .response .rw 1 [0, 1] ⟨2, 2⟩,
+        .status ⟨2, 1⟩ .invalid,
+        .status ⟨2, 2⟩ .invalid,
         .request .rw 2,
-        .response .rw 2 [2] ⟨2, 1⟩,
-        .status ⟨2, 1⟩ .committed,
+        .response .rw 2 [2] ⟨3, 1⟩,
+        .status ⟨3, 1⟩ .committed,
         .request .rw 3,
-        .response .rw 3 [2, 3] ⟨2, 2⟩,
-        .status ⟨2, 2⟩ .committed
+        .response .rw 3 [2, 3] ⟨3, 2⟩,
+        .status ⟨3, 2⟩ .committed,
+        .request .ro 4,
+        .response .ro 4 [2, 3] ⟨3, 2⟩,
+        .request .ro 5,
+        .response .ro 5 [0, 1] ⟨2, 2⟩
       ]
-    branches := [[⟨1, some 0⟩, ⟨1, some 1⟩], [⟨2, some 2⟩, ⟨2, some 3⟩]]
+    branches := [[], [⟨2, some 0⟩, ⟨2, some 1⟩], [⟨3, some 2⟩, ⟨3, some 3⟩]]
   }
 
 private theorem replaced_writes_trace
     : ∃ trace : CCF.Execution.Trace State,
-        trace.Valid (transitionSystem multiNode) ∧ replacedWrites ∈ trace := by
+        trace.Valid (transitionSystem) ∧ replacedWrites ∈ trace := by
   apply (CCF.Execution.reachable_iff_trace
-    (system := transitionSystem multiNode) (state := replacedWrites)).mp
-  exact replay_reachable multiNode
+    (system := transitionSystem) (state := replacedWrites)).mp
+  exact replay_reachable
     [
       .request .rw,
-      .execute 1 1,
-      .respond 1 1 1,
+      .execute 1 2,
+      .respond 1 2 1,
       .request .rw,
-      .execute 3 1,
-      .respond 3 1 2,
+      .execute 3 2,
+      .respond 3 2 2,
       .invalidate 2,
       .invalidate 4,
-      .elect 1 0,
+      .elect 2 0,
       .request .rw,
-      .execute 7 2,
-      .respond 7 2 1,
+      .execute 7 3,
+      .respond 7 3 1,
       .commit 8,
       .request .rw,
-      .execute 10 2,
-      .respond 10 2 2,
-      .commit 11
+      .execute 10 3,
+      .respond 10 3 2,
+      .commit 11,
+      .request .ro,
+      .read 13 3,
+      .request .ro,
+      .read 15 2
     ]
     (.initial rfl) (by decide)
 
-private def writeA : Nat × Response := ⟨1, ⟨.rw, 0, [0], ⟨1, 1⟩⟩⟩
-private def writeB : Nat × Response := ⟨3, ⟨.rw, 1, [0, 1], ⟨1, 2⟩⟩⟩
-private def readA : Nat × Response := ⟨7, ⟨.ro, 2, [0, 1], ⟨1, 2⟩⟩⟩
-private def readB : Nat × Response := ⟨9, ⟨.ro, 3, [0, 1], ⟨1, 2⟩⟩⟩
+private def writeA : Nat × Response := ⟨1, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩
+private def writeB : Nat × Response := ⟨3, ⟨.rw, 1, [0, 1], ⟨2, 2⟩⟩⟩
+private def readA : Nat × Response := ⟨7, ⟨.ro, 2, [0, 1], ⟨2, 2⟩⟩⟩
+private def readB : Nat × Response := ⟨9, ⟨.ro, 3, [0, 1], ⟨2, 2⟩⟩⟩
 
 private theorem writes_and_reads_ordered
     : committedRwResponses writesAndReads.history = [writeA.2, writeB.2] := by
@@ -128,9 +134,9 @@ private theorem writes_and_reads_ordered
   rfl
 
 theorem received_witness (kind : TxType)
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State)
         (response : Nat × Response) (request : Nat × (TxType × TxContent)),
-        trace.Valid (transitionSystem config)
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ response ∈ responsesOf state.history kind
         ∧ request ∈ requests state.history
@@ -140,45 +146,24 @@ theorem received_witness (kind : TxType)
   obtain ⟨trace, valid, member⟩ := writes_and_reads_trace
   cases kind with
   | rw =>
-      exact ⟨
-        singleNodeReads,
-        trace,
-        writesAndReads,
-        writeA,
-        ⟨0, .rw, 0⟩,
-        valid,
-        member,
-        by decide
-      ⟩
+      exact ⟨trace, writesAndReads, writeA, ⟨0, .rw, 0⟩, valid, member, by decide⟩
   | ro =>
-      exact ⟨
-        singleNodeReads,
-        trace,
-        writesAndReads,
-        readA,
-        ⟨6, .ro, 2⟩,
-        valid,
-        member,
-        by decide
-      ⟩
+      exact ⟨trace, writesAndReads, readA, ⟨6, .ro, 2⟩, valid, member, by decide⟩
 
 theorem all_received_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
-        (write read : Nat × Response),
-        trace.Valid (transitionSystem config)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State) (write read : Nat × Response),
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ write ∈ responsesOf state.history .rw
         ∧ read ∈ responsesOf state.history .ro
         ∧ write.2.observed ≠ []
         ∧ read.2.observed ≠ [] := by
   obtain ⟨trace, valid, member⟩ := writes_and_reads_trace
-  exact ⟨singleNodeReads, trace, writesAndReads, writeA, readA, valid, member, by decide⟩
+  exact ⟨trace, writesAndReads, writeA, readA, valid, member, by decide⟩
 
 theorem write_pair_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
-        (left right : Nat × Response),
-        config.multiNode = false
-        ∧ trace.Valid (transitionSystem config)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State) (left right : Nat × Response),
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ left ∈ committedResponses state.history .rw
         ∧ right ∈ committedResponses state.history .rw
@@ -189,22 +174,11 @@ theorem write_pair_witness
         ∧ left.2.observed <+: right.2.observed
         ∧ left.2.observed.length < right.2.observed.length := by
   obtain ⟨trace, valid, member⟩ := writes_and_reads_trace
-  exact ⟨
-    singleNodeReads,
-    trace,
-    writesAndReads,
-    writeA,
-    writeB,
-    rfl,
-    valid,
-    member,
-    by decide
-  ⟩
+  exact ⟨trace, writesAndReads, writeA, writeB, valid, member, by decide⟩
 
 theorem same_observations_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
-        (left right : Nat × Response),
-        trace.Valid (transitionSystem config)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State) (left right : Nat × Response),
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ left ∈ responsesOf state.history .ro
         ∧ right ∈ responsesOf state.history .ro
@@ -214,12 +188,12 @@ theorem same_observations_witness
         ∧ left.2.observed = right.2.observed
         ∧ left.2.observed ≠ [] := by
   obtain ⟨trace, valid, member⟩ := writes_and_reads_trace
-  exact ⟨singleNodeReads, trace, writesAndReads, readA, readB, valid, member, by decide⟩
+  exact ⟨trace, writesAndReads, readA, readB, valid, member, by decide⟩
 
 theorem unique_tx_requests_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State)
         (left right : Nat × (TxType × TxContent)),
-        trace.Valid (transitionSystem config)
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ left ∈ requests state.history
         ∧ right ∈ requests state.history
@@ -227,33 +201,22 @@ theorem unique_tx_requests_witness
         ∧ left.2.1 ≠ right.2.1
         ∧ left.2.2 ≠ right.2.2 := by
   obtain ⟨trace, valid, member⟩ := writes_and_reads_trace
-  exact ⟨
-    singleNodeReads,
-    trace,
-    writesAndReads,
-    ⟨0, .rw, 0⟩,
-    ⟨6, .ro, 2⟩,
-    valid,
-    member,
-    by decide
-  ⟩
+  exact ⟨trace, writesAndReads, ⟨0, .rw, 0⟩, ⟨6, .ro, 2⟩, valid, member, by decide⟩
 
 theorem committed_or_invalid_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
-        (committed invalid : TxID),
-        trace.Valid (transitionSystem config)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State) (committed invalid : TxID),
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ committed ∈ statusIDs state.history .committed
         ∧ invalid ∈ statusIDs state.history .invalid
         ∧ committed ≠ invalid
         ∧ committed ∉ statusIDs state.history .invalid := by
   obtain ⟨trace, valid, member⟩ := replaced_writes_trace
-  exact ⟨multiNode, trace, replacedWrites, ⟨2, 1⟩, ⟨1, 1⟩, valid, member, by decide⟩
+  exact ⟨trace, replacedWrites, ⟨3, 1⟩, ⟨2, 1⟩, valid, member, by decide⟩
 
 theorem once_committed_prev_committed_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
-        (left right : TxID × Status),
-        trace.Valid (transitionSystem config)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State) (left right : TxID × Status),
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ left ∈ statuses state.history
         ∧ right ∈ statuses state.history
@@ -263,20 +226,18 @@ theorem once_committed_prev_committed_witness
         ∧ right.2 = .committed := by
   obtain ⟨trace, valid, member⟩ := replaced_writes_trace
   exact ⟨
-    multiNode,
     trace,
     replacedWrites,
-    ⟨⟨2, 2⟩, .committed⟩,
-    ⟨⟨2, 1⟩, .committed⟩,
+    ⟨⟨3, 2⟩, .committed⟩,
+    ⟨⟨3, 1⟩, .committed⟩,
     valid,
     member,
     by decide
   ⟩
 
 theorem once_committed_next_invalid_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
-        (left right : TxID × Status),
-        trace.Valid (transitionSystem config)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State) (left right : TxID × Status),
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ left ∈ statuses state.history
         ∧ right ∈ statuses state.history
@@ -286,20 +247,18 @@ theorem once_committed_next_invalid_witness
         ∧ right.2 = .invalid := by
   obtain ⟨trace, valid, member⟩ := replaced_writes_trace
   exact ⟨
-    multiNode,
     trace,
     replacedWrites,
-    ⟨⟨2, 1⟩, .committed⟩,
-    ⟨⟨1, 2⟩, .invalid⟩,
+    ⟨⟨3, 1⟩, .committed⟩,
+    ⟨⟨2, 2⟩, .invalid⟩,
     valid,
     member,
     by decide
   ⟩
 
 theorem once_invalid_next_invalid_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
-        (left right : TxID × Status),
-        trace.Valid (transitionSystem config)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State) (left right : TxID × Status),
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ left ∈ statuses state.history
         ∧ right ∈ statuses state.history
@@ -309,20 +268,19 @@ theorem once_invalid_next_invalid_witness
         ∧ right.2 = .invalid := by
   obtain ⟨trace, valid, member⟩ := replaced_writes_trace
   exact ⟨
-    multiNode,
     trace,
     replacedWrites,
-    ⟨⟨1, 1⟩, .invalid⟩,
-    ⟨⟨1, 2⟩, .invalid⟩,
+    ⟨⟨2, 1⟩, .invalid⟩,
+    ⟨⟨2, 2⟩, .invalid⟩,
     valid,
     member,
     by decide
   ⟩
 
 theorem committed_or_invalid_strong_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State)
         (earlyCommit lateCommit earlyInvalid lateInvalid : TxID),
-        trace.Valid (transitionSystem config)
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ earlyCommit ∈ statusIDs state.history .committed
         ∧ lateCommit ∈ statusIDs state.history .committed
@@ -335,24 +293,13 @@ theorem committed_or_invalid_strong_witness
         ∧ earlyCommit.seqno < lateInvalid.seqno
         ∧ lateInvalid.view < earlyCommit.view := by
   obtain ⟨trace, valid, member⟩ := replaced_writes_trace
-  exact ⟨
-    multiNode,
-    trace,
-    replacedWrites,
-    ⟨2, 1⟩,
-    ⟨2, 2⟩,
-    ⟨1, 1⟩,
-    ⟨1, 2⟩,
-    valid,
-    member,
-    by decide
-  ⟩
+  exact ⟨trace, replacedWrites, ⟨3, 1⟩, ⟨3, 2⟩, ⟨2, 1⟩, ⟨2, 2⟩, valid, member, by decide⟩
 
 theorem only_observe_sent_requests_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State)
         (response : Nat × Response) (request : Nat × (TxType × TxContent))
         (tx : TxContent),
-        trace.Valid (transitionSystem config)
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ response ∈ responses state.history
         ∧ response.2.kind = .ro
@@ -361,82 +308,37 @@ theorem only_observe_sent_requests_witness
         ∧ request.1 < response.1
         ∧ request.2 = (.rw, tx) := by
   obtain ⟨trace, valid, member⟩ := writes_and_reads_trace
-  exact ⟨
-    singleNodeReads,
-    trace,
-    writesAndReads,
-    readA,
-    ⟨0, .rw, 0⟩,
-    0,
-    valid,
-    member,
-    by decide
-  ⟩
+  exact ⟨trace, writesAndReads, readA, ⟨0, .rw, 0⟩, 0, valid, member, by decide⟩
 
 theorem at_most_once_observed_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
-        (response : Nat × Response),
-        trace.Valid (transitionSystem config)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State) (response : Nat × Response),
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ response ∈ responses state.history
         ∧ 2 ≤ response.2.observed.length
         ∧ response.2.observed.Nodup := by
   obtain ⟨trace, valid, member⟩ := writes_and_reads_trace
-  exact ⟨singleNodeReads, trace, writesAndReads, readA, valid, member, by decide⟩
+  exact ⟨trace, writesAndReads, readA, valid, member, by decide⟩
 
-theorem real_time_witness (kind : TxType)
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
+theorem real_time_witness
+    : ∃ (trace : CCF.Execution.Trace State) (state : State)
         (earlier later : Nat × Response) (request : Nat × (TxType × TxContent)),
-        config.multiNode = false
-        ∧ trace.Valid (transitionSystem config)
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ earlier ∈ committedResponses state.history .rw
-        ∧ request ∈ committedRequests state.history kind
-        ∧ later ∈ committedResponses state.history kind
+        ∧ request ∈ committedRequests state.history .rw
+        ∧ later ∈ committedResponses state.history .rw
         ∧ later.2.tx = request.2.2
         ∧ earlier.1 < request.1
         ∧ earlier.2.tx ∈ later.2.observed
         ∧ earlier.2.observed ≠ [] := by
   obtain ⟨trace, valid, member⟩ := writes_and_reads_trace
-  cases kind with
-  | rw =>
-      exact ⟨
-        singleNodeReads,
-        trace,
-        writesAndReads,
-        writeA,
-        writeB,
-        ⟨2, .rw, 1⟩,
-        rfl,
-        valid,
-        member,
-        by decide
-      ⟩
-  | ro =>
-      exact ⟨
-        singleNodeReads,
-        trace,
-        writesAndReads,
-        writeB,
-        readA,
-        ⟨6, .ro, 2⟩,
-        rfl,
-        valid,
-        member,
-        by decide
-      ⟩
-
-theorem invalid_not_observed_vacuous
-    : ∀ (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (config.multiNode = false ∧ trace.Valid (transitionSystem config) ∧ state ∈ trace)
-        → statusIDs state.history .invalid = [] := by
-  intro config trace state ⟨single, valid, member⟩
-  exact Structural.no_invalid_reachable config single (valid.reachable member)
+  exact ⟨trace, writesAndReads, writeA, writeB, ⟨2, .rw, 1⟩, valid, member, by decide⟩
 
 theorem invalid_not_observed_by_committed_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State)
         (invalid observer : Nat × Response),
-        trace.Valid (transitionSystem config)
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ invalid ∈ responsesOf state.history .rw
         ∧ observer ∈ committedResponses state.history .rw
@@ -446,21 +348,20 @@ theorem invalid_not_observed_by_committed_witness
         ∧ invalid.2.tx ∉ observer.2.observed := by
   obtain ⟨trace, valid, member⟩ := replaced_writes_trace
   exact ⟨
-    multiNode,
     trace,
     replacedWrites,
     writeA,
-    ⟨7, ⟨.rw, 2, [2], ⟨2, 1⟩⟩⟩,
+    ⟨7, ⟨.rw, 2, [2], ⟨3, 1⟩⟩⟩,
     valid,
     member,
     by decide
   ⟩
 
 theorem ordered_pair_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State)
         (earlier later : Nat × Response) (request : Nat × (TxType × TxContent))
         (commitIndex : Nat),
-        trace.Valid (transitionSystem config)
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ earlier ∈ committedResponses state.history .rw
         ∧ request ∈ committedRequests state.history .rw
@@ -479,7 +380,6 @@ theorem ordered_pair_witness
         ∧ txIDStrictlyLessThan earlier.2.txid later.2.txid := by
   obtain ⟨trace, valid, member⟩ := writes_and_reads_trace
   exact ⟨
-    singleNodeReads,
     trace,
     writesAndReads,
     writeA,
@@ -492,9 +392,8 @@ theorem ordered_pair_witness
   ⟩
 
 theorem committed_rw_ordered_serializable_witness
-    : ∃ (config : Config) (trace : CCF.Execution.Trace State) (state : State)
-        (left right : Response),
-        trace.Valid (transitionSystem config)
+    : ∃ (trace : CCF.Execution.Trace State) (state : State) (left right : Response),
+        trace.Valid transitionSystem
         ∧ state ∈ trace
         ∧ (left, right)
           ∈ (committedRwResponses state.history).zip
@@ -505,7 +404,6 @@ theorem committed_rw_ordered_serializable_witness
         ∧ right.observed.getLast? = some right.tx := by
   obtain ⟨trace, valid, member⟩ := writes_and_reads_trace
   exact ⟨
-    singleNodeReads,
     trace,
     writesAndReads,
     writeA.2,

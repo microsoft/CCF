@@ -80,14 +80,14 @@ theorem mem_ordered (history : List Event) {response : Response}
   simpa only [committedRwResponses, List.mem_mergeSort, List.mem_eraseDups, List.mem_map]
     using member
 
-theorem sequence_order (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state) {left right : TxID}
+theorem sequence_order {state : State}
+    (reachable : transitionSystem.Reachable state) {left right : TxID}
     (first : left ∈ statusIDs state.history .committed)
     (second : right ∈ statusIDs state.history .committed)
     (different : left ≠ right) (ordered : ¬txIDStrictlyLessThan right left)
     : left.seqno < right.seqno := by
   by_contra notLater
-  have views := ViewOrder.committed_views config reachable second first (by omega)
+  have views := ViewOrder.committed_views reachable second first (by omega)
   unfold txIDStrictlyLessThan at ordered
   have sameView : left.view = right.view := by omega
   have sameSeq : left.seqno = right.seqno := by omega
@@ -126,15 +126,15 @@ theorem strict_observations {ledger : List Entry} {leftSeq rightSeq : Nat}
   · simp [through]
 
 theorem committed_rw_ordered_serializable
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → ∀ pair ∈
             (committedRwResponses state.history).zip
               (committedRwResponses state.history).tail,
             pair.1.observed <+: pair.2.observed
             ∧ pair.1.observed.length < pair.2.observed.length
             ∧ pair.2.observed.getLast? = some pair.2.tx := by
-  intro config trace state ⟨valid, member⟩ pair listed
+  intro trace state ⟨valid, member⟩ pair listed
   have reachable := valid.reachable member
   obtain ⟨firstListed, secondListed, different, ordered⟩ := adjacent state.history listed
   obtain ⟨first, firstMember, firstPayload⟩ := mem_ordered state.history firstListed
@@ -143,9 +143,9 @@ theorem committed_rw_ordered_serializable
     intro same
     have firstResponse := (List.mem_filter.mp firstMember).1
     have secondResponse := (List.mem_filter.mp secondMember).1
-    have tx := LedgerIdentity.unique_txs config trace state ⟨valid, member⟩
+    have tx := LedgerIdentity.unique_txs trace state ⟨valid, member⟩
       first firstResponse second secondResponse same
-    have obs := LedgerIdentity.same_observations config trace state ⟨valid, member⟩
+    have obs := LedgerIdentity.same_observations trace state ⟨valid, member⟩
       first (List.mem_filter.mp firstResponse).1
       second (List.mem_filter.mp secondResponse).1 same
     have firstKind := ((History.mem_responsesOf_iff _ _ _).mp firstResponse).1
@@ -160,19 +160,19 @@ theorem committed_rw_ordered_serializable
   have secondKnown : second.2.txid ∈ statusIDs state.history .committed := by
     simpa using (List.mem_filter.mp secondMember).2
   have seqno :=
-    sequence_order config reachable firstKnown secondKnown distinctIDs
+    sequence_order reachable firstKnown secondKnown distinctIDs
       (by simpa [firstPayload, secondPayload] using ordered)
-  obtain ⟨firstLedger, firstFound, firstObs, _⟩ := committed_snapshot config reachable firstMember
+  obtain ⟨firstLedger, firstFound, firstObs, _⟩ := committed_snapshot reachable firstMember
   obtain ⟨secondLedger, secondFound, secondObs, secondEntry, secondAt, secondTx⟩ :=
-    committed_snapshot config reachable secondMember
+    committed_snapshot reachable secondMember
   rw [firstFound] at secondFound
   cases secondFound
   rw [← firstPayload, ← secondPayload, firstObs, secondObs]
   exact strict_observations secondAt secondTx seqno
 
 theorem committed_rw_ordered_spec_linearizable
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → (∀ pair ∈
             (committedRwResponses state.history).zip
               (committedRwResponses state.history).tail,
@@ -185,8 +185,8 @@ theorem committed_rw_ordered_spec_linearizable
                 later.2.tx = request.2.2
                 → earlier.1 < request.1
                 → txIDStrictlyLessThan earlier.2.txid later.2.txid) := by
-  intro config trace state valid
-  exact ⟨committed_rw_ordered_serializable config trace state valid,
-    RealTime.committed_rw_ordered_real_time config trace state valid⟩
+  intro trace state valid
+  exact ⟨committed_rw_ordered_serializable trace state valid,
+    RealTime.committed_rw_ordered_real_time trace state valid⟩
 
 end consistency.Proofs.Ordered

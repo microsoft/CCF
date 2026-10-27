@@ -11,7 +11,7 @@ The package, library, root module, and namespace are all named `consistency`.
 | Typed events, IDs, ledger entries, and state  | [`Model/Types.lean`](consistency/Model/Types.lean)               |
 | Executable history queries                    | [`Model/History.lean`](consistency/Model/History.lean)           |
 | Guarded actions                               | [`Model/Transitions.lean`](consistency/Model/Transitions.lean)   |
-| Initialization and four variants              | [`Model.lean`](consistency/Model.lean)                           |
+| Initialization and transition system          | [`Model.lean`](consistency/Model.lean)                           |
 | History selection and transaction-ID ordering | [`Properties/History.lean`](consistency/Properties/History.lean) |
 | Property statements and proof links           | [`Properties.lean`](consistency/Properties.lean)                 |
 | Supporting proofs                             | [`Proofs/`](consistency/Proofs)                                  |
@@ -21,7 +21,8 @@ The package root publicly reexports the model and properties.
 
 ## Model
 
-`Model.singleNode`, `Model.multiNode`, `Model.singleNodeReads`, and `Model.multiNodeReads` select single- or multi-node execution, with or without reads.
+There is one model: a multi-node service with forwarded reads.
+Read-only requests, elections, and invalidation are always supported, subject to their action guards.
 `Model.transitionSystem` supplies initialization and an executable `State -> Action -> Option State` step function.
 `Model.step` dispatches each action to a transition function with the same name.
 `none` means an action is disabled.
@@ -44,7 +45,8 @@ Request IDs begin at zero and are allocated across both transaction kinds.
 Write values and request identifiers use the natural-number type alias `Model.TxContent`.
 `Model.TxType` distinguishes read-write (`rw`) and read-only (`ro`) transactions.
 Property helpers use zero-based history positions internally; this preserves all relative-order comparisons.
-`Config.firstBranch` is positive and defaults to 1; setting it to 2 reserves an initial empty branch.
+The initial view is always 2, matching CCF; view 1 is reserved as an empty branch and cannot process requests.
+The model has no configuration parameters.
 Other ledger transactions occupy sequence numbers but do not appear in application observations.
 
 There are no sessions, fairness assumptions, liveness claims, disaster recovery, pending/unknown statuses, or non-forwarded reads.
@@ -54,29 +56,24 @@ There is no refinement proof connecting this abstraction to the [Raft model](../
 ## Properties
 
 [`Properties.lean`](consistency/Properties.lean) exposes full theorem statements over valid executions of the actual model, following the other Lean packages' style.
-All 26 safety theorems have completed proofs, with implementations under [`Proofs/`](consistency/Proofs).
+All 22 safety theorems have completed proofs, with implementations under [`Proofs/`](consistency/Proofs).
 There are no unfinished proofs.
-Single-node-only theorems explicitly assume `config.multiNode = false`.
-Each safety theorem has an adjacent witness lemma, except the inherently vacuous single-node invalid-write exclusion claim described below.
+Each safety theorem has an adjacent witness lemma over the same multi-node model with reads.
 
 History selection and transaction-ID ordering helpers live in [`Properties/History.lean`](consistency/Properties/History.lean).
 The theorem statements spell out each guarantee explicitly and use snake_case names:
 
-| Theorems                                                                                                                                           | Scope of guarantee                                                                               |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `all_rw_received_is_first_sent`, `all_ro_received_is_first_sent`, `all_received_is_first_sent`                                                     | Responses follow requests; read-only cases are vacuous without reads                             |
-| `unique_txs`, `same_observations`, `unique_tx_requests`, `unique_tx_ids`                                                                           | All variants                                                                                     |
-| `unique_seq_nums`                                                                                                                                  | Single-node only                                                                                 |
-| `unique_seq_nums_committed`                                                                                                                        | All variants                                                                                     |
-| `committed_or_invalid`, `once_committed_prev_committed`, `once_committed_next_invalid`, `once_invalid_next_invalid`, `committed_or_invalid_strong` | All variants; propagation constrains reported statuses, not delivery of additional status events |
-| `only_observe_sent_requests`, `at_most_once_observed`                                                                                              | All variants                                                                                     |
-| `all_committed_observed`                                                                                                                           | Committed writes in all variants                                                                 |
-| `all_committed_observed_ro`                                                                                                                        | Single-node reads only; not a multi-node guarantee                                               |
-| `invalid_not_observed`                                                                                                                             | Single-node only, vacuously without invalid statuses                                             |
-| `invalid_not_observed_by_committed`                                                                                                                | Committed writes in all variants, with full-prefix invalid-ID exclusion                          |
-| `rw_serializable`                                                                                                                                  | Single-node only; divergent speculative branches need not be serializable                        |
-| `committed_rw_serializable`, `committed_rw_linearizable`                                                                                           | Committed writes in all variants                                                                 |
-| `committed_rw_ordered_real_time`, `committed_rw_ordered_serializable`, `committed_rw_ordered_spec_linearizable`                                    | Committed writes in all variants                                                                 |
+| Theorems                                                                                                                                           | Scope of guarantee                                                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `all_rw_received_is_first_sent`, `all_ro_received_is_first_sent`, `all_received_is_first_sent`                                                     | Responses follow requests                                                          |
+| `unique_txs`, `same_observations`, `unique_tx_requests`, `unique_tx_ids`                                                                           | Request and response identity                                                      |
+| `unique_seq_nums_committed`                                                                                                                        | Committed write sequence numbers are unique                                        |
+| `committed_or_invalid`, `once_committed_prev_committed`, `once_committed_next_invalid`, `once_invalid_next_invalid`, `committed_or_invalid_strong` | Propagation constrains reported statuses, not delivery of additional status events |
+| `only_observe_sent_requests`, `at_most_once_observed`                                                                                              | Observations contain only requested writes and no duplicates                       |
+| `all_committed_observed`                                                                                                                           | Committed writes observe real-time predecessor writes                              |
+| `invalid_not_observed_by_committed`                                                                                                                | Committed writes exclude invalid writes through full-prefix invalid-ID exclusion   |
+| `committed_rw_serializable`, `committed_rw_linearizable`                                                                                           | Committed write consistency                                                        |
+| `committed_rw_ordered_real_time`, `committed_rw_ordered_serializable`, `committed_rw_ordered_spec_linearizable`                                    | Committed write consistency in transaction-ID order                                |
 
 The central theorem statement is `committed_rw_ordered_spec_linearizable`.
 Its real-time interval ends at the initial write response, not at the later notification that the write committed.
@@ -94,22 +91,20 @@ Completed proofs use only the standard allowed axioms `propext`, `Classical.choi
 
 ### Witness coverage
 
-The 25 public witness lemmas exhibit valid executions with populated domains rather than initial states or empty observations.
+The 22 public witness lemmas exhibit valid executions with populated domains rather than initial states or empty observations.
 Their implementations in [`Witnesses.lean`](consistency/Proofs/Witnesses.lean) replay enabled model actions, prove the final states reachable, and obtain valid finite traces through the shared execution definitions.
 They do not assume the safety theorems they accompany.
 
-- A single-node execution has two committed writes and two read responses with nonempty observations.
+- An execution without elections has two committed writes and two read responses with nonempty observations.
   The reads demonstrate that distinct requests can return the same transaction ID and observation.
   The ordering witnesses include a later request arriving after the earlier write's initial response but before its committed-status notification.
   The sorted committed responses contain an actual adjacent pair with strictly increasing observation lengths.
-- A multi-node execution invalidates two old-view writes, elects a replacement branch, and commits two replacement writes.
+- An execution invalidates two old-view writes, elects a replacement branch, and commits two replacement writes.
   Distinct ledger positions activate all three status-propagation clauses.
   An invalid write coexists with a nonempty committed observation that excludes it.
-- The four equality-guarded uniqueness claims have witnesses with multiple distinct committed writes.
+  Forwarded reads then observe both the new leader's branch and the former leader's stale branch.
+- The three equality-guarded uniqueness claims have witnesses with multiple distinct committed writes.
   Their equality antecedents are inhabited by comparing an actual response with itself; the witnesses do not assert that distinct colliding responses are reachable.
-
-`invalid_not_observed` is inherently vacuous under its single-node assumption: no invalid-status event can occur.
-Instead of supplying a misleading existential witness, the adjacent `invalid_not_observed_vacuous` lemma proves that the invalid-status list is empty in every such execution.
 
 ### Supporting proofs
 
@@ -123,25 +118,24 @@ The supporting invariants are separated from the public statements:
 | [`Commitment.lean`](consistency/Proofs/Commitment.lean)                                                                                                           | All known committed entries remain in the current branch, including across elections                                                                    |
 | [`ViewOrder.lean`](consistency/Proofs/ViewOrder.lean), [`Statuses.lean`](consistency/Proofs/Statuses.lean)                                                        | Nondecreasing ledger views and separation of committed prefixes from same-view invalid suffixes                                                         |
 | [`RealTime.lean`](consistency/Proofs/RealTime.lean), [`Ordered.lean`](consistency/Proofs/Ordered.lean)                                                            | Real-time order follows from request provenance and committed-prefix comparability; sorted committed responses strictly extend observations             |
-| [`SingleNode.lean`](consistency/Proofs/SingleNode.lean), [`Reads.lean`](consistency/Proofs/Reads.lean)                                                            | Fixed-view execution and reads observing all earlier responded writes                                                                                   |
 | [`InvalidObservations.lean`](consistency/Proofs/InvalidObservations.lean)                                                                                         | Write contents identify a unique original transaction ID across branches; committed prefixes exclude invalid IDs, including later invalidation attempts |
 
 The original commitment rule admitted a counterexample to `invalid_not_observed_by_committed`.
-For the default multi-node configuration, the following sequence invalidates write 0 at `1.1`, copies it into a new branch, and attempts to commit write 1 at `2.2` while observing the invalid write:
+The following sequence invalidates write 0 at `2.1`, copies it into a new branch, and attempts to commit write 1 at `3.2` while observing the invalid write:
 
 ```lean
-[.request .rw, .execute 1 1, .respond 1 1 1, .invalidate 2,
- .elect 1 1, .request .rw, .execute 4 2, .respond 4 2 2, .commit 5]
+[.request .rw, .execute 1 2, .respond 1 2 1, .invalidate 2,
+ .elect 2 1, .request .rw, .execute 4 3, .respond 4 3 2, .commit 5]
 ```
 
 The first eight actions remain enabled, preserving early invalidation and election behavior.
-The final commitment is now disabled because its prefix contains the invalid ID `1.1`.
+The final commitment is now disabled because its prefix contains the invalid ID `2.1`.
 The theorem statement is unchanged; the proof covers both invalidation before commitment and attempted invalidation after commitment.
 
 ### History associations
 
-`invalid_not_observed` associates an invalid-status event with a write by transaction ID before excluding that write from another write's observations.
-`invalid_not_observed_by_committed` additionally selects committed observers by transaction ID.
+`invalid_not_observed_by_committed` associates an invalid-status event with a write by transaction ID before excluding that write from committed observers' observations.
+It also selects committed observers by transaction ID.
 `committedRequests` selects requests whose matching response is explicitly known committed.
 Typed event and ledger constructors enforce their shape constraints directly.
 

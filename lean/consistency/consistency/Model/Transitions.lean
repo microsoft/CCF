@@ -47,26 +47,23 @@ def mayInvalidate (state : State) (txid : TxID) : Bool :=
       || (txid.view = state.branches.length && txid.seqno > frontier)
 
 /-- Submit a transaction request with the next shared request ID. -/
-def request (config : Config) (state : State) (kind : TxType) : Option State := do
-  guard (kind = .rw || config.reads)
-  return appendEvent state (.request kind (nextRequestId state.history))
+def request (state : State) (kind : TxType) : Option State :=
+  some (appendEvent state (.request kind (nextRequestId state.history)))
 
 /-- Execute a previously unexecuted write on an eligible branch.
 Any eligible branch may be selected, not just the newest: the request can be
 picked up by the current leader or a former leader. -/
-def execute (config : Config) (state : State) (requestIndex branch : Nat)
-    : Option State := do
+def execute (state : State) (requestIndex branch : Nat) : Option State := do
   let .request .rw tx ← at? state.history requestIndex | none
-  guard (activeBranch config state branch)
+  guard (activeBranch state branch)
   guard (!(state.branches.any fun ledger => ledger.any fun entry => entry.tx == some tx))
   return appendEntry state branch ⟨branch, some tx⟩
 
 /-- Respond to an executed write with its observed prefix and transaction ID. -/
-def respond (config : Config) (state : State) (requestIndex branch seqno : Nat)
-    : Option State := do
+def respond (state : State) (requestIndex branch seqno : Nat) : Option State := do
   let .request .rw tx ← at? state.history requestIndex | none
   guard (!responded state.history requestIndex .rw tx)
-  guard (activeBranch config state branch)
+  guard (activeBranch state branch)
   let ledger ← at? state.branches branch
   let entry ← at? ledger seqno
   guard (entry.tx == some tx)
@@ -75,12 +72,10 @@ def respond (config : Config) (state : State) (requestIndex branch seqno : Nat)
 
 /-- Execute and respond to a read-only request on a nonempty eligible branch.
 Reads are always forwarded; unlike writes, execution and response are one action. -/
-def read (config : Config) (state : State) (requestIndex branch : Nat)
-    : Option State := do
-  guard config.reads
+def read (state : State) (requestIndex branch : Nat) : Option State := do
   let .request .ro tx ← at? state.history requestIndex | none
   guard (!responded state.history requestIndex .ro tx)
-  guard (activeBranch config state branch)
+  guard (activeBranch state branch)
   let ledger ← at? state.branches branch
   let entry ← ledger.getLast?
   return appendEvent state (.response .ro tx (writes ledger) ⟨entry.view, ledger.length⟩)
@@ -107,40 +102,36 @@ def commit (state : State) (responseIndex : Nat) : Option State := do
               | none => false))
   return appendEvent state (.status txid .committed)
 
-/-- Report an invalid write in the multi-node model. -/
-def invalidate (config : Config) (state : State) (responseIndex : Nat)
-    : Option State := do
-  guard config.multiNode
+/-- Report an invalid write. -/
+def invalidate (state : State) (responseIndex : Nat) : Option State := do
   let .response .rw _ _ txid ← at? state.history responseIndex | none
   guard (mayInvalidate state txid)
   return appendEvent state (.status txid .invalid)
 
 /-- Append a transaction that does not affect the dummy application. -/
-def appendOther (config : Config) (state : State) (branch : Nat) : Option State := do
-  guard (activeBranch config state branch)
+def appendOther (state : State) (branch : Nat) : Option State := do
+  guard (activeBranch state branch)
   return appendEntry state branch ⟨branch, none⟩
 
 /-- Elect a new leader by copying a committed-prefix-compatible branch prefix.
 This simulates rollback of uncommitted transactions and a view change without
 overwriting the old leader's abstract ledger branch. -/
-def elect (config : Config) (state : State) (branch prefixLength : Nat)
-    : Option State := do
-  guard config.multiNode
+def elect (state : State) (branch prefixLength : Nat) : Option State := do
   let ledger ← at? state.branches branch
   guard (hasCommittedPrefix state ledger)
   guard (commitSeqno state.history ≤ prefixLength && prefixLength ≤ ledger.length)
   return { state with branches := state.branches ++ [ledger.take prefixLength] }
 
 /-- Dispatch an action to its guarded transition; `none` means the action is disabled. -/
-def step (config : Config) (state : State) (action : Action) : Option State :=
+def step (state : State) (action : Action) : Option State :=
   match action with
-  | .request kind => request config state kind
-  | .execute requestIndex branch => execute config state requestIndex branch
-  | .respond requestIndex branch seqno => respond config state requestIndex branch seqno
-  | .read requestIndex branch => read config state requestIndex branch
+  | .request kind => request state kind
+  | .execute requestIndex branch => execute state requestIndex branch
+  | .respond requestIndex branch seqno => respond state requestIndex branch seqno
+  | .read requestIndex branch => read state requestIndex branch
   | .commit responseIndex => commit state responseIndex
-  | .invalidate responseIndex => invalidate config state responseIndex
-  | .appendOther branch => appendOther config state branch
-  | .elect branch prefixLength => elect config state branch prefixLength
+  | .invalidate responseIndex => invalidate state responseIndex
+  | .appendOther branch => appendOther state branch
+  | .elect branch prefixLength => elect state branch prefixLength
 
 end consistency.Model

@@ -80,10 +80,10 @@ theorem responses_response (history : List Event) (invariant : UniqueResponses h
   intro index otherKind otherObserved otherID found
   exact no_previous_response history causal requests requestFound unanswered found
 
-theorem step_responses (config : Config) (before after : State) (action : Action)
+theorem step_responses (before after : State) (action : Action)
     (invariant : UniqueResponses before.history) (causal : Causal before.history)
     (requests : RequestInvariant before.history)
-    (transition : step config before action = some after)
+    (transition : step before action = some after)
     : UniqueResponses after.history := by
   cases action <;>
     simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
@@ -98,30 +98,28 @@ theorem step_responses (config : Config) (before after : State) (action : Action
       | (solve | apply responses_response _ invariant causal requests <;> assumption)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
 
-theorem responses_reachable (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state)
+theorem responses_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : UniqueResponses state.history := by
-  induction reachable
-    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
+  induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
-      change state = initialState config at initialized
+      change state = initialState at initialized
       subst state
       simp [initialState, UniqueResponses]
   | @step before after action reachable transition ih =>
-      exact step_responses config before after action ih
-        (causal_reachable config reachable) (requests_reachable config reachable) transition
+      exact step_responses before after action ih
+        (causal_reachable reachable) (requests_reachable reachable) transition
 
 theorem unique_tx_ids
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         -> ∀ left ∈ responses state.history,
             ∀ right ∈ responses state.history,
               left.2.tx = right.2.tx -> left.2.txid = right.2.txid := by
-  intro config trace state ⟨valid, member⟩ left first right second sameTx
+  intro trace state ⟨valid, member⟩ left first right second sameTx
   have firstLookup := (mem_responses_iff _ _).mp first
   have secondLookup := (mem_responses_iff _ _).mp second
   rw [← sameTx] at secondLookup
-  have sameIndex := responses_reachable config (valid.reachable member)
+  have sameIndex := responses_reachable (valid.reachable member)
     _ _ _ _ _ _ _ _ _ firstLookup secondLookup
   rw [sameIndex, secondLookup] at firstLookup
   exact (Event.response.inj (Option.some.inj firstLookup)).2.2.2.symm

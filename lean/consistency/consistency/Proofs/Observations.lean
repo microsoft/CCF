@@ -166,8 +166,8 @@ theorem safe_elect (state : State) (safe : Safe state) (ledger : List Entry) (co
     subst candidate
     exact ledger_take _ _ _ (safe.1 ledger member)
 
-theorem step_safe (config : Config) (before after : State) (action : Action)
-    (safe : Safe before) (transition : step config before action = some after)
+theorem step_safe (before after : State) (action : Action)
+    (safe : Safe before) (transition : step before action = some after)
     : Safe after := by
   cases action <;>
     simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
@@ -185,36 +185,34 @@ theorem step_safe (config : Config) (before after : State) (action : Action)
       | (solve | apply safe_response_take _ safe; assumption)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
 
-theorem safe_reachable (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state)
+theorem safe_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Safe state := by
-  induction reachable
-    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
+  induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
-      change state = initialState config at initialized
+      change state = initialState at initialized
       subst state
       simp [Safe, LedgerSafe, ObservedSafe, initialState, writes, List.mem_replicate]
   | @step before after action _ transition ih =>
-      exact step_safe config before after action ih transition
+      exact step_safe before after action ih transition
 
 theorem at_most_once_observed
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → ∀ response ∈ responses state.history, response.2.observed.Nodup := by
-  intro config trace state ⟨valid, member⟩ response listed
-  exact ((safe_reachable config (valid.reachable member)).2 _ _ _ _ _
+  intro trace state ⟨valid, member⟩ response listed
+  exact ((safe_reachable (valid.reachable member)).2 _ _ _ _ _
     ((History.mem_responses_iff _ _).mp listed)).1
 
 theorem only_observe_sent_requests
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → ∀ response ∈ responses state.history,
           ∀ tx ∈ response.2.observed,
             ∃ request ∈ requests state.history,
               request.1 < response.1 ∧ request.2 = (.rw, tx) := by
-  intro config trace state ⟨valid, member⟩ response listed tx observed
+  intro trace state ⟨valid, member⟩ response listed tx observed
   obtain ⟨index, earlier, found⟩ :=
-    ((safe_reachable config (valid.reachable member)).2 _ _ _ _ _
+    ((safe_reachable (valid.reachable member)).2 _ _ _ _ _
       ((History.mem_responses_iff _ _).mp listed)).2 tx observed
   exact ⟨(index, .rw, tx), (History.mem_requests_iff _ _ _ _).mpr found, earlier, rfl⟩
 

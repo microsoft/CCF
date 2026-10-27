@@ -66,10 +66,10 @@ theorem unique_modify (branches : List (List Entry)) (unique : UniqueWrites bran
       subst rightEntry
       exact ⟨rfl, leftLast.trans rightLast.symm⟩
 
-theorem active_ledger (config : Config) (state : State) {branch : Nat}
-    (active : activeBranch config state branch = true)
+theorem active_ledger (state : State) {branch : Nat}
+    (active : activeBranch state branch = true)
     : ∃ ledger, at? state.branches branch = some ledger := by
-  have positive := active_positive config state active
+  have positive := active_positive state active
   have bound : branch ≤ state.branches.length := by
     simp [activeBranch] at active
     omega
@@ -79,22 +79,22 @@ theorem active_ledger (config : Config) (state : State) {branch : Nat}
     by simp [at?, Nat.ne_of_gt positive, List.getElem?_eq_getElem]
   ⟩
 
-theorem unique_write (config : Config) (state : State)
+theorem unique_write (state : State)
     (unique : UniqueWrites state.branches) (branch : Nat) (tx : TxContent)
-    (active : activeBranch config state branch = true)
+    (active : activeBranch state branch = true)
     (fresh : ∀ ledger ∈ state.branches, ∀ entry ∈ ledger, entry.tx ≠ some tx)
     : UniqueWrites (appendEntry state branch ⟨branch, some tx⟩).branches := by
-  obtain ⟨ledger, found⟩ := active_ledger config state active
+  obtain ⟨ledger, found⟩ := active_ledger state active
   apply unique_modify _ unique _ ledger _ found
   intro _ same
   cases same
   exact fresh
 
-theorem unique_other (config : Config) (state : State)
+theorem unique_other (state : State)
     (unique : UniqueWrites state.branches) (branch : Nat)
-    (active : activeBranch config state branch = true)
+    (active : activeBranch state branch = true)
     : UniqueWrites (appendEntry state branch ⟨branch, none⟩).branches := by
-  obtain ⟨ledger, found⟩ := active_ledger config state active
+  obtain ⟨ledger, found⟩ := active_ledger state active
   apply unique_modify _ unique _ ledger _ found
   simp
 
@@ -117,9 +117,9 @@ theorem unique_elect (branches : List (List Entry)) (unique : UniqueWrites branc
   obtain ⟨oldRight, oldRightMember, oldRightAt⟩ := elected_location branches member count second rightAt
   exact unique _ oldLeftMember _ oldRightMember _ _ _ _ _ oldLeftAt oldRightAt leftTx rightTx
 
-theorem step_unique (config : Config) (before after : State) (action : Action)
+theorem step_unique (before after : State) (action : Action)
     (unique : UniqueWrites before.branches)
-    (transition : step config before action = some after)
+    (transition : step before action = some after)
     : UniqueWrites after.branches := by
   cases action <;>
     simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
@@ -130,22 +130,20 @@ theorem step_unique (config : Config) (before after : State) (action : Action)
       | (rcases transition with ⟨condition, transition⟩)
       | (split at transition)
       | (exact unique)
-      | (solve | apply unique_write config before unique <;> assumption)
-      | (solve | apply unique_other config before unique; assumption)
+      | (solve | apply unique_write before unique <;> assumption)
+      | (solve | apply unique_other before unique; assumption)
       | (solve | apply unique_elect _ unique; apply mem_of_at?; assumption)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
 
-theorem unique_reachable (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state)
+theorem unique_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : UniqueWrites state.branches := by
-  induction reachable
-    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
+  induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
-      change state = initialState config at initialized
+      change state = initialState at initialized
       subst state
       simp [UniqueWrites, initialState, List.mem_replicate, at?]
   | @step before after action _ transition ih =>
-      exact step_unique config before after action ih transition
+      exact step_unique before after action ih transition
 
 def Excludes (branches : List (List Entry)) (committed invalid : TxID) : Prop :=
   ∀ origin,
@@ -274,12 +272,12 @@ theorem clean_invalidate (state : State) (clean : Clean state.branches state.his
         show ¬txid.seqno > commitSeqno state.history by omega]
     simp [denied] at allowed
 
-theorem step_clean (config : Config) (before after : State) (action : Action)
+theorem step_clean (before after : State) (action : Action)
     (clean : Clean before.branches before.history) (anchored : Anchored before.branches)
     (current : Current before.branches before.history)
-    (transition : step config before action = some after)
+    (transition : step before action = some after)
     : Clean after.branches after.history := by
-  have extension := Structural.step_branches config before after action transition
+  have extension := Structural.step_branches before after action transition
   cases action <;>
     simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
       at transition
@@ -294,30 +292,28 @@ theorem step_clean (config : Config) (before after : State) (action : Action)
       | (solve | apply clean_invalidate before clean anchored current; assumption)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
 
-theorem clean_reachable (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state)
+theorem clean_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Clean state.branches state.history := by
-  induction reachable
-    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
+  induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
-      change state = initialState config at initialized
+      change state = initialState at initialized
       subst state
       simp [Clean, initialState, statusIDs]
   | @step before after action reachable transition ih =>
-      exact step_clean config before after action ih (anchored_reachable config reachable)
-        (current_reachable config reachable) transition
+      exact step_clean before after action ih (anchored_reachable reachable)
+        (current_reachable reachable) transition
 
 theorem invalid_not_observed_by_committed
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → ∀ invalid ∈ responsesOf state.history .rw,
           ∀ observer ∈ committedResponses state.history .rw,
             invalid.1 ≠ observer.1
             → invalid.2.txid ∈ statusIDs state.history .invalid
             → invalid.2.tx ∉ observer.2.observed := by
-  intro config trace state ⟨valid, member⟩ invalid first observer second _ invalidKnown observed
+  intro trace state ⟨valid, member⟩ invalid first observer second _ invalidKnown observed
   have reachable := valid.reachable member
-  have snapshots := snapshots_reachable config reachable
+  have snapshots := snapshots_reachable reachable
   obtain ⟨invalidKind, invalidLookup⟩ := (History.mem_responsesOf_iff _ _ _).mp first
   obtain ⟨invalidOrigin, invalidFound, _, invalidEntry, invalidAt, invalidView, invalidTx⟩ :=
     snapshots _ _ _ _ _ invalidLookup
@@ -335,12 +331,12 @@ theorem invalid_not_observed_by_committed
     have := (at_bounds prefixAt).2
     simp only [List.length_take] at this
     omega
-  obtain ⟨sameView, sameSeq⟩ := unique_reachable config reachable
+  obtain ⟨sameView, sameSeq⟩ := unique_reachable reachable
     invalidOrigin (mem_of_at? invalidFound) observerOrigin (mem_of_at? observerFound)
     _ _ _ _ _ invalidAt observerAt (invalidTx invalidKind) observedTx
   have committed : observer.2.txid ∈ statusIDs state.history .committed := by
     simpa using (List.mem_filter.mp second).2
-  have excluded := clean_reachable config reachable observer.2.txid committed
+  have excluded := clean_reachable reachable observer.2.txid committed
     invalid.2.txid invalidKnown observerOrigin observerFound observedEntry
     (by simpa [sameSeq] using observerAt) (by omega)
   exact excluded (sameView.symm.trans invalidView)

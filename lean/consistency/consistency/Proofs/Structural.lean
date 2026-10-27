@@ -47,8 +47,8 @@ theorem branches_append (branches extra : List (List Entry))
   simp [at?, nonzero, List.getElem?_append_left (List.getElem?_eq_some_iff.mp lookup).1,
     lookup]
 
-theorem step_branches (config : Config) (before after : State) (action : Action)
-    (transition : step config before action = some after)
+theorem step_branches (before after : State) (action : Action)
+    (transition : step before action = some after)
     : BranchExtension before.branches after.branches := by
   cases action <;>
     simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
@@ -62,47 +62,5 @@ theorem step_branches (config : Config) (before after : State) (action : Action)
       | (exact branches_modify _ _ _)
       | (exact branches_append _ _)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
-
-theorem step_no_invalid (config : Config) (single : config.multiNode = false)
-    (before after : State) (action : Action)
-    (empty : statusIDs before.history .invalid = [])
-    (transition : step config before action = some after)
-    : statusIDs after.history .invalid = [] := by
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (simp_all [appendEvent, appendEntry, statusIDs, Option.bind_eq_some_iff])
-      | (solve | aesop)
-
-theorem no_invalid_reachable (config : Config) (single : config.multiNode = false)
-    {state : State} (reachable : (transitionSystem config).Reachable state)
-    : statusIDs state.history .invalid = [] := by
-  induction reachable
-    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
-  | @initial state initialized =>
-      change state = initialState config at initialized
-      subst state
-      rfl
-  | @step before after action _ transition ih =>
-      exact step_no_invalid config single before after action ih transition
-
-theorem invalid_not_observed
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (config.multiNode = false
-          /\ trace.Valid (transitionSystem config)
-          /\ state ∈ trace)
-        -> ∀ invalid ∈ Properties.responsesOf state.history .rw,
-            ∀ observer ∈ Properties.responsesOf state.history .rw,
-              invalid.1 ≠ observer.1
-              -> invalid.2.txid ∈ statusIDs state.history .invalid
-              -> invalid.2.tx ∉ observer.2.observed := by
-  intro config trace state ⟨single, valid, member⟩ invalid _ observer _ _ invalidStatus
-  have empty := no_invalid_reachable config single (valid.reachable member)
-  simp [empty] at invalidStatus
 
 end consistency.Proofs.Structural

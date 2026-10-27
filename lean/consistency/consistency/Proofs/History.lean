@@ -106,8 +106,8 @@ theorem causal_response (history : List Event) (causal : Causal history)
     simpa [at?, nonzero] using found
   exact ⟨requestIndex - 1, (List.getElem?_eq_some_iff.mp lookup).1, lookup⟩
 
-theorem step_causal (config : Config) (before after : State) (action : Action)
-    (causal : Causal before.history) (transition : step config before action = some after)
+theorem step_causal (before after : State) (action : Action)
+    (causal : Causal before.history) (transition : step before action = some after)
     : Causal after.history := by
   cases action <;>
     simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
@@ -123,50 +123,48 @@ theorem step_causal (config : Config) (before after : State) (action : Action)
       | (solve | apply causal_response _ causal <;> assumption)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
 
-theorem causal_reachable (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state)
+theorem causal_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Causal state.history := by
-  induction reachable
-    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
+  induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
-      change state = initialState config at initialized
+      change state = initialState at initialized
       subst state
       simp [initialState, Causal]
   | @step before after action _ transition ih =>
-      exact step_causal config before after action ih transition
+      exact step_causal before after action ih transition
 
 theorem all_received_is_first_sent
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         -> forall (kind : TxType),
             ∀ response ∈ responsesOf state.history kind,
               ∃ request ∈ requests state.history,
                 request.1 < response.1 /\ request.2 = (kind, response.2.tx) := by
-  intro config trace state ⟨valid, member⟩ kind response listed
+  intro trace state ⟨valid, member⟩ kind response listed
   obtain ⟨kindEq, found⟩ := (mem_responsesOf_iff _ _ _).mp listed
   obtain ⟨requestIndex, earlier, requestFound⟩ :=
-    causal_reachable config (valid.reachable member) _ _ _ _ _ found
+    causal_reachable (valid.reachable member) _ _ _ _ _ found
   refine ⟨(requestIndex, kind, response.2.tx), ?_, earlier, rfl⟩
   apply (mem_requests_iff _ _ _ _).mpr
   simpa [kindEq] using requestFound
 
 theorem all_rw_received_is_first_sent
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         -> ∀ response ∈ responsesOf state.history .rw,
             ∃ request ∈ requests state.history,
               request.1 < response.1 /\ request.2 = (.rw, response.2.tx) := by
-  intro config trace state valid
-  exact all_received_is_first_sent config trace state valid .rw
+  intro trace state valid
+  exact all_received_is_first_sent trace state valid .rw
 
 theorem all_ro_received_is_first_sent
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         -> ∀ response ∈ responsesOf state.history .ro,
             ∃ request ∈ requests state.history,
               request.1 < response.1 /\ request.2 = (.ro, response.2.tx) := by
-  intro config trace state valid
-  exact all_received_is_first_sent config trace state valid .ro
+  intro trace state valid
+  exact all_received_is_first_sent trace state valid .ro
 
 def RequestInvariant (history : List Event) : Prop :=
   (∀ (index : Nat) (kind : TxType) (tx : TxContent),
@@ -213,9 +211,9 @@ theorem requests_snoc (history : List Event) (event : Event)
         exact False.elim ((Nat.ne_of_lt fresh) (same.symm.trans assigned))
       · omega
 
-theorem step_requests (config : Config) (before after : State) (action : Action)
+theorem step_requests (before after : State) (action : Action)
     (invariant : RequestInvariant before.history)
-    (transition : step config before action = some after)
+    (transition : step before action = some after)
     : RequestInvariant after.history := by
   cases action <;>
     simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
@@ -229,26 +227,24 @@ theorem step_requests (config : Config) (before after : State) (action : Action)
       | (solve | apply requests_snoc _ _ invariant; simp)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
 
-theorem requests_reachable (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state)
+theorem requests_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : RequestInvariant state.history := by
-  induction reachable
-    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
+  induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
-      change state = initialState config at initialized
+      change state = initialState at initialized
       subst state
       simp [initialState, RequestInvariant, nextRequestId]
   | @step before after action _ transition ih =>
-      exact step_requests config before after action ih transition
+      exact step_requests before after action ih transition
 
 theorem unique_tx_requests
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         -> ∀ left ∈ requests state.history,
             ∀ right ∈ requests state.history,
               left.1 ≠ right.1 -> left.2.2 ≠ right.2.2 := by
-  intro config trace state ⟨valid, member⟩ left first right second distinct same
-  have invariant := requests_reachable config (valid.reachable member)
+  intro trace state ⟨valid, member⟩ left first right second distinct same
+  have invariant := requests_reachable (valid.reachable member)
   have firstLookup := (mem_requests_iff _ _ _ _).mp first
   have secondLookup := (mem_requests_iff _ _ _ _).mp second
   exact distinct (invariant.2 _ _ _ _ _ _ firstLookup secondLookup same)

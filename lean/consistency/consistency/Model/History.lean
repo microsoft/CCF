@@ -44,8 +44,8 @@ def responded (history : List Event) (requestIndex : Nat) (kind : TxType) (tx : 
       | .response value request _ _ => value = kind && request = tx
       | _ => false
 
-/-- The branch exists and is eligible for processing requests. -/
-def activeBranch (config : Config) (state : State) (branch : Nat) : Bool :=
-  config.firstBranch ≤ branch && branch ≤ state.branches.length
+/-- The branch exists and is eligible for processing requests; view 1 is reserved. -/
+def activeBranch (state : State) (branch : Nat) : Bool :=
+  2 ≤ branch && branch ≤ state.branches.length
 
 end consistency.Model

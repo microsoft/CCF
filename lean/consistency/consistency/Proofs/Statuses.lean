@@ -106,11 +106,11 @@ theorem separated_invalidate (state : State) (separated : Separated state.histor
       (snapshots _ _ _ _ _ lookup) sameView (by omega)
     simp [denied] at allowed
 
-theorem step_separated (config : Config) (before after : State) (action : Action)
+theorem step_separated (before after : State) (action : Action)
     (separated : Separated before.history) (anchored : Anchored before.branches)
     (current : Current before.branches before.history)
     (snapshots : Snapshots before.branches before.history)
-    (transition : step config before action = some after)
+    (transition : step before action = some after)
     : Separated after.history := by
   cases action <;>
     simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
@@ -127,18 +127,16 @@ theorem step_separated (config : Config) (before after : State) (action : Action
           <;> assumption)
       | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
 
-theorem separated_reachable (config : Config) {state : State}
-    (reachable : (transitionSystem config).Reachable state)
+theorem separated_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Separated state.history := by
-  induction reachable
-    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
+  induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
   | @initial state initialized =>
-      change state = initialState config at initialized
+      change state = initialState at initialized
       subst state
       simp [Separated, initialState, statusIDs]
   | @step before after action reachable transition ih =>
-      exact step_separated config before after action ih (anchored_reachable config reachable)
-        (current_reachable config reachable) (snapshots_reachable config reachable) transition
+      exact step_separated before after action ih (anchored_reachable reachable)
+        (current_reachable reachable) (snapshots_reachable reachable) transition
 
 theorem mem_statuses_iff (history : List Event) (txid : TxID) (status : Status)
     : (txid, status) ∈ statuses history ↔ txid ∈ statusIDs history status := by
@@ -153,25 +151,25 @@ theorem mem_statuses_iff (history : List Event) (txid : TxID) (status : Status)
     exact ⟨.status txid status, listed, rfl⟩
 
 theorem committed_or_invalid
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → ∀ txid ∈ statusIDs state.history .committed,
             txid ∉ statusIDs state.history .invalid := by
-  intro config trace state ⟨valid, member⟩ txid committed invalid
-  have impossible := separated_reachable config (valid.reachable member)
+  intro trace state ⟨valid, member⟩ txid committed invalid
+  have impossible := separated_reachable (valid.reachable member)
     txid committed txid invalid rfl
   omega
 
 theorem once_committed_prev_committed
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
             left.2 = .committed
             → left.1.view = right.1.view
             → right.1.seqno ≤ left.1.seqno
             → right.2 = .committed := by
-  intro config trace state ⟨valid, member⟩ left first right second leftCommitted sameView bound
+  intro trace state ⟨valid, member⟩ left first right second leftCommitted sameView bound
   have firstKnown := (mem_statuses_iff _ _ _).mp first
   rw [leftCommitted] at firstKnown
   have secondKnown := (mem_statuses_iff _ _ _).mp second
@@ -179,55 +177,55 @@ theorem once_committed_prev_committed
   | committed => rfl
   | invalid =>
       rw [value] at secondKnown
-      have impossible := separated_reachable config (valid.reachable member)
+      have impossible := separated_reachable (valid.reachable member)
         left.1 firstKnown right.1 secondKnown sameView.symm
       omega
 
 theorem once_invalid_next_invalid
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
             left.2 = .invalid
             → left.1.view = right.1.view
             → left.1.seqno ≤ right.1.seqno
             → right.2 = .invalid := by
-  intro config trace state ⟨valid, member⟩ left first right second leftInvalid sameView bound
+  intro trace state ⟨valid, member⟩ left first right second leftInvalid sameView bound
   have firstKnown := (mem_statuses_iff _ _ _).mp first
   rw [leftInvalid] at firstKnown
   have secondKnown := (mem_statuses_iff _ _ _).mp second
   cases value : right.2 with
   | committed =>
       rw [value] at secondKnown
-      have impossible := separated_reachable config (valid.reachable member)
+      have impossible := separated_reachable (valid.reachable member)
         right.1 secondKnown left.1 firstKnown sameView
       omega
   | invalid => rfl
 
 theorem once_committed_next_invalid
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
             left.2 = .committed
             → left.1.seqno ≤ right.1.seqno
             → right.1.view < left.1.view
             → right.2 = .invalid := by
-  intro config trace state ⟨valid, member⟩ left first right second leftCommitted bound older
+  intro trace state ⟨valid, member⟩ left first right second leftCommitted bound older
   have firstKnown := (mem_statuses_iff _ _ _).mp first
   rw [leftCommitted] at firstKnown
   have secondKnown := (mem_statuses_iff _ _ _).mp second
   cases value : right.2 with
   | committed =>
       rw [value] at secondKnown
-      have impossible := ViewOrder.committed_views config (valid.reachable member)
+      have impossible := ViewOrder.committed_views (valid.reachable member)
         firstKnown secondKnown bound
       omega
   | invalid => rfl
 
 theorem committed_or_invalid_strong
-    : forall (config : Config) (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid (transitionSystem config) /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace State) (state : State),
+        (trace.Valid transitionSystem /\ state ∈ trace)
         → (∀ left ∈ statuses state.history,
             ∀ right ∈ statuses state.history,
               left.2 = .committed
@@ -246,9 +244,9 @@ theorem committed_or_invalid_strong
                 → left.1.view = right.1.view
                 → left.1.seqno ≤ right.1.seqno
                 → right.2 = .invalid) := by
-  intro config trace state valid
-  exact ⟨once_committed_prev_committed config trace state valid,
-    once_committed_next_invalid config trace state valid,
-    once_invalid_next_invalid config trace state valid⟩
+  intro trace state valid
+  exact ⟨once_committed_prev_committed trace state valid,
+    once_committed_next_invalid trace state valid,
+    once_invalid_next_invalid trace state valid⟩
 
 end consistency.Proofs.Statuses
