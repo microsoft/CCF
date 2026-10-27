@@ -1,7 +1,7 @@
 # CCF-Raft trace replay
 
 Replay native `raft_driver` captures against the Lean Raft model.
-Python collects traces and runs suites; Lean reduces recorded events to model actions and checks their observations.
+Python collects traces and runs suites; Lean checks action-boundary snapshots and replays the corresponding model actions.
 
 ## Run replay
 
@@ -40,6 +40,7 @@ python3 ../../tests/raft_trace_capture.py ../../tests/raft_scenarios /tmp/ccf-ra
 ```
 
 Saved captures test the replayer, not changed native code: rebuild the driver and capture again to test a native fix.
+Captures must include the current boundary markers; regenerate older captures rather than guessing their grouping.
 
 ### Diagnose failures
 
@@ -49,32 +50,37 @@ Start with `summary.json` and `<scenario>.result.json`; the `stage` distinguishe
 Capture failures preserve console bytes in `.stdout.driver.stdout` / `.stdout.driver.stderr` and incomplete records in `.partial` (or `.stdout.driver.records.msgpack` when JSON cannot represent them).
 
 For `ungrouped event`, inspect the named reduction rules and neighboring records.
-For an instruction failure, follow its trace location, rule tag and discrepancy to the emitting rule and observation checker below.
+For an instruction failure, follow its trace location, rule tag and diagnostic to the emitting rule and interpreter below.
 A failure can reflect unsupported evidence or replay policy, not necessarily a native consensus bug.
 
 ## Replay contract
 
-Every event must match a named rule; protocol rules emit one action plus read-only observations, while bootstrap emits only observations.
+Every event must match a named rule; protocol rules emit one action, while bootstrap selects the initial singleton membership.
+Rules peek action inputs before consuming events, and only top-level alternatives backtrack.
+`election_timeout` and `check_quorum` identify timeout entry points; `become_pre_vote_candidate_end`, `become_leader_end`, `add_configuration_end` and `commit_end` delimit callbacks.
+Within an append, `batch_flush` identifies the subsequent send records as flush choices rather than configuration-created heartbeats.
+Their destinations and packet end indexes become arguments of the same model append action, which flushes before committing.
 Actions must be enabled by the model; replay never repairs model state to fit a trace.
 
-Checks compare supported recorded state fields, log-entry facts and packet fields, with explicit exclusions for native callbacks inside an atomic model step.
-Rechecking unchanged fields after an action is not a fresh native snapshot.
-Signature-cache checks compare the recorded first/last indices, not unrecorded interior entries.
+The dispatcher emits one read-only observation before each action, comparing the recorded node snapshot with the current model state.
+Snapshot checks accept partial objects but reject empty objects and unknown fields.
+Individual rules emit no observations; intermediate callbacks and emitted packet contents are not checked.
+There is no final post-action snapshot check: an action's effects are checked only where a later action-boundary snapshot exposes them.
 
 Delivery is strict FIFO per directed node pair, preserving multiplicity and delivering the queued **model payload**, not reconstructing unrecorded native bytes.
-An explicit drop excludes one occurrence from later delivery.
-Send observations need not enumerate every emission, and traces may end with packets pending.
+Received packet fields must match that queued payload; an explicit drop excludes one queued occurrence from later delivery.
+Not every modeled emission needs a matching native send event, and traces may end with packets pending.
 A FIFO failure does not rule out a compatible execution under another delivery order.
 
-A pass establishes compatibility of this finite trace under these rules, not universal C++ refinement, complete log-byte/KV equality, fairness or liveness.
+A pass establishes an enabled model-action sequence with matching action-boundary snapshots and receive packets, not universal C++ refinement, complete log-byte/KV equality, fairness or liveness.
 It is independent of the model's safety proofs.
-The driver supplies singleton append batches; arbitrary production batches and intermediate packets without an atomic model counterpart are unsupported, including a signature flushed before its singleton leader commits.
+The driver supplies singleton append batches; arbitrary production batches and intermediate packets without an atomic model counterpart are unsupported.
 
 ## Source and checks
 
 - [`Input.lean`](../CCFRaft/Replay/Input.lean): decode records, validate transport order, associate commands and discover identities.
-- [`Reduction.lean`](../CCFRaft/Replay/Reduction.lean): named rules, action emission and native-phase exclusions.
-- [`Interpreter.lean`](../CCFRaft/Replay/Interpreter.lean): read-only observations, FIFO selection and model execution.
+- [`Reduction.lean`](../CCFRaft/Replay/Reduction.lean): named rules, explicit boundaries and the dispatcher's snapshot check.
+- [`Interpreter.lean`](../CCFRaft/Replay/Interpreter.lean): boundary-state field comparisons, FIFO selection and model execution.
 - [`ReplayMain.lean`](ReplayMain.lean) / [`raft_trace_capture.py`](../../../tests/raft_trace_capture.py): single-trace CLI / capture and suite runner.
 
 The [Virtual C job](../../../.github/workflows/ci.yml) captures and replays all native scenarios.

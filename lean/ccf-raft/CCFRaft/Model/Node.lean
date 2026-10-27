@@ -33,8 +33,14 @@ inductive TimeoutKind where
   | checkQuorum
 deriving DecidableEq
 
+structure AppendEntryInput where
+  content : EntryContent
+  /-- Packet destinations and end indexes, flushed after this entry and before commit. -/
+  flushes : List (NodeID × Nat) := []
+deriving DecidableEq
+
 inductive Input where
-  | append (entries : List EntryContent)
+  | append (entries : List AppendEntryInput)
   /-- Starts at the peer's send frontier -/
   | sendEntries (destination : NodeID) (endIndex : Nat)
   | timeout (kind : TimeoutKind)
@@ -164,6 +170,25 @@ def makeRequestVoteRequest (state : NodeState) : RequestVoteRequest where
   lastCommittableTerm := lastCommittableTerm state
   lastCommittableIndex := lastCommittableIndex state
 
+def sendEntries (caps : Caps) (self : NodeID)
+    (state : NodeState) (destination : NodeID) (endIndex : Nat)
+    : NodeEffect NodeState := do
+  let previousIndex := state.sentIndex destination
+  guard
+    (state.role = .primary
+      /\ destination ∈ eligiblePeers state self
+      /\ previousIndex <= endIndex
+      /\ endIndex <= state.log.length
+      /\ ((messageEntries state.log previousIndex endIndex).all
+            fun entry =>
+              entry.term == termAt state.log endIndex)
+          = true
+      /\ (Not (state.isRetiredCommitted self) \/ previousIndex + 1 < endIndex))
+  caps.send
+    (.appendEntriesRequest (makeAppendEntriesRequest state destination endIndex))
+    destination
+  return { state with sentIndex := Function.update state.sentIndex destination endIndex }
+
 /-! ## Appending entries -/
 
 /--
@@ -202,31 +227,16 @@ def appendEntry (caps : Caps) (self : NodeID) (state : NodeState) (content : Ent
   return { state with log := state.log ++ [{ term := state.currentTerm, content }] }
 
 def appendBatch (caps : Caps) (self : NodeID) (state : NodeState)
-    (entries : List EntryContent)
+    (entries : List AppendEntryInput)
     : NodeEffect NodeState := do
   guard
     (state.role = .primary /\ Not (state.isRetiredCommitted self) /\ Not (entries = []))
-  let state <- entries.foldlM (appendEntry caps self) state
+  let state <- entries.foldlM (fun state entry => do
+    let state <- appendEntry caps self state entry.content
+    entry.flushes.foldlM
+      (fun state (destination, endIndex) => sendEntries caps self state destination endIndex)
+      state) state
   advanceCommit caps state self
-
-def sendEntries (caps : Caps) (self : NodeID)
-    (state : NodeState) (destination : NodeID) (endIndex : Nat)
-    : NodeEffect NodeState := do
-  let previousIndex := state.sentIndex destination
-  guard
-    (state.role = .primary
-      /\ destination ∈ eligiblePeers state self
-      /\ previousIndex <= endIndex
-      /\ endIndex <= state.log.length
-      /\ ((messageEntries state.log previousIndex endIndex).all
-            fun entry =>
-              entry.term == termAt state.log endIndex)
-          = true
-      /\ (Not (state.isRetiredCommitted self) \/ previousIndex + 1 < endIndex))
-  caps.send
-    (.appendEntriesRequest (makeAppendEntriesRequest state destination endIndex))
-    destination
-  return { state with sentIndex := Function.update state.sentIndex destination endIndex }
 
 /-! ## Handling AppendEntries -/
 

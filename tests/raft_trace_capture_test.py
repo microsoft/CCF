@@ -44,6 +44,48 @@ def write_driver(root, wire, stdout, stderr, returncode=0, delay=0):
 
 
 class CaptureTests(unittest.TestCase):
+    def test_legacy_projection_omits_only_replay_boundaries(self):
+        functions = [
+            "batch_flush",
+            "check_quorum",
+            "become_follower",
+            "become_pre_vote_candidate",
+            "become_pre_vote_candidate_end",
+            "become_leader",
+            "become_leader_end",
+            "add_configuration",
+            "add_configuration_end",
+            "commit",
+            "commit_end",
+            "unknown_end",
+            "election_timeout",
+        ]
+        records = [
+            {
+                "process_id": "one",
+                "h_ts": index,
+                "msg": {"function": function, "state": {"node_id": "0"}},
+            }
+            for index, function in enumerate(functions)
+        ]
+        before = json.dumps(records)
+        projected = raft_trace.as_log_lines(records)
+        self.assertEqual(
+            [entry["msg"]["function"] for entry in projected],
+            [
+                "become_follower",
+                "become_pre_vote_candidate",
+                "become_leader",
+                "add_configuration",
+                "commit",
+                "unknown_end",
+            ],
+        )
+        self.assertEqual(
+            [entry["h_ts"] for entry in projected], ["2", "3", "5", "7", "9", "11"]
+        )
+        self.assertEqual(json.dumps(records), before)
+
     def collect(self, sequences):
         def driver(args, **_):
             with socket.create_connection((args[-2], int(args[-1]))) as peer:

@@ -20,6 +20,9 @@ Transition systems, traces, effects and network composition come from the local 
 Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
 Initialization takes a nonempty initial voting membership, whose smallest member starts as primary with the genesis configuration transaction.
 Actions are local inputs (including timeouts) or delivery of a queued message; no clock is modeled.
+Each append input supplies an `AppendEntryInput` per entry, with optional flush packet choices as `(destination, endIndex)` pairs.
+The model appends each entry, executes its flushes using the normal send guards, and only then advances the batch's commit index.
+Configuration-created heartbeats remain automatic and precede the new entry.
 
 ## Scope
 
@@ -43,8 +46,9 @@ Run `lake check` only in CI, not locally.
 The [per-root kernel checks](replay/README.md#kernel-checks) build with compiler warnings, including `sorry`, treated as errors, before separately replaying the compiled proofs in Lean's kernel and rejecting nonstandard axioms.
 Kernel tracing reports the declarations checked during compilation; cached modules do not emit fresh compilation traces.
 CI runs this before import coverage, formatting, and linting so the initial build and its traces occur in this step.
-The build also runs two explicit action traces from an initialized network: committing a client request, and adding two nodes then electing a new primary and committing another request.
+The build also runs explicit action traces from an initialized network: committing a client request, and adding two nodes then electing a new primary and committing another request.
 The reconfiguration trace checks each node's ledger before delivery, after setup, after replication and commitment, after election, and after the new primary's client request.
+Append regressions check configuration heartbeats followed by flushing, pre-commit packet headers, per-entry flushing, term-bounded packets, and atomic rejection of invalid flush choices.
 These are regression examples, not exhaustive checking.
 `lake check` runs without sandboxing here, so build-time code must be trusted.
 `CCFRaft.lean` reexports `Properties.lean` and the replay API transitively, while importing tests privately.

@@ -10,6 +10,16 @@ import threading
 
 import msgpack
 
+REPLAY_BOUNDARY_EVENTS = {
+    "batch_flush",
+    "election_timeout",
+    "check_quorum",
+    "become_pre_vote_candidate_end",
+    "become_leader_end",
+    "add_configuration_end",
+    "commit_end",
+}
+
 
 class CaptureError(RuntimeError):
     """A failed collection with unchanged process bytes and received records."""
@@ -130,6 +140,8 @@ def as_log_lines(records):
     lines = []
     for record in records:
         message = record["msg"]
+        if message.get("function") in REPLAY_BOUNDARY_EVENTS:
+            continue
         if "cmd" in message:
             lines.append({"tag": "raft_trace", **message})
         else:

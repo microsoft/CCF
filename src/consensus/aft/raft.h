@@ -569,6 +569,8 @@ namespace aft
 
         create_and_remove_node_state();
       }
+
+      trace::add_configuration_end(*state);
     }
 
     void start_ticking()
@@ -718,6 +720,7 @@ namespace aft
           update_batch_size();
           entry_count = 0;
           entry_size_not_limited = 0;
+          trace::batch_flush(*state);
           for (const auto& it : all_other_nodes)
           {
             RAFT_DEBUG_FMT("Sending updates to follower {}", it.first);
@@ -909,6 +912,7 @@ namespace aft
             "backups in last {}",
             state->node_id,
             election_timeout);
+          trace::check_quorum(*state);
           become_follower();
         }
       }
@@ -2020,6 +2024,7 @@ namespace aft
         return;
       }
 
+      trace::election_timeout(*state);
       state->leadership_state.store(ccf::kv::LeadershipState::PreVoteCandidate);
       leader_id.reset();
 
@@ -2042,6 +2047,8 @@ namespace aft
         // ccfraft!RequestVote
         send_request_pre_vote(node_id);
       }
+
+      trace::become_pre_vote_candidate_end(*state);
     }
 
     // ccfraft!Timeout
@@ -2141,6 +2148,7 @@ namespace aft
         send_append_entries(node.first, next);
       }
 
+      trace::become_leader_end(*state);
       return true;
     }
 
@@ -2549,6 +2557,8 @@ namespace aft
           retired_node_cleanup();
         }
       }
+
+      trace::commit_end(*state);
     }
 
     bool is_self_in_latest_config()

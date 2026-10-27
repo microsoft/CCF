@@ -6,6 +6,7 @@ module
 public import CCFRaft.Replay.Reduction
 
 import all CCFRaft.Replay.Interpreter
+import all CCFRaft.Replay.Reduction
 import CCF.Parsec
 
 public section
@@ -32,7 +33,8 @@ private def checkObservedFields (make : Json → ReplayState → Except String U
   for (key, _) in fields do
     rejects (make (expected.setObjVal! key (toJson "__mismatch__")) current) key
   rejects (make (Json.mkObj []) current) "at least one field"
-  rejects (make .null current) "object"
+  for invalid in [Json.null, .arr #[], toJson (2 : Nat)] do
+    rejects (make invalid current) "object"
   rejects (make (expected.setObjVal! "unknown" .null) current)
     "unsupported observation field"
 
@@ -105,6 +107,7 @@ private def parsecInfrastructureTests : IO Unit := do
   let emitAndFail : CCF.Parsec.ParserT Nat (Array Instruction) Unit := do
     let _ ← CCF.Parsec.take
     modify (·.push (.action (.local "0" .nominateSuccessor) default))
+    modify (·.push (.observeNodeState "0" (Json.mkObj []) default))
     CCF.Parsec.failure "failed emission"
   let (_, instructions) ←
     ok
@@ -112,7 +115,7 @@ private def parsecInfrastructureTests : IO Unit := do
         (((CCF.Parsec.attempt emitAndFail <|> discard CCF.Parsec.take)
           <* CCF.Parsec.eof).run
           #[]))
-  check instructions.isEmpty "attempt leaked an emitted model action"
+  check instructions.isEmpty "attempt leaked an emitted instruction"
   rejects (CCF.Parsec.run #[1, 2] ((one <* CCF.Parsec.eof).run [])) "end of input"
   let inspect : CCF.Parsec.ParserT ParserTestEvent Unit Nat := do
     let some next ← CCF.Parsec.peek | CCF.Parsec.failure "missing event"
@@ -310,107 +313,381 @@ private def header : Header :=
 
 private def act (step : Step) : Instruction := .action step origin
 
-private def observe (node : String) (fields : List (String × Json))
-    (identities : Header := header)
-    : Instruction :=
-  .observe (observeState identities node none (Json.mkObj fields)) origin
+private def observe (node : String) (fields : List (String × Json)) : Instruction :=
+  .observeNodeState node (Json.mkObj fields) origin
 
-private def sent (source destination : String) (fields : List (String × Json))
-    : Instruction :=
-  .observe (observeMessage header source destination (Json.mkObj fields) .latest) origin
-
-private def jsonPathTests : IO Unit := do
-  let equal (expected : Json) (value : Json) : Except String Unit :=
-    require (value == expected) "path mismatch"
-  let resolve : JsonPath → Option (Json → Except String Unit)
-    | [.field "state", .field "current_view"] => some (equal (toJson (2 : Nat)))
-    | [.field "packets", .index 0, .field "term"] => some (equal (toJson (3 : Nat)))
-    | [.field "packets", .index 1, .field "term"] => some (equal (toJson (4 : Nat)))
-    | [.field "opaque"] =>
-        some
-          fun value => do
-            let number ← value.getObjValAs? Nat "value"
-            require (number * 2 == 6) "interpreted value mismatch"
-    | [.field "nullable"] => some (equal .null)
-    | [.field "empty_array"] => some (equal (.arr #[]))
-    | [.field "empty_object"] => some (equal (Json.mkObj []))
-    | _ => none
-  let expected :=
-    Json.mkObj
+open CCFRaft.Replay.Reducer in
+private def reductionRuleTests : IO Unit := do
+  let snapshot :=
+    state.setObjVal! "node_id" (toJson "alpha")
+    |>.setObjVal! "last_idx" (toJson (1 : Nat))
+    |>.setObjVal! "commit_idx" (toJson (0 : Nat))
+  let event (function : String) (snapshot : Json) (line : Nat)
+      (fields : List (String × Json) := [])
+      : CCFRaft.Replay.Event :=
+    let message :=
+      Json.mkObj (("function", toJson function) :: ("state", snapshot) :: fields)
+    {
+      record := { file := "reduction.ndjson", line, value := envelope message }
+      command := command "dispatch_all"
+      node := "alpha"
+      function
+      state := snapshot
+      message
+    }
+  let actionLines (instructions : Array Instruction) :=
+    instructions.filterMap
+      fun
+      | .action _ source => some source.line
+      | _ => none
+  let actions (instructions : Array Instruction) :=
+    instructions.filter
+      fun instruction =>
+        match instruction with
+        | .action .. => true
+        | _ => false
+  let run (events : Array CCFRaft.Replay.Event) (rule : Reduction Unit)
+      (identities : Header := header)
+      : Except String (Unit × ReductionState) :=
+    CCF.Parsec.run events ((rule <* CCF.Parsec.eof).run { header := identities })
+  let promotion := event "become_leader" snapshot 1
+  let voteResponse :=
+    event "recv_request_vote_response" snapshot 0
       [
-        ("state", Json.mkObj [("current_view", toJson (2 : Nat))]),
-        (
-          "packets",
-          toJson
-            [
-              Json.mkObj [("term", toJson (3 : Nat))],
-              Json.mkObj [("term", toJson (4 : Nat))]
-            ]
-        ),
-        (
-          "opaque",
-          Json.mkObj [("value", toJson (3 : Nat)), ("ignored_metadata", Json.mkObj [])]
-        ),
-        ("nullable", .null),
-        ("empty_array", .arr #[]),
-        ("empty_object", Json.mkObj [])
+        ("packet", Json.mkObj [("msg", toJson "raft_request_vote_response")]),
+        ("from_node_id", toJson "beta")
       ]
-  let _ ← ok (checkJsonPaths resolve expected)
-  let _ ←
+  let appendRequest :=
+    event "recv_append_entries" snapshot 0
+      [
+        ("packet", Json.mkObj [("msg", toJson "raft_append_entries")]),
+        ("from_node_id", toJson "beta")
+      ]
+  let packet :=
+    appendPacket.setObjVal! "prev_idx" (toJson (1 : Nat))
+    |>.setObjVal! "idx" (toJson (1 : Nat))
+  let heartbeat (line : Nat) :=
+    event "send_append_entries" snapshot line
+      [
+        ("packet", packet),
+        ("to_node_id", toJson "beta"),
+        ("sent_idx", toJson (1 : Nat)),
+        ("match_idx", toJson (0 : Nat))
+      ]
+  let (_, reduced) ←
     ok
-      (checkJsonPaths resolve
-        (Json.mkObj [("state", Json.mkObj [("current_view", toJson (2 : Nat))])]))
-  rejects
-    (checkJsonPaths resolve
-      (expected.setObjVal! "state" (Json.mkObj [("current_view", toJson (5 : Nat))])))
-    "$[\"state\"][\"current_view\"]: path mismatch"
-  rejects
-    (checkJsonPaths resolve
-      (expected.setObjVal! "packets"
-        (toJson
-          [
-            Json.mkObj [("term", toJson (3 : Nat))],
-            Json.mkObj [("term", toJson (5 : Nat))]
-          ])))
-    "$[\"packets\"][1][\"term\"]: path mismatch"
-  rejects
-    (checkJsonPaths resolve
-      (expected.setObjVal! "opaque" (Json.mkObj [("value", toJson (4 : Nat))])))
-    "$[\"opaque\"]: interpreted value mismatch"
-  for unknown in [.null, .arr #[], Json.mkObj []] do
-    rejects (checkJsonPaths resolve (expected.setObjVal! "unknown" unknown))
-      "unsupported observation field '$[\"unknown\"]'"
+      (run
+        #[
+          voteResponse,
+          promotion,
+          heartbeat 2,
+          heartbeat 3,
+          event "become_leader_end" snapshot 4,
+          heartbeat 5
+        ]
+        (CCF.Parsec.many_ ruleStep))
+  check (actionLines reduced.instructions == #[0, 5] && reduced.instructions.size == 4)
+    "promotion boundary did not separate callbacks from a standalone send"
+  check
+    (match ((actions reduced.instructions)[1]? : Option Instruction) with
+      | some (.action (.local "alpha" (.sendEntries 1 1)) _) => true
+      | _ => false)
+    "send arguments were not taken from the peeked event"
+
+  for (receive, start, finish, rule)
+      in [
+        (voteResponse, "become_leader", "become_leader_end", ruleRecvRequestVoteResponse),
+        (
+          appendRequest,
+          "add_configuration",
+          "add_configuration_end",
+          ruleRecvAppendEntries
+        ),
+        (appendRequest, "commit", "commit_end", ruleRecvAppendEntries),
+        (
+          event "election_timeout" snapshot 0,
+          "become_pre_vote_candidate",
+          "become_pre_vote_candidate_end",
+          ruleElectionTimeout
+        )
+      ] do
+    let opening := #[receive, event start snapshot 1]
+    rejects (run opening rule) "unexpected end of input"
+    rejects (run (opening.push (event "wrong_end" snapshot 3)) rule) s!"expected {finish}"
     rejects
-      (checkJsonPaths resolve
-        (expected.setObjVal! "state" (Json.mkObj [("future", unknown)])))
-      "unsupported observation field '$[\"state\"][\"future\"]'"
-  for invalid in [toJson (2 : Nat), Json.mkObj []] do
-    rejects (checkJsonPaths resolve (expected.setObjVal! "state" invalid))
-      "unsupported observation field '$[\"state\"]'"
+      (run (opening.push { event finish snapshot 3 with node := "beta" }) rule)
+      "expected event on node alpha"
+    rejects
+      (run
+        (opening.push
+          {
+            event finish snapshot 3 with
+              command := { command "dispatch_all" with line := 99 }
+          })
+        rule)
+      "crosses a command boundary"
+  let wrongEnd := event "wrong_end" snapshot 2
+  let fallback : Reduction Unit := CCF.Parsec.many_ (discard CCF.Parsec.take)
   rejects
-    (checkJsonPaths resolve
-      (Json.mkObj
-        [("packets", Json.mkObj [("0", Json.mkObj [("term", toJson (3 : Nat))])])]))
-    "unsupported observation field '$[\"packets\"][\"0\"][\"term\"]'"
-  rejects (checkJsonPaths resolve (Json.mkObj [("state.current_view", toJson (2 : Nat))]))
-    "unsupported observation field '$[\"state.current_view\"]'"
-  rejects (checkJsonPaths resolve (Json.mkObj [])) "at least one field"
-  for invalid in [.null, .arr #[], toJson (2 : Nat)] do
-    rejects (checkJsonPaths resolve invalid) "object"
-  check (JsonPath.label [.field "a\"b", .index 0] == "$[\"a\\\"b\"][0]")
-    "path diagnostics did not escape object keys"
+    (run #[voteResponse, promotion, wrongEnd] (ruleRecvRequestVoteResponse <|> fallback))
+    "expected become_leader_end"
+  let (_, reduced) ←
+    ok
+      (run #[voteResponse, promotion, wrongEnd]
+        (CCF.Parsec.attempt ruleRecvRequestVoteResponse <|> fallback))
+  check reduced.instructions.isEmpty "failed callback leaked an instruction"
+  let (_, reduced) ←
+    ok (run #[event "election_timeout" snapshot 1, wrongEnd] (ruleStep <|> fallback))
+  check reduced.instructions.isEmpty "failed step leaked its node-state observation"
+  let (_, reduced) ← ok (run #[] (CCF.Parsec.many_ ruleStep))
+  check reduced.instructions.isEmpty "end of input emitted an observation"
+
+  let write :=
+    event "replicate" snapshot 1
+      [
+        ("seqno", toJson (2 : Nat)),
+        ("view", toJson (2 : Nat)),
+        ("globally_committable", toJson false)
+      ]
+  let configuration :=
+    event "add_configuration" snapshot 2
+      [
+        ("idx", toJson (2 : Nat)),
+        ("nodes", Json.mkObj [("alpha", Json.mkObj []), ("beta", Json.mkObj [])])
+      ]
+  let identities := { header with requests := ["", write.record.location] }
+  let (_, reduced) ←
+    ok
+      (run
+        #[
+          write,
+          configuration,
+          heartbeat 3,
+          event "add_configuration_end" snapshot 4,
+          event "commit" snapshot 5,
+          event "step_down_and_nominate_successor" snapshot 6,
+          event "commit_end" snapshot 7,
+          event "step_down_and_nominate_successor" snapshot 8,
+          heartbeat 9
+        ]
+        (CCF.Parsec.many_ ruleStep) identities)
+  check (actionLines reduced.instructions == #[1, 8, 9] && reduced.instructions.size == 6)
+    "configuration or commit callbacks swallowed a subsequent action"
+  check
+    (match ((actions reduced.instructions)[0]? : Option Instruction) with
+      | some (.action (.local "alpha" (.append [⟨.transaction 1 metadata, []⟩])) _) =>
+          metadata.configuration == some {0, 1} && metadata.retirementConfirmations == ∅
+      | _ => false)
+    "configuration input was not taken from the peek before consumption"
+  let flushed := {
+    heartbeat 6 with
+    state := snapshot.setObjVal! "last_idx" (toJson (2 : Nat))
+    message := (heartbeat 6).message.setObjVal! "packet"
+      (packet.setObjVal! "idx" (toJson (2 : Nat)))
+  }
+  let opening := #[
+    write,
+    configuration,
+    heartbeat 3,
+    event "add_configuration_end" snapshot 4,
+    event "batch_flush" snapshot 5
+  ]
+  let (_, reduced) ← ok (run (opening ++ #[
+    flushed,
+    event "commit" snapshot 7,
+    event "commit_end" snapshot 8,
+    heartbeat 9
+  ]) (CCF.Parsec.many_ ruleStep) identities)
+  check (actionLines reduced.instructions == #[1, 9] && reduced.instructions.size == 4)
+    "append flush emitted a separate action or observation"
+  check
+    (match ((actions reduced.instructions)[0]? : Option Instruction) with
+      | some (.action (.local "alpha" (.append [⟨.transaction 1 metadata, flushes⟩])) _) =>
+          metadata.configuration == some {0, 1} && flushes == [(1, 2)]
+      | _ => false)
+    "constructor heartbeat and append flush choices were not separated"
+  let (_, reduced) ← ok (run (opening ++ #[flushed, flushed]) ruleAppend identities)
+  check
+    (match (reduced.instructions[0]? : Option Instruction) with
+      | some (.action (.local "alpha" (.append [⟨_, flushes⟩])) _) =>
+          flushes == [(1, 2), (1, 2)]
+      | _ => false)
+    "flush choices lost packet order or multiplicity"
+  for (invalid, diagnostic) in [
+    ({ flushed with node := "beta" }, "expected event on node alpha"),
+    ({ flushed with command := { flushed.command with line := 99 } }, "command boundary"),
+    ({ flushed with message := flushed.message.setObjVal! "to_node_id" (toJson "missing") },
+      "undeclared node"),
+    (
+      {
+        flushed with
+          message := flushed.message.setObjVal! "packet"
+            (packet.setObjVal! "idx" (toJson "invalid"))
+      },
+      "expected natural number"
+    )
+  ] do
+    rejects (run (opening.push invalid) (CCF.Parsec.many_ ruleStep) identities) diagnostic
+  let signature := {
+    write with message := write.message.setObjVal! "globally_committable" (toJson true)
+  }
+  let singleton := { identities with bootstrap := {0} }
+  let (_, reduced) ← ok (run #[
+    signature,
+    event "batch_flush" (snapshot.setObjVal! "last_idx" (toJson (2 : Nat))) 2,
+    event "commit" snapshot 3,
+    event "commit_end" snapshot 4
+  ] ruleStep singleton)
+  check (reduced.instructions.size == 2) "empty flush introduced a mid-append observation"
+  let _ ← ok (replay singleton reduced.instructions)
+  rejects
+    (run
+      #[
+        write,
+        {
+          configuration with
+            message := configuration.message.setObjVal! "idx" (toJson (99 : Nat))
+        }
+      ]
+      ruleAppend identities)
+    "configuration write pair mismatch"
+  let cleanup := { write with command := command "cleanup_nodes,alpha,beta" }
+  let (_, reduced) ← ok (run #[cleanup] ruleAppend identities)
+  check
+    (match (reduced.instructions[0]? : Option Instruction) with
+      | some (.action (.local "alpha" (.append [⟨.transaction 1 metadata, []⟩])) _) =>
+          metadata.configuration.isNone && metadata.retirementConfirmations == {1}
+      | _ => false)
+    "cleanup action lost its retirement confirmations"
+
+  for (function, family)
+      in [
+        ("recv_append_entries", "raft_append_entries"),
+        ("recv_append_entries_response", "raft_append_entries_response"),
+        ("recv_request_vote", "raft_request_vote"),
+        ("recv_request_vote", "raft_request_pre_vote"),
+        ("recv_request_vote_response", "raft_request_vote_response"),
+        ("recv_request_vote_response", "raft_request_pre_vote_response")
+      ] do
+    for callback in [false, true] do
+      let term := 2
+      let packet := Json.mkObj [("msg", toJson family), ("term", toJson term)]
+      let receive :=
+        event function snapshot 1 [("packet", packet), ("from_node_id", toJson "beta")]
+      let events :=
+        #[receive]
+        ++ (if callback then #[event "become_follower" snapshot 2] else #[])
+        ++ #[event "check_quorum" snapshot 3, event "become_follower" snapshot 4]
+      let (_, reduced) ← ok (run events (CCF.Parsec.many_ ruleStep))
+      check
+        (actionLines reduced.instructions == #[1, 3] && reduced.instructions.size == 4)
+        s!"{family}: follower callback and quorum timeout were not separated"
+  rejects (run #[event "become_follower" snapshot 1] ruleCheckQuorumTimeout)
+    "expected check_quorum"
+  let (_, reduced) ←
+    ok
+      (run #[event "check_quorum" snapshot 1, event "become_follower" snapshot 2]
+        ruleCheckQuorumTimeout)
+  rejects (replay { header with bootstrap := {0} } reduced.instructions)
+    "disabled model action"
+
+  let election :=
+    #[
+      event "election_timeout" snapshot 0,
+      event "become_pre_vote_candidate" snapshot 1,
+      event "become_candidate" snapshot 2,
+      event "become_leader" snapshot 3,
+      event "commit" snapshot 4,
+      event "step_down_and_nominate_successor" snapshot 5,
+      event "commit_end" snapshot 6,
+      heartbeat 7,
+      event "become_leader_end" snapshot 8,
+      event "send_request_vote" snapshot 9,
+      event "become_pre_vote_candidate_end" snapshot 10,
+      heartbeat 11
+    ]
+  let (_, reduced) ← ok (run election (CCF.Parsec.many_ ruleStep))
+  check (actionLines reduced.instructions == #[0, 11] && reduced.instructions.size == 4)
+    "nested election callbacks emitted actions or swallowed the following send"
+  for callback in ["recv_propose_request_vote", "recv_request_vote_response"] do
+    let family :=
+      if callback == "recv_propose_request_vote" then
+        "raft_propose_request_vote"
+      else
+        "raft_request_vote_response"
+    let receive :=
+      event callback snapshot 1
+        [("packet", Json.mkObj [("msg", toJson family)]), ("from_node_id", toJson "beta")]
+    let events := #[receive] ++ election[2:10].toArray ++ #[heartbeat 11]
+    let (_, reduced) ← ok (run events (CCF.Parsec.many_ ruleStep))
+    check (actionLines reduced.instructions == #[1, 11] && reduced.instructions.size == 4)
+      "receive promotion swallowed the following send"
+
+  let genesisConfig :=
+    {
+      configuration with
+        record := { configuration.record with line := 4 }
+        message :=
+          configuration.message.setObjVal! "nodes" (Json.mkObj [("alpha", Json.mkObj [])])
+    }
+  let bootstrap :=
+    #[
+      promotion,
+      event "become_leader_end" snapshot 2,
+      { write with record := { write.record with line := 3 } },
+      genesisConfig,
+      event "add_configuration_end" snapshot 5
+    ]
+  let signature :=
+    {
+      write with
+        record := { write.record with line := 6 }
+        message := write.message.setObjVal! "globally_committable" (toJson true)
+    }
+  let reduced ← ok (CCFRaft.Replay.reduce (bootstrap.push signature) header.declared)
+  check (reduced.header.bootstrap == {0}) "bootstrap membership changed"
+  check
+    (match reduced.instructions.toList with
+      | [.observeNodeState "alpha" expected before, .action _ after] =>
+          expected == signature.state
+          && before.rule == "step"
+          && before.line == 6
+          && after.line == 6
+      | _ => false)
+    "dispatcher did not emit exactly one node-state observation before the action"
+  check
+    ((← ok (replay reduced.header reduced.instructions))
+      == { instructions := 2, actions := 1, observations := 1 })
+    "replay did not count the node-state observation separately"
+  for (key, value)
+      in [
+        ("node_id", toJson "beta"),
+        ("current_view", toJson (3 : Nat)),
+        ("last_idx", toJson (99 : Nat)),
+        ("commit_idx", toJson (1 : Nat)),
+        ("leadership_state", toJson "Follower"),
+        ("unknown", Json.null)
+      ] do
+    let mismatched := { signature with state := signature.state.setObjVal! key value }
+    let reduced ← ok (CCFRaft.Replay.reduce (bootstrap.push mismatched) header.declared)
+    rejects (replay reduced.header reduced.instructions) key
+    rejects (replay reduced.header reduced.instructions) "instruction 1"
+  rejects
+    (CCFRaft.Replay.reduce (bootstrap.push (event "unknown" snapshot 6)) header.declared)
+    "ungrouped event unknown"
 
 example (identities : Header) (current : ReplayState)
-    (observer : ReplayState → Except String Unit) (source : Origin)
-    (succeeds : observer current = .ok ())
-    : runInstruction identities current (.observe observer source) = .ok current := by
+    (node : String) (expected : Json) (source : Origin)
+    (succeeds : observeState identities node expected current = .ok ())
+    : runInstruction identities current (.observeNodeState node expected source)
+      = .ok current := by
   simp [runInstruction, succeeds]
 
-private def observationClosureTests : IO Unit := do
+private def nodeStateObservationTests : IO Unit := do
   let steps :=
     #[
-      act (.local "alpha" (.append [.transaction 1 {}])),
-      act (.local "alpha" (.append [.signature])),
+      act (.local "alpha" (.append [{ content := .transaction 1 {} }])),
+      act (.local "alpha" (.append [{ content := .signature }])),
       act (.local "alpha" (.sendEntries 1 3)),
       act (.receive "alpha" "beta" (Json.mkObj [("msg", toJson "raft_append_entries")])),
       act
@@ -420,9 +697,9 @@ private def observationClosureTests : IO Unit := do
   let current ←
     steps.foldlM (fun current step => ok (runInstruction header current step))
       { state := header.initial }
-  let identities := { header with bootstrap := ∅ }
   let fields :=
     [
+      ("node_id", toJson "alpha"),
       ("leadership_state", toJson "Leader"),
       ("current_view", toJson (2 : Nat)),
       ("last_idx", toJson (3 : Nat)),
@@ -443,71 +720,52 @@ private def observationClosureTests : IO Unit := do
       ("retirement_committable_idx", Json.null),
       ("retired_committed_idx", Json.null)
     ]
-  checkObservedFields (observeState identities "alpha" (some "beta")) current
-    (fields ++ [("sent_idx", toJson (3 : Nat)), ("match_idx", toJson (3 : Nat))])
-  for key in ["sent_idx", "match_idx"] do
+  checkObservedFields (observeState header "alpha") current fields
+  for key in ["sent_idx", "match_idx", "state.current_view"] do
     rejects
-      (observeState identities "alpha" none
-        (Json.mkObj [(key, toJson (3 : Nat))]) current)
-      s!"unsupported observation field '$[\"{key}\"]'"
-  let before :=
-    fields.map
-      fun (key, value) =>
-        (
-          key,
-          if key == "commit_idx" then
-            toJson (1 : Nat)
-          else if key == "committable_indices" then
-            toJson ([3] : List Nat)
-          else
-            value
-        )
-  checkObservedFields (observeBeforeCommit identities "alpha" 1) current before
-  rejects (observeBeforeCommit identities "alpha" 3 (Json.mkObj before) current)
-    "pre-commit frontier must precede final commitIndex"
+      (observeState header "alpha" (Json.mkObj [(key, toJson (3 : Nat))]) current)
+      s!"unsupported observation field '$[{(toJson key).compress}]'"
+  rejects (observeState header "alpha" (Json.mkObj [("a\"b", .null)]) current)
+    "unsupported observation field '$[\"a\\\"b\"]'"
+  for unknown in [.null, .arr #[], Json.mkObj [], Json.mkObj [("commit_idx", .null)]] do
+    rejects
+      (observeState header "alpha" (Json.mkObj [("unknown", unknown)]) current)
+      "unsupported observation field '$[\"unknown\"]'"
+  for invalid in [Json.mkObj [], .arr #[], .null] do
+    rejects
+      (observeState header "alpha" (Json.mkObj [("commit_idx", invalid)]) current)
+      "$[\"commit_idx\"]: observed"
+  rejects (observeState header "missing" (Json.mkObj fields) current) "undeclared node"
+  rejects
+    (observeState header "alpha" (Json.mkObj fields)
+      { current with state := { current.state with nodes := [] } })
+    "not in the network"
+  let unchanged ← ok (runInstruction header current (observe "alpha" fields))
+  let _ ← ok (observeState header "alpha" (Json.mkObj fields) unchanged)
+  check
+    (unchanged.state.network == current.state.network
+      && unchanged.dropped == current.dropped)
+    "node-state observation changed replay state"
+  rejects (replay header #[observe "alpha" [("unknown", .null)]])
+    s!"instruction 1 at {origin.label}: unsupported observation field"
   let uncommitted ←
     ok
       (runInstruction header current
-        (act (.local "alpha" (.append [.signature, .signature]))))
+        (act (.local "alpha" (.append [{ content := .signature }, { content := .signature }]))))
   let cache (indices : List Nat) := Json.mkObj [("committable_indices", toJson indices)]
-  let _ ← ok (observeState identities "alpha" none (cache [4, 5]) uncommitted)
+  let _ ← ok (observeState header "alpha" (cache [4, 5]) uncommitted)
   for indices in [[5, 4], [4], [4, 4, 5], [3, 4, 5]] do
-    rejects (observeState identities "alpha" none (cache indices) uncommitted)
+    rejects (observeState header "alpha" (cache indices) uncommitted)
       "committable_indices"
   let uncommitted ←
-    ok (runInstruction header uncommitted (act (.local "alpha" (.append [.signature]))))
-  let committed ←
-    #[
-      act (.local "alpha" (.sendEntries 1 6)),
-      act (.receive "alpha" "beta" (Json.mkObj [("msg", toJson "raft_append_entries")])),
-      act
-        (.receive "beta" "alpha"
-          (Json.mkObj [("msg", toJson "raft_append_entries_response")]))
-    ].foldlM
-      (fun state step => ok (runInstruction header state step)) uncommitted
-  for (observe, state)
-      in [
-        (observeState identities "alpha" none, uncommitted),
-        (observeBeforeCommit identities "alpha" 3, committed)
-      ] do
-    let _ ← ok (observe (cache [4, 6]) state)
-    for indices in [[], [4], [6], [6, 4], [4, 5], [5, 6], [4, 4], [4, 4, 6], [4, 5, 6]] do
-      rejects (observe (cache indices) state) "committable_indices"
-  checkObservedFields (observeEntry identities "alpha" 2) current
-    [
-      ("term", toJson (2 : Nat)),
-      ("committed", .bool true),
-      ("kind", toJson "transaction"),
-      ("transaction", toJson "tx-1"),
-      ("configurations", toJson ([] : List (List String))),
-      ("retiredCommitted", toJson ([] : List String))
-    ]
-  checkObservedFields (observeEntry identities "alpha" 3) current
-    [("term", toJson (2 : Nat)), ("committed", .bool true), ("kind", toJson "signature")]
-  rejects
-    (observeEntry { identities with requests := [""] } "alpha" 2
-      (Json.mkObj [("kind", toJson "transaction")]) current)
-    "unknown model request identifier"
+    ok (runInstruction header uncommitted
+      (act (.local "alpha" (.append [{ content := .signature }]))))
+  let _ ← ok (observeState header "alpha" (cache [4, 6]) uncommitted)
+  for indices in [[], [4], [6], [6, 4], [4, 5], [5, 6], [4, 4], [4, 4, 6], [4, 5, 6]] do
+    rejects (observeState header "alpha" (cache indices) uncommitted)
+      "committable_indices"
+
+private def packetFieldTests : IO Unit := do
   let messages : List CCFRaft.Model.Node.Message :=
     [
       .appendEntriesRequest
@@ -529,36 +787,21 @@ private def observationClosureTests : IO Unit := do
     ]
   for message in messages do
     let envelope : Envelope := { source := 0, target := 1, payload := message }
-    let queued :=
+    let queued : ReplayState :=
       {
-        current with
-          state := { current.state with network := [envelope, envelope] },
-          dropped := [envelope]
+        state := { header.initial with network := [envelope, envelope] },
+        dropped := [envelope]
       }
-    for selection in [PacketSelection.head, .latest] do
-      checkObservedFields
-        (fun fields => observeMessage identities "alpha" "beta" fields selection)
-        queued (← ok (object (messageJson message)))
-    let observer : ReplayState → Except String Unit :=
-      fun state => do
-        require (state.dropped == [envelope] && state.pending 0 1 == [envelope])
-          "closure lost packet multiplicity or dropped evidence"
-        observeState identities "alpha" (some "beta")
-          (Json.mkObj [("commit_idx", toJson (3 : Nat)), ("match_idx", toJson (3 : Nat))])
-          state
-    let unchanged ← ok (runInstruction header queued (.observe observer origin))
-    let _ ← ok (observer unchanged)
-    check
-      (unchanged.state.network == queued.state.network
-        && unchanged.dropped == queued.dropped)
-      "observation changed packet accounting"
-  let failure := Instruction.observe (fun _ => .error "closure sentinel") origin
-  rejects (replay header #[failure]) s!"instruction 1 at {origin.label}: closure sentinel"
+    checkObservedFields
+      (fun fields state => discard (selectPacket state 0 1 fields))
+      queued (← ok (object (messageJson message)))
 
 private def receiveFifoTests : IO Unit := do
   let setup :=
     #[
-      act (.local "alpha" (.append [.transaction 4 {}, .signature])),
+      act (.local "alpha" (.append [
+        { content := .transaction 4 {} }, { content := .signature }
+      ])),
       act (.local "alpha" (.sendEntries 1 3)),
       act (.local "alpha" (.sendEntries 1 3))
     ]
@@ -572,23 +815,15 @@ private def receiveFifoTests : IO Unit := do
   let firstFields := messageJson first.payload
   let secondFields := messageJson second.payload
   let receive packet := act (.receive "alpha" "beta" packet)
-  let observed packet :=
-    Instruction.observe (observeMessage header "alpha" "beta" packet .head) origin
   let _ ←
     ok
       (replay header
         (setup
           ++ #[
-            observed firstFields,
             receive firstFields,
-            sent "beta" "alpha" [("success", toJson "OK")],
-            observed secondFields,
+            act (.receive "beta" "alpha" (Json.mkObj [("success", toJson "OK")])),
             receive secondFields
           ]))
-  let observedOnly ← ok (runInstruction header queued (observed firstFields))
-  check (observedOnly.pending 0 1 == packets)
-    "head observation changed packet occurrences"
-  rejects (runInstruction header queued (observed secondFields)) "prev_idx"
   rejects (runInstruction header queued (receive secondFields)) "prev_idx"
   let afterFirst ← ok (runInstruction header queued (receive firstFields))
   check (afterFirst.pending 0 1 == [second])
@@ -600,12 +835,11 @@ private def receiveFifoTests : IO Unit := do
   rejects (runInstruction header queued (receive (Json.mkObj [("unknown", .null)])))
     "unsupported observation field"
   let unavailable := secondFields.setObjVal! "prev_idx" (toJson (99 : Nat))
-  rejects (runInstruction header queued (observed unavailable)) "prev_idx"
   rejects (runInstruction header queued (receive unavailable)) "prev_idx"
   let dropped ← ok (runInstruction header queued (act (.drop "alpha" "beta")))
   let delivered ← ok (runInstruction header dropped (receive secondFields))
   rejects (runInstruction header delivered (receive firstFields)) "no pending packet"
-  let some differing :=
+  let differing : Option Envelope :=
     match first.payload with
     | .appendEntriesRequest request =>
         some
@@ -625,20 +859,18 @@ private def receiveFifoTests : IO Unit := do
                   }
           }
     | _ => none
+  let some differing := differing
   | throw (IO.userError "expected AppendEntries payload")
   check (first != differing && messageJson differing.payload == firstFields)
     "FIFO payload test requires equal projected headers, different contents"
-  for (head, tail, transaction)
-      in [(first, differing, "tx"), (differing, first, "other")] do
+  for (head, tail, transaction) in [(first, differing, 4), (differing, first, 5)] do
     let indistinguishable :=
       { queued with state := { queued.state with network := [head, tail] } }
-    let _ ← ok (runInstruction header indistinguishable (observed firstFields))
     let delivered ← ok (runInstruction header indistinguishable (receive firstFields))
     check (delivered.pending 0 1 == [tail]) "FIFO selected a later matching payload"
-    let _ ←
-      ok
-        (observeEntry header "beta" 2
-          (Json.mkObj [("transaction", toJson transaction)]) delivered)
+    let node ← ok (lookup header delivered "beta")
+    check ((entryAt? node.log 2).map (·.content) == some (.transaction transaction {}))
+      "receive reconstructed the payload instead of delivering the FIFO model entry"
   let equalCopies :=
     { queued with state := { queued.state with network := [first, first] } }
   let one ← ok (runInstruction header equalCopies (receive firstFields))
@@ -658,16 +890,15 @@ private def identityTests : IO Unit := do
       (replay lexical
         #[
           observe "2"
-            [("leadership_state", toJson "Leader"), ("last_idx", toJson (1 : Nat))]
-            lexical,
+            [("leadership_state", toJson "Leader"), ("last_idx", toJson (1 : Nat))],
           observe "1"
-            [("leadership_state", toJson "None"), ("last_idx", toJson (0 : Nat))] lexical,
-          .observe
-            (observeEntry lexical "2" 1
-              (Json.mkObj
-                [("transaction", toJson ""), ("configurations", toJson [["2"]])]))
-            origin
+            [("leadership_state", toJson "None"), ("last_idx", toJson (0 : Nat))]
         ])
+  let genesis ← ok (lookup lexical { state := lexical.initial } "2")
+  check
+    ((entryAt? genesis.log 1).map (·.content)
+      == some (.transaction 0 { configuration := some {2} }))
+    "initial entry lost its genesis request or lexical membership"
   for (invalid, diagnostic)
       in [
         ({ lexical with bootstrap := ∅ }, "membership must be nonempty"),
@@ -678,29 +909,38 @@ private def identityTests : IO Unit := do
         ({ lexical with requests := ["", ""] }, "reserve zero")
       ] do
     rejects
-      (replay invalid #[observe "2" [("leadership_state", toJson "Leader")] lexical])
+      (replay invalid #[observe "2" [("leadership_state", toJson "Leader")]])
       diagnostic
   for request in [0, 2] do
-    rejects (replay lexical #[act (.local "2" (.append [.transaction request {}]))])
+    rejects (replay lexical #[act (.local "2" (.append [{ content := .transaction request {} }]))])
       "undeclared or reserved model request"
+  rejects (replay lexical #[act (.local "2" (.append [
+    { content := .transaction 1 {}, flushes := [(3, 2)] }
+  ]))]) "undeclared model node 3"
   rejects
-    (replay lexical #[observe "2" [("preVoteEnabled", .bool false)] lexical])
+    (replay lexical #[observe "2" [("preVoteEnabled", .bool false)]])
     "unsupported observation field"
   let _ ←
     ok
       (replay lexical
         #[
-          act (.local "2" (.append [.transaction 1 {}])),
-          .observe
-            (observeEntry lexical "2" 2 (Json.mkObj [("transaction", toJson "request")]))
-            origin
+          act (.local "2" (.append [{ content := .transaction 1 {} }])),
+          observe "2" [("last_idx", toJson (2 : Nat))]
         ])
+  let appended ←
+    ok
+      (runInstruction lexical { state := lexical.initial }
+        (act (.local "2" (.append [{ content := .transaction 1 {} }]))))
+  let node ← ok (lookup lexical appended "2")
+  check ((entryAt? node.log 2).map (·.content) == some (.transaction 1 {}))
+    "append changed the declared request identifier"
 
 def main : IO UInt32 := do
   let _ ← parserTests
   parsecInfrastructureTests
-  jsonPathTests
-  observationClosureTests
+  reductionRuleTests
+  nodeStateObservationTests
+  packetFieldTests
   receiveFifoTests
   identityTests
   IO.println "Lean replay rejection and observation checks passed."
