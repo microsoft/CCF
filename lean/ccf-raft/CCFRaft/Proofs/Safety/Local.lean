@@ -26,9 +26,9 @@ theorem Advance.facts {self : NodeID} {middle state : NodeState}
     : state.log = middle.log
       /\ state.currentTerm = middle.currentTerm
       /\ (state.role = middle.role \/ state.role = .none) := by
-  rcases advance with rfl | ⟨log, term, _, _, _, _, _, _, role⟩
+  rcases advance with ⟨rfl, _⟩ | ⟨log, term, _, _, _, _, _, _, role⟩
   · exact ⟨rfl, rfl, Or.inl rfl⟩
-  · exact ⟨log, term, role⟩
+  · exact ⟨log, term, role.imp_right And.left⟩
 
 theorem makeRequestVoteRequest_eq (state : NodeState)
     : makeRequestVoteRequest state = vals state.currentTerm state.log state.commitIndex :=
@@ -139,7 +139,7 @@ theorem post_log
   | same log _ =>
       rw [log]
       exact Or.inl (List.prefix_refl _)
-  | append entries sent leader terms advance =>
+  | append entries sent leader terms _ advance =>
       obtain ⟨log, term, role⟩ := Advance.facts advance
       refine Or.inr (Or.inl ⟨entries, log, terms, leader, term, ?_⟩)
       rcases role with role | role <;> rw [role] <;> simp [leader]
@@ -285,7 +285,7 @@ theorem campaign_votes {candidate : NodeState}
         voter ∈ candidate.votesGranted
         -> Granted (after :: before :: rest) voter c.actor candidate.currentTerm
             (vals candidate.currentTerm c.pre.log c.pre.commitIndex) := by
-  obtain ⟨_, _, _, ⟨_, freshTerm, freshVote, freshVotes⟩
+  obtain ⟨_, _, _, ⟨_, freshTerm, freshVote, freshVotes, _⟩
     | ⟨preRole, sameTerm, _, more⟩⟩ := campaign
   · intro voter mem
     rw [freshVotes, Finset.mem_singleton] at mem

@@ -2,6 +2,7 @@ module
 
 public import CCFRaft.Proofs.Safety.History
 public import CCFRaft.Proofs.Safety.Sends
+public import CCFRaft.Proofs.Safety.Pass
 public import CCFRaft.Proofs.Ledger
 public import CCFRaft.Proofs.Safety.Lists
 public import CCFRaft.Proofs.Direct.CommitFrontier
@@ -58,6 +59,7 @@ def AEOk (self target : NodeID) (state : NodeState) (request : AppendEntriesRequ
   /\ request.prevLogTerm = termAt state.log request.prevLogIndex
   /\ request.entries <+: state.log.drop request.prevLogIndex
   /\ request.primaryCommit <= state.commitIndex
+  /\ (request.entries ≠ [] -> request.primaryCommit = state.commitIndex)
 
 /-- A leader-side send: plain, or a consistent AppendEntries request. -/
 def LeaderSend (self : NodeID) (state : NodeState) (envelope : Model.Envelope) : Prop :=
@@ -67,9 +69,10 @@ def LeaderSend (self : NodeID) (state : NodeState) (envelope : Model.Envelope) :
           envelope.payload = .appendEntriesRequest request
           /\ AEOk self envelope.target state request)
 
-/-- The state change of `advanceCommit`. -/
+/-- The state change of `advanceCommit`. The state is unchanged only when
+nothing is committable. -/
 def Advance (self : NodeID) (middle state : NodeState) : Prop :=
-  state = middle
+  (state = middle /\ highestCommittableIndex middle self <= middle.commitIndex)
   \/ (state.log = middle.log
       /\ state.currentTerm = middle.currentTerm
       /\ state.votedFor = middle.votedFor
@@ -78,7 +81,8 @@ def Advance (self : NodeID) (middle state : NodeState) : Prop :=
       /\ state.votesGranted = middle.votesGranted
       /\ middle.commitIndex < state.commitIndex
       /\ state.commitIndex = highestCommittableIndex middle self
-      /\ (state.role = middle.role \/ state.role = .none))
+      /\ (state.role = middle.role
+          \/ (state.role = .none /\ state.isRetiredCommitted self)))
 
 /-! ## The step summary -/
 
@@ -87,6 +91,16 @@ def Bumping : Message -> Prop
   | .appendEntriesResponse _ => False
   | .proposeRequestVoteRequest _ => False
   | _ => True
+
+/-- What starts a fresh campaign: an election timeout, a quorum of pre-votes, or
+a vote proposal for the current term. -/
+def FreshCause (before : NodeState) (event : Event) : Prop :=
+  event = .internal (.timeout .election)
+  \/ (exists source response,
+        event = .receive source (.requestPreVoteResponse response)
+        /\ before.role = .preVoteCandidate)
+  \/ exists source,
+      event = .receive source (.proposeRequestVoteRequest before.currentTerm)
 
 /-- The candidate state a step campaigns with: a fresh election or the
 existing candidacy with possibly more votes. -/
@@ -98,7 +112,8 @@ def Campaign (self : NodeID) (before : NodeState) (event : Event) (candidate : N
   /\ ((Not (before.role = .none)
         /\ candidate.currentTerm = before.currentTerm + 1
         /\ candidate.votedFor = some self
-        /\ candidate.votesGranted = {self})
+        /\ candidate.votesGranted = {self}
+        /\ FreshCause before event)
       \/ (before.role = .candidate
           /\ candidate.currentTerm = before.currentTerm
           /\ (candidate.votedFor = before.votedFor \/ before.votedFor = none)
@@ -132,6 +147,33 @@ def Accepted (before : NodeState) (request : AppendEntriesRequest) (after : Node
           (maxCommittableIndexUpTo after.log
             (min request.primaryCommit (request.prevLogIndex + request.entries.length)))
 
+/-- The guards `appendEntry` checks before appending `content` to `state`'s log:
+confirmations name nodes with complete, unconfirmed retirement, and a
+configuration re-adds only nodes with a committed confirmation. -/
+def Guarded (state : NodeState) (content : EntryContent) : Prop :=
+  content.metadata.retirementConfirmations
+    ⊆ state.retirementCompletedNodes \ retiredCommittedNodes state.log
+  /\ forall nodes,
+      content.metadata.configuration = some nodes
+      -> (nodes ∩ configurationMembers (configurationHistory state.log))
+            \ latestConfigurationMembers (configurationHistory state.log)
+          ⊆ retiredCommittedNodes state.committedLog ∩ retiredCommittedNodes state.log
+
+theorem Guarded.congr {state state' : NodeState} {content : EntryContent}
+    (guarded : Guarded state content) (log : state'.log = state.log)
+    (commit : state'.commitIndex = state.commitIndex)
+    : Guarded state' content := by
+  unfold Guarded NodeState.retirementCompletedNodes NodeState.committedLog at *
+  rw [log, commit]
+  exact guarded
+
+/-- Every entry of an appended batch passed the guards of `appendEntry` in the
+state it was appended to. -/
+def AppendGuarded (before : NodeState) (entries : List Entry) : Prop :=
+  forall position (bound : position < entries.length),
+    Guarded { before with log := before.log ++ entries.take position }
+      (entries[position]'bound).content
+
 /-- How a step changes the log and commit index. -/
 inductive Kind (self : NodeID) (before : NodeState) (event : Event) (after : NodeState)
     : Prop where
@@ -139,9 +181,11 @@ inductive Kind (self : NodeID) (before : NodeState) (event : Event) (after : Nod
   | append (entries : List Entry) (sent : NodeID -> Nat)
     (leader : before.role = .primary)
     (terms : forall entry, entry ∈ entries -> entry.term = before.currentTerm)
+    (guarded : AppendGuarded before entries)
     (advance
       : Advance self { before with log := before.log ++ entries, sentIndex := sent }
           after)
+    (appending : exists contents, event = .internal (.append contents))
   | ack (source : NodeID) (response : AppendEntriesResponse)
     (received : event = .receive source (.appendEntriesResponse response))
     (leader : before.role = .primary) (success : response.success = true)
@@ -172,12 +216,15 @@ def SendOK (self : NodeID) (before : NodeState) (event : Event)
           /\ ((before.role = .primary /\ after.currentTerm = before.currentTerm)
               \/ Wins self before event after)
       | .appendEntriesResponse response =>
-          response.success = true
-          -> exists source request,
-              event = .receive source (.appendEntriesRequest request)
-              /\ Accepted before request after
-              /\ response.term = after.currentTerm
-              /\ response.lastLogIndex = request.prevLogIndex + request.entries.length
+          (response.term = after.currentTerm
+            \/ exists index, response.term = termAt after.log index)
+          /\ (response.success = true
+              -> exists source request,
+                  event = .receive source (.appendEntriesRequest request)
+                  /\ Accepted before request after
+                  /\ response.term = after.currentTerm
+                  /\ response.lastLogIndex
+                      = request.prevLogIndex + request.entries.length)
       | .requestVoteRequest request =>
           request.term = after.currentTerm
           /\ before.currentTerm < after.currentTerm
@@ -190,6 +237,13 @@ def SendOK (self : NodeID) (before : NodeState) (event : Event)
                   /\ request.term = after.currentTerm
                   /\ voteLogUpToDate before request
                   /\ after.votedFor = some envelope.target)
+      | .proposeRequestVoteRequest term =>
+          term = after.currentTerm
+          /\ ((before.role = .primary
+                /\ after.currentTerm = before.currentTerm
+                /\ (event = .internal .nominateSuccessor
+                    \/ after.isRetiredCommitted self))
+              \/ Wins self before event after)
       | message => message.term = after.currentTerm
 
 /-- Everything the safety proof needs to know about one local step. -/
@@ -225,6 +279,28 @@ structure Summary (self : NodeID) (before : NodeState) (event : Event)
               /\ after.matchIndex peer = response.lastLogIndex
   kind : Kind self before event after
   sends : forall envelope, envelope ∈ sent -> SendOK self before event after envelope
+  /-- A term rises by one only for a fresh campaign, and otherwise only to the
+  term of a received message. -/
+  term_cause
+    : after.currentTerm <= before.currentTerm
+      \/ (after.currentTerm = before.currentTerm + 1 /\ FreshCause before event)
+      \/ exists source message,
+          event = .receive source message /\ after.currentTerm <= message.term
+  /-- Only an election timeout starts a pre-vote, which keeps the term. -/
+  pre_vote
+    : after.role = .preVoteCandidate
+      -> after.currentTerm = before.currentTerm
+          /\ (before.role = .preVoteCandidate \/ event = .internal (.timeout .election))
+  /-- A primary keeps its role within its term unless its retirement commits, a
+  quorum check fails, or it receives a request of its own term. -/
+  role_keep
+    : before.role = .primary -> after.currentTerm = before.currentTerm
+      -> after.role = .primary
+          \/ after.isRetiredCommitted self
+          \/ event = .internal (.timeout .checkQuorum)
+          \/ exists source request,
+              event = .receive source (.appendEntriesRequest request)
+              /\ request.term = before.currentTerm
 
 /-! ## Commit selection -/
 
@@ -274,15 +350,17 @@ def AEFrom (self : NodeID) (term commit : Nat) (log : List Entry)
       /\ request.prevLogTerm = termAt log request.prevLogIndex
       /\ request.entries <+: log.drop request.prevLogIndex
       /\ request.primaryCommit <= commit
+      /\ request.entries = []
 
 theorem AEFrom.extend {self : NodeID} {term commit commit' : Nat}
     {log log' : List Entry} {envelope : Model.Envelope}
     (sent : AEFrom self term commit log envelope) (extends_ : log <+: log')
     (le : commit <= commit')
     : AEFrom self term commit' log' envelope := by
-  obtain ⟨source, target, request, payload, term, prev, prevTerm, entries, primaryCommit⟩ := sent
+  obtain ⟨source, target, request, payload, term, prev, prevTerm, entries, primaryCommit,
+    empty⟩ := sent
   refine ⟨source, target, request, payload, term, prev.trans extends_.length_le, ?_, ?_,
-    primaryCommit.trans le⟩
+    primaryCommit.trans le, empty⟩
   · rw [prevTerm, termAt_of_prefix extends_ prev]
   · obtain ⟨rest, rfl⟩ := extends_
     rw [List.drop_append_of_le_length prev]
@@ -294,48 +372,58 @@ theorem AEFrom.ok {self : NodeID} {state : NodeState}
     : exists request,
         envelope.payload = .appendEntriesRequest request
         /\ AEOk self envelope.target state request := by
-  obtain ⟨_, target, request, payload, term, prev, prevTerm, entries, primaryCommit⟩ := sent
-  exact ⟨request, payload, target, term, prev, prevTerm, entries, primaryCommit⟩
+  obtain ⟨_, target, request, payload, term, prev, prevTerm, entries, primaryCommit,
+    empty⟩ := sent
+  exact ⟨request, payload, target, term, prev, prevTerm, entries, primaryCommit,
+    fun nonempty => absurd empty nonempty⟩
 
 theorem Advance.log {self : NodeID} {middle state : NodeState}
     (advance : Advance self middle state)
     : state.log = middle.log := by
-  rcases advance with rfl | h <;> grind
+  rcases advance with ⟨rfl, _⟩ | h <;> grind
 
 theorem Advance.term {self : NodeID} {middle state : NodeState}
     (advance : Advance self middle state)
     : state.currentTerm = middle.currentTerm := by
-  rcases advance with rfl | h <;> grind
+  rcases advance with ⟨rfl, _⟩ | h <;> grind
 
 theorem Advance.votedFor {self : NodeID} {middle state : NodeState}
     (advance : Advance self middle state)
     : state.votedFor = middle.votedFor := by
-  rcases advance with rfl | h <;> grind
+  rcases advance with ⟨rfl, _⟩ | h <;> grind
 
 theorem Advance.matchIndex {self : NodeID} {middle state : NodeState}
     (advance : Advance self middle state)
     : state.matchIndex = middle.matchIndex := by
-  rcases advance with rfl | h <;> grind
+  rcases advance with ⟨rfl, _⟩ | h <;> grind
 
 theorem Advance.sentIndex {self : NodeID} {middle state : NodeState}
     (advance : Advance self middle state)
     : state.sentIndex = middle.sentIndex := by
-  rcases advance with rfl | h <;> grind
+  rcases advance with ⟨rfl, _⟩ | h <;> grind
 
 theorem Advance.votesGranted {self : NodeID} {middle state : NodeState}
     (advance : Advance self middle state)
     : state.votesGranted = middle.votesGranted := by
-  rcases advance with rfl | h <;> grind
+  rcases advance with ⟨rfl, _⟩ | h <;> grind
 
 theorem Advance.commit_le {self : NodeID} {middle state : NodeState}
     (advance : Advance self middle state)
     : middle.commitIndex <= state.commitIndex := by
-  rcases advance with rfl | h <;> grind
+  rcases advance with ⟨rfl, _⟩ | h <;> grind
+
+theorem Advance.retired {self : NodeID} {middle state : NodeState}
+    (advance : Advance self middle state)
+    : state.role = middle.role
+      \/ (state.role = .none /\ state.isRetiredCommitted self) := by
+  rcases advance with ⟨rfl, _⟩ | ⟨_, _, _, _, _, _, _, _, role⟩
+  · exact Or.inl rfl
+  · exact role
 
 theorem Advance.role {self : NodeID} {middle state : NodeState}
     (advance : Advance self middle state)
-    : state.role = middle.role \/ state.role = .none := by
-  rcases advance with rfl | h <;> grind
+    : state.role = middle.role \/ state.role = .none :=
+  advance.retired.imp_right And.left
 
 section Effects
 
@@ -372,12 +460,14 @@ theorem advanceCommit_sends (middle : NodeState)
         (advanceCommit caps middle self) := by
   unfold advanceCommit
   dsimp only
-  refine Sends.ite' (fun _ => Sends.pure' ⟨Or.inl rfl, by simp⟩) fun ahead => ?_
+  refine Sends.ite' (fun le => Sends.pure' ⟨Or.inl ⟨rfl, le⟩, by simp⟩) fun ahead => ?_
   have advanced : Advance self middle
       (middle.recordCommit self (highestCommittableIndex middle self)) := by
-    obtain ⟨_, _, _, eq, roleCase⟩ :=
+    have roleCase :=
+      NodeState.recordCommit_role self middle (highestCommittableIndex middle self)
+    obtain ⟨_, _, _, eq, _⟩ :=
       NodeState.recordCommit_eq self middle (highestCommittableIndex middle self)
-    rw [eq]
+    rw [eq] at roleCase ⊢
     exact Or.inr ⟨rfl, rfl, rfl, rfl, rfl, rfl, by simp only; omega, rfl, roleCase⟩
   refine Sends.ite'
     (fun _ => Sends.ite' (fun _ => ?_) fun _ => Sends.pure' ⟨advanced, by simp⟩)
@@ -385,6 +475,19 @@ theorem advanceCommit_sends (middle : NodeState)
   exact Sends.bind' (nominate_sends self middle)
     fun _ sent nominated =>
       Sends.pure' ⟨advanced, by simpa using nominated.2.2⟩
+
+theorem advanceCommit_retires (middle : NodeState)
+    : Sends (fun state sent => Not (sent = []) -> state.isRetiredCommitted self)
+        (advanceCommit caps middle self) := by
+  unfold advanceCommit
+  dsimp only
+  refine Sends.ite' (fun _ => Sends.pure' fun empty => (empty rfl).elim) fun _ => ?_
+  refine Sends.ite'
+    (fun retired => Sends.ite'
+      (fun _ => Sends.bind' (nominate_sends self middle) fun _ _ _ =>
+        Sends.pure' fun _ => retired)
+      fun _ => Sends.pure' fun _ => retired)
+    fun _ => Sends.pure' fun empty => (empty rfl).elim
 
 theorem broadcast_sends (state : NodeState) (message : Message)
     : Sends
@@ -425,7 +528,7 @@ theorem becomePrimary_sends (candidate : NodeState)
     simp only [eq, List.append_nil, List.mem_singleton] at member
     subst member
     have other : Not (peer = self) := by simp [Finset.mem_sort, eligiblePeers] at member; exact member.1
-    refine ⟨rfl, other, _, rfl, rfl, ?_, rfl, ?_, le_rfl⟩ <;>
+    refine ⟨rfl, other, _, rfl, rfl, ?_, rfl, ?_, le_rfl, ?_⟩ <;>
       simp [makeAppendEntriesRequest, messageEntries]
   · intro e member
     rcases List.mem_append.mp (by simpa using member) with old | new
@@ -543,12 +646,20 @@ theorem campaign_summary {self : NodeID} {before candidate after : NodeState}
     · rcases kept.2.2.1 with eq | none
       · rw [eq]; exact votedEq
       · rw [none] at votedEq; cases votedEq
+  have termCause
+      : candidate.currentTerm <= before.currentTerm
+        \/ (candidate.currentTerm = before.currentTerm + 1 /\ FreshCause before event) := by
+    rcases campaign.2.2.2 with fresh | kept
+    · exact Or.inr ⟨fresh.2.1, fresh.2.2.2.2⟩
+    · exact Or.inl kept.2.1.le
   unfold CampaignResult at result
   rcases result with ⟨rfl, requests⟩ | ⟨quorum, advance, started⟩
   · refine ⟨termLe, voteKeep, fun _ => Or.inl notNone, fun _ => campaign,
       fun leader => (by rw [campaign.1] at leader; cases leader),
       fun _ leader same => (notLeaderKeep leader same).elim,
-      Kind.same campaign.2.1 campaign.2.2.1, fun e member => ?_⟩
+      Kind.same campaign.2.1 campaign.2.2.1, fun e member => ?_, termCause.imp_right Or.inl,
+      fun pre => (by rw [campaign.1] at pre; cases pre),
+      fun leader same => (notLeaderKeep leader same).elim⟩
     obtain ⟨source, payload, lt⟩ := requests e member
     refine ⟨source, ?_⟩
     rw [payload]
@@ -563,13 +674,15 @@ theorem campaign_summary {self : NodeID} {before candidate after : NodeState}
     refine ⟨termEq ▸ termLe, fun same voted votedEq => ?_, fun _ => Or.inl notNone,
       fun candidate' => (notCandidate candidate').elim, fun _ => Or.inr elected,
       fun _ leader same => (notLeaderKeep leader (termEq ▸ same)).elim,
-      Kind.elect elected, fun e member => ?_⟩
+      Kind.elect elected, fun e member => ?_, termEq ▸ termCause.imp_right Or.inl,
+      fun pre => (by rcases advance.role with eq | eq <;> rw [eq] at pre <;> cases pre),
+      fun leader same => (notLeaderKeep leader (termEq ▸ same)).elim⟩
     · rw [advance.votedFor]
       exact voteKeep (termEq ▸ same) voted votedEq
     · rcases started e member with (⟨source, payload⟩ | beat) | ⟨source, payload, lt⟩
       · refine ⟨source, ?_⟩
         rw [payload]
-        exact termEq.symm
+        exact ⟨termEq.symm, Or.inr elected⟩
       · obtain ⟨request, payload, ok⟩ := beat.ok
         refine ⟨beat.1, ?_⟩
         rw [payload]
@@ -599,7 +712,8 @@ theorem quiet_summary {self : NodeID} {before after : NodeState}
     fun candidate => ⟨candidate, log, commit, Or.inr ⟨role ▸ candidate, term, Or.inl voted,
       fun voter member => Or.inl (votes ▸ member)⟩⟩,
     fun leader => Or.inl ⟨role ▸ leader, term⟩,
-    fun _ _ _ peer => Or.inl (congrFun matchEq peer), Kind.same log commit, sends⟩
+    fun _ _ _ peer => Or.inl (congrFun matchEq peer), Kind.same log commit, sends,
+    Or.inl term.le, fun pre => ⟨term, Or.inl (role ▸ pre)⟩, fun leader _ => Or.inl (role ▸ leader)⟩
   rcases either with notNone | nonempty
   · exact Or.inl (role ▸ notNone)
   · exact active nonempty
@@ -609,23 +723,28 @@ theorem bumped_summary {self : NodeID} {before after : NodeState}
     (lt : before.currentTerm < after.currentTerm)
     (notCandidate : Not (after.role = .candidate))
     (notLeader : Not (after.role = .primary))
+    (notPreVote : Not (after.role = .preVoteCandidate))
     (active
       : exists source message,
           event = .receive source message
           /\ Bumping message
-          /\ message.term <= after.currentTerm)
+          /\ message.term = after.currentTerm)
     (kind : Kind self before event after)
     (sends : forall e, e ∈ sent -> SendOK self before event after e)
     : Summary self before event after sent :=
+  have ⟨source, message, eq, bumping, termEq⟩ := active
   ⟨
     lt.le,
     fun same => by omega,
-    fun _ => Or.inr (Or.inr active),
+    fun _ => Or.inr (Or.inr ⟨source, message, eq, bumping, termEq.le⟩),
     fun candidate => (notCandidate candidate).elim,
     fun leader => (notLeader leader).elim,
     fun leader => (notLeader leader).elim,
     kind,
-    sends
+    sends,
+    Or.inr (Or.inr ⟨source, message, eq, termEq.ge⟩),
+    fun pre => (notPreVote pre).elim,
+    fun _ same => by omega
   ⟩
 
 /-- The state after adopting a newer term. -/
@@ -697,13 +816,15 @@ theorem becomeCandidate_result (state : NodeState)
 theorem fresh_campaign {self : NodeID} {before state : NodeState}
     {event : Event} (active : Not (before.role = .none))
     (term : state.currentTerm = before.currentTerm) (log : state.log = before.log)
-    (commit : state.commitIndex = before.commitIndex)
+    (commit : state.commitIndex = before.commitIndex) (cause : FreshCause before event)
     : Campaign self before event (freshCandidate self state) := by
-  refine ⟨rfl, log, commit, Or.inl ⟨active, ?_, rfl, rfl⟩⟩
+  refine ⟨rfl, log, commit, Or.inl ⟨active, ?_, rfl, rfl, cause⟩⟩
   simp [freshCandidate, term]
 
-theorem checkQuorum_summary (state : NodeState) (input : Input)
-    : Sends (fun after sent => Summary self state (.internal input) after sent)
+theorem checkQuorum_summary (state : NodeState)
+    : Sends
+        (fun after sent =>
+          Summary self state (.internal (.timeout .checkQuorum)) after sent)
         (checkQuorum state self) := by
   unfold checkQuorum
   refine Sends.bind' Sends.guard' fun _ sent ⟨⟨leader, _⟩, empty⟩ => Sends.pure' ?_
@@ -716,7 +837,10 @@ theorem checkQuorum_summary (state : NodeState) (input : Input)
     fun c => by simp at c,
     fun c => by simp at c,
     Kind.same rfl rfl,
-    by simp
+    by simp,
+    Or.inl le_rfl,
+    fun c => by simp at c,
+    fun _ _ => Or.inr (Or.inr (Or.inl rfl))
   ⟩
 
 theorem nominate_summary (state : NodeState)
@@ -730,67 +854,7 @@ theorem nominate_summary (state : NodeState)
   obtain ⟨source, payload⟩ := nominated e member
   refine ⟨source, ?_⟩
   rw [payload]
-  rfl
-
-private theorem passBatches_previous_bound {log : List Entry}
-    : forall {previousIndex : Nat} {batchEnds : List Nat},
-        isPass log previousIndex batchEnds = true
-        -> forall batch,
-            batch ∈ passBatches previousIndex batchEnds -> batch.1 <= log.length
-  | _, [], pass, _, _ => by simp [isPass] at pass
-  | _, [_], pass, batch, member => by
-      simp only [isPass, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at pass
-      simp only [passBatches, List.mem_singleton] at member
-      subst member
-      exact pass.1.1.trans pass.1.2.le
-  | _, endIndex :: next :: rest, pass, batch, member => by
-      simp only [isPass, Bool.and_eq_true, decide_eq_true_eq] at pass
-      simp only [passBatches, List.mem_cons] at member
-      rcases member with rfl | member
-      · exact pass.1.1.1.le.trans pass.1.1.2.le
-      · exact passBatches_previous_bound pass.2 batch (by simpa [passBatches] using member)
-
-private theorem foldBatches_sends (before : NodeState) (destination : NodeID)
-    : forall (batches : List (Nat × Nat)) (sentIndex : NodeID -> Nat),
-        Sends
-          (fun after sent =>
-            (exists sentIndex, after = { before with sentIndex })
-            /\ forall envelope,
-                envelope ∈ sent
-                -> exists batch,
-                    batch ∈ batches
-                    /\ envelope
-                        = {
-                          source := self,
-                          target := destination,
-                          payload :=
-                            .appendEntriesRequest
-                              (makeAppendEntriesRequest before batch.1 batch.2)
-                        })
-          (batches.foldlM (sendBatch caps self destination) { before with sentIndex })
-  | [], sentIndex => by
-      exact Sends.pure' ⟨⟨_, rfl⟩, by simp⟩
-  | (previousIndex, endIndex) :: batches, sentIndex => by
-      simp only [List.foldlM_cons, sendBatch]
-      split
-      · simp only [pure_bind]
-        refine Sends.mono (foldBatches_sends before destination batches sentIndex)
-          fun after later ⟨same, each⟩ => ⟨same, ?_⟩
-        intro envelope member
-        obtain ⟨batch, inBatches, eq⟩ := each envelope (by simpa using member)
-        exact ⟨batch, List.mem_cons_of_mem _ inBatches, eq⟩
-      · simp only [bind_assoc, pure_bind]
-        refine Sends.bind' (Sends.send _ _ _) fun _ first eq => ?_
-        subst eq
-        refine Sends.mono
-          (foldBatches_sends before destination batches
-            (Function.update sentIndex destination endIndex))
-          fun after later ⟨same, each⟩ => ⟨same, ?_⟩
-        intro envelope member
-        rcases List.mem_cons.mp member with rfl | member
-        · exact ⟨_, List.mem_cons_self, rfl⟩
-        · obtain ⟨batch, inBatches, eq⟩ := each envelope member
-          exact ⟨batch, List.mem_cons_of_mem _ inBatches, eq⟩
+  exact ⟨rfl, Or.inl ⟨leader, rfl, Or.inl rfl⟩⟩
 
 theorem sendEntries_summary (state : NodeState) (destination : NodeID)
     (batchEnds : List Nat)
@@ -798,25 +862,21 @@ theorem sendEntries_summary (state : NodeState) (destination : NodeID)
         (fun after sent =>
           Summary self state (.internal (.sendEntries destination batchEnds)) after sent)
         (sendEntries caps self state destination batchEnds) := by
-  unfold sendEntries
-  refine Sends.bind' Sends.guard' fun _ sent ⟨⟨leader, peer, valid⟩, empty⟩ => ?_
-  subst empty
-  refine Sends.mono
-    (foldBatches_sends self state destination
-      (passBatches (state.sentIndex destination) batchEnds) state.sentIndex)
-    fun after sent ⟨⟨_, eq⟩, each⟩ => ?_
-  subst eq
-  refine quiet_summary rfl rfl rfl rfl rfl rfl rfl
-    (fun _ => Or.inl (by rw [leader]; simp)) fun e member => ?_
-  obtain ⟨batch, inBatches, rfl⟩ := each e (by simpa using member)
-  have bound := passBatches_previous_bound valid batch inBatches
+  refine Sends.mono (sendEntries_pass self state destination batchEnds)
+    fun after sent pass => ?_
   have other : Not (destination = self) := by
+    have peer := pass.eligible
     simp [eligiblePeers] at peer; exact peer.1
+  rw [pass.state]
+  refine quiet_summary rfl rfl rfl rfl rfl rfl rfl
+    (fun _ => Or.inl (by rw [pass.primary]; simp)) fun e member => ?_
+  obtain ⟨batch, inBatches, rfl⟩ := pass.sends e member
+  obtain ⟨_, ordered, bound⟩ := pass.batch_bounds inBatches
   refine ⟨
     rfl,
-    ⟨other, rfl, bound, rfl, ?_, le_rfl⟩,
-    by simp [leader],
-    Or.inl ⟨leader, rfl⟩
+    ⟨other, rfl, ordered.trans bound, rfl, ?_, le_rfl, fun _ => rfl⟩,
+    by simp [pass.primary],
+    Or.inl ⟨pass.primary, rfl⟩
   ⟩
   exact List.take_prefix _ _
 
@@ -833,11 +893,13 @@ theorem startElection_summary (state : NodeState)
   dsimp only
   refine Sends.ite' (fun _ => ?_) fun _ => ?_
   · exact Sends.mono (becomeCandidate_result self _ state rfl) fun after sent result =>
-      campaign_summary (fresh_campaign notNone rfl rfl rfl) result
+      campaign_summary (fresh_campaign notNone rfl rfl rfl (Or.inl rfl)) result
   · refine Sends.bind' (broadcast_sends self _ _) fun _ sent requests => Sends.pure' ?_
     simp only [List.append_nil]
     refine ⟨le_rfl, fun _ voted eq => eq, fun _ => Or.inl notNone, fun c => by simp at c,
-      fun c => by simp at c, fun c => by simp at c, Kind.same rfl rfl, fun e member => ?_⟩
+      fun c => by simp at c, fun c => by simp at c, Kind.same rfl rfl, fun e member => ?_,
+      Or.inl le_rfl, fun _ => ⟨rfl, Or.inr rfl⟩,
+      fun leader _ => by rcases can.1 with eq | eq | eq <;> rw [eq] at leader <;> cases leader⟩
     obtain ⟨source, _, payload⟩ := requests e member
     refine ⟨source, ?_⟩
     rw [payload]
@@ -858,19 +920,21 @@ theorem voteRequest_summary (before : NodeState) (source : NodeID)
     have active : exists source' message,
         Event.receive source (Message.requestVoteRequest request)
           = (Event.receive source' message : Event)
-        /\ Bumping message /\ message.term <= (bumpedState before request.term).currentTerm :=
-      ⟨source, _, rfl, trivial, le_refl _⟩
+        /\ Bumping message /\ message.term = (bumpedState before request.term).currentTerm :=
+      ⟨source, _, rfl, trivial, rfl⟩
     split <;> rename_i granted <;> simp only [decide_eq_true_eq] at granted
-    · refine bumped_summary bump (by simp [bumpedState]) (by simp [bumpedState]) active
+    · refine bumped_summary bump (by simp [bumpedState]) (by simp [bumpedState])
+        (by simp [bumpedState]) active
         (Kind.same rfl rfl) fun e member => ?_
       simp at member
       subst member
       exact ⟨rfl, rfl, fun _ => ⟨request, rfl, granted.1, granted.2.1, rfl⟩⟩
-    · refine bumped_summary bump (by simp [bumpedState]) (by simp [bumpedState]) active
+    · refine bumped_summary bump (by simp [bumpedState]) (by simp [bumpedState])
+        (by simp [bumpedState]) active
         (Kind.same rfl rfl) fun e member => ?_
       simp at member
       subst member
-      exact ⟨rfl, rfl, fun yes => by simp_all⟩
+      exact ⟨rfl, rfl, fun yes => by clear active; simp_all⟩
   · simp only [handleRequestVoteRequest]
     refine Sends.bind' (Sends.send _ _ _) fun _ sent eq => Sends.pure' ?_
     subst eq
@@ -884,7 +948,8 @@ theorem voteRequest_summary (before : NodeState) (source : NodeID)
         fun candidate => ⟨candidate, rfl, rfl, Or.inr ⟨candidate, rfl, ?_,
           fun voter member => Or.inl member⟩⟩,
         fun leader => Or.inl ⟨leader, rfl⟩, fun _ _ _ _ => Or.inl rfl, Kind.same rfl rfl,
-        fun e member => ?_⟩
+        fun e member => ?_, Or.inl le_rfl, fun pre => ⟨rfl, Or.inl pre⟩,
+        fun leader _ => Or.inl leader⟩
       · rcases granted.2.2.2 with none | some
         · rw [none] at votedEq; cases votedEq
         · rw [some] at votedEq; exact votedEq
@@ -914,7 +979,8 @@ theorem preVoteRequest_summary (before : NodeState) (source : NodeID)
     refine Sends.bind' (Sends.send _ _ _) fun _ sent eq => Sends.pure' ?_ <;>
     subst eq
   · refine bumped_summary bump (by simp [bumpedState]) (by simp [bumpedState])
-      ⟨source, _, rfl, trivial, le_refl _⟩ (Kind.same rfl rfl) fun e member => ?_
+        (by simp [bumpedState])
+      ⟨source, _, rfl, trivial, rfl⟩ (Kind.same rfl rfl) fun e member => ?_
     simp only [List.mem_singleton, List.append_nil] at member
     subst member
     exact ⟨rfl, rfl⟩
@@ -947,7 +1013,9 @@ theorem proposeVote_summary (before : NodeState) (source : NodeID) (term : Nat)
     rcases start.2.1 with eq | eq | eq <;> rw [eq] <;> simp
   exact Sends.mono (becomeCandidate_result self before before rfl)
     fun after sent result =>
-      campaign_summary (fresh_campaign notNone rfl rfl rfl) result
+      campaign_summary
+        (fresh_campaign notNone rfl rfl rfl (Or.inr (Or.inr ⟨source, by rw [start.1]⟩)))
+        result
 
 theorem elect_result {before candidate after : NodeState}
     {sent : List Model.Envelope}
@@ -980,7 +1048,8 @@ theorem voteResponse_summary (before : NodeState) (source : NodeID)
     with ⟨bump, eq⟩ | ⟨le, eq⟩ <;> rw [eq] <;> simp only [handleRequestVoteResponse]
   · refine Sends.ite' (fun won => absurd won.1 (by simp [bumpedState])) fun _ =>
       Sends.pure' (bumped_summary bump (by simp [bumpedState]) (by simp [bumpedState])
-        ⟨source, _, rfl, trivial, le_refl _⟩ (Kind.same rfl rfl) (by simp))
+        (by simp [bumpedState])
+        ⟨source, _, rfl, trivial, rfl⟩ (Kind.same rfl rfl) (by simp))
   · refine Sends.ite' (fun won => ?_) fun _ =>
       Sends.pure' (quiet_summary rfl rfl rfl rfl rfl rfl rfl
         (fun empty => (empty rfl).elim) (by simp))
@@ -1011,7 +1080,8 @@ theorem preVoteResponse_summary (before : NodeState) (source : NodeID)
     with ⟨bump, eq⟩ | ⟨le, eq⟩ <;> rw [eq] <;> simp only [handleRequestPreVoteResponse]
   · refine Sends.ite' (fun won => absurd won.1 (by simp [bumpedState])) fun _ =>
       Sends.pure' (bumped_summary bump (by simp [bumpedState]) (by simp [bumpedState])
-        ⟨source, _, rfl, trivial, le_refl _⟩ (Kind.same rfl rfl) (by simp))
+        (by simp [bumpedState])
+        ⟨source, _, rfl, trivial, rfl⟩ (Kind.same rfl rfl) (by simp))
   · refine Sends.ite' (fun won => ?_) fun _ =>
       Sends.pure' (quiet_summary rfl rfl rfl rfl rfl rfl rfl
         (fun empty => (empty rfl).elim) (by simp))
@@ -1020,7 +1090,9 @@ theorem preVoteResponse_summary (before : NodeState) (source : NodeID)
       Sends.pure' (quiet_summary rfl rfl rfl rfl rfl rfl rfl
         (fun empty => (empty rfl).elim) (by simp))
     exact Sends.mono (becomeCandidate_result self _ before rfl) fun after sent result =>
-      campaign_summary (fresh_campaign notNone rfl rfl rfl) result
+      campaign_summary
+        (fresh_campaign notNone rfl rfl rfl (Or.inr (Or.inl ⟨source, response, rfl, won.1⟩)))
+        result
 
 theorem observe_response (before : NodeState) (response : AppendEntriesResponse)
     : (before.role = .primary
@@ -1058,7 +1130,10 @@ theorem appendEntriesResponse_summary (before : NodeState) (source : NodeID)
     refine ⟨bump.le, fun same => by simp [bumpedState] at same; omega,
       fun _ => Or.inl (by rw [leader]; simp), fun c => by simp [bumpedState] at c,
       fun c => by simp [bumpedState] at c, fun c => by simp [bumpedState] at c,
-      Kind.same rfl rfl, by simp⟩
+      Kind.same rfl rfl, by simp,
+      Or.inr (Or.inr ⟨source, _, rfl, by simp [bumpedState, Message.term]⟩),
+      fun c => by simp [bumpedState] at c,
+      fun _ same => by simp [bumpedState] at same; omega⟩
   · have quiet := fun (after : NodeState) (role : after.role = before.role)
         (term : after.currentTerm = before.currentTerm) (log : after.log = before.log)
         (commit : after.commitIndex = before.commitIndex)
@@ -1074,13 +1149,18 @@ theorem appendEntriesResponse_summary (before : NodeState) (source : NodeID)
     refine Sends.ite' (fun success => ?_) fun _ =>
       Sends.pure' (quiet _ rfl rfl rfl rfl rfl rfl rfl)
     refine Sends.ite' (fun term => ?_) fun _ => Sends.pure' (quiet before rfl rfl rfl rfl rfl rfl rfl)
-    refine Sends.mono (advanceCommit_sends self _) fun after sent ⟨advance, nominated⟩ => ?_
+    refine Sends.mono (Sends.and' (advanceCommit_sends self _) (advanceCommit_retires self _))
+      fun after sent ⟨⟨advance, nominated⟩, retires⟩ => ?_
     have notCandidate : Not (after.role = .candidate) := by
       rcases advance.role with eq | eq <;> rw [eq] <;> simp [leader]
     refine ⟨advance.term.ge, fun _ voted eq => by rw [advance.votedFor]; exact eq,
       fun _ => Or.inl (by rw [leader]; simp), fun c => (notCandidate c).elim,
       fun _ => Or.inl ⟨leader, advance.term⟩, fun _ _ _ peer => ?_,
-      Kind.ack source response rfl leader success term advance, fun e member => ?_⟩
+      Kind.ack source response rfl leader success term advance, fun e member => ?_,
+      Or.inl advance.term.le,
+      fun pre => by rcases advance.role with eq | eq <;> rw [eq] at pre <;> simp [leader] at pre,
+      fun _ _ => advance.retired.elim (fun eq => Or.inl (eq.trans leader))
+        fun retired => Or.inr (Or.inl retired.2)⟩
     · rw [advance.matchIndex]
       by_cases same : peer = source
       · subst same
@@ -1093,7 +1173,8 @@ theorem appendEntriesResponse_summary (before : NodeState) (source : NodeID)
     · obtain ⟨source', payload⟩ := nominated e member
       refine ⟨source', ?_⟩
       rw [payload]
-      exact advance.term.symm
+      exact ⟨advance.term.symm,
+        Or.inl ⟨leader, advance.term, Or.inr (retires (List.ne_nil_of_mem member))⟩⟩
 
 end Election
 
@@ -1107,6 +1188,8 @@ def AEReply (self source : NodeID) (state : NodeState)
   /\ after.matchIndex = state.matchIndex
   /\ (after.role = state.role \/ after.role = .follower \/ after.role = .none)
   /\ (after.role = .candidate -> after = state)
+  /\ (after.role = .preVoteCandidate -> state.role = .preVoteCandidate)
+  /\ (state.role = .primary -> after.role = .primary \/ request.term = state.currentTerm)
   /\ ((after.log = state.log
         /\ after.commitIndex = state.commitIndex
         /\ forall e,
@@ -1114,7 +1197,9 @@ def AEReply (self source : NodeID) (state : NodeState)
             -> e.source = self
                 /\ exists response,
                     e.payload = .appendEntriesResponse response
-                    /\ response.success = false)
+                    /\ response.success = false
+                    /\ (response.term = state.currentTerm
+                        \/ exists index, response.term = termAt state.log index))
       \/ (request.term = state.currentTerm
           /\ state.commitIndex <= request.prevLogIndex
           /\ appendEntryMatchesLog state request
@@ -1186,6 +1271,15 @@ theorem aeReply (self source : NodeID) (z : NodeState)
     rw [← hw]; split
     · simp [becomeAwareOfNewTerm]
     · intro _; rfl
+  have wPre : w.role = .preVoteCandidate -> z.role = .preVoteCandidate := by
+    rw [← hw]; split
+    · simp [becomeAwareOfNewTerm]
+    · exact id
+  have wPrimary : z.role = .primary -> w.role = .primary := by
+    intro primary
+    rw [← hw]; split
+    · rename_i h; rcases h.2 with c | c <;> rw [c] at primary <;> cases primary
+    · exact primary
   have wSame : r.term = z.currentTerm -> Not (w.role = .candidate) := by
     intro same
     rw [← hw]
@@ -1197,7 +1291,9 @@ theorem aeReply (self source : NodeID) (z : NodeState)
   have common := fun (after : NodeState) (sent : List Model.Envelope)
       (rest : (after.log = z.log /\ after.commitIndex = z.commitIndex
         /\ forall e, e ∈ sent -> e.source = self /\ exists response,
-          e.payload = .appendEntriesResponse response /\ response.success = false)
+          e.payload = .appendEntriesResponse response /\ response.success = false
+          /\ (response.term = z.currentTerm
+              \/ exists index, response.term = termAt z.log index))
       \/ (r.term = z.currentTerm /\ z.commitIndex <= r.prevLogIndex
         /\ appendEntryMatchesLog z r
         /\ after.log = acceptLog z.log r
@@ -1211,35 +1307,45 @@ theorem aeReply (self source : NodeID) (z : NodeState)
       (term : after.currentTerm = w.currentTerm) (voted : after.votedFor = w.votedFor)
       (matchEq : after.matchIndex = w.matchIndex)
       (role : after.role = w.role \/ after.role = .none)
-      (cand : after.role = .candidate -> after = w) =>
+      (cand : after.role = .candidate -> after = w)
+      (primary : z.role = .primary -> after.role = .primary \/ r.term = z.currentTerm) =>
     (⟨term.trans wTerm, voted.trans wVoted, matchEq.trans wMatch,
       by rcases role with role | role <;> rw [role] <;> [rcases wRole with r | r; skip] <;>
         simp [*],
       fun c => (cand c).trans (wCand (by
         rcases role with role | role <;> rw [role] at c
         · exact c
-        · cases c)), rest⟩
+        · cases c)),
+      fun pre => (by
+        rcases role with role | role <;> rw [role] at pre
+        · exact wPre pre
+        · cases pre),
+      primary, rest⟩
       : AEReply self source z r after sent)
   refine Sends.ite' (fun reject => ?_) fun accept => ?_
   · have nack : forall payload, (exists response, payload = Message.appendEntriesResponse response
-        /\ response.success = false) -> Sends (AEReply self source z r)
-        (do (Capabilities.record self).send payload source; pure w
-          : NodeEffect _) :=
+        /\ response.success = false
+        /\ (response.term = z.currentTerm
+            \/ exists index, response.term = termAt z.log index))
+        -> Sends (AEReply self source z r)
+          (do (Capabilities.record self).send payload source; pure w
+            : NodeEffect _) :=
       fun payload isNack => Sends.bind' (Sends.send _ _ _) fun _ sent eq => Sends.pure' (by
         subst eq
         refine common w _ (Or.inl ⟨wLog, wCommit, fun e member => ?_⟩) rfl rfl rfl
-          (Or.inl rfl) fun _ => rfl
+          (Or.inl rfl) (fun _ => rfl) fun primary => Or.inl (wPrimary primary)
         simp at member
         subst member
         exact ⟨rfl, isNack⟩)
-    exact Sends.ite' (fun _ => nack _ ⟨_, rfl, rfl⟩) fun _ => nack _ ⟨_, rfl, rfl⟩
+    exact Sends.ite' (fun _ => nack _ ⟨_, rfl, rfl, Or.inl wTerm⟩)
+      fun _ => nack _ ⟨_, rfl, rfl, Or.inr ⟨_, by rw [wLog]⟩⟩
   have same : r.term = z.currentTerm := by omega
   have notCand := wSame same
   refine Sends.ite'
     (fun _ =>
       Sends.pure'
         (common _ [] (Or.inl ⟨wLog, wCommit, by simp⟩)
-          rfl rfl rfl (Or.inl rfl) fun c => (notCand c).elim))
+          rfl rfl rfl (Or.inl rfl) (fun c => (notCand c).elim) fun _ => Or.inr same))
     fun go => ?_
   have matches_ : appendEntryMatchesLog z r := by
     have m : appendEntryMatchesLog w r := by tauto
@@ -1269,10 +1375,12 @@ theorem aeReply (self source : NodeID) (z : NodeState)
     refine Sends.bind' (Sends.send _ _ _) fun _ sent eq => Sends.pure' ?_
     subst eq
     refine common _ _ (Or.inr ⟨same, commitLe, matches_, ?_, ?_, _, rfl, rfl, rfl, ?_⟩)
-      (term.trans vTerm) (voted.trans vVoted) (matchEq.trans vMatch) (vRole ▸ role) fun c => by
+      (term.trans vTerm) (voted.trans vVoted) (matchEq.trans vMatch) (vRole ▸ role)
+      (fun c => by
         rcases role with role | role <;> rw [role] at c
         · exact (notCand (vRole ▸ c)).elim
-        · cases c
+        · cases c)
+      fun _ => Or.inr same
     · rw [log, vLog]
       rfl
     · rw [commit, vCommit, wCommit]
@@ -1299,16 +1407,17 @@ theorem aeReply_summary {self source : NodeID} {before z after : NodeState}
           e ∈ sent
           -> SendOK self before (.receive source (.appendEntriesRequest request)) after
               e := by
-  obtain ⟨term, _, _, _, _, rest⟩ := reply
+  obtain ⟨term, _, _, _, _, _, _, rest⟩ := reply
   rcases rest with ⟨log', commit', nacks⟩ | ⟨same, commitLe, matches_, accepted, committed, e,
     rfl, source', _, payload⟩
   · refine ⟨Kind.same (log'.trans log) (commit'.trans commit), fun e member => ?_⟩
-    obtain ⟨source', response, payload, failed⟩ := nacks e member
+    obtain ⟨source', response, payload, failed, nackTerm⟩ := nacks e member
     refine ⟨source', ?_⟩
     rw [payload]
-    intro success
-    rw [failed] at success
-    cases success
+    refine ⟨?_, fun success => by rw [failed] at success; cases success⟩
+    rcases nackTerm with eq | ⟨index, eq⟩
+    · exact Or.inl (eq.trans term.symm)
+    · exact Or.inr ⟨index, by rw [log']; exact eq⟩
   · have acceptedBy : Accepted before request after := by
       unfold appendEntryMatchesLog at matches_
       rw [log] at matches_
@@ -1320,7 +1429,7 @@ theorem aeReply_summary {self source : NodeID} {before z after : NodeState}
     subst member
     refine ⟨source', ?_⟩
     rw [payload]
-    exact fun _ => ⟨source, request, rfl, acceptedBy, term.symm, rfl⟩
+    exact ⟨Or.inl term.symm, fun _ => ⟨source, request, rfl, acceptedBy, term.symm, rfl⟩⟩
 
 theorem appendEntriesRequest_summary (self : NodeID) (before : NodeState)
     (source : NodeID) (request : AppendEntriesRequest)
@@ -1340,14 +1449,17 @@ theorem appendEntriesRequest_summary (self : NodeID) (before : NodeState)
     have follower : after.role = .follower \/ after.role = .none := by
       rcases role with eq | eq | eq <;> rw [eq] <;> simp [bumpedState]
     exact bumped_summary (term ▸ bump) (by rcases follower with f | f <;> simp [f])
-      (by rcases follower with f | f <;> simp [f])
-      ⟨source, _, rfl, trivial, term ▸ le_refl _⟩ kind sends
+      (by rcases follower with f | f <;> simp [f]) (by rcases follower with f | f <;> simp [f])
+      ⟨source, _, rfl, trivial, term.symm⟩ kind sends
   · refine Sends.mono (aeReply self source _ request le) fun after sent reply => ?_
     obtain ⟨kind, sends⟩ := aeReply_summary (before := before) rfl rfl le_rfl reply
-    obtain ⟨term, voted, matchEq, role, cand, _⟩ := reply
+    obtain ⟨term, voted, matchEq, role, cand, pre, primary, _⟩ := reply
     refine ⟨term.ge, fun _ voted' eq => voted ▸ eq,
       fun _ => Or.inr (Or.inr ⟨source, _, rfl, trivial, term ▸ le⟩), fun c => ?_,
-      fun leader => ?_, fun _ _ _ peer => Or.inl (congrFun matchEq peer), kind, sends⟩
+      fun leader => ?_, fun _ _ _ peer => Or.inl (congrFun matchEq peer), kind, sends,
+      Or.inl term.le, fun p => ⟨term, Or.inl (pre p)⟩,
+      fun leader _ => (primary leader).elim Or.inl
+        fun same => Or.inr (Or.inr (Or.inr ⟨source, request, rfl, same⟩))⟩
     · have eq := cand c
       rw [eq] at c ⊢
       exact ⟨c, rfl, rfl, Or.inr ⟨c, rfl, Or.inl rfl, fun voter member => Or.inl member⟩⟩
@@ -1364,24 +1476,46 @@ def BatchState (self : NodeID) (before state : NodeState) (sent : List Model.Env
     : Prop :=
   (exists entries sentIndex,
     state = { before with log := before.log ++ entries, sentIndex := sentIndex }
-    /\ forall entry, entry ∈ entries -> entry.term = before.currentTerm)
+    /\ (forall entry, entry ∈ entries -> entry.term = before.currentTerm)
+    /\ AppendGuarded before entries)
   /\ forall e, e ∈ sent -> AEFrom self before.currentTerm before.commitIndex state.log e
+
+theorem BatchState.start (self : NodeID) (before : NodeState)
+    : BatchState self before before [] :=
+  ⟨
+    ⟨[], before.sentIndex, by simp, by simp, fun _ bound => absurd bound (by simp)⟩,
+    by simp
+  ⟩
 
 theorem BatchState.push {self : NodeID} {before state : NodeState}
     {sent : List Model.Envelope} (batch : BatchState self before state sent)
     (content : EntryContent)
+    (guarded : Guarded state content)
     : BatchState self before
         { state with log := state.log ++ [{ term := state.currentTerm, content }] }
         sent := by
-  obtain ⟨⟨entries, sentIndex, rfl, terms⟩, beats⟩ := batch
+  obtain ⟨⟨entries, sentIndex, rfl, terms, guarded'⟩, beats⟩ := batch
   refine ⟨
-    ⟨entries ++ [{ term := before.currentTerm, content }], sentIndex, by simp, ?_⟩,
+    ⟨entries ++ [{ term := before.currentTerm, content }], sentIndex, by simp, ?_, ?_⟩,
     fun e member => (beats e member).extend (List.prefix_append _ _) le_rfl
   ⟩
-  intro entry member
-  rcases List.mem_append.mp member with old | new
-  · exact terms entry old
-  · simp at new; rw [new]
+  · intro entry member
+    rcases List.mem_append.mp member with old | new
+    · exact terms entry old
+    · simp at new; rw [new]
+  · intro position bound
+    simp only [List.length_append, List.length_singleton] at bound
+    rcases Nat.lt_or_ge position entries.length with old | last
+    · have taken
+          : (entries ++ [({ term := before.currentTerm, content } : Entry)]).take position
+            = entries.take position := List.take_append_of_le_length old.le
+      rw [taken, List.getElem_append_left old]
+      exact guarded' position old
+    · have same : position = entries.length := by omega
+      subst same
+      rw [List.take_left' rfl, List.getElem_append_right (le_refl _)]
+      simp only [Nat.sub_self, List.getElem_singleton]
+      exact guarded.congr rfl rfl
 
 theorem appendEntry_batch (self : NodeID) (before : NodeState)
     (state : NodeState) (sent : List Model.Envelope)
@@ -1395,12 +1529,27 @@ theorem appendEntry_batch (self : NodeID) (before : NodeState)
     | refine Sends.ite' (fun _ => ?_) fun _ => ?_
     | refine Sends.guard_bind fun _ => ?_
   all_goals
+    have confirmations
+        : content.metadata.retirementConfirmations
+          ⊆ state.retirementCompletedNodes \ retiredCommittedNodes state.log := by
+      intro node member
+      first
+      | exact absurd ⟨node, member⟩ ‹Not content.metadata.retirementConfirmations.Nonempty›
+      | exact ‹content.metadata.retirementConfirmations
+            ⊆ state.retirementCompletedNodes \ retiredCommittedNodes state.log› member
     split
-    · exact Sends.pure' (by simpa using batch.push content)
-    · rename_i nodes _
+    next none =>
+      exact Sends.pure'
+        (by simpa using batch.push content ⟨confirmations, fun _ some => by simp_all⟩)
+    next nodes some =>
       refine Sends.guard_bind fun _ => ?_
-      refine Sends.guard_bind fun _ => ?_
-      obtain ⟨⟨entries, sentIndex, rfl, terms⟩, beats⟩ := batch
+      refine Sends.guard_bind fun rejoin => ?_
+      have guarded : Guarded state content :=
+        ⟨confirmations, fun nodes' some' => by
+          rw [some, Option.some.injEq] at some'
+          subst some'
+          exact rejoin⟩
+      obtain ⟨⟨entries, sentIndex, rfl, terms, confirmed⟩, beats⟩ := batch
       refine Sends.bind'
         (Sends.forIn' (R := AEFrom self before.currentTerm before.commitIndex
           (before.log ++ entries)) fun peer _ member => ?_)
@@ -1410,7 +1559,7 @@ theorem appendEntry_batch (self : NodeID) (before : NodeState)
         subst member'
         have added := (Finset.mem_sort _).mp member
         have other : Not (peer = self) := (Finset.mem_erase.mp added).1
-        refine ⟨rfl, other, _, rfl, rfl, ?_, ?_, ?_, le_rfl⟩ <;>
+        refine ⟨rfl, other, _, rfl, rfl, ?_, ?_, ?_, le_rfl, ?_⟩ <;>
           simp only [makeAppendEntriesRequest, messageEntries] <;> simp
       · have batch : BatchState self before
             { before with
@@ -1420,11 +1569,11 @@ theorem appendEntry_batch (self : NodeID) (before : NodeState)
                       { before with log := before.log ++ entries, sentIndex } self).erase self
                   then (before.log ++ entries).length else sentIndex peer }
             (sent ++ later) :=
-          ⟨⟨entries, _, rfl, terms⟩, fun e member => by
+          ⟨⟨entries, _, rfl, terms, confirmed⟩, fun e member => by
             rcases List.mem_append.mp member with old | new
             · exact beats e old
             · exact sentBeats e new⟩
-        simpa using batch.push content
+        simpa using batch.push content guarded
 
 theorem appendBatch_summary (self : NodeID) (state : NodeState)
     (contents : List EntryContent)
@@ -1435,15 +1584,15 @@ theorem appendBatch_summary (self : NodeID) (state : NodeState)
   unfold appendBatch
   refine Sends.bind' Sends.guard' fun _ sent ⟨⟨leader, _⟩, empty⟩ => ?_
   subst empty
-  have start : BatchState self state state [] :=
-    ⟨⟨[], state.sentIndex, by simp, by simp⟩, by simp⟩
+  have start : BatchState self state state [] := BatchState.start self state
   refine Sends.bind' (Sends.mono (Sends.foldlM' (I := BatchState self state)
       (fun value sent' item batch => appendEntry_batch self state value sent' item batch)
       contents state [] start) fun _ _ done => by simpa using done)
     fun appended sent batch => ?_
-  refine Sends.mono (advanceCommit_sends self appended)
-    fun after later ⟨advance, nominated⟩ => ?_
-  obtain ⟨⟨entries, sentIndex, eq, terms⟩, beats⟩ := batch
+  refine Sends.mono
+    (Sends.and' (advanceCommit_sends self appended) (advanceCommit_retires self appended))
+    fun after later ⟨⟨advance, nominated⟩, retires⟩ => ?_
+  obtain ⟨⟨entries, sentIndex, eq, terms, confirmed⟩, beats⟩ := batch
   have term : after.currentTerm = state.currentTerm := by rw [advance.term, eq]
   have log : after.log = appended.log := advance.log
   have role : after.role = .primary \/ after.role = .none := by
@@ -1459,8 +1608,13 @@ theorem appendBatch_summary (self : NodeID) (state : NodeState)
     fun c => by rcases role with r | r <;> simp [r] at c,
     fun _ => Or.inl ⟨leader, term⟩,
     fun _ _ _ peer => Or.inl (by rw [advance.matchIndex, eq]),
-    Kind.append entries sentIndex leader terms (eq ▸ advance),
-    fun e member => ?_
+    Kind.append entries sentIndex leader terms confirmed (eq ▸ advance) ⟨contents, rfl⟩,
+    fun e member => ?_,
+    Or.inl term.le,
+    fun pre => (by rcases role with r | r <;> rw [r] at pre <;> cases pre),
+    fun _ _ =>
+      advance.retired.elim (fun r => Or.inl (by rw [r, eq]; exact leader))
+        fun retired => Or.inr (Or.inl retired.2)
   ⟩
   rcases List.mem_append.mp (by simpa using member) with old | new
   · have from_ : AEFrom self after.currentTerm after.commitIndex after.log e :=
@@ -1472,8 +1626,7 @@ theorem appendBatch_summary (self : NodeID) (state : NodeState)
   · obtain ⟨source, payload⟩ := nominated e new
     refine ⟨source, ?_⟩
     rw [payload]
-    show appended.currentTerm = after.currentTerm
-    rw [advance.term]
+    exact ⟨by rw [advance.term], Or.inl ⟨leader, term, Or.inr (retires (List.ne_nil_of_mem new))⟩⟩
 
 /-- Every local step satisfies the step summary. -/
 theorem summary (self : NodeID) (before : NodeState) (event : Event)
@@ -1488,7 +1641,7 @@ theorem summary (self : NodeID) (before : NodeState) (event : Event)
       | timeout kind =>
           cases kind with
           | election => exact startElection_summary self before
-          | checkQuorum => exact checkQuorum_summary self before _
+          | checkQuorum => exact checkQuorum_summary self before
       | nominateSuccessor => exact nominate_summary self before
   | receive source message =>
       cases message with

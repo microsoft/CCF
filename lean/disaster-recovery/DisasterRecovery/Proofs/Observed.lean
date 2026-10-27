@@ -138,7 +138,7 @@ lemma notification_opening_state {config : Model.Config} {trace : Properties.Glo
     (notification
       : Properties.Trace.NotificationAt config trace index node (.opening kind))
     : exists after current,
-        trace.get? (index + 1) = some after
+        trace.stateAt (index + 1) = some after
         /\ (node, current) ∈ after.nodes
         /\ current.openKind = some kind := by
   obtain ⟨before, after, action, nodeBefore, nodeAfter, outputs,

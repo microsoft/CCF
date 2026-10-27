@@ -7,11 +7,15 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Capabilities`              | Envelopes, ordered outputs, effects, and recording callbacks |
 | `CCF.TransitionSystem`          | Initial states, enabled transitions, and reachability        |
 | `CCF.MultiNodeTransitionSystem` | Local protocols composed into a message-passing network      |
-| `CCF.Execution`                 | Finite runs and finite or infinite state traces              |
+| `CCF.Execution`                 | Finite runs and finite or infinite recorded-step traces      |
 | `CCF.Architecture`              | Checks of specification import layering                      |
 
-`CCF.Execution` represents traces as Mathlib's `Stream'.Seq`, so the package depends on Mathlib.
-`reachable_iff_trace` shows that valid finite traces reach exactly the reachable states.
+`CCF.Execution` represents a trace as an initial state and a finite or infinite sequence of recorded steps, using Mathlib's `Stream'.Seq`.
+Each step records its before-state, action, and after-state, and the steps form a linked path from the initial state.
+`trace.stepAt i` reads a recorded step, while `trace.stateAt i` reads the state after `i` steps, including the initial state at zero.
+Membership `state ∈ trace` means that `trace.stateAt i = some state` for some position.
+`Trace.ofStream states actions` constructs an infinite trace, and `Trace.run system initial actions` executes a finite action list, stopping before the first disabled action.
+`reachable_iff_trace` shows that valid traces contain exactly the reachable states, with every reachable state occurring in a valid finite trace.
 
 ## Transition systems
 
@@ -19,7 +23,7 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 Define a model as `system : TransitionSystem`, setting `State` and `Action` in the structure rather than supplying type parameters.
 Use `abbrev` for concrete systems so Lean can unfold their bundled types during typeclass inference.
 Generic helpers use `system.State` and `system.Action`, while `system.Reachable state` and `Execution.Run system start actions final` describe executions.
-Traces remain state sequences of type `Execution.Trace system.State`; `Execution.Trace.Valid system trace` (or `trace.Valid system`) checks them against the bundled system.
+Traces have type `Execution.Trace system.State system.Action`; `Execution.Trace.Valid system trace` (or `trace.Valid system`) requires an initial state and checks each recorded step against the bundled system.
 
 ## Import coverage
 

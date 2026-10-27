@@ -46,8 +46,9 @@ The local properties are invariants of `Local.step`.
 They hold for every node state, not only reachable ones.
 Each quantifies a `LocalStep` record and assumes `ValidStep`: re-executing the step yields exactly the recorded after-state and outputs.
 
-The global properties quantify a `GlobalTrace`, a finite or infinite sequence of states beginning with the initial state.
-`trace.Valid` requires an initial first state and an enabled action between each adjacent pair.
+The global properties quantify a `GlobalTrace`, an initial state and a finite or infinite sequence of recorded steps, each containing its before-state, action, and after-state.
+`trace.Valid` requires an initial first state and checks that every recorded action produces its recorded after-state.
+`trace.stateAt i` reads the state after `i` steps, and `state ∈ trace` includes the initial state.
 `Trace.NotificationAt` states that a step by `node` between states `i` and `i + 1` emitted a given notification.
 
 `quorum_opener_unique` states that all `opening quorum` notifications in a trace originate from one node.
