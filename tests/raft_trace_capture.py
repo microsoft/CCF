@@ -14,22 +14,29 @@ import raft_trace
 import msgpack
 
 
+def evidence_paths(prefix):
+    return {
+        "partial": prefix.with_suffix(".partial"),
+        "stdout": prefix.with_suffix(prefix.suffix + ".driver.stdout"),
+        "stderr": prefix.with_suffix(prefix.suffix + ".driver.stderr"),
+        "records": prefix.with_suffix(prefix.suffix + ".driver.records.msgpack"),
+    }
+
+
 def write_evidence(prefix, stdout, stderr, records):
-    prefix.with_suffix(prefix.suffix + ".driver.stdout").write_bytes(stdout)
-    prefix.with_suffix(prefix.suffix + ".driver.stderr").write_bytes(stderr)
-    partial = prefix.with_suffix(".partial")
+    paths = evidence_paths(prefix)
+    paths["stdout"].write_bytes(stdout)
+    paths["stderr"].write_bytes(stderr)
     try:
-        with partial.open("w", encoding="utf-8") as output:
+        with paths["partial"].open("w", encoding="utf-8") as output:
             for record in records:
                 line = json.dumps({"tag": "ccf.raft_trace", **record}, allow_nan=False)
                 output.write(line + "\n")
     except (TypeError, ValueError):
         # Keep unsupported values as evidence, never coerce them into replay JSON.
-        prefix.with_suffix(prefix.suffix + ".driver.records.msgpack").write_bytes(
-            msgpack.packb(records)
-        )
+        paths["records"].write_bytes(msgpack.packb(records))
         raise
-    return partial
+    return paths["partial"]
 
 
 def capture(driver, scenario, output, timeout=60):
@@ -67,21 +74,39 @@ def run_suite(
     if output.is_relative_to(scenarios) or scenarios.is_relative_to(output):
         raise ValueError("Output and scenario inventory trees must be disjoint")
     summary_path = output / "summary.json"
-    summary_path.unlink(missing_ok=True)
-    if not scenarios.is_dir():
-        raise ValueError(f"Not a scenario inventory directory: {scenarios}")
-    selected = sorted(path for path in scenarios.rglob("*") if path.is_file())
-    if not selected:
-        raise ValueError("Empty scenario inventory")
     raw_directory = (
         pathlib.Path(raw_directory).resolve() if raw_directory is not None else output
     )
-    output.mkdir(parents=True, exist_ok=True)
-    results = []
-    for scenario in selected:
+    runs = []
+    artifacts = [summary_path]
+    for scenario in sorted(path for path in scenarios.rglob("*") if path.is_file()):
         relative = scenario.relative_to(scenarios)
         destination = raw_directory / (str(relative) + ".stdout")
         result_path = output / (str(relative) + ".result.json")
+        runs.append((scenario, relative, destination, result_path))
+        artifacts.append(result_path)
+        if driver is not None:
+            artifacts.extend([destination, *evidence_paths(destination).values()])
+    files = set()
+    for path in artifacts:
+        if path in files:
+            raise ValueError(f"Artifact path collision: {path} is used more than once")
+        files.add(path)
+    for path in artifacts:
+        for parent in path.parents:
+            if parent in files:
+                raise ValueError(
+                    f"Artifact path collision: {parent} is both a file and "
+                    f"a directory for {path}"
+                )
+    summary_path.unlink(missing_ok=True)
+    if not scenarios.is_dir():
+        raise ValueError(f"Not a scenario inventory directory: {scenarios}")
+    if not runs:
+        raise ValueError("Empty scenario inventory")
+    output.mkdir(parents=True, exist_ok=True)
+    results = []
+    for scenario, relative, destination, result_path in runs:
         result_path.parent.mkdir(parents=True, exist_ok=True)
         result_path.unlink(missing_ok=True)
         result = {
@@ -123,9 +148,9 @@ def run_suite(
     passed = sum(result["status"] == "passed" for result in results)
     summary = {
         "inventory": str(scenarios),
-        "selected": len(selected),
+        "selected": len(runs),
         "passed": passed,
-        "failed": len(selected) - passed,
+        "failed": len(runs) - passed,
         "results": results,
     }
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

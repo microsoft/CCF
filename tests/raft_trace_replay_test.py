@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import raft_trace_capture
 from raft_trace_capture_test import pack_record, write_driver
@@ -111,6 +112,82 @@ class ReplaySuiteTests(unittest.TestCase):
                 raft_trace_capture.run_suite(inventory, self.output, driver="unused")
             self.assertFalse(summary.exists())
 
+    def test_artifact_collisions_are_rejected_before_changing_output(self):
+        cases = [
+            (False, ("one", "one.result.json/next")),
+            (False, ("summary.json/next",)),
+            (True, ("one", "one.result.json/next")),
+            (True, ("one", "one.stdout/next")),
+            (True, ("one", "one.partial/next")),
+            (True, ("one", "one.stdout.driver.stdout/next")),
+            (True, ("one", "one.stdout.driver.stderr/next")),
+            (True, ("one", "one.stdout.driver.records.msgpack/next")),
+            (True, ("one", "one.stdout.driver")),
+            (True, ("summary.json/next",)),
+        ]
+        for capture, names in cases:
+            with (
+                self.subTest(capture=capture, names=names),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = pathlib.Path(directory)
+                scenarios, output = root / "scenarios", root / "output"
+                for name in names:
+                    scenario = scenarios / name
+                    scenario.parent.mkdir(parents=True, exist_ok=True)
+                    scenario.write_text("state_all\n")
+                source = (
+                    {"driver": "unused"}
+                    if capture
+                    else {"raw_directory": self.raw, "replayer": self.replayer}
+                )
+                for existing in (False, True):
+                    if existing:
+                        output.mkdir()
+                        (output / "summary.json").write_text("previous summary")
+                    for _ in range(2):
+                        with (
+                            patch("raft_trace_capture.capture") as collect,
+                            patch("raft_trace_capture.subprocess.run") as replay,
+                            self.assertRaisesRegex(
+                                ValueError, "Artifact path collision"
+                            ),
+                        ):
+                            raft_trace_capture.run_suite(scenarios, output, **source)
+                        collect.assert_not_called()
+                        replay.assert_not_called()
+                        if existing:
+                            self.assertEqual(
+                                list(output.iterdir()), [output / "summary.json"]
+                            )
+                            self.assertEqual(
+                                (output / "summary.json").read_text(),
+                                "previous summary",
+                            )
+                        else:
+                            self.assertFalse(output.exists())
+
+    def test_noncolliding_nested_artifacts_can_be_reused(self):
+        names = [
+            "nested/one",
+            "nested/one.stdout",
+            "nested/one.result.json",
+            "summary.json",
+        ]
+        for name in names:
+            self.scenario(name)
+        record = {"process_id": "one", "h_ts": 0, "msg": {"cmd": "state_all"}}
+        driver = write_driver(self.root, pack_record(record), b"", b"")
+        for source in ({"raw_directory": self.raw}, {"driver": driver}):
+            for _ in range(2):
+                summary = self.run_suite(**source)
+                self.assertEqual(
+                    (summary["passed"], summary["failed"]), (len(names), 0)
+                )
+                for name in names:
+                    result = self.output / (name + ".result.json")
+                    self.assertEqual(json.loads(result.read_text())["status"], "passed")
+
     def test_output_overlap_is_rejected_before_modifying_inventory(self):
         self.scenario("summary.json")
         contents = (self.scenarios / "summary.json").read_bytes()
@@ -122,8 +199,9 @@ class ReplaySuiteTests(unittest.TestCase):
             alias / "missing",
             self.root,
         ):
-            with self.subTest(output=output), self.assertRaisesRegex(
-                ValueError, "disjoint"
+            with (
+                self.subTest(output=output),
+                self.assertRaisesRegex(ValueError, "disjoint"),
             ):
                 raft_trace_capture.run_suite(self.scenarios, output, driver="unused")
             self.assertEqual((self.scenarios / "summary.json").read_bytes(), contents)

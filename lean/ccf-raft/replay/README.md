@@ -32,6 +32,7 @@ The runner recursively selects every scenario file, attempts each one and report
 Omit `--replayer` for capture only.
 Use `--timeout N` to change the positive, finite per-scenario timeout from 60 seconds.
 The output directory and scenario inventory must be disjoint: neither may contain the other.
+Inventories whose generated artifact paths collide, such as `one` and `one.result.json/next`, are rejected before modifying output.
 
 ### Replay existing captures
 
