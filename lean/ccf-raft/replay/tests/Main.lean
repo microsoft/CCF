@@ -3,14 +3,22 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-public import CCFRaft.Replay.Replayer
+public import CCFRaft.Replay.Reduction
 
-import all CCFRaft.Replay
+import all CCFRaft.Replay.Interpreter
 import CCF.Parsec
 
 public section
 
 open Lean CCFRaft.Replay CCFRaft.Model.Node
+
+private def reduceRecords (records : Array Record) : Except String Reduced := do
+  let (events, declared) ← prepareEvents records
+  CCFRaft.Replay.reduce events declared
+
+private def replayRecords (records : Array Record) : Except String Result := do
+  let reduced ← reduceRecords records
+  replay reduced.header reduced.instructions
 
 private def check (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError message)
@@ -246,7 +254,7 @@ private def parserTests : IO Nat := do
     let records ← ok (parseLog "json.ndjson" raw)
     check (records.size == 1 && records[0]!.value == (← ok (Json.parse raw)))
       "record parsing diverged from Lean JSON parsing"
-    rejects (reduce records) "json.ndjson:1"
+    rejects (reduceRecords records) "json.ndjson:1"
     count := count + 1
   for value
       in [
@@ -263,36 +271,13 @@ private def parserTests : IO Nat := do
   for term in [0, 1, 2, 4, 999] do
     let packet := appendPacket.setObjVal! "term" (toJson term)
     check ((← ok (nat packet "term")) == term) "packet term changed"
-    let facts ←
-      ok (stateFacts (state.setObjVal! "current_view" (toJson term)) (Json.mkObj []))
-    check (optional facts "currentTerm" == some (toJson term))
-      "term coordinates were changed"
+    check
+      ((← ok (nat (state.setObjVal! "current_view" (toJson term)) "current_view"))
+        == term)
+      "state term coordinates were changed"
     count := count + 1
   rejects (nat (Json.mkObj []) "term") "term"
   rejects (string (Json.mkObj [("success", .arr #[])]) "success") "String"
-  check
-    ((← ok (stateFacts (state.setObjVal! "unknown" .null) (Json.mkObj [])))
-      == (← ok (stateFacts state (Json.mkObj []))))
-    "unused state data changed projected facts"
-  rejects
-    (stateFacts (state.setObjVal! "leadership_state" (toJson "invented")) (Json.mkObj []))
-    "invalid role"
-  rejects
-    (stateFacts (state.setObjVal! "membership_state" (toJson "Retired")) (Json.mkObj []))
-    "retirement phase"
-  for markers in [[3, 2], [2, 2]] do
-    let facts ←
-      ok
-        (stateFacts (state.setObjVal! "committable_indices" (toJson markers))
-          (Json.mkObj []))
-    check (optional facts "committableIndices" == some (toJson markers))
-      "record projection reordered or removed signature evidence"
-  let facts ←
-    ok
-      (stateFacts (state.setObjVal! "committable_indices" (toJson [3, 5]))
-        (Json.mkObj []))
-  check (optional facts "committableIndices" == some (toJson [3, 5]))
-    "signature cache became a complete enumeration"
   let config :=
     Json.mkObj
       [
@@ -321,10 +306,41 @@ private def parserTests : IO Nat := do
       ((← ok (configuration (config.setObjVal! "nodes" (Json.mkObj [("0", metadata)]))))
         == ["0"])
       "unused node metadata changed membership"
-  let configs := Json.mkObj [("configurations", toJson [config, config])]
-  let facts ← ok (stateFacts state configs)
-  check ((← ok (field facts "configurations" >>= Json.getArr?)).size == 2)
-    "record projection discarded configuration evidence"
+  for markers in [[3, 2], [2, 2], [3, 5]] do
+    let raw :=
+      state.setObjVal! "committable_indices" (toJson markers)
+      |>.setObjVal! "unknown" .null
+    let message :=
+      Json.mkObj
+        [
+          ("function", toJson "replicate"),
+          ("state", raw),
+          ("configurations", toJson [config, config])
+        ]
+    let row : Record :=
+      {
+        file := "native.ndjson",
+        line := 2,
+        value := (envelope message).setObjVal! "h_ts" (toJson (1 : Nat))
+      }
+    let (events, _) ← ok (prepareEvents #[command "start_node,0", row])
+    check (events[0]!.state == raw && events[0]!.message == message)
+      "record association changed native JSON evidence"
+  for (key, value, diagnostic)
+      in [
+        ("leadership_state", toJson "invented", "invalid role"),
+        ("membership_state", toJson "Retired", "retirement phase"),
+        ("retirement_phase", toJson "Completed", "retirement phase")
+      ] do
+    let message :=
+      Json.mkObj [("function", toJson "replicate"), ("state", state.setObjVal! key value)]
+    let row : Record :=
+      {
+        file := "native.ndjson",
+        line := 2,
+        value := (envelope message).setObjVal! "h_ts" (toJson (1 : Nat))
+      }
+    rejects (prepareEvents #[command "start_node,0", row]) diagnostic
   let records ←
     ok
       (parseLog "capture.stdout"
@@ -336,7 +352,7 @@ private def parserTests : IO Nat := do
 
 private def reductionTests : IO Nat := do
   let bootstrap ← fixture "bootstrap.ndjson"
-  let reduced ← ok (reduce bootstrap)
+  let reduced ← ok (reduceRecords bootstrap)
   let result ← ok (replay reduced.header reduced.instructions)
   check
     (result.actions == 1 && result.instructions == result.actions + result.observations)
@@ -353,10 +369,11 @@ private def reductionTests : IO Nat := do
               Json.mkObj ((object row.value).toOption.getD [] |>.filter (·.1 != "h_ts"))
         }
   rejects (replayRecords withoutTimestamps) "h_ts"
-  let modes ← ok (reduce (resequence (bootstrap ++ #[command "create_new_node,1"])))
+  let modes ←
+    ok (reduceRecords (resequence (bootstrap ++ #[command "create_new_node,1"])))
   check (modes.header.declared == ["0", "1"]) "future node declaration"
   let assertions ←
-    ok (reduce (resequence (bootstrap.push (command "assert_commit_idx,0,2"))))
+    ok (reduceRecords (resequence (bootstrap.push (command "assert_commit_idx,0,2"))))
   check (assertions.instructions.size == reduced.instructions.size)
     "assertion invented an action"
   let mut count := 4
@@ -374,18 +391,18 @@ private def reductionTests : IO Nat := do
   | throw (IO.userError "missing post-bootstrap append")
   for (path, value, diagnostic)
       in [
-        (["msg", "seqno"], toJson (0 : Nat), "logLength"),
-        (["msg", "seqno"], toJson (4 : Nat), "logLength"),
-        (["msg", "view"], toJson (3 : Nat), "currentTerm")
+        (["msg", "seqno"], toJson (0 : Nat), "last_idx"),
+        (["msg", "seqno"], toJson (4 : Nat), "last_idx"),
+        (["msg", "view"], toJson (3 : Nat), "current_view")
       ] do
-    let reduced ← ok (reduce (mutate startup write path value))
+    let reduced ← ok (reduceRecords (mutate startup write path value))
     rejects (replay reduced.header reduced.instructions) diagnostic
     count := count + 1
   for key in ["seqno", "view", "globally_committable"] do
     let message ← ok (object (startup[write]!.value.getObjValD "msg"))
     let missing := mutate startup write ["msg"] (Json.mkObj (message.filter (·.1 != key)))
-    rejects (reduce missing) key
-    rejects (reduce missing) startup[write]!.location
+    rejects (reduceRecords missing) key
+    rejects (reduceRecords missing) startup[write]!.location
   for event
       in [
         "execute_append_entries_sync",
@@ -399,7 +416,7 @@ private def reductionTests : IO Nat := do
           else
             "retire_follower.stdout")
     let source := original[← find original event]!
-    rejects (reduce (resequence (bootstrap ++ #[command "dispatch_all", source])))
+    rejects (reduceRecords (resequence (bootstrap ++ #[command "dispatch_all", source])))
       "ungrouped event"
     count := count + 1
   let commit ← find bootstrap "commit"
@@ -408,20 +425,21 @@ private def reductionTests : IO Nat := do
         (["msg", "state", "commit_idx"], toJson (1 : Nat)),
         (["msg", "idx"], toJson (0 : Nat))
       ] do
-    let reduced ← ok (reduce (mutate bootstrap commit path value))
-    rejects (replay reduced.header reduced.instructions) "commitIndex"
+    let reduced ← ok (reduceRecords (mutate bootstrap commit path value))
+    rejects (replay reduced.header reduced.instructions) "commit_idx"
   for (path, value, diagnostic)
       in [
         (["msg", "idx"], toJson (3 : Nat), "commit-target"),
         (["msg", "state", "last_idx"], toJson (3 : Nat), "commit-in-action"),
-        (["msg", "state", "committable_indices"], toJson [1], "signature-marker")
+        (["msg", "state", "committable_indices"], toJson [1], "committable_indices")
       ] do
     rejects (replayRecords (mutate bootstrap commit path value)) diagnostic
     count := count + 1
   let unknown := mutate startup write ["msg", "function"] (toJson "new_function")
-  rejects (reduce unknown) "ungrouped event new_function"
-  rejects (reduce (mutate bootstrap 0 ["tag"] (toJson "other"))) "expected ccf.raft_trace"
-  rejects (reduce (mutate bootstrap 2 ["tag"] (.bool true))) "String"
+  rejects (reduceRecords unknown) "ungrouped event new_function"
+  rejects (reduceRecords (mutate bootstrap 0 ["tag"] (toJson "other")))
+    "expected ccf.raft_trace"
+  rejects (reduceRecords (mutate bootstrap 2 ["tag"] (.bool true))) "String"
   for path in [["unknown"], ["msg", "unknown"], ["msg", "state", "unknown"]] do
     check ((← ok (replayRecords (mutate bootstrap 2 path .null))) == result)
       "unused JSON changed replay"
@@ -430,12 +448,12 @@ private def reductionTests : IO Nat := do
     ((← ok (replayRecords (mutate bootstrap configuration ["msg", "rid"] (.bool true))))
       == result)
     "unused configuration metadata changed replay"
-  rejects (reduce (resequence (bootstrap.extract 2 bootstrap.size)))
+  rejects (reduceRecords (resequence (bootstrap.extract 2 bootstrap.size)))
     "event before command"
-  rejects (reduce #[command "state_all"]) "no Raft events"
+  rejects (reduceRecords #[command "state_all"]) "no Raft events"
   let config ← fixture "configuration_callback.ndjson"
   let configured := bootstrap ++ config
-  let configuredReduction ← ok (reduce configured)
+  let configuredReduction ← ok (reduceRecords configured)
   let configuredResult ←
     ok (replay configuredReduction.header configuredReduction.instructions)
   let configWrite ← find config "replicate"
@@ -449,14 +467,16 @@ private def reductionTests : IO Nat := do
       "unused paired state metadata changed replay"
   for (key, value, diagnostic)
       in [
-        ("current_view", toJson (999 : Nat), "currentTerm"),
-        ("last_idx", toJson (999 : Nat), "logLength"),
-        ("commit_idx", toJson (999 : Nat), "commitIndex"),
-        ("leadership_state", toJson "Candidate", "role"),
-        ("committable_indices", toJson [1], "signature-marker")
+        ("current_view", toJson (999 : Nat), "current_view"),
+        ("last_idx", toJson (999 : Nat), "last_idx"),
+        ("commit_idx", toJson (999 : Nat), "commit_idx"),
+        ("leadership_state", toJson "Candidate", "leadership_state"),
+        ("committable_indices", toJson [1], "committable_indices")
       ] do
     let reduced ←
-      ok (reduce (bootstrap ++ mutate config configIndex ["msg", "state", key] value))
+      ok
+        (reduceRecords
+          (bootstrap ++ mutate config configIndex ["msg", "state", key] value))
     rejects (replay reduced.header reduced.instructions) diagnostic
   let heartbeat ← find config "send_append_entries"
   check
@@ -464,18 +484,20 @@ private def reductionTests : IO Nat := do
       == configuredResult.actions)
     "omitted constructor heartbeat changed model actions"
   let wrongDestination ←
-    ok (reduce (bootstrap ++ mutate config heartbeat ["msg", "to_node_id"] (toJson "0")))
-  rejects (replay wrongDestination.header wrongDestination.instructions) "sentIndex"
+    ok
+      (reduceRecords
+        (bootstrap ++ mutate config heartbeat ["msg", "to_node_id"] (toJson "0")))
+  rejects (replay wrongDestination.header wrongDestination.instructions) "sent_idx"
   let wrongSentinel ←
     ok
-      (reduce
+      (reduceRecords
         (bootstrap ++ mutate config heartbeat ["msg", "sent_idx"] (toJson (2 : Nat))))
-  rejects (replay wrongSentinel.header wrongSentinel.instructions) "logLength"
+  rejects (replay wrongSentinel.header wrongSentinel.instructions) "last_idx"
   let duplicated :=
     config.extract 0 (heartbeat + 1)
     ++ #[config[configIndex]!]
     ++ config.extract (heartbeat + 1) config.size
-  rejects (reduce (resequence (bootstrap ++ duplicated)))
+  rejects (reduceRecords (resequence (bootstrap ++ duplicated)))
     "ungrouped event add_configuration"
   let missing :=
     config.modify configIndex
@@ -492,7 +514,7 @@ private def reductionTests : IO Nat := do
     ((← ok (replayRecords (bootstrap ++ missing))).actions == configuredResult.actions)
     "omitted configuration cache changed model actions"
   let missingPrefix := configured ++ (← fixture "missing_prefix_response.ndjson")
-  let prefixReduction ← ok (reduce missingPrefix)
+  let prefixReduction ← ok (reduceRecords missingPrefix)
   let _ ← ok (replay prefixReduction.header prefixReduction.instructions)
   let response := missingPrefix[← find missingPrefix "send_append_entries_response"]!
   let packet := (response.value.getObjValD "msg").getObjValD "packet"
@@ -523,10 +545,10 @@ private def reductionTests : IO Nat := do
           | _ => envelope
     rejects (observe { current with state := { current.state with network } }) diagnostic
   let dropRecords ← fixture "drop_resend.ndjson"
-  let drop ← ok (reduce dropRecords)
+  let drop ← ok (reduceRecords dropRecords)
   let dropIndex ← find dropRecords "drop_pending_to"
   let wrongSender ←
-    ok (reduce (mutate dropRecords dropIndex ["msg", "from_node_id"] (toJson "1")))
+    ok (reduceRecords (mutate dropRecords dropIndex ["msg", "from_node_id"] (toJson "1")))
   rejects (replay wrongSender.header wrongSender.instructions) "drop sender mismatch"
   let some ordinarySend :=
     drop.instructions.find?
@@ -543,9 +565,9 @@ private def reductionTests : IO Nat := do
   for (path, diagnostic)
       in [
         (["msg", "packet", "prev_idx"], "prev_idx"),
-        (["msg", "sent_idx"], "sentIndex")
+        (["msg", "sent_idx"], "sent_idx")
       ] do
-    let reduced ← ok (reduce (mutate dropRecords send path (toJson (999 : Nat))))
+    let reduced ← ok (reduceRecords (mutate dropRecords send path (toJson (999 : Nat))))
     rejects (replay reduced.header reduced.instructions) diagnostic
   let actions :=
     drop.instructions.toList.filterMap
@@ -563,7 +585,7 @@ private def parsecReductionTests : IO Unit := do
   let bootstrap ← fixture "bootstrap.ndjson"
   let config ← fixture "configuration_callback.ndjson"
   let configured := bootstrap ++ config
-  let baseline ← ok (reduce configured)
+  let baseline ← ok (reduceRecords configured)
   -- Alternatives must not lose or duplicate the instruction batches they emit.
   check
     (baseline.instructions.toList.filterMap
@@ -577,9 +599,9 @@ private def parsecReductionTests : IO Unit := do
   let _ ← ok (replayRecords (bootstrap ++ erase config heartbeat))
   let wrongSentinel ←
     ok
-      (reduce
+      (reduceRecords
         (bootstrap ++ mutate config heartbeat ["msg", "sent_idx"] (toJson (999 : Nat))))
-  rejects (replay wrongSentinel.header wrongSentinel.instructions) "logLength"
+  rejects (replay wrongSentinel.header wrongSentinel.instructions) "last_idx"
   let source := config[← find config "add_configuration"]!
   let message :=
     Json.mkObj
@@ -589,10 +611,10 @@ private def parsecReductionTests : IO Unit := do
         ("from_node_id", toJson "0")
       ]
   let event := { source with value := source.value.setObjVal! "msg" message }
-  rejects (reduce (resequence (configured.push event)))
+  rejects (reduceRecords (resequence (configured.push event)))
     "ungrouped event execute_append_entries_sync"
   let votes ← fixture "vote_responses.ndjson"
-  let reduced ← ok (reduce votes)
+  let reduced ← ok (reduceRecords votes)
   check
     ((reduced.instructions.filter
         fun instruction =>
@@ -627,7 +649,7 @@ private def receiveGrammarTests : IO Unit := do
       else
         Json.mkObj
           [("msg", toJson "raft_propose_request_vote"), ("term", toJson (2 : Nat))]
-    rejects (reduce (mutate records head ["msg", "packet"] packet))
+    rejects (reduceRecords (mutate records head ["msg", "packet"] packet))
       "receive function/packet mismatch"
   let votes ← fixture "vote_responses.ndjson"
   let response ← find votes "send_request_vote_response"
@@ -642,7 +664,7 @@ private def receiveGrammarTests : IO Unit := do
         ("last_log_idx", toJson (0 : Nat)),
         ("success", toJson "FAIL")
       ]
-  rejects (reduce (mutate votes response ["msg", "packet"] packet))
+  rejects (reduceRecords (mutate votes response ["msg", "packet"] packet))
     "vote response does not match request"
 
 private def sendObservationTests : IO Unit := do
@@ -698,7 +720,7 @@ private def sendObservationTests : IO Unit := do
           (["msg", "to_node_id"], toJson source, "no pending packet"),
           (["msg", "packet", "term"], toJson (999 : Nat), "term")
         ] do
-      let reduced ← ok (reduce (mutate records index path value))
+      let reduced ← ok (reduceRecords (mutate records index path value))
       rejects (replay reduced.header reduced.instructions) diagnostic
 
 private def retirementNodeSetTests : IO Unit := do
@@ -720,9 +742,11 @@ private def retirementNodeSetTests : IO Unit := do
     "retirement command must precede its append"
   let throughAppend := records.extract 0 (cleanup + 2)
   let empty := String.intercalate "," ((command.splitOn ",").take 2)
-  let empty ← ok (reduce (mutate throughAppend cleanup ["msg", "cmd"] (toJson empty)))
+  let empty ←
+    ok (reduceRecords (mutate throughAppend cleanup ["msg", "cmd"] (toJson empty)))
   let _ ← ok (replay empty.header empty.instructions)
-  rejects (reduce (mutate throughAppend cleanup ["msg", "cmd"] (toJson s!"{command},")))
+  rejects
+    (reduceRecords (mutate throughAppend cleanup ["msg", "cmd"] (toJson s!"{command},")))
     "undeclared"
 
 private def speculativeGrammarTests : IO Unit := do
@@ -742,17 +766,17 @@ private def speculativeGrammarTests : IO Unit := do
   check (peers.length == 2) "leadership fixture no longer has two peers"
   let endOfPromotion := promotion + 1 + peers.length
   let promotionRecords := votes.extract 0 endOfPromotion
-  let baseline ← ok (reduce promotionRecords)
+  let baseline ← ok (reduceRecords promotionRecords)
   let changedTerm ←
     ok
-      (reduce
+      (reduceRecords
         (mutate promotionRecords (promotion + 1)
           ["msg", "state", "current_view"] (toJson (999 : Nat))))
-  rejects (replay changedTerm.header changedTerm.instructions) "currentTerm"
+  rejects (replay changedTerm.header changedTerm.instructions) "current_view"
   let periodic := { votes[promotion + 1]! with file := "periodic.ndjson", line := 1 }
   let extended :=
     resequence (promotionRecords ++ #[command "periodic_one,1,10", periodic])
-  let reduced ← ok (reduce extended)
+  let reduced ← ok (reduceRecords extended)
   let sends (reduced : Reduced) :=
     reduced.instructions.filter
       fun instruction =>
@@ -770,13 +794,13 @@ private def speculativeGrammarTests : IO Unit := do
       "omitted promotion heartbeat changed model actions"
   let selfHeartbeat ←
     ok
-      (reduce
+      (reduceRecords
         (mutate promotionRecords (promotion + 1) ["msg", "to_node_id"] (toJson "1")))
   rejects (replay selfHeartbeat.header selfHeartbeat.instructions) "no pending packet"
   let destination ← ok (string (periodic.value.getObjValD "msg") "to_node_id")
   let duplicate ←
     ok
-      (reduce
+      (reduceRecords
         (mutate promotionRecords (endOfPromotion - 1) ["msg", "to_node_id"]
           (toJson destination)))
   check ((sends duplicate).size == (sends baseline).size + 1)
@@ -793,7 +817,7 @@ private def speculativeGrammarTests : IO Unit := do
   let retiredHeartbeat := retired[promotion + 1]!
   check (function retiredHeartbeat == "send_append_entries")
     "retired-peer fixture no longer sends a promotion heartbeat"
-  let reduced ← ok (reduce (retired.extract 0 (promotion + 2)))
+  let reduced ← ok (reduceRecords (retired.extract 0 (promotion + 2)))
   check
     (reduced.instructions.any
       fun instruction =>
@@ -850,7 +874,7 @@ private def speculativeGrammarTests : IO Unit := do
   let adoptions (reduced : Reduced) :=
     reduced.instructions.filter
       fun instruction =>
-        instruction.origin.rule == "receive-term-adoption"
+        ["receive-term-adoption", "receive-internal"].contains instruction.origin.rule
   for family in ["raft_request_vote_response", "raft_request_pre_vote_response"] do
     let records :=
       configured
@@ -860,7 +884,7 @@ private def speculativeGrammarTests : IO Unit := do
         command "periodic_one,0,100",
         follower 2
       ]
-    let reduced ← ok (reduce (resequence records))
+    let reduced ← ok (reduceRecords (resequence records))
     check ((timeouts reduced).size == 1 && (adoptions reduced).isEmpty)
       "ignored same-term response consumed a check-quorum transition"
     let records :=
@@ -870,7 +894,7 @@ private def speculativeGrammarTests : IO Unit := do
         receive "recv_request_vote_response" (voteResponse family 3) "Leader",
         follower 3
       ]
-    let reduced ← ok (reduce (resequence records))
+    let reduced ← ok (reduceRecords (resequence records))
     check ((timeouts reduced).isEmpty && (adoptions reduced).size == 1)
       "higher-term response lost its term-adoption evidence"
   for role in ["Candidate", "PreVoteCandidate"] do
@@ -881,11 +905,11 @@ private def speculativeGrammarTests : IO Unit := do
         receive "recv_append_entries" appendPacket role,
         follower 2
       ]
-    let reduced ← ok (reduce (resequence records))
+    let reduced ← ok (reduceRecords (resequence records))
     check ((timeouts reduced).isEmpty && (adoptions reduced).size == 1)
       "same-term AppendEntries demotion became a check-quorum action"
 
-/-- Raw mutations exercise the reducer's projections, not merely the final checker. -/
+/-- Raw mutations exercise native trace observations, not merely the final checker. -/
 private def fixtureMutations : IO Nat := do
   let mut count := 0
   for name
@@ -896,9 +920,9 @@ private def fixtureMutations : IO Nat := do
         "retire_follower.stdout"
       ] do
     let records ← fixture name
-    let reduced ← ok (reduce records)
+    let reduced ← ok (reduceRecords records)
     let result ← ok (replay reduced.header reduced.instructions)
-    let (events, _) ← ok (associate records)
+    let (events, _) ← ok (prepareEvents records)
     check
       (result.instructions == reduced.instructions.size
         && result.actions + result.observations == result.instructions)
@@ -914,19 +938,24 @@ private def fixtureMutations : IO Nat := do
             (fun event =>
               event.record.file == origin.file && event.record.line == origin.line)
         | throw (IO.userError "observation lost its source event")
-        let fields := (← ok (object event.facts)).filter (·.1 != "committableIndices")
+        let fields :=
+          (← ok (object event.state)).filter (fun (key, _) => key != "node_id")
+        let fields :=
+          match optional event.message "configurations" with
+          | none => fields
+          | some configurations => fields ++ [("configurations", configurations)]
         checkObservedFields (observeState reduced.header event.node none) current fields
       count := count + 1
     -- Fields stable at a event are selected by event kind, not their values.
-    for (raw, projected)
+    for raw
         in [
-          ("leadership_state", "role"),
-          ("current_view", "currentTerm"),
-          ("last_idx", "logLength"),
-          ("commit_idx", "commitIndex"),
-          ("retirement_idx", "retirementIndex"),
-          ("retirement_committable_idx", "retirementCommittableIndex"),
-          ("retired_committed_idx", "retiredCommittedIndex")
+          "leadership_state",
+          "current_view",
+          "last_idx",
+          "commit_idx",
+          "retirement_idx",
+          "retirement_committable_idx",
+          "retired_committed_idx"
         ] do
       for instruction in reduced.instructions do
         if let .observe _ origin := instruction then
@@ -936,25 +965,20 @@ private def fixtureMutations : IO Nat := do
                 event.record.file == origin.file && event.record.line == origin.line)
           | throw (IO.userError "observation lost its source event")
           if (origin.rule == "receive-post"
-                || (origin.rule == "event-term" && projected == "currentTerm"))
-              && event.function != "add_configuration" then
+                || (origin.rule == "receive-internal" && raw == "current_view"))
+              && !["add_configuration", "become_follower"].contains event.function then
             let some index :=
               records.findIdx?
                 (fun row => row.file == origin.file && row.line == origin.line)
             | throw (IO.userError "lost raw origin")
             let replacement :=
-              if projected == "role" then
+              if raw == "leadership_state" then
                 toJson "Candidate"
               else
                 toJson (999 : Nat)
-            let command ← ok (field event.command.value "msg" >>= (string · "cmd"))
             rejects
               (replayRecords (mutate records index ["msg", "state", raw] replacement))
-              (if event.function == "become_leader"
-                  && command.startsWith "start_node," then
-                  "bootstrap state differs from audited prelude"
-                else
-                  projected)
+              raw
             count := count + 1
             break
   let original ← fixture "vote_responses.ndjson"
@@ -981,7 +1005,8 @@ private def fixtureMutations : IO Nat := do
       rejects (replayRecords (mutate original index ["msg", "packet", key] value))
         diagnostic
       count := count + 1
-    rejects (reduce (mutate original index ["msg", "to_node_id"] (toJson "unexpected")))
+    rejects
+      (reduceRecords (mutate original index ["msg", "to_node_id"] (toJson "unexpected")))
       "does not match request"
     count := count + 1
   rejects (← readLog "replay/tests/fixtures/terminal_retirement.stdout")
@@ -992,11 +1017,11 @@ private def fixtureMutations : IO Nat := do
   rejects (replayRecords (mutate terminal nomination ["msg", "to_node_id"] (toJson "0")))
     "no pending packet"
   rejects
-    (reduce
+    (reduceRecords
       (mutate terminal nomination ["msg", "state", "leadership_state"]
         (toJson "Follower")))
     "nomination outside a nominate_successor command"
-  let reduced ← ok (reduce terminal)
+  let reduced ← ok (reduceRecords terminal)
   check
     (!(reduced.instructions.any
         fun instruction =>
@@ -1035,33 +1060,33 @@ private def fixtureMutations : IO Nat := do
   rejects
     (replayRecords
       (mutate startup write ["msg", "state", "committable_indices"] (toJson [1])))
-    "signature-marker"
+    "committable_indices"
   let some committedPrefix :=
     reduced.instructions.find?
       (fun instruction =>
         match instruction with
         | .observe _ origin =>
-            origin.rule == "event-committed-prefix"
+            origin.rule == "leader-post"
             && terminal.any
                 (fun row =>
                   row.file == origin.file
                   && row.line == origin.line
                   && function row == "become_leader")
         | _ => false)
-  | throw (IO.userError "missing committed-prefix coverage")
+  | throw (IO.userError "missing promotion snapshot coverage")
   let some prefixIndex :=
     terminal.findIdx? (fun row => row.line == committedPrefix.origin.line)
   | throw (IO.userError "lost prefix source record")
   rejects
     (replayRecords
       (mutate terminal prefixIndex ["msg", "state", "commit_idx"] (toJson (999 : Nat))))
-    "event-committed-prefix"
+    "commit_idx"
   return count + 6
 
 private def emissionTests : IO Unit := do
   let records ← fixture "vote_responses.ndjson"
-  let reduced ← ok (reduce records)
-  let (events, _) ← ok (associate records)
+  let reduced ← ok (reduceRecords records)
+  let (events, _) ← ok (prepareEvents records)
   let sameOrigin (origin : Origin) (event : CCFRaft.Replay.Event) :=
     origin.file == event.record.file && origin.line == event.record.line
   for (current, observe, origin) in ← observationStates reduced do
@@ -1077,7 +1102,9 @@ private def emissionTests : IO Unit := do
         let event :=
           events.any
             fun event =>
-              event.sameContext headEvent
+              event.node == headEvent.node
+              && event.command.file == headEvent.command.file
+              && event.command.line == headEvent.command.line
               && event.record.line > head.line
               && sameOrigin later.origin event
         if event then
@@ -1094,7 +1121,7 @@ private def emissionTests : IO Unit := do
   for (name, key, value, diagnostic)
       in [
         ("send_append_entries", "term", .bool true, "term"),
-        ("send_append_entries", "idx", toJson (999 : Nat), "logLength"),
+        ("send_append_entries", "idx", toJson (999 : Nat), "last_idx"),
         ("send_append_entries_response", "success", .arr #[], "success")
       ] do
     let index ← find records name
@@ -1144,14 +1171,12 @@ private def emissionTests : IO Unit := do
   check (function records[adoption + 1]! == "send_request_vote_response")
     "missing optional response after adoption"
   let terminalAdoption := erase records (adoption + 1)
-  let baseline ← ok (replayRecords terminalAdoption)
-  check
-    ((← ok
-          (replayRecords
-            (mutate terminalAdoption adoption ["msg", "state", "last_idx"]
-              (toJson (999 : Nat)))))
-      == baseline)
-    "terminal adoption was conditionally promoted to an endpoint"
+  let _ ← ok (replayRecords terminalAdoption)
+  for trace in [records, terminalAdoption] do
+    rejects
+      (replayRecords
+        (mutate trace adoption ["msg", "state", "last_idx"] (toJson (999 : Nat))))
+      "receive-term-adoption"
 
 private def configurationCache (index : Nat) (nodes : List String) : Json :=
   toJson
@@ -1166,48 +1191,231 @@ private def configurationCache (index : Nat) (nodes : List String) : Json :=
         )
       ]]
 
-private def stateCorruptions : List (String × Json × String) :=
+private def stateCorruptions : List (String × Json) :=
   [
-    ("leadership_state", toJson "Candidate", "role"),
-    ("current_view", toJson (999 : Nat), "currentTerm"),
-    ("last_idx", toJson (999 : Nat), "logLength"),
-    ("commit_idx", toJson (999 : Nat), "commitIndex"),
-    ("retirement_idx", toJson (999 : Nat), "retirementIndex"),
-    ("retirement_committable_idx", toJson (999 : Nat), "retirementCommittableIndex"),
-    ("retired_committed_idx", toJson (999 : Nat), "retiredCommittedIndex")
+    ("leadership_state", toJson "Candidate"),
+    ("current_view", toJson (999 : Nat)),
+    ("last_idx", toJson (999 : Nat)),
+    ("commit_idx", toJson (999 : Nat)),
+    ("retirement_idx", toJson (999 : Nat)),
+    ("retirement_committable_idx", toJson (999 : Nat)),
+    ("retired_committed_idx", toJson (999 : Nat))
   ]
 
 private def observationTests : IO Nat := do
   let startup ← fixture "startup.ndjson"
   let votes ← fixture "vote_responses.ndjson"
+  let drops ← fixture "drop_resend.ndjson"
+  let drop ← find drops "drop_pending_to"
+  for markers in [[], [4, 4], [2, 4]] do
+    let bad := mutate drops drop ["msg", "state", "committable_indices"] (toJson markers)
+    let _ ← ok (reduceRecords bad)
+    rejects (replayRecords bad) "committable_indices"
+  let finite ← ok (reduceRecords (drops.extract 0 (drop + 1)))
+  let _ ← ok (replay finite.header finite.instructions)
+  check
+    (match finite.instructions.back? with
+      | some (.action (.drop ..) _) => true
+      | _ => false)
+    "finite prefix required a terminal observation"
   let receive ← find votes "recv_append_entries"
   let timeout ← find votes "become_pre_vote_candidate"
   let mut count := 0
   for index in [receive, timeout] do
     let _ ← ok (replayRecords votes)
-    for (raw, value, projected) in stateCorruptions do
+    for (raw, value) in stateCorruptions do
       if raw == "leadership_state" && index == timeout then continue
       rejects (replayRecords (mutate votes index ["msg", "state", raw] value))
         (if index == receive && raw == "current_view" then
             "ungrouped event send_append_entries_response"
           else
-            projected)
+            raw)
       count := count + 1
-  let startupReduction ← ok (reduce startup)
+  let startupReduction ← ok (reduceRecords startup)
   check
     (startupReduction.instructions.any
       fun instruction => instruction.origin.rule == "write-pre")
     "missing rule observations"
   let candidate ← find votes "become_candidate"
-  let _ ←
-    ok
-      (replayRecords
-        (mutate votes candidate ["msg", "state", "last_idx"] (toJson (999 : Nat))))
+  let constructor ← find votes "send_append_entries"
+  let some promotion :=
+    votes.findIdx?
+      fun row =>
+        function row == "become_leader"
+        && optional ((row.value.getObjValD "msg").getObjValD "state") "node_id"
+            == some (toJson "1")
+  | throw (IO.userError "missing elected leader")
+  for (index, tag)
+      in [
+        (candidate, "candidate-post"),
+        (promotion, "leader-post"),
+        (constructor, "configuration-event-state")
+      ] do
+    for (raw, value) in stateCorruptions do
+      if raw == "leadership_state" || (index == constructor && raw == "last_idx") then
+        continue
+      let bad := mutate votes index ["msg", "state", raw] value
+      let _ ← ok (reduceRecords bad)
+      rejects (replayRecords bad) tag
+      count := count + 1
+  let bootstrap ← fixture "bootstrap.ndjson"
+  for name in ["replicate", "add_configuration"] do
+    let index ← find bootstrap name
+    for raw
+        in ["retirement_idx", "retirement_committable_idx", "retired_committed_idx"] do
+      let bad := mutate bootstrap index ["msg", "state", raw] (toJson (999 : Nat))
+      let _ ← ok (reduceRecords bad)
+      rejects (replayRecords bad) "bootstrap-state"
+      count := count + 1
+  let withoutSends :=
+    resequence (votes.filter fun row => function row != "send_request_vote")
+  let reduced ← ok (reduceRecords withoutSends)
+  let _ ← ok (replay reduced.header reduced.instructions)
+  check (reduced.instructions.any (·.origin.rule == "election-post"))
+    "missing full timeout observation when sends are omitted"
   rejects
     (replayRecords
       (mutate votes candidate ["msg", "state", "retirement_idx"] (.bool true)))
     "natural"
-  return count + 3
+  return count + 7
+
+private def boundaryObservationTests : IO Unit := do
+  let rules := ["send-pre", "send-post-state", "nomination-post"]
+  let mut seen := []
+  for name in ["drop_resend.ndjson", "nominate_successor.stdout"] do
+    let reduced ← ok (reduceRecords (← fixture name))
+    for (current, observe, origin) in ← observationStates reduced do
+      unless rules.contains origin.rule do
+        continue
+      let changed (change : NodeState → NodeState) : ReplayState :=
+        {
+          current with
+            state :=
+              {
+                current.state with
+                  nodes :=
+                    current.state.nodes.map fun (node, state) => (node, change state)
+              }
+        }
+      rejects
+        (observe
+          (changed fun state => { state with currentTerm := state.currentTerm + 1 }))
+        "current_view"
+      rejects
+        (observe
+          (changed fun state => { state with commitIndex := state.commitIndex + 1 }))
+        "commit_idx"
+      if origin.rule != "nomination-post" then
+        rejects
+          (observe
+            (changed
+              fun state =>
+                { state with matchIndex := fun peer => state.matchIndex peer + 1 }))
+          "match_idx"
+        let sent :=
+          changed
+            fun state => { state with sentIndex := fun peer => state.sentIndex peer + 1 }
+        if origin.rule == "send-pre" then
+          rejects (observe sent) "sent_idx"
+        else
+          let _ ← ok (observe sent)
+      seen := origin.rule :: seen
+  check (rules.all seen.contains) "missing combined or post-action state observation"
+
+private def receivePhaseObservationTests : IO Unit := do
+  for (name, kind, sameLog, sameCommit, path, value)
+      in [
+        (
+          "self_quorum.stdout",
+          "become_follower",
+          true,
+          true,
+          ["state", "committable_indices"],
+          toJson [999]
+        ),
+        (
+          "drop_resend.ndjson",
+          "become_follower",
+          true,
+          false,
+          ["state", "last_idx"],
+          toJson (999 : Nat)
+        ),
+        (
+          "retire_follower.stdout",
+          "execute_append_entries_sync",
+          false,
+          true,
+          ["state", "commit_idx"],
+          toJson (0 : Nat)
+        ),
+        (
+          "retire_follower.stdout",
+          "execute_append_entries_sync",
+          false,
+          true,
+          ["state", "retired_committed_idx"],
+          toJson (999 : Nat)
+        ),
+        (
+          "retire_follower.stdout",
+          "commit",
+          true,
+          false,
+          ["state", "committable_indices"],
+          toJson [11, 11]
+        ),
+        ("retire_follower.stdout", "commit", true, false, ["idx"], toJson (4 : Nat))
+      ] do
+    let key := path.getLast!
+    let records ← fixture name
+    let _ ← ok (replayRecords records)
+    let mut receive : Option Nat := none
+    let mut selected : Option (Nat × Nat) := none
+    for record in records, index in [:records.size] do
+      let fn := function record
+      if fn == "recv_append_entries" then
+        receive := some index
+      else if [
+                "become_follower",
+                "execute_append_entries_sync",
+                "add_configuration",
+                "commit"
+              ].contains
+                fn then
+        if let some head := receive then
+          let message := records[head]!.value.getObjValD "msg"
+          let packet ← ok (field message "packet")
+          let last ← ok (nat packet "idx")
+          let previous ← ok (nat packet "prev_idx")
+          let leaderCommit ← ok (nat packet "leader_commit_idx")
+          let committed ← ok (nat (← ok (field message "state")) "commit_idx")
+          if fn == kind
+              && (last == previous) == sameLog
+              && (min last leaderCommit <= committed) == sameCommit then
+            selected := some (head, index)
+            break
+      else
+        receive := none
+    let some (head, index) := selected
+    | throw (IO.userError s!"missing receive phase for {name}: {key}")
+    let message := records[index]!.value.getObjValD "msg"
+    check (path.foldl Json.getObjValD message != value)
+      "receive mutation changed no value"
+    let bad := mutate records index ("msg" :: path) value
+    let _ ← ok (reduceRecords bad)
+    let result := replayRecords bad
+    rejects result
+      (if path == ["idx"] then "receive-commit-target" else "receive-internal")
+    rejects result key
+    let packet := (records[head]!.value.getObjValD "msg").getObjValD "packet"
+    let fields ← ok (object packet)
+    let omitted :=
+      mutate records head ["msg", "packet"] (Json.mkObj (fields.filter (·.1 != "idx")))
+    let _ ← ok (replayRecords omitted)
+    let malformed := mutate records head ["msg", "packet", "idx"] (toJson "bad")
+    let _ ← ok (reduceRecords malformed)
+    rejects (replayRecords malformed) "atomic-receive"
 
 private def origin : Origin :=
   { file := "direct.ndjson", line := 17, rule := "unit" }
@@ -1229,6 +1437,87 @@ private def observe (node : String) (fields : List (String × Json))
 private def sent (source destination : String) (fields : List (String × Json))
     : Instruction :=
   .observe (observeMessage header source destination (Json.mkObj fields) .latest) origin
+
+private def jsonPathTests : IO Unit := do
+  let equal (expected : Json) (value : Json) : Except String Unit :=
+    require (value == expected) "path mismatch"
+  let resolve : JsonPath → Option (Json → Except String Unit)
+    | [.field "state", .field "current_view"] => some (equal (toJson (2 : Nat)))
+    | [.field "packets", .index 0, .field "term"] => some (equal (toJson (3 : Nat)))
+    | [.field "packets", .index 1, .field "term"] => some (equal (toJson (4 : Nat)))
+    | [.field "opaque"] =>
+        some
+          fun value => do
+            let number ← value.getObjValAs? Nat "value"
+            require (number * 2 == 6) "interpreted value mismatch"
+    | [.field "nullable"] => some (equal .null)
+    | [.field "empty_array"] => some (equal (.arr #[]))
+    | [.field "empty_object"] => some (equal (Json.mkObj []))
+    | _ => none
+  let expected :=
+    Json.mkObj
+      [
+        ("state", Json.mkObj [("current_view", toJson (2 : Nat))]),
+        (
+          "packets",
+          toJson
+            [
+              Json.mkObj [("term", toJson (3 : Nat))],
+              Json.mkObj [("term", toJson (4 : Nat))]
+            ]
+        ),
+        (
+          "opaque",
+          Json.mkObj [("value", toJson (3 : Nat)), ("ignored_metadata", Json.mkObj [])]
+        ),
+        ("nullable", .null),
+        ("empty_array", .arr #[]),
+        ("empty_object", Json.mkObj [])
+      ]
+  let _ ← ok (checkJsonPaths resolve expected)
+  let _ ←
+    ok
+      (checkJsonPaths resolve
+        (Json.mkObj [("state", Json.mkObj [("current_view", toJson (2 : Nat))])]))
+  rejects
+    (checkJsonPaths resolve
+      (expected.setObjVal! "state" (Json.mkObj [("current_view", toJson (5 : Nat))])))
+    "$[\"state\"][\"current_view\"]: path mismatch"
+  rejects
+    (checkJsonPaths resolve
+      (expected.setObjVal! "packets"
+        (toJson
+          [
+            Json.mkObj [("term", toJson (3 : Nat))],
+            Json.mkObj [("term", toJson (5 : Nat))]
+          ])))
+    "$[\"packets\"][1][\"term\"]: path mismatch"
+  rejects
+    (checkJsonPaths resolve
+      (expected.setObjVal! "opaque" (Json.mkObj [("value", toJson (4 : Nat))])))
+    "$[\"opaque\"]: interpreted value mismatch"
+  for unknown in [.null, .arr #[], Json.mkObj []] do
+    rejects (checkJsonPaths resolve (expected.setObjVal! "unknown" unknown))
+      "unsupported observation field '$[\"unknown\"]'"
+    rejects
+      (checkJsonPaths resolve
+        (expected.setObjVal! "state" (Json.mkObj [("future", unknown)])))
+      "unsupported observation field '$[\"state\"][\"future\"]'"
+  for invalid in [toJson (2 : Nat), Json.mkObj []] do
+    rejects (checkJsonPaths resolve (expected.setObjVal! "state" invalid))
+      "unsupported observation field '$[\"state\"]'"
+  rejects
+    (checkJsonPaths resolve
+      (Json.mkObj
+        [("packets", Json.mkObj [("0", Json.mkObj [("term", toJson (3 : Nat))])])]))
+    "unsupported observation field '$[\"packets\"][\"0\"][\"term\"]'"
+  rejects (checkJsonPaths resolve (Json.mkObj [("state.current_view", toJson (2 : Nat))]))
+    "unsupported observation field '$[\"state.current_view\"]'"
+  rejects (checkJsonPaths resolve (Json.mkObj [])) "at least one field"
+  for invalid in [.null, .arr #[], toJson (2 : Nat)] do
+    rejects (checkJsonPaths resolve invalid) "object"
+  check (JsonPath.label [.field "a\"b", .index 0] == "$[\"a\\\"b\"][0]")
+    "path diagnostics did not escape object keys"
 
 -- This includes function-valued peer tables and every dropped occurrence.
 example (identities : Header) (current : ReplayState)
@@ -1254,29 +1543,57 @@ private def observationClosureTests : IO Unit := do
   let identities := { header with bootstrap := ∅ }
   let fields :=
     [
-      ("role", toJson "leader"),
-      ("currentTerm", toJson (2 : Nat)),
-      ("logLength", toJson (3 : Nat)),
-      ("commitIndex", toJson (3 : Nat)),
+      ("leadership_state", toJson "Leader"),
+      ("current_view", toJson (2 : Nat)),
+      ("last_idx", toJson (3 : Nat)),
+      ("commit_idx", toJson (3 : Nat)),
+      ("committable_indices", toJson ([] : List Nat)),
       (
         "configurations",
         toJson
-          [Json.mkObj [("index", toJson (1 : Nat)), ("nodes", toJson ["alpha", "beta"])]]
+          [Json.mkObj
+            [
+              ("idx", toJson (1 : Nat)),
+              ("nodes", Json.mkObj [("alpha", .null), ("beta", .null)])
+            ]]
       ),
-      ("membershipState", toJson "active"),
-      ("retirementIndex", Json.null),
-      ("retirementCommittableIndex", Json.null),
-      ("retiredCommittedIndex", Json.null)
+      ("membership_state", toJson "Active"),
+      ("retirement_phase", Json.null),
+      ("retirement_idx", Json.null),
+      ("retirement_committable_idx", Json.null),
+      ("retired_committed_idx", Json.null)
     ]
   checkObservedFields (observeState identities "alpha" (some "beta")) current
-    (fields ++ [("sentIndex", toJson (3 : Nat)), ("matchIndex", toJson (3 : Nat))])
+    (fields ++ [("sent_idx", toJson (3 : Nat)), ("match_idx", toJson (3 : Nat))])
+  for key in ["sent_idx", "match_idx"] do
+    rejects
+      (observeState identities "alpha" none
+        (Json.mkObj [(key, toJson (3 : Nat))]) current)
+      s!"unsupported observation field '$[\"{key}\"]'"
   let before :=
     fields.map
       fun (key, value) =>
-        (key, if key == "commitIndex" then toJson (1 : Nat) else value)
+        (
+          key,
+          if key == "commit_idx" then
+            toJson (1 : Nat)
+          else if key == "committable_indices" then
+            toJson ([3] : List Nat)
+          else
+            value
+        )
   checkObservedFields (observeBeforeCommit identities "alpha" 1) current before
   rejects (observeBeforeCommit identities "alpha" 3 (Json.mkObj before) current)
     "pre-commit frontier must precede final commitIndex"
+  let uncommitted ←
+    ok
+      (runInstruction header current
+        (act (.local "alpha" (.append [.signature, .signature]))))
+  let cache (indices : List Nat) := Json.mkObj [("committable_indices", toJson indices)]
+  let _ ← ok (observeState identities "alpha" none (cache [4, 5]) uncommitted)
+  for indices in [[5, 4], [4], [4, 4, 5], [3, 4, 5]] do
+    rejects (observeState identities "alpha" none (cache indices) uncommitted)
+      "committable_indices"
   checkObservedFields (observeEntry identities "alpha" 2) current
     [
       ("term", toJson (2 : Nat)),
@@ -1328,8 +1645,7 @@ private def observationClosureTests : IO Unit := do
         require (state.dropped == [envelope] && state.pending 0 1 == [envelope])
           "closure lost packet multiplicity or dropped evidence"
         observeState identities "alpha" (some "beta")
-          (Json.mkObj
-            [("commitIndex", toJson (3 : Nat)), ("matchIndex", toJson (3 : Nat))])
+          (Json.mkObj [("commit_idx", toJson (3 : Nat)), ("match_idx", toJson (3 : Nat))])
           state
     let unchanged ← ok (runInstruction header queued (.observe observer origin))
     let _ ← ok (observer unchanged)
@@ -1347,9 +1663,9 @@ private def directTests : IO Nat := do
     #[
       observe "future"
         [
-          ("role", toJson "none"),
-          ("currentTerm", toJson (0 : Nat)),
-          ("membershipState", toJson "active")
+          ("leadership_state", toJson "None"),
+          ("current_view", toJson (0 : Nat)),
+          ("membership_state", toJson "Active")
         ],
       act (.local "alpha" (.append [.transaction 1 {}])),
       act (.local "alpha" (.append [.signature])),
@@ -1367,15 +1683,16 @@ private def directTests : IO Nat := do
       act (.receive "alpha" "beta" append),
       sent "beta" "alpha"
         [("msg", toJson "raft_append_entries_response"), ("success", toJson "OK")],
-      observe "beta" [("role", toJson "follower"), ("logLength", toJson (3 : Nat))],
+      observe "beta"
+        [("leadership_state", toJson "Follower"), ("last_idx", toJson (3 : Nat))],
       act (.receive "beta" "alpha" response),
       .observe
         (observeState header "alpha" (some "beta")
           (Json.mkObj
             [
-              ("commitIndex", toJson (3 : Nat)),
-              ("sentIndex", toJson (3 : Nat)),
-              ("matchIndex", toJson (3 : Nat))
+              ("commit_idx", toJson (3 : Nat)),
+              ("sent_idx", toJson (3 : Nat)),
+              ("match_idx", toJson (3 : Nat))
             ]))
         origin
     ]
@@ -1494,7 +1811,7 @@ private def directTests : IO Nat := do
     "no pending packet"
   rejects (replay header (observedRepeatedly.push (act (.drop "alpha" "beta"))))
     "no pending packet"
-  let early := start.push (observe "alpha" [("logLength", toJson (99 : Nat))])
+  let early := start.push (observe "alpha" [("last_idx", toJson (99 : Nat))])
   rejects (replay header (early.push (act (.receive "missing" "missing" append))))
     "instruction 6"
   rejects (replay header early) "direct.ndjson:17 [unit]"
@@ -1638,9 +1955,11 @@ private def identityTests : IO Unit := do
     ok
       (replay lexical
         #[
-          observe "2" [("role", toJson "leader"), ("logLength", toJson (1 : Nat))]
+          observe "2"
+            [("leadership_state", toJson "Leader"), ("last_idx", toJson (1 : Nat))]
             lexical,
-          observe "1" [("role", toJson "none"), ("logLength", toJson (0 : Nat))] lexical,
+          observe "1"
+            [("leadership_state", toJson "None"), ("last_idx", toJson (0 : Nat))] lexical,
           .observe
             (observeEntry lexical "2" 1
               (Json.mkObj
@@ -1656,7 +1975,9 @@ private def identityTests : IO Unit := do
         ({ lexical with requests := ["", "same", "same"] }, "must be distinct"),
         ({ lexical with requests := ["", ""] }, "reserve zero")
       ] do
-    rejects (replay invalid #[observe "2" [("role", toJson "leader")] lexical]) diagnostic
+    rejects
+      (replay invalid #[observe "2" [("leadership_state", toJson "Leader")] lexical])
+      diagnostic
   for request in [0, 2] do
     rejects (replay lexical #[act (.local "2" (.append [.transaction request {}]))])
       "undeclared or reserved model request"
@@ -1677,7 +1998,7 @@ private def identityTests : IO Unit := do
 private def transportTests : IO Unit := do
   let records ← fixture "startup.ndjson"
   let baseline ← ok (replayRecords records)
-  let (events, _) ← ok (associate records)
+  let (events, _) ← ok (prepareEvents records)
   for event in events do
     check (event.message == event.record.value.getObjValD "msg")
       "event projection changed the native message"
@@ -1697,29 +2018,33 @@ private def transportTests : IO Unit := do
     "address regression did not replace any configuration metadata"
   check ((← ok (replayRecords addressed)) == baseline) "transport address changed replay"
   for sequence in [0, 2] do
-    rejects (reduce (mutate records 1 ["h_ts"] (toJson sequence))) "trace sequence"
-  rejects (reduce (mutate records 0 ["h_ts"] (toJson (1 : Nat)))) "trace sequence"
-  rejects (reduce (records.extract 0 1 ++ records.extract 2 records.size))
+    rejects (reduceRecords (mutate records 1 ["h_ts"] (toJson sequence))) "trace sequence"
+  rejects (reduceRecords (mutate records 0 ["h_ts"] (toJson (1 : Nat)))) "trace sequence"
+  rejects (reduceRecords (records.extract 0 1 ++ records.extract 2 records.size))
     "trace sequence"
-  rejects (reduce (records.set! 1 records[2]! |>.set! 2 records[1]!)) "trace sequence"
-  rejects (reduce (mutate records 1 ["process_id"] (toJson "another"))) "mixed trace"
+  rejects (reduceRecords (records.set! 1 records[2]! |>.set! 2 records[1]!))
+    "trace sequence"
+  rejects (reduceRecords (mutate records 1 ["process_id"] (toJson "another")))
+    "mixed trace"
   for (key, value) in [("process_id", .bool true), ("h_ts", .bool true)] do
-    rejects (reduce (mutate records 1 [key] value)) records[1]!.location
+    rejects (reduceRecords (mutate records 1 [key] value)) records[1]!.location
   for key in ["process_id", "h_ts", "msg"] do
     let fields ← ok (object records[1]!.value)
     let missing := mutate records 1 [] (Json.mkObj (fields.filter (·.1 != key)))
-    rejects (reduce missing) key
-    rejects (reduce missing) records[1]!.location
+    rejects (reduceRecords missing) key
+    rejects (reduceRecords missing) records[1]!.location
   for index in [0, 1] do
-    rejects (reduce (mutate records index ["tag"] (toJson "raft_trace")))
+    rejects (reduceRecords (mutate records index ["tag"] (toJson "raft_trace")))
       "expected ccf.raft_trace"
   for raw
       in [
         "{\"tag\":\"raft_trace\",\"cmd\":\"state_all\"}",
         "{\"tag\":\"raft_trace\",\"h_ts\":0,\"level\":\"trace\",\"msg\":{}}"
       ] do
-    rejects (reduce (← ok (parseLog "legacy.stdout" raw))) "expected ccf.raft_trace"
-    rejects (reduce (← ok (parseLog "legacy.ndjson" raw))) "expected ccf.raft_trace"
+    rejects (reduceRecords (← ok (parseLog "legacy.stdout" raw)))
+      "expected ccf.raft_trace"
+    rejects (reduceRecords (← ok (parseLog "legacy.ndjson" raw)))
+      "expected ccf.raft_trace"
   check
     ((← ok (replayRecords (mutate records 0 ["unexpected"] .null))) == baseline)
     "unused envelope data changed replay"
@@ -1740,23 +2065,24 @@ private def transportTests : IO Unit := do
       if name == "commit" then native else Json.mkObj [("configuration", native)]
     let legacy :=
       Json.mkObj (fields.filter (fun (key, _) => !keys.contains key) ++ [("args", args)])
-    rejects (reduce (mutate records index ["msg"] legacy)) required
+    rejects (reduceRecords (mutate records index ["msg"] legacy)) required
     check
       ((← ok (replayRecords (mutate records index ["msg", "args"] (.bool false))))
         == baseline)
       "unused legacy-shaped metadata replaced native fields"
     for key in keys.filter (· != "rid") do
       rejects
-        (reduce (mutate records index ["msg"] (Json.mkObj (fields.filter (·.1 != key)))))
+        (reduceRecords
+          (mutate records index ["msg"] (Json.mkObj (fields.filter (·.1 != key)))))
         key
   let message ← ok (object (records[0]!.value.getObjValD "msg"))
   let legacyCommand := mutate records 0 ["cmd"] (toJson "start_node,0")
   let legacyCommand :=
     mutate legacyCommand 0 ["msg"] (Json.mkObj (message.filter (·.1 != "cmd")))
-  rejects (reduce legacyCommand) "event before command"
+  rejects (reduceRecords legacyCommand) "event before command"
   let located := mutate records 1 ["file"] (toJson "src/consensus/aft/raft.h")
   let located := mutate located 1 ["number"] (toJson "123")
-  let (events, _) ← ok (associate located)
+  let (events, _) ← ok (prepareEvents located)
   check ((events[0]!.origin "test").label == s!"{records[1]!.location} [test]")
     "origin lost its trace location or reduction rule"
   check ((← ok (replayRecords (mutate located 1 ["number"] (.bool false)))) == baseline)
@@ -1764,7 +2090,7 @@ private def transportTests : IO Unit := do
   let votes ← fixture "vote_responses.ndjson"
   let timeout ← find votes "become_pre_vote_candidate"
   let disabled := mutate votes timeout ["msg", "function"] (toJson "become_candidate")
-  rejects (reduce disabled) "ungrouped event become_candidate"
+  rejects (reduceRecords disabled) "ungrouped event become_candidate"
 
 def main : IO UInt32 := do
   let _ ← parserTests
@@ -1778,7 +2104,10 @@ def main : IO UInt32 := do
   emissionTests
   let _ ← fixtureMutations
   let observations ← observationTests
+  boundaryObservationTests
+  receivePhaseObservationTests
   let _ ← directTests
+  jsonPathTests
   observationClosureTests
   receiveFifoTests
   identityTests

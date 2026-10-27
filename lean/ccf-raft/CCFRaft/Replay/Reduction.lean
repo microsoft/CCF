@@ -3,7 +3,7 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-public import CCFRaft.Replay.Records
+public import CCFRaft.Replay.Input
 
 import CCF.Parsec
 
@@ -82,82 +82,101 @@ private def emitObserveEntry (event : Event) (index : Nat)
     (.observe (observeEntry (← get).header event.node index (Json.mkObj fields))
       (event.origin rule))
 
-/-- Selected boundaries check every field except fixed native-phase exclusions. -/
-private def emitObserve (event : Event) (rule : String)
-    (properties : Option Json := none) (exclusions : List String := [])
+private def emitObserveState (event : Event) (rule : String)
+    (fields : List (String × Json))
     (peer : Option String := none) (frontier : Option Nat := none)
     : Reduction Unit := do
-  let facts ← read event (object (properties.getD event.facts))
-  let fields := facts.filter fun (key, _) => !exclusions.contains key
-  let state := fields.filter (·.1 != "committableIndices")
   let origin := event.origin rule
   if let some frontier := frontier then
     checked event peer.isNone "pre-commit observation cannot select a peer"
     emitInstruction
       (.observe
-        (observeBeforeCommit (← get).header event.node frontier (Json.mkObj state))
+        (observeBeforeCommit (← get).header event.node frontier (Json.mkObj fields))
         origin)
   else
     emitInstruction
-      (.observe (observeState (← get).header event.node peer (Json.mkObj state)) origin)
-  if let some markers := fields.lookup "committableIndices" then
-    for marker in ← read event markers.getArr? do
-      emitObserveEntry event (← read event (natural marker))
-        [("kind", toJson "signature")] "signature-marker"
+      (.observe (observeState (← get).header event.node peer (Json.mkObj fields)) origin)
+
+/-- Check every supported snapshot field except explicit native-phase exclusions. -/
+private def emitObserveSnapshot (event : Event) (rule : String)
+    (exclusions : List String := []) (frontier : Option Nat := none)
+    (withPeer : Bool := false)
+    : Reduction Unit := do
+  let mut fields := []
+  for key
+      in [
+        "leadership_state",
+        "current_view",
+        "last_idx",
+        "commit_idx",
+        "membership_state"
+      ] do
+    unless exclusions.contains key do
+      fields := fields ++ [(key, ← read event (field event.state key))]
+  for key
+      in [
+        "retirement_phase",
+        "retirement_idx",
+        "retirement_committable_idx",
+        "retired_committed_idx"
+      ] do
+    fields := fields ++ [(key, (optional event.state key).getD .null)]
+  if let some markers := optional event.state "committable_indices" then
+    fields := fields ++ [("committable_indices", markers)]
+  if let some configurations := optional event.message "configurations" then
+    fields := fields ++ [("configurations", configurations)]
+  let peer ←
+    if withPeer then
+      read event do
+        if let some value := optional event.message "to_node_id" then
+          some <$> text value
+        else
+          some <$> string event.message "from_node_id"
+    else
+      pure none
+  if withPeer then
+    for key in ["sent_idx", "match_idx"] do
+      unless exclusions.contains key do
+        fields := fields ++ [(key, ← read event (field event.message key))]
+  emitObserveState event rule (fields.filter fun (key, _) => !exclusions.contains key)
+    peer frontier
 
 private def emitObservePacket (event : Event) (rule : String)
-    (selection : PacketSelection := .latest)
+    (selection : PacketSelection := .latest) (expected : Option Json := none)
     : Reduction Unit := do
   let destination ← read event (string event.message "to_node_id")
-  let packet ← read event (field event.message "packet")
+  let packet ←
+    match expected with
+    | some packet => pure packet
+    | none => read event (field event.message "packet")
   emitInstruction
     (.observe (observeMessage (← get).header event.node destination packet selection)
       (event.origin rule))
 
 private def emitObserveProposal (event : Event) (rule : String) : Reduction Unit := do
-  let destination ← read event (string event.message "to_node_id")
   let term ← read event (nat event.state "current_view")
-  emitInstruction
-    (.observe
-      (observeMessage (← get).header event.node destination
-        (Json.mkObj [("msg", toJson "raft_propose_request_vote"), ("term", toJson term)])
-        .latest)
-      (event.origin rule))
+  emitObservePacket event rule
+    (expected :=
+      some
+        (Json.mkObj [("msg", toJson "raft_propose_request_vote"), ("term", toJson term)]))
 
-private def emitObservePeerProgress (event : Event) (rule : String) : Reduction Unit := do
-  let peer ←
-    read event do
-      if let some value := optional event.message "to_node_id" then
-        text value
-      else
-        string event.message "from_node_id"
-  let fields ←
-    read event do
-      return Json.mkObj
-        [
-          ("sentIndex", ← field event.message "sent_idx"),
-          ("matchIndex", ← field event.message "match_idx")
-        ]
-  emitObserve event rule (some fields) [] (some peer)
-
-private def emitObserveInternal (event : Event) : Reduction Unit := do
-  emitObserve event "event-term"
-    (some (Json.mkObj [("currentTerm", ← read event (field event.facts "currentTerm"))]))
-  if let some markers := optional event.facts "committableIndices" then
+/-- Entry facts survive the rest of a receive even when its caches and frontier change. -/
+private def emitObserveEntryEvidence (event : Event) : Reduction Unit := do
+  if let some markers := optional event.state "committable_indices" then
     for marker in ← read event markers.getArr? do
       emitObserveEntry event (← read event (natural marker))
         [("kind", toJson "signature")] "signature-marker"
-  let committed ← read event (nat event.facts "commitIndex")
+  let committed ← read event (nat event.state "commit_idx")
   if committed > 0 then
     emitObserveEntry event committed
       [("kind", toJson "signature"), ("committed", toJson true)]
       "event-committed-prefix"
-  if let some configurations := optional event.facts "configurations" then
-    for configuration in ← read event configurations.getArr? do
-      emitObserveEntry event (← read event (nat configuration "index"))
+  if let some configurations := optional event.message "configurations" then
+    for value in ← read event configurations.getArr? do
+      emitObserveEntry event (← read event (nat value "idx"))
         [
           ("kind", toJson "transaction"),
-          ("configurations", toJson [← read event (field configuration "nodes")])
+          ("configurations", toJson [← read event (configuration value)])
         ]
         "event-configuration"
 
@@ -169,16 +188,26 @@ private def retirementNomination (commit : Event) : Reduction Event :=
     event "step_down_and_nominate_successor" (source := some commit)
       fun e => do
         let target ← read commit (nat commit.message "idx")
-        let confirmation ← read e (nat e.facts "retiredCommittedIndex")
+        let confirmation ← read e (nat e.state "retired_committed_idx")
         checked e
-          (optional e.facts "role" == some (toJson "leader")
-            && optional e.facts "membershipState" == some (toJson "retirementCompleted")
-            && optional e.facts "commitIndex" == some (toJson target)
+          (optional e.state "leadership_state" == some (toJson "Leader")
+            && optional e.state "membership_state" == some (toJson "Retired")
+            && optional e.state "retirement_phase" == some (toJson "Completed")
+            && optional e.state "commit_idx" == some (toJson target)
             && confirmation > 0
             && confirmation <= target)
           "unexpected terminal-retirement nomination boundary"
+        let configurations (event : Event) :=
+          read event do
+            match optional event.message "configurations" with
+            | none => pure none
+            | some values =>
+                some
+                <$> (← values.getArr?).toList.mapM
+                      fun value => do
+                        return (← nat value "idx", ← configuration value)
         checked e
-          (optional e.facts "configurations" == optional commit.facts "configurations")
+          ((← configurations e) == (← configurations commit))
           "nomination configurations differ from checked precommit cache"
         return e
   nomination
@@ -199,7 +228,7 @@ private def ruleLeaderCommit (anchor : Event) : Reduction LeaderCommit :=
       fun e => do
         checked e ((← read e (string e.state "leadership_state")) == "Leader")
           "internal commit outside leadership"
-        let previous ← read anchor (nat anchor.facts "commitIndex")
+        let previous ← read anchor (nat anchor.state "commit_idx")
         let target ← read e (nat e.message "idx")
         return (e, previous, target)
   do
@@ -210,13 +239,15 @@ private def ruleLeaderCommit (anchor : Event) : Reduction LeaderCommit :=
 private def emitObserveLeaderCommit (evidence : LeaderCommit) : Reduction Unit := do
   let ⟨commit, previous, target, nomination⟩ := evidence
   -- The callback precedes terminal role clearing; the grammar checks its leader role.
-  emitObserve commit "commit-in-action" none ["role"] none (some previous)
-  emitObserve commit "commit-target" (some (Json.mkObj [("commitIndex", toJson target)]))
+  emitObserveSnapshot commit "commit-in-action" ["leadership_state"]
+    (frontier := some previous)
+  -- The callback's target is an output coordinate, not a post-commit node snapshot.
+  emitObserveState commit "commit-target" [("commit_idx", toJson target)]
   if let some nomination := nomination then
     emitObserveProposal nomination "terminal-nomination-message"
     -- The grammar checks the pre-clearing role/phase and pre-pruning cache.
-    emitObserve nomination "terminal-nomination-post" none
-      ["role", "membershipState", "configurations"]
+    emitObserveSnapshot nomination "terminal-nomination-post"
+      ["leadership_state", "membership_state", "retirement_phase", "configurations"]
 
 private def activePeers (event : Event) : Reduction (List String) := do
   let configurations ← read event (field event.message "configurations" >>= Json.getArr?)
@@ -261,7 +292,7 @@ private def ruleBecomeLeader (anchor : Event) : Reduction Leadership :=
   let promotion :=
     event "become_leader" (source := some anchor)
       fun e => do
-        checked e (optional e.facts "role" == some (toJson "leader"))
+        checked e (optional e.state "leadership_state" == some (toJson "Leader"))
           "promotion role must be leader"
         return e
   let heartbeat (leader : Event) :=
@@ -292,6 +323,7 @@ private def ruleBecomeLeader (anchor : Event) : Reduction Leadership :=
     return { event := leader, commit, heartbeats := heartbeats.map (·.1) }
 
 private structure Election where
+  candidate : Option Event := none
   promotion : Option Leadership
   requests : List Event
 
@@ -304,28 +336,47 @@ private def becomeCandidate (anchor : Event) : Reduction Election :=
   let candidate :=
     event "become_candidate" (source := some anchor)
       fun e => do
+        checked e (optional e.state "leadership_state" == some (toJson "Candidate"))
+          "candidate role must be candidate"
         return e
   do
     let candidateEvent ← candidate
     let promotion ← optionalRule (ruleBecomeLeader anchor)
     let requests ← electionRequests candidateEvent "raft_request_vote" promotion.isSome
-    return { promotion, requests }
+    return { candidate := some candidateEvent, promotion, requests }
 
 -- Emit observations of promotion, commits, heartbeats and vote requests, not model actions.
 private def emitObserveElection (election : Election) : Reduction Unit := do
+  if let some candidate := election.candidate then
+    match election.promotion with
+    | none => emitObserveSnapshot candidate "candidate-post"
+    | some promotion =>
+        -- Promotion changes role and truncates unsigned entries, which may contain
+        -- configurations or an unsigned retirement. Signatures survive truncation;
+        -- a synchronous commit is observed at its independently checked old frontier.
+        emitObserveSnapshot candidate "candidate-in-election"
+          [
+            "leadership_state",
+            "last_idx",
+            "configurations",
+            "membership_state",
+            "retirement_phase",
+            "retirement_idx"
+          ] (frontier := promotion.commit.map (·.previous))
   if let some promotion := election.promotion then
     let ⟨leader, commit, heartbeats⟩ := promotion
-    emitObserveInternal leader
-    emitObserve leader "leader-log"
-      (some (Json.mkObj [("logLength", ← read leader (field leader.facts "logLength"))]))
+    -- Promotion is post-rollback but pre-commit. Only a subsequent commit can
+    -- clear its recorded leader role; the grammar checks that intermediate phase.
+    emitObserveSnapshot leader "leader-post"
+      (if commit.isSome then ["leadership_state"] else [])
+      (frontier := commit.map (·.previous))
     if let some commit := commit then
       emitObserveLeaderCommit commit
     for heartbeat in heartbeats do
-      emitObserve heartbeat "leader-heartbeat-post"
-      emitObservePeerProgress heartbeat "leader-heartbeat-pre"
+      emitObserveSnapshot heartbeat "leader-heartbeat-post" (withPeer := true)
       emitObservePacket heartbeat "send-post"
   for request in election.requests do
-    emitObserve request "send-post"
+    emitObserveSnapshot request "send-post"
     emitObservePacket request "send-post"
 
 /-- Consumes:
@@ -355,13 +406,13 @@ private def ruleBootstrap : Reduction String :=
         leading e.node e
         for key
             in [
-              "retirementIndex",
-              "retirementCommittableIndex",
-              "retiredCommittedIndex"
+              "retirement_idx",
+              "retirement_committable_idx",
+              "retired_committed_idx"
             ] do
-          checked e (optional e.facts key == some .null)
+          checked e ((optional e.state key).getD .null == .null)
             s!"bootstrap {key} must be absent"
-        checked e (optional e.facts "configurations" == some (toJson ([] : List Json)))
+        checked e (optional e.message "configurations" == some (toJson ([] : List Json)))
           "bootstrap configurations must be empty before genesis"
         return e
   let genesisWrite (leader : String) :=
@@ -373,6 +424,7 @@ private def ruleBootstrap : Reduction String :=
             && optional e.message "view" == some (toJson (2 : Nat))
             && optional e.message "globally_committable" == some (toJson false))
           "bootstrap write differs from audited prelude"
+        return e
   let genesisConfiguration (leader : String) :=
     event "add_configuration"
       fun e => do
@@ -385,11 +437,13 @@ private def ruleBootstrap : Reduction String :=
     -- Consumption
     let leaderEvent ← becomeLeader
     let leader := leaderEvent.node
-    genesisWrite leader
+    let writeEvent ← genesisWrite leader
     let configurationEvent ← genesisConfiguration leader
     -- Emission
-    -- Genesis is preloaded by Model.initialNodeState, not an invented transition.
-    emitObserveInternal leaderEvent
+    -- Genesis is preloaded, so the recorded empty log and pre-genesis configuration
+    -- cache cannot match it. Every other state field is unchanged by initialization.
+    for event in [leaderEvent, writeEvent, configurationEvent] do
+      emitObserveSnapshot event "bootstrap-state" ["last_idx", "configurations"]
     emitObserveEntry configurationEvent 1
       [("kind", toJson "transaction"), ("configurations", toJson [[leader]])]
     return leader
@@ -456,25 +510,29 @@ private def ruleAppend : Reduction Unit :=
       | some _ => many (heartbeat writeEvent)
     let commit ← optionalRule (ruleLeaderCommit writeEvent)
     -- Emission
-    emitObserve writeEvent "write-pre"
+    emitObserveSnapshot writeEvent "write-pre"
     if let some (config, _, _, _) := configurationEvent then
-      emitObserve config "configuration-pre"
+      emitObserveSnapshot config "configuration-pre"
     emitAction writeEvent "atomic-append" (.local writeEvent.node (.append [content]))
-    emitObserve writeEvent "write-post"
-      (some
-        (Json.mkObj
-          [
-            ("logLength", ← read writeEvent (field writeEvent.message "seqno")),
-            ("currentTerm", ← read writeEvent (field writeEvent.message "view"))
-          ]))
+    -- The snapshot is pre-append; only these output coordinates describe the new log.
+    emitObserveState writeEvent "write-post"
+      [
+        ("last_idx", ← read writeEvent (field writeEvent.message "seqno")),
+        ("current_view", ← read writeEvent (field writeEvent.message "view"))
+      ]
     if let some (config, _, nodes, index) := configurationEvent then
+      -- Configuration arguments describe the new entry, not a post-append snapshot.
       emitObserveEntry config index
         [("kind", toJson "transaction"), ("configurations", toJson [nodes])]
     for (event, peer, sent, matched) in heartbeats do
-      emitObserve event "configuration-event-peer"
-        (some
-          (Json.mkObj [("sentIndex", toJson (sent - 1)), ("matchIndex", toJson matched)]))
-        [] (some peer)
+      -- The hook has applied the configuration but not appended its log entry.
+      -- A later commit may clear leadership; observe the remaining fields before it.
+      emitObserveSnapshot event "configuration-event-state"
+        ("last_idx" :: if commit.isSome then ["leadership_state"] else [])
+        (frontier := commit.map (·.previous))
+      -- Native constructor progress uses a next-index sentinel, not a sent frontier.
+      emitObserveState event "configuration-event-peer"
+        [("sent_idx", toJson (sent - 1)), ("match_idx", toJson matched)] (some peer)
       emitObservePacket event "send-post"
     if let some commit := commit then
       emitObserveLeaderCommit commit
@@ -516,16 +574,55 @@ private def becomeFollower (receive : Receive) : Reduction Event := do
     event "become_follower" (source := some receive.event)
       fun e => do
         checked e
-          (optional e.facts "role" == some (toJson "follower")
+          (optional e.state "leadership_state" == some (toJson "Follower")
             && optional e.state "current_view" == some (toJson term))
           "term adoption does not match received packet"
         return e
   follower
 
--- The rest of an AppendEntries receive may change the role, but not the adopted term.
-private def emitObserveTermAdoption (event : Event) : Reduction Unit := do
-  emitObserve event "receive-term-adoption"
-    (some (Json.mkObj [("currentTerm", ← read event (field event.facts "currentTerm"))]))
+private def emitObserveAppendEntriesState (receive : Receive) (event : Event)
+    : Reduction Unit := do
+  let previous ← read receive.event (nat receive.event.state "commit_idx")
+  -- Only supplied coordinates justify stronger checks. The preceding delivery
+  -- checks the packet against the model; malformed coordinates still fail there.
+  let last := (receive.packet.getObjValAs? Nat "idx").toOption
+  let logUnchanged :=
+    match last, (receive.packet.getObjValAs? Nat "prev_idx").toOption with
+    | some last, some previous => last == previous
+    | _, _ => false
+  if logUnchanged && event.function == "commit" then
+    -- With no entries to apply, this is the only commit and its old frontier
+    -- comes from the checked receive head. Only committing can clear the role.
+    emitObserveSnapshot event "receive-internal" ["leadership_state"]
+      (frontier := some previous)
+    emitObserveState event "receive-commit-target"
+      [("commit_idx", ← read event (field event.message "idx"))]
+    return
+  let commitUnchanged :=
+    match last, (receive.packet.getObjValAs? Nat "leader_commit_idx").toOption with
+    | some last, some leaderCommit => min last leaderCommit <= previous
+    | _, _ => false
+  -- Commit can clear the role and latch retirement confirmation. Log changes
+  -- affect length and removal coordinates; caches and phase depend on both.
+  let exclusions :=
+    (if commitUnchanged then
+        []
+      else
+        ["leadership_state", "commit_idx", "retired_committed_idx"])
+    ++ (if logUnchanged then
+          []
+        else
+          [
+            "last_idx",
+            "membership_state",
+            "retirement_idx",
+            "retirement_committable_idx"
+          ])
+    ++ (if logUnchanged && commitUnchanged then
+          []
+        else
+          ["committable_indices", "configurations", "retirement_phase"])
+  emitObserveSnapshot event "receive-internal" exclusions
 
 private structure FollowerEvidence where
   event : Event
@@ -539,7 +636,7 @@ recv_append_entries
 -/
 private def ruleRecvAppendEntries : Reduction Unit :=
   let followerRole (e : Event) : Reduction Unit :=
-    checked e (optional e.facts "role" == some (toJson "follower"))
+    checked e (optional e.state "leadership_state" == some (toJson "Follower"))
       "receive event requires follower role"
   let head :=
     event "recv_append_entries"
@@ -594,18 +691,18 @@ private def ruleRecvAppendEntries : Reduction Unit :=
           <|> commitFollower receive)
     let responseEvent ← optionalRule (response receive)
     -- Emission
-    emitObserve receive.event "receive-pre"
-    -- The effects of this are evident in the next event after receive
+    emitObserveSnapshot receive.event "receive-pre"
     emitAction receive.event "atomic-receive"
       (.receive receive.sender receive.event.node receive.packet)
     if let some follower := follower then
-      emitObserveTermAdoption follower
+      emitObserveAppendEntriesState receive follower
     for evidence in events do
       if let some (index, fields) := evidence.entry then
         emitObserveEntry evidence.event index fields
-      emitObserveInternal evidence.event
+      emitObserveAppendEntriesState receive evidence.event
+      emitObserveEntryEvidence evidence.event
     if let some responseEvent := responseEvent then
-      emitObserve responseEvent "receive-post"
+      emitObserveSnapshot responseEvent "receive-post"
       emitObservePacket responseEvent "response-post"
 
 /-- Consumes:
@@ -624,12 +721,11 @@ private def ruleRecvAppendEntriesResponse : Reduction Unit :=
     let follower ← optionalRule (becomeFollower receive)
     let commit ← optionalRule (ruleLeaderCommit receive.event)
     -- Emission
-    emitObserve receive.event "receive-pre"
-    emitObservePeerProgress receive.event "receive-pre"
+    emitObserveSnapshot receive.event "receive-pre" (withPeer := true)
     emitAction receive.event "atomic-receive"
       (.receive receive.sender receive.event.node receive.packet)
     if let some follower := follower then
-      emitObserveTermAdoption follower
+      emitObserveSnapshot follower "receive-term-adoption"
     if let some commit := commit then
       emitObserveLeaderCommit commit
 
@@ -659,13 +755,13 @@ private def ruleRecvRequestVote : Reduction Unit :=
     let follower ← optionalRule (becomeFollower receive)
     let responseEvent ← optionalRule (response receive)
     -- Emission
-    emitObserve receive.event "receive-pre"
+    emitObserveSnapshot receive.event "receive-pre"
     emitAction receive.event "atomic-receive"
       (.receive receive.sender receive.event.node receive.packet)
     if let some follower := follower then
-      emitObserveTermAdoption follower
+      emitObserveSnapshot follower "receive-term-adoption"
     if let some responseEvent := responseEvent then
-      emitObserve responseEvent "receive-post"
+      emitObserveSnapshot responseEvent "receive-post"
       emitObservePacket responseEvent "response-post"
 
 /-- Consumes:
@@ -684,11 +780,11 @@ private def ruleRecvProposeRequestVote : Reduction Unit :=
     let follower ← optionalRule (becomeFollower receive)
     let election ← optionalRule (becomeCandidate receive.event)
     -- Emission
-    emitObserve receive.event "receive-pre"
+    emitObserveSnapshot receive.event "receive-pre"
     emitAction receive.event "atomic-receive"
       (.receive receive.sender receive.event.node receive.packet)
     if let some follower := follower then
-      emitObserveTermAdoption follower
+      emitObserveSnapshot follower "receive-term-adoption"
     if let some election := election then
       emitObserveElection election
 
@@ -711,11 +807,11 @@ private def ruleRecvRequestVoteResponse : Reduction Unit :=
     let follower ← optionalRule (becomeFollower receive)
     let election ← optionalRule (becomeCandidate receive.event <|> promotion receive)
     -- Emission
-    emitObserve receive.event "receive-pre"
+    emitObserveSnapshot receive.event "receive-pre"
     emitAction receive.event "atomic-receive"
       (.receive receive.sender receive.event.node receive.packet)
     if let some follower := follower then
-      emitObserveTermAdoption follower
+      emitObserveSnapshot follower "receive-term-adoption"
     if let some election := election then
       emitObserveElection election
 
@@ -730,14 +826,15 @@ private def ruleElectionTimeout : Reduction Unit :=
   let preCandidate :=
     event "become_pre_vote_candidate"
       fun e => do
-        checked e (optional e.facts "role" == some (toJson "preVoteCandidate"))
+        checked e
+          (optional e.state "leadership_state" == some (toJson "PreVoteCandidate"))
           "election boundary role must be preVoteCandidate"
         return e
   let selfQuorum (head : Event) := do
-    event "become_candidate" (source := some head) fun _ => pure ()
-    let promotion ← optionalRule (ruleBecomeLeader head)
-    let requests ← electionRequests head "raft_request_vote" true
-    return { promotion, requests : Election }
+    let election ← becomeCandidate head
+    checked head (← activePeers head).isEmpty
+      "self-quorum promotion with other active members"
+    return election
   let requests (head : Event) := do
     let requests ← electionRequests head "raft_request_pre_vote" false
     return { promotion := none, requests : Election }
@@ -747,8 +844,12 @@ private def ruleElectionTimeout : Reduction Unit :=
     let election ← selfQuorum head <|> requests head
     -- Emission
     -- The callback follows role assignment; the grammar checks the transition.
-    emitObserve head "election-pre" none ["role"]
+    emitObserveSnapshot head "election-pre" ["leadership_state"]
     emitAction head "atomic-election" (.local head.node (.timeout .election))
+    -- With other active members, the self-vote cannot advance beyond pre-vote.
+    -- This depends on the checked configuration, not the presence of later telemetry.
+    unless (← activePeers head).isEmpty do
+      emitObserveSnapshot head "election-post"
     emitObserveElection election
 
 /-- Consumes:
@@ -764,9 +865,9 @@ private def ruleCheckQuorumTimeout : Reduction Unit :=
     let head ← follower
     -- Emission
     -- The callback follows role assignment; the grammar checks the transition.
-    emitObserve head "check-quorum-pre" none ["role"]
+    emitObserveSnapshot head "check-quorum-pre" ["leadership_state"]
     emitAction head "role-post" (.local head.node (.timeout .checkQuorum))
-    emitObserve head "role-post"
+    emitObserveSnapshot head "role-post"
 
 /-- Consumes:
 send_append_entries
@@ -782,9 +883,10 @@ private def ruleSend : Reduction Unit :=
     -- Consumption
     let (head, destination, last) ← send
     -- Emission
-    emitObserve head "send-pre"
-    emitObservePeerProgress head "send-pre"
+    emitObserveSnapshot head "send-pre" (withPeer := true)
     emitAction head "atomic-send" (.local head.node (.sendEntries destination last))
+    -- Sending changes only this peer's sent index, not the other recorded fields.
+    emitObserveSnapshot head "send-post-state" ["sent_idx"] (withPeer := true)
     emitObservePacket head "send-post"
 
 /-- Consumes:
@@ -803,8 +905,10 @@ private def ruleNomination : Reduction Unit :=
     -- Consumption
     let head ← nomination
     -- Emission
-    emitObserve head "nomination"
+    emitObserveSnapshot head "nomination"
     emitAction head "nomination" (.local head.node .nominateSuccessor)
+    -- Sending the proposal leaves the recorded node state unchanged.
+    emitObserveSnapshot head "nomination-post"
     emitObserveProposal head "nomination-message"
 
 /-- Consumes:
@@ -823,7 +927,7 @@ private def ruleDrop : Reduction Unit :=
     emitInstruction
       (.observe (fun _ => require (sender == head.node) "drop sender mismatch")
         (head.origin "drop-sender"))
-    emitObserve head "drop"
+    emitObserveSnapshot head "drop"
     emitObservePacket head "drop" .head
     emitAction head "drop" (.drop head.node destination)
 
@@ -856,3 +960,24 @@ def reduce (events : Array Event) (header : Header)
   return (leader, state.instructions)
 
 end CCFRaft.Replay.Reducer
+
+namespace CCFRaft.Replay
+
+/-- Prepared initialization and instructions for direct model replay. -/
+structure Reduced where
+  header : Header
+  instructions : Array Instruction
+
+/-- Prepare replay identities and reduce the associated event stream. -/
+def reduce (events : Array Event) (declared : List String) : Except String Reduced := do
+  let locations :=
+    (events.toList.filter (fun event => event.function == "replicate")).map
+      (·.record.location)
+  require (locations.eraseDups == locations) "duplicate transaction source location"
+  let requests := "" :: locations
+  let header : Header := { bootstrap := ∅, declared, requests }
+  let (leader, instructions) ← Reducer.reduce events header
+  let header := { header with bootstrap := {← header.nodeId leader} }
+  return { header, instructions }
+
+end CCFRaft.Replay

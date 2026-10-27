@@ -3,7 +3,7 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-public import CCFRaft.Replay
+public import CCFRaft.Replay.Interpreter
 
 public section
 
@@ -41,6 +41,10 @@ def nat (value : Json) (key : String) : Except String Nat :=
 def boolean (value : Json) (key : String) : Except String Bool :=
   field value key >>= Json.getBool?
 
+def configuration (value : Json) : Except String (List String) := do
+  let nodes ← object (← field value "nodes")
+  return (nodes.map Prod.fst).mergeSort
+
 structure Record where
   file : String
   line : Nat
@@ -69,60 +73,6 @@ def readLog (path : System.FilePath) : IO (Except String (Array Record)) := do
   | return .error s!"{path}: invalid UTF-8"
   return parseLog path.toString input
 
-def configuration (value : Json) : Except String (List String) := do
-  let nodes ← object (← field value "nodes")
-  return (nodes.map Prod.fst).mergeSort
-
-/-- Project the state fields used by observations; unrelated JSON is ignored. -/
-def stateFacts (state message : Json) : Except String Json := do
-  let role ←
-    match ← string state "leadership_state" with
-    | "None" => pure "none"
-    | "Follower" => pure "follower"
-    | "PreVoteCandidate" => pure "preVoteCandidate"
-    | "Candidate" => pure "candidate"
-    | "Leader" => pure "leader"
-    | name => throw s!"invalid role '{name}'"
-  let membership ←
-    match ← string state "membership_state", optional state "retirement_phase" with
-    | "Active", none | "Active", some .null => pure "active"
-    | "Retired", some (.str "Ordered") => pure "retirementOrdered"
-    | "Retired", some (.str "Signed") => pure "retirementSigned"
-    | "Retired", some (.str "Completed") => pure "retirementCompleted"
-    | "Retired", some (.str "RetiredCommitted") => pure "retiredCommitted"
-    | _, _ => throw "unsupported membership/retirement phase"
-  let mut facts :=
-    [
-      ("role", toJson role),
-      ("currentTerm", toJson (← nat state "current_view")),
-      ("logLength", toJson (← nat state "last_idx")),
-      ("commitIndex", toJson (← nat state "commit_idx")),
-      ("membershipState", toJson membership)
-    ]
-  for (raw, target)
-      in [
-        ("retirement_idx", "retirementIndex"),
-        ("retirement_committable_idx", "retirementCommittableIndex"),
-        ("retired_committed_idx", "retiredCommittedIndex")
-      ] do
-    let value ←
-      match optional state raw with
-      | none | some .null => pure Json.null
-      | some value => toJson <$> natural value
-    facts := facts ++ [(target, value)]
-  if let some markers := optional state "committable_indices" then
-    let values ← (← markers.getArr?).toList.mapM natural
-    facts := facts ++ [("committableIndices", toJson values)]
-  if let some configurations := optional message "configurations" then
-    let mut projected := #[]
-    for value in ← configurations.getArr? do
-      let names ← configuration value
-      let index ← nat value "idx"
-      projected :=
-        projected.push (Json.mkObj [("index", toJson index), ("nodes", toJson names)])
-    facts := facts ++ [("configurations", .arr projected)]
-  return Json.mkObj facts
-
 structure Event where
   record : Record
   command : Record
@@ -130,19 +80,14 @@ structure Event where
   node : String
   message : Json
   state : Json
-  facts : Json
 deriving Inhabited
 
 def Event.origin (event : Event) (rule : String) : Origin :=
   { file := event.record.file, line := event.record.line, rule }
 
-def Event.sameContext (first second : Event) : Bool :=
-  first.node == second.node
-  && first.command.file == second.command.file
-  && first.command.line == second.command.line
-
-/-- Preserve capture order, associate commands, and discover node identities. -/
-def associate (records : Array Record) : Except String (Array Event × List String) := do
+/-- Validate input, preserve capture order, attach commands, and discover node identities. -/
+def prepareEvents (records : Array Record)
+    : Except String (Array Event × List String) := do
   let mut events := #[]
   let mut command : Option Record := none
   let mut nodes : List String := []
@@ -188,12 +133,38 @@ def associate (records : Array Record) : Except String (Array Event × List Stri
         let some cmd := command | throw "event before command"
         let function ← string message "function"
         let state ← field message "state"
-        let facts ← stateFacts state message
+        require
+          (["None", "Follower", "PreVoteCandidate", "Candidate", "Leader"].contains
+            (← string state "leadership_state"))
+          "invalid role"
+        require
+          (match ← string state "membership_state", optional state "retirement_phase" with
+            | "Active", none | "Active", some .null => true
+            | "Retired", some (.str phase) =>
+                ["Ordered", "Signed", "Completed", "RetiredCommitted"].contains phase
+            | _, _ => false)
+          "unsupported membership/retirement phase"
+        for key in ["current_view", "last_idx", "commit_idx"] do
+          let _ ← nat state key
+        for key
+            in [
+              "retirement_idx",
+              "retirement_committable_idx",
+              "retired_committed_idx"
+            ] do
+          if let some value := optional state key then
+            unless value == .null do
+              let _ ← natural value
+        if let some markers := optional state "committable_indices" then
+          let _ ← (← markers.getArr?).toList.mapM natural
+        if let some configurations := optional message "configurations" then
+          for value in ← configurations.getArr? do
+            let _ ← configuration value
+            let _ ← nat value "idx"
         let node ← string state "node_id"
         unless nodes.contains node do
           nodes := nodes ++ [node]
-        events :=
-          events.push { record, command := cmd, function, node, message, state, facts }
+        events := events.push { record, command := cmd, function, node, message, state }
     catch error =>
       throw s!"{record.location}: {error}"
   require (!events.isEmpty) "trace contains commands but no Raft events"

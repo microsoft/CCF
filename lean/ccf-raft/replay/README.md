@@ -4,14 +4,18 @@ Protocol validation is entirely Lean, following [DisasterRecovery's records, red
 
 ```text
 Python capture -> JSON trace
-JSON trace -(CCFRaft/Replay/Records.lean)-> Events
+JSON trace -(CCFRaft/Replay/Input.lean)-> Events
            -(CCFRaft/Replay/Reduction.lean)-> actions and observations
-           -(CCFRaft/Replay.lean)-> model execution or discrepancy
+           -(CCFRaft/Replay/Interpreter.lean)-> model execution or discrepancy
 ```
 
 [`tests/raft_trace_capture.py`](../../../tests/raft_trace_capture.py) owns capture, process lifecycle, scenario inventory and suite results, using the existing Python trace transport helper.
 Lean starts at a JSON trace; `ReplayMain.lean` accepts exactly one trace path.
-`CCFRaft/Replay/Replayer.lean` orchestrates record preparation, reduction and model replay, including node/request identity tables and bootstrap initialization.
+`Replay/Input.lean` owns JSON field access, capture records and event preparation, including input validation, command association and node discovery.
+`Replay/Reduction.lean` owns the event-to-instruction pipeline: `reduce` accepts associated events and declared node identities, prepares request identities and initialization, then invokes its named rules.
+`Replay/Interpreter.lean` owns model actions, read-only observations and their execution.
+`ReplayMain.lean` handles CLI arguments, files and result formatting, and explicitly calls `prepareEvents`, `reduce` and `replay` in order.
+There is no intermediate `Replayer` module or forwarding facade.
 Unlike DisasterRecovery's independent node logs, the single-threaded driver already records one global order, so there is no commit-order reconstruction, delivery search, or wait for growing logs.
 `Instruction` has only `action` and `observe` constructors, each carrying its trace location and reduction rule.
 An observation is a read-only `ReplayState -> Except String Unit` function that captures expected values and stable identities.
@@ -77,7 +81,7 @@ Legacy `raft_trace` records and their nested `args` layout are unsupported.
 Every input is NDJSON regardless of its filename extension; `.stdout` is the collector's existing JSON trace naming convention, not mixed console output.
 Blank, malformed JSON and non-JSON output lines fail rather than being filtered.
 Records use ordinary Lean JSON parsing, including its duplicate-key coalescing; there is no separate schema validator or lexical duplicate-key scan.
-Projection, reduction and replay read the fields they use with fallible accessors and preserve source locations on failure.
+Association, reduction and replay read the fields they use with fallible accessors and preserve source locations on failure.
 Unrelated envelope, event, state and configuration metadata is ignored.
 Configuration membership uses node names, not address metadata or the unused `rid` field.
 Packet fields passed to replay remain observations and are checked against model-generated packets, rather than a separate packet schema.
@@ -87,11 +91,16 @@ Other command names are provenance, not a whitelist or independent model actions
 Timeout elections always use pre-vote in both native Raft and the model; there is no per-node mode flag or driver toggle.
 Envelopes must have one process identity and contiguous sequence numbers starting at zero; missing, repeated or reordered sequences fail.
 The reducer reads native message fields directly, without manufacturing a compatibility representation.
-Event projection retains the original command and event envelopes for provenance.
+Events retain the original command and event envelopes for provenance, without a cached state projection.
+State observations use native trace field names and values.
+`checkJsonPaths` traverses the supplied observation using object-key and array-index paths, resolving each path to an optional checking function.
+A registered function interprets the entire value at its path; otherwise traversal continues into objects and arrays, rejecting unsupported leaves and empty containers.
+State paths check the requested model fields directly, without rendering a full model-state JSON object.
+The configuration checker compares indices and node identities while ignoring transport metadata.
 
 `Reduction.lean` parses the ordered native event stream with [`CCF.Parsec`](../../common/README.md#event-parsing), the common package's generic event-array adapter and stateful combinators over Lean's `Std.Internal.Parsec`.
 Its rules live in `CCFRaft.Replay.Reducer`; `Reducer.reduce` accepts prepared Events and identity tables and returns the bootstrap leader and emitted instructions.
-It does not normalize records, discover identities, construct the replay header or execute the model.
+The rule parser does not normalize records, discover identities, construct the replay header or execute the model; `reduce` prepares the header, while `ReplayMain.lean` calls association before reduction and replay afterwards.
 `CCF.Parsec.ParserT Event ReductionState` keeps parser position separate from the header and accumulated instructions without requiring equality on JSON events.
 Named reduction alternatives use `attempt`: a failed constrained pattern restores both input position and accumulated instructions before another alternative is tried.
 Optional and repeated subrules also use transactional attempts.
@@ -106,6 +115,7 @@ Shared commit, promotion and election evidence has parse-only grammars and separ
 The top-level grammar is bootstrap followed by `many_ reductionRules`, then a single leftover-event check that requires the input to be exhausted.
 Each rule explicitly emits its head Event's pre-action observation with a rule-specific tag before emitting its action.
 There is no trailing observation or invented snapshot at end of input.
+Finite traces are accepted as prefixes; they do not need a terminal observation.
 The state-threading `many` bridge attempts each repeated pattern and accumulates instructions directly, without reparsing individual chunks or flattening separately initialized output batches.
 The same common combinators handle optional rules and repetitions; each repeated grammar must consume an event before succeeding.
 Leadership-heartbeat recognition checks empty-packet coordinates and consumes at most one send per distinct destination, without requiring coverage of every active peer.
@@ -124,7 +134,7 @@ ruleRecvAppendEntries
 <|> ruleRecvAppendEntriesResponse
 ```
 
-Each family consumes its head and synchronous events, then explicitly calls `emitAction` for its receive before emitting any event's `emitObserve`, `emitObserveEntry` or `emitObservePacket`.
+Each family consumes its head and synchronous events, then explicitly calls `emitAction` for its receive before emitting any event's state, entry or packet observations.
 The parser produces instructions; it does not execute the model while parsing.
 Parsed evidence is local to its grammar, not a later whole-trace observation pass or a list of future events used to choose which state fields to compare.
 The receive action retains the head's origin; each event's observations retain that event's origin.
@@ -138,7 +148,8 @@ Bootstrap consumes only the forced-leader and singleton genesis events, so the s
 Optional Events match their name, source node and rule-specific protocol constraints; a failed match leaves them for the next reduction rule.
 Follower-transition recognition checks whether the received packet's family, term and receiver's pre-state permit adoption, including same-term AppendEntries demotion of candidates.
 An ignored same-term vote response therefore cannot absorb a later check-quorum transition.
-Recognized follower Events contribute a term observation after the receive action; response-peer eligibility remains enforced by the unchanged model rather than inferred from an incomplete native peer snapshot.
+Recognized follower Events contribute a state observation after the receive action, with explicit phase exclusions only when the rest of an AppendEntries delivery can still change that state.
+Response-peer eligibility remains enforced by the unchanged model rather than inferred from an incomplete native peer snapshot.
 
 The named operation rules consume every event:
 
@@ -184,34 +195,57 @@ Each rule emits actions executed through unchanged `Model.transitionSystem.step`
 One periodic driver call can produce several independently observed send or timeout rules.
 The driver does not emit separate operation snapshots, IDs, or complete peer/cache dumps.
 Observations use only existing event snapshots: role, term, log length, commit frontier, membership/retirement fields, available configuration caches and packet-specific peer progress.
+`emitObserveSnapshot` starts with every supported snapshot field and excludes only fields made incomparable by the named native phase, with the reason documented at the emission site.
+This means the available fields of that node's native snapshot, not equality of the entire model state, every peer, full log contents or network queues.
+Recorded peer progress is included in the same snapshot observation when its phase is compatible.
+`emitObserveState` makes explicit state-field checks, such as a write index, commit target or constructor peer coordinate, distinct from snapshot checks; `emitObserveEntry` and `emitObservePacket` are the other two basic kinds.
+Nomination proposals use the same packet emitter with their expected proposal header.
+Entry, packet and output-coordinate checks supplement those observations rather than replace them.
 Role-change Events already contain the assigned role; the timeout rules exclude that field from their pre-action observations while checking the transition.
-This does not claim complete driver-entry/exit equality, exact signature-cache enumeration, complete peer-table equality, or a final snapshot when no event supplies one.
+At stable boundaries, a supplied committable-index cache must exactly equal the ordered signature indices above the model's commit frontier, including multiplicity and omissions.
+This does not claim complete driver-entry/exit equality, complete peer-table equality, or a final snapshot when no event supplies one.
 Votes, clocks, store contents and native queue enumeration are not observed directly.
 
 Initialization is explicit rather than a fabricated model action.
 The forced-leader/genesis prelude and singleton genesis argument are audited locally.
 The following signature and commit use the ordinary append and leader-commit grammars, not bootstrap lookahead.
-Genesis is preloaded by `Model.initialNodeState`; its configuration entry and the initial term are checked without inventing a bootstrap action or a constructor snapshot.
+Genesis is preloaded by `Model.initialNodeState`; every startup snapshot observes its unchanged fields, excluding the pre-genesis log length and configuration cache.
+The configuration entry is checked without inventing a bootstrap action or a constructor snapshot.
 
 For a timeout's first pre-vote event, the role is already assigned while the other fields still describe the pre-state.
-Earlier nested candidate and term-adoption snapshots are internal, not additional model states.
-Their unused values may differ; fields used by projections, action recognizers and observations still require appropriate types.
+When the active configurations rule out a self-quorum, that snapshot also supplies a full post-action observation, even if request sends are omitted.
+Candidate snapshots are retained and observed fully when no promotion follows.
+When promotion follows, the candidate observation excludes its intermediate role and fields affected by unsigned-suffix rollback; a synchronous commit uses the independently checked old frontier.
+Promotion itself supplies a full observation after rollback, or a pre-commit view excluding the role that retirement confirmation may subsequently clear.
 Execution, configuration and follower-commit rules check event context, sender where applicable, the raw follower role, the stable term, signature-kind evidence, configuration-entry evidence and positive committed-prefix evidence.
-They do not compare intermediate log length, membership phase or retirement coordinates to the final model state.
+Their state observations exclude only fields that the packet permits the remaining atomic delivery to change.
+An empty AppendEntries cannot replace or append log entries, so its snapshots retain log length, membership and retirement entry/signature coordinates.
+When the packet's commit limit cannot advance the independently observed pre-action commit index, snapshots also retain role, commit index and retirement confirmation.
+If neither the log nor commit index can change, the intermediate snapshot is checked fully, including its caches and retirement phase.
+Otherwise those caches and the retirement phase remain excluded because they depend on both log and commit progress.
+An empty AppendEntries commit can use the existing pre-commit view: no entries were applied, so the checked receive head supplies its exact old frontier.
+That observation checks its complete pre-commit snapshot except the role that committing may clear, and separately checks the commit target against the final model frontier.
+Missing optional packet coordinates retain the conservative exclusions; malformed supplied coordinates still fail the model-packet check before any internal observation.
+These callbacks are not additional model states.
 Remaining fixed phase exclusions, such as a leader commit snapshot before role clearing, are documented at their emission sites rather than carried in observation metadata; they do not depend on future event inspection.
 
-Internal committable-index evidence remains a positive signature check because events can precede cache insertion or pruning.
+Intermediate AppendEntries execution/configuration/commit callbacks retain positive signature checks because those events can precede cache insertion or pruning.
 Configuration caches within a receive are checked against log-entry configurations, and a positive event commit frontier must already point to a committed signature.
 Follower delivery commits at each newly applied signature and once at the end, preserving the first frontier covering its retirement record while allowing a later final commit index.
 Replay still executes this as one model delivery and checks event evidence against the resulting log and state; it does not insert intermediate commit actions.
-The model's `noRetirementObserved` membership phase maps to the trace's `active` label, including declared nodes that have not yet joined.
+The model's `noRetirementObserved` membership phase maps to the trace's `Active` label, including declared nodes that have not yet joined.
 
 New-peer configuration heartbeats belong to the append and use the constructor's next-index sentinel, one past the model's sent frontier.
+Their node snapshots observe the already-applied configuration while excluding the still-old log length, using the old commit frontier if that append also commits.
 The rule consumes the constructor heartbeats that are present, without requiring one for every new peer.
 Ordinary sends do not use this adjustment.
+Their pre-action observation combines the node snapshot and peer progress; their post-action observation rechecks those same fields except `sent_idx`, which sending updates.
+Standalone nomination similarly rechecks the unchanged node fields after sending its proposal.
+These checks reuse existing snapshot evidence under the actions' unchanged-field guarantees; they do not claim a new native post-action snapshot.
 Vote and pre-vote responses share `send_request_vote_response`; `packet.msg` distinguishes them, and each supplied response snapshot and packet is checked after its receive.
-`become_follower` is an optional internal adoption event, not an additional model state or a conditionally selected endpoint.
-Its snapshot is not promoted to a full-state observation based on whether another event follows.
+`become_follower` is an optional adoption event, not an additional model action.
+Vote requests and higher-term responses finish adoption without changing the recorded node fields further, so their adoption snapshots are observed fully whether or not a response-send event follows.
+AppendEntries adoption instead excludes fields that subsequent rollback, execution or commit may change.
 Response-send events retain their stable state and packet observations; an absent optional response does not invent a post-state snapshot.
 Lower-term NACK hints remain log terms, not new election terms.
 A higher-term nomination is consumed without adopting its term or forcing an election.
