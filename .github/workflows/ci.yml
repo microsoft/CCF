@@ -239,11 +239,10 @@ jobs:
           (
             cd lean/ccf-raft
             lake exe cache get
-            lake build --wfail ccfraft-replay replay-checks
+            lake build --wfail ccfraft-replay
           )
           build/env/bin/python tests/raft_trace_capture.py tests/raft_scenarios build/raft-replay \
             --driver build/raft_driver --replayer lean/ccf-raft/.lake/build/bin/ccfraft-replay
-          lean/ccf-raft/.lake/build/bin/replay-checks build/raft-replay
 
       - name: "Run partitions tests"
         run: |

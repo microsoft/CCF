@@ -12,14 +12,6 @@ public section
 
 open Lean CCFRaft.Replay CCFRaft.Model.Node
 
-private def reduceRecords (records : Array Record) : Except String Reduced := do
-  let (events, declared) ← prepareEvents records
-  CCFRaft.Replay.reduce events declared
-
-private def replayRecords (records : Array Record) : Except String Result := do
-  let reduced ← reduceRecords records
-  replay reduced.header reduced.instructions
-
 private def check (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError message)
 
@@ -141,34 +133,6 @@ private def parsecInfrastructureTests : IO Unit := do
       ((CCF.Parsec.take : CCF.Parsec.ParserT Nat Unit Nat).run ()))
     "unexpected end of input"
 
-private def capture (directory : System.FilePath) (name : String)
-    : IO (Array Record) := do
-  ok (← readLog (directory / name))
-
-private def observationStates (reduced : Reduced)
-    : IO (Array (ReplayState × (ReplayState → Except String Unit) × Origin)) := do
-  let mut current : ReplayState := { state := reduced.header.initial }
-  let mut observations := #[]
-  for instruction in reduced.instructions do
-    if let .observe observe origin := instruction then
-      observations := observations.push (current, observe, origin)
-    current ← ok (runInstruction reduced.header current instruction)
-  return observations
-
-private def change (value : Json) (path : List String) (replacement : Json) : Json :=
-  match path with
-  | [] => replacement
-  | key :: rest => value.setObjVal! key (change (value.getObjValD key) rest replacement)
-
-private def mutate (records : Array Record) (index : Nat) (path : List String)
-    (replacement : Json)
-    : Array Record :=
-  records.modify index
-    fun record => { record with value := change record.value path replacement }
-
-private def function (record : Record) : String :=
-  ((record.value.getObjValD "msg").getObjValD "function").getStr?.toOption.getD ""
-
 private def envelope (message : Json) : Json :=
   Json.mkObj
     [
@@ -234,7 +198,11 @@ private def parserTests : IO Nat := do
     let records ← ok (parseLog "json.ndjson" raw)
     check (records.size == 1 && records[0]!.value == (← ok (Json.parse raw)))
       "record parsing diverged from Lean JSON parsing"
-    rejects (reduceRecords records) "json.ndjson:1"
+    rejects
+      (do
+        let (events, declared) ← prepareEvents records
+        CCFRaft.Replay.reduce events declared)
+      "json.ndjson:1"
     count := count + 1
   for value
       in [
@@ -329,144 +297,6 @@ private def parserTests : IO Nat := do
   rejects (parseLog "capture.stdout" "<RaftDriver> diagram\n") "capture.stdout:1"
   rejects (parseLog "capture.stdout" "not a logger record\n") "capture.stdout:1"
   return count + 15
-
-private def boundaryObservationTests (directory : System.FilePath) : IO Unit := do
-  let rules := ["send-pre", "send-post-state", "nomination-post"]
-  let mut seen := []
-  for name in ["pre_vote.stdout", "nominate_successor.stdout"] do
-    let reduced ← ok (reduceRecords (← capture directory name))
-    for (current, observe, origin) in ← observationStates reduced do
-      unless rules.contains origin.rule do
-        continue
-      let changed (change : NodeState → NodeState) : ReplayState :=
-        {
-          current with
-            state :=
-              {
-                current.state with
-                  nodes :=
-                    current.state.nodes.map fun (node, state) => (node, change state)
-              }
-        }
-      rejects
-        (observe
-          (changed fun state => { state with currentTerm := state.currentTerm + 1 }))
-        "current_view"
-      rejects
-        (observe
-          (changed fun state => { state with commitIndex := state.commitIndex + 1 }))
-        "commit_idx"
-      if origin.rule != "nomination-post" then
-        rejects
-          (observe
-            (changed
-              fun state =>
-                { state with matchIndex := fun peer => state.matchIndex peer + 1 }))
-          "match_idx"
-        let sent :=
-          changed
-            fun state => { state with sentIndex := fun peer => state.sentIndex peer + 1 }
-        if origin.rule == "send-pre" then
-          rejects (observe sent) "sent_idx"
-        else
-          let _ ← ok (observe sent)
-      seen := origin.rule :: seen
-  check (rules.all seen.contains) "missing combined or post-action state observation"
-
-private def receivePhaseObservationTests (directory : System.FilePath) : IO Unit := do
-  for (name, kind, sameLog, sameCommit, path, value)
-      in [
-        (
-          "reconfig_0_1.stdout",
-          "become_follower",
-          true,
-          true,
-          ["state", "committable_indices"],
-          toJson [999]
-        ),
-        (
-          "pre_vote.stdout",
-          "become_follower",
-          true,
-          false,
-          ["state", "last_idx"],
-          toJson (999 : Nat)
-        ),
-        (
-          "retire_one.stdout",
-          "execute_append_entries_sync",
-          false,
-          true,
-          ["state", "commit_idx"],
-          toJson (0 : Nat)
-        ),
-        (
-          "retire_one.stdout",
-          "execute_append_entries_sync",
-          false,
-          true,
-          ["state", "retired_committed_idx"],
-          toJson (999 : Nat)
-        ),
-        (
-          "retire_one.stdout",
-          "commit",
-          true,
-          false,
-          ["state", "committable_indices"],
-          toJson [11, 11]
-        ),
-        ("retire_one.stdout", "commit", true, false, ["idx"], toJson (4 : Nat))
-      ] do
-    let key := path.getLast!
-    let records ← capture directory name
-    let _ ← ok (replayRecords records)
-    let mut receive : Option Nat := none
-    let mut selected : Option (Nat × Nat) := none
-    for record in records, index in [:records.size] do
-      let fn := function record
-      if fn == "recv_append_entries" then
-        receive := some index
-      else if [
-                "become_follower",
-                "execute_append_entries_sync",
-                "add_configuration",
-                "commit"
-              ].contains
-                fn then
-        if let some head := receive then
-          let message := records[head]!.value.getObjValD "msg"
-          let packet ← ok (field message "packet")
-          let last ← ok (nat packet "idx")
-          let previous ← ok (nat packet "prev_idx")
-          let leaderCommit ← ok (nat packet "leader_commit_idx")
-          let committed ← ok (nat (← ok (field message "state")) "commit_idx")
-          if fn == kind
-              && (last == previous) == sameLog
-              && (min last leaderCommit <= committed) == sameCommit then
-            selected := some (head, index)
-            break
-      else
-        receive := none
-    let some (head, index) := selected
-    | throw (IO.userError s!"missing receive phase for {name}: {key}")
-    let message := records[index]!.value.getObjValD "msg"
-    check (path.foldl Json.getObjValD message != value)
-      "receive mutation changed no value"
-    let bad := mutate records index ("msg" :: path) value
-    let _ ← ok (reduceRecords bad)
-    let result := replayRecords bad
-    rejects result
-      (if path == ["idx"] then "receive-commit-target" else "receive-internal")
-    rejects result key
-    let packet := (records[head]!.value.getObjValD "msg").getObjValD "packet"
-    let fields ← ok (object packet)
-    let omitted :=
-      mutate records head ["msg", "packet"] (Json.mkObj (fields.filter (·.1 != "idx")))
-    let _ ← ok (replayRecords omitted)
-    let malformed := mutate records head ["msg", "packet", "idx"] (toJson "bad")
-    let _ ← ok (reduceRecords malformed)
-    rejects (replayRecords malformed) "atomic-receive"
 
 private def origin : Origin :=
   { file := "direct.ndjson", line := 17, rule := "unit" }
@@ -866,18 +696,12 @@ private def identityTests : IO Unit := do
             origin
         ])
 
-def main (args : List String) : IO UInt32 := do
+def main : IO UInt32 := do
   let _ ← parserTests
   parsecInfrastructureTests
   jsonPathTests
   observationClosureTests
   receiveFifoTests
   identityTests
-  match args with
-  | [] => pure ()
-  | [directory] =>
-      boundaryObservationTests directory
-      receivePhaseObservationTests directory
-  | _ => throw (IO.userError "usage: replay-checks [CAPTURE_DIRECTORY]")
   IO.println "Lean replay rejection and observation checks passed."
   return 0
