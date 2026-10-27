@@ -27,9 +27,15 @@ private structure ReductionState where
 
 private abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
 
-private def read {α : Type} (event : Event) (result : Except String α) : Reduction α :=
+private def liftExcept {α : Type} (event : Event) (result : Except String α)
+    : Reduction α :=
   validated
     (result.mapError fun error => s!"{event.record.location}: {event.function}: {error}")
+
+private def readJson {α : Type} (event : Event) (value : Json)
+    (decode : Json → Except String α)
+    : Reduction α :=
+  liftExcept event (decode value)
 
 private def peek : Reduction Event := do
   let some event ← CCF.Parsec.peek | failure "unexpected end of input"
@@ -40,13 +46,13 @@ private def event (source : Event) (name : String) : Reduction Unit := do
   unless next.function == name do
     failure s!"{next.record.location}: expected {name}, got {next.function}"
   discard CCF.Parsec.take
-  read next do
+  liftExcept next do
     require (next.node == source.node) s!"expected event on node {source.node}"
     require (next.command.location == source.command.location)
       "event group crosses a command boundary"
 
 private def modelNode (event : Event) (name : String) : Reduction NodeID := do
-  read event ((← get).header.nodeId name)
+  liftExcept event ((← get).header.nodeId name)
 
 private def modelMembers (event : Event) (names : List String)
     : Reduction (Finset NodeID) := do
@@ -72,7 +78,7 @@ private def ruleBootstrap : Reduction String := do
   event head "become_leader"
   event head "replicate"
   let config ← peek
-  read config do
+  liftExcept config do
     require ((← configuration config.message) == [head.node]) "bootstrap is not singleton"
   event head "add_configuration"
   return head.node
@@ -86,7 +92,7 @@ private def sendChoice (head : Event) (header : Header)
 
 private def ruleAppend : Reduction Unit := do
   let head ← peek
-  let signature ← read head (boolean head.message "globally_committable")
+  let signature ← readJson head head.message (boolean · "globally_committable")
   -- consume
   event head "replicate"
   let next ← CCF.Parsec.peek
@@ -94,11 +100,11 @@ private def ruleAppend : Reduction Unit := do
     match next with
     | some config =>
         if config.function == "add_configuration" then do
-          read config do
+          liftExcept config do
             require
               (!signature && (← nat config.message "idx") == (← nat head.message "seqno"))
               "configuration write pair mismatch"
-          some <$> modelMembers config (← read config (configuration config.message))
+          some <$> modelMembers config (← readJson config config.message configuration)
         else
           pure none
     | none => pure none
@@ -106,10 +112,12 @@ private def ruleAppend : Reduction Unit := do
     if signature then
       pure EntryContent.signature
     else do
-      let command ← read head (field head.command.value "msg" >>= (string · "cmd"))
+      let command ←
+        readJson head head.command.value
+          (fun value => field value "msg" >>= (string · "cmd"))
       let metadata ←
         if command.startsWith "cleanup_nodes," then do
-          read head
+          liftExcept head
             (require configuration.isNone "cleanup_nodes with configuration metadata")
           let nodes ← modelMembers head (command.splitOn "," |>.drop 2)
           pure { retirementConfirmations := nodes : TransactionMetadata }
@@ -127,7 +135,7 @@ private def ruleAppend : Reduction Unit := do
         let next ← peek
         let choice := sendChoice next (← get).header
         event head "send_append_entries"
-        read next choice
+        liftExcept next choice
   optional_ do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
@@ -136,10 +144,10 @@ private def ruleAppend : Reduction Unit := do
     (.local head.node (.append [{ content, flushes := flushes.getD [] }]))
 
 private def readReceive (head : Event) (families : List String) : Reduction Step := do
-  let sender ← read head (string head.message "from_node_id")
-  let packet ← read head (field head.message "packet")
-  let family ← read head (string packet "msg")
-  read head (require (families.contains family) "receive function/packet mismatch")
+  let sender ← readJson head head.message (string · "from_node_id")
+  let packet ← readJson head head.message (field · "packet")
+  let family ← readJson head packet (string · "msg")
+  liftExcept head (require (families.contains family) "receive function/packet mismatch")
   return .receive sender head.node packet
 
 private def ruleRecvAppendEntries : Reduction Unit := do
@@ -249,7 +257,7 @@ private def ruleTick : Reduction Unit := do
         let next ← peek
         let choice := sendChoice next (← get).header
         event head "send_append_entries"
-        return (next, ← read next choice)
+        return (next, ← liftExcept next choice)
     let demoted ← CCF.Parsec.optionalRule (event head "become_follower")
     -- emit
     for (source, destination, last) in sends do
@@ -268,9 +276,9 @@ private def ruleNomination : Reduction Unit := do
 
 private def ruleDrop : Reduction Unit := do
   let head ← peek
-  let destination ← read head (string head.message "to_node_id")
-  let sender ← read head (string head.message "from_node_id")
-  read head (require (sender == head.node) "drop sender mismatch")
+  let destination ← readJson head head.message (string · "to_node_id")
+  let sender ← readJson head head.message (string · "from_node_id")
+  liftExcept head (require (sender == head.node) "drop sender mismatch")
   -- consume
   event head "drop_pending_to"
   -- emit

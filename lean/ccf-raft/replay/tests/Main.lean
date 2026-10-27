@@ -363,6 +363,20 @@ private def reductionRuleTests : IO Unit := do
         ("packet", Json.mkObj [("msg", toJson "raft_append_entries")]),
         ("from_node_id", toJson "beta")
       ]
+  for (key, value, diagnostic)
+      in [
+        ("from_node_id", toJson "", "expected nonempty string"),
+        ("packet", Json.mkObj [("msg", toJson "")], "expected nonempty string"),
+        (
+          "packet",
+          Json.mkObj [("msg", toJson "raft_request_vote")],
+          "receive function/packet mismatch"
+        )
+      ] do
+    let invalid :=
+      { appendRequest with message := appendRequest.message.setObjVal! key value }
+    rejects (run #[invalid] ruleRecvAppendEntries)
+      s!"{invalid.record.location}: {invalid.function}: {diagnostic}"
   let packet :=
     appendPacket.setObjVal! "prev_idx" (toJson (1 : Nat))
     |>.setObjVal! "idx" (toJson (1 : Nat))
