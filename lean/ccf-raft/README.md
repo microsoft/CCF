@@ -56,3 +56,31 @@ Import `CCFRaft.Properties` and use `CCFRaft.Properties.<name>` for these declar
 `Proofs/Witnesses.lean` supplies concrete executions checked by the kernel.
 
 To list the safety-invariant declarations used by the exported theorems, run `lake env lean scripts/invariant-dependencies.lean`.
+
+## TLA+ safety properties
+
+`PropertiesTLA.lean` is a separate experiment that measures how much Lean is needed to prove TLA+ safety properties of this model.
+It states each property as a theorem paired with a witness lemma, and proves both:
+
+- `LogInv` and `THEOREM Spec => []LogInv` from `tla/consensus/ccfraft.tla` (lines 1400-1407), using `Committed(i)` (line 490).
+- `CommittedLogAppendOnlyProp` and its theorem from `ccfraft.tla` (lines 1639-1645).
+
+The statements match the TLA+ semantically rather than syntactically, as invariants of `Model.transitionSystem`.
+For these safety properties, `Spec => []P` means `P` holds in every reachable state, and `Spec => [][A]_vars` means `A` holds on every enabled step from a reachable state, since stuttering steps satisfy it trivially; `Fairness` plays no part.
+`Committed(i)` is `committedLog`.
+`LogInv` compares committed logs of different nodes in the same state, unlike `committed_logs_prefix` in `Properties.lean`, which compares any two states of a trace.
+The `AppendOnlyProp` of `tla/consensus/abs.tla` (line 101), read through ccfraft's `MappingToAbs` (line 1727), keeps only the terms of each committed log, so it follows from `CommittedLogAppendOnlyProp`.
+The Lean model is not proved equivalent to the TLA+ specification, and no TLAPS proof is involved.
+
+Each theorem body calls a helper in `ProofTLA/`, which holds the whole proof.
+`ProofTLA/` imports only the model, `ccf_common` and Mathlib, and is independent of any other proof layer.
+`Tests/ArchitectureTLA.lean` enforces this and fails the build if a theorem depends on an axiom other than `propext`, `Classical.choice` and `Quot.sound`.
+`Tests/PropertiesTLA.lean` checks that `committedLog` is `Committed(i)`, that every reachable state holds each configured node exactly once, and that both claims cover every state and adjacent step of valid finite or infinite traces.
+The package checks under Validation cover these modules through `CCFRaft.lean`.
+
+To compare proof sizes, count lines from this directory:
+
+```sh
+wc -l CCFRaft/PropertiesTLA.lean
+find CCFRaft/ProofTLA -name '*.lean' -print0 | sort -z | xargs -0 wc -l
+```
