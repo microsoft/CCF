@@ -7,8 +7,8 @@ public import CCF.Execution
 
 namespace DisasterRecovery.Properties
 
-/-- A finite or infinite sequence of network states used to state global recovery properties. -/
-abbrev GlobalTrace := CCF.Execution.Trace Model.State
+/-- An initial network state and the finite or infinite sequence of steps taken from it. -/
+abbrev GlobalTrace := CCF.Execution.Trace Model.State Model.Action
 
 open Model.Local in
 /-- A recorded local step of one DR node: its before and after states, input, and outputs. -/
@@ -58,8 +58,8 @@ def NotificationAt (config : Model.Config) (trace : GlobalTrace) (step : Nat)
     (node : Location) (notification : Notification)
     : Prop :=
   exists before after action nodeBefore nodeAfter outputs,
-    trace.get? step = some before
-    /\ trace.get? (step + 1) = some after
+    trace.stateAt step = some before
+    /\ trace.stateAt (step + 1) = some after
     /\ (Model.transitionSystem config).step before action = some after
     /\ actor action = node
     /\ CCF.MultiNodeTransitionSystem.nodeState before node = some nodeBefore

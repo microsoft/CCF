@@ -1,8 +1,10 @@
 module
 
-meta import CCFRaft.Model
+meta import CCFRaft.Properties.Liveness.Assumptions.Window
 
 public import CCFRaft.Model
+
+import CCFRaft.Properties.Liveness.Assumptions.Window
 
 public section
 
@@ -39,6 +41,13 @@ private def checkLedger (name : String) (state : Model.State) (node : NodeID)
       && localState.commitIndex == commitIndex
       && localState.committedLog == expected.take commitIndex)
     s!"{name}: node {node} has the wrong ledger or committed prefix"
+
+private def checkReconfiguration (name : String) (state : Model.State) (node : NodeID)
+    (expected : Bool)
+    : IO Unit := do
+  let localState ← get state node
+  check (decide (Liveness.ReconfigurationSettled localState) == expected)
+    s!"{name}: node {node} has the wrong reconfiguration-settlement status"
 
 private def runTrace (name : String) (configuration : Finset NodeID)
     (nodes : List NodeID) (start : Model.State) (actions : List Action)
@@ -230,10 +239,58 @@ private def reconfigureElectAndCommit : IO Unit := do
       s!"reconfigure, elect and commit: node {node} has the wrong term, role or membership"
   check state.network.isEmpty "reconfigure, elect and commit: undelivered messages remain"
 
+private def retirementFinishesAtLeader : IO Unit := do
+  let configuration : Finset NodeID := {0, 1}
+  let nodes := [0, 1]
+  let state := initialState configuration nodes
+  checkReconfiguration "initial configuration" state 0 true
+  let state ←
+    runTrace "initial signature" configuration nodes state
+      [
+        .local 0 (.append [.signature]),
+        .local 0 (.sendEntries 1 [2]),
+        .deliver 0 1,
+        .deliver 1 0
+      ]
+  let state ←
+    runTrace "pending removal" configuration nodes state
+      [.local 0 (.append [.transaction 20 { configuration := some {0} }, .signature])]
+  checkReconfiguration "pending removal" state 0 false
+  let state ←
+    runTrace "removal acknowledgement after later signature" configuration nodes state
+      [
+        .local 0 (.sendEntries 1 [4]),
+        .deliver 0 1,
+        .local 0 (.append [.transaction 30 {}, .signature]),
+        .deliver 1 0
+      ]
+  let leader ← get state 0
+  check
+    (leader.commitIndex == 4
+      && maxCommittableIndex leader.log == 6
+      && leader.activeConfigurations.length == 1)
+    "retirement: expected one active configuration and a stranded later signature"
+  checkReconfiguration "removal awaiting confirmation" state 0 false
+  let state ←
+    runTrace "append retirement confirmation" configuration nodes state
+      [.local 0 (.append [.transaction 40 { retirementConfirmations := {1} }])]
+  let leader ← get state 0
+  check (leader.commitIndex == 6 && retiredCommittedNodes leader.log == {1})
+    "retirement: appending confirmation must rerun the scan without committing itself"
+  checkReconfiguration "uncommitted confirmation" state 0 false
+  let state ←
+    runTrace "commit retirement confirmation" configuration nodes state
+      [.local 0 (.append [.signature])]
+  let leader ← get state 0
+  check (leader.commitIndex == 8) "retirement: confirmation signature must commit"
+  checkReconfiguration "committed confirmation" state 0 true
+  checkReconfiguration "follower has not learned completion" state 1 false
+
 /-- Runs initialized action traces and checks their ledgers at each stage. -/
 def run : IO Unit := do
   clientRequestCommits
   reconfigureElectAndCommit
+  retirementFinishesAtLeader
   IO.println "Canonical action traces passed."
 
 #eval run

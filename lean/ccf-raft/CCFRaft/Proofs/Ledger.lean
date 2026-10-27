@@ -367,6 +367,21 @@ lemma NodeState.recordCommit_eq (node : NodeID) (state : NodeState) (index : Nat
   · exact ⟨_, _, _, rfl, Or.inr rfl⟩
   · exact ⟨_, _, _, rfl, Or.inl rfl⟩
 
+/-- Recording a commit clears the role only once the node's retirement is committed. -/
+lemma NodeState.recordCommit_role (node : NodeID) (state : NodeState) (index : Nat)
+    : (state.recordCommit node index).role = state.role
+      \/ ((state.recordCommit node index).role = .none
+          /\ (state.recordCommit node index).isRetiredCommitted node) := by
+  unfold NodeState.recordCommit
+  dsimp only
+  split
+  · rename_i retired
+    refine Or.inr ⟨rfl, ?_⟩
+    have := retired.2
+    simp only [NodeState.isRetiredCommitted, NodeState.retirement] at this ⊢
+    exact this
+  · exact Or.inl rfl
+
 @[simp]
 lemma NodeState.recordCommit_log (node : NodeID) (state : NodeState) (index : Nat)
     : (state.recordCommit node index).log = state.log := by

@@ -9,7 +9,7 @@ namespace DisasterRecovery.Proofs.Trace
 
 open CCF
 
-variable {State : Type}
+variable {State Action : Type}
 
 /-- Enabled steps through the listed successor states, from a start state to a final state. -/
 inductive Path (system : TransitionSystem)
@@ -39,41 +39,43 @@ lemma Path.run {system : TransitionSystem} {before tail after}
       exact ⟨_, .cons step rest⟩
 
 /-- Enabled steps connect a state of a valid trace to every later state of the trace. -/
-lemma valid_path {system : TransitionSystem} {trace : Execution.Trace system.State}
+lemma valid_path {system : TransitionSystem}
+    {trace : Execution.Trace system.State system.Action}
     (valid : trace.Valid system) (start count : Nat) {before after : system.State}
-    (first : trace.get? start = some before)
-    (last : trace.get? (start + count) = some after)
+    (first : trace.stateAt start = some before)
+    (last : trace.stateAt (start + count) = some after)
     : exists tail, Path system before tail after := by
   induction count generalizing start before with
   | zero =>
       cases first.symm.trans last
       exact ⟨[], .nil _⟩
   | succ count ih =>
-      cases next : trace.get? (start + 1) with
+      cases next : trace.stateAt (start + 1) with
       | none =>
-          simp [trace.le_stable (show start + 1 <= start + (count + 1) by omega) next] at last
+          simp [Execution.Trace.stateAt_le_stable
+            (show start + 1 <= start + (count + 1) by omega) next] at last
       | some middle =>
-          obtain ⟨action, step⟩ := valid.2 start before middle first next
+          obtain ⟨action, step⟩ := valid.exists_action first next
           obtain ⟨tail, rest⟩ :=
             ih (start + 1) next (by rwa [show start + 1 + count = start + (count + 1) by omega])
           exact ⟨_, .cons step rest⟩
 
 /-- The later of two trace positions is also a trace position. -/
-lemma max_isSome {trace : Execution.Trace State} {first second : Nat}
-    (firstIn : (trace.get? first).isSome) (secondIn : (trace.get? second).isSome)
-    : (trace.get? (max first second)).isSome := by
+lemma max_isSome {trace : Execution.Trace State Action} {first second : Nat}
+    (firstIn : (trace.stateAt first).isSome) (secondIn : (trace.stateAt second).isSome)
+    : (trace.stateAt (max first second)).isSome := by
   rcases le_total first second with le | le
   · rwa [max_eq_right le]
   · rwa [max_eq_left le]
 
 /-- Finitely many trace positions all lie at or before one trace position after `start`. -/
-lemma exists_bound {α : Type} {trace : Execution.Trace State} {P : α -> Nat -> Prop}
-    {start : Nat} (startIn : (trace.get? start).isSome) (items : List α)
+lemma exists_bound {α : Type} {trace : Execution.Trace State Action} {P : α -> Nat -> Prop}
+    {start : Nat} (startIn : (trace.stateAt start).isSome) (items : List α)
     (indexed
       : forall item,
-          item ∈ items -> exists index, (trace.get? index).isSome /\ P item index)
+          item ∈ items -> exists index, (trace.stateAt index).isSome /\ P item index)
     : exists bound,
-        (trace.get? bound).isSome
+        (trace.stateAt bound).isSome
         /\ start <= bound
         /\ forall item, item ∈ items -> exists index, index <= bound /\ P item index := by
   induction items with

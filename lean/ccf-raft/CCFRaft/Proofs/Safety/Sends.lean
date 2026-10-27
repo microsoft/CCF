@@ -67,6 +67,16 @@ theorem mono {P Q : α -> List (Envelope Node Message) -> Prop}
   obtain ⟨sent, eq, holds⟩ := sends _ _ _ ran
   exact ⟨sent, eq, weaker _ _ holds⟩
 
+theorem and' {P Q : α -> List (Envelope Node Message) -> Prop}
+    {m : Effect Node Message Notification α} (left : Sends P m) (right : Sends Q m)
+    : Sends (fun value sent => P value sent /\ Q value sent) m := by
+  intro outputs result after ran
+  obtain ⟨sent, eq, holds⟩ := left _ _ _ ran
+  obtain ⟨sent', eq', holds'⟩ := right _ _ _ ran
+  rw [eq] at eq'
+  rw [← List.append_cancel_left eq'] at holds'
+  exact ⟨sent, eq, holds, holds'⟩
+
 theorem ite' {P : α -> List (Envelope Node Message) -> Prop} {c : Prop} [Decidable c]
     {m n : Effect Node Message Notification α}
     (yes : c -> Sends P m) (no : Not c -> Sends P n)
