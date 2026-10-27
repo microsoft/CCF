@@ -66,12 +66,17 @@ def retirementIndexInLog (node : NodeID) (log : List Entry) : Option Nat :=
     fun (_, after) => after.index
 
 /--
-Nodes named by retirement records in the supplied log or prefix. Pass
-`log.take commitIndex` to restrict this to locally committed records.
+Nodes named by retirement records in the supplied log or prefix, unless a later
+configuration names them again. Pass `log.take commitIndex` to restrict this to
+locally committed records. A rejoining node starts unconfirmed, like CCF's fresh
+node record with `retired_committed` unset.
 -/
 def retiredCommittedNodes (log : List Entry) : Finset NodeID :=
   log.foldl
-    (fun retired entry => retired ∪ entry.content.metadata.retirementConfirmations) ∅
+    (fun retired entry =>
+      let metadata := entry.content.metadata
+      (retired \ metadata.configuration.getD ∅) ∪ metadata.retirementConfirmations)
+    ∅
 
 def hasConfigurationMajority (support : Finset NodeID) (configuration : Configuration)
     : Prop :=

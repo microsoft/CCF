@@ -183,9 +183,15 @@ def appendEntry (caps : Caps) (self : NodeID) (state : NodeState) (content : Ent
     match metadata.configuration with
     | none => pure state
     | some nodes => do
-        let previousConfiguration :=
-          latestConfigurationMembers (configurationHistory state.log)
+        let history := configurationHistory state.log
+        let previousConfiguration := latestConfigurationMembers history
         guard (nodes.Nonempty /\ Not (nodes = previousConfiguration))
+        -- CCF deletes, and so lets rejoin, only nodes whose `retired_committed`
+        -- status is globally committed (`delete_retired_committed_node`).
+        let rejoining := (nodes ∩ configurationMembers history) \ previousConfiguration
+        guard
+          (rejoining
+            ⊆ retiredCommittedNodes state.committedLog ∩ retiredCommittedNodes state.log)
         let addedPeers := (nodes \ eligiblePeers state self).erase self
         let state : NodeState :=
           {

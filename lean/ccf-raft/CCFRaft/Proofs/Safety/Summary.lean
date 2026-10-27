@@ -1338,6 +1338,7 @@ theorem appendEntry_batch (self : NodeID) (before : NodeState)
     · exact Sends.pure' (by simpa using batch.push content)
     · rename_i nodes _
       refine Sends.guard_bind fun _ => ?_
+      refine Sends.guard_bind fun _ => ?_
       obtain ⟨⟨entries, sentIndex, rfl, terms⟩, beats⟩ := batch
       refine Sends.bind'
         (Sends.forIn' (R := AEFrom self before.currentTerm before.commitIndex
