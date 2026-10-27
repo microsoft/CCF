@@ -382,65 +382,104 @@ private def reductionRuleTests : IO Unit := do
           promotion,
           heartbeat 2,
           heartbeat 3,
-          event "become_leader_end" snapshot 4,
+          event "tick" snapshot 4,
           heartbeat 5
         ]
         (CCF.Parsec.many_ ruleStep))
   check (actionLines reduced.instructions == #[0, 5] && reduced.instructions.size == 4)
-    "promotion boundary did not separate callbacks from a standalone send"
+    "tick entry did not separate promotion heartbeats from timer sends"
   check
     (match ((actions reduced.instructions)[1]? : Option Instruction) with
       | some (.action (.local "alpha" (.sendEntries 1 1)) _) => true
       | _ => false)
     "send arguments were not taken from the peeked event"
 
-  for (receive, start, finish, rule)
+  for (opening, callback, rule)
       in [
-        (voteResponse, "become_leader", "become_leader_end", ruleRecvRequestVoteResponse),
+        (#[voteResponse, promotion], heartbeat 2, ruleRecvRequestVoteResponse),
         (
-          appendRequest,
-          "add_configuration",
-          "add_configuration_end",
+          #[appendRequest, event "add_configuration" snapshot 1],
+          heartbeat 2,
           ruleRecvAppendEntries
         ),
-        (appendRequest, "commit", "commit_end", ruleRecvAppendEntries),
         (
-          event "election_timeout" snapshot 0,
-          "become_pre_vote_candidate",
-          "become_pre_vote_candidate_end",
-          ruleElectionTimeout
+          #[appendRequest, event "commit" snapshot 1],
+          event "step_down_and_nominate_successor" snapshot 2,
+          ruleRecvAppendEntries
+        ),
+        (
+          #[event "tick" snapshot 0, event "become_pre_vote_candidate" snapshot 1],
+          event "send_request_vote" snapshot 2,
+          ruleTick
         )
       ] do
-    let opening := #[receive, event start snapshot 1]
-    rejects (run opening rule) "unexpected end of input"
-    rejects (run (opening.push (event "wrong_end" snapshot 3)) rule) s!"expected {finish}"
+    let _ ← ok (run opening rule)
+    let _ ← ok (run (opening.push callback) rule)
     rejects
-      (run (opening.push { event finish snapshot 3 with node := "beta" }) rule)
+      (run (opening.push { callback with node := "beta" }) rule)
       "expected event on node alpha"
     rejects
       (run
         (opening.push
-          {
-            event finish snapshot 3 with
-              command := { command "dispatch_all" with line := 99 }
-          })
+          { callback with command := { command "dispatch_all" with line := 99 } })
         rule)
       "crosses a command boundary"
-  let wrongEnd := event "wrong_end" snapshot 2
+  let wrongNode := { heartbeat 2 with node := "beta" }
   let fallback : Reduction Unit := CCF.Parsec.many_ (discard CCF.Parsec.take)
   rejects
-    (run #[voteResponse, promotion, wrongEnd] (ruleRecvRequestVoteResponse <|> fallback))
-    "expected become_leader_end"
+    (run #[voteResponse, promotion, wrongNode] (ruleRecvRequestVoteResponse <|> fallback))
+    "expected event on node alpha"
   let (_, reduced) ←
     ok
-      (run #[voteResponse, promotion, wrongEnd]
+      (run #[voteResponse, promotion, wrongNode]
         (CCF.Parsec.attempt ruleRecvRequestVoteResponse <|> fallback))
   check reduced.instructions.isEmpty "failed callback leaked an instruction"
   let (_, reduced) ←
-    ok (run #[event "election_timeout" snapshot 1, wrongEnd] (ruleStep <|> fallback))
+    ok (run #[event "tick" snapshot 1, wrongNode] (ruleStep <|> fallback))
   check reduced.instructions.isEmpty "failed step leaked its node-state observation"
   let (_, reduced) ← ok (run #[] (CCF.Parsec.many_ ruleStep))
   check reduced.instructions.isEmpty "end of input emitted an observation"
+
+  for function in ["tick", "nomination"] do
+    let (_, reduced) ← ok (run #[event function snapshot 1] ruleStep)
+    check
+      ((← ok (replay header reduced.instructions))
+        == { instructions := 1, actions := 0, observations := 1 })
+      s!"empty {function} must observe its entry without inventing a model action"
+    let mismatched := snapshot.setObjVal! "commit_idx" (toJson (99 : Nat))
+    let (_, reduced) ← ok (run #[event function mismatched 1] ruleStep)
+    rejects (replay header reduced.instructions) "commit_idx"
+
+  let (_, reduced) ←
+    ok
+      (run
+        #[
+          event "tick" snapshot 1,
+          heartbeat 2,
+          heartbeat 3,
+          event "become_follower" snapshot 4
+        ]
+        ruleStep)
+  check
+    (match reduced.instructions.toList with
+      | [
+        .observeNodeState "alpha" _ _,
+        .action (.local "alpha" (.sendEntries 1 1)) _,
+        .action (.local "alpha" (.sendEntries 1 1)) _,
+        .action (.local "alpha" (.timeout .checkQuorum)) _
+      ] => true
+      | _ => false)
+    "tick must emit every send before quorum demotion, with one entry observation"
+  let _ ← ok (replay header reduced.instructions)
+  rejects
+    (run
+      #[
+        event "tick" snapshot 1,
+        event "become_follower" snapshot 2,
+        heartbeat 3
+      ]
+      ruleTick)
+    "end of input"
 
   let write :=
     event "replicate" snapshot 1
@@ -463,15 +502,15 @@ private def reductionRuleTests : IO Unit := do
           write,
           configuration,
           heartbeat 3,
-          event "add_configuration_end" snapshot 4,
-          event "commit" snapshot 5,
-          event "step_down_and_nominate_successor" snapshot 6,
-          event "commit_end" snapshot 7,
-          event "step_down_and_nominate_successor" snapshot 8,
+          event "commit" snapshot 4,
+          event "step_down_and_nominate_successor" snapshot 5,
+          event "nomination" snapshot 6,
+          event "step_down_and_nominate_successor" snapshot 7,
+          event "tick" snapshot 8,
           heartbeat 9
         ]
         (CCF.Parsec.many_ ruleStep) identities)
-  check (actionLines reduced.instructions == #[1, 8, 9] && reduced.instructions.size == 6)
+  check (actionLines reduced.instructions == #[1, 6, 9] && reduced.instructions.size == 6)
     "configuration or commit callbacks swallowed a subsequent action"
   check
     (match ((actions reduced.instructions)[0]? : Option Instruction) with
@@ -479,30 +518,38 @@ private def reductionRuleTests : IO Unit := do
           metadata.configuration == some {0, 1} && metadata.retirementConfirmations == ∅
       | _ => false)
     "configuration input was not taken from the peek before consumption"
-  let flushed := {
-    heartbeat 6 with
-    state := snapshot.setObjVal! "last_idx" (toJson (2 : Nat))
-    message := (heartbeat 6).message.setObjVal! "packet"
-      (packet.setObjVal! "idx" (toJson (2 : Nat)))
-  }
-  let opening := #[
-    write,
-    configuration,
-    heartbeat 3,
-    event "add_configuration_end" snapshot 4,
-    event "batch_flush" snapshot 5
-  ]
-  let (_, reduced) ← ok (run (opening ++ #[
-    flushed,
-    event "commit" snapshot 7,
-    event "commit_end" snapshot 8,
-    heartbeat 9
-  ]) (CCF.Parsec.many_ ruleStep) identities)
+  let flushed :=
+    {
+      heartbeat 6 with
+        state := snapshot.setObjVal! "last_idx" (toJson (2 : Nat))
+        message :=
+          (heartbeat 6).message.setObjVal! "packet"
+            (packet.setObjVal! "idx" (toJson (2 : Nat)))
+    }
+  let opening :=
+    #[
+      write,
+      configuration,
+      heartbeat 3,
+      event "batch_flush" snapshot 5
+    ]
+  let (_, reduced) ←
+    ok
+      (run
+        (opening
+          ++ #[
+            flushed,
+            event "commit" snapshot 7,
+            event "tick" snapshot 8,
+            heartbeat 9
+          ])
+        (CCF.Parsec.many_ ruleStep) identities)
   check (actionLines reduced.instructions == #[1, 9] && reduced.instructions.size == 4)
     "append flush emitted a separate action or observation"
   check
     (match ((actions reduced.instructions)[0]? : Option Instruction) with
-      | some (.action (.local "alpha" (.append [⟨.transaction 1 metadata, flushes⟩])) _) =>
+      | some
+          (.action (.local "alpha" (.append [⟨.transaction 1 metadata, flushes⟩])) _) =>
           metadata.configuration == some {0, 1} && flushes == [(1, 2)]
       | _ => false)
     "constructor heartbeat and append flush choices were not separated"
@@ -513,31 +560,46 @@ private def reductionRuleTests : IO Unit := do
           flushes == [(1, 2), (1, 2)]
       | _ => false)
     "flush choices lost packet order or multiplicity"
-  for (invalid, diagnostic) in [
-    ({ flushed with node := "beta" }, "expected event on node alpha"),
-    ({ flushed with command := { flushed.command with line := 99 } }, "command boundary"),
-    ({ flushed with message := flushed.message.setObjVal! "to_node_id" (toJson "missing") },
-      "undeclared node"),
-    (
-      {
-        flushed with
-          message := flushed.message.setObjVal! "packet"
-            (packet.setObjVal! "idx" (toJson "invalid"))
-      },
-      "expected natural number"
-    )
-  ] do
+  for (invalid, diagnostic)
+      in [
+        ({ flushed with node := "beta" }, "expected event on node alpha"),
+        (
+          { flushed with command := { flushed.command with line := 99 } },
+          "command boundary"
+        ),
+        (
+          {
+            flushed with
+              message := flushed.message.setObjVal! "to_node_id" (toJson "missing")
+          },
+          "undeclared node"
+        ),
+        (
+          {
+            flushed with
+              message :=
+                flushed.message.setObjVal! "packet"
+                  (packet.setObjVal! "idx" (toJson "invalid"))
+          },
+          "expected natural number"
+        )
+      ] do
     rejects (run (opening.push invalid) (CCF.Parsec.many_ ruleStep) identities) diagnostic
-  let signature := {
-    write with message := write.message.setObjVal! "globally_committable" (toJson true)
-  }
+  let signature :=
+    {
+      write with
+        message := write.message.setObjVal! "globally_committable" (toJson true)
+    }
   let singleton := { identities with bootstrap := {0} }
-  let (_, reduced) ← ok (run #[
-    signature,
-    event "batch_flush" (snapshot.setObjVal! "last_idx" (toJson (2 : Nat))) 2,
-    event "commit" snapshot 3,
-    event "commit_end" snapshot 4
-  ] ruleStep singleton)
+  let (_, reduced) ←
+    ok
+      (run
+        #[
+          signature,
+          event "batch_flush" (snapshot.setObjVal! "last_idx" (toJson (2 : Nat))) 2,
+          event "commit" snapshot 3
+        ]
+        ruleStep singleton)
   check (reduced.instructions.size == 2) "empty flush introduced a mid-append observation"
   let _ ← ok (replay singleton reduced.instructions)
   rejects
@@ -577,33 +639,28 @@ private def reductionRuleTests : IO Unit := do
       let events :=
         #[receive]
         ++ (if callback then #[event "become_follower" snapshot 2] else #[])
-        ++ #[event "check_quorum" snapshot 3, event "become_follower" snapshot 4]
+        ++ #[event "tick" snapshot 3, event "become_follower" snapshot 4]
       let (_, reduced) ← ok (run events (CCF.Parsec.many_ ruleStep))
       check
         (actionLines reduced.instructions == #[1, 3] && reduced.instructions.size == 4)
         s!"{family}: follower callback and quorum timeout were not separated"
-  rejects (run #[event "become_follower" snapshot 1] ruleCheckQuorumTimeout)
-    "expected check_quorum"
+  rejects (run #[event "become_follower" snapshot 1] ruleTick) "expected tick"
   let (_, reduced) ←
-    ok
-      (run #[event "check_quorum" snapshot 1, event "become_follower" snapshot 2]
-        ruleCheckQuorumTimeout)
+    ok (run #[event "tick" snapshot 1, event "become_follower" snapshot 2] ruleTick)
   rejects (replay { header with bootstrap := {0} } reduced.instructions)
     "disabled model action"
 
   let election :=
     #[
-      event "election_timeout" snapshot 0,
+      event "tick" snapshot 0,
       event "become_pre_vote_candidate" snapshot 1,
       event "become_candidate" snapshot 2,
       event "become_leader" snapshot 3,
       event "commit" snapshot 4,
       event "step_down_and_nominate_successor" snapshot 5,
-      event "commit_end" snapshot 6,
       heartbeat 7,
-      event "become_leader_end" snapshot 8,
       event "send_request_vote" snapshot 9,
-      event "become_pre_vote_candidate_end" snapshot 10,
+      event "tick" snapshot 10,
       heartbeat 11
     ]
   let (_, reduced) ← ok (run election (CCF.Parsec.many_ ruleStep))
@@ -618,7 +675,8 @@ private def reductionRuleTests : IO Unit := do
     let receive :=
       event callback snapshot 1
         [("packet", Json.mkObj [("msg", toJson family)]), ("from_node_id", toJson "beta")]
-    let events := #[receive] ++ election[2:10].toArray ++ #[heartbeat 11]
+    let events :=
+      #[receive] ++ election[2:8].toArray ++ #[event "tick" snapshot 10, heartbeat 11]
     let (_, reduced) ← ok (run events (CCF.Parsec.many_ ruleStep))
     check (actionLines reduced.instructions == #[1, 11] && reduced.instructions.size == 4)
       "receive promotion swallowed the following send"
@@ -633,10 +691,8 @@ private def reductionRuleTests : IO Unit := do
   let bootstrap :=
     #[
       promotion,
-      event "become_leader_end" snapshot 2,
       { write with record := { write.record with line := 3 } },
-      genesisConfig,
-      event "add_configuration_end" snapshot 5
+      genesisConfig
     ]
   let signature :=
     {
@@ -672,9 +728,22 @@ private def reductionRuleTests : IO Unit := do
     let reduced ← ok (CCFRaft.Replay.reduce (bootstrap.push mismatched) header.declared)
     rejects (replay reduced.header reduced.instructions) key
     rejects (replay reduced.header reduced.instructions) "instruction 1"
-  rejects
-    (CCFRaft.Replay.reduce (bootstrap.push (event "unknown" snapshot 6)) header.declared)
-    "ungrouped event unknown"
+  for function
+      in [
+        "unknown",
+        "send_append_entries",
+        "become_follower",
+        "step_down_and_nominate_successor",
+        "election_timeout",
+        "check_quorum",
+        "become_pre_vote_candidate_end",
+        "become_leader_end",
+        "add_configuration_end",
+        "commit_end"
+      ] do
+    rejects
+      (CCFRaft.Replay.reduce (bootstrap.push (event function snapshot 6)) header.declared)
+      s!"ungrouped event {function}"
 
 example (identities : Header) (current : ReplayState)
     (node : String) (expected : Json) (source : Origin)
@@ -751,15 +820,18 @@ private def nodeStateObservationTests : IO Unit := do
   let uncommitted ←
     ok
       (runInstruction header current
-        (act (.local "alpha" (.append [{ content := .signature }, { content := .signature }]))))
+        (act
+          (.local "alpha"
+            (.append [{ content := .signature }, { content := .signature }]))))
   let cache (indices : List Nat) := Json.mkObj [("committable_indices", toJson indices)]
   let _ ← ok (observeState header "alpha" (cache [4, 5]) uncommitted)
   for indices in [[5, 4], [4], [4, 4, 5], [3, 4, 5]] do
     rejects (observeState header "alpha" (cache indices) uncommitted)
       "committable_indices"
   let uncommitted ←
-    ok (runInstruction header uncommitted
-      (act (.local "alpha" (.append [{ content := .signature }]))))
+    ok
+      (runInstruction header uncommitted
+        (act (.local "alpha" (.append [{ content := .signature }]))))
   let _ ← ok (observeState header "alpha" (cache [4, 6]) uncommitted)
   for indices in [[], [4], [6], [6, 4], [4, 5], [5, 6], [4, 4], [4, 4, 6], [4, 5, 6]] do
     rejects (observeState header "alpha" (cache indices) uncommitted)
@@ -799,9 +871,9 @@ private def packetFieldTests : IO Unit := do
 private def receiveFifoTests : IO Unit := do
   let setup :=
     #[
-      act (.local "alpha" (.append [
-        { content := .transaction 4 {} }, { content := .signature }
-      ])),
+      act
+        (.local "alpha"
+          (.append [{ content := .transaction 4 {} }, { content := .signature }])),
       act (.local "alpha" (.sendEntries 1 3)),
       act (.local "alpha" (.sendEntries 1 3))
     ]
@@ -912,11 +984,16 @@ private def identityTests : IO Unit := do
       (replay invalid #[observe "2" [("leadership_state", toJson "Leader")]])
       diagnostic
   for request in [0, 2] do
-    rejects (replay lexical #[act (.local "2" (.append [{ content := .transaction request {} }]))])
+    rejects
+      (replay lexical
+        #[act (.local "2" (.append [{ content := .transaction request {} }]))])
       "undeclared or reserved model request"
-  rejects (replay lexical #[act (.local "2" (.append [
-    { content := .transaction 1 {}, flushes := [(3, 2)] }
-  ]))]) "undeclared model node 3"
+  rejects
+    (replay lexical
+      #[
+        act (.local "2" (.append [{ content := .transaction 1 {}, flushes := [(3, 2)] }]))
+      ])
+    "undeclared model node 3"
   rejects
     (replay lexical #[observe "2" [("preVoteEnabled", .bool false)]])
     "unsupported observation field"

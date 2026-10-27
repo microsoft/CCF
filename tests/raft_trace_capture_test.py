@@ -46,19 +46,14 @@ def write_driver(root, wire, stdout, stderr, returncode=0, delay=0):
 class CaptureTests(unittest.TestCase):
     def test_legacy_projection_omits_only_replay_boundaries(self):
         functions = [
-            "batch_flush",
-            "check_quorum",
+            "tick",
+            "send_append_entries",
             "become_follower",
-            "become_pre_vote_candidate",
-            "become_pre_vote_candidate_end",
-            "become_leader",
-            "become_leader_end",
-            "add_configuration",
-            "add_configuration_end",
-            "commit",
-            "commit_end",
+            "nomination",
+            "step_down_and_nominate_successor",
+            "batch_flush",
+            "send_append_entries",
             "unknown_end",
-            "election_timeout",
         ]
         records = [
             {
@@ -73,16 +68,15 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(
             [entry["msg"]["function"] for entry in projected],
             [
+                "send_append_entries",
                 "become_follower",
-                "become_pre_vote_candidate",
-                "become_leader",
-                "add_configuration",
-                "commit",
+                "step_down_and_nominate_successor",
+                "send_append_entries",
                 "unknown_end",
             ],
         )
         self.assertEqual(
-            [entry["h_ts"] for entry in projected], ["2", "3", "5", "7", "9", "11"]
+            [entry["h_ts"] for entry in projected], ["1", "2", "4", "6", "7"]
         )
         self.assertEqual(json.dumps(records), before)
 

@@ -1,7 +1,7 @@
 # CCF-Raft trace replay
 
 Replay native `raft_driver` captures against the Lean Raft model.
-Python collects traces and runs suites; Lean checks action-boundary snapshots and replays the corresponding model actions.
+Python collects traces and runs suites; Lean checks native-entry snapshots and replays the corresponding model actions.
 
 ## Run replay
 
@@ -55,24 +55,26 @@ A failure can reflect unsupported evidence or replay policy, not necessarily a n
 
 ## Replay contract
 
-Every event must match a named rule; protocol rules emit one action, while bootstrap selects the initial singleton membership.
+Every event must match a named rule; bootstrap selects the initial singleton membership.
 Rules peek action inputs before consuming events, and only top-level alternatives backtrack.
-`election_timeout` and `check_quorum` identify timeout entry points; `become_pre_vote_candidate_end`, `become_leader_end`, `add_configuration_end` and `commit_end` delimit callbacks.
+`tick` marks entry to the whole timer tick; `nomination` marks an explicit successor-nomination call.
+These entry markers distinguish independent operations from receive, election, configuration and commit callbacks without end markers.
 Within an append, `batch_flush` identifies the subsequent send records as flush choices rather than configuration-created heartbeats.
 Their destinations and packet end indexes become arguments of the same model append action, which flushes before committing.
 Actions must be enabled by the model; replay never repairs model state to fit a trace.
 
-The dispatcher emits one read-only observation before each action, comparing the recorded node snapshot with the current model state.
+The dispatcher emits one read-only observation at each native group's entry, comparing the recorded node snapshot with the current model state.
+An idle tick or nomination that sends nothing emits no model action; a tick can emit an election action or multiple send actions followed by quorum demotion.
 Snapshot checks accept partial objects but reject empty objects and unknown fields.
 Individual rules emit no observations; intermediate callbacks and emitted packet contents are not checked.
-There is no final post-action snapshot check: an action's effects are checked only where a later action-boundary snapshot exposes them.
+There is no final post-action snapshot check: a group's effects are checked only where a later native-entry snapshot exposes them.
 
 Delivery is strict FIFO per directed node pair, preserving multiplicity and delivering the queued **model payload**, not reconstructing unrecorded native bytes.
 Received packet fields must match that queued payload; an explicit drop excludes one queued occurrence from later delivery.
 Not every modeled emission needs a matching native send event, and traces may end with packets pending.
 A FIFO failure does not rule out a compatible execution under another delivery order.
 
-A pass establishes an enabled model-action sequence with matching action-boundary snapshots and receive packets, not universal C++ refinement, complete log-byte/KV equality, fairness or liveness.
+A pass establishes an enabled model-action sequence with matching native-entry snapshots and receive packets, not universal C++ refinement, complete log-byte/KV equality, fairness or liveness.
 It is independent of the model's safety proofs.
 The driver supplies singleton append batches; arbitrary production batches and intermediate packets without an atomic model counterpart are unsupported.
 

@@ -123,9 +123,8 @@ private def reconfigureElectAndCommit : IO Unit := do
       [
         .local 0 (.append [{ content := .transaction 10 {} }]),
         .local 0 (.append [{ content := .signature }]),
-        .local 0 (.append [
-          { content := .transaction 20 { configuration := some {0, 1, 2} } }
-        ]),
+        .local 0
+          (.append [{ content := .transaction 20 { configuration := some {0, 1, 2} } }]),
         .local 0 (.append [{ content := .signature }])
       ]
   checkLedger "reconfiguration before delivery" state 0 expected 3
@@ -226,74 +225,97 @@ private def reconfigureElectAndCommit : IO Unit := do
   check state.network.isEmpty "reconfigure, elect and commit: undelivered messages remain"
 
 private def appendFlushes : IO Unit := do
-  let append := fun state entries =>
-    (act (CCF.Capabilities.record 0) 0 state (.append entries)).run {}
-  let packets := fun (outputs : CCF.Outputs NodeID Message Notification) =>
-    outputs.outgoing.map fun envelope =>
-      match envelope.payload with
-      | .appendEntriesRequest request =>
-          some (envelope.target, request.prevLogIndex, request.entries.length,
-            request.primaryCommit)
-      | _ => none
+  let append :=
+    fun state entries =>
+      (act (CCF.Capabilities.record 0) 0 state (.append entries)).run {}
+  let packets :=
+    fun (outputs : CCF.Outputs NodeID Message Notification) =>
+      outputs.outgoing.map
+        fun envelope =>
+          match envelope.payload with
+          | .appendEntriesRequest request =>
+              some
+                (
+                  envelope.target,
+                  request.prevLogIndex,
+                  request.entries.length,
+                  request.primaryCommit
+                )
+          | _ => none
 
-  let some (configured, outputs) := append (initialNodeState {0} 0)
+  let some (configured, outputs) :=
+    append (initialNodeState {0} 0)
       [{
         content := .transaction 1 { configuration := some {0, 1} }
         flushes := [(1, 2)]
       }]
-    | throw (IO.userError "configuration append with flush is disabled")
+  | throw (IO.userError "configuration append with flush is disabled")
   check
-    (configured.log.length == 2 && configured.sentIndex 1 == 2
+    (configured.log.length == 2
+      && configured.sentIndex 1 == 2
       && packets outputs == [some (1, 1, 0, 0), some (1, 1, 1, 0)])
     "configuration heartbeat must precede the flush of the new entry"
 
-  let retained := {
-    initialNodeState {0, 1} 0 with
-    log := [
-      { term := BOOTSTRAP_TERM, content := .transaction 0 { configuration := some {0, 1} } },
-      { term := BOOTSTRAP_TERM, content := .transaction 1 { configuration := some {0} } },
-      { term := BOOTSTRAP_TERM, content := .signature }
-    ]
-    commitIndex := 3
-    sentIndex := fun _ => 3
-    matchIndex := fun _ => 3
-  }
+  let retained :=
+    {
+      initialNodeState {0, 1} 0 with
+        log :=
+          [
+            {
+              term := BOOTSTRAP_TERM,
+              content := .transaction 0 { configuration := some {0, 1} }
+            },
+            {
+              term := BOOTSTRAP_TERM,
+              content := .transaction 1 { configuration := some {0} }
+            },
+            { term := BOOTSTRAP_TERM, content := .signature }
+          ]
+        commitIndex := 3
+        sentIndex := fun _ => 3
+        matchIndex := fun _ => 3
+    }
   check (retained.activeMembers == {0} && eligiblePeers retained 0 == {1})
     "expected singleton active membership with a retained retired peer"
-  let some (committed, outputs) := append retained
-      [{ content := .signature, flushes := [(1, 4)] }]
-    | throw (IO.userError "signature append with pre-commit flush is disabled")
+  let some (committed, outputs) :=
+    append retained [{ content := .signature, flushes := [(1, 4)] }]
+  | throw (IO.userError "signature append with pre-commit flush is disabled")
   check
     (committed.commitIndex == 4 && packets outputs == [some (1, 3, 1, 3)])
     "flush must carry the old commit index before the append self-commits"
 
   let initial := initialNodeState {0, 1} 0
-  let some (batched, outputs) := append initial [
-      { content := .transaction 1 {}, flushes := [(1, 2)] },
-      { content := .transaction 2 {}, flushes := [(1, 3)] }
-    ]
-    | throw (IO.userError "per-entry flushes are disabled")
+  let some (batched, outputs) :=
+    append initial
+      [
+        { content := .transaction 1 {}, flushes := [(1, 2)] },
+        { content := .transaction 2 {}, flushes := [(1, 3)] }
+      ]
+  | throw (IO.userError "per-entry flushes are disabled")
   check
-    (batched.log.length == 3 && batched.sentIndex 1 == 3
+    (batched.log.length == 3
+      && batched.sentIndex 1 == 3
       && packets outputs == [some (1, 0, 2, 0), some (1, 2, 1, 0)])
     "each entry must flush before appending the next entry"
   for flushes in [[(1, 3)], [(2, 2)], [(1, 2), (1, 1)], [(1, 2), (2, 2)]] do
     check (append initial [{ content := .transaction 1 {}, flushes }]).isNone
       "invalid flush choices must disable the entire append"
 
-  let mixed := {
-    initial with
-    log := [
-      { term := 1, content := .transaction 0 { configuration := some {0, 1} } },
-      { term := 1, content := .transaction 1 {} },
-      { term := BOOTSTRAP_TERM, content := .transaction 2 {} }
-    ]
-  }
+  let mixed :=
+    {
+      initial with
+        log :=
+          [
+            { term := 1, content := .transaction 0 { configuration := some {0, 1} } },
+            { term := 1, content := .transaction 1 {} },
+            { term := BOOTSTRAP_TERM, content := .transaction 2 {} }
+          ]
+    }
   check (append mixed [{ content := .transaction 3 {}, flushes := [(1, 4)] }]).isNone
     "a flush packet must not span terms"
-  let some (_, outputs) := append mixed
-      [{ content := .transaction 3 {}, flushes := [(1, 2), (1, 4)] }]
-    | throw (IO.userError "term-bounded flush is disabled")
+  let some (_, outputs) :=
+    append mixed [{ content := .transaction 3 {}, flushes := [(1, 2), (1, 4)] }]
+  | throw (IO.userError "term-bounded flush is disabled")
   check (packets outputs == [some (1, 0, 2, 0), some (1, 2, 2, 0)])
     "flush must preserve the chosen packet boundaries"
 

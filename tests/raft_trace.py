@@ -12,12 +12,8 @@ import msgpack
 
 REPLAY_BOUNDARY_EVENTS = {
     "batch_flush",
-    "election_timeout",
-    "check_quorum",
-    "become_pre_vote_candidate_end",
-    "become_leader_end",
-    "add_configuration_end",
-    "commit_end",
+    "tick",
+    "nomination",
 }
 
 

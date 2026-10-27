@@ -569,8 +569,6 @@ namespace aft
 
         create_and_remove_node_state();
       }
-
-      trace::add_configuration_end(*state);
     }
 
     void start_ticking()
@@ -850,6 +848,7 @@ namespace aft
     void periodic(std::chrono::milliseconds elapsed) override
     {
       std::unique_lock<ccf::ds::Mutex> guard(state->lock);
+      trace::tick(*state);
       timeout_elapsed += elapsed;
 
       if (state->leadership_state.load() == ccf::kv::LeadershipState::Leader)
@@ -912,7 +911,6 @@ namespace aft
             "backups in last {}",
             state->node_id,
             election_timeout);
-          trace::check_quorum(*state);
           become_follower();
         }
       }
@@ -2024,7 +2022,6 @@ namespace aft
         return;
       }
 
-      trace::election_timeout(*state);
       state->leadership_state.store(ccf::kv::LeadershipState::PreVoteCandidate);
       leader_id.reset();
 
@@ -2047,8 +2044,6 @@ namespace aft
         // ccfraft!RequestVote
         send_request_pre_vote(node_id);
       }
-
-      trace::become_pre_vote_candidate_end(*state);
     }
 
     // ccfraft!Timeout
@@ -2148,7 +2143,6 @@ namespace aft
         send_append_entries(node.first, next);
       }
 
-      trace::become_leader_end(*state);
       return true;
     }
 
@@ -2557,8 +2551,6 @@ namespace aft
           retired_node_cleanup();
         }
       }
-
-      trace::commit_end(*state);
     }
 
     bool is_self_in_latest_config()
@@ -2702,6 +2694,7 @@ namespace aft
     void nominate_successor() override
     {
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
+      trace::nomination(*state);
       nominate_successor_unsafe();
     }
 

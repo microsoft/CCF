@@ -231,11 +231,14 @@ def appendBatch (caps : Caps) (self : NodeID) (state : NodeState)
     : NodeEffect NodeState := do
   guard
     (state.role = .primary /\ Not (state.isRetiredCommitted self) /\ Not (entries = []))
-  let state <- entries.foldlM (fun state entry => do
-    let state <- appendEntry caps self state entry.content
-    entry.flushes.foldlM
-      (fun state (destination, endIndex) => sendEntries caps self state destination endIndex)
-      state) state
+  let state <- entries.foldlM
+                (fun state entry => do
+                  let state <- appendEntry caps self state entry.content
+                  entry.flushes.foldlM
+                    (fun state (destination, endIndex) =>
+                      sendEntries caps self state destination endIndex)
+                    state)
+                state
   advanceCommit caps state self
 
 /-! ## Handling AppendEntries -/

@@ -12,7 +12,7 @@ public section
 /-!
 Rules peek action arguments, consume named events, and emit direct model actions.
 Explicit native boundaries distinguish callbacks from subsequent actions.
-The dispatcher observes each action's starting snapshot; individual rules only emit actions.
+The dispatcher observes each native group's starting snapshot; individual rules only emit actions.
 Reduction never executes or repairs model state.
 -/
 
@@ -68,17 +68,17 @@ private def emitObserve (event : Event) (rule : String) : Reduction Unit :=
 
 private def ruleBootstrap : Reduction String := do
   let head ← peek
+  -- consume
   event head "become_leader"
-  event head "become_leader_end"
   event head "replicate"
   let config ← peek
   read config do
     require ((← configuration config.message) == [head.node]) "bootstrap is not singleton"
   event head "add_configuration"
-  event head "add_configuration_end"
   return head.node
 
-private def sendChoice (head : Event) (header : Header) : Except String (NodeID × Nat) := do
+private def sendChoice (head : Event) (header : Header)
+    : Except String (NodeID × Nat) := do
   let packet ← field head.message "packet"
   let destination ← header.nodeId (← string head.message "to_node_id")
   let last ← nat packet "idx"
@@ -87,6 +87,7 @@ private def sendChoice (head : Event) (header : Header) : Except String (NodeID 
 private def ruleAppend : Reduction Unit := do
   let head ← peek
   let signature ← read head (boolean head.message "globally_committable")
+  -- consume
   event head "replicate"
   let next ← CCF.Parsec.peek
   let configuration ←
@@ -119,18 +120,18 @@ private def ruleAppend : Reduction Unit := do
   optional_ do
     event head "add_configuration"
     many_ (event head "send_append_entries")
-    event head "add_configuration_end"
-  let flushes ← CCF.Parsec.optionalRule do
-    event head "batch_flush"
-    CCF.Parsec.many do
-      let next ← peek
-      let choice := sendChoice next (← get).header
-      event head "send_append_entries"
-      read next choice
+  let flushes ←
+    CCF.Parsec.optionalRule do
+      event head "batch_flush"
+      CCF.Parsec.many do
+        let next ← peek
+        let choice := sendChoice next (← get).header
+        event head "send_append_entries"
+        read next choice
   optional_ do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
-    event head "commit_end"
+  -- emit
   emitAction head "atomic-append"
     (.local head.node (.append [{ content, flushes := flushes.getD [] }]))
 
@@ -144,43 +145,47 @@ private def readReceive (head : Event) (families : List String) : Reduction Step
 private def ruleRecvAppendEntries : Reduction Unit := do
   let head ← peek
   let action ← readReceive head ["raft_append_entries"]
+  -- consume
   event head "recv_append_entries"
   optional_ (event head "become_follower")
   many_
     (event head "execute_append_entries_sync"
       <|> (do
             event head "add_configuration"
-            many_ (event head "send_append_entries")
-            event head "add_configuration_end")
+            many_ (event head "send_append_entries"))
       <|> (do
             event head "commit"
-            optional_ (event head "step_down_and_nominate_successor")
-            event head "commit_end"))
+            optional_ (event head "step_down_and_nominate_successor")))
   optional_ (event head "send_append_entries_response")
+  -- emit
   emitAction head "atomic-receive" action
 
 private def ruleRecvAppendEntriesResponse : Reduction Unit := do
   let head ← peek
   let action ← readReceive head ["raft_append_entries_response"]
+  -- consume
   event head "recv_append_entries_response"
   optional_ (event head "become_follower")
   optional_ do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
-    event head "commit_end"
+  -- emit
   emitAction head "atomic-receive" action
 
 private def ruleRecvRequestVote : Reduction Unit := do
   let head ← peek
   let action ← readReceive head ["raft_request_vote", "raft_request_pre_vote"]
+  -- consume
   event head "recv_request_vote"
   optional_ (event head "become_follower")
   optional_ (event head "send_request_vote_response")
+  -- emit
   emitAction head "atomic-receive" action
 
 private def ruleRecvProposeRequestVote : Reduction Unit := do
   let head ← peek
   let action ← readReceive head ["raft_propose_request_vote"]
+  -- consume
   event head "recv_propose_request_vote"
   optional_ do
     event head "become_candidate"
@@ -189,16 +194,16 @@ private def ruleRecvProposeRequestVote : Reduction Unit := do
       optional_ do
         event head "commit"
         optional_ (event head "step_down_and_nominate_successor")
-        event head "commit_end"
       many_ (event head "send_append_entries")
-      event head "become_leader_end"
     many_ (event head "send_request_vote")
+  -- emit
   emitAction head "atomic-receive" action
 
 private def ruleRecvRequestVoteResponse : Reduction Unit := do
   let head ← peek
   let action ←
     readReceive head ["raft_request_vote_response", "raft_request_pre_vote_response"]
+  -- consume
   event head "recv_request_vote_response"
   optional_
     (event head "become_follower"
@@ -209,62 +214,66 @@ private def ruleRecvRequestVoteResponse : Reduction Unit := do
               optional_ do
                 event head "commit"
                 optional_ (event head "step_down_and_nominate_successor")
-                event head "commit_end"
               many_ (event head "send_append_entries")
-              event head "become_leader_end"
             many_ (event head "send_request_vote"))
       <|> (do
             event head "become_leader"
             optional_ do
               event head "commit"
               optional_ (event head "step_down_and_nominate_successor")
-              event head "commit_end"
-            many_ (event head "send_append_entries")
-            event head "become_leader_end"))
+            many_ (event head "send_append_entries")))
+  -- emit
   emitAction head "atomic-receive" action
 
-private def ruleElectionTimeout : Reduction Unit := do
+private def ruleTick : Reduction Unit := do
   let head ← peek
-  event head "election_timeout"
-  event head "become_pre_vote_candidate"
-  optional_ do
-    event head "become_candidate"
+  -- consume
+  event head "tick"
+  let election ← CCF.Parsec.optionalRule (event head "become_pre_vote_candidate")
+  if election.isSome then
     optional_ do
-      event head "become_leader"
+      event head "become_candidate"
       optional_ do
-        event head "commit"
-        optional_ (event head "step_down_and_nominate_successor")
-        event head "commit_end"
-      many_ (event head "send_append_entries")
-      event head "become_leader_end"
+        event head "become_leader"
+        optional_ do
+          event head "commit"
+          optional_ (event head "step_down_and_nominate_successor")
+        many_ (event head "send_append_entries")
+      many_ (event head "send_request_vote")
     many_ (event head "send_request_vote")
-  many_ (event head "send_request_vote")
-  event head "become_pre_vote_candidate_end"
-  emitAction head "atomic-election" (.local head.node (.timeout .election))
-
-private def ruleCheckQuorumTimeout : Reduction Unit := do
-  let head ← peek
-  event head "check_quorum"
-  event head "become_follower"
-  emitAction head "check-quorum" (.local head.node (.timeout .checkQuorum))
-
-private def ruleSend : Reduction Unit := do
-  let head ← peek
-  let (destination, last) ← read head (sendChoice head (← get).header)
-  event head "send_append_entries"
-  emitAction head "atomic-send" (.local head.node (.sendEntries destination last))
+    -- emit
+    emitAction head "atomic-election" (.local head.node (.timeout .election))
+  else
+    let sends ←
+      CCF.Parsec.many do
+        let next ← peek
+        let choice := sendChoice next (← get).header
+        event head "send_append_entries"
+        return (next, ← read next choice)
+    let demoted ← CCF.Parsec.optionalRule (event head "become_follower")
+    -- emit
+    for (source, destination, last) in sends do
+      emitAction source "atomic-send" (.local head.node (.sendEntries destination last))
+    if demoted.isSome then
+      emitAction head "check-quorum" (.local head.node (.timeout .checkQuorum))
 
 private def ruleNomination : Reduction Unit := do
   let head ← peek
-  event head "step_down_and_nominate_successor"
-  emitAction head "nomination" (.local head.node .nominateSuccessor)
+  -- consume
+  event head "nomination"
+  let nominated ← CCF.Parsec.optionalRule (event head "step_down_and_nominate_successor")
+  -- emit
+  if nominated.isSome then
+    emitAction head "nomination" (.local head.node .nominateSuccessor)
 
 private def ruleDrop : Reduction Unit := do
   let head ← peek
   let destination ← read head (string head.message "to_node_id")
   let sender ← read head (string head.message "from_node_id")
   read head (require (sender == head.node) "drop sender mismatch")
+  -- consume
   event head "drop_pending_to"
+  -- emit
   emitAction head "drop" (.drop head.node destination)
 
 private def ruleStep : Reduction Unit := do
@@ -278,9 +287,7 @@ private def ruleStep : Reduction Unit := do
   <|> attempt ruleRecvRequestVoteResponse
   -- Async rules
   <|> attempt ruleAppend
-  <|> attempt ruleElectionTimeout
-  <|> attempt ruleCheckQuorumTimeout
-  <|> attempt ruleSend
+  <|> attempt ruleTick
   <|> attempt ruleNomination
   <|> attempt ruleDrop
 
