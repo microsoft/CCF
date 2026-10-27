@@ -35,8 +35,8 @@ deriving DecidableEq
 
 inductive Input where
   | append (entries : List EntryContent)
-  /-- Starts at the peer's send frontier -/
-  | sendEntries (destination : NodeID) (endIndex : Nat)
+  /-- One send pass from the peer's send frontier, given by its batch ends. -/
+  | sendEntries (destination : NodeID) (batchEnds : List Nat)
   | timeout (kind : TimeoutKind)
   | nominateSuccessor
 deriving DecidableEq
@@ -148,9 +148,8 @@ def advanceCommit (caps : Caps) (state : NodeState) (self : NodeID)
 
 /-! ## Outgoing messages -/
 
-def makeAppendEntriesRequest (state : NodeState) (destination : NodeID) (endIndex : Nat)
+def makeAppendEntriesRequest (state : NodeState) (previousIndex endIndex : Nat)
     : AppendEntriesRequest :=
-  let previousIndex := state.sentIndex destination
   {
     term := state.currentTerm
     prevLogIndex := previousIndex
@@ -202,7 +201,8 @@ def appendEntry (caps : Caps) (self : NodeID) (state : NodeState) (content : Ent
           }
         for peer in addedPeers.sort do
           caps.send
-            (.appendEntriesRequest (makeAppendEntriesRequest state peer state.log.length))
+            (.appendEntriesRequest
+              (makeAppendEntriesRequest state state.log.length state.log.length))
             peer
         pure state
   return { state with log := state.log ++ [{ term := state.currentTerm, content }] }
@@ -215,24 +215,66 @@ def appendBatch (caps : Caps) (self : NodeID) (state : NodeState)
   let state <- entries.foldlM (appendEntry caps self) state
   advanceCommit caps state self
 
+/-- Every entry of the batch `(previousIndex, endIndex]` has the batch end's term. -/
+def singleTerm (log : List Entry) (previousIndex endIndex : Nat) : Bool :=
+  (messageEntries log previousIndex endIndex).all
+    fun entry =>
+      entry.term == termAt log endIndex
+
+/--
+Whether `batchEnds` splits one `send_append_entries` pass from `previousIndex`:
+single-term batches, each after the last, with only the final one at the log end.
+A pass from the log end is one empty heartbeat. CCF also caps each batch at
+`entries_batch_size`, which varies between passes; any split is allowed here.
+-/
+def isPass (log : List Entry) (previousIndex : Nat) : List Nat -> Bool
+  | [] => false
+  | [endIndex] =>
+      previousIndex <= endIndex
+      && endIndex == log.length
+      && singleTerm log previousIndex endIndex
+  | endIndex :: rest =>
+      previousIndex < endIndex
+      && endIndex < log.length
+      && singleTerm log previousIndex endIndex
+      && isPass log endIndex rest
+
+/-- The `(previousIndex, endIndex)` of each batch: each starts where the last ended. -/
+def passBatches (previousIndex : Nat) : List Nat -> List (Nat × Nat)
+  | [] => []
+  | endIndex :: rest => (previousIndex, endIndex) :: passBatches endIndex rest
+
+/--
+One `send_append_entries_range`: a primary whose retirement is committed sends
+no heartbeat or single-entry batch.
+-/
+def sendBatch (caps : Caps) (self destination : NodeID) (state : NodeState)
+    : Nat × Nat -> NodeEffect NodeState
+  | (previousIndex, endIndex) =>
+      if state.isRetiredCommitted self /\ endIndex <= previousIndex + 1 then
+        pure state
+      else do
+        caps.send
+          (.appendEntriesRequest (makeAppendEntriesRequest state previousIndex endIndex))
+          destination
+        return {
+          state with
+            sentIndex := Function.update state.sentIndex destination endIndex
+        }
+
+/--
+One `send_append_entries` pass. CCF runs a pass under the consensus lock, so
+no other event interleaves with its batches.
+-/
 def sendEntries (caps : Caps) (self : NodeID)
-    (state : NodeState) (destination : NodeID) (endIndex : Nat)
+    (state : NodeState) (destination : NodeID) (batchEnds : List Nat)
     : NodeEffect NodeState := do
   let previousIndex := state.sentIndex destination
   guard
     (state.role = .primary
       /\ destination ∈ eligiblePeers state self
-      /\ previousIndex <= endIndex
-      /\ endIndex <= state.log.length
-      /\ ((messageEntries state.log previousIndex endIndex).all
-            fun entry =>
-              entry.term == termAt state.log endIndex)
-          = true
-      /\ (Not (state.isRetiredCommitted self) \/ previousIndex + 1 < endIndex))
-  caps.send
-    (.appendEntriesRequest (makeAppendEntriesRequest state destination endIndex))
-    destination
-  return { state with sentIndex := Function.update state.sentIndex destination endIndex }
+      /\ isPass state.log previousIndex batchEnds = true)
+  (passBatches previousIndex batchEnds).foldlM (sendBatch caps self destination) state
 
 /-! ## Handling AppendEntries -/
 
@@ -432,7 +474,8 @@ def becomePrimary (caps : Caps) (self : NodeID) (state : NodeState)
   let state <- advanceCommit caps state self
   for peer in (eligiblePeers state self).sort do
     caps.send
-      (.appendEntriesRequest (makeAppendEntriesRequest state peer state.log.length))
+      (.appendEntriesRequest
+        (makeAppendEntriesRequest state state.log.length state.log.length))
       peer
   return state
 
@@ -590,8 +633,8 @@ def receive (caps : Caps) (self source : NodeID) (state : NodeState) (message : 
 
 def act (caps : Caps) (self : NodeID) (state : NodeState) : Input -> NodeEffect NodeState
   | .append entries => appendBatch caps self state entries
-  | .sendEntries destination endIndex =>
-      sendEntries caps self state destination endIndex
+  | .sendEntries destination batchEnds =>
+      sendEntries caps self state destination batchEnds
   | .timeout .election => startElection caps state self
   | .timeout .checkQuorum => checkQuorum state self
   | .nominateSuccessor => nominateSuccessor caps state self

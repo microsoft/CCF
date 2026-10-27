@@ -425,11 +425,8 @@ theorem becomePrimary_sends (candidate : NodeState)
     simp only [eq, List.append_nil, List.mem_singleton] at member
     subst member
     have other : Not (peer = self) := by simp [Finset.mem_sort, eligiblePeers] at member; exact member.1
-    have sentEq : leader.sentIndex peer = leader.log.length := by
-      rw [advance.sentIndex, advance.log]
-      simp [primaryState]
     refine ⟨rfl, other, _, rfl, rfl, ?_, rfl, ?_, le_rfl⟩ <;>
-      simp [makeAppendEntriesRequest, sentEq, messageEntries]
+      simp [makeAppendEntriesRequest, messageEntries]
   · intro e member
     rcases List.mem_append.mp (by simpa using member) with old | new
     · have := nominated e old
@@ -735,25 +732,89 @@ theorem nominate_summary (state : NodeState)
   rw [payload]
   rfl
 
-theorem sendEntries_summary (state : NodeState) (destination : NodeID) (endIndex : Nat)
+private theorem passBatches_previous_bound {log : List Entry}
+    : forall {previousIndex : Nat} {batchEnds : List Nat},
+        isPass log previousIndex batchEnds = true
+        -> forall batch,
+            batch ∈ passBatches previousIndex batchEnds -> batch.1 <= log.length
+  | _, [], pass, _, _ => by simp [isPass] at pass
+  | _, [_], pass, batch, member => by
+      simp only [isPass, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at pass
+      simp only [passBatches, List.mem_singleton] at member
+      subst member
+      exact pass.1.1.trans pass.1.2.le
+  | _, endIndex :: next :: rest, pass, batch, member => by
+      simp only [isPass, Bool.and_eq_true, decide_eq_true_eq] at pass
+      simp only [passBatches, List.mem_cons] at member
+      rcases member with rfl | member
+      · exact pass.1.1.1.le.trans pass.1.1.2.le
+      · exact passBatches_previous_bound pass.2 batch (by simpa [passBatches] using member)
+
+private theorem foldBatches_sends (before : NodeState) (destination : NodeID)
+    : forall (batches : List (Nat × Nat)) (sentIndex : NodeID -> Nat),
+        Sends
+          (fun after sent =>
+            (exists sentIndex, after = { before with sentIndex })
+            /\ forall envelope,
+                envelope ∈ sent
+                -> exists batch,
+                    batch ∈ batches
+                    /\ envelope
+                        = {
+                          source := self,
+                          target := destination,
+                          payload :=
+                            .appendEntriesRequest
+                              (makeAppendEntriesRequest before batch.1 batch.2)
+                        })
+          (batches.foldlM (sendBatch caps self destination) { before with sentIndex })
+  | [], sentIndex => by
+      exact Sends.pure' ⟨⟨_, rfl⟩, by simp⟩
+  | (previousIndex, endIndex) :: batches, sentIndex => by
+      simp only [List.foldlM_cons, sendBatch]
+      split
+      · simp only [pure_bind]
+        refine Sends.mono (foldBatches_sends before destination batches sentIndex)
+          fun after later ⟨same, each⟩ => ⟨same, ?_⟩
+        intro envelope member
+        obtain ⟨batch, inBatches, eq⟩ := each envelope (by simpa using member)
+        exact ⟨batch, List.mem_cons_of_mem _ inBatches, eq⟩
+      · simp only [bind_assoc, pure_bind]
+        refine Sends.bind' (Sends.send _ _ _) fun _ first eq => ?_
+        subst eq
+        refine Sends.mono
+          (foldBatches_sends before destination batches
+            (Function.update sentIndex destination endIndex))
+          fun after later ⟨same, each⟩ => ⟨same, ?_⟩
+        intro envelope member
+        rcases List.mem_cons.mp member with rfl | member
+        · exact ⟨_, List.mem_cons_self, rfl⟩
+        · obtain ⟨batch, inBatches, eq⟩ := each envelope member
+          exact ⟨batch, List.mem_cons_of_mem _ inBatches, eq⟩
+
+theorem sendEntries_summary (state : NodeState) (destination : NodeID)
+    (batchEnds : List Nat)
     : Sends
         (fun after sent =>
-          Summary self state (.internal (.sendEntries destination endIndex)) after sent)
-        (sendEntries caps self state destination endIndex) := by
+          Summary self state (.internal (.sendEntries destination batchEnds)) after sent)
+        (sendEntries caps self state destination batchEnds) := by
   unfold sendEntries
-  refine Sends.bind' Sends.guard' fun _ sent ⟨⟨leader, peer, le, bound, _⟩, empty⟩ => ?_
+  refine Sends.bind' Sends.guard' fun _ sent ⟨⟨leader, peer, valid⟩, empty⟩ => ?_
   subst empty
-  refine Sends.bind' (Sends.send _ _ _) fun _ sent eq => Sends.pure' ?_
+  refine Sends.mono
+    (foldBatches_sends self state destination
+      (passBatches (state.sentIndex destination) batchEnds) state.sentIndex)
+    fun after sent ⟨⟨_, eq⟩, each⟩ => ?_
   subst eq
   refine quiet_summary rfl rfl rfl rfl rfl rfl rfl
     (fun _ => Or.inl (by rw [leader]; simp)) fun e member => ?_
-  simp only [List.nil_append, List.append_nil, List.mem_singleton] at member
-  subst member
+  obtain ⟨batch, inBatches, rfl⟩ := each e (by simpa using member)
+  have bound := passBatches_previous_bound valid batch inBatches
   have other : Not (destination = self) := by
     simp [eligiblePeers] at peer; exact peer.1
   refine ⟨
     rfl,
-    ⟨other, rfl, le.trans bound, rfl, ?_, le_rfl⟩,
+    ⟨other, rfl, bound, rfl, ?_, le_rfl⟩,
     by simp [leader],
     Or.inl ⟨leader, rfl⟩
   ⟩
@@ -1350,7 +1411,7 @@ theorem appendEntry_batch (self : NodeID) (before : NodeState)
         have added := (Finset.mem_sort _).mp member
         have other : Not (peer = self) := (Finset.mem_erase.mp added).1
         refine ⟨rfl, other, _, rfl, rfl, ?_, ?_, ?_, le_rfl⟩ <;>
-          simp only [makeAppendEntriesRequest, ite_eq_left added, messageEntries] <;> simp
+          simp only [makeAppendEntriesRequest, messageEntries] <;> simp
       · have batch : BatchState self before
             { before with
                 log := before.log ++ entries
@@ -1422,8 +1483,8 @@ theorem summary (self : NodeID) (before : NodeState) (event : Event)
   | internal input =>
       cases input with
       | append contents => exact appendBatch_summary self before contents
-      | sendEntries destination endIndex =>
-          exact sendEntries_summary self before destination endIndex
+      | sendEntries destination batchEnds =>
+          exact sendEntries_summary self before destination batchEnds
       | timeout kind =>
           cases kind with
           | election => exact startElection_summary self before
