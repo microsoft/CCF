@@ -56,7 +56,7 @@ namespace aft
     using ccf::msgpack::write_msgpack;
     write_map_header(
       out,
-      8 + static_cast<uint32_t>(state.retirement_phase.has_value()) +
+      7 + static_cast<uint32_t>(state.retirement_phase.has_value()) +
         static_cast<uint32_t>(state.retirement_idx.has_value()) +
         static_cast<uint32_t>(state.retirement_committable_idx.has_value()) +
         static_cast<uint32_t>(state.retired_committed_idx.has_value()));
@@ -72,8 +72,6 @@ namespace aft
     write_msgpack(out, state.leadership_state.load());
     write_str(out, "membership_state");
     write_msgpack(out, state.membership_state);
-    write_str(out, "pre_vote_enabled");
-    write_msgpack(out, state.pre_vote_enabled);
     if (state.retirement_phase.has_value())
     {
       write_str(out, "retirement_phase");
