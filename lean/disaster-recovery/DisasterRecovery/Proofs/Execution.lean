@@ -169,7 +169,9 @@ def next (config : Config) (state : State) : Action -> Option State
       pure (recordEffects target output.state output.effects { state with system })
 
 /-- The decorated execution system with valid recovery configurations. -/
-def transitionSystem (config : Config) : TransitionSystem State Action where
+abbrev transitionSystem (config : Config) : TransitionSystem where
+  State := State
+  Action := Action
   init :=
     fun state =>
       config.Valid

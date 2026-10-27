@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.23]
+
+[7.0.23]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.23
+
+### Changed
+
+- `ccf::crypto::OpenSSL::Unique_BIO` no longer accepts temporary `std::vector<uint8_t>` or `Pem` arguments, which would leave it dangling (#8628).
+
+### Fixed
+
+- `ccf::crypto::Verifier::remaining_seconds()` now returns the whole validity period before that period starts, and `remaining_percentage()` always returns a fraction between 0.0 and 1.0, including for a certificate whose validity period ends before it starts (#8626).
+- Service certificate renewal, recovery and previous-identity endorsements now preserve multi-RDN `service_subject_name` values such as `CN=CCF Service,O=CCF User` (#8627).
+
 ## [7.0.22]
 
 [7.0.22]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.22

@@ -71,8 +71,8 @@ def protocol (initialConfiguration : Finset NodeID)
   internal := .internal
 
 /-- The network of `nodes`, initialized from a nonempty membership configuration. -/
-def transitionSystem (initialConfiguration : Finset NodeID) (nodes : List NodeID)
-    : TransitionSystem State Action :=
+abbrev transitionSystem (initialConfiguration : Finset NodeID) (nodes : List NodeID)
+    : TransitionSystem :=
   let system := MultiNodeTransitionSystem.lift (protocol initialConfiguration)
   {
     system with

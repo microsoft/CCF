@@ -1243,7 +1243,8 @@ lemma reachable_quorum_invariant
     {state : State}
     (reachable : Reachable config state)
     : QuorumInvariant config state := by
-  induction reachable with
+  induction reachable
+    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
   | initial initialized =>
       rcases initialized with ⟨_, nodes, _, _, rfl⟩
       exact initial_quorum_invariant config nodes
