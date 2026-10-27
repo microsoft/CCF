@@ -3,12 +3,16 @@
 #pragma once
 
 #include "consensus/aft/consensus_channels.h"
+#include "consensus/aft/raft_types.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "node/rpc/rpc_handler.h"
 #include "node_types.h"
 
 #include <algorithm>
+#include <exception>
+#include <span>
+#include <utility>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
@@ -18,6 +22,14 @@ namespace ccf
   {
   public:
     ~NodeToNode() override = default;
+
+    class DroppedMessageException : public std::exception
+    {
+    public:
+      NodeId from;
+
+      DroppedMessageException(NodeId from_) : from(std::move(from_)) {}
+    };
 
     virtual void close_channel(const NodeId& peer_id) = 0;
 
@@ -46,6 +58,76 @@ namespace ccf
       const NodeId& to, const uint8_t* data, size_t size) final
     {
       return send_authenticated(to, NodeMsgType::consensus_msg, data, size);
+    }
+
+    virtual bool recv_authenticated(
+      const NodeId& from,
+      std::span<const uint8_t> header,
+      const uint8_t*& data,
+      size_t& size) = 0;
+
+    // Returns borrowed message and payload views after verifying the legacy
+    // header and replay counter. The caller must keep the buffer alive and
+    // unchanged until synchronous consensus processing has finished.
+    std::pair<std::span<const uint8_t>, std::span<const uint8_t>>
+    recv_consensus_message(
+      const NodeId& from, const uint8_t* buffer, size_t size)
+    {
+      const uint8_t* data = buffer;
+      size_t header_size = 0;
+      switch (serialized::peek<aft::RaftMsgType>(data, size))
+      {
+        case aft::raft_append_entries:
+        {
+          header_size = sizeof(aft::AppendEntries);
+          break;
+        }
+        case aft::raft_append_entries_response:
+        {
+          header_size = sizeof(aft::AppendEntriesResponse);
+          break;
+        }
+        case aft::raft_request_vote:
+        {
+          header_size = sizeof(aft::RequestVote);
+          break;
+        }
+        case aft::raft_request_vote_response:
+        {
+          header_size = sizeof(aft::RequestVoteResponse);
+          break;
+        }
+        case aft::raft_request_pre_vote:
+        {
+          header_size = sizeof(aft::RequestPreVote);
+          break;
+        }
+        case aft::raft_request_pre_vote_response:
+        {
+          header_size = sizeof(aft::RequestPreVoteResponse);
+          break;
+        }
+        case aft::raft_propose_request_vote:
+        {
+          header_size = sizeof(aft::ProposeRequestVote);
+          break;
+        }
+        case aft::raft_append_entries_signed_response:
+        default:
+        {
+          throw std::runtime_error("Unsupported legacy consensus message");
+        }
+      }
+
+      serialized::skip(data, size, header_size);
+      if (!recv_authenticated(from, {buffer, header_size}, data, size))
+      {
+        throw DroppedMessageException(from);
+      }
+
+      // The payload has independent ledger protection, not channel
+      // authentication.
+      return {{buffer, header_size}, {data, size}};
     }
 
     template <class T>
