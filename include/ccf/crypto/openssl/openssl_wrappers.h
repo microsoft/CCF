@@ -25,6 +25,7 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <vector>
 
 namespace ccf::crypto::OpenSSL
 {
@@ -182,6 +183,10 @@ namespace ccf::crypto::OpenSSL
       Unique_SSL_OBJECT(
         BIO_new_mem_buf(pem.data(), -1), [](auto x) { BIO_free(x); })
     {}
+
+    // The BIO only views the buffer; reject temporaries, which would dangle.
+    Unique_BIO(const std::vector<uint8_t>&&) = delete;
+    Unique_BIO(const Pem&&) = delete;
 
     Unique_BIO(SSL_CTX* ctx) :
       Unique_SSL_OBJECT(

@@ -57,6 +57,14 @@ namespace ccf::crypto
       return create_csr(subject_name, {});
     }
 
+    /** Create a CSR for a DER-encoded subject name
+     * @throws std::invalid_argument if @p subject_name_der is not one DER Name
+     */
+    [[nodiscard]] virtual Pem create_csr(
+      const std::vector<uint8_t>& subject_name_der,
+      const std::vector<SubjectAltName>& subject_alt_names,
+      const std::optional<Pem>& public_key = std::nullopt) const = 0;
+
     [[nodiscard]] virtual std::vector<uint8_t> create_csr_der(
       const std::string& subject_name,
       const std::vector<SubjectAltName>& subject_alt_names,
@@ -125,6 +133,17 @@ namespace ccf::crypto
       bool ca = true) const
     {
       auto csr = create_csr(subject_name, subject_alt_names);
+      return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca);
+    }
+
+    [[nodiscard]] Pem self_sign(
+      const std::vector<uint8_t>& subject_name_der,
+      const std::string& valid_from,
+      const std::string& valid_to,
+      const std::vector<SubjectAltName>& subject_alt_names,
+      bool ca = true) const
+    {
+      auto csr = create_csr(subject_name_der, subject_alt_names);
       return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca);
     }
 
