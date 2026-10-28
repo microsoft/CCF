@@ -12,6 +12,8 @@
 #  include "crypto/openssl/mldsa_public_key.h"
 #  include "ds/internal_logger.h"
 
+#  include <openssl/core_names.h>
+#  include <openssl/params.h>
 #  include <openssl/pem.h>
 #  include <openssl/x509.h>
 #  include <stdexcept>
@@ -24,6 +26,29 @@ namespace ccf::crypto
     key.reset(pk);
     std::ignore = mldsa::parameter_set(key);
     OpenSSL::check_key(key, false);
+  }
+
+  std::shared_ptr<MLDSAPublicKey_OpenSSL> MLDSAPublicKey_OpenSSL::from_raw(
+    std::span<const uint8_t> raw_public_key, MLDSAParameterSet parameter_set)
+  {
+    OpenSSL::Unique_EVP_PKEY_CTX ctx(mldsa::openssl_name(parameter_set));
+    OpenSSL::CHECK1(EVP_PKEY_fromdata_init(ctx));
+    OSSL_PARAM params[] = {
+      OSSL_PARAM_construct_octet_string(
+        OSSL_PKEY_PARAM_PUB_KEY,
+        const_cast<uint8_t*>(raw_public_key.data()),
+        raw_public_key.size()),
+      OSSL_PARAM_construct_end()};
+    EVP_PKEY* imported = nullptr;
+    // The provider rejects public keys of the wrong size.
+    if (
+      EVP_PKEY_fromdata(ctx, &imported, EVP_PKEY_PUBLIC_KEY, params) != 1 ||
+      imported == nullptr)
+    {
+      throw std::invalid_argument(
+        fmt::format("Malformed ML-DSA public key: {}", OpenSSL::first_error()));
+    }
+    return std::make_shared<MLDSAPublicKey_OpenSSL>(imported);
   }
 
   MLDSAPublicKey_OpenSSL::MLDSAPublicKey_OpenSSL(
@@ -79,6 +104,18 @@ namespace ccf::crypto
     OpenSSL::CHECK1(i2d_PUBKEY_bio(bio, key));
     const auto data = OpenSSL::bio_contents(bio);
     return {data.begin(), data.end()};
+  }
+
+  std::vector<uint8_t> MLDSAPublicKey_OpenSSL::public_key_raw() const
+  {
+    size_t size = 0;
+    OpenSSL::CHECK1(EVP_PKEY_get_octet_string_param(
+      key, OSSL_PKEY_PARAM_PUB_KEY, nullptr, 0, &size));
+    std::vector<uint8_t> raw(size);
+    OpenSSL::CHECK1(EVP_PKEY_get_octet_string_param(
+      key, OSSL_PKEY_PARAM_PUB_KEY, raw.data(), raw.size(), &size));
+    raw.resize(size);
+    return raw;
   }
 
   bool MLDSAPublicKey_OpenSSL::verify(
@@ -148,6 +185,12 @@ namespace ccf::crypto
   {
     return std::make_shared<MLDSAPublicKey_OpenSSL>(der, expected);
   }
+
+  MLDSAPublicKeyPtr make_mldsa_public_key_from_raw(
+    std::span<const uint8_t> raw_public_key, MLDSAParameterSet parameter_set)
+  {
+    return MLDSAPublicKey_OpenSSL::from_raw(raw_public_key, parameter_set);
+  }
 }
 #else // Remove this fallback after dropping AL3 support.
 
@@ -171,6 +214,13 @@ namespace ccf::crypto
 
   MLDSAPublicKeyPtr make_mldsa_public_key(
     std::span<const uint8_t> /*der*/, MLDSAParameterSet /*expected*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAPublicKeyPtr make_mldsa_public_key_from_raw(
+    std::span<const uint8_t> /*raw_public_key*/,
+    MLDSAParameterSet /*parameter_set*/)
   {
     mldsa::unsupported();
   }

@@ -41,6 +41,9 @@ namespace ccf::crypto
     [[nodiscard]] virtual Pem public_key_pem() const = 0;
     [[nodiscard]] virtual std::vector<uint8_t> public_key_der() const = 0;
 
+    /// Export the FIPS 204 encoded public key.
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_raw() const = 0;
+
     /**
      * Sign contents with pure ML-DSA over the supplied message bytes.
      * Context is an optional domain-separation string of at most 255 bytes.

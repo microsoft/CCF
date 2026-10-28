@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - `ccf::crypto::MLDSAKeyPair` can now issue X.509 certificates and PKCS#10 certificate signing requests signed with pure ML-DSA (`create_csr()`, `sign_csr()`, `self_sign()`), and `ccf::crypto::make_verifier()` accepts ML-DSA certificates, verifying their signatures with `MDType::NONE`. The ML-DSA headers are now included on every build; with OpenSSL older than 3.5, `make_mldsa_key_pair()` and `make_mldsa_public_key()` throw `std::runtime_error` (#8629).
 - Nodes built with OpenSSL 3.5 or newer also create an ML-DSA service certificate when starting or recovering a service, stored as `pq_cert` in `ccf::ServiceInfo`, with the parameter set chosen by the new [`service_mldsa_parameter_set`](doc/host_config_schema/host_config.json) setting of `command.start` and `command.recover` (#8632).
+- `ccf::crypto::COSEKey` now carries ML-DSA public keys as RFC 9964 AKP keys (`kty` 7), and COSE verifiers verify pure ML-DSA-44, ML-DSA-65 and ML-DSA-87 `COSE_Sign1` signatures. `ccf::crypto::MLDSAPublicKey::public_key_raw()` and `make_mldsa_public_key_from_raw()` convert FIPS 204 encoded public keys, and `COSEKey::from_der_public_key()` imports a SubjectPublicKeyInfo.
 
 ### Changed
 

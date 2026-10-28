@@ -4,6 +4,7 @@
 #include "ccf/crypto/cose_key.h"
 
 #include "ccf/crypto/base64.h"
+#include "crypto/cose.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/ec_public_key.h"
 
@@ -16,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <tav/cbor.hpp>
+#include <tuple>
 #include <utility>
 
 #define FMT_HEADER_ONLY
@@ -28,7 +30,7 @@ namespace
   using tav::cbor::Value;
 
   // COSE_Key labels, from RFC 9052 Section 7.1, RFC 9053 Sections 7.1.1 and
-  // 7.2, and RFC 8230 Section 4
+  // 7.2, RFC 8230 Section 4 and RFC 9964 Section 3
   constexpr int64_t LABEL_KTY = 1;
   constexpr int64_t LABEL_KID = 2;
   constexpr int64_t LABEL_ALG = 3;
@@ -45,6 +47,8 @@ namespace
   constexpr int64_t LABEL_OKP_CRV = -1;
   constexpr int64_t LABEL_OKP_X = -2;
   constexpr int64_t LABEL_OKP_D = -4;
+  constexpr int64_t LABEL_AKP_PUB = -1;
+  constexpr int64_t LABEL_AKP_PRIV = -2;
 
   constexpr int64_t KEY_OP_VERIFY = 2;
 
@@ -69,6 +73,30 @@ namespace
   [[noreturn]] void invalid(std::string_view reason)
   {
     throw std::invalid_argument(fmt::format("Invalid COSE_Key: {}", reason));
+  }
+
+  // FIPS 204 public key sizes, RFC 9964 Section 5
+  size_t mldsa_public_key_size(MLDSAParameterSet parameter_set)
+  {
+    switch (parameter_set)
+    {
+      case MLDSAParameterSet::ML_DSA_44:
+      {
+        return 1312;
+      }
+      case MLDSAParameterSet::ML_DSA_65:
+      {
+        return 1952;
+      }
+      case MLDSAParameterSet::ML_DSA_87:
+      {
+        return 2592;
+      }
+      default:
+      {
+        throw std::logic_error("Unknown ML-DSA parameter set");
+      }
+    }
   }
 
   // An Ed25519 public key is the little-endian y coordinate, with the sign of
@@ -228,6 +256,17 @@ namespace
     return encode_cose_key(COSEKeyType::OKP, std::move(items), alg, kid);
   }
 
+  std::vector<uint8_t> encode_cose_key(
+    const COSEKey::AKPParameters& parameters,
+    std::optional<int64_t> alg,
+    std::optional<std::span<const uint8_t>> kid)
+  {
+    using namespace tav::cbor;
+    std::vector<MapItem> items;
+    items.emplace_back(make_signed(LABEL_AKP_PUB), make_bytes(parameters.pub));
+    return encode_cose_key(COSEKeyType::AKP, std::move(items), alg, kid);
+  }
+
   COSEKey::EC2Parameters parameters_of(const ECPublicKey& key)
   {
     auto coordinates = key.coordinates();
@@ -250,8 +289,17 @@ namespace
       .crv = cose_okp_crv(key.get_curve_id()), .x = raw_from_b64url(jwk.x)};
   }
 
+  COSEKey::AKPParameters parameters_of(const MLDSAPublicKey& key)
+  {
+    return {.pub = key.public_key_raw()};
+  }
+
   std::vector<uint8_t> encode_cose_key(
-    const std::variant<ECPublicKeyPtr, RSAPublicKeyPtr, EdDSAPublicKeyPtr>& key,
+    const std::variant<
+      ECPublicKeyPtr,
+      RSAPublicKeyPtr,
+      EdDSAPublicKeyPtr,
+      MLDSAPublicKeyPtr>& key,
     std::optional<int64_t> alg,
     std::optional<std::span<const uint8_t>> kid)
   {
@@ -506,6 +554,33 @@ namespace
     return make_eddsa_public_key(jwk);
   }
 
+  MLDSAPublicKeyPtr parse_akp(const Value& map, std::optional<int64_t> alg)
+  {
+    if (find_label(map, LABEL_AKP_PRIV).has_value())
+    {
+      invalid("private key parameter priv is not accepted");
+    }
+    // The algorithm selects the parameter set (RFC 9964 Section 3)
+    if (!alg.has_value())
+    {
+      invalid("alg is required for AKP keys");
+    }
+    const auto parameter_set =
+      ccf::cose::parameter_set_for_algorithm(alg.value());
+    if (!parameter_set.has_value())
+    {
+      invalid(fmt::format("unsupported alg {} for AKP keys", alg.value()));
+    }
+    const auto pub = require_bytes(map, LABEL_AKP_PUB, "pub");
+    const auto size = mldsa_public_key_size(parameter_set.value());
+    if (pub.size() != size)
+    {
+      invalid(
+        fmt::format("pub must be {} bytes long for alg {}", size, alg.value()));
+    }
+    return make_mldsa_public_key_from_raw(pub, parameter_set.value());
+  }
+
   void check_alg_matches_key(int64_t alg, const COSEKey& key)
   {
     // Throws for algorithms that CCF cannot verify
@@ -553,6 +628,14 @@ namespace ccf::crypto
     }
   }
 
+  COSEKey::COSEKey(MLDSAPublicKeyPtr key) :
+    COSEKey(PublicKey{key}, std::nullopt)
+  {
+    // Only parameter sets with a COSE algorithm
+    std::ignore =
+      ccf::cose::algorithm_for_parameter_set(non_null(key).get_parameter_set());
+  }
+
   COSEKey COSEKey::from_cbor(std::span<const uint8_t> cose_key)
   {
     try
@@ -579,6 +662,11 @@ namespace ccf::crypto
         case static_cast<int64_t>(COSEKeyType::OKP):
         {
           parsed = parse_okp(map);
+          break;
+        }
+        case static_cast<int64_t>(COSEKeyType::AKP):
+        {
+          parsed = parse_akp(map, alg_value);
           break;
         }
         default:
@@ -617,6 +705,11 @@ namespace ccf::crypto
     return cose_key_from_der_cert(der);
   }
 
+  COSEKey COSEKey::from_der_public_key(std::span<const uint8_t> der)
+  {
+    return cose_key_from_der_public_key(der);
+  }
+
   COSEKeyType COSEKey::kty() const
   {
     if (std::holds_alternative<ECPublicKeyPtr>(public_key))
@@ -630,6 +723,10 @@ namespace ccf::crypto
     if (std::holds_alternative<EdDSAPublicKeyPtr>(public_key))
     {
       return COSEKeyType::OKP;
+    }
+    if (std::holds_alternative<MLDSAPublicKeyPtr>(public_key))
+    {
+      return COSEKeyType::AKP;
     }
     throw std::logic_error("Unsupported COSE_Key type");
   }
@@ -669,6 +766,16 @@ namespace ccf::crypto
     return parameters_of(**key);
   }
 
+  std::optional<COSEKey::AKPParameters> COSEKey::akp_parameters() const
+  {
+    const auto* key = std::get_if<MLDSAPublicKeyPtr>(&public_key);
+    if (key == nullptr)
+    {
+      return std::nullopt;
+    }
+    return parameters_of(**key);
+  }
+
   ECPublicKeyPtr COSEKey::ec_public_key() const
   {
     const auto* key = std::get_if<ECPublicKeyPtr>(&public_key);
@@ -684,6 +791,12 @@ namespace ccf::crypto
   EdDSAPublicKeyPtr COSEKey::eddsa_public_key() const
   {
     const auto* key = std::get_if<EdDSAPublicKeyPtr>(&public_key);
+    return key == nullptr ? nullptr : *key;
+  }
+
+  MLDSAPublicKeyPtr COSEKey::mldsa_public_key() const
+  {
+    const auto* key = std::get_if<MLDSAPublicKeyPtr>(&public_key);
     return key == nullptr ? nullptr : *key;
   }
 
@@ -710,6 +823,14 @@ namespace ccf::crypto
 
   Sha256Hash COSEKey::thumbprint_sha256() const
   {
-    return Sha256Hash(encode_cose_key(public_key, std::nullopt, std::nullopt));
+    // AKP thumbprints are over kty, alg and pub (RFC 9964 Section 6)
+    std::optional<int64_t> alg = std::nullopt;
+    const auto* mldsa_key = std::get_if<MLDSAPublicKeyPtr>(&public_key);
+    if (mldsa_key != nullptr)
+    {
+      alg = ccf::cose::algorithm_for_parameter_set(
+        (*mldsa_key)->get_parameter_set());
+    }
+    return Sha256Hash(encode_cose_key(public_key, alg, std::nullopt));
   }
 }

@@ -15,8 +15,14 @@ namespace ccf::crypto
   /// key is not supported
   COSEKey cose_key_from_der_cert(std::span<const uint8_t> der);
 
+  /// A DER SubjectPublicKeyInfo public key, as COSE verifiers import it.
+  /// @throws std::invalid_argument if the key cannot be parsed, or is not
+  /// supported
+  COSEKey cose_key_from_der_public_key(std::span<const uint8_t> der);
+
   /// Whether a COSE signature algorithm verifies with key: the key types
-  /// match and, for EC2 keys, so do the curves.
+  /// match and, for EC2 keys, so do the curves; for AKP keys, the algorithm
+  /// is that of the key's ML-DSA parameter set.
   /// @throws std::runtime_error if alg is not supported
   bool cose_algorithm_matches_key(int64_t alg, const COSEKey& key);
 

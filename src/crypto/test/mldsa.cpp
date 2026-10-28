@@ -6,6 +6,8 @@
 static_assert(
   OPENSSL_VERSION_PREREQ(3, 5), "ML-DSA tests require OpenSSL 3.5 or newer");
 
+#include "ccf/crypto/cose_key.h"
+#include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/mldsa_key_pair.h"
@@ -13,10 +15,14 @@ static_assert(
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
+#include "crypto/cbor_helpers.h"
+#include "crypto/cbor_tags.h"
+#include "crypto/cose.h"
 #include "crypto/openssl/mldsa.h"
 #include "crypto/openssl/mldsa_key_pair.h"
 #include "crypto/test/mldsa_vectors.h"
 
+#include <algorithm>
 #include <array>
 #include <doctest/doctest.h>
 #include <future>
@@ -24,7 +30,9 @@ static_assert(
 #include <openssl/err.h>
 #include <openssl/objects.h>
 #include <openssl/x509.h>
+#include <optional>
 #include <string>
+#include <tav/cbor.hpp>
 #include <type_traits>
 
 using namespace ccf::crypto;
@@ -42,6 +50,9 @@ namespace
     size_t expanded_key_size;
     size_t s2_offset;
     size_t signature_size;
+    size_t public_key_size;
+    // RFC 9964 COSE algorithm identifier
+    int64_t cose_alg;
   };
 
   constexpr std::array PARAMETER_SETS = {
@@ -51,21 +62,27 @@ namespace
       NID_ML_DSA_44,
       2560,
       512,
-      2420},
+      2420,
+      1312,
+      -48},
     ParameterSetInfo{
       MLDSAParameterSet::ML_DSA_65,
       LN_ML_DSA_65,
       NID_ML_DSA_65,
       4032,
       768,
-      3309},
+      3309,
+      1952,
+      -49},
     ParameterSetInfo{
       MLDSAParameterSet::ML_DSA_87,
       LN_ML_DSA_87,
       NID_ML_DSA_87,
       4896,
       800,
-      4627},
+      4627,
+      2592,
+      -50},
   };
 
   const ParameterSetInfo& info_for(MLDSAParameterSet id)
@@ -795,6 +812,250 @@ TEST_CASE("ML-DSA certificates")
       CHECK_THROWS_AS(
         (void)key->create_csr(trailing_byte), std::invalid_argument);
       ERR_clear_error();
+    }
+  }
+}
+
+TEST_CASE("ML-DSA raw public keys")
+{
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      auto key = make_mldsa_key_pair(info.id);
+      const auto raw = key->public_key_raw();
+      CHECK(raw.size() == info.public_key_size);
+      CHECK(
+        make_mldsa_public_key(key->public_key_der())->public_key_raw() == raw);
+
+      const auto imported = make_mldsa_public_key_from_raw(raw, info.id);
+      CHECK(imported->get_parameter_set() == info.id);
+      CHECK(imported->public_key_der() == key->public_key_der());
+      CHECK(imported->public_key_raw() == raw);
+      CHECK(imported->verify(message, key->sign(message)));
+
+      for (const auto& other : PARAMETER_SETS)
+      {
+        if (other.id != info.id)
+        {
+          CAPTURE(other.name);
+          CHECK_THROWS_AS(
+            (void)make_mldsa_public_key_from_raw(raw, other.id),
+            std::invalid_argument);
+        }
+      }
+      auto truncated = raw;
+      truncated.pop_back();
+      CHECK_THROWS_AS(
+        (void)make_mldsa_public_key_from_raw(truncated, info.id),
+        std::invalid_argument);
+      auto extended = raw;
+      extended.push_back(0);
+      CHECK_THROWS_AS(
+        (void)make_mldsa_public_key_from_raw(extended, info.id),
+        std::invalid_argument);
+      ERR_clear_error();
+    }
+  }
+}
+
+TEST_CASE("ML-DSA AKP COSE_Key")
+{
+  using namespace tav::cbor;
+  constexpr int64_t LABEL_KTY = 1;
+  constexpr int64_t LABEL_KID = 2;
+  constexpr int64_t LABEL_ALG = 3;
+  constexpr int64_t LABEL_PUB = -1;
+  constexpr int64_t KTY_AKP = 7;
+
+  // {1: 7, 3: alg, -1: pub}, with an optional kid, as RFC 9964 Section 3
+  const auto akp_cbor = [&](
+                          int64_t alg,
+                          const std::vector<uint8_t>& pub,
+                          std::optional<std::vector<uint8_t>> kid =
+                            std::nullopt) {
+    std::vector<MapItem> items;
+    items.emplace_back(make_signed(LABEL_KTY), make_signed(KTY_AKP));
+    if (kid.has_value())
+    {
+      items.emplace_back(make_signed(LABEL_KID), make_bytes(kid.value()));
+    }
+    items.emplace_back(make_signed(LABEL_ALG), make_signed(alg));
+    items.emplace_back(make_signed(LABEL_PUB), make_bytes(pub));
+    return make_map(std::move(items)).det_serialize();
+  };
+
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      auto key_pair = make_mldsa_key_pair(info.id);
+      const auto raw = key_pair->public_key_raw();
+      const auto spki = key_pair->public_key_der();
+      const COSEKey key(make_mldsa_public_key(spki));
+      CHECK(key.kty() == COSEKeyType::AKP);
+      CHECK_FALSE(key.alg().has_value());
+      CHECK(key.akp_parameters().value().pub == raw);
+      CHECK_FALSE(key.ec2_parameters().has_value());
+      CHECK_FALSE(key.rsa_parameters().has_value());
+      CHECK_FALSE(key.okp_parameters().has_value());
+      CHECK(key.mldsa_public_key() != nullptr);
+      CHECK(key.ec_public_key() == nullptr);
+      CHECK(key.rsa_public_key() == nullptr);
+      CHECK(key.eddsa_public_key() == nullptr);
+
+      const auto encoded = key.to_cbor(info.cose_alg);
+      CHECK(encoded == akp_cbor(info.cose_alg, raw));
+      CHECK(
+        key.to_cbor(info.cose_alg, "kid-1") ==
+        akp_cbor(
+          info.cose_alg, raw, std::vector<uint8_t>{'k', 'i', 'd', '-', '1'}));
+      // The thumbprint covers kty, alg and pub (RFC 9964 Section 6)
+      CHECK(key.thumbprint_sha256() == Sha256Hash(encoded));
+      for (const auto& other : PARAMETER_SETS)
+      {
+        if (other.id != info.id)
+        {
+          CAPTURE(other.name);
+          CHECK_THROWS_AS(
+            (void)key.to_cbor(other.cose_alg), std::runtime_error);
+          // A pub of another parameter set's size cannot carry this alg
+          CHECK_THROWS_AS(
+            (void)COSEKey::from_cbor(akp_cbor(other.cose_alg, raw)),
+            std::invalid_argument);
+        }
+      }
+      CHECK_THROWS_AS(
+        (void)key.to_cbor(ccf::cose::alg::ES384), std::runtime_error);
+
+      const auto parsed = COSEKey::from_cbor(encoded);
+      CHECK(parsed.kty() == COSEKeyType::AKP);
+      CHECK(parsed.alg() == info.cose_alg);
+      CHECK(parsed.akp_parameters().value().pub == raw);
+      CHECK(parsed.mldsa_public_key()->get_parameter_set() == info.id);
+      CHECK(parsed.mldsa_public_key()->public_key_der() == spki);
+      CHECK(parsed.to_cbor(info.cose_alg) == encoded);
+      CHECK(parsed.thumbprint_sha256() == key.thumbprint_sha256());
+      CHECK(
+        COSEKey::from_cbor(key.to_cbor(info.cose_alg, "kid-1"))
+          .to_cbor(info.cose_alg) == encoded);
+
+      // Other imports of the same key
+      const auto cert = key_pair->self_sign(
+        "CN=CCF Service", "20260101000000Z", "20270101000000Z");
+      for (const auto& imported :
+           {COSEKey::from_der_public_key(spki),
+            COSEKey::from_der_cert(cert_pem_to_der(cert))})
+      {
+        CHECK(imported.kty() == COSEKeyType::AKP);
+        CHECK_FALSE(imported.alg().has_value());
+        CHECK(imported.to_cbor(info.cose_alg) == encoded);
+      }
+      CHECK_THROWS_AS(
+        (void)COSEKey::from_der_public_key(raw), std::invalid_argument);
+      CHECK_THROWS_AS(
+        (void)COSEKey::from_der_cert(spki), std::invalid_argument);
+      ERR_clear_error();
+    }
+  }
+}
+
+TEST_CASE("ML-DSA COSE_Sign1 ledger signatures")
+{
+  using namespace tav::cbor;
+  using ccf::cose::header::iana::ALG;
+  const std::vector<uint8_t> root(32, 0xab);
+  // The classical signature over the same header fields
+  const auto ec_key = make_ec_key_pair(CurveID::SECP384R1);
+  const auto ec_envelope = ccf::cose::sign_ledger(
+    *ec_key, "kid", 1700000000, "iss", "sub", "2.1", root);
+  const auto ec_phdr = nondet_parse(nondet_parse(ec_envelope)
+                                      .tag_at(ccf::cbor::tag::COSE_SIGN_1)
+                                      .array_at(0)
+                                      .as_bytes());
+
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      CHECK(ccf::cose::algorithm_for_parameter_set(info.id) == info.cose_alg);
+      CHECK(ccf::cose::parameter_set_for_algorithm(info.cose_alg) == info.id);
+      auto key = make_mldsa_key_pair(info.id);
+      const auto envelope = ccf::cose::sign_ledger(
+        *key, "kid", 1700000000, "iss", "sub", "2.1", root);
+      const auto fields =
+        nondet_parse(envelope).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+      REQUIRE(fields.size() == 4);
+      const auto phdr_bytes = fields.array_at(0).as_bytes();
+      const auto phdr = nondet_parse(phdr_bytes);
+      CHECK(phdr.map_at(make_signed(ALG)).as_signed() == info.cose_alg);
+      CHECK(fields.array_at(1).size() == 0);
+      CHECK(fields.array_at(2).as_simple() == SimpleValue::Null);
+      const auto sig = fields.array_at(3).as_bytes();
+      CHECK(sig.size() == info.signature_size);
+
+      // Only the algorithm differs from the classical protected header
+      CHECK(std::ranges::equal(
+        ccf::cbor::with_entry(ec_phdr, ALG, make_signed(info.cose_alg))
+          .det_serialize(),
+        phdr_bytes));
+
+      // Pure ML-DSA over the Sig_structure, with an empty context
+      const auto tbs = ccf::cose::make_cose_sign1_tbs(phdr_bytes, root);
+      CHECK(key->verify(tbs, sig));
+      CHECK_FALSE(key->verify(tbs, sig, context));
+
+      // The key as published (AKP COSE_Key), as an SPKI, and as a certificate
+      const COSEKey cose_key(make_mldsa_public_key(key->public_key_der()));
+      const auto cert =
+        key->self_sign("CN=CCF Service", "20260101000000Z", "20270101000000Z");
+      for (const auto& verifier :
+           {make_cose_verifier_from_key(cose_key),
+            make_cose_verifier_from_key(
+              COSEKey::from_cbor(cose_key.to_cbor(info.cose_alg))),
+            make_cose_verifier_from_key(key->public_key_der()),
+            make_cose_verifier_from_pem_cert(cert)})
+      {
+        CHECK(verifier->verify_detached(envelope, root));
+        std::span<uint8_t> authenticated;
+        CHECK_FALSE(verifier->verify(envelope, authenticated));
+        const auto embedded =
+          ccf::cose::make_cose_sign1_envelope(phdr_bytes, root, sig, false);
+        REQUIRE(verifier->verify(embedded, authenticated));
+        CHECK(std::ranges::equal(authenticated, root));
+
+        auto wrong_root = root;
+        wrong_root.back() ^= 0xff;
+        CHECK_FALSE(verifier->verify_detached(envelope, wrong_root));
+        for (const auto size : {size_t{0}, sig.size() - 1, sig.size() + 1})
+        {
+          CAPTURE(size);
+          std::vector<uint8_t> malformed(sig.begin(), sig.end());
+          malformed.resize(size);
+          CHECK_FALSE(verifier->verify_decomposed(
+            phdr_bytes, root, malformed, info.cose_alg));
+        }
+
+        // The algorithm is pinned to the key's parameter set
+        for (const auto& other : PARAMETER_SETS)
+        {
+          CAPTURE(other.name);
+          CHECK(
+            verifier->verify_decomposed(
+              phdr_bytes, root, sig, other.cose_alg) == (other.id == info.id));
+        }
+        CHECK_FALSE(verifier->verify_decomposed(
+          phdr_bytes, root, sig, ccf::cose::alg::ES384));
+
+        // Classical and ML-DSA verifiers reject each other's signatures
+        CHECK_FALSE(verifier->verify_detached(ec_envelope, root));
+      }
+      CHECK_FALSE(make_cose_verifier_from_key(ec_key->public_key_der())
+                    ->verify_detached(envelope, root));
+      CHECK_FALSE(make_cose_verifier_from_key(
+                    COSEKey(make_mldsa_public_key(
+                      make_mldsa_key_pair(info.id)->public_key_der())))
+                    ->verify_detached(envelope, root));
     }
   }
 }
