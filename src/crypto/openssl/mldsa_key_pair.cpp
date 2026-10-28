@@ -1,11 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/mldsa_key_pair.h"
+
+#include "crypto/openssl/mldsa.h"
+
 #include <openssl/opensslv.h>
 
 #if OPENSSL_VERSION_PREREQ(3, 5)
 
-#  include "crypto/openssl/mldsa.h"
+#  include "crypto/openssl/csr.h"
 #  include "crypto/openssl/mldsa_key_pair.h"
 
 #  include <openssl/pem.h>
@@ -141,6 +145,52 @@ namespace ccf::crypto
     return MLDSAPublicKey_OpenSSL::verify(contents, signature, context);
   }
 
+  Pem MLDSAKeyPair_OpenSSL::create_csr(
+    const std::string& subject_name,
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::optional<Pem>& public_key) const
+  {
+    // Pure ML-DSA signs the request directly, so no digest is given.
+    return OpenSSL::csr_to_pem(OpenSSL::make_csr(
+      key,
+      nullptr,
+      OpenSSL::subject_name_from_string(subject_name),
+      subject_alt_names,
+      public_key));
+  }
+
+  Pem MLDSAKeyPair_OpenSSL::create_csr(
+    const std::vector<uint8_t>& subject_name_der,
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::optional<Pem>& public_key) const
+  {
+    return OpenSSL::csr_to_pem(OpenSSL::make_csr(
+      key,
+      nullptr,
+      OpenSSL::subject_name_from_der(subject_name_der),
+      subject_alt_names,
+      public_key));
+  }
+
+  Pem MLDSAKeyPair_OpenSSL::sign_csr_impl(
+    const std::optional<Pem>& issuer_cert,
+    const Pem& signing_request,
+    const std::string& valid_from,
+    const std::string& valid_to,
+    bool ca,
+    Signer signer) const
+  {
+    return OpenSSL::sign_csr(
+      key,
+      nullptr,
+      issuer_cert,
+      signing_request,
+      valid_from,
+      valid_to,
+      ca,
+      signer);
+  }
+
   MLDSAKeyPairPtr make_mldsa_key_pair(MLDSAParameterSet parameter_set)
   {
     return std::make_shared<MLDSAKeyPair_OpenSSL>(parameter_set);
@@ -166,6 +216,37 @@ namespace ccf::crypto
     std::span<const uint8_t> der, MLDSAParameterSet expected)
   {
     return std::make_shared<MLDSAKeyPair_OpenSSL>(der, expected);
+  }
+}
+#else // Remove this fallback after dropping AL3 support.
+
+namespace ccf::crypto
+{
+  MLDSAKeyPairPtr make_mldsa_key_pair(MLDSAParameterSet /*parameter_set*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(const Pem& /*pem*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(std::span<const uint8_t> /*der*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(
+    const Pem& /*pem*/, MLDSAParameterSet /*expected*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAKeyPairPtr make_mldsa_key_pair(
+    std::span<const uint8_t> /*der*/, MLDSAParameterSet /*expected*/)
+  {
+    mldsa::unsupported();
   }
 }
 #endif // OPENSSL_VERSION_PREREQ

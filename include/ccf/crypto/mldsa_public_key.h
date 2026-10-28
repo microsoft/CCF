@@ -2,17 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <openssl/opensslv.h>
+#include "ccf/crypto/mldsa_parameter_set.h"
+#include "ccf/crypto/pem.h"
 
-#if OPENSSL_VERSION_PREREQ(3, 5)
-
-#  include "ccf/crypto/mldsa_parameter_set.h"
-#  include "ccf/crypto/pem.h"
-
-#  include <cstdint>
-#  include <memory>
-#  include <span>
-#  include <vector>
+#include <cstdint>
+#include <memory>
+#include <span>
+#include <vector>
 
 namespace ccf::crypto
 {
@@ -66,4 +62,3 @@ namespace ccf::crypto
   MLDSAPublicKeyPtr make_mldsa_public_key(
     std::span<const uint8_t> der, MLDSAParameterSet expected);
 }
-#endif // OPENSSL_VERSION_PREREQ

@@ -2,18 +2,18 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <openssl/opensslv.h>
+#include "ccf/crypto/csr.h"
+#include "ccf/crypto/mldsa_parameter_set.h"
+#include "ccf/crypto/mldsa_public_key.h"
+#include "ccf/crypto/pem.h"
+#include "ccf/crypto/san.h"
 
-#if OPENSSL_VERSION_PREREQ(3, 5)
-
-#  include "ccf/crypto/mldsa_parameter_set.h"
-#  include "ccf/crypto/mldsa_public_key.h"
-#  include "ccf/crypto/pem.h"
-
-#  include <cstdint>
-#  include <memory>
-#  include <span>
-#  include <vector>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <span>
+#include <string>
+#include <vector>
 
 namespace ccf::crypto
 {
@@ -55,6 +55,87 @@ namespace ccf::crypto
       std::span<const uint8_t> contents,
       std::span<const uint8_t> signature,
       std::span<const uint8_t> context = {}) = 0;
+
+    using Signer = CSRSigner;
+
+    /// PKCS#10 request for this key, or for public_key (SPKI PEM) when given,
+    /// signed with pure ML-DSA. Subject name is "K=V,K=V", e.g. "CN=CCF Node".
+    [[nodiscard]] virtual Pem create_csr(
+      const std::string& subject_name,
+      const std::vector<SubjectAltName>& subject_alt_names = {},
+      const std::optional<Pem>& public_key = std::nullopt) const = 0;
+
+    /// As above, with the subject name as a DER-encoded X.501 Name. Throws
+    /// std::invalid_argument unless subject_name_der is exactly one Name.
+    [[nodiscard]] virtual Pem create_csr(
+      const std::vector<uint8_t>& subject_name_der,
+      const std::vector<SubjectAltName>& subject_alt_names = {},
+      const std::optional<Pem>& public_key = std::nullopt) const = 0;
+
+  private:
+    [[nodiscard]] virtual Pem sign_csr_impl(
+      const std::optional<Pem>& issuer_cert,
+      const Pem& signing_request,
+      const std::string& valid_from,
+      const std::string& valid_to,
+      bool ca,
+      Signer signer) const = 0;
+
+  public:
+    /**
+     * X.509 certificate for signing_request, issued under issuer_cert with
+     * pure ML-DSA; the request signature is verified with the key of signer.
+     * Times are "YYYYMMDDHHMMSSZ". Throws std::logic_error on an invalid
+     * validity period, std::runtime_error on other invalid input or
+     * provider failures.
+     */
+    [[nodiscard]] Pem sign_csr(
+      const Pem& issuer_cert,
+      const Pem& signing_request,
+      const std::string& valid_from,
+      const std::string& valid_to,
+      bool ca = false,
+      Signer signer = Signer::SUBJECT) const
+    {
+      return sign_csr_impl(
+        issuer_cert, signing_request, valid_from, valid_to, ca, signer);
+    }
+
+    /// Self-signed X.509 certificate for this key, a CA by default. Times are
+    /// "YYYYMMDDHHMMSSZ". Throws std::logic_error on an invalid validity
+    /// period, std::runtime_error on other invalid input or provider failures.
+    [[nodiscard]] Pem self_sign(
+      const std::string& subject_name,
+      const std::string& valid_from,
+      const std::string& valid_to,
+      const std::vector<SubjectAltName>& subject_alt_names = {},
+      bool ca = true) const
+    {
+      return sign_csr_impl(
+        std::nullopt,
+        create_csr(subject_name, subject_alt_names),
+        valid_from,
+        valid_to,
+        ca,
+        Signer::SUBJECT);
+    }
+
+    /// As above, with the subject name as a DER-encoded X.501 Name.
+    [[nodiscard]] Pem self_sign(
+      const std::vector<uint8_t>& subject_name_der,
+      const std::string& valid_from,
+      const std::string& valid_to,
+      const std::vector<SubjectAltName>& subject_alt_names = {},
+      bool ca = true) const
+    {
+      return sign_csr_impl(
+        std::nullopt,
+        create_csr(subject_name_der, subject_alt_names),
+        valid_from,
+        valid_to,
+        ca,
+        Signer::SUBJECT);
+    }
   };
 
   using MLDSAKeyPairPtr = std::shared_ptr<MLDSAKeyPair>;
@@ -86,4 +167,3 @@ namespace ccf::crypto
   MLDSAKeyPairPtr make_mldsa_key_pair(
     std::span<const uint8_t> der, MLDSAParameterSet expected);
 }
-#endif // OPENSSL_VERSION_PREREQ
