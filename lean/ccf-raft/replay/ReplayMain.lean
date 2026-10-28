@@ -19,7 +19,7 @@ def main (args : List String) : IO UInt32 := do
           let reduced ← reduce events declared
           replay reduced.header reduced.instructions
         match result with
-        | .error error => IO.eprintln error; return 1
+        | .error error => IO.eprintln s!"{path}: {error}"; return 1
         | .ok result =>
             let result :=
               Json.mkObj

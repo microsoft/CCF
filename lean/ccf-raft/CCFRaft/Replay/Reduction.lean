@@ -12,7 +12,7 @@ public section
 /-!
 Rules peek action arguments, consume named events, and emit direct model actions.
 Explicit native boundaries distinguish callbacks from subsequent actions.
-The dispatcher observes each native group's starting snapshot; individual rules only emit actions.
+After bootstrap, each rule observes its native group's starting snapshot before emitting actions.
 Reduction never executes or repairs model state.
 -/
 
@@ -23,6 +23,7 @@ open CCF.Parsec (failure validated attempt many_ optional_)
 
 private structure ReductionState where
   header : Header
+  nextRequestId : ReqID := 1
   instructions : Array Instruction := #[]
 
 private abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
@@ -56,11 +57,6 @@ private def modelMembers (event : Event) (names : List String)
     : Reduction (Finset NodeID) := do
   return (← names.mapM (modelNode event)).toFinset
 
-private def requestId (event : Event) : Reduction ReqID := do
-  let some index := (← get).header.requests.findIdx? (· == event.record.location)
-  | failure s!"{event.record.location}: undeclared request"
-  return index
-
 private def appendInstruction (instr : Instruction) : Reduction Unit :=
   modify fun s => { s with instructions := s.instructions.push instr }
 
@@ -93,9 +89,10 @@ private def readAppendContent (head : Event) (config : Option Event)
   if signature then
     return .signature
   else
+    let some command := head.command
+    | failure s!"{head.record.location}: non-signature append needs command provenance"
     let command ←
-      readJson head head.command.value
-        (fun value => field value "msg" >>= (string · "cmd"))
+      readJson head command.value (fun value => field value "msg" >>= (string · "cmd"))
     let metadata ←
       if command.startsWith "cleanup_nodes," then do
         liftExcept head
@@ -104,7 +101,9 @@ private def readAppendContent (head : Event) (config : Option Event)
         pure { retirementConfirmations := nodes : TransactionMetadata }
       else
         pure { configuration : TransactionMetadata }
-    return .transaction (← requestId head) metadata
+    let request := (← get).nextRequestId
+    modify fun s => { s with nextRequestId := request + 1 }
+    return .transaction request metadata
 
 private def ruleAppend : Reduction Unit := do
   let head ← peek
@@ -327,12 +326,7 @@ structure Reduced where
 
 /-- Prepare replay identities and reduce the associated event stream. -/
 def reduce (events : Array Event) (declared : List String) : Except String Reduced := do
-  let locations :=
-    (events.toList.filter (fun event => event.function == "replicate")).map
-      (·.record.location)
-  require (locations.eraseDups == locations) "duplicate transaction source location"
-  let requests := "" :: locations
-  let header : Header := { bootstrap := ∅, declared, requests }
+  let header : Header := { bootstrap := ∅, declared }
   let (leader, instructions) ← Reducer.reduce events header
   let header := { header with bootstrap := {← header.nodeId leader} }
   return { header, instructions }

@@ -29,7 +29,6 @@ def Origin.label (origin : Origin) : String :=
 structure Header where
   bootstrap : Finset NodeID
   declared : List String
-  requests : List String := [""]
 
 def Header.nodeId (header : Header) (node : String) : Except String NodeID := do
   let some index := header.declared.findIdx? (· == node)
@@ -258,9 +257,6 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
             throw s!"undeclared model node {destination}"
       | .append entries =>
           for entry in entries do
-            if let .transaction request _ := entry.content then
-              unless request > 0 && request < header.requests.length do
-                throw s!"undeclared or reserved model request {request}"
             let metadata := entry.content.metadata
             for member
                 in metadata.configuration.getD ∅ ∪ metadata.retirementConfirmations
@@ -307,10 +303,6 @@ def replay (header : Header) (instructions : Array Instruction)
   for node in header.bootstrap.sort do
     unless node < header.declared.length do
       throw s!"undeclared model node {node}"
-  unless header.requests.head? == some "" && (header.requests.drop 1).all (!·.isEmpty) do
-    throw "request identifiers must reserve zero for genesis"
-  unless header.requests.eraseDups == header.requests do
-    throw "request identifiers must be distinct"
   if instructions.isEmpty then throw "replay instructions must not be empty"
   let mut state : ReplayState := { state := header.initial }
   let mut actions := 0
