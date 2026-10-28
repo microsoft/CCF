@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - `ccf::crypto::Verifier::remaining_seconds()` now returns the whole validity period before that period starts, and `remaining_percentage()` always returns a fraction between 0.0 and 1.0, including for a certificate whose validity period ends before it starts (#8626).
 - Service certificate renewal, recovery and previous-identity endorsements now preserve multi-RDN `service_subject_name` values such as `CN=CCF Service,O=CCF User` (#8627).
-- AES-GCM encryption and decryption now pass the AAD and data to OpenSSL in chunks, so they accept inputs larger than 2 GiB. Previously, a node aborted when it generated a snapshot whose public domain exceeded 2 GiB, including the snapshot taken when a recovered service opens, so such a service could not run or be recovered.
+- AES-GCM encryption and decryption now pass the AAD and data to OpenSSL in chunks, so they accept inputs larger than 2 GiB. Previously, a node aborted when it generated a snapshot whose public domain exceeded 2 GiB, including the snapshot taken when a recovered service opens, so such a service could not run or be recovered (#8644).
 
 ## [7.0.22]
 
