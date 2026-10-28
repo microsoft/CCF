@@ -25,7 +25,7 @@ deriving Inhabited
 def Origin.label (origin : Origin) : String :=
   s!"{origin.file}:{origin.line} [{origin.rule}]"
 
-/-- Bootstrap and every driver-created node, including nodes with no events yet. -/
+/-- Bootstrap and nodes identified by native events or configurations. -/
 structure Header where
   bootstrap : Finset NodeID
   declared : List String

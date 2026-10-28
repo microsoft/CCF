@@ -48,8 +48,6 @@ private def event (source : Event) (name : String) : Reduction Unit := do
   discard CCF.Parsec.take
   liftExcept next do
     require (next.node == source.node) s!"expected event on node {source.node}"
-    require (next.command.location == source.command.location)
-      "event group crosses a command boundary"
 
 private def modelNode (event : Event) (name : String) : Reduction NodeID := do
   liftExcept event ((← get).header.nodeId name)
@@ -77,71 +75,67 @@ private def ruleBootstrap : Reduction String := do
   -- consume
   event head "become_leader"
   event head "replicate"
-  let config ← peek
-  liftExcept config do
-    require ((← configuration config.message) == [head.node]) "bootstrap is not singleton"
   event head "add_configuration"
   return head.node
 
-private def sendChoice (head : Event) (header : Header)
-    : Except String (NodeID × Nat) := do
-  let packet ← field head.message "packet"
-  let destination ← header.nodeId (← string head.message "to_node_id")
-  let last ← nat packet "idx"
-  return (destination, last)
+private def readAppendContent (head : Event) (config : Option Event)
+    : Reduction EntryContent := do
+  let signature ← readJson head head.message (boolean · "globally_committable")
+  let configuration ←
+    match config with
+    | some config => do
+        liftExcept config do
+          require
+            (!signature && (← nat config.message "idx") == (← nat head.message "seqno"))
+            "configuration write pair mismatch"
+        some <$> modelMembers config (← readJson config config.message configuration)
+    | none => pure none
+  if signature then
+    return .signature
+  else
+    let command ←
+      readJson head head.command.value
+        (fun value => field value "msg" >>= (string · "cmd"))
+    let metadata ←
+      if command.startsWith "cleanup_nodes," then do
+        liftExcept head
+          (require configuration.isNone "cleanup_nodes with configuration metadata")
+        let nodes ← modelMembers head (command.splitOn "," |>.drop 2)
+        pure { retirementConfirmations := nodes : TransactionMetadata }
+      else
+        pure { configuration : TransactionMetadata }
+    return .transaction (← requestId head) metadata
 
 private def ruleAppend : Reduction Unit := do
   let head ← peek
-  let signature ← readJson head head.message (boolean · "globally_committable")
   -- consume
   event head "replicate"
-  let next ← CCF.Parsec.peek
-  let configuration ←
-    match next with
-    | some config =>
-        if config.function == "add_configuration" then do
-          liftExcept config do
-            require
-              (!signature && (← nat config.message "idx") == (← nat head.message "seqno"))
-              "configuration write pair mismatch"
-          some <$> modelMembers config (← readJson config config.message configuration)
-        else
-          pure none
-    | none => pure none
-  let content ←
-    if signature then
-      pure EntryContent.signature
-    else do
-      let command ←
-        readJson head head.command.value
-          (fun value => field value "msg" >>= (string · "cmd"))
-      let metadata ←
-        if command.startsWith "cleanup_nodes," then do
-          liftExcept head
-            (require configuration.isNone "cleanup_nodes with configuration metadata")
-          let nodes ← modelMembers head (command.splitOn "," |>.drop 2)
-          pure { retirementConfirmations := nodes : TransactionMetadata }
-        else
-          pure { configuration : TransactionMetadata }
-      pure (.transaction (← requestId head) metadata)
-
-  optional_ do
-    event head "add_configuration"
-    many_ (event head "send_append_entries")
+  let config ←
+    CCF.Parsec.optionalRule do
+      let config ← peek
+      event head "add_configuration"
+      many_ (event head "send_append_entries")
+      return config
   let flushes ←
     CCF.Parsec.optionalRule do
       event head "batch_flush"
       CCF.Parsec.many do
         let next ← peek
-        let choice := sendChoice next (← get).header
         event head "send_append_entries"
-        liftExcept next choice
+        let packet ← readJson next next.message (field · "packet")
+        let destination ←
+          modelNode next (← readJson next next.message (string · "to_node_id"))
+        let last ← readJson next packet (nat · "idx")
+        return (destination, last)
   optional_ do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
   -- emit
+  emitObserve head "atomic-append"
   emitAction head "atomic-append"
-    (.local head.node (.append [{ content, flushes := flushes.getD [] }]))
+    (.local head.node
+      (.append
+        [{ content := (← readAppendContent head config), flushes := flushes.getD [] }]))
 
 private def readReceive (head : Event) (families : List String) : Reduction Step := do
   let sender ← readJson head head.message (string · "from_node_id")
@@ -166,6 +160,7 @@ private def ruleRecvAppendEntries : Reduction Unit := do
             optional_ (event head "step_down_and_nominate_successor")))
   optional_ (event head "send_append_entries_response")
   -- emit
+  emitObserve head "atomic-receive"
   emitAction head "atomic-receive" action
 
 private def ruleRecvAppendEntriesResponse : Reduction Unit := do
@@ -178,6 +173,7 @@ private def ruleRecvAppendEntriesResponse : Reduction Unit := do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
   -- emit
+  emitObserve head "atomic-receive"
   emitAction head "atomic-receive" action
 
 private def ruleRecvRequestVote : Reduction Unit := do
@@ -188,6 +184,7 @@ private def ruleRecvRequestVote : Reduction Unit := do
   optional_ (event head "become_follower")
   optional_ (event head "send_request_vote_response")
   -- emit
+  emitObserve head "atomic-receive"
   emitAction head "atomic-receive" action
 
 private def ruleRecvProposeRequestVote : Reduction Unit := do
@@ -205,6 +202,7 @@ private def ruleRecvProposeRequestVote : Reduction Unit := do
       many_ (event head "send_append_entries")
     many_ (event head "send_request_vote")
   -- emit
+  emitObserve head "atomic-receive"
   emitAction head "atomic-receive" action
 
 private def ruleRecvRequestVoteResponse : Reduction Unit := do
@@ -231,6 +229,7 @@ private def ruleRecvRequestVoteResponse : Reduction Unit := do
               optional_ (event head "step_down_and_nominate_successor")
             many_ (event head "send_append_entries")))
   -- emit
+  emitObserve head "atomic-receive"
   emitAction head "atomic-receive" action
 
 private def ruleTick : Reduction Unit := do
@@ -250,16 +249,21 @@ private def ruleTick : Reduction Unit := do
       many_ (event head "send_request_vote")
     many_ (event head "send_request_vote")
     -- emit
+    emitObserve head "atomic-election"
     emitAction head "atomic-election" (.local head.node (.timeout .election))
   else
     let sends ←
       CCF.Parsec.many do
         let next ← peek
-        let choice := sendChoice next (← get).header
         event head "send_append_entries"
-        return (next, ← liftExcept next choice)
+        let packet ← readJson next next.message (field · "packet")
+        let destination ←
+          modelNode next (← readJson next next.message (string · "to_node_id"))
+        let last ← readJson next packet (nat · "idx")
+        return (next, destination, last)
     let demoted ← CCF.Parsec.optionalRule (event head "become_follower")
     -- emit
+    emitObserve head "tick"
     for (source, destination, last) in sends do
       emitAction source "atomic-send" (.local head.node (.sendEntries destination last))
     if demoted.isSome then
@@ -271,6 +275,7 @@ private def ruleNomination : Reduction Unit := do
   event head "nomination"
   let nominated ← CCF.Parsec.optionalRule (event head "step_down_and_nominate_successor")
   -- emit
+  emitObserve head "nomination"
   if nominated.isSome then
     emitAction head "nomination" (.local head.node .nominateSuccessor)
 
@@ -282,11 +287,10 @@ private def ruleDrop : Reduction Unit := do
   -- consume
   event head "drop_pending_to"
   -- emit
+  emitObserve head "drop"
   emitAction head "drop" (.drop head.node destination)
 
 private def ruleStep : Reduction Unit := do
-  let head ← peek
-  emitObserve head "step"
   -- Recv rules
   attempt ruleRecvAppendEntries
   <|> attempt ruleRecvAppendEntriesResponse

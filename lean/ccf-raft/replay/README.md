@@ -56,7 +56,7 @@ A failure can reflect unsupported evidence or replay policy, not necessarily a n
 ## Replay contract
 
 Every event must match a named rule; bootstrap selects the initial singleton membership.
-Rules peek action inputs before consuming events, and only top-level alternatives backtrack.
+Rules read action inputs from their matching events, and only top-level alternatives backtrack.
 `tick` marks entry to the whole timer tick; `nomination` marks an explicit successor-nomination call.
 These entry markers distinguish independent operations from receive, election, configuration and commit callbacks without end markers.
 Within an append, `batch_flush` identifies the subsequent send records as flush choices rather than configuration-created heartbeats.
