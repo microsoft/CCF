@@ -5,16 +5,16 @@ It assumes familiarity with the [CCF consensus documentation](../../doc/architec
 
 ## Source map
 
-| Area                                   | Source                                                                                                                           |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Node state, log entries, log queries   | [`Model/NodeState.lean`](CCFRaft/Model/NodeState.lean)                                                                           |
-| Configurations, quorums, retirement    | [`Model/ClusterConfig.lean`](CCFRaft/Model/ClusterConfig.lean) (`activeConfigurations`, `hasQuorum`, `NodeState.retirement`)     |
-| Messages                               | [`Model/Messages.lean`](CCFRaft/Model/Messages.lean)                                                                             |
-| Protocol policy (one node's step)      | [`Model/Node.lean`](CCFRaft/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)         |
-| Initial states and network composition | [`Model.lean`](CCFRaft/Model.lean) (`initialNodeState`, `transitionSystem`)                                                      |
-| Safety theorems and witness lemmas     | [`Properties.lean`](CCFRaft/Properties.lean)                                                                                     |
-| Supporting proofs and executions       | [`Proofs/`](CCFRaft/Proofs)                                                                                                      |
-| Action-trace tests and import layering | [`Tests/CanonicalTraces.lean`](CCFRaft/Tests/CanonicalTraces.lean), [`Tests/Architecture.lean`](CCFRaft/Tests/Architecture.lean) |
+| Area                                   | Source                                                                                                                       |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Node state, log entries, log queries   | [`Model/NodeState.lean`](CCFRaft/Model/NodeState.lean)                                                                       |
+| Configurations, quorums, retirement    | [`Model/ClusterConfig.lean`](CCFRaft/Model/ClusterConfig.lean) (`activeConfigurations`, `hasQuorum`, `NodeState.retirement`) |
+| Messages                               | [`Model/Messages.lean`](CCFRaft/Model/Messages.lean)                                                                         |
+| Protocol policy (one node's step)      | [`Model/Node.lean`](CCFRaft/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)     |
+| Initial states and network composition | [`Model.lean`](CCFRaft/Model.lean) (`initialNodeState`, `transitionSystem`)                                                  |
+| Safety theorems and witness lemmas     | [`Properties.lean`](CCFRaft/Properties.lean)                                                                                 |
+| Supporting proofs and executions       | [`Proofs/`](CCFRaft/Proofs)                                                                                                  |
+| Action-trace tests                     | [`Tests/CanonicalTraces.lean`](CCFRaft/Tests/CanonicalTraces.lean)                                                           |
 
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
 Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
