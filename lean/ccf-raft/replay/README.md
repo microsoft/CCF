@@ -34,9 +34,10 @@ Delivery is strict FIFO per directed node pair, preserving multiplicity and deli
 - [`Interpreter.lean`](../CCFRaft/Replay/Interpreter.lean): boundary-state field comparisons, FIFO selection and model execution.
 - [`ReplayMain.lean`](ReplayMain.lean) / [`raft_trace_capture.py`](../../../tests/raft_trace_capture.py): single-trace CLI / capture and suite runner.
 
-The [Virtual C job](../../../.github/workflows/ci.yml) captures and replays all native scenarios.
 The Python suites are `tests/raft_trace_capture_test.py` and `tests/raft_trace_replay_test.py` from the repository root.
 For an external build, set `CCF_RAFT_REPLAYER` to the replay executable when running Python tests.
+
+See [failure fixtures](fixtures/README.md) for examples and expected diagnostics.
 
 ### Kernel checks
 

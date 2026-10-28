@@ -74,6 +74,11 @@ private def ruleBootstrap : Reduction String := do
   event head "add_configuration"
   return head.node
 
+/-
+This is a hack required as we model retirement confirmations in the ledger and so we need
+to figure out which entries confirm retirement, without directly examining the entries.
+We currently rely on the configuration and signature to infer retirement confirmation.
+-/
 private def readAppendContent (head : Event) (config : Option Event)
     : Reduction EntryContent := do
   let signature ← readJson head head.message (boolean · "globally_committable")
