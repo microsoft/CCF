@@ -119,7 +119,7 @@ namespace ccf::crypto
       {
         throw std::logic_error("aad and plain cannot both be empty");
       }
-      if (cipher.size() != plain.size())
+      if (cipher.size() != plain.size() || plain.size() > GCM_MAX_DATA_SIZE)
       {
         throw std::logic_error("Invalid AES-GCM input or output size");
       }
@@ -175,6 +175,13 @@ namespace ccf::crypto
       std::span<const uint8_t> aad,
       std::vector<uint8_t>& plain)
     {
+      // Never produced by encrypt(), so fail authentication rather than throw
+      if (cipher.size() > GCM_MAX_DATA_SIZE)
+      {
+        plain.clear();
+        return false;
+      }
+
       CHECK1(EVP_CIPHER_CTX_ctrl(
         context, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
       CHECK1(

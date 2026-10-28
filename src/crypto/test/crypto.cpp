@@ -1594,6 +1594,34 @@ TEST_CASE("AES-GCM AAD larger than INT_MAX")
   REQUIRE_FALSE(key->decrypt(iv, tag, cipher, aad, decrypted));
 }
 
+TEST_CASE("AES-GCM data larger than the GCM limit")
+{
+  // Inaccessible, so the data must be rejected before any byte is read
+  constexpr size_t data_size = GCM_MAX_DATA_SIZE + 1;
+  auto unmap = [](void* data) { munmap(data, data_size); };
+  std::unique_ptr<void, decltype(unmap)> mapping(
+    mmap(
+      nullptr,
+      data_size,
+      PROT_NONE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+      -1,
+      0),
+    unmap);
+  REQUIRE(mapping.get() != MAP_FAILED);
+  std::span<uint8_t> oversized(static_cast<uint8_t*>(mapping.get()), data_size);
+
+  auto key = make_key_aes_gcm(get_raw_key());
+  const std::vector<uint8_t> iv(12, 0);
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  REQUIRE_THROWS_AS(
+    key->encrypt(iv, oversized, {}, oversized, tag), std::logic_error);
+
+  std::vector<uint8_t> decrypted(8, 0xAB);
+  REQUIRE_FALSE(key->decrypt(iv, tag, oversized, {}, decrypted));
+  REQUIRE(decrypted.empty());
+}
+
 TEST_CASE("Const GCM header serialisation")
 {
   StandardGcmHeader header;
