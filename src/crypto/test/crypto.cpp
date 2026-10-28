@@ -42,6 +42,7 @@
 #include <mutex>
 #include <optional>
 #include <span>
+#include <sys/mman.h>
 #include <tav/cbor.hpp>
 #include <thread>
 #include <utility>
@@ -1505,6 +1506,85 @@ TEST_CASE("AES-GCM caller-owned ciphertext")
   key->encrypt(iv, {}, aad, empty_output, tag);
   REQUIRE(key->decrypt(iv, tag, empty_output, aad, decrypted));
   REQUIRE(decrypted.empty());
+}
+
+TEST_CASE("AES-GCM inputs spanning several OpenSSL updates")
+{
+  // Must match a single OpenSSL call over the same inputs
+  const auto& raw_key = get_raw_key();
+  auto key = make_key_aes_gcm(raw_key);
+  const std::vector<uint8_t> iv(12, 0);
+  auto entropy = get_entropy();
+  const auto plain = entropy->random(GCM_MAX_UPDATE_SIZE + 31);
+  const auto aad = entropy->random(GCM_MAX_UPDATE_SIZE + 7);
+
+  std::vector<uint8_t> expected_cipher(plain.size());
+  uint8_t expected_tag[GCM_SIZE_TAG] = {};
+  {
+    OpenSSL::Unique_EVP_CIPHER_CTX ctx;
+    int outl = 0;
+    REQUIRE(
+      EVP_EncryptInit_ex2(
+        ctx, EVP_aes_128_gcm(), raw_key.data(), iv.data(), nullptr) == 1);
+    REQUIRE(
+      EVP_EncryptUpdate(
+        ctx, nullptr, &outl, aad.data(), static_cast<int>(aad.size())) == 1);
+    REQUIRE(
+      EVP_EncryptUpdate(
+        ctx,
+        expected_cipher.data(),
+        &outl,
+        plain.data(),
+        static_cast<int>(plain.size())) == 1);
+    REQUIRE(EVP_EncryptFinal_ex(ctx, nullptr, &outl) == 1);
+    REQUIRE(
+      EVP_CIPHER_CTX_ctrl(
+        ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, expected_tag) == 1);
+  }
+
+  std::vector<uint8_t> cipher;
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  key->encrypt(iv, plain, aad, cipher, tag);
+  REQUIRE(cipher == expected_cipher);
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+
+  std::vector<uint8_t> decrypted;
+  REQUIRE(key->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+}
+
+TEST_CASE("AES-GCM AAD larger than INT_MAX")
+{
+  // OpenSSL update calls take an int length. The AAD is mapped lazily, so its
+  // untouched zero pages do not use memory.
+  constexpr size_t aad_size = size_t{std::numeric_limits<int>::max()} + 17;
+  auto unmap = [](void* data) { munmap(data, aad_size); };
+  std::unique_ptr<void, decltype(unmap)> mapping(
+    mmap(
+      nullptr,
+      aad_size,
+      PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+      -1,
+      0),
+    unmap);
+  REQUIRE(mapping.get() != MAP_FAILED);
+  std::span<uint8_t> aad(static_cast<uint8_t*>(mapping.get()), aad_size);
+
+  auto key = make_key_aes_gcm(get_raw_key());
+  const std::vector<uint8_t> iv(12, 0);
+  const std::vector<uint8_t> plain(31, 0x24);
+  std::vector<uint8_t> cipher;
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  key->encrypt(iv, plain, aad, cipher, tag);
+
+  std::vector<uint8_t> decrypted;
+  REQUIRE(key->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+
+  // The AAD past INT_MAX is authenticated too
+  aad.back() ^= 1;
+  REQUIRE_FALSE(key->decrypt(iv, tag, cipher, aad, decrypted));
 }
 
 TEST_CASE("Const GCM header serialisation")
