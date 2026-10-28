@@ -7,6 +7,7 @@ on:
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
       - "tests/raft_trace*.py"
+      - "tests/raft_scenarios*.py"
       - "tests/raft_scenarios/**"
       - "src/consensus/aft/**"
       - ".github/workflows/lean.yml"
@@ -93,11 +94,53 @@ jobs:
         working-directory: lean/ccf-raft
         run: lake build --wfail ccfraft-replay
 
-      - name: Check native trace collection
-        run: python3 tests/raft_trace_capture_test.py
+      - name: Generate scenario captures
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" \
+            -v "$RUNNER_TEMP:$RUNNER_TEMP" \
+            -w "$GITHUB_WORKSPACE" \
+            -e GITHUB_WORKSPACE -e RUNNER_TEMP \
+            mcr.microsoft.com/azurelinux/base/core:3.0 bash -c '
+              set -euo pipefail
+              gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+              tdnf install -y ca-certificates git
+              bash scripts/setup-ci.sh
+              git config --global --add safe.directory "$GITHUB_WORKSPACE"
+              cmake -S . -B "$RUNNER_TEMP/ccf-raft-build" -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
+              cmake --build "$RUNNER_TEMP/ccf-raft-build" --target raft_driver --parallel "$(( ($(nproc) + 1) >> 1 ))"
+              uv run --no-project --with msgpack \
+                ctest --test-dir "$RUNNER_TEMP/ccf-raft-build" -VV -R "^raft_scenario_test$" --no-tests=error
+            '
 
-      - name: Check replay suite and rejection diagnostics
-        run: python3 tests/raft_trace_replay_test.py
+      - name: Validate Raft traces
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in "$RUNNER_TEMP"/ccf-raft-build/consensus/raw/*.ndjson lean/ccf-raft/replay/fixtures/valid/*.ndjson; do
+            echo "::group::Validate $trace"
+            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace"
+            echo "::endgroup::"
+          done
+
+      - name: Reject invalid Raft trace fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in lean/ccf-raft/replay/fixtures/invalid/*.ndjson; do
+            echo "::group::Reject $trace"
+            status=0
+            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace" || status=$?
+            if [ "$status" -ne 1 ]; then
+              echo "::error::$trace: expected rejection (exit 1), got exit $status"
+              exit 1
+            fi
+            echo "::endgroup::"
+          done
 
       - name: Check recovery trace fixtures against their schema
         shell: bash
