@@ -1582,6 +1582,13 @@ TEST_CASE("AES-GCM AAD larger than INT_MAX")
   REQUIRE(key->decrypt(iv, tag, cipher, aad, decrypted));
   REQUIRE(decrypted == plain);
 
+  // Ledger entries, snapshots included, are decrypted through a reusable
+  // context
+  auto context = key->make_context();
+  decrypted.clear();
+  REQUIRE(context->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+
   // The AAD past INT_MAX is authenticated too
   aad.back() ^= 1;
   REQUIRE_FALSE(key->decrypt(iv, tag, cipher, aad, decrypted));

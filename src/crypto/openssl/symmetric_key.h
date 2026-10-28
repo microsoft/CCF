@@ -11,7 +11,7 @@ namespace ccf::crypto
 {
   // Largest AAD or data chunk passed to a single EVP_EncryptUpdate() or
   // EVP_DecryptUpdate() call, which take an int length
-  constexpr size_t GCM_MAX_UPDATE_SIZE = 16 * 1024 * 1024;
+  constexpr size_t GCM_MAX_UPDATE_SIZE = size_t{16} * 1024 * 1024;
 
   class KeyAesGcm_OpenSSL : public KeyAesGcm
   {
