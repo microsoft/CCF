@@ -195,10 +195,6 @@ namespace aft
     // and the message is not captured.
     bool fail_sends = false;
 
-    // When set, recv_authenticated() reports that a message failed
-    // authentication, as a real channel does for a message it cannot verify.
-    bool fail_recv_authentication = false;
-
     ChannelStubProxy() {}
 
     size_t count_messages_with_type(RaftMsgType type)
@@ -259,15 +255,6 @@ namespace aft
       std::vector<uint8_t> m(data, data + size);
       messages.emplace_back(to, std::move(m));
       return true;
-    }
-
-    bool recv_authenticated(
-      const ccf::NodeId& from_node,
-      std::span<const uint8_t> cb,
-      const uint8_t*& data,
-      size_t& size) override
-    {
-      return !fail_recv_authentication;
     }
   };
 

@@ -13,6 +13,7 @@
 #include <functional>
 #include <latch>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -26,6 +27,7 @@ namespace
     std::optional<ccf::NodeId> last_from;
     std::vector<uint8_t> last_payload;
     size_t call_count = 0;
+    bool reject_consensus = false;
 
     void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
     {
@@ -34,10 +36,32 @@ namespace
       ++call_count;
     }
 
+    void recv_message(
+      const ccf::NodeId& from,
+      std::span<const uint8_t> message,
+      std::span<const uint8_t> payload = {})
+    {
+      recv_message(from, message.data(), message.size());
+      last_payload.insert(last_payload.end(), payload.begin(), payload.end());
+    }
+
     void recv_channel_message(
       const ccf::NodeId& from, const uint8_t* data, size_t size)
     {
       recv_message(from, data, size);
+    }
+
+    std::pair<std::span<const uint8_t>, std::span<const uint8_t>>
+    recv_consensus_message(
+      const ccf::NodeId& from, const uint8_t* data, size_t size)
+    {
+      recv_message(from, data, size);
+      if (reject_consensus)
+      {
+        throw std::runtime_error("Rejected consensus authentication");
+      }
+      const auto payload = std::span<const uint8_t>(data, size).subspan(1);
+      return {payload.first(1), payload.subspan(1)};
     }
   };
 
@@ -244,7 +268,7 @@ TEST_CASE(
     REQUIRE(consensus.call_count == 0);
   }
 
-  SUBCASE("Consensus messages dispatch to consensus")
+  SUBCASE("Consensus receives only the normalized channel view")
   {
     StubHandler forwarder;
     StubHandler channels;
@@ -261,9 +285,61 @@ TEST_CASE(
 
     REQUIRE(consensus.call_count == 1);
     REQUIRE(consensus.last_from == from);
-    REQUIRE(consensus.last_payload == payload);
+    REQUIRE(consensus.last_payload == std::vector<uint8_t>{2, 3, 4, 5});
     REQUIRE(forwarder.call_count == 0);
+    REQUIRE(channels.call_count == 1);
+    REQUIRE(channels.last_from == from);
+    REQUIRE(channels.last_payload == payload);
+  }
+
+  SUBCASE("Authentication failure prevents consensus dispatch")
+  {
+    StubHandler forwarder;
+    StubHandler channels;
+    StubHandler consensus;
+    channels.reject_consensus = true;
+
+    REQUIRE_THROWS_AS(
+      ccf::recv_node_inbound_message(
+        ccf::consensus_msg,
+        from,
+        payload.data(),
+        payload.size(),
+        &forwarder,
+        &channels,
+        &consensus),
+      std::runtime_error);
+    REQUIRE(channels.call_count == 1);
+    REQUIRE(consensus.call_count == 0);
+    REQUIRE(forwarder.call_count == 0);
+  }
+
+  SUBCASE("Missing consensus or channels prevents dispatch")
+  {
+    StubHandler forwarder;
+    StubHandler channels;
+    StubHandler consensus;
+    auto* channels_ptr = &channels;
+    auto* consensus_ptr = &consensus;
+    SUBCASE("Missing channels")
+    {
+      channels_ptr = nullptr;
+    }
+    SUBCASE("Missing consensus")
+    {
+      consensus_ptr = nullptr;
+    }
+    ccf::recv_node_inbound_message(
+      ccf::consensus_msg,
+      from,
+      payload.data(),
+      payload.size(),
+      &forwarder,
+      channels_ptr,
+      consensus_ptr);
     REQUIRE(channels.call_count == 0);
+    REQUIRE(consensus.call_count == 0);
+    REQUIRE(forwarder.call_count == 0);
   }
 
   SUBCASE("Unknown message types are rejected")
@@ -361,6 +437,35 @@ TEST_CASE("Node ingress lane" * doctest::test_suite("node_inbound_message"))
       ccf::tasks::try_do_task(*task);
     }
     REQUIRE(processed == 1);
+  }
+
+  SUBCASE("Channel rejection drops one message and permits the next")
+  {
+    ccf::tasks::JobBoard job_board;
+    StubHandler forwarder;
+    StubHandler channels;
+    StubHandler consensus;
+    channels.reject_consensus = true;
+    ccf::NodeIngress ingress(
+      job_board,
+      [&](
+        ccf::NodeMsgType type,
+        const ccf::NodeId& from,
+        const uint8_t* data,
+        size_t size) {
+        ccf::recv_node_inbound_message(
+          type, from, data, size, &forwarder, &channels, &consensus);
+      });
+    ingress.recv_node_inbound(
+      ccf::consensus_msg, peer, std::vector<uint8_t>{0, 1});
+    ingress.submit("accept", [&]() { channels.reject_consensus = false; });
+    ingress.recv_node_inbound(
+      ccf::consensus_msg, peer, std::vector<uint8_t>{0, 2});
+    run_all(job_board);
+    REQUIRE(channels.call_count == 2);
+    REQUIRE(consensus.call_count == 1);
+    REQUIRE(consensus.last_from == peer);
+    REQUIRE(consensus.last_payload == std::vector<uint8_t>{2});
   }
 
   SUBCASE("Work is rejected after stop and discarded at board shutdown")
