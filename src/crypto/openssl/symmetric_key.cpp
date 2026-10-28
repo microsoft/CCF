@@ -119,9 +119,19 @@ namespace ccf::crypto
       {
         throw std::logic_error("aad and plain cannot both be empty");
       }
-      if (cipher.size() != plain.size() || plain.size() > GCM_MAX_DATA_SIZE)
+      if (cipher.size() != plain.size())
       {
-        throw std::logic_error("Invalid AES-GCM input or output size");
+        throw std::logic_error(fmt::format(
+          "AES-GCM ciphertext size {} does not match plaintext size {}",
+          cipher.size(),
+          plain.size()));
+      }
+      if (plain.size() > GCM_MAX_DATA_SIZE)
+      {
+        throw std::logic_error(fmt::format(
+          "AES-GCM plaintext size {} exceeds the limit of {} bytes",
+          plain.size(),
+          GCM_MAX_DATA_SIZE));
       }
 
       CHECK1(EVP_CIPHER_CTX_ctrl(
