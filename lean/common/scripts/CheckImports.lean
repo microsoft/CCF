@@ -3,12 +3,13 @@ module
 import Lake.CLI.Main
 import Lake.Load.Workspace
 import Lean.Util.Path
+import CCF.Architecture
 
 open Lake Lean
 
 public section
 
-/-- Check that the current package's library roots import all their source modules. -/
+/-- Check source-module coverage and architecture for the current package's library roots. -/
 def main : IO Unit := do
   let (elanInstall?, leanInstall?, lakeInstall?) ← findInstall?
   let config ←
@@ -33,4 +34,7 @@ def main : IO Unit := do
             unless importedModules.contains sourceModule do
               throw
               <| IO.userError s!"Module is not imported by {library.name}: {sourceModule}"
+      unless root == `CCF do
+        IO.ofExcept <| CCF.Architecture.checkImports root environment
+        IO.println s!"Architecture checks passed: {root}"
     IO.println s!"Import coverage passed: {library.name}"

@@ -9,6 +9,7 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.MultiNodeTransitionSystem` | Local protocols composed into a message-passing network      |
 | `CCF.Execution`                 | Finite runs and finite or infinite state traces              |
 | `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
+| `CCF.Architecture`              | Checks of specification import layering                      |
 
 `CCF.Execution` represents traces as Mathlib's `Stream'.Seq`, so the package depends on Mathlib.
 `reachable_iff_trace` shows that valid finite traces reach exactly the reachable states.
@@ -40,3 +41,25 @@ Traces remain state sequences of type `Execution.Trace system.State`; `Execution
 After `lake build`, run `lake exe check-imports` from any package using `ccf_common`.
 The command reads that package's library roots from Lake, loads their compiled transitive imports (including private imports), and scans the corresponding source directories.
 It fails if any source module is missing from the imported modules, without requiring every module to be listed directly in the library root.
+
+## Architecture checks
+
+After `lake build`, run the same `lake exe check-imports` command to check architecture as well as import coverage.
+The shared command discovers the package's library roots from Lake and applies `CCF.Architecture` to each specification root.
+The `CCF` root contains shared infrastructure and is not treated as a specification.
+New specifications need no per-model architecture test, namespace configuration, or additional CI command.
+
+The checker examines direct import edges throughout each library root's transitive import closure, including private imports.
+Import coverage ensures that all source modules are included.
+Architecture checks run in `lake exe check-imports`, not during `lake build`; CI already runs this command for every Lean package.
+
+The same rules apply to every specification namespace, including multi-component names:
+
+- `CCF` modules cannot import the specification.
+- `Model` and its submodules can import only model modules within the specification.
+  Model submodules cannot import the assembled `Model` entrypoint.
+- The `Properties` entrypoint can import model modules, property helpers, and proofs.
+- Property helpers can import model modules and other property helpers, but not proofs or the `Properties` entrypoint.
+- Proofs can import model modules, property helpers, and other proofs, but not the `Properties` entrypoint.
+- Other modules, such as tests and trace validation, are unrestricted.
+  Imports outside the specification namespace are unrestricted except for the common-to-specification restriction above.

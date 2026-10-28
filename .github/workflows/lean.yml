@@ -72,7 +72,7 @@ jobs:
                 lake check --inadvisably-no-sandbox
               fi
               echo "::endgroup::"
-              echo "::group::Import coverage: $package"
+              echo "::group::Import coverage and architecture: $package"
               lake exe check-imports
               echo "::endgroup::"
             )

@@ -468,8 +468,14 @@ namespace ccf::kv
     virtual ccf::SeqNo get_committed_seqno() = 0;
     virtual std::optional<NodeId> primary() = 0;
 
+    // The caller authenticates the sender and message before dispatch. The
+    // message contains only the Raft message struct; the optional payload
+    // contains appended ledger entries, which still require ledger validation.
+    // Both views are borrowed for the duration of this call.
     virtual void recv_message(
-      const NodeId& from, const uint8_t* data, size_t size) = 0;
+      const NodeId& from,
+      std::span<const uint8_t> message,
+      std::span<const uint8_t> payload = {}) = 0;
 
     virtual void periodic(std::chrono::milliseconds /*elapsed*/) {}
 
