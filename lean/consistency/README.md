@@ -2,7 +2,6 @@
 
 An executable Lean model of CCF's externally visible consistency semantics.
 It models a dummy append-and-read application, not the consensus implementation.
-The package, library, root module, and namespace are all named `consistency`.
 
 ## Source map
 
@@ -60,29 +59,6 @@ All 22 safety theorems have completed proofs, with implementations under [`Proof
 There are no unfinished proofs.
 Each safety theorem has an adjacent witness lemma over the same multi-node model with reads.
 
-History selection and transaction-ID ordering helpers live in [`Properties/History.lean`](consistency/Properties/History.lean).
-The theorem statements spell out each guarantee explicitly and use snake_case names:
-
-| Theorems                                                                                                                                           | Scope of guarantee                                                                 |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `all_rw_received_is_first_sent`, `all_ro_received_is_first_sent`, `all_received_is_first_sent`                                                     | Responses follow requests                                                          |
-| `unique_txs`, `same_observations`, `unique_tx_requests`, `unique_tx_ids`                                                                           | Request and response identity                                                      |
-| `unique_seq_nums_committed`                                                                                                                        | Committed write sequence numbers are unique                                        |
-| `committed_or_invalid`, `once_committed_prev_committed`, `once_committed_next_invalid`, `once_invalid_next_invalid`, `committed_or_invalid_strong` | Propagation constrains reported statuses, not delivery of additional status events |
-| `only_observe_sent_requests`, `at_most_once_observed`                                                                                              | Observations contain only requested writes and no duplicates                       |
-| `all_committed_observed`                                                                                                                           | Committed writes observe real-time predecessor writes                              |
-| `invalid_not_observed_by_committed`                                                                                                                | Committed writes exclude invalid writes through full-prefix invalid-ID exclusion   |
-| `committed_rw_serializable`, `committed_rw_linearizable`                                                                                           | Committed write consistency                                                        |
-| `committed_rw_ordered_real_time`, `committed_rw_ordered_serializable`, `committed_rw_ordered_spec_linearizable`                                    | Committed write consistency in transaction-ID order                                |
-
-The central theorem statement is `committed_rw_ordered_spec_linearizable`.
-Its real-time interval ends at the initial write response, not at the later notification that the write committed.
-Its serial ordering is the lexicographic transaction-ID order.
-Ordered serializability compares adjacent committed-response payloads after deduplication and sorting, requires strict observation extension, and requires the later response to end with its own write.
-Intervening writes need not have received explicit committed-status notifications.
-The adjacent-pair condition is vacuous for empty and singleton response sets.
-Distinct equal-ID payloads retain first-occurrence order during sorting; intended uniqueness and same-observation properties rule out those ties.
-
 ### Proof status
 
 Every theorem is proved without depending on unfinished theorems.
@@ -105,39 +81,6 @@ They do not assume the safety theorems they accompany.
   Forwarded reads then observe both the new leader's branch and the former leader's stale branch.
 - The three equality-guarded uniqueness claims have witnesses with multiple distinct committed writes.
   Their equality antecedents are inhabited by comparing an actual response with itself; the witnesses do not assert that distinct colliding responses are reachable.
-
-### Supporting proofs
-
-The supporting invariants are separated from the public statements:
-
-| Proof modules                                                                                                                                                     | Supporting facts                                                                                                                                        |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`Structural.lean`](consistency/Proofs/Structural.lean), [`History.lean`](consistency/Proofs/History.lean), [`Responses.lean`](consistency/Proofs/Responses.lean) | Append-only structure, request causality and allocation, and response uniqueness                                                                        |
-| [`Observations.lean`](consistency/Proofs/Observations.lean)                                                                                                       | Ledger write uniqueness, request provenance, and response observation safety                                                                            |
-| [`LedgerIdentity.lean`](consistency/Proofs/LedgerIdentity.lean)                                                                                                   | Every entry anchors its prefix to its original view's branch; responses retain snapshots of those prefixes                                              |
-| [`Commitment.lean`](consistency/Proofs/Commitment.lean)                                                                                                           | All known committed entries remain in the current branch, including across elections                                                                    |
-| [`ViewOrder.lean`](consistency/Proofs/ViewOrder.lean), [`Statuses.lean`](consistency/Proofs/Statuses.lean)                                                        | Nondecreasing ledger views and separation of committed prefixes from same-view invalid suffixes                                                         |
-| [`RealTime.lean`](consistency/Proofs/RealTime.lean), [`Ordered.lean`](consistency/Proofs/Ordered.lean)                                                            | Real-time order follows from request provenance and committed-prefix comparability; sorted committed responses strictly extend observations             |
-| [`InvalidObservations.lean`](consistency/Proofs/InvalidObservations.lean)                                                                                         | Write contents identify a unique original transaction ID across branches; committed prefixes exclude invalid IDs, including later invalidation attempts |
-
-The original commitment rule admitted a counterexample to `invalid_not_observed_by_committed`.
-The following sequence invalidates write 0 at `2.1`, copies it into a new branch, and attempts to commit write 1 at `3.2` while observing the invalid write:
-
-```lean
-[.request .rw, .execute 1 2, .respond 1 2 1, .invalidate 2,
- .elect 2 1, .request .rw, .execute 4 3, .respond 4 3 2, .commit 5]
-```
-
-The first eight actions remain enabled, preserving early invalidation and election behavior.
-The final commitment is now disabled because its prefix contains the invalid ID `2.1`.
-The theorem statement is unchanged; the proof covers both invalidation before commitment and attempted invalidation after commitment.
-
-### History associations
-
-`invalid_not_observed_by_committed` associates an invalid-status event with a write by transaction ID before excluding that write from committed observers' observations.
-It also selects committed observers by transaction ID.
-`committedRequests` selects requests whose matching response is explicitly known committed.
-Typed event and ledger constructors enforce their shape constraints directly.
 
 ## Validation
 
