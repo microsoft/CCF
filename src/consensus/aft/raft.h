@@ -906,15 +906,8 @@ namespace aft
           !is_retired_committed() && ticking &&
           timeout_elapsed >= election_timeout)
         {
-          // Start an election.
-          if (state->pre_vote_enabled)
-          {
-            become_pre_vote_candidate();
-          }
-          else
-          {
-            become_candidate();
-          }
+          // Start an election with pre-vote.
+          become_pre_vote_candidate();
         }
       }
     }

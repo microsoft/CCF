@@ -1289,7 +1289,6 @@ struct TestNodeOptions
 {
   ccf::consensus::Configuration settings = raft_settings;
   std::shared_ptr<Store> kv = nullptr;
-  bool pre_vote_enabled = true;
   std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
   bool public_only = false;
 };
@@ -1310,7 +1309,7 @@ struct TestNode
       std::make_unique<Adaptor>(kv),
       std::make_unique<aft::LedgerStubProxy>(id),
       std::make_shared<aft::ChannelStubProxy>(),
-      std::make_shared<aft::State>(id, options.pre_vote_enabled),
+      std::make_shared<aft::State>(id),
       nullptr,
       std::move(options.commit_callbacks),
       options.public_only)
@@ -2626,17 +2625,7 @@ DOCTEST_TEST_CASE(
 {
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
 
-  bool pre_vote_enabled = true;
-  DOCTEST_SUBCASE("Pre-vote enabled")
-  {
-    pre_vote_enabled = true;
-  }
-  DOCTEST_SUBCASE("Pre-vote disabled")
-  {
-    pre_vote_enabled = false;
-  }
-
-  TestNode node(node_id, {.pre_vote_enabled = pre_vote_enabled});
+  TestNode node(node_id);
   auto& r0 = node.raft;
   auto r0c = channel_stub_proxy(r0);
 
