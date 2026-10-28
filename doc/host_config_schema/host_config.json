@@ -252,6 +252,12 @@
                     "default": "CN=CCF Service",
                     "description": "Subject name to include in service certificate. Can only be set once on service start."
                   },
+                  "service_mldsa_parameter_set": {
+                    "type": "string",
+                    "enum": ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"],
+                    "default": "ML-DSA-65",
+                    "description": "ML-DSA parameter set of the service signing identity. Ignored on nodes built without ML-DSA support"
+                  },
                   "cose_signatures": {
                     "type": "object",
                     "description": "If specified, both ``issuer`` and ``subject`` are required",
@@ -412,6 +418,12 @@
                     "default": 1,
                     "description": "Initial validity period (days) for service certificate",
                     "minimum": 1
+                  },
+                  "service_mldsa_parameter_set": {
+                    "type": "string",
+                    "enum": ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"],
+                    "default": "ML-DSA-65",
+                    "description": "ML-DSA parameter set of the service signing identity. Ignored on nodes built without ML-DSA support"
                   },
                   "previous_service_identity_file": {
                     "type": "string",

@@ -4,12 +4,14 @@
 #include "ccf/app_interface.h"
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "crypto/certs.h"
 #include "crypto/cose.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
 
@@ -27,12 +29,29 @@ using namespace ccf;
 
 namespace
 {
+  // ML-DSA service certificate, or nullopt as sent by a node whose build has
+  // no ML-DSA
+  std::optional<ccf::crypto::Pem> make_pq_cert(
+    const std::string& subject_name,
+    const std::string& valid_from,
+    const std::string& valid_to)
+  {
+    if (!ccf::crypto::mldsa_supported())
+    {
+      return std::nullopt;
+    }
+    return ccf::crypto::make_mldsa_key_pair(
+             ccf::crypto::MLDSAParameterSet::ML_DSA_65)
+      ->self_sign(subject_name, valid_from, valid_to);
+  }
+
   struct TestIdentity
   {
     std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> key =
       std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
         ccf::crypto::make_ec_key_pair());
     ccf::crypto::Pem cert;
+    std::optional<ccf::crypto::Pem> pq_cert;
 
     TestIdentity()
     {
@@ -40,6 +59,7 @@ namespace
       // These tests parse certificates and extract keys, not check validity.
       // Deliberately expired dates avoid a future expiry deadline.
       cert = key->self_sign("CN=test", "20200101000000Z", "20201231235959Z");
+      pq_cert = make_pq_cert("CN=test", "20200101000000Z", "20201231235959Z");
     }
   };
 
@@ -498,7 +518,8 @@ TEST_CASE("Service queries distinguish missing, opening and recovering state")
   const TxID create_txid{1, 1};
   {
     auto tx = store.create_tx();
-    InternalTablesAccess::create_service(tx, identity.cert, create_txid, data);
+    InternalTablesAccess::create_service(
+      tx, identity.cert, identity.pq_cert, create_txid, data);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
   for (const auto status :
@@ -547,7 +568,11 @@ TEST_CASE("Opening counts active participants separately from owners")
     auto tx = store.create_tx();
     InternalTablesAccess::init_configuration(tx, {2});
     InternalTablesAccess::create_service(
-      tx, service_identity.cert, {1, 1}, {{"name", "service"}});
+      tx,
+      service_identity.cert,
+      service_identity.pq_cert,
+      {1, 1},
+      {{"name", "service"}});
     const auto participant_id = InternalTablesAccess::add_member(
       tx,
       {participant.cert,
@@ -610,7 +635,8 @@ TEST_CASE("An owner-only service can open once an owner is active")
   {
     auto tx = store.create_tx();
     InternalTablesAccess::init_configuration(tx, {1});
-    InternalTablesAccess::create_service(tx, service_identity.cert, {1, 1});
+    InternalTablesAccess::create_service(
+      tx, service_identity.cert, service_identity.pq_cert, {1, 1});
     owner_id = InternalTablesAccess::add_member(
       tx,
       {owner.cert,
@@ -688,6 +714,7 @@ TEST_CASE("Identity endorsements link consecutive service recoveries")
       InternalTablesAccess::create_service(
         tx,
         identity.cert,
+        identity.pq_cert,
         creations[generation],
         {{"generation", generation}},
         generation != 0);
@@ -766,7 +793,11 @@ TEST_CASE("Failed recovery creation preserves the previous service")
   {
     auto tx = store.create_tx();
     InternalTablesAccess::create_service(
-      tx, previous_identity.cert, {1, 1}, {{"name", "previous"}});
+      tx,
+      previous_identity.cert,
+      previous_identity.pq_cert,
+      {1, 1},
+      {{"name", "previous"}});
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
   const char* expected_error =
@@ -795,7 +826,7 @@ TEST_CASE("Failed recovery creation preserves the previous service")
     auto tx = store.create_tx();
     REQUIRE_THROWS_WITH_AS(
       InternalTablesAccess::create_service(
-        tx, next_identity.cert, {3, 10}, nullptr, true),
+        tx, next_identity.cert, next_identity.pq_cert, {3, 10}, nullptr, true),
       expected_error,
       std::logic_error);
   }
@@ -854,7 +885,8 @@ TEST_CASE("Endorsements must be signed by the service signing identity")
   const TestIdentity other_identity;
   {
     auto tx = store.create_tx();
-    InternalTablesAccess::create_service(tx, identity.cert, {1, 1});
+    InternalTablesAccess::create_service(
+      tx, identity.cert, identity.pq_cert, {1, 1});
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
   const auto before = store.current_txid();
@@ -1393,11 +1425,12 @@ TEST_CASE("create_service publishes the classical signing identity")
     service_key->self_sign("CN=Service", valid_from, valid_to);
   const auto expected_identity =
     expected_signing_identity(service_key->public_key_der());
+  const auto pq_cert = make_pq_cert("CN=Service", valid_from, valid_to);
 
   INFO("Creation publishes the existing service key, without a PQ identity");
   {
     auto tx = kv_store.create_tx();
-    InternalTablesAccess::create_service(tx, service_cert, {1, 1});
+    InternalTablesAccess::create_service(tx, service_cert, pq_cert, {1, 1});
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
@@ -1410,7 +1443,9 @@ TEST_CASE("create_service publishes the classical signing identity")
     REQUIRE(
       ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
       expected_identity);
-    REQUIRE(tx.ro<ccf::Service>(Tables::SERVICE)->get()->cert == service_cert);
+    const auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
+    REQUIRE(service->cert == service_cert);
+    REQUIRE(service->pq_cert == pq_cert);
   }
 
   SUBCASE("Recovering a service with a published signing identity") {}
@@ -1428,6 +1463,8 @@ TEST_CASE("create_service publishes the classical signing identity")
     recovered_key->self_sign("CN=Service", valid_from, valid_to);
   const auto recovered_identity =
     expected_signing_identity(recovered_key->public_key_der());
+  const auto recovered_pq_cert =
+    make_pq_cert("CN=Service", valid_from, valid_to);
   ccf::MerkleTreeHistory tree;
 
   INFO("Recovery publishes the new key and preserves legacy recovery state");
@@ -1436,7 +1473,12 @@ TEST_CASE("create_service publishes the classical signing identity")
     tx.wo<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
       ->put(tree.serialise());
     InternalTablesAccess::create_service(
-      tx, recovered_cert, {2, 10}, nullptr, true /* recovering */);
+      tx,
+      recovered_cert,
+      recovered_pq_cert,
+      {2, 10},
+      nullptr,
+      true /* recovering */);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
@@ -1453,6 +1495,7 @@ TEST_CASE("create_service publishes the classical signing identity")
     const auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
     REQUIRE(service.has_value());
     REQUIRE(service->cert == recovered_cert);
+    REQUIRE(service->pq_cert == recovered_pq_cert);
     REQUIRE(service->status == ccf::ServiceStatus::RECOVERING);
     REQUIRE(
       tx.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
@@ -1476,7 +1519,8 @@ TEST_CASE("create_service leaves other signing identity types untouched")
     expected_signing_identity(pq_identity.key->public_key_der());
   {
     auto tx = store.create_tx();
-    InternalTablesAccess::create_service(tx, previous_identity.cert, {1, 1});
+    InternalTablesAccess::create_service(
+      tx, previous_identity.cert, previous_identity.pq_cert, {1, 1});
     tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES)
       ->put(IdentityType::PQ, pq_signing_identity);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
@@ -1489,7 +1533,12 @@ TEST_CASE("create_service leaves other signing identity types untouched")
     tx.wo<ccf::SerialisedMerkleTree>(Tables::SERIALISED_MERKLE_TREE)
       ->put(tree.serialise());
     InternalTablesAccess::create_service(
-      tx, next_identity.cert, {3, 10}, nullptr, true /* recovering */);
+      tx,
+      next_identity.cert,
+      next_identity.pq_cert,
+      {3, 10},
+      nullptr,
+      true /* recovering */);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 

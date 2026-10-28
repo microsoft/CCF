@@ -122,6 +122,7 @@ std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
   return std::make_unique<ccf::NetworkIdentity>(
     "CN=CCF test network",
     ccf::crypto::service_identity_curve_choice,
+    ccf::crypto::MLDSAParameterSet::ML_DSA_65,
     ident_valid_from,
     2);
 }

@@ -6,11 +6,13 @@
 #include "ccf/ds/locking.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/network_identity_accessors_impl.h"
 #include "node/rpc/network_identity_chain_helpers.h"
+#include "node/rpc/serialization.h"
 #include "node/snapshot_serdes.h"
 #include "service/tables/signing_identities.h"
 
@@ -362,6 +364,7 @@ namespace
       identity = std::make_unique<ccf::NetworkIdentity>(
         "CN=Test Service",
         ccf::crypto::CurveID::SECP384R1,
+        ccf::crypto::MLDSAParameterSet::ML_DSA_65,
         "20240101000000Z",
         365);
     }
@@ -1185,4 +1188,41 @@ TEST_CASE(
     // target_status.
     REQUIRE(sub.endorsements_fetching_status() == ccf::FetchStatus::Failed);
   }
+}
+
+TEST_CASE("NetworkIdentity carries an ML-DSA identity when the build has one")
+{
+  const std::string valid_from = "20240101000000Z";
+  // A non-default parameter set shows the configured choice is honoured
+  const auto parameter_set = ccf::crypto::MLDSAParameterSet::ML_DSA_44;
+  const ccf::NetworkIdentity identity(
+    "CN=Test Service,O=CCF",
+    ccf::crypto::CurveID::SECP384R1,
+    parameter_set,
+    valid_from,
+    365);
+  const auto classical = ccf::crypto::make_verifier(identity.cert);
+
+  const auto json = nlohmann::json(identity);
+  REQUIRE(json.contains("pq_cert") == ccf::crypto::mldsa_supported());
+  REQUIRE(json.contains("pq_priv_key") == ccf::crypto::mldsa_supported());
+  REQUIRE(json.get<ccf::NetworkIdentity>() == identity);
+
+  if (!ccf::crypto::mldsa_supported())
+  {
+    REQUIRE_FALSE(identity.pq_cert.has_value());
+    REQUIRE_FALSE(identity.pq_priv_key.has_value());
+    return;
+  }
+
+  REQUIRE(identity.pq_cert.has_value());
+  REQUIRE(identity.pq_priv_key.has_value());
+  const auto pq = ccf::crypto::make_verifier(identity.pq_cert.value());
+  REQUIRE(pq->is_self_signed());
+  REQUIRE(pq->subject_der() == classical->subject_der());
+  REQUIRE(pq->validity_period() == classical->validity_period());
+  REQUIRE(
+    ccf::crypto::make_mldsa_key_pair(
+      identity.pq_priv_key.value(), parameter_set)
+      ->public_key_der() == pq->public_key_der());
 }

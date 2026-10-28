@@ -1637,6 +1637,7 @@ namespace ccf
           network.identity = std::make_unique<ccf::NetworkIdentity>(
             config.command.start.service_subject_name,
             curve_id,
+            config.command.start.service_mldsa_parameter_set,
             startup_time,
             config.command.start.initial_service_certificate_validity_days);
 
@@ -1691,6 +1692,7 @@ namespace ccf
             ccf::crypto::make_verifier(previous_service_identity_cert)
               ->subject_der(),
             curve_id,
+            config.command.recover.service_mldsa_parameter_set,
             startup_time,
             config.command.recover.initial_service_certificate_validity_days);
 
@@ -3197,6 +3199,7 @@ namespace ccf
 
       create_params.public_key = node_sign_kp->public_key_pem();
       create_params.service_cert = network.identity->cert;
+      create_params.pq_service_cert = network.identity->pq_cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.measurement = node_measurement;

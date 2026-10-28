@@ -1517,7 +1517,12 @@ namespace ccf
       }
 
       InternalTablesAccess::create_service(
-        ctx.tx, in.service_cert, in.create_txid, in.service_data, recovering);
+        ctx.tx,
+        in.service_cert,
+        in.pq_service_cert,
+        in.create_txid,
+        in.service_data,
+        recovering);
 
       if (recovering)
       {
