@@ -9,7 +9,6 @@
 
 #include <algorithm>
 #include <climits>
-#include <cstdint>
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 
@@ -65,7 +64,9 @@ namespace ccf::crypto
       {
         const auto chunk =
           input.first(std::min(input.size(), GCM_MAX_UPDATE_SIZE));
-        int32_t outl{0};
+        // int rather than int32_t: must match EVP_CipherUpdate's int* out
+        // parameter exactly, whatever width the platform gives int.
+        int outl{0};
         // Dispatches to EVP_EncryptUpdate or EVP_DecryptUpdate according to
         // the initialized context.
         CHECK1(EVP_CipherUpdate(
