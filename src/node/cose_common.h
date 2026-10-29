@@ -276,14 +276,16 @@ namespace ccf::cose
       [&]() { return uhdr.map_at(make_signed(ccf::cose::header::iana::VDP)); },
       fmt::format("Parse vdp() map", ccf::cose::header::iana::VDP));
 
-    if (vdp.kind() != Kind::MAP || vdp.size() == 0 || vdp.size() > 2)
+    // Value::empty() checks handle ownership, not collection length.
+    const auto proof_types = vdp.kind() == Kind::MAP ? vdp.size() : 0;
+    if (proof_types == 0 || proof_types > 2)
     {
       throw COSEDecodeError("Invalid verifiable proofs map");
     }
 
     constexpr int64_t consistency_proofs_label = -2;
     bool has_consistency_proofs = false;
-    for (size_t i = 0; i < vdp.size(); ++i)
+    for (size_t i = 0; i < proof_types; ++i)
     {
       const auto key = vdp.map_key_at(i).as_signed();
       if (key == consistency_proofs_label)
@@ -296,7 +298,8 @@ namespace ccf::cose
       }
 
       const auto array = vdp.map_value_at(i);
-      if (array.kind() != Kind::ARRAY || array.size() == 0)
+      const auto proof_count = array.kind() == Kind::ARRAY ? array.size() : 0;
+      if (proof_count == 0)
       {
         throw COSEDecodeError("Proofs must be a non-empty array");
       }
@@ -415,8 +418,8 @@ namespace ccf::cose
         for (const auto& [left, digest] : path)
         {
           const auto sibling = sha256_from_bytes(digest, "sibling");
-          newer = left ? ccf::crypto::Sha256Hash(sibling, newer) :
-                         ccf::crypto::Sha256Hash(newer, sibling);
+          newer = left != 0 ? ccf::crypto::Sha256Hash(sibling, newer) :
+                              ccf::crypto::Sha256Hash(newer, sibling);
         }
 
         newer_roots.emplace_back(newer.h.begin(), newer.h.end());

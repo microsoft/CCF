@@ -293,8 +293,8 @@ namespace ccf::cose::edit
 
     if (
       payload.kind() != Kind::BYTES &&
-      !(payload.kind() == Kind::SIMPLE &&
-        payload.as_simple() == SimpleValue::Null))
+      (payload.kind() != Kind::SIMPLE ||
+       payload.as_simple() != SimpleValue::Null))
     {
       throw DecodeError(
         Error::TYPE_MISMATCH,
