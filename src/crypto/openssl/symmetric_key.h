@@ -9,6 +9,14 @@
 
 namespace ccf::crypto
 {
+  // Chosen chunk size, not a GCM limit. EVP_CipherUpdate takes an int length;
+  // 16 MiB keeps calls below INT_MAX and chunk-boundary tests inexpensive.
+  constexpr size_t GCM_MAX_UPDATE_SIZE = size_t{16} * 1024 * 1024;
+
+  // Largest GCM plaintext (SP 800-38D, Section 5.2.1.1: 2^39 - 256 bits),
+  // which not all providers enforce. This is not an AAD limit.
+  constexpr size_t GCM_MAX_DATA_SIZE = (size_t{1} << 36) - 32;
+
   class KeyAesGcm_OpenSSL : public KeyAesGcm
   {
   private:
