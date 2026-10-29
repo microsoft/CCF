@@ -101,6 +101,11 @@ reconnect,0,1
 reconnect,0,2
 dispatch_all
 
+# A quorum must forget the former leader before granting its pre-votes.
+periodic_one,1,150
+drop_pending,1
+periodic_one,2,150
+drop_pending,2
 periodic_one,0,100
 dispatch_all
 

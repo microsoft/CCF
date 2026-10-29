@@ -39,6 +39,15 @@ state_all # All nodes have seen the reconfiguration entry
 assert_commit_idx,0,4 # But it is not committed, because 0 has not heard back from 1
 
 # One new node calls for an election (e.g. because primary 0 is dead)
+# The old primary loses quorum, and backups time out without competing.
+periodic_one,0,150
+drop_pending,0
+periodic_one,1,150
+drop_pending,1
+periodic_one,3,150
+drop_pending,3
+periodic_one,4,150
+drop_pending,4
 periodic_one,2,100
 assert_detail,2,leadership_state,PreVoteCandidate
 dispatch_one,2

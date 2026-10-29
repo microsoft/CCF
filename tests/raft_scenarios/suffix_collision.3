@@ -67,6 +67,10 @@ disconnect,1,3
 disconnect,1,4
 
 # Node 2 becomes primary, with votes from 3 and 4
+periodic_one,3,150
+drop_pending,3
+periodic_one,4,150
+drop_pending,4
 periodic_one,2,110
 dispatch_all
 
@@ -103,6 +107,10 @@ drop_pending,2
 dispatch_all
 
 # Node 0 calls a new election, hears from node 4 just long enough to become primary in term 3
+periodic_one,1,150
+drop_pending,1
+periodic_one,4,150
+drop_pending,4
 periodic_one,0,110
 reconnect,0,4
 periodic_one,0,110
@@ -112,6 +120,10 @@ dispatch_all
 disconnect,0,4
 
 # Node 2 calls a new election, hears from node 4 just long enough to become primary in term 4
+periodic_one,3,150
+drop_pending,3
+periodic_one,4,150
+drop_pending,4
 periodic_one,2,110
 reconnect,2,4
 periodic_one,2,110

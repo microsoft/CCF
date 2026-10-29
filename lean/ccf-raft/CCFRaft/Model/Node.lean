@@ -445,12 +445,11 @@ def handleRequestPreVoteRequest
     (source : NodeID)
     (request : RequestVoteRequest)
     : NodeEffect NodeState := do
-  -- Deliberate departure from CCF: `raft.h` (`recv_request_vote_unsafe`)
-  -- checks `leader_id` only for regular votes. A lagging follower can time
-  -- out before log repair, collect pre-votes from content followers, then
-  -- raise the term and depose a healthy primary. Refusing pre-votes while
-  -- a primary is known mirrors etcd's lease check and the Raft thesis's
-  -- pre-vote leader check.
+  -- Mirrors `raft.h` (`recv_request_vote_unsafe`), which refuses pre-votes
+  -- as well as votes while `leader_id` is set. Otherwise a lagging follower
+  -- could time out before log repair, collect pre-votes from content
+  -- followers, then raise the term and depose a healthy primary. This matches
+  -- etcd's lease check and the Raft thesis's pre-vote leader check.
   let voteGranted :=
     decide
       (request.term = state.currentTerm

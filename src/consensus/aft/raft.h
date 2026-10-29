@@ -1699,9 +1699,11 @@ namespace aft
 
       bool grant_vote = true;
 
-      if ((election_type == ElectionType::RegularVote) && leader_id.has_value())
+      if (leader_id.has_value())
       {
         // Reply false, since we already know the leader in the current term.
+        // This includes pre-votes, so that a lagging follower which times out
+        // before its log is repaired cannot depose a healthy leader.
         RAFT_DEBUG_FMT(
           "Recv {} to {} from {}: leader {} already known in term {}",
           r.msg,

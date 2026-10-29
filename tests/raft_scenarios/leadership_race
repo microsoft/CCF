@@ -20,6 +20,9 @@ replicate,latest,write while leaderless
 nominate_successor,0
 state_one,0
 
+# Node 1 must also time out before granting a pre-vote to node 2.
+periodic_one,1,150
+drop_pending,1
 periodic_one,2,100
 assert_detail,2,leadership_state,PreVoteCandidate
 dispatch_single,2,1

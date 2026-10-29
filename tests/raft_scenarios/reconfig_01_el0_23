@@ -46,6 +46,14 @@ assert_detail,2,leadership_state,PreVoteCandidate
 
 # 0 runs again
 periodic_one,0,150
+drop_pending,0
+# Let the other voters forget the old leader before pre-voting.
+periodic_one,1,150
+drop_pending,1
+periodic_one,2,150
+drop_pending,2
+periodic_one,3,150
+drop_pending,3
 periodic_one,0,150
 assert_detail,0,leadership_state,PreVoteCandidate
 dispatch_all
