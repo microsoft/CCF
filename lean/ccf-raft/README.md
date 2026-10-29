@@ -20,9 +20,6 @@ Transition systems, traces, effects and network composition come from the local 
 Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
 Initialization takes a nonempty initial voting membership, whose smallest member starts as primary with the genesis configuration transaction.
 Actions are local inputs (including timeouts) or delivery of a queued message; no clock is modeled.
-Each append input supplies an `AppendEntryInput` per entry, with optional flush packet choices as `(destination, endIndex)` pairs.
-The model appends each entry, executes its flushes using the normal send guards, and only then advances the batch's commit index.
-Configuration-created heartbeats remain automatic and precede the new entry.
 
 ## Scope
 

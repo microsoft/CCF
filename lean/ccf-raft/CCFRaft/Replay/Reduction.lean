@@ -135,8 +135,8 @@ private def ruleAppend : Reduction Unit := do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
   -- emit
-  emitObserve head "atomic-append"
-  emitAction head "atomic-append"
+  emitObserve head "append"
+  emitAction head "append"
     (.local head.node
       (.append
         [{ content := (← readAppendContent head config), flushes := flushes.getD [] }]))
@@ -164,8 +164,8 @@ private def ruleRecvAppendEntries : Reduction Unit := do
             optional_ (event head "step_down_and_nominate_successor")))
   optional_ (event head "send_append_entries_response")
   -- emit
-  emitObserve head "atomic-receive"
-  emitAction head "atomic-receive" action
+  emitObserve head "recv-append-entries"
+  emitAction head "recv-append-entries" action
 
 private def ruleRecvAppendEntriesResponse : Reduction Unit := do
   let head ← peek
@@ -177,8 +177,8 @@ private def ruleRecvAppendEntriesResponse : Reduction Unit := do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
   -- emit
-  emitObserve head "atomic-receive"
-  emitAction head "atomic-receive" action
+  emitObserve head "recv-append-entries-response"
+  emitAction head "recv-append-entries-response" action
 
 private def ruleRecvRequestVote : Reduction Unit := do
   let head ← peek
@@ -188,8 +188,8 @@ private def ruleRecvRequestVote : Reduction Unit := do
   optional_ (event head "become_follower")
   optional_ (event head "send_request_vote_response")
   -- emit
-  emitObserve head "atomic-receive"
-  emitAction head "atomic-receive" action
+  emitObserve head "recv-request-vote"
+  emitAction head "recv-request-vote" action
 
 private def ruleRecvProposeRequestVote : Reduction Unit := do
   let head ← peek
@@ -206,8 +206,8 @@ private def ruleRecvProposeRequestVote : Reduction Unit := do
       many_ (event head "send_append_entries")
     many_ (event head "send_request_vote")
   -- emit
-  emitObserve head "atomic-receive"
-  emitAction head "atomic-receive" action
+  emitObserve head "recv-propose-request-vote"
+  emitAction head "recv-propose-request-vote" action
 
 private def ruleRecvRequestVoteResponse : Reduction Unit := do
   let head ← peek
@@ -233,8 +233,8 @@ private def ruleRecvRequestVoteResponse : Reduction Unit := do
               optional_ (event head "step_down_and_nominate_successor")
             many_ (event head "send_append_entries")))
   -- emit
-  emitObserve head "atomic-receive"
-  emitAction head "atomic-receive" action
+  emitObserve head "recv-request-vote-response"
+  emitAction head "recv-request-vote-response" action
 
 private def ruleTick : Reduction Unit := do
   let head ← peek
@@ -253,8 +253,8 @@ private def ruleTick : Reduction Unit := do
       many_ (event head "send_request_vote")
     many_ (event head "send_request_vote")
     -- emit
-    emitObserve head "atomic-election"
-    emitAction head "atomic-election" (.local head.node (.timeout .election))
+    emitObserve head "tick-election"
+    emitAction head "tick-election" (.local head.node (.timeout .election))
   else
     let sends ←
       CCF.Parsec.many do
@@ -269,9 +269,9 @@ private def ruleTick : Reduction Unit := do
     -- emit
     emitObserve head "tick"
     for (source, destination, last) in sends do
-      emitAction source "atomic-send" (.local head.node (.sendEntries destination last))
+      emitAction source "tick-send" (.local head.node (.sendEntries destination last))
     if demoted.isSome then
-      emitAction head "check-quorum" (.local head.node (.timeout .checkQuorum))
+      emitAction head "tick-check-quorum" (.local head.node (.timeout .checkQuorum))
 
 private def ruleNomination : Reduction Unit := do
   let head ← peek

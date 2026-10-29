@@ -185,7 +185,7 @@ jobs:
         shell: bash
         run: python3 lean/disaster-recovery/replayer/viewer/build.py
 
-      # Start both jobs together; wait only after all independent Lean checks.
+      # Wait here instead of using needs so independent Lean checks run in parallel with capture generation.
       - name: Wait for Raft scenario captures
         timeout-minutes: 60
         shell: bash
