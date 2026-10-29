@@ -1811,8 +1811,14 @@ TEST_CASE("Entropy larger than INT_MAX")
 {
   // RAND_bytes takes an int length, so 2^32 + n bytes would fill only an
   // n-byte prefix yet report success. INT_MAX + 1 is the smallest size that
-  // is not representable; every page is written, so this is the one case
-  // which must use real memory.
+  // is not representable.
+  //
+  // Unlike the other oversized-input tests, this one cannot use an
+  // inaccessible mapping: the fix is that every byte is written, so every
+  // page is committed. It costs about 2 GiB of transient memory and a second
+  // or two of DRBG output on a modern machine. That is a known, accepted
+  // cost: the alternative, a fake RAND provider which records the length,
+  // would not exercise OpenSSL and so would not have caught the defect.
   LazyMapping mapping(over_int_max, PROT_READ | PROT_WRITE);
   const auto data = mapping.span();
   get_entropy()->random(data.data(), data.size());
