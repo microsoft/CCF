@@ -148,24 +148,6 @@ theorem all_received_is_first_sent
   apply (mem_requests_iff _ _ _ _).mpr
   simpa [kindEq] using requestFound
 
-theorem all_rw_received_is_first_sent
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
-        -> ∀ response ∈ responsesOf state.history .rw,
-            ∃ request ∈ requests state.history,
-              request.1 < response.1 /\ request.2 = (.rw, response.2.tx) := by
-  intro trace state valid
-  exact all_received_is_first_sent trace state valid .rw
-
-theorem all_ro_received_is_first_sent
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
-        -> ∀ response ∈ responsesOf state.history .ro,
-            ∃ request ∈ requests state.history,
-              request.1 < response.1 /\ request.2 = (.ro, response.2.tx) := by
-  intro trace state valid
-  exact all_received_is_first_sent trace state valid .ro
-
 def RequestInvariant (history : List Event) : Prop :=
   (∀ (index : Nat) (kind : TxType) (tx : TxContent),
     history[index]? = some (.request kind tx) → tx < nextRequestId history)

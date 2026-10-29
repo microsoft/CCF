@@ -223,30 +223,4 @@ theorem once_committed_next_invalid
       omega
   | invalid => rfl
 
-theorem committed_or_invalid_strong
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
-        → (∀ left ∈ statuses state.history,
-            ∀ right ∈ statuses state.history,
-              left.2 = .committed
-              → left.1.view = right.1.view
-              → right.1.seqno ≤ left.1.seqno
-              → right.2 = .committed)
-          ∧ (∀ left ∈ statuses state.history,
-              ∀ right ∈ statuses state.history,
-                left.2 = .committed
-                → left.1.seqno ≤ right.1.seqno
-                → right.1.view < left.1.view
-                → right.2 = .invalid)
-          ∧ (∀ left ∈ statuses state.history,
-              ∀ right ∈ statuses state.history,
-                left.2 = .invalid
-                → left.1.view = right.1.view
-                → left.1.seqno ≤ right.1.seqno
-                → right.2 = .invalid) := by
-  intro trace state valid
-  exact ⟨once_committed_prev_committed trace state valid,
-    once_committed_next_invalid trace state valid,
-    once_invalid_next_invalid trace state valid⟩
-
 end consistency.Proofs.Statuses

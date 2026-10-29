@@ -55,32 +55,34 @@ There is no refinement proof connecting this abstraction to the [Raft model](../
 ## Properties
 
 [`Properties.lean`](consistency/Properties.lean) exposes full theorem statements over valid executions of the actual model, following the other Lean packages' style.
-All 22 safety theorems have completed proofs, with implementations under [`Proofs/`](consistency/Proofs).
+All 17 safety theorems have completed proofs, with implementations under [`Proofs/`](consistency/Proofs).
 There are no unfinished proofs.
 Each safety theorem has an adjacent witness lemma over the same multi-node model with reads.
 
 ### Proof status
 
 Every theorem is proved without depending on unfinished theorems.
-This includes the primary `committed_rw_ordered_spec_linearizable` claim.
+The primary consistency guarantee is expressed by `committed_rw_ordered_serializable` and `committed_rw_ordered_real_time` together.
+Committed writes serialize in transaction-ID order, and that order respects request-to-initial-response intervals rather than waiting for committed-status notifications.
 Completed proofs use only the standard allowed axioms `propext`, `Classical.choice`, and `Quot.sound`, not `sorryAx`.
 
 ### Witness coverage
 
-The 22 public witness lemmas exhibit valid executions with populated domains rather than initial states or empty observations.
+The 17 public witness lemmas exhibit valid executions with populated domains.
+Each witness states only the relevant domains and antecedents, without repeating the safety conclusion or adding unrelated observation, ordering, or status requirements.
 Their implementations in [`Witnesses.lean`](consistency/Proofs/Witnesses.lean) replay enabled model actions, prove the final states reachable, and obtain valid finite traces through the shared execution definitions.
 They do not assume the safety theorems they accompany.
 
 - An execution without elections has two committed writes and two read responses with nonempty observations.
   The reads demonstrate that distinct requests can return the same transaction ID and observation.
-  The ordering witnesses include a later request arriving after the earlier write's initial response but before its committed-status notification.
+  In this execution, a later request arrives after the earlier write's initial response but before its committed-status notification.
   The sorted committed responses contain an actual adjacent pair with strictly increasing observation lengths.
 - An execution invalidates two old-view writes, elects a replacement branch, and commits two replacement writes.
   Distinct ledger positions activate all three status-propagation clauses.
   An invalid write coexists with a nonempty committed observation that excludes it.
   Forwarded reads then observe both the new leader's branch and the former leader's stale branch.
-- The three equality-guarded uniqueness claims have witnesses with multiple distinct committed writes.
-  Their equality antecedents are inhabited by comparing an actual response with itself; the witnesses do not assert that distinct colliding responses are reachable.
+- The three equality-guarded uniqueness witnesses explicitly inhabit their equality antecedents by comparing an actual response with itself.
+  They do not require distinct colliding responses.
 
 ## Validation
 

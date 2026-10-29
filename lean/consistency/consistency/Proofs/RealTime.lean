@@ -83,22 +83,4 @@ theorem committed_rw_ordered_real_time
   · exact Or.inl strict
   · exact Or.inr ⟨equal, seqno⟩
 
-theorem committed_rw_linearizable
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
-        → (∀ left ∈ committedResponses state.history .rw,
-            ∀ right ∈ committedResponses state.history .rw,
-              left.2.observed <+: right.2.observed ∨ right.2.observed <+: left.2.observed)
-          ∧ (∀ earlier ∈ committedResponses state.history .rw,
-              ∀ request ∈ committedRequests state.history .rw,
-              ∀ later ∈ committedResponses state.history .rw,
-                later.2.tx = request.2.2
-                → earlier.1 < request.1
-                → earlier.2.tx ∈ later.2.observed)
-          ∧ (∀ response ∈ responses state.history, response.2.observed.Nodup) := by
-  intro trace state valid
-  exact ⟨Commitment.committed_rw_serializable trace state valid,
-    all_committed_observed trace state valid,
-    Observations.at_most_once_observed trace state valid⟩
-
 end consistency.Proofs.RealTime

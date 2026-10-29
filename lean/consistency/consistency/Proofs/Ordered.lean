@@ -170,23 +170,4 @@ theorem committed_rw_ordered_serializable
   rw [← firstPayload, ← secondPayload, firstObs, secondObs]
   exact strict_observations secondAt secondTx seqno
 
-theorem committed_rw_ordered_spec_linearizable
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
-        → (∀ pair ∈
-            (committedRwResponses state.history).zip
-              (committedRwResponses state.history).tail,
-            pair.1.observed <+: pair.2.observed
-            ∧ pair.1.observed.length < pair.2.observed.length
-            ∧ pair.2.observed.getLast? = some pair.2.tx)
-          ∧ (∀ earlier ∈ committedResponses state.history .rw,
-              ∀ request ∈ committedRequests state.history .rw,
-              ∀ later ∈ committedResponses state.history .rw,
-                later.2.tx = request.2.2
-                → earlier.1 < request.1
-                → txIDStrictlyLessThan earlier.2.txid later.2.txid) := by
-  intro trace state valid
-  exact ⟨committed_rw_ordered_serializable trace state valid,
-    RealTime.committed_rw_ordered_real_time trace state valid⟩
-
 end consistency.Proofs.Ordered
