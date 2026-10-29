@@ -234,7 +234,7 @@ namespace ccf::cose
       fmt::format(
         "Parse protected header kid({})", ccf::cose::header::iana::KID));
 
-    phdr.vds = rethrow_with_msg(
+    const auto vds = rethrow_with_msg(
       [&]() {
         return cbor.map_at(make_signed(ccf::cose::header::iana::VDS))
           .as_signed();
@@ -242,11 +242,13 @@ namespace ccf::cose
       fmt::format(
         "Parse protected header vds({})", ccf::cose::header::iana::VDS));
 
-    if (phdr.vds != ccf::cose::value::CCF_LEDGER_SHA256)
+    if (vds != ccf::cose::value::CCF_LEDGER_SHA256)
     {
-      throw COSEDecodeError(fmt::format(
-        "Unsupported vds value ({}) in protected header", phdr.vds));
+      throw COSEDecodeError(
+        fmt::format("Unsupported vds value ({}) in protected header", vds));
     }
+
+    phdr.vds = static_cast<int>(vds);
 
     decode_cwt_claims(cbor, phdr.cwt);
     decode_ccf_claims(cbor, phdr.ccf);

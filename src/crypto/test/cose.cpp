@@ -977,6 +977,57 @@ TEST_CASE("Decode CCF COSE receipt")
   REQUIRE(receipt.phdr.ccf.txid == "2.17");
   REQUIRE(receipt.phdr.vds == 2);
 
+  {
+    using namespace tav::cbor;
+
+    const auto envelope =
+      nondet_parse(receipt_bytes).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    const auto phdr = nondet_parse(envelope.array_at(0).as_bytes());
+    const std::array<int64_t, 9> vds_values = {
+      0,
+      1,
+      2,
+      3,
+      -1,
+      (int64_t{1} << 32) + 2,
+      2 - (int64_t{1} << 32),
+      std::numeric_limits<int64_t>::min() + 2,
+      std::numeric_limits<int64_t>::max()};
+
+    for (const auto vds : vds_values)
+    {
+      CAPTURE(vds);
+      const auto encoded_phdr =
+        ccf::cbor::with_entry(
+          phdr, ccf::cose::header::iana::VDS, make_signed(vds))
+          .nondet_serialize();
+      const auto edited =
+        make_tagged(
+          ccf::cbor::tag::COSE_SIGN_1,
+          ccf::cbor::with_element(envelope, 0, make_bytes(encoded_phdr)))
+          .nondet_serialize();
+
+      for (const bool recompute_root : {false, true})
+      {
+        CAPTURE(recompute_root);
+        if (vds == ccf::cose::value::CCF_LEDGER_SHA256)
+        {
+          REQUIRE(
+            ccf::cose::decode_ccf_receipt(edited, recompute_root).phdr.vds ==
+            vds);
+        }
+        else
+        {
+          REQUIRE_THROWS_WITH_AS(
+            ccf::cose::decode_ccf_receipt(edited, recompute_root),
+            fmt::format("Unsupported vds value ({}) in protected header", vds)
+              .c_str(),
+            ccf::cose::COSEDecodeError);
+        }
+      }
+    }
+  }
+
   REQUIRE(
     ccf::ds::to_hex(receipt.merkle_root) ==
     "209f5aefb0f45d7647c917337044c44a1b848fe833fa2869d016bea797d79a9e");
