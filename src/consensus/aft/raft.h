@@ -718,6 +718,7 @@ namespace aft
           update_batch_size();
           entry_count = 0;
           entry_size_not_limited = 0;
+          trace::batch_flush(*state);
           for (const auto& it : all_other_nodes)
           {
             RAFT_DEBUG_FMT("Sending updates to follower {}", it.first);
@@ -835,6 +836,7 @@ namespace aft
     void periodic(std::chrono::milliseconds elapsed) override
     {
       std::unique_lock<ccf::ds::Mutex> guard(state->lock);
+      trace::tick(*state);
       timeout_elapsed += elapsed;
 
       if (state->leadership_state.load() == ccf::kv::LeadershipState::Leader)
@@ -906,15 +908,8 @@ namespace aft
           !is_retired_committed() && ticking &&
           timeout_elapsed >= election_timeout)
         {
-          // Start an election.
-          if (state->pre_vote_enabled)
-          {
-            become_pre_vote_candidate();
-          }
-          else
-          {
-            become_candidate();
-          }
+          // Start an election with pre-vote.
+          become_pre_vote_candidate();
         }
       }
     }
@@ -2687,6 +2682,7 @@ namespace aft
     void nominate_successor() override
     {
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
+      trace::nomination(*state);
       nominate_successor_unsafe();
     }
 

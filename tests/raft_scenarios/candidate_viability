@@ -1,6 +1,4 @@
-pre_vote_enabled,false
-# This test verifies the candidate selection criteria 
-# it is easier to create specific ledgers without pre-vote
+# Verify candidate selection with divergent signed suffixes and pre-vote.
 
 # Node 0 is the start node
 start_node,0
@@ -31,11 +29,11 @@ periodic_one,0,100
 assert_detail,0,leadership_state,Follower
 
 periodic_one,0,100
-assert_detail,0,leadership_state,Candidate
+assert_detail,0,leadership_state,PreVoteCandidate
 dispatch_all
 assert_detail,0,leadership_state,Leader
 
-# Node 0 produces a slightly longer suffix in term 2
+# Node 0 produces a slightly longer suffix in term 3
 emit_signature,3
 emit_signature,3
 
@@ -57,7 +55,7 @@ disconnect_node,4
 
 # Node 1 calls an wins an election, and wins with 2 and 3
 periodic_one,1,100
-assert_detail,1,leadership_state,Candidate
+assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_all
 assert_detail,1,leadership_state,Leader
 
@@ -79,7 +77,7 @@ dispatch_all
 
 # Node 0 calls a fresh election
 periodic_one,0,100
-assert_detail,0,leadership_state,Candidate
+assert_detail,0,leadership_state,PreVoteCandidate
 dispatch_all
 assert_detail,0,leadership_state,Leader
 
@@ -96,12 +94,13 @@ disconnect_node,0
 # - Node 4 is still isolated
 disconnect_node,4
 
-# And this bit is really important - while 0 is partitioned, they advance their term even higher
+# Repeated isolated pre-votes cannot inflate node 0's term.
 periodic_one,0,100
 periodic_one,0,100
 periodic_one,0,100
 periodic_one,0,100
 periodic_one,0,100
+assert_detail,0,current_view,5
 
 # Node 1 catches up on term
 periodic_one,1,10
@@ -109,7 +108,7 @@ dispatch_all
 
 # Node 1 calls a fresh election
 periodic_one,1,100
-assert_detail,1,leadership_state,Candidate
+assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_all
 assert_detail,1,leadership_state,Leader
 
@@ -162,15 +161,18 @@ reconnect_node,2
 periodic_all,10
 dispatch_all
 
-# Could be any of the up-to-date nodes, we nominate 4
+# Choose node 4, one of the up-to-date nodes, for the next election.
 periodic_one,4,100
+assert_detail,4,leadership_state,PreVoteCandidate
 dispatch_all
-periodic_one,4,100
-assert_detail,4,leadership_state,Candidate
-dispatch_all
+assert_detail,4,leadership_state,Leader
 periodic_all,10
 dispatch_all
 periodic_all,10
+dispatch_all
+
+# Node 0's two divergent term ranges require another prefix-repair round.
+periodic_one,4,10
 dispatch_all
 
 state_all
