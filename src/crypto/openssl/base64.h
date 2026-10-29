@@ -55,19 +55,7 @@ namespace ccf::crypto
       std::vector<unsigned char> output(max_size, '\0');
       size_t decoded_len = 0;
 
-      // EVP_DecodeUpdate returns 0 once it has seen the end of the content:
-      // either padding, after which only whitespace may follow, or '-', which
-      // it treats as an end marker and after which it ignores the rest of the
-      // same call. The context remembers neither across calls, so a single
-      // call's behaviour is reproduced here. The '-' case is told apart by
-      // its position in the input.
-      const auto eof_pos = b64_string.find('-');
-      bool padded = false;
-      size_t consumed = 0;
-
-      while (!input.empty())
-      {
-        const auto chunk = input.first(std::min(input.size(), chunk_size));
+      auto update = [&](std::span<const uint8_t> chunk) {
         int chunk_len = 0;
         const int rc = EVP_DecodeUpdate(
           ctx,
@@ -87,25 +75,36 @@ namespace ccf::crypto
             chunk_len));
         }
         decoded_len += static_cast<size_t>(chunk_len);
-        consumed += chunk.size();
-        input = input.subspan(chunk.size());
+      };
 
-        // After padding, any output or buffered character is trailing data,
-        // which a single call would have rejected
-        if (padded && (chunk_len != 0 || EVP_ENCODE_CTX_num(ctx) != 0))
-        {
-          throw std::invalid_argument(
-            "OSSL: Could not decode base64 string: data after padding");
-        }
+      // Between calls the context keeps only the current partial group. It
+      // does not remember that it has seen padding, or '-', which OpenSSL
+      // treats as an end-of-content marker; both affect how the rest of the
+      // input is handled. So only the input before the first of those is fed
+      // in chunks, and everything from it onward goes to OpenSSL in one call,
+      // which then behaves exactly as a single call over the whole input.
+      const auto tail_pos = std::min(b64_string.find_first_of("=-"), size);
+      auto body = input.first(tail_pos);
+      const auto tail = input.subspan(tail_pos);
 
-        if (rc == 0)
-        {
-          if (eof_pos < consumed)
-          {
-            break;
-          }
-          padded = true;
-        }
+      while (!body.empty())
+      {
+        const auto chunk = body.first(std::min(body.size(), chunk_size));
+        update(chunk);
+        body = body.subspan(chunk.size());
+      }
+
+      // A valid tail holds at most two padding characters and whitespace
+      if (tail.size() > INT_MAX)
+      {
+        throw std::invalid_argument(fmt::format(
+          "OSSL: Could not decode base64 string: {} bytes follow the padding "
+          "or end marker",
+          tail.size()));
+      }
+      if (!tail.empty())
+      {
+        update(tail);
       }
 
       int final_len = 0;

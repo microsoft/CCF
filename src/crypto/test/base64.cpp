@@ -175,20 +175,24 @@ TEST_CASE("base64 inputs spanning several OpenSSL updates")
 
 TEST_CASE("base64 rejects data after padding across OpenSSL updates")
 {
-  // A padded group which ends exactly at a chunk boundary must not let the
-  // following chunk be decoded as a fresh string
+  // The context does not remember padding across calls, so a padded group
+  // which ends exactly at a chunk boundary must not let what follows be
+  // decoded as a fresh string
   const std::vector<uint8_t> raw(BASE64_MAX_UPDATE_SIZE / 4 * 3 - 1, 0xAB);
   auto encoded = b64_from_raw(raw.data(), raw.size());
   REQUIRE(encoded.size() == BASE64_MAX_UPDATE_SIZE);
   REQUIRE(encoded.back() == '=');
   REQUIRE(raw_from_b64(encoded) == raw);
 
-  // Whole groups, partial groups and extra padding are all rejected
-  for (const std::string trailing : {"AQID", "A", "AA", "AAA", "=", "AQ=="})
+  // Whole and partial groups after the padding are rejected as data after
+  // padding, and a third padding character as an incomplete final group,
+  // as they are by a single call
+  for (const std::string trailing : {"AQID", "A", "AA", "AAA", "AQ=="})
   {
     INFO("trailing = " << trailing);
     REQUIRE_THROWS_AS(raw_from_b64(encoded + trailing), std::invalid_argument);
   }
+  REQUIRE_THROWS_AS(raw_from_b64(encoded + "="), std::logic_error);
 
   // Trailing whitespace after padding is still accepted
   REQUIRE(raw_from_b64(encoded + "\n") == raw);
@@ -198,7 +202,8 @@ TEST_CASE("base64 rejects data after padding across OpenSSL updates")
 TEST_CASE("base64 end marker across OpenSSL updates")
 {
   // OpenSSL treats '-' as an end-of-content marker and ignores whatever
-  // follows it in the same call. Following chunks must not be decoded.
+  // follows it in the same call, but does not remember it across calls, so
+  // what follows must not be decoded either.
   const std::string ignored(BASE64_MAX_UPDATE_SIZE, 'x');
   REQUIRE(
     raw_from_b64("AQID-" + ignored + "AQID") == std::vector<uint8_t>{1, 2, 3});
@@ -217,9 +222,10 @@ TEST_CASE("base64 end marker across OpenSSL updates")
 TEST_CASE("base64 chunked decoding matches a single OpenSSL call")
 {
   // For any input and any chunk size, decoding in chunks must accept or
-  // reject exactly as a single call does, and produce the same bytes. The
-  // alphabet includes padding, the end marker, whitespace and an invalid
-  // character, so that chunk boundaries fall on every kind of state change.
+  // reject exactly as a single call does, with the same bytes or the same
+  // kind of exception. The alphabet includes padding, the end marker,
+  // whitespace and an invalid character, so that chunk boundaries fall on
+  // every kind of state change.
   static constexpr std::string_view alphabet =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
     "====----\n\n\r\t  !";
@@ -227,16 +233,26 @@ TEST_CASE("base64 chunked decoding matches a single OpenSSL call")
   std::uniform_int_distribution<size_t> pick_char(0, alphabet.size() - 1);
   std::uniform_int_distribution<size_t> pick_len(0, 140);
 
-  auto decode = [](
-                  const std::string& input,
-                  size_t chunk_size) -> std::optional<std::vector<uint8_t>> {
+  enum class Outcome
+  {
+    DECODED,
+    INVALID_ARGUMENT,
+    LOGIC_ERROR
+  };
+  auto decode = [](const std::string& input, size_t chunk_size)
+    -> std::pair<Outcome, std::vector<uint8_t>> {
     try
     {
-      return Base64_openssl::raw_from_b64(input, chunk_size);
+      return {
+        Outcome::DECODED, Base64_openssl::raw_from_b64(input, chunk_size)};
     }
-    catch (const std::exception&)
+    catch (const std::invalid_argument&)
     {
-      return std::nullopt;
+      return {Outcome::INVALID_ARGUMENT, {}};
+    }
+    catch (const std::logic_error&)
+    {
+      return {Outcome::LOGIC_ERROR, {}};
     }
   };
 
@@ -264,7 +280,7 @@ TEST_CASE("base64 chunked decoding matches a single OpenSSL call")
     }
 
     const auto expected = decode(input, SIZE_MAX);
-    accepted += expected.has_value() ? 1 : 0;
+    accepted += expected.first == Outcome::DECODED ? 1 : 0;
     for (size_t chunk_size = 1; chunk_size <= 9; ++chunk_size)
     {
       INFO("input = " << input << ", chunk_size = " << chunk_size);
