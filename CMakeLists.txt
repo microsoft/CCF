@@ -534,6 +534,7 @@ install(
   PATTERN "*.hpp"
   PATTERN "*.inc"
 )
+install(FILES THIRD_PARTY_NOTICES.txt DESTINATION ${CMAKE_INSTALL_DOCDIR})
 
 install(
   FILES
