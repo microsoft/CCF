@@ -3,9 +3,13 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/base64.h"
 
+#include "crypto/openssl/base64.h"
+
+#include <algorithm>
 #include <chrono>
 #include <doctest/doctest.h>
 #include <string>
+#include <vector>
 
 using namespace std;
 using namespace ccf::crypto;
@@ -111,4 +115,75 @@ TEST_CASE("base64 random")
     }
     REQUIRE(decoded == raw);
   }
+}
+
+// Encodes 3 bytes into 4 characters without the OpenSSL context, so a
+// chunked result can be compared against an independent expectation.
+static std::string reference_b64(const std::vector<uint8_t>& raw)
+{
+  static constexpr std::string_view alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string out((raw.size() + 2) / 3 * 4, '=');
+  size_t o = 0;
+  for (size_t i = 0; i < raw.size(); i += 3, o += 4)
+  {
+    const uint32_t b0 = raw[i];
+    const uint32_t b1 = i + 1 < raw.size() ? raw[i + 1] : 0;
+    const uint32_t b2 = i + 2 < raw.size() ? raw[i + 2] : 0;
+    const uint32_t triple = (b0 << 16) | (b1 << 8) | b2;
+    out[o] = alphabet[(triple >> 18) & 0x3f];
+    out[o + 1] = alphabet[(triple >> 12) & 0x3f];
+    if (i + 1 < raw.size())
+    {
+      out[o + 2] = alphabet[(triple >> 6) & 0x3f];
+    }
+    if (i + 2 < raw.size())
+    {
+      out[o + 3] = alphabet[triple & 0x3f];
+    }
+  }
+  return out;
+}
+
+TEST_CASE("base64 inputs spanning several OpenSSL updates")
+{
+  // Inputs are fed to OpenSSL in chunks of BASE64_MAX_UPDATE_SIZE bytes,
+  // which is not a multiple of the encoder's 48-byte group, so every chunk
+  // boundary splits a group. The decoder works in 64-character lines, which
+  // the chunk size is a multiple of; decoding from an offset covers chunk
+  // boundaries inside a line too.
+  static_assert(BASE64_MAX_UPDATE_SIZE % 48 != 0);
+  static_assert(BASE64_MAX_UPDATE_SIZE % 64 == 0);
+  std::vector<uint8_t> raw(BASE64_MAX_UPDATE_SIZE * 2 + 1);
+  std::generate(raw.begin(), raw.end(), rand);
+
+  for (const size_t length :
+       {BASE64_MAX_UPDATE_SIZE - 1, BASE64_MAX_UPDATE_SIZE + 1, raw.size()})
+  {
+    INFO("length = " << length);
+    const std::vector<uint8_t> input(raw.begin(), raw.begin() + length);
+    const auto encoded = b64_from_raw(input.data(), input.size());
+    REQUIRE(encoded == reference_b64(input));
+    REQUIRE(raw_from_b64(encoded) == input);
+    REQUIRE(
+      raw_from_b64(encoded.substr(4)) ==
+      std::vector<uint8_t>(input.begin() + 3, input.end()));
+  }
+}
+
+TEST_CASE("base64 rejects data after padding across OpenSSL updates")
+{
+  // A padded group which ends exactly at a chunk boundary must not let the
+  // following chunk be decoded as a fresh string
+  const std::vector<uint8_t> raw(BASE64_MAX_UPDATE_SIZE / 4 * 3 - 1, 0xAB);
+  auto encoded = b64_from_raw(raw.data(), raw.size());
+  REQUIRE(encoded.size() == BASE64_MAX_UPDATE_SIZE);
+  REQUIRE(encoded.back() == '=');
+  REQUIRE(raw_from_b64(encoded) == raw);
+
+  REQUIRE_THROWS_AS(raw_from_b64(encoded + "AQID"), std::invalid_argument);
+  REQUIRE_THROWS_AS(raw_from_b64(encoded + "AQ=="), std::invalid_argument);
+
+  // Trailing whitespace after padding is still accepted
+  REQUIRE(raw_from_b64(encoded + "\n") == raw);
 }

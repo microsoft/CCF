@@ -1823,24 +1823,6 @@ TEST_CASE("Entropy larger than INT_MAX")
     std::any_of(tail.begin(), tail.end(), [](uint8_t b) { return b != 0; }));
 }
 
-TEST_CASE("Base64 inputs larger than INT_MAX")
-{
-  // The encode and decode update calls take and return int lengths. An
-  // INT_MAX encode input is rejected because its output would not fit.
-  LazyMapping mapping(over_int_max, PROT_NONE);
-  const auto oversized = mapping.span();
-  REQUIRE_THROWS_AS(
-    (void)b64_from_raw(oversized.data(), oversized.size()),
-    std::invalid_argument);
-  REQUIRE_THROWS_AS(
-    (void)b64_from_raw(oversized.data(), over_int_max - 1),
-    std::invalid_argument);
-  REQUIRE_THROWS_AS(
-    (void)raw_from_b64(std::string_view(
-      reinterpret_cast<const char*>(oversized.data()), oversized.size())),
-    std::invalid_argument);
-}
-
 TEST_CASE("Base64 inputs spanning several encoded lines")
 {
   // OpenSSL breaks encoded output into 64-character lines, removed on return
