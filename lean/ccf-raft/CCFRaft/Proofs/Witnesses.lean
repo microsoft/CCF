@@ -280,7 +280,7 @@ def electionStart := start {0, 1, 2} [0, 1, 2]
 pre-vote and term 3 with node 2's votes while node 0 still leads term 2. -/
 def electionChoices : List (CCFRaft.Model.State -> CCFRaft.Model.Action) :=
   [
-    input 0 (.append [.signature]),
+    input 0 (.append [{ content := .signature }]),
     input 0 (.sendEntries 1 2),
     deliverFrom 0 1,
     input 1 (.timeout .election),
@@ -349,13 +349,13 @@ transaction, so node 1's log is behind and its pre-vote requests are refused.
 -/
 def commitChoices : List (CCFRaft.Model.State -> CCFRaft.Model.Action) :=
   [
-    input 0 (.append [.signature]),
+    input 0 (.append [{ content := .signature }]),
     input 0 (.sendEntries 1 2),
     deliverOldest,
     deliverOldest,
     input 0 (.sendEntries 1 2),
     deliverOldest,
-    input 0 (.append [.transaction 1 {}, .signature]),
+    input 0 (.append [{ content := .transaction 1 {} }, { content := .signature }]),
     input 1 (.timeout .election),
     deliverFrom 1 0,
     deliverFrom 0 1
@@ -421,7 +421,7 @@ def singleStart := start {0} [0]
 
 /-- A single initial primary signs and so commits its bootstrap configuration. -/
 def singleChoices : List (CCFRaft.Model.State -> CCFRaft.Model.Action) :=
-  [input 0 (.append [.signature])]
+  [input 0 (.append [{ content := .signature }])]
 
 /-- With no peers, nominating a successor sends nothing and changes nothing. -/
 def singleCycle : List (CCFRaft.Model.State -> CCFRaft.Model.Action) :=
@@ -444,7 +444,7 @@ theorem single_final_present : (nodeState singleFinal 0).isSome := by decide
 /-- After committing the bootstrap signature, the primary commits a further
 transaction and signature in one batch. -/
 def extendAction : CCFRaft.Model.Action :=
-  .local 0 (.append [.transaction 1 {}, .signature])
+  .local 0 (.append [{ content := .transaction 1 {} }, { content := .signature }])
 
 theorem single_final_distinct : (singleFinal.nodes.map Prod.fst).Nodup := by
   unfold singleFinal singleSystem singleStart singleChoices

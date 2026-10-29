@@ -6,6 +6,10 @@ on:
       - "lean/**"
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
+      - "tests/raft_trace*.py"
+      - "tests/raft_scenarios*.py"
+      - "tests/raft_scenarios/**"
+      - "src/consensus/aft/**"
       - ".github/workflows/lean.yml"
 
 concurrency:
@@ -15,6 +19,52 @@ concurrency:
 permissions: read-all
 
 jobs:
+  raft_traces:
+    name: Raft scenario captures
+    runs-on: [gha-vmss-d16av7-ci-c]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout dependencies
+        run: |
+          set -euo pipefail
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        uses: ./.github/actions/install-ci-dependencies
+        with:
+          cache-python-packages: "false"
+
+      - name: Generate scenario captures
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          cmake -S . -B "$RUNNER_TEMP/ccf-raft-build" -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
+          cmake --build "$RUNNER_TEMP/ccf-raft-build" --target raft_driver --parallel "$(( ($(nproc) + 1) >> 1 ))"
+          uv run --no-project --with msgpack \
+            ctest --test-dir "$RUNNER_TEMP/ccf-raft-build" -VV -R "^raft_scenario_test$" --no-tests=error
+
+      - name: Upload Raft traces
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: raft-scenario-traces
+          path: ${{ runner.temp }}/ccf-raft-build/consensus/raw/*.ndjson
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
   models:
     name: Lean models and proofs
     runs-on: ubuntu-26.04
@@ -28,7 +78,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y elan python3-jsonschema
+          sudo apt-get install -y elan gh python3-jsonschema
           elan toolchain install "$(cat lean/lean-toolchain)"
 
       - name: Restore Mathlib caches
@@ -53,7 +103,20 @@ jobs:
             (
               cd "$package"
               echo "::group::Build, kernel and axiom check: $package"
-              lake check --inadvisably-no-sandbox
+              if [ "$package" = "lean/ccf-raft" ]; then
+                original="$(mktemp)"
+                cp lakefile.toml "$original"
+                trap 'cp "$original" lakefile.toml; rm "$original"' EXIT
+                for target in CCFRaft ccfraft-replay; do
+                  sed "s/^defaultTargets = .*/defaultTargets = [\"$target\"]/" "$original" > lakefile.toml
+                  lake check --inadvisably-no-sandbox
+                done
+                cp "$original" lakefile.toml
+                rm "$original"
+                trap - EXIT
+              else
+                lake check --inadvisably-no-sandbox
+              fi
               echo "::endgroup::"
               echo "::group::Import coverage and architecture: $package"
               lake exe check-imports
@@ -70,6 +133,37 @@ jobs:
             package="$(dirname "$config")"
             echo "::group::Lint: $package"
             (cd "$package" && lake lint)
+            echo "::endgroup::"
+          done
+
+      - name: Build Raft replay
+        working-directory: lean/ccf-raft
+        run: lake build --wfail ccfraft-replay
+
+      - name: Validate Raft trace fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in lean/ccf-raft/replay/fixtures/valid/*.ndjson; do
+            echo "::group::Validate $trace"
+            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace"
+            echo "::endgroup::"
+          done
+
+      - name: Reject invalid Raft trace fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in lean/ccf-raft/replay/fixtures/invalid/*.ndjson; do
+            echo "::group::Reject $trace"
+            status=0
+            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace" || status=$?
+            if [ "$status" -ne 1 ]; then
+              echo "::error::$trace: expected rejection (exit 1), got exit $status"
+              exit 1
+            fi
             echo "::endgroup::"
           done
 
@@ -90,3 +184,50 @@ jobs:
       - name: Dump replays for the trace viewer
         shell: bash
         run: python3 lean/disaster-recovery/replayer/viewer/build.py
+
+      # Wait here instead of using needs so independent Lean checks run in parallel with capture generation.
+      - name: Wait for Raft scenario captures
+        timeout-minutes: 60
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          job="Raft scenario captures"
+          while true; do
+            if ! state=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
+              --jq ".jobs[] | select(.name == \"${job}\") | \"\(.status) \(.conclusion)\""); then
+              echo "::warning::Could not read ${job} status; retrying"
+              state="unavailable"
+            fi
+            case "${state}" in
+              "completed success") exit 0 ;;
+              completed*)
+                echo "::error::${job} concluded ${state#completed }, so its traces cannot be validated"
+                exit 1
+                ;;
+              "")
+                echo "::error::${job} was not found in this workflow run"
+                exit 1
+                ;;
+            esac
+            echo "Waiting for ${job} (${state%% *})"
+            sleep 30
+          done
+
+      - name: Download Raft traces
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: raft-scenario-traces
+          path: ${{ runner.temp }}/raft-scenario-traces
+
+      - name: Validate Raft traces
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in "$RUNNER_TEMP"/raft-scenario-traces/*.ndjson; do
+            echo "::group::Validate $trace"
+            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace"
+            echo "::endgroup::"
+          done

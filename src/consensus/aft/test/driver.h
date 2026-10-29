@@ -247,7 +247,7 @@ public:
     ccf::kv::Configuration::Nodes configuration;
     add_node(start_node_id);
     configuration.try_emplace(start_node_id);
-    _nodes[start_node_id].raft->force_become_primary();
+    _nodes.at(start_node_id).raft->force_become_primary();
     _replicate("2", {}, lineno, false, configuration);
     RAFT_DRIVER_PRINT(
       "Note over {}: Node {} created",
