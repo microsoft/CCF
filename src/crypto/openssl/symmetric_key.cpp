@@ -7,6 +7,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ds/internal_logger.h"
 
+#include <algorithm>
 #include <climits>
 #include <openssl/aes.h>
 #include <openssl/evp.h>
@@ -54,6 +55,38 @@ namespace ccf::crypto
       return EVP_aes_128_wrap_pad();
     }
 
+    // A null output authenticates AAD; otherwise GCM emits each payload byte.
+    void update_in_chunks(
+      EVP_CIPHER_CTX* context, std::span<const uint8_t> input, uint8_t* output)
+    {
+      static_assert(GCM_MAX_UPDATE_SIZE > 0 && GCM_MAX_UPDATE_SIZE <= INT_MAX);
+      while (!input.empty())
+      {
+        const auto chunk =
+          input.first(std::min(input.size(), GCM_MAX_UPDATE_SIZE));
+        // int rather than int32_t: must match EVP_CipherUpdate's int* out
+        // parameter exactly, whatever width the platform gives int.
+        int outl{0};
+        // Dispatches to EVP_EncryptUpdate or EVP_DecryptUpdate according to
+        // the initialized context.
+        CHECK1(EVP_CipherUpdate(
+          context,
+          output,
+          &outl,
+          chunk.data(),
+          static_cast<int>(chunk.size())));
+
+        // As we use no padding, we expect the input and output lengths to
+        // match.
+        assert(output == nullptr || static_cast<size_t>(outl) == chunk.size());
+        input = input.subspan(chunk.size());
+        if (output != nullptr)
+        {
+          output += chunk.size();
+        }
+      }
+    }
+
     void encrypt_with_context(
       EVP_CIPHER_CTX* context,
       std::span<const uint8_t> iv,
@@ -66,11 +99,20 @@ namespace ccf::crypto
       {
         throw std::logic_error("aad and plain cannot both be empty");
       }
-      if (
-        cipher.size() != plain.size() || plain.size() > INT_MAX ||
-        aad.size() > INT_MAX)
+      if (cipher.size() != plain.size())
       {
-        throw std::logic_error("Invalid AES-GCM input or output size");
+        throw std::logic_error(fmt::format(
+          "AES-GCM ciphertext size {} does not match plaintext size {}",
+          cipher.size(),
+          plain.size()));
+      }
+
+      if (plain.size() > GCM_MAX_DATA_SIZE)
+      {
+        throw std::logic_error(fmt::format(
+          "AES-GCM plaintext size {} exceeds the limit of {} bytes",
+          plain.size(),
+          GCM_MAX_DATA_SIZE));
       }
 
       CHECK1(EVP_CIPHER_CTX_ctrl(
@@ -78,27 +120,8 @@ namespace ccf::crypto
       CHECK1(
         EVP_EncryptInit_ex2(context, nullptr, nullptr, iv.data(), nullptr));
 
-      if (!aad.empty())
-      {
-        int aad_outl{0};
-        CHECK1(EVP_EncryptUpdate(
-          context, nullptr, &aad_outl, aad.data(), aad.size()));
-      }
-
-      if (!plain.empty())
-      {
-        int cipher_outl{0};
-        CHECK1(EVP_EncryptUpdate(
-          context,
-          cipher.data(),
-          &cipher_outl,
-          plain.data(),
-          static_cast<int>(plain.size())));
-
-        // As we use no padding, we expect the input and output lengths to
-        // match.
-        assert(static_cast<size_t>(cipher_outl) == plain.size());
-      }
+      update_in_chunks(context, aad, nullptr);
+      update_in_chunks(context, plain, cipher.data());
 
       int final_outl{0};
       CHECK1(EVP_EncryptFinal_ex(context, nullptr, &final_outl));
@@ -143,33 +166,22 @@ namespace ccf::crypto
       std::span<const uint8_t> aad,
       std::vector<uint8_t>& plain)
     {
+      // Never produced by encrypt(), so fail authentication rather than throw
+      if (cipher.size() > GCM_MAX_DATA_SIZE)
+      {
+        plain.clear();
+        return false;
+      }
+
       CHECK1(EVP_CIPHER_CTX_ctrl(
         context, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
       CHECK1(
         EVP_DecryptInit_ex2(context, nullptr, nullptr, iv.data(), nullptr));
 
-      if (!aad.empty())
-      {
-        int aad_outl{0};
-        CHECK1(EVP_DecryptUpdate(
-          context, nullptr, &aad_outl, aad.data(), aad.size()));
-      }
+      update_in_chunks(context, aad, nullptr);
 
       std::vector<uint8_t> plaintext(cipher.size());
-      if (!cipher.empty())
-      {
-        int plain_outl{0};
-        CHECK1(EVP_DecryptUpdate(
-          context,
-          plaintext.data(),
-          &plain_outl,
-          cipher.data(),
-          cipher.size()));
-
-        // As we use no padding, we expect the input and output lengths to
-        // match.
-        assert(static_cast<size_t>(plain_outl) == cipher.size());
-      }
+      update_in_chunks(context, cipher, plaintext.data());
 
       void* tag_ptr = const_cast<void*>(static_cast<const void*>(tag));
       CHECK1(EVP_CIPHER_CTX_ctrl(
