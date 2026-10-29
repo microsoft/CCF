@@ -174,6 +174,86 @@ namespace ccf::cose
 
 namespace ccf::cose::edit
 {
+  namespace
+  {
+    size_t skip_cbor_head(
+      std::span<const uint8_t> input, uint8_t& major, uint64_t& argument)
+    {
+      using namespace tav::cbor;
+      if (input.empty())
+      {
+        throw DecodeError(Error::DECODE_FAILED, "Truncated CBOR item");
+      }
+
+      major = input[0] >> 5;
+      const auto additional = input[0] & 0x1f;
+      if (additional < 24)
+      {
+        argument = additional;
+        return 1;
+      }
+
+      if (additional > 27)
+      {
+        throw DecodeError(
+          Error::DECODE_FAILED, "Expected definite-length CBOR");
+      }
+
+      const size_t width = size_t{1} << (additional - 24);
+      if (input.size() < 1 + width)
+      {
+        throw DecodeError(Error::DECODE_FAILED, "Truncated CBOR argument");
+      }
+
+      argument = 0;
+      for (size_t i = 1; i <= width; ++i)
+      {
+        argument = (argument << 8) | input[i];
+      }
+
+      return 1 + width;
+    }
+
+    size_t encoded_item_size(std::span<const uint8_t> input)
+    {
+      // The parser has already validated this input. Walk its original
+      // encoding to locate an item boundary without normalizing its lengths.
+      size_t offset = 0;
+      size_t pending = 1;
+      while (pending != 0)
+      {
+        uint8_t major = 0;
+        uint64_t argument = 0;
+        offset += skip_cbor_head(input.subspan(offset), major, argument);
+        --pending;
+        if (major == 2 || major == 3)
+        {
+          if (argument > input.size() - offset)
+          {
+            throw tav::cbor::DecodeError(
+              tav::cbor::Error::DECODE_FAILED, "Truncated CBOR string");
+          }
+
+          offset += argument;
+        }
+        else if (major == 4 || major == 5 || major == 6)
+        {
+          const uint64_t children =
+            major == 6 ? 1 : argument * (major == 5 ? 2 : 1);
+          if (children > input.size() - offset)
+          {
+            throw tav::cbor::DecodeError(
+              tav::cbor::Error::DECODE_FAILED, "Truncated CBOR container");
+          }
+
+          pending += children;
+        }
+      }
+
+      return offset;
+    }
+  }
+
   std::vector<uint8_t> set_unprotected_header(
     const std::span<const uint8_t>& cose_input, const desc::Type& descriptor)
   {
@@ -185,6 +265,12 @@ namespace ccf::cose::edit
     const Value cose_envelope = rethrow_with_msg(
       [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
       "Failed to parse COSE_Sign1 tag");
+
+    if (cose_envelope.kind() != Kind::ARRAY || cose_envelope.size() != 4)
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH, "COSE_Sign1 must be an array of 4 elements");
+    }
 
     const Value phdr = rethrow_with_msg(
       [&]() { return cose_envelope.array_at(0); },
@@ -198,12 +284,30 @@ namespace ccf::cose::edit
       [&]() { return cose_envelope.array_at(3); },
       "Failed to parse COSE_Sign1 signature");
 
-    std::vector<Value> edited;
-    edited.push_back(shallow_copy(phdr));
+    std::ignore = phdr.as_bytes();
+    if (cose_envelope.array_at(1).kind() != Kind::MAP)
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH, "COSE_Sign1 unprotected header must be a map");
+    }
+
+    if (
+      payload.kind() != Kind::BYTES &&
+      !(payload.kind() == Kind::SIMPLE &&
+        payload.as_simple() == SimpleValue::Null))
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH,
+        "COSE_Sign1 payload must be a byte string or nil");
+    }
+
+    std::ignore = signature.as_bytes();
+
+    Value replacement;
 
     if (std::holds_alternative<desc::Empty>(descriptor))
     {
-      edited.push_back(make_map({}));
+      replacement = make_map({});
     }
     else if (std::holds_alternative<desc::Value>(descriptor))
     {
@@ -232,19 +336,30 @@ namespace ccf::cose::edit
         throw std::logic_error("Invalid COSE_Sign1 edit operation");
       }
 
-      edited.push_back(make_map(std::move(uhdr)));
+      replacement = make_map(std::move(uhdr));
     }
     else
     {
       throw std::logic_error("Invalid COSE_Sign1 edit descriptor");
     }
 
-    edited.push_back(shallow_copy(payload));
-    edited.push_back(shallow_copy(signature));
+    uint8_t major = 0;
+    uint64_t argument = 0;
+    size_t header_start = skip_cbor_head(cose_input, major, argument);
+    header_start +=
+      skip_cbor_head(cose_input.subspan(header_start), major, argument);
+    header_start += encoded_item_size(cose_input.subspan(header_start));
+    const auto header_end =
+      header_start + encoded_item_size(cose_input.subspan(header_start));
+    const auto encoded_header = replacement.nondet_serialize();
 
-    const Value edited_envelope =
-      make_tagged(ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(edited)));
-    return edited_envelope.nondet_serialize();
+    std::vector<uint8_t> edited(
+      cose_input.begin(), cose_input.begin() + header_start);
+    edited.insert(edited.end(), encoded_header.begin(), encoded_header.end());
+    edited.insert(
+      edited.end(), cose_input.begin() + header_end, cose_input.end());
+
+    return edited;
   }
 
   std::vector<uint8_t> detach_payload(

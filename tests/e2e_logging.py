@@ -1140,6 +1140,39 @@ def test_cose_receipt_schema(network, args):
                 )
                 assert receipt_phdr[15][1] == "service.example.com"
                 assert receipt_phdr[15][2] == "ledger.signature"
+
+                phdr, _uhdr, payload, signature = cbor2.loads(cbor_proof).value
+
+                proof_with_trailing_data = cbor2.loads(cbor_proof).value[1]
+                proof_with_trailing_data[396][-1][0] += b"\x00"
+
+                inconsistent_proof = cbor2.loads(cbor_proof).value[1]
+                inconsistent_proof[396][-2] = [
+                    cbor2.dumps({1: b"\x00" * 32, 2: [[False, b"\x00" * 32]]})
+                ]
+
+                malformed_receipts = [
+                    cbor_proof + b"\x00",
+                    cbor2.dumps(
+                        cbor2.CBORTag(
+                            18, [phdr, proof_with_trailing_data, payload, signature]
+                        )
+                    ),
+                    cbor2.dumps(
+                        cbor2.CBORTag(
+                            18, [phdr, inconsistent_proof, payload, signature]
+                        )
+                    ),
+                ]
+
+                for malformed in malformed_receipts:
+                    try:
+                        ccf.receipt.verify_cose(malformed, service_key, b"\x00" * 32)
+                    except ValueError:
+                        pass
+                    else:
+                        raise AssertionError("Malformed COSE receipt was accepted")
+
                 cbor_proof_filename = os.path.join(
                     network.common_dir, f"receipt_{txid}.cose"
                 )

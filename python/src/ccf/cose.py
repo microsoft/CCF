@@ -44,6 +44,7 @@ COSE_PHDR_VDP_LABEL = 396
 COSE_PHDR_VDS_LABEL = 395
 COSE_PHDR_VDS_CCF_LEDGER_SHA256 = 2
 COSE_RECEIPT_INCLUSION_PROOF_LABEL = -1
+COSE_RECEIPT_CONSISTENCY_PROOF_LABEL = -2
 
 # See https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
 
