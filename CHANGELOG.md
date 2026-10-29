@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Fixed
 
-- `ccf.receipt.verify_cose` now enforces the CCF receipt profile's proof schemas and common-root checks, and COSE unprotected-header edits preserve all other submitted bytes. See [COSE Receipt Verification](doc/use_apps/verify_tx.rst#cose-receipt-verification) for input requirements and compatibility details.
+- `ccf.receipt.verify_cose` now enforces the CCF receipt profile's proof schemas and common-root checks, and COSE unprotected-header edits preserve all other submitted bytes. See [COSE Receipt Verification](doc/use_apps/verify_tx.rst#cose-receipt-verification) for input requirements and compatibility details (#8646).
 - `ccf::crypto::Verifier::remaining_seconds()` now returns the whole validity period before that period starts, and `remaining_percentage()` always returns a fraction between 0.0 and 1.0, including for a certificate whose validity period ends before it starts (#8626).
 - Service certificate renewal, recovery and previous-identity endorsements now preserve multi-RDN `service_subject_name` values such as `CN=CCF Service,O=CCF User` (#8627).
 - Nodes can now generate and load snapshots of services whose public or private state exceeds 2 GiB, including the snapshot taken when a recovered service opens. `ccf::crypto::KeyAesGcm` encryption and decryption now accept AAD and data larger than 2 GiB (#8644).
