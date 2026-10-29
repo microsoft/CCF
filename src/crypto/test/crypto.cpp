@@ -1829,6 +1829,18 @@ TEST_CASE("Entropy larger than INT_MAX")
     std::any_of(tail.begin(), tail.end(), [](uint8_t b) { return b != 0; }));
 }
 
+TEST_CASE("Base64 text larger than INT_MAX")
+{
+  // Decoding is a single update call taking an int length, so the input is
+  // rejected without being read. Encoding is chunked, so it is not limited.
+  LazyMapping mapping(over_int_max, PROT_NONE);
+  const auto oversized = mapping.span();
+  REQUIRE_THROWS_AS(
+    (void)raw_from_b64(std::string_view(
+      reinterpret_cast<const char*>(oversized.data()), oversized.size())),
+    std::invalid_argument);
+}
+
 TEST_CASE("Base64 inputs spanning several encoded lines")
 {
   // OpenSSL breaks encoded output into 64-character lines, removed on return

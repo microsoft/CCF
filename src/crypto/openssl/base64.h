@@ -18,28 +18,34 @@
 
 namespace ccf::crypto
 {
-  // Chosen chunk size, not a Base64 limit. EVP_EncodeUpdate and
-  // EVP_DecodeUpdate take and return int lengths, and buffer partial groups
-  // in the context, so input may be fed in chunks of any size. 16 MiB keeps
-  // each call, and its output, well below INT_MAX.
+  // Chosen chunk size, not a Base64 limit. EVP_EncodeUpdate takes and
+  // returns int lengths, and buffers the partial group in the context, so
+  // input may be fed in chunks of any size. 16 MiB keeps each call, and its
+  // output, well below INT_MAX.
   constexpr size_t BASE64_MAX_UPDATE_SIZE = size_t{16} * 1024 * 1024;
 
   struct Base64_openssl
   {
-    // Decode Base64 into byte stream. The input is fed to OpenSSL in chunks
-    // of at most chunk_size bytes; smaller sizes than the default only serve
-    // to test chunk boundaries.
-    static std::vector<uint8_t> raw_from_b64(
-      const std::string_view& b64_string,
-      size_t chunk_size = BASE64_MAX_UPDATE_SIZE)
+    // Decode Base64 into byte stream
+    static std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string)
     {
-      std::span<const uint8_t> input(
-        reinterpret_cast<const uint8_t*>(b64_string.data()), b64_string.size());
-      const auto size = input.size();
+      const auto* const data =
+        reinterpret_cast<const uint8_t*>(b64_string.data());
+      const auto size = b64_string.size();
 
       if (size == 0)
       {
         return {};
+      }
+
+      // The update call takes and returns int lengths. Unlike encoding, the
+      // decoder is not chunked: OpenSSL does not remember across calls that
+      // it has seen padding or its end-of-content marker, and no Base64 text
+      // this large is ever decoded.
+      if (size > INT_MAX || EVP_DECODE_LENGTH(size) > INT_MAX)
+      {
+        throw std::invalid_argument(fmt::format(
+          "OSSL: Base64 input of {} bytes is too large to decode", size));
       }
 
       // Make sure the error queue is clean before we start
@@ -51,65 +57,27 @@ namespace ccf::crypto
       EVP_DecodeInit(ctx);
 
       // Calculate the output buffer size: b64 is 6 bits per byte
-      const size_t max_size = EVP_DECODE_LENGTH(size);
+      const auto max_size = static_cast<int>(EVP_DECODE_LENGTH(size));
       std::vector<unsigned char> output(max_size, '\0');
-      size_t decoded_len = 0;
 
-      auto update = [&](std::span<const uint8_t> chunk) {
-        int chunk_len = 0;
-        const int rc = EVP_DecodeUpdate(
-          ctx,
-          output.data() + decoded_len,
-          &chunk_len,
-          chunk.data(),
-          static_cast<int>(chunk.size()));
-        if (rc < 0)
-        {
-          auto err_str = OpenSSL::first_error();
-          throw std::invalid_argument(fmt::format(
-            "OSSL: Could not decode update from base64 string: {} [{} bytes "
-            "out of {}, chunk_len = {}]",
-            err_str,
-            size,
-            max_size,
-            chunk_len));
-        }
-        decoded_len += static_cast<size_t>(chunk_len);
-      };
-
-      // Between calls the context keeps only the current partial group. It
-      // does not remember that it has seen padding, or '-', which OpenSSL
-      // treats as an end-of-content marker; both affect how the rest of the
-      // input is handled. So only the input before the first of those is fed
-      // in chunks, and everything from it onward goes to OpenSSL in one call,
-      // which then behaves exactly as a single call over the whole input.
-      const auto tail_pos = std::min(b64_string.find_first_of("=-"), size);
-      auto body = input.first(tail_pos);
-      const auto tail = input.subspan(tail_pos);
-
-      while (!body.empty())
+      // Decode
+      int chunk_len = 0;
+      int rc = EVP_DecodeUpdate(
+        ctx, output.data(), &chunk_len, data, static_cast<int>(size));
+      if (rc < 0)
       {
-        const auto chunk = body.first(std::min(body.size(), chunk_size));
-        update(chunk);
-        body = body.subspan(chunk.size());
-      }
-
-      // A valid tail holds at most two padding characters and whitespace
-      if (tail.size() > INT_MAX)
-      {
+        auto err_str = OpenSSL::first_error();
         throw std::invalid_argument(fmt::format(
-          "OSSL: Could not decode base64 string: {} bytes follow the padding "
-          "or end marker",
-          tail.size()));
+          "OSSL: Could not decode update from base64 string: {} [{} bytes out "
+          "of {}, chunk_len = {}]",
+          err_str,
+          size,
+          max_size,
+          chunk_len));
       }
-      if (!tail.empty())
-      {
-        update(tail);
-      }
+      int decoded_len = chunk_len;
 
-      int final_len = 0;
-      const int rc =
-        EVP_DecodeFinal(ctx, output.data() + decoded_len, &final_len);
+      rc = EVP_DecodeFinal(ctx, output.data() + chunk_len, &chunk_len);
       if (rc != 1)
       {
         auto err_str = OpenSSL::first_error();
@@ -119,9 +87,9 @@ namespace ccf::crypto
           err_str,
           size,
           max_size,
-          final_len));
+          chunk_len));
       }
-      decoded_len += static_cast<size_t>(final_len);
+      decoded_len += chunk_len;
 
       std::vector<uint8_t> ret(output.data(), output.data() + decoded_len);
 

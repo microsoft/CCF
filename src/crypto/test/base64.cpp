@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <chrono>
 #include <doctest/doctest.h>
-#include <optional>
 #include <random>
 #include <string>
 #include <vector>
@@ -149,13 +148,10 @@ static std::string reference_b64(const std::vector<uint8_t>& raw)
 
 TEST_CASE("base64 inputs spanning several OpenSSL updates")
 {
-  // Inputs are fed to OpenSSL in chunks of BASE64_MAX_UPDATE_SIZE bytes,
-  // which is not a multiple of the encoder's 48-byte group, so every chunk
-  // boundary splits a group. The decoder works in 64-character lines, which
-  // the chunk size is a multiple of; decoding from an offset covers chunk
-  // boundaries inside a line too.
+  // Input is fed to the encoder in chunks of BASE64_MAX_UPDATE_SIZE bytes,
+  // which is not a multiple of its 48-byte group, so every chunk boundary
+  // splits a group
   static_assert(BASE64_MAX_UPDATE_SIZE % 48 != 0);
-  static_assert(BASE64_MAX_UPDATE_SIZE % 64 == 0);
   std::vector<uint8_t> raw(BASE64_MAX_UPDATE_SIZE * 2 + 1);
   std::generate(raw.begin(), raw.end(), rand);
 
@@ -167,129 +163,7 @@ TEST_CASE("base64 inputs spanning several OpenSSL updates")
     const auto encoded = b64_from_raw(input.data(), input.size());
     REQUIRE(encoded == reference_b64(input));
     REQUIRE(raw_from_b64(encoded) == input);
-    REQUIRE(
-      raw_from_b64(encoded.substr(4)) ==
-      std::vector<uint8_t>(input.begin() + 3, input.end()));
   }
-}
-
-TEST_CASE("base64 rejects data after padding across OpenSSL updates")
-{
-  // The context does not remember padding across calls, so a padded group
-  // which ends exactly at a chunk boundary must not let what follows be
-  // decoded as a fresh string
-  const std::vector<uint8_t> raw(BASE64_MAX_UPDATE_SIZE / 4 * 3 - 1, 0xAB);
-  auto encoded = b64_from_raw(raw.data(), raw.size());
-  REQUIRE(encoded.size() == BASE64_MAX_UPDATE_SIZE);
-  REQUIRE(encoded.back() == '=');
-  REQUIRE(raw_from_b64(encoded) == raw);
-
-  // Whole and partial groups after the padding are rejected as data after
-  // padding, and a third padding character as an incomplete final group,
-  // as they are by a single call
-  for (const std::string trailing : {"AQID", "A", "AA", "AAA", "AQ=="})
-  {
-    INFO("trailing = " << trailing);
-    REQUIRE_THROWS_AS(raw_from_b64(encoded + trailing), std::invalid_argument);
-  }
-  REQUIRE_THROWS_AS(raw_from_b64(encoded + "="), std::logic_error);
-
-  // Trailing whitespace after padding is still accepted
-  REQUIRE(raw_from_b64(encoded + "\n") == raw);
-  REQUIRE(raw_from_b64(encoded + " \r\n\t") == raw);
-}
-
-TEST_CASE("base64 end marker across OpenSSL updates")
-{
-  // OpenSSL treats '-' as an end-of-content marker and ignores whatever
-  // follows it in the same call, but does not remember it across calls, so
-  // what follows must not be decoded either.
-  const std::string ignored(BASE64_MAX_UPDATE_SIZE, 'x');
-  REQUIRE(
-    raw_from_b64("AQID-" + ignored + "AQID") == std::vector<uint8_t>{1, 2, 3});
-  REQUIRE(
-    raw_from_b64("AQI=-" + ignored + "AQID") == std::vector<uint8_t>{1, 2});
-
-  // The marker may also follow padding which ended a chunk
-  const std::vector<uint8_t> raw(BASE64_MAX_UPDATE_SIZE / 4 * 3 - 1, 0xAB);
-  const auto encoded = b64_from_raw(raw.data(), raw.size());
-  REQUIRE(encoded.size() == BASE64_MAX_UPDATE_SIZE);
-  REQUIRE(raw_from_b64(encoded + "-" + ignored) == raw);
-  REQUIRE(raw_from_b64(encoded + "\n-" + ignored) == raw);
-  REQUIRE_THROWS_AS(raw_from_b64(encoded + "A-"), std::invalid_argument);
-}
-
-TEST_CASE("base64 chunked decoding matches a single OpenSSL call")
-{
-  // For any input and any chunk size, decoding in chunks must accept or
-  // reject exactly as a single call does, with the same bytes or the same
-  // kind of exception. The alphabet includes padding, the end marker,
-  // whitespace and an invalid character, so that chunk boundaries fall on
-  // every kind of state change.
-  static constexpr std::string_view alphabet =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-    "====----\n\n\r\t  !";
-  std::mt19937 rng(42);
-  std::uniform_int_distribution<size_t> pick_char(0, alphabet.size() - 1);
-  std::uniform_int_distribution<size_t> pick_len(0, 140);
-
-  enum class Outcome
-  {
-    DECODED,
-    INVALID_ARGUMENT,
-    LOGIC_ERROR
-  };
-  auto decode = [](const std::string& input, size_t chunk_size)
-    -> std::pair<Outcome, std::vector<uint8_t>> {
-    try
-    {
-      return {
-        Outcome::DECODED, Base64_openssl::raw_from_b64(input, chunk_size)};
-    }
-    catch (const std::invalid_argument&)
-    {
-      return {Outcome::INVALID_ARGUMENT, {}};
-    }
-    catch (const std::logic_error&)
-    {
-      return {Outcome::LOGIC_ERROR, {}};
-    }
-  };
-
-  size_t accepted = 0;
-  for (size_t i = 0; i < 20000; ++i)
-  {
-    std::string input(pick_len(rng), ' ');
-    // Half the inputs are a valid encoding, possibly with a suffix
-    if (i % 2 == 0)
-    {
-      std::vector<uint8_t> raw(input.size() / 2);
-      std::generate(raw.begin(), raw.end(), [&]() { return rng() & 0xff; });
-      input = b64_from_raw(raw.data(), raw.size());
-      for (size_t j = 0, n = rng() % 4; j < n; ++j)
-      {
-        input.push_back(alphabet[pick_char(rng)]);
-      }
-    }
-    else
-    {
-      for (auto& c : input)
-      {
-        c = alphabet[pick_char(rng)];
-      }
-    }
-
-    const auto expected = decode(input, SIZE_MAX);
-    accepted += expected.first == Outcome::DECODED ? 1 : 0;
-    for (size_t chunk_size = 1; chunk_size <= 9; ++chunk_size)
-    {
-      INFO("input = " << input << ", chunk_size = " << chunk_size);
-      REQUIRE(decode(input, chunk_size) == expected);
-    }
-  }
-  // Both outcomes must be well represented for the comparison to mean much
-  REQUIRE(accepted > 2000);
-  REQUIRE(accepted < 18000);
 }
 
 TEST_CASE("base64 chunked encoding matches a single OpenSSL call")
