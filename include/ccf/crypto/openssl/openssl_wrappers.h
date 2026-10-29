@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <climits>
 #include <fmt/format.h>
 #include <memory>
 #include <openssl/asn1.h>
@@ -170,14 +171,11 @@ namespace ccf::crypto::OpenSSL
       Unique_SSL_OBJECT(BIO_new(BIO_s_mem()), [](auto x) { BIO_free(x); })
     {}
 
-    Unique_BIO(const void* buf, int len) :
-      Unique_SSL_OBJECT(BIO_new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
+    Unique_BIO(const void* buf, size_t len) :
+      Unique_SSL_OBJECT(new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
     {}
 
-    Unique_BIO(std::span<const uint8_t> s) :
-      Unique_SSL_OBJECT(
-        BIO_new_mem_buf(s.data(), s.size()), [](auto x) { BIO_free(x); })
-    {}
+    Unique_BIO(std::span<const uint8_t> s) : Unique_BIO(s.data(), s.size()) {}
 
     Unique_BIO(const Pem& pem) :
       Unique_SSL_OBJECT(
@@ -192,6 +190,19 @@ namespace ccf::crypto::OpenSSL
       Unique_SSL_OBJECT(
         BIO_new_ssl_connect(ctx), [](auto x) { BIO_free_all(x); })
     {}
+
+  private:
+    // BIO_new_mem_buf takes an int length, and treats a negative length as a
+    // NUL-terminated string, so a size_t must not be narrowed implicitly.
+    static BIO* new_mem_buf(const void* buf, size_t len)
+    {
+      if (len > INT_MAX)
+      {
+        throw std::invalid_argument(fmt::format(
+          "Buffer size {} exceeds the maximum of {} bytes", len, INT_MAX));
+      }
+      return BIO_new_mem_buf(buf, static_cast<int>(len));
+    }
   };
 
   struct Unique_SSL_CTX : public Unique_SSL_OBJECT<SSL_CTX, nullptr, nullptr>

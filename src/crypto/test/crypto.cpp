@@ -6,6 +6,7 @@
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/ec_key_pair.h"
+#include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hmac.h"
@@ -1725,6 +1726,169 @@ TEST_CASE("AES-GCM data larger than the GCM limit")
   context->encrypt(iv, plain, {}, cipher, tag);
   REQUIRE(context->decrypt(iv, tag, cipher, {}, decrypted));
   REQUIRE(decrypted == plain);
+}
+
+namespace
+{
+  // Anonymous mapping whose untouched pages use no memory. With PROT_NONE, any
+  // access faults, so a rejected input is shown never to have been read.
+  struct LazyMapping
+  {
+    void* data = MAP_FAILED;
+    size_t size;
+
+    LazyMapping(size_t size_, int prot) : size(size_)
+    {
+      data = mmap(
+        nullptr,
+        size,
+        prot,
+        MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+        -1,
+        0);
+      REQUIRE(data != MAP_FAILED);
+    }
+
+    LazyMapping(const LazyMapping&) = delete;
+    LazyMapping& operator=(const LazyMapping&) = delete;
+
+    ~LazyMapping()
+    {
+      munmap(data, size);
+    }
+
+    std::span<uint8_t> span() const
+    {
+      return {static_cast<uint8_t*>(data), size};
+    }
+  };
+
+  constexpr size_t over_int_max = size_t{std::numeric_limits<int>::max()} + 1;
+}
+
+TEST_CASE("Memory BIO larger than INT_MAX")
+{
+  // BIO_new_mem_buf takes an int length, and reads a negative one as a
+  // NUL-terminated string. Neither constructor reads the buffer, so the
+  // in-range size is accepted without any page being touched.
+  LazyMapping mapping(over_int_max, PROT_NONE);
+  const auto oversized = mapping.span();
+  REQUIRE_THROWS_AS(
+    OpenSSL::Unique_BIO(std::span<const uint8_t>(oversized)),
+    std::invalid_argument);
+  REQUIRE_THROWS_AS(
+    OpenSSL::Unique_BIO(oversized.data(), oversized.size()),
+    std::invalid_argument);
+
+  const auto largest = oversized.first(over_int_max - 1);
+  REQUIRE_NOTHROW(OpenSSL::Unique_BIO(std::span<const uint8_t>(largest)));
+  REQUIRE_NOTHROW(OpenSSL::Unique_BIO(largest.data(), largest.size()));
+}
+
+TEST_CASE("AES key wrap inputs larger than INT_MAX")
+{
+  // The single EVP update call takes an int length, so an input of
+  // 2^32 + n bytes would wrap to the same n-byte prefix
+  LazyMapping mapping(over_int_max, PROT_NONE);
+  const auto oversized = mapping.span();
+  auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(get_raw_key());
+
+  // The wrapped output must also fit, so the input limit is a little lower
+  REQUIRE_THROWS_AS(
+    (void)ossl->ckm_aes_key_wrap_pad(
+      oversized.first(AES_KEY_WRAP_PAD_MAX_SIZE + 1)),
+    std::logic_error);
+  REQUIRE_THROWS_AS(
+    (void)ossl->ckm_aes_key_unwrap_pad(oversized), std::logic_error);
+
+  const std::vector<uint8_t> key_to_wrap(17, 0x42);
+  REQUIRE(
+    ossl->ckm_aes_key_unwrap_pad(ossl->ckm_aes_key_wrap_pad(key_to_wrap)) ==
+    key_to_wrap);
+}
+
+TEST_CASE("Entropy larger than INT_MAX")
+{
+  // RAND_bytes takes an int length, so 2^32 + n bytes would fill only an
+  // n-byte prefix yet report success. INT_MAX + 1 is the smallest size that
+  // is not representable; every page is written, so this is the one case
+  // which must use real memory.
+  LazyMapping mapping(over_int_max, PROT_READ | PROT_WRITE);
+  const auto data = mapping.span();
+  get_entropy()->random(data.data(), data.size());
+
+  // All-zero would mean the end of the buffer was never written to
+  const auto tail = data.last(16);
+  REQUIRE(
+    std::any_of(tail.begin(), tail.end(), [](uint8_t b) { return b != 0; }));
+}
+
+TEST_CASE("Base64 inputs larger than INT_MAX")
+{
+  // The encode and decode update calls take and return int lengths. An
+  // INT_MAX encode input is rejected because its output would not fit.
+  LazyMapping mapping(over_int_max, PROT_NONE);
+  const auto oversized = mapping.span();
+  REQUIRE_THROWS_AS(
+    (void)b64_from_raw(oversized.data(), oversized.size()),
+    std::invalid_argument);
+  REQUIRE_THROWS_AS(
+    (void)b64_from_raw(oversized.data(), over_int_max - 1),
+    std::invalid_argument);
+  REQUIRE_THROWS_AS(
+    (void)raw_from_b64(std::string_view(
+      reinterpret_cast<const char*>(oversized.data()), oversized.size())),
+    std::invalid_argument);
+}
+
+TEST_CASE("Base64 inputs spanning several encoded lines")
+{
+  // OpenSSL breaks encoded output into 64-character lines, removed on return
+  for (size_t length = 40; length < 300; length += 7)
+  {
+    std::vector<uint8_t> raw(length);
+    std::generate(raw.begin(), raw.end(), rand);
+
+    const auto encoded = b64_from_raw(raw.data(), raw.size());
+    REQUIRE(encoded.find('\n') == std::string::npos);
+    REQUIRE(encoded.size() == (length + 2) / 3 * 4);
+    REQUIRE(raw_from_b64(encoded) == raw);
+  }
+}
+
+TEST_CASE("Other OpenSSL int lengths larger than INT_MAX")
+{
+  LazyMapping mapping(over_int_max, PROT_NONE);
+  const auto oversized = mapping.span();
+
+  INFO("RSA-OAEP label");
+  {
+    auto rsa_kp = make_rsa_key_pair();
+    const std::vector<uint8_t> input(16, 0x24);
+    REQUIRE_THROWS_AS(
+      (void)rsa_kp->rsa_oaep_wrap(
+        input.data(), input.size(), oversized.data(), oversized.size()),
+      std::invalid_argument);
+  }
+
+  INFO("ECDSA signature components");
+  {
+    const std::vector<uint8_t> small(1, 0x01);
+    REQUIRE_THROWS_AS(
+      (void)ecdsa_sig_from_r_s(
+        oversized.data(), oversized.size(), small.data(), small.size(), true),
+      std::invalid_argument);
+    REQUIRE_THROWS_AS(
+      (void)ecdsa_sig_from_r_s(
+        small.data(), small.size(), oversized.data(), oversized.size(), false),
+      std::invalid_argument);
+  }
+
+  INFO("RSA key size");
+  {
+    REQUIRE_THROWS_AS(
+      (void)make_rsa_key_pair(over_int_max), std::invalid_argument);
+  }
 }
 
 TEST_CASE("Const GCM header serialisation")

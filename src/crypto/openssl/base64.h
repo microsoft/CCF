@@ -5,6 +5,7 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ds/internal_logger.h"
 
+#include <climits>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <string>
@@ -29,6 +30,14 @@ namespace ccf::crypto
         return {};
       }
 
+      // The update call takes and returns int lengths, for both the input
+      // and the output buffer.
+      if (size > INT_MAX || EVP_DECODE_LENGTH(size) > INT_MAX)
+      {
+        throw std::invalid_argument(fmt::format(
+          "OSSL: Base64 input of {} bytes is too large to decode", size));
+      }
+
       // Make sure the error queue is clean before we start
       // Trying to ameliorate #3677 and #3368
       ERR_clear_error();
@@ -39,13 +48,13 @@ namespace ccf::crypto
       int encoded_len = 0;
 
       // Calculate the output buffer size: b64 is 6 bits per byte
-      int max_size = EVP_DECODE_LENGTH(size);
-      unsigned char output[max_size];
-      memset(output, '\0', max_size);
+      const auto max_size = static_cast<int>(EVP_DECODE_LENGTH(size));
+      std::vector<unsigned char> output(max_size, '\0');
 
       // Decode
       int chunk_len = 0;
-      int rc = EVP_DecodeUpdate(ctx, output, &chunk_len, data, size);
+      int rc = EVP_DecodeUpdate(
+        ctx, output.data(), &chunk_len, data, static_cast<int>(size));
       if (rc < 0)
       {
         auto err_str = OpenSSL::first_error();
@@ -59,7 +68,7 @@ namespace ccf::crypto
       }
       encoded_len = chunk_len;
 
-      rc = EVP_DecodeFinal(ctx, output + chunk_len, &chunk_len);
+      rc = EVP_DecodeFinal(ctx, output.data() + chunk_len, &chunk_len);
       if (rc != 1)
       {
         auto err_str = OpenSSL::first_error();
@@ -73,7 +82,7 @@ namespace ccf::crypto
       }
       encoded_len += chunk_len;
 
-      std::vector<uint8_t> ret(output, output + encoded_len);
+      std::vector<uint8_t> ret(output.data(), output.data() + encoded_len);
 
       return ret;
     }
@@ -86,6 +95,14 @@ namespace ccf::crypto
         return "";
       }
 
+      // The update call takes and returns int lengths, for both the input
+      // and the output buffer.
+      if (size > INT_MAX || EVP_ENCODE_LENGTH(size) > INT_MAX)
+      {
+        throw std::invalid_argument(fmt::format(
+          "OSSL: Base64 input of {} bytes is too large to encode", size));
+      }
+
       // Make sure the error queue is clean before we start
       // Trying to ameliorate #3677 and #3368
       ERR_clear_error();
@@ -95,14 +112,15 @@ namespace ccf::crypto
       EVP_EncodeInit(ctx);
 
       // Calculate the output buffer size: b64 is 6 bits per byte
-      int max_size = EVP_ENCODE_LENGTH(size);
-      unsigned char output[max_size];
-      memset(output, '\0', max_size);
+      const auto max_size = static_cast<int>(EVP_ENCODE_LENGTH(size));
+      std::vector<unsigned char> output(max_size, '\0');
 
       // Encode Main Block (if size > 48)
       int chunk_len = 0;
-      int rc = EVP_EncodeUpdate(ctx, output, &chunk_len, data, size);
-      if (rc < 0)
+      int rc = EVP_EncodeUpdate(
+        ctx, output.data(), &chunk_len, data, static_cast<int>(size));
+      // Returns 0 on error and 1 on success
+      if (rc != 1)
       {
         auto err_str = OpenSSL::first_error();
         throw std::logic_error(fmt::format(
@@ -113,9 +131,10 @@ namespace ccf::crypto
           max_size,
           chunk_len));
       }
+      int encoded_len = chunk_len;
 
       // Encode Final Line (after previous lines, if any)
-      EVP_EncodeFinal(ctx, output + chunk_len, &chunk_len);
+      EVP_EncodeFinal(ctx, output.data() + chunk_len, &chunk_len);
       if (ERR_peek_error() != 0)
       {
         auto err_str = OpenSSL::first_error();
@@ -127,10 +146,11 @@ namespace ccf::crypto
           max_size,
           chunk_len));
       }
+      encoded_len += chunk_len;
 
-      // Clean up result (last \0, newlines)
-      std::string ret = reinterpret_cast<const char*>(output);
-      ret.pop_back();
+      // Clean up result (newlines after every 64 characters and at the end)
+      std::string ret(
+        reinterpret_cast<const char*>(output.data()), encoded_len);
       ret.erase(std::remove(ret.begin(), ret.end(), '\n'), ret.end());
 
       return ret;
