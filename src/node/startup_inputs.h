@@ -102,7 +102,8 @@ namespace ccf
           read_startup_file(member.certificate_file, "member certificate")),
         public_encryption_key,
         member_data,
-        recovery_role);
+        recovery_role,
+        member.id_format);
     }
 
     for (const auto& path : start.constitution_files)

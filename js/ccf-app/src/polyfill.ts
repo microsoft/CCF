@@ -42,6 +42,119 @@ import type {
 } from "./global.js";
 import { toArrayBuffer } from "./utils.js";
 
+const base58Alphabet =
+  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+function didKeyFromKey(key: jscrypto.KeyObject): string {
+  let codec: number;
+  let raw: Buffer;
+  if (key.asymmetricKeyType === "ec") {
+    const jwk = key.export({ format: "jwk" });
+    const codecs: Record<string, number> = {
+      "P-256": 0x1200,
+      "P-384": 0x1201,
+      "P-521": 0x1202,
+    };
+    if (!jwk.crv || !jwk.x || !jwk.y || !(jwk.crv in codecs)) {
+      throw new TypeError("Unsupported did:key EC curve");
+    }
+    codec = codecs[jwk.crv];
+    const x = Buffer.from(jwk.x, "base64url");
+    const y = Buffer.from(jwk.y, "base64url");
+    raw = Buffer.concat([Buffer.from([2 | (y[y.length - 1] & 1)]), x]);
+  } else if (key.asymmetricKeyType === "rsa") {
+    const bits = key.asymmetricKeyDetails?.modulusLength;
+    if (bits === undefined || bits < 2048 || bits > 16384) {
+      throw new TypeError(
+        "did:key RSA keys must be between 2048 and 16384 bits",
+      );
+    }
+    codec = 0x1205;
+    raw = key.export({ format: "der", type: "pkcs1" });
+  } else {
+    throw new TypeError("Unsupported did:key public key type");
+  }
+  const bytes = Buffer.concat([
+    Buffer.from([(codec & 0x7f) | 0x80, codec >> 7]),
+    raw,
+  ]);
+  let value = BigInt("0x" + bytes.toString("hex"));
+  let result = "";
+  while (value > 0n) {
+    result = base58Alphabet[Number(value % 58n)] + result;
+    value /= 58n;
+  }
+  return "did:key:z" + result;
+}
+
+function validateDidKey(id: string): boolean {
+  if (!id.startsWith("did:key:z") || id.length <= 9 || id.length > 3000) {
+    return false;
+  }
+  let value = 0n;
+  for (const c of id.slice(9)) {
+    const digit = base58Alphabet.indexOf(c);
+    if (digit < 0) {
+      return false;
+    }
+    value = value * 58n + BigInt(digit);
+  }
+  let hex = value.toString(16);
+  if (hex.length % 2) {
+    hex = "0" + hex;
+  }
+  const bytes = Buffer.from(hex, "hex");
+  if (bytes.length < 3 || bytes[1] !== 0x24) {
+    return false;
+  }
+  const raw = bytes.subarray(2);
+  try {
+    let key: jscrypto.KeyObject;
+    if (bytes[0] === 0x85) {
+      const rsaKey = jscrypto.createPublicKey({
+        key: raw,
+        format: "der",
+        type: "pkcs1",
+      });
+      // Normalize through JWK to support PKCS#1 re-export on Node 24.
+      key = jscrypto.createPublicKey({
+        key: rsaKey.export({ format: "jwk" }),
+        format: "jwk",
+      });
+    } else {
+      const curves: Record<number, [string, string, number]> = {
+        0x80: ["prime256v1", "P-256", 33],
+        0x81: ["secp384r1", "P-384", 49],
+        0x82: ["secp521r1", "P-521", 67],
+      };
+      const curve = curves[bytes[0]];
+      if (!curve || raw.length !== curve[2] || (raw[0] !== 2 && raw[0] !== 3)) {
+        return false;
+      }
+      const expanded = jscrypto.ECDH.convertKey(raw, curve[0]);
+      if (!Buffer.isBuffer(expanded)) {
+        throw new TypeError("Expected a binary EC point");
+      }
+      const coordinateSize = curve[2] - 1;
+      key = jscrypto.createPublicKey({
+        key: {
+          kty: "EC",
+          crv: curve[1],
+          x: expanded.subarray(1, 1 + coordinateSize).toString("base64url"),
+          y: expanded.subarray(1 + coordinateSize).toString("base64url"),
+        },
+        format: "jwk",
+      });
+    }
+    return didKeyFromKey(key) === id;
+  } catch (error) {
+    if (error instanceof Error) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 // JavaScript's Map uses reference equality for non-primitive types,
 // whereas CCF compares the content of the ArrayBuffer.
 // To achieve CCF's semantics, all keys are base64-encoded.
@@ -80,6 +193,27 @@ class KvMapPolyfill implements KvMap {
 }
 
 class CCFPolyfill implements CCF {
+  pemToId(pem: string, format: "sha256" | "did:key" = "sha256"): string {
+    const cert = new jscrypto.X509Certificate(pem);
+    if (format === "sha256") {
+      return jscrypto.createHash("sha256").update(cert.raw).digest("hex");
+    }
+    if (format !== "did:key") {
+      throw new TypeError("Unsupported identity ID format");
+    }
+    return didKeyFromKey(cert.publicKey);
+  }
+
+  isValidEntityId(id: string): boolean {
+    return /^[a-fA-F0-9]{64}$/.test(id) || validateDidKey(id);
+  }
+
+  certificatesHaveSamePublicKey(lhs: string, rhs: string): boolean {
+    return new jscrypto.X509Certificate(lhs).publicKey.equals(
+      new jscrypto.X509Certificate(rhs).publicKey,
+    );
+  }
+
   kv = new Proxy(<KvMaps>{}, {
     get: (target, name, receiver) => {
       if (typeof name === "string") {

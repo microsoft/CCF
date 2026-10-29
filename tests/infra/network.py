@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum, IntEnum, auto
 from typing import ClassVar
+from urllib.parse import quote
 
 import ccf.ledger
 from ccf.tx_id import TxID
@@ -625,6 +626,7 @@ class Network:
             self.share_script,
             gov_api_version=args.gov_api_version,
         )
+        member_id_format = kwargs.pop("member_id_format", "sha256")
 
         for i in range(mc):
             member_data = None
@@ -650,6 +652,7 @@ class Network:
                     curve=args.participants_curve,
                     recovery_role=recovery_role,
                     member_data=member_data,
+                    id_format=member_id_format,
                 )
             )
 
@@ -760,31 +763,35 @@ class Network:
                     self.share_script,
                     gov_api_version=args.gov_api_version,
                 )
+                r = c.get("/gov/service/members")
+                assert r.status_code == http.HTTPStatus.OK, r
+                members = {
+                    member["memberId"]: member for member in r.body.json()["value"]
+                }
                 for f in os.listdir(self.common_dir):
                     if re.search("member(.*)_cert.pem", f) is not None:
                         local_id = f.split("_")[0]
-                        recovery_role = (
-                            infra.member.RecoveryRole.Participant
-                            if os.path.isfile(
-                                os.path.join(
-                                    self.common_dir, f"{local_id}_enc_privk.pem"
-                                )
+                        cert = slurp_file(os.path.join(self.common_dir, f))
+                        id_format = "sha256"
+                        service_id = infra.crypto.identity_id_from_cert(cert)
+                        if service_id not in members:
+                            id_format = "did:key"
+                            service_id = infra.crypto.identity_id_from_cert(
+                                cert, id_format
                             )
-                            else infra.member.RecoveryRole.NonParticipant
+                        if service_id not in members:
+                            raise ValueError(
+                                f"Member {local_id} is not enrolled in the recovered service"
+                            )
+                        member_info = members[service_id]
+                        recovery_role = infra.member.RecoveryRole(
+                            member_info["recoveryRole"]
                         )
-
                         new_member = self.consortium.generate_existing_member(
-                            local_id, recovery_role
+                            local_id, recovery_role, id_format=id_format
                         )
 
-                        r = c.get(f"/gov/service/members/{new_member.service_id}")
-                        assert r.status_code == 200
-                        member_info = r.body.json()
                         assert member_info["memberId"] == new_member.service_id
-                        assert (
-                            infra.member.RecoveryRole(member_info["recoveryRole"])
-                            == new_member.recovery_role
-                        )
                         new_member.member_data = member_info["memberData"]
                         if (
                             infra.member.MemberStatus(member_info["status"])
@@ -1560,7 +1567,7 @@ class Network:
                         if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
                             check_commit = infra.checker.Checker(c)
                             r = c.delete(
-                                f"/node/network/nodes/{node_to_retire.node_id}"
+                                f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
                             )
                             if self._is_retryable_node_removal_response(r):
                                 LOG.warning(f"Retrying node removal after {r}")
@@ -1579,7 +1586,7 @@ class Network:
                                 break
                         else:
                             r = c.get(
-                                f"/node/network/nodes/{node_to_retire.node_id}"
+                                f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
                             ).body.json()
                 except ConnectionRefusedError:
                     pass
@@ -1607,7 +1614,7 @@ class Network:
         with open(cert_path, "w", encoding="utf-8") as f:
             f.write(cert_pem)
 
-        # node_id = hex(sha256(DER pubkey)); same hash report_data must carry.
+        # Attestation always binds SHA-256(DER pubkey), independently of ID format.
         pubkey_hash_hex = infra.crypto.compute_public_key_der_hash_hex_from_pem(
             cert_pem
         )
@@ -1716,7 +1723,9 @@ class Network:
                     r = c.get("/node/network/removable_nodes").body.json()
                     if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
                         check_commit = infra.checker.Checker(c)
-                        r = c.delete(f"/node/network/nodes/{node_to_retire.node_id}")
+                        r = c.delete(
+                            f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
+                        )
                         if self._is_retryable_node_removal_response(r):
                             LOG.warning(f"Retrying node removal after {r}")
                             try:
@@ -1734,7 +1743,7 @@ class Network:
                             break
                     else:
                         r = c.get(
-                            f"/node/network/nodes/{node_to_retire.node_id}"
+                            f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
                         ).body.json()
             except ConnectionRefusedError:
                 pass
@@ -1745,7 +1754,7 @@ class Network:
             statistics["old_node_removal_committed"] = datetime.now(UTC).isoformat()
         self.nodes.remove(node_to_retire)
 
-    def create_user(self, local_user_id, curve, record=True):
+    def create_user(self, local_user_id, curve, record=True, id_format="sha256"):
         infra.proc.ccall(
             self.key_generator,
             "--name",
@@ -1758,7 +1767,7 @@ class Network:
 
         cert_path = os.path.join(self.common_dir, f"{local_user_id}_cert.pem")
         with open(cert_path, encoding="utf-8") as c:
-            service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
+            service_user_id = infra.crypto.identity_id_from_cert(c.read(), id_format)
         key_path = os.path.join(self.common_dir, f"{local_user_id}_privk.pem")
         new_user = UserInfo(local_user_id, service_user_id, cert_path, key_path)
         if record:
@@ -2050,7 +2059,7 @@ class Network:
         **kwargs,
     ):
         with remote_node.client(**kwargs) as c:
-            r = c.get(f"/node/network/nodes/{node_id}")
+            r = c.get(f"/node/network/nodes/{quote(node_id, safe='')}")
             resp = r.body.json()
             return (
                 r.status_code == http.HTTPStatus.NOT_FOUND.value

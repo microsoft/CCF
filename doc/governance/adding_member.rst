@@ -29,7 +29,7 @@ Members that are registered in CCF `with` a public encryption key are recovery m
 
 The member’s identity and encryption private keys (e.g. ``member_name_privk.pem`` and ``member_name_enc_privk.pem``) should be stored on a trusted device (e.g. HSM) while the certificate (e.g. ``member_name_cert.pem``) and public encryption key (e.g. ``member_name_enc_pubk.pem``) should be registered in CCF by members.
 
-The CCF unique member identity is the hex-encoded string of the SHA-256 hash of the DER-encoded certificate, and can be computed from the certificate alone, without interacting with CCF:
+By default, the CCF unique member identity is the hex-encoded string of the SHA-256 hash of the DER-encoded certificate, and can be computed from the certificate alone, without interacting with CCF:
 
 .. code-block:: bash
 
@@ -45,6 +45,21 @@ Registering a New Member
 Once the new member's keys and certificate have been generated, the existing consortium should register the new member public information in CCF, following the usual propose and vote procedure.
 
 The :ref:`governance/proposals:Submitting a New Proposal` section describes the steps that members should follow to register a new member.
+
+To enroll a new member using a public-key ID, include ``"id_format": "did:key"`` in the ``set_member`` action's arguments alongside ``cert`` and any encryption key or member data.
+For initial consortium members, set the same field on the member's entry in ``command.start.members``.
+Omitting the field retains the legacy certificate-fingerprint ID.
+See :ref:`architecture/cryptography:Identity IDs` before migrating existing members.
+
+The Python SDK can derive the DID locally:
+
+.. code-block:: bash
+
+    $ python3 -m ccf.identity --cert new_member_cert.pem --id-format did:key
+
+For a DID member, percent-encode the ID's colons in governance URLs (``did%3Akey%3Az...``), leaving action suffixes such as ``:update`` and ``:ack`` unchanged.
+Pass ``--identity-id-format did:key`` to every ``ccf_cose_sign1`` operation, including activation and recovery.
+Pass the same option to ``submit_recovery_share.sh`` before its curl options.
 
 Activating a New Member
 -----------------------

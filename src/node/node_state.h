@@ -1141,11 +1141,12 @@ namespace ccf
       std::shared_ptr<AbstractRPCSessions> rpcsessions,
       ccf::crypto::CurveID curve_id_,
       ccf::AbstractRuntimeControl& runtime_control_,
-      std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem_) :
+      std::shared_ptr<AbstractLedgerSubsystemInterface> ledger_subsystem_,
+      IdentityIdFormat id_format = IdentityIdFormat::SHA256) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(curve_id_)),
-      self(compute_node_id_from_kp(node_sign_kp)),
+      self(compute_node_id_from_kp(node_sign_kp, id_format)),
       node_encrypt_kp(ccf::crypto::make_rsa_key_pair()),
       runtime_control(runtime_control_),
       node_transport(std::move(node_transport_)),
@@ -1738,6 +1739,7 @@ namespace ccf
 
       // Assemble the join request body.
       JoinNetworkNodeToNode::In join_params;
+      join_params.id_format = config.node_certificate.id_format;
       join_params.node_info_network = config.network;
       join_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       join_params.quote_info = quote_info;
@@ -1922,6 +1924,16 @@ namespace ccf
                   "Join network response body: {}",
                   std::string(data.begin(), data.end()));
 
+                return;
+              }
+
+              if (
+                config.node_certificate.id_format == IdentityIdFormat::DIDKey &&
+                (!resp.node_id.has_value() || *resp.node_id != self))
+              {
+                LOG_FAIL_FMT(
+                  "Join target did not acknowledge this node's did:key ID");
+                network.tables->set_readiness(ccf::kv::StoreReadiness::Failed);
                 return;
               }
 

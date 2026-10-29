@@ -5,6 +5,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/cose_key.h"
+#include "ccf/crypto/did_key.h"
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
@@ -61,6 +62,79 @@ static const string contents_ =
   "qui officia deserunt mollit anim id est laborum.";
 
 vector<uint8_t> contents(contents_.begin(), contents_.end());
+
+TEST_CASE("Canonical did:key public key identifiers")
+{
+  for (const auto curve :
+       {CurveID::SECP256R1, CurveID::SECP384R1, CurveID::SECP521R1})
+  {
+    const auto key = make_ec_key_pair(curve);
+    const auto did = did_key_from_public_key_der(key->public_key_der());
+    CHECK(did.starts_with("did:key:z"));
+    CHECK(did_key_from_public_key_der(public_key_der_from_did_key(did)) == did);
+    CHECK_THROWS_AS(
+      public_key_der_from_did_key(did + "#key"), std::invalid_argument);
+    CHECK_THROWS_AS(
+      public_key_der_from_did_key(did + "?version=1"), std::invalid_argument);
+    const auto decoded = make_ec_public_key(public_key_der_from_did_key(did));
+    CHECK(decoded->coordinates().x == key->coordinates().x);
+    CHECK(decoded->coordinates().y == key->coordinates().y);
+  }
+  const auto rsa = make_rsa_key_pair();
+  const auto did = did_key_from_public_key_der(rsa->public_key_der());
+  CHECK(did_key_from_public_key_der(public_key_der_from_did_key(did)) == did);
+  for (const auto& invalid :
+       {std::string(""),
+        std::string("did:key:z0"),
+        std::string("did:key:z1"),
+        std::string("did:key:uabc"),
+        std::string("did:key:z") + std::string(3000, '1')})
+  {
+    CHECK_THROWS_AS(
+      public_key_der_from_did_key(invalid), std::invalid_argument);
+  }
+}
+
+TEST_CASE("Published did:key NIST public key vectors")
+{
+  const std::vector<std::pair<std::string, std::string>> vectors = {
+    {"did:key:zDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv",
+     "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEigrFmi0whuihKnj9R3Om1SoMph72wUGeFaBbz"
+     "G2vznt5+xflvXTHzKPKuPifLekZ8txjtdvLUrOCo52qeyskgw=="},
+    {"did:key:"
+     "z82LkvCwHNreneWpsgPEbV3gu1C6NFJEBg4srfJ5gdxEsMGRJUz2sG9FE42shbn2xkZJh54",
+     "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAECA+"
+     "iNoHDg1lL8pvX3d1uvExzVfCz7Rn6tW781Ub8K5MrDf2IMPyL0RTDiaLHC1JTKpnrn8DkXUD3"
+     "ge4mFxi+DKr0DYO2KuJdwNBrhzLRtfMa3WFMZBiPKUPfJj8dYNl/"}};
+  for (const auto& [did, spki] : vectors)
+  {
+    const auto der = raw_from_b64(spki);
+    CHECK(did_key_from_public_key_der(der) == did);
+    const auto decoded = make_ec_public_key(public_key_der_from_did_key(did));
+    const auto expected = make_ec_public_key(der);
+    CHECK(decoded->coordinates().x == expected->coordinates().x);
+    CHECK(decoded->coordinates().y == expected->coordinates().y);
+  }
+}
+
+TEST_CASE("Public key equality ignores EC point compression")
+{
+  const Pem uncompressed(
+    "-----BEGIN PUBLIC KEY-----\n"
+    "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEigrFmi0whuihKnj9R3Om1SoMph72wUGeFaBbzG"
+    "2vznt5+xflvXTHzKPKuPifLekZ8txjtdvLUrOCo52qeyskgw==\n"
+    "-----END PUBLIC KEY-----\n");
+  const Pem compressed(
+    "-----BEGIN PUBLIC KEY-----\n"
+    "MDkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDIgADigrFmi0whuihKnj9R3Om1SoMph72wUGeFaBbzG"
+    "2vzns=\n"
+    "-----END PUBLIC KEY-----\n");
+  CHECK(public_keys_equal(uncompressed, compressed));
+  CHECK_FALSE(
+    public_keys_equal(uncompressed, make_ec_key_pair()->public_key_pem()));
+  CHECK_FALSE(
+    public_keys_equal(uncompressed, make_rsa_key_pair()->public_key_pem()));
+}
 
 static const string nested_cert =
   "MIIV1zCCFL+"
