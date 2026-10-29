@@ -47,7 +47,8 @@ Delivery is strict FIFO per directed node pair, preserving multiplicity and deli
 - [`ReplayMain.lean`](ReplayMain.lean): single-trace validation CLI.
 - [`raft_scenarios_runner.py`](../../../tests/raft_scenarios_runner.py): existing native scenario runner and capture generation.
 
-The path-filtered [Lean workflow](../../../.github/workflows/lean.yml) runs `raft_scenario_test`, then invokes the validator for each raw capture and fixture.
+The path-filtered [Lean workflow](../../../.github/workflows/lean.yml) builds `raft_driver` and runs `raft_scenario_test` in an Azure Linux 3 job on VMSS pool C, uploading the raw captures as the `raft-scenario-traces` artifact.
+A parallel Ubuntu 26.04 job runs all Lean checks and fixture validation, then waits for capture generation to succeed, downloads the artifact and validates each native trace as its final step.
 Diagnostics are printed in the job logs rather than compared with checked-in outputs.
 
 See [failure fixtures](fixtures/README.md) for examples and expected diagnostics.

@@ -162,6 +162,12 @@ File: `tla-shallow.yml`
 
 Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
 
+Raft scenario capture generation runs in a separate Azure Linux 3 job on `gha-vmss-d16av7-ci-c`.
+It builds `raft_driver`, runs `raft_scenario_test` and uploads the raw NDJSON traces as `raft-scenario-traces`, retained for one day.
+The Ubuntu 26.04 Lean job starts in parallel, without a job dependency.
+After completing all independent checks and fixture validation, it waits for the capture job to succeed, downloads the artifact and validates each native trace as its final step.
+The wait follows the coverage workflow's parallel-job polling pattern and fails if capture generation fails.
+
 The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.
 Canonical behavior checks run with `#eval` when their test module is built, and assertion failures fail the build.
 The build includes both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
