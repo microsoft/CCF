@@ -165,21 +165,28 @@ private def reconfigureElectAndCommit : IO Unit := do
   for node in nodes do
     checkLedger "commit notification" state node expected 5
 
-  -- Node 1 wins pre-vote and the election with node 0's vote.
+  -- Node 2 times out first, so it knows no primary and grants node 1's pre-vote.
+  -- Node 0, the primary, and node 1 while it still knows the primary, refuse
+  -- pre-votes. Node 1 then wins the election with node 0's vote.
   let state ←
     runTrace "election" {0} nodes state
       [
+        .local 2 (.timeout .election),
+        .deliver 2 0,
+        .deliver 2 1,
+        .deliver 0 2,
+        .deliver 1 2,
         .local 1 (.timeout .election),
-        .deliver 1 0,
-        .deliver 0 1,
-        .deliver 1 0,
-        .deliver 0 1,
-        -- Drain node 2's queued election requests before its promotion heartbeat.
         .deliver 1 2,
         .deliver 2 1,
+        .deliver 1 0,
+        .deliver 1 0,
+        .deliver 0 1,
+        .deliver 0 1,
+        -- Drain node 1's queued vote request before its promotion heartbeat.
+        .deliver 1 2,
         .deliver 1 2,
         .deliver 2 1,
-        .deliver 1 2,
         .deliver 2 1,
         .deliver 1 0,
         .deliver 0 1

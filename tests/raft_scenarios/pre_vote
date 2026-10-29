@@ -33,8 +33,20 @@ dispatch_single,1,2
 assert_detail,2,leadership_state,Follower
 assert_detail,2,current_view,2
 
-# Node 1 becomes candidate and then leader for term 3
+# Node 2 refuses a pre-vote while it still knows node 0 as leader.
 dispatch_single,2,1
+assert_detail,1,leadership_state,PreVoteCandidate
+assert_detail,1,current_view,2
+
+# After node 2 also times out, node 1 can win its next pre-vote round.
+drop_pending_to,1,0
+periodic_one,2,150
+drop_pending,2
+periodic_one,1,100
+dispatch_single,1,2
+dispatch_single,2,1
+
+# Node 1 becomes candidate and then leader for term 3
 assert_detail,1,leadership_state,Candidate
 assert_detail,1,current_view,3
 dispatch_single,1,2
@@ -77,11 +89,15 @@ periodic_one,0,100
 assert_detail,0,leadership_state,PreVoteCandidate
 assert_detail,0,current_view,3
 summarise_log,0
-# n[0]: 2.1, 2.2, 2.3, [2.4] (ts=351)
+# n[0]: 2.1, 2.2, 2.3, [2.4]
 assert_detail,2,leadership_state,Follower
 summarise_log,2
-# n[2]: 2.1, 2.2, 2.3, [2.4], 3.5 (ts=351)
+# n[2]: 2.1, 2.2, 2.3, [2.4], 3.5
 
+# Forget the leader so the stale log, rather than a known leader, denies the vote.
+periodic_one,2,150
+drop_pending,2
+assert_detail,2,leadership_state,PreVoteCandidate
 dispatch_single,0,2
 dispatch_single,2,0
 

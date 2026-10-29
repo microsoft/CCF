@@ -38,6 +38,11 @@ drop_pending_to,0,4
 
 # Node 1 wins term 3 with nodes 2 and 3. Deliver the queued heartbeat after
 # node 2 processes the vote request, but leave its NACK to node 0 pending.
+# Let nodes 2 and 3 forget the old leader without competing in the election.
+periodic_one,2,150
+drop_pending,2
+periodic_one,3,150
+drop_pending,3
 periodic_one,1,100
 assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_single,1,2
@@ -102,6 +107,10 @@ assert_last_txid,2,3.8
 assert_last_txid,0,3.6
 
 # Node 0 wins term 4 with nodes 3 and 4, retaining the shared prefix.
+periodic_one,3,150
+drop_pending,3
+periodic_one,4,150
+drop_pending,4
 periodic_one,0,100
 assert_detail,0,leadership_state,PreVoteCandidate
 drop_pending_to,0,1

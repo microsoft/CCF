@@ -445,8 +445,16 @@ def handleRequestPreVoteRequest
     (source : NodeID)
     (request : RequestVoteRequest)
     : NodeEffect NodeState := do
+  -- Mirrors `raft.h` (`recv_request_vote_unsafe`), which refuses pre-votes
+  -- as well as votes while `leader_id` is set. Otherwise a lagging follower
+  -- could time out before log repair, collect pre-votes from content
+  -- followers, then raise the term and depose a healthy primary. This matches
+  -- etcd's lease check and the Raft thesis's pre-vote leader check.
   let voteGranted :=
-    decide (request.term = state.currentTerm /\ voteLogUpToDate state request)
+    decide
+      (request.term = state.currentTerm
+        /\ voteLogUpToDate state request
+        /\ !state.primaryKnown)
   caps.send (.requestPreVoteResponse { term := state.currentTerm, voteGranted }) source
   return state
 

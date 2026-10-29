@@ -26,6 +26,9 @@ Actions are local inputs (including timeouts) or delivery of a queued message; n
 Node join and snapshot installation are not modeled.
 There are no liveness properties or fairness assumptions.
 
+Like CCF's `recv_request_vote_unsafe`, the model refuses pre-votes while a primary is known, preventing a lagging follower from deposing a healthy primary.
+This mirrors etcd's lease check and the Raft thesis's pre-vote leader check, but does not protect a primary from a lagging quorum.
+
 ## Validation
 
 Install Lean via [elan](https://lean-lang.org/install/), then run from this directory:

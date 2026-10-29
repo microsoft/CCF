@@ -26,6 +26,10 @@ emit_signature,2
 emit_signature,2
 
 # Node 1 calls and wins an election
+periodic_one,2,150
+drop_pending,2
+periodic_one,3,150
+drop_pending,3
 periodic_one,1,100
 assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_single,1,2
@@ -60,6 +64,10 @@ periodic_one,1,10
 dispatch_single,1,2
 
 # Node 2 calls and wins an election
+periodic_one,3,150
+drop_pending,3
+periodic_one,4,150
+drop_pending,4
 periodic_one,2,100
 assert_detail,2,leadership_state,PreVoteCandidate
 dispatch_single,2,3
@@ -92,6 +100,10 @@ periodic_one,2,10
 dispatch_single,2,0
 
 # Node 1 calls and wins an election
+periodic_one,3,150
+drop_pending,3
+periodic_one,4,150
+drop_pending,4
 drop_pending,1
 periodic_one,1,100
 assert_detail,1,leadership_state,PreVoteCandidate

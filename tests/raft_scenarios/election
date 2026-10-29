@@ -25,6 +25,10 @@ assert_detail,0,leadership_state,Leader
 assert_detail,1,leadership_state,Follower
 assert_detail,2,leadership_state,Follower
 
+periodic_all,10
+dispatch_all
+periodic_one,2,150
+drop_pending,2
 periodic_one,1,150
 dispatch_all
 dispatch_all

@@ -21,6 +21,11 @@ assert_detail,2,retirement_phase,Ordered
 assert_last_txid,2,2.5
 drop_pending,2
 
+# Both voters in the retiring configuration must forget the previous leader.
+periodic_one,0,150
+drop_pending,0
+periodic_one,1,150
+drop_pending,1
 periodic_one,2,100
 assert_detail,2,leadership_state,PreVoteCandidate
 dispatch_single,2,0

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.24]
+
+[7.0.24]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.24
+
+### Fixed
+
+- A backup which falls behind and reaches its election timeout can no longer depose a primary that the rest of the service still hears, because nodes which know the current primary now refuse pre-votes (#8639).
+
 ## [7.0.23]
 
 [7.0.23]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.23

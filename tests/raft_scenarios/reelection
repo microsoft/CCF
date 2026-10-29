@@ -32,6 +32,10 @@ dispatch_one,0
 # Time out, call a new election
 periodic_one,0,100
 assert_detail,0,leadership_state,Follower
+# Discard the old heartbeat before making another voter forget the leader.
+drop_pending,0
+periodic_one,1,150
+drop_pending,1
 periodic_one,0,100
 assert_detail,0,leadership_state,PreVoteCandidate
 
