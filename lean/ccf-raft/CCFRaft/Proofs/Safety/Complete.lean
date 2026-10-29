@@ -201,7 +201,7 @@ theorem keep_log (sameTerm : c.post.currentTerm = c.pre.currentTerm)
     : c.pre.log <+: c.post.log := by
   cases Summary.kind c.sum with
   | same log _ => rw [log]
-  | append _ _ _ _ advance =>
+  | append _ _ _ _ _ advance =>
       rw [(Advance.facts advance).1]
       exact List.prefix_append _ _
   | ack _ _ _ _ _ _ advance => rw [(Advance.facts advance).1]

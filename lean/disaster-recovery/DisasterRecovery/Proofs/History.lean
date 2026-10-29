@@ -57,7 +57,7 @@ structure Correspondence (config : Model.Config) (trace : Properties.GlobalTrace
   suffix
     : forall i state,
         i <= bound
-        -> trace.get? i = some state
+        -> trace.stateAt i = some state
         -> exists tail,
             Trace.Path (Model.transitionSystem config) state tail (erase ghost)
 
@@ -65,12 +65,11 @@ structure Correspondence (config : Model.Config) (trace : Properties.GlobalTrace
 ghost execution. -/
 theorem history_correspondence {config : Model.Config} (trace : Properties.GlobalTrace)
     (valid : trace.Valid (Model.transitionSystem config)) {bound : Nat}
-    (inTrace : (trace.get? bound).isSome)
+    (inTrace : (trace.stateAt bound).isSome)
     : exists ghost, Correspondence config trace bound ghost := by
   obtain ⟨last, found⟩ := Option.isSome_iff_exists.mp inTrace
-  obtain ⟨before, first, initialized⟩ := valid.1
-  obtain ⟨initial, init, linked⟩ := model_initial_lifts config before initialized
-  obtain ⟨tail, path⟩ := Trace.valid_path valid 0 bound first (by simpa using found)
+  obtain ⟨initial, init, linked⟩ := model_initial_lifts config trace.initial valid.init
+  obtain ⟨tail, path⟩ := Trace.valid_path valid 0 bound rfl (by simpa using found)
   obtain ⟨final, _, reachable, finalEq⟩ := trace_lifts path initial (.initial init) linked
   refine ⟨final, reachable, fun i state le atI => ?_⟩
   obtain ⟨suffix, rest⟩ :=

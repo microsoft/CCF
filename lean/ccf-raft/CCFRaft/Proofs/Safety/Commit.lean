@@ -97,7 +97,7 @@ theorem advance_backed {middle : NodeState}
               /\ c.post.log.take (middle.matchIndex voter) <+: acker.log)
     : Backed (after :: before :: rest) c.post.log c.post.commitIndex
         c.post.currentTerm := by
-  rcases advance with same | ⟨log, term, _, _, _, _, lt, eq, postRole⟩
+  rcases advance with ⟨same, _⟩ | ⟨log, term, _, _, _, _, lt, eq, postRole⟩
   · subst same
     exact old.mono c.suffix_tail
   have ahead : middle.commitIndex < highestCommittableIndex middle c.actor :=
@@ -116,7 +116,7 @@ theorem advance_backed {middle : NodeState}
                       c.actor :=
     ⟨_, quorum, fun _ mem => (Finset.mem_filter.mp mem).2⟩
   have notCandidate : Not (c.post.role = .candidate) := by
-    rcases postRole with postRole | postRole <;> rw [postRole]
+    rcases postRole with postRole | ⟨postRole, _⟩ <;> rw [postRole]
     · rw [role]
       intro h
       cases h
@@ -194,7 +194,7 @@ theorem accept_backed {source : NodeID} {request : AppendEntriesRequest}
           rw [List.take_take, Nat.min_eq_left commitLe]
   · have kLe := maxCommittableIndexUpTo_le c.post.log
       (min request.primaryCommit (request.prevLogIndex + request.entries.length))
-    have lcLe := aeok.2.2.2.2.2
+    have lcLe := aeok.2.2.2.2.2.1
     have senderTerm := canon.2.1
     obtain ⟨_, _, rfl⟩ := canon.1.nonempty
     rcases c.all Inv.commit_backed _ suffix (List.cons_ne_nil _ _) source sender canon.1 with
@@ -224,7 +224,7 @@ theorem commit_backed : CommitBacked (after :: before :: rest) := by
     | same log commit =>
         rw [commit]
         exact (c.pre_backed (by rw [log])).mono c.suffix_tail
-    | append entries sent leader _ advance =>
+    | append entries sent leader _ _ advance =>
         have logEq : c.post.log = c.pre.log ++ entries := (Advance.facts advance).1
         have termEq : c.post.currentTerm = c.pre.currentTerm := (Advance.facts advance).2.1
         refine c.advance_backed advance (c.pre_backed ?_) ?_ leader ?_
@@ -361,7 +361,7 @@ theorem persist_pre {part : List Entry}
       left
       rw [log]
       exact inPre
-  | append _ _ _ _ advance =>
+  | append _ _ _ _ _ advance =>
       left
       rw [(Advance.facts advance).1]
       exact inPre.trans (List.prefix_append _ _)
@@ -499,7 +499,7 @@ theorem new_message {envelope : Model.Envelope} (new : envelope ∈ c.sent)
       simp only [h] at ok
       simp only [MessageOK, h]
       intro success
-      obtain ⟨source, request, received, accepted, responseTerm, lastEq⟩ := ok success
+      obtain ⟨source, request, received, accepted, responseTerm, lastEq⟩ := ok.2 success
       obtain ⟨earlier, sender, suffix, canon, _, batchBound, postTake, _, _⟩ :=
         c.accept_shape received accepted
       rw [sourceEq, responseTerm, lastEq]

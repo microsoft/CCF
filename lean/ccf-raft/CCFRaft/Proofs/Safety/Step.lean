@@ -54,12 +54,12 @@ theorem Wins.facts {self : NodeID} {before' : NodeState} {event : Event}
       rfl
     rw [← this]
     exact quorum
-  rcases advance with rfl | ⟨log, term, voted, matchEq, _, _, lt, _, role⟩
+  rcases advance with ⟨rfl, _⟩ | ⟨log, term, voted, matchEq, _, _, lt, _, role⟩
   · exact ⟨rfl, rfl, rfl, fun _ => rfl, Or.inl rfl, le_rfl⟩
   · refine ⟨log, term, voted, fun peer => by rw [matchEq]; rfl, ?_, ?_⟩
     · rcases role with role | role
       · exact Or.inl role
-      · exact Or.inr role
+      · exact Or.inr role.1
     · simp only [primaryState] at lt
       omega
 
