@@ -5,6 +5,7 @@ import base64
 from collections.abc import Mapping
 from hashlib import sha256
 from io import BytesIO
+from math import isnan
 from typing import Any
 
 import cwt
@@ -50,6 +51,7 @@ class _ReceiptDecoder(CBORDecoder):
         super().__init__(stream)
         self._receipt_depth = 0
         self._allow_break = False
+        self._nan_keys: dict[int, float] = {}
 
     def decode(self, immutable: bool = False, unshared: bool = False) -> Any:
         position = self.fp.tell()
@@ -82,6 +84,26 @@ class _ReceiptDecoder(CBORDecoder):
                 tag = self._decode_length(initial[0] & 31)
                 return CBORTag(tag, self.decode())
             self.read(1)
+
+            if self._immutable and initial[0] in (0xF9, 0xFA, 0xFB):
+                position = self.fp.tell()
+                subtype = initial[0] & 31
+                encoded = self.read(1 << (subtype - 24))
+                self.fp.seek(position)
+                value = major_decoders[7](self, subtype)
+                if isnan(value):
+                    # RFC 8949 compares NaN key significands, not Python's
+                    # always-false NaN equality. Intern equivalent keys,
+                    # including NaNs inside immutable container keys.
+                    fraction_bits = {25: 10, 26: 23, 27: 52}[subtype]
+                    significand = int.from_bytes(encoded, "big") & (
+                        (1 << fraction_bits) - 1
+                    )
+                    return self._nan_keys.setdefault(
+                        significand << (64 - fraction_bits), value
+                    )
+                return value
+
             return major_decoders[initial[0] >> 5](self, initial[0] & 31)
         finally:
             self._allow_break = previous_allow_break

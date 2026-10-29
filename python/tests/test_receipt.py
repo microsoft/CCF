@@ -147,6 +147,61 @@ def test_rejects_duplicate_extension_container_keys(identity, first, second):
         _verify(encoded, identity.public_key())
 
 
+@pytest.mark.parametrize(
+    "first,second,duplicate",
+    [
+        ("f97e00", "f97e00", True),
+        ("f97e01", "f97e01", True),
+        ("fa7fc00001", "fa7fc00001", True),
+        ("fb7ff8000000000001", "fb7ff8000000000001", True),
+        ("f97e01", "fa7fc02000", True),
+        ("f97e01", "fb7ff8040000000000", True),
+        ("f97e01", "f9fe01", True),
+        ("f97e01", "f97e02", False),
+        ("fa7fc00001", "fa7fc00002", False),
+        ("fb7ff8000000000001", "fb7ff8000000000002", False),
+    ],
+)
+@pytest.mark.parametrize(
+    "prefix,suffix",
+    [
+        pytest.param("", "", id="scalar"),
+        pytest.param("81", "", id="array"),
+        pytest.param("a1", "00", id="map-key"),
+        pytest.param("a100", "", id="map-value"),
+        pytest.param("d903e8", "", id="tag"),
+    ],
+)
+@pytest.mark.parametrize("location", ["protected", "unprotected"])
+def test_nan_extension_key_equivalence(
+    identity, first, second, duplicate, prefix, suffix, location
+):
+    extension = _map_bytes(
+        [
+            (bytes.fromhex(prefix + first + suffix), b"\x00"),
+            (bytes.fromhex(prefix + second + suffix), b"\x01"),
+        ]
+    )
+    protected_pairs = [
+        (cbor2.dumps(label), cbor2.dumps(value))
+        for label, value in _headers(identity).items()
+    ]
+    unprotected_pairs = [(cbor2.dumps(396), cbor2.dumps({-1: [cbor2.dumps(PROOF)]}))]
+    pairs = protected_pairs if location == "protected" else unprotected_pairs
+    pairs.insert(0, (cbor2.dumps("extension"), extension))
+    encoded = _signed(
+        identity,
+        protected_bytes=_map_bytes(protected_pairs),
+        unprotected_bytes=_map_bytes(unprotected_pairs),
+    )
+
+    if duplicate:
+        with pytest.raises(ValueError, match="Duplicate CBOR map key"):
+            _verify(encoded, identity.public_key())
+    else:
+        _verify(encoded, identity.public_key())
+
+
 @pytest.mark.parametrize("evidence", ["a", "a" * 1024, "\u00e9" * 512])
 def test_commit_evidence_utf8_boundaries(identity, evidence):
     leaf = [LEAF[0], evidence, CLAIM]
