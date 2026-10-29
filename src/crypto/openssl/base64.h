@@ -9,7 +9,6 @@
 #include <climits>
 #include <openssl/err.h>
 #include <openssl/evp.h>
-#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -27,8 +26,12 @@ namespace ccf::crypto
 
   struct Base64_openssl
   {
-    // Decode Base64 into byte stream
-    static std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string)
+    // Decode Base64 into byte stream. The input is fed to OpenSSL in chunks
+    // of at most chunk_size bytes; smaller sizes than the default only serve
+    // to test chunk boundaries.
+    static std::vector<uint8_t> raw_from_b64(
+      const std::string_view& b64_string,
+      size_t chunk_size = BASE64_MAX_UPDATE_SIZE)
     {
       std::span<const uint8_t> input(
         reinterpret_cast<const uint8_t*>(b64_string.data()), b64_string.size());
@@ -52,17 +55,20 @@ namespace ccf::crypto
       std::vector<unsigned char> output(max_size, '\0');
       size_t decoded_len = 0;
 
-      // Set once padding has been seen; any output produced after that point
-      // is trailing data, which a single update call would have rejected.
-      std::optional<size_t> len_at_padding;
+      // EVP_DecodeUpdate returns 0 once it has seen the end of the content:
+      // either padding, after which only whitespace may follow, or '-', which
+      // it treats as an end marker and after which it ignores the rest of the
+      // same call. The context remembers neither across calls, so a single
+      // call's behaviour is reproduced here. The '-' case is told apart by
+      // its position in the input.
+      const auto eof_pos = b64_string.find('-');
+      bool padded = false;
+      size_t consumed = 0;
 
       while (!input.empty())
       {
-        const auto chunk =
-          input.first(std::min(input.size(), BASE64_MAX_UPDATE_SIZE));
+        const auto chunk = input.first(std::min(input.size(), chunk_size));
         int chunk_len = 0;
-        // Returns 1 if more input may follow, 0 once padding has been seen,
-        // and -1 on error
         const int rc = EVP_DecodeUpdate(
           ctx,
           output.data() + decoded_len,
@@ -81,11 +87,25 @@ namespace ccf::crypto
             chunk_len));
         }
         decoded_len += static_cast<size_t>(chunk_len);
-        if (rc == 0 && !len_at_padding.has_value())
-        {
-          len_at_padding = decoded_len;
-        }
+        consumed += chunk.size();
         input = input.subspan(chunk.size());
+
+        // After padding, any output or buffered character is trailing data,
+        // which a single call would have rejected
+        if (padded && (chunk_len != 0 || EVP_ENCODE_CTX_num(ctx) != 0))
+        {
+          throw std::invalid_argument(
+            "OSSL: Could not decode base64 string: data after padding");
+        }
+
+        if (rc == 0)
+        {
+          if (eof_pos < consumed)
+          {
+            break;
+          }
+          padded = true;
+        }
       }
 
       int final_len = 0;
@@ -104,19 +124,18 @@ namespace ccf::crypto
       }
       decoded_len += static_cast<size_t>(final_len);
 
-      if (len_at_padding.has_value() && decoded_len != *len_at_padding)
-      {
-        throw std::invalid_argument(
-          "OSSL: Could not decode base64 string: data after padding");
-      }
-
       std::vector<uint8_t> ret(output.data(), output.data() + decoded_len);
 
       return ret;
     }
 
-    // Encode byte stream into Base64
-    static std::string b64_from_raw(const uint8_t* data, size_t size)
+    // Encode byte stream into Base64. The input is fed to OpenSSL in chunks
+    // of at most chunk_size bytes; smaller sizes than the default only serve
+    // to test chunk boundaries.
+    static std::string b64_from_raw(
+      const uint8_t* data,
+      size_t size,
+      size_t chunk_size = BASE64_MAX_UPDATE_SIZE)
     {
       if (size == 0)
       {
@@ -141,8 +160,7 @@ namespace ccf::crypto
       // Encode Main Block (if size > 48)
       while (!input.empty())
       {
-        const auto chunk =
-          input.first(std::min(input.size(), BASE64_MAX_UPDATE_SIZE));
+        const auto chunk = input.first(std::min(input.size(), chunk_size));
         int chunk_len = 0;
         // Returns 0 on error and 1 on success
         const int rc = EVP_EncodeUpdate(

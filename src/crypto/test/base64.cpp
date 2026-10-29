@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <chrono>
 #include <doctest/doctest.h>
+#include <optional>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -181,9 +183,115 @@ TEST_CASE("base64 rejects data after padding across OpenSSL updates")
   REQUIRE(encoded.back() == '=');
   REQUIRE(raw_from_b64(encoded) == raw);
 
-  REQUIRE_THROWS_AS(raw_from_b64(encoded + "AQID"), std::invalid_argument);
-  REQUIRE_THROWS_AS(raw_from_b64(encoded + "AQ=="), std::invalid_argument);
+  // Whole groups, partial groups and extra padding are all rejected
+  for (const std::string trailing : {"AQID", "A", "AA", "AAA", "=", "AQ=="})
+  {
+    INFO("trailing = " << trailing);
+    REQUIRE_THROWS_AS(raw_from_b64(encoded + trailing), std::invalid_argument);
+  }
 
   // Trailing whitespace after padding is still accepted
   REQUIRE(raw_from_b64(encoded + "\n") == raw);
+  REQUIRE(raw_from_b64(encoded + " \r\n\t") == raw);
+}
+
+TEST_CASE("base64 end marker across OpenSSL updates")
+{
+  // OpenSSL treats '-' as an end-of-content marker and ignores whatever
+  // follows it in the same call. Following chunks must not be decoded.
+  const std::string ignored(BASE64_MAX_UPDATE_SIZE, 'x');
+  REQUIRE(
+    raw_from_b64("AQID-" + ignored + "AQID") == std::vector<uint8_t>{1, 2, 3});
+  REQUIRE(
+    raw_from_b64("AQI=-" + ignored + "AQID") == std::vector<uint8_t>{1, 2});
+
+  // The marker may also follow padding which ended a chunk
+  const std::vector<uint8_t> raw(BASE64_MAX_UPDATE_SIZE / 4 * 3 - 1, 0xAB);
+  const auto encoded = b64_from_raw(raw.data(), raw.size());
+  REQUIRE(encoded.size() == BASE64_MAX_UPDATE_SIZE);
+  REQUIRE(raw_from_b64(encoded + "-" + ignored) == raw);
+  REQUIRE(raw_from_b64(encoded + "\n-" + ignored) == raw);
+  REQUIRE_THROWS_AS(raw_from_b64(encoded + "A-"), std::invalid_argument);
+}
+
+TEST_CASE("base64 chunked decoding matches a single OpenSSL call")
+{
+  // For any input and any chunk size, decoding in chunks must accept or
+  // reject exactly as a single call does, and produce the same bytes. The
+  // alphabet includes padding, the end marker, whitespace and an invalid
+  // character, so that chunk boundaries fall on every kind of state change.
+  static constexpr std::string_view alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    "====----\n\n\r\t  !";
+  std::mt19937 rng(42);
+  std::uniform_int_distribution<size_t> pick_char(0, alphabet.size() - 1);
+  std::uniform_int_distribution<size_t> pick_len(0, 140);
+
+  auto decode = [](
+                  const std::string& input,
+                  size_t chunk_size) -> std::optional<std::vector<uint8_t>> {
+    try
+    {
+      return Base64_openssl::raw_from_b64(input, chunk_size);
+    }
+    catch (const std::exception&)
+    {
+      return std::nullopt;
+    }
+  };
+
+  size_t accepted = 0;
+  for (size_t i = 0; i < 20000; ++i)
+  {
+    std::string input(pick_len(rng), ' ');
+    // Half the inputs are a valid encoding, possibly with a suffix
+    if (i % 2 == 0)
+    {
+      std::vector<uint8_t> raw(input.size() / 2);
+      std::generate(raw.begin(), raw.end(), [&]() { return rng() & 0xff; });
+      input = b64_from_raw(raw.data(), raw.size());
+      for (size_t j = 0, n = rng() % 4; j < n; ++j)
+      {
+        input.push_back(alphabet[pick_char(rng)]);
+      }
+    }
+    else
+    {
+      for (auto& c : input)
+      {
+        c = alphabet[pick_char(rng)];
+      }
+    }
+
+    const auto expected = decode(input, SIZE_MAX);
+    accepted += expected.has_value() ? 1 : 0;
+    for (size_t chunk_size = 1; chunk_size <= 9; ++chunk_size)
+    {
+      INFO("input = " << input << ", chunk_size = " << chunk_size);
+      REQUIRE(decode(input, chunk_size) == expected);
+    }
+  }
+  // Both outcomes must be well represented for the comparison to mean much
+  REQUIRE(accepted > 2000);
+  REQUIRE(accepted < 18000);
+}
+
+TEST_CASE("base64 chunked encoding matches a single OpenSSL call")
+{
+  std::mt19937 rng(42);
+  for (size_t length = 0; length < 200; ++length)
+  {
+    std::vector<uint8_t> raw(length);
+    std::generate(raw.begin(), raw.end(), [&]() { return rng() & 0xff; });
+    const auto expected =
+      Base64_openssl::b64_from_raw(raw.data(), raw.size(), SIZE_MAX);
+    REQUIRE(expected == reference_b64(raw));
+    for (size_t chunk_size = 1; chunk_size <= 9; ++chunk_size)
+    {
+      INFO("length = " << length << ", chunk_size = " << chunk_size);
+      REQUIRE(
+        Base64_openssl::b64_from_raw(raw.data(), raw.size(), chunk_size) ==
+        expected);
+    }
+  }
 }
