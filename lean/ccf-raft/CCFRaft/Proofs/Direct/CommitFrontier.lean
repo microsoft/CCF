@@ -283,6 +283,18 @@ theorem Keeps.nominateSuccessor (state : NodeState)
   · exact Keeps.seq' fun _ => Keeps.pure' rfl
   · exact Keeps.pure' rfl
 
+/-- A send pass changes only send frontiers. -/
+theorem Keeps.sendEntries (state : NodeState) (destination : NodeID)
+    (batchEnds : List Nat)
+    : Keeps (fun result => exists sentIndex, result = { state with sentIndex })
+        (Model.Node.sendEntries caps self state destination batchEnds) := by
+  unfold Model.Node.sendEntries
+  refine Keeps.seq' fun _ => Keeps.foldlM' (fun value batch same => ?_) _ _ ⟨_, rfl⟩
+  obtain ⟨_, rfl⟩ := same
+  unfold Model.Node.sendBatch
+  exact Keeps.ite' (fun _ => Keeps.pure' ⟨_, rfl⟩)
+    fun _ => Keeps.seq' fun _ => Keeps.pure' ⟨_, rfl⟩
+
 theorem CommitFrontier.act {state : NodeState}
     (frontier : CommitFrontier state) (input : Input)
     : Keeps CommitFrontier (Model.Node.act caps self state input) := by
@@ -293,9 +305,9 @@ theorem CommitFrontier.act {state : NodeState}
         (Keeps.foldlM' (fun current content kept => kept.appendEntry caps self content)
           entries state frontier)
         fun _ kept => kept.advanced self caps
-  | sendEntries destination endIndex =>
-      unfold Model.Node.act Model.Node.sendEntries
-      exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.pure' frontier.withSent
+  | sendEntries destination batchEnds =>
+      exact (Keeps.sendEntries caps self state destination batchEnds).mono
+        fun _ ⟨_, eq⟩ => eq ▸ frontier.withSent
   | timeout kind =>
       cases kind with
       | election =>

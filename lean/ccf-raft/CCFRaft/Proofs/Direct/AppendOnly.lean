@@ -196,9 +196,9 @@ theorem Extends.act (state : NodeState) (input : Input)
             kept.trans next) entries state (Extends.refl _))
         fun current kept => (Extends.advanced caps self current).mono fun _ next =>
           kept.trans next
-  | sendEntries destination endIndex =>
-      unfold Model.Node.act Model.Node.sendEntries
-      exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.pure' (Extends.of_log rfl rfl)
+  | sendEntries destination batchEnds =>
+      exact (Keeps.sendEntries caps self state destination batchEnds).mono
+        fun _ ⟨_, eq⟩ => eq ▸ Extends.of_log rfl rfl
   | timeout kind =>
       cases kind with
       | election =>

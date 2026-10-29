@@ -76,13 +76,13 @@ private def clientRequestCommits : IO Unit := do
       [
         .local 0 (.append [.transaction 10 {}]),
         .local 0 (.append [.signature]),
-        .local 0 (.sendEntries 1 3),
+        .local 0 (.sendEntries 1 [3]),
         .deliver 0 1,
         .deliver 1 0,
-        .local 0 (.sendEntries 2 3),
+        .local 0 (.sendEntries 2 [3]),
         .deliver 0 2,
         .deliver 2 0,
-        .local 0 (.sendEntries 1 3),
+        .local 0 (.sendEntries 1 [3]),
         .deliver 0 1,
         .deliver 1 0
       ]
@@ -141,8 +141,8 @@ private def reconfigureElectAndCommit : IO Unit := do
   let state ←
     runTrace "replication" {0} nodes state
       [
-        .local 0 (.sendEntries 1 5),
-        .local 0 (.sendEntries 2 5),
+        .local 0 (.sendEntries 1 [5]),
+        .local 0 (.sendEntries 2 [5]),
         .deliver 0 1,
         .deliver 1 0,
         .deliver 0 2,
@@ -155,10 +155,10 @@ private def reconfigureElectAndCommit : IO Unit := do
   let state ←
     runTrace "commit notification" {0} nodes state
       [
-        .local 0 (.sendEntries 1 5),
+        .local 0 (.sendEntries 1 [5]),
         .deliver 0 1,
         .deliver 1 0,
-        .local 0 (.sendEntries 2 5),
+        .local 0 (.sendEntries 2 [5]),
         .deliver 0 2,
         .deliver 2 0
       ]
@@ -197,13 +197,13 @@ private def reconfigureElectAndCommit : IO Unit := do
       [
         .local 1 (.append [.transaction 30 {}]),
         .local 1 (.append [.signature]),
-        .local 1 (.sendEntries 0 7),
+        .local 1 (.sendEntries 0 [7]),
         .deliver 1 0,
         .deliver 0 1,
-        .local 1 (.sendEntries 2 7),
+        .local 1 (.sendEntries 2 [7]),
         .deliver 1 2,
         .deliver 2 1,
-        .local 1 (.sendEntries 0 7),
+        .local 1 (.sendEntries 0 [7]),
         .deliver 1 0,
         .deliver 0 1
       ]
