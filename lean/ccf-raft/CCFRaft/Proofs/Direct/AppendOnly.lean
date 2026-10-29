@@ -191,9 +191,14 @@ theorem Extends.act (state : NodeState) (input : Input)
       unfold Model.Node.act Model.Node.appendBatch
       refine Keeps.seq' fun _ => ?_
       exact Keeps.bind'
-        (Keeps.foldlM' (P := Extends state) (fun current content kept =>
-          (Extends.appendEntry caps self current content).mono fun _ next =>
-            kept.trans next) entries state (Extends.refl _))
+        (Keeps.foldlM' (P := Extends state) (fun current entry kept =>
+          Keeps.bind' (Extends.appendEntry caps self current entry.content)
+            fun appended next => Keeps.foldlM'
+              (fun current (destination, endIndex) kept => by
+                unfold Model.Node.sendEntries
+                exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.pure' kept)
+              entry.flushes appended (kept.trans next))
+          entries state (Extends.refl _))
         fun current kept => (Extends.advanced caps self current).mono fun _ next =>
           kept.trans next
   | sendEntries destination endIndex =>

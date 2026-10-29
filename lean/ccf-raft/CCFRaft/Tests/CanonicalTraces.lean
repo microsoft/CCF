@@ -74,8 +74,8 @@ private def clientRequestCommits : IO Unit := do
     runTrace "client request commits" configuration nodes
       (initialState configuration nodes)
       [
-        .local 0 (.append [.transaction 10 {}]),
-        .local 0 (.append [.signature]),
+        .local 0 (.append [{ content := .transaction 10 {} }]),
+        .local 0 (.append [{ content := .signature }]),
         .local 0 (.sendEntries 1 3),
         .deliver 0 1,
         .deliver 1 0,
@@ -121,10 +121,11 @@ private def reconfigureElectAndCommit : IO Unit := do
   let state ←
     runTrace "reconfiguration before delivery" {0} nodes (initialState {0} nodes)
       [
-        .local 0 (.append [.transaction 10 {}]),
-        .local 0 (.append [.signature]),
-        .local 0 (.append [.transaction 20 { configuration := some {0, 1, 2} }]),
-        .local 0 (.append [.signature])
+        .local 0 (.append [{ content := .transaction 10 {} }]),
+        .local 0 (.append [{ content := .signature }]),
+        .local 0
+          (.append [{ content := .transaction 20 { configuration := some {0, 1, 2} } }]),
+        .local 0 (.append [{ content := .signature }])
       ]
   checkLedger "reconfiguration before delivery" state 0 expected 3
   for node in [1, 2] do
@@ -195,8 +196,8 @@ private def reconfigureElectAndCommit : IO Unit := do
   let state ←
     runTrace "new primary client request" {0} nodes state
       [
-        .local 1 (.append [.transaction 30 {}]),
-        .local 1 (.append [.signature]),
+        .local 1 (.append [{ content := .transaction 30 {} }]),
+        .local 1 (.append [{ content := .signature }]),
         .local 1 (.sendEntries 0 7),
         .deliver 1 0,
         .deliver 0 1,
@@ -223,7 +224,7 @@ private def reconfigureElectAndCommit : IO Unit := do
       s!"reconfigure, elect and commit: node {node} has the wrong term, role or membership"
   check state.network.isEmpty "reconfigure, elect and commit: undelivered messages remain"
 
-/-- Runs initialized action traces and checks their ledgers at each stage. -/
+/-- Runs action traces and checks their ledgers and append-time packet emissions. -/
 def run : IO Unit := do
   clientRequestCommits
   reconfigureElectAndCommit
