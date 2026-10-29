@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Fixed
 
-- Hardened `ccf::crypto` OpenSSL call sites taking `int` lengths against inputs larger than 2 GiB.
+- Hardened `ccf::crypto` OpenSSL call sites taking `int` lengths against inputs larger than 2 GiB (#8645).
 
 ## [7.0.23]
 
