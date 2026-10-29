@@ -114,13 +114,12 @@ Their runner is namespaced, leaving the replayer as the only `main` entrypoint s
 `lake check`, introduced in [Lean 4.35](https://lean-lang.org/doc/reference/4.35.0/releases/v4.35.0/), builds and exports all default targets, then rechecks the export with Lean's kernel.
 It also checks axiom dependencies, rejecting any use of axioms other than `propext`, `Classical.choice`, and `Quot.sound`, so a separate axiom-audit dependency is unnecessary.
 The checked targets include the complete library import root, canonical tests, and replayer, not just the exported property theorems.
-These supplement the dependency-direction checks and executable model and trace tests.
+These supplement the executable model and trace tests.
 The `--inadvisably-no-sandbox` flag allows the check to build the shared modules directly from `../common`.
 It disables build isolation, not proof or axiom checking; run it only on code you trust.
 CI checks the package in an Ubuntu 26.04 job using disk-backed temporary storage.
 Additional bundled checkers are not enabled.
 
-`Tests/Architecture.lean` enforces dependency direction: common and model modules remain independent of properties and proofs, property helpers remain independent of proofs, and proof implementations cannot import the final `Properties.lean` entrypoint.
 See [Formatting](#formatting) for the [leanfmt](https://github.com/duckki/leanfmt) check.
 To update a tool dependency without changing the toolchain, run `lake update --keep-toolchain <package>`.
 
