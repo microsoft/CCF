@@ -200,6 +200,9 @@ namespace ccf::kv::untyped
 
       void commit(Version v, bool track_deletes_on_missing_keys) override
       {
+        KV_TRACE(if (trace::context().tx == 0) {
+          trace::unsupported(map.get_store(), "map commit outside transaction");
+        });
         if (change_set.writes.empty())
         {
           commit_version = change_set.start_version;
@@ -390,6 +393,8 @@ namespace ccf::kv::untyped
       void commit(Version v, bool track_deletes_on_missing_keys) override
       {
         (void)v;
+        KV_TRACE(
+          trace::unsupported(map.get_store(), "map snapshot application"));
         (void)track_deletes_on_missing_keys;
         // Version argument is ignored. The version of the roll after the
         // snapshot is applied depends on the version of the map at which the
@@ -422,6 +427,7 @@ namespace ccf::kv::untyped
 
     ChangeSetPtr deserialise_snapshot_changes(KvStoreDeserialiser& d)
     {
+      KV_TRACE(trace::unsupported(get_store(), "map snapshot import"));
       // Create a new empty change set, deserialising d's contents into it.
       auto v = d.deserialise_entry_version();
       auto map_snapshot = d.deserialise_raw();
@@ -437,6 +443,7 @@ namespace ccf::kv::untyped
 
     ChangeSetPtr deserialise_internal(KvStoreDeserialiser& d, Version version)
     {
+      KV_TRACE(trace::unsupported(get_store(), "map deserialisation"));
       // Create a new change set, and deserialise d's contents into it.
       auto change_set_ptr = create_change_set(version, false);
       if (change_set_ptr == nullptr)
@@ -569,6 +576,9 @@ namespace ccf::kv::untyped
 
     void compact(Version v) override
     {
+      KV_TRACE(if (!trace::in_environment()) {
+        trace::unsupported(get_store(), "map compaction outside store");
+      });
       // This discards available rollback state before version v, and
       // populates the commit_deltas to be passed to the global commit hook,
       // if there is one, up to version v. The Map expects to be locked during
@@ -618,6 +628,7 @@ namespace ccf::kv::untyped
     {
       if (global_hook)
       {
+        KV_TRACE(trace::unsupported(get_store(), "global hook"));
         for (auto& [version, writes] : commit_deltas)
         {
           LOG_TRACE_FMT(
@@ -633,6 +644,9 @@ namespace ccf::kv::untyped
 
     void rollback(Version v) override
     {
+      KV_TRACE(if (!trace::in_environment()) {
+        trace::unsupported(get_store(), "map rollback outside store");
+      });
       // This rolls the current state back to version v.
       // The Map expects to be locked during rollback.
       bool advance = false;
@@ -661,6 +675,8 @@ namespace ccf::kv::untyped
 
     void clear() override
     {
+      KV_TRACE(
+        trace::unsupported(get_store(), "map clear outside transaction"));
       // This discards all entries in the roll and resets the rollback
       // counter. The Map expects to be locked before clearing it.
       roll.reset_commits();
@@ -718,6 +734,13 @@ namespace ccf::kv::untyped
             roll.commits->get_head()->state,
             std::move(writes),
             current->version);
+          KV_TRACE(changes->trace_metadata.id = trace::context();
+                   trace::operation(
+                     changes->trace_metadata,
+                     "map_acquire",
+                     get_name(),
+                     {{"version", current->version},
+                      {"global", roll.commits->get_head()->version}}));
           break;
         }
       }
@@ -726,12 +749,19 @@ namespace ccf::kv::untyped
       // version - the version requested is _earlier_ than anything in the
       // roll
 
+      KV_TRACE(if (changes == nullptr) {
+        trace::operation(trace::context(), "map_unavailable", get_name());
+      });
+
       unlock();
       return changes;
     }
 
     Roll& get_roll()
     {
+      KV_TRACE(if (trace::context().tx == 0) {
+        trace::unsupported(get_store(), "direct map roll access");
+      });
       return roll;
     }
 
@@ -739,6 +769,7 @@ namespace ccf::kv::untyped
     {
       if (hook && !writes.empty())
       {
+        KV_TRACE(trace::unsupported(get_store(), "local hook"));
         LOG_TRACE_FMT(
           "Executing local hook on table {} at version {}",
           get_name(),

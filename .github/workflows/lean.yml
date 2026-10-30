@@ -11,6 +11,7 @@ on:
       - "tests/raft_scenarios/**"
       - "src/consensus/aft/**"
       - ".github/workflows/lean.yml"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -61,6 +62,73 @@ jobs:
         with:
           name: raft-scenario-traces
           path: ${{ runner.temp }}/ccf-raft-build/consensus/raw/*.ndjson
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+  kv_traces:
+    name: KV trace captures
+    runs-on: [gha-vmss-d16av7-ci-c]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout dependencies
+        run: |
+          set -euo pipefail
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        uses: ./.github/actions/install-ci-dependencies
+        with:
+          cache-python-packages: "false"
+
+      - name: Build and run instrumented KV unit tests
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          cmake -S . -B "$RUNNER_TEMP/ccf-kv-build" -GNinja \
+            -DCMAKE_BUILD_TYPE=Debug -DCCF_KV_TRACING=ON
+          cmake --build "$RUNNER_TEMP/ccf-kv-build" --target kv_test --parallel "$(( ($(nproc) + 1) >> 1 ))"
+          ctest --test-dir "$RUNNER_TEMP/ccf-kv-build" -VV -R "^kv_test$" --no-tests=error
+
+      - name: Generate KV captures
+        run: |
+          set -euo pipefail
+          python3 tests/kv_trace_validation_test.py
+          python3 tests/kv_trace_validation.py \
+            --binary "$RUNNER_TEMP/ccf-kv-build/kv_test" --capture-only \
+            --output "$RUNNER_TEMP/ccf-kv-build/kv-traces" --seeds 8 --timeout 900
+
+      - name: Upload KV traces
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kv-traces
+          path: ${{ runner.temp }}/ccf-kv-build/kv-traces/*/trace.ndjson
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+      - name: Upload KV diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kv-trace-diagnostics
+          path: |
+            ${{ runner.temp }}/ccf-kv-build/kv-traces/
+            ${{ runner.temp }}/ccf-kv-build/Testing/
           if-no-files-found: error
           retention-days: 1
           overwrite: true
@@ -140,6 +208,10 @@ jobs:
         working-directory: lean/ccf-raft
         run: lake build --wfail ccfraft-replay
 
+      - name: Build KV replay
+        working-directory: lean/kv
+        run: lake build --wfail kv-replay
+
       - name: Validate Raft trace fixtures
         shell: bash
         run: |
@@ -186,33 +258,34 @@ jobs:
         run: python3 lean/disaster-recovery/replayer/viewer/build.py
 
       # Wait here instead of using needs so independent Lean checks run in parallel with capture generation.
-      - name: Wait for Raft scenario captures
+      - name: Wait for implementation captures
         timeout-minutes: 60
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          job="Raft scenario captures"
-          while true; do
-            if ! state=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
-              --jq ".jobs[] | select(.name == \"${job}\") | \"\(.status) \(.conclusion)\""); then
-              echo "::warning::Could not read ${job} status; retrying"
-              state="unavailable"
-            fi
-            case "${state}" in
-              "completed success") exit 0 ;;
-              completed*)
-                echo "::error::${job} concluded ${state#completed }, so its traces cannot be validated"
-                exit 1
-                ;;
-              "")
-                echo "::error::${job} was not found in this workflow run"
-                exit 1
-                ;;
-            esac
-            echo "Waiting for ${job} (${state%% *})"
-            sleep 30
+          for job in "Raft scenario captures" "KV trace captures"; do
+            while true; do
+              if ! state=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
+                --jq ".jobs[] | select(.name == \"${job}\") | \"\(.status) \(.conclusion)\""); then
+                echo "::warning::Could not read ${job} status; retrying"
+                state="unavailable"
+              fi
+              case "${state}" in
+                "completed success") break ;;
+                completed*)
+                  echo "::error::${job} concluded ${state#completed }, so its traces cannot be validated"
+                  exit 1
+                  ;;
+                "")
+                  echo "::error::${job} was not found in this workflow run"
+                  exit 1
+                  ;;
+              esac
+              echo "Waiting for ${job} (${state%% *})"
+              sleep 30
+            done
           done
 
       - name: Download Raft traces
@@ -229,5 +302,22 @@ jobs:
           for trace in "$RUNNER_TEMP"/raft-scenario-traces/*.ndjson; do
             echo "::group::Validate $trace"
             lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace"
+            echo "::endgroup::"
+          done
+
+      - name: Download KV traces
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: kv-traces
+          path: ${{ runner.temp }}/kv-traces
+
+      - name: Validate KV traces
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in "$RUNNER_TEMP"/kv-traces/*/trace.ndjson; do
+            echo "::group::Validate $trace"
+            lean/kv/.lake/build/bin/kv-replay "$trace"
             echo "::endgroup::"
           done

@@ -14,6 +14,9 @@ lean/**/Proofs/**/*.lean linguist-generated=true
 lean/disaster-recovery/replayer/fixtures/**/*.diff linguist-generated=true
 lean/disaster-recovery/DisasterRecovery.lean text eol=lf
 
+lean/kv/Kv/Model/Certificates.lean linguist-generated=true
+lean/kv/Kv.lean text eol=lf
+
 # Hide third-party content from language statistics and diffs by default.
 3rdparty/** linguist-vendored linguist-generated
 # Keep locally maintained patches visible for review.
