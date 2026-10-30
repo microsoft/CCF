@@ -80,11 +80,10 @@ theorem stepEvent_store_effect (w next : World) (sid : Nat) (s : Store) (e : Eve
     : ∃ after,
         find next.stores sid = some after
         ∧ HeadEffect s after (projectedApplication w sid e) := by
-  cases e <;> first
+  cases e <;> try first
     | exact unchanged_store_effect w next sid s _ hs
         (withTx_preserves_stores w next _ _ _ accepted) rfl
     | exact snapshot_store_effect w next sid s _ _ _ _ _ hs accepted
-    | skip
   all_goals simp only [stepEvent, Bind.bind, Pure.pure, Except.bind, Except.pure,
     require, expect, invalid, reject] at accepted
   all_goals simp only [SegmentEvent] at segment
@@ -111,7 +110,6 @@ theorem step_event_result (w next : World) (r : Record) (accepted : step w r = .
     require, invalid] at accepted
   repeat' first
     | contradiction
-    | exact ⟨_, by assumption, rfl, rfl⟩
     | cases accepted
     | split at accepted
   all_goals
@@ -215,7 +213,6 @@ theorem txOf_found (w : World) (sid tid : Nat) (t : Tx)
       require, invalid] at accepted
   all_goals repeat' first
     | contradiction
-    | assumption
     | rfl
     | cases accepted
     | split at accepted

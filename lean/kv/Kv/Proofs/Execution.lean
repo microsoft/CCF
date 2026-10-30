@@ -24,7 +24,7 @@ theorem replay_iff_run (w final : World) (rs : List Record)
   | nil =>
       constructor
       · intro run
-        cases run
+        cases run using @CCF.Execution.Run.casesOn transitionSystem
         rfl
       · intro accepted
         cases accepted
@@ -32,7 +32,7 @@ theorem replay_iff_run (w final : World) (rs : List Record)
   | cons r rs ih =>
       constructor
       · intro run
-        cases run with
+        cases run using @CCF.Execution.Run.casesOn transitionSystem with
         | cons transition rest =>
             simp only [replay, (step_iff_transition _ _ _).mp transition, Except.bind]
             exact (ih _).mp rest
@@ -48,7 +48,7 @@ theorem run_snoc {start before after : World} {rs : List Record} {r : Record}
     (run : CCF.Execution.Run transitionSystem start rs before)
     (transition : transitionSystem.step before r = some after)
     : CCF.Execution.Run transitionSystem start (rs ++ [r]) after := by
-  induction run with
+  induction run using @CCF.Execution.Run.rec transitionSystem with
   | nil => exact .cons transition (.nil _)
   | cons first _ ih => exact .cons first (ih transition)
 
@@ -56,7 +56,7 @@ theorem run_reachable {start final : World} {rs : List Record}
     (reachable : transitionSystem.Reachable start)
     (run : CCF.Execution.Run transitionSystem start rs final)
     : transitionSystem.Reachable final := by
-  induction run with
+  induction run using @CCF.Execution.Run.rec transitionSystem with
   | nil => exact reachable
   | cons transition _ ih => exact ih (.step reachable transition)
 
@@ -64,13 +64,13 @@ theorem reachable_iff_replay (w : World)
     : transitionSystem.Reachable w ↔ ∃ rs, replay {} rs = .ok w := by
   constructor
   · intro reachable
-    induction reachable with
+    induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
     | initial initialized =>
         cases initialized
         exact ⟨[], rfl⟩
     | @step before after r _ transition ih =>
         obtain ⟨rs, accepted⟩ := ih
-        exact ⟨rs ++ [r],
+        exact ⟨rs ++ ([r] : List Record),
           (replay_iff_run _ _ _).mp (run_snoc ((replay_iff_run _ _ _).mpr accepted) transition)⟩
   · intro ⟨rs, accepted⟩
     exact run_reachable (.initial rfl) ((replay_iff_run {} w rs).mpr accepted)

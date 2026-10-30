@@ -540,7 +540,9 @@ def replay (w : World) : List Record → Except Failure World
 
 /-- The model as a transition system over trace records: it starts from the empty world, and
 a record is enabled exactly when `step` accepts it. -/
-def transitionSystem : CCF.TransitionSystem World Record where
+def transitionSystem : CCF.TransitionSystem where
+  State := World
+  Action := Record
   init w := w = {}
   step w r := (step w r).toOption
 

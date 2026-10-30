@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Generate KV traces and check that the Lean model accepts them."""
+"""Generate KV traces and optionally check that the Lean model accepts them."""
 
 import argparse
 import json
@@ -161,16 +161,18 @@ def check_trace(args, label, case_filter, expected_cases, seed=None):
     if not trace.is_file():
         raise RuntimeError(f"{directory}: KV test {test_status} and emitted no trace")
 
-    checked = execute(
-        [str(args.checker), str(trace)],
-        directory,
-        "checker",
-        args.timeout,
-    )
-    if test_status != 0 or checked.returncode != 0:
+    checker_status = "not run"
+    if args.checker is not None:
+        checker_status = execute(
+            [str(args.checker), str(trace)],
+            directory,
+            "checker",
+            args.timeout,
+        ).returncode
+    if test_status != 0 or (args.checker is not None and checker_status != 0):
         raise RuntimeError(
             f"{directory}: KV test {test_status}; "
-            f"Lean checker exited {checked.returncode}"
+            f"Lean checker exited {checker_status}"
         )
     inspect_trace(trace, expected_cases, seed is not None)
 
@@ -178,7 +180,13 @@ def check_trace(args, label, case_filter, expected_cases, seed=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
-    parser.add_argument("--checker", type=Path, required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--checker", type=Path)
+    mode.add_argument(
+        "--capture-only",
+        action="store_true",
+        help="Check capture coverage without replaying; replay the traces separately",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seed-start", type=int, default=0)
     parser.add_argument("--seeds", type=int, default=8)
@@ -190,7 +198,8 @@ def main():
         parser.error("--seeds must be positive")
 
     args.binary = args.binary.resolve(strict=True)
-    args.checker = args.checker.resolve(strict=True)
+    if args.checker is not None:
+        args.checker = args.checker.resolve(strict=True)
     args.output.mkdir(parents=True, exist_ok=True)
     try:
         check_case_list(args.binary)

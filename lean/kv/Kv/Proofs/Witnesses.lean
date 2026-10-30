@@ -3,7 +3,7 @@
 
 module
 
-public import Kv.Properties
+public import Kv.Properties.Invariants
 public import Kv.Proofs.Execution
 
 @[expose] public section
@@ -95,20 +95,29 @@ private def writtenTx : Tx :=
     globalViews := [("a", captureGlobal written writtenSnapshot "a")]
   }
 
-theorem absent_read_witness : AbsentReadWitness := ⟨[], [], ("a", "00"), rfl, rfl⟩
+theorem absent_read_witness
+    : ∃ (db : DB String String String) (ws : Writes String String String)
+        (a : Addr String String),
+        find ws a = none ∧ find db a = none :=
+  ⟨[], [], ("a", "00"), rfl, rfl⟩
 
-theorem staged_noninterference_witness : StagedNoninterferenceWitness :=
+theorem staged_noninterference_witness : ∃ a b : Addr String String, a ≠ b :=
   ⟨("a", "00"), ("a", "01"), by decide⟩
 
-theorem publication_noninterference_witness : PublicationNoninterferenceWitness :=
+theorem publication_noninterference_witness
+    : ∃ (ws : Writes String String String) (a : Addr String String), find ws a = none :=
   ⟨[], ("a", "00"), rfl⟩
 
-theorem publish_unique_witness : PublishUniqueWitness := ⟨[], List.nodup_nil⟩
+theorem publish_unique_witness : ∃ db : DB String String String, Unique db :=
+  ⟨[], List.nodup_nil⟩
 
-theorem transaction_snapshot_serial_witness : TransactionSnapshotSerialWitness :=
+theorem transaction_snapshot_serial_witness
+    : ∃ (t : Tx) (snap : Snapshot), t.snapshot = some snap ∧ t.normal.log ≠ [] :=
   ⟨txAt 7 1, _, some_get (by decide +kernel), by decide +kernel⟩
 
-theorem transaction_application_serial_witness : TransactionApplicationSerialWitness :=
+theorem transaction_application_serial_witness
+    : ∃ (s : Store) (t : Tx) (snap : Snapshot),
+        t.snapshot = some snap ∧ canApply s t = true ∧ t.normal.log ≠ [] :=
   ⟨
     storeAt 8 1,
     txAt 8 1,
@@ -119,7 +128,7 @@ theorem transaction_application_serial_witness : TransactionApplicationSerialWit
   ⟩
 
 theorem executable_branch_serializability_witness
-    : ExecutableBranchSerializabilityWitness := by
+    : ∃ (s final : Store) (ts : List Tx), AppliedBranch s ts final ∧ ts ≠ [] := by
   have h : canApply (storeAt 8 1) (txAt 8 1) = true := by decide +kernel
   exact ⟨
     storeAt 8 1,
@@ -129,7 +138,12 @@ theorem executable_branch_serializability_witness
     List.cons_ne_nil _ _
   ⟩
 
-theorem replay_segment_serializability_witness : ReplaySegmentSerializabilityWitness :=
+theorem replay_segment_serializability_witness
+    : ∃ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
+        find w.stores sid = some s
+        ∧ (∀ r ∈ rs, SegmentEvent sid r.event)
+        ∧ CCF.Execution.Run Model.transitionSystem w rs final
+        ∧ rs ≠ [] :=
   ⟨
     world 3,
     _,
@@ -153,13 +167,22 @@ private theorem reachable_live_store
     some_get (by decide +kernel)
   ⟩
 
-theorem reachable_store_invariants_witness : ReachableStoreInvariantsWitness :=
+theorem reachable_store_invariants_witness
+    : ∃ (w : World) (sid : Nat) (s : Store),
+        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s :=
   reachable_live_store
 
-theorem reachable_store_data_invariants_witness : ReachableStoreDataInvariantsWitness :=
+theorem reachable_store_data_invariants_witness
+    : ∃ (w : World) (sid : Nat) (s : Store),
+        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s :=
   reachable_live_store
 
-theorem step_capture_metadata_witness : StepCaptureMetadataWitness :=
+theorem step_capture_metadata_witness
+    : ∃ (w next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
+        storeOf w sid = .ok s
+        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+          = some next
+        ∧ find next.txs tid = some t :=
   ⟨
     world 13,
     _,
@@ -176,7 +199,11 @@ theorem step_capture_metadata_witness : StepCaptureMetadataWitness :=
     some_get (by decide +kernel)
   ⟩
 
-theorem step_capture_cut_values_witness : StepCaptureCutValuesWitness :=
+theorem step_capture_cut_values_witness
+    : ∃ (w next : World) (sid tid version global term seq : Nat) (s : Store),
+        storeOf w sid = .ok s
+        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+          = some next :=
   ⟨
     world 13,
     _,
@@ -192,7 +219,15 @@ theorem step_capture_cut_values_witness : StepCaptureCutValuesWitness :=
   ⟩
 
 theorem capture_replay_preserves_metadata_witness
-    : CaptureReplayPreservesMetadataWitness :=
+    : ∃ (w capturedWorld final : World) (sid tid version global term seq : Nat)
+        (s : Store) (t : Tx) (tail : List Record),
+        storeOf w sid = .ok s
+        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+          = some capturedWorld
+        ∧ find capturedWorld.txs tid = some t
+        ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
+        ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+        ∧ tail ≠ [] :=
   ⟨
     world 4,
     _,
@@ -214,7 +249,13 @@ theorem capture_replay_preserves_metadata_witness
     List.ne_nil_of_length_pos (by decide +kernel)
   ⟩
 
-theorem replay_snapshot_fixed_witness : ReplaySnapshotFixedWitness :=
+theorem replay_snapshot_fixed_witness
+    : ∃ (w final : World) (tid : Nat) (before : Tx) (snap : Snapshot) (rs : List Record),
+        find w.txs tid = some before
+        ∧ before.snapshot = some snap
+        ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
+        ∧ CCF.Execution.Run Model.transitionSystem w rs final
+        ∧ rs ≠ [] :=
   ⟨
     world 5,
     _,
@@ -229,7 +270,16 @@ theorem replay_snapshot_fixed_witness : ReplaySnapshotFixedWitness :=
     List.ne_nil_of_length_pos (by decide +kernel)
   ⟩
 
-theorem step_map_capture_witness : StepMapCaptureWitness :=
+theorem step_map_capture_witness
+    : ∃ (w next : World) (sid tid localVersion globalVersion seq : Nat) (map : String)
+        (s : Store) (before after : Tx) (snap : Snapshot),
+        storeOf w sid = .ok s
+        ∧ txOf w sid tid = .ok before
+        ∧ before.snapshot = some snap
+        ∧ Model.transitionSystem.step w
+            ⟨seq, .acquire sid tid map localVersion globalVersion⟩
+          = some next
+        ∧ find next.txs tid = some after :=
   ⟨
     world 14,
     _,
@@ -250,7 +300,14 @@ theorem step_map_capture_witness : StepMapCaptureWitness :=
     some_get (by decide +kernel)
   ⟩
 
-theorem replay_map_global_fixed_witness : ReplayMapGlobalFixedWitness :=
+theorem replay_map_global_fixed_witness
+    : ∃ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
+        (rs : List Record),
+        find w.txs tid = some before
+        ∧ find before.globalViews map = some view
+        ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
+        ∧ CCF.Execution.Run Model.transitionSystem w rs final
+        ∧ rs ≠ [] :=
   ⟨
     world 15,
     _,
@@ -266,7 +323,20 @@ theorem replay_map_global_fixed_witness : ReplayMapGlobalFixedWitness :=
     List.ne_nil_of_length_pos (by decide +kernel)
   ⟩
 
-theorem capture_replay_preserves_map_witness : CaptureReplayPreservesMapWitness :=
+theorem capture_replay_preserves_map_witness
+    : ∃ (w capturedWorld final : World) (sid tid localVersion globalVersion seq : Nat)
+        (map : String) (s : Store) (before capturedTx : Tx) (snap : Snapshot)
+        (tail : List Record),
+        storeOf w sid = .ok s
+        ∧ txOf w sid tid = .ok before
+        ∧ before.snapshot = some snap
+        ∧ Model.transitionSystem.step w
+            ⟨seq, .acquire sid tid map localVersion globalVersion⟩
+          = some capturedWorld
+        ∧ find capturedWorld.txs tid = some capturedTx
+        ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
+        ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+        ∧ tail ≠ [] :=
   ⟨
     world 14,
     _,
@@ -292,14 +362,22 @@ theorem capture_replay_preserves_map_witness : CaptureReplayPreservesMapWitness 
     List.ne_nil_of_length_pos (by decide +kernel)
   ⟩
 
-theorem captureGlobal_placeholder_witness : CaptureGlobalPlaceholderWitness :=
+theorem captureGlobal_placeholder_witness
+    : ∃ (snap : Snapshot) (map : String), find snap.current.births map = none :=
   ⟨⟨{}, 0, {}, rfl⟩, "a", rfl⟩
 
-theorem captureGlobal_committed_witness : CaptureGlobalCommittedWitness :=
+theorem captureGlobal_committed_witness
+    : ∃ (snap : Snapshot) (map : String) (birth : Stamp),
+        find snap.current.births map = some birth :=
   ⟨writtenSnapshot, "a", _, some_get (by decide +kernel)⟩
 
 theorem step_global_read_from_captured_map_witness
-    : StepGlobalReadFromCapturedMapWitness :=
+    : ∃ (w next : World) (sid tid seq : Nat) (map key value : String) (t : Tx)
+        (view : GlobalView),
+        txOf w sid tid = .ok t
+        ∧ find t.globalViews map = some view
+        ∧ Model.transitionSystem.step w ⟨seq, .get sid tid map key (some value) true⟩
+          = some next :=
   ⟨
     world 15,
     _,
@@ -316,7 +394,13 @@ theorem step_global_read_from_captured_map_witness
     some_get (by decide +kernel)
   ⟩
 
-theorem step_global_has_from_captured_map_witness : StepGlobalHasFromCapturedMapWitness :=
+theorem step_global_has_from_captured_map_witness
+    : ∃ (w next : World) (sid tid seq : Nat) (map key : String) (t : Tx)
+        (view : GlobalView),
+        txOf w sid tid = .ok t
+        ∧ find t.globalViews map = some view
+        ∧ Model.transitionSystem.step w ⟨seq, .has sid tid map key true true⟩
+          = some next :=
   ⟨
     world 16,
     _,
@@ -332,10 +416,11 @@ theorem step_global_has_from_captured_map_witness : StepGlobalHasFromCapturedMap
     some_get (by decide +kernel)
   ⟩
 
-theorem compact_above_head_noop_witness : CompactAboveHeadNoopWitness :=
+theorem compact_above_head_noop_witness : ∃ (s : Store) (v : Nat), s.head.version < v :=
   ⟨{}, 1, Nat.zero_lt_one⟩
 
-theorem rollback_keeps_prefix_witness : RollbackKeepsPrefixWitness :=
+theorem rollback_keeps_prefix_witness
+    : ∃ (s : Store) (f : Frame), f ∈ s.history ∧ f.version ≤ s.global ∧ f.data ≠ [] :=
   ⟨
     compactStore written 1,
     _,
@@ -344,7 +429,8 @@ theorem rollback_keeps_prefix_witness : RollbackKeepsPrefixWitness :=
     by decide +kernel
   ⟩
 
-theorem rollback_discards_suffix_witness : RollbackDiscardsSuffixWitness :=
+theorem rollback_discards_suffix_witness
+    : ∃ (s : Store) (v : Nat) (f : Frame), f ∈ s.history ∧ v < f.version ∧ s.global ≤ v :=
   ⟨
     written,
     0,
@@ -354,13 +440,21 @@ theorem rollback_discards_suffix_witness : RollbackDiscardsSuffixWitness :=
     by decide +kernel
   ⟩
 
-theorem durable_cut_survives_rollback_witness : DurableCutSurvivesRollbackWitness :=
+theorem durable_cut_survives_rollback_witness
+    : ∃ (s : Store) (v cut : Nat),
+        cut ≤ s.global ∧ s.global ≤ v ∧ (atCut s cut).data ≠ [] :=
   ⟨compactStore written 1, 1, 1, by decide +kernel, by decide +kernel, by decide +kernel⟩
 
-theorem stale_term_cannot_apply_witness : StaleTermCannotApplyWitness :=
+theorem stale_term_cannot_apply_witness
+    : ∃ (s : Store) (t : Tx) (snap : Snapshot),
+        t.snapshot = some snap ∧ s.term ≠ snap.term :=
   ⟨{}, { store := 0, snapshot := some ⟨{}, 1, {}, rfl⟩ }, _, rfl, by decide⟩
 
-theorem discarded_handle_cannot_apply_witness : DiscardedHandleCannotApplyWitness :=
+theorem discarded_handle_cannot_apply_witness
+    : ∃ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
+        t.snapshot = some snap
+        ∧ (m, view) ∈ t.globalViews
+        ∧ (∀ f ∈ s.history, (revision f m == revision snap.current m) = false) :=
   ⟨
     rollbackStore written 0 1,
     writtenTx,
@@ -372,7 +466,11 @@ theorem discarded_handle_cannot_apply_witness : DiscardedHandleCannotApplyWitnes
     by decide +kernel
   ⟩
 
-theorem discarded_birth_cannot_apply_witness : DiscardedBirthCannotApplyWitness :=
+theorem discarded_birth_cannot_apply_witness
+    : ∃ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
+        t.snapshot = some snap
+        ∧ (m, view) ∈ t.globalViews
+        ∧ (∀ f ∈ s.history, (find f.births m == find snap.current.births m) = false) :=
   ⟨
     rollbackStore written 0 1,
     writtenTx,
@@ -384,7 +482,10 @@ theorem discarded_birth_cannot_apply_witness : DiscardedBirthCannotApplyWitness 
     by decide +kernel
   ⟩
 
-theorem compacted_map_unavailable_witness : CompactedMapUnavailableWitness :=
+theorem compacted_map_unavailable_witness
+    : ∃ (s : Store) (f : Frame) (m : String) (birth : Stamp),
+        find f.births m = some birth
+        ∧ (revision f m).version < (revision (atCut s s.global) m).version :=
   ⟨
     compactStore (advance written [(("a", "00"), some "22")]) 2,
     written.head,
@@ -394,10 +495,14 @@ theorem compacted_map_unavailable_witness : CompactedMapUnavailableWitness :=
     by decide +kernel
   ⟩
 
-theorem absent_map_available_witness : AbsentMapAvailableWitness :=
+theorem absent_map_available_witness
+    : ∃ (f : Frame) (m : String),
+        find f.births m = none ∧ image f.data m = [] ∧ find f.revisions m = none :=
   ⟨{}, "a", rfl, rfl, rfl⟩
 
-theorem absent_placeholder_has_no_values_witness : AbsentPlaceholderHasNoValuesWitness :=
+theorem absent_placeholder_has_no_values_witness
+    : ∃ (s : Store) (f : Frame) (m : String),
+        find f.births m = none ∧ mapAvailable s f m = true :=
   ⟨{}, {}, "a", rfl, by decide +kernel⟩
 
 end Kv.Proofs.Witnesses
