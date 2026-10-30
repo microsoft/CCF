@@ -39,27 +39,30 @@ lemma Path.run {system : TransitionSystem} {before tail after}
       exact ⟨_, .cons step rest⟩
 
 /-- Enabled steps connect a state of a valid trace to every later state of the trace. -/
-lemma valid_path {system : TransitionSystem} {trace : Execution.Trace system.State}
-    (valid : trace.Valid system) (start count : Nat) {before after : system.State}
-    (first : trace.get? start = some before)
-    (last : trace.get? (start + count) = some after)
+lemma valid_path {system : TransitionSystem} {trace : Execution.Trace system}
+    (start count : Nat) {before after : system.State}
+    (first : trace.stateAt start = some before)
+    (last : trace.stateAt (start + count) = some after)
     : exists tail, Path system before tail after := by
   induction count generalizing start before with
   | zero =>
       cases first.symm.trans last
       exact ⟨[], .nil _⟩
   | succ count ih =>
-      cases next : trace.get? (start + 1) with
+      cases next : trace.stateAt (start + 1) with
       | none =>
-          simp [trace.le_stable (show start + 1 <= start + (count + 1) by omega) next] at last
+          have absent := trace.states.le_stable
+            (show start + 1 <= start + (count + 1) by omega) next
+          change trace.states.get? (start + (count + 1)) = some after at last
+          simp [absent] at last
       | some middle =>
-          obtain ⟨action, step⟩ := valid.2 start before middle first next
+          obtain ⟨action, step⟩ := trace.step start before middle first next
           obtain ⟨tail, rest⟩ :=
             ih (start + 1) next (by rwa [show start + 1 + count = start + (count + 1) by omega])
           exact ⟨_, .cons step rest⟩
 
 /-- The later of two trace positions is also a trace position. -/
-lemma max_isSome {trace : Execution.Trace State} {first second : Nat}
+lemma max_isSome {trace : Stream'.Seq State} {first second : Nat}
     (firstIn : (trace.get? first).isSome) (secondIn : (trace.get? second).isSome)
     : (trace.get? (max first second)).isSome := by
   rcases le_total first second with le | le
@@ -67,7 +70,7 @@ lemma max_isSome {trace : Execution.Trace State} {first second : Nat}
   · rwa [max_eq_left le]
 
 /-- Finitely many trace positions all lie at or before one trace position after `start`. -/
-lemma exists_bound {α : Type} {trace : Execution.Trace State} {P : α -> Nat -> Prop}
+lemma exists_bound {α : Type} {trace : Stream'.Seq State} {P : α -> Nat -> Prop}
     {start : Nat} (startIn : (trace.get? start).isSome) (items : List α)
     (indexed
       : forall item,

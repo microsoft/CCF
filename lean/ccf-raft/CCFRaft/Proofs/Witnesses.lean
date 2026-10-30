@@ -43,7 +43,7 @@ theorem run_take_step {system : TransitionSystem} {start final : system.State}
     : exists before after,
         run system start (choices.take index) = some before
         /\ run system start (choices.take (index + 1)) = some after
-        /\ exists action, system.step before action = some after := by
+        /\ system.step before (choices[index] before) = some after := by
   induction choices generalizing start index with
   | nil => simp at bounded
   | cons choose rest ih =>
@@ -51,7 +51,7 @@ theorem run_take_step {system : TransitionSystem} {start final : system.State}
       obtain ⟨next, stepped, finished⟩ := finished
       cases index with
       | zero =>
-          refine ⟨start, next, rfl, ?_, choose start, stepped⟩
+          refine ⟨start, next, rfl, ?_, stepped⟩
           simp [run, stepped]
       | succ index =>
           obtain ⟨before, after, first, second, enabled⟩ :=
@@ -61,7 +61,7 @@ theorem run_take_step {system : TransitionSystem} {start final : system.State}
             after,
             by simpa [run, stepped] using first,
             by simpa [run, stepped] using second,
-            enabled
+            by simpa using enabled
           ⟩
 
 /--
@@ -79,24 +79,36 @@ def lasso (system : TransitionSystem) (start : system.State)
       start
 
 /-- The lasso as an infinite trace. -/
-def lassoTrace (system : TransitionSystem) (start : system.State)
+def lassoStates (system : TransitionSystem) (start : system.State)
     (stem cycle : List (system.State -> system.Action))
-    : Trace system.State :=
+    : Stream'.Seq system.State :=
   Stream'.Seq.ofStream (lasso system start stem cycle)
 
-theorem lassoTrace_get? {system : TransitionSystem} {start : system.State}
+theorem lassoStates_get? {system : TransitionSystem} {start : system.State}
     {stem cycle : List (system.State -> system.Action)} (index : Nat)
-    : (lassoTrace system start stem cycle).get? index
+    : (lassoStates system start stem cycle).get? index
       = some (lasso system start stem cycle index) :=
   rfl
 
-/-- A finished stem followed by a nonempty cycle back to its final state is a
-valid infinite trace. -/
-theorem lasso_valid {system : TransitionSystem} {start final : system.State}
+/-- The action chosen at each position of a lasso. -/
+def lassoAction (system : TransitionSystem) (start : system.State)
+    (stem cycle : List (system.State -> system.Action)) (nonempty : cycle ≠ [])
+    (index : Nat)
+    : system.Action :=
+  if inStem : index < stem.length then
+    stem[index] (lasso system start stem cycle index)
+  else
+    (cycle[(index - stem.length) % cycle.length
+      ]'(Nat.mod_lt _ (List.length_pos_iff.mpr nonempty)))
+      (lasso system start stem cycle index)
+
+/-- A finished stem followed by a nonempty cycle back to its final state records
+the chosen action at every step of a valid infinite trace. -/
+def lassoTrace {system : TransitionSystem} {start final : system.State}
     {stem cycle : List (system.State -> system.Action)} (initialized : system.init start)
     (stemRun : run system start stem = some final)
     (cycleRun : run system final cycle = some final) (nonempty : cycle ≠ [])
-    : (lassoTrace system start stem cycle).Valid system := by
+    : Trace system := by
   have positive : 0 < cycle.length := List.length_pos_iff.mpr nonempty
   have tail : forall index, stem.length <= index
       -> lasso system start stem cycle index
@@ -104,7 +116,13 @@ theorem lasso_valid {system : TransitionSystem} {start final : system.State}
               start := by
     intro index le
     simp [lasso, Nat.not_lt.mpr le, stemRun]
-  refine ⟨⟨_, lassoTrace_get? 0, ?_⟩, fun index before after atBefore atAfter => ?_⟩
+  refine {
+    states := lassoStates system start stem cycle
+    actions := Stream'.Seq.ofStream (lassoAction system start stem cycle nonempty)
+    valid_init := ⟨_, lassoStates_get? 0, ?_⟩
+    valid_domains := fun _ => Iff.rfl
+    valid_step := ?_
+  }
   · show system.init (lasso system start stem cycle 0)
     by_cases empty : stem = []
     · subst empty
@@ -112,10 +130,13 @@ theorem lasso_valid {system : TransitionSystem} {start final : system.State}
       subst stemRun
       simpa [tail 0 (Nat.zero_le _), run] using initialized
     · simpa [lasso, List.length_pos_iff.mpr empty, run] using initialized
-  rw [lassoTrace_get?, Option.some.injEq] at atBefore atAfter
-  subst atBefore atAfter
-  show exists action,
-    system.step (lasso system start stem cycle index) action
+  intro index before action atBefore chosen
+  rw [lassoStates_get?, Option.some.injEq] at atBefore
+  change some (lassoAction system start stem cycle nonempty index) = some action at chosen
+  cases atBefore
+  cases chosen
+  show system.step (lasso system start stem cycle index)
+      (lassoAction system start stem cycle nonempty index)
       = some (lasso system start stem cycle (index + 1))
   by_cases inStem : index < stem.length
   · obtain ⟨before, after, first, second, enabled⟩ := run_take_step stemRun inStem
@@ -130,13 +151,13 @@ theorem lasso_valid {system : TransitionSystem} {start final : system.State}
         simp only [Option.some.injEq] at second
         subst second
         simp [run]
-    rw [now, next]
-    exact enabled
+    simpa [lassoAction, inStem, now, next] using enabled
   · have offset : (index + 1 - stem.length) % cycle.length
         = ((index - stem.length) % cycle.length + 1) % cycle.length := by
       rw [show index + 1 - stem.length = index - stem.length + 1 by omega, Nat.mod_add_mod]
     have within := Nat.mod_lt (index - stem.length) positive
     obtain ⟨before, after, first, second, enabled⟩ := run_take_step cycleRun within
+    simp only [lassoAction, dite_eq_right inStem]
     rw [tail _ (by omega), tail _ (by omega), offset, first]
     by_cases more : (index - stem.length) % cycle.length + 1 < cycle.length
     · rw [Nat.mod_eq_of_lt more, second]
@@ -154,9 +175,9 @@ theorem lasso_mem {system : TransitionSystem} {start final state : system.State}
     (stemRun : run system start stem = some final) {index : Nat}
     (bounded : index <= stem.length)
     (reached : run system start (stem.take index) = some state)
-    : state ∈ lassoTrace system start stem cycle := by
+    : state ∈ lassoStates system start stem cycle := by
   apply Stream'.Seq.get?_mem (n := index)
-  rw [lassoTrace_get?, Option.some.injEq]
+  rw [lassoStates_get?, Option.some.injEq]
   by_cases inStem : index < stem.length
   · simp [lasso, inStem, reached]
   · have last : index = stem.length := by omega
@@ -476,11 +497,12 @@ end Single
 
 lemma committed_logs_prefix_witness
     : exists (config : Finset NodeID),
-    exists (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State),
+    exists
+    (nodes : List NodeID) (trace
+                            : CCF.Execution.Trace (Model.transitionSystem config nodes)),
     exists (stateA stateB : Model.State),
     exists (left right : NodeID) (leftState rightState : NodeState),
-      trace.Valid (Model.transitionSystem config nodes)
-      /\ stateA ∈ trace
+      stateA ∈ trace
       /\ stateB ∈ trace
       /\ (left, leftState) ∈ stateA.nodes
       /\ (right, rightState) ∈ stateB.nodes
@@ -491,15 +513,14 @@ lemma committed_logs_prefix_witness
   exact ⟨
     {0, 1},
     [0, 1],
-    lassoTrace commitSystem commitStart commitChoices commitCycle,
+    lassoTrace (start_initial (by decide) (by decide)) stemRun commit_cycle
+      (by simp [commitCycle]),
     commitPrimaryCommitted,
     commitFollowerCommitted,
     0,
     1,
     (nodeState commitPrimaryCommitted 0).get commit_primary_present,
     (nodeState commitFollowerCommitted 1).get commit_follower_present,
-    lasso_valid (start_initial (by decide) (by decide)) stemRun commit_cycle
-      (by simp [commitCycle]),
     lasso_mem stemRun (by decide) (eq_some_getD commit_primary_committed _),
     lasso_mem stemRun (by decide) (eq_some_getD commit_follower_committed _),
     member_of_nodeState _,
@@ -540,10 +561,12 @@ lemma single_node_committed_log_monotonic_witness
 lemma election_safety_witness
     : exists (config : Finset NodeID),
     exists
-    (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State) (state : Model.State),
+    (nodes : List NodeID) (trace
+                            : CCF.Execution.Trace
+                                (Model.transitionSystem config nodes)) (state
+                                                                        : Model.State),
     exists (left right : NodeID) (leftState rightState : NodeState),
-      trace.Valid (Model.transitionSystem config nodes)
-      /\ state ∈ trace
+      state ∈ trace
       /\ (left, leftState) ∈ state.nodes
       /\ (right, rightState) ∈ state.nodes
       /\ leftState.role = .primary
@@ -556,14 +579,13 @@ lemma election_safety_witness
   exact ⟨
     {0, 1, 2},
     [0, 1, 2],
-    lassoTrace electionSystem electionStart electionChoices electionCycle,
+    lassoTrace (start_initial (by decide) (by decide)) stemRun election_cycle
+      (by simp [electionCycle]),
     electionFinal,
     0,
     1,
     leftState,
     rightState,
-    lasso_valid (start_initial (by decide) (by decide)) stemRun election_cycle
-      (by simp [electionCycle]),
     lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
     mem_of_nodeState leftFound,
     mem_of_nodeState rightFound,
@@ -575,22 +597,21 @@ lemma election_safety_witness
 lemma committed_frontier_is_signature_witness
     : exists (config : Finset NodeID),
     exists
-    (nodes : List NodeID) (trace : CCF.Execution.Trace Model.State) (state : Model.State),
+    (nodes : List NodeID) (trace
+                            : CCF.Execution.Trace
+                                (Model.transitionSystem config nodes)) (state
+                                                                        : Model.State),
     exists (node : NodeID) (nodeState : NodeState),
-      trace.Valid (Model.transitionSystem config nodes)
-      /\ state ∈ trace
-      /\ (node, nodeState) ∈ state.nodes
-      /\ 0 < nodeState.commitIndex := by
+      state ∈ trace /\ (node, nodeState) ∈ state.nodes /\ 0 < nodeState.commitIndex := by
   have stemRun := single_run
   exact ⟨
     {0},
     [0],
-    lassoTrace singleSystem singleStart singleChoices singleCycle,
+    lassoTrace (start_initial (by decide) (by decide)) stemRun single_cycle
+      (by simp [singleCycle]),
     singleFinal,
     0,
     (nodeState singleFinal 0).get single_final_present,
-    lasso_valid (start_initial (by decide) (by decide)) stemRun single_cycle
-      (by simp [singleCycle]),
     lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
     member_of_nodeState _,
     by decide

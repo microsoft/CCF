@@ -9,25 +9,24 @@ namespace DisasterRecovery.Tests.Witnesses
 open Model.Local
 
 example
-    : exists (config : Model.Config) (trace : Properties.GlobalTrace) (step
-                                                                        : Nat) (opener
-                                                                                : Location),
-        trace.Valid (Model.transitionSystem config)
-        /\ Properties.Trace.NotificationAt config trace step opener (.opening .quorum)
+    : exists (config : Model.Config) (trace : Properties.GlobalTrace config) (step
+                                                                              : Nat) (opener
+                                                                                      : Location),
+        Properties.Trace.NotificationAt config trace step opener (.opening .quorum)
         /\ opener = opener := by
-  obtain ⟨config, trace, step, opener, valid, notified⟩ := Properties.quorum_opener_unique_witness
-  exact ⟨config, trace, step, opener, valid, notified,
-    Properties.quorum_opener_unique config trace step step opener opener ⟨valid, notified, notified⟩⟩
+  obtain ⟨config, trace, step, opener, notified⟩ := Properties.quorum_opener_unique_witness
+  exact ⟨config, trace, step, opener, notified,
+    Properties.quorum_opener_unique config trace step step opener opener ⟨notified, notified⟩⟩
 
 example
     : exists (config : Model.Config) (opener : Location) (txid : TxID),
         Model.recoveredTxID config opener = some txid
         /\ Properties.UpToDateWithQuorum config txid := by
-  obtain ⟨config, trace, openedState, opener, openerState, valid, opened, present, kind, own⟩ :=
+  obtain ⟨config, trace, openedState, opener, openerState, opened, present, kind, own⟩ :=
     Properties.quorum_open_preserves_commit_witness
   obtain ⟨txid, recovered, upToDate⟩ :=
     Properties.quorum_open_preserves_commit config trace openedState opener openerState
-      ⟨valid, opened, present, kind, own⟩
+      ⟨opened, present, kind, own⟩
   exact ⟨config, opener, txid, recovered, upToDate⟩
 
 example
@@ -35,10 +34,10 @@ example
         Model.recoveredTxID config opener = some txid
         /\ Properties.UpToDateWithQuorum config txid := by
   obtain ⟨config, trace, gossipedState, openedState, opener, openerState,
-    valid, gossiped, full, opened, present, kind⟩ := Properties.full_gossip_preserves_commit_witness
+    gossiped, full, opened, present, kind⟩ := Properties.full_gossip_preserves_commit_witness
   obtain ⟨txid, recovered, upToDate⟩ :=
     Properties.full_gossip_preserves_commit config trace gossipedState openedState opener openerState
-      ⟨valid, gossiped, full, opened, present, by simp [kind]⟩
+      ⟨gossiped, full, opened, present, by simp [kind]⟩
   exact ⟨config, opener, txid, recovered, upToDate⟩
 
 example

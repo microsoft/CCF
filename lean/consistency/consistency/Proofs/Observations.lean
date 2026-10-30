@@ -196,23 +196,23 @@ theorem safe_reachable {state : State} (reachable : transitionSystem.Reachable s
       exact step_safe before after action ih transition
 
 theorem at_most_once_observed
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ response ∈ responses state.history, response.2.observed.Nodup := by
-  intro trace state ⟨valid, member⟩ response listed
-  exact ((safe_reachable (valid.reachable member)).2 _ _ _ _ _
+  intro trace state member response listed
+  exact ((safe_reachable (trace.reachable member)).2 _ _ _ _ _
     ((History.mem_responses_iff _ _).mp listed)).1
 
 theorem only_observe_sent_requests
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ response ∈ responses state.history,
           ∀ tx ∈ response.2.observed,
             ∃ request ∈ requests state.history,
               request.1 < response.1 ∧ request.2 = (.rw, tx) := by
-  intro trace state ⟨valid, member⟩ response listed tx observed
+  intro trace state member response listed tx observed
   obtain ⟨index, earlier, found⟩ :=
-    ((safe_reachable (valid.reachable member)).2 _ _ _ _ _
+    ((safe_reachable (trace.reachable member)).2 _ _ _ _ _
       ((History.mem_responses_iff _ _).mp listed)).2 tx observed
   exact ⟨(index, .rw, tx), (History.mem_requests_iff _ _ _ _).mpr found, earlier, rfl⟩
 

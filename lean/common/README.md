@@ -7,12 +7,14 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Capabilities`              | Envelopes, ordered outputs, effects, and recording callbacks |
 | `CCF.TransitionSystem`          | Initial states, enabled transitions, and reachability        |
 | `CCF.MultiNodeTransitionSystem` | Local protocols composed into a message-passing network      |
-| `CCF.Execution`                 | Finite runs and finite or infinite state traces              |
+| `CCF.Execution`                 | Finite runs and finite or infinite execution traces          |
 | `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
 | `CCF.Architecture`              | Checks of specification import layering                      |
 
-`CCF.Execution` represents traces as Mathlib's `Stream'.Seq`, so the package depends on Mathlib.
-`reachable_iff_trace` shows that valid finite traces reach exactly the reachable states.
+`CCF.Execution.Trace system` records state and action sequences using Mathlib's `Stream'.Seq`, so the package depends on Mathlib.
+The trace bundles proofs of initialization, enabled transitions, and aligned domains: action `n` exists exactly when state `n + 1` exists.
+Finite traces therefore contain one more state than action, including initial-only traces with no actions.
+`reachable_iff_trace` shows that finite execution traces reach exactly the reachable states.
 
 ## Event parsing
 
@@ -34,7 +36,9 @@ Protocol-specific matching, diagnostics, and output emission belong in the consu
 Define a model as `system : TransitionSystem`, setting `State` and `Action` in the structure rather than supplying type parameters.
 Use `abbrev` for concrete systems so Lean can unfold their bundled types during typeclass inference.
 Generic helpers use `system.State` and `system.Action`, while `system.Reachable state` and `Execution.Run system start actions final` describe executions.
-Traces remain state sequences of type `Execution.Trace system.State`; `Execution.Trace.Valid system trace` (or `trace.Valid system`) checks them against the bundled system.
+Traces have type `Execution.Trace system`, with validity carried by the structure rather than a separate premise.
+Use `trace.stateAt n` and `trace.actionAt n` for optional indexed access, `state ∈ trace` for state membership, and `trace.states` and `trace.actions` to access the sequences directly.
+`trace.reachable` proves that every member state is reachable.
 
 ## Import coverage
 
