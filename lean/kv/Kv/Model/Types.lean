@@ -95,6 +95,11 @@ inductive NormalOp (M K V : Type) where
   | write (addr : Addr M K) (value : Option V)
 deriving Repr, DecidableEq
 
+/-- The map an operation accesses. -/
+def NormalOp.map {M K V : Type} : NormalOp M K V → M
+  | .read a _ | .previous a _ | .write a _ => a.1
+  | .scan m _ => m
+
 /-- A condition on committed state that must still hold when the transaction applies. -/
 inductive Dependency (M K V : Type) where
   /-- The cell at `addr` is unchanged. -/
@@ -184,6 +189,10 @@ def publish {M K V : Type} [DecidableEq M] [DecidableEq K]
 /-- Committed state of the executable instance: map names, keys, and values are strings. -/
 abbrev Data := DB String String String
 
+/-- Replaces just map `m` with its newly acquired local view. -/
+def pinData (db : Data) (m : String) (acquired : Data) : Data :=
+  db.filter (fun (a, _) => a.1 != m) ++ acquired.filter (fun (a, _) => a.1 == m)
+
 /-- Staged writes of the executable instance. -/
 abbrev Pending := Writes String String String
 
@@ -249,7 +258,7 @@ instance : Inhabited Store := ⟨{}⟩
 def atCut (s : Store) (v : Nat) : Frame :=
   (s.history.find? fun f => f.version ≤ v).getD {}
 
-/-- The current snapshot captured by a transaction. -/
+/-- The frozen read-version metadata captured by a transaction, before lazy map acquisition. -/
 structure Snapshot where
   /-- The captured head frame. -/
   current : Frame
@@ -259,8 +268,10 @@ structure Snapshot where
   origin : ∃ s : Store, current = s.head
 deriving Repr
 
-/-- The globally committed view of one map captured by a transaction. -/
+/-- The local and globally committed views of one map captured by a transaction. -/
 structure GlobalView where
+  /-- The local frame selected when the map was first acquired. -/
+  current : Frame := {}
   /-- The captured frame, or the empty frame for a map not yet created. -/
   frame : Frame
   /-- The frame is empty or a store's frame at its global version. -/
@@ -299,9 +310,11 @@ structure Tx where
   store : Nat
   /-- The current snapshot, once captured. -/
   snapshot : Option Snapshot := none
-  /-- The globally committed view captured for each acquired map. -/
+  /-- The local and globally committed views pinned by each acquired map. -/
   globalViews : Assoc String GlobalView := []
-  /-- The normal view over the current snapshot. -/
+  /-- The local data pinned by acquired handles, independent of the captured read version. -/
+  data : Data := []
+  /-- The normal view over the acquired local data. -/
   normal : Normal String String String := {}
   /-- Nested iterations, innermost first. -/
   iterations : List Iteration := []
@@ -311,12 +324,12 @@ structure Tx where
   unavailable : Bool := false
   /-- The commit lifecycle. -/
   phase : Phase := .active
-  /-- Replaying the log from the captured snapshot reproduces the normal view. -/
+  /-- Replaying the log from the acquired local data reproduces the normal view. -/
   certificate
     : match snapshot with
       | none => normal = {}
-      | some snap =>
-          normalRun snap.current.data {} normal.log = some normal := by rfl
+      | some _ =>
+          normalRun data {} normal.log = some normal := by rfl
 deriving Repr
 
 /-- The reported result of a commit. -/

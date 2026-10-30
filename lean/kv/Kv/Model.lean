@@ -74,7 +74,7 @@ def withTx (w : World) (sid tid : Nat) (f : Tx → Except Failure Tx)
   let next ← f t
   return { w with txs := set w.txs tid next }
 
-/-- The snapshot for an operation on acquired map `m`. -/
+/-- Requires an acquired map `m` and returns the frozen read metadata. -/
 def handleOf (t : Tx) (m : String) : Except Failure Snapshot := do
   active t
   operationPosition t
@@ -85,12 +85,12 @@ def handleOf (t : Tx) (m : String) : Except Failure Snapshot := do
 def globalOf (t : Tx) (m : String) : Except Failure GlobalView :=
   present (find t.globalViews m) s!"map {m} has no captured global view"
 
-/-- Executes a normal operation against the captured snapshot, extending the certificate. -/
+/-- Executes a normal operation against the acquired local data, extending the certificate. -/
 def runOp (t : Tx) (op : NormalOp String String String) : Except Failure Tx := do
   match hs : t.snapshot with
   | none => invalid "normal operation before snapshot"
   | some snap =>
-      match hn : normalStep snap.current.data t.normal op with
+      match hn : normalStep t.data t.normal op with
       | some n =>
           return {
             t with
@@ -99,7 +99,7 @@ def runOp (t : Tx) (op : NormalOp String String String) : Except Failure Tx := d
           }
       | none =>
           reject
-            s!"normal observation disagrees with captured snapshot {snap.current.version}: {repr op}"
+            s!"normal observation disagrees with pinned local views at read version {snap.current.version}: {repr op}"
 
 /-- Stages removal of each listed entry of `map`. -/
 def clearWrites (t : Tx) (map : String) (entries : Assoc String String)
@@ -123,16 +123,25 @@ def mapAvailable (s : Store) (f : Frame) (m : String) : Bool :=
       let base := revision (atCut s s.global) m
       decide (base.version ≤ stamp.version) && mapLineage s f m
 
-/-- Map `m` is available in the attempt's snapshot. -/
-def available (s : Store) (snap : Snapshot) (m : String) : Bool :=
-  mapAvailable s snap.current m
-
-/-- The globally committed view of `m` for a snapshot: empty for a map not yet created. -/
-def captureGlobal (s : Store) (snap : Snapshot) (m : String) : GlobalView :=
-  if (find snap.current.births m).isNone then
-    { frame := {}, origin := Or.inl rfl }
+/-- Selects a first acquisition from the surviving branch at the captured read version.
+An absent map gets a new empty placeholder; already acquired handles never call this again. -/
+def captureLocal (s : Store) (snap : Snapshot) (m : String) : Frame :=
+  if (find (atCut s snap.current.version).births m).isSome then
+    atCut s snap.current.version
   else
-    { frame := atCut s s.global, origin := Or.inr ⟨s, rfl⟩ }
+    {}
+
+/-- Map `m` can still be acquired at the attempt's captured read version. -/
+def available (s : Store) (snap : Snapshot) (m : String) : Bool :=
+  mapAvailable s (captureLocal s snap m) m
+
+/-- Captures a map's local view and its global view, empty for an absent map. -/
+def captureGlobal (s : Store) (snap : Snapshot) (m : String) : GlobalView :=
+  let current := captureLocal s snap m
+  if (find current.births m).isNone then
+    { current, frame := {}, origin := Or.inl rfl }
+  else
+    { current, frame := atCut s s.global, origin := Or.inr ⟨s, rfl⟩ }
 
 /-- Acquires map `m`, checking the reported local and global revision versions. -/
 def acquireMap (s : Store) (t : Tx) (m : String) (version global : Nat)
@@ -144,18 +153,27 @@ def acquireMap (s : Store) (t : Tx) (m : String) (version global : Nat)
     "duplicate map_acquire; handles share one change set"
   let view := captureGlobal s snap m
   expect
-    (version == (revision snap.current m).version
+    (version == (revision view.current m).version
       && global == (revision view.frame m).version)
-    s!"map acquisition expected local={(revision snap.current m).version}, global={(revision view.frame m).version}; observed local={version}, global={global}"
+    s!"map acquisition expected local={(revision view.current m).version}, global={(revision view.frame m).version}; observed local={version}, global={global}"
   expect (available s snap m) "snapshot no longer available for later map acquisition"
-  return { t with globalViews := set t.globalViews m view }
+  if unused : t.normal.log.all (fun op => op.map != m) = true then
+    return {
+      t with
+        globalViews := set t.globalViews m view
+        data := pinData t.data m view.current.data
+        certificate := Certificates.acquisition_certificate t m view.current.data unused
+    }
+  else
+    invalid "unacquired map already used by normal operation"
 
-/-- The attempt's snapshot is on the store's current branch and term. -/
+/-- Acquired map frames remain on the store's branch, with the captured term still current. -/
 def validLineage (s : Store) (t : Tx) : Bool :=
   match t.snapshot with
   | none => true
   | some snap =>
-      s.term == snap.term && t.globalViews.all (fun (m, _) => mapLineage s snap.current m)
+      s.term == snap.term
+      && t.globalViews.all (fun (m, view) => mapLineage s view.current m)
 
 /-- The attempt may apply: its maps are available, its lineage is valid, and its read
 dependencies hold. -/
@@ -326,7 +344,7 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
             return {
               t with
                 snapshot := some { current := s.head, term, origin := ⟨s, rfl⟩ }
-                certificate := Certificates.snapshot_certificate t s.head.data hs
+                certificate := Certificates.snapshot_certificate t t.data hs
             }
           else
             invalid "snapshot refreshed inside attempt"
@@ -358,13 +376,13 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
   | .has sid tid m k value global =>
       withTx w sid tid
         fun t => do
-          let snap ← handleOf t m
+          let _ ← handleOf t m
           if global then
             let view ← globalOf t m
             expect ((find view.frame.data (m, k)).isSome == value) "wrong global presence"
             return t
           else
-            let actual := valueAt snap.current.data t.normal.writes (m, k)
+            let actual := valueAt t.data t.normal.writes (m, k)
             expect (actual.isSome == value) "wrong current presence"
             runOp t (.read (m, k) actual)
   | .previous sid tid m k value =>
@@ -385,36 +403,36 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
   | .clear sid tid m =>
       withTx w sid tid
         fun t => do
-          let snap ← handleOf t m
-          let entries := scanAt snap.current.data t.normal.writes m
+          let _ ← handleOf t m
+          let entries := scanAt t.data t.normal.writes m
           let t ← runOp t (.scan m entries)
           clearWrites t m entries
   | .size sid tid m value =>
       withTx w sid tid
         fun t => do
-          let snap ← handleOf t m
-          let entries := scanAt snap.current.data t.normal.writes m
+          let _ ← handleOf t m
+          let entries := scanAt t.data t.normal.writes m
           expect (entries.length == value)
             s!"size expected {entries.length}, observed {value}"
           runOp t (.scan m entries)
   | .range sid tid m lower upper observed =>
       withTx w sid tid
         fun t => do
-          let snap ← handleOf t m
+          let _ ← handleOf t m
           if emptyRange lower upper then
             expect observed.isEmpty "empty range bounds returned entries"
             return t
           else
-            let entries := scanAt snap.current.data t.normal.writes m
+            let entries := scanAt t.data t.normal.writes m
             expect (rangeMatches entries observed lower upper)
               "range entries differ from the visible entries in key order"
             runOp t (.scan m entries)
   | .foreachBegin sid tid m id =>
       withTx w sid tid
         fun t => do
-          let snap ← handleOf t m
+          let _ ← handleOf t m
           require (!(t.iterationIds.contains (m, id))) "reused iteration ID for this map"
-          let entries := scanAt snap.current.data t.normal.writes m
+          let entries := scanAt t.data t.normal.writes m
           let t ← runOp t (.scan m entries)
           return {
             t with

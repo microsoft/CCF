@@ -24,48 +24,57 @@ namespace
     explicit KVTraceReporter(const doctest::ContextOptions&) {}
 
     void report_query(const doctest::QueryData&) override {}
+
     void test_run_start() override
     {
       ccf::kv::trace::start();
     }
+
     void test_run_end(const doctest::TestRunStats&) override
     {
       ccf::kv::trace::finish();
     }
+
     void test_case_start(const doctest::TestCaseData& data) override
     {
       name = data.m_name;
       failed = false;
       ccf::kv::trace::event("case_begin", {{"name", name}});
     }
+
     void test_case_reenter(const doctest::TestCaseData& data) override
     {
       ccf::kv::trace::event(
         "case_end", {{"name", name}, {"failed", failed.load()}});
       test_case_start(data);
     }
+
     void test_case_end(const doctest::CurrentTestCaseStats& stats) override
     {
       ccf::kv::trace::event(
         "case_end",
         {{"name", name}, {"failed", failed.load() || !stats.testCaseSuccess}});
     }
+
     void test_case_exception(const doctest::TestCaseException&) override
     {
       failed = true;
       ccf::kv::trace::event(
         "unsupported", {{"operation", "test case exception"}});
     }
+
     void subcase_start(const doctest::SubcaseSignature& signature) override
     {
       subcases.emplace_back(signature.m_name.c_str());
       ccf::kv::trace::event("subcase_begin", {{"name", subcases.back()}});
     }
+
     void subcase_end() override
     {
       ccf::kv::trace::event("subcase_end", {{"name", subcases.back()}});
       subcases.pop_back();
     }
+
     void log_assert(const doctest::AssertData& data) override
     {
       if (data.m_failed)
@@ -73,7 +82,9 @@ namespace
         failed = true;
       }
     }
+
     void log_message(const doctest::MessageData&) override {}
+
     void test_case_skipped(const doctest::TestCaseData&) override {}
   };
 
@@ -290,6 +301,73 @@ TEST_CASE("KV trace compaction rollback")
   CHECK(fresh.ro(a)->get("key") == "two");
   CHECK(fresh.ro(a)->get_globally_committed("key") == "two");
   CHECK(fresh.commit() == Result::SUCCESS);
+
+  {
+    TraceStore rolled_back_store;
+    {
+      auto writer = rolled_back_store.create_tx();
+      writer.rw(a)->put("key", "rolled back");
+      REQUIRE(writer.commit() == Result::SUCCESS);
+    }
+    auto waiting = rolled_back_store.create_tx();
+    CHECK_FALSE(waiting.ro(b)->get("key").has_value());
+    auto before_rollback = rolled_back_store.create_tx();
+    auto retained = before_rollback.ro(a);
+    CHECK(retained->get("key") == "rolled back");
+    rolled_back_store.rollback({0, 0}, 1);
+    CHECK(retained->get("key") == "rolled back");
+    auto late = waiting.rw(a);
+    CHECK_FALSE(late->get("key").has_value());
+    CHECK_FALSE(late->get_globally_committed("key").has_value());
+    CHECK_FALSE(late->get_version_of_previous_write("key").has_value());
+    CHECK_FALSE(late->has("key"));
+    CHECK(late->size() == 0);
+    late->put("key", "staged");
+    CHECK(late->get("key") == "staged");
+    CHECK(waiting.ro(a) == late);
+  }
+
+  for (const bool replace : {false, true})
+  {
+    TraceStore surviving_store;
+    {
+      auto writer = surviving_store.create_tx();
+      writer.rw(a)->put("key", "survives");
+      writer.rw(b)->put("key", "unchanged");
+      REQUIRE(writer.commit() == Result::SUCCESS);
+    }
+    {
+      auto writer = surviving_store.create_tx();
+      writer.rw(a)->put("key", "discarded");
+      REQUIRE(writer.commit() == Result::SUCCESS);
+    }
+    auto waiting = surviving_store.create_tx();
+    CHECK(waiting.ro(b)->get("key") == "unchanged");
+    auto before_rollback = surviving_store.create_tx();
+    auto retained = before_rollback.rw(a);
+    CHECK(retained->get("key") == "discarded");
+    surviving_store.rollback({0, 1}, 0);
+    if (replace)
+    {
+      auto writer = surviving_store.create_tx();
+      writer.rw(a)->put("key", "replacement");
+      REQUIRE(writer.commit() == Result::SUCCESS);
+      surviving_store.compact(2);
+    }
+    auto late = waiting.rw(a);
+    CHECK(late->get("key") == (replace ? "replacement" : "survives"));
+    CHECK(
+      late->get_globally_committed("key") ==
+      (replace ? std::make_optional<std::string>("replacement") :
+                 std::nullopt));
+    CHECK(late->get_version_of_previous_write("key") == (replace ? 2 : 1));
+    CHECK(retained->get("key") == "discarded");
+    CHECK(waiting.ro(b)->get("key") == "unchanged");
+    late->put("key", "new branch");
+    CHECK(waiting.commit() == Result::SUCCESS);
+    retained->put("key", "stale branch");
+    CHECK(before_rollback.commit() == Result::FAIL_CONFLICT);
+  }
 
   {
     TraceStore late_store;

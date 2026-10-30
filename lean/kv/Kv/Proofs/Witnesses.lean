@@ -363,13 +363,14 @@ theorem capture_replay_preserves_map_witness
   ⟩
 
 theorem captureGlobal_placeholder_witness
-    : ∃ (snap : Snapshot) (map : String), find snap.current.births map = none :=
-  ⟨⟨{}, 0, {}, rfl⟩, "a", rfl⟩
+    : ∃ (s : Store) (snap : Snapshot) (map : String),
+        find (captureLocal s snap map).births map = none :=
+  ⟨{}, ⟨{}, 0, {}, rfl⟩, "a", rfl⟩
 
 theorem captureGlobal_committed_witness
-    : ∃ (snap : Snapshot) (map : String) (birth : Stamp),
-        find snap.current.births map = some birth :=
-  ⟨writtenSnapshot, "a", _, some_get (by decide +kernel)⟩
+    : ∃ (s : Store) (snap : Snapshot) (map : String) (birth : Stamp),
+        find (captureLocal s snap map).births map = some birth :=
+  ⟨written, writtenSnapshot, "a", _, some_get (by decide +kernel)⟩
 
 theorem step_global_read_from_captured_map_witness
     : ∃ (w next : World) (sid tid seq : Nat) (map key value : String) (t : Tx)
@@ -454,7 +455,7 @@ theorem discarded_handle_cannot_apply_witness
     : ∃ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
         t.snapshot = some snap
         ∧ (m, view) ∈ t.globalViews
-        ∧ (∀ f ∈ s.history, (revision f m == revision snap.current m) = false) :=
+        ∧ (∀ f ∈ s.history, (revision f m == revision view.current m) = false) :=
   ⟨
     rollbackStore written 0 1,
     writtenTx,
@@ -470,7 +471,7 @@ theorem discarded_birth_cannot_apply_witness
     : ∃ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
         t.snapshot = some snap
         ∧ (m, view) ∈ t.globalViews
-        ∧ (∀ f ∈ s.history, (find f.births m == find snap.current.births m) = false) :=
+        ∧ (∀ f ∈ s.history, (find f.births m == find view.current.births m) = false) :=
   ⟨
     rollbackStore written 0 1,
     writtenTx,

@@ -101,7 +101,7 @@ theorem step_map_capture
           = some next
         → find next.txs tid = some after
         → find after.globalViews map = some (captureGlobal s snap map)
-          ∧ localVersion = (revision snap.current map).version
+          ∧ localVersion = (revision (captureLocal s snap map) map).version
           ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version := by
   intro w next sid tid localVersion globalVersion seq map s before after snap store tx snapshot accepted live
   exact Proofs.Trace.step_map_capture w next sid tid localVersion globalVersion seq map s before after snap store tx snapshot ((Proofs.Execution.step_iff_transition _ _ _).mp accepted) live
@@ -134,7 +134,7 @@ theorem capture_replay_preserves_map
         → ∃ after,
             find final.txs tid = some after
             ∧ find after.globalViews map = some (captureGlobal s snap map)
-            ∧ localVersion = (revision snap.current map).version
+            ∧ localVersion = (revision (captureLocal s snap map) map).version
             ∧ globalVersion
               = (revision (captureGlobal s snap map).frame map).version := by
   intro w capturedWorld final sid tid localVersion globalVersion seq map s before capturedTx snap tail store tx snapshot capture live segment accepted
@@ -174,16 +174,30 @@ theorem discarded_handle_cannot_apply
     : ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
         t.snapshot = some snap
         → (m, view) ∈ t.globalViews
-        → (∀ f ∈ s.history, (revision f m == revision snap.current m) = false)
+        → (∀ f ∈ s.history, (revision f m == revision view.current m) = false)
         → canApply s t = false := by
   intro s t snap m view hs hm gone
   exact Proofs.Model.discarded_handle_cannot_apply s t snap hs m view hm gone
+
+theorem replay_map_local_fixed
+    : ∀ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
+        (rs : List Record),
+        find w.txs tid = some before
+        → find before.globalViews map = some view
+        → (∀ r ∈ rs, AttemptEvent tid r.event)
+        → CCF.Execution.Run Model.transitionSystem w rs final
+        → ∃ after,
+            find final.txs tid = some after
+            ∧ image after.data map = image before.data map := by
+  intro w final tid before map view rs live captured segment accepted
+  exact Proofs.Trace.replay_map_local_fixed w final tid before map view rs live captured segment
+    ((Proofs.Execution.replay_iff_run _ _ _).mp accepted)
 
 theorem discarded_birth_cannot_apply
     : ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
         t.snapshot = some snap
         → (m, view) ∈ t.globalViews
-        → (∀ f ∈ s.history, (find f.births m == find snap.current.births m) = false)
+        → (∀ f ∈ s.history, (find f.births m == find view.current.births m) = false)
         → canApply s t = false := by
   intro s t snap m view hs hm gone
   exact Proofs.Model.discarded_birth_cannot_apply s t snap hs m view hm gone

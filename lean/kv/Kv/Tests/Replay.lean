@@ -334,8 +334,60 @@ private def existingEmptyCompacted : List Event :=
   ++ commit 3 2 [(("b", "00"), some "11")]
   ++ [.compact 1 2 2]
 
+private def rollbackAcquisitionPrefix : List Event :=
+  seed 1 0 0 "11"
+  ++ start 2 1 0
+  ++ [.acquire 1 2 "b" 1 0, .get 1 2 "b" "00" (some "11") false]
+  ++ start 3 1 0
+  ++ [.acquire 1 3 "a" 1 0, .rollback 1 0 0 0]
+
+private def rollbackSurvivingPrefix : List Event :=
+  seed 1 0 0 "11"
+  ++ start 2 1 0
+  ++ [.acquire 1 2 "a" 1 0, .put 1 2 "a" "00" "22"]
+  ++ commit 2 2 [(("a", "00"), some "22")]
+  ++ start 3 2 0
+  ++ [.acquire 1 3 "b" 1 0, .rollback 1 1 1 0]
+
 private def accepted : List (String × List Event) :=
   [
+    (
+      "first acquisition after rollback uses a placeholder; pinned maps retain their data",
+      rollbackAcquisitionPrefix
+      ++ [
+        .acquire 1 2 "a" 0 0,
+        .get 1 2 "a" "00" none false,
+        .get 1 2 "a" "00" none true,
+        .previous 1 2 "a" "00" none,
+        .size 1 2 "a" 0,
+        .get 1 2 "b" "00" (some "11") false,
+        .get 1 3 "a" "00" (some "11") false,
+        .put 1 2 "a" "00" "22",
+        .has 1 2 "a" "00" true false,
+        .clear 1 2 "a",
+        .size 1 2 "a" 0,
+        .txEnd 1 3,
+        .txEnd 1 2
+      ]
+    ),
+    (
+      "late acquisition selects a surviving revision and can apply on the current branch",
+      rollbackSurvivingPrefix
+      ++ [.acquire 1 3 "a" 1 0, .get 1 3 "a" "00" (some "11") false]
+      ++ [.put 1 3 "a" "00" "33"]
+      ++ commit 3 2 [(("a", "00"), some "33")]
+    ),
+    (
+      "late acquisition selects a replacement branch with the same version",
+      rollbackSurvivingPrefix
+      ++ start 4 1 0
+      ++ [.acquire 1 4 "a" 1 0, .put 1 4 "a" "00" "44"]
+      ++ commit 4 2 [(("a", "00"), some "44")]
+      ++ [.compact 1 2 2, .acquire 1 3 "a" 2 2]
+      ++ [.get 1 3 "a" "00" (some "44") false, .get 1 3 "a" "00" (some "44") true]
+      ++ [.put 1 3 "a" "00" "55"]
+      ++ commit 3 3 [(("a", "00"), some "55")]
+    ),
     (
       "unrelated same-term rollback keeps attempt valid",
       seed 1 0 0 "11"
@@ -374,6 +426,28 @@ private def accepted : List (String × List Event) :=
 
 private def negative : List (String × String × List Event) :=
   [
+    (
+      "late acquisition cannot claim the discarded snapshot revision",
+      "rejected",
+      rollbackAcquisitionPrefix ++ [.acquire 1 2 "a" 1 0]
+    ),
+    (
+      "late acquisition cannot read discarded data",
+      "rejected",
+      rollbackAcquisitionPrefix
+      ++ [.acquire 1 2 "a" 0 0, .get 1 2 "a" "00" (some "11") false]
+    ),
+    (
+      "a pinned map cannot refresh its local data after rollback",
+      "rejected",
+      rollbackAcquisitionPrefix ++ [.get 1 3 "a" "00" none false]
+    ),
+    (
+      "surviving late acquisition cannot use the original snapshot's data",
+      "rejected",
+      rollbackSurvivingPrefix
+      ++ [.acquire 1 3 "a" 1 0, .get 1 3 "a" "00" (some "22") false]
+    ),
     (
       "initial frontier is validated without storing it",
       "rejected",

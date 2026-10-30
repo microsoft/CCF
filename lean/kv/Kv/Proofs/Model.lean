@@ -354,14 +354,14 @@ theorem stale_term_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
 theorem discarded_handle_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
     (hs : t.snapshot = some snap) (m : String) (view : GlobalView)
     (hm : (m, view) ∈ t.globalViews)
-    (gone : ∀ f ∈ s.history, (revision f m == revision snap.current m) = false)
+    (gone : ∀ f ∈ s.history, (revision f m == revision view.current m) = false)
     : canApply s t = false := by
   apply Bool.eq_false_iff.mpr
   intro h
   have hh : (!t.unavailable = true ∧ validLineage s t = true) ∧
       validates s.head.data t.normal.deps = true := by simpa [canApply] using h
   have hp : (s.term == snap.term) = true ∧
-      t.globalViews.all (fun (name, _) => mapLineage s snap.current name) = true := by
+      t.globalViews.all (fun (name, view) => mapLineage s view.current name) = true := by
     simpa [validLineage, hs] using hh.1.2
   have hall := hp.2
   have hit := List.all_eq_true.mp hall (m, view) hm
@@ -371,14 +371,14 @@ theorem discarded_handle_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
 theorem discarded_birth_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
     (hs : t.snapshot = some snap) (m : String) (view : GlobalView)
     (hm : (m, view) ∈ t.globalViews)
-    (gone : ∀ f ∈ s.history, (find f.births m == find snap.current.births m) = false)
+    (gone : ∀ f ∈ s.history, (find f.births m == find view.current.births m) = false)
     : canApply s t = false := by
   apply Bool.eq_false_iff.mpr
   intro h
   have hh : (!t.unavailable = true ∧ validLineage s t = true) ∧
       validates s.head.data t.normal.deps = true := by simpa [canApply] using h
   have hp : (s.term == snap.term) = true ∧
-      t.globalViews.all (fun (name, _) => mapLineage s snap.current name) = true := by
+      t.globalViews.all (fun (name, view) => mapLineage s view.current name) = true := by
     simpa [validLineage, hs] using hh.1.2
   have hit := List.all_eq_true.mp hp.2 (m, view) hm
   obtain ⟨f, hf, he⟩ := List.any_eq_true.mp hit
@@ -392,19 +392,19 @@ theorem canApply_validates (s : Store) (t : Tx) (h : canApply s t = true)
 
 theorem transaction_snapshot_serial (t : Tx) (snap : Snapshot)
     (hs : t.snapshot = some snap)
-    : serialRun snap.current.data [] t.normal.log = some t.normal.writes := by
-  have hc : normalRun snap.current.data {} t.normal.log = some t.normal := by
+    : serialRun t.data [] t.normal.log = some t.normal.writes := by
+  have hc : normalRun t.data {} t.normal.log = some t.normal := by
     simpa [hs] using t.certificate
-  exact readonly_snapshot_serial snap.current.data t.normal.log t.normal hc
+  exact readonly_snapshot_serial t.data t.normal.log t.normal hc
 
 /-- This applies directly to the transactions consumed by the trace checker:
 their stored, erased certificate is maintained by runOp, not assumed by replay. -/
 theorem transaction_application_serial (s : Store) (t : Tx) (snap : Snapshot)
     (hs : t.snapshot = some snap) (hv : canApply s t = true)
     : serialRun s.head.data [] t.normal.log = some t.normal.writes := by
-  have hc : normalRun snap.current.data {} t.normal.log = some t.normal := by
+  have hc : normalRun t.data {} t.normal.log = some t.normal := by
     simpa [hs] using t.certificate
-  exact normalRun_serial snap.current.data s.head.data t.normal.log {} t.normal hc
+  exact normalRun_serial t.data s.head.data t.normal.log {} t.normal hc
     (canApply_validates s t hv)
 
 theorem tryApply_serial (s next : Store) (t : Tx) (ha : tryApply s t = some next)

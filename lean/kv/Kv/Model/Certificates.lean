@@ -96,13 +96,87 @@ theorem atCut_spec (s : Store) (cut : Nat) (hc : cut ≤ s.head.version)
 theorem operation_certificate (t : Tx) (snap : Snapshot)
     (n : Normal String String String) (op : NormalOp String String String)
     (hs : t.snapshot = some snap)
-    (hn : normalStep snap.current.data t.normal op = some n)
+    (hn : normalStep t.data t.normal op = some n)
     : match t.snapshot with
       | none => n = {}
-      | some snap => normalRun snap.current.data {} n.log = some n := by
-  have old : normalRun snap.current.data {} t.normal.log = some t.normal := by
+      | some _ => normalRun t.data {} n.log = some n := by
+  have old : normalRun t.data {} t.normal.log = some t.normal := by
     simpa [hs] using t.certificate
-  simpa [hs] using normalRun_extend snap.current.data t.normal n op old hn
+  simpa [hs] using normalRun_extend t.data t.normal n op old hn
+
+theorem image_append (a b : Data) (m : String)
+    : image (a ++ b) m = image a m ++ image b m := by
+  simp [image]
+
+theorem image_filter (db : Data) (m : String) (p : String → Bool)
+    : image (db.filter fun (a, _) => p a.1) m = if p m then image db m else [] := by
+  induction db with
+  | nil => simp [image]
+  | cons entry db ih =>
+      rcases entry with ⟨⟨name, key⟩, cell⟩
+      by_cases h : name = m <;> cases hp : p name <;> cases hm : p m <;>
+        simp_all [image]
+      all_goals assumption
+
+theorem pinData_other (db acquired : Data) (m other : String) (h : other ≠ m)
+    : image (pinData db m acquired) other = image db other := by
+  rw [pinData, image_append, image_filter db other (fun name => name != m),
+    image_filter acquired other (fun name => name == m)]
+  simp [h]
+
+theorem find_image (db : Data) (m key : String)
+    : find (image db m) key = find db (m, key) := by
+  induction db with
+  | nil => rfl
+  | cons entry db ih =>
+      rcases entry with ⟨⟨name, k⟩, cell⟩
+      by_cases hm : name = m <;> by_cases hk : k = key <;>
+        simp_all [image, find, Prod.mk.injEq]
+
+theorem normalStep_pinData (db acquired : Data) (m : String)
+    (n : Normal String String String) (op : NormalOp String String String)
+    (h : op.map ≠ m)
+    : normalStep (pinData db m acquired) n op = normalStep db n op := by
+  have hi := pinData_other db acquired m op.map h
+  cases op with
+  | read a v | previous a v =>
+      have hf := congrArg (fun entries => find entries a.2) hi
+      simp only [NormalOp.map, find_image] at hf
+      change find (pinData db m acquired) a = find db a at hf
+      simp only [normalStep, observes, valueAt, previousAt, needs, hf]
+      rfl
+  | scan name entries =>
+      change image (pinData db m acquired) name = image db name at hi
+      simp only [normalStep, observes, scanAt, needs, hi]
+      rfl
+  | write => rfl
+
+theorem normalRun_pinData (db acquired : Data) (m : String)
+    (n : Normal String String String) (ops : List (NormalOp String String String))
+    (unused : ops.all (fun op => op.map != m) = true)
+    : normalRun (pinData db m acquired) n ops = normalRun db n ops := by
+  induction ops generalizing n with
+  | nil => rfl
+  | cons op ops ih =>
+      have h : (op.map != m) = true ∧ ops.all (fun op => op.map != m) = true := by
+        simpa only [List.all_cons, Bool.and_eq_true] using unused
+      have other : op.map ≠ m := by simpa using h.1
+      simp only [normalRun, List.foldlM_cons, normalStep_pinData db acquired m n op other]
+      cases normalStep db n op with
+      | none => rfl
+      | some next => exact ih next h.2
+
+theorem acquisition_certificate (t : Tx) (m : String) (acquired : Data)
+    (unused : t.normal.log.all (fun op => op.map != m) = true)
+    : match t.snapshot with
+      | none => t.normal = {}
+      | some _ =>
+          normalRun (pinData t.data m acquired) {} t.normal.log = some t.normal := by
+  cases hs : t.snapshot with
+  | none => simpa [hs] using t.certificate
+  | some snap =>
+      simpa [hs, normalRun_pinData t.data acquired m {} t.normal.log unused]
+        using t.certificate
 
 theorem snapshot_certificate (t : Tx) (data : Data) (hs : t.snapshot = none)
     : normalRun data {} t.normal.log = some t.normal := by

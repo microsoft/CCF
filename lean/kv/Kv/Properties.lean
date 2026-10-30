@@ -113,11 +113,11 @@ theorem apply_atomic
 
 /-! ## Serial snapshot runs and normal-view serializability -/
 
-/-- An attempt's operation log runs serially on its captured snapshot to its staged writes. -/
+/-- An attempt's operation log runs serially on its pinned local views to its staged writes. -/
 theorem transaction_snapshot_serial
     : ∀ (t : Tx) (snap : Snapshot),
         t.snapshot = some snap
-        → serialRun snap.current.data [] t.normal.log = some t.normal.writes := by
+        → serialRun t.data [] t.normal.log = some t.normal.writes := by
   exact Proofs.Model.transaction_snapshot_serial
 
 /-- Witness: an attempt with a snapshot can have a nonempty log. -/
@@ -312,7 +312,7 @@ theorem step_map_capture
           = some next
         → find next.txs tid = some after
         → find after.globalViews map = some (captureGlobal s snap map)
-          ∧ localVersion = (revision snap.current map).version
+          ∧ localVersion = (revision (captureLocal s snap map) map).version
           ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version := by
   exact Proofs.Properties.step_map_capture
 
@@ -329,7 +329,7 @@ theorem step_map_capture_witness
         ∧ find next.txs tid = some after := by
   exact Proofs.Witnesses.step_map_capture_witness
 
-/-- A map's captured global view is unchanged by later records that do not end the attempt. -/
+/-- A map's captured local and global views are unchanged by later records that do not end the attempt. -/
 theorem replay_map_global_fixed
     : ∀ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
         (rs : List Record),
@@ -343,6 +343,30 @@ theorem replay_map_global_fixed
 
 /-- Witness: an attempt with an acquired map can be followed by an accepted nonempty run that keeps it. -/
 theorem replay_map_global_fixed_witness
+    : ∃ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
+        (rs : List Record),
+        find w.txs tid = some before
+        ∧ find before.globalViews map = some view
+        ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
+        ∧ CCF.Execution.Run Model.transitionSystem w rs final
+        ∧ rs ≠ [] := by
+  exact Proofs.Witnesses.replay_map_global_fixed_witness
+
+/-- Acquired local data is unchanged by later records, including rollback and other map acquisitions. -/
+theorem replay_map_local_fixed
+    : ∀ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
+        (rs : List Record),
+        find w.txs tid = some before
+        → find before.globalViews map = some view
+        → (∀ r ∈ rs, AttemptEvent tid r.event)
+        → CCF.Execution.Run Model.transitionSystem w rs final
+        → ∃ after,
+            find final.txs tid = some after
+            ∧ image after.data map = image before.data map := by
+  exact Proofs.Properties.replay_map_local_fixed
+
+/-- Witness: an acquired map can survive a nonempty accepted segment. -/
+theorem replay_map_local_fixed_witness
     : ∃ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
         (rs : List Record),
         find w.txs tid = some before
@@ -370,7 +394,7 @@ theorem capture_replay_preserves_map
         → ∃ after,
             find final.txs tid = some after
             ∧ find after.globalViews map = some (captureGlobal s snap map)
-            ∧ localVersion = (revision snap.current map).version
+            ∧ localVersion = (revision (captureLocal s snap map) map).version
             ∧ globalVersion
               = (revision (captureGlobal s snap map).frame map).version := by
   exact Proofs.Properties.capture_replay_preserves_map
@@ -395,25 +419,27 @@ theorem capture_replay_preserves_map_witness
 /-- The global view of a map not yet created is the empty frame. -/
 theorem captureGlobal_placeholder
     : ∀ (s : Store) (snap : Snapshot) (map : String),
-        find snap.current.births map = none → (captureGlobal s snap map).frame = {} := by
+        find (captureLocal s snap map).births map = none
+        → (captureGlobal s snap map).frame = {} := by
   exact Proofs.Trace.captureGlobal_placeholder
 
 /-- Witness: a snapshot can lack a map. -/
 theorem captureGlobal_placeholder_witness
-    : ∃ (snap : Snapshot) (map : String), find snap.current.births map = none := by
+    : ∃ (s : Store) (snap : Snapshot) (map : String),
+        find (captureLocal s snap map).births map = none := by
   exact Proofs.Witnesses.captureGlobal_placeholder_witness
 
 /-- The global view of an existing map is the store's global cut. -/
 theorem captureGlobal_committed
     : ∀ (s : Store) (snap : Snapshot) (map : String) (birth : Stamp),
-        find snap.current.births map = some birth
+        find (captureLocal s snap map).births map = some birth
         → (captureGlobal s snap map).frame = atCut s s.global := by
   exact Proofs.Trace.captureGlobal_committed
 
 /-- Witness: a snapshot can contain a map. -/
 theorem captureGlobal_committed_witness
-    : ∃ (snap : Snapshot) (map : String) (birth : Stamp),
-        find snap.current.births map = some birth := by
+    : ∃ (s : Store) (snap : Snapshot) (map : String) (birth : Stamp),
+        find (captureLocal s snap map).births map = some birth := by
   exact Proofs.Witnesses.captureGlobal_committed_witness
 
 /-- A global read returns the captured view's value, and that view is empty or a store's global
@@ -534,7 +560,7 @@ theorem discarded_handle_cannot_apply
     : ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
         t.snapshot = some snap
         → (m, view) ∈ t.globalViews
-        → (∀ f ∈ s.history, (revision f m == revision snap.current m) = false)
+        → (∀ f ∈ s.history, (revision f m == revision view.current m) = false)
         → canApply s t = false := by
   exact Proofs.Properties.discarded_handle_cannot_apply
 
@@ -543,7 +569,7 @@ theorem discarded_handle_cannot_apply_witness
     : ∃ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
         t.snapshot = some snap
         ∧ (m, view) ∈ t.globalViews
-        ∧ (∀ f ∈ s.history, (revision f m == revision snap.current m) = false) := by
+        ∧ (∀ f ∈ s.history, (revision f m == revision view.current m) = false) := by
   exact Proofs.Witnesses.discarded_handle_cannot_apply_witness
 
 /-- An attempt whose acquired map creation is no longer on the branch cannot apply. -/
@@ -551,7 +577,7 @@ theorem discarded_birth_cannot_apply
     : ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
         t.snapshot = some snap
         → (m, view) ∈ t.globalViews
-        → (∀ f ∈ s.history, (find f.births m == find snap.current.births m) = false)
+        → (∀ f ∈ s.history, (find f.births m == find view.current.births m) = false)
         → canApply s t = false := by
   exact Proofs.Properties.discarded_birth_cannot_apply
 
@@ -560,7 +586,7 @@ theorem discarded_birth_cannot_apply_witness
     : ∃ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
         t.snapshot = some snap
         ∧ (m, view) ∈ t.globalViews
-        ∧ (∀ f ∈ s.history, (find f.births m == find snap.current.births m) = false) := by
+        ∧ (∀ f ∈ s.history, (find f.births m == find view.current.births m) = false) := by
   exact Proofs.Witnesses.discarded_birth_cannot_apply_witness
 
 /-- A map revised before the global cut's revision is unavailable. -/
