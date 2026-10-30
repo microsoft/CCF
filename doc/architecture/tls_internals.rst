@@ -15,12 +15,21 @@ Layers
 
 A single RPC interface is served by these pieces:
 
-- :ccf_repo:`OpenSSLServer </src/tls/openssl_server.h>` owns the listening and accepted sockets and registers ``uv_poll_t`` handles for them on the existing host loop. Each accepted connection holds an ``SSL`` object bound to its file descriptor with ``SSL_set_fd``. It emits decrypted bytes through an ``OnData`` callback and reports teardown through ``OnClose``.
+- :ccf_repo:`OpenSSLServer </src/tls/openssl_server.h>` owns the listener, server TLS context policy, certificate rotation, and accept-time admission.
+  It hands accepted sockets to its connection engine and preserves the RPC-facing API.
+- :ccf_repo:`OpenSSLConnectionEngine </src/tls/openssl_connection_engine.h>` owns connected sockets and their ``uv_poll_t`` handles on the existing host loop.
+  Each TLS connection holds an ``SSL`` object bound to its file descriptor with ``SSL_set_fd``.
+  The engine emits decrypted bytes through ``OnData`` and reports teardown through ``OnClose``.
 - :ccf_repo:`OpenSSLSessionManager </src/node/rpc/openssl_session_manager.h>` bridges the transport to the session layer. It lazily creates one ``ccf::Session`` per connection using a caller-supplied factory, and implements :ccf_repo:`ccf::SessionWriter </include/ccf/node/session.h>` so that a session's outbound plaintext is handed back to the transport.
 - :ccf_repo:`ccf::PlaintextSession </src/node/rpc/session.h>` is the base for the protocol sessions (:ccf_repo:`HTTPServerSession </src/node/rpc/http_session.h>`, :ccf_repo:`HTTP2ServerSession </src/node/rpc/http2_session.h>`). It receives plaintext, and emits plaintext through its ``SessionWriter``.
 - :ccf_repo:`RPCConnectionManager </src/node/rpc/rpc_connection_manager.h>` owns one of these stacks per configured RPC interface, and holds the cross-interface policy: certificates, session caps, and metrics.
 
 Because TLS lives below the session, there is no separate "encrypted session" type. The difference between a TLS interface and an ``UNSECURED`` one is a flag on the connection layer, not a different session class.
+
+Initiating connections use :ccf_repo:`OpenSSLClient </src/tls/openssl_client.h>` rather than ``OpenSSLServer``.
+Both compose the same connection engine; neither inherits the other's establishment machinery.
+The server and engine contain no outbound resolver, address-candidate retry state, or dialing timers.
+The client does not bind or create a listening socket at construction or startup.
 
 Note that the inbound and outbound paths are not symmetric. Inbound plaintext is pushed straight into the session, but a session cannot touch the socket: it hands bytes to a ``SessionWriter``, which queues them for the owning connection. This is what allows sessions to run on any worker thread while each socket is still only ever touched by one thread at a time.
 
@@ -32,6 +41,45 @@ The listening socket is resolved with ``getaddrinfo`` (rather than ``inet_pton``
 ``SO_REUSEPORT`` is deliberately not set. There is one listener per interface, so it would buy nothing today, and it would weaken two useful properties: a second node misconfigured onto the same port would bind successfully instead of failing with ``EADDRINUSE``, with connections then split between the two at random; and any process running with the same effective UID could bind the same port and siphon off a share of inbound connections. If per-worker listeners are added later, it should be enabled explicitly for that case rather than unconditionally.
 
 After binding, the actually bound port is read back with ``getsockname``. This supports configuring port ``0`` to request an ephemeral port, which the test infrastructure relies on, and is why resolved addresses are only known once the interface is listening.
+
+Initiating connections
+~~~~~~~~~~~~~~~~~~~~~~
+
+``OpenSSLClient::connect()`` initiates TLS connections through the shared engine.
+It returns a connection id immediately, queues asynchronous ``uv_getaddrinfo`` resolution of the destination and optional source address, binds a matching local address when requested, and tries the resolved TCP candidates with non-blocking sockets.
+Each candidate has a timeout before falling back to the next address.
+Resolution and TLS establishment have their own bounded timeouts.
+TLS handshake failures and admission rejection terminate the attempt rather than retrying another address.
+
+The client owns each resolution/connect attempt until TCP establishment succeeds.
+It then transfers the connected socket, poll handle, TLS context, handshake timeout, and queued output to the engine.
+The engine takes exclusive responsibility for TLS establishment and subsequent I/O, worker scheduling, buffering, and teardown.
+The client and server each stop their own establishment resources through the engine's loop-side shutdown callback before the engine drains connected sockets.
+
+The owner supplies an already configured client-capable ``SSL_CTX`` and retains responsibility for protocol versions, trust anchors, certificate verification and peer identity policy.
+The context must not be mutated while in use.
+The engine does not impose N2N policy on RPC: RPC retains its existing TLS configuration.
+This foundation does not activate N2N endpoints, route messages, or implement the future N2N TLS 1.3 and record-based KeyUpdate policy.
+
+``Config::on_handshake`` is optional and applies to both accepted and initiating TLS connections.
+It runs once on a connection worker after TLS establishment, with a borrowed ``SSL`` and a direction flag.
+Returning false rejects the connection before any application reads or queued writes.
+Without a hook, successful TLS establishment admits the connection as before.
+Callbacks must not throw or block waiting for engine shutdown.
+
+Initiating connections use the same worker scheduling, buffers, ``send()``, ``OnData``, and ``OnClose`` as accepted connections.
+Each id returned by ``connect()`` receives exactly one close notification, including failed or cancelled attempts.
+``close_connection()`` cancels establishment without flushing pending application data; after establishment it retains the normal flush-before-close behavior.
+For initiating connections, the loop's cancellation and the worker's entry into handshake admission atomically claim the establishment state.
+If cancellation wins, a concurrently completing TLS handshake cannot invoke admission or perform application I/O.
+If admission wins, including a close issued by the admission callback itself, close retains flush-before-close behavior.
+Shutdown cancels outstanding resolution and connect attempts.
+Resolver requests retain their own callback storage and a weak reference to the client, so even a late completion after client destruction can safely free its result without accessing the client or engine.
+When stopping without a running loop, the caller must eventually drain the loop before closing it to reclaim outstanding libuv requests and handles.
+
+An optional ``tcp_user_timeout`` sets Linux ``TCP_USER_TIMEOUT`` on accepted sockets (in ``Config``) or an initiating socket (in ``ConnectConfig``).
+It bounds how long transmitted data can remain unacknowledged or blocked by a zero receive window, independently of the application's idle timeout.
+Leaving it unset preserves the operating system defaults, including existing RPC behavior.
 
 Certificates
 ~~~~~~~~~~~~

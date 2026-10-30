@@ -4,6 +4,7 @@
 // Unit tests for the OpenSSL-native RPC transport and SessionWriter bridge.
 
 #include "ccf/crypto/ec_key_pair.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "crypto/certs.h"
 #include "http/http_parser.h"
@@ -11,6 +12,7 @@
 #include "node/rpc/openssl_session_manager.h"
 #include "tasks/task_system.h"
 #include "tls/datagram_server.h"
+#include "tls/openssl_client.h"
 #include "tls/openssl_server.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -77,6 +79,146 @@ namespace
 
   // Installed only while the test owns all threads using the gate.
   std::atomic<NotificationGate*> notification_gate = nullptr;
+  std::atomic<NotificationGate*> handshake_gate = nullptr;
+  std::atomic<bool> suppress_connect_poll = false;
+  std::atomic<size_t> suppressed_connect_polls = 0;
+  std::atomic<size_t> socket_calls = 0;
+
+  struct ResolutionGate
+  {
+    std::mutex mutex;
+    std::condition_variable cv;
+    std::atomic<bool> submitted = false;
+    bool completed = false;
+    uv_getaddrinfo_t* request = nullptr;
+    uv_getaddrinfo_cb callback = nullptr;
+    int status = 0;
+    addrinfo* result = nullptr;
+  };
+
+  std::atomic<ResolutionGate*> resolution_gate = nullptr;
+
+  struct OrderedResolution
+  {
+    std::array<sockaddr_in, 2> addresses{};
+    std::array<addrinfo, 2> candidates{};
+    uv_getaddrinfo_cb callback = nullptr;
+    std::atomic<size_t> completions = 0;
+  };
+
+  std::atomic<OrderedResolution*> ordered_resolution = nullptr;
+}
+
+extern "C" int __real_SSL_do_handshake(SSL* ssl);
+
+extern "C" int __wrap_SSL_do_handshake(SSL* ssl)
+{
+  const int result = __real_SSL_do_handshake(ssl);
+  if (result == 1 && SSL_is_server(ssl) == 0)
+  {
+    if (auto* gate = handshake_gate.load())
+    {
+      ccf::ds::MutexGuard guard(gate->mutex);
+      ++gate->calls;
+      gate->cv.notify_all();
+      gate->cv.wait(
+        guard, [&]() CCF_REQUIRES(gate->mutex) { return gate->released; });
+    }
+  }
+  return result;
+}
+
+extern "C" int __real_socket(int domain, int type, int protocol);
+
+extern "C" int __wrap_socket(int domain, int type, int protocol)
+{
+  ++socket_calls;
+  return __real_socket(domain, type, protocol);
+}
+
+extern "C" int __real_uv_getaddrinfo(
+  uv_loop_t*,
+  uv_getaddrinfo_t*,
+  uv_getaddrinfo_cb,
+  const char*,
+  const char*,
+  const addrinfo*);
+
+extern "C" void __real_uv_freeaddrinfo(addrinfo* result);
+
+extern "C" void __wrap_uv_freeaddrinfo(addrinfo* result)
+{
+  const auto* ordered = ordered_resolution.load();
+  if (ordered != nullptr && result == ordered->candidates.data())
+  {
+    // The test fixture owns this synthetic list, not libuv's allocator.
+    return;
+  }
+  __real_uv_freeaddrinfo(result);
+}
+
+extern "C" int __wrap_uv_getaddrinfo(
+  uv_loop_t* loop,
+  uv_getaddrinfo_t* request,
+  uv_getaddrinfo_cb callback,
+  const char* node,
+  const char* service,
+  const addrinfo* hints)
+{
+  if (auto* ordered = ordered_resolution.load(); ordered != nullptr &&
+      node != nullptr && std::string_view(node) == "ordered-candidates.test")
+  {
+    ordered->callback = callback;
+    // Retain a real asynchronous request and its cancellation semantics, but
+    // replace its result with the fixture's ordered list on completion.
+    return __real_uv_getaddrinfo(
+      loop,
+      request,
+      [](uv_getaddrinfo_t* request, int status, addrinfo* result) {
+        auto* ordered = ordered_resolution.load();
+        __real_uv_freeaddrinfo(result);
+        ++ordered->completions;
+        ordered->callback(
+          request, status, status == 0 ? ordered->candidates.data() : nullptr);
+      },
+      "127.0.0.1",
+      service,
+      hints);
+  }
+  auto* gate = resolution_gate.load();
+  if (gate == nullptr || gate->submitted.exchange(true))
+  {
+    return __real_uv_getaddrinfo(loop, request, callback, node, service, hints);
+  }
+  gate->request = request;
+  gate->callback = callback;
+  return __real_uv_getaddrinfo(
+    loop,
+    request,
+    [](uv_getaddrinfo_t*, int status, addrinfo* result) {
+      auto* gate = resolution_gate.load();
+      std::lock_guard<std::mutex> guard(gate->mutex);
+      gate->status = status;
+      gate->result = result;
+      gate->completed = true;
+      gate->cv.notify_all();
+    },
+    node,
+    service,
+    hints);
+}
+
+extern "C" int __real_uv_poll_start(uv_poll_t*, int, uv_poll_cb);
+
+extern "C" int __wrap_uv_poll_start(
+  uv_poll_t* poll, int events, uv_poll_cb callback)
+{
+  if (events == UV_WRITABLE && suppress_connect_poll.exchange(false))
+  {
+    ++suppressed_connect_polls;
+    return 0;
+  }
+  return __real_uv_poll_start(poll, events, callback);
 }
 
 extern "C" int __real_uv_async_send(uv_async_t* handle);
@@ -538,6 +680,878 @@ namespace
 
     void close_session() override {}
   };
+}
+
+namespace
+{
+  struct EnginePair
+  {
+    std::mutex mutex;
+    std::condition_variable cv;
+    std::vector<uint8_t> received;
+    std::vector<uint8_t> accepted_data;
+    size_t client_closed = 0;
+    size_t server_closed = 0;
+    size_t client_handshakes = 0;
+    size_t server_handshakes = 0;
+    bool reject_client = false;
+    bool reject_server = false;
+    bool admitted = false;
+    bool reply = true;
+    std::string peer_source;
+    unsigned int client_user_timeout = 0;
+    unsigned int server_user_timeout = 0;
+    std::function<void(::tcp::ConnID)> after_client_handshake;
+    UVLoopRunner loop;
+    std::shared_ptr<OpenSSLServer> server;
+    std::shared_ptr<OpenSSLClient> client;
+    std::shared_ptr<SSL_CTX> client_ctx;
+
+    EnginePair(
+      std::optional<std::chrono::milliseconds> server_timeout = std::nullopt)
+    {
+      auto [cert, key] = make_server_cert();
+      client_ctx = {SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
+      REQUIRE(client_ctx != nullptr);
+      ccf::crypto::OpenSSL::Unique_BIO bio(
+        cert.data(), static_cast<int>(cert.size()));
+      ccf::crypto::OpenSSL::Unique_X509 root(bio, true);
+      REQUIRE(root != nullptr);
+      REQUIRE(
+        X509_STORE_add_cert(SSL_CTX_get_cert_store(client_ctx.get()), root) ==
+        1);
+      SSL_CTX_set_verify(client_ctx.get(), SSL_VERIFY_PEER, nullptr);
+
+      OpenSSLServer::Config config{
+        .host = "127.0.0.1", .cert_pem = cert, .key_pem = key};
+      config.tcp_user_timeout = server_timeout;
+      config.on_handshake = [this](::tcp::ConnID id, SSL* ssl, bool outgoing) {
+        std::lock_guard<std::mutex> guard(mutex);
+        CHECK_FALSE(outgoing);
+        ++server_handshakes;
+        sockaddr_in peer{};
+        socklen_t size = sizeof(peer);
+        CHECK(
+          getpeername(
+            SSL_get_fd(ssl), reinterpret_cast<sockaddr*>(&peer), &size) == 0);
+        std::array<char, INET_ADDRSTRLEN> address{};
+        REQUIRE(
+          inet_ntop(AF_INET, &peer.sin_addr, address.data(), address.size()) !=
+          nullptr);
+        peer_source = address.data();
+        size = sizeof(server_user_timeout);
+        CHECK(
+          getsockopt(
+            SSL_get_fd(ssl),
+            IPPROTO_TCP,
+            TCP_USER_TIMEOUT,
+            &server_user_timeout,
+            &size) == 0);
+        const std::vector<uint8_t> greeting{'h', 'i'};
+        if (reply)
+        {
+          server->send(id, greeting.data(), greeting.size());
+        }
+        cv.notify_all();
+        return !reject_server;
+      };
+      server = std::make_shared<OpenSSLServer>(
+        config,
+        [this](
+          ::tcp::ConnID id,
+          std::vector<uint8_t> data,
+          const std::vector<uint8_t>&,
+          bool) {
+          {
+            std::lock_guard<std::mutex> guard(mutex);
+            accepted_data.insert(accepted_data.end(), data.begin(), data.end());
+          }
+          if (reply)
+          {
+            server->send(id, std::move(data));
+          }
+          cv.notify_all();
+        },
+        [this](::tcp::ConnID) {
+          std::lock_guard<std::mutex> guard(mutex);
+          ++server_closed;
+          cv.notify_all();
+        });
+      OpenSSLClient::Config client_config;
+      client_config.on_handshake =
+        [this](::tcp::ConnID id, SSL* ssl, bool outgoing) {
+          std::lock_guard<std::mutex> guard(mutex);
+          CHECK(outgoing);
+          CHECK(SSL_get_verify_result(ssl) == X509_V_OK);
+          CHECK(SSL_get0_peer_certificate(ssl) != nullptr);
+          socklen_t size = sizeof(client_user_timeout);
+          CHECK(
+            getsockopt(
+              SSL_get_fd(ssl),
+              IPPROTO_TCP,
+              TCP_USER_TIMEOUT,
+              &client_user_timeout,
+              &size) == 0);
+          ++client_handshakes;
+          admitted = !reject_client;
+          if (admitted && after_client_handshake)
+          {
+            after_client_handshake(id);
+          }
+          cv.notify_all();
+          return admitted;
+        };
+      client = std::make_shared<OpenSSLClient>(
+        client_config,
+        [this](
+          ::tcp::ConnID,
+          std::vector<uint8_t> data,
+          const std::vector<uint8_t>& peer_cert,
+          bool) {
+          std::lock_guard<std::mutex> guard(mutex);
+          CHECK(admitted);
+          CHECK_FALSE(peer_cert.empty());
+          received.insert(received.end(), data.begin(), data.end());
+          cv.notify_all();
+        },
+        [this](::tcp::ConnID) {
+          std::lock_guard<std::mutex> guard(mutex);
+          ++client_closed;
+          cv.notify_all();
+        });
+      server->start();
+      client->start();
+    }
+
+    OpenSSLClient::ConnectConfig config()
+    {
+      return {
+        .host = "localhost",
+        .port = server->port(),
+        .source_host = "127.0.0.2",
+        .tls_context = client_ctx,
+        .timeout = std::chrono::milliseconds(500),
+        .tcp_user_timeout = std::chrono::milliseconds(1234)};
+    }
+
+    template <typename Predicate>
+    bool wait(Predicate predicate)
+    {
+      std::unique_lock<std::mutex> lock(mutex);
+      return cv.wait_for(lock, std::chrono::seconds(5), predicate);
+    }
+
+    ~EnginePair()
+    {
+      const auto state = loop.thread.joinable() ?
+        OpenSSLServer::LoopState::Running :
+        OpenSSLServer::LoopState::NotRunning;
+      client->stop(state);
+      server->stop(state);
+    }
+  };
+}
+
+TEST_CASE(
+  "Outbound engine exchanges real bidirectional TLS application traffic")
+{
+  EnginePair pair;
+  const auto id = pair.client->connect(pair.config());
+  std::vector<uint8_t> payload(512 * 1024, 42);
+  pair.client->send(id, payload.data(), payload.size());
+  pair.loop.start();
+  REQUIRE(
+    pair.wait([&]() { return pair.received.size() == payload.size() + 2; }));
+  {
+    std::lock_guard<std::mutex> guard(pair.mutex);
+    CHECK(pair.client_handshakes == 1);
+    CHECK(pair.server_handshakes == 1);
+    CHECK(pair.peer_source == "127.0.0.2");
+    CHECK(pair.client_user_timeout == 1234);
+    CHECK(pair.server_user_timeout == 0);
+    CHECK(pair.accepted_data == payload);
+    CHECK(
+      std::vector<uint8_t>(pair.received.begin() + 2, pair.received.end()) ==
+      payload);
+  }
+  pair.client->close_connection(id);
+  REQUIRE(pair.wait([&]() { return pair.client_closed == 1; }));
+}
+
+TEST_CASE("Outbound client startup allocates no listener or socket")
+{
+  uv_loop_t loop{};
+  REQUIRE(uv_loop_init(&loop) == 0);
+  const auto before = socket_calls.load();
+  {
+    auto client = std::make_shared<OpenSSLClient>(
+      OpenSSLClient::Config{.loop = &loop},
+      [](
+        ::tcp::ConnID,
+        std::vector<uint8_t>,
+        const std::vector<uint8_t>&,
+        bool) {});
+    client->start();
+    client->start();
+    CHECK(socket_calls == before);
+    std::vector<uv_handle_type> handles;
+    uv_walk(
+      &loop,
+      [](uv_handle_t* handle, void* arg) {
+        static_cast<std::vector<uv_handle_type>*>(arg)->push_back(handle->type);
+      },
+      &handles);
+    CHECK(handles == std::vector<uv_handle_type>{UV_ASYNC});
+    client->stop();
+    client->stop();
+  }
+  uv_run(&loop, UV_RUN_DEFAULT);
+  CHECK(uv_loop_close(&loop) == 0);
+}
+
+TEST_CASE("Shared engine supports caller TLS policy without a negotiated group")
+{
+  using namespace std::chrono_literals;
+  auto ca = make_ca();
+  auto key = ccf::crypto::make_rsa_key_pair();
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  const auto cert = ccf::crypto::create_endorsed_cert(
+    key->public_key_pem(),
+    "CN=localhost",
+    {},
+    valid_from,
+    ccf::crypto::compute_cert_valid_to_string(valid_from, 365),
+    ca.kp->private_key_pem(),
+    ca.cert);
+  const auto key_pem = key->private_key_pem();
+  std::shared_ptr<SSL_CTX> server_ctx(
+    SSL_CTX_new(TLS_server_method()), SSL_CTX_free);
+  std::shared_ptr<SSL_CTX> client_ctx(
+    SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
+  REQUIRE(server_ctx != nullptr);
+  REQUIRE(client_ctx != nullptr);
+  ccf::crypto::OpenSSL::Unique_BIO cert_bio(cert);
+  ccf::crypto::OpenSSL::Unique_X509 x509(cert_bio, true);
+  REQUIRE(x509 != nullptr);
+  ccf::crypto::OpenSSL::Unique_BIO key_bio(key_pem);
+  ccf::crypto::OpenSSL::Unique_PKEY pkey(
+    PEM_read_bio_PrivateKey(key_bio, nullptr, nullptr, nullptr), EVP_PKEY_free);
+  REQUIRE(SSL_CTX_use_certificate(server_ctx.get(), x509) == 1);
+  REQUIRE(SSL_CTX_use_PrivateKey(server_ctx.get(), pkey) == 1);
+  for (auto* context : {server_ctx.get(), client_ctx.get()})
+  {
+    REQUIRE(SSL_CTX_set_min_proto_version(context, TLS1_2_VERSION) == 1);
+    REQUIRE(SSL_CTX_set_max_proto_version(context, TLS1_2_VERSION) == 1);
+    REQUIRE(SSL_CTX_set_cipher_list(context, "AES128-GCM-SHA256") == 1);
+  }
+
+  std::mutex mutex;
+  std::condition_variable cv;
+  size_t handshakes = 0;
+  std::vector<uint8_t> received;
+  const auto on_handshake = [&](::tcp::ConnID, SSL* ssl, bool) {
+    std::lock_guard<std::mutex> guard(mutex);
+    CHECK(SSL_version(ssl) == TLS1_2_VERSION);
+    CHECK(SSL_get0_group_name(ssl) == nullptr);
+    ++handshakes;
+    cv.notify_all();
+    return true;
+  };
+  UVLoopRunner loop;
+  std::shared_ptr<OpenSSLConnectionEngine> server;
+  server = std::make_shared<OpenSSLConnectionEngine>(
+    OpenSSLConnectionEngine::Config{.on_handshake = on_handshake},
+    [&](
+      ::tcp::ConnID id,
+      std::vector<uint8_t> data,
+      const std::vector<uint8_t>&,
+      bool) { server->send(id, std::move(data)); });
+  auto client = std::make_shared<OpenSSLConnectionEngine>(
+    OpenSSLConnectionEngine::Config{.on_handshake = on_handshake},
+    [&](
+      ::tcp::ConnID,
+      std::vector<uint8_t> data,
+      const std::vector<uint8_t>&,
+      bool) {
+      std::lock_guard<std::mutex> guard(mutex);
+      received.insert(received.end(), data.begin(), data.end());
+      cv.notify_all();
+    });
+
+  struct StopEngines
+  {
+    std::shared_ptr<OpenSSLConnectionEngine> server;
+    std::shared_ptr<OpenSSLConnectionEngine> client;
+    UVLoopRunner& loop;
+
+    ~StopEngines()
+    {
+      const auto state = loop.thread.joinable() ?
+        OpenSSLConnectionEngine::LoopState::Running :
+        OpenSSLConnectionEngine::LoopState::NotRunning;
+      client->stop(state);
+      server->stop(state);
+    }
+  } cleanup{server, client, loop};
+
+  int sockets[2] = {-1, -1};
+  REQUIRE(
+    socketpair(
+      AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, sockets) == 0);
+  server->start();
+  client->start();
+  REQUIRE(
+    server->adopt({.id = 1, .fd = sockets[0], .tls_context = server_ctx}));
+  REQUIRE(client->adopt(
+    {.id = 1,
+     .fd = sockets[1],
+     .tls_context = client_ctx,
+     .outgoing = true,
+     .handshake_timeout = 5s}));
+  const std::vector<uint8_t> payload{1, 2, 3};
+  client->send(1, payload.data(), payload.size());
+  loop.start();
+  std::unique_lock<std::mutex> guard(mutex);
+  REQUIRE(cv.wait_for(
+    guard, 5s, [&]() { return received == payload && handshakes == 2; }));
+}
+
+TEST_CASE("Outbound handshake admission gates reads and queued writes")
+{
+  EnginePair pair;
+  SUBCASE("Initiator rejects")
+  {
+    pair.reject_client = true;
+  }
+  SUBCASE("Acceptor rejects")
+  {
+    pair.reject_server = true;
+  }
+  const auto id = pair.client->connect(pair.config());
+  pair.client->send(id, std::vector<uint8_t>{1, 2, 3});
+  pair.loop.start();
+  REQUIRE(pair.wait(
+    [&]() { return pair.client_closed == 1 && pair.server_closed == 1; }));
+  std::lock_guard<std::mutex> guard(pair.mutex);
+  CHECK(pair.received.empty());
+  CHECK(pair.accepted_data.empty());
+  CHECK(pair.client_handshakes == 1);
+  // If the client rejects, its close_notify can race the server's Finished.
+  CHECK(pair.server_handshakes <= 1);
+}
+
+TEST_CASE("Outbound admission callback send-and-close flushes application data")
+{
+  EnginePair pair;
+  pair.reply = false;
+  const std::vector<uint8_t> payload(256 * 1024, 73);
+  pair.after_client_handshake = [&](::tcp::ConnID id) {
+    pair.client->send(id, payload.data(), payload.size());
+    pair.client->close_connection(id);
+  };
+  pair.client->connect(pair.config());
+  pair.loop.start();
+  REQUIRE(pair.wait([&]() {
+    return pair.client_closed == 1 &&
+      pair.accepted_data.size() == payload.size();
+  }));
+  std::lock_guard<std::mutex> guard(pair.mutex);
+  CHECK(pair.accepted_data == payload);
+}
+
+namespace
+{
+  TEST_CASE(
+    "Cancellation during the final TLS drive suppresses application I/O")
+  {
+    using namespace std::chrono_literals;
+    bool shutdown = false;
+    SUBCASE("Explicit close") {}
+    SUBCASE("Shutdown")
+    {
+      shutdown = true;
+    }
+    auto [cert, key] = make_server_cert();
+    std::shared_ptr<SSL_CTX> server_context(
+      SSL_CTX_new(TLS_server_method()), SSL_CTX_free);
+    std::shared_ptr<SSL_CTX> client_context(
+      SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
+    REQUIRE(server_context != nullptr);
+    REQUIRE(client_context != nullptr);
+    ccf::crypto::OpenSSL::Unique_BIO cert_bio(
+      cert.data(), static_cast<int>(cert.size()));
+    ccf::crypto::OpenSSL::Unique_X509 x509(cert_bio, true);
+    ccf::crypto::OpenSSL::Unique_BIO key_bio(
+      key.data(), static_cast<int>(key.size()));
+    ccf::crypto::OpenSSL::Unique_PKEY pkey(
+      PEM_read_bio_PrivateKey(key_bio, nullptr, nullptr, nullptr),
+      EVP_PKEY_free);
+    REQUIRE(SSL_CTX_use_certificate(server_context.get(), x509) == 1);
+    REQUIRE(SSL_CTX_use_PrivateKey(server_context.get(), pkey) == 1);
+    REQUIRE(SSL_CTX_set_num_tickets(server_context.get(), 0) == 1);
+
+    int sockets[2] = {-1, -1};
+    REQUIRE(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) == 0);
+    REQUIRE(fcntl(sockets[0], F_SETFL, O_NONBLOCK) == 0);
+    const int send_buffer = 4096;
+    REQUIRE(
+      setsockopt(
+        sockets[0], SOL_SOCKET, SO_SNDBUF, &send_buffer, sizeof(send_buffer)) ==
+      0);
+    timeval receive_timeout{.tv_sec = 5, .tv_usec = 0};
+    REQUIRE(
+      setsockopt(
+        sockets[1],
+        SOL_SOCKET,
+        SO_RCVTIMEO,
+        &receive_timeout,
+        sizeof(receive_timeout)) == 0);
+
+    std::mutex mutex;
+    std::condition_variable cv;
+    bool peer_ready = false;
+    bool peer_read = false;
+    size_t admission_calls = 0;
+    size_t received = 0;
+    size_t closes = 0;
+    bool cancellation_processed = false;
+    bool stop_barrier_posted = false;
+    std::function<void()> acknowledge_shutdown = [&]() {
+      std::lock_guard<std::mutex> guard(mutex);
+      cancellation_processed = true;
+      cv.notify_all();
+    };
+    constexpr ::tcp::ConnID connection_id = 1;
+    constexpr ::tcp::ConnID barrier_id = 2;
+    NotificationGate gate;
+    handshake_gate = &gate;
+    UVLoopRunner loop;
+    auto client = std::make_shared<OpenSSLConnectionEngine>(
+      OpenSSLConnectionEngine::Config{
+        .on_handshake =
+          [&](::tcp::ConnID, SSL*, bool) {
+            std::lock_guard<std::mutex> guard(mutex);
+            ++admission_calls;
+            return true;
+          },
+        .on_stop =
+          [&]() {
+            if (!shutdown || stop_barrier_posted)
+            {
+              return;
+            }
+            stop_barrier_posted = true;
+            auto timer = std::make_unique<uv_timer_t>();
+            const int rc = uv_timer_init(uv_default_loop(), timer.get());
+            CHECK(rc == 0);
+            if (rc != 0)
+            {
+              return;
+            }
+            timer->data = &acknowledge_shutdown;
+            // on_stop precedes connection cancellation. A subsequent loop
+            // callback acknowledges the whole teardown pass, not just on_stop.
+            const int start_rc = uv_timer_start(
+              timer.get(),
+              [](uv_timer_t* handle) {
+                (*static_cast<std::function<void()>*>(handle->data))();
+                ccf::tls::details::close_handle(handle);
+              },
+              0,
+              0);
+            CHECK(start_rc == 0);
+            auto* handle = timer.release();
+            if (start_rc != 0)
+            {
+              ccf::tls::details::close_handle(handle);
+            }
+          },
+        .on_unconnected =
+          [&](::tcp::ConnID id, std::vector<uint8_t>, bool) {
+            std::lock_guard<std::mutex> guard(mutex);
+            CHECK(id == barrier_id);
+            cancellation_processed = true;
+            cv.notify_all();
+          }},
+      [&](
+        ::tcp::ConnID,
+        std::vector<uint8_t> data,
+        const std::vector<uint8_t>&,
+        bool) {
+        std::lock_guard<std::mutex> guard(mutex);
+        received += data.size();
+      },
+      [&](::tcp::ConnID id) {
+        std::lock_guard<std::mutex> guard(mutex);
+        CHECK(id == connection_id);
+        ++closes;
+        cv.notify_all();
+      });
+    auto peer = std::async(std::launch::async, [&]() {
+      std::unique_ptr<SSL, decltype(&SSL_free)> ssl(
+        SSL_new(server_context.get()), SSL_free);
+      CHECK(ssl != nullptr);
+      CHECK(SSL_set_fd(ssl.get(), sockets[1]) == 1);
+      CHECK(SSL_accept(ssl.get()) == 1);
+      CHECK(SSL_write(ssl.get(), "hello", 5) == 5);
+      {
+        std::unique_lock<std::mutex> guard(mutex);
+        peer_ready = true;
+        cv.notify_all();
+        cv.wait(guard, [&]() { return peer_read; });
+      }
+      size_t bytes = 0;
+      std::array<uint8_t, 16384> buffer{};
+      for (;;)
+      {
+        const auto n = SSL_read(ssl.get(), buffer.data(), buffer.size());
+        if (n <= 0)
+        {
+          break;
+        }
+        bytes += static_cast<size_t>(n);
+      }
+      ccf::tls::details::close_socket(sockets[1]);
+      return bytes;
+    });
+    std::future<void> stopping;
+
+    struct Cleanup
+    {
+      NotificationGate& gate;
+      std::mutex& mutex;
+      std::condition_variable& cv;
+      bool& peer_read;
+      std::shared_ptr<OpenSSLConnectionEngine> client;
+      UVLoopRunner& loop;
+
+      ~Cleanup()
+      {
+        gate.release();
+        {
+          std::lock_guard<std::mutex> guard(mutex);
+          peer_read = true;
+          cv.notify_all();
+        }
+        client->stop(
+          loop.thread.joinable() ?
+            OpenSSLConnectionEngine::LoopState::Running :
+            OpenSSLConnectionEngine::LoopState::NotRunning);
+        handshake_gate = nullptr;
+      }
+    } cleanup{gate, mutex, cv, peer_read, client, loop};
+
+    client->start();
+    REQUIRE(client->adopt(
+      {.id = connection_id,
+       .fd = sockets[0],
+       .tls_context = client_context,
+       .outgoing = true,
+       .handshake_timeout = 5s,
+       .pending_commands = {
+         {connection_id,
+          std::vector<uint8_t>(size_t{4} * 1024 * 1024, 42),
+          false}}}));
+    loop.start();
+    REQUIRE(gate.wait_for_calls(1));
+    {
+      std::unique_lock<std::mutex> guard(mutex);
+      REQUIRE(cv.wait_for(guard, 5s, [&]() { return peer_ready; }));
+    }
+    if (shutdown)
+    {
+      stopping = std::async(std::launch::async, [&]() {
+        client->stop(OpenSSLConnectionEngine::LoopState::Running);
+      });
+    }
+    else
+    {
+      client->close_connection(connection_id);
+      // FIFO processing acknowledges cancellation while the worker is gated.
+      client->close_connection(barrier_id);
+    }
+    {
+      std::unique_lock<std::mutex> guard(mutex);
+      REQUIRE(cv.wait_for(guard, 5s, [&]() { return cancellation_processed; }));
+    }
+    gate.release();
+    {
+      std::unique_lock<std::mutex> guard(mutex);
+      CHECK(cv.wait_for(guard, 1s, [&]() { return closes == 1; }));
+      CHECK(admission_calls == 0);
+      CHECK(received == 0);
+      peer_read = true;
+      cv.notify_all();
+    }
+    CHECK(peer.get() == 0);
+    if (stopping.valid())
+    {
+      stopping.get();
+    }
+    client->stop(OpenSSLConnectionEngine::LoopState::Running);
+    CHECK(closes == 1);
+  }
+
+}
+
+TEST_CASE("Outbound stalled TLS establishment times out, cancels and stops")
+{
+  EnginePair pair;
+  std::atomic<size_t> hello_bytes = 0;
+  auto blackhole = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{.host = "127.0.0.1", .plaintext = true},
+    [&](
+      ::tcp::ConnID,
+      std::vector<uint8_t> data,
+      const std::vector<uint8_t>&,
+      bool) {
+      hello_bytes += data.size();
+      pair.cv.notify_all();
+    });
+  blackhole->start();
+  auto config = pair.config();
+  config.port = blackhole->port();
+  config.timeout = std::chrono::milliseconds(200);
+  const auto id = pair.client->connect(config);
+  pair.client->send(id, std::vector<uint8_t>(1024 * 1024, 1));
+  pair.loop.start();
+  const bool sent_hello = pair.wait([&]() { return hello_bytes > 0; });
+  CHECK(sent_hello);
+  SUBCASE("Timeout")
+  {
+    CHECK(pair.wait([&]() { return pair.client_closed == 1; }));
+  }
+  SUBCASE("Cancel")
+  {
+    pair.client->close_connection(id);
+    CHECK(pair.wait([&]() { return pair.client_closed == 1; }));
+  }
+  SUBCASE("Shutdown")
+  {
+    pair.client->stop(OpenSSLServer::LoopState::Running);
+  }
+  blackhole->stop(OpenSSLServer::LoopState::Running);
+  CHECK(pair.client_closed == 1);
+  CHECK(pair.client_handshakes == 0);
+}
+
+TEST_CASE(
+  "Outbound context verification failures are not bypassed by admission")
+{
+  EnginePair pair;
+  auto config = pair.config();
+  config.tls_context = {SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
+  REQUIRE(config.tls_context != nullptr);
+  SSL_CTX_set_verify(config.tls_context.get(), SSL_VERIFY_PEER, nullptr);
+  pair.client->connect(config);
+  pair.loop.start();
+  REQUIRE(pair.wait([&]() { return pair.client_closed == 1; }));
+  CHECK(pair.client_handshakes == 0);
+}
+
+TEST_CASE("Outbound cancellation cannot resurrect a resolving connection")
+{
+  EnginePair pair;
+  const auto id = pair.client->connect(pair.config());
+  pair.client->send(id, std::vector<uint8_t>{1});
+  pair.client->close_connection(id);
+  pair.loop.start();
+  REQUIRE(pair.wait([&]() { return pair.client_closed == 1; }));
+  pair.client->stop(OpenSSLServer::LoopState::Running);
+  std::lock_guard<std::mutex> guard(pair.mutex);
+  CHECK(pair.client_handshakes == 0);
+  CHECK(pair.server_handshakes == 0);
+}
+
+TEST_CASE("Outbound resolution, source binding and TCP failures close once")
+{
+  EnginePair pair;
+  auto unlistening = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{.host = "127.0.0.1"},
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
+    });
+  auto config = pair.config();
+  SUBCASE("Bad target")
+  {
+    config.host = "invalid host name";
+  }
+  SUBCASE("Bad source")
+  {
+    config.source_host = "invalid source name";
+  }
+  SUBCASE("Unbindable source")
+  {
+    config.source_host = "192.0.2.1";
+  }
+  SUBCASE("Connection refused")
+  {
+    config.host = "127.0.0.1";
+    config.port = unlistening->port();
+  }
+  const auto id = pair.client->connect(config);
+  pair.loop.start();
+  REQUIRE(pair.wait([&]() { return pair.client_closed == 1; }));
+  pair.client->close_connection(id);
+  pair.client->stop(OpenSSLServer::LoopState::Running);
+  CHECK(pair.client_closed == 1);
+  CHECK(pair.client_handshakes == 0);
+}
+
+TEST_CASE("Outbound shutdown releases queued attempts without running the loop")
+{
+  {
+    EnginePair pair;
+    pair.client->connect(pair.config());
+    pair.client->stop();
+    CHECK(pair.client_closed == 1);
+  }
+  while (uv_loop_alive(uv_default_loop()) != 0)
+  {
+    uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+  }
+}
+
+TEST_CASE("Outbound late DNS completion is safe after timeout or destruction")
+{
+  ResolutionGate gate;
+  resolution_gate = &gate;
+  {
+    EnginePair pair;
+    auto config = pair.config();
+    config.timeout = std::chrono::milliseconds(100);
+    pair.client->connect(config);
+    pair.loop.start();
+    bool completed = false;
+    {
+      std::unique_lock<std::mutex> guard(gate.mutex);
+      completed = gate.cv.wait_for(
+        guard, std::chrono::seconds(5), [&]() { return gate.completed; });
+    }
+    CHECK(completed);
+    SUBCASE("Resolution timeout")
+    {
+      CHECK(pair.wait([&]() { return pair.client_closed == 1; }));
+    }
+    SUBCASE("Shutdown during resolution") {}
+    pair.client->stop(OpenSSLServer::LoopState::Running);
+    CHECK(pair.client_closed == 1);
+    CHECK(pair.client_handshakes == 0);
+  }
+  // The real resolver has finished, but the engine has not seen its callback.
+  // Deliver it only after the engine is destroyed, as a stopped loop may do.
+  resolution_gate = nullptr;
+  REQUIRE(gate.completed);
+  gate.callback(gate.request, gate.status, gate.result);
+}
+
+TEST_CASE("Outbound candidate timeout falls back without losing queued data")
+{
+  OrderedResolution ordered;
+
+  struct ResetResolution
+  {
+    ~ResetResolution()
+    {
+      ordered_resolution = nullptr;
+      suppress_connect_poll = false;
+    }
+  } reset;
+
+  EnginePair pair;
+  auto config = pair.config();
+  config.host = "ordered-candidates.test";
+  config.source_host.clear();
+
+  for (size_t i = 0; i < ordered.candidates.size(); ++i)
+  {
+    auto& address = ordered.addresses[i];
+    address.sin_family = AF_INET;
+    address.sin_port = htons(config.port);
+
+    auto& candidate = ordered.candidates[i];
+    candidate.ai_family = AF_INET;
+    candidate.ai_socktype = SOCK_STREAM;
+    candidate.ai_protocol = IPPROTO_TCP;
+    candidate.ai_addrlen = sizeof(address);
+    candidate.ai_addr = reinterpret_cast<sockaddr*>(&address);
+  }
+
+  REQUIRE(inet_pton(AF_INET, "127.0.0.2", &ordered.addresses[0].sin_addr) == 1);
+  REQUIRE(inet_pton(AF_INET, "127.0.0.1", &ordered.addresses[1].sin_addr) == 1);
+  ordered.candidates[0].ai_next = &ordered.candidates[1];
+  ordered.candidates[1].ai_next = nullptr;
+
+  ordered_resolution = &ordered;
+
+  // The refused first candidate's completion is deliberately left unarmed;
+  // only the candidate timeout can advance to the reachable second address.
+  suppressed_connect_polls = 0;
+  suppress_connect_poll = true;
+
+  const auto sockets_before = socket_calls.load();
+  const auto started_at = std::chrono::steady_clock::now();
+  const auto id = pair.client->connect(config);
+  pair.client->send(id, std::vector<uint8_t>{42});
+  pair.loop.start();
+
+  const bool received = pair.wait([&]() { return pair.received.size() == 3; });
+  suppress_connect_poll = false;
+
+  REQUIRE(received);
+  CHECK(std::chrono::steady_clock::now() - started_at >= config.timeout);
+  CHECK(suppressed_connect_polls == 1);
+  CHECK(ordered.completions == 1);
+  CHECK(socket_calls == sockets_before + ordered.candidates.size());
+
+  std::lock_guard<std::mutex> guard(pair.mutex);
+  CHECK(pair.received == std::vector<uint8_t>{'h', 'i', 42});
+}
+
+TEST_CASE("Outbound cancellation and shutdown during connect prevent retry")
+{
+  EnginePair pair;
+  auto config = pair.config();
+  config.source_host.clear();
+  config.timeout = std::chrono::milliseconds(100);
+  suppressed_connect_polls = 0;
+  suppress_connect_poll = true;
+  const auto id = pair.client->connect(config);
+  pair.loop.start();
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (suppressed_connect_polls == 0 &&
+         std::chrono::steady_clock::now() < deadline)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  suppress_connect_poll = false;
+  REQUIRE(suppressed_connect_polls == 1);
+  SUBCASE("Cancel")
+  {
+    pair.client->close_connection(id);
+    REQUIRE(pair.wait([&]() { return pair.client_closed == 1; }));
+  }
+  SUBCASE("Shutdown")
+  {
+    pair.client->stop(OpenSSLServer::LoopState::Running);
+    CHECK(pair.client_closed == 1);
+  }
+  std::unique_lock<std::mutex> lock(pair.mutex);
+  CHECK_FALSE(pair.cv.wait_for(lock, config.timeout * 3, [&]() {
+    return pair.client_closed != 1 || pair.client_handshakes != 0;
+  }));
+}
+
+TEST_CASE(
+  "Outbound optional established TCP timeout applies to accepted sockets")
+{
+  EnginePair pair(std::chrono::milliseconds(2345));
+  pair.client->connect(pair.config());
+  pair.loop.start();
+  REQUIRE(pair.wait([&]() { return pair.received.size() == 2; }));
+  std::lock_guard<std::mutex> guard(pair.mutex);
+  CHECK(pair.server_user_timeout == 2345);
 }
 
 // Admission control must run at accept time, not when the first request
