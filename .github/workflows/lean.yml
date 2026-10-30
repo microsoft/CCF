@@ -111,11 +111,21 @@ jobs:
             --binary "$RUNNER_TEMP/ccf-kv-build/kv_test" --capture-only \
             --output "$RUNNER_TEMP/ccf-kv-build/kv-traces" --seeds 8 --timeout 900
 
-      - name: Upload KV traces and diagnostics
+      - name: Upload KV traces
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kv-traces
+          path: ${{ runner.temp }}/ccf-kv-build/kv-traces/*/trace.ndjson
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+      - name: Upload KV diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kv-trace-diagnostics
           path: |
             ${{ runner.temp }}/ccf-kv-build/kv-traces/
             ${{ runner.temp }}/ccf-kv-build/Testing/
@@ -306,7 +316,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s failglob
-          for trace in "$RUNNER_TEMP"/kv-traces/kv-traces/*/trace.ndjson; do
+          for trace in "$RUNNER_TEMP"/kv-traces/*/trace.ndjson; do
             echo "::group::Validate $trace"
             lean/kv/.lake/build/bin/kv-replay "$trace"
             echo "::endgroup::"
