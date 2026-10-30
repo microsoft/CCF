@@ -279,15 +279,15 @@ theorem snapshots_reachable {state : State} (reachable : transitionSystem.Reacha
         (anchored_reachable reachable) ih transition
 
 theorem unique_txs
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ left ∈ responsesOf state.history .rw,
           ∀ right ∈ responsesOf state.history .rw,
             left.2.txid = right.2.txid → left.2.tx = right.2.tx := by
-  intro trace state ⟨valid, member⟩ left first right second same
+  intro trace state member left first right second same
   obtain ⟨leftKind, firstLookup⟩ := (History.mem_responsesOf_iff _ _ _).mp first
   obtain ⟨rightKind, secondLookup⟩ := (History.mem_responsesOf_iff _ _ _).mp second
-  have snapshots := snapshots_reachable (valid.reachable member)
+  have snapshots := snapshots_reachable (trace.reachable member)
   obtain ⟨firstLedger, firstFound, _, firstEntry, firstAt, _, firstTx⟩ :=
     snapshots _ _ _ _ _ firstLookup
   obtain ⟨secondLedger, secondFound, _, secondEntry, secondAt, _, secondTx⟩ :=
@@ -299,13 +299,13 @@ theorem unique_txs
   exact Option.some.inj ((firstTx leftKind).symm.trans (secondTx rightKind))
 
 theorem same_observations
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ left ∈ responses state.history,
           ∀ right ∈ responses state.history,
             left.2.txid = right.2.txid → left.2.observed = right.2.observed := by
-  intro trace state ⟨valid, member⟩ left first right second same
-  have snapshots := snapshots_reachable (valid.reachable member)
+  intro trace state member left first right second same
+  have snapshots := snapshots_reachable (trace.reachable member)
   obtain ⟨firstLedger, firstFound, firstObs, _⟩ :=
     snapshots _ _ _ _ _ ((History.mem_responses_iff _ _).mp first)
   obtain ⟨secondLedger, secondFound, secondObs, _⟩ :=

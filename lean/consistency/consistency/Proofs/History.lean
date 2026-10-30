@@ -134,16 +134,16 @@ theorem causal_reachable {state : State} (reachable : transitionSystem.Reachable
       exact step_causal before after action ih transition
 
 theorem all_received_is_first_sent
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         -> forall (kind : TxType),
             ∀ response ∈ responsesOf state.history kind,
               ∃ request ∈ requests state.history,
                 request.1 < response.1 /\ request.2 = (kind, response.2.tx) := by
-  intro trace state ⟨valid, member⟩ kind response listed
+  intro trace state member kind response listed
   obtain ⟨kindEq, found⟩ := (mem_responsesOf_iff _ _ _).mp listed
   obtain ⟨requestIndex, earlier, requestFound⟩ :=
-    causal_reachable (valid.reachable member) _ _ _ _ _ found
+    causal_reachable (trace.reachable member) _ _ _ _ _ found
   refine ⟨(requestIndex, kind, response.2.tx), ?_, earlier, rfl⟩
   apply (mem_requests_iff _ _ _ _).mpr
   simpa [kindEq] using requestFound
@@ -220,13 +220,13 @@ theorem requests_reachable {state : State} (reachable : transitionSystem.Reachab
       exact step_requests before after action ih transition
 
 theorem unique_tx_requests
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         -> ∀ left ∈ requests state.history,
             ∀ right ∈ requests state.history,
               left.1 ≠ right.1 -> left.2.2 ≠ right.2.2 := by
-  intro trace state ⟨valid, member⟩ left first right second distinct same
-  have invariant := requests_reachable (valid.reachable member)
+  intro trace state member left first right second distinct same
+  have invariant := requests_reachable (trace.reachable member)
   have firstLookup := (mem_requests_iff _ _ _ _).mp first
   have secondLookup := (mem_requests_iff _ _ _ _).mp second
   exact distinct (invariant.2 _ _ _ _ _ _ firstLookup secondLookup same)

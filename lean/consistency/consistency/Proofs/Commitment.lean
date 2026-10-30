@@ -218,13 +218,13 @@ theorem committed_snapshot {state : State}
   exact ⟨ledger, found, obs, entry, atEntry, txMatches kind⟩
 
 theorem unique_seq_nums_committed
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ left ∈ committedResponses state.history .rw,
           ∀ right ∈ committedResponses state.history .rw,
             left.2.txid.seqno = right.2.txid.seqno → left.2.tx = right.2.tx := by
-  intro trace state ⟨valid, member⟩ left first right second same
-  have reachable := valid.reachable member
+  intro trace state member left first right second same
+  have reachable := trace.reachable member
   obtain ⟨leftLedger, leftFound, _, leftEntry, leftAt, leftTx⟩ :=
     committed_snapshot reachable first
   obtain ⟨rightLedger, rightFound, _, rightEntry, rightAt, rightTx⟩ :=
@@ -236,14 +236,14 @@ theorem unique_seq_nums_committed
   exact Option.some.inj (leftTx.symm.trans rightTx)
 
 theorem committed_rw_serializable
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ left ∈ committedResponses state.history .rw,
           ∀ right ∈ committedResponses state.history .rw,
             left.2.observed <+: right.2.observed
             ∨ right.2.observed <+: left.2.observed := by
-  intro trace state ⟨valid, member⟩ left first right second
-  have reachable := valid.reachable member
+  intro trace state member left first right second
+  have reachable := trace.reachable member
   obtain ⟨leftLedger, leftFound, leftObs, _⟩ := committed_snapshot reachable first
   obtain ⟨rightLedger, rightFound, rightObs, _⟩ := committed_snapshot reachable second
   rw [leftFound] at rightFound

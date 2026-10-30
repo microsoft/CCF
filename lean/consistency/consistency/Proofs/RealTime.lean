@@ -41,16 +41,16 @@ theorem committed_sequence_order {state : State}
   omega
 
 theorem all_committed_observed
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ earlier ∈ committedResponses state.history .rw,
           ∀ request ∈ committedRequests state.history .rw,
           ∀ later ∈ committedResponses state.history .rw,
             later.2.tx = request.2.2
             → earlier.1 < request.1
             → earlier.2.tx ∈ later.2.observed := by
-  intro trace state ⟨valid, member⟩ earlier first request sent later second same before
-  have reachable := valid.reachable member
+  intro trace state member earlier first request sent later second same before
+  have reachable := trace.reachable member
   have bound := committed_sequence_order reachable first second
     (List.mem_filter.mp sent).1 same before
   obtain ⟨leftLedger, leftFound, _, leftEntry, leftAt, leftTx⟩ :=
@@ -62,16 +62,16 @@ theorem all_committed_observed
   exact write_in_prefix leftAt leftTx (Nat.le_of_lt bound)
 
 theorem committed_rw_ordered_real_time
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ earlier ∈ committedResponses state.history .rw,
           ∀ request ∈ committedRequests state.history .rw,
           ∀ later ∈ committedResponses state.history .rw,
             later.2.tx = request.2.2
             → earlier.1 < request.1
             → txIDStrictlyLessThan earlier.2.txid later.2.txid := by
-  intro trace state ⟨valid, member⟩ earlier first request sent later second same before
-  have reachable := valid.reachable member
+  intro trace state member earlier first request sent later second same before
+  have reachable := trace.reachable member
   have seqno := committed_sequence_order reachable first second
     (List.mem_filter.mp sent).1 same before
   have earlierKnown : earlier.2.txid ∈ statusIDs state.history .committed := by

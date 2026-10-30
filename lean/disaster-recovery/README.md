@@ -38,7 +38,7 @@ Notifications are not stored in the global state.
 
 `Model.lean` supplies each node's recovered TxID and adds `Config.Valid` to the initial-state predicate.
 The model records no history.
-The proofs reconstruct sends and notifications by re-executing local steps.
+The proofs reconstruct sends and notifications by re-executing the recorded actions.
 
 ## Properties
 
@@ -46,9 +46,9 @@ The local properties are invariants of `Local.step`.
 They hold for every node state, not only reachable ones.
 Each quantifies a `LocalStep` record and assumes `ValidStep`: re-executing the step yields exactly the recorded after-state and outputs.
 
-The global properties quantify a `GlobalTrace`, a finite or infinite sequence of states beginning with the initial state.
-`trace.Valid` requires an initial first state and an enabled action between each adjacent pair.
-`Trace.NotificationAt` states that a step by `node` between states `i` and `i + 1` emitted a given notification.
+The global properties quantify a `GlobalTrace config`, a finite or infinite execution recording states and actions with their validity proofs.
+See the [shared trace definitions](../common/README.md#transition-systems) for indexed access and the finite-trace domain convention.
+`Trace.NotificationAt` states that the recorded action at step `i`, taken by `node` between states `i` and `i + 1`, emitted a given notification.
 
 `quorum_opener_unique` states that all `opening quorum` notifications in a trace originate from one node.
 
