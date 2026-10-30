@@ -288,10 +288,12 @@ namespace
     {
       coverage.enter_worker();
     }
+
     ~LiveWorker()
     {
       coverage.leave_worker();
     }
+
     LiveWorker(const LiveWorker&) = delete;
     LiveWorker& operator=(const LiveWorker&) = delete;
   };
@@ -433,6 +435,7 @@ namespace
       control.stop();
       join();
     }
+
     Threads(const Threads&) = delete;
     Threads& operator=(const Threads&) = delete;
   };

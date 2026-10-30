@@ -57,6 +57,7 @@ namespace ccf::kv::trace
     Identity id;
     void bind(const AbstractStore* store);
     void end();
+
     ~Attempt()
     {
       if (id.tx != 0)
@@ -92,6 +93,7 @@ namespace ccf::kv::trace
         enter(id, writes, commit);
       }
     }
+
     ~Context()
     {
       if (engaged)
@@ -99,6 +101,7 @@ namespace ccf::kv::trace
         leave();
       }
     }
+
     Context(const Context&) = delete;
     Context& operator=(const Context&) = delete;
   };
@@ -144,6 +147,7 @@ namespace ccf::kv::trace
         transaction(id, "commit_begin");
       }
     }
+
     ~Commit()
     {
       if (!complete && enabled())
@@ -152,6 +156,7 @@ namespace ccf::kv::trace
           id, "unsupported", {{"operation", "commit exited without result"}});
       }
     }
+
     void result(const char* result_, uint64_t version)
     {
       if (complete)
@@ -169,10 +174,12 @@ namespace ccf::kv::trace
       recorded_result = result_;
       recorded_version = version;
     }
+
     bool finished() const
     {
       return complete;
     }
+
     Commit(const Commit&) = delete;
     Commit& operator=(const Commit&) = delete;
   };
@@ -209,10 +216,12 @@ namespace ccf::kv::trace
     {
       ++metadata.suppressed;
     }
+
     ~Suppress()
     {
       --metadata.suppressed;
     }
+
     Suppress(const Suppress&) = delete;
     Suppress& operator=(const Suppress&) = delete;
   };
@@ -235,6 +244,7 @@ namespace ccf::kv::trace
     return value == nullptr ? Json(nullptr) : Json(ccf::ds::to_hex(*value));
   }
 }
+
 #  define KV_TRACE(...) \
     do \
     { \
