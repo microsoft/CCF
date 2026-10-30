@@ -4,7 +4,7 @@
 module
 
 public import CCF.Execution
-public import Kv.Model.Certificates
+public import Kv.Model.Types
 
 @[expose] public section
 
@@ -85,18 +85,14 @@ def handleOf (t : Tx) (m : String) : Except Failure Snapshot := do
 def globalOf (t : Tx) (m : String) : Except Failure GlobalView :=
   present (find t.globalViews m) s!"map {m} has no captured global view"
 
-/-- Executes a normal operation against the acquired local data, extending the certificate. -/
+/-- Executes a normal operation against the acquired local data. -/
 def runOp (t : Tx) (op : NormalOp String String String) : Except Failure Tx := do
-  match hs : t.snapshot with
+  match t.snapshot with
   | none => invalid "normal operation before snapshot"
   | some snap =>
-      match hn : normalStep t.data t.normal op with
+      match normalStep t.data t.normal op with
       | some n =>
-          return {
-            t with
-              normal := n
-              certificate := Certificates.operation_certificate t snap n op hs hn
-          }
+          return { t with normal := n }
       | none =>
           reject
             s!"normal observation disagrees with pinned local views at read version {snap.current.version}: {repr op}"
@@ -139,9 +135,9 @@ def available (s : Store) (snap : Snapshot) (m : String) : Bool :=
 def captureGlobal (s : Store) (snap : Snapshot) (m : String) : GlobalView :=
   let current := captureLocal s snap m
   if (find current.births m).isNone then
-    { current, frame := {}, origin := Or.inl rfl }
+    { current, frame := {} }
   else
-    { current, frame := atCut s s.global, origin := Or.inr ⟨s, rfl⟩ }
+    { current, frame := atCut s s.global }
 
 /-- Acquires map `m`, checking the reported local and global revision versions. -/
 def acquireMap (s : Store) (t : Tx) (m : String) (version global : Nat)
@@ -157,12 +153,11 @@ def acquireMap (s : Store) (t : Tx) (m : String) (version global : Nat)
       && global == (revision view.frame m).version)
     s!"map acquisition expected local={(revision view.current m).version}, global={(revision view.frame m).version}; observed local={version}, global={global}"
   expect (available s snap m) "snapshot no longer available for later map acquisition"
-  if unused : t.normal.log.all (fun op => op.map != m) = true then
+  if t.normal.log.all (fun op => op.map != m) then
     return {
       t with
         globalViews := set t.globalViews m view
         data := pinData t.data m view.current.data
-        certificate := Certificates.acquisition_certificate t m view.current.data unused
     }
   else
     invalid "unacquired map already used by normal operation"
@@ -201,15 +196,7 @@ def advance (s : Store) (writes : Pending) : Store :=
           set bs a.1 { version := v, identity := s.nextIdentity })
       s.head.births
   let f : Frame := { version := v, data, revisions, births }
-  {
-    s with
-      history := f :: s.history,
-      head := f,
-      nextIdentity := s.nextIdentity + 1
-      historyShape := Certificates.history_extension s f writes rfl rfl
-      headFirst := rfl
-      globalBound := Nat.le_trans s.globalBound (Nat.le_succ _)
-  }
+  { s with history := f :: s.history, head := f, nextIdentity := s.nextIdentity + 1 }
 
 /-- Applies the attempt's writes if `canApply` holds. -/
 def tryApply (s : Store) (t : Tx) : Option Store :=
@@ -217,11 +204,8 @@ def tryApply (s : Store) (t : Tx) : Option Store :=
 
 /-- Raises the global version to `requested` if it is within the head. -/
 def compactStore (s : Store) (requested : Nat) : Store :=
-  if h : requested ≤ s.head.version then
-    {
-      s with
-        global := max s.global requested, globalBound := Nat.max_le.mpr ⟨s.globalBound, h⟩
-    }
+  if requested ≤ s.head.version then
+    { s with global := max s.global requested }
   else
     s
 
@@ -231,17 +215,12 @@ def rollbackCut (s : Store) (v : Nat) : Nat := max s.global (min s.head.version 
 /-- Rolls back to `rollbackCut s v` and enters `term`. -/
 def rollbackStore (s : Store) (v term : Nat) : Store :=
   let cut := rollbackCut s v
-  have within : cut ≤ s.head.version :=
-    Nat.max_le.mpr ⟨s.globalBound, Nat.min_le_left _ _⟩
   {
     s with
       history := s.history.filter (fun f => f.version ≤ cut)
       head := atCut s cut,
       term,
       termKnown := true
-      historyShape := Certificates.cut_history s cut within
-      headFirst := (Certificates.atCut_spec s cut within).2.2
-      globalBound := Certificates.cut_global_bound s cut within (Nat.le_max_left _ _)
   }
 
 /-- The two write sets contain the same entries. -/
@@ -335,17 +314,13 @@ def stepEvent (w : World) (event : Event) : Except Failure World := do
       withTx { w with stores := set w.stores sid established } sid tid
         fun t => do
           active t
-          if hs : t.snapshot = none then
+          if t.snapshot = none then
             expect
               (version == s.head.version
                 && global == s.global
                 && term == established.term)
               s!"initial snapshot metadata expected local={s.head.version}, global={s.global}, term={established.term}; observed local={version}, global={global}, term={term}"
-            return {
-              t with
-                snapshot := some { current := s.head, term, origin := ⟨s, rfl⟩ }
-                certificate := Certificates.snapshot_certificate t t.data hs
-            }
+            return { t with snapshot := some { current := s.head, term } }
           else
             invalid "snapshot refreshed inside attempt"
   | .acquire sid tid m version global =>

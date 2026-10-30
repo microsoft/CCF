@@ -28,9 +28,6 @@ def erase {K V : Type} [DecidableEq K] (xs : Assoc K V) (k : K) : Assoc K V :=
 def set {K V : Type} [DecidableEq K] (xs : Assoc K V) (k : K) (v : V) : Assoc K V :=
   (k, v) :: erase xs k
 
-/-- Each key occurs at most once. -/
-def Unique {K V : Type} (xs : Assoc K V) : Prop := (xs.map Prod.fst).Nodup
-
 /-- A committed value together with the version that wrote it. -/
 structure Cell (V : Type) where
   /-- The committed value. -/
@@ -169,12 +166,6 @@ def normalStep {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
   else
     none
 
-/-- Executes operations in order with `normalStep`. -/
-def normalRun {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
-    (snapshot : DB M K V) (n : Normal M K V) (ops : List (NormalOp M K V))
-    : Option (Normal M K V) :=
-  ops.foldlM (normalStep snapshot) n
-
 /-- Applies writes to committed state, stamping new cells with `version`. -/
 def publish {M K V : Type} [DecidableEq M] [DecidableEq K]
     (db : DB M K V) (version : Nat) (writes : Writes M K V)
@@ -219,17 +210,6 @@ deriving Repr, Inhabited
 /-- The latest revision of map `m` in frame `f`. -/
 def revision (f : Frame) (m : String) : Stamp := (find f.revisions m).getD {}
 
-/-- `History fs n`: `fs` lists frames from version `n` down to the empty frame at 0, each
-obtained from its predecessor by publishing some writes. -/
-inductive History : List Frame → Nat → Prop
-  /-- The empty initial history. -/
-  | zero : History [{}] 0
-  /-- Extends a history by one published frame. -/
-  | succ (f : Frame) (n : Nat) (fs : List Frame) (version : f.version = n + 1)
-    (effect : ∃ writes : Pending, f.data = publish (fs.head?.getD {}).data (n + 1) writes)
-    (tail : History fs n)
-    : History (f :: fs) (n + 1)
-
 /-- One store's branch of committed frames and its replication metadata. -/
 structure Store where
   /-- Frames on the current branch, newest first. -/
@@ -244,12 +224,6 @@ structure Store where
   termKnown : Bool := false
   /-- The identity assigned to the next application. -/
   nextIdentity : Nat := 1
-  /-- The frames form a history ending at the head's version. -/
-  historyShape : History history head.version := by exact .zero
-  /-- The head is the newest frame. -/
-  headFirst : history.head? = some head := by rfl
-  /-- The global version does not exceed the head. -/
-  globalBound : global ≤ head.version := by exact Nat.le_refl 0
 deriving Repr
 
 instance : Inhabited Store := ⟨{}⟩
@@ -264,8 +238,6 @@ structure Snapshot where
   current : Frame
   /-- The term at capture. -/
   term : Nat
-  /-- The frame was the head of some store. -/
-  origin : ∃ s : Store, current = s.head
 deriving Repr
 
 /-- The local and globally committed views of one map captured by a transaction. -/
@@ -274,8 +246,6 @@ structure GlobalView where
   current : Frame := {}
   /-- The captured frame, or the empty frame for a map not yet created. -/
   frame : Frame
-  /-- The frame is empty or a store's frame at its global version. -/
-  origin : frame = {} ∨ ∃ s : Store, frame = atCut s s.global
 deriving Repr
 
 /-- An in-progress `foreach` over a map. -/
@@ -324,12 +294,6 @@ structure Tx where
   unavailable : Bool := false
   /-- The commit lifecycle. -/
   phase : Phase := .active
-  /-- Replaying the log from the acquired local data reproduces the normal view. -/
-  certificate
-    : match snapshot with
-      | none => normal = {}
-      | some _ =>
-          normalRun data {} normal.log = some normal := by rfl
 deriving Repr
 
 /-- The reported result of a commit. -/

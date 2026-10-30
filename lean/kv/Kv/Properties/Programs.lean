@@ -13,6 +13,25 @@ namespace Kv.Properties
 
 open Kv.Model
 
+/-- Each key occurs at most once. -/
+def Unique {K V : Type} (xs : Assoc K V) : Prop := (xs.map Prod.fst).Nodup
+
+/-- `History fs n`: `fs` lists frames from version `n` down to the empty frame at 0, each obtained from its predecessor by publishing some writes. -/
+inductive History : List Frame → Nat → Prop
+  /-- The empty initial history. -/
+  | zero : History [{}] 0
+  /-- Extends a history by one published frame. -/
+  | succ (f : Frame) (n : Nat) (fs : List Frame) (version : f.version = n + 1)
+    (effect : ∃ writes : Pending, f.data = publish (fs.head?.getD {}).data (n + 1) writes)
+    (tail : History fs n)
+    : History (f :: fs) (n + 1)
+
+/-- Executes operations in order with `normalStep`. -/
+def normalRun {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
+    (snapshot : DB M K V) (n : Normal M K V) (ops : List (NormalOp M K V))
+    : Option (Normal M K V) :=
+  ops.foldlM (normalStep snapshot) n
+
 section Generic
 variable {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
 

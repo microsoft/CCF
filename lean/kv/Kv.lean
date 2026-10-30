@@ -1,7 +1,6 @@
 module  -- shake: keep-all --deprecated_module: ignore
 
 public import Kv.Model
-public import Kv.Model.Certificates
 public import Kv.Model.Types
 public import Kv.Proofs.Execution
 public import Kv.Proofs.Model

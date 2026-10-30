@@ -115,47 +115,63 @@ theorem apply_atomic
 
 /-- An attempt's operation log runs serially on its pinned local views to its staged writes. -/
 theorem transaction_snapshot_serial
-    : ∀ (t : Tx) (snap : Snapshot),
-        t.snapshot = some snap
+    : ∀ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        → find w.txs tid = some t
+        → t.snapshot = some snap
         → serialRun t.data [] t.normal.log = some t.normal.writes := by
   exact Proofs.Model.transaction_snapshot_serial
 
 /-- Witness: an attempt with a snapshot can have a nonempty log. -/
 theorem transaction_snapshot_serial_witness
-    : ∃ (t : Tx) (snap : Snapshot), t.snapshot = some snap ∧ t.normal.log ≠ [] := by
+    : ∃ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w ∧ find w.txs tid = some t
+          ∧ t.snapshot = some snap ∧ t.normal.log ≠ [] := by
   exact Proofs.Witnesses.transaction_snapshot_serial_witness
 
 /-- An attempt that may apply runs serially on the current head to the same staged writes. -/
 theorem transaction_application_serial
-    : ∀ (s : Store) (t : Tx) (snap : Snapshot),
-        t.snapshot = some snap
+    : ∀ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        → storeOf w sid = .ok s
+        → txOf w sid tid = .ok t
+        → t.snapshot = some snap
         → canApply s t = true
         → serialRun s.head.data [] t.normal.log = some t.normal.writes := by
   exact Proofs.Model.transaction_application_serial
 
 /-- Witness: an attempt with a nonempty log can apply. -/
 theorem transaction_application_serial_witness
-    : ∃ (s : Store) (t : Tx) (snap : Snapshot),
-        t.snapshot = some snap ∧ canApply s t = true ∧ t.normal.log ≠ [] := by
+    : ∃ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        ∧ storeOf w sid = .ok s
+        ∧ txOf w sid tid = .ok t
+        ∧ t.snapshot = some snap ∧ canApply s t = true ∧ t.normal.log ≠ [] := by
   exact Proofs.Witnesses.transaction_application_serial_witness
 
 /-- A branch of applied attempts matches running their logs serially from the start. -/
 theorem executable_branch_serializability
     : ∀ (s final : Store) (ts : List Tx),
-        AppliedBranch s ts final
+        (∀ t ∈ ts, ∃ (w : World) (tid : Nat),
+          Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+        → AppliedBranch s ts final
         → serialTransactions s.head.data s.head.version ts = some final.head.data := by
   exact Proofs.Model.executable_branch_serializability
 
 /-- Witness: a nonempty branch of applied attempts exists. -/
 theorem executable_branch_serializability_witness
-    : ∃ (s final : Store) (ts : List Tx), AppliedBranch s ts final ∧ ts ≠ [] := by
+    : ∃ (s final : Store) (ts : List Tx),
+        (∀ t ∈ ts, ∃ (w : World) (tid : Nat),
+          Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+        ∧ AppliedBranch s ts final ∧ ts ≠ [] := by
   exact Proofs.Witnesses.executable_branch_serializability_witness
 
 /-- In an accepted record segment that keeps store `sid` alive, the applications projected
 onto that store run serially to its final head. -/
 theorem replay_segment_serializability
     : ∀ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        find w.stores sid = some s
+        Model.transitionSystem.Reachable w
+        → find w.stores sid = some s
         → (∀ r ∈ rs, SegmentEvent sid r.event)
         → CCF.Execution.Run Model.transitionSystem w rs final
         → ∃ after txs,
@@ -168,7 +184,8 @@ theorem replay_segment_serializability
 /-- Witness: an accepted nonempty segment can keep a store alive. -/
 theorem replay_segment_serializability_witness
     : ∃ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        find w.stores sid = some s
+        Model.transitionSystem.Reachable w
+        ∧ find w.stores sid = some s
         ∧ (∀ r ∈ rs, SegmentEvent sid r.event)
         ∧ CCF.Execution.Run Model.transitionSystem w rs final
         ∧ rs ≠ [] := by
@@ -447,7 +464,8 @@ cut with no cell newer than it. -/
 theorem step_global_read_from_captured_map
     : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Option String)
         (t : Tx) (view : GlobalView),
-        txOf w sid tid = .ok t
+        Model.transitionSystem.Reachable w
+        → txOf w sid tid = .ok t
         → find t.globalViews map = some view
         → Model.transitionSystem.step w ⟨seq, .get sid tid map key value true⟩ = some next
         → value = (find view.frame.data (map, key)).map Cell.value
@@ -462,7 +480,8 @@ theorem step_global_read_from_captured_map
 theorem step_global_read_from_captured_map_witness
     : ∃ (w next : World) (sid tid seq : Nat) (map key value : String) (t : Tx)
         (view : GlobalView),
-        txOf w sid tid = .ok t
+        Model.transitionSystem.Reachable w
+        ∧ txOf w sid tid = .ok t
         ∧ find t.globalViews map = some view
         ∧ Model.transitionSystem.step w ⟨seq, .get sid tid map key (some value) true⟩
           = some next := by
@@ -473,7 +492,8 @@ global cut with no cell newer than it. -/
 theorem step_global_has_from_captured_map
     : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Bool) (t : Tx)
         (view : GlobalView),
-        txOf w sid tid = .ok t
+        Model.transitionSystem.Reachable w
+        → txOf w sid tid = .ok t
         → find t.globalViews map = some view
         → Model.transitionSystem.step w ⟨seq, .has sid tid map key value true⟩ = some next
         → value = (find view.frame.data (map, key)).isSome
@@ -488,7 +508,8 @@ theorem step_global_has_from_captured_map
 theorem step_global_has_from_captured_map_witness
     : ∃ (w next : World) (sid tid seq : Nat) (map key : String) (t : Tx)
         (view : GlobalView),
-        txOf w sid tid = .ok t
+        Model.transitionSystem.Reachable w
+        ∧ txOf w sid tid = .ok t
         ∧ find t.globalViews map = some view
         ∧ Model.transitionSystem.step w ⟨seq, .has sid tid map key true true⟩
           = some next := by
@@ -531,16 +552,19 @@ theorem rollback_discards_suffix_witness
 
 /-- Rollback preserves the data at every cut at or below the global version. -/
 theorem durable_cut_survives_rollback
-    : ∀ (s : Store) (v term cut : Nat),
-        cut ≤ s.global
+    : ∀ (w : World) (sid : Nat) (s : Store) (v term cut : Nat),
+        Model.transitionSystem.Reachable w
+        → find w.stores sid = some s
+        → cut ≤ s.global
         → s.global ≤ v
         → (atCut (rollbackStore s v term) cut).data = (atCut s cut).data := by
   exact Proofs.Model.durable_cut_survives_rollback
 
 /-- Witness: a nonempty cut can be at or below the global version. -/
 theorem durable_cut_survives_rollback_witness
-    : ∃ (s : Store) (v cut : Nat),
-        cut ≤ s.global ∧ s.global ≤ v ∧ (atCut s cut).data ≠ [] := by
+    : ∃ (w : World) (sid : Nat) (s : Store) (v cut : Nat),
+        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s
+          ∧ cut ≤ s.global ∧ s.global ≤ v ∧ (atCut s cut).data ≠ [] := by
   exact Proofs.Witnesses.durable_cut_survives_rollback_witness
 
 /-- An attempt whose snapshot term differs from the store's cannot apply. -/
