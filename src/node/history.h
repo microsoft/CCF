@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/ds/locking.h"
 #include "ccf/ds/x509_time_fmt.h"
@@ -91,6 +92,7 @@ namespace ccf
   // Use optimised CCF openssl_sha256 function to avoid performance regression
   // on OpenSSL 3.x
   static constexpr size_t sha256_byte_size = 32;
+
   static inline void sha256_history(
     const merkle::HashT<sha256_byte_size>& l,
     const merkle::HashT<sha256_byte_size>& r,
@@ -391,7 +393,7 @@ namespace ccf
 
     ccf::crypto::ECKeyPair& node_kp;
     ccf::crypto::COSEVerifierUniquePtr cose_verifier;
-    std::vector<uint8_t> cose_public_key_cached;
+    ccf::Identity cose_identity_cached;
 
     ccf::tasks::Task emit_signature_periodic_task;
     size_t sig_tx_interval;
@@ -655,7 +657,7 @@ namespace ccf
 
         std::vector<uint8_t> root_hash{
           root.h.data(), root.h.data() + root.h.size()};
-        if (!cose_verifier_cached(service_signing_identity->value)
+        if (!cose_verifier_cached(service_signing_identity.value())
                ->verify_detached(cose_sig.value(), root_hash))
         {
           return false;
@@ -856,12 +858,13 @@ namespace ccf
 
   private:
     ccf::crypto::COSEVerifierUniquePtr& cose_verifier_cached(
-      const std::vector<uint8_t>& public_key)
+      const ccf::Identity& identity)
     {
-      if (!cose_verifier || public_key != cose_public_key_cached)
+      if (!cose_verifier || identity != cose_identity_cached)
       {
-        auto verifier = ccf::crypto::make_cose_verifier_from_key(public_key);
-        cose_public_key_cached = public_key;
+        auto verifier = ccf::crypto::make_cose_verifier_from_key(
+          cose_key_from_identity(identity));
+        cose_identity_cached = identity;
         cose_verifier = std::move(verifier);
       }
       return cose_verifier;

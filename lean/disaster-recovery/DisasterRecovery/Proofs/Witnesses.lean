@@ -2,7 +2,7 @@ module
 
 import all Init.Data.List.Sort.Basic
 
-public import DisasterRecovery.Properties
+public import DisasterRecovery.Properties.Utils
 public import DisasterRecovery.Proofs.Local
 public import Mathlib.Tactic
 
@@ -15,18 +15,20 @@ open Model.Local
 open DisasterRecovery.Proofs.Local
 attribute [local simp] StateT.run
 
-private theorem valid_of_adjacent {config : Model.Config} {trace : Properties.GlobalTrace}
+private theorem valid_of_adjacent {config : Model.Config} {states : List Model.State}
     (initialized
       : exists initial,
-          trace.states[0]? = some initial /\ (Model.transitionSystem config).init initial)
+          states[0]? = some initial /\ (Model.transitionSystem config).init initial)
     (adjacent
-      : forall i : Fin (trace.states.length - 1),
+      : forall i : Fin (states.length - 1),
           exists action,
-            (Model.transitionSystem config).step (trace.states[i.val]'(by omega)) action
-            = some (trace.states[i.val + 1]'(by omega)))
-    : trace.Valid (Model.transitionSystem config) := by
-  refine ⟨initialized, ?_⟩
+            (Model.transitionSystem config).step (states[i.val]'(by omega)) action
+            = some (states[i.val + 1]'(by omega)))
+    : Execution.Trace.Valid (Model.transitionSystem config)
+        (Stream'.Seq.ofList states) := by
+  refine ⟨by simpa only [Stream'.Seq.ofList_get?] using initialized, ?_⟩
   intro i before after atBefore atAfter
+  rw [Stream'.Seq.ofList_get?] at atBefore atAfter
   obtain ⟨_, beforeEq⟩ := List.getElem?_eq_some_iff.mp atBefore
   obtain ⟨afterBound, afterEq⟩ := List.getElem?_eq_some_iff.mp atAfter
   obtain ⟨action, stepped⟩ := adjacent ⟨i, by omega⟩
@@ -79,25 +81,23 @@ private def quorumOpened : Model.State :=
   }
 
 private def quorumTrace : Properties.GlobalTrace :=
-  {
-    states :=
-      [
-        initial quorumConfig,
-        { initial quorumConfig with network := [gossip "A" "A" high] },
-        quorumReady,
-        quorumVoteSent,
-        quorumOpened
-      ]
-  }
+  Stream'.Seq.ofList
+    [
+      initial quorumConfig,
+      { initial quorumConfig with network := [gossip "A" "A" high] },
+      quorumReady,
+      quorumVoteSent,
+      quorumOpened
+    ]
 
 private theorem quorum_valid
     : quorumTrace.Valid (Model.transitionSystem quorumConfig) := by
   refine valid_of_adjacent
     ⟨initial quorumConfig, rfl, initialized (by unfold Model.Config.Valid; decide)⟩ ?_
   intro i
-  refine ⟨quorumActions[i.val]'(by simpa [quorumTrace, quorumActions] using i.isLt), ?_⟩
+  refine ⟨quorumActions[i.val]'(by simp [quorumActions]), ?_⟩
   fin_cases i <;>
-    simp [quorumTrace, quorumActions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+    simp [quorumActions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, quorumConfig, initial, quorumReady, quorumVoteSent,
       quorumOpened, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
       MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
@@ -124,11 +124,24 @@ private theorem quorum_notified
     simp [advance, rejected, validTimeout, voteQuorum, advanceTimeoutLane]
   · simp
 
-theorem quorum_opener_unique_witness : Properties.QuorumOpenerUniqueWitness :=
+theorem quorum_opener_unique_witness
+    : exists (config : Model.Config) (trace : Properties.GlobalTrace) (step
+                                                                        : Nat) (opener
+                                                                                : Model.Local.Location),
+        trace.Valid (Model.transitionSystem config)
+        /\ Properties.Trace.NotificationAt config trace step opener (.opening .quorum) :=
   ⟨quorumConfig, quorumTrace, 3, "A", quorum_valid, quorum_notified⟩
 
 theorem quorum_open_preserves_commit_witness
-    : Properties.QuorumOpenPreservesCommitWitness := by
+    : exists
+    (config : Model.Config) (trace : Properties.GlobalTrace) (openedState : Model.State),
+    exists (opener : Model.Local.Location) (openerState : Model.Local.NodeState),
+      trace.Valid (Model.transitionSystem config)
+      /\ openedState ∈ trace
+      /\ (opener, openerState) ∈ openedState.nodes
+      /\ openerState.openKind = some .quorum
+      /\ (forall voter,
+            voter ∈ openerState.votes -> Properties.ReceivedOwnGossip trace voter) := by
   refine ⟨
     quorumConfig,
     quorumTrace,
@@ -136,7 +149,7 @@ theorem quorum_open_preserves_commit_witness
     "A",
     quorumOpener,
     quorum_valid,
-    List.mem_iff_getElem?.mpr ⟨4, ?_⟩,
+    Stream'.Seq.get?_mem (n := 4) ?_,
     by simp [quorumOpened],
     rfl,
     ?_
@@ -145,7 +158,7 @@ theorem quorum_open_preserves_commit_witness
   · intro voter member
     have same : voter = "A" := by simpa [quorumOpener] using member
     subst voter
-    refine ⟨quorumReady, List.mem_iff_getElem?.mpr ⟨2, ?_⟩,
+    refine ⟨quorumReady, Stream'.Seq.get?_mem (n := 2) ?_,
       quorumSelected, high, by simp [quorumReady], by simp [quorumSelected]⟩
     rfl
 
@@ -251,37 +264,35 @@ private def fullTimeout : Model.State :=
   }
 
 private def fullTrace : Properties.GlobalTrace :=
-  {
-    states :=
-      [
-        initial fullConfig,
-        { initial fullConfig with network := (fullPending 0 0 0).take 3 },
-        { initial fullConfig with network := (fullPending 0 0 0).take 6 },
-        partialGossip 0 0 0,
-        partialGossip 1 0 0,
-        partialGossip 2 0 0,
-        partialGossip 3 0 0,
-        partialGossip 3 1 0,
-        partialGossip 3 2 0,
-        partialGossip 3 3 0,
-        partialGossip 3 3 1,
-        partialGossip 3 3 2,
-        fullGossiped,
-        fullVoteSent,
-        fullVoted,
-        fullTimeout,
-        failoverOpened
-      ]
-  }
+  Stream'.Seq.ofList
+    [
+      initial fullConfig,
+      { initial fullConfig with network := (fullPending 0 0 0).take 3 },
+      { initial fullConfig with network := (fullPending 0 0 0).take 6 },
+      partialGossip 0 0 0,
+      partialGossip 1 0 0,
+      partialGossip 2 0 0,
+      partialGossip 3 0 0,
+      partialGossip 3 1 0,
+      partialGossip 3 2 0,
+      partialGossip 3 3 0,
+      partialGossip 3 3 1,
+      partialGossip 3 3 2,
+      fullGossiped,
+      fullVoteSent,
+      fullVoted,
+      fullTimeout,
+      failoverOpened
+    ]
 
 set_option maxHeartbeats 2000000 in
 private theorem full_valid : fullTrace.Valid (Model.transitionSystem fullConfig) := by
   refine valid_of_adjacent
     ⟨initial fullConfig, rfl, initialized (by unfold Model.Config.Valid; decide)⟩ ?_
   intro i
-  refine ⟨fullActions[i.val]'(by simpa [fullTrace, fullActions] using i.isLt), ?_⟩
+  refine ⟨fullActions[i.val]'(by simp [fullActions]), ?_⟩
   fin_cases i <;>
-    simp [fullTrace, fullActions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+    simp [fullActions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, fullConfig, initial, partialGossip, partialNode,
       fullPending, fullSelected, fullGossiped, fullVoteSent, fullVoted, fullTimeout,
       failoverOpened, failoverOpener, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
@@ -289,7 +300,19 @@ private theorem full_valid : fullTrace.Valid (Model.transitionSystem fullConfig)
       Model.receive, step, guard] <;> cbv
 
 theorem full_gossip_preserves_commit_witness
-    : Properties.FullGossipPreservesCommitWitness := by
+    : exists
+    (config : Model.Config) (trace : Properties.GlobalTrace) (gossipedState openedState
+                                                              : Model.State),
+    exists (opener : Model.Local.Location) (openerState : Model.Local.NodeState),
+      trace.Valid (Model.transitionSystem config)
+      /\ gossipedState ∈ trace
+      /\ (forall node nodeState,
+            node ∈ config.protocol.expectedLocations
+            -> (node, nodeState) ∈ gossipedState.nodes
+            -> forall gossip, gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
+      /\ openedState ∈ trace
+      /\ (opener, openerState) ∈ openedState.nodes
+      /\ openerState.openKind = some .failover := by
   refine ⟨
     fullConfig,
     fullTrace,
@@ -298,9 +321,9 @@ theorem full_gossip_preserves_commit_witness
     "A",
     failoverOpener,
     full_valid,
-    List.mem_iff_getElem?.mpr ⟨12, ?_⟩,
+    Stream'.Seq.get?_mem (n := 12) ?_,
     ?_,
-    List.mem_iff_getElem?.mpr ⟨16, ?_⟩,
+    Stream'.Seq.get?_mem (n := 16) ?_,
     by simp [failoverOpened],
     rfl
   ⟩
@@ -320,7 +343,12 @@ private def frozenGossip : Properties.LocalStep :=
   }
 
 theorem gossip_freezes_after_choice_witness
-    : Properties.GossipFreezesAfterChoiceWitness := by
+    : exists (config : Model.Config),
+    exists localStep : Properties.LocalStep,
+    exists (source : Model.Local.Location) (txid : Model.Local.TxID),
+      (Model.protocol config).ValidStep localStep
+      /\ localStep.action = .receiveGossip source txid .accepted
+      /\ localStep.before.chosen.isSome = true := by
   refine ⟨quorumConfig, frozenGossip, "A", high, ?_, rfl, rfl⟩
   simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
     frozenGossip]
@@ -335,7 +363,12 @@ private def rejectedGossip : Properties.LocalStep :=
     effects := { notifications := [.rejected "quote-or-certificate"] }
   }
 
-theorem rejected_gossip_stutters_witness : Properties.RejectedGossipStuttersWitness := by
+theorem rejected_gossip_stutters_witness
+    : exists (config : Model.Config),
+    exists localStep : Properties.LocalStep,
+    exists (source : Model.Local.Location) (txid : Model.Local.TxID),
+      (Model.protocol config).ValidStep localStep
+      /\ localStep.action = .receiveGossip source txid .rejected := by
   refine ⟨quorumConfig, rejectedGossip, "A", high, ?_, rfl⟩
   simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
     rejectedGossip]
@@ -350,7 +383,14 @@ private def quorumTimeout : Properties.LocalStep :=
     effects := { notifications := [.opening .quorum] }
   }
 
-theorem quorum_advance_opens_witness : Properties.QuorumAdvanceOpensWitness := by
+theorem quorum_advance_opens_witness
+    : exists (config : Model.Config),
+    exists localStep : Properties.LocalStep,
+      (Model.protocol config).ValidStep localStep
+      /\ (localStep.action = .timeout
+          \/ exists source, localStep.action = .receiveVote source .accepted)
+      /\ localStep.before.phase = .voting
+      /\ localStep.before.votes.length >= Model.Local.voteQuorum config.protocol := by
   refine ⟨quorumConfig, quorumTimeout, ?_, Or.inl rfl, rfl, by decide⟩
   simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
     quorumTimeout]
@@ -366,7 +406,12 @@ private def openingTimeout : Properties.LocalStep :=
   }
 
 theorem aligned_opening_timeout_completes_witness
-    : Properties.AlignedOpeningTimeoutCompletesWitness := by
+    : exists (config : Model.Config),
+    exists localStep : Properties.LocalStep,
+      (Model.protocol config).ValidStep localStep
+      /\ localStep.action = .timeout
+      /\ localStep.before.phase = .opening
+      /\ localStep.before.timeoutState = .opening := by
   refine ⟨quorumConfig, openingTimeout, ?_, rfl, rfl, rfl⟩
   simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
     openingTimeout]

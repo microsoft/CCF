@@ -17,6 +17,7 @@ namespace ccf::gov::endpoints
       ccf::TxStatus status = ccf::TxStatus::Unknown;
       ccf::TxID transaction_id;
     };
+
     DECLARE_JSON_TYPE(Transaction);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       Transaction, status, "status", transaction_id, "transactionId");

@@ -121,6 +121,7 @@ namespace ccf::kv
     // be zeroed by construction.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init,modernize-use-equals-default)
     RawWriter() noexcept {}
+
     RawWriter(const RawWriter& other) : RawWriter()
     {
       if (other.used > capacity)
@@ -130,10 +131,12 @@ namespace ccf::kv
       std::memcpy(data, other.data, other.used);
       used = other.used;
     }
+
     RawWriter(RawWriter&& other) noexcept : RawWriter()
     {
       move_from(other);
     }
+
     RawWriter& operator=(const RawWriter& other)
     {
       if (this != &other)
@@ -147,6 +150,7 @@ namespace ccf::kv
       }
       return *this;
     }
+
     RawWriter& operator=(RawWriter&& other) noexcept
     {
       if (this != &other)
@@ -162,6 +166,7 @@ namespace ccf::kv
       }
       return *this;
     }
+
     ~RawWriter()
     {
       if (data != local.data())

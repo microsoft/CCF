@@ -6,19 +6,11 @@ on:
       - "lean/**"
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
-      # KV behaviour checked against the model, and the KV job's build
-      - "src/kv/**"
-      - "include/ccf/tx.h"
-      - "include/ccf/kv/**"
-      - "src/ds/champ_map.h"
-      - "tests/kv_trace_validation.py"
-      - "tests/tests.sh"
-      - "CMakeLists.txt"
-      - "cmake/**"
+      - "tests/raft_trace*.py"
+      - "tests/raft_scenarios*.py"
+      - "tests/raft_scenarios/**"
+      - "src/consensus/aft/**"
       - ".github/workflows/lean.yml"
-      - ".github/actions/lean-checks/**"
-      - ".github/actions/install-ci-dependencies/**"
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -27,34 +19,158 @@ concurrency:
 permissions: read-all
 
 jobs:
-  disaster-recovery:
-    name: Disaster recovery model and proofs
+  raft_traces:
+    name: Raft scenario captures
+    runs-on: [gha-vmss-d16av7-ci-c]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout dependencies
+        run: |
+          set -euo pipefail
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        uses: ./.github/actions/install-ci-dependencies
+        with:
+          cache-python-packages: "false"
+
+      - name: Generate scenario captures
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          cmake -S . -B "$RUNNER_TEMP/ccf-raft-build" -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
+          cmake --build "$RUNNER_TEMP/ccf-raft-build" --target raft_driver --parallel "$(( ($(nproc) + 1) >> 1 ))"
+          uv run --no-project --with msgpack \
+            ctest --test-dir "$RUNNER_TEMP/ccf-raft-build" -VV -R "^raft_scenario_test$" --no-tests=error
+
+      - name: Upload Raft traces
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: raft-scenario-traces
+          path: ${{ runner.temp }}/ccf-raft-build/consensus/raw/*.ndjson
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+  models:
+    name: Lean models and proofs
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Lean
+      - name: Install Lean and check prerequisites
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y elan
-          elan toolchain install "$(cat lean/disaster-recovery/lean-toolchain)"
+          sudo apt-get install -y elan gh python3-jsonschema
+          elan toolchain install "$(cat lean/lean-toolchain)"
 
-      - name: Build and check canonical model
-        uses: ./.github/actions/lean-checks
-        with:
-          working-directory: lean/disaster-recovery
-          library: DisasterRecovery
-          executable-root: replayer.Main
+      - name: Restore Mathlib caches
+        shell: bash
+        run: |
+          set -euo pipefail
+          for config in lean/*/lakefile.toml; do
+            grep -q '^name = "mathlib"$' "$config" || continue
+            package="$(dirname "$config")"
+            echo "::group::Mathlib cache: $package"
+            (cd "$package" && lake exe cache get)
+            echo "::endgroup::"
+          done
+
+      - name: Check packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TMPDIR="$RUNNER_TEMP"
+          for config in lean/*/lakefile.toml; do
+            package="$(dirname "$config")"
+            (
+              cd "$package"
+              echo "::group::Build, kernel and axiom check: $package"
+              if [ "$package" = "lean/ccf-raft" ]; then
+                original="$(mktemp)"
+                cp lakefile.toml "$original"
+                trap 'cp "$original" lakefile.toml; rm "$original"' EXIT
+                for target in CCFRaft ccfraft-replay; do
+                  sed "s/^defaultTargets = .*/defaultTargets = [\"$target\"]/" "$original" > lakefile.toml
+                  lake check --inadvisably-no-sandbox
+                done
+                cp "$original" lakefile.toml
+                rm "$original"
+                trap - EXIT
+              else
+                lake check --inadvisably-no-sandbox
+              fi
+              echo "::endgroup::"
+              echo "::group::Import coverage and architecture: $package"
+              lake exe check-imports
+              echo "::endgroup::"
+            )
+          done
+
+      - name: Lint packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/lean-format-checks.sh
+          for config in lean/*/lakefile.toml; do
+            package="$(dirname "$config")"
+            echo "::group::Lint: $package"
+            (cd "$package" && lake lint)
+            echo "::endgroup::"
+          done
+
+      - name: Build Raft replay
+        working-directory: lean/ccf-raft
+        run: lake build --wfail ccfraft-replay
+
+      - name: Validate Raft trace fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in lean/ccf-raft/replay/fixtures/valid/*.ndjson; do
+            echo "::group::Validate $trace"
+            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace"
+            echo "::endgroup::"
+          done
+
+      - name: Reject invalid Raft trace fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in lean/ccf-raft/replay/fixtures/invalid/*.ndjson; do
+            echo "::group::Reject $trace"
+            status=0
+            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace" || status=$?
+            if [ "$status" -ne 1 ]; then
+              echo "::error::$trace: expected rejection (exit 1), got exit $status"
+              exit 1
+            fi
+            echo "::endgroup::"
+          done
 
       - name: Check recovery trace fixtures against their schema
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get install -y python3-jsonschema
           python3 lean/disaster-recovery/replayer/check-schema.py \
             lean/disaster-recovery/replayer/fixtures/*/*.out
 
@@ -69,129 +185,49 @@ jobs:
         shell: bash
         run: python3 lean/disaster-recovery/replayer/viewer/build.py
 
-  kernel-checks:
-    name: Kernel checks (${{ matrix.package }})
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        package: [disaster-recovery, kv]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Lean
+      # Wait here instead of using needs so independent Lean checks run in parallel with capture generation.
+      - name: Wait for Raft scenario captures
+        timeout-minutes: 60
         shell: bash
         env:
-          LEAN_PACKAGE: lean/${{ matrix.package }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y elan
-          elan toolchain install "$(cat "$LEAN_PACKAGE/lean-toolchain")"
+          job="Raft scenario captures"
+          while true; do
+            if ! state=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
+              --jq ".jobs[] | select(.name == \"${job}\") | \"\(.status) \(.conclusion)\""); then
+              echo "::warning::Could not read ${job} status; retrying"
+              state="unavailable"
+            fi
+            case "${state}" in
+              "completed success") exit 0 ;;
+              completed*)
+                echo "::error::${job} concluded ${state#completed }, so its traces cannot be validated"
+                exit 1
+                ;;
+              "")
+                echo "::error::${job} was not found in this workflow run"
+                exit 1
+                ;;
+            esac
+            echo "Waiting for ${job} (${state%% *})"
+            sleep 30
+          done
 
-      - name: Restore Mathlib cache
-        working-directory: lean/${{ matrix.package }}
+      - name: Download Raft traces
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: raft-scenario-traces
+          path: ${{ runner.temp }}/raft-scenario-traces
+
+      - name: Validate Raft traces
         shell: bash
         run: |
           set -euo pipefail
-          lake exe cache get
-
-      - name: Check with Lean's kernel
-        working-directory: lean/${{ matrix.package }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          export TMPDIR="$RUNNER_TEMP"
-          lake check --inadvisably-no-sandbox
-
-  kv-contract:
-    name: KV model and trace conformance
-    runs-on: ubuntu-26.04
-    timeout-minutes: 60
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root
-    defaults:
-      run:
-        shell: bash
-    env:
-      # Must match lean/kv/lean-toolchain. The digest is the release archive's.
-      LEAN_VERSION: 4.35.0
-      LEAN_SHA256: 7289597a44543246c9227b8cae501767e095ce17f6d448b95fc4a8dc97268f6d
-
-    steps:
-      - name: Bootstrap checkout dependencies
-        run: |
-          set -euo pipefail
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - name: Install CCF build dependencies
-        uses: ./.github/actions/install-ci-dependencies
-
-      # Build native code before Lean, whose distribution bundles its own clang,
-      # is added to PATH.
-      - name: Build instrumented KV unit tests
-        run: |
-          set -euo pipefail
-          cmake -S . -B build-kv-trace -GNinja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCCF_KV_TRACING=ON \
-            -DCCF_KV_TRACE_CHECKER="$PWD/lean/kv/.lake/build/bin/kv-replay"
-          cmake --build build-kv-trace --target kv_test --parallel 2
-
-      - name: Run KV unit tests
-        working-directory: build-kv-trace
-        run: ./tests.sh -R '^kv_test$' -L unit --no-tests=error
-
-      - name: Cache pinned Lean distribution
-        id: lean-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/ccf-lean
-          key: lean-${{ runner.os }}-${{ runner.arch }}-${{ env.LEAN_SHA256 }}
-
-      - name: Download pinned Lean distribution
-        if: steps.lean-cache.outputs.cache-hit != 'true'
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/ccf-lean"
-          cd "$RUNNER_TEMP/ccf-lean"
-          curl --fail --location --retry 3 --output lean.tar.zst \
-            "https://github.com/leanprover/lean4/releases/download/v$LEAN_VERSION/lean-$LEAN_VERSION-linux.tar.zst"
-          echo "$LEAN_SHA256  lean.tar.zst" | sha256sum --check
-          tar --zstd -xf lean.tar.zst
-          rm lean.tar.zst
-
-      - name: Add Lean to PATH
-        run: |
-          set -euo pipefail
-          test "$(tr -d '\r\n' < lean/kv/lean-toolchain)" = "leanprover/lean4:v$LEAN_VERSION"
-          echo "$RUNNER_TEMP/ccf-lean/lean-$LEAN_VERSION-linux/bin" >> "$GITHUB_PATH"
-
-      - name: Build and check KV model
-        uses: ./.github/actions/lean-checks
-        with:
-          working-directory: lean/kv
-          library: Kv
-          executable-root: replayer.Main
-
-      - name: Check generated traces
-        working-directory: build-kv-trace
-        run: ./tests.sh -R '^kv_trace_validation$' -L kv_trace --no-tests=error
-
-      - name: Upload conformance diagnostics
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: kv-contract-diagnostics
-          path: |
-            build-kv-trace/kv-traces/
-            build-kv-trace/Testing/
+          shopt -s failglob
+          for trace in "$RUNNER_TEMP"/raft-scenario-traces/*.ndjson; do
+            echo "::group::Validate $trace"
+            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace"
+            echo "::endgroup::"
+          done

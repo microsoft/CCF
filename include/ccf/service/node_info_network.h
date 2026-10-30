@@ -31,11 +31,13 @@ namespace ccf
   struct Endorsement
   {
     Authority authority;
+
     bool operator==(const Endorsement& other) const
     {
       return authority == other.authority;
     }
   };
+
   DECLARE_JSON_TYPE(Endorsement);
   DECLARE_JSON_REQUIRED_FIELDS(Endorsement, authority);
 
@@ -48,6 +50,7 @@ namespace ccf
     std::string rpcport;
     std::string pubport;
   };
+
   DECLARE_JSON_TYPE(NodeInfoNetwork_v1);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v1, rpchost, pubhost, nodehost, nodeport, rpcport, pubport);
@@ -71,6 +74,7 @@ namespace ccf
 
     bool operator==(const RedirectionResolverConfig&) const = default;
   };
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RedirectionResolverConfig);
   DECLARE_JSON_REQUIRED_FIELDS(RedirectionResolverConfig, kind);
   DECLARE_JSON_OPTIONAL_FIELDS(RedirectionResolverConfig, target);
@@ -150,6 +154,18 @@ namespace ccf
     /// Node-to-node network interface
     NetInterface node_to_node_interface;
 
+    struct NodeToNodeInterface
+    {
+      NetAddress bind_address;
+      NetAddress published_address;
+
+      bool operator==(const NodeToNodeInterface&) const = default;
+    };
+
+    /// Reserved TLS endpoint metadata; no listener is created.
+    std::optional<NodeToNodeInterface> node_to_node_tls_interface =
+      std::nullopt;
+
     /// RPC interfaces
     RpcInterfaces rpc_interfaces;
   };
@@ -174,19 +190,29 @@ namespace ccf
     forwarding_timeout_ms,
     enabled_operator_features,
     redirections);
-  DECLARE_JSON_TYPE(NodeInfoNetwork_v2);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
+    NodeInfoNetwork_v2::NodeToNodeInterface);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    NodeInfoNetwork_v2::NodeToNodeInterface, bind_address);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    NodeInfoNetwork_v2::NodeToNodeInterface, published_address);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
+  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfoNetwork_v2, node_to_node_tls_interface);
 
   struct NodeInfoNetwork : public NodeInfoNetwork_v2
   {
     NodeInfoNetwork() = default;
+
     NodeInfoNetwork(const NodeInfoNetwork_v2& other) : NodeInfoNetwork_v2(other)
     {}
 
     bool operator==(const NodeInfoNetwork& other) const
     {
       return node_to_node_interface == other.node_to_node_interface &&
+        node_to_node_tls_interface == other.node_to_node_tls_interface &&
         rpc_interfaces == other.rpc_interfaces;
     }
   };
@@ -214,7 +240,9 @@ namespace ccf
       try
       {
         if (
-          j.contains("rpc_interfaces") || j.contains("node_to_node_interface"))
+          j.contains("rpc_interfaces") ||
+          j.contains("node_to_node_interface") ||
+          j.contains("node_to_node_tls_interface"))
         {
           // If these v2 fields are present, rethrow the error - the JSON is
           // malformed for v2. Only proceed to parse as v1 if these fields are
@@ -282,4 +310,5 @@ struct formatter<ccf::Authority>
     }
   }
 };
+
 FMT_END_NAMESPACE

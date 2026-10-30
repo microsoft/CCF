@@ -17,6 +17,7 @@
 namespace
 {
   using Endorsements = std::vector<std::vector<uint8_t>>;
+
   struct FetchResult
   {
     std::optional<Endorsements> endorsements{std::nullopt};
@@ -168,7 +169,8 @@ namespace ccf
                   ccf::crypto::make_unique_verifier(network_identity->cert);
                 auto endorsement = create_endorsed_cert(
                   hpubkey,
-                  ccf::crypto::get_subject_name(opt_psi->cert),
+                  ccf::crypto::make_unique_verifier(opt_psi->cert)
+                    ->subject_der(),
                   {},
                   ncv->validity_period(),
                   network_identity->priv_key,

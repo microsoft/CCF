@@ -10,11 +10,10 @@ src/crypto/test/cbor_fuzz_corpus/* binary
 
 .*canary merge=keeplocal
 
-lean/disaster-recovery/DisasterRecovery/Proofs/**/*.lean linguist-generated=true
+lean/**/Proofs/**/*.lean linguist-generated=true
 lean/disaster-recovery/replayer/fixtures/**/*.diff linguist-generated=true
 lean/disaster-recovery/DisasterRecovery.lean text eol=lf
 
-lean/kv/Kv/Proofs/**/*.lean linguist-generated=true
 lean/kv/Kv/Model/Certificates.lean linguist-generated=true
 lean/kv/Kv.lean text eol=lf
 

@@ -105,7 +105,8 @@ lemma next_preserves_opening_thresholds (config : Model.Config) (before after : 
 lemma reachable_opening_thresholds {config : Model.Config} {state : State}
     (reachable : Reachable config state)
     : OpeningThresholds config state := by
-  induction reachable with
+  induction reachable
+    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
   | initial initialized =>
       rcases initialized with ⟨_, nodes, _, _, rfl⟩
       simp [OpeningThresholds, initial, initialNode]
@@ -137,7 +138,7 @@ lemma notification_opening_state {config : Model.Config} {trace : Properties.Glo
     (notification
       : Properties.Trace.NotificationAt config trace index node (.opening kind))
     : exists after current,
-        after ∈ trace.states
+        trace.get? (index + 1) = some after
         /\ (node, current) ∈ after.nodes
         /\ current.openKind = some kind := by
   obtain ⟨before, after, action, nodeBefore, nodeAfter, outputs,
@@ -162,7 +163,7 @@ lemma notification_opening_state {config : Model.Config} {trace : Properties.Glo
   have opened := (Quorum.opening_effect_state config.protocol nodeBefore
     (Properties.Trace.event action) kind recorded).2
   rw [stateEq] at opened
-  refine ⟨after, nodeAfter, List.mem_iff_getElem?.mpr ⟨_, atAfter⟩, ?_, opened⟩
+  refine ⟨after, nodeAfter, atAfter, ?_, opened⟩
   obtain ⟨entry, found, value⟩ := Option.map_eq_some_iff.mp foundAfter
   have key := beq_iff_eq.mp
     (List.find?_some (p := fun entry : Location × NodeState => entry.1 == node) found)

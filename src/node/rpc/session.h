@@ -52,6 +52,7 @@ namespace ccf
         {
           ThreadedSession& session;
           size_t bytes;
+
           ~ReportConsumed()
           {
             session.on_inbound_consumed(bytes);

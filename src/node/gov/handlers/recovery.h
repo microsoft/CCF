@@ -17,6 +17,7 @@ namespace ccf::gov::endpoints
       ccf::MemberId member_id;
       std::string encrypted_share;
     };
+
     DECLARE_JSON_TYPE(EncryptedRecoveryShare);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       EncryptedRecoveryShare,
@@ -32,6 +33,7 @@ namespace ccf::gov::endpoints
       size_t recovery_threshold = 0;
       bool full_key_submitted = false;
     };
+
     DECLARE_JSON_TYPE(RecoveryResponse);
     DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
       RecoveryResponse,

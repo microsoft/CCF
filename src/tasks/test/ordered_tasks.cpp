@@ -458,6 +458,7 @@ TEST_CASE(
 {
   ccf::tasks::JobBoard board;
   auto tasks = ccf::tasks::OrderedTasks::create(board);
+
   struct ReentrantCleanup
   {
     ccf::tasks::JobBoard& board;
@@ -484,6 +485,7 @@ TEST_CASE(
         std::chrono::milliseconds(1));
     }
   };
+
   size_t destroyed = 0;
   auto late_action = std::make_shared<ShutdownAction>();
   auto cleanup =
@@ -505,20 +507,24 @@ TEST_CASE(
   struct ShutdownTask : public ccf::tasks::BaseTask
   {
     size_t notifications = 0;
+
     void on_shutdown() noexcept override
     {
       ++notifications;
     }
+
     void do_task_implementation() override
     {
       FAIL("A shutdown task must not execute");
     }
+
     const std::string& get_name() const override
     {
       static const std::string name = "ShutdownTask";
       return name;
     }
   };
+
   ccf::tasks::JobBoard board;
   auto task = std::make_shared<ShutdownTask>();
   board.add_task(task);
@@ -543,11 +549,14 @@ TEST_CASE(
   struct CountingTask : public ccf::tasks::BaseTask
   {
     std::atomic<size_t> notifications = 0;
+
     void on_shutdown() noexcept override
     {
       ++notifications;
     }
+
     void do_task_implementation() override {}
+
     const std::string& get_name() const override
     {
       static const std::string name = "CountingTask";

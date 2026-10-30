@@ -22,6 +22,7 @@ namespace ccf
 
   using SnapshotStatusValue = ServiceValue<SnapshotStatus>;
   using SnapshotCreate = ServiceUnit;
+
   namespace Tables
   {
     static constexpr auto SNAPSHOT_STATUS =

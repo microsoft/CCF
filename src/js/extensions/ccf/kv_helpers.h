@@ -385,6 +385,7 @@ namespace ccf::js::extensions::kvhelpers
 
     return ccf::js::core::constants::Undefined;
   }
+
 #undef JS_CHECK_HANDLE
 
   template <ROHandleGetter GetReadOnlyHandle, RWHandleGetter GetWriteHandle>

@@ -11,6 +11,7 @@ namespace ccf::nonstd
   {
   public:
     KeyIterator() : TMapIterator() {}
+
     KeyIterator(TMapIterator it) : TMapIterator(it) {}
 
     using Key =
@@ -34,6 +35,7 @@ namespace ccf::nonstd
   {
   public:
     ValueIterator() : TMapIterator() {}
+
     ValueIterator(TMapIterator it) : TMapIterator(it) {}
 
     using Value =

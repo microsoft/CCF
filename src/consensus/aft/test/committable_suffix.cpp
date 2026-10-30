@@ -492,6 +492,7 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
 
 struct WorstCase
 {};
+
 struct RandomCase
 {};
 

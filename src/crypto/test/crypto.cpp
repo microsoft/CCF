@@ -42,6 +42,7 @@
 #include <mutex>
 #include <optional>
 #include <span>
+#include <sys/mman.h>
 #include <tav/cbor.hpp>
 #include <thread>
 #include <utility>
@@ -265,12 +266,15 @@ TEST_CASE("Verifier rejects unsupported public key type")
 {
   const auto issuer = make_ec_key_pair();
   const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto [valid_from, valid_to] =
+    make_verifier(issuer_cert)->validity_period();
   const auto subject = make_eddsa_key_pair(CurveID::CURVE25519);
   const auto cert_pem = create_endorsed_cert(
     subject->public_key_pem(),
     "CN=unsupported key type",
     {},
-    make_verifier(issuer_cert)->validity_period(),
+    valid_from,
+    valid_to,
     issuer->private_key_pem(),
     issuer_cert);
 
@@ -285,12 +289,15 @@ TEST_CASE("Certificate conversions accept any public key type")
   // keys, which the COSE verifiers accept.
   const auto issuer = make_ec_key_pair();
   const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto [valid_from, valid_to] =
+    make_verifier(issuer_cert)->validity_period();
   const auto subject = make_eddsa_key_pair(CurveID::CURVE25519);
   const auto cert_pem = create_endorsed_cert(
     subject->public_key_pem(),
     "CN=Ed25519 subject",
     {},
-    make_verifier(issuer_cert)->validity_period(),
+    valid_from,
+    valid_to,
     issuer->private_key_pem(),
     issuer_cert);
   CHECK_THROWS_AS(make_verifier(cert_pem), std::logic_error);
@@ -315,6 +322,142 @@ TEST_CASE("Certificate conversions accept any public key type")
     cert_pem_to_der(Pem(
       "-----BEGIN CERTIFICATE-----\nbm9wZQ==\n-----END CERTIFICATE-----\n")),
     std::invalid_argument);
+}
+
+TEST_CASE("Verifier reports certificate properties")
+{
+  const auto issuer = make_ec_key_pair();
+  const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto [valid_from, valid_to] =
+    make_verifier(issuer_cert)->validity_period();
+  const auto endorsed_cert = create_endorsed_cert(
+    make_ec_key_pair()->public_key_pem(),
+    "CN=subject,O=org",
+    {},
+    valid_from,
+    valid_to,
+    issuer->private_key_pem(),
+    issuer_cert);
+
+  // PEM and DER inputs describe the same certificate
+  for (const auto& cert : {issuer_cert, endorsed_cert})
+  {
+    const auto der = cert_pem_to_der(cert);
+    const auto from_pem = make_verifier(cert);
+    const auto from_der = make_unique_verifier(der);
+    CHECK(from_pem->cert_pem() == cert);
+    CHECK(from_der->cert_pem() == cert);
+    CHECK(from_pem->cert_der() == der);
+    CHECK(from_der->cert_der() == der);
+    CHECK(from_pem->subject() == from_der->subject());
+    CHECK(from_pem->serial_number() == from_der->serial_number());
+    CHECK(from_pem->is_self_signed() == from_der->is_self_signed());
+  }
+
+  const auto issuer_verifier = make_verifier(issuer_cert);
+  const auto endorsed_verifier = make_verifier(endorsed_cert);
+  CHECK(issuer_verifier->is_self_signed());
+  CHECK_FALSE(endorsed_verifier->is_self_signed());
+
+  // RDNs are separated by ", "
+  CHECK(issuer_verifier->subject() == "CN=issuer");
+  CHECK(get_subject_name(issuer_cert) == "CN=issuer");
+  CHECK(endorsed_verifier->subject() == "CN=subject, O=org");
+
+  // Serial numbers are random 16-byte integers, printed as upper-case hex
+  for (const auto& serial :
+       {issuer_verifier->serial_number(), endorsed_verifier->serial_number()})
+  {
+    CHECK_FALSE(serial.empty());
+    CHECK(serial.size() <= 32);
+    CHECK(serial.find_first_not_of("0123456789ABCDEF") == std::string::npos);
+  }
+  CHECK(issuer_verifier->serial_number() != endorsed_verifier->serial_number());
+
+  // Fixed certificate, so the exact values are known
+  const auto nested_verifier = make_verifier(raw_from_b64(nested_cert));
+  CHECK(nested_verifier->is_self_signed());
+  CHECK(nested_verifier->serial_number() == "01");
+  // Forward slashes in attribute values are escaped
+  CHECK(
+    nested_verifier->subject() ==
+    "CN=https:\\/\\/sharedeus2.eus2.attest.azure.net");
+}
+
+TEST_CASE("Certificate subject names are copied exactly from DER")
+{
+  using namespace ccf::crypto::OpenSSL;
+
+  // Out of order, repeated type, separator and escaped characters in values
+  const std::vector<std::pair<std::string, std::string>> rdns = {
+    {"O", "Org"},
+    {"CN", "Surname, Name"},
+    {"OU", "https://a.b"},
+    {"OU", "x+y"}};
+  std::vector<uint8_t> subject_der;
+  {
+    Unique_SSL_OBJECT<X509_NAME, X509_NAME_new, X509_NAME_free> name;
+    for (const auto& [type, value] : rdns)
+    {
+      CHECK1(X509_NAME_add_entry_by_txt(
+        name,
+        type.c_str(),
+        MBSTRING_ASC,
+        reinterpret_cast<const unsigned char*>(value.data()),
+        value.size(),
+        -1,
+        0));
+    }
+    const unsigned char* der = nullptr;
+    size_t der_size = 0;
+    CHECK1(X509_NAME_get0_der(name, &der, &der_size));
+    subject_der.assign(der, der + der_size);
+  }
+  const std::string printed =
+    "O=Org, CN=Surname, Name, OU=https:\\/\\/a.b, OU=x\\+y";
+
+  const auto kp = make_ec_key_pair();
+  CHECK_THROWS((void)kp->create_csr(printed, {}));
+
+  constexpr size_t validity_period_days = 365;
+  using namespace std::literals;
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(ccf::nonstd::SystemClock::now() - 24h);
+  const auto self_signed = create_self_signed_cert(
+    kp, subject_der, {}, valid_from, validity_period_days);
+  const auto renewed = create_self_signed_cert(
+    kp,
+    make_verifier(self_signed)->subject_der(),
+    {},
+    valid_from,
+    validity_period_days);
+  const auto issuer = make_ec_key_pair();
+  const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+  const auto endorsed = create_endorsed_cert(
+    kp->public_key_pem(),
+    subject_der,
+    {},
+    make_verifier(issuer_cert)->validity_period(),
+    issuer->private_key_pem(),
+    issuer_cert);
+
+  for (const auto& cert : {self_signed, renewed, endorsed})
+  {
+    const auto verifier = make_verifier(cert);
+    CHECK(verifier->subject_der() == subject_der);
+    CHECK(verifier->subject() == printed);
+  }
+  CHECK(make_verifier(endorsed)->verify_certificate({&issuer_cert}));
+
+  // Exactly one DER-encoded Name is accepted
+  const std::vector<uint8_t> not_a_name = {'n', 'o', 'p', 'e'};
+  CHECK_THROWS_AS((void)kp->create_csr(not_a_name, {}), std::invalid_argument);
+  CHECK_THROWS_AS(
+    (void)kp->create_csr(std::vector<uint8_t>{}, {}), std::invalid_argument);
+  auto trailing_byte = subject_der;
+  trailing_byte.push_back(0);
+  CHECK_THROWS_AS(
+    (void)kp->create_csr(trailing_byte, {}), std::invalid_argument);
 }
 
 TEST_CASE("Private PEM imports enforce key family")
@@ -740,7 +883,7 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
     auto verifier = make_verifier(cert);
     CHECK(verifier->verify_hash(hash, signature, MDType::SHA256));
     corrupt(hash);
-    CHECK_FALSE(verifier->verify(hash, signature, MDType::SHA256));
+    CHECK_FALSE(verifier->verify_hash(hash, signature, MDType::SHA256));
   }
 }
 
@@ -1365,6 +1508,225 @@ TEST_CASE("AES-GCM caller-owned ciphertext")
   REQUIRE(decrypted.empty());
 }
 
+static void check_gcm_updates(
+  size_t plain_size,
+  size_t aad_size,
+  size_t key_size = 16,
+  size_t iv_length = 12)
+{
+  CAPTURE(plain_size);
+  CAPTURE(aad_size);
+  CAPTURE(key_size);
+  CAPTURE(iv_length);
+  // Must match a single OpenSSL call over the same inputs
+  const std::vector<uint8_t> raw_key(key_size, 0x42);
+  auto key = make_key_aes_gcm(raw_key);
+  const std::vector<uint8_t> iv(iv_length, 0);
+  auto entropy = get_entropy();
+  const auto plain = entropy->random(plain_size);
+  auto aad = entropy->random(aad_size);
+
+  std::vector<uint8_t> expected_cipher(plain.size());
+  uint8_t expected_tag[GCM_SIZE_TAG] = {};
+  {
+    OpenSSL::Unique_EVP_CIPHER_CTX ctx;
+    const auto* algorithm = key_size == 16 ? EVP_aes_128_gcm() :
+      key_size == 24                       ? EVP_aes_192_gcm() :
+                                             EVP_aes_256_gcm();
+    int outl = 0;
+    REQUIRE(
+      EVP_EncryptInit_ex2(ctx, algorithm, raw_key.data(), nullptr, nullptr) ==
+      1);
+    REQUIRE(
+      EVP_CIPHER_CTX_ctrl(
+        ctx, EVP_CTRL_GCM_SET_IVLEN, static_cast<int>(iv.size()), nullptr) ==
+      1);
+    REQUIRE(
+      EVP_EncryptInit_ex2(ctx, nullptr, nullptr, iv.data(), nullptr) == 1);
+    if (!aad.empty())
+    {
+      REQUIRE(
+        EVP_EncryptUpdate(
+          ctx, nullptr, &outl, aad.data(), static_cast<int>(aad.size())) == 1);
+    }
+    if (!plain.empty())
+    {
+      REQUIRE(
+        EVP_EncryptUpdate(
+          ctx,
+          expected_cipher.data(),
+          &outl,
+          plain.data(),
+          static_cast<int>(plain.size())) == 1);
+      REQUIRE(static_cast<size_t>(outl) == plain.size());
+    }
+    uint8_t final[EVP_MAX_BLOCK_LENGTH] = {};
+    REQUIRE(EVP_EncryptFinal_ex(ctx, final, &outl) == 1);
+    REQUIRE(outl == 0);
+    REQUIRE(
+      EVP_CIPHER_CTX_ctrl(
+        ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, expected_tag) == 1);
+  }
+
+  std::vector<uint8_t> cipher;
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  key->encrypt(iv, plain, aad, cipher, tag);
+  REQUIRE(cipher == expected_cipher);
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+
+  std::vector<uint8_t> decrypted;
+  REQUIRE(key->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+
+  auto context = key->make_context();
+  REQUIRE(context->decrypt(iv, expected_tag, expected_cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+  context->encrypt(iv, plain, aad, cipher, tag);
+  REQUIRE(cipher == expected_cipher);
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+  cipher = plain;
+  context->encrypt(iv, cipher, aad, std::span<uint8_t>(cipher), tag);
+  REQUIRE(cipher == expected_cipher);
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+
+  tag[GCM_SIZE_TAG - 1] ^= 1;
+  REQUIRE_FALSE(context->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted.empty());
+  tag[GCM_SIZE_TAG - 1] ^= 1;
+  if (!cipher.empty())
+  {
+    cipher.back() ^= 1;
+    REQUIRE_FALSE(context->decrypt(iv, tag, cipher, aad, decrypted));
+    REQUIRE(decrypted.empty());
+    cipher.back() ^= 1;
+  }
+  if (!aad.empty())
+  {
+    aad.back() ^= 1;
+    REQUIRE_FALSE(context->decrypt(iv, tag, cipher, aad, decrypted));
+    REQUIRE(decrypted.empty());
+    aad.back() ^= 1;
+  }
+  REQUIRE(context->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+}
+
+TEST_CASE("AES-GCM inputs spanning several OpenSSL updates")
+{
+  check_gcm_updates(GCM_MAX_UPDATE_SIZE + 31, GCM_MAX_UPDATE_SIZE + 7);
+}
+
+TEST_CASE("AES-GCM chunk boundaries")
+{
+  for (const auto size :
+       {GCM_MAX_UPDATE_SIZE - 1,
+        GCM_MAX_UPDATE_SIZE,
+        GCM_MAX_UPDATE_SIZE + 1,
+        2 * GCM_MAX_UPDATE_SIZE + 31})
+  {
+    check_gcm_updates(size, 17);
+    check_gcm_updates(17, size);
+  }
+}
+
+TEST_CASE("AES-GCM key IV and block boundaries")
+{
+  for (const size_t key_size : {16, 24, 32})
+  {
+    for (const size_t iv_length : {12, 16})
+    {
+      for (const size_t size : {0, 1, 15, 16, 17, 31, 32, 33})
+      {
+        check_gcm_updates(size, 17, key_size, iv_length);
+        check_gcm_updates(17, size, key_size, iv_length);
+      }
+    }
+  }
+}
+
+TEST_CASE("AES-GCM AAD larger than INT_MAX")
+{
+  // OpenSSL update calls take an int length. The AAD is mapped lazily, so its
+  // untouched zero pages do not use memory.
+  constexpr size_t aad_size = size_t{std::numeric_limits<int>::max()} + 17;
+  auto unmap = [](void* data) { munmap(data, aad_size); };
+  std::unique_ptr<void, decltype(unmap)> mapping(
+    mmap(
+      nullptr,
+      aad_size,
+      PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+      -1,
+      0),
+    unmap);
+  REQUIRE(mapping.get() != MAP_FAILED);
+  std::span<uint8_t> aad(static_cast<uint8_t*>(mapping.get()), aad_size);
+
+  auto key = make_key_aes_gcm(get_raw_key());
+  const std::vector<uint8_t> iv(12, 0);
+  const std::vector<uint8_t> plain(31, 0x24);
+  std::vector<uint8_t> cipher;
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  key->encrypt(iv, plain, aad, cipher, tag);
+
+  std::vector<uint8_t> decrypted;
+  REQUIRE(key->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+
+  // Ledger entries, snapshots included, are decrypted through a reusable
+  // context
+  auto context = key->make_context();
+  decrypted.clear();
+  REQUIRE(context->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+
+  // The AAD past INT_MAX is authenticated too. Each pass hashes the full 2 GiB,
+  // so no further passes: the other API entry points share this code path.
+  aad.back() ^= 1;
+  REQUIRE_FALSE(key->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted.empty());
+}
+
+TEST_CASE("AES-GCM data larger than the GCM limit")
+{
+  // Inaccessible, so the data must be rejected before any byte is read
+  constexpr size_t data_size = GCM_MAX_DATA_SIZE + 1;
+  auto unmap = [](void* data) { munmap(data, data_size); };
+  std::unique_ptr<void, decltype(unmap)> mapping(
+    mmap(
+      nullptr,
+      data_size,
+      PROT_NONE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+      -1,
+      0),
+    unmap);
+  REQUIRE(mapping.get() != MAP_FAILED);
+  std::span<uint8_t> oversized(static_cast<uint8_t*>(mapping.get()), data_size);
+
+  auto key = make_key_aes_gcm(get_raw_key());
+  const std::vector<uint8_t> iv(12, 0);
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  REQUIRE_THROWS_AS(
+    key->encrypt(iv, oversized, {}, oversized, tag), std::logic_error);
+
+  std::vector<uint8_t> decrypted(8, 0xAB);
+  REQUIRE_FALSE(key->decrypt(iv, tag, oversized, {}, decrypted));
+  REQUIRE(decrypted.empty());
+
+  auto context = key->make_context();
+  REQUIRE_THROWS_AS(
+    context->encrypt(iv, oversized, {}, oversized, tag), std::logic_error);
+  decrypted.assign(8, 0xAB);
+  REQUIRE_FALSE(context->decrypt(iv, tag, oversized, {}, decrypted));
+  REQUIRE(decrypted.empty());
+  const std::vector<uint8_t> plain(31, 0x24);
+  std::vector<uint8_t> cipher;
+  context->encrypt(iv, plain, {}, cipher, tag);
+  REQUIRE(context->decrypt(iv, tag, cipher, {}, decrypted));
+  REQUIRE(decrypted == plain);
+}
+
 TEST_CASE("Const GCM header serialisation")
 {
   StandardGcmHeader header;
@@ -1534,6 +1896,7 @@ TEST_CASE("x509 time")
         ccf::nonstd::SystemClock::time_point to;
         std::optional<uint32_t> maximum_validity_period_days = std::nullopt;
       };
+
       Input input;
 
       bool expected_verification_result;
@@ -1658,15 +2021,80 @@ TEST_CASE("Certificate validity period")
     (void)kp->self_sign("CN=name", "20240102000000Z", "20240101000000Z"),
     std::logic_error);
 
-  const auto verifier = make_verifier(
-    kp->self_sign("CN=name", "20240101000000Z", "20240102000000Z"));
+  const auto cert =
+    kp->self_sign("CN=name", "20240101000000Z", "20240102000000Z");
+  const auto verifier = make_verifier(cert);
   const auto midpoint = ccf::ds::time_point_from_string("20240101120000Z");
+  const auto not_before = midpoint - 12h;
+  const auto not_after = midpoint + 12h;
   // Both ends of the validity period are included, so it lasts 86401s
   CHECK(verifier->remaining_seconds(midpoint) == 43201);
   CHECK(
     verifier->remaining_percentage(midpoint) ==
     doctest::Approx(43201.0 / 86401));
+  CHECK(verifier->remaining_seconds(not_before) == 86401);
+  CHECK(verifier->remaining_percentage(not_before) == doctest::Approx(1.0));
+  CHECK(verifier->remaining_seconds(not_after) == 1);
+  CHECK(
+    verifier->remaining_percentage(not_after) == doctest::Approx(1.0 / 86401));
+
+  // Before the period starts, all of it remains
+  CHECK(verifier->remaining_seconds(not_before - 1s) == 86401);
+  CHECK(
+    verifier->remaining_percentage(not_before - 1s) == doctest::Approx(1.0));
+  CHECK(verifier->remaining_seconds(midpoint - 24h) == 86401);
+  CHECK(verifier->remaining_percentage(midpoint - 24h) == doctest::Approx(1.0));
+
+  // After it ends, none of it does
+  CHECK(verifier->remaining_seconds(not_after + 1s) == 0);
+  CHECK(verifier->remaining_percentage(not_after + 1s) == doctest::Approx(0.0));
   CHECK(verifier->remaining_seconds(midpoint + 24h) == 0);
+  CHECK(verifier->remaining_percentage(midpoint + 24h) == doctest::Approx(0.0));
+
+  // CCF refuses to issue a certificate whose period is a single second or
+  // ends before it starts, but a verifier accepts any certificate without
+  // checking its signature, so forge both by rewriting notBefore on an
+  // issued certificate.
+  {
+    const auto der = cert_pem_to_der(cert);
+    OpenSSL::Unique_BIO in(der);
+    OpenSSL::Unique_X509 x509(in, false, /*check_null=*/true);
+    const auto with_not_before = [&](const std::string& from) {
+      OpenSSL::Unique_X509_TIME tp(from);
+      REQUIRE(X509_set1_notBefore(x509, tp) == 1);
+      OpenSSL::Unique_BIO out;
+      REQUIRE(i2d_X509_bio(out, x509) == 1);
+      BUF_MEM* bptr = nullptr;
+      REQUIRE(BIO_get_mem_ptr(out, &bptr) > 0);
+      const auto v = make_verifier(std::vector<uint8_t>(
+        reinterpret_cast<uint8_t*>(bptr->data),
+        reinterpret_cast<uint8_t*>(bptr->data) + bptr->length));
+      REQUIRE(v->validity_period() == std::make_pair(from, "20240102000000Z"s));
+      return v;
+    };
+
+    // A period of a single second is all or nothing
+    const auto single_second = with_not_before("20240102000000Z");
+    CHECK(single_second->remaining_seconds(not_after - 1s) == 1);
+    CHECK(
+      single_second->remaining_percentage(not_after - 1s) ==
+      doctest::Approx(1.0));
+    CHECK(single_second->remaining_seconds(not_after) == 1);
+    CHECK(
+      single_second->remaining_percentage(not_after) == doctest::Approx(1.0));
+    CHECK(single_second->remaining_seconds(not_after + 1s) == 0);
+    CHECK(
+      single_second->remaining_percentage(not_after + 1s) ==
+      doctest::Approx(0.0));
+
+    // Nothing of an inverted period remains
+    const auto inverted = with_not_before("20240102000001Z");
+    for (const auto now : {not_before, midpoint, not_after, not_after + 1s})
+    {
+      CHECK(inverted->remaining_seconds(now) == 0);
+      CHECK(inverted->remaining_percentage(now) == doctest::Approx(0.0));
+    }
+  }
 }
 
 TEST_CASE("hmac")
@@ -1906,6 +2334,32 @@ TEST_CASE("Sign and verify with RSA key")
     constexpr auto bad_salt_length = std::numeric_limits<size_t>::max();
     REQUIRE_THROWS_AS(
       (void)kp->sign(payload, mdtype, bad_salt_length), std::invalid_argument);
+
+    const auto issuer = make_ec_key_pair();
+    const auto issuer_cert = generate_self_signed_cert(issuer, "CN=issuer");
+    const auto [valid_from, valid_to] =
+      make_verifier(issuer_cert)->validity_period();
+    const auto cert = create_endorsed_cert(
+      kp->public_key_pem(),
+      "CN=RSA subject",
+      {},
+      valid_from,
+      valid_to,
+      issuer->private_key_pem(),
+      issuer_cert);
+    auto bad_payload = payload;
+    corrupt(bad_payload);
+    auto bad_hash = hash;
+    corrupt(bad_hash);
+    for (const auto& encoded_cert : {cert.raw(), cert_pem_to_der(cert)})
+    {
+      const auto verifier = make_verifier(encoded_cert);
+      CHECK(verifier->public_key_der() == kp->public_key_der());
+      CHECK(verifier->verify(payload, sig, mdtype));
+      CHECK(verifier->verify_hash(hash, sig, mdtype));
+      CHECK_FALSE(verifier->verify(bad_payload, sig, mdtype));
+      CHECK_FALSE(verifier->verify_hash(bad_hash, sig, mdtype));
+    }
   }
 }
 

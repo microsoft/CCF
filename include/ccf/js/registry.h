@@ -162,6 +162,7 @@ namespace ccf::js
 
     std::set<RESTVerb> get_allowed_verbs(
       ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx) override;
+
     ///@}
 
     virtual ccf::js::extensions::Extensions get_extensions(

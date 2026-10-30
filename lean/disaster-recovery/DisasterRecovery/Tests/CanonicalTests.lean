@@ -15,8 +15,10 @@ open DisasterRecovery
 open CCF
 open DisasterRecovery.Model.Local
 
-private def localMachine (config : Config) (recovered : TxID) (location : Location)
-    : TransitionSystem NodeState Event where
+private abbrev localMachine (config : Config) (recovered : TxID) (location : Location)
+    : TransitionSystem where
+  State := NodeState
+  Action := Event
   init := fun state => state = initialNode location
   step :=
     fun state event =>

@@ -304,6 +304,7 @@ TEST_CASE("COSE ECDSA round trips and algorithm binding")
   using namespace tav::cbor;
   using ccf::cose::header::iana::ALG;
   using ccf::crypto::CurveID;
+
   struct Curve
   {
     CurveID id;
@@ -311,6 +312,7 @@ TEST_CASE("COSE ECDSA round trips and algorithm binding")
     int64_t esp;
     size_t signature_size;
   };
+
   constexpr std::array curves = {
     Curve{CurveID::SECP256R1, -7, -9, 64},
     Curve{CurveID::SECP384R1, -35, -51, 96},

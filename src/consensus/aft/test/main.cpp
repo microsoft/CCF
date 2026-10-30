@@ -14,6 +14,50 @@
 using ms = std::chrono::milliseconds;
 
 DOCTEST_TEST_CASE(
+  "Retirement hooks use transaction versions" * doctest::test_suite("store"))
+{
+  const auto self = ccf::kv::test::PrimaryNodeId;
+  const auto peer = ccf::kv::test::FirstBackupNodeId;
+  aft::LoggingStubStoreConfig store(self);
+  std::vector<std::pair<aft::Index, std::vector<ccf::kv::NodeId>>> calls;
+  store.set_set_retired_committed_hook(
+    [&](aft::Index version, const std::vector<ccf::kv::NodeId>& node_ids) {
+      calls.emplace_back(version, node_ids);
+    });
+  aft::Configuration::Nodes first;
+  first[self] = {};
+  aft::Configuration::Nodes second;
+  second[peer] = {};
+  store.retired_committed_entries = {
+    {5, first}, {7, second}, {9, first}, {11, second}};
+
+  store.compact(4);
+  DOCTEST_CHECK(calls.empty());
+  DOCTEST_CHECK(store.retired_committed_entries.size() == 4);
+
+  store.compact(8);
+  DOCTEST_REQUIRE(calls.size() == 2);
+  DOCTEST_CHECK(calls[0].first == 5);
+  DOCTEST_CHECK(calls[0].second == std::vector<ccf::kv::NodeId>{self});
+  DOCTEST_CHECK(calls[1].first == 7);
+  DOCTEST_CHECK(calls[1].second == std::vector<ccf::kv::NodeId>{peer});
+  DOCTEST_CHECK(store.retired_committed_entries.size() == 2);
+
+  store.compact(9);
+  DOCTEST_REQUIRE(calls.size() == 3);
+  DOCTEST_CHECK(calls[2].first == 9);
+  DOCTEST_CHECK(calls[2].second == std::vector<ccf::kv::NodeId>{self});
+  DOCTEST_CHECK(store.retired_committed_entries.size() == 1);
+  store.compact(9);
+  DOCTEST_CHECK(calls.size() == 3);
+
+  store.rollback({2, 10}, 2);
+  DOCTEST_CHECK(store.retired_committed_entries.empty());
+  store.compact(12);
+  DOCTEST_CHECK(calls.size() == 3);
+}
+
+DOCTEST_TEST_CASE(
   "Consensus owns its periodic timer" * doctest::test_suite("single"))
 {
   const auto self = ccf::kv::test::PrimaryNodeId;
@@ -101,7 +145,7 @@ DOCTEST_TEST_CASE(
     for (size_t i = 0; i < iterations; ++i)
     {
       raft.recv_message(
-        peer, reinterpret_cast<const uint8_t*>(&vote), sizeof(vote));
+        peer, {reinterpret_cast<const uint8_t*>(&vote), sizeof(vote)});
     }
   });
   std::thread notices([&]() {
@@ -1289,7 +1333,6 @@ struct TestNodeOptions
 {
   ccf::consensus::Configuration settings = raft_settings;
   std::shared_ptr<Store> kv = nullptr;
-  bool pre_vote_enabled = true;
   std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
   bool public_only = false;
 };
@@ -1310,7 +1353,7 @@ struct TestNode
       std::make_unique<Adaptor>(kv),
       std::make_unique<aft::LedgerStubProxy>(id),
       std::make_shared<aft::ChannelStubProxy>(),
-      std::make_shared<aft::State>(id, options.pre_vote_enabled),
+      std::make_shared<aft::State>(id),
       nullptr,
       std::move(options.commit_callbacks),
       options.public_only)
@@ -1398,7 +1441,11 @@ struct PrimaryAndBackup
   std::optional<aft::AppendEntriesResponse> backup_receives(
     const std::vector<uint8_t>& msg)
   {
-    r1.recv_message(id0, msg.data(), msg.size());
+    const auto message = std::span<const uint8_t>(msg);
+    r1.recv_message(
+      id0,
+      message.first(sizeof(aft::AppendEntries)),
+      message.subspan(sizeof(aft::AppendEntries)));
     auto response = c1->pop_first(aft::raft_append_entries_response, id0);
     DOCTEST_REQUIRE(c1->messages.empty());
     if (!response.has_value())
@@ -1411,9 +1458,59 @@ struct PrimaryAndBackup
   void primary_receives(const aft::AppendEntriesResponse& response)
   {
     const auto msg = as_bytes(response);
-    r0.recv_message(id1, msg.data(), msg.size());
+    r0.recv_message(id1, msg);
   }
 };
+
+DOCTEST_TEST_CASE(
+  "AppendEntries accepts separate header and ledger views" *
+  doctest::test_suite("multiple"))
+{
+  PrimaryAndBackup n;
+  n.replicate(1, 1);
+  n.r0.periodic(request_timeout);
+  const auto header = n.take_append_entries_header();
+  const auto message = n.with_payload(header);
+  std::vector<uint8_t> body(
+    message.begin() + sizeof(aft::AppendEntries), message.end());
+  bool valid = true;
+  DOCTEST_SUBCASE("Valid entry") {}
+  DOCTEST_SUBCASE("Missing ledger body")
+  {
+    body.clear();
+    valid = false;
+  }
+  DOCTEST_SUBCASE("Truncated ledger entry")
+  {
+    body.resize(1);
+    valid = false;
+  }
+  DOCTEST_SUBCASE("Ledger entry with an unexpected term")
+  {
+    auto* data = body.data() + sizeof(size_t) + sizeof(bool);
+    auto size = sizeof(aft::Term);
+    serialized::write<aft::Term>(data, size, n.r0.get_view() + 1);
+    valid = false;
+  }
+
+  const auto before = body;
+  n.r1.recv_message(n.id0, header, body);
+  const auto response =
+    n.c1->pop_first(aft::raft_append_entries_response, n.id0);
+  DOCTEST_REQUIRE(response.has_value());
+  const auto ack = read_msg<aft::AppendEntriesResponse>(response.value());
+  if (valid)
+  {
+    require_ack(ack, 1);
+    DOCTEST_REQUIRE(n.r1.ledger->ledger == n.r0.ledger->ledger);
+  }
+  else
+  {
+    require_nack(ack, 0);
+    DOCTEST_REQUIRE(n.r1.ledger->ledger.empty());
+  }
+  DOCTEST_REQUIRE(body == before);
+}
 
 DOCTEST_TEST_CASE(
   "Ledger overload drops AppendEntries before processing" *
@@ -1532,7 +1629,7 @@ DOCTEST_TEST_CASE(
       .term = n.r1.get_view() + 1,
       .last_committable_idx = 0,
       .term_of_last_committable_idx = 0});
-    n.r1.recv_message(n.id0, request.data(), request.size());
+    n.r1.recv_message(n.id0, request);
     DOCTEST_REQUIRE(
       n.c1->count_messages_with_type(aft::raft_request_vote_response) == 1);
     DOCTEST_REQUIRE(n.r1.get_view() == n.r0.get_view() + 1);
@@ -1701,7 +1798,7 @@ DOCTEST_TEST_CASE(
     .term = r0.get_view(),
     .last_log_idx = 1,
     .success = aft::AppendEntriesResponseType::OK});
-  r0.recv_message(node_id1, ack.data(), ack.size());
+  r0.recv_message(node_id1, ack);
   DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
   DOCTEST_REQUIRE(r0.get_details().configs.size() == 1);
 
@@ -1768,7 +1865,7 @@ DOCTEST_TEST_CASE(
     .term = r0.get_view(),
     .last_log_idx = 1,
     .success = aft::AppendEntriesResponseType::OK});
-  r0.recv_message(node_id1, ack.data(), ack.size());
+  r0.recv_message(node_id1, ack);
   DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
   r0.remove_deleted_nodes(1, {node_id2});
   DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
@@ -1778,7 +1875,7 @@ DOCTEST_TEST_CASE(
     .term = r0.get_view(),
     .last_log_idx = 2,
     .success = aft::AppendEntriesResponseType::OK});
-  r0.recv_message(node_id1, ack.data(), ack.size());
+  r0.recv_message(node_id1, ack);
   DOCTEST_REQUIRE(r0.get_committed_seqno() == 2);
   DOCTEST_REQUIRE(r0.get_details().configs.size() == 1);
   DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
@@ -1786,7 +1883,7 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
-  "Raft messages that cannot be parsed or authenticated are ignored" *
+  "Raft messages that cannot be parsed are ignored" *
   doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
@@ -1833,7 +1930,7 @@ DOCTEST_TEST_CASE(
         serialized::write<aft::RaftMsgType>(data, size, type);
       }
 
-      r1.recv_message(node_id0, msg.data(), msg.size());
+      r1.recv_message(node_id0, msg);
       require_unchanged();
     }
   }
@@ -1842,32 +1939,15 @@ DOCTEST_TEST_CASE(
   {
     const auto msg =
       as_bytes(aft::RaftHeader<aft::raft_append_entries_signed_response>{});
-    r1.recv_message(node_id0, msg.data(), msg.size());
+    r1.recv_message(node_id0, msg);
     require_unchanged();
   }
 
   DOCTEST_SUBCASE("Unknown message type")
   {
     const auto msg = as_bytes(static_cast<aft::RaftMsgType>(0xDEADBEEF));
-    r1.recv_message(node_id0, msg.data(), msg.size());
+    r1.recv_message(node_id0, msg);
     require_unchanged();
-  }
-
-  DOCTEST_SUBCASE("Message failing authentication")
-  {
-    const auto msg = as_bytes(aft::RequestVote{
-      .term = 5, .last_committable_idx = 0, .term_of_last_committable_idx = 0});
-
-    r1c->fail_recv_authentication = true;
-    r1.recv_message(node_id0, msg.data(), msg.size());
-    require_unchanged();
-
-    DOCTEST_INFO("The same message is acted on once it is authenticated");
-    r1c->fail_recv_authentication = false;
-    r1.recv_message(node_id0, msg.data(), msg.size());
-    DOCTEST_REQUIRE(r1.get_view() == 5);
-    DOCTEST_REQUIRE(
-      r1c->count_messages_with_type(aft::raft_request_vote_response) == 1);
   }
 }
 
@@ -2218,7 +2298,7 @@ DOCTEST_TEST_CASE(
     .success = aft::AppendEntriesResponseType::OK});
   for (const auto& backup : {node_id1, node_id2})
   {
-    r0.recv_message(backup, over_ack.data(), over_ack.size());
+    r0.recv_message(backup, over_ack);
     DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
   }
 
@@ -2227,7 +2307,7 @@ DOCTEST_TEST_CASE(
     "no longer commits on their word, even entries it does hold");
   DOCTEST_REQUIRE(
     r0.replicate(ccf::kv::BatchVector{{2, data, true, hooks}}, r0.get_view()));
-  r0.recv_message(node_id1, over_ack.data(), over_ack.size());
+  r0.recv_message(node_id1, over_ack);
   DOCTEST_REQUIRE(r0.get_last_idx() == 2);
   DOCTEST_REQUIRE(r0.get_committed_seqno() == 1);
   DOCTEST_REQUIRE(r0.is_primary());
@@ -2261,7 +2341,7 @@ DOCTEST_TEST_CASE(
   const auto deliver = [](TRaft& from, TRaft& to, aft::RaftMsgType type) {
     auto msg = channel_stub_proxy(from)->pop_first(type, to.id());
     DOCTEST_REQUIRE(msg.has_value());
-    to.recv_message(from.id(), msg->data(), msg->size());
+    to.recv_message(from.id(), *msg);
   };
 
   DOCTEST_INFO("Nodes 0 and 1 both become pre-vote candidates in view 0");
@@ -2308,7 +2388,7 @@ DOCTEST_TEST_CASE(
     "not counted as a vote either");
   const auto grant = as_bytes(
     aft::RequestPreVoteResponse{.term = r0.get_view(), .vote_granted = true});
-  r0.recv_message(node_id2, grant.data(), grant.size());
+  r0.recv_message(node_id2, grant);
   DOCTEST_REQUIRE(r0.is_candidate());
   DOCTEST_REQUIRE_FALSE(r0.is_primary());
 }
@@ -2445,7 +2525,7 @@ DOCTEST_TEST_CASE(
   r1.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(r1c->messages.empty());
   const auto msg = as_bytes(aft::ProposeRequestVote{.term = r1.get_view()});
-  r1.recv_message(node_id0, msg.data(), msg.size());
+  r1.recv_message(node_id0, msg);
   DOCTEST_REQUIRE(r1c->messages.empty());
   DOCTEST_REQUIRE(r1.is_backup());
 }
@@ -2589,17 +2669,7 @@ DOCTEST_TEST_CASE(
 {
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
 
-  bool pre_vote_enabled = true;
-  DOCTEST_SUBCASE("Pre-vote enabled")
-  {
-    pre_vote_enabled = true;
-  }
-  DOCTEST_SUBCASE("Pre-vote disabled")
-  {
-    pre_vote_enabled = false;
-  }
-
-  TestNode node(node_id, {.pre_vote_enabled = pre_vote_enabled});
+  TestNode node(node_id);
   auto& r0 = node.raft;
   auto r0c = channel_stub_proxy(r0);
 

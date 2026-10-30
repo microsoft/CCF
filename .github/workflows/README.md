@@ -12,29 +12,31 @@ At a weekly rollover, restore keys first reuse the latest cache for the same dep
 
 The action also assigns uv a writable cache directory outside `/github/home/.cache`, because some tests clear that directory. A weekly cache persists uv's content-addressed package cache, keyed on the pinned uv installer, `python/pyproject.toml`, and the `python-requirements` input, which each workflow sets to the requirements files it installs so unrelated jobs do not invalidate each other's cache; jobs that do not install Python packages disable this cache entirely with `cache-python-packages: false`. CI dependency setup uses `uv pip` so cached packages remain reusable, with workflows configuring the package index through `UV_INDEX_URL`. Pip is not used for package installation because the PyPI proxy redirects artifacts to short-lived URLs that pip cannot reuse across jobs.
 
-## Lean package checks
-
-The local composite action in `.github/actions/lean-checks/action.yml` restores the Mathlib cache, checks the generated library import root with `mk_all --check --module`, builds with `lake build --wfail --fail-fast` (which runs each package's build-time `#eval` tests), builds the shared `CCF` library, runs Lean's built-in linters with `lake lint` and the Mathlib linters with `runLinter`, and checks the package's formatting with `scripts/lean-format-checks.sh`.
-Each caller supplies a `working-directory`, `library` and `executable-root`, and puts the package's pinned Lean toolchain on `PATH` before invoking the action.
-
 # Maintained
 
 ## Bencher
 
-Builds and runs CCF performance tests, both end to end and micro-benchmarks. Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with a seven-run half-life.
-The end-to-end tests include `fluentd_emission`, which measures two-node throughput and latency with Raft trace export disabled and then enabled, sending events to a local Fluentd-compatible TCP collector.
+Builds and runs CCF performance tests, both end to end and micro-benchmarks.
+Results are stored as artifacts and summarized in the workflow run against an EWMA baseline with the same half-life for all benchmarks and metrics.
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
 Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
+
+The `FluentD` benchmark reuses Basic Blocking with one node and 20 ms signatures, exporting traces to a lightweight local decoding collector.
+Its throughput, latency, and node memory are charted alongside the other benchmarks, which run without trace export.
+Received-event counts, exporter drops, and drop rate are logged and saved as `*_fluentd.json` in the network's common directory under `workspace`, then uploaded for validation, not charted.
 
 File: `bencher.yml`
 3rd party dependencies: None
 
 ## Bencher A/B
 
-Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing up to five recent branch runs against the recent trend on `main`. Two nested shaded blue bands show the shared seven-run-half-life EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs. Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run. Triggered on PRs that have the label `bench-ab`.
+Builds and runs CCF performance tests on the PR branch, then renders radar charts comparing up to five recent branch runs against the recent trend on `main`.
+Two nested shaded blue bands show the EWMA baseline +/- 1 and +/- 2 standard deviations of the latest `main` runs, using the same seven-run half-life as [Bencher](#bencher) for all benchmarks and metrics.
+Both branch and `main` histories are restored from cumulative perf artifacts, and the orange branch lines progress from the faintest oldest run to the strongest latest run.
+Triggered on PRs that have the label `bench-ab`.
 
-The end-to-end tests run with `CCF_BENCHMARK_FLUENTD=1`. For each workload and signature interval, this starts a local Fluentd-compatible TCP collector and configures every node to export Raft trace events to it. The collector decodes and counts events without storing them, and the run fails if any node sends none. The radar charts therefore compare branch runs with export enabled against `main` runs without export. `fluentd_emission` is excluded because it configures its own collector. Collector counts, node logs and configurations, and Locust statistics are uploaded as the `benchmark-diagnostics` artifact. To reproduce a run locally, set `CCF_BENCHMARK_FLUENTD=1` when running a Locust benchmark.
+Includes the same `FluentD` workload as [Bencher](#bencher), with validation counts uploaded as `fluentd-counts`.
 
 File: `bencher-ab.yml`
 3rd party dependencies: None
@@ -160,15 +162,15 @@ File: `tla-shallow.yml`
 
 Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
 
-The disaster recovery and KV jobs both use the shared [Lean package checks](#lean-package-checks) action on relevant pull requests.
-Behavior checks run with `#eval` when their test module is built, and assertion failures fail the build.
+The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.
+Canonical behavior checks run with `#eval` when their test module is built, and assertion failures fail the build.
 The build includes both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
-The standard `mk_all --check --module` command ensures that the modular library root imports every library module, so newly added proofs cannot silently escape the checks.
-Each package's architecture and proof-coverage tests use `CCF.Architecture` from `lean/common` to check that models and properties do not import proofs, and that every property has an exported theorem.
+The shared `lake exe check-imports` command checks that each package's library roots transitively import every library source module, including private test imports, so newly added proofs cannot silently escape the checks.
+Build, import coverage, and kernel/axiom checks have separate package-labelled log groups.
 
-The kernel-check job runs `lake check --inadvisably-no-sandbox` on Ubuntu 26.04 for each of the disaster-recovery and KV packages, including their imported common infrastructure.
-Build isolation is disabled so the packages can use the sibling common sources directly; kernel rechecking and the axiom-dependency audit remain enabled.
-Each package's replayer is its only executable entrypoint; test runners are namespaced within the library.
+The kernel-check job runs `lake check --inadvisably-no-sandbox` on Ubuntu 26.04 for the disaster-recovery model and replayer package, including its imported common infrastructure.
+Build isolation is disabled so disaster recovery can use the sibling common sources directly; kernel rechecking and the axiom-dependency audit remain enabled.
+The replayer is the only executable default target; the canonical test runner is namespaced within the library.
 The job builds and exports every default target, including the complete library import root and replayer, and requires Lean's kernel to accept the declarations with only the standard axioms.
 This provides the axiom-dependency check and supplements the build, linters, and executable tests.
 Temporary exports use disk-backed runner storage rather than `/tmp`.
@@ -181,11 +183,8 @@ It then runs the trace viewer's `viewer/build.py`, which fails if a dump the vie
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
 
-Between them, the two jobs' formatting checks cover every tracked `.lean` file, each formatted by its package's pinned leanfmt dependency.
-The KV job runs in Azure Linux 3.
-It builds and runs the instrumented C++ KV unit tests before putting the pinned Lean distribution, which bundles its own `clang`, on `PATH`, then checks the generated traces against the Lean model and uploads trace diagnostics as artifacts.
-
-The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, the workflow, or its shared actions. It also runs on changes to the KV implementation and public KV API (`src/kv/`, `include/ccf/kv/`, `include/ccf/tx.h`, and the CHAMP map), the KV trace runner, `tests/tests.sh`, and the CMake build.
+After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
+The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`

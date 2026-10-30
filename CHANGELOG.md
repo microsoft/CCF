@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.23]
+
+[7.0.23]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.23
+
+### Changed
+
+- `ccf::crypto::OpenSSL::Unique_BIO` no longer accepts temporary `std::vector<uint8_t>` or `Pem` arguments, which would leave it dangling (#8628).
+
+### Fixed
+
+- `ccf::crypto::Verifier::remaining_seconds()` now returns the whole validity period before that period starts, and `remaining_percentage()` always returns a fraction between 0.0 and 1.0, including for a certificate whose validity period ends before it starts (#8626).
+- Service certificate renewal, recovery and previous-identity endorsements now preserve multi-RDN `service_subject_name` values such as `CN=CCF Service,O=CCF User` (#8627).
+- Nodes can now generate and load snapshots of services whose public or private state exceeds 2 GiB, including the snapshot taken when a recovered service opens. `ccf::crypto::KeyAesGcm` encryption and decryption now accept AAD and data larger than 2 GiB (#8644).
+
+## [7.0.22]
+
+[7.0.22]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.22
+
+### Added
+
+- The header-only Valijson library is now available to C++ applications through the CCF development package (#8621).
+- Added the `network.node_to_node_tls_interface` configuration field for future compatibility (#8617).
+
 ## [7.0.21]
 
 [7.0.21]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.21
@@ -11,6 +34,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Added
 
 - Added Ed25519 certificate support to `ccf::crypto::cert_der_to_pem()` and `cert_pem_to_der()` (#8598).
+- Experimental support for exporting Raft trace events to a Fluentd collector, configured with [`observability.fluentd`](doc/host_config_schema/host_config.json).
+  The configuration and event format may change in future releases (#8386).
 
 ### Fixed
 
@@ -32,8 +57,6 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Added
 
 - Ledger chunk download clients can opt in to immutable `.committed_prefix` resources containing recent committed entries that are not yet available in canonical `.committed` files (#8214).
-- Experimental support for exporting Raft trace events to a Fluentd collector, configured with [`observability.fluentd`](doc/host_config_schema/host_config.json).
-  The configuration and event format may change in future releases (#8386).
 - `ccf::crypto::COSEKey` now also parses, validates and encodes OKP COSE_Keys on Ed25519, and computes their RFC 9679 thumbprint. `ccf::crypto::make_cose_verifier_*()` and `ccf::crypto::COSEKey::from_der_cert()` now also accept Ed25519 public keys and certificates, and COSE verifiers verify `EdDSA` (-8) and `Ed25519` (-19) signatures with such keys (#8548).
 
 ### Changed
@@ -56,11 +79,6 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - The `memory` configuration section is deprecated and will be removed in 8.0. Use `ledger.max_pending_append_bytes` instead of `memory.circuit_size`, and `ledger.max_read_size` and `node_to_node.max_message_size` instead of `memory.max_msg_size`. Explicit new settings take precedence over legacy values. `memory.max_fragment_size` is ignored. Explicit legacy fields produce INFO deprecation notices, including with `--check` (#8568).
 - The helper functions in `ccf/endpoints/authentication/js.h` are deprecated and will be removed in 8.0. Their signatures are unchanged. Applications using these helpers for JavaScript endpoint dispatch can use the extensible registries in `ccf/js/registry.h` (#8520).
-
-### Removed
-
-- Removed the `CCF_RAFT_TRACING` CMake option.
-  Raft tracing is always built in (#8386).
 
 ### Fixed
 

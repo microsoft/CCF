@@ -12,6 +12,7 @@
 #include "node/rpc/network_identity_accessors_impl.h"
 #include "node/rpc/network_identity_chain_helpers.h"
 #include "node/snapshot_serdes.h"
+#include "service/tables/signing_identities.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <chrono>
@@ -67,6 +68,7 @@ namespace
     {
       return part_of_network;
     }
+
     ccf::CurrentServiceIdentity get_current_service_identity() override
     {
       return {current_service_from, topmost};
@@ -311,6 +313,7 @@ namespace
       REQUIRE(!entries.empty());
       return entries.back();
     }
+
     std::map<ccf::SeqNo, ccf::CoseEndorsement> historical_entries() const
     {
       std::map<ccf::SeqNo, ccf::CoseEndorsement> m;
@@ -814,6 +817,44 @@ TEST_CASE("read_current_service_identity reports a create txid only when open")
   REQUIRE(open.create_txid == create_txid);
   REQUIRE(open.endorsement.has_value());
   REQUIRE(open.endorsement->endorsing_key == cb.current_pkey_der());
+}
+
+TEST_CASE(
+  "read_current_service_identity checks the signing identity against the "
+  "service certificate")
+{
+  StoreNodeStateAccessor node_state;
+  const ccf::TxID create_txid{2, 1};
+  node_state.commit_service(ccf::ServiceStatus::OPEN, create_txid);
+  const auto other_key =
+    ccf::crypto::ECKeyPair_OpenSSL(ccf::crypto::CurveID::SECP384R1);
+
+  INFO("A matching published signing identity is accepted");
+  {
+    auto tx = node_state.store->create_tx();
+    tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES)
+      ->put(
+        ccf::IdentityType::CLASSICAL,
+        ccf::signing_identity_from_cert(node_state.service_cert));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE(node_state.get_current_service_identity().create_txid == create_txid);
+
+  INFO("A signing identity for another key is rejected");
+  {
+    auto tx = node_state.store->create_tx();
+    const auto other_cert =
+      other_key.self_sign("CN=Other", "20240101000000Z", "20250101000000Z");
+    tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES)
+      ->put(
+        ccf::IdentityType::CLASSICAL,
+        ccf::signing_identity_from_cert(other_cert));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  REQUIRE_THROWS_WITH_AS(
+    node_state.get_current_service_identity(),
+    "Service signing identity does not match its service certificate",
+    std::logic_error);
 }
 
 TEST_CASE(

@@ -3,13 +3,14 @@
 import argparse
 import json
 import os
+import pathlib
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
 from heapq import merge
 
 from raft_scenarios_gen import generate_scenarios
-from raft_trace import as_log_lines, check_connection_timeout, run_driver
+from raft_trace import as_log_lines, run_driver
 
 
 @contextmanager
@@ -152,19 +153,28 @@ if __name__ == "__main__":
 
     ostream = sys.stdout
 
-    if files:
-        check_connection_timeout(args.driver, files[0])
-
     # Create consensus-specific output directory
     os.makedirs(args.output, exist_ok=True)
+    raw_output = pathlib.Path(args.output) / "raw"
+    raw_output.mkdir(exist_ok=True)
 
     for scenario in files:
+        raw_trace = raw_output / f"{os.path.basename(scenario)}.ndjson"
+        raw_trace.unlink(missing_ok=True)
         ostream.write(f"## {os.path.basename(scenario)}\n\n")
         with block(ostream, "steps", 3), open(scenario, "r", encoding="utf-8") as scen:
             ostream.write(scen.read())
         proc, records = run_driver(args.driver, scenario)
         out, err = proc.stdout, proc.stderr
         test_result = test_result and proc.returncode == 0
+
+        if proc.returncode == 0 and not err and records:
+            raw_trace.write_text(
+                "".join(
+                    json.dumps(record, allow_nan=False) + "\n" for record in records
+                ),
+                encoding="utf-8",
+            )
 
         if err:
             err_list.append([os.path.basename(scenario), err])

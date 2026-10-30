@@ -27,6 +27,7 @@ namespace
     {
       fail_next_allocation = true;
     }
+
     ~AllocationFailure()
     {
       fail_next_allocation = false;

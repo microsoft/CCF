@@ -195,10 +195,6 @@ namespace aft
     // and the message is not captured.
     bool fail_sends = false;
 
-    // When set, recv_authenticated() reports that a message failed
-    // authentication, as a real channel does for a message it cannot verify.
-    bool fail_recv_authentication = false;
-
     ChannelStubProxy() {}
 
     size_t count_messages_with_type(RaftMsgType type)
@@ -260,15 +256,6 @@ namespace aft
       messages.emplace_back(to, std::move(m));
       return true;
     }
-
-    bool recv_authenticated(
-      const ccf::NodeId& from_node,
-      std::span<const uint8_t> cb,
-      const uint8_t*& data,
-      size_t& size) override
-    {
-      return !fail_recv_authentication;
-    }
   };
 
   enum class ReplicatedDataType
@@ -288,6 +275,7 @@ namespace aft
     ReplicatedDataType type;
     std::vector<uint8_t> data;
   };
+
   DECLARE_JSON_TYPE(ReplicatedData);
   DECLARE_JSON_REQUIRED_FIELDS(ReplicatedData, type, data);
 
@@ -464,9 +452,7 @@ namespace aft
 
     LoggingStubStoreConfig(ccf::NodeId id) : LoggingStubStore(id) {}
 
-    // compact and rollback emulate the behaviour of the retired_committed hook
-    // in the real store through the retired_committed_entries vector, see
-    // node_state.h, circa line 2147
+    // Emulate NodeState::on_nodes_global_commit with transaction versions.
     virtual void compact(Index i) override
     {
       for (auto& [version, configuration] : retired_committed_entries)
@@ -478,7 +464,7 @@ namespace aft
           {
             retired_committed_node_ids.push_back(node_id);
           }
-          set_retired_committed_hook(i, retired_committed_node_ids);
+          set_retired_committed_hook(version, retired_committed_node_ids);
         }
         else
         {
@@ -489,7 +475,7 @@ namespace aft
         std::remove_if(
           retired_committed_entries.begin(),
           retired_committed_entries.end(),
-          [i](const auto& entry) { return entry.first < i; }),
+          [i](const auto& entry) { return entry.first <= i; }),
         retired_committed_entries.end());
     }
 

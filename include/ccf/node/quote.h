@@ -58,6 +58,7 @@ namespace ccf
       std::shared_ptr<NetworkIdentitySubsystemInterface>
         network_identity_subsystem = nullptr);
   };
+
   QuoteVerificationResult verify_tcb_version_against_store(
     ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info);
 

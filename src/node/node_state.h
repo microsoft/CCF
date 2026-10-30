@@ -191,6 +191,7 @@ namespace ccf
         struct ClearOnExit
         {
           NodeState* owner;
+
           ~ClearOnExit()
           {
             std::lock_guard<ds::Mutex> guard(owner->lock);
@@ -289,6 +290,7 @@ namespace ccf
         {
           NodeState* owner;
           BackupSnapshotFetch* task;
+
           ~ClearOnExit()
           {
             std::lock_guard<ds::Mutex> guard(
@@ -1686,7 +1688,8 @@ namespace ccf
             startup_inputs.previous_service_identity.value());
 
           network.identity = std::make_unique<ccf::NetworkIdentity>(
-            ccf::crypto::get_subject_name(previous_service_identity_cert),
+            ccf::crypto::make_verifier(previous_service_identity_cert)
+              ->subject_der(),
             curve_id,
             startup_time,
             config.command.recover.initial_service_certificate_validity_days);

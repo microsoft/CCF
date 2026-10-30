@@ -198,6 +198,7 @@ namespace ccf
       }
     }
   }
+
   pal::UVMEndorsements verify_uvm_endorsements(
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const pal::PlatformAttestationMeasurement& uvm_measurement,

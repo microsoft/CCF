@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+
 namespace ccf
 {
   enum class LoggerLevel : uint8_t
