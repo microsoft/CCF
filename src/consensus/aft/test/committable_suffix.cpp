@@ -341,6 +341,18 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   DOCTEST_INFO("Node A dies");
   // Don't do anything with Node A from here
 
+  DOCTEST_INFO(
+    "Nodes C, D and E time out, so no longer know a leader, and their "
+    "RequestPreVotes are lost");
+  {
+    rC.periodic(election_timeout);
+    rD.periodic(election_timeout);
+    rE.periodic(election_timeout);
+    channelsC->messages.clear();
+    channelsD->messages.clear();
+    channelsE->messages.clear();
+  }
+
   DOCTEST_INFO("Node B becomes primary");
   {
     rB.periodic(election_timeout);
@@ -606,6 +618,11 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
       primary.periodic(election_timeout);
       channels_primary->messages.clear();
     }
+
+    // C times out, so no longer knows a leader, and its RequestPreVotes are
+    // lost
+    rC.periodic(election_timeout);
+    channelsC->messages.clear();
 
     primary.periodic(election_timeout);
 
