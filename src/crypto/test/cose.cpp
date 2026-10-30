@@ -660,6 +660,96 @@ TEST_CASE("Check unprotected header")
   }
 }
 
+TEST_CASE("Unprotected header edits preserve submitted encodings")
+{
+  using namespace tav::cbor;
+
+  const auto original =
+    nondet_parse(envelope_flat).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+  const auto append_head = [](
+                             std::vector<uint8_t>& out,
+                             uint8_t major,
+                             size_t argument,
+                             size_t width) {
+    const auto additional = width == 1 ? 24 :
+      width == 2                       ? 25 :
+      width == 4                       ? 26 :
+                                         27;
+    out.push_back((major << 5) | additional);
+    for (size_t i = width; i > 0; --i)
+    {
+      out.push_back((static_cast<uint64_t>(argument) >> (8 * (i - 1))) & 0xff);
+    }
+  };
+
+  const auto append_bytes =
+    [&](std::vector<uint8_t>& out, const Value& bytes, size_t width) {
+      const auto payload = bytes.as_bytes();
+      append_head(out, 2, payload.size(), width);
+      out.insert(out.end(), payload.begin(), payload.end());
+    };
+
+  for (const size_t width : {1, 2, 4, 8})
+  {
+    CAPTURE(width);
+    std::vector<uint8_t> prefix;
+    append_head(prefix, 6, 18, width);
+    append_head(prefix, 4, 4, width);
+    append_bytes(prefix, original.array_at(0), width);
+    std::vector<uint8_t> suffix;
+    append_bytes(suffix, original.array_at(2), width);
+    append_bytes(suffix, original.array_at(3), width);
+
+    for (const auto* header_hex : {"a0", "b800", "a1182a83a10141ffd8184100f5"})
+    {
+      const auto header = ccf::ds::from_hex(header_hex);
+      auto submitted = prefix;
+      submitted.insert(submitted.end(), header.begin(), header.end());
+      submitted.insert(submitted.end(), suffix.begin(), suffix.end());
+      verify_envelope(submitted, detached_payload, false);
+
+      auto expected = prefix;
+      expected.push_back(0xa0);
+      expected.insert(expected.end(), suffix.begin(), suffix.end());
+      const auto stripped = ccf::cose::edit::set_unprotected_header(
+        submitted, ccf::cose::edit::desc::Empty{});
+      CHECK(stripped == expected);
+      verify_envelope(stripped, detached_payload, false);
+
+      const ccf::cose::edit::desc::Value receipt_desc{
+        ccf::cose::edit::pos::InArray{}, 394, value};
+      const auto transparent =
+        ccf::cose::edit::set_unprotected_header(stripped, receipt_desc);
+      CHECK(std::equal(prefix.begin(), prefix.end(), transparent.begin()));
+      CHECK(std::equal(suffix.rbegin(), suffix.rend(), transparent.rbegin()));
+      CHECK(
+        ccf::cose::edit::set_unprotected_header(
+          transparent, ccf::cose::edit::desc::Empty{}) == expected);
+      verify_envelope(transparent, detached_payload, false);
+    }
+  }
+
+  for (const auto* malformed_hex :
+       {"d28340a040",
+        "d28540a0404000",
+        "d28440004040",
+        "d28440a00040",
+        "d28440a04000",
+        "d28440a0404000",
+        "d2845f40ffa04040"})
+  {
+    CHECK_THROWS_AS(
+      ccf::cose::edit::set_unprotected_header(
+        ccf::ds::from_hex(malformed_hex), ccf::cose::edit::desc::Empty{}),
+      DecodeError);
+  }
+
+  const auto empty_fields = ccf::ds::from_hex("d28440a04040");
+  CHECK(
+    ccf::cose::edit::set_unprotected_header(
+      empty_fields, ccf::cose::edit::desc::Empty{}) == empty_fields);
+}
+
 TEST_CASE("Detach payload")
 {
   using namespace tav::cbor;
@@ -887,6 +977,57 @@ TEST_CASE("Decode CCF COSE receipt")
   REQUIRE(receipt.phdr.ccf.txid == "2.17");
   REQUIRE(receipt.phdr.vds == 2);
 
+  {
+    using namespace tav::cbor;
+
+    const auto envelope =
+      nondet_parse(receipt_bytes).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    const auto phdr = nondet_parse(envelope.array_at(0).as_bytes());
+    const std::array<int64_t, 9> vds_values = {
+      0,
+      1,
+      2,
+      3,
+      -1,
+      (int64_t{1} << 32) + 2,
+      2 - (int64_t{1} << 32),
+      std::numeric_limits<int64_t>::min() + 2,
+      std::numeric_limits<int64_t>::max()};
+
+    for (const auto vds : vds_values)
+    {
+      CAPTURE(vds);
+      const auto encoded_phdr =
+        ccf::cbor::with_entry(
+          phdr, ccf::cose::header::iana::VDS, make_signed(vds))
+          .nondet_serialize();
+      const auto edited =
+        make_tagged(
+          ccf::cbor::tag::COSE_SIGN_1,
+          ccf::cbor::with_element(envelope, 0, make_bytes(encoded_phdr)))
+          .nondet_serialize();
+
+      for (const bool recompute_root : {false, true})
+      {
+        CAPTURE(recompute_root);
+        if (vds == ccf::cose::value::CCF_LEDGER_SHA256)
+        {
+          REQUIRE(
+            ccf::cose::decode_ccf_receipt(edited, recompute_root).phdr.vds ==
+            vds);
+        }
+        else
+        {
+          REQUIRE_THROWS_WITH_AS(
+            ccf::cose::decode_ccf_receipt(edited, recompute_root),
+            fmt::format("Unsupported vds value ({}) in protected header", vds)
+              .c_str(),
+            ccf::cose::COSEDecodeError);
+        }
+      }
+    }
+  }
+
   REQUIRE(
     ccf::ds::to_hex(receipt.merkle_root) ==
     "209f5aefb0f45d7647c917337044c44a1b848fe833fa2869d016bea797d79a9e");
@@ -927,6 +1068,100 @@ TEST_CASE("Decode CCF COSE receipt")
     const auto malformed = with_decoded_proof_hash_size(field, 31);
     REQUIRE_THROWS_AS(
       ccf::cose::recompute_merkle_root(malformed), ccf::cose::COSEDecodeError);
+  }
+}
+
+TEST_CASE("CCF receipt proof schema and mixed proofs")
+{
+  using namespace tav::cbor;
+
+  const std::string hash = "5820" + std::string(64, '0');
+  const std::string leaf = "83" + hash + "626365" + hash;
+  const auto encode_bytes = [](const std::string& hex) {
+    return ccf::ds::to_hex(
+      make_bytes(ccf::ds::from_hex(hex)).nondet_serialize());
+  };
+
+  const auto inclusion =
+    [&](const std::string& leaf_hex, const std::string& path_hex) {
+      return encode_bytes("a201" + leaf_hex + "02" + path_hex);
+    };
+
+  const auto decode = [](const std::string& vdp_hex) {
+    const auto encoded = ccf::ds::from_hex("d28440a119018c" + vdp_hex + "f640");
+    const auto envelope =
+      nondet_parse(encoded).tag_at(ccf::cbor::tag::COSE_SIGN_1);
+    return ccf::cose::decode_merkle_proofs(envelope);
+  };
+
+  const auto valid = inclusion(leaf, "80");
+  REQUIRE(decode("a12081" + valid).front().path.empty());
+
+  for (const auto& malformed : {
+         inclusion("82" + hash + "626365", "80"),
+         inclusion("84" + hash + "626365" + hash + "00", "80"),
+         inclusion("83" + hash + "60" + hash, "80"),
+         inclusion(
+           "83" + hash +
+             ccf::ds::to_hex(
+               make_string(std::string(1025, 'x')).nondet_serialize()) +
+             hash,
+           "80"),
+         inclusion("83" + hash + "426365" + hash, "80"),
+         inclusion(
+           "83" + hash + "626365" + "581f" + std::string(62, '0'), "80"),
+         inclusion(leaf, "a0"),
+         inclusion(leaf, "818200" + hash),
+         inclusion(leaf, "8183f4" + hash + "00"),
+         inclusion(leaf, "8182f4581f" + std::string(62, '0')),
+         encode_bytes("a301" + leaf + "02800300"),
+         encode_bytes("a301" + leaf + "01800280"),
+         encode_bytes("a201" + leaf + "028000"),
+       })
+  {
+    CHECK_THROWS(decode("a12081" + malformed));
+  }
+
+  const auto maximum_evidence = inclusion(
+    "83" + hash +
+      ccf::ds::to_hex(make_string(std::string(1024, 'x')).nondet_serialize()) +
+      hash,
+    "80");
+  CHECK_NOTHROW(decode("a12081" + maximum_evidence));
+
+  for (const auto& malformed_vdp : std::vector<std::string>{
+         "a0",
+         "a12080",
+         "a120a0",
+         "a1208140",
+         "a12281" + valid,
+         "a22081" + valid + "2081" + valid,
+         "a22081" + valid + "2180"})
+  {
+    CHECK_THROWS(decode(malformed_vdp));
+  }
+
+  const auto decoded = decode("a12081" + valid).front();
+  const auto anchor =
+    ccf::ds::to_hex(ccf::cose::recompute_merkle_root(decoded));
+  const auto path = "8182f4" + hash;
+  const auto inclusion_with_path = inclusion(leaf, path);
+  const auto consistency = encode_bytes("a2015820" + anchor + "02" + path);
+  CHECK_NOTHROW(decode("a22081" + inclusion_with_path + "2181" + consistency));
+
+  for (const auto& malformed : {
+         encode_bytes("a201" + hash + "02" + path),
+         encode_bytes("a2015820" + anchor + "0280"),
+         encode_bytes("a2015820" + anchor + "028182f5" + hash),
+         encode_bytes("a2015820" + anchor + "02818200" + hash),
+         encode_bytes("a3015820" + anchor + "02" + path + "0300"),
+         encode_bytes("a201581f" + std::string(62, '0') + "02" + path),
+         encode_bytes("a2015820" + anchor + "02" + path + "00"),
+       })
+  {
+    CHECK_THROWS(decode("a22081" + inclusion_with_path + "2181" + malformed));
+    CHECK_THROWS(decode(
+      "a22081" + inclusion_with_path + "2182" + consistency + malformed));
   }
 }
 

@@ -111,6 +111,22 @@ Verifying a receipt consists of the following steps:
 
 Note that since a receipt is a commitment by a service to a transaction, a verifier must know the :term:`Service Identity`, and provide it as an input to step 5.
 
+COSE Receipt Verification
+-------------------------
+
+The Python ``ccf.receipt.verify_cose(receipt_bytes, key, claim_digest)`` API verifies inclusion receipts against the caller's trusted service public key and independently computed SHA-256 claims digest.
+It validates the receipt and proof structures according to `CCF Profile for COSE Receipts, draft -06 <https://www.ietf.org/archive/id/draft-ietf-scitt-receipts-ccf-profile-06.html>`_, rejects duplicate map keys and trailing CBOR data, and accepts an empty inclusion path for a single-entry tree.
+Every inclusion proof must cover the supplied digest, and all supplied inclusion and consistency proofs must reconstruct the same signed root.
+Checking accompanying consistency proofs against that root does not establish consistency with a previously trusted checkpoint; this inclusion API does not take an older root.
+The deprecated ``ccf.cose.verify_receipt`` entry point retains its existing behavior and does not apply these additional checks.
+Callers should migrate to ``ccf.receipt.verify_cose`` to use the stricter verification.
+
+For SCITT statements, the application must compute the claims digest over the registered Signed Statement, not the Transparent Statement containing receipts.
+``ccf::cose::edit::set_unprotected_header`` preserves all input bytes outside the unprotected header, including non-preferred length encodings, and encodes an empty replacement header as ``0xa0``.
+This permits stripping and reinserting receipts without changing the registered components.
+The editor accepts definite-length, tagged COSE_Sign1 messages and rejects malformed or unsupported encodings.
+Applications should use the same preimage convention when registering and verifying statements; historical receipts bind the representation actually registered and cannot recover bytes discarded by earlier normalization.
+
 Application Claims
 ------------------
 
