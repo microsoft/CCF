@@ -14,7 +14,8 @@ open Kv.Model Kv.Properties
 
 theorem replay_segment_serializability
     : ∀ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        find w.stores sid = some s
+        Model.transitionSystem.Reachable w
+        → find w.stores sid = some s
         → (∀ r ∈ rs, SegmentEvent sid r.event)
         → CCF.Execution.Run Model.transitionSystem w rs final
         → ∃ after txs,
@@ -22,8 +23,9 @@ theorem replay_segment_serializability
             ∧ projectApplications w sid rs = .ok txs
             ∧ serialTransactions s.head.data s.head.version txs = some after.head.data
             ∧ after.head.version = s.head.version + txs.length := by
-  intro w final sid s rs live segment accepted
-  exact Proofs.Trace.replay_segment_serializability w final sid s rs live segment ((Proofs.Execution.replay_iff_run _ _ _).mp accepted)
+  intro w final sid s rs reachable live segment accepted
+  exact Proofs.Trace.replay_segment_serializability w final sid s
+    (Invariants.reachable_invariant w reachable) rs live segment ((Proofs.Execution.replay_iff_run _ _ _).mp accepted)
 
 theorem reachable_store_invariants
     : ∀ (w : World) (sid : Nat) (s : Store),
@@ -33,16 +35,16 @@ theorem reachable_store_invariants
           ∧ s.history.head? = some s.head
           ∧ s.global ≤ s.head.version
           ∧ (atCut s s.global).version = s.global := by
-  intro w sid s _reachable live
-  exact Proofs.Trace.reachable_store_invariants w sid s live
+  intro w sid s reachable live
+  exact Proofs.Trace.reachable_store_invariants w (Invariants.reachable_invariant w reachable) sid s live
 
 theorem reachable_store_data_invariants
     : ∀ (w : World) (sid : Nat) (s : Store),
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
         → Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
-  intro w sid s _reachable live
-  exact Proofs.Trace.reachable_store_data_invariants w sid s live
+  intro w sid s reachable live
+  exact Proofs.Trace.reachable_store_data_invariants w (Invariants.reachable_invariant w reachable) sid s live
 
 theorem step_capture_metadata
     : ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
@@ -143,7 +145,8 @@ theorem capture_replay_preserves_map
 theorem step_global_read_from_captured_map
     : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Option String)
         (t : Tx) (view : GlobalView),
-        txOf w sid tid = .ok t
+        Model.transitionSystem.Reachable w
+        → txOf w sid tid = .ok t
         → find t.globalViews map = some view
         → Model.transitionSystem.step w ⟨seq, .get sid tid map key value true⟩ = some next
         → value = (find view.frame.data (map, key)).map Cell.value
@@ -152,13 +155,15 @@ theorem step_global_read_from_captured_map
                   view.frame = atCut origin origin.global
                   ∧ view.frame.version = origin.global
                   ∧ CellsBounded view.frame.data origin.global) := by
-  intro w next sid tid seq map key value t view source captured accepted
-  exact Proofs.Trace.step_global_read_from_captured_map w next sid tid seq map key value t view source captured ((Proofs.Execution.step_iff_transition _ _ _).mp accepted)
+  intro w next sid tid seq map key value t view reachable source captured accepted
+  exact Proofs.Trace.step_global_read_from_captured_map w next sid tid seq
+    (Invariants.reachable_invariant w reachable) map key value t view source captured ((Proofs.Execution.step_iff_transition _ _ _).mp accepted)
 
 theorem step_global_has_from_captured_map
     : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Bool) (t : Tx)
         (view : GlobalView),
-        txOf w sid tid = .ok t
+        Model.transitionSystem.Reachable w
+        → txOf w sid tid = .ok t
         → find t.globalViews map = some view
         → Model.transitionSystem.step w ⟨seq, .has sid tid map key value true⟩ = some next
         → value = (find view.frame.data (map, key)).isSome
@@ -167,8 +172,9 @@ theorem step_global_has_from_captured_map
                   view.frame = atCut origin origin.global
                   ∧ view.frame.version = origin.global
                   ∧ CellsBounded view.frame.data origin.global) := by
-  intro w next sid tid seq map key value t view source captured accepted
-  exact Proofs.Trace.step_global_has_from_captured_map w next sid tid seq map key value t view source captured ((Proofs.Execution.step_iff_transition _ _ _).mp accepted)
+  intro w next sid tid seq map key value t view reachable source captured accepted
+  exact Proofs.Trace.step_global_has_from_captured_map w next sid tid seq
+    (Invariants.reachable_invariant w reachable) map key value t view source captured ((Proofs.Execution.step_iff_transition _ _ _).mp accepted)
 
 theorem discarded_handle_cannot_apply
     : ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),

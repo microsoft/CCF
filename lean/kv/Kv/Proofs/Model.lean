@@ -3,7 +3,7 @@
 
 module
 
-public import Kv.Properties.Programs
+public import Kv.Proofs.Invariants
 
 @[expose] public section
 
@@ -11,33 +11,10 @@ public import Kv.Properties.Programs
 
 namespace Kv.Proofs.Model
 
-open Kv.Model Kv.Model.Certificates Kv.Properties
+open Kv.Model Kv.Proofs.Invariants Kv.Properties
 
 section Generic
 variable {M K V : Type} [DecidableEq M] [DecidableEq K]
-
-theorem find_set_same (xs : Assoc K V) (k : K) (v : V)
-    : find (set xs k v) k = some v := by
-  simp [Model.set, find]
-
-theorem find_erase_same (xs : Assoc K V) (k : K) : find (erase xs k) k = none := by
-  induction xs with
-  | nil => rfl
-  | cons p xs ih =>
-      rcases p with ⟨a, v⟩
-      by_cases h : a = k <;> simp_all [erase, find]
-
-theorem find_erase_other (xs : Assoc K V) (a k : K) (h : a ≠ k)
-    : find (erase xs a) k = find xs k := by
-  induction xs with
-  | nil => rfl
-  | cons p xs ih =>
-      rcases p with ⟨b, v⟩
-      by_cases hba : b = a <;> by_cases hbk : b = k <;> simp_all [erase, find]
-
-theorem find_set_other (xs : Assoc K V) (a k : K) (v : V) (h : a ≠ k)
-    : find (set xs a v) k = find xs k := by
-  simp [Model.set, find, h, find_erase_other xs a k h]
 
 theorem find_image (db : DB M K V) (m : M) (key : K)
     : find (image db m) key = find db (m, key) := by
@@ -274,9 +251,9 @@ theorem runOp_preserves_snapshot (t next : Tx) (op : NormalOp String String Stri
   unfold runOp at h
   split at h
   next => simp [invalid] at h
-  next snap hs =>
+  next snap _ =>
     split at h
-    next n hn =>
+    next n _ =>
       simp [Pure.pure, Except.pure] at h
       cases h
       rfl
@@ -294,10 +271,10 @@ theorem rollback_preserves_earlier_cuts (s : Store) (v term cut : Nat)
   exact funext fun f => by by_cases h : f.version ≤ cut <;> simp [h, hmono f]
 
 theorem durable_cut_survives_rollback (s : Store) (v term cut : Nat)
-    (hcut : cut ≤ s.global) (hboundary : s.global ≤ v)
+    (valid : StoreInvariant s) (hcut : cut ≤ s.global) (hboundary : s.global ≤ v)
     : (atCut (rollbackStore s v term) cut).data = (atCut s cut).data := by
   rw [rollback_preserves_earlier_cuts s v term cut (Nat.le_trans hcut hboundary)
-    (Nat.le_trans hcut s.globalBound)]
+    (Nat.le_trans hcut valid.globalBound)]
 
 theorem compacted_map_unavailable (s : Store) (f : Frame) (m : String)
     (birth : Stamp) (existing : find f.births m = some birth)
@@ -390,24 +367,25 @@ theorem canApply_validates (s : Store) (t : Tx) (h : canApply s t = true)
       validates s.head.data t.normal.deps = true := by simpa [canApply] using h
   exact hh.2
 
-theorem transaction_snapshot_serial (t : Tx) (snap : Snapshot)
+theorem transaction_snapshot_serial (t : Tx) (snap : Snapshot) (valid : NormalInvariant t)
     (hs : t.snapshot = some snap)
     : serialRun t.data [] t.normal.log = some t.normal.writes := by
   have hc : normalRun t.data {} t.normal.log = some t.normal := by
-    simpa [hs] using t.certificate
+    simpa [NormalInvariant, hs] using valid
   exact readonly_snapshot_serial t.data t.normal.log t.normal hc
 
-/-- This applies directly to the transactions consumed by the trace checker:
-their stored, erased certificate is maintained by runOp, not assumed by replay. -/
+/-- A valid attempt that passes OCC agrees with serial execution on the current head. -/
 theorem transaction_application_serial (s : Store) (t : Tx) (snap : Snapshot)
+    (valid : NormalInvariant t)
     (hs : t.snapshot = some snap) (hv : canApply s t = true)
     : serialRun s.head.data [] t.normal.log = some t.normal.writes := by
   have hc : normalRun t.data {} t.normal.log = some t.normal := by
-    simpa [hs] using t.certificate
+    simpa [NormalInvariant, hs] using valid
   exact normalRun_serial t.data s.head.data t.normal.log {} t.normal hc
     (canApply_validates s t hv)
 
-theorem tryApply_serial (s next : Store) (t : Tx) (ha : tryApply s t = some next)
+theorem tryApply_serial (s next : Store) (t : Tx) (valid : NormalInvariant t)
+    (ha : tryApply s t = some next)
     : serialRun s.head.data [] t.normal.log = some t.normal.writes
       ∧ next.head.data = publish s.head.data (s.head.version + 1) t.normal.writes := by
   unfold tryApply at ha
@@ -417,20 +395,21 @@ theorem tryApply_serial (s next : Store) (t : Tx) (ha : tryApply s t = some next
     refine ⟨?_, rfl⟩
     cases hs : t.snapshot with
     | none =>
-        have hc : t.normal = {} := by simpa [hs] using t.certificate
+        have hc : t.normal = {} := by simpa [NormalInvariant, hs] using valid
         simp [hc, serialRun]
-    | some snap => exact transaction_application_serial s t snap hs hv
+    | some snap => exact transaction_application_serial s t snap valid hs hv
   next => simp at ha
 
 theorem executable_branch_serializability (s final : Store) (ts : List Tx)
+    (valid : ∀ t ∈ ts, NormalInvariant t)
     (h : AppliedBranch s ts final)
     : serialTransactions s.head.data s.head.version ts = some final.head.data := by
   induction h with
   | nil s => rfl
   | compact s final v ts _rest ih =>
-      simpa only [compact_preserves_head] using ih
+      simpa only [compact_preserves_head] using ih valid
   | cons s middle final t ts one rest ih =>
-      have hw := tryApply_serial s middle t one
+      have hw := tryApply_serial s middle t (valid t (by simp)) one
       have hversion : middle.head.version = s.head.version + 1 := by
         unfold tryApply at one
         split at one
@@ -438,6 +417,6 @@ theorem executable_branch_serializability (s final : Store) (ts : List Tx)
         next => simp at one
       simp only [serialTransactions, hw.1, Option.bind_some]
       rw [← hw.2, ← hversion]
-      exact ih
+      exact ih (fun tx member => valid tx (by simp [member]))
 
 end Kv.Proofs.Model

@@ -5,6 +5,7 @@ module
 
 public import Kv.Properties.Invariants
 public import Kv.Proofs.Execution
+public import Kv.Proofs.Invariants
 
 @[expose] public section
 
@@ -16,7 +17,7 @@ constructed stores.
 
 namespace Kv.Proofs.Witnesses
 
-open Kv.Model Kv.Properties
+open Kv.Model Kv.Properties Kv.Proofs.Invariants
 
 private instance (sid : Nat) : DecidablePred (SegmentEvent sid) :=
   fun e => by
@@ -77,6 +78,11 @@ private theorem world_replay (n : Nat)
   | error => simp [hr, Except.toOption] at h
   | ok => rfl
 
+private theorem world_reachable (n : Nat)
+    (h : (replay {} (trace.take n)).toOption.isSome = true)
+    : transitionSystem.Reachable (world n) :=
+  (Execution.reachable_iff_replay _).mpr ⟨_, world_replay n h⟩
+
 private theorem run_get {w : World} {rs : List Record}
     (h : (replay w rs).toOption.isSome = true)
     : CCF.Execution.Run transitionSystem w rs ((replay w rs).toOption.get h) :=
@@ -85,7 +91,10 @@ private theorem run_get {w : World} {rs : List Record}
 /-- A store that has applied one write to map `a`. -/
 private def written : Store := advance {} [(("a", "00"), some "11")]
 
-private def writtenSnapshot : Snapshot := ⟨written.head, 0, written, rfl⟩
+private theorem written_valid : StoreInvariant written :=
+  advance_invariant {} store_initial _
+
+private def writtenSnapshot : Snapshot := ⟨written.head, 0⟩
 
 /-- An attempt that acquired map `a` in `writtenSnapshot`. -/
 private def writtenTx : Tx :=
@@ -112,35 +121,74 @@ theorem publish_unique_witness : ∃ db : DB String String String, Unique db :=
   ⟨[], List.nodup_nil⟩
 
 theorem transaction_snapshot_serial_witness
-    : ∃ (t : Tx) (snap : Snapshot), t.snapshot = some snap ∧ t.normal.log ≠ [] :=
-  ⟨txAt 7 1, _, some_get (by decide +kernel), by decide +kernel⟩
+    : ∃ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        ∧ find w.txs tid = some t
+        ∧ t.snapshot = some snap
+        ∧ t.normal.log ≠ [] :=
+  ⟨
+    world 7,
+    1,
+    txAt 7 1,
+    _,
+    world_reachable 7 (by decide +kernel),
+    some_get (by decide +kernel),
+    some_get (by decide +kernel),
+    by decide +kernel
+  ⟩
 
 theorem transaction_application_serial_witness
-    : ∃ (s : Store) (t : Tx) (snap : Snapshot),
-        t.snapshot = some snap ∧ canApply s t = true ∧ t.normal.log ≠ [] :=
+    : ∃ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        ∧ storeOf w sid = .ok s
+        ∧ txOf w sid tid = .ok t
+        ∧ t.snapshot = some snap
+        ∧ canApply s t = true
+        ∧ t.normal.log ≠ [] :=
   ⟨
+    world 8,
+    1,
+    1,
     storeAt 8 1,
     txAt 8 1,
     _,
+    world_reachable 8 (by decide +kernel),
+    ok_get (by decide +kernel),
+    ok_get (by decide +kernel),
     some_get (by decide +kernel),
     by decide +kernel,
     by decide +kernel
   ⟩
 
 theorem executable_branch_serializability_witness
-    : ∃ (s final : Store) (ts : List Tx), AppliedBranch s ts final ∧ ts ≠ [] := by
+    : ∃ (s final : Store) (ts : List Tx),
+        (∀ t ∈ ts,
+          ∃ (w : World) (tid : Nat),
+            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+        ∧ AppliedBranch s ts final
+        ∧ ts ≠ [] := by
   have h : canApply (storeAt 8 1) (txAt 8 1) = true := by decide +kernel
   exact ⟨
     storeAt 8 1,
     advance (storeAt 8 1) (txAt 8 1).normal.writes,
     [txAt 8 1],
+    by
+      intro t member
+      obtain rfl := List.mem_singleton.mp member
+      exact ⟨
+        world 8,
+        1,
+        world_reachable 8 (by decide +kernel),
+        some_get (by decide +kernel)
+      ⟩,
     .cons _ _ _ _ _ (by simp [tryApply, h]) (.nil _),
     List.cons_ne_nil _ _
   ⟩
 
 theorem replay_segment_serializability_witness
     : ∃ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        find w.stores sid = some s
+        Model.transitionSystem.Reachable w
+        ∧ find w.stores sid = some s
         ∧ (∀ r ∈ rs, SegmentEvent sid r.event)
         ∧ CCF.Execution.Run Model.transitionSystem w rs final
         ∧ rs ≠ [] :=
@@ -150,6 +198,7 @@ theorem replay_segment_serializability_witness
     1,
     _,
     (trace.drop 3).take 9,
+    world_reachable 3 (by decide +kernel),
     some_get (by decide +kernel),
     by decide +kernel,
     run_get (by decide +kernel),
@@ -365,7 +414,7 @@ theorem capture_replay_preserves_map_witness
 theorem captureGlobal_placeholder_witness
     : ∃ (s : Store) (snap : Snapshot) (map : String),
         find (captureLocal s snap map).births map = none :=
-  ⟨{}, ⟨{}, 0, {}, rfl⟩, "a", rfl⟩
+  ⟨{}, ⟨{}, 0⟩, "a", rfl⟩
 
 theorem captureGlobal_committed_witness
     : ∃ (s : Store) (snap : Snapshot) (map : String) (birth : Stamp),
@@ -375,7 +424,8 @@ theorem captureGlobal_committed_witness
 theorem step_global_read_from_captured_map_witness
     : ∃ (w next : World) (sid tid seq : Nat) (map key value : String) (t : Tx)
         (view : GlobalView),
-        txOf w sid tid = .ok t
+        Model.transitionSystem.Reachable w
+        ∧ txOf w sid tid = .ok t
         ∧ find t.globalViews map = some view
         ∧ Model.transitionSystem.step w ⟨seq, .get sid tid map key (some value) true⟩
           = some next :=
@@ -390,6 +440,7 @@ theorem step_global_read_from_captured_map_witness
     "11",
     _,
     _,
+    world_reachable 15 (by decide +kernel),
     ok_get (by decide +kernel),
     some_get (by decide +kernel),
     some_get (by decide +kernel)
@@ -398,7 +449,8 @@ theorem step_global_read_from_captured_map_witness
 theorem step_global_has_from_captured_map_witness
     : ∃ (w next : World) (sid tid seq : Nat) (map key : String) (t : Tx)
         (view : GlobalView),
-        txOf w sid tid = .ok t
+        Model.transitionSystem.Reachable w
+        ∧ txOf w sid tid = .ok t
         ∧ find t.globalViews map = some view
         ∧ Model.transitionSystem.step w ⟨seq, .has sid tid map key true true⟩
           = some next :=
@@ -412,6 +464,7 @@ theorem step_global_has_from_captured_map_witness
     "00",
     _,
     _,
+    world_reachable 16 (by decide +kernel),
     ok_get (by decide +kernel),
     some_get (by decide +kernel),
     some_get (by decide +kernel)
@@ -425,7 +478,7 @@ theorem rollback_keeps_prefix_witness
   ⟨
     compactStore written 1,
     _,
-    List.mem_of_mem_head? (compactStore written 1).headFirst,
+    List.mem_of_mem_head? (compact_invariant written written_valid 1).headFirst,
     by decide +kernel,
     by decide +kernel
   ⟩
@@ -436,20 +489,35 @@ theorem rollback_discards_suffix_witness
     written,
     0,
     _,
-    List.mem_of_mem_head? written.headFirst,
+    List.mem_of_mem_head? written_valid.headFirst,
     by decide +kernel,
     by decide +kernel
   ⟩
 
 theorem durable_cut_survives_rollback_witness
-    : ∃ (s : Store) (v cut : Nat),
-        cut ≤ s.global ∧ s.global ≤ v ∧ (atCut s cut).data ≠ [] :=
-  ⟨compactStore written 1, 1, 1, by decide +kernel, by decide +kernel, by decide +kernel⟩
+    : ∃ (w : World) (sid : Nat) (s : Store) (v cut : Nat),
+        Model.transitionSystem.Reachable w
+        ∧ find w.stores sid = some s
+        ∧ cut ≤ s.global
+        ∧ s.global ≤ v
+        ∧ (atCut s cut).data ≠ [] :=
+  ⟨
+    world 12,
+    1,
+    storeAt 12 1,
+    1,
+    1,
+    world_reachable 12 (by decide +kernel),
+    some_get (by decide +kernel),
+    by decide +kernel,
+    by decide +kernel,
+    by decide +kernel
+  ⟩
 
 theorem stale_term_cannot_apply_witness
     : ∃ (s : Store) (t : Tx) (snap : Snapshot),
         t.snapshot = some snap ∧ s.term ≠ snap.term :=
-  ⟨{}, { store := 0, snapshot := some ⟨{}, 1, {}, rfl⟩ }, _, rfl, by decide⟩
+  ⟨{}, { store := 0, snapshot := some ⟨{}, 1⟩ }, _, rfl, by decide⟩
 
 theorem discarded_handle_cannot_apply_witness
     : ∃ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),

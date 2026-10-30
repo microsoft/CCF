@@ -120,13 +120,17 @@ theorem transaction_snapshot_serial
         → find w.txs tid = some t
         → t.snapshot = some snap
         → serialRun t.data [] t.normal.log = some t.normal.writes := by
-  exact Proofs.Model.transaction_snapshot_serial
+  intro w tid t snap reachable live captured
+  exact Proofs.Model.transaction_snapshot_serial t snap
+    ((Proofs.Invariants.reachable_invariant w reachable).txs tid t live).normal captured
 
 /-- Witness: an attempt with a snapshot can have a nonempty log. -/
 theorem transaction_snapshot_serial_witness
     : ∃ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
-        Model.transitionSystem.Reachable w ∧ find w.txs tid = some t
-          ∧ t.snapshot = some snap ∧ t.normal.log ≠ [] := by
+        Model.transitionSystem.Reachable w
+        ∧ find w.txs tid = some t
+        ∧ t.snapshot = some snap
+        ∧ t.normal.log ≠ [] := by
   exact Proofs.Witnesses.transaction_snapshot_serial_witness
 
 /-- An attempt that may apply runs serially on the current head to the same staged writes. -/
@@ -138,7 +142,11 @@ theorem transaction_application_serial
         → t.snapshot = some snap
         → canApply s t = true
         → serialRun s.head.data [] t.normal.log = some t.normal.writes := by
-  exact Proofs.Model.transaction_application_serial
+  intro w sid tid s t snap reachable _store tx captured applies
+  exact Proofs.Model.transaction_application_serial s t snap
+    (Proofs.Invariants.txOf_invariant w
+      (Proofs.Invariants.reachable_invariant w reachable) sid tid t tx).normal
+    captured applies
 
 /-- Witness: an attempt with a nonempty log can apply. -/
 theorem transaction_application_serial_witness
@@ -146,24 +154,33 @@ theorem transaction_application_serial_witness
         Model.transitionSystem.Reachable w
         ∧ storeOf w sid = .ok s
         ∧ txOf w sid tid = .ok t
-        ∧ t.snapshot = some snap ∧ canApply s t = true ∧ t.normal.log ≠ [] := by
+        ∧ t.snapshot = some snap
+        ∧ canApply s t = true
+        ∧ t.normal.log ≠ [] := by
   exact Proofs.Witnesses.transaction_application_serial_witness
 
 /-- A branch of applied attempts matches running their logs serially from the start. -/
 theorem executable_branch_serializability
     : ∀ (s final : Store) (ts : List Tx),
-        (∀ t ∈ ts, ∃ (w : World) (tid : Nat),
-          Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+        (∀ t ∈ ts,
+          ∃ (w : World) (tid : Nat),
+            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
         → AppliedBranch s ts final
         → serialTransactions s.head.data s.head.version ts = some final.head.data := by
-  exact Proofs.Model.executable_branch_serializability
+  intro s final ts reachable branch
+  apply Proofs.Model.executable_branch_serializability s final ts _ branch
+  intro t member
+  obtain ⟨w, tid, reached, live⟩ := reachable t member
+  exact ((Proofs.Invariants.reachable_invariant w reached).txs tid t live).normal
 
 /-- Witness: a nonempty branch of applied attempts exists. -/
 theorem executable_branch_serializability_witness
     : ∃ (s final : Store) (ts : List Tx),
-        (∀ t ∈ ts, ∃ (w : World) (tid : Nat),
-          Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
-        ∧ AppliedBranch s ts final ∧ ts ≠ [] := by
+        (∀ t ∈ ts,
+          ∃ (w : World) (tid : Nat),
+            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+        ∧ AppliedBranch s ts final
+        ∧ ts ≠ [] := by
   exact Proofs.Witnesses.executable_branch_serializability_witness
 
 /-- In an accepted record segment that keeps store `sid` alive, the applications projected
@@ -558,13 +575,18 @@ theorem durable_cut_survives_rollback
         → cut ≤ s.global
         → s.global ≤ v
         → (atCut (rollbackStore s v term) cut).data = (atCut s cut).data := by
-  exact Proofs.Model.durable_cut_survives_rollback
+  intro w sid s v term cut reachable live below boundary
+  exact Proofs.Model.durable_cut_survives_rollback s v term cut
+    ((Proofs.Invariants.reachable_invariant w reachable).stores sid s live) below boundary
 
 /-- Witness: a nonempty cut can be at or below the global version. -/
 theorem durable_cut_survives_rollback_witness
     : ∃ (w : World) (sid : Nat) (s : Store) (v cut : Nat),
-        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s
-          ∧ cut ≤ s.global ∧ s.global ≤ v ∧ (atCut s cut).data ≠ [] := by
+        Model.transitionSystem.Reachable w
+        ∧ find w.stores sid = some s
+        ∧ cut ≤ s.global
+        ∧ s.global ≤ v
+        ∧ (atCut s cut).data ≠ [] := by
   exact Proofs.Witnesses.durable_cut_survives_rollback_witness
 
 /-- An attempt whose snapshot term differs from the store's cannot apply. -/

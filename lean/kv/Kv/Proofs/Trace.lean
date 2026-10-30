@@ -12,7 +12,7 @@ public import Kv.Proofs.Model
 
 namespace Kv.Proofs.Trace
 
-open Kv.Model Kv.Model.Certificates Kv.Properties Kv.Proofs.Model
+open Kv.Model Kv.Proofs.Invariants Kv.Properties Kv.Proofs.Model
 
 theorem storeOf_ok (w : World) (sid : Nat) (s : Store)
     : storeOf w sid = .ok s ↔ find w.stores sid = some s := by
@@ -127,13 +127,14 @@ theorem step_store_effect (w next : World) (sid : Nat) (s : Store) (r : Record)
   exact ⟨after, by simpa [stores] using found, effect⟩
 
 theorem HeadEffect.serial_witness (before after : Store) (txs : List Tx)
+    (valid : ∀ t ∈ txs, NormalInvariant t)
     (effect : HeadEffect before after txs)
     : serialTransactions before.head.data before.head.version txs = some after.head.data
       ∧ after.head.version = before.head.version + txs.length := by
   cases effect with
   | stutter data version => simp [serialTransactions, data, version]
   | apply tx one =>
-      have h := tryApply_serial before after tx one
+      have h := tryApply_serial before after tx (valid tx (by simp)) one
       constructor
       · simpa [serialTransactions, h.1] using congrArg some h.2.symm
       · unfold tryApply at one
@@ -153,10 +154,30 @@ theorem serialTransactions_append (db : Data) (version : Nat) (xs ys : List Tx)
       | some writes =>
           simp [serialTransactions, h, ih, Nat.add_comm, Nat.add_left_comm]
 
+theorem projectedApplication_normal (w : World) (valid : WorldInvariant w)
+    (sid : Nat) (e : Event)
+    : ∀ t ∈ projectedApplication w sid e, NormalInvariant t := by
+  cases e <;> simp only [projectedApplication]
+  all_goals try exact fun _ member => False.elim (List.not_mem_nil member)
+  rename_i id tid version term writes
+  intro t member
+  by_cases same : id = sid
+  · subst id
+    simp only [ite_true] at member
+    cases lookup : txOf w sid tid with
+    | error err => simp [lookup, Except.toOption] at member
+    | ok tx =>
+        have equal : t = tx := by
+          simpa [lookup, Except.toOption, Option.toList] using member
+        subst t
+        exact (txOf_invariant w valid sid tid tx lookup).normal
+  · simp [same] at member
+
 /-- A selected store stays live throughout the segment. Its rollback/create/end
 events partition segments; all other-store events are permitted. The projected
 attempts are obtained from the real pre-event txOf, not supplied as a premise. -/
 theorem replay_segment_serializability (w final : World) (sid : Nat) (s : Store)
+    (valid : WorldInvariant w)
     (rs : List Record) (live : find w.stores sid = some s)
     (segment : ∀ r ∈ rs, SegmentEvent sid r.event)
     (accepted : replay w rs = .ok final)
@@ -178,8 +199,10 @@ theorem replay_segment_serializability (w final : World) (sid : Nat) (s : Store)
           obtain ⟨nextStore, nextLive, effect⟩ := step_store_effect w middle sid s r live
             (segment r (by simp)) first
           obtain ⟨after, tailTxs, afterLive, projected, tailSerial, tailVersion⟩ :=
-            ih middle nextStore nextLive (fun e he => segment e (by simp [he])) rest
-          have one := HeadEffect.serial_witness s nextStore _ effect
+            ih middle nextStore (step_invariant w middle valid r first) nextLive
+              (fun e he => segment e (by simp [he])) rest
+          have applications := projectedApplication_normal w valid sid r.event
+          have one := HeadEffect.serial_witness s nextStore _ applications effect
           refine ⟨
             after,
             projectedApplication w sid r.event ++ tailTxs,
@@ -195,35 +218,16 @@ theorem replay_segment_serializability (w final : World) (sid : Nat) (s : Store)
             rw [tailVersion, one.2]
             omega
 
-/-- Every constructor of Store carries these erased proofs. In particular,
-accepted replay cannot produce a hole in history or a provisional global cut. -/
 theorem reachable_store_invariants (w : World)
+    (valid : WorldInvariant w)
     (sid : Nat) (s : Store) (_live : find w.stores sid = some s)
     : History s.history s.head.version
       ∧ s.history.head? = some s.head
       ∧ s.global ≤ s.head.version
-      ∧ (atCut s s.global).version = s.global :=
-  ⟨s.historyShape, s.headFirst, s.globalBound, (atCut_spec s s.global s.globalBound).1⟩
-
-theorem txOf_found (w : World) (sid tid : Nat) (t : Tx)
-    (accepted : txOf w sid tid = .ok t)
-    : find w.txs tid = some t := by
-  cases lookup : find w.txs tid <;>
-    simp only [txOf, lookup, present, Bind.bind, Pure.pure, Except.bind, Except.pure,
-      require, invalid] at accepted
-  all_goals repeat' first
-    | contradiction
-    | rfl
-    | cases accepted
-    | split at accepted
-
-theorem find_set_cases {K V : Type} [DecidableEq K] (xs : Assoc K V) (id key : K) (v : V)
-    : find (set xs id v) key = if id = key then some v else find xs key := by
-  by_cases h : id = key <;> simp [h, find_set_same, find_set_other]
-
-theorem find_erase_cases {K V : Type} [DecidableEq K] (xs : Assoc K V) (id key : K)
-    : find (erase xs id) key = if id = key then none else find xs key := by
-  by_cases h : id = key <;> simp [h, find_erase_same, find_erase_other]
+      ∧ (atCut s s.global).version = s.global := by
+  have store := valid.stores sid s _live
+  exact ⟨store.historyShape, store.headFirst, store.globalBound,
+    (atCut_spec s store s.global store.globalBound).1⟩
 
 theorem foldlM_tx_fixed {A B : Type} (g : Tx → B) (items : List A)
     (f : Tx → A → Except Failure Tx)
@@ -354,7 +358,7 @@ theorem stepEvent_capture_metadata (w next : World) (sid tid version global term
     (accepted : stepEvent w (.snapshot sid tid version global term) = .ok next)
     (capturedTx : find next.txs tid = some t)
     : ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term := by
-  refine ⟨{ current := s.head, term, origin := ⟨s, rfl⟩ }, ?_, rfl, rfl⟩
+  refine ⟨{ current := s.head, term }, ?_, rfl, rfl⟩
   simp only [stepEvent, withTx, source, Bind.bind, Pure.pure, Except.bind, Except.pure,
     expect, invalid, reject] at accepted
   repeat' first
@@ -438,9 +442,10 @@ theorem History.head_cells_bounded (fs : List Frame) (n : Nat) (shape : History 
       intro key cell found
       exact Nat.le_trans (ih key cell found) (Nat.le_succ n)
 
-theorem atCut_cells_bounded (s : Store) (cut : Nat) (within : cut ≤ s.head.version)
+theorem atCut_cells_bounded (s : Store) (valid : StoreInvariant s)
+    (cut : Nat) (within : cut ≤ s.head.version)
     : CellsBounded (atCut s cut).data cut := by
-  have spec := atCut_spec s cut within
+  have spec := atCut_spec s valid cut within
   have h := History.head_cells_bounded _ cut spec.2.1
   simpa only [spec.2.2, Option.getD_some] using h
 
@@ -455,11 +460,13 @@ theorem History.head_unique (fs : List Frame) (n : Nat) (shape : History fs n)
       exact publish_unique _ _ _ ih
 
 theorem reachable_store_data_invariants (w : World)
+    (valid : WorldInvariant w)
     (sid : Nat) (s : Store) (_live : find w.stores sid = some s)
     : Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
-  have unique := History.head_unique s.history s.head.version s.historyShape
-  have bounded := History.head_cells_bounded s.history s.head.version s.historyShape
-  simpa only [s.headFirst, Option.getD_some] using And.intro unique bounded
+  have store := valid.stores sid s _live
+  have unique := History.head_unique s.history s.head.version store.historyShape
+  have bounded := History.head_cells_bounded s.history s.head.version store.historyShape
+  simpa only [store.headFirst, Option.getD_some] using And.intro unique bounded
 
 theorem stepEvent_get_global (w next : World) (sid tid : Nat) (map key : String)
     (value : Option String) (t : Tx) (view : GlobalView)
@@ -474,19 +481,20 @@ theorem stepEvent_get_global (w next : World) (sid tid : Nat) (map key : String)
     | split at accepted
   all_goals grind only
 
-theorem map_global_view_safety (view : GlobalView)
+theorem map_global_view_safety (view : GlobalView) (valid : GlobalInvariant view)
     : view.frame = {}
       ∨ ∃ origin : Store,
           view.frame = atCut origin origin.global
           ∧ view.frame.version = origin.global
           ∧ CellsBounded view.frame.data origin.global := by
-  rcases view.origin with placeholder | ⟨origin, committed⟩
+  rcases valid with placeholder | ⟨origin, store, committed⟩
   · exact Or.inl placeholder
   · refine Or.inr ⟨origin, committed, ?_, ?_⟩
-    · rw [committed]; exact (atCut_spec origin origin.global origin.globalBound).1
-    · rw [committed]; exact atCut_cells_bounded origin origin.global origin.globalBound
+    · rw [committed]; exact (atCut_spec origin store origin.global store.globalBound).1
+    · rw [committed]; exact atCut_cells_bounded origin store origin.global store.globalBound
 
 theorem step_global_read_from_captured_map (w next : World) (sid tid seq : Nat)
+    (valid : WorldInvariant w)
     (map key : String) (value : Option String) (t : Tx) (view : GlobalView)
     (source : txOf w sid tid = .ok t) (captured : find t.globalViews map = some view)
     (accepted : step w ⟨seq, .get sid tid map key value true⟩ = .ok next)
@@ -498,7 +506,8 @@ theorem step_global_read_from_captured_map (w next : World) (sid tid seq : Nat)
               ∧ CellsBounded view.frame.data origin.global) := by
   obtain ⟨eventNext, eventStep, _, _⟩ := step_event_result w next _ accepted
   exact ⟨stepEvent_get_global w eventNext sid tid map key value t view source captured eventStep,
-    map_global_view_safety view⟩
+    map_global_view_safety view
+      ((txOf_invariant w valid sid tid t source).globals map view captured)⟩
 
 theorem stepEvent_has_global (w next : World) (sid tid : Nat) (map key : String)
     (value : Bool) (t : Tx) (view : GlobalView)
@@ -514,6 +523,7 @@ theorem stepEvent_has_global (w next : World) (sid tid : Nat) (map key : String)
   all_goals grind only
 
 theorem step_global_has_from_captured_map (w next : World) (sid tid seq : Nat)
+    (valid : WorldInvariant w)
     (map key : String) (value : Bool) (t : Tx) (view : GlobalView)
     (source : txOf w sid tid = .ok t) (captured : find t.globalViews map = some view)
     (accepted : step w ⟨seq, .has sid tid map key value true⟩ = .ok next)
@@ -525,7 +535,8 @@ theorem step_global_has_from_captured_map (w next : World) (sid tid seq : Nat)
               ∧ CellsBounded view.frame.data origin.global) := by
   obtain ⟨eventNext, eventStep, _, _⟩ := step_event_result w next _ accepted
   exact ⟨stepEvent_has_global w eventNext sid tid map key value t view source captured eventStep,
-    map_global_view_safety view⟩
+    map_global_view_safety view
+      ((txOf_invariant w valid sid tid t source).globals map view captured)⟩
 
 theorem captureGlobal_placeholder (s : Store) (snap : Snapshot) (map : String)
     (absent : find (captureLocal s snap map).births map = none)
@@ -579,9 +590,9 @@ theorem runOp_globalViews_fixed (t next : Tx) (op : NormalOp String String Strin
   unfold runOp at accepted
   split at accepted
   next => simp [invalid] at accepted
-  next snap hs =>
+  next snap _ =>
     split at accepted
-    next n hn =>
+    next n _ =>
       simp [Pure.pure, Except.pure] at accepted
       cases accepted
       rfl
@@ -654,9 +665,9 @@ theorem runOp_data_fixed (t next : Tx) (op : NormalOp String String String)
   unfold runOp at accepted
   split at accepted
   next => simp [invalid] at accepted
-  next snap hs =>
+  next snap _ =>
     split at accepted
-    next n hn =>
+    next n _ =>
       simp [Pure.pure, Except.pure] at accepted
       cases accepted
       rfl
@@ -683,7 +694,7 @@ theorem acquireMap_data_fixed (s : Store) (t next : Tx) (map wanted : String)
   all_goals
     by_cases hm : map = wanted
     · subst map; simp_all
-    · exact Certificates.pinData_other _ _ _ _ (Ne.symm hm)
+    · exact Invariants.pinData_other _ _ _ _ (Ne.symm hm)
 
 theorem stepEvent_map_local_fixed (w next : World) (tid : Nat) (before after : Tx)
     (map : String) (view : GlobalView) (e : Event)
