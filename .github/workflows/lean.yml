@@ -10,6 +10,10 @@ on:
       - "tests/raft_scenarios*.py"
       - "tests/raft_scenarios/**"
       - "src/consensus/aft/**"
+      - "src/kv/**"
+      - "include/ccf/kv/**"
+      - "include/ccf/tx.h"
+      - "tests/kv_trace_validation*.py"
       - ".github/workflows/lean.yml"
   workflow_dispatch:
 

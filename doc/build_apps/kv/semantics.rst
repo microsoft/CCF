@@ -154,11 +154,11 @@ The :ccf_repo:`proof catalogue <lean/kv/README.md>` records their precise scope 
      - An accepted typed trace segment for a live store has a serial witness obtained from its actual application events and pre-event transactions.
        The segment excludes creation, destruction, or rollback of that store; operations on other stores may interleave.
    * - ``reachable_store_invariants``
-     - Store constructors preserve complete publication histories, matching heads, and globally committed cuts no later than the local head.
+     - Every live store in a reachable state has a complete publication history, a matching head, and a globally committed cut no later than the local head.
    * - ``replay_snapshot_fixed``
      - The current snapshot comes from the initial capture and remains fixed across all maps during the attempt.
    * - ``capture_replay_preserves_map``
-     - An acquired map's global view remains fixed, including for other keys, aliases, compaction, and rollback.
+     - An acquired map's local and global views remain fixed, including for other keys, aliases, compaction, and rollback.
        This is not cross-map global consistency.
    * - ``step_global_read_from_captured_map``
      - Accepted global reads originate in that map's captured irrevocable view, with the explicit empty-placeholder case for a map absent at the local cut.
@@ -166,10 +166,11 @@ The :ccf_repo:`proof catalogue <lean/kv/README.md>` records their precise scope 
      - Legal rollback preserves observations from the irrevocable prefix.
 
 Serializability is derived from dependency validation, not from an assumption that an accepted transaction is already serializable.
-Runtime-erased certificates carry snapshot execution and store-history invariants through the constructors; they are not extra sequential-oracle acceptance checks.
+Model states carry no proofs.
+Snapshot-execution and store-history invariants are proved separately for every state reachable from the empty store, and claims that need them assume reachability; they are not extra sequential-oracle acceptance checks.
 
-Mathlib's ``mk_all --check`` verifies the complete library import root.
-The Lake build treats warnings as errors, and build-time tests check that every claim in ``Kv/Properties.lean`` has a theorem in ``Kv/Proof.lean``.
+Each claim in ``Kv/Properties.lean`` is a proved theorem, followed by a witness theorem showing that its premises can hold.
+The Lake build treats warnings as errors, and the shared ``lake exe check-imports`` verifies that the library import root covers every module and respects the layering.
 The CI kernel check (``lake check``) requires every declaration to depend only on Lean's standard trusted axioms; admitted proofs and custom assumptions fail.
 
 The consensus abstraction assumes a valid irrevocable prefix and permitted environment transitions.
@@ -236,15 +237,16 @@ This is separate from whether the Lean proofs/checker regressions and C++ unit t
 
 The runner captures the purpose-built ``KV trace *`` cases once, then captures the concurrent fuzzer for each seed.
 It fails if ``kv_test`` contains a ``KV trace *`` case that it does not capture.
-It checks every generated trace with Lean and verifies that the expected cases, event families, and important outcomes were actually observed.
+It checks every generated trace with Lean, unless ``--capture-only`` is passed to replay them separately, and verifies that the expected cases, event families, and important outcomes were actually observed.
 Each run retains its trace and test/checker output in a unique directory.
 
 ``CCF_KV_TRACE_TIMEOUT`` configures each capture and replay timeout.
 The checker streams records and stops at the first diagnostic; accepted model history is not constant-memory.
 
-The ``Lean`` workflow builds the model and instrumented tests, then uploads diagnostics even if conformance fails.
+The ``Lean`` workflow builds the instrumented tests and captures traces in one job, uploading the traces and, even if capture fails, the diagnostics.
+A separate job builds and checks the model in parallel, then replays the captured traces.
 Selected tests can exercise explicitly unsupported mechanisms, which remain non-passing outcomes.
-It uses a standard Linux runner; these single-node KV tests do not require an enclave or a multi-node network.
+These single-node KV tests do not require an enclave or a multi-node network.
 
 Seeded concurrent campaigns
 ---------------------------
