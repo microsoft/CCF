@@ -158,6 +158,81 @@ namespace ccf::crypto
       }
     }
 
+    // plain must be exactly cipher.size() bytes, and may be identical to
+    // cipher. Clears plain if authentication fails.
+    bool decrypt_into(
+      EVP_CIPHER_CTX* context,
+      std::span<const uint8_t> iv,
+      const uint8_t tag[GCM_SIZE_TAG],
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> aad,
+      std::span<uint8_t> plain)
+    {
+      if (plain.size() != cipher.size())
+      {
+        throw std::logic_error(fmt::format(
+          "AES-GCM plaintext size {} does not match ciphertext size {}",
+          plain.size(),
+          cipher.size()));
+      }
+
+      // Unauthenticated plaintext must not be left behind on any failure,
+      // including an exception after some output has been written
+      try
+      {
+        CHECK1(EVP_CIPHER_CTX_ctrl(
+          context, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
+        CHECK1(
+          EVP_DecryptInit_ex2(context, nullptr, nullptr, iv.data(), nullptr));
+
+        update_in_chunks(context, aad, nullptr);
+        update_in_chunks(context, cipher, plain.data());
+
+        void* tag_ptr = const_cast<void*>(static_cast<const void*>(tag));
+        CHECK1(EVP_CIPHER_CTX_ctrl(
+          context, EVP_CTRL_GCM_SET_TAG, GCM_SIZE_TAG, tag_ptr));
+
+        int final_outl{0};
+        if (EVP_DecryptFinal_ex(context, nullptr, &final_outl) != 1)
+        {
+          OPENSSL_cleanse(plain.data(), plain.size());
+          return false;
+        }
+
+        // With GCM, DecryptUpdate() produces the complete output because
+        // there is no padding and the block size is 1.
+        //
+        // See
+        // https://docs.openssl.org/3.3/man3/EVP_EncryptInit/#aead-interface.
+        assert(final_outl == 0);
+      }
+      catch (...)
+      {
+        OPENSSL_cleanse(plain.data(), plain.size());
+        throw;
+      }
+
+      return true;
+    }
+
+    bool decrypt_with_context(
+      EVP_CIPHER_CTX* context,
+      std::span<const uint8_t> iv,
+      const uint8_t tag[GCM_SIZE_TAG],
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> aad,
+      std::span<uint8_t> plain)
+    {
+      // Never produced by encrypt(), so fail authentication rather than throw
+      if (cipher.size() > GCM_MAX_DATA_SIZE)
+      {
+        OPENSSL_cleanse(plain.data(), plain.size());
+        return false;
+      }
+
+      return decrypt_into(context, iv, tag, cipher, aad, plain);
+    }
+
     bool decrypt_with_context(
       EVP_CIPHER_CTX* context,
       std::span<const uint8_t> iv,
@@ -173,35 +248,25 @@ namespace ccf::crypto
         return false;
       }
 
-      CHECK1(EVP_CIPHER_CTX_ctrl(
-        context, EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr));
-      CHECK1(
-        EVP_DecryptInit_ex2(context, nullptr, nullptr, iv.data(), nullptr));
-
-      update_in_chunks(context, aad, nullptr);
-
-      std::vector<uint8_t> plaintext(cipher.size());
-      update_in_chunks(context, cipher, plaintext.data());
-
-      void* tag_ptr = const_cast<void*>(static_cast<const void*>(tag));
-      CHECK1(EVP_CIPHER_CTX_ctrl(
-        context, EVP_CTRL_GCM_SET_TAG, GCM_SIZE_TAG, tag_ptr));
-
-      plain.clear();
-
-      int final_outl{0};
-      if (EVP_DecryptFinal_ex(context, nullptr, &final_outl) != 1)
+      // Decrypt directly into the output, which may be as large as a
+      // snapshot, rather than into a temporary copy
+      plain.resize(cipher.size());
+      bool authenticated = false;
+      try
       {
+        authenticated = decrypt_into(context, iv, tag, cipher, aad, plain);
+      }
+      catch (...)
+      {
+        plain.clear();
+        throw;
+      }
+      if (!authenticated)
+      {
+        plain.clear();
         return false;
       }
 
-      // With GCM, DecryptUpdate() produces the complete output because there
-      // is no padding and the block size is 1.
-      //
-      // See https://docs.openssl.org/3.3/man3/EVP_EncryptInit/#aead-interface.
-      assert(final_outl == 0);
-
-      plain = std::move(plaintext);
       return true;
     }
 
@@ -247,6 +312,17 @@ namespace ccf::crypto
         std::span<const uint8_t> cipher,
         std::span<const uint8_t> aad,
         std::vector<uint8_t>& plain) override
+      {
+        return decrypt_with_context(
+          decrypt_context, iv, tag, cipher, aad, plain);
+      }
+
+      bool decrypt(
+        std::span<const uint8_t> iv,
+        const uint8_t tag[GCM_SIZE_TAG],
+        std::span<const uint8_t> cipher,
+        std::span<const uint8_t> aad,
+        std::span<uint8_t> plain) override
       {
         return decrypt_with_context(
           decrypt_context, iv, tag, cipher, aad, plain);
@@ -307,6 +383,19 @@ namespace ccf::crypto
     std::span<const uint8_t> cipher,
     std::span<const uint8_t> aad,
     std::vector<uint8_t>& plain) const
+  {
+    Unique_EVP_CIPHER_CTX context;
+    CHECK1(
+      EVP_DecryptInit_ex2(context, evp_cipher, key.data(), nullptr, nullptr));
+    return decrypt_with_context(context, iv, tag, cipher, aad, plain);
+  }
+
+  bool KeyAesGcm_OpenSSL::decrypt(
+    std::span<const uint8_t> iv,
+    const uint8_t tag[GCM_SIZE_TAG],
+    std::span<const uint8_t> cipher,
+    std::span<const uint8_t> aad,
+    std::span<uint8_t> plain) const
   {
     Unique_EVP_CIPHER_CTX context;
     CHECK1(

@@ -320,6 +320,10 @@ namespace ccf::kv
 
     virtual void start_map(const std::string& name, SecurityDomain domain) = 0;
     virtual void serialise_raw(const std::vector<uint8_t>& raw) = 0;
+    // Appends a size-prefixed payload of the given size, written in place by
+    // fill, to avoid an intermediate copy of large payloads
+    virtual void serialise_raw_in_place(
+      size_t size, const std::function<void(uint8_t*)>& fill) = 0;
     virtual void serialise_view_history(
       const std::vector<Version>& view_history) = 0;
     virtual void serialise_entry_version(const Version& version) = 0;
@@ -354,6 +358,9 @@ namespace ccf::kv
     virtual uint64_t deserialise_write_header() = 0;
     virtual std::tuple<SerialisedKey, SerialisedValue> deserialise_write() = 0;
     virtual std::vector<uint8_t> deserialise_raw() = 0;
+    // As deserialise_raw(), without copying. The returned span is valid for
+    // the lifetime of the deserialiser.
+    virtual std::span<const uint8_t> deserialise_raw_span() = 0;
     virtual std::vector<Version> deserialise_view_history() = 0;
     virtual uint64_t deserialise_remove_header() = 0;
     virtual SerialisedKey deserialise_remove() = 0;
@@ -636,6 +643,56 @@ namespace ccf::kv
       Version version,
       Term& term,
       bool historical_hint = false) = 0;
+
+    // Implementations should override this to avoid copying the inputs, which
+    // may be as large as a snapshot.
+    virtual bool decrypt(
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> additional_data,
+      std::span<const uint8_t> serialised_header,
+      std::vector<uint8_t>& plain,
+      Version version,
+      Term& term,
+      bool historical_hint = false)
+    {
+      return decrypt(
+        std::vector<uint8_t>(cipher.begin(), cipher.end()),
+        std::vector<uint8_t>(additional_data.begin(), additional_data.end()),
+        std::vector<uint8_t>(
+          serialised_header.begin(), serialised_header.end()),
+        plain,
+        version,
+        term,
+        historical_hint);
+    }
+
+    // Decrypts data in place, so that no second buffer of its size is needed.
+    // If this returns false, the contents of data are unspecified.
+    virtual bool decrypt_in_place(
+      std::span<uint8_t> data,
+      std::span<const uint8_t> additional_data,
+      std::span<const uint8_t> serialised_header,
+      Version version,
+      Term& term,
+      bool historical_hint = false)
+    {
+      std::vector<uint8_t> plain;
+      if (
+        !decrypt(
+          std::span<const uint8_t>(data),
+          additional_data,
+          serialised_header,
+          plain,
+          version,
+          term,
+          historical_hint) ||
+        plain.size() != data.size())
+      {
+        return false;
+      }
+      std::copy(plain.begin(), plain.end(), data.begin());
+      return true;
+    }
 
     virtual void rollback(Version version) = 0;
 

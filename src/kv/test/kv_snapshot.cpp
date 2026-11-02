@@ -8,6 +8,7 @@
 
 #include <cstring>
 #include <doctest/doctest.h>
+#include <functional>
 #undef FAIL
 #include <string>
 
@@ -896,5 +897,193 @@ TEST_CASE(
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE_EQ(new_store.current_version(), snapshot_version + i);
     REQUIRE_EQ(new_store.committable_gap(), i);
+  }
+}
+
+TEST_CASE(
+  "Snapshot serialised in place matches buffered serialisation" *
+  doctest::test_suite("snapshot"))
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+
+  MapTypes::StringString private_map("private_map");
+  {
+    auto tx = store.create_tx();
+    for (size_t i = 0; i < 100; ++i)
+    {
+      tx.rw(string_map)->put(fmt::format("pub{}", i), std::string(i, 'p'));
+      tx.rw(private_map)->put(fmt::format("priv{}", i), std::string(i, 's'));
+    }
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto version = store.current_version();
+
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot;
+  {
+    ccf::kv::ScopedStoreMapsLock maps_lock(&store);
+    snapshot = store.snapshot_unsafe_maps(version);
+  }
+  const auto in_place = store.serialise_snapshot(std::move(snapshot));
+
+  // Serialise the same maps through per-domain buffers, as before
+  ccf::kv::RawKvStoreSerialiser buffered(
+    encryptor,
+    {0, version},
+    ccf::kv::EntryType::Snapshot,
+    0,
+    {},
+    ccf::no_claims(),
+    true);
+  for (const auto* name : {"public:string_map", "private_map"})
+  {
+    auto map = store.get_map_unsafe(version, name);
+    REQUIRE(map != nullptr);
+    map->snapshot(version)->serialise(buffered);
+  }
+  REQUIRE(in_place == buffered.get_raw_data());
+}
+
+TEST_CASE(
+  "Snapshot deserialised in place, reusing captured public maps" *
+  doctest::test_suite("snapshot"))
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  ccf::kv::ConsensusHookPtrs hooks;
+
+  MapTypes::StringString private_map("private_map");
+  MapTypes::StringString other_public_map("public:other_map");
+
+  // Each snapshot is of a single transaction, so all are at the same version
+  const auto version = ccf::kv::Version{1};
+  auto snapshot_of = [&](const std::function<void(ccf::kv::Tx&)>& write) {
+    ccf::kv::Store store;
+    store.set_encryptor(encryptor);
+    auto tx = store.create_tx();
+    write(tx);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot;
+    {
+      ccf::kv::ScopedStoreMapsLock maps_lock(&store);
+      snapshot = store.snapshot_unsafe_maps(store.current_version());
+    }
+    return store.serialise_snapshot(std::move(snapshot));
+  };
+
+  auto capture = [&](const std::vector<uint8_t>& entry) {
+    ccf::kv::Store public_store;
+    public_store.set_encryptor(encryptor);
+    std::optional<ccf::kv::Store::SnapshotPublicMaps> captured;
+    REQUIRE(
+      public_store.deserialise_public_snapshot_capturing(
+        entry.data(), entry.size(), hooks, nullptr, captured) ==
+      ccf::kv::ApplyResult::PASS);
+    REQUIRE(captured.has_value());
+    // Rejections below are then due to contents, not versions
+    REQUIRE(public_store.current_version() == version);
+    return std::move(captured.value());
+  };
+
+  auto deserialise_reusing =
+    [&](
+      const std::vector<uint8_t>& entry,
+      const ccf::kv::Store::SnapshotPublicMaps* captured) {
+      auto buffer = entry;
+      ccf::kv::Store store;
+      store.set_encryptor(encryptor);
+      return store.deserialise_snapshot_in_place(
+        buffer, hooks, nullptr, captured);
+    };
+
+  const auto entry = snapshot_of([&](ccf::kv::Tx& tx) {
+    tx.rw(string_map)->put("public", "value");
+    tx.rw(num_map)->put(1, 2);
+    tx.rw(private_map)->put("private", "secret");
+  });
+
+  // As during recovery: public domain first, before ledger secrets are known
+  ccf::kv::Store public_store;
+  public_store.set_encryptor(encryptor);
+  std::optional<ccf::kv::Store::SnapshotPublicMaps> captured;
+  REQUIRE(
+    public_store.deserialise_public_snapshot_capturing(
+      entry.data(), entry.size(), hooks, nullptr, captured) ==
+    ccf::kv::ApplyResult::PASS);
+  REQUIRE(captured.has_value());
+  REQUIRE(public_store.current_version() == version);
+
+  // Later writes to the public store are not visible through captured states
+  {
+    auto tx = public_store.create_tx();
+    tx.rw(string_map)->put("public", "changed");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  INFO("Private domain decrypted in place, captured public maps installed");
+  {
+    auto buffer = entry;
+    ccf::kv::Store recovery_store;
+    recovery_store.set_encryptor(encryptor);
+    REQUIRE(
+      recovery_store.deserialise_snapshot_in_place(
+        buffer, hooks, nullptr, &captured.value()) ==
+      ccf::kv::ApplyResult::PASS);
+    REQUIRE(recovery_store.current_version() == version);
+    REQUIRE(buffer != entry);
+
+    auto tx = recovery_store.create_read_only_tx();
+    REQUIRE(tx.ro(string_map)->get("public") == "value");
+    REQUIRE(tx.ro(num_map)->get(1) == 2);
+    REQUIRE(tx.ro(private_map)->get("private") == "secret");
+  }
+
+  INFO("Without captured public maps, both domains are deserialised");
+  REQUIRE(deserialise_reusing(entry, nullptr) == ccf::kv::ApplyResult::PASS);
+
+  INFO("Public maps captured from a different snapshot are rejected");
+  {
+    const auto different = capture(snapshot_of([&](ccf::kv::Tx& tx) {
+      tx.rw(string_map)->put("public", "other value");
+      tx.rw(num_map)->put(1, 2);
+      tx.rw(private_map)->put("private", "secret");
+    }));
+    REQUIRE(
+      deserialise_reusing(entry, &different) == ccf::kv::ApplyResult::FAIL);
+
+    const auto missing = capture(snapshot_of([&](ccf::kv::Tx& tx) {
+      tx.rw(string_map)->put("public", "value");
+      tx.rw(private_map)->put("private", "secret");
+    }));
+    REQUIRE(deserialise_reusing(entry, &missing) == ccf::kv::ApplyResult::FAIL);
+
+    const auto extra = capture(snapshot_of([&](ccf::kv::Tx& tx) {
+      tx.rw(string_map)->put("public", "value");
+      tx.rw(num_map)->put(1, 2);
+      tx.rw(other_public_map)->put("other", "value");
+      tx.rw(private_map)->put("private", "secret");
+    }));
+    REQUIRE(deserialise_reusing(entry, &extra) == ccf::kv::ApplyResult::FAIL);
+  }
+
+  INFO("Tampering with either domain is detected");
+  {
+    auto public_tampered = entry;
+    const auto offset =
+      ccf::kv::RawKvStoreSerialiser::public_domain_offset(encryptor);
+    public_tampered[offset + 20] ^= 1;
+    REQUIRE(
+      deserialise_reusing(public_tampered, &captured.value()) ==
+      ccf::kv::ApplyResult::FAIL);
+
+    auto private_tampered = entry;
+    private_tampered.back() ^= 1;
+    REQUIRE(
+      deserialise_reusing(private_tampered, nullptr) ==
+      ccf::kv::ApplyResult::FAIL);
   }
 }

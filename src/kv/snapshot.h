@@ -53,15 +53,60 @@ namespace ccf::kv
       // - Because snapshot generation and ledger rekey can be interleaved,
       // consider historical ledger secrets when encrypting snapshot (see
       // https://github.com/microsoft/CCF/issues/3796).
-      RawKvStoreSerialiser serialiser(
+      const TxID tx_id{0, version};
+      constexpr bool historical_hint = true;
+
+      // Snapshots may be large, so only the output is allocated: the size of
+      // each domain is measured first, without serialising map contents, then
+      // the domains are serialised directly into an output of exactly that
+      // size, and the private domain is encrypted in place.
+      SizeKvStoreSerialiser sizer(
         encryptor,
-        {0, version},
+        tx_id,
         ccf::kv::EntryType::Snapshot,
         0,
         {},
         ccf::no_claims(),
-        true /* historical_hint */);
+        historical_hint);
+      serialise_contents(sizer);
+      const auto public_size = sizer.get_public_domain_size();
+      const auto private_size = sizer.get_private_domain_size();
+      const auto offset =
+        SpanKvStoreSerialiser::public_domain_offset(encryptor);
 
+      std::vector<uint8_t> entry(offset + public_size + private_size);
+      const auto entry_span = std::span<uint8_t>(entry);
+      SpanKvStoreSerialiser serialiser(
+        SpanWriter(entry_span.subspan(offset, public_size)),
+        SpanWriter(entry_span.subspan(offset + public_size, private_size)),
+        encryptor,
+        tx_id,
+        ccf::kv::EntryType::Snapshot,
+        0,
+        {},
+        ccf::no_claims(),
+        historical_hint);
+      serialise_contents(serialiser);
+      if (
+        serialiser.get_public_domain_size() != public_size ||
+        serialiser.get_private_domain_size() != private_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Snapshot at {} serialised to {}/{} bytes, but measured {}/{}",
+          version,
+          serialiser.get_public_domain_size(),
+          serialiser.get_private_domain_size(),
+          public_size,
+          private_size));
+      }
+      serialiser.finalise_in_place(entry_span);
+
+      return entry;
+    }
+
+  private:
+    void serialise_contents(KvStoreSerialiser& serialiser)
+    {
       if (hash_at_snapshot.has_value())
       {
         serialiser.serialise_raw(hash_at_snapshot.value());
@@ -82,8 +127,6 @@ namespace ccf::kv
           }
         }
       }
-
-      return serialiser.get_raw_data();
     }
   };
 }
