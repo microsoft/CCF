@@ -29,7 +29,12 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
         Sample CCF application written in C++.
 
-    .. grid-item-card:: :fas:`gear` :doc:`example_rust`
+    .. grid-item-card:: :doc:`example_rust`
+
+        .. image:: ../img/rust.svg
+          :alt: Rust
+          :align: left
+          :class: ccf-tile-icon
 
         Minimal native CCF application written in Rust (experimental).
 

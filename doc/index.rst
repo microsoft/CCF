@@ -22,7 +22,13 @@ CCF Documentation
           :alt: C++
           :align: left
 
-        Write application logic against the CCF Key-Value store in C++, JavaScript or TypeScript.
+        .. image:: img/rust.svg
+          :width: 32
+          :target: ./build_apps/example_rust.html
+          :alt: Rust
+          :align: left
+
+        Write application logic against the CCF Key-Value store in C++, JavaScript, TypeScript or Rust (experimental).
 
     .. grid-item-card:: :fas:`user` :doc:`use_apps/index`
 
