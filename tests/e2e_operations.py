@@ -2629,25 +2629,52 @@ def run_max_uncommitted_tx_count(const_args):
 
 
 def run_service_subject_name_check(args):
+    expected_subject = x509.Name(
+        [
+            x509.NameAttribute(x509.NameOID.COMMON_NAME, "https://this.test.service"),
+            x509.NameAttribute(x509.NameOID.ORGANIZATION_NAME, "CCF User"),
+        ]
+    )
+
+    def service_subject(network):
+        with open(network.cert_path, "rb") as cert_file:
+            cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
+        primary, _ = network.find_primary()
+        with primary.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == http.HTTPStatus.OK.value, r
+            cert_pem = r.body.json()["service_certificate"]
+            node_cert = x509.load_pem_x509_certificate(
+                cert_pem.encode(), default_backend()
+            )
+        assert node_cert.subject == cert.subject, (node_cert.subject, cert.subject)
+        return cert.subject
+
     with infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
         pdb=args.pdb,
     ) as network:
-        network.start_and_open(args, service_subject_name="CN=This test service")
-        # Check service_cert.pem
-        with open(network.cert_path, "rb") as cert_file:
-            cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
-            assert cert.subject.rfc4514_string() == "CN=This test service", cert
-        # Check /node/service endpoint
+        network.start_and_open(
+            args, service_subject_name="CN=https://this.test.service,O=CCF User"
+        )
+        subject = service_subject(network)
+        assert subject == expected_subject, subject
+
+        LOG.info("Renewing service certificate preserves its subject name")
         primary, _ = network.find_primary()
-        with primary.client() as c:
-            r = c.get("/node/network")
-            assert r.status_code == http.HTTPStatus.OK.value, r
-            cert_pem = r.body.json()["service_certificate"]
-            cert = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
-            assert cert.subject.rfc4514_string() == "CN=This test service", cert
+        renewed_validity_days = args.maximum_service_certificate_validity_days
+        assert renewed_validity_days != args.initial_service_cert_validity_days
+        network.consortium.set_service_certificate_validity(
+            primary,
+            valid_from=str(datetime.now(UTC)),
+            validity_period_days=renewed_validity_days,
+        )
+        network.verify_service_certificate_validity_period(renewed_validity_days)
+        network.refresh_service_identity_file(args)
+        renewed_subject = service_subject(network)
+        assert renewed_subject.public_bytes() == subject.public_bytes(), renewed_subject
 
 
 def run_cose_only_mode_upgrade(args):

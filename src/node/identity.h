@@ -39,6 +39,24 @@ namespace ccf
         validity_period_days);
     }
 
+    NetworkIdentity(
+      const std::vector<uint8_t>& subject_name_der,
+      ccf::crypto::CurveID curve_id,
+      const std::string& valid_from,
+      size_t validity_period_days)
+    {
+      auto identity_key_pair =
+        std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(curve_id);
+      priv_key = identity_key_pair->private_key_pem();
+
+      cert = ccf::crypto::create_self_signed_cert(
+        identity_key_pair,
+        subject_name_der,
+        {} /* SAN */,
+        valid_from,
+        validity_period_days);
+    }
+
     NetworkIdentity(const NetworkIdentity& other) = default;
 
     NetworkIdentity() = default;
@@ -53,7 +71,7 @@ namespace ccf
     {
       return ccf::crypto::create_self_signed_cert(
         get_key_pair(),
-        ccf::crypto::get_subject_name(cert),
+        ccf::crypto::make_verifier(cert)->subject_der(),
         {} /* SAN */,
         valid_from,
         validity_period_days);

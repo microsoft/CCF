@@ -46,6 +46,8 @@ namespace
   {
     std::atomic<size_t> reports = 0;
     std::atomic<size_t> close_errors = 0;
+    size_t shutdown_reports = 0;
+    std::string shutdown_message;
 
     void write(const ccf::logger::LogLine& line) override
     {
@@ -53,6 +55,11 @@ namespace
         ++reports;
       if (line.msg.find("Failed to close Fluentd socket") != std::string::npos)
         ++close_errors;
+      if (line.msg.starts_with("Fluentd exporter shutdown:"))
+      {
+        ++shutdown_reports;
+        shutdown_message = line.msg;
+      }
     }
   };
 }
@@ -517,6 +524,14 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::seconds(1)));
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(3));
   CHECK(Sink::dropped_count() == drops_before_shutdown + 4);
+  CHECK(logs->shutdown_reports == 1);
+  CHECK(
+    logs->shutdown_message ==
+    fmt::format(
+      "Fluentd exporter shutdown: {} dropped events",
+      drops_before_shutdown + 4));
+  Sink::shutdown();
+  CHECK(logs->shutdown_reports == 1);
   // Use the empty queue so a full queue cannot mask shutdown rejection.
   Sink::bind_producer(1);
   const auto allocations_before_shutdown_enqueue = allocations;

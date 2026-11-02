@@ -257,6 +257,9 @@ Service identity and status.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Public keys for verifying service COSE signatures.
+Each key is the public key of the service certificate in ``service.info``.
+The table is only written when a service is created or recovered, so a service created before it existed has no entry until its next recovery, including after a live update of its nodes.
+For ``CLASSICAL``, an empty table therefore falls back to the key of ``service.info.cert``.
 
 **Key** Identity type as a little-endian 64-bit unsigned integer.
 
@@ -271,8 +274,6 @@ Public keys for verifying service COSE signatures.
 .. doxygenstruct:: ccf::Identity
    :project: CCF
    :members:
-
-For legacy ledgers, an empty table falls back to ``service.info.cert`` for ``CLASSICAL``.
 
 ``service.config``
 ~~~~~~~~~~~~~~~~~~

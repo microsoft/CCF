@@ -34,12 +34,15 @@ namespace ccf
     X509_CERT_DER = 0,
     /// DER-encoded X.509 SubjectPublicKeyInfo public key.
     X509_SPKI_DER = 1,
+    /// CBOR-encoded COSE_Key public key (RFC 9052 Section 7).
+    COSE_KEY = 2,
   };
 
   DECLARE_JSON_ENUM(
     IdentityKind,
     {{IdentityKind::X509_CERT_DER, "X509_CERT_DER"},
-     {IdentityKind::X509_SPKI_DER, "X509_SPKI_DER"}});
+     {IdentityKind::X509_SPKI_DER, "X509_SPKI_DER"},
+     {IdentityKind::COSE_KEY, "COSE_KEY"}});
 
   using IdentityValue = std::vector<uint8_t>;
 

@@ -120,6 +120,38 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
         assert time.time() <= end_time, "Reconfiguration did not complete in time"
 
 
+@reqs.description("Record inactive node-to-node TLS metadata when joining")
+def test_node_to_node_tls_metadata(network, args):
+    primary, _ = network.find_primary()
+    endpoint = {
+        "bind_address": "not-resolved.invalid:0",
+        "published_address": "peer.example:8082",
+    }
+    new_node = network.create_node()
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        from_snapshot=False,
+        node_to_node_tls_interface=endpoint,
+    )
+    new_node.stop()
+    with primary.client() as c:
+        r = c.get(f"/node/network/nodes/{new_node.node_id}")
+        assert r.status_code == http.HTTPStatus.OK, r
+        join_seqno = r.body.json()["last_written"]
+
+    network.retire_node(primary, new_node)
+    network.create_and_wait_for_ledger_chunk(primary)
+    with primary.get_ledger_chunk_from_api(join_seqno) as ledger:
+        tables = ledger.get_transaction(join_seqno).get_public_domain().get_tables()
+        info = json.loads(
+            tables[ccf.ledger.NODES_TABLE_NAME][new_node.node_id.encode()]
+        )
+        assert info["node_to_node_tls_interface"] == endpoint, info
+    return network
+
+
 @reqs.description("Adding a node with invalid target service certificate")
 def test_add_node_invalid_service_cert(network, args):
     primary, _ = network.find_primary()
@@ -1226,6 +1258,7 @@ def run_all(args, ipv6=False):
         test_add_node_on_other_curve(network, args)
         test_retire_backup(network, args)
         test_retire_primary(network, args)
+        test_node_to_node_tls_metadata(network, args)
 
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)
