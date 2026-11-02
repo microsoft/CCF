@@ -63,9 +63,10 @@ None of these is a replay acceptance condition.
 No `sorry`, custom axioms, unsafe declarations, or external solver are used; `lake check` accepts only Lean's standard `propext`, `Quot.sound` and `Classical.choice`.
 Claims that depend on the model's state invariants assume `Model.transitionSystem.Reachable`; `Proofs/Invariants.lean` proves those invariants hold initially and are preserved by every step.
 
-Each claim with premises is followed by a `_witness` theorem asserting that some concrete state, trace or program satisfies them, so the claim is not vacuous.
+Each claim is followed by a `_witness` theorem, so no claim is vacuous.
+For a claim with premises, the witness asserts that some concrete state, trace or program satisfies them.
+The five claims without premises (`read_your_write`, `read_your_deletion`, `previous_ignores_pending`, `publish_lookup` and `apply_atomic`) cannot be vacuous; their witnesses instead show that the conclusion has an effect: a staged write or removal changes the read, a key can have both a committed version and a staged write, one write set can leave, remove and write addresses, and one applied write set can span two maps.
 `Kv/Proofs/Witnesses.lean` proves these witnesses, mostly from prefixes and segments of one accepted trace that the kernel evaluates with `decide +kernel`.
-The five claims without premises (`read_your_write`, `read_your_deletion`, `previous_ignores_pending`, `publish_lookup` and `apply_atomic`) need no witness.
 
 | Theorems                                                                                                                | Established scope                                                                                                                                                              |
 | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

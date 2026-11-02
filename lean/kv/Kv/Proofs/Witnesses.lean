@@ -12,7 +12,7 @@ public import Kv.Proofs.Invariants
 /-!
 Non-vacuity witnesses for the claims in `Kv.Properties`. Trace claims are witnessed by prefixes
 and segments of one accepted trace, evaluated by the kernel; store claims by directly
-constructed stores.
+constructed stores; read and publication claims by small concrete association lists.
 -/
 
 namespace Kv.Proofs.Witnesses
@@ -103,6 +103,55 @@ private def writtenTx : Tx :=
     snapshot := some writtenSnapshot,
     globalViews := [("a", captureGlobal written writtenSnapshot "a")]
   }
+
+private def committedCell : DB String String String := [(("a", "00"), ⟨"11", 1⟩)]
+
+theorem read_your_write_witness
+    : ∃ (db : DB String String String) (ws : Writes String String String)
+        (a : Addr String String) (v : String),
+        valueAt db ws a ≠ some v :=
+  ⟨committedCell, [], ("a", "00"), "22", by decide⟩
+
+theorem read_your_deletion_witness
+    : ∃ (db : DB String String String) (ws : Writes String String String)
+        (a : Addr String String),
+        valueAt db ws a ≠ none :=
+  ⟨committedCell, [], ("a", "00"), by decide⟩
+
+theorem previous_ignores_pending_witness
+    : ∃ (db : DB String String String) (ws : Writes String String String)
+        (a : Addr String String),
+        previousAt db a ≠ none ∧ find ws a ≠ none :=
+  ⟨committedCell, [(("a", "00"), some "22")], ("a", "00"), by decide, by decide⟩
+
+theorem publish_lookup_witness
+    : ∃ (ws : Writes String String String) (kept removed written : Addr String String)
+        (v : String),
+        find ws kept = none
+        ∧ find ws removed = some none
+        ∧ find ws written = some (some v) :=
+  ⟨
+    [(("a", "01"), none), (("a", "02"), some "22")],
+    ("a", "00"),
+    ("a", "01"),
+    ("a", "02"),
+    "22",
+    by decide,
+    by decide,
+    by decide
+  ⟩
+
+theorem apply_atomic_witness
+    : ∃ (writes : Pending) (a b : Addr String String),
+        a.1 ≠ b.1 ∧ find writes a ≠ none ∧ find writes b ≠ none :=
+  ⟨
+    [(("a", "00"), some "11"), (("b", "00"), none)],
+    ("a", "00"),
+    ("b", "00"),
+    by decide,
+    by decide,
+    by decide
+  ⟩
 
 theorem absent_read_witness
     : ∃ (db : DB String String String) (ws : Writes String String String)

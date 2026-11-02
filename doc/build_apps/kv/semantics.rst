@@ -169,7 +169,7 @@ Serializability is derived from dependency validation, not from an assumption th
 Model states carry no proofs.
 Snapshot-execution and store-history invariants are proved separately for every state reachable from the empty store, and claims that need them assume reachability; they are not extra sequential-oracle acceptance checks.
 
-Each claim in ``Kv/Properties.lean`` is a proved theorem, followed by a witness theorem showing that its premises can hold.
+Each claim in ``Kv/Properties.lean`` is a proved theorem, followed by a witness theorem showing that its premises can hold or, for a claim without premises, that its conclusion has an effect.
 The Lake build treats warnings as errors, and the shared ``lake exe check-imports`` verifies that the library import root covers every module and respects the layering.
 The CI kernel check (``lake check``) requires every declaration to depend only on Lean's standard trusted axioms; admitted proofs and custom assumptions fail.
 

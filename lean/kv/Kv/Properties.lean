@@ -31,12 +31,26 @@ theorem read_your_write
         valueAt db (set ws a (some v)) a = some v := by
   exact Proofs.Model.read_your_write
 
+/-- Witness: before a write is staged, the read can return a different value. -/
+theorem read_your_write_witness
+    : ∃ (db : DB String String String) (ws : Writes String String String)
+        (a : Addr String String) (v : String),
+        valueAt db ws a ≠ some v := by
+  exact Proofs.Witnesses.read_your_write_witness
+
 /-- A staged removal is visible to the transaction that staged it. -/
 theorem read_your_deletion
     : ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] (db : DB M K V) (ws : Writes M K V)
         (a : Addr M K),
         valueAt db (set ws a none) a = none := by
   exact Proofs.Model.read_your_deletion
+
+/-- Witness: before a removal is staged, the read can return a value. -/
+theorem read_your_deletion_witness
+    : ∃ (db : DB String String String) (ws : Writes String String String)
+        (a : Addr String String),
+        valueAt db ws a ≠ none := by
+  exact Proofs.Witnesses.read_your_deletion_witness
 
 /-- A key neither staged nor committed reads as absent. -/
 theorem absent_read
@@ -69,6 +83,13 @@ theorem previous_ignores_pending
         previousAt db a = (find db a).map Cell.version := by
   exact Proofs.Model.previous_ignores_pending
 
+/-- Witness: a key can have both a committed version and a staged write. -/
+theorem previous_ignores_pending_witness
+    : ∃ (db : DB String String String) (ws : Writes String String String)
+        (a : Addr String String),
+        previousAt db a ≠ none ∧ find ws a ≠ none := by
+  exact Proofs.Witnesses.previous_ignores_pending_witness
+
 /-- Publishing replaces each written cell, stamped with the new version, and keeps the rest. -/
 theorem publish_lookup
     : ∀ {M K V : Type} [DecidableEq M] [DecidableEq K] (db : DB M K V) (version : Nat)
@@ -79,6 +100,15 @@ theorem publish_lookup
           | some none => none
           | some (some v) => some { value := v, version } := by
   exact Proofs.Model.publish_lookup
+
+/-- Witness: one write set can leave, remove and write addresses. -/
+theorem publish_lookup_witness
+    : ∃ (ws : Writes String String String) (kept removed written : Addr String String)
+        (v : String),
+        find ws kept = none
+        ∧ find ws removed = some none
+        ∧ find ws written = some (some v) := by
+  exact Proofs.Witnesses.publish_lookup_witness
 
 /-- Publishing leaves unwritten addresses unchanged. -/
 theorem publication_noninterference
@@ -110,6 +140,12 @@ theorem apply_atomic
         (advance s writes).head.data
         = publish s.head.data (s.head.version + 1) writes := by
   exact Proofs.Model.apply_atomic
+
+/-- Witness: one applied write set can span two maps. -/
+theorem apply_atomic_witness
+    : ∃ (writes : Pending) (a b : Addr String String),
+        a.1 ≠ b.1 ∧ find writes a ≠ none ∧ find writes b ≠ none := by
+  exact Proofs.Witnesses.apply_atomic_witness
 
 /-! ## Serial snapshot runs and normal-view serializability -/
 
