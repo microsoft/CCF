@@ -1,0 +1,176 @@
+name: Lean package
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: Lean package directory under lean/
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check ${{ inputs.package }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      PACKAGE: ${{ inputs.package }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate package
+        run: |
+          set -euo pipefail
+          case "$PACKAGE" in
+            ccf-raft|common|consistency|disaster-recovery) ;;
+            *)
+              echo "::error::Unsupported Lean package: $PACKAGE"
+              exit 1
+              ;;
+          esac
+          test -f "lean/$PACKAGE/lakefile.toml"
+          echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+
+      - name: Install Lean and check prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y elan python3-jsonschema jq file
+          elan toolchain install "$(cat lean/lean-toolchain)"
+
+      - name: Restore Mathlib cache
+        working-directory: lean/${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          lake exe cache get
+
+      - name: Build, kernel and axiom check
+        working-directory: lean/${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          if [ "$PACKAGE" = "ccf-raft" ]; then
+            original="$(mktemp)"
+            cp lakefile.toml "$original"
+            trap 'cp "$original" lakefile.toml; rm "$original"' EXIT
+            for target in CCFRaft ccfraft-replay; do
+              echo "::group::Kernel and axiom check: $target"
+              sed "s/^defaultTargets = .*/defaultTargets = [\"$target\"]/" "$original" > lakefile.toml
+              lake check --inadvisably-no-sandbox
+              echo "::endgroup::"
+            done
+            cp "$original" lakefile.toml
+            rm "$original"
+            trap - EXIT
+          else
+            lake check --inadvisably-no-sandbox
+          fi
+
+      - name: Import coverage and architecture
+        working-directory: lean/${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          lake exe check-imports
+
+      - name: Check formatting
+        if: inputs.package != 'common'
+        run: |
+          set -euo pipefail
+          ./scripts/lean-format-checks.sh "$PACKAGE"
+
+      - name: Lint
+        working-directory: lean/${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          lake lint
+
+      - name: Build Raft replay
+        if: inputs.package == 'ccf-raft'
+        working-directory: lean/ccf-raft
+        run: |
+          set -euo pipefail
+          lake build --wfail ccfraft-replay
+
+      - name: Validate Raft trace fixtures
+        if: inputs.package == 'ccf-raft'
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in lean/ccf-raft/replay/fixtures/valid/*.ndjson; do
+            echo "::group::Validate $trace"
+            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace"
+            echo "::endgroup::"
+          done
+
+      - name: Reject invalid Raft trace fixtures
+        if: inputs.package == 'ccf-raft'
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in lean/ccf-raft/replay/fixtures/invalid/*.ndjson; do
+            echo "::group::Reject $trace"
+            status=0
+            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace" || status=$?
+            if [ "$status" -ne 1 ]; then
+              echo "::error::$trace: expected rejection (exit 1), got exit $status"
+              exit 1
+            fi
+            echo "::endgroup::"
+          done
+
+      - name: Check recovery trace fixtures against their schema
+        if: inputs.package == 'disaster-recovery'
+        run: |
+          set -euo pipefail
+          python3 lean/disaster-recovery/replayer/check-schema.py \
+            lean/disaster-recovery/replayer/fixtures/*/*.out
+
+      - name: Check disaster recovery replay
+        if: inputs.package == 'disaster-recovery'
+        working-directory: lean/disaster-recovery
+        run: |
+          set -euo pipefail
+          ./replayer/check-fixtures.sh
+
+      - name: Dump replays for the trace viewer
+        if: inputs.package == 'disaster-recovery'
+        run: |
+          set -euo pipefail
+          python3 lean/disaster-recovery/replayer/viewer/build.py
+
+      - name: Package Raft replay executable
+        if: inputs.package == 'ccf-raft'
+        run: |
+          set -euo pipefail
+          binary="lean/ccf-raft/.lake/build/bin/ccfraft-replay"
+          test -f "$binary" && test -x "$binary"
+          artifact="$RUNNER_TEMP/raft-replay-executable"
+          mkdir "$artifact"
+          tar -czf "$artifact/replay.tar.gz" -C "$(dirname "$binary")" ccfraft-replay
+          (cd "$artifact" && sha256sum replay.tar.gz > replay.sha256)
+          git rev-parse HEAD > "$artifact/source"
+          uname -m > "$artifact/architecture"
+          cp lean/lean-toolchain "$artifact/toolchain"
+          {
+            printf 'Runner image: %s %s\n' "${ImageOS:?}" "${ImageVersion:?}"
+            file "$binary"
+            if ! file "$binary" | grep -q 'statically linked'; then
+              ldd "$binary"
+            fi
+          } > "$artifact/runtime.txt"
+          cat "$artifact/runtime.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Raft replay executable
+        if: inputs.package == 'ccf-raft'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: raft-replay-executable
+          path: ${{ runner.temp }}/raft-replay-executable/
+          if-no-files-found: error
+          retention-days: 1
