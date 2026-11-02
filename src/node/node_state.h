@@ -36,6 +36,7 @@
 #include "http_client/curl.h"
 #include "js/global_class_ids.h"
 #include "network_state.h"
+#include "node/backup_snapshot_fetch.h"
 #include "node/commit_callback_subsystem.h"
 #include "node/env.h"
 #include "node/hooks.h"
@@ -314,9 +315,20 @@ namespace ccf
             return;
           }
 
-          auto tx = owner->network.tables->create_read_only_tx();
-          auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
-          auto node_info = nodes->get(primary_id.value());
+          std::optional<ccf::NodeInfo> node_info;
+          if (!ccf::node::retry_backup_snapshot_lookup([&] {
+                auto tx = owner->network.tables->create_read_only_tx();
+                auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+                node_info = nodes->get(primary_id.value());
+              }))
+          {
+            LOG_INFO_FMT(
+              "BackupSnapshotFetch: Could not read primary node {} from nodes "
+              "table after compaction conflicts, skipping fetch",
+              primary_id.value());
+            return;
+          }
+
           if (!node_info.has_value())
           {
             LOG_INFO_FMT(

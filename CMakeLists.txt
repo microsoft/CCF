@@ -1107,6 +1107,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      backup_snapshot_fetch_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/backup_snapshot_fetch.cpp
+    )
+    target_link_libraries(backup_snapshot_fetch_test PRIVATE ccf_tasks)
+
+    add_unit_test(
       tx_status_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
     )
