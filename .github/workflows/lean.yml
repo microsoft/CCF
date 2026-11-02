@@ -261,6 +261,13 @@ jobs:
         shell: bash
         run: python3 lean/disaster-recovery/replayer/viewer/build.py
 
+      - name: Check KV replay fixtures
+        working-directory: lean/kv
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./replayer/check-fixtures.sh
+
       # Wait here instead of using needs so independent Lean checks run in parallel with capture generation.
       - name: Wait for implementation captures
         timeout-minutes: 60

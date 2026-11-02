@@ -16,6 +16,7 @@ This profile follows the implementation's **per-map globally committed views**.
 | Sequential reference, trace projections, and invariants   | `Kv/Properties/`                  |
 | Proof implementations                                     | `Kv/Proofs/`                      |
 | Replay self-tests                                         | `Kv/Tests/`                       |
+| Valid and invalid trace fixtures                          | `replayer/fixtures/`              |
 | Replay of recorded C++ traces                             | `Kv/TraceValidation.lean`         |
 | Strict decoding of those traces                           | `Kv/TraceValidation/`             |
 | Replayer executable                                       | `replayer/`                       |
@@ -166,10 +167,16 @@ Retries need new attempt IDs.
 | `unsupported`                                | optional `store`, `operation:string`                                                                |
 | `trace_end`                                  | `events:uint64` counting all prior records                                                          |
 
-`Tests/Replay.lean` retains a basic accepted history and two acceptance relationships not guaranteed by generated-trace event coverage.
-It exercises expected rejections, including forbidden map-view refreshes, wrong global values/presence/revisions, partial applications, absent/phantom/write-skew conflicts, stale lineage, iteration lifecycle errors, exact uint64 decoding, and damaged streams.
-Every case is replayed from a temporary file through the same streaming reader as the replayer.
-They run with `#eval` when the module is built, and failures fail the build.
+### Fixtures
+
+Each directory under `replayer/fixtures/` holds a valid schema 1 `trace.ndjson`, whose cases cover acceptance relationships not guaranteed by generated-trace event coverage, and diffs against it in `invalid/`, in the same layout as the [disaster-recovery fixtures](../disaster-recovery/README.md#validation).
+Most diffs change one record, so each shows exactly the deviation being tested.
+An invalid diff's name starts with the status it must produce: `rejected.`, `invalid-trace.` or `unsupported.`.
+They cover forbidden map-view refreshes, wrong global values/presence/revisions, partial applications, absent/phantom/write-skew conflicts, stale lineage, compaction and rollback boundaries, iteration lifecycle errors, and damaged streams.
+
+`replayer/check-fixtures.sh` replays each base trace, which must be accepted, and each diff applied with `git apply --unidiff-zero`, which must produce its named status.
+It also requires replay to be deterministic, every failure to carry a diagnostic, and every rejection to identify the failing record.
+`Tests/Replay.lean` keeps only the checks that are not traces: agreement between the projected serial history and actual replay, and exact uint64 decoding; they run with `#eval` when the module is built.
 Other positive implementation schedules come from the focused C++ tests and concurrent fuzzer.
 
 ## Recorded finding
@@ -178,7 +185,7 @@ The concurrent fuzzer found a whole-map conflict that C++ failed to detect.
 An iteration over a map at revision zero recorded its map-read version as zero, which was also `NoVersion`, the marker for "no whole-map read".
 Commit validation therefore skipped the check, and C++ applied a transaction whose iterated map had since gained an entry, while the model rejected the `apply`.
 [#8320](https://github.com/microsoft/CCF/pull/8320) fixed this by tracking the map-read version as `std::optional<Version>`.
-The model's whole-map dependency check, which caught it, is exercised by the `map-wide phantom dependency` case in `Tests/Replay.lean`.
+The model's whole-map dependency check, which caught it, is exercised by `replayer/fixtures/dependencies/invalid/rejected.map-wide-phantom-dependency.diff`.
 
 ## Trust and exclusions
 
@@ -198,12 +205,13 @@ lake build CCF
 lake lint
 lake exe runLinter --no-build CCF Kv replayer.Main
 lake check --inadvisably-no-sandbox
+./replayer/check-fixtures.sh
 ```
 
 These are the same checks as the [disaster-recovery validation](../disaster-recovery/README.md#validation), which describes each of them and the package's linter options.
-The build runs the replay self-tests in `Tests/Replay.lean`.
+The build runs the self-tests in `Tests/Replay.lean`, and `check-fixtures.sh` replays the [fixtures](#fixtures) with the built `kv-replay`.
 The shared `lake exe check-imports` checks import coverage and layering, as described in the [common package](../common/README.md#architecture-checks).
 
 To check C++ traces against the model, build the replayer and pass it to CMake as described in [Reproducing a run](../../doc/build_apps/kv/semantics.rst).
-In the Lean CI workflow, the `KV trace captures` job builds the instrumented C++ tests and captures traces in Azure Linux 3, while the model job runs these checks in parallel and then replays the captured traces.
+In the Lean CI workflow, the `KV trace captures` job builds the instrumented C++ tests and captures traces in Azure Linux 3, while the model job runs these checks and the fixtures in parallel and then replays the captured traces.
 See the disaster-recovery [Formatting](../disaster-recovery/README.md#formatting) section for the formatting check, and pass `lean/kv` to restrict it to this package.

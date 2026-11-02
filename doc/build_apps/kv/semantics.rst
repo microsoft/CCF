@@ -244,7 +244,7 @@ Each run retains its trace and test/checker output in a unique directory.
 The checker streams records and stops at the first diagnostic; accepted model history is not constant-memory.
 
 The ``Lean`` workflow builds the instrumented tests and captures traces in one job, uploading the traces and, even if capture fails, the diagnostics.
-A separate job builds and checks the model in parallel, then replays the captured traces.
+A separate job builds and checks the model and its valid and invalid trace fixtures in parallel, then replays the captured traces.
 Selected tests can exercise explicitly unsupported mechanisms, which remain non-passing outcomes.
 These single-node KV tests do not require an enclave or a multi-node network.
 

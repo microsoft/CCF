@@ -1,1 +1,2 @@
 *.ndjson
+!replayer/fixtures/*/trace.ndjson

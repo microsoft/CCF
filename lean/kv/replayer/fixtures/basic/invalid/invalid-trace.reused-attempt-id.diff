@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -25 +25 @@
+-{"seq":25,"store":1,"tx":2,"type":"tx_create"}
++{"seq":25,"store":1,"tx":1,"type":"tx_create"}
