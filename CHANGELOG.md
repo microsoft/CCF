@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.24]
+
+[7.0.24]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.24
+
+### Fixed
+
+- Backup nodes no longer abort when a compaction races the primary node lookup performed before fetching a snapshot; the lookup is retried on `CompactedVersionConflict` and the fetch is skipped if it keeps conflicting (#8652).
+
 ## [7.0.23]
 
 [7.0.23]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.23

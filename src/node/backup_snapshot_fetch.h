@@ -9,6 +9,12 @@
 
 namespace ccf::node
 {
+  // Retries a read-only KV lookup that may throw CompactedVersionConflict
+  // when compaction races the lazily captured read version. Each call to
+  // lookup must create a fresh transaction. Attempts are made back to back
+  // without any backoff: the conflict window only spans the time between
+  // capturing the read version and creating the change set, so an immediate
+  // retry is sufficient.
   template <typename Lookup>
   bool retry_backup_snapshot_lookup(Lookup lookup)
   {
