@@ -292,9 +292,6 @@ spelling_lang = "en_UK"
 tokenizer_lang = "en_UK"
 spelling_word_list_filename = ["spelling_wordlist.txt"]
 
-pele_options = {"config": {"sequence": {"messageMargin": 55}}}
-
-
 def typedoc_role(
     name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]
 ):

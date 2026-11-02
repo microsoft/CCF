@@ -65,7 +65,7 @@ Update the Documentation
 ------------------------
 
 Building the documentation and Python SDK requires Python 3.12 or newer.
-Diagrams use ``sphinx-pele``, which bundles its browser assets; no Mermaid CDN is required.
+Diagrams use ``sphinx-pele`` with its default rendering options and bundled browser assets; no Mermaid CDN is required.
 Keep using the ``mermaid`` directive for diagram sources.
 
 It is possible to preview local documentation changes by running
