@@ -10,6 +10,11 @@ lintDriverArgs = ["--no-build", "Shamir"]
 autoImplicit = false
 
 [[require]]
+name = "ccf_common"
+path = "../common"
+copy = false
+
+[[require]]
 name = "aeneas"
 git = "https://github.com/AeneasVerif/aeneas"
 subDir = "backends/lean"

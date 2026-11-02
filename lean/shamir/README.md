@@ -49,8 +49,8 @@ The C++ adapter copies members into the C representation rather than type-punnin
 The core does not allocate, and recovery uses caller-owned storage linear in the threshold instead of variable-length stack arrays.
 The unsafe FFI shim and the C++ adapter's OpenSSL calls are outside the verified safe core.
 
-[`Shamir/Properties.lean`](Shamir/Properties.lean) states the refinement claims independently of their proofs.
-[`Shamir/Proof.lean`](Shamir/Proof.lean) exports `sharing_refines_cslib`, `recovery_refines_cslib`, and `recovery_error_preserves_secret`.
+[`Shamir/Properties.lean`](Shamir/Properties.lean) states and exports `sharing_refines_cslib`, `recovery_refines_cslib`, and `recovery_error_preserves_secret`, with one-line links to their privately imported proof implementations.
+The coefficient-vector encoding relation lives in [`Shamir/Properties/Encoding.lean`](Shamir/Properties/Encoding.lean), so supporting proofs do not depend on the theorem entrypoint.
 Sharing refines CSLib's `Shamir.share` under the coefficient-vector encoding relation, for every canonical coefficient vector encoding that polynomial: filling a limb assigns coordinate `k + 1` to the share at index `k`, stores that coordinate's share value in the requested limb, and leaves every other limb unchanged.
 Recovery terminates successfully for every nonempty selection of distinct field coordinates and an appropriately sized workspace, and each of its ten limbs, written in place over whatever the caller's array held, equals CSLib's `Shamir.Polynomial.reconstruct`.
 For any inputs at all, a recovery that reports an error leaves the caller's array unchanged.
@@ -113,12 +113,14 @@ CARGO_BUILD_JOBS=1 cmake --build build --target sharing_test -j1
 ctest --test-dir build -R '^sharing_test$' --no-tests=error --output-on-failure
 cd lean/shamir
 LEAN_NUM_THREADS=1 lake build --wfail
+LEAN_NUM_THREADS=1 lake exe check-imports
 LEAN_NUM_THREADS=1 lake lint
 cd ../..
 bash scripts/check-shamir.sh --inadvisably-no-sandbox
 ```
 
 The check script verifies the import-all roots and enumerates every declaration owned by both project libraries, including private and automatically generated declarations.
+The shared `lake exe check-imports` command checks whole-package import coverage and architecture layering.
 The standard `leanexport` exports all of these declarations and their transitive dependencies, and `lake check --from-export` kernel-checks that entire export and rejects axiom dependencies outside `propext`, `Classical.choice`, and `Quot.sound`.
 This is not limited to the exported correctness theorems.
 An unfiltered `lake check` also exports unused declarations from Aeneas's upstream test modules, including unfinished tests and unrelated opaque primitives, and fails its axiom audit on those declarations.
