@@ -7,12 +7,15 @@ unset(CCF_VERSION_SUFFIX)
 
 set(CCF_PROJECT "ccf")
 
-# If possible, deduce project version from git environment
+# If possible, deduce project version from git environment.
+# Ignore zero-version tags used for pipeline testing.
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   find_package(Git)
 
   execute_process(
-    COMMAND "bash" "-c" "${GIT_EXECUTABLE} describe --tags --match=\"ccf-*\""
+    COMMAND
+      "bash" "-c"
+      "${GIT_EXECUTABLE} describe --tags --match=\"ccf-*\" --exclude=\"ccf-0.0.0*\""
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     OUTPUT_VARIABLE "CCF_VERSION"
     OUTPUT_STRIP_TRAILING_WHITESPACE

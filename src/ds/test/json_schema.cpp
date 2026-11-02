@@ -82,6 +82,30 @@ TEST_CASE("host configuration unsigned integer bounds")
   }
 }
 
+TEST_CASE("host configuration node-to-node TLS metadata")
+{
+  using Json = nlohmann::json;
+  const auto schema = Json::parse(host::host_config_schema);
+  auto config = Json::parse(R"({
+    "network": {
+      "node_to_node_interface": {"bind_address": "127.0.0.1:8081"},
+      "rpc_interfaces": {}
+    },
+    "command": {
+      "type": "Start",
+      "start": {"constitution_files": [], "members": []}
+    }
+  })");
+  auto& endpoint = config["network"]["node_to_node_tls_interface"];
+  endpoint = {{"bind_address", "localhost:8082"}};
+  REQUIRE_FALSE(json::validate_json(config, schema).has_value());
+  endpoint["published_address"] = "peer.example:8082";
+  REQUIRE_FALSE(json::validate_json(config, schema).has_value());
+
+  endpoint.erase("bind_address");
+  CHECK(json::validate_json(config, schema).has_value());
+}
+
 TEST_CASE("host configuration integer validation")
 {
   const auto config_schema = nlohmann::json::parse(host::host_config_schema);

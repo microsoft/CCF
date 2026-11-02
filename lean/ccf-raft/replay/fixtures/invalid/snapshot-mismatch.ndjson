@@ -1,0 +1,15 @@
+{"msg":{"function":"become_leader","state":{"node_id":"0"}}}
+{"msg":{"function":"replicate","state":{"node_id":"0"},"globally_committable":false}}
+{"msg":{"function":"add_configuration","state":{"node_id":"0"},"nodes":{"0":{}}}}
+{"msg":{"function":"replicate","state":{"node_id":"0","current_view":2,"last_idx":1,"commit_idx":0,"leadership_state":"Leader"},"globally_committable":true}}
+{"msg":{"function":"commit","state":{"node_id":"0"},"idx":2}}
+{"msg":{"cmd":"trust_nodes,2,1"}}
+{"msg":{"function":"replicate","state":{"node_id":"0","current_view":2,"last_idx":2,"commit_idx":2,"leadership_state":"Leader"},"seqno":3,"globally_committable":false}}
+{"msg":{"function":"add_configuration","state":{"node_id":"0"},"idx":3,"nodes":{"0":{},"1":{}}}}
+{"msg":{"function":"recv_append_entries","state":{"node_id":"1","current_view":0,"last_idx":0,"commit_idx":0,"leadership_state":"None"},"from_node_id":"0","packet":{"msg":"raft_append_entries","term":2,"prev_idx":2,"prev_term":2,"idx":2,"leader_commit_idx":2,"term_of_idx":2,"contains_new_view":false}}}
+{"msg":{"function":"become_follower","state":{"node_id":"1"}}}
+{"msg":{"function":"send_append_entries_response","state":{"node_id":"1"},"to_node_id":"0","packet":{"msg":"raft_append_entries_response","term":2,"success":"FAIL","last_log_idx":0}}}
+{"msg":{"function":"recv_append_entries_response","state":{"node_id":"0","current_view":2,"last_idx":3,"commit_idx":2,"leadership_state":"Leader"},"from_node_id":"1","packet":{"msg":"raft_append_entries_response","term":2,"success":"FAIL","last_log_idx":0}}}
+{"msg":{"function":"tick","state":{"node_id":"0","current_view":2,"last_idx":3,"commit_idx":2,"leadership_state":"Leader"}}}
+{"msg":{"function":"send_append_entries","state":{"node_id":"0"},"to_node_id":"1","packet":{"msg":"raft_append_entries","term":2,"prev_idx":0,"prev_term":0,"idx":3,"leader_commit_idx":2,"term_of_idx":2,"contains_new_view":false}}}
+{"msg":{"function":"recv_append_entries","state":{"node_id":"1","current_view":999,"last_idx":0,"commit_idx":0,"leadership_state":"Follower"},"from_node_id":"0","packet":{"msg":"raft_append_entries","term":2,"prev_idx":0,"prev_term":0,"idx":3,"leader_commit_idx":2,"term_of_idx":2,"contains_new_view":false}}}

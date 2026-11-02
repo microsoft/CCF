@@ -67,8 +67,6 @@ class Collector:
                         self.bytes += len(data)
                         key.data.feed(data)
                         for tag, timestamp, record in key.data:
-                            if tag != "ccf.raft_trace":
-                                raise RuntimeError(f"Unexpected trace tag: {tag}")
                             if (
                                 not isinstance(timestamp, msgpack.ExtType)
                                 or timestamp.code != 0

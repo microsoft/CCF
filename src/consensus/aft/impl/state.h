@@ -181,10 +181,7 @@ namespace aft
 
   struct State
   {
-    State(ccf::NodeId node_id_, bool pre_vote_enabled_ = true) :
-      node_id(std::move(node_id_)),
-      pre_vote_enabled(pre_vote_enabled_)
-    {}
+    State(ccf::NodeId node_id_) : node_id(std::move(node_id_)) {}
 
     State() = default;
 
@@ -203,7 +200,8 @@ namespace aft
     // transition from Follower to Leader on the initial node at startup,
     // the state machine is made up of the following transitions:
     //
-    // Follower -> Candidate, when election timeout expires
+    // Follower -> PreVoteCandidate, when election timeout expires
+    // PreVoteCandidate -> Candidate, upon collecting enough pre-votes
     // Follower -> Retired, when commit advances past the last config containing
     // the node
     // Candidate -> Leader, upon collecting enough votes
@@ -231,8 +229,6 @@ namespace aft
     // Index at which this node observes its retired_committed, only set when
     // that index itself is committed
     std::optional<ccf::SeqNo> retired_committed_idx = std::nullopt;
-
-    bool pre_vote_enabled = true;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
@@ -243,8 +239,7 @@ namespace aft
     last_idx,
     commit_idx,
     leadership_state,
-    membership_state,
-    pre_vote_enabled);
+    membership_state);
   DECLARE_JSON_OPTIONAL_FIELDS(
     State,
     retirement_phase,

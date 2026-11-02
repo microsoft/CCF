@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include "ccf/crypto/curve.h"
+#include "ccf/crypto/md_type.h"
+
 #include <cstdint>
 #include <span>
 #include <string>
@@ -38,6 +41,16 @@ namespace ccf
       std::string_view subject,
       std::string_view txid,
       std::span<const uint8_t> payload);
+
+    /// Curve-specific COSE algorithm and digest.
+    struct SigningAlgorithm
+    {
+      int64_t alg;
+      crypto::MDType md;
+    };
+
+    /// @throws std::runtime_error if the curve has no COSE signing algorithm
+    SigningAlgorithm algorithm_for_curve(crypto::CurveID curve);
 
     /// @throws std::runtime_error if header construction, signing, or
     /// encoding fails.

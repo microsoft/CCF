@@ -198,7 +198,9 @@ namespace ccf::kv::test
     }
 
     void recv_message(
-      const NodeId& from, const uint8_t* data, size_t size) override
+      const NodeId& from,
+      std::span<const uint8_t> message,
+      std::span<const uint8_t> payload = {}) override
     {}
 
     void add_configuration(

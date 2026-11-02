@@ -128,7 +128,7 @@ theorem recover_spec (s : Slice ccf_shamir.Share) (w : Slice U64)
   exact hout k (by simpa using hk)
 
 /-- A recovery that reports an error, for any inputs, leaves the caller's secret untouched. -/
-theorem recover_error_preserves_secret (s : Slice ccf_shamir.Share) (w : Slice U64)
+theorem Proofs.recover_error_preserves_secret (s : Slice ccf_shamir.Share) (w : Slice U64)
     (secret : Array U32 10#usize) (r : core.result.Result Unit ccf_shamir.Error)
     (w' : Slice U64) (secret' : Array U32 10#usize)
     (h : ccf_shamir.recover s w secret = ok (r, w', secret'))

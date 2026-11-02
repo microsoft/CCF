@@ -22,10 +22,10 @@ if ! command -v lake >/dev/null 2>&1; then
   exit 1
 fi
 
-declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [ccf-raft]=CCFRaft [shamir]=Shamir)
+declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [ccf-raft]=CCFRaft [consistency]=consistency [shamir]=Shamir)
 PACKAGES=("$@")
 if [ ${#PACKAGES[@]} -eq 0 ]; then
-  PACKAGES=(disaster-recovery ccf-raft shamir)
+  PACKAGES=(disaster-recovery ccf-raft consistency shamir)
 fi
 
 for package in "${PACKAGES[@]}"; do
@@ -36,7 +36,7 @@ for package in "${PACKAGES[@]}"; do
   fi
   # The disaster recovery package also checks Lean files outside lean/.
   if [ "$package" == "disaster-recovery" ]; then
-    PATHSPEC=("*.lean" ":(exclude)lean/ccf-raft/*" ":(exclude)lean/shamir/*")
+    PATHSPEC=("*.lean" ":(exclude)lean/ccf-raft/*" ":(exclude)lean/consistency/*" ":(exclude)lean/shamir/*")
   elif [ "$package" == "shamir" ]; then
     # Preserve the extractor's exact output for reproducibility checks.
     PATHSPEC=("lean/shamir/*.lean" ":(exclude)lean/shamir/Generated/*" ":(exclude)lean/shamir/Generated.lean")

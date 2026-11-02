@@ -7,7 +7,6 @@
 # down and cleared that vote, so node 1 granted node 2's delayed vote request
 # and both nodes became leaders in term 3. This test asserts that same-term
 # step-down now preserves node 1's vote, so node 2 remains a candidate.
-pre_vote_enabled,true
 
 start_node,0
 emit_signature,2

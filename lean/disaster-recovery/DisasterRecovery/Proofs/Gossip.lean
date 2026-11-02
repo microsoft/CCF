@@ -1,6 +1,6 @@
 module
 
-public import DisasterRecovery.Properties
+public import DisasterRecovery.Properties.Utils
 public import DisasterRecovery.Proofs.History
 public import DisasterRecovery.Proofs.Observed
 public import DisasterRecovery.Proofs.Committed
@@ -244,7 +244,8 @@ lemma next_frozen {config : Config} {before after : State} {action : Action}
 lemma reachable_gossip_invariant {config : Config} {state : State}
     (reachable : Reachable config state)
     : Genuine config state.system.nodes /\ FrozenVotes state := by
-  induction reachable with
+  induction reachable
+    using @CCF.TransitionSystem.Reachable.rec (transitionSystem config) with
   | initial initialized =>
       obtain ⟨_, nodes, _, _, rfl⟩ := initialized
       constructor
@@ -271,7 +272,8 @@ lemma steps_evolve {config : Model.Config} {before after : Model.State} {steps}
     (reachable : (Model.transitionSystem config).Reachable before)
     {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes)
     : exists updated, (node, updated) ∈ after.nodes /\ Evolves current updated := by
-  induction run generalizing current with
+  induction run
+    using @Trace.Path.rec (Model.transitionSystem config) generalizing current with
   | nil => exact ⟨current, member, evolves_refl current⟩
   | cons transition _ ih =>
       obtain ⟨middle, present, evolves⟩ := model_step_evolves reachable transition member
@@ -354,7 +356,19 @@ lemma sent_vote_preserves_own {config : Config} {trace : Properties.GlobalTrace}
     Committed.recoveredTxID_of_mem configValid (genuine _ present maximumCurrent),
     Committed.maximumGossip_upper_bound greatest ownSnapshot⟩
 
-lemma quorum_open_preserves_commit : Properties.QuorumOpenPreservesCommit := by
+lemma quorum_open_preserves_commit
+    : forall (config : Model.Config) (trace : Properties.GlobalTrace)
+              (openedState : Model.State),
+      forall (opener : Model.Local.Location) (openerState : Model.Local.NodeState),
+        (trace.Valid (Model.transitionSystem config)
+          /\ openedState ∈ trace
+          /\ (opener, openerState) ∈ openedState.nodes
+          /\ openerState.openKind = some .quorum
+          /\ (forall voter,
+                voter ∈ openerState.votes -> Properties.ReceivedOwnGossip trace voter))
+        -> exists openerTxID,
+            Model.recoveredTxID config opener = some openerTxID
+            /\ Properties.UpToDateWithQuorum config openerTxID := by
   rintro config trace state opener current ⟨valid, inTrace, present, opened, own⟩
   obtain ⟨openIndex, found⟩ := Stream'.Seq.mem_iff_exists_get?.mp inTrace
   obtain ⟨bound, boundIn, openLe, bounded⟩ :=
@@ -437,7 +451,23 @@ lemma sent_vote_full_gossip {config : Config} {trace : Properties.GlobalTrace}
     have finalGossip := evolves.gossips original
     simpa only [states, same] using finalGossip
 
-lemma full_gossip_preserves_commit : Properties.FullGossipPreservesCommit := by
+lemma full_gossip_preserves_commit
+    : forall (config : Model.Config) (trace : Properties.GlobalTrace)
+              (gossipedState openedState : Model.State),
+      forall (opener : Model.Local.Location) (openerState : Model.Local.NodeState),
+        (trace.Valid (Model.transitionSystem config)
+          /\ gossipedState ∈ trace
+          /\ (forall node nodeState,
+                node ∈ config.protocol.expectedLocations
+                -> (node, nodeState) ∈ gossipedState.nodes
+                -> forall gossip,
+                    gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
+          /\ openedState ∈ trace
+          /\ (opener, openerState) ∈ openedState.nodes
+          /\ openerState.openKind.isSome = true)
+        -> exists openerTxID,
+            Model.recoveredTxID config opener = some openerTxID
+            /\ Properties.UpToDateWithQuorum config openerTxID := by
   rintro config trace gossiped opened opener current
     ⟨valid, gossipedMember, full, openedMember, present, opening⟩
   obtain ⟨gossipIndex, gossipFound⟩ := Stream'.Seq.mem_iff_exists_get?.mp gossipedMember

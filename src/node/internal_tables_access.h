@@ -409,21 +409,19 @@ namespace ccf
         recovery_count = prev_service_info->recovery_count.value_or(0) + 1;
       }
 
-      const auto service_cert_der = ccf::crypto::cert_pem_to_der(service_cert);
-      // Current contract is to keep the existing service key for signing.
+      // Publish CLASSICAL from the service key; preserve other identity types.
+      const auto signing_identity = signing_identity_from_cert(service_cert);
       tx.wo<SigningIdentities>(Tables::SIGNING_IDENTITIES)
-        ->put(
-          IdentityType::CLASSICAL,
-          {IdentityKind::X509_SPKI_DER,
-           ccf::crypto::public_key_der_from_cert(service_cert_der)});
+        ->put(IdentityType::CLASSICAL, signing_identity);
 
-      service->put(
-        {service_cert,
-         recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
-         prev_service_created_at,
-         recovery_count,
-         service_data,
-         create_txid});
+      const ServiceInfo service_info{
+        service_cert,
+        recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
+        prev_service_created_at,
+        recovery_count,
+        service_data,
+        create_txid};
+      service->put(service_info);
     }
 
     static bool is_service_created(
@@ -520,6 +518,17 @@ namespace ccf
           active_service->current_service_create_txid.value();
 
         key_to_endorse = endorsement.endorsing_key;
+      }
+
+      check_signing_identity_matches_service_cert(tx);
+      const auto signing_identity =
+        get_service_signing_identity(tx, IdentityType::CLASSICAL);
+      if (
+        !signing_identity.has_value() ||
+        !is_same_key(signing_identity.value(), endorsement.endorsing_key))
+      {
+        throw std::logic_error(
+          "Endorsing key is not the service signing identity");
       }
 
       auto from_txid = endorsement.endorsement_epoch_begin.to_str();

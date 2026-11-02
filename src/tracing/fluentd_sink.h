@@ -284,6 +284,8 @@ namespace ccf::tracing
           deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
           stopping.store(true, std::memory_order_release);
           consumer.join();
+          LOG_INFO_FMT(
+            "Fluentd exporter shutdown: {} dropped events", dropped.load());
         }
       }
 

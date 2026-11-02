@@ -48,6 +48,21 @@ namespace ccf::crypto
       compute_cert_valid_to_string(valid_from, validity_period_days));
   }
 
+  static Pem create_self_signed_cert(
+    const ECKeyPairPtr& key_pair,
+    const std::vector<uint8_t>& subject_name_der,
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::string& valid_from,
+    size_t validity_period_days)
+  {
+    return key_pair->self_sign(
+      subject_name_der,
+      valid_from,
+      compute_cert_valid_to_string(valid_from, validity_period_days),
+      subject_alt_names,
+      true /* CA */);
+  }
+
   static Pem create_endorsed_cert(
     const Pem& csr,
     const std::string& valid_from,
@@ -110,21 +125,22 @@ namespace ccf::crypto
 
   static Pem create_endorsed_cert(
     const Pem& public_key,
-    const std::string& subject_name,
+    const std::vector<uint8_t>& subject_name_der,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::pair<std::string, std::string>& validity_period,
     const Pem& issuer_private_key,
     const Pem& issuer_cert,
     bool ca = false)
   {
-    return create_endorsed_cert(
-      public_key,
-      subject_name,
-      subject_alt_names,
+    auto issuer_key_pair = make_ec_key_pair(issuer_private_key);
+    auto csr = issuer_key_pair->create_csr(
+      subject_name_der, subject_alt_names, public_key);
+    return issuer_key_pair->sign_csr(
+      issuer_cert,
+      csr,
       validity_period.first,
       validity_period.second,
-      issuer_private_key,
-      issuer_cert,
-      ca);
+      ca,
+      ECKeyPair::Signer::ISSUER);
   }
 }

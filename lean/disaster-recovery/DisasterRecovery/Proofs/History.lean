@@ -29,7 +29,8 @@ lemma trace_lifts {config : Model.Config} {before after : Model.State} {tail}
         Decoration config ghost tail final
         /\ Execution.Global.Reachable config final
         /\ erase final = after := by
-  induction path generalizing ghost with
+  induction path
+    using @Trace.Path.rec (Model.transitionSystem config) generalizing ghost with
   | nil => exact ⟨ghost, .nil _, reachable, linked⟩
   | @cons before middle after tail action step _ ih =>
       obtain ⟨ghostAction, ghostMiddle, _, ghostStep, middleEq⟩ :=

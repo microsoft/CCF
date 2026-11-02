@@ -16,12 +16,13 @@ quantified where needed.
 -/
 
 /-- `Run system start actions final`: executing `actions` from `start` reaches `final`. -/
-inductive Run {State Action : Type} (system : TransitionSystem State Action)
-    : State -> List Action -> State -> Prop where
+inductive Run (system : TransitionSystem)
+    : system.State -> List system.Action -> system.State -> Prop where
   /-- An empty action list leaves the state unchanged. -/
-  | nil (state : State) : Run system state [] state
+  | nil (state : system.State) : Run system state [] state
   /-- Prepend one enabled action to the rest of an execution. -/
-  | cons {before middle after : State} {action : Action} {actions : List Action}
+  | cons {before middle after : system.State} {action : system.Action}
+    {actions : List system.Action}
     (step : system.step before action = some middle)
     (rest : Run system middle actions after)
     : Run system before (action :: actions) after
@@ -32,9 +33,7 @@ abbrev Trace (State : Type) := Stream'.Seq State
 
 /-- The trace is nonempty, its first state is initial, and each later state
 follows its predecessor by some enabled action. -/
-def Trace.Valid {State Action : Type} (trace : Trace State)
-    (system : TransitionSystem State Action)
-    : Prop :=
+def Trace.Valid (system : TransitionSystem) (trace : Trace system.State) : Prop :=
   (exists initial, trace.get? 0 = some initial /\ system.init initial)
   /\ forall i before after,
       trace.get? i = some before
@@ -42,9 +41,9 @@ def Trace.Valid {State Action : Type} (trace : Trace State)
       -> exists action, system.step before action = some after
 
 /-- Every state in a valid trace is reachable. -/
-theorem Trace.Valid.reachable {State Action : Type}
-    {system : TransitionSystem State Action}
-    {trace : Trace State} (valid : trace.Valid system) {state : State}
+theorem Trace.Valid.reachable
+    {system : TransitionSystem}
+    {trace : Trace system.State} (valid : trace.Valid system) {state : system.State}
     (member : state ∈ trace)
     : system.Reachable state := by
   obtain ⟨index, found⟩ := Stream'.Seq.mem_iff_exists_get?.mp member
@@ -64,14 +63,13 @@ theorem Trace.Valid.reachable {State Action : Type}
 
 /-- Valid traces cover exactly the reachable states. Every reachable state is the
 last state of some valid finite trace. -/
-theorem reachable_iff_trace {State Action : Type}
-    {system : TransitionSystem State Action} {state : State}
+theorem reachable_iff_trace {system : TransitionSystem} {state : system.State}
     : system.Reachable state
-      <-> exists trace : Trace State, trace.Valid system /\ state ∈ trace := by
+      <-> exists trace : Trace system.State, trace.Valid system /\ state ∈ trace := by
   constructor
   · intro reachable
-    suffices finite : exists states : List State,
-        Trace.Valid (Stream'.Seq.ofList (states ++ [state])) system by
+    suffices finite : exists states : List system.State,
+        Trace.Valid system (Stream'.Seq.ofList (states ++ [state])) by
       obtain ⟨states, valid⟩ := finite
       exact ⟨_, valid, Stream'.Seq.get?_mem (n := states.length) (by simp [Stream'.Seq.ofList_get?])⟩
     induction reachable with

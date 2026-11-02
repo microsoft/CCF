@@ -9,11 +9,11 @@ namespace DisasterRecovery.Proofs.Trace
 
 open CCF
 
-variable {State Action : Type}
+variable {State : Type}
 
 /-- Enabled steps through the listed successor states, from a start state to a final state. -/
-inductive Path (system : TransitionSystem State Action)
-    : State -> List State -> State -> Prop where
+inductive Path (system : TransitionSystem)
+    : system.State -> List system.State -> system.State -> Prop where
   /-- An empty path starts and ends at the same state. -/
   | nil (state) : Path system state [] state
   /-- Prepend one enabled step and its successor to the remaining path. -/
@@ -22,14 +22,14 @@ inductive Path (system : TransitionSystem State Action)
     (rest : Path system middle tail after)
     : Path system before (middle :: tail) after
 
-lemma Path.reachable {system : TransitionSystem State Action} {before tail after}
+lemma Path.reachable {system : TransitionSystem} {before tail after}
     (path : Path system before tail after) (reachable : system.Reachable before)
     : system.Reachable after := by
   induction path with
   | nil => exact reachable
   | cons step _ ih => exact ih (.step reachable step)
 
-lemma Path.run {system : TransitionSystem State Action} {before tail after}
+lemma Path.run {system : TransitionSystem} {before tail after}
     (path : Path system before tail after)
     : exists actions, Execution.Run system before actions after := by
   induction path with
@@ -39,8 +39,8 @@ lemma Path.run {system : TransitionSystem State Action} {before tail after}
       exact ⟨_, .cons step rest⟩
 
 /-- Enabled steps connect a state of a valid trace to every later state of the trace. -/
-lemma valid_path {system : TransitionSystem State Action} {trace : Execution.Trace State}
-    (valid : trace.Valid system) (start count : Nat) {before after : State}
+lemma valid_path {system : TransitionSystem} {trace : Execution.Trace system.State}
+    (valid : trace.Valid system) (start count : Nat) {before after : system.State}
     (first : trace.get? start = some before)
     (last : trace.get? (start + count) = some after)
     : exists tail, Path system before tail after := by

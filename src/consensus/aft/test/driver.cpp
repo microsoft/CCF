@@ -90,26 +90,6 @@ int main(int argc, char** argv)
 
     switch (shash(in))
     {
-      case shash("pre_vote_enabled"):
-      {
-        assert(items.size() == 2);
-        if (items[1] == "true")
-        {
-          driver->set_pre_vote_enabled(true);
-        }
-        else if (items[1] == "false")
-        {
-          driver->set_pre_vote_enabled(false);
-        }
-        else
-        {
-          throw std::runtime_error(fmt::format(
-            "pre_vote_enabled value must be true or false on line "
-            "{}",
-            lineno));
-        }
-        break;
-      }
       case shash("start_node"):
       {
         assert(items.size() == 2);

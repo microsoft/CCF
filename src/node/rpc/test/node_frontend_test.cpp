@@ -985,6 +985,9 @@ TEST_CASE("Add a node to an open service")
       expired_node_kp->create_csr("CN=Expired Joiner");
     expired_join_input.node_info_network.node_to_node_interface
       .published_address = "localhost:1234";
+    expired_join_input.node_info_network.node_to_node_tls_interface =
+      NodeInfoNetwork::NodeToNodeInterface{
+        "localhost:8082", "peer.example:8082"};
 
     auto http_response = frontend_process(
       frontend, expired_join_input, "join", expired_node_caller);
@@ -996,6 +999,9 @@ TEST_CASE("Add a node to an open service")
       const auto node_info = nodes->get(expired_node_id);
       REQUIRE(node_info.has_value());
       REQUIRE(node_info->pending_last_seen.has_value());
+      CHECK(
+        node_info->node_to_node_tls_interface ==
+        expired_join_input.node_info_network.node_to_node_tls_interface);
 
       nlohmann::json node_info_json = node_info.value();
       CHECK(
@@ -1045,6 +1051,9 @@ TEST_CASE("Add a node to an open service")
       REQUIRE(last_seen.has_value());
       CHECK(last_seen.value() >= before);
       CHECK(last_seen.value() <= now_ms());
+      CHECK(
+        get_node(expired_node_id).node_to_node_tls_interface ==
+        expired_join_input.node_info_network.node_to_node_tls_interface);
     }
 
     const auto stale_pending_last_seen = now_ms() -

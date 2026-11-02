@@ -111,7 +111,6 @@ private:
     std::shared_ptr<TRaft> raft;
   };
 
-  bool pre_vote_enabled = true;
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
 
@@ -193,7 +192,7 @@ private:
       std::make_unique<Adaptor>(kv),
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
       std::make_shared<aft::ChannelStubProxy>(),
-      std::make_shared<aft::State>(node_id, pre_vote_enabled),
+      std::make_shared<aft::State>(node_id),
       nullptr);
     kv->set_set_retired_committed_hook(
       [raft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
@@ -248,7 +247,7 @@ public:
     ccf::kv::Configuration::Nodes configuration;
     add_node(start_node_id);
     configuration.try_emplace(start_node_id);
-    _nodes[start_node_id].raft->force_become_primary();
+    _nodes.at(start_node_id).raft->force_become_primary();
     _replicate("2", {}, lineno, false, configuration);
     RAFT_DRIVER_PRINT(
       "Note over {}: Node {} created",
@@ -766,20 +765,19 @@ public:
   {
     if (_connections.find(std::make_pair(src, dst)) != _connections.end())
     {
-      // If this is an AppendEntries, then append the corresponding entry from
-      // the sender's ledger
+      // If this is AppendEntries, fetch the corresponding ledger entries.
       const uint8_t* data = contents.data();
       auto size = contents.size();
       auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
       bool should_send = true;
+      std::vector<uint8_t> body;
       if (msg_type == aft::raft_append_entries)
       {
         // Parse the indices to be sent to the recipient.
         auto ae = *(aft::AppendEntries*)data;
 
         auto& sender_raft = _nodes.at(src).raft;
-        const auto payload_opt =
-          sender_raft->ledger->get_append_entries_payload(ae);
+        auto payload_opt = sender_raft->ledger->get_append_entries_payload(ae);
 
         if (!payload_opt.has_value())
         {
@@ -802,16 +800,14 @@ public:
         }
         else
         {
-          contents.insert(
-            contents.end(), payload_opt->begin(), payload_opt->end());
+          body = std::move(*payload_opt);
         }
       }
 
       if (should_send)
       {
         log_msg_details(src, dst, contents);
-        _nodes.at(dst).raft->recv_message(
-          src, contents.data(), contents.size());
+        _nodes.at(dst).raft->recv_message(src, contents, body);
         return true;
       }
     }
@@ -1046,11 +1042,6 @@ public:
     {
       drop_pending_to(from, to);
     }
-  }
-
-  void set_pre_vote_enabled(bool enabled)
-  {
-    pre_vote_enabled = enabled;
   }
 
   using Discrepancies = std::map<ccf::NodeId, std::vector<std::string>>;
