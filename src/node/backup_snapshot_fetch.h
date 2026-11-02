@@ -16,7 +16,7 @@ namespace ccf::node
   // capturing the read version and creating the change set, so an immediate
   // retry is sufficient.
   template <typename Lookup>
-  bool retry_backup_snapshot_lookup(Lookup lookup)
+  [[nodiscard]] bool retry_backup_snapshot_lookup(Lookup lookup)
   {
     constexpr std::size_t max_attempts = 3;
     for (std::size_t attempt = 1; attempt <= max_attempts; ++attempt)

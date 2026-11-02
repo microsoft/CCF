@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Fixed
 
-- Backup nodes no longer abort when a compaction races the primary node lookup performed before fetching a snapshot; the lookup is retried on `CompactedVersionConflict` and the fetch is skipped if it keeps conflicting (#8652).
+- Backup nodes with `snapshots.backup_fetch` enabled no longer abort when a compaction races the lookup of the primary before a snapshot fetch; the fetch is skipped until the next snapshot instead (#8652).
 
 ## [7.0.23]
 
