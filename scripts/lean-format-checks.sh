@@ -22,10 +22,10 @@ if ! command -v lake >/dev/null 2>&1; then
   exit 1
 fi
 
-declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [ccf-raft]=CCFRaft [consistency]=consistency)
+declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [ccf-raft]=CCFRaft [consistency]=consistency [shamir]=Shamir)
 PACKAGES=("$@")
 if [ ${#PACKAGES[@]} -eq 0 ]; then
-  PACKAGES=(disaster-recovery ccf-raft consistency)
+  PACKAGES=(disaster-recovery ccf-raft consistency shamir)
 fi
 
 for package in "${PACKAGES[@]}"; do
@@ -36,18 +36,29 @@ for package in "${PACKAGES[@]}"; do
   fi
   # The disaster recovery package also checks Lean files outside lean/.
   if [ "$package" == "disaster-recovery" ]; then
-    PATHSPEC=("*.lean" ":(exclude)lean/ccf-raft/*" ":(exclude)lean/consistency/*")
+    PATHSPEC=("*.lean" ":(exclude)lean/ccf-raft/*" ":(exclude)lean/consistency/*" ":(exclude)lean/shamir/*")
+  elif [ "$package" == "shamir" ]; then
+    # Preserve the extractor's exact output for reproducibility checks.
+    PATHSPEC=("lean/shamir/*.lean" ":(exclude)lean/shamir/Generated/*" ":(exclude)lean/shamir/Generated.lean")
   else
     PATHSPEC=("lean/$package/*.lean")
   fi
   (
     cd "$ROOT_DIR/lean/$package"
+    jobs="$(( ($(nproc) + 1) >> 1 ))"
     # leanfmt loads imported modules to parse project-specific syntax.
-    lake build "$library"
+    if [ "$package" == "shamir" ]; then
+      export LEAN_NUM_THREADS=1
+      jobs=1
+      # ListDeclarations.lean imports the Generated root as well as Shamir.
+      lake build Generated "$library"
+    else
+      lake build "$library"
+    fi
     git -C "$ROOT_DIR" ls-files -z -- "${PATHSPEC[@]}" |
       while IFS= read -r -d '' file; do
         printf '%s\0' "$ROOT_DIR/$file"
       done |
-      xargs -0 -r lake exe fmt --jobs "$(( ($(nproc) + 1) >> 1 ))" "${FORMAT_ARGS[@]}"
+      xargs -0 -r lake exe fmt --jobs "$jobs" "${FORMAT_ARGS[@]}"
   )
 done

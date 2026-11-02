@@ -28,7 +28,7 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | -------------------------- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------- |
 | `cpp-format-checks.sh`     | C/C++ in `include/`, `src/`, `samples/`                      | clang-format                                       | `-f`              |
 | `clang-tidier.py -p build` | First-party C++ compile commands and their headers           | clang-query: braces for non-empty case bodies      | No                |
-| `lean-format-checks.sh`    | All tracked Lean files                                       | leanfmt                                            | `-f`              |
+| `lean-format-checks.sh`    | Tracked Lean files, excluding Aeneas-generated Shamir output | leanfmt                                            | `-f`              |
 | `python-format-checks.sh`  | Python in `tests/`, `python/`, `scripts/`, `tla/`            | black                                              | `-f`              |
 | `python-lint-checks.sh`    | Python in `python/`, `tests/`                                | ruff                                               | `-f`              |
 | `python-types-checks.sh`   | Python SDK                                                   | mypy                                               | No                |

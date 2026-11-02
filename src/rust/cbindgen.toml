@@ -1,0 +1,52 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+#
+# Configuration for scripts/generate-shamir-header.sh, which renders the
+# Shamir C ABI declared in src/shamir.rs into src/crypto/sharing_ffi.h.
+
+language = "C"
+header = """// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License."""
+pragma_once = true
+autogen_warning = """// Generated from src/rust/src/shamir.rs by scripts/generate-shamir-header.sh.
+// Do not edit by hand."""
+include_version = false
+no_includes = true
+sys_includes = ["stddef.h", "stdint.h"]
+after_includes = """
+
+#if defined(__cplusplus)
+#  define CCF_SHAMIR_NODISCARD [[nodiscard]]
+#elif defined(__GNUC__)
+#  define CCF_SHAMIR_NODISCARD __attribute__((warn_unused_result))
+#else
+#  define CCF_SHAMIR_NODISCARD
+#endif
+
+// Preserve C syntax and the enum width required by Rust's C ABI.
+// NOLINTBEGIN(cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,modernize-use-using,performance-enum-size)"""
+trailer = """// NOLINTEND(cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,modernize-use-using,performance-enum-size)"""
+cpp_compat = true
+style = "type"
+documentation = true
+documentation_style = "c99"
+usize_is_size_t = true
+
+[export]
+include = ["LIMBS", "Share", "Status"]
+
+[export.rename]
+"LIMBS" = "CCF_SHAMIR_LIMBS"
+"Share" = "ccf_shamir_share"
+"Status" = "ccf_shamir_status"
+
+[fn]
+must_use = "CCF_SHAMIR_NODISCARD"
+
+[enum]
+rename_variants = "ScreamingSnakeCase"
+prefix_with_name = true
+
+[parse]
+parse_deps = true
+include = ["ccf-shamir"]
