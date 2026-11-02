@@ -948,6 +948,92 @@ TEST_CASE(
 }
 
 TEST_CASE(
+  "Snapshot finalised in place cannot be encrypted again" *
+  doctest::test_suite("snapshot"))
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+
+  MapTypes::StringString private_map("private_map");
+  {
+    auto tx = store.create_tx();
+    tx.rw(string_map)->put("public", "value");
+    tx.rw(private_map)->put("private", "secret");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto version = store.current_version();
+  const ccf::TxID tx_id{0, version};
+
+  auto serialise_maps = [&](ccf::kv::KvStoreSerialiser& s) {
+    for (const auto* name : {"public:string_map", "private_map"})
+    {
+      auto map = store.get_map_unsafe(version, name);
+      REQUIRE(map != nullptr);
+      map->snapshot(version)->serialise(s);
+    }
+  };
+
+  // As StoreSnapshot::serialise(): measure, then serialise in place
+  ccf::kv::SizeKvStoreSerialiser sizer(
+    encryptor,
+    tx_id,
+    ccf::kv::EntryType::Snapshot,
+    0,
+    {},
+    ccf::no_claims(),
+    true);
+  serialise_maps(sizer);
+  const auto public_size = sizer.get_public_domain_size();
+  const auto private_size = sizer.get_private_domain_size();
+  const auto offset =
+    ccf::kv::SpanKvStoreSerialiser::public_domain_offset(encryptor);
+  const auto private_offset = offset + public_size;
+
+  std::vector<uint8_t> entry(private_offset + private_size);
+  const auto entry_span = std::span<uint8_t>(entry);
+  ccf::kv::SpanKvStoreSerialiser serialiser(
+    ccf::kv::SpanWriter(entry_span.subspan(offset, public_size)),
+    ccf::kv::SpanWriter(entry_span.subspan(private_offset, private_size)),
+    encryptor,
+    tx_id,
+    ccf::kv::EntryType::Snapshot,
+    0,
+    {},
+    ccf::no_claims(),
+    true);
+  serialise_maps(serialiser);
+
+  auto private_domain = [&]() {
+    const auto domain = entry_span.subspan(private_offset);
+    return std::vector<uint8_t>(domain.begin(), domain.end());
+  };
+  const auto private_plaintext = private_domain();
+
+  serialiser.finalise_in_place(entry_span);
+  REQUIRE(private_domain() != private_plaintext);
+  const auto finalised = entry;
+
+  // The private domain was encrypted in place, with an IV determined by the
+  // transaction ID, so encrypting it again would restore the plaintext
+  REQUIRE_THROWS_AS(serialiser.finalise_in_place(entry_span), std::logic_error);
+  REQUIRE_THROWS_AS(serialiser.get_raw_data(), std::logic_error);
+  REQUIRE(entry == finalised);
+
+  ccf::kv::Store new_store;
+  new_store.set_encryptor(encryptor);
+  ccf::kv::ConsensusHookPtrs hooks;
+  REQUIRE(
+    new_store.deserialise_snapshot(entry.data(), entry.size(), hooks) ==
+    ccf::kv::ApplyResult::PASS);
+  auto tx = new_store.create_read_only_tx();
+  REQUIRE(tx.ro(string_map)->get("public") == "value");
+  REQUIRE(tx.ro(private_map)->get("private") == "secret");
+}
+
+TEST_CASE(
   "Snapshot deserialised in place, reusing captured public maps" *
   doctest::test_suite("snapshot"))
 {

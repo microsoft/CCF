@@ -34,6 +34,11 @@ namespace ccf::kv
     // If true, consider historical ledger secrets when encrypting entries
     bool historical_hint;
 
+    // Set by finalise_in_place(), which encrypts the private domain in place
+    // with an IV determined by tx_id: encrypting it again, by either
+    // finalise_in_place() or get_raw_data(), would restore the plaintext
+    bool finalised = false;
+
     template <typename T>
     void serialise_internal(const T& t)
     {
@@ -183,6 +188,11 @@ namespace ccf::kv
 
     std::vector<uint8_t> get_raw_data() override
     {
+      if (finalised)
+      {
+        throw std::logic_error("Entry was already finalised in place");
+      }
+
       // make sure the private buffer is empty when we return
       auto writer_guard_func = [](W* writer) { writer->clear(); };
       std::unique_ptr<decltype(private_writer), decltype(writer_guard_func)>
@@ -216,10 +226,16 @@ namespace ccf::kv
     /** Completes an entry whose domains were serialised in place, by writers
      * over its public and private regions: writes the headers and encrypts the
      * private domain in place. entry must be exactly the size of the
-     * serialised entry.
+     * serialised entry. May be called at most once, even if it throws.
      */
     void finalise_in_place(std::span<uint8_t> entry)
     {
+      if (finalised)
+      {
+        throw std::logic_error("Entry was already finalised in place");
+      }
+      finalised = true;
+
       const auto public_size = public_writer.size();
       const auto private_size = private_writer.size();
       const auto offset = public_domain_offset(crypto_util);
