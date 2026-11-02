@@ -174,11 +174,13 @@ namespace aft::trace
     recv_request_vote_response, raft_trace_tag, state, packet, from_node_id);
   DECLARE_TRACE_EVENT(
     recv_propose_request_vote, raft_trace_tag, state, packet, from_node_id);
+  DECLARE_TRACE_EVENT(tick, raft_trace_tag, state);
   DECLARE_TRACE_EVENT(
     become_pre_vote_candidate, raft_trace_tag, state, configurations);
   DECLARE_TRACE_EVENT(become_candidate, raft_trace_tag, state, configurations);
   DECLARE_TRACE_EVENT(become_leader, raft_trace_tag, state, configurations);
   DECLARE_TRACE_EVENT(become_follower, raft_trace_tag, state, configurations);
+  DECLARE_TRACE_EVENT(nomination, raft_trace_tag, state);
   DECLARE_TRACE_EVENT(
     step_down_and_nominate_successor,
     raft_trace_tag,
@@ -187,6 +189,7 @@ namespace aft::trace
     to_node_id);
   DECLARE_TRACE_EVENT(
     replicate, raft_trace_tag, state, view, seqno, globally_committable);
+  DECLARE_TRACE_EVENT(batch_flush, raft_trace_tag, state);
   DECLARE_TRACE_EVENT(
     add_configuration, raft_trace_tag, state, configurations, idx, nodes, rid);
   DECLARE_TRACE_EVENT(commit, raft_trace_tag, state, idx, configurations);

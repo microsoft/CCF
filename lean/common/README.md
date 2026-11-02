@@ -8,10 +8,25 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.TransitionSystem`          | Initial states, enabled transitions, and reachability        |
 | `CCF.MultiNodeTransitionSystem` | Local protocols composed into a message-passing network      |
 | `CCF.Execution`                 | Finite runs and finite or infinite state traces              |
+| `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
 | `CCF.Architecture`              | Checks of specification import layering                      |
 
 `CCF.Execution` represents traces as Mathlib's `Stream'.Seq`, so the package depends on Mathlib.
 `reachable_iff_trace` shows that valid finite traces reach exactly the reachable states.
+
+## Event parsing
+
+`CCF.Parsec.ParserT Event State` parses an immutable `Array Event` while threading application-defined state.
+The cursor uses natural-number positions, so events need no equality instance.
+`peek`, `take`, and `satisfy` inspect or consume events; `many`, `many_`, `optionalRule`, and `optional_` preserve Parsec's committed-choice behavior while threading state.
+A failed alternative discards its application-state changes, but failure after consuming input cannot select another alternative.
+Wrap a speculative rule in `attempt` to restore both input and application state on failure, including failure after consumption.
+Attempts retain the farthest consumed-pattern diagnostic separately from the cursor and application state.
+If the parse ultimately fails before that position, `run` reports that diagnostic rather than a later generic mismatch; successful parses ignore discarded-branch diagnostics.
+Every repeated rule must consume input when it succeeds.
+`failure` and `validated` report parser or application-validation errors.
+Run a parser with `CCF.Parsec.run events (parser.run initialState)`; include `CCF.Parsec.eof` when trailing events must be rejected.
+Protocol-specific matching, diagnostics, and output emission belong in the consuming package.
 
 ## Transition systems
 

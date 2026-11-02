@@ -290,7 +290,13 @@ theorem CommitFrontier.act {state : NodeState}
   | append entries =>
       unfold Model.Node.act Model.Node.appendBatch
       exact Keeps.seq' fun _ => Keeps.bind'
-        (Keeps.foldlM' (fun current content kept => kept.appendEntry caps self content)
+        (Keeps.foldlM' (fun current entry kept =>
+          Keeps.bind' (kept.appendEntry caps self entry.content) fun appended frontier =>
+            Keeps.foldlM'
+              (fun current (destination, endIndex) kept => by
+                unfold Model.Node.sendEntries
+                exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.pure' kept.withSent)
+              entry.flushes appended frontier)
           entries state frontier)
         fun _ kept => kept.advanced self caps
   | sendEntries destination endIndex =>

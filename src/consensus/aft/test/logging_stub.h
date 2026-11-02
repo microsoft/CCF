@@ -452,9 +452,7 @@ namespace aft
 
     LoggingStubStoreConfig(ccf::NodeId id) : LoggingStubStore(id) {}
 
-    // compact and rollback emulate the behaviour of the retired_committed hook
-    // in the real store through the retired_committed_entries vector, see
-    // node_state.h, circa line 2147
+    // Emulate NodeState::on_nodes_global_commit with transaction versions.
     virtual void compact(Index i) override
     {
       for (auto& [version, configuration] : retired_committed_entries)
@@ -466,7 +464,7 @@ namespace aft
           {
             retired_committed_node_ids.push_back(node_id);
           }
-          set_retired_committed_hook(i, retired_committed_node_ids);
+          set_retired_committed_hook(version, retired_committed_node_ids);
         }
         else
         {
@@ -477,7 +475,7 @@ namespace aft
         std::remove_if(
           retired_committed_entries.begin(),
           retired_committed_entries.end(),
-          [i](const auto& entry) { return entry.first < i; }),
+          [i](const auto& entry) { return entry.first <= i; }),
         retired_committed_entries.end());
     }
 

@@ -1298,7 +1298,7 @@ theorem appendEntriesRequest_summary (self : NodeID) (before : NodeState)
 /-! ## Appending a batch -/
 
 /-- A partially appended batch: new entries at the leader's term, and
-heartbeats consistent with the current log. -/
+packets consistent with the current log. -/
 def BatchState (self : NodeID) (before state : NodeState) (sent : List Model.Envelope)
     : Prop :=
   (exists entries sentIndex,
@@ -1364,8 +1364,26 @@ theorem appendEntry_batch (self : NodeID) (before : NodeState)
             · exact sentBeats e new⟩
         simpa using batch.push content
 
+theorem sendEntries_batch (self : NodeID) (before state : NodeState)
+    (sent : List Model.Envelope) (destination : NodeID) (endIndex : Nat)
+    (batch : BatchState self before state sent)
+    : Sends (fun next later => BatchState self before next (sent ++ later))
+        (sendEntries (Capabilities.record self) self state destination endIndex) := by
+  unfold sendEntries
+  refine Sends.guard_bind fun ⟨_, peer, le, bound, _⟩ => ?_
+  refine Sends.bind' (Sends.send _ _ _) fun _ later eq => Sends.pure' ?_
+  obtain ⟨⟨entries, sentIndex, rfl, terms⟩, packets⟩ := batch
+  refine ⟨⟨entries, _, rfl, terms⟩, fun e member => ?_⟩
+  simp only [List.append_nil] at member
+  rcases List.mem_append.mp member with old | new
+  · exact packets e old
+  · simp only [eq, List.mem_singleton] at new
+    subst e
+    have other : Not (destination = self) := (Finset.mem_erase.mp peer).1
+    exact ⟨rfl, other, _, rfl, rfl, le.trans bound, rfl, List.take_prefix _ _, le_rfl⟩
+
 theorem appendBatch_summary (self : NodeID) (state : NodeState)
-    (contents : List EntryContent)
+    (contents : List AppendEntryInput)
     : Sends
         (fun after sent => Summary self state (.internal (.append contents)) after sent)
         (act (Capabilities.record self) self state (.append contents)) := by
@@ -1376,7 +1394,14 @@ theorem appendBatch_summary (self : NodeID) (state : NodeState)
   have start : BatchState self state state [] :=
     ⟨⟨[], state.sentIndex, by simp, by simp⟩, by simp⟩
   refine Sends.bind' (Sends.mono (Sends.foldlM' (I := BatchState self state)
-      (fun value sent' item batch => appendEntry_batch self state value sent' item batch)
+      (fun value sent' item batch =>
+        Sends.bind' (appendEntry_batch self state value sent' item.content batch)
+          fun appended later kept =>
+            (Sends.foldlM'
+              (fun value sent' (destination, endIndex) batch =>
+                sendEntries_batch self state value sent' destination endIndex batch)
+              item.flushes appended (sent' ++ later) kept).mono
+              fun _ _ done => by simpa [List.append_assoc] using done)
       contents state [] start) fun _ _ done => by simpa using done)
     fun appended sent batch => ?_
   refine Sends.mono (advanceCommit_sends self appended)

@@ -14,6 +14,50 @@
 using ms = std::chrono::milliseconds;
 
 DOCTEST_TEST_CASE(
+  "Retirement hooks use transaction versions" * doctest::test_suite("store"))
+{
+  const auto self = ccf::kv::test::PrimaryNodeId;
+  const auto peer = ccf::kv::test::FirstBackupNodeId;
+  aft::LoggingStubStoreConfig store(self);
+  std::vector<std::pair<aft::Index, std::vector<ccf::kv::NodeId>>> calls;
+  store.set_set_retired_committed_hook(
+    [&](aft::Index version, const std::vector<ccf::kv::NodeId>& node_ids) {
+      calls.emplace_back(version, node_ids);
+    });
+  aft::Configuration::Nodes first;
+  first[self] = {};
+  aft::Configuration::Nodes second;
+  second[peer] = {};
+  store.retired_committed_entries = {
+    {5, first}, {7, second}, {9, first}, {11, second}};
+
+  store.compact(4);
+  DOCTEST_CHECK(calls.empty());
+  DOCTEST_CHECK(store.retired_committed_entries.size() == 4);
+
+  store.compact(8);
+  DOCTEST_REQUIRE(calls.size() == 2);
+  DOCTEST_CHECK(calls[0].first == 5);
+  DOCTEST_CHECK(calls[0].second == std::vector<ccf::kv::NodeId>{self});
+  DOCTEST_CHECK(calls[1].first == 7);
+  DOCTEST_CHECK(calls[1].second == std::vector<ccf::kv::NodeId>{peer});
+  DOCTEST_CHECK(store.retired_committed_entries.size() == 2);
+
+  store.compact(9);
+  DOCTEST_REQUIRE(calls.size() == 3);
+  DOCTEST_CHECK(calls[2].first == 9);
+  DOCTEST_CHECK(calls[2].second == std::vector<ccf::kv::NodeId>{self});
+  DOCTEST_CHECK(store.retired_committed_entries.size() == 1);
+  store.compact(9);
+  DOCTEST_CHECK(calls.size() == 3);
+
+  store.rollback({2, 10}, 2);
+  DOCTEST_CHECK(store.retired_committed_entries.empty());
+  store.compact(12);
+  DOCTEST_CHECK(calls.size() == 3);
+}
+
+DOCTEST_TEST_CASE(
   "Consensus owns its periodic timer" * doctest::test_suite("single"))
 {
   const auto self = ccf::kv::test::PrimaryNodeId;
