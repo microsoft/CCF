@@ -1,89 +1,56 @@
 Architecture
 ============
 
-.. panels::
+.. grid:: 1 2 2 2
+    :gutter: 3
 
-    :fa:`project-diagram` :doc:`consensus/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`project-diagram` :doc:`consensus/index`
 
-    CCF makes use of a consensus protocol to replicate transactions.
+        CCF makes use of a consensus protocol to replicate transactions.
 
-    ---
+    .. grid-item-card:: :fas:`key` :doc:`cryptography`
 
-    :fa:`key` :doc:`cryptography`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        CCF leverages a number of cryptographic techniques and primitives.
 
-    CCF leverages a number of cryptographic techniques and primitives.
+    .. grid-item-card:: :fas:`map` :doc:`request_flow`
 
-    ---
+        Flow of a single request's execution through CCF.
 
-    :fa:`map` :doc:`request_flow`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`random` :doc:`threading`
 
-    Flow of a single request's execution through CCF.
+        CCF threading model.
 
-    ---
+    .. grid-item-card:: :fas:`snowflake` :doc:`merkle_tree`
 
-    :fa:`random` :doc:`threading`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Transaction integrity guarantees stem from the use of a Merkle Tree data structure over their history.
 
-    CCF threading model.
+    .. grid-item-card:: :fas:`book` :doc:`ledger`
 
-    ---
+        Transactions are persisted to a ledger for recovery and audit purposes.
 
-    :fa:`snowflake` :doc:`merkle_tree`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`check-double` :doc:`raft_tla`
 
-    Transaction integrity guarantees stem from the use of a Merkle Tree data structure over their history.
+        TLA+ specifications of CCF.
 
-    ---
+    .. grid-item-card:: :fas:`paper-plane` :doc:`node_to_node`
 
-    :fa:`book` :doc:`ledger`
-    ^^^^^^^^^^^^^^^^^^^^^^^^
+        Node to node channel protocol used for consensus and forwarding.
 
-    Transactions are persisted to a ledger for recovery and audit purposes.
+    .. grid-item-card:: :fas:`address-book` :doc:`indexing`
 
-    ---
+        Indexing system used to speed up historical queries.
 
-    :fa:`check-double` :doc:`raft_tla`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`scroll` :doc:`receipts`
 
-    TLA+ specifications of CCF.
+        Receipts can be used with the ledger for audit purposes.
 
-    ---
+    .. grid-item-card:: :fas:`gears` :doc:`tls_internals`
 
-    :fa:`paper-plane` :doc:`node_to_node`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Internal implementation of TLS communication.
 
-    Node to node channel protocol used for consensus and forwarding.
+    .. grid-item-card:: :fas:`gears` :doc:`tcp_internals`
 
-    ---
-
-    :fa:`address-book` :doc:`indexing`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Indexing system used to speed up historical queries.
-
-    ---
-
-    :fa:`scroll` :doc:`receipts`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Receipts can be used with the ledger for audit purposes.
-
-    ---
-
-    :fa:`gears` :doc:`tls_internals`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Internal implementation of TLS communication.
-
-    ---
-
-    :fa:`gears` :doc:`tcp_internals`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Internal implementation of the TCP host layer.
+        Internal implementation of the TCP host layer.
 
 .. toctree::
     :hidden:

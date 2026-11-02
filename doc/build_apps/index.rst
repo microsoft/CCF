@@ -9,121 +9,78 @@ Applications can be written in JavaScript/TypeScript or C++. An application cons
 
 These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/index:Key-Value Store` that represents the internal state of the application. Applications define a set of ``Maps`` (see :doc:`kv/kv_how_to`), mapping from a key to a value. When an application endpoint is triggered, the effects on the Store are committed atomically.
 
-.. panels::
+.. grid:: 1 2 2 2
+    :gutter: 3
 
-    :fa:`rocket` :doc:`get_started`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`rocket` :doc:`get_started`
 
-    Get Started: Application Development using CCF.
+        Get Started: Application Development using CCF.
 
-    ---
+    .. grid-item-card:: :fas:`download` :doc:`install_bin`
 
-    :fa:`download` :doc:`install_bin`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Install CCF on Linux.
 
-    Install CCF on Linux.
+    .. grid-item-card:: :doc:`example`
 
-    ---
+        .. image:: ../img/cpp.svg
+          :alt: C++
+          :align: left
+          :class: ccf-tile-icon
 
-    .. image:: ../img/cpp.svg
-      :alt: C++
-      :align: left
-      :class: ccf-tile-icon
+        Sample CCF application written in C++.
 
-    :doc:`example`
-    ^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`gear` :doc:`example_rust`
 
-    Sample CCF application written in C++.
+        Minimal native CCF application written in Rust (experimental).
 
-    ---
+    .. grid-item-card:: :doc:`js_app_ts`
 
-    :fa:`gear` :doc:`example_rust`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        .. image:: ../img/ts.svg
+          :alt: TypeScript
+          :align: left
+          :class: ccf-tile-icon
 
-    Minimal native CCF application written in Rust (experimental).
+        Sample CCF application written in TypeScript, using the API specified in :typedoc-package:`ccf-app`.
 
-    ---
+    .. grid-item-card:: :fas:`luggage-cart` :doc:`js_app_bundle`
 
-    .. image:: ../img/ts.svg
-      :alt: TypeScript
-      :align: left
-      :class: ccf-tile-icon
+        Description of the bundle format for JS applications in CCF.
 
-    :doc:`js_app_ts`
-    ^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`tools` :doc:`build_app`
 
-    Sample CCF application written in TypeScript, using the API specified in :typedoc-package:`ccf-app`.
+        Building a CCF application.
 
-    ---
+    .. grid-item-card:: :fas:`rocket` :doc:`run_app`
 
-    :fa:`luggage-cart` :doc:`js_app_bundle`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Running a CCF application demo in a sandbox environment.
 
-    Description of the bundle format for JS applications in CCF.
+    .. grid-item-card:: :fas:`users` :doc:`auth/index`
 
-    ---
+        User authentication mechanisms in CCF.
 
-    :fa:`tools` :doc:`build_app`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`database` :doc:`kv/index`
 
-    Building a CCF application.
+        Transactional access to state is provided by the Key-Value store.
 
-    ---
+    .. grid-item-card:: :fas:`terminal` :doc:`api`
 
-    :fa:`rocket` :doc:`run_app`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        C++ API reference.
 
-    Running a CCF application demo in a sandbox environment.
+    .. grid-item-card:: :fas:`terminal` :doc:`rust_api`
 
-    ---
+        Rust API reference (experimental).
 
-    :fa:`users` :doc:`auth/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`rocket` :doc:`release_policy`
 
-    User authentication mechanisms in CCF.
+        CCF release cadence and compatibility commitments.
 
-    ---
+    .. grid-item-card:: :fas:`exchange-alt` :doc:`migration_7_x_to_8_x`
 
-    :fa:`database` :doc:`kv/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Prepare applications and deployments for CCF 8.x.
 
-    Transactional access to state is provided by the Key-Value store.
+    .. grid-item-card:: :fas:`mail-forward ` :doc:`fwd_to_redirect`
 
-    ---
-
-    :fa:`terminal` :doc:`api`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    C++ API reference.
-
-    ---
-
-    :fa:`terminal` :doc:`rust_api`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Rust API reference (experimental).
-
-    ---
-
-    :fa:`rocket` :doc:`release_policy`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    CCF release cadence and compatibility commitments.
-
-    ---
-
-    :fa:`exchange-alt` :doc:`migration_7_x_to_8_x`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Prepare applications and deployments for CCF 8.x.
-
-    ---
-
-    :fa:`mail-forward ` :doc:`fwd_to_redirect`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Migrate from forwarding (deprecated) to redirect (recommended) endpoints.
-
+        Migrate from forwarding (deprecated) to redirect (recommended) endpoints.
 
 .. toctree::
     :hidden:

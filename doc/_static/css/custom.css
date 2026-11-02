@@ -16,20 +16,6 @@ img.ccf-tile-icon {
   }
 }
 
-/* Insert white background rectangle for mermaid divs, so they are visible in dark theme */
-body[data-theme="dark"] .mermaid
-{
-  background-color: #ffffff
-}
-
-@media (prefers-color-scheme: dark)
-{
-  body[data-theme="auto"] .mermaid
-  {
-    background-color: #ffffff
-  }
-}
-
 .configproperty > em {
   font-family: monospace,monospace;
   font-size: small;

@@ -1,43 +1,28 @@
 Overview
 ========
 
-.. panels::
+.. grid:: 1 2 2 2
+    :gutter: 3
 
-    :fa:`lightbulb` :doc:`what_is_ccf`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`lightbulb` :doc:`what_is_ccf`
 
-    CCF in a hundred words, and the fundamental concepts it implements. Start Here.
+        CCF in a hundred words, and the fundamental concepts it implements. Start Here.
 
-    ---
+    .. grid-item-card:: :fas:`scroll` :doc:`governance`
 
-    
-    :fa:`scroll` :doc:`governance`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Governance in a CCF network is implemented as an executable constitution.
 
-    Governance in a CCF network is implemented as an executable constitution.
+    .. grid-item-card:: :fas:`shield-alt` :doc:`threat_model`
 
-    ---
+        Trust relationships between CCF actors, and how they are maintained.
 
+    .. grid-item-card:: :fas:`tachometer-alt` :doc:`performance`
 
-    :fa:`shield-alt` :doc:`threat_model`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        One of the goals of the CCF implementation is to enable high-throughput, low-latency use cases.
 
-    Trust relationships between CCF actors, and how they are maintained.
+    .. grid-item-card:: :fas:`book` :doc:`glossary`
 
-    ---
-
-
-    :fa:`tachometer-alt` :doc:`performance`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    One of the goals of the CCF implementation is to enable high-throughput, low-latency use cases.
-
-    ---
-
-    :fa:`book` :doc:`glossary`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Common terms used throughout the documentation and their definitions.
+        Common terms used throughout the documentation and their definitions.
 
 .. toctree::
     :hidden:

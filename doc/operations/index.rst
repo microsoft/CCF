@@ -3,103 +3,64 @@ Operations
 
 This section describes how :term:`Operators` manage the different nodes constituting a CCF network.
 
-.. panels::
+.. grid:: 1 2 2 2
+    :gutter: 3
 
-    :fa:`laptop-code` :doc:`run_setup`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`laptop-code` :doc:`run_setup`
 
-    Set up a VM or a container to run a CCF application node.
+        Set up a VM or a container to run a CCF application node.
 
-    ---
+    .. grid-item-card:: :fas:`play-circle` :doc:`start_network`
 
-    :fa:`play-circle` :doc:`start_network`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Start a new instance of a CCF service, and add an initial set of execution nodes.
 
-    Start a new instance of a CCF service, and add an initial set of execution nodes.
+    .. grid-item-card:: :fas:`cogs` :doc:`configuration`
 
-    ---
+        Configure CCF nodes from JSON configuration file.
 
-    :fa:`cogs` :doc:`configuration`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`laptop-code` :doc:`cli`
 
-    Configure CCF nodes from JSON configuration file.
+        Command-Line Interface for CCF executables.
 
-    ---
+    .. grid-item-card:: :fas:`upload` :doc:`ledger_snapshot`
 
-    :fa:`laptop-code` :doc:`cli`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Understand how to backup ledger files and provision new nodes from a state snapshot.
 
-    Command-Line Interface for CCF executables.
+    .. grid-item-card:: :fas:`database` :doc:`data_persistence`
 
-    ---
+        Best practices and durability considerations for ledger and snapshot files.
 
-    :fa:`upload` :doc:`ledger_snapshot`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`sync-alt` :doc:`code_upgrade`
 
-    Understand how to backup ledger files and provision new nodes from a state snapshot.
+        Upgrade a live service with minimal downtime.
 
-    ---
+    .. grid-item-card:: :fas:`stamp` :doc:`certificates`
 
-    :fa:`database` :doc:`data_persistence`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Set and renew nodes and service x509 certificates.
 
-    Best practices and durability considerations for ledger and snapshot files.
+    .. grid-item-card:: :fas:`helicopter` :doc:`recovery`
 
-    ---
+        Recover a service instance from a catastrophic failure, using one or more ledger copies.
 
-    :fa:`sync-alt` :doc:`code_upgrade`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`network-wired` :doc:`network`
 
-    Upgrade a live service with minimal downtime.
+        Configure a network to deploy a CCF service.
 
-    ---
+    .. grid-item-card:: :fas:`microchip` :doc:`platforms/index`
 
-    :fa:`stamp` :doc:`certificates`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Platforms and trusted execution environments supported by CCF.
 
-    Set and renew nodes and service x509 certificates.
+    .. grid-item-card:: :fas:`wrench` :doc:`troubleshooting`
 
-    ---
+        Troubleshooting tips for unexpected events.
 
-    :fa:`helicopter` :doc:`recovery`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`tachometer-alt` :doc:`resource_usage`
 
-    Recover a service instance from a catastrophic failure, using one or more ledger copies.
+        Monitor node resource consumption.
 
-    ---
+    .. grid-item-card:: :fas:`terminal` :doc:`operator_rpc_api`
 
-    :fa:`network-wired` :doc:`network`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Configure a network to deploy a CCF service.
-
-    ---
-
-    :fa:`microchip` :doc:`platforms/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Platforms and trusted execution environments supported by CCF.
-
-    ---
-
-    :fa:`wrench` :doc:`troubleshooting`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Troubleshooting tips for unexpected events.
-
-    ---
-
-    :fa:`tachometer-alt` :doc:`resource_usage`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Monitor node resource consumption.
-
-    ---
-
-    :fa:`terminal` :doc:`operator_rpc_api`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Node API reference.
+        Node API reference.
 
 .. toctree::
     :hidden:

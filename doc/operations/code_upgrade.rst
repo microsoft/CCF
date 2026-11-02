@@ -40,7 +40,7 @@ Procedure
 .. mermaid::
 
     graph TB;
-        classDef NewNode fill:turquoise
+        classDef NewNode fill:turquoise,color:black
         classDef Primary stroke-width:4px
 
         subgraph Service
@@ -75,8 +75,8 @@ Procedure
 .. mermaid::
 
     graph TB;
-        classDef NewNode fill:Turquoise
-        classDef RetiredNode fill:LightGray
+        classDef NewNode fill:Turquoise,color:black
+        classDef RetiredNode fill:LightGray,color:black
         classDef Primary stroke-width:4px
 
         Node0((Node 0))
@@ -104,8 +104,8 @@ Procedure
 .. mermaid::
 
     graph TB;
-        classDef NewNode fill:Turquoise
-        classDef RetiredNode fill:LightGray
+        classDef NewNode fill:Turquoise,color:black
+        classDef RetiredNode fill:LightGray,color:black
         classDef Primary stroke-width:4px
 
         Node0((Node 0))
@@ -136,8 +136,8 @@ Procedure
 .. mermaid::
 
     graph TB;
-        classDef NewNode fill:Turquoise
-        classDef RetiredNode fill:LightGray
+        classDef NewNode fill:Turquoise,color:black
+        classDef RetiredNode fill:LightGray,color:black
         classDef Primary stroke-width:4px
 
         Node0((Node 0))
@@ -165,7 +165,7 @@ Procedure
 .. mermaid::
 
     graph LR;
-        classDef NewNode fill:Turquoise
+        classDef NewNode fill:Turquoise,color:black
         classDef Primary stroke-width:4px
 
         subgraph Service

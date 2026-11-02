@@ -1,80 +1,56 @@
 CCF Documentation
 =================
 
-.. panels::
+.. grid:: 1 2 2 2
+    :gutter: 3
 
-    :fa:`info-circle` :doc:`overview/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`info-circle` :doc:`overview/index`
 
-    Get started with the Confidential Consortium Framework and its core concepts.
+        Get started with the Confidential Consortium Framework and its core concepts.
 
-    ---
+    .. grid-item-card:: :fas:`tools` :doc:`build_apps/index`
 
-    :fa:`tools` :doc:`build_apps/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        .. image:: img/ts.svg
+          :width: 32
+          :target: ./build_apps/js_app_ts.html
+          :alt: TypeScript
+          :align: left
 
-    .. image:: img/ts.svg
-      :width: 32
-      :target: ./build_apps/js_app_ts.html
-      :alt: TypeScript
-      :align: left
+        .. image:: img/cpp.svg
+          :width: 32
+          :target: ./build_apps/example.html
+          :alt: C++
+          :align: left
 
-    .. image:: img/cpp.svg
-      :width: 32
-      :target: ./build_apps/example.html
-      :alt: C++
-      :align: left
+        Write application logic against the CCF Key-Value store in C++, JavaScript or TypeScript.
 
-    Write application logic against the CCF Key-Value store in C++, JavaScript or TypeScript.
+    .. grid-item-card:: :fas:`user` :doc:`use_apps/index`
 
-    ---
+        Interact with a CCF application, using HTTP over TLS.
 
-    :fa:`user` :doc:`use_apps/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`tachometer-alt` :doc:`operations/index`
 
-    Interact with a CCF application, using HTTP over TLS.
+        Provision and operate a network of CCF nodes hosting an application.
 
-    ---
+    .. grid-item-card:: :fas:`users` :doc:`governance/index`
 
-    :fa:`tachometer-alt` :doc:`operations/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Propose and vote changes to a CCF network, the rules that define it and the application it runs.
 
-    Provision and operate a network of CCF nodes hosting an application.
+    .. grid-item-card:: :fas:`eye` :doc:`audit/index`
 
-    ---
+        Audit a running CCF network and its complete history.
 
-    :fa:`users` :doc:`governance/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`code-branch` :doc:`contribute/index`
 
-    Propose and vote changes to a CCF network, the rules that define it and the application it runs.
+        Contribute to the CCF GitHub repository.
 
-    ---
+    .. grid-item-card:: :fas:`shapes` :doc:`architecture/index`
 
-    :fa:`eye` :doc:`audit/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        CCF design and architecture elements.
 
-    Audit a running CCF network and its complete history.
+    .. grid-item-card:: :fas:`flask` :doc:`research/index`
 
-    ---
-
-    :fa:`code-branch` :doc:`contribute/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Contribute to the CCF GitHub repository.
-
-    ---
-
-    :fa:`shapes` :doc:`architecture/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    CCF design and architecture elements.
-
-    ---
-
-    :fa:`flask` :doc:`research/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    CCF-related research papers and technical reports.
+        CCF-related research papers and technical reports.
 
 .. toctree::
     :maxdepth: 1

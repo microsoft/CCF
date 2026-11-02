@@ -34,7 +34,7 @@ The new/recovered node may also need to have access to all ``.committed`` ledger
     B["Node 1<br> [Read-Write directory]"];
     C["Node 2<br> [Read-Write directory]"];
     D["Shared Mount<br>[Read-Only ledger directory]"]
-    style D fill:#bbf,stroke:#f66,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
+    style D fill:#bbf,stroke:#f66,stroke-width:2px,color:#000,stroke-dasharray: 5 5
     A-->D
     A-. copy committed ledger files .-> D
     B-->D

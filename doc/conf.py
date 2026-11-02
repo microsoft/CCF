@@ -56,14 +56,14 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.viewcode",
     "breathe",
-    "sphinxcontrib.mermaid",
+    "sphinx_pele",
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.githubpages",
     "sphinx_multiversion",
     "sphinx_copybutton",
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
-    "sphinx_panels",
+    "sphinx_design",
     "sphinx.ext.extlinks",
     "sphinx_inline_tabs",
     "rustdoc",
@@ -292,22 +292,7 @@ spelling_lang = "en_UK"
 tokenizer_lang = "en_UK"
 spelling_word_list_filename = ["spelling_wordlist.txt"]
 
-# sphinxcontrib-mermaid options
-mermaid_init_js = """mermaid.initialize({startOnLoad:true});
-
-// Remove height from all mermaid diagrams
-window.addEventListener(
-  'load',
-  function() {
-    let nodes = document.querySelectorAll('.mermaid');
-    for (let i = 0; i < nodes.length; i++) {
-      const element = nodes[i];
-      const svg = element.firstChild;
-      svg.removeAttribute('height');
-    }
-  },
-  false
-);"""
+pele_options = {"config": {"sequence": {"messageMargin": 55}}}
 
 
 def typedoc_role(
