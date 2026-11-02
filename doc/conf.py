@@ -272,7 +272,7 @@ html_favicon = "_static/favicon.ico"
 html_context = {
     "github_user": "Microsoft",
     "github_repo": "CCF",
-    "github_version": "main",
+    "github_version": docs_version,
     "doc_path": "doc/",
 }
 

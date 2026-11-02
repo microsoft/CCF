@@ -6,11 +6,11 @@ Audit
 
     .. grid-item-card:: :fas:`scroll` :doc:`receipts`
 
-        Receipts can be used with the ledger for audit purposes.
+        Audit ledger transactions using receipts.
 
     .. grid-item-card:: :fas:`table` :doc:`builtin_maps`
 
-        Schema reference for built-in maps containing service state.
+        Consult the schema reference for built-in maps containing service state.
 
     .. grid-item-card:: :doc:`python_library`
 
@@ -19,11 +19,11 @@ Audit
           :align: left
           :class: ccf-tile-icon
 
-        Utility library that can be used to write ledger audit scripts quickly and easily.
+        Write ledger audit scripts using the Python library.
 
     .. grid-item-card:: :fas:`shield-alt` :doc:`read_write_restrictions`
 
-        Some KV maps should only be modified during governance transactions.
+        Understand which KV maps may be modified during governance transactions.
 
     .. grid-item-card:: :fas:`trowel-bricks` :doc:`reproducible_build`
 

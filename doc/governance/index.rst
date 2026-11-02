@@ -10,31 +10,31 @@ Before creating a new CCF network, the identity of the initial member(s) of the 
 
     .. grid-item-card:: :fas:`scroll` :doc:`constitution`
 
-        Governance in CCF is implemented as a scriptable constitution.
+        Define governance using a scriptable constitution.
 
     .. grid-item-card:: :fas:`hand-paper` :doc:`proposals`
 
-        Governance changes are submitted to a network as Proposals, and put to a vote from members.
+        Submit governance proposals and vote on them as a member.
 
     .. grid-item-card:: :fas:`box-open` :doc:`open_network`
 
-        Opening a freshly created network to user activity is a proposal.
+        Open a freshly created network to user activity.
 
     .. grid-item-card:: :fas:`box-open` :doc:`common_member_operations`
 
-        Frequently used member operations.
+        Perform common member operations.
 
     .. grid-item-card:: :fas:`user-plus` :doc:`adding_member`
 
-        Adding a new member to the consortium.
+        Add a new member to the consortium.
 
     .. grid-item-card:: :fas:`key` :doc:`hsm_keys`
 
-        Storing member keys in HSM.
+        Store member keys in an HSM.
 
     .. grid-item-card:: :fas:`terminal` :doc:`member_rpc_api`
 
-        OpenAPI schema for member RPC API.
+        Consult the member API reference.
 
 .. toctree::
     :hidden:
@@ -49,6 +49,5 @@ Before creating a new CCF network, the identity of the initial member(s) of the 
     adding_member
     hsm_keys
     member_rpc_api
-
 
 

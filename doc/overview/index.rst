@@ -6,23 +6,23 @@ Overview
 
     .. grid-item-card:: :fas:`lightbulb` :doc:`what_is_ccf`
 
-        CCF in a hundred words, and the fundamental concepts it implements. Start Here.
+        Start with CCF in a hundred words and its fundamental concepts.
 
     .. grid-item-card:: :fas:`scroll` :doc:`governance`
 
-        Governance in a CCF network is implemented as an executable constitution.
+        Understand governance through an executable constitution.
 
     .. grid-item-card:: :fas:`shield-alt` :doc:`threat_model`
 
-        Trust relationships between CCF actors, and how they are maintained.
+        Understand trust relationships between CCF actors and how they are maintained.
 
     .. grid-item-card:: :fas:`tachometer-alt` :doc:`performance`
 
-        One of the goals of the CCF implementation is to enable high-throughput, low-latency use cases.
+        Explore CCF performance for high-throughput, low-latency use cases.
 
     .. grid-item-card:: :fas:`book` :doc:`glossary`
 
-        Common terms used throughout the documentation and their definitions.
+        Look up common terms used throughout the documentation.
 
 .. toctree::
     :hidden:

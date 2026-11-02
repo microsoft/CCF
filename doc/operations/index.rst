@@ -14,21 +14,21 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
         Start a new instance of a CCF service, and add an initial set of execution nodes.
 
-    .. grid-item-card:: :fas:`cogs` :doc:`configuration`
+    .. grid-item-card:: :fas:`gears` :doc:`configuration`
 
-        Configure CCF nodes from JSON configuration file.
+        Configure CCF nodes using a JSON configuration file.
 
     .. grid-item-card:: :fas:`laptop-code` :doc:`cli`
 
-        Command-Line Interface for CCF executables.
+        Use the command-line interface for CCF executables.
 
     .. grid-item-card:: :fas:`upload` :doc:`ledger_snapshot`
 
-        Understand how to backup ledger files and provision new nodes from a state snapshot.
+        Back up ledger files and provision new nodes from a state snapshot.
 
     .. grid-item-card:: :fas:`database` :doc:`data_persistence`
 
-        Best practices and durability considerations for ledger and snapshot files.
+        Understand durability and best practices for ledger and snapshot files.
 
     .. grid-item-card:: :fas:`sync-alt` :doc:`code_upgrade`
 
@@ -36,7 +36,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     .. grid-item-card:: :fas:`stamp` :doc:`certificates`
 
-        Set and renew nodes and service x509 certificates.
+        Set and renew node and service X.509 certificates.
 
     .. grid-item-card:: :fas:`helicopter` :doc:`recovery`
 
@@ -48,11 +48,11 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     .. grid-item-card:: :fas:`microchip` :doc:`platforms/index`
 
-        Platforms and trusted execution environments supported by CCF.
+        Explore platforms and trusted execution environments supported by CCF.
 
     .. grid-item-card:: :fas:`wrench` :doc:`troubleshooting`
 
-        Troubleshooting tips for unexpected events.
+        Troubleshoot unexpected events.
 
     .. grid-item-card:: :fas:`tachometer-alt` :doc:`resource_usage`
 
@@ -60,7 +60,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     .. grid-item-card:: :fas:`terminal` :doc:`operator_rpc_api`
 
-        Node API reference.
+        Consult the node API reference.
 
 .. toctree::
     :hidden:

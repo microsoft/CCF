@@ -8,15 +8,15 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
 
     .. grid-item-card:: :fas:`terminal` :doc:`issue_commands`
 
-        Issuing commands against a CCF network hosting an application.
+        Issue commands against a CCF network hosting an application.
 
     .. grid-item-card:: :fas:`check` :doc:`verify_tx`
 
-        Checking the status of commands issued against a CCF network.
+        Check the status of commands issued against a CCF network.
 
     .. grid-item-card:: :fas:`terminal` :doc:`rpc_api`
 
-        OpenAPI schema for user-facing API exposed by sample app, including common default endpoints.
+        Consult the sample application's user-facing API, including common default endpoints.
 
 .. toctree::
     :hidden:

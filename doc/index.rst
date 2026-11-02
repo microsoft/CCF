@@ -10,16 +10,16 @@ CCF Documentation
 
     .. grid-item-card:: :fas:`tools` :doc:`build_apps/index`
 
-        .. image:: img/ts.svg
-          :width: 32
-          :target: ./build_apps/js_app_ts.html
-          :alt: TypeScript
-          :align: left
-
         .. image:: img/cpp.svg
           :width: 32
           :target: ./build_apps/example.html
           :alt: C++
+          :align: left
+
+        .. image:: img/ts.svg
+          :width: 32
+          :target: ./build_apps/js_app_ts.html
+          :alt: TypeScript
           :align: left
 
         .. image:: img/rust.svg
@@ -28,7 +28,7 @@ CCF Documentation
           :alt: Rust
           :align: left
 
-        Write application logic against the CCF Key-Value store in C++, JavaScript, TypeScript or Rust (experimental).
+        Write application logic against the CCF key-value store in C++, JavaScript/TypeScript or Rust (experimental).
 
     .. grid-item-card:: :fas:`user` :doc:`use_apps/index`
 
@@ -52,11 +52,11 @@ CCF Documentation
 
     .. grid-item-card:: :fas:`shapes` :doc:`architecture/index`
 
-        CCF design and architecture elements.
+        Explore CCF design and architecture.
 
     .. grid-item-card:: :fas:`flask` :doc:`research/index`
 
-        CCF-related research papers and technical reports.
+        Read CCF-related research papers and technical reports.
 
 .. toctree::
     :maxdepth: 1

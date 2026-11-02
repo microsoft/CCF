@@ -11,13 +11,13 @@ The CCF team welcome contributions to any part of the framework, including this 
 
     .. grid-item-card:: :fas:`user-check` :doc:`onboarding`
 
-        Getting started as a CCF contributor.
+        Get started as a CCF contributor.
 
     .. grid-item-card:: :fas:`laptop-code` :doc:`build_setup`
 
-        Setup CCF environment to build CCF from source.
+        Set up a development environment to build CCF from source.
 
-    .. grid-item-card:: :fas:`cogs` :doc:`build_ccf`
+    .. grid-item-card:: :fas:`gears` :doc:`build_ccf`
 
         Build CCF from source.
 
