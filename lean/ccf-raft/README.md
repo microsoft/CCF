@@ -55,6 +55,7 @@ The shared `check-imports` command rejects modules missing from that import clos
 
 `Properties.lean` contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
 Import `CCFRaft.Properties` and use `CCFRaft.Properties.<name>` for these declarations.
+Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
 `Proofs/Direct/` establishes node-local commit invariants; `Proofs/Safety/` establishes the cross-node history invariant used for election safety and committed-log comparability.
 `Proofs/Witnesses.lean` supplies concrete executions checked by the kernel.
 

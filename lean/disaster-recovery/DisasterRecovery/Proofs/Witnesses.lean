@@ -4,7 +4,8 @@ import all Init.Data.List.Sort.Basic
 
 public import DisasterRecovery.Properties.Utils
 public import DisasterRecovery.Proofs.Local
-public import Mathlib.Tactic
+public import Mathlib.Data.Fintype.Fin
+public import Mathlib.Tactic.FinCases
 
 @[expose] public section
 
