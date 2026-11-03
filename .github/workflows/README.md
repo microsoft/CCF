@@ -162,6 +162,8 @@ File: `tla-shallow.yml`
 
 Runs Lean verification for the repository, with each package checked in an isolated reusable-workflow job.
 All five packages (ccf-raft, common, consistency, disaster-recovery, and kv) run in one matrix.
+Package checks use the `gha-vmss-d16av7-ci` pool and trace replays use `gha-vmss-d16av7-ci-b`, both in Ubuntu 26.04 containers.
+Native trace captures remain on `gha-vmss-d16av7-ci-c` with Azure Linux containers, and the lightweight final gate uses GitHub-hosted Ubuntu.
 Each matrix job caches its third-party dependency checkouts and build outputs, including Mathlib and (where used) leanfmt, using GitHub Actions caching.
 Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
 CCF package and common build outputs are not cached, and all verification steps still run, including Mathlib's upstream cache retrieval.

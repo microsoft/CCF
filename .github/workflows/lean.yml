@@ -151,7 +151,10 @@ jobs:
   raft_replay:
     name: Replay native Raft traces
     needs: [raft_traces]
-    runs-on: ubuntu-26.04
+    runs-on: [gha-vmss-d16av7-ci-b]
+    container:
+      image: ubuntu:26.04
+      options: --user root
     timeout-minutes: 30
     permissions:
       contents: read
@@ -160,13 +163,18 @@ jobs:
         shell: bash
 
     steps:
+      - name: Install container prerequisites
+        run: |
+          set -euo pipefail
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            ca-certificates git curl tar zstd build-essential libgmp-dev elan
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Lean
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y elan
           elan toolchain install "$(cat lean/lean-toolchain)"
 
       - name: Restore Mathlib cache
@@ -252,7 +260,10 @@ jobs:
   kv_replay:
     name: Replay KV traces
     needs: [kv_traces]
-    runs-on: ubuntu-26.04
+    runs-on: [gha-vmss-d16av7-ci-b]
+    container:
+      image: ubuntu:26.04
+      options: --user root
     timeout-minutes: 30
     permissions:
       contents: read
@@ -261,13 +272,18 @@ jobs:
         shell: bash
 
     steps:
+      - name: Install container prerequisites
+        run: |
+          set -euo pipefail
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            ca-certificates git curl tar zstd build-essential libgmp-dev elan
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Lean
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y elan
           elan toolchain install "$(cat lean/lean-toolchain)"
 
       - name: Restore Mathlib cache

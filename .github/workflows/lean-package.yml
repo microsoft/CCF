@@ -14,7 +14,10 @@ permissions:
 jobs:
   check:
     name: Check ${{ inputs.package }}
-    runs-on: ubuntu-26.04
+    runs-on: [gha-vmss-d16av7-ci]
+    container:
+      image: ubuntu:26.04
+      options: --user root
     timeout-minutes: 90
     defaults:
       run:
@@ -23,6 +26,14 @@ jobs:
       PACKAGE: ${{ inputs.package }}
 
     steps:
+      - name: Install container prerequisites
+        run: |
+          set -euo pipefail
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            ca-certificates git curl tar zstd build-essential libgmp-dev \
+            elan python3-jsonschema jq
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate package
@@ -41,15 +52,13 @@ jobs:
       - name: Install Lean and check prerequisites
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y elan python3-jsonschema jq
           elan toolchain install "$(cat lean/lean-toolchain)"
 
       - name: Restore dependency builds
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: lean/${{ inputs.package }}/.lake/packages
-          key: lean-deps-v1-ubuntu-26.04-${{ runner.arch }}-${{ inputs.package }}-${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-package.yml') }}
+          key: lean-deps-v2-vmss-ubuntu-26.04-${{ runner.arch }}-${{ inputs.package }}-${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-package.yml') }}
 
       - name: Restore Mathlib cache
         working-directory: lean/${{ inputs.package }}
