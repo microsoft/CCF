@@ -7,6 +7,8 @@ public import DisasterRecovery.Properties
 public import DisasterRecovery.Tests.Initial
 public import Mathlib.Tactic.IntervalCases
 
+import Mathlib.Data.Seq.Basic
+
 @[expose] public section
 
 namespace DisasterRecovery.Tests.QuorumCommit

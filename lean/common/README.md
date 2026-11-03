@@ -19,6 +19,7 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 
 Specification proofs import the Mathlib tactics they need rather than the `Mathlib.Tactic` umbrella.
 Their CCF declarations, theorem statements, exposed definitions, and required tactic support remain available, but importing a proof module or an assembled specification root does not promise to reexport unrelated Mathlib tactics or theory.
+`CCF.Execution` publicly imports `Mathlib.Data.Seq.Defs` and keeps `Mathlib.Data.Seq.Basic` private for its internal proofs.
 Consumers that need other Mathlib facilities should import their defining modules explicitly.
 The documented property entrypoints remain the public proof APIs; see the [Raft](../ccf-raft/README.md#proofs), [consistency](../consistency/README.md#properties), and [disaster recovery](../disaster-recovery/README.md#properties) packages.
 

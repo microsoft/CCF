@@ -1,6 +1,8 @@
 module
 
 import all Init.Data.List.Sort.Basic
+import Mathlib.Data.Seq.Basic
+import Mathlib.Tactic.IntervalCases
 
 public import DisasterRecovery.Properties.Utils
 public import DisasterRecovery.Proofs.Local
