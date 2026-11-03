@@ -343,12 +343,12 @@ theorem present_after_step {nodes : List NodeID} {before after : Model.State}
 /-- A node's committed log at one state of a trace is a prefix of the same node's
 committed log at every later state of the trace. -/
 theorem committed_log_later {nodes : List NodeID}
-    {trace : CCF.Execution.Trace Model.State}
-    (valid : trace.Valid (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes))
-    {index : Nat} {state : Model.State} (found : trace.get? index = some state)
+    {trace
+      : CCF.Execution.Trace (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes)}
+    {index : Nat} {state : Model.State} (found : trace.stateAt index = some state)
     {node : NodeID} {firstState : NodeState} (member : (node, firstState) ∈ state.nodes)
     : forall offset later,
-        trace.get? (index + offset) = some later
+        trace.stateAt (index + offset) = some later
         -> exists laterState,
             (node, laterState) ∈ later.nodes
             /\ firstState.committedLog <+: laterState.committedLog := by
@@ -362,14 +362,14 @@ theorem committed_log_later {nodes : List NodeID}
   | succ offset ih =>
       intro later atLater
       rw [← Nat.add_assoc] at atLater
-      cases atMiddle : trace.get? (index + offset) with
-      | none => simp [trace.le_stable (Nat.le_succ _) atMiddle] at atLater
+      cases atMiddle : trace.stateAt (index + offset) with
+      | none => simp [trace.states.le_stable (Nat.le_succ _) atMiddle] at atLater
       | some middle =>
           obtain ⟨middleState, middleMember, prefixed⟩ := ih middle atMiddle
-          obtain ⟨action, stepped⟩ := valid.2 (index + offset) middle later atMiddle atLater
+          obtain ⟨action, stepped⟩ := trace.step (index + offset) middle later atMiddle atLater
           obtain ⟨laterState, laterMember⟩ := present_after_step stepped middleMember
           refine ⟨laterState, laterMember, prefixed.trans ?_⟩
-          exact committed_log_step (keys_nodup (valid.reachable (Stream'.Seq.get?_mem atMiddle)))
+          exact committed_log_step (keys_nodup (trace.reachable (CCF.Execution.Trace.stateAt_mem atMiddle)))
             stepped middleMember laterMember
 
 end Global

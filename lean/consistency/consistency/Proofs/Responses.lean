@@ -110,16 +110,16 @@ theorem responses_reachable {state : State} (reachable : transitionSystem.Reacha
         (causal_reachable reachable) (requests_reachable reachable) transition
 
 theorem unique_tx_ids
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         -> ∀ left ∈ responses state.history,
             ∀ right ∈ responses state.history,
               left.2.tx = right.2.tx -> left.2.txid = right.2.txid := by
-  intro trace state ⟨valid, member⟩ left first right second sameTx
+  intro trace state member left first right second sameTx
   have firstLookup := (mem_responses_iff _ _).mp first
   have secondLookup := (mem_responses_iff _ _).mp second
   rw [← sameTx] at secondLookup
-  have sameIndex := responses_reachable (valid.reachable member)
+  have sameIndex := responses_reachable (trace.reachable member)
     _ _ _ _ _ _ _ _ _ firstLookup secondLookup
   rw [sameIndex, secondLookup] at firstLookup
   exact (Event.response.inj (Option.some.inj firstLookup)).2.2.2.symm
