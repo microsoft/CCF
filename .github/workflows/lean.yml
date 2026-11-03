@@ -17,6 +17,11 @@ on:
       - ".github/workflows/lean.yml"
       - ".github/workflows/lean-package.yml"
   workflow_dispatch:
+    inputs:
+      standalone-replayers:
+        description: Measure cold standalone replay builds instead of running checks
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,7 +30,67 @@ concurrency:
 permissions: read-all
 
 jobs:
+  standalone_replayers:
+    name: Cold standalone replay (${{ matrix.package }})
+    if: github.event_name == 'workflow_dispatch' && inputs.standalone-replayers
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: ccf-raft
+            target: ccfraft-replay
+          - package: kv
+            target: kv-replay
+    defaults:
+      run:
+        shell: bash
+    env:
+      MATHLIB_NO_CACHE_ON_UPDATE: "1"
+      PACKAGE: ${{ matrix.package }}
+      TARGET: ${{ matrix.target }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Lean
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y elan time
+          elan toolchain install "$(cat lean/lean-toolchain)"
+          {
+            printf 'Source: %s\n' "$(git rev-parse HEAD)"
+            printf 'Runner: %s %s\n' "${ImageOS:?}" "${ImageVersion:?}"
+            cat lean/lean-toolchain
+            nproc
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build standalone replay from scratch
+        working-directory: lean/${{ matrix.package }}
+        run: |
+          set -euo pipefail
+          test ! -e .lake
+          test ! -e ../common/.lake
+          /usr/bin/time -o "$RUNNER_TEMP/replay-timing.txt" \
+            -f 'elapsed_seconds=%e user_seconds=%U system_seconds=%S max_rss_kb=%M exit_status=%x' \
+            lake build --wfail "$TARGET"
+          test -x ".lake/build/bin/$TARGET"
+
+      - name: Report standalone build timing
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f "$RUNNER_TEMP/replay-timing.txt" ]; then
+            {
+              printf '\nStandalone build: %s / %s (no restored build caches)\n\n' "$PACKAGE" "$TARGET"
+              cat "$RUNNER_TEMP/replay-timing.txt"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   raft_traces:
+    if: ${{ !inputs.standalone-replayers }}
     name: Raft scenario captures
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
@@ -72,6 +137,7 @@ jobs:
           overwrite: true
 
   kv_traces:
+    if: ${{ !inputs.standalone-replayers }}
     name: KV trace captures
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
@@ -139,6 +205,7 @@ jobs:
           overwrite: true
 
   packages:
+    if: ${{ !inputs.standalone-replayers }}
     name: Lean package (${{ matrix.package }})
     strategy:
       fail-fast: false
@@ -149,6 +216,7 @@ jobs:
       package: ${{ matrix.package }}
 
   kv_package:
+    if: ${{ !inputs.standalone-replayers }}
     name: Lean package (kv)
     uses: ./.github/workflows/lean-package.yml
     with:
@@ -156,6 +224,7 @@ jobs:
 
   # A downstream dependency on packages would wait for the entire matrix.
   raft_package:
+    if: ${{ !inputs.standalone-replayers }}
     name: Lean package (ccf-raft)
     uses: ./.github/workflows/lean-package.yml
     with:
@@ -251,7 +320,7 @@ jobs:
         kv_traces,
         kv_replay,
       ]
-    if: ${{ always() }}
+    if: ${{ always() && !inputs.standalone-replayers }}
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
