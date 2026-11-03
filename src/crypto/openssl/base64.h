@@ -41,8 +41,8 @@ namespace ccf::crypto
       // The update call takes and returns int lengths. Unlike encoding, the
       // decoder is not chunked: OpenSSL does not remember across calls that
       // it has seen padding or its end-of-content marker, and no Base64 text
-      // this large is ever decoded. The decoded output is smaller than the
-      // input, so it fits once the input does.
+      // this large is ever decoded. The output buffer, EVP_DECODE_LENGTH of
+      // the input, is then within INT_MAX as well.
       if (size > INT_MAX)
       {
         throw std::invalid_argument(fmt::format(
