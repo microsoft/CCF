@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Changed
 
 - Consensus tracing now uses `ccf.cft` for the Fluentd tag and `cft_*` for serialized message names.
-  Scenario tools now use `consensus_*` names, and the Lean model and replay executable are named `Consensus` and `consensus-replay`; see [Consensus trace replay](lean/consensus/replay/README.md).
+  Scenario tools now use `consensus_*` names, and the Lean model and replay executable are named `Consensus` and `consensus-replay`; see [Consensus trace replay](lean/consensus/replay/README.md) (#8657).
 
 ## [7.0.23]
 
