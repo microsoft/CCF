@@ -67,5 +67,5 @@ See [failure fixtures](fixtures/README.md) for examples and expected diagnostics
 ### Kernel checks
 
 `lake check` is **CI-only**, not a local replay command.
-The [Lean workflow](../../../.github/workflows/lean.yml) checks the library and executable roots separately, allowing only `propext`, `Classical.choice` and `Quot.sound`.
+The [Lean workflow](../../../.github/workflows/lean.yml) checks the library and executable roots together, allowing only `propext`, `Classical.choice` and `Quot.sound`.
 See [model validation](../README.md#validation) for proof checks; a replay pass does not replace them.
