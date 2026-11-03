@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -1 +1 @@
+-{"schema":1,"seq":1,"type":"trace_start"}
++{"schema":1,"seq":1e0,"type":"trace_start"}

@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -66 +66 @@
+-{"global":2,"map":"b","seq":66,"store":2,"tx":13,"type":"map_acquire","version":2}
++{"global":1,"map":"b","seq":66,"store":2,"tx":13,"type":"map_acquire","version":2}
