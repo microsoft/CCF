@@ -2,7 +2,7 @@ module
 
 public import CCFRaft.Model
 public import CCFRaft.Proofs.Config
-public import Mathlib.Tactic
+public import Mathlib.Tactic.SplitIfs
 
 import all Init.Control.State
 
