@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.24]
+
+[7.0.24]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.24
+
+### Fixed
+
+- The `ccf.merkletree.MerkleTree` Python class now computes each root in time proportional to the leaves added since the previous root, so `ccf.ledger.LedgerValidator` no longer slows down as ledgers grow.
+
 ## [7.0.23]
 
 [7.0.23]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.23

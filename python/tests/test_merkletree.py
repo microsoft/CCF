@@ -10,6 +10,7 @@ first) the root of the complete subtree of 2**i leaves to the left of the
 path to leaf num_flushed.
 """
 
+import random
 import struct
 from hashlib import sha256
 
@@ -74,3 +75,35 @@ def test_empty_tree_has_no_root():
     assert tree.deserialise(struct.pack(">QQ", 0, 0)) == 16
     with pytest.raises(ValueError, match="Empty tree"):
         tree.get_merkle_root()
+
+
+@pytest.mark.parametrize("num_flushed", [0, 1, 6, 13])
+def test_root_updates_levels_in_place(num_flushed: int):
+    # Recomputing the root after adding leaves must extend the existing levels
+    # rather than copy them, otherwise each root costs O(N) and validating a
+    # ledger with frequent signatures becomes quadratic.
+    leaves = [leaf(i) for i in range(100)]
+    tree = MerkleTree()
+    tree.deserialise(reference_serialise(leaves, num_flushed))
+    assert tree.get_merkle_root() == reference_root(leaves)
+    levels = list(tree._levels)
+    for k in range(10):
+        leaves.append(leaf(10_000 + k))
+        tree.add_leaf(leaves[-1], do_hash=False)
+        assert tree.get_merkle_root() == reference_root(leaves)
+        for before, after in zip(levels, tree._levels):
+            assert after is before
+
+
+@pytest.mark.parametrize("num_flushed", [0, 1, 4097])
+def test_roots_at_random_points(num_flushed: int):
+    rng = random.Random(num_flushed)
+    leaves = [leaf(i) for i in range(num_flushed + 1)]
+    tree = MerkleTree()
+    tree.deserialise(reference_serialise(leaves, num_flushed))
+    for k in range(2_000):
+        leaves.append(leaf(10_000 + k))
+        tree.add_leaf(leaves[-1], do_hash=False)
+        if rng.random() < 0.05:
+            assert tree.get_merkle_root() == reference_root(leaves)
+    assert tree.get_merkle_root() == reference_root(leaves)
