@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y elan python3-jsonschema jq file
+          sudo apt-get install -y elan python3-jsonschema jq
           elan toolchain install "$(cat lean/lean-toolchain)"
 
       - name: Restore Mathlib cache
@@ -157,65 +157,3 @@ jobs:
         run: |
           set -euo pipefail
           python3 lean/disaster-recovery/replayer/viewer/build.py
-
-      - name: Package Raft replay executable
-        if: inputs.package == 'ccf-raft'
-        run: |
-          set -euo pipefail
-          binary="lean/ccf-raft/.lake/build/bin/ccfraft-replay"
-          test -f "$binary" && test -x "$binary"
-          artifact="$RUNNER_TEMP/raft-replay-executable"
-          mkdir "$artifact"
-          tar -czf "$artifact/replay.tar.gz" -C "$(dirname "$binary")" ccfraft-replay
-          (cd "$artifact" && sha256sum replay.tar.gz > replay.sha256)
-          git rev-parse HEAD > "$artifact/source"
-          uname -m > "$artifact/architecture"
-          cp lean/lean-toolchain "$artifact/toolchain"
-          {
-            printf 'Runner image: %s %s\n' "${ImageOS:?}" "${ImageVersion:?}"
-            file "$binary"
-            if ! file "$binary" | grep -q 'statically linked'; then
-              ldd "$binary"
-            fi
-          } > "$artifact/runtime.txt"
-          cat "$artifact/runtime.txt" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload Raft replay executable
-        if: inputs.package == 'ccf-raft'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: raft-replay-executable
-          path: ${{ runner.temp }}/raft-replay-executable/
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Package KV replay executable
-        if: inputs.package == 'kv'
-        run: |
-          set -euo pipefail
-          binary="lean/kv/.lake/build/bin/kv-replay"
-          test -f "$binary" && test -x "$binary"
-          artifact="$RUNNER_TEMP/kv-replay-executable"
-          mkdir "$artifact"
-          tar -czf "$artifact/replay.tar.gz" -C "$(dirname "$binary")" kv-replay
-          (cd "$artifact" && sha256sum replay.tar.gz > replay.sha256)
-          git rev-parse HEAD > "$artifact/source"
-          uname -m > "$artifact/architecture"
-          cp lean/lean-toolchain "$artifact/toolchain"
-          {
-            printf 'Runner image: %s %s\n' "${ImageOS:?}" "${ImageVersion:?}"
-            file "$binary"
-            if ! file "$binary" | grep -q 'statically linked'; then
-              ldd "$binary"
-            fi
-          } > "$artifact/runtime.txt"
-          cat "$artifact/runtime.txt" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload KV replay executable
-        if: inputs.package == 'kv'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: kv-replay-executable
-          path: ${{ runner.temp }}/kv-replay-executable/
-          if-no-files-found: error
-          retention-days: 1

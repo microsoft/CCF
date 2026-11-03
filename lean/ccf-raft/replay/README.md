@@ -33,15 +33,13 @@ The scenario runner preserves the raw records in `consensus/raw/` alongside the 
 ## CI captures and replay
 
 The [Lean workflow](../../../.github/workflows/lean.yml) generates native captures on the existing Azure Linux runner while checking Lean packages independently on Ubuntu 26.04.
-Raft has a separate package job so native replay can depend only on Raft checking and captures; a dependency on a matrix job would wait for all its entries.
-The package job retains separate library and executable kernel checks, import/architecture checking, formatting, linting, and positive/negative replay fixtures.
-After validation it uploads the replay executable in a tar archive, preserving executable permissions, with a checksum, source revision, architecture, toolchain, and runner/runtime information.
+Raft runs in the same package matrix as common, consistency, disaster-recovery, and KV.
+Its package check retains separate library and executable kernel checks, import/architecture checking, formatting, linting, and positive/negative replay fixtures.
 
-The short downstream replay job downloads captures and the executable from the same workflow run.
-It verifies the archive, revision, architecture, toolchain, executable permissions, and runtime linkage before validating every native trace.
-Both executable producer and replay use Ubuntu 26.04, not the Azure Linux capture container.
-Missing artifacts, empty trace selections, corrupt archives, incompatible runtimes, and replay failures fail the job explicitly.
-Hosted image revisions can change despite a matching runner label, so runtime compatibility must also be verified on CI.
+The independent replay job waits only for native captures, not package validation.
+It installs the pinned Lean toolchain, restores Mathlib caches, builds `ccfraft-replay` directly, downloads the captures from the same workflow run, and validates every native trace.
+The executable is built and run on the same Ubuntu 26.04 runner; no executable artifact is uploaded or downloaded.
+Missing artifacts, empty trace selections, build failures, and replay failures fail the job explicitly.
 There is no runner held idle polling capture status.
 See [CI package isolation](../../disaster-recovery/README.md#ci-package-isolation) for the aggregate gate and package inventory rules.
 

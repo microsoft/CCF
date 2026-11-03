@@ -161,8 +161,9 @@ File: `tla-shallow.yml`
 # Lean
 
 Runs Lean verification for the repository, with each package checked in an isolated reusable-workflow job.
-The common, consistency, and disaster-recovery checks run as a matrix; ccf-raft and kv have separate jobs for their trace-replay dependencies.
-Raft and KV trace captures run in parallel with package checks, and dedicated replay jobs validate the captures.
+All five packages (ccf-raft, common, consistency, disaster-recovery, and kv) run in one matrix.
+Raft and KV trace captures run in parallel with package checks.
+Two independent trace-validation jobs each restore Mathlib caches, build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
 A final summary job requires every package and trace job to succeed.
 
 Manually dispatch `lean.yml` with `standalone-replayers=true` to measure isolated, cold `lake build --wfail` builds of `ccfraft-replay` and `kv-replay` on fresh Ubuntu runners without restored build caches.
@@ -191,7 +192,8 @@ It then runs the trace viewer's `viewer/build.py`, which fails if a dump the vie
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
 
 The `KV trace captures` job builds the `CCF_KV_TRACING` unit tests on Azure Linux 3 and captures their traces with `tests/kv_trace_validation.py --capture-only`.
-The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fixtures and packages `kv-replay`; the dedicated replay job uses that executable to validate the captured traces.
+The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fixtures.
+The dedicated replay job builds `kv-replay` separately to validate the captured traces; no replay executables are transferred between jobs.
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
