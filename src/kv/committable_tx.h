@@ -27,35 +27,6 @@ namespace ccf::kv
     };
 
   protected:
-    class MapSetLockGuard
-    {
-    private:
-      AbstractStore& store;
-      const bool locked;
-
-    public:
-      MapSetLockGuard(AbstractStore& store_, bool should_lock) :
-        store(store_),
-        locked(should_lock)
-      {
-        if (locked)
-        {
-          store.lock_map_set();
-        }
-      }
-
-      ~MapSetLockGuard()
-      {
-        if (locked)
-        {
-          store.unlock_map_set();
-        }
-      }
-
-      MapSetLockGuard(const MapSetLockGuard&) = delete;
-      MapSetLockGuard& operator=(const MapSetLockGuard&) = delete;
-    };
-
     bool committed = false;
     bool success = false;
 

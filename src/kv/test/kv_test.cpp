@@ -23,12 +23,15 @@
 #undef FAIL
 #include <cstring>
 #include <functional>
+#include <future>
+#include <mutex>
 #include <random>
 #include <set>
 #include <stop_token>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 struct MapTypes
@@ -3627,6 +3630,102 @@ TEST_CASE("Cross-map conflicts")
 std::string rand_string(size_t i)
 {
   return fmt::format("{}: {}", i, rand());
+}
+
+class CompactionOnReadStore : public ccf::kv::Store
+{
+public:
+  std::function<void()> after_read;
+
+  std::pair<ccf::TxID, ccf::kv::Term> current_txid_and_commit_term() override
+  {
+    auto result = Store::current_txid_and_commit_term();
+    if (auto callback = std::exchange(after_read, nullptr))
+    {
+      callback();
+    }
+    return result;
+  }
+
+  bool map_set_is_available()
+  {
+    std::unique_lock<ccf::ds::Mutex> guard(maps_lock, std::try_to_lock);
+    return guard.owns_lock();
+  }
+};
+
+TEST_CASE("Compaction cannot race first handle acquisition")
+{
+  CompactionOnReadStore store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  MapTypes::StringString map("public:map");
+  constexpr auto key = "key";
+
+  auto write_value = [&](const char* value) {
+    auto tx = store.create_tx();
+    tx.rw(map)->put(key, value);
+    return tx.commit();
+  };
+  REQUIRE(write_value("before") == ccf::kv::CommitResult::SUCCESS);
+
+  std::jthread compactor;
+  bool compaction_blocked = false;
+  auto write_result = ccf::kv::CommitResult::FAIL_CONFLICT;
+  store.after_read = [&]() {
+    std::promise<bool> attempted;
+    auto result = attempted.get_future();
+    compactor = std::jthread([&, attempted = std::move(attempted)]() mutable {
+      const bool blocked = !store.map_set_is_available();
+      if (blocked)
+      {
+        // Let acquisition finish before the competing transaction can run.
+        attempted.set_value(true);
+      }
+      write_result = write_value("after");
+      store.compact(store.current_version());
+      if (!blocked)
+      {
+        // Without the acquisition lock, force compaction into the gap.
+        attempted.set_value(false);
+      }
+    });
+    compaction_blocked = result.get();
+  };
+
+  SUBCASE("Read-only transaction")
+  {
+    auto tx = store.create_read_only_tx();
+    auto* handle = tx.ro(map);
+    compactor.join();
+    REQUIRE(handle->get(key) == "before");
+  }
+
+  SUBCASE("Read-write transaction")
+  {
+    auto tx = store.create_tx();
+    auto* handle = tx.rw(map);
+    compactor.join();
+    REQUIRE(handle->get(key) == "before");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  REQUIRE(compaction_blocked);
+  REQUIRE(write_result == ccf::kv::CommitResult::SUCCESS);
+  auto latest = store.create_read_only_tx();
+  REQUIRE(latest.ro(map)->get(key) == "after");
+}
+
+TEST_CASE("First handle acquisition releases map-set lock on exception")
+{
+  CompactionOnReadStore store;
+  MapTypes::StringString map("public:map");
+  store.after_read = []() { throw std::runtime_error("read failed"); };
+
+  auto tx = store.create_read_only_tx();
+  REQUIRE_THROWS_AS(tx.ro(map), std::runtime_error);
+
+  auto fresh = store.create_read_only_tx();
+  REQUIRE_FALSE(fresh.ro(map)->get("key").has_value());
 }
 
 TEST_CASE("Mid-tx compaction")

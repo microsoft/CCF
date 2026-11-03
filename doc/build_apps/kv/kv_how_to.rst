@@ -27,6 +27,11 @@ When the endpoint handler indicates that its :cpp:class:`ccf::kv::Tx` should be 
 
 For each :cpp:type:`ccf::kv::Map` that a transaction wants to write to or read from, a :cpp:class:`ccf::kv::MapHandle` must first be acquired. These are acquired from the :cpp:func:`ccf::kv::Tx::rw` (`read-write`) method. These may be acquired either by name (in which case the desired type must be explicitly specified as a template parameter), or by using a :cpp:type:`ccf::kv::Map` instance which defines both the map's name and key-value types.
 
+The transaction's read version is chosen when its first handle is acquired, and the corresponding map state is retained atomically with respect to compaction.
+Acquiring the first handle cannot fail because that read version was compacted during acquisition.
+Acquiring a handle for another map later can still throw ``ccf::kv::CompactedVersionConflict`` if the state required at the transaction's read version has since been compacted.
+State retained by an existing handle remains readable after compaction.
+
 By name:
 
 .. code-block:: cpp

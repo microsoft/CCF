@@ -22,6 +22,25 @@ namespace ccf::kv
   // not incomplete
   MapChanges::~MapChanges() = default;
 
+  BaseTx::MapSetLockGuard::MapSetLockGuard(
+    AbstractStore& store_, bool should_lock) :
+    store(store_),
+    locked(should_lock)
+  {
+    if (locked)
+    {
+      store.lock_map_set();
+    }
+  }
+
+  BaseTx::MapSetLockGuard::~MapSetLockGuard()
+  {
+    if (locked)
+    {
+      store.unlock_map_set();
+    }
+  }
+
   void BaseTx::retain_change_set(
     const std::string& map_name,
     std::unique_ptr<untyped::ChangeSet>&& change_set,
@@ -49,6 +68,9 @@ namespace ccf::kv
   MapChanges BaseTx::get_map_and_change_set_by_name(
     const std::string& map_name, bool track_deletes_on_missing_keys)
   {
+    // Prevent compaction or rollback between read-version capture and
+    // retaining the map state. Later acquisitions may already be too late.
+    MapSetLockGuard map_set_guard(*pimpl->store, true);
     auto& read_txid = pimpl->read_txid;
 
     if (!read_txid.has_value())
@@ -63,7 +85,8 @@ namespace ccf::kv
       pimpl->commit_view = p.second;
     }
 
-    auto abstract_map = pimpl->store->get_map(read_txid->seqno, map_name);
+    auto abstract_map =
+      pimpl->store->get_map_unsafe(read_txid->seqno, map_name);
     if (abstract_map == nullptr)
     {
       // Store doesn't know this map yet - create it dynamically

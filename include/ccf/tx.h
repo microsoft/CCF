@@ -45,6 +45,20 @@ namespace ccf::kv
   class BaseTx
   {
   protected:
+    class MapSetLockGuard
+    {
+    private:
+      AbstractStore& store;
+      const bool locked;
+
+    public:
+      MapSetLockGuard(AbstractStore& store_, bool should_lock);
+      ~MapSetLockGuard();
+
+      MapSetLockGuard(const MapSetLockGuard&) = delete;
+      MapSetLockGuard& operator=(const MapSetLockGuard&) = delete;
+    };
+
     struct PrivateImpl;
     std::unique_ptr<PrivateImpl> pimpl;
 
