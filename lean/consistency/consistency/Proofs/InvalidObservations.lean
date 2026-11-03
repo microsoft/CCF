@@ -304,15 +304,15 @@ theorem clean_reachable {state : State} (reachable : transitionSystem.Reachable 
         (current_reachable reachable) transition
 
 theorem invalid_not_observed_by_committed
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ invalid ∈ responsesOf state.history .rw,
           ∀ observer ∈ committedResponses state.history .rw,
             invalid.1 ≠ observer.1
             → invalid.2.txid ∈ statusIDs state.history .invalid
             → invalid.2.tx ∉ observer.2.observed := by
-  intro trace state ⟨valid, member⟩ invalid first observer second _ invalidKnown observed
-  have reachable := valid.reachable member
+  intro trace state member invalid first observer second _ invalidKnown observed
+  have reachable := trace.reachable member
   have snapshots := snapshots_reachable reachable
   obtain ⟨invalidKind, invalidLookup⟩ := (History.mem_responsesOf_iff _ _ _).mp first
   obtain ⟨invalidOrigin, invalidFound, _, invalidEntry, invalidAt, invalidView, invalidTx⟩ :=

@@ -10,8 +10,13 @@ on:
       - "tests/raft_scenarios*.py"
       - "tests/raft_scenarios/**"
       - "src/consensus/aft/**"
+      - "src/kv/**"
+      - "include/ccf/kv/**"
+      - "include/ccf/tx.h"
+      - "tests/kv_trace_validation*.py"
       - ".github/workflows/lean.yml"
       - ".github/workflows/lean-package.yml"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -66,6 +71,73 @@ jobs:
           retention-days: 1
           overwrite: true
 
+  kv_traces:
+    name: KV trace captures
+    runs-on: [gha-vmss-d16av7-ci-c]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout dependencies
+        run: |
+          set -euo pipefail
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        uses: ./.github/actions/install-ci-dependencies
+        with:
+          cache-python-packages: "false"
+
+      - name: Build and run instrumented KV unit tests
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          cmake -S . -B "$RUNNER_TEMP/ccf-kv-build" -GNinja \
+            -DCMAKE_BUILD_TYPE=Debug -DCCF_KV_TRACING=ON
+          cmake --build "$RUNNER_TEMP/ccf-kv-build" --target kv_test --parallel "$(( ($(nproc) + 1) >> 1 ))"
+          ctest --test-dir "$RUNNER_TEMP/ccf-kv-build" -VV -R "^kv_test$" --no-tests=error
+
+      - name: Generate KV captures
+        run: |
+          set -euo pipefail
+          python3 tests/kv_trace_validation_test.py
+          python3 tests/kv_trace_validation.py \
+            --binary "$RUNNER_TEMP/ccf-kv-build/kv_test" --capture-only \
+            --output "$RUNNER_TEMP/ccf-kv-build/kv-traces" --seeds 8 --timeout 900
+
+      - name: Upload KV traces
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kv-traces
+          path: ${{ runner.temp }}/ccf-kv-build/kv-traces/*/trace.ndjson
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+      - name: Upload KV diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kv-trace-diagnostics
+          path: |
+            ${{ runner.temp }}/ccf-kv-build/kv-traces/
+            ${{ runner.temp }}/ccf-kv-build/Testing/
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
   packages:
     name: Lean package (${{ matrix.package }})
     strategy:
@@ -75,6 +147,12 @@ jobs:
     uses: ./.github/workflows/lean-package.yml
     with:
       package: ${{ matrix.package }}
+
+  kv_package:
+    name: Lean package (kv)
+    uses: ./.github/workflows/lean-package.yml
+    with:
+      package: kv
 
   # A downstream dependency on packages would wait for the entire matrix.
   raft_package:
@@ -163,7 +241,16 @@ jobs:
 
   models:
     name: Lean models and proofs
-    needs: [packages, raft_package, raft_traces, raft_replay]
+    needs:
+      [
+        packages,
+        kv_package,
+        raft_package,
+        raft_traces,
+        raft_replay,
+        kv_traces,
+        kv_replay,
+      ]
     if: ${{ always() }}
     runs-on: ubuntu-26.04
     timeout-minutes: 5
@@ -181,7 +268,15 @@ jobs:
           import json
           import os
 
-          expected = {"packages", "raft_package", "raft_traces", "raft_replay"}
+          expected = {
+              "packages",
+              "kv_package",
+              "raft_package",
+              "raft_traces",
+              "raft_replay",
+              "kv_traces",
+              "kv_replay",
+          }
           needs = json.loads(os.environ["NEEDS"])
           print(json.dumps(needs, indent=2))
           if set(needs) != expected or any(job["result"] != "success" for job in needs.values()):
@@ -197,7 +292,7 @@ jobs:
           python3 - <<'PY'
           import pathlib
 
-          expected = {"ccf-raft", "common", "consistency", "disaster-recovery"}
+          expected = {"ccf-raft", "common", "consistency", "disaster-recovery", "kv"}
           actual = {config.parent.name for config in pathlib.Path("lean").glob("*/lakefile.toml")}
           if actual != expected:
               raise SystemExit(
@@ -205,3 +300,80 @@ jobs:
                   "update scheduling, package validation, and formatting ownership"
               )
           PY
+
+  kv_replay:
+    name: Replay KV traces
+    needs: [kv_package, kv_traces]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download KV replay executable
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: kv-replay-executable
+          path: ${{ runner.temp }}/kv-replay-executable
+
+      - name: Download KV traces
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: kv-traces
+          path: ${{ runner.temp }}/kv-traces
+
+      - name: Verify and restore KV replay executable
+        run: |
+          set -euo pipefail
+          artifact="$RUNNER_TEMP/kv-replay-executable"
+          cd "$artifact"
+          sha256sum --check replay.sha256
+          test "$(cat source)" = "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          test "$(cat architecture)" = "$(uname -m)"
+          cmp toolchain "$GITHUB_WORKSPACE/lean/lean-toolchain"
+          python3 - <<'PY'
+          import pathlib
+          import shutil
+          import stat
+          import tarfile
+
+          with tarfile.open("replay.tar.gz", "r:gz") as archive:
+              members = archive.getmembers()
+              if len(members) != 1:
+                  raise SystemExit("::error::Expected exactly one KV replay executable")
+              member = members[0]
+              if member.name != "kv-replay" or not member.isfile() or not member.mode & 0o111:
+                  raise SystemExit("::error::Invalid KV replay executable path, type, or permissions")
+              with archive.extractfile(member) as source, pathlib.Path("kv-replay").open("xb") as target:
+                  shutil.copyfileobj(source, target)
+              pathlib.Path("kv-replay").chmod(stat.S_IMODE(member.mode) & 0o777)
+          PY
+          test -f kv-replay && test -x kv-replay
+          {
+            printf 'Replay runner image: %s %s\n' "${ImageOS:?}" "${ImageVersion:?}"
+            cat runtime.txt
+            file kv-replay
+          } >> "$GITHUB_STEP_SUMMARY"
+          if ! file kv-replay | grep -q 'statically linked'; then
+            ldd kv-replay > linkage.txt
+            cat linkage.txt
+            if grep -q 'not found' linkage.txt; then
+              echo "::error::KV replay executable has unavailable shared libraries"
+              exit 1
+            fi
+          fi
+
+      - name: Validate KV traces
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in "$RUNNER_TEMP"/kv-traces/*/trace.ndjson; do
+            echo "::group::Validate $trace"
+            "$RUNNER_TEMP/kv-replay-executable/kv-replay" "$trace"
+            echo "::endgroup::"
+          done

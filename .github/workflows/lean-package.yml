@@ -29,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$PACKAGE" in
-            ccf-raft|common|consistency|disaster-recovery) ;;
+            ccf-raft|common|consistency|disaster-recovery|kv) ;;
             *)
               echo "::error::Unsupported Lean package: $PACKAGE"
               exit 1
@@ -138,6 +138,20 @@ jobs:
           set -euo pipefail
           ./replayer/check-fixtures.sh
 
+      - name: Build KV replay
+        if: inputs.package == 'kv'
+        working-directory: lean/kv
+        run: |
+          set -euo pipefail
+          lake build --wfail kv-replay
+
+      - name: Check KV replay fixtures
+        if: inputs.package == 'kv'
+        working-directory: lean/kv
+        run: |
+          set -euo pipefail
+          ./replayer/check-fixtures.sh
+
       - name: Dump replays for the trace viewer
         if: inputs.package == 'disaster-recovery'
         run: |
@@ -172,5 +186,36 @@ jobs:
         with:
           name: raft-replay-executable
           path: ${{ runner.temp }}/raft-replay-executable/
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Package KV replay executable
+        if: inputs.package == 'kv'
+        run: |
+          set -euo pipefail
+          binary="lean/kv/.lake/build/bin/kv-replay"
+          test -f "$binary" && test -x "$binary"
+          artifact="$RUNNER_TEMP/kv-replay-executable"
+          mkdir "$artifact"
+          tar -czf "$artifact/replay.tar.gz" -C "$(dirname "$binary")" kv-replay
+          (cd "$artifact" && sha256sum replay.tar.gz > replay.sha256)
+          git rev-parse HEAD > "$artifact/source"
+          uname -m > "$artifact/architecture"
+          cp lean/lean-toolchain "$artifact/toolchain"
+          {
+            printf 'Runner image: %s %s\n' "${ImageOS:?}" "${ImageVersion:?}"
+            file "$binary"
+            if ! file "$binary" | grep -q 'statically linked'; then
+              ldd "$binary"
+            fi
+          } > "$artifact/runtime.txt"
+          cat "$artifact/runtime.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload KV replay executable
+        if: inputs.package == 'kv'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kv-replay-executable
+          path: ${{ runner.temp }}/kv-replay-executable/
           if-no-files-found: error
           retention-days: 1

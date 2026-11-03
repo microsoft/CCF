@@ -160,7 +160,10 @@ File: `tla-shallow.yml`
 
 # Lean
 
-Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
+Runs Lean verification for the repository, with each package checked in an isolated reusable-workflow job.
+The common, consistency, and disaster-recovery checks run as a matrix; ccf-raft and kv have separate jobs for their trace-replay dependencies.
+Raft and KV trace captures run in parallel with package checks, and dedicated replay jobs validate the captures.
+A final summary job requires every package and trace job to succeed.
 
 The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.
 Canonical behavior checks run with `#eval` when their test module is built, and assertion failures fail the build.
@@ -183,8 +186,12 @@ It then runs the trace viewer's `viewer/build.py`, which fails if a dump the vie
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
 
+The `KV trace captures` job builds the `CCF_KV_TRACING` unit tests on Azure Linux 3 and captures their traces with `tests/kv_trace_validation.py --capture-only`.
+The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fixtures and packages `kv-replay`; the dedicated replay job uses that executable to validate the captured traces.
+
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
+It also runs on changes to the C++ sources and trace runners checked against the Raft and KV models: `src/consensus/aft/`, the Raft scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
