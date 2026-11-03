@@ -450,9 +450,9 @@ theorem atCut_cells_bounded (s : Store) (valid : StoreInvariant s)
   simpa only [spec.2.2, Option.getD_some] using h
 
 theorem History.head_unique (fs : List Frame) (n : Nat) (shape : History fs n)
-    : Unique (fs.head?.getD {}).data := by
+    : Kv.Properties.Unique (fs.head?.getD {}).data := by
   induction shape with
-  | zero => simp [Unique]
+  | zero => simp [Kv.Properties.Unique]
   | succ f n fs _version effect _tail ih =>
       obtain ⟨writes, published⟩ := effect
       simp only [List.head?_cons, Option.getD_some]
@@ -462,7 +462,7 @@ theorem History.head_unique (fs : List Frame) (n : Nat) (shape : History fs n)
 theorem reachable_store_data_invariants (w : World)
     (valid : WorldInvariant w)
     (sid : Nat) (s : Store) (_live : find w.stores sid = some s)
-    : Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
+    : Kv.Properties.Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
   have store := valid.stores sid s _live
   have unique := History.head_unique s.history s.head.version store.historyShape
   have bounded := History.head_cells_bounded s.history s.head.version store.historyShape
