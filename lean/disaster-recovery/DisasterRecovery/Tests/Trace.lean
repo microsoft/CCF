@@ -6,7 +6,8 @@ import all Init.Data.List.Sort.Basic
 public import DisasterRecovery.Properties
 public import DisasterRecovery.Tests.Initial
 
-import Mathlib.Tactic
+import Mathlib.Data.Seq.Basic
+import Mathlib.Tactic.IntervalCases
 
 @[expose] public section
 
