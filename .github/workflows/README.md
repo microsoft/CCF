@@ -166,10 +166,6 @@ Raft and KV trace captures run in parallel with package checks.
 Two independent trace-validation jobs each restore Mathlib caches, build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
 A final summary job requires every package and trace job to succeed.
 
-Manually dispatch `lean.yml` with `standalone-replayers=true` to measure isolated, cold `lake build --wfail` builds of `ccfraft-replay` and `kv-replay` on fresh Ubuntu runners without restored build caches.
-This mode runs only the two standalone builds and records elapsed time, CPU time, and peak memory in the job summaries; toolchain installation is a separate step.
-Set `restore-replay-caches=true` as well to run CI's `lake exe cache get` before each build and measure cache restoration separately.
-
 The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.
 Canonical behavior checks run with `#eval` when their test module is built, and assertion failures fail the build.
 The build includes both the human-reviewed model and system properties and the proof implementation files marked as generated for review purposes.
