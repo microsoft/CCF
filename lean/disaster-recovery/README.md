@@ -100,6 +100,7 @@ This applies to ordinary Lake builds as well as CI.
 
 The model, proofs, tests, and replayer use Lean's module system, as required by the Mathlib dependency.
 The properties entrypoint publicly imports the model types and property helpers used by its statements, while its implementation imports remain private.
+Proof modules and the assembled root follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
 `@[expose] public section` keeps definitions used by cross-module proofs transparent; runtime-only helpers remain private.
 `mk_all --module` generates the corresponding package-level import root.
 
