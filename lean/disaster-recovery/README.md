@@ -52,8 +52,8 @@ The global properties quantify a `GlobalTrace`, a finite or infinite sequence of
 
 `quorum_opener_unique` states that all `opening quorum` notifications in a trace originate from one node.
 
-`quorum_open_preserves_commit` and `full_gossip_preserves_commit` conclude that the opener satisfies Raft's vote freshness check against a strict majority of the recovered ledgers.
-`LogUpToDate` is that check, comparing view and then sequence number, as in `recv_request_vote` in `src/consensus/aft/raft.h`.
+`quorum_open_preserves_commit` and `full_gossip_preserves_commit` conclude that the opener satisfies Consensus's vote freshness check against a strict majority of the recovered ledgers.
+`LogUpToDate` is that check, comparing view and then sequence number, as in `recv_request_vote` in `src/consensus/aft/consensus.h`.
 The first property requires each voter to have received its own gossip; without this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by quorum.
 The second requires a state in which every node's gossip equals `config.recovered`, and it also covers failover openings.
 
@@ -61,8 +61,8 @@ Each safety theorem has a corresponding `_witness` lemma asserting that some val
 The full-gossip witness includes a failover opening.
 `Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
 
-Freshness is a necessary condition for election, not a definition of Raft commitment.
-`update_commit` additionally requires a current-term signature replicated on a majority, and the Raft safety specification (`tla/consensus/ccfraft.tla`) is stated on log prefixes.
+Freshness is a necessary condition for election, not a definition of Consensus commitment.
+`update_commit` additionally requires a current-term signature replicated on a majority, and the Consensus safety specification (`tla/consensus/ccfraft.tla`) is stated on log prefixes.
 The model stores only the last signed TxID of each ledger, so this package does not prove committed-prefix preservation.
 Liveness properties are out of scope.
 

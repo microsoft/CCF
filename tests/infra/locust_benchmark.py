@@ -434,7 +434,9 @@ def measure(
         )
         LOG.info(f"Fluentd collector: {counts}")
         if collector.records == 0 or len(collector.processes) != len(args.nodes):
-            raise RuntimeError("Every benchmark node must export Raft trace events")
+            raise RuntimeError(
+                "Every benchmark node must export Consensus trace events"
+            )
     return result
 
 

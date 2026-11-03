@@ -3,8 +3,8 @@
 #pragma once
 
 // Harness driving a real ccf::kv::Store through a single-node aft::Aft, so
-// that Store::commit(), Raft::replicate() and Raft::rollback() interleave as
-// they do in production. Adapted from the harness in PR #8209.
+// that Store::commit(), Consensus::replicate() and Consensus::rollback()
+// interleave as they do in production. Adapted from the harness in PR #8209.
 
 #include "kv/null_encryptor.h"
 #include "kv/store.h"
@@ -21,7 +21,7 @@
 namespace straddling
 {
   using TestMap = ccf::kv::Map<size_t, size_t>;
-  using Raft = aft::Aft<aft::LedgerStubProxy>;
+  using Consensus = aft::Aft<aft::LedgerStubProxy>;
 
   class BaselinePendingTx : public ccf::kv::PendingTx
   {
@@ -164,7 +164,7 @@ namespace straddling
     const ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
     std::shared_ptr<ccf::kv::Store> store = std::make_shared<ccf::kv::Store>();
     TestMap table{"public:table"};
-    std::shared_ptr<Raft> raft;
+    std::shared_ptr<Consensus> consensus_impl;
     ccf::View initial_view = 0;
 
     Fixture()
@@ -176,20 +176,20 @@ namespace straddling
     // history before consensus is created and the baseline is committed.
     void start()
     {
-      raft = std::make_shared<Raft>(
-        raft_settings,
+      consensus_impl = std::make_shared<Consensus>(
+        consensus_settings,
         std::make_unique<aft::Adaptor<ccf::kv::Store>>(store),
         std::make_unique<aft::LedgerStubProxy>(node_id),
         std::make_shared<aft::ChannelStubProxy>(),
         std::make_shared<aft::State>(node_id),
         nullptr);
-      store->set_consensus(raft);
+      store->set_consensus(consensus_impl);
 
       ccf::kv::Configuration::Nodes configuration;
       configuration.try_emplace(node_id);
-      raft->add_configuration(0, configuration);
-      raft->force_become_primary();
-      initial_view = raft->get_view();
+      consensus_impl->add_configuration(0, configuration);
+      consensus_impl->force_become_primary();
+      initial_view = consensus_impl->get_view();
 
       const auto baseline_txid = store->next_txid();
       REQUIRE(
@@ -198,17 +198,17 @@ namespace straddling
           std::make_unique<BaselinePendingTx>(baseline_txid, *store, table),
           true) == ccf::kv::CommitResult::SUCCESS);
       REQUIRE(store->current_txid() == ccf::TxID(initial_view, 1));
-      REQUIRE(raft->get_committed_seqno() == 1);
-      REQUIRE(raft->ledger->ledger.size() == 1);
+      REQUIRE(consensus_impl->get_committed_seqno() == 1);
+      REQUIRE(consensus_impl->ledger->ledger.size() == 1);
     }
 
     // Lose leadership, then win a later election. become_leader() rolls the
     // Store back to the last committable index (1) under the new view.
     ccf::View reelect()
     {
-      raft->become_aware_of_new_term(raft->get_view() + 1);
-      raft->force_become_primary();
-      return raft->get_view();
+      consensus_impl->become_aware_of_new_term(consensus_impl->get_view() + 1);
+      consensus_impl->force_become_primary();
+      return consensus_impl->get_view();
     }
   };
 }

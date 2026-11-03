@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/aft/raft.h"
+#include "consensus/aft/consensus.h"
 #include "ds/internal_logger.h"
 #include "kv/test/stub_consensus.h"
 #include "logging_stub.h"
@@ -10,7 +10,7 @@
 #include <chrono>
 #include <string>
 
-using TRaft = aft::Aft<aft::LedgerStubProxy>;
+using TConsensus = aft::Aft<aft::LedgerStubProxy>;
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 
@@ -23,18 +23,18 @@ static const size_t max_uncommitted_tx_count_ = 0;
 static const std::chrono::milliseconds request_timeout = request_timeout_;
 static const std::chrono::milliseconds election_timeout = election_timeout_;
 
-static const ccf::consensus::Configuration raft_settings{
+static const ccf::consensus::Configuration consensus_settings{
   request_timeout_, election_timeout_, max_uncommitted_tx_count_};
 
 static auto hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
 
-static aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)
+static aft::ChannelStubProxy* channel_stub_proxy(const TConsensus& r)
 {
   return (aft::ChannelStubProxy*)r.channels.get();
 }
 
 static void receive_message(
-  TRaft& sender, TRaft& receiver, std::vector<uint8_t> contents)
+  TConsensus& sender, TConsensus& receiver, std::vector<uint8_t> contents)
 {
   bool should_send = true;
   std::vector<uint8_t> body;
@@ -43,8 +43,8 @@ static void receive_message(
     // If this is AppendEntries, fetch the corresponding ledger entries.
     const uint8_t* data = contents.data();
     auto size = contents.size();
-    auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
-    if (msg_type == aft::raft_append_entries)
+    auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
+    if (msg_type == aft::cft_append_entries)
     {
       // Parse the indices to be sent to the recipient.
       auto ae = *(aft::AppendEntries*)data;
@@ -129,7 +129,7 @@ static std::shared_ptr<std::vector<uint8_t>> make_ledger_entry(
 
   // Each entry is so large that it produces a single AppendEntries, there are
   // never multiple combined into a single AppendEntries
-  e->resize(TRaft::append_entries_size_limit);
+  e->resize(TConsensus::append_entries_size_limit);
 
   return e;
 }

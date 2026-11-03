@@ -44,8 +44,8 @@ It is possible to produce fresh traces quickly from the driver by running the ``
 
 Calling the trace validation on, for example, the ``append`` scenario can then be done with ``./tlc.py tv --ccf-raft-trace ../build/append.ndjson consensus/Traceccfraft.tla``.
 
-Generating a trace of a scenario and validating it in one go can be done with ``./tlc.py --workers 1 tv --scenario ../tests/raft_scenarios/append consensus/Traceccfraft.tla``.
-This runs the raft_driver on the scenario, cleans the trace and then validates it against the TLA+ specification.
+Generating a trace of a scenario and validating it in one go can be done with ``./tlc.py --workers 1 tv --scenario ../tests/consensus_scenarios/append consensus/Traceccfraft.tla``.
+This runs the consensus_driver on the scenario, cleans the trace and then validates it against the TLA+ specification.
 The scenario runner receives the driver's trace events as MessagePack over a local TCP connection.
 Install ``msgpack`` from :ccf_repo:`tests/requirements.txt` in the Python environment that runs ``tlc.py``.
 

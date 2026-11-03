@@ -5,7 +5,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/locking.h"
 #include "ccf/tx_status.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft_types.h"
 #include "ds/internal_logger.h"
 #include "kv/kv_types.h"
 

@@ -138,6 +138,6 @@ TEST_CASE(
     CHECK(final_root == baseline_root);
   }
   CHECK(fixture.store->current_txid().seqno == 1);
-  CHECK(fixture.raft->get_last_idx() == 1);
-  CHECK(fixture.raft->ledger->ledger.size() == 1);
+  CHECK(fixture.consensus_impl->get_last_idx() == 1);
+  CHECK(fixture.consensus_impl->ledger->ledger.size() == 1);
 }

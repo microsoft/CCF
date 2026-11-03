@@ -9,8 +9,8 @@ CMakeFiles/
 .vscode/
 .vs/
 libuv/
-raft_tests.md
-tests/raft_scenarios/scenario-*
+consensus_tests.md
+tests/consensus_scenarios/scenario-*
 *.pyc
 __pycache__/
 sphinx/build/

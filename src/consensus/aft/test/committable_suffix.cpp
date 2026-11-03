@@ -58,8 +58,8 @@ void keep_earliest_append_entries_for_each_target(
 
     const uint8_t* data = contents.data();
     auto size = contents.size();
-    auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
-    if (msg_type == aft::raft_append_entries)
+    auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
+    if (msg_type == aft::cft_append_entries)
     {
       const auto ae = *(aft::AppendEntries*)data;
 
@@ -84,8 +84,8 @@ void keep_earliest_append_entries_for_each_target(
 #define TEST_DECLARE_NODE(N) \
   ccf::NodeId node_id##N(#N); \
   auto store##N = std::make_shared<Store>(node_id##N); \
-  TRaft r##N( \
-    raft_settings, \
+  TConsensus r##N( \
+    consensus_settings, \
     std::make_unique<Adaptor>(store##N), \
     std::make_unique<aft::LedgerStubProxy>(node_id##N), \
     std::make_shared<aft::ChannelStubProxy>(), \
@@ -157,7 +157,7 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   // Single configuration has all nodes, fully connected
   aft::Configuration::Nodes initial_config;
 
-  std::map<ccf::NodeId, TRaft*> nodes;
+  std::map<ccf::NodeId, TConsensus*> nodes;
 
   // Network contains 5 nodes
   TEST_DECLARE_NODE(A);
@@ -513,7 +513,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
   // Single configuration has all nodes, fully connected
   aft::Configuration::Nodes initial_config;
 
-  std::map<ccf::NodeId, TRaft*> nodes;
+  std::map<ccf::NodeId, TConsensus*> nodes;
 
   // Network contains 3 nodes
   TEST_DECLARE_NODE(A);

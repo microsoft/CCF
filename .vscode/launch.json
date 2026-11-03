@@ -126,13 +126,13 @@
       ]
     },
     {
-      "name": "Debug Raft Test Scenarios (gdb)",
+      "name": "Debug Consensus Test Scenarios (gdb)",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/raft_driver",
+      "program": "${workspaceFolder}/build/consensus_driver",
       "args": ["${file}"],
       "stopAtEntry": false,
-      "cwd": "${workspaceFolder}/tests/raft_scenarios/",
+      "cwd": "${workspaceFolder}/tests/consensus_scenarios/",
       "environment": [],
       "externalConsole": false,
       "MIMode": "gdb",

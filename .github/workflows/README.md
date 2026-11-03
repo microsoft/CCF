@@ -150,10 +150,10 @@ File: `long-verification.yml`
 
 # TLA Shallow Verification
 
-Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
+Runs on pull requests that change `tla/` or `src/consensus/aft/consensus.h`.
 
 - Simulates the consistency and consensus specifications on a GitHub-hosted runner. The simulation job has a 10-minute timeout.
-- Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
+- Builds the Consensus scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
 
 File: `tla-shallow.yml`
 3rd party dependencies: None

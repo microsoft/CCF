@@ -7,8 +7,8 @@ CMakeFiles/
 !.vscode/launch.json
 .vs/
 libuv/
-raft_tests.md
-tests/raft_scenarios
+consensus_tests.md
+tests/consensus_scenarios
 *.pyc
 __pycache__/
 sphinx/build/

@@ -23,7 +23,7 @@ cd build
 
 Use `-R` for name regexes and `-L` for labels. `./tests.sh` without a filter runs all registered tests; do not make this the default for a small change. Pure C++ unit tests and test discovery may use `ctest` directly from the build directory without Python setup. Use `--no-tests=error` for execution so an empty selection is not mistaken for passing tests.
 
-Labels include `unit`, `e2e`, `partitions`, `perf`, `benchmark`, `raft_scenario`, `suite`, `lts_compatibility`, `snp`, and CI routing labels `bucket_a`, `bucket_b`, `bucket_c`. Registration depends on build options; inspect the configured inventory rather than assuming a named test exists.
+Labels include `unit`, `e2e`, `partitions`, `perf`, `benchmark`, `consensus_scenario`, `suite`, `lts_compatibility`, `snp`, and CI routing labels `bucket_a`, `bucket_b`, `bucket_c`. Registration depends on build options; inspect the configured inventory rather than assuming a named test exists.
 
 The release workflow sets `CCF_USE_RELEASED_PYTHON_PACKAGE=1` so `tests.sh`, installed-package tests, and sandboxes install the latest released `ccf` package from PyPI with `uv pip install --upgrade --reinstall-package ccf ccf`, replacing any previously installed editable SDK.
 Without this flag, development and normal CI tests retain their editable local SDK installation.

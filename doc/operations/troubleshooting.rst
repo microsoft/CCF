@@ -75,7 +75,7 @@ There is an option to generate machine-readable logs for monitoring. To enable t
 .. code-block:: json
 
     {
-        "file": "../src/consensus/aft/raft.h",
+        "file": "../src/consensus/aft/consensus.h",
         "h_ts": "2019-09-02T14:47:24.589384Z",
         "thread_id": "0",
         "level": "info",

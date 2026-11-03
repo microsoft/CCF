@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#define VERBOSE_RAFT_LOGGING
+#define VERBOSE_CFT_LOGGING
 
 #include "driver.h"
 
@@ -29,8 +29,8 @@ int main(int argc, char** argv)
       "port");
   }
 
-  // Log all raft steps to stdout (python wrapper raft_scenario_runner.py
-  // filters them).
+  // Log all consensus_impl steps to stdout (python wrapper
+  // consensus_scenario_runner.py filters them).
   ccf::logger::config::add_text_console_logger();
   ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
 
@@ -47,7 +47,7 @@ int main(int argc, char** argv)
       return 1;
     }
   }
-  auto driver = make_shared<RaftDriver>();
+  auto driver = make_shared<ConsensusDriver>();
 
   const std::string filename = argv[1];
 
@@ -83,7 +83,7 @@ int main(int argc, char** argv)
     }
     if (!line.empty())
     {
-      ccf::tracing::emit(aft::trace::raft_trace_tag, "cmd", line);
+      ccf::tracing::emit(aft::trace::cft_trace_tag, "cmd", line);
     }
     // Steps which don't alter state don't need to recheck invariants
     bool skip_invariants = false;
@@ -413,7 +413,7 @@ int main(int argc, char** argv)
   const auto dropped = ccf::tracing::FluentdSink::dropped_count();
   if (dropped != 0)
   {
-    LOG_FAIL_FMT("Raft trace exporter dropped {} events", dropped);
+    LOG_FAIL_FMT("Consensus trace exporter dropped {} events", dropped);
     return 1;
   }
   return 0;
