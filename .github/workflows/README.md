@@ -183,8 +183,11 @@ It then runs the trace viewer's `viewer/build.py`, which fails if a dump the vie
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
 
+The `KV trace captures` job builds the `CCF_KV_TRACING` unit tests on Azure Linux 3 and captures their traces with `tests/kv_trace_validation.py --capture-only`; the model job replays them with `kv-replay` after its own checks, which include `lean/kv/replayer/check-fixtures.sh` replaying the KV fixtures and their valid and invalid diffs.
+
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
+It also runs on changes to the C++ sources and trace runners checked against the Consensus and KV models: `src/consensus/aft/`, the Consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
