@@ -175,20 +175,7 @@ jobs:
             (
               cd "$package"
               echo "::group::Build, kernel and axiom check: $package"
-              if [ "$package" = "lean/ccf-raft" ]; then
-                original="$(mktemp)"
-                cp lakefile.toml "$original"
-                trap 'cp "$original" lakefile.toml; rm "$original"' EXIT
-                for target in CCFRaft ccfraft-replay; do
-                  sed "s/^defaultTargets = .*/defaultTargets = [\"$target\"]/" "$original" > lakefile.toml
-                  lake check --inadvisably-no-sandbox
-                done
-                cp "$original" lakefile.toml
-                rm "$original"
-                trap - EXIT
-              else
-                lake check --inadvisably-no-sandbox
-              fi
+              lake check --inadvisably-no-sandbox
               echo "::endgroup::"
               echo "::group::Import coverage and architecture: $package"
               lake exe check-imports
