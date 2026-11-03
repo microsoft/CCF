@@ -431,8 +431,8 @@ class Node:
                     LOG.info(
                         f"Full contents of ({pem_path}): \n<START>\n {contents}\n<END>"
                     )
-                    self.node_id = (
-                        infra.crypto.compute_public_key_der_hash_hex_from_pem(contents)
+                    self.node_id = infra.crypto.node_id_from_cert(
+                        contents, self.remote.node_id_format
                     )
                     break
             except ValueError as ve:
@@ -987,6 +987,8 @@ class Node:
         return snapshots_dir
 
     def identity(self, name=None):
+        if isinstance(name, infra.clients.Identity):
+            return name
         if name is not None:
             return infra.clients.Identity(
                 os.path.join(self.common_dir, f"{name}_privk.pem"),
@@ -1166,7 +1168,7 @@ class Node:
     ):
         node_tls_cert = self.get_tls_certificate_pem(interface_name=interface_name)
         assert (
-            infra.crypto.compute_public_key_der_hash_hex_from_pem(node_tls_cert)
+            infra.crypto.node_id_from_cert(node_tls_cert, self.remote.node_id_format)
             == self.node_id
         )
 

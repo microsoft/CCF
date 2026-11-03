@@ -141,6 +141,19 @@ TEST_CASE("URL template parsing")
   REQUIRE_THROWS(PathTemplateSpec::parse("/{id}/{id}/foo"));
 }
 
+TEST_CASE("Percent-encoded DID path components preserve action suffixes")
+{
+  const std::string encoded =
+    "did%3Akey%3AzDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv";
+  for (const std::string action : {"update", "ack", "submit", "recover"})
+  {
+    require_template_parsing(
+      "/members/{memberId}:" + action,
+      {{"/members/" + encoded + ":" + action, {encoded}}},
+      {"/members/" + encoded + ":invalid"});
+  }
+}
+
 TEST_CASE("Endpoint properties OpenAPI default")
 {
   EndpointProperties properties;

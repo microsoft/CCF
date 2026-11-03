@@ -35,6 +35,7 @@ namespace ccf
     std::optional<std::string> encryption_public_key_file = std::nullopt;
     std::optional<std::string> data_json_file = std::nullopt;
     std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
+    IdentityIdFormat id_format = IdentityIdFormat::SHA256;
 
     bool operator==(const ParsedMemberInfo&) const = default;
   };
@@ -91,6 +92,7 @@ namespace ccf
       std::string subject_name = "CN=CCF Node";
       std::vector<std::string> subject_alt_names;
       ccf::crypto::CurveID curve_id = ccf::crypto::CurveID::SECP384R1;
+      IdentityIdFormat id_format = IdentityIdFormat::SHA256;
       size_t initial_validity_days = 1;
 
       bool operator==(const NodeCertificateInfo&) const = default;
@@ -339,6 +341,7 @@ namespace ccf
     subject_name,
     subject_alt_names,
     curve_id,
+    id_format,
     initial_validity_days);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Ledger);
@@ -442,7 +445,8 @@ namespace ccf
     ParsedMemberInfo,
     encryption_public_key_file,
     data_json_file,
-    recovery_role);
+    recovery_role,
+    id_format);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::OutputFiles);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::OutputFiles);

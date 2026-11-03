@@ -26,6 +26,47 @@ beforeEach(function () {
 });
 
 describe("polyfill", function () {
+  describe("identity IDs", function () {
+    it("accepts published NIST curve vectors and rejects unsupported codecs", function () {
+      for (const did of [
+        "did:key:zDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv",
+        "did:key:z82LkvCwHNreneWpsgPEbV3gu1C6NFJEBg4srfJ5gdxEsMGRJUz2sG9FE42shbn2xkZJh54",
+      ]) {
+        assert.equal(ccf.isValidEntityId(did), true);
+        assert.equal(ccf.isValidEntityId(did + "1"), false);
+      }
+      assert.equal(
+        ccf.isValidEntityId(
+          "did:key:z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP",
+        ),
+        false,
+      );
+    });
+
+    it("derives and validates legacy and did:key RSA identities", function () {
+      const { cert } = generateSelfSignedCert();
+      const legacy = ccf.pemToId(cert);
+      const did = ccf.pemToId(cert, "did:key");
+      assert.match(legacy, /^[a-f0-9]{64}$/);
+      assert.match(did, /^did:key:z/);
+      assert.equal(ccf.isValidEntityId(legacy), true);
+      assert.equal(ccf.isValidEntityId(did), true);
+      for (const invalid of [
+        "",
+        did + "#key",
+        did + "?version=1",
+        "did:key:z0",
+        "did:key:z" + "1".repeat(3000),
+      ]) {
+        assert.equal(ccf.isValidEntityId(invalid), false);
+      }
+      assert.equal(ccf.certificatesHaveSamePublicKey(cert, cert), true);
+      assert.equal(
+        ccf.certificatesHaveSamePublicKey(cert, generateSelfSignedCert().cert),
+        false,
+      );
+    });
+  });
   describe("strToBuf/bufToStr", function () {
     it("converts string <--> ArrayBuffer", function () {
       const s = "foo";

@@ -175,6 +175,7 @@ class Identity:
     cert: str
     #: Identity description
     description: str
+    id_format: str = "sha256"
 
 
 class FakeSocket:
@@ -375,16 +376,17 @@ def cose_protected_headers_api_v1(request_path, created_at=None):
     phdr = {"ccf.gov.msg.created_at": created_at or get_clock().moment()}
 
     hex_id = "([a-f0-9]+)"
+    member_id = "([^/]+)"
     opt_query = r"(\?.*)?"
 
     if match := re.match(
-        f"^/gov/members/state-digests/{hex_id}:update{opt_query}$",
+        f"^/gov/members/state-digests/{member_id}:update{opt_query}$",
         request_path,
     ):
         phdr["ccf.gov.msg.type"] = "state_digest"
 
     elif match := re.match(
-        f"^/gov/members/state-digests/{hex_id}:ack{opt_query}$",
+        f"^/gov/members/state-digests/{member_id}:ack{opt_query}$",
         request_path,
     ):
         phdr["ccf.gov.msg.type"] = "ack"
@@ -396,7 +398,7 @@ def cose_protected_headers_api_v1(request_path, created_at=None):
         phdr["ccf.gov.msg.type"] = "proposal"
 
     elif match := re.match(
-        f"^/gov/members/proposals/{hex_id}/ballots/{hex_id}:submit{opt_query}$",
+        f"^/gov/members/proposals/{hex_id}/ballots/{member_id}:submit{opt_query}$",
         request_path,
     ):
         pid = match.groups()[0]
@@ -538,6 +540,10 @@ class CurlClient:
                     )
                 pre_cmd.extend(["--signing-key", self.cose_signing_auth.key])
                 pre_cmd.extend(["--signing-cert", self.cose_signing_auth.cert])
+                if self.cose_signing_auth.id_format != "sha256":
+                    pre_cmd.extend(
+                        ["--identity-id-format", self.cose_signing_auth.id_format]
+                    )
                 pre_cmd.extend(["--content", content_path.strip("@")])
                 headers["content-type"] = CONTENT_TYPE_COSE
 
@@ -782,7 +788,15 @@ class HttpxClient:
                     phdr["ccf.gov.msg.created_at"].timestamp()
                 )
             request_body = ccf.cose.create_cose_sign1(
-                request_body or b"", key, cert, phdr
+                request_body or b"",
+                key,
+                cert,
+                phdr,
+                **(
+                    {"id_format": self.cose_signing_auth.id_format}
+                    if self.cose_signing_auth.id_format != "sha256"
+                    else {}
+                ),
             )
             if self._corrupt_signature:
                 corrupt_byte_idx = random.randint(-32, -1)

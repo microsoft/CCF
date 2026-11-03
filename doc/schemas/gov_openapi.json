@@ -259,8 +259,8 @@
         "type": "object"
       },
       "MemberId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
+        "maxLength": 3000,
+        "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
         "type": "string"
       },
       "MemberId_array": {
@@ -362,8 +362,8 @@
         "type": "object"
       },
       "NodeId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
+        "maxLength": 3000,
+        "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
         "type": "string"
       },
       "NodeStatus": {
@@ -668,8 +668,8 @@
         "type": "object"
       },
       "UserId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
+        "maxLength": 3000,
+        "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
         "type": "string"
       },
       "User_array": {
@@ -788,7 +788,7 @@
   "info": {
     "description": "The governance API implemented by this CCF build. This document describes the moving 'latest' API and does not guarantee that older document versions remain available.",
     "title": "CCF Governance",
-    "version": "5.0.0"
+    "version": "5.0.1"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1047,7 +1047,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1079,7 +1080,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1263,7 +1265,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1286,7 +1289,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1335,7 +1339,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1527,7 +1532,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1550,7 +1556,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1934,7 +1941,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -2015,7 +2023,8 @@
           "name": "nodeId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -2177,7 +2186,8 @@
           "name": "userId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },

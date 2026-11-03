@@ -281,7 +281,8 @@
             "description": "ID of CCF member who signed and submitted this ballot.",
             "required": true,
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+            "maxLength": 3000
           },
           {
             "$ref": "#/parameters/CoseSignature.body"
@@ -347,7 +348,8 @@
             "description": "ID of CCF member who signed and submitted this ballot.",
             "required": true,
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+            "maxLength": 3000
           }
         ],
         "responses": {
@@ -450,7 +452,8 @@
             "description": "Identifier for member this stateDigest applies to.",
             "required": true,
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+            "maxLength": 3000
           },
           {
             "$ref": "#/parameters/CoseSignature.body"
@@ -507,7 +510,8 @@
             "description": "Identifier for member this stateDigest applies to.",
             "required": true,
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+            "maxLength": 3000
           },
           {
             "$ref": "#/parameters/CoseSignature.body"
@@ -558,7 +562,8 @@
             "description": "Identifier for member this stateDigest applies to.",
             "required": true,
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+            "maxLength": 3000
           }
         ],
         "responses": {
@@ -609,7 +614,8 @@
             "description": "ID of CCF member who this recovery share belongs to.",
             "required": true,
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+            "maxLength": 3000
           }
         ],
         "responses": {
@@ -656,7 +662,8 @@
             "description": "Identifier for member this recovery state applies to.",
             "required": true,
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+            "maxLength": 3000
           },
           {
             "$ref": "#/parameters/CoseSignature.body"
@@ -1065,7 +1072,8 @@
             "description": "ID of CCF member who this object refers to.",
             "required": true,
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+            "maxLength": 3000
           }
         ],
         "responses": {
@@ -1162,7 +1170,8 @@
             "description": "ID of CCF node who this object refers to.",
             "required": true,
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+            "maxLength": 3000
           }
         ],
         "responses": {
@@ -2479,13 +2488,15 @@
     },
     "memberId": {
       "type": "string",
-      "description": "Hex encoding of SHA-256 of a member certificate's fingerprint.",
-      "pattern": "^[a-f0-9]{64}$"
+      "description": "Legacy SHA-256 certificate fingerprint or canonical did:key public-key ID for an opted-in member.",
+      "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+      "maxLength": 3000
     },
     "nodeId": {
       "type": "string",
-      "description": "Hex encoding of SHA-256 of a node's public key.",
-      "pattern": "^[a-f0-9]{64}$"
+      "description": "Legacy SHA-256 public-key fingerprint or canonical did:key ID for an opted-in node.",
+      "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+      "maxLength": 3000
     },
     "proposalId": {
       "type": "string",
@@ -2505,8 +2516,9 @@
     },
     "userId": {
       "type": "string",
-      "description": "Hex encoding of SHA-256 of user certificate's fingerprint.",
-      "pattern": "^[a-f0-9]{64}$"
+      "description": "Legacy SHA-256 certificate fingerprint or canonical did:key public-key ID for an opted-in user.",
+      "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
+      "maxLength": 3000
     }
   },
   "parameters": {

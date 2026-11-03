@@ -68,7 +68,10 @@ namespace ccf::gov::endpoints::detail
     std::string member_id_str;
     std::string error;
     if (!ccf::endpoints::get_path_param(
-          rpc_ctx->get_request_path_params(), "memberId", member_id_str, error))
+          rpc_ctx->get_decoded_request_path_params(),
+          "memberId",
+          member_id_str,
+          error))
     {
       detail::set_gov_error(
         rpc_ctx,
@@ -79,15 +82,16 @@ namespace ccf::gov::endpoints::detail
     }
 
     // Parse member ID from string
-    const auto member_id_opt = parse_hex_id<ccf::MemberId>(member_id_str);
+    const auto member_id_opt = ccf::is_valid_identity_id(member_id_str) ?
+      std::make_optional(ccf::MemberId(member_id_str)) :
+      std::nullopt;
     if (!member_id_opt.has_value())
     {
       detail::set_gov_error(
         rpc_ctx,
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidResourceName,
-        fmt::format(
-          "'{}' is not a valid hex-encoded member ID", member_id_str));
+        fmt::format("'{}' is not a valid member ID", member_id_str));
       return false;
     }
 
@@ -128,7 +132,10 @@ namespace ccf::gov::endpoints::detail
     std::string user_id_str;
     std::string error;
     if (!ccf::endpoints::get_path_param(
-          rpc_ctx->get_request_path_params(), "userId", user_id_str, error))
+          rpc_ctx->get_decoded_request_path_params(),
+          "userId",
+          user_id_str,
+          error))
     {
       detail::set_gov_error(
         rpc_ctx,
@@ -139,14 +146,16 @@ namespace ccf::gov::endpoints::detail
     }
 
     // Parse user ID from string
-    const auto user_id_opt = parse_hex_id<ccf::UserId>(user_id_str);
+    const auto user_id_opt = ccf::is_valid_identity_id(user_id_str) ?
+      std::make_optional(ccf::UserId(user_id_str)) :
+      std::nullopt;
     if (!user_id_opt.has_value())
     {
       detail::set_gov_error(
         rpc_ctx,
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidResourceName,
-        fmt::format("'{}' is not a valid hex-encoded user ID", user_id_str));
+        fmt::format("'{}' is not a valid user ID", user_id_str));
       return false;
     }
 
@@ -230,7 +239,10 @@ namespace ccf::gov::endpoints::detail
     std::string node_id_str;
     std::string error;
     if (!ccf::endpoints::get_path_param(
-          rpc_ctx->get_request_path_params(), "nodeId", node_id_str, error))
+          rpc_ctx->get_decoded_request_path_params(),
+          "nodeId",
+          node_id_str,
+          error))
     {
       detail::set_gov_error(
         rpc_ctx,
@@ -241,14 +253,16 @@ namespace ccf::gov::endpoints::detail
     }
 
     // Parse node ID from string
-    const auto node_id_opt = parse_hex_id<ccf::NodeId>(node_id_str);
+    const auto node_id_opt = ccf::is_valid_identity_id(node_id_str) ?
+      std::make_optional(ccf::NodeId(node_id_str)) :
+      std::nullopt;
     if (!node_id_opt.has_value())
     {
       detail::set_gov_error(
         rpc_ctx,
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidResourceName,
-        fmt::format("'{}' is not a valid hex-encoded node ID", node_id_str));
+        fmt::format("'{}' is not a valid node ID", node_id_str));
       return false;
     }
 

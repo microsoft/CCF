@@ -517,6 +517,7 @@ class CCFRemote:
         identity_history_fetch_max_attempts=None,
         identity_history_fetch_retry_interval=None,
         host_data_transparent_statement_path=None,
+        node_id_format="sha256",
         **kwargs,
     ):
         """
@@ -555,6 +556,7 @@ class CCFRemote:
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type
         self.local_node_id = local_node_id
+        self.node_id_format = node_id_format
         self.pem = f"{local_node_id}.pem"
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
@@ -671,6 +673,9 @@ class CCFRemote:
             )
             with open(config_file, encoding="utf-8") as f:
                 config = json.load(f)
+            self.node_id_format = config.get("node_certificate", {}).get(
+                "id_format", "sha256"
+            )
             self.pem = config.get("node_certificate_file", "nodecert.pem")
             self.node_address_file = config.get("node_address_file")
             self.rpc_addresses_file = config.get("rpc_addresses_file")
@@ -704,6 +709,7 @@ class CCFRemote:
                 read_only_snapshots_dir=self.read_only_snapshots_dir_name,
                 constitution=constitution,
                 curve_id=curve_id.name.title(),
+                node_id_format=node_id_format,
                 host_log_level=log_level.title(),
                 join_timer=f"{join_timer_s}s" if join_timer_s else None,
                 pending_node_timeout=pending_node_timeout,

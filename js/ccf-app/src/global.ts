@@ -637,6 +637,15 @@ export interface CCFHistorical {
 }
 
 export interface CCF {
+  /** Derive a certificate identity ID; legacy certificate SHA-256 is the default. */
+  pemToId(pem: string, format?: "sha256" | "did:key"): string;
+
+  /** Validate a legacy identity ID or a supported canonical bare did:key. */
+  isValidEntityId(id: string): boolean;
+
+  /** Compare certificate public keys independently of certificate metadata. */
+  certificatesHaveSamePublicKey(lhs: string, rhs: string): boolean;
+
   /**
    * Convert a string into an ArrayBuffer.
    */

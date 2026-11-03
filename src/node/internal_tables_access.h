@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/cert_id.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -58,6 +59,26 @@ namespace ccf
   class InternalTablesAccess
   {
   private:
+    template <typename Certs>
+    static void check_identity_format_conflict(
+      Certs* certs, const ccf::crypto::Pem& cert, IdentityIdFormat id_format)
+    {
+      const auto der = ccf::crypto::make_verifier(cert)->cert_der();
+      certs->foreach([&](const auto& id, const auto& existing_cert) {
+        if (
+          id.value().starts_with("did:key:") !=
+            (id_format == IdentityIdFormat::DIDKey) &&
+          ccf::crypto::certs_have_same_public_key(
+            der, ccf::crypto::make_verifier(existing_cert)->cert_der()))
+        {
+          throw std::logic_error(fmt::format(
+            "Public key is already enrolled under a different ID format: {}",
+            id));
+        }
+        return true;
+      });
+    }
+
     static void remove_nodes(ccf::kv::Tx& tx, const std::set<NodeId>& node_ids)
     {
       auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
@@ -194,9 +215,10 @@ namespace ccf
       auto* member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
       auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
 
-      auto member_cert_der =
-        ccf::crypto::make_verifier(member_pub_info.cert)->cert_der();
-      auto id = ccf::crypto::Sha256Hash(member_cert_der).hex_str();
+      auto id = ccf::crypto::compute_cert_id(
+        member_pub_info.cert, member_pub_info.id_format);
+      check_identity_format_conflict(
+        member_certs, member_pub_info.cert, member_pub_info.id_format);
 
       auto member = member_certs->get(id);
       if (member.has_value())
@@ -277,9 +299,9 @@ namespace ccf
     {
       auto* user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
 
-      auto user_cert_der =
-        ccf::crypto::make_verifier(new_user.cert)->cert_der();
-      auto id = ccf::crypto::Sha256Hash(user_cert_der).hex_str();
+      auto id = ccf::crypto::compute_cert_id(new_user.cert, new_user.id_format);
+      check_identity_format_conflict(
+        user_certs, new_user.cert, new_user.id_format);
 
       auto user_cert = user_certs->get(id);
       if (user_cert.has_value())

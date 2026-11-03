@@ -119,7 +119,8 @@ namespace ccf
         rpcsessions,
         config.node_certificate.curve_id,
         runtime_control,
-        this->ledger_subsystem);
+        this->ledger_subsystem,
+        config.node_certificate.id_format);
 
       LOG_TRACE_FMT("Creating context");
       context = std::make_unique<NodeContext>(node->get_node_id());

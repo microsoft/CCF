@@ -4,6 +4,7 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/crypto/did_key.h"
 #include "ccf/ds/locking.h"
 #include "ccf/endpoint_context.h"
 #include "ccf/endpoints/authentication/cert_auth.h"
@@ -217,6 +218,7 @@ namespace ccf
     std::optional<ExistingNodeInfo> check_node_exists(
       ccf::kv::Tx& tx,
       const std::vector<uint8_t>& self_signed_node_der,
+      IdentityIdFormat id_format,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
       // Check that a node exists by looking up its public key in the nodes
@@ -232,12 +234,20 @@ namespace ccf
       std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;
       nodes->foreach([&existing_node_info,
                       &pk_pem,
+                      id_format,
                       &node_status,
                       &endorsed_node_certificates](
                        const NodeId& nid, const NodeInfo& ni) {
+        if (node_status.has_value() && ni.status != node_status.value())
+        {
+          return true;
+        }
+        const auto uses_did = nid.value().starts_with("did:key:") ||
+          (id_format == IdentityIdFormat::DIDKey);
         if (
-          ni.public_key == pk_pem &&
-          (!node_status.has_value() || ni.status == node_status.value()))
+          ni.public_key == pk_pem ||
+          (uses_did && ni.public_key.has_value() &&
+           ccf::crypto::public_keys_equal(ni.public_key.value(), pk_pem)))
         {
           existing_node_info = {
             nid, ni.ledger_secret_seqno, endorsed_node_certificates->get(nid)};
@@ -317,7 +327,8 @@ namespace ccf
       }
 
       auto pubk_der = ccf::crypto::public_key_der_from_cert(node_der);
-      NodeId joining_node_id = compute_node_id_from_pubk_der(pubk_der);
+      NodeId joining_node_id =
+        compute_node_id_from_pubk_der(pubk_der, in.id_format);
 
       pal::PlatformAttestationMeasurement measurement;
 
@@ -473,6 +484,24 @@ namespace ccf
     {
       const auto in = params.get<JoinNetworkNodeToNode::In>();
 
+      NodeId requested_id;
+      try
+      {
+        requested_id = compute_node_id_from_cert_der(
+          args.rpc_ctx->get_session_context()->caller_cert, in.id_format);
+      }
+      catch (const std::exception& e)
+      {
+        // Covers both keys outside the did:key profile and key types the
+        // certificate parser does not support.
+        const std::string payload = fmt::format(
+          "Node public key cannot be identified in the requested format: {}",
+          e.what());
+        LOG_INFO_FMT("Join request rejected: {}", payload);
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, payload);
+      }
+
       // Not part of network => Internal error
       if (
         !this->node_operation.is_part_of_network() &&
@@ -549,9 +578,18 @@ namespace ccf
 
       // If already joined => return equivalent response
       auto existing_node_info = check_node_exists(
-        args.tx, args.rpc_ctx->get_session_context()->caller_cert);
+        args.tx,
+        args.rpc_ctx->get_session_context()->caller_cert,
+        in.id_format);
       if (existing_node_info.has_value())
       {
+        if (existing_node_info->node_id != requested_id)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::NodeAlreadyExists,
+            "Node public key is already enrolled under a different ID format");
+        }
         JoinNetworkNodeToNode::Out rep;
 
         // If the node already exists, return network secrets if is already
@@ -1136,7 +1174,10 @@ namespace ccf
       std::string node_id;
       std::string error;
       if (!get_path_param(
-            args.rpc_ctx->get_request_path_params(), "node_id", node_id, error))
+            args.rpc_ctx->get_decoded_request_path_params(),
+            "node_id",
+            node_id,
+            error))
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
@@ -1193,7 +1234,10 @@ namespace ccf
       std::string node_id;
       std::string error;
       if (!get_path_param(
-            args.rpc_ctx->get_request_path_params(), "node_id", node_id, error))
+            args.rpc_ctx->get_decoded_request_path_params(),
+            "node_id",
+            node_id,
+            error))
       {
         return make_error(
           HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
@@ -1843,7 +1887,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.9";
+      openapi_info.document_version = "5.0.10";
     }
 
     void init_handlers() override
