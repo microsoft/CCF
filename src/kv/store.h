@@ -3,6 +3,7 @@
 #pragma once
 
 #include "apply_changes.h"
+#include "ccf/crypto/sha256_hash.h"
 #include "ccf/ds/locking.h"
 #include "ccf/kv/read_only_store.h"
 #include "deserialise.h"
@@ -483,6 +484,110 @@ namespace ccf::kv
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) override
     {
+      return deserialise_snapshot_internal(
+        data,
+        size,
+        nullptr,
+        hooks,
+        view_history,
+        public_only,
+        nullptr,
+        nullptr);
+    }
+
+    /** Public maps captured while deserialising a snapshot's public domain
+     * (see deserialise_public_snapshot_capturing()), so that a later
+     * deserialisation of the same snapshot can install their states rather
+     * than deserialising a second copy. States are persistent, so holding them
+     * shares structure with the store they were installed in.
+     *
+     * Opaque and move-only: only a Store can create one or read it, so each
+     * captured state stays paired with the version and digest of the
+     * serialised bytes it was deserialised from.
+     */
+    class SnapshotPublicMaps
+    {
+    public:
+      SnapshotPublicMaps(const SnapshotPublicMaps&) = delete;
+      SnapshotPublicMaps& operator=(const SnapshotPublicMaps&) = delete;
+      SnapshotPublicMaps(SnapshotPublicMaps&&) noexcept = default;
+      SnapshotPublicMaps& operator=(SnapshotPublicMaps&&) noexcept = default;
+      ~SnapshotPublicMaps() = default;
+
+    private:
+      friend class Store;
+
+      struct CapturedMap
+      {
+        Version version;
+        ccf::kv::untyped::State state;
+        // Digest of the map's serialised state in the snapshot, binding the
+        // captured state to those exact bytes
+        ccf::crypto::Sha256Hash serialised_digest;
+      };
+
+      SnapshotPublicMaps() = default;
+
+      Version snapshot_version = NoVersion;
+      std::map<std::string, CapturedMap> maps;
+    };
+
+    /** As deserialise_snapshot() with public_only, also capturing every
+     * deserialised public map. captured is set on success, and empty
+     * otherwise.
+     */
+    ApplyResult deserialise_public_snapshot_capturing(
+      const uint8_t* data,
+      size_t size,
+      ccf::kv::ConsensusHookPtrs& hooks,
+      std::vector<Version>* view_history,
+      std::optional<SnapshotPublicMaps>& captured)
+    {
+      captured.reset();
+      return deserialise_snapshot_internal(
+        data, size, nullptr, hooks, view_history, true, &captured, nullptr);
+    }
+
+    /** As deserialise_snapshot(), for all domains, but decrypts the private
+     * domain in place in data, so that no second buffer of its size is
+     * needed. The contents of data are unspecified afterwards.
+     *
+     * If public_maps is set, it must have been captured from this snapshot:
+     * every public map in the snapshot must match a captured map (same name,
+     * version and serialised bytes, compared by digest) and every captured map
+     * must be in the snapshot. The captured states are then installed, rather
+     * than deserialised again.
+     */
+    ApplyResult deserialise_snapshot_in_place(
+      std::span<uint8_t> data,
+      ccf::kv::ConsensusHookPtrs& hooks,
+      std::vector<Version>* view_history = nullptr,
+      const SnapshotPublicMaps* public_maps = nullptr)
+    {
+      return deserialise_snapshot_internal(
+        data.data(),
+        data.size(),
+        data.data(),
+        hooks,
+        view_history,
+        false,
+        nullptr,
+        public_maps);
+    }
+
+  private:
+    // mutable_data is either nullptr, or data, writable. At most one of
+    // capture_public_maps and reuse_public_maps is set.
+    ApplyResult deserialise_snapshot_internal(
+      const uint8_t* data,
+      size_t size,
+      uint8_t* mutable_data,
+      ccf::kv::ConsensusHookPtrs& hooks,
+      std::vector<Version>* view_history,
+      bool public_only,
+      std::optional<SnapshotPublicMaps>* capture_public_maps,
+      const SnapshotPublicMaps* reuse_public_maps)
+    {
       auto e = get_encryptor();
       auto d = RawKvStoreDeserialiser(
         e,
@@ -491,13 +596,29 @@ namespace ccf::kv
 
       ccf::kv::Term term = 0;
       ccf::kv::EntryFlags entry_flags = {};
-      auto v_ = d.init(data, size, term, entry_flags, is_historical);
+      auto v_ = mutable_data != nullptr ?
+        d.init_in_place(mutable_data, size, term, entry_flags, is_historical) :
+        d.init(data, size, term, entry_flags, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return ApplyResult::FAIL;
       }
       auto v = v_.value();
+      if (
+        reuse_public_maps != nullptr &&
+        reuse_public_maps->snapshot_version != v)
+      {
+        LOG_FAIL_FMT(
+          "Public maps were captured from a snapshot at {}, not {}",
+          reuse_public_maps->snapshot_version,
+          v);
+        return ApplyResult::FAIL;
+      }
+      SnapshotPublicMaps captured;
+      captured.snapshot_version = v;
+      size_t reused_count = 0;
+
       std::shared_ptr<TxHistory> h = nullptr;
       std::vector<uint8_t> hash_at_snapshot;
       std::vector<Version> view_history_;
@@ -552,8 +673,56 @@ namespace ccf::kv
               return ApplyResult::FAIL;
             }
 
-            auto deserialised_snapshot_changes =
-              map->deserialise_snapshot_changes(d);
+            ccf::kv::untyped::ChangeSetPtr deserialised_snapshot_changes =
+              nullptr;
+            if (
+              (capture_public_maps != nullptr ||
+               reuse_public_maps != nullptr) &&
+              ccf::kv::get_security_domain(map_name) == SecurityDomain::PUBLIC)
+            {
+              const auto map_version = d.deserialise_entry_version();
+              const auto serialised_state = d.deserialise_raw_span();
+              const ccf::crypto::Sha256Hash serialised_digest(
+                serialised_state.data(), serialised_state.size());
+
+              if (reuse_public_maps != nullptr)
+              {
+                const auto captured_it = reuse_public_maps->maps.find(map_name);
+                if (
+                  captured_it == reuse_public_maps->maps.end() ||
+                  captured_it->second.version != map_version ||
+                  captured_it->second.serialised_digest != serialised_digest)
+                {
+                  LOG_FAIL_FMT(
+                    "Public map {} in snapshot at {} does not match the "
+                    "captured public maps",
+                    map_name,
+                    v);
+                  return ApplyResult::FAIL;
+                }
+                deserialised_snapshot_changes =
+                  ccf::kv::untyped::Map::make_snapshot_changes(
+                    captured_it->second.state, map_version);
+                ++reused_count;
+              }
+              else
+              {
+                auto state = ccf::kv::untyped::Map::deserialise_snapshot_state(
+                  serialised_state);
+                captured.maps.emplace(
+                  map_name,
+                  SnapshotPublicMaps::CapturedMap{
+                    map_version, state, serialised_digest});
+                deserialised_snapshot_changes =
+                  ccf::kv::untyped::Map::make_snapshot_changes(
+                    std::move(state), map_version);
+              }
+            }
+            else
+            {
+              deserialised_snapshot_changes =
+                map->deserialise_snapshot_changes(d);
+            }
 
             // Take ownership of the produced change set, store it to be
             // committed later
@@ -564,6 +733,20 @@ namespace ccf::kv
               std::forward_as_tuple(
                 map, std::move(deserialised_snapshot_changes)));
           }
+        }
+
+        // Each captured map matched a distinct map in the snapshot, so this
+        // also rules out captured maps which are absent from the snapshot
+        if (
+          reuse_public_maps != nullptr &&
+          reused_count != reuse_public_maps->maps.size())
+        {
+          LOG_FAIL_FMT(
+            "Snapshot at {} contains {} of {} captured public maps",
+            v,
+            reused_count,
+            reuse_public_maps->maps.size());
+          return ApplyResult::FAIL;
         }
 
         // Each map is committed at a different version, independently of the
@@ -606,9 +789,15 @@ namespace ccf::kv
         *view_history = std::move(view_history_);
       }
 
+      if (capture_public_maps != nullptr)
+      {
+        *capture_public_maps = std::move(captured);
+      }
+
       return ApplyResult::PASS;
     }
 
+  public:
     void compact(Version v) override
     {
       // This is called when the store will never be rolled back to any

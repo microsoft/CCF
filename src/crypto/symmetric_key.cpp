@@ -124,6 +124,55 @@ namespace ccf::crypto
     }
   }
 
+  namespace
+  {
+    bool copy_decrypted(
+      bool success,
+      const std::vector<uint8_t>& output,
+      std::span<uint8_t> plain)
+    {
+      if (!success || output.size() != plain.size())
+      {
+        std::fill(plain.begin(), plain.end(), 0);
+        return false;
+      }
+      std::copy(output.begin(), output.end(), plain.begin());
+      return true;
+    }
+  }
+
+  bool KeyAesGcm::Context::decrypt(
+    std::span<const uint8_t> iv,
+    const uint8_t tag[GCM_SIZE_TAG],
+    std::span<const uint8_t> cipher,
+    std::span<const uint8_t> aad,
+    std::span<uint8_t> plain)
+  {
+    if (cipher.size() != plain.size())
+    {
+      throw std::logic_error("Incorrect AES-GCM output size");
+    }
+    std::vector<uint8_t> output;
+    const auto success = decrypt(iv, tag, cipher, aad, output);
+    return copy_decrypted(success, output, plain);
+  }
+
+  bool KeyAesGcm::decrypt(
+    std::span<const uint8_t> iv,
+    const uint8_t tag[GCM_SIZE_TAG],
+    std::span<const uint8_t> cipher,
+    std::span<const uint8_t> aad,
+    std::span<uint8_t> plain) const
+  {
+    if (cipher.size() != plain.size())
+    {
+      throw std::logic_error("Incorrect AES-GCM output size");
+    }
+    std::vector<uint8_t> output;
+    const auto success = decrypt(iv, tag, cipher, aad, output);
+    return copy_decrypted(success, output, plain);
+  }
+
   /// GcmCipher implementation
   GcmCipher::GcmCipher() = default;
 

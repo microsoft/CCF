@@ -249,6 +249,22 @@ namespace ccf::kv
       used = 0;
     }
 
+    template <typename F>
+    void append_size_prefixed_in_place(size_t payload_size, F&& fill)
+    {
+      auto* destination = extend(size_with_prefix(payload_size));
+      std::memcpy(destination, &payload_size, sizeof(payload_size));
+      if (payload_size != 0)
+      {
+        std::forward<F>(fill)(destination + sizeof(size_t));
+      }
+    }
+
+    [[nodiscard]] std::span<const uint8_t> view() const
+    {
+      return {data, used};
+    }
+
     [[nodiscard]] size_t size() const
     {
       return used;
@@ -285,6 +301,23 @@ namespace ccf::kv
       total_size = 0;
     }
 
+    template <typename F>
+    void append_size_prefixed_in_place(size_t payload_size, const F& /*fill*/)
+    {
+      if (
+        payload_size > size_t(std::numeric_limits<ptrdiff_t>::max()) -
+          sizeof(size_t) - total_size)
+      {
+        throw std::length_error("SizeWriter size overflow");
+      }
+      total_size += sizeof(size_t) + payload_size;
+    }
+
+    [[nodiscard]] std::span<const uint8_t> view() const
+    {
+      throw std::logic_error("SizeWriter does not retain serialised data");
+    }
+
     [[nodiscard]] size_t size() const
     {
       return total_size;
@@ -293,6 +326,114 @@ namespace ccf::kv
     std::vector<uint8_t> get_raw_data()
     {
       throw std::logic_error("SizeWriter does not retain serialised data");
+    }
+  };
+
+  /** Writes into a fixed, caller-owned buffer, so that a payload whose exact
+   * size is known in advance (e.g. from a SizeWriter) can be serialised in
+   * place, without intermediate buffers. Throws if the buffer is exceeded.
+   */
+  class SpanWriter
+  {
+  private:
+    std::span<uint8_t> target;
+    size_t used = 0;
+
+    uint8_t* extend(size_t additional)
+    {
+      if (additional > target.size() - used)
+      {
+        throw std::length_error(fmt::format(
+          "SpanWriter capacity {} exceeded: {} used, {} more requested",
+          target.size(),
+          used,
+          additional));
+      }
+      auto* destination = target.data() + used;
+      used += additional;
+      return destination;
+    }
+
+    void append_size_prefixed(const uint8_t* source, size_t total_size)
+    {
+      auto* destination = extend(total_size);
+      const auto payload_size = total_size - sizeof(size_t);
+      std::memcpy(destination, &payload_size, sizeof(payload_size));
+      if (payload_size != 0)
+      {
+        std::memcpy(destination + sizeof(size_t), source, payload_size);
+      }
+    }
+
+  public:
+    SpanWriter() = default;
+
+    explicit SpanWriter(std::span<uint8_t> target_) : target(target_) {}
+
+    template <typename T>
+    void append(const T& entry)
+    {
+      if constexpr (
+        ccf::nonstd::is_std_vector<T>::value ||
+        std::is_same_v<T, ccf::kv::serialisers::SerialisedEntry> ||
+        std::is_same_v<T, std::string>)
+      {
+        append_size_prefixed(
+          reinterpret_cast<const uint8_t*>(entry.data()),
+          RawWriter::serialised_size(entry));
+      }
+      else if constexpr (std::is_same_v<T, ccf::crypto::Sha256Hash>)
+      {
+        std::memcpy(extend(entry.h.size()), entry.h.data(), entry.h.size());
+      }
+      else if constexpr (std::is_same_v<T, EntryType>)
+      {
+        append(static_cast<uint8_t>(entry));
+      }
+      else if constexpr (std::is_integral_v<T>)
+      {
+        std::memcpy(extend(sizeof(T)), &entry, sizeof(T));
+      }
+      else
+      {
+        static_assert(
+          ccf::nonstd::dependent_false<T>::value, "Can't serialise this type");
+      }
+    }
+
+    template <typename F>
+    void append_size_prefixed_in_place(size_t payload_size, F&& fill)
+    {
+      if (payload_size > std::numeric_limits<size_t>::max() - sizeof(size_t))
+      {
+        throw std::length_error("SpanWriter payload size overflow");
+      }
+      auto* destination = extend(sizeof(size_t) + payload_size);
+      std::memcpy(destination, &payload_size, sizeof(payload_size));
+      if (payload_size != 0)
+      {
+        std::forward<F>(fill)(destination + sizeof(size_t));
+      }
+    }
+
+    void clear()
+    {
+      used = 0;
+    }
+
+    [[nodiscard]] std::span<const uint8_t> view() const
+    {
+      return target.first(used);
+    }
+
+    [[nodiscard]] size_t size() const
+    {
+      return used;
+    }
+
+    std::vector<uint8_t> get_raw_data()
+    {
+      return {target.data(), target.data() + used};
     }
   };
 
@@ -349,6 +490,13 @@ namespace ccf::kv
     void init(std::span<const uint8_t> data)
     {
       span_ = data;
+    }
+
+    /** Reads the next size-prefixed payload without copying it.
+     */
+    std::span<const uint8_t> read_next_span()
+    {
+      return read_size_prefixed_entry();
     }
 
     template <typename T>

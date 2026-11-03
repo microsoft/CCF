@@ -282,9 +282,9 @@ namespace ccf::kv::untyped
         s.start_map(name, security_domain);
         s.serialise_entry_version(version);
 
-        std::vector<uint8_t> ret(map_snapshot->get_serialized_size());
-        map_snapshot->serialize(ret.data());
-        s.serialise_raw(ret);
+        s.serialise_raw_in_place(
+          map_snapshot->get_serialized_size(),
+          [this](uint8_t* data) { map_snapshot->serialize(data); });
       }
 
       [[nodiscard]] SecurityDomain get_security_domain() const override
@@ -424,10 +424,24 @@ namespace ccf::kv::untyped
     {
       // Create a new empty change set, deserialising d's contents into it.
       auto v = d.deserialise_entry_version();
-      auto map_snapshot = d.deserialise_raw();
+      // The map's serialised state may be as large as the snapshot, so it is
+      // parsed in place rather than copied
+      auto map_snapshot = d.deserialise_raw_span();
 
-      return std::make_unique<SnapshotChangeSet>(
-        deserialize_map_snapshot(map_snapshot), v);
+      return make_snapshot_changes(deserialise_snapshot_state(map_snapshot), v);
+    }
+
+    static State deserialise_snapshot_state(
+      std::span<const uint8_t> serialised_state)
+    {
+      return deserialize_map_snapshot(serialised_state);
+    }
+
+    // Change set replacing a map's state with state, at version, as when the
+    // map is deserialised from a snapshot
+    static ChangeSetPtr make_snapshot_changes(State state, Version version)
+    {
+      return std::make_unique<SnapshotChangeSet>(std::move(state), version);
     }
 
     ChangeSetPtr deserialise_changes(KvStoreDeserialiser& d, Version version)

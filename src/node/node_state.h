@@ -531,6 +531,13 @@ namespace ccf
     std::shared_ptr<PendingNodeCleanup> pending_node_cleanup;
 
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
+    // Public maps captured when the startup snapshot's public domain is
+    // installed, so that private recovery need not deserialise them again
+    std::optional<ccf::kv::Store::SnapshotPublicMaps>
+      startup_snapshot_public_maps = std::nullopt;
+    // Set once private recovery has consumed the startup snapshot, whose
+    // private domain is decrypted in place, so it cannot be used again
+    bool startup_snapshot_consumed = false;
     // Set to the snapshot seqno when a node starts from one and remembered for
     // the lifetime of the node
     ccf::kv::Version startup_seqno = 0;
@@ -791,12 +798,8 @@ namespace ccf
           ccf::kv::StoreReadiness::InstallingSnapshot);
         try
         {
-          deserialise_snapshot(
-            network.tables,
-            segments,
-            hooks,
-            &view_history,
-            true /* public_only */);
+          startup_snapshot_public_maps = deserialise_public_snapshot_capturing(
+            network.tables, segments, hooks, &view_history);
 
           {
             auto tx = network.tables->create_read_only_tx();
@@ -1043,12 +1046,25 @@ namespace ccf
           ccf::kv::StoreReadiness::InstallingSnapshot);
         try
         {
-          deserialise_snapshot(
-            network.tables,
-            startup_snapshot_info->raw,
-            hooks,
-            &view_history_,
-            resp.network_info->public_only);
+          if (resp.network_info->public_only)
+          {
+            startup_snapshot_public_maps =
+              deserialise_public_snapshot_capturing(
+                network.tables,
+                separate_segments(startup_snapshot_info->raw),
+                hooks,
+                &view_history_);
+          }
+          else
+          {
+            // The snapshot is discarded once installed (or the node stops if
+            // this fails), so its private domain can be decrypted in place
+            deserialise_snapshot_in_place(
+              network.tables,
+              startup_snapshot_info->raw,
+              hooks,
+              &view_history_);
+          }
 
           for (auto& hook : hooks)
           {
@@ -2630,17 +2646,31 @@ namespace ccf
       recovery_v = txid.seqno;
       recovery_root = root;
 
+      if (startup_snapshot_consumed)
+      {
+        throw std::logic_error(fmt::format(
+          "Startup snapshot at {} was consumed by an earlier private recovery "
+          "attempt. Restart the node to retry recovery.",
+          startup_seqno));
+      }
+
       if (startup_snapshot_info)
       {
         std::vector<ccf::kv::Version> view_history_;
         ccf::kv::ConsensusHookPtrs hooks;
-        deserialise_snapshot(
+        // The snapshot's private domain is decrypted in place, so the snapshot
+        // is released here whether or not this succeeds. The public maps
+        // captured from it are installed rather than deserialised again.
+        startup_snapshot_consumed = true;
+        const auto snapshot = std::move(startup_snapshot_info);
+        const auto public_maps = std::move(startup_snapshot_public_maps);
+        startup_snapshot_public_maps.reset();
+        deserialise_snapshot_in_place(
           recovery_store,
-          startup_snapshot_info->raw,
+          snapshot->raw,
           hooks,
           &view_history_,
-          false);
-        startup_snapshot_info.reset();
+          public_maps.has_value() ? &public_maps.value() : nullptr);
       }
 
       LOG_DEBUG_FMT(

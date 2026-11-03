@@ -13,6 +13,7 @@
 #include "ds/serialized.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry_format.h"
+#include "kv/store.h"
 #include "node/cose_common.h"
 #include "node/history.h"
 #include "node/rpc/network_identity_chain_helpers.h"
@@ -413,6 +414,75 @@ namespace ccf
   {
     const auto segments = separate_segments(snapshot);
     deserialise_snapshot(store, segments, hooks, view_history, public_only);
+  }
+
+  // As deserialise_snapshot() with public_only, also returning the public maps
+  // captured from it, so that the private domain can later be deserialised
+  // without a second copy of the public state (see
+  // deserialise_snapshot_in_place()).
+  static ccf::kv::Store::SnapshotPublicMaps
+  deserialise_public_snapshot_capturing(
+    const std::shared_ptr<ccf::kv::Store>& store,
+    const SnapshotSegments& segments,
+    ccf::kv::ConsensusHookPtrs& hooks,
+    std::vector<ccf::kv::Version>* view_history)
+  {
+    const auto* data = segments.header_and_body.data();
+    const auto size = segments.header_and_body.size();
+
+    LOG_INFO_FMT(
+      "Deserialising snapshot (size: {}, public only: true, capturing public "
+      "maps)",
+      size + segments.receipt.size());
+
+    std::optional<ccf::kv::Store::SnapshotPublicMaps> captured;
+    auto rc = store->deserialise_public_snapshot_capturing(
+      data, size, hooks, view_history, captured);
+    if (rc != ccf::kv::ApplyResult::PASS || !captured.has_value())
+    {
+      throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));
+    }
+
+    LOG_INFO_FMT(
+      "Snapshot successfully deserialised at seqno {}",
+      store->current_version());
+    return std::move(captured.value());
+  }
+
+  // As deserialise_snapshot(), for all domains, but decrypts the private
+  // domain in place in snapshot, whose contents are unspecified afterwards. If
+  // public_maps is set, it must have been captured from this snapshot by
+  // deserialise_public_snapshot_capturing(), and its states are installed
+  // rather than deserialised again.
+  static void deserialise_snapshot_in_place(
+    const std::shared_ptr<ccf::kv::Store>& store,
+    std::vector<uint8_t>& snapshot,
+    ccf::kv::ConsensusHookPtrs& hooks,
+    std::vector<ccf::kv::Version>* view_history = nullptr,
+    const ccf::kv::Store::SnapshotPublicMaps* public_maps = nullptr)
+  {
+    const auto segments = separate_segments(snapshot);
+    const auto size = segments.header_and_body.size();
+
+    LOG_INFO_FMT(
+      "Deserialising snapshot (size: {}, public only: false, in place, "
+      "reusing captured public maps: {})",
+      snapshot.size(),
+      public_maps != nullptr);
+
+    auto rc = store->deserialise_snapshot_in_place(
+      std::span<uint8_t>(snapshot.data(), size),
+      hooks,
+      view_history,
+      public_maps);
+    if (rc != ccf::kv::ApplyResult::PASS)
+    {
+      throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));
+    }
+
+    LOG_INFO_FMT(
+      "Snapshot successfully deserialised at seqno {}",
+      store->current_version());
   }
 
   static std::vector<uint8_t> build_and_serialise_receipt(
