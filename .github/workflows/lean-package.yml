@@ -88,6 +88,9 @@ jobs:
         working-directory: lean/${{ inputs.package }}
         run: |
           set -euo pipefail
+          if [ "$PACKAGE" != "common" ]; then
+            lake build ccf_common/+CCF
+          fi
           lake lint
 
       - name: Build Raft replay
