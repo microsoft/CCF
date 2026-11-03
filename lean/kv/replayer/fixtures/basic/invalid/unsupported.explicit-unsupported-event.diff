@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -19 +19 @@
+-{"map":"a","seq":19,"store":1,"tx":1,"type":"size","value":0}
++{"operation":"snapshot import","seq":19,"store":1,"type":"unsupported"}
