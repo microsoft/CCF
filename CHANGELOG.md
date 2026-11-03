@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Fixed
 
-- Acquiring a transaction's first KV map handle no longer fails because of concurrent compaction; acquiring handles for additional maps can still encounter compaction conflicts (see [KV transaction semantics](doc/build_apps/kv/kv_how_to.rst#transaction-semantics)).
+- Acquiring a transaction's first KV map handle no longer fails because of concurrent compaction; acquiring handles for additional maps can still encounter compaction conflicts (see [KV transaction semantics](doc/build_apps/kv/kv_how_to.rst#transaction-semantics)) (#8656).
 
 ## [7.0.23]
 
