@@ -2,7 +2,7 @@ module
 
 public import DisasterRecovery.Proofs.Predicates
 public import DisasterRecovery.Proofs.Invariants
-public import Mathlib.Tactic
+public import Mathlib.Data.Finset.Card
 
 @[expose] public section
 

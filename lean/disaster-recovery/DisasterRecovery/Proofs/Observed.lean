@@ -133,12 +133,13 @@ lemma reachable_opening_has_vote {config : Model.Config} {state : State}
       | nil => cases kind <;> simp [votes, voteQuorum] at threshold
       | cons voter rest => exact ⟨voter, by simp⟩
 
-lemma notification_opening_state {config : Model.Config} {trace : Properties.GlobalTrace}
-    {index : Nat} {node : Location} {kind : OpenKind}
+lemma notification_opening_state {config : Model.Config}
+    {trace : Properties.GlobalTrace config} {index : Nat} {node : Location}
+    {kind : OpenKind}
     (notification
       : Properties.Trace.NotificationAt config trace index node (.opening kind))
     : exists after current,
-        trace.get? (index + 1) = some after
+        trace.stateAt (index + 1) = some after
         /\ (node, current) ∈ after.nodes
         /\ current.openKind = some kind := by
   obtain ⟨before, after, action, nodeBefore, nodeAfter, outputs,

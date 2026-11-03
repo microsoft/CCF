@@ -12,7 +12,7 @@ Core Concepts
 
 The following diagram shows a basic CCF network made of 3 nodes. All nodes run the same application inside an enclave. The effects of user (business) and member (governance) transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
 
-.. image:: ../img/about-ccf.png
+.. image:: ../img/ccf_overview.svg
     :alt: A three-node CCF network processing governance and business transactions
 
 Network and Nodes

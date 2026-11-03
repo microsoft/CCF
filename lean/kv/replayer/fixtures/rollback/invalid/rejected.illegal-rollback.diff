@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -219 +219 @@
+-{"requested":0,"seq":219,"store":7,"term":1,"type":"rollback_rejected"}
++{"requested":0,"seq":219,"store":7,"term":1,"type":"rollback","version":0}

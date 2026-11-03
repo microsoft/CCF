@@ -1,7 +1,7 @@
 module
 
 public import DisasterRecovery.Proofs.Predicates
-public import Mathlib.Tactic
+public import Mathlib.Tactic.CasesM
 
 @[expose] public section
 
