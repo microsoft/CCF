@@ -11,9 +11,7 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
 | `CCF.Architecture`              | Checks of specification import layering                      |
 
-`CCF.Execution.Trace system` records state and action sequences using Mathlib's `Stream'.Seq`, so the package depends on Mathlib.
-The trace bundles proofs of initialization, enabled transitions, and aligned domains: action `n` exists exactly when state `n + 1` exists.
-Finite traces therefore contain one more state than action, including initial-only traces with no actions.
+`CCF.Execution.Trace system` is a possibly infinite sequence of states and actions, and includes a proof of validity in the type - that each pair of states matches the recorded action, and the start state matches.
 `reachable_iff_trace` shows that finite execution traces reach exactly the reachable states.
 
 ## Event parsing
