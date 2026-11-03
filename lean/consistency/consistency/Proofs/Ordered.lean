@@ -126,16 +126,16 @@ theorem strict_observations {ledger : List Entry} {leftSeq rightSeq : Nat}
   · simp [through]
 
 theorem committed_rw_ordered_serializable
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ pair ∈
             (committedRwResponses state.history).zip
               (committedRwResponses state.history).tail,
             pair.1.observed <+: pair.2.observed
             ∧ pair.1.observed.length < pair.2.observed.length
             ∧ pair.2.observed.getLast? = some pair.2.tx := by
-  intro trace state ⟨valid, member⟩ pair listed
-  have reachable := valid.reachable member
+  intro trace state member pair listed
+  have reachable := trace.reachable member
   obtain ⟨firstListed, secondListed, different, ordered⟩ := adjacent state.history listed
   obtain ⟨first, firstMember, firstPayload⟩ := mem_ordered state.history firstListed
   obtain ⟨second, secondMember, secondPayload⟩ := mem_ordered state.history secondListed
@@ -143,9 +143,9 @@ theorem committed_rw_ordered_serializable
     intro same
     have firstResponse := (List.mem_filter.mp firstMember).1
     have secondResponse := (List.mem_filter.mp secondMember).1
-    have tx := LedgerIdentity.unique_txs trace state ⟨valid, member⟩
+    have tx := LedgerIdentity.unique_txs trace state member
       first firstResponse second secondResponse same
-    have obs := LedgerIdentity.same_observations trace state ⟨valid, member⟩
+    have obs := LedgerIdentity.same_observations trace state member
       first (List.mem_filter.mp firstResponse).1
       second (List.mem_filter.mp secondResponse).1 same
     have firstKind := ((History.mem_responsesOf_iff _ _ _).mp firstResponse).1

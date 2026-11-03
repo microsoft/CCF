@@ -15,25 +15,6 @@ open Model.Local
 open DisasterRecovery.Proofs.Local
 attribute [local simp] StateT.run
 
-private theorem valid_of_adjacent {config : Model.Config} {states : List Model.State}
-    (initialized
-      : exists initial,
-          states[0]? = some initial /\ (Model.transitionSystem config).init initial)
-    (adjacent
-      : forall i : Fin (states.length - 1),
-          exists action,
-            (Model.transitionSystem config).step (states[i.val]'(by omega)) action
-            = some (states[i.val + 1]'(by omega)))
-    : Execution.Trace.Valid (Model.transitionSystem config)
-        (Stream'.Seq.ofList states) := by
-  refine ⟨by simpa only [Stream'.Seq.ofList_get?] using initialized, ?_⟩
-  intro i before after atBefore atAfter
-  rw [Stream'.Seq.ofList_get?] at atBefore atAfter
-  obtain ⟨_, beforeEq⟩ := List.getElem?_eq_some_iff.mp atBefore
-  obtain ⟨afterBound, afterEq⟩ := List.getElem?_eq_some_iff.mp atAfter
-  obtain ⟨action, stepped⟩ := adjacent ⟨i, by omega⟩
-  exact ⟨action, by simpa only [beforeEq, afterEq] using stepped⟩
-
 private def initial (config : Model.Config) : Model.State :=
   { nodes := config.protocol.expectedLocations.map fun node => (node, initialNode node) }
 
@@ -59,9 +40,6 @@ private def quorumConfig : Model.Config :=
     recovered := [("A", high)]
   }
 
-private def quorumActions : List Model.Action :=
-  [.local "A" .retry, .deliver (gossip "A" "A" high), .local "A" .retry, .deliver vote]
-
 private def quorumSelected : NodeState :=
   { location := "A", phase := .voting, chosen := some "A", gossips := [("A", high)] }
 
@@ -80,24 +58,35 @@ private def quorumOpened : Model.State :=
     network := [gossip "A" "A" high]
   }
 
-private def quorumTrace : Properties.GlobalTrace :=
-  Stream'.Seq.ofList
-    [
-      initial quorumConfig,
-      { initial quorumConfig with network := [gossip "A" "A" high] },
-      quorumReady,
-      quorumVoteSent,
-      quorumOpened
-    ]
+private def quorumSteps : List (Model.Action × Model.State) :=
+  [
+    (.local "A" .retry, { initial quorumConfig with network := [gossip "A" "A" high] }),
+    (.deliver (gossip "A" "A" high), quorumReady),
+    (.local "A" .retry, quorumVoteSent),
+    (.deliver vote, quorumOpened)
+  ]
 
-private theorem quorum_valid
-    : quorumTrace.Valid (Model.transitionSystem quorumConfig) := by
-  refine valid_of_adjacent
-    ⟨initial quorumConfig, rfl, initialized (by unfold Model.Config.Valid; decide)⟩ ?_
-  intro i
-  refine ⟨quorumActions[i.val]'(by simp [quorumActions]), ?_⟩
-  fin_cases i <;>
-    simp [quorumActions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+private def quorumTrace : Properties.GlobalTrace quorumConfig := by
+  refine ⟨
+    { init := initial quorumConfig, steps := Stream'.Seq.ofList quorumSteps },
+    initialized (by unfold Model.Config.Valid; decide),
+    ?_
+  ⟩
+  intro i before action first chosen
+  have bound : i < 4 := by
+    have present : (quorumSteps[i]?).isSome := by
+      change (quorumSteps[i]?).map Prod.fst = some action at chosen
+      have := congrArg Option.isSome chosen
+      simpa using this
+    simpa [quorumSteps] using present
+  interval_cases i <;>
+    simp only [quorumSteps, Stream'.Seq.get?_cons_zero,
+      Stream'.Seq.get?_cons_succ, Stream'.Seq.map_get?,
+      Option.map_some, Stream'.Seq.ofList_get?,
+      List.getElem?_cons_zero, List.getElem?_cons_succ,
+      Option.some.injEq] at first chosen <;> subst before <;> subst action
+  all_goals
+    simp [quorumSteps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, quorumConfig, initial, quorumReady, quorumVoteSent,
       quorumOpened, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
       MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
@@ -112,32 +101,25 @@ private theorem quorum_notified
     { notifications := [.opening .quorum] }, ?_, ?_, ?_, rfl, rfl, rfl, ?_, ?_⟩
   · rfl
   · rfl
-  · simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
-      MultiNodeTransitionSystem.next, quorumVoteSent, quorumReady, vote,
-      MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne,
-      Model.protocol, quorumConfig, guard]
-    cbv
-    simp [advance, rejected, validTimeout, voteQuorum, advanceTimeoutLane]
-    rfl
+  · rfl
   · simp [Model.protocol, quorumConfig]
     cbv
     simp [advance, rejected, validTimeout, voteQuorum, advanceTimeoutLane]
   · simp
 
 theorem quorum_opener_unique_witness
-    : exists (config : Model.Config) (trace : Properties.GlobalTrace) (step
-                                                                        : Nat) (opener
-                                                                                : Model.Local.Location),
-        trace.Valid (Model.transitionSystem config)
-        /\ Properties.Trace.NotificationAt config trace step opener (.opening .quorum) :=
-  ⟨quorumConfig, quorumTrace, 3, "A", quorum_valid, quorum_notified⟩
+    : exists (config : Model.Config) (trace : Properties.GlobalTrace config) (step
+                                                                              : Nat) (opener
+                                                                                      : Model.Local.Location),
+        Properties.Trace.NotificationAt config trace step opener (.opening .quorum) :=
+  ⟨quorumConfig, quorumTrace, 3, "A", quorum_notified⟩
 
 theorem quorum_open_preserves_commit_witness
     : exists
-    (config : Model.Config) (trace : Properties.GlobalTrace) (openedState : Model.State),
+    (config : Model.Config) (trace : Properties.GlobalTrace config) (openedState
+                                                                      : Model.State),
     exists (opener : Model.Local.Location) (openerState : Model.Local.NodeState),
-      trace.Valid (Model.transitionSystem config)
-      /\ openedState ∈ trace
+      openedState ∈ trace
       /\ (opener, openerState) ∈ openedState.nodes
       /\ openerState.openKind = some .quorum
       /\ (forall voter,
@@ -148,8 +130,7 @@ theorem quorum_open_preserves_commit_witness
     quorumOpened,
     "A",
     quorumOpener,
-    quorum_valid,
-    Stream'.Seq.get?_mem (n := 4) ?_,
+    CCF.Execution.Trace.stateAt_mem (n := 4) ?_,
     by simp [quorumOpened],
     rfl,
     ?_
@@ -158,7 +139,7 @@ theorem quorum_open_preserves_commit_witness
   · intro voter member
     have same : voter = "A" := by simpa [quorumOpener] using member
     subst voter
-    refine ⟨quorumReady, Stream'.Seq.get?_mem (n := 2) ?_,
+    refine ⟨quorumReady, CCF.Execution.Trace.stateAt_mem (n := 2) ?_,
       quorumSelected, high, by simp [quorumReady], by simp [quorumSelected]⟩
     rfl
 
@@ -171,26 +152,6 @@ private def fullConfig : Model.Config :=
     recovered :=
       [("A", high), ("B", { view := 1, seqno := 8 }), ("C", { view := 1, seqno := 5 })]
   }
-
-private def fullActions : List Model.Action :=
-  [
-    .local "A" .retry,
-    .local "B" .retry,
-    .local "C" .retry,
-    .deliver (gossip "A" "A" high),
-    .deliver (gossip "B" "A" { view := 1, seqno := 8 }),
-    .deliver (gossip "C" "A" { view := 1, seqno := 5 }),
-    .deliver (gossip "A" "B" high),
-    .deliver (gossip "B" "B" { view := 1, seqno := 8 }),
-    .deliver (gossip "C" "B" { view := 1, seqno := 5 }),
-    .deliver (gossip "A" "C" high),
-    .deliver (gossip "B" "C" { view := 1, seqno := 8 }),
-    .deliver (gossip "C" "C" { view := 1, seqno := 5 }),
-    .local "A" .retry,
-    .deliver vote,
-    .local "A" .timeout,
-    .local "A" .timeout
-  ]
 
 private def fullSelected (node : Location) : NodeState :=
   {
@@ -263,49 +224,67 @@ private def fullTimeout : Model.State :=
         ]
   }
 
-private def fullTrace : Properties.GlobalTrace :=
-  Stream'.Seq.ofList
-    [
-      initial fullConfig,
-      { initial fullConfig with network := (fullPending 0 0 0).take 3 },
-      { initial fullConfig with network := (fullPending 0 0 0).take 6 },
-      partialGossip 0 0 0,
-      partialGossip 1 0 0,
-      partialGossip 2 0 0,
-      partialGossip 3 0 0,
-      partialGossip 3 1 0,
-      partialGossip 3 2 0,
-      partialGossip 3 3 0,
-      partialGossip 3 3 1,
-      partialGossip 3 3 2,
-      fullGossiped,
-      fullVoteSent,
-      fullVoted,
-      fullTimeout,
-      failoverOpened
-    ]
+private def fullSteps : List (Model.Action × Model.State) :=
+  [
+    (
+      .local "A" .retry,
+      { initial fullConfig with network := (fullPending 0 0 0).take 3 }
+    ),
+    (
+      .local "B" .retry,
+      { initial fullConfig with network := (fullPending 0 0 0).take 6 }
+    ),
+    (.local "C" .retry, partialGossip 0 0 0),
+    (.deliver (gossip "A" "A" high), partialGossip 1 0 0),
+    (.deliver (gossip "B" "A" { view := 1, seqno := 8 }), partialGossip 2 0 0),
+    (.deliver (gossip "C" "A" { view := 1, seqno := 5 }), partialGossip 3 0 0),
+    (.deliver (gossip "A" "B" high), partialGossip 3 1 0),
+    (.deliver (gossip "B" "B" { view := 1, seqno := 8 }), partialGossip 3 2 0),
+    (.deliver (gossip "C" "B" { view := 1, seqno := 5 }), partialGossip 3 3 0),
+    (.deliver (gossip "A" "C" high), partialGossip 3 3 1),
+    (.deliver (gossip "B" "C" { view := 1, seqno := 8 }), partialGossip 3 3 2),
+    (.deliver (gossip "C" "C" { view := 1, seqno := 5 }), fullGossiped),
+    (.local "A" .retry, fullVoteSent),
+    (.deliver vote, fullVoted),
+    (.local "A" .timeout, fullTimeout),
+    (.local "A" .timeout, failoverOpened)
+  ]
 
 set_option maxHeartbeats 2000000 in
-private theorem full_valid : fullTrace.Valid (Model.transitionSystem fullConfig) := by
-  refine valid_of_adjacent
-    ⟨initial fullConfig, rfl, initialized (by unfold Model.Config.Valid; decide)⟩ ?_
-  intro i
-  refine ⟨fullActions[i.val]'(by simp [fullActions]), ?_⟩
-  fin_cases i <;>
-    simp [fullActions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+private def fullTrace : Properties.GlobalTrace fullConfig := by
+  refine ⟨
+    { init := initial fullConfig, steps := Stream'.Seq.ofList fullSteps },
+    initialized (by unfold Model.Config.Valid; decide),
+    ?_
+  ⟩
+  intro i before action first chosen
+  have bound : i < 16 := by
+    have present : (fullSteps[i]?).isSome := by
+      change (fullSteps[i]?).map Prod.fst = some action at chosen
+      have := congrArg Option.isSome chosen
+      simpa using this
+    simpa [fullSteps] using present
+  interval_cases i <;>
+    simp only [fullSteps, Stream'.Seq.get?_cons_zero,
+      Stream'.Seq.get?_cons_succ, Stream'.Seq.map_get?,
+      Option.map_some, Stream'.Seq.ofList_get?,
+      List.getElem?_cons_zero, List.getElem?_cons_succ,
+      Option.some.injEq] at first chosen <;> subst before <;> subst action
+  all_goals
+    simp [fullSteps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, fullConfig, initial, partialGossip, partialNode,
       fullPending, fullSelected, fullGossiped, fullVoteSent, fullVoted, fullTimeout,
       failoverOpened, failoverOpener, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
       MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.receive, step, guard] <;> cbv
+      Model.receive, step, guard]
+    cbv
 
 theorem full_gossip_preserves_commit_witness
     : exists
-    (config : Model.Config) (trace : Properties.GlobalTrace) (gossipedState openedState
-                                                              : Model.State),
+    (config : Model.Config) (trace : Properties.GlobalTrace config) (gossipedState openedState
+                                                                      : Model.State),
     exists (opener : Model.Local.Location) (openerState : Model.Local.NodeState),
-      trace.Valid (Model.transitionSystem config)
-      /\ gossipedState ∈ trace
+      gossipedState ∈ trace
       /\ (forall node nodeState,
             node ∈ config.protocol.expectedLocations
             -> (node, nodeState) ∈ gossipedState.nodes
@@ -320,10 +299,9 @@ theorem full_gossip_preserves_commit_witness
     failoverOpened,
     "A",
     failoverOpener,
-    full_valid,
-    Stream'.Seq.get?_mem (n := 12) ?_,
+    CCF.Execution.Trace.stateAt_mem (n := 12) ?_,
     ?_,
-    Stream'.Seq.get?_mem (n := 16) ?_,
+    CCF.Execution.Trace.stateAt_mem (n := 16) ?_,
     by simp [failoverOpened],
     rfl
   ⟩
