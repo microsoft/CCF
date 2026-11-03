@@ -173,10 +173,19 @@ TEST_CASE("base64 chunked encoding matches a single OpenSSL call")
   {
     std::vector<uint8_t> raw(length);
     std::generate(raw.begin(), raw.end(), [&]() { return rng() & 0xff; });
-    const auto expected =
-      Base64_openssl::b64_from_raw(raw.data(), raw.size(), SIZE_MAX);
+    // The default chunk size is far larger than the input, so this is a
+    // single update call
+    const auto expected = Base64_openssl::b64_from_raw(raw.data(), raw.size());
     REQUIRE(expected == reference_b64(raw));
     for (size_t chunk_size = 1; chunk_size <= 9; ++chunk_size)
+    {
+      INFO("length = " << length << ", chunk_size = " << chunk_size);
+      REQUIRE(
+        Base64_openssl::b64_from_raw(raw.data(), raw.size(), chunk_size) ==
+        expected);
+    }
+    // Out-of-range chunk sizes are clamped rather than passed to OpenSSL
+    for (const size_t chunk_size : {size_t{0}, SIZE_MAX})
     {
       INFO("length = " << length << ", chunk_size = " << chunk_size);
       REQUIRE(

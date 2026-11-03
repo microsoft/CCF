@@ -41,8 +41,9 @@ namespace ccf::crypto
       // The update call takes and returns int lengths. Unlike encoding, the
       // decoder is not chunked: OpenSSL does not remember across calls that
       // it has seen padding or its end-of-content marker, and no Base64 text
-      // this large is ever decoded.
-      if (size > INT_MAX || EVP_DECODE_LENGTH(size) > INT_MAX)
+      // this large is ever decoded. The decoded output is smaller than the
+      // input, so it fits once the input does.
+      if (size > INT_MAX)
       {
         throw std::invalid_argument(fmt::format(
           "OSSL: Base64 input of {} bytes is too large to decode", size));
@@ -98,7 +99,7 @@ namespace ccf::crypto
 
     // Encode byte stream into Base64. The input is fed to OpenSSL in chunks
     // of at most chunk_size bytes; smaller sizes than the default only serve
-    // to test chunk boundaries.
+    // to test chunk boundaries, and larger sizes are clamped to it.
     static std::string b64_from_raw(
       const uint8_t* data,
       size_t size,
@@ -108,6 +109,10 @@ namespace ccf::crypto
       {
         return "";
       }
+
+      // Keeps every update call within the int length it takes, and makes
+      // progress on each iteration
+      chunk_size = std::clamp(chunk_size, size_t{1}, BASE64_MAX_UPDATE_SIZE);
 
       std::span<const uint8_t> input(data, size);
 
