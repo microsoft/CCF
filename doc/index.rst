@@ -10,23 +10,44 @@ CCF Documentation
 
     .. grid-item-card:: :fas:`tools` :doc:`build_apps/index`
 
-        .. image:: img/cpp.svg
-          :width: 32
-          :target: ./build_apps/example.html
-          :alt: C++
-          :align: left
+        .. grid:: 3
+          :gutter: 1
 
-        .. image:: img/ts.svg
-          :width: 32
-          :target: ./build_apps/js_app_ts.html
-          :alt: TypeScript
-          :align: left
+          .. grid-item-card::
+            :link: build_apps/example
+            :link-type: doc
+            :link-alt: Write a CCF application in C++
+            :shadow: none
+            :class-card: sd-border-0
+            :class-body: sd-p-0
 
-        .. image:: img/rust.svg
-          :width: 32
-          :target: ./build_apps/example_rust.html
-          :alt: Rust
-          :align: left
+            .. image:: img/cpp.svg
+              :width: 32
+              :alt: C++
+
+          .. grid-item-card::
+            :link: build_apps/js_app_ts
+            :link-type: doc
+            :link-alt: Write a CCF application in TypeScript
+            :shadow: none
+            :class-card: sd-border-0
+            :class-body: sd-p-0
+
+            .. image:: img/ts.svg
+              :width: 32
+              :alt: TypeScript
+
+          .. grid-item-card::
+            :link: build_apps/example_rust
+            :link-type: doc
+            :link-alt: Write a CCF application in Rust (experimental)
+            :shadow: none
+            :class-card: sd-border-0
+            :class-body: sd-p-0
+
+            .. image:: img/rust.svg
+              :width: 32
+              :alt: Rust
 
         Write application logic against the CCF key-value store in C++, JavaScript/TypeScript or Rust (experimental).
 
