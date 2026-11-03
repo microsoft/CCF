@@ -1107,10 +1107,13 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      backup_snapshot_fetch_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/backup_snapshot_fetch.cpp
+      retry_on_compacted_version_conflict_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/retry_on_compacted_version_conflict.cpp
     )
-    target_link_libraries(backup_snapshot_fetch_test PRIVATE ccf_kv)
+    target_link_libraries(
+      retry_on_compacted_version_conflict_test
+      PRIVATE ccf_kv
+    )
 
     add_unit_test(
       tx_status_test

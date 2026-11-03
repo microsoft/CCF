@@ -9,6 +9,7 @@
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "node/network_state.h"
+#include "node/retry_on_compacted_version_conflict.h"
 #include "node/snapshot_serdes.h"
 #include "service/tables/snapshot_evidence.h"
 #include "service/tables/snapshot_status.h"
@@ -255,19 +256,17 @@ namespace ccf
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
       auto serialised_snapshot_size = serialised_snapshot.size();
 
-      auto tx = store->create_tx();
-      auto* evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
-      auto snapshot_hash = ccf::crypto::Sha256Hash(serialised_snapshot);
-      evidence->put({snapshot_hash, snapshot_version});
-
-      auto* status = tx.rw<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS);
+      // Hash the snapshot before opening the evidence transaction. The
+      // transaction captures its read version when its first handle is
+      // created, so a long computation between handle creations lets
+      // compaction, driven by concurrent snapshot generations writing these
+      // same tables, overtake that version.
+      const auto snapshot_hash = ccf::crypto::Sha256Hash(serialised_snapshot);
       const auto timestamp_ns =
         snapshot_status_timestamp_from_time_point(timestamp);
-      status->put({snapshot_version, timestamp_ns});
 
       ccf::ClaimsDigest cd;
-      // NOLINTNEXTLINE(performance-move-const-arg)
-      cd.set(std::move(snapshot_hash));
+      cd.set(ccf::crypto::Sha256Hash(snapshot_hash));
 
       ccf::crypto::Sha256Hash ws_digest;
       std::string commit_evidence;
@@ -279,17 +278,46 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      auto rc = tx.commit(cd, capture_ws_digest_and_commit_evidence);
-      if (rc != ccf::kv::CommitResult::SUCCESS)
+      bool committed = false;
+      ccf::kv::Version evidence_version = ccf::kv::NoVersion;
+      const auto evidence_tx_completed =
+        ccf::retry_on_compacted_version_conflict(
+          fmt::format(
+            "Snapshot evidence transaction for seqno {}", snapshot_version),
+          [&] {
+            auto tx = store->create_tx();
+            tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE)
+              ->put({snapshot_hash, snapshot_version});
+            tx.rw<SnapshotStatusValue>(Tables::SNAPSHOT_STATUS)
+              ->put({snapshot_version, timestamp_ns});
+
+            const auto rc =
+              tx.commit(cd, capture_ws_digest_and_commit_evidence);
+            if (rc != ccf::kv::CommitResult::SUCCESS)
+            {
+              LOG_FAIL_FMT(
+                "Could not commit snapshot evidence for seqno {}: {}",
+                snapshot_version,
+                rc);
+              return;
+            }
+
+            committed = true;
+            evidence_version = tx.commit_version();
+          });
+      if (!evidence_tx_completed)
       {
         LOG_FAIL_FMT(
-          "Could not commit snapshot evidence for seqno {}: {}",
-          snapshot_version,
-          rc);
+          "Could not commit snapshot evidence for seqno {} after repeated "
+          "compaction conflicts",
+          snapshot_version);
         return;
       }
 
-      auto evidence_version = tx.commit_version();
+      if (!committed)
+      {
+        return;
+      }
 
       // Hand the serialise outputs to the (later) persist action. No lock is
       // required: the per-generation OrderedTasks guarantees this action
