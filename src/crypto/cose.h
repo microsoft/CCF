@@ -5,8 +5,10 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/md_type.h"
+#include "ccf/crypto/mldsa_parameter_set.h"
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -15,6 +17,7 @@
 namespace ccf::crypto
 {
   class ECKeyPair;
+  class MLDSAKeyPair;
 }
 
 namespace ccf
@@ -42,6 +45,19 @@ namespace ccf
       std::string_view txid,
       std::span<const uint8_t> payload);
 
+    /// Same protected header, signed with pure ML-DSA over the Sig_structure
+    /// and an empty context (RFC 9964).
+    /// @throws std::runtime_error if header construction, signing, or
+    /// encoding fails.
+    std::vector<uint8_t> sign_ledger(
+      const crypto::MLDSAKeyPair& key,
+      std::string_view kid,
+      int64_t iat,
+      std::string_view issuer,
+      std::string_view subject,
+      std::string_view txid,
+      std::span<const uint8_t> payload);
+
     /// Curve-specific COSE algorithm and digest.
     struct SigningAlgorithm
     {
@@ -51,6 +67,16 @@ namespace ccf
 
     /// @throws std::runtime_error if the curve has no COSE signing algorithm
     SigningAlgorithm algorithm_for_curve(crypto::CurveID curve);
+
+    /// COSE algorithm of an ML-DSA parameter set (RFC 9964).
+    /// @throws std::runtime_error for an unknown parameter set
+    int64_t algorithm_for_parameter_set(
+      crypto::MLDSAParameterSet parameter_set);
+
+    /// The ML-DSA parameter set of a COSE algorithm, or std::nullopt if alg
+    /// is not an ML-DSA algorithm.
+    std::optional<crypto::MLDSAParameterSet> parameter_set_for_algorithm(
+      int64_t alg);
 
     /// @throws std::runtime_error if header construction, signing, or
     /// encoding fails.
@@ -115,6 +141,10 @@ namespace ccf
       static constexpr int64_t EDDSA = -8;
       // Fully-specified EdDSA identifier, RFC 9864.
       static constexpr int64_t ED25519 = -19;
+      // Pure ML-DSA identifiers, RFC 9964.
+      static constexpr int64_t ML_DSA_44 = -48;
+      static constexpr int64_t ML_DSA_65 = -49;
+      static constexpr int64_t ML_DSA_87 = -50;
     }
 
     using Signature = std::span<const uint8_t>;
