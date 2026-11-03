@@ -45,6 +45,12 @@ jobs:
           sudo apt-get install -y elan python3-jsonschema jq
           elan toolchain install "$(cat lean/lean-toolchain)"
 
+      - name: Restore dependency builds
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: lean/${{ inputs.package }}/.lake/packages
+          key: lean-deps-v1-ubuntu-26.04-${{ runner.arch }}-${{ inputs.package }}-${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-package.yml') }}
+
       - name: Restore Mathlib cache
         working-directory: lean/${{ inputs.package }}
         run: |
