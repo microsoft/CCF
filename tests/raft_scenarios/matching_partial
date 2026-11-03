@@ -26,6 +26,8 @@ dispatch_all
 assert_state_sync
 
 # Node 2 wins a term-3 election and creates a divergent suffix [5,6]@t3 it never shares.
+periodic_one,1,150
+drop_pending,1
 periodic_one,2,100
 dispatch_all
 assert_detail,2,leadership_state,Leader
@@ -35,6 +37,8 @@ drop_pending,2
 assert_last_txid,2,3.6
 
 # Node 1 wins a term-4 election (node 0 gives the majority; node 2 rejects due to its longer log).
+periodic_one,0,150
+drop_pending,0
 periodic_one,1,100
 dispatch_all
 assert_detail,1,leadership_state,Leader

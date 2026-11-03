@@ -38,6 +38,11 @@ drop_pending_to,0,2
 dispatch_one,0
 
 # Node 1 calls and wins an election
+# The available voters must first forget the previous leader.
+periodic_one,0,150
+drop_pending,0
+periodic_one,2,150
+drop_pending,2
 periodic_one,1,100
 assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_one,1
@@ -58,6 +63,8 @@ dispatch_one,1
 # We need to keep this around, and don't touch this channel for a while
 
 # Node 0 calls and wins an election
+periodic_one,1,150
+drop_pending,1
 periodic_one,0,100
 assert_detail,0,leadership_state,PreVoteCandidate
 dispatch_one,0
@@ -101,6 +108,10 @@ assert_commit_safety,0
 # Node 1 calls and wins an election
 # To win, it now needs a vote from one of the previous dead nodes (we can't touch the 2->1 channel!)
 reconnect_node,3
+periodic_one,0,150
+drop_pending,0
+periodic_one,3,150
+drop_pending,3
 periodic_one,1,100
 assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_one,1

@@ -45,6 +45,8 @@ assert_detail,0,current_view,2
 assert_detail,2,current_view,2
 
 # Short-log node 1 grants a pre-vote to both prospective candidates.
+periodic_one,1,150
+drop_pending,1
 drop_pending_to,0,2
 drop_pending_to,2,0
 dispatch_single,0,1

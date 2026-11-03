@@ -33,6 +33,11 @@ periodic_one,0,10
 dispatch_one,0
 
 # But node 2 runs for election before ack/cmt
+# Both old-configuration voters must forget the leader before pre-voting.
+periodic_one,0,150
+drop_pending,0
+periodic_one,1,150
+drop_pending,1
 periodic_one,2,150
 assert_detail,2,leadership_state,PreVoteCandidate
 dispatch_all

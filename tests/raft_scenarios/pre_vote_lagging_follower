@@ -1,0 +1,51 @@
+start_node,0
+emit_signature,2
+swap_nodes,2,in,1,2
+emit_signature,2
+
+periodic_one,0,10
+dispatch_all
+periodic_one,0,10
+dispatch_all
+periodic_one,0,10
+dispatch_all
+
+# All nodes are in sync with config {0,1,2}
+assert_commit_idx,0,4
+assert_commit_idx,1,4
+assert_commit_idx,2,4
+assert_detail,0,leadership_state,Leader
+assert_detail,1,leadership_state,Follower
+assert_detail,2,leadership_state,Follower
+
+# Node 1 misses unsigned entries which node 2 receives
+replicate,2,missed by 1
+replicate,2,missed by 1
+periodic_one,0,10
+drop_pending_to,0,1
+dispatch_all
+assert_last_txid,1,2.4
+assert_last_txid,2,2.6
+
+# Node 1 times out before the leader repairs its log. Its committable log is
+# as up-to-date as everyone's, but nodes 0 and 2 know a leader in term 2, so
+# they must refuse its pre-vote rather than let it depose a healthy leader.
+periodic_one,1,150
+assert_detail,1,leadership_state,PreVoteCandidate
+dispatch_all
+assert_detail,0,leadership_state,Leader
+assert_detail,0,current_view,2
+assert_detail,1,leadership_state,PreVoteCandidate
+assert_detail,1,current_view,2
+assert_detail,2,leadership_state,Follower
+assert_detail,2,current_view,2
+
+# The leader's next heartbeat returns node 1 to follower and repairs its log
+periodic_one,0,10
+dispatch_all
+periodic_one,0,10
+dispatch_all
+assert_detail,0,leadership_state,Leader
+assert_detail,1,leadership_state,Follower
+assert_detail,1,current_view,2
+assert_last_txid,1,2.6

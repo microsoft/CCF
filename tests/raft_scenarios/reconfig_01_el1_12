@@ -24,6 +24,9 @@ periodic_one,0,10
 dispatch_one,0
 
 # But node 1 runs for election before ack/cmt
+# Let the old leader step down so the old configuration can pre-vote.
+periodic_one,0,150
+drop_pending,0
 periodic_one,1,150
 dispatch_all
 dispatch_all

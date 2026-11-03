@@ -14,6 +14,9 @@ assert_state_sync
 drop_pending,0
 drop_pending,1
 drop_pending,2
+# Let node 2 forget the old leader without competing in the election.
+periodic_one,2,150
+drop_pending,2
 periodic_one,1,100
 assert_detail,1,leadership_state,PreVoteCandidate
 assert_detail,1,current_view,2

@@ -46,6 +46,8 @@ dispatch_all
 state_all
 
 # Node 0 is idle/disconnected for too long, so Node 1 takes over
+periodic_one,2,150
+drop_pending,2
 periodic_one,1,110
 dispatch_all
 
@@ -95,6 +97,8 @@ periodic_all,10
 dispatch_all
 
 # The partition lasts long enough that Node 0 starts an election
+periodic_one,2,150
+drop_pending,2
 periodic_one,0,110
 
 # It passes the election

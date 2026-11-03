@@ -219,7 +219,8 @@ To mitigate this, the PreVote extension requires that a follower first become ``
 
 More specifically, when a follower's election timeout elapses, it becomes a ``PreVoteCandidate`` for the current view and sends out ``RequestPreVote`` messages.
 If the ``PreVoteCandidate`` hears from a current leader, or a new leader, it reverts back to being a ``Follower``.
-Nodes receive this pre-vote request, and respond positively if node would have voted for the ``PreVoteCandidate``'s ledger during an election, (ie. if the ``PreVoteCandidate``'s ledger is at least as up to date as the receiver's ledger).
+Nodes receive this pre-vote request, and respond positively only if they do not know a leader in the current view, and would have voted for the ``PreVoteCandidate``'s ledger during an election, (ie. if the ``PreVoteCandidate``'s ledger is at least as up to date as the receiver's ledger).
+A node forgets the leader when its own election timeout elapses or when it learns of a more recent view, so a follower which falls behind or cannot hear the leader cannot depose a leader that the rest of the cluster still hears.
 If the ``PreVoteCandidate`` receives a quorum of positive pre-vote responses, it then becomes a ``Candidate``, increments its view, sends a ``RequestVote`` message and the election proceeds as normal from here.
 
 .. mermaid::
@@ -229,7 +230,8 @@ If the ``PreVoteCandidate`` receives a quorum of positive pre-vote responses, it
         participant Node 1
         participant Node 2
 
-        Note over Node 0: Leader for view 2
+        Note over Node 0: Leader for view 2, then unreachable
+        Note over Node 2: Election timeout elapses, no longer knows a leader
 
         Note over Node 1: PreVoteCandidate in view 2
         Node 1 ->> Node 2: RequestPreVote(view=2)

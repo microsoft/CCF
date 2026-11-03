@@ -118,78 +118,54 @@ def test_isolate_primary_from_one_backup(network, args):
     b_0, _b_1 = backups
 
     # Issue one transaction, waiting for all nodes to be have reached
-    # the same level of commit, so that nodes outside of partition can
-    # become primary after this one is dropped
+    # the same level of commit
     # Note: Because of https://github.com/microsoft/CCF/issues/2224, we need to
     # issue a write transaction instead of just reading the TxID of the latest entry
     initial_txid = network.txs.issue(network, send_private=False)
+    initial_view = initial_txid.view
 
-    # Isolate first backup from primary so that first backup becomes candidate
-    # in a new term and wins the election
+    # Isolate first backup from primary
     # Note: Managed manually
     rules = network.partitioner.isolate_node(p, b_0)
 
     # This is what we expect to happen:
-    # - b_0 first times out and calls an election
-    # - As it is up to date with b_1, it will win that election,
-    #   and after being elected emit a signature.
-    # - p will then step down via CheckQuorum
-    # - p will then try to call multiple elections but at most become a PreVoteCandidate,
-    #   and not disrupt the cluster, as it cannot pass pre-vote due to missing the signature
-    #   from b_0's leadership election
+    # - b_0 times out and becomes a PreVoteCandidate
+    # - b_1 still hears from p, so refuses b_0's pre-votes
+    # - b_0 therefore never becomes a Candidate, so does not increase its view
+    #   or disrupt the cluster
+    # - p remains primary in the same view, and commits transactions with b_1
 
     LOG.info(
-        f"Check that primary {p.local_node_id} reports increasing last ack time for partitioned backup {b_0.local_node_id} and the partitioned backup's election timeout also increases"
+        f"Check that partitioned backup {b_0.local_node_id} times out and becomes a PreVoteCandidate"
+    )
+    b_0.wait_for_leadership_state(
+        initial_view - 1,
+        ["PreVoteCandidate"],
+        timeout=2 * network.args.election_timeout_ms / 1000,
     )
 
-    last_ack = 0
-    timeout = time.time() + 2 * network.args.election_timeout_ms / 1000
-    while True:
-        with p.client() as c:
-            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
-            ack = r["acks"][b_0.node_id]["last_received_ms"]
-            has_stepped_down = r["leadership_state"] in {"Follower", "PreVoteCandidate"}
-            if not has_stepped_down:
-                assert (
-                    ack >= last_ack
-                ), f"Nodes {p.local_node_id} and {b_0.local_node_id} are no longer partitioned"
-                last_ack = ack
-        with b_0.client() as c:
-            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
-            if r["leadership_state"] == "Leader":
-                LOG.info(
-                    f"Backup {b_0.local_node_id} has become primary in new view {r['current_view']}"
-                )
-                new_view = r["current_view"]
-                break
-        if time.time() > timeout:
-            raise RuntimeError(
-                f"Backup {b_0.local_node_id} did not become primary within timeout"
-            )
-
-        time.sleep(0.1)
-
-    p.wait_for_leadership_state(
-        initial_txid.view,
-        ["Follower", "PreVoteCandidate"],
-        timeout=4 * network.args.election_timeout_ms / 1000,
+    LOG.info(
+        f"Check that primary {p.local_node_id} remains primary in view {initial_view}, and that partitioned backup {b_0.local_node_id} cannot be elected"
     )
-
-    # Verify that b_0 is stably the primary, and that p is a Follower/PreVoteCandidate
     timeout = time.time() + 2 * network.args.election_timeout_ms / 1000
     while time.time() < timeout:
+        with p.client() as c:
+            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+            assert (
+                r["leadership_state"] == "Leader" and r["current_view"] == initial_view
+            ), f"Primary {p.local_node_id} is no longer primary in view {initial_view}: {r}"
         with b_0.client() as c:
             r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
             assert (
-                r["leadership_state"] == "Leader" and r["current_view"] == new_view
-            ), f"Backup {b_0.local_node_id} is no longer primary for {new_view}"
-        with p.client() as c:
-            r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
-            assert r["leadership_state"] in {
-                "Follower",
-                "PreVoteCandidate",
-            }, f"Primary {p.local_node_id} is no longer follower"
+                r["leadership_state"] in {"Follower", "PreVoteCandidate"}
+                and r["current_view"] == initial_view
+            ), f"Partitioned backup {b_0.local_node_id} disrupted view {initial_view}: {r}"
         time.sleep(0.1)
+
+    LOG.info(
+        f"Check that primary {p.local_node_id} still makes progress with the other backup"
+    )
+    check_can_progress(p)
 
     LOG.info("A stable majority is not enough while a backup is still isolated")
     try:
@@ -202,10 +178,13 @@ def test_isolate_primary_from_one_backup(network, args):
     # Explicitly drop rules before continuing
     rules.drop()
 
-    # primary should now observe partitioned backup as primary
-    network.wait_for_new_primary_in({b_0}, nodes=[p])
-
-    network.wait_for_stability()
+    # Partitioned backup should rejoin as a follower of the same primary
+    network.wait_for_stability(min_view=initial_view)
+    with p.client() as c:
+        r = c.get("/node/consensus", log_capture=[]).body.json()["details"]
+        assert (
+            r["leadership_state"] == "Leader" and r["current_view"] == initial_view
+        ), f"Primary {p.local_node_id} is no longer primary in view {initial_view}: {r}"
 
     return network
 
@@ -1065,16 +1044,26 @@ def force_become_primary(network, args, target_node):
     primary, backups = network.find_nodes()
 
     if primary != target_node:
-        # In a fully sync'd cluster this will cause the following:
+        # Nodes refuse pre-votes while they know a primary, so other must lose
+        # the primary before target can be elected. In a fully sync'd 3-node
+        # cluster this will cause the following:
+        # other times out and becomes a PreVoteCandidate
+        # target still knows the primary, so refuses other's pre-votes
         # target times out
-        # target starts election and wins
+        # other no longer knows a primary, so target starts election and wins
         # target becomes primary and emits signature
         # target replicates signature
         # then we can remove the partition
+        assert (
+            len(backups) == 2
+        ), f"Only supported for 3-node networks, not {len(backups) + 1} nodes"
+        (other,) = [node for node in backups if node != target_node]
         timeout = 4 * network.observed_election_duration
-        with network.partitioner.isolate_node(primary, target_node):
-            target_node.wait_for_leadership_state(0, "Leader", timeout=timeout)
-            network.wait_for_node_commit_sync(nodes=backups, timeout=timeout)
+        with network.partitioner.isolate_node(primary, other):
+            other.wait_for_leadership_state(0, ["PreVoteCandidate"], timeout=timeout)
+            with network.partitioner.isolate_node(primary, target_node):
+                target_node.wait_for_leadership_state(0, ["Leader"], timeout=timeout)
+                network.wait_for_node_commit_sync(nodes=backups, timeout=timeout)
         # Wait for the old primary to observe the new one
         network.wait_for_new_primary_in({target_node}, nodes=[primary])
         network.wait_for_primary_unanimity()

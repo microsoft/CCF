@@ -31,6 +31,9 @@ assert_absent_config,2,5
 periodic_one,0,100
 assert_detail,0,leadership_state,Follower
 
+# Node 2 must also forget the partitioned leader before granting a pre-vote.
+periodic_one,2,150
+drop_pending,2
 periodic_one,1,100
 assert_detail,1,leadership_state,PreVoteCandidate
 

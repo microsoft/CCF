@@ -32,6 +32,8 @@ assert_last_txid,0,2.6
 
 # Node 1 times out and wins term 3 with node 2. Node 0 observes the newer-term
 # vote request and steps down, but Node 1 only needs node 2's vote to win.
+periodic_one,2,150
+drop_pending,2
 periodic_one,1,110
 assert_detail,1,leadership_state,PreVoteCandidate
 dispatch_single,1,0

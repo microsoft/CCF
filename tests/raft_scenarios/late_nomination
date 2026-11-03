@@ -20,6 +20,8 @@ assert_detail,2,current_view,2
 nominate_successor,0
 
 # Node 2 obtains a pre-vote from node 1, without receiving the queued proposal.
+periodic_one,1,150
+drop_pending,1
 periodic_one,2,100
 assert_detail,2,leadership_state,PreVoteCandidate
 assert_detail,2,current_view,2

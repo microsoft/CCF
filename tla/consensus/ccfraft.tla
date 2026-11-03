@@ -283,7 +283,17 @@ VARIABLE isNewFollower
 IsNewFollowerTypeInv ==
     isNewFollower \in [ Servers -> BOOLEAN ]
 
-serverVars == <<currentTerm, leadershipState, membershipState, votedFor, isNewFollower>>
+\* Whether the server knows a leader in its current term (raft.h::leader_id).
+\* A server which knows a leader refuses both pre-votes and votes.
+\* raft.h also records the leader on an AppendEntries it then ignores because it
+\* starts before the commit index. This spec does not, which only lets servers
+\* grant votes in more states.
+VARIABLE leaderKnown
+
+LeaderKnownTypeInv ==
+    leaderKnown \in [ Servers -> BOOLEAN ]
+
+serverVars == <<currentTerm, leadershipState, membershipState, votedFor, isNewFollower, leaderKnown>>
 
 ServerVarsTypeInv ==
     /\ CurrentTermTypeInv
@@ -291,6 +301,7 @@ ServerVarsTypeInv ==
     /\ MembershipStateTypeInv
     /\ VotedForTypeInv
     /\ IsNewFollowerTypeInv
+    /\ LeaderKnownTypeInv
 
 \* A Sequence of log entries. The index into this sequence is the index of the
 \* log entry. Sequences in TLA+ are 1-indexed.
@@ -599,6 +610,7 @@ InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
         \*   [term |-> StartTerm, contentType |-> TypeSignature]>> \in Suffixes(logPrefix({sn}, startNodes))
         /\ log         = [i \in Servers |-> IF i \in startNodes THEN logPrefix({sn}, startNodes) ELSE << >>]
         /\ leadershipState = [i \in Servers |-> IF i = sn THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
+        /\ leaderKnown = [i \in Servers |-> i = sn]
         /\ membershipState = [i \in Servers |-> Active]
         /\ commitIndex = [i \in Servers |-> IF i \in startNodes THEN Len(logPrefix({sn}, startNodes)) ELSE 0]
         /\ hasJoined = [i \in Servers |-> IF i \in startNodes THEN TRUE ELSE FALSE]
@@ -655,6 +667,7 @@ BecomePreVoteCandidate(i) ==
         \* Or if the node isn't in a configuration, that it is retiring
         \/ i \in retirementCompleted[i]
     /\ leadershipState' = [leadershipState EXCEPT ![i] = PreVoteCandidate]
+    /\ leaderKnown' = [leaderKnown EXCEPT ![i] = FALSE]
     /\ votesGranted' = [votesGranted EXCEPT ![i] = {i}]
     /\ UNCHANGED <<currentTerm, membershipState, votedFor, isNewFollower, preVoteStatus, messageVars, reconfigurationVars, leaderVars, logVars>>
 
@@ -671,6 +684,7 @@ BecomeCandidate(i) ==
         \* Or if the node isn't in a configuration, that it is retiring
         \/ i \in retirementCompleted[i]
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Candidate]
+    /\ leaderKnown' = [leaderKnown EXCEPT ![i] = FALSE]
     /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
@@ -765,6 +779,7 @@ BecomeLeader(i) ==
     \* Only votes by nodes part of a given configuration should be tallied against it
     /\ \A c \in DOMAIN configurations[i] : (votesGranted[i] \intersect configurations[i][c]) \in Quorums[configurations[i][c]]
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Leader]
+    /\ leaderKnown' = [leaderKnown EXCEPT ![i] = TRUE]
     \* CCF: We reset our own log to its committable subsequence, throwing out
     \* all unsigned log entries of the previous leader.
     \* See occurrence of last_committable_index() in raft.h::become_leader.
@@ -813,7 +828,7 @@ SignCommittableMessages(i) ==
     /\ IF membershipState[i] = RetirementOrdered
        THEN membershipState' = [membershipState EXCEPT ![i] = RetirementSigned]
        ELSE UNCHANGED membershipState
-    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, leaderVars, commitIndex>>
+    /\ UNCHANGED <<preVoteStatus, reconfigurationVars, messageVars, currentTerm, leadershipState, votedFor, isNewFollower, leaderKnown, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
@@ -851,7 +866,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         /\ IF membershipState[i] = Active /\ i \notin newConfiguration
             THEN membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
             ELSE UNCHANGED membershipState
-        /\ UNCHANGED <<preVoteStatus, messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, matchIndex, commitIndex, retirementCompleted>>
+        /\ UNCHANGED <<preVoteStatus, messageVars, currentTerm, leadershipState, votedFor, isNewFollower, leaderKnown, candidateVars, matchIndex, commitIndex, retirementCompleted>>
 
 ChangeConfiguration(i) ==
     \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
@@ -920,6 +935,9 @@ AdvanceCommitIndex(i) ==
         /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log[i], commitIndex'[i], i)]
         /\ leadershipState' = [leadershipState EXCEPT ![i] = 
             IF membershipState'[i] = RetiredCommitted THEN Follower ELSE @]
+        \* raft.h::become_retired forgets the leader once retirement is committed
+        /\ leaderKnown' = [leaderKnown EXCEPT ![i] =
+            IF membershipState'[i] = RetiredCommitted THEN FALSE ELSE @]
         \* If commit index surpasses the next configuration, pop configs, and nominate successor if removed
         /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ highestCommittableIndex >= NextConfigurationIndex(i)
@@ -950,6 +968,7 @@ CheckQuorum(i) ==
        \E n \in configurations[i][c]: n /= i
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
+    /\ leaderKnown' = [leaderKnown EXCEPT ![i] = FALSE]
     /\ UNCHANGED <<preVoteStatus, reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars, membershipState>>
 
 SigTermProposeVote(i) ==
@@ -983,9 +1002,12 @@ HandleRequestVoteRequest(i, j, m) ==
                                       THEN /\ m.term = currentTerm[i]
                                            /\ votedFor[i] \in {Nil, j}
                                       ELSE m.term >= currentTerm[i]
-        grant == IF PreVoteDisabled \in preVoteStatus[i]
-                 THEN grant_pre_vote_disabled
-                 ELSE grant_pre_vote_capable
+        \* A server which knows a leader refuses pre-votes as well as votes,
+        \* so that a lagging follower cannot depose a healthy leader.
+        grant == /\ ~leaderKnown[i]
+                 /\ IF PreVoteDisabled \in preVoteStatus[i]
+                    THEN grant_pre_vote_disabled
+                    ELSE grant_pre_vote_capable
     IN /\ m.term <= currentTerm[i]
        /\ \/ grant /\ IF PreVoteCapable \in preVoteStatus[i] /\ m.isPreVote
                       THEN UNCHANGED votedFor
@@ -999,7 +1021,7 @@ HandleRequestVoteRequest(i, j, m) ==
                  dest        |-> j],
                  m)
        /\ UNCHANGED <<preVoteStatus, reconfigurationVars, leadershipState, currentTerm, 
-        candidateVars, leaderVars, logVars, membershipState, isNewFollower>>
+        candidateVars, leaderVars, logVars, membershipState, isNewFollower, leaderKnown>>
 
 \* Server i receives a RequestVote response from server j with
 \* m.term = currentTerm[i].
@@ -1065,9 +1087,17 @@ ReturnToFollowerState(i, m) ==
     /\ leadershipState[i] \in {PreVoteCandidate, Candidate}
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
+    /\ leaderKnown' = [leaderKnown EXCEPT ![i] = FALSE]
     \* Note that the set of messages is unchanged as m is discarded
     /\ UNCHANGED <<preVoteStatus, reconfigurationVars, currentTerm, votedFor, logVars, 
         messages, membershipState, candidateVars, leaderVars>>
+
+\* raft.h::recv_append_entries records the sender as leader once the previous
+\* term matches, but the commit in the same step may complete retirement, and
+\* raft.h::become_retired then forgets the leader again.
+LeaderKnownAfterAccept(i) ==
+    leaderKnown' = [leaderKnown EXCEPT ![i] =
+        ~(membershipState[i] # RetiredCommitted /\ membershipState'[i] = RetiredCommitted)]
 
 \* Follower i receives a AppendEntries from leader j for log entries it already has
 AppendEntriesAlreadyDone(i, j, index, m) ==
@@ -1088,6 +1118,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           \* Check if updating the commit index completes a pending retirement
           \* Note the node is already a follower so leadershipState remains unchanged
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log[i], commitIndex'[i], i)]
+    /\ LeaderKnownAfterAccept(i)
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -1111,7 +1142,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex[i], i)]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
-    /\ UNCHANGED <<preVoteStatus, currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined, retirementCompleted>>
+    /\ UNCHANGED <<preVoteStatus, currentTerm, leadershipState, votedFor, leaderKnown, commitIndex, messages, candidateVars, leaderVars, hasJoined, retirementCompleted>>
 
 \* Follower i receives an AppendEntries request m from leader j which extends its log,
 \* possibly overlapping the end of its log with matching (same-term) entries.
@@ -1154,6 +1185,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
            ELSE UNCHANGED leadershipState
           \* Recalculate membership state based on log' and commitIndex'
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex'[i], i)]
+    /\ LeaderKnownAfterAccept(i)
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -1222,6 +1254,7 @@ UpdateTerm(i, j, m) ==
     /\ leadershipState' = [leadershipState EXCEPT 
          ![i] = IF @ \in {Leader, Candidate, PreVoteCandidate, None} THEN Follower ELSE @]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
+    /\ leaderKnown' = [leaderKnown EXCEPT ![i] = FALSE]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
     \* messages is unchanged so m can be processed further.
     /\ UNCHANGED <<preVoteStatus, messageVars, candidateVars, leaderVars, logVars, hasJoined, retirementCompleted, membershipState, configurations>>
