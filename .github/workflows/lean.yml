@@ -161,6 +161,8 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      ELAN_HOME: ${{ runner.temp }}/elan
 
     steps:
       - name: Install container prerequisites
@@ -175,7 +177,8 @@ jobs:
       - name: Install Lean
         run: |
           set -euo pipefail
-          elan toolchain install "$(cat lean/lean-toolchain)"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          elan run --install "$(cat lean/lean-toolchain)" lean --version
 
       - name: Restore Mathlib cache
         working-directory: lean/ccf-raft
@@ -270,6 +273,8 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      ELAN_HOME: ${{ runner.temp }}/elan
 
     steps:
       - name: Install container prerequisites
@@ -284,7 +289,8 @@ jobs:
       - name: Install Lean
         run: |
           set -euo pipefail
-          elan toolchain install "$(cat lean/lean-toolchain)"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          elan run --install "$(cat lean/lean-toolchain)" lean --version
 
       - name: Restore Mathlib cache
         working-directory: lean/kv

@@ -24,6 +24,7 @@ jobs:
         shell: bash
     env:
       PACKAGE: ${{ inputs.package }}
+      ELAN_HOME: ${{ runner.temp }}/elan
 
     steps:
       - name: Install container prerequisites
@@ -47,12 +48,13 @@ jobs:
               ;;
           esac
           test -f "lean/$PACKAGE/lakefile.toml"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
 
       - name: Install Lean and check prerequisites
         run: |
           set -euo pipefail
-          elan toolchain install "$(cat lean/lean-toolchain)"
+          elan run --install "$(cat lean/lean-toolchain)" lean --version
 
       - name: Restore dependency builds
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
