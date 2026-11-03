@@ -3636,6 +3636,18 @@ class CompactionOnReadStore : public ccf::kv::Store
 {
 public:
   std::function<void()> after_read;
+  std::function<void()> after_map_lookup;
+
+  std::shared_ptr<ccf::kv::AbstractMap> get_map(
+    ccf::kv::Version version, const std::string& name) override
+  {
+    auto result = Store::get_map(version, name);
+    if (auto callback = std::exchange(after_map_lookup, nullptr))
+    {
+      callback();
+    }
+    return result;
+  }
 
   std::pair<ccf::TxID, ccf::kv::Term> current_txid_and_commit_term() override
   {
@@ -3726,6 +3738,33 @@ TEST_CASE("First handle acquisition releases map-set lock on exception")
 
   auto fresh = store.create_read_only_tx();
   REQUIRE_FALSE(fresh.ro(map)->get("key").has_value());
+}
+
+TEST_CASE("Later handle acquisition permits compaction after map lookup")
+{
+  CompactionOnReadStore store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  MapTypes::StringString map_a("public:A");
+  MapTypes::StringString map_b("public:B");
+  {
+    auto tx = store.create_tx();
+    tx.rw(map_a)->put("key", "before");
+    tx.rw(map_b)->put("key", "before");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  auto tx = store.create_read_only_tx();
+  auto* handle_a = tx.ro(map_a);
+  store.after_map_lookup = [&]() {
+    auto writer = store.create_tx();
+    writer.rw(map_b)->put("key", "after");
+    REQUIRE(writer.commit() == ccf::kv::CommitResult::SUCCESS);
+    store.compact(store.current_version());
+  };
+
+  REQUIRE_THROWS_AS(tx.ro(map_b), ccf::kv::CompactedVersionConflict);
+  REQUIRE_FALSE(store.after_map_lookup);
+  REQUIRE(handle_a->get("key") == "before");
 }
 
 TEST_CASE("Mid-tx compaction")

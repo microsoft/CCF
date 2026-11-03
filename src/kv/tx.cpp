@@ -68,12 +68,13 @@ namespace ccf::kv
   MapChanges BaseTx::get_map_and_change_set_by_name(
     const std::string& map_name, bool track_deletes_on_missing_keys)
   {
-    // Prevent compaction or rollback between read-version capture and
-    // retaining the map state. Later acquisitions may already be too late.
-    MapSetLockGuard map_set_guard(*pimpl->store, true);
     auto& read_txid = pimpl->read_txid;
+    const bool first_acquisition = !read_txid.has_value();
+    // Only the first acquisition needs to protect read-version capture
+    // through retaining the map state.
+    MapSetLockGuard map_set_guard(*pimpl->store, first_acquisition);
 
-    if (!read_txid.has_value())
+    if (first_acquisition)
     {
       // Grab opacity version that all Maps should be queried at.
       // Note: It is by design that we delay acquiring a read version to now
@@ -85,8 +86,9 @@ namespace ccf::kv
       pimpl->commit_view = p.second;
     }
 
-    auto abstract_map =
-      pimpl->store->get_map_unsafe(read_txid->seqno, map_name);
+    auto abstract_map = first_acquisition ?
+      pimpl->store->get_map_unsafe(read_txid->seqno, map_name) :
+      pimpl->store->get_map(read_txid->seqno, map_name);
     if (abstract_map == nullptr)
     {
       // Store doesn't know this map yet - create it dynamically
