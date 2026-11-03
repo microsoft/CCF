@@ -452,7 +452,7 @@ theorem atCut_cells_bounded (s : Store) (valid : StoreInvariant s)
 theorem History.head_unique (fs : List Frame) (n : Nat) (shape : History fs n)
     : Unique (fs.head?.getD {}).data := by
   induction shape with
-  | zero => simp [Unique]
+  | zero => simp [Kv.Properties.Unique]
   | succ f n fs _version effect _tail ih =>
       obtain ⟨writes, published⟩ := effect
       simp only [List.head?_cons, Option.getD_some]
