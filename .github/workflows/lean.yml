@@ -19,7 +19,11 @@ on:
   workflow_dispatch:
     inputs:
       standalone-replayers:
-        description: Measure cold standalone replay builds instead of running checks
+        description: Measure standalone replay builds instead of running checks
+        type: boolean
+        default: false
+      restore-replay-caches:
+        description: Restore Mathlib caches before standalone replay builds
         type: boolean
         default: false
 
@@ -31,7 +35,7 @@ permissions: read-all
 
 jobs:
   standalone_replayers:
-    name: Cold standalone replay (${{ matrix.package }})
+    name: Standalone replay (${{ matrix.package }}, cache=${{ inputs.restore-replay-caches }})
     if: github.event_name == 'workflow_dispatch' && inputs.standalone-replayers
     runs-on: ubuntu-26.04
     timeout-minutes: 90
@@ -50,6 +54,7 @@ jobs:
       MATHLIB_NO_CACHE_ON_UPDATE: "1"
       PACKAGE: ${{ matrix.package }}
       TARGET: ${{ matrix.target }}
+      RESTORE_CACHES: ${{ inputs.restore-replay-caches }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,12 +72,25 @@ jobs:
             nproc
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Build standalone replay from scratch
+      - name: Restore Mathlib cache
+        if: inputs.restore-replay-caches
         working-directory: lean/${{ matrix.package }}
         run: |
           set -euo pipefail
           test ! -e .lake
           test ! -e ../common/.lake
+          /usr/bin/time -o "$RUNNER_TEMP/cache-timing.txt" \
+            -f 'elapsed_seconds=%e user_seconds=%U system_seconds=%S max_rss_kb=%M exit_status=%x' \
+            lake exe cache get
+
+      - name: Build standalone replay
+        working-directory: lean/${{ matrix.package }}
+        run: |
+          set -euo pipefail
+          if [ "$RESTORE_CACHES" != "true" ]; then
+            test ! -e .lake
+            test ! -e ../common/.lake
+          fi
           /usr/bin/time -o "$RUNNER_TEMP/replay-timing.txt" \
             -f 'elapsed_seconds=%e user_seconds=%U system_seconds=%S max_rss_kb=%M exit_status=%x' \
             lake build --wfail "$TARGET"
@@ -82,11 +100,17 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
+          if [ -f "$RUNNER_TEMP/cache-timing.txt" ]; then
+            {
+              printf '\nMathlib cache restoration: %s\n\n' "$PACKAGE"
+              cat "$RUNNER_TEMP/cache-timing.txt"
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
           if [ -f "$RUNNER_TEMP/replay-timing.txt" ]; then
             {
-              printf '\nStandalone build: %s / %s (no restored build caches)\n\n' "$PACKAGE" "$TARGET"
+              printf '\nStandalone build: %s / %s (restore caches: %s)\n\n' "$PACKAGE" "$TARGET" "$RESTORE_CACHES"
               cat "$RUNNER_TEMP/replay-timing.txt"
-            } >> "$GITHUB_STEP_SUMMARY"
+            } | tee -a "$GITHUB_STEP_SUMMARY"
           fi
 
   raft_traces:
