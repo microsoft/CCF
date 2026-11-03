@@ -65,14 +65,6 @@ def retirementIndexInLog (node : NodeID) (log : List Entry) : Option Nat :=
     fun (before, after) => decide (node ∈ before.nodes /\ node ∉ after.nodes)).map
     fun (_, after) => after.index
 
-/--
-Nodes named by retirement records in the supplied log or prefix. Pass
-`log.take commitIndex` to restrict this to locally committed records.
--/
-def retiredCommittedNodes (log : List Entry) : Finset NodeID :=
-  log.foldl
-    (fun retired entry => retired ∪ entry.content.metadata.retirementConfirmations) ∅
-
 def hasConfigurationMajority (support : Finset NodeID) (configuration : Configuration)
     : Prop :=
   (support ∩ configuration.nodes).card * 2 > configuration.nodes.card
@@ -109,7 +101,7 @@ def NodeState.retirementCompletedNodes (state : NodeState) : Finset NodeID :=
   let committedLog := state.committedLog
   let committed := configurationHistory committedLog
   let currentNodes := latestConfigurationMembers committed
-  (configurationMembers committed \ currentNodes) \ retiredCommittedNodes committedLog
+  (configurationMembers committed \ currentNodes) \ state.retiredCommittedNodes
 
 structure RetirementInfo where
   index : Option Nat

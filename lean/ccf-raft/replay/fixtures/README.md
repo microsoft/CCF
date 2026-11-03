@@ -3,6 +3,7 @@
 The [Lean workflow](../../../../.github/workflows/lean.yml) runs the synthetic fixtures through the real replay executable.
 Each failure follows a two-node history with a committed signature, membership expansion, a rejected heartbeat and log retransmission.
 The [valid control](valid/replication.ndjson) continues through follower catch-up, commit and acknowledgement.
+The [empty-hook control](valid/empty-retirement-hook.ndjson) uses a singleton bootstrap and commit without driver commands, checking consumption of a retirement event with no node IDs.
 
 | Fixture                                                                 | Expected failure                                     |
 | ----------------------------------------------------------------------- | ---------------------------------------------------- |

@@ -107,6 +107,19 @@ namespace aft
   }
 }
 
+namespace ccf
+{
+  inline void write_msgpack(
+    std::vector<uint8_t>& out, const std::vector<kv::NodeId>& nodes)
+  {
+    msgpack::write_array_header(out, msgpack::container_size(nodes.size()));
+    for (const auto& node : nodes)
+    {
+      msgpack::write_str(out, node.value());
+    }
+  }
+}
+
 namespace ccf::kv
 {
   inline void write_msgpack(
@@ -193,6 +206,8 @@ namespace aft::trace
   DECLARE_TRACE_EVENT(
     add_configuration, raft_trace_tag, state, configurations, idx, nodes, rid);
   DECLARE_TRACE_EVENT(commit, raft_trace_tag, state, idx, configurations);
+  DECLARE_TRACE_EVENT(
+    retired_committed, raft_trace_tag, state, seqno, node_ids);
   DECLARE_TRACE_EVENT(
     drop_pending_to, raft_trace_tag, state, from_node_id, to_node_id, packet);
 }

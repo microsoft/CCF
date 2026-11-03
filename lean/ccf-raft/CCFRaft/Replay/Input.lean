@@ -71,7 +71,6 @@ def readLog (path : System.FilePath) : IO (Except String (Array Record)) := do
 
 structure Event where
   record : Record
-  command : Option Record
   function : String
   node : String
   message : Json
@@ -81,22 +80,21 @@ deriving Inhabited
 def Event.origin (event : Event) (rule : String) : Origin :=
   { file := event.record.file, line := event.record.line, rule }
 
-/-- Project events, carry command provenance, and collect node identities. -/
+/-- Project native events and collect identities; driver commands are ignored. -/
 def prepareEvents (records : Array Record)
     : Except String (Array Event × List String) := do
   let mut events := #[]
-  let mut command : Option Record := none
   let mut declared : List String := []
   for record in records do
     try
       let message ← field record.value "msg"
       if (optional message "cmd").isSome then
-        command := some record
+        pure ()
       else
         let function ← string message "function"
         let state ← field message "state"
         let node ← string state "node_id"
-        events := events.push { record, command, function, node, message, state }
+        events := events.push { record, function, node, message, state }
         declared := node :: declared
         if function == "add_configuration" then
           declared := (← configuration message) ++ declared

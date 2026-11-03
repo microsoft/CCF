@@ -40,7 +40,8 @@ theorem step_local
         = some after)
     : exists state next outputs,
         nodeState before node = some state
-        /\ (Model.Node.act (Capabilities.record node) node state input).run {}
+        /\ (Model.Node.step (Capabilities.record node) node state (.internal input)).run
+              {}
             = some (next, outputs)
         /\ after
             = {
@@ -49,7 +50,7 @@ theorem step_local
                 network := before.network ++ outputs.outgoing
             } := by
   simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
-  simp [Model.Node.step, Option.bind_eq_some_iff] at stepped
+  simp [Option.bind_eq_some_iff] at stepped
   obtain ⟨state, found, next, outputs, ran, rfl⟩ := stepped
   refine ⟨state, next, outputs, found, ?_, by simp [replaceNode]⟩
   exact ran
@@ -64,9 +65,9 @@ theorem step_deliver
     : envelope ∈ before.network
       /\ exists state next outputs,
           nodeState before envelope.target = some state
-          /\ (Model.Node.receive (Capabilities.record envelope.target)
-                envelope.target envelope.source state
-                envelope.payload).run
+          /\ (Model.Node.step (Capabilities.record envelope.target)
+                envelope.target state
+                (.receive envelope.source envelope.payload)).run
                 {}
               = some (next, outputs)
           /\ after
@@ -76,7 +77,7 @@ theorem step_deliver
                   network := removeOne envelope before.network ++ outputs.outgoing
               } := by
   simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
-  simp [Model.Node.step, Option.bind_eq_some_iff] at stepped
+  simp [Option.bind_eq_some_iff] at stepped
   obtain ⟨queued, state, found, next, outputs, ran, rfl⟩ := stepped
   exact ⟨queued, state, next, outputs, found, ran, by simp [replaceNode]⟩
 
