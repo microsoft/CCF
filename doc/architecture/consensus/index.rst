@@ -1,17 +1,27 @@
 Consensus Protocol
 ==================
 
-The consensus protocol for CCF implements Crash Fault Tolerance (:term:`CFT`) and is based on `Raft <https://raft.github.io/>`_. The key differences between the original Raft protocol (as described in the `Raft paper <https://raft.github.io/raft.pdf>`_), and CCF Raft are as follows:
+CCF's consensus protocol implements Crash Fault Tolerance (:term:`CFT`) and is derived from `Raft <https://raft.github.io/raft.pdf>`_.
+The key differences from the original protocol are as follows:
 
-* Transactions in CCF Raft are not considered to be committed until a subsequent signed transaction has been committed. More information can be found :doc:`here </architecture/merkle_tree>`. Transactions in the ledger before the last signed transactions are discarded during leader election.
-* CCF Raft does not support node restart as the unique identity of each node is tied to the node process launch. If a node fails and is replaced, it must rejoin Raft via reconfiguration.
-* In CCF Raft, clients receive an early response with a :term:`Transaction ID` (view and sequence number) before the transaction has been replicated to Raft's ledger. The client can later use this transaction ID to verify that the transaction has been committed by Raft.
-* CCF Raft uses an additional mechanism so a newly elected leader can more efficiently determine the current state of a follower's ledger when the two ledgers have diverged. This enables the leader to bring the follower up to date more quickly. CCF Raft also batches appendEntries messages.
+* Transactions in CCF are not considered committed until a subsequent signed transaction has been committed.
+  More information can be found :doc:`here </architecture/merkle_tree>`.
+  Transactions in the ledger before the last signed transactions are discarded during leader election.
+* CCF does not support node restart as the unique identity of each node is tied to the node process launch.
+  If a node fails and is replaced, it must rejoin the network via reconfiguration.
+* In CCF, clients receive an early response with a :term:`Transaction ID` (view and sequence number) before the transaction has been replicated to the ledger.
+  The client can later use this transaction ID to verify that the transaction has been committed.
+* The consensus protocol uses an additional mechanism so a newly elected leader can more efficiently determine the current state of a follower's ledger when the two ledgers have diverged.
+  This enables the leader to bring the follower up to date more quickly.
+  It also batches appendEntries messages.
 
 CFT parameters can be configured when starting up a network (see :doc:`here </operations/start_network>`). The parameters that can be set via the CCF node JSON configuration:
 
-- ``consensus.message_timeout`` is the Raft heartbeat timeout. The Raft leader sends heartbeats to its followers at regular intervals defined by this timeout. This should be set to a significantly lower value than ``consensus.election_timeout``.
-- ``consensus.election_timeout`` is the Raft election timeout. If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
+- ``consensus.message_timeout`` is the heartbeat timeout.
+  The leader sends heartbeats to its followers at regular intervals defined by this timeout.
+  This should be set to a significantly lower value than ``consensus.election_timeout``.
+- ``consensus.election_timeout`` is the election timeout.
+  If a follower does not receive any heartbeat from the leader after this timeout, the follower triggers a new election.
 
 Extensions for Omission Faults
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -66,8 +76,6 @@ Reconfiguration of the network is controlled via updates to the :ref:`audit/buil
 
 Reconfiguration
 ~~~~~~~~~~~~~~~
-
-This discusses changes to the original Raft implementation that are not trivial. For more information on Raft please see the original `paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
 
 For a live service, reconfiguration is materialised in two separate transactions:
 
@@ -215,7 +223,7 @@ PreVote Extensions
 
 If a node's ``RequestVote`` requests are able to reach the cluster, but it is unable to hear the ``AppendEntries`` messages from the current leader (for example, due to network partitioning), it may start new elections, incrementing its view, which deposes the leader and disrupts the cluster.
 
-To mitigate this, the PreVote extension requires that a follower first become ``PreVoteCandidate`` and receive a quorum of speculative pre-votes, proving that they could be elected using the standard Raft election conditions, before becoming ``Candidate`` and potentially disrupting the cluster.
+To mitigate this, the PreVote extension requires that a follower first become ``PreVoteCandidate`` and receive a quorum of speculative pre-votes, proving that they could be elected using CCF's consensus election conditions, before becoming ``Candidate`` and potentially disrupting the cluster.
 
 More specifically, when a follower's election timeout elapses, it becomes a ``PreVoteCandidate`` for the current view and sends out ``RequestPreVote`` messages.
 If the ``PreVoteCandidate`` hears from a current leader, or a new leader, it reverts back to being a ``Follower``.
