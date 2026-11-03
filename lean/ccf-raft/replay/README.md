@@ -35,6 +35,7 @@ The scenario runner preserves the raw records in `consensus/raw/` alongside the 
 Every event must match a named rule; bootstrap selects the initial singleton membership.
 Rules read action inputs from their matching events, and only top-level alternatives backtrack.
 Actions must be enabled by the model.
+Consecutive packets to the same peer within a periodic or append-flush boundary reduce to one complete `sendEntries` pass, not independently scheduled batches.
 After bootstrap, each rule emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
 
 Delivery is strict FIFO per directed node pair, preserving multiplicity and delivering the queued **model payload**, not reconstructing unrecorded native bytes.
