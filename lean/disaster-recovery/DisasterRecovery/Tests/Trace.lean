@@ -48,10 +48,13 @@ private def opening : NodeState :=
 private def opened : Model.State :=
   { ready with nodes := [unused, ("A", opening)], network := [gossip] }
 
-private def states : List Model.State := [initial, gossipSent, ready, voteSent, opened]
-
-private def actions : List Model.Action :=
-  [.local "A" .retry, .deliver gossip, .local "A" .retry, .deliver vote]
+private def steps : List (Model.Action × Model.State) :=
+  [
+    (.local "A" .retry, gossipSent),
+    (.deliver gossip, ready),
+    (.local "A" .retry, voteSent),
+    (.deliver vote, opened)
+  ]
 
 private theorem initialized : (Model.transitionSystem config).init initial := by
   refine ⟨by unfold Model.Config.Valid; decide, ?_, by decide, rfl, ?_⟩
@@ -59,27 +62,22 @@ private theorem initialized : (Model.transitionSystem config).init initial := by
   · simp [initial, unused, Model.protocol]
 
 private def trace : Properties.GlobalTrace config := by
-  refine {
-    states := Stream'.Seq.ofList states
-    actions := Stream'.Seq.ofList actions
-    valid_init := ⟨initial, rfl, initialized⟩
-    valid_domains := by
-      intro n
-      simp only [Stream'.Seq.ofList_get?, isSome_getElem?]
-      change (n < 4) <-> (n + 1 < 5)
-      omega
-    valid_step := ?_
-  }
+  refine ⟨{ init := initial, steps := Stream'.Seq.ofList steps }, initialized, ?_⟩
   intro i before action first chosen
   have bound : i < 4 := by
-    have := (List.getElem?_eq_some_iff.mp chosen).1
-    simpa [actions] using this
+    have present : (steps[i]?).isSome := by
+      change (steps[i]?).map Prod.fst = some action at chosen
+      have := congrArg Option.isSome chosen
+      simpa using this
+    simpa [steps] using present
   interval_cases i <;>
-    simp only [states, actions, Stream'.Seq.ofList_get?,
+    simp only [steps, Stream'.Seq.get?_cons_zero,
+      Stream'.Seq.get?_cons_succ, Stream'.Seq.map_get?,
+      Option.map_some, Stream'.Seq.ofList_get?,
       List.getElem?_cons_zero, List.getElem?_cons_succ,
       Option.some.injEq] at first chosen <;> subst before <;> subst action
   all_goals
-    simp [states, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+    simp [steps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
       MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
       Model.receive, step, guard, initial, Tests.initial, config,
@@ -134,12 +132,13 @@ example
 example (notification : Notification)
     : ¬ NotificationAt config trace 4 "A" notification := by
   rintro ⟨_, _, _, _, _, _, _, after, _⟩
-  simp [trace, states] at after
+  simp [trace, Execution.Trace.states, steps] at after
 
 example (notification : Notification)
     : ¬ NotificationAt config trace 3 "missing-node" notification := by
   rintro ⟨before, _, _, _, _, _, first, _, _, _, found, _⟩
-  have same : before = voteSent := by simpa [trace, states] using first.symm
+  have same : before = voteSent := by
+    simpa [trace, Execution.Trace.states, steps] using first.symm
   subst before
   simp [voteSent, ready, unused, MultiNodeTransitionSystem.nodeState] at found
 
@@ -148,8 +147,9 @@ example : ¬ NotificationAt config trace 2 "A" (.opening .quorum) := by
   rintro ⟨before, _, action, nodeBefore, nodeAfter, outputs,
     first, _, chosen, _, foundBefore, _, run, notified⟩
   have actionEq : action = .local "A" .retry := by
-    simpa [trace, actions] using chosen.symm
-  have stateEq : before = ready := by simpa [trace, states] using first.symm
+    simpa [trace, Execution.Trace.actions, steps] using chosen.symm
+  have stateEq : before = ready := by
+    simpa [trace, Execution.Trace.states, steps] using first.symm
   subst action before
   have beforeEq : nodeBefore = selected := by
     simpa [ready, unused, MultiNodeTransitionSystem.nodeState] using foundBefore.symm

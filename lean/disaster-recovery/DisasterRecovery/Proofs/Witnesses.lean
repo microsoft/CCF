@@ -40,9 +40,6 @@ private def quorumConfig : Model.Config :=
     recovered := [("A", high)]
   }
 
-private def quorumActions : List Model.Action :=
-  [.local "A" .retry, .deliver (gossip "A" "A" high), .local "A" .retry, .deliver vote]
-
 private def quorumSelected : NodeState :=
   { location := "A", phase := .voting, chosen := some "A", gossips := [("A", high)] }
 
@@ -61,38 +58,35 @@ private def quorumOpened : Model.State :=
     network := [gossip "A" "A" high]
   }
 
-private def quorumStates : List Model.State :=
+private def quorumSteps : List (Model.Action × Model.State) :=
   [
-    initial quorumConfig,
-    { initial quorumConfig with network := [gossip "A" "A" high] },
-    quorumReady,
-    quorumVoteSent,
-    quorumOpened
+    (.local "A" .retry, { initial quorumConfig with network := [gossip "A" "A" high] }),
+    (.deliver (gossip "A" "A" high), quorumReady),
+    (.local "A" .retry, quorumVoteSent),
+    (.deliver vote, quorumOpened)
   ]
 
 private def quorumTrace : Properties.GlobalTrace quorumConfig := by
-  refine {
-    states := Stream'.Seq.ofList quorumStates
-    actions := Stream'.Seq.ofList quorumActions
-    valid_init :=
-      ⟨initial quorumConfig, rfl, initialized (by unfold Model.Config.Valid; decide)⟩
-    valid_domains := by
-      intro n
-      simp only [Stream'.Seq.ofList_get?, isSome_getElem?]
-      change (n < 4) <-> (n + 1 < 5)
-      omega
-    valid_step := ?_
-  }
+  refine ⟨
+    { init := initial quorumConfig, steps := Stream'.Seq.ofList quorumSteps },
+    initialized (by unfold Model.Config.Valid; decide),
+    ?_
+  ⟩
   intro i before action first chosen
   have bound : i < 4 := by
-    have := (List.getElem?_eq_some_iff.mp chosen).1
-    simpa [quorumActions] using this
+    have present : (quorumSteps[i]?).isSome := by
+      change (quorumSteps[i]?).map Prod.fst = some action at chosen
+      have := congrArg Option.isSome chosen
+      simpa using this
+    simpa [quorumSteps] using present
   interval_cases i <;>
-    simp only [quorumStates, quorumActions, Stream'.Seq.ofList_get?,
+    simp only [quorumSteps, Stream'.Seq.get?_cons_zero,
+      Stream'.Seq.get?_cons_succ, Stream'.Seq.map_get?,
+      Option.map_some, Stream'.Seq.ofList_get?,
       List.getElem?_cons_zero, List.getElem?_cons_succ,
       Option.some.injEq] at first chosen <;> subst before <;> subst action
   all_goals
-    simp [quorumStates, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+    simp [quorumSteps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, quorumConfig, initial, quorumReady, quorumVoteSent,
       quorumOpened, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
       MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
@@ -158,26 +152,6 @@ private def fullConfig : Model.Config :=
     recovered :=
       [("A", high), ("B", { view := 1, seqno := 8 }), ("C", { view := 1, seqno := 5 })]
   }
-
-private def fullActions : List Model.Action :=
-  [
-    .local "A" .retry,
-    .local "B" .retry,
-    .local "C" .retry,
-    .deliver (gossip "A" "A" high),
-    .deliver (gossip "B" "A" { view := 1, seqno := 8 }),
-    .deliver (gossip "C" "A" { view := 1, seqno := 5 }),
-    .deliver (gossip "A" "B" high),
-    .deliver (gossip "B" "B" { view := 1, seqno := 8 }),
-    .deliver (gossip "C" "B" { view := 1, seqno := 5 }),
-    .deliver (gossip "A" "C" high),
-    .deliver (gossip "B" "C" { view := 1, seqno := 8 }),
-    .deliver (gossip "C" "C" { view := 1, seqno := 5 }),
-    .local "A" .retry,
-    .deliver vote,
-    .local "A" .timeout,
-    .local "A" .timeout
-  ]
 
 private def fullSelected (node : Location) : NodeState :=
   {
@@ -250,51 +224,54 @@ private def fullTimeout : Model.State :=
         ]
   }
 
-private def fullStates : List Model.State :=
+private def fullSteps : List (Model.Action × Model.State) :=
   [
-    initial fullConfig,
-    { initial fullConfig with network := (fullPending 0 0 0).take 3 },
-    { initial fullConfig with network := (fullPending 0 0 0).take 6 },
-    partialGossip 0 0 0,
-    partialGossip 1 0 0,
-    partialGossip 2 0 0,
-    partialGossip 3 0 0,
-    partialGossip 3 1 0,
-    partialGossip 3 2 0,
-    partialGossip 3 3 0,
-    partialGossip 3 3 1,
-    partialGossip 3 3 2,
-    fullGossiped,
-    fullVoteSent,
-    fullVoted,
-    fullTimeout,
-    failoverOpened
+    (
+      .local "A" .retry,
+      { initial fullConfig with network := (fullPending 0 0 0).take 3 }
+    ),
+    (
+      .local "B" .retry,
+      { initial fullConfig with network := (fullPending 0 0 0).take 6 }
+    ),
+    (.local "C" .retry, partialGossip 0 0 0),
+    (.deliver (gossip "A" "A" high), partialGossip 1 0 0),
+    (.deliver (gossip "B" "A" { view := 1, seqno := 8 }), partialGossip 2 0 0),
+    (.deliver (gossip "C" "A" { view := 1, seqno := 5 }), partialGossip 3 0 0),
+    (.deliver (gossip "A" "B" high), partialGossip 3 1 0),
+    (.deliver (gossip "B" "B" { view := 1, seqno := 8 }), partialGossip 3 2 0),
+    (.deliver (gossip "C" "B" { view := 1, seqno := 5 }), partialGossip 3 3 0),
+    (.deliver (gossip "A" "C" high), partialGossip 3 3 1),
+    (.deliver (gossip "B" "C" { view := 1, seqno := 8 }), partialGossip 3 3 2),
+    (.deliver (gossip "C" "C" { view := 1, seqno := 5 }), fullGossiped),
+    (.local "A" .retry, fullVoteSent),
+    (.deliver vote, fullVoted),
+    (.local "A" .timeout, fullTimeout),
+    (.local "A" .timeout, failoverOpened)
   ]
 
 set_option maxHeartbeats 2000000 in
 private def fullTrace : Properties.GlobalTrace fullConfig := by
-  refine {
-    states := Stream'.Seq.ofList fullStates
-    actions := Stream'.Seq.ofList fullActions
-    valid_init :=
-      ⟨initial fullConfig, rfl, initialized (by unfold Model.Config.Valid; decide)⟩
-    valid_domains := by
-      intro n
-      simp only [Stream'.Seq.ofList_get?, isSome_getElem?]
-      change (n < 16) <-> (n + 1 < 17)
-      omega
-    valid_step := ?_
-  }
+  refine ⟨
+    { init := initial fullConfig, steps := Stream'.Seq.ofList fullSteps },
+    initialized (by unfold Model.Config.Valid; decide),
+    ?_
+  ⟩
   intro i before action first chosen
   have bound : i < 16 := by
-    have := (List.getElem?_eq_some_iff.mp chosen).1
-    simpa [fullActions] using this
+    have present : (fullSteps[i]?).isSome := by
+      change (fullSteps[i]?).map Prod.fst = some action at chosen
+      have := congrArg Option.isSome chosen
+      simpa using this
+    simpa [fullSteps] using present
   interval_cases i <;>
-    simp only [fullStates, fullActions, Stream'.Seq.ofList_get?,
+    simp only [fullSteps, Stream'.Seq.get?_cons_zero,
+      Stream'.Seq.get?_cons_succ, Stream'.Seq.map_get?,
+      Option.map_some, Stream'.Seq.ofList_get?,
       List.getElem?_cons_zero, List.getElem?_cons_succ,
       Option.some.injEq] at first chosen <;> subst before <;> subst action
   all_goals
-    simp [fullStates, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+    simp [fullSteps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
       MultiNodeTransitionSystem.next, fullConfig, initial, partialGossip, partialNode,
       fullPending, fullSelected, fullGossiped, fullVoteSent, fullVoted, fullTimeout,
       failoverOpened, failoverOpener, gossip, vote, high, MultiNodeTransitionSystem.nodeState,

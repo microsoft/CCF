@@ -46,7 +46,7 @@ The local properties are invariants of `Local.step`.
 They hold for every node state, not only reachable ones.
 Each quantifies a `LocalStep` record and assumes `ValidStep`: re-executing the step yields exactly the recorded after-state and outputs.
 
-The global properties quantify a `GlobalTrace config`, a finite or infinite execution recording states and actions with their validity proofs.
+The global properties quantify a `GlobalTrace config`, a valid finite or infinite execution recording an initial state and actions paired with their destination states.
 See the [shared trace definitions](../common/README.md#transition-systems) for indexed access and the finite-trace domain convention.
 `Trace.NotificationAt` states that the recorded action at step `i`, taken by `node` between states `i` and `i + 1`, emitted a given notification.
 

@@ -78,18 +78,6 @@ def lasso (system : TransitionSystem) (start : system.State)
       (cycle.take ((index - stem.length) % cycle.length))).getD
       start
 
-/-- The lasso as an infinite trace. -/
-def lassoStates (system : TransitionSystem) (start : system.State)
-    (stem cycle : List (system.State -> system.Action))
-    : Stream'.Seq system.State :=
-  Stream'.Seq.ofStream (lasso system start stem cycle)
-
-theorem lassoStates_get? {system : TransitionSystem} {start : system.State}
-    {stem cycle : List (system.State -> system.Action)} (index : Nat)
-    : (lassoStates system start stem cycle).get? index
-      = some (lasso system start stem cycle index) :=
-  rfl
-
 /-- The action chosen at each position of a lasso. -/
 def lassoAction (system : TransitionSystem) (start : system.State)
     (stem cycle : List (system.State -> system.Action)) (nonempty : cycle ≠ [])
@@ -116,13 +104,12 @@ def lassoTrace {system : TransitionSystem} {start final : system.State}
               start := by
     intro index le
     simp [lasso, Nat.not_lt.mpr le, stemRun]
-  refine {
-    states := lassoStates system start stem cycle
-    actions := Stream'.Seq.ofStream (lassoAction system start stem cycle nonempty)
-    valid_init := ⟨_, lassoStates_get? 0, ?_⟩
-    valid_domains := fun _ => Iff.rfl
-    valid_step := ?_
-  }
+  refine ⟨{
+    init := lasso system start stem cycle 0
+    steps := Stream'.Seq.ofStream fun index =>
+      (lassoAction system start stem cycle nonempty index,
+        lasso system start stem cycle (index + 1))
+  }, ?_, ?_⟩
   · show system.init (lasso system start stem cycle 0)
     by_cases empty : stem = []
     · subst empty
@@ -131,7 +118,8 @@ def lassoTrace {system : TransitionSystem} {start final : system.State}
       simpa [tail 0 (Nat.zero_le _), run] using initialized
     · simpa [lasso, List.length_pos_iff.mpr empty, run] using initialized
   intro index before action atBefore chosen
-  rw [lassoStates_get?, Option.some.injEq] at atBefore
+  have atBefore : lasso system start stem cycle index = before := by
+    cases index <;> exact Option.some.inj atBefore
   change some (lassoAction system start stem cycle nonempty index) = some action at chosen
   cases atBefore
   cases chosen
@@ -172,12 +160,18 @@ def lassoTrace {system : TransitionSystem} {start final : system.State}
 /-- Every state reached by a prefix of the stem occurs in the lasso. -/
 theorem lasso_mem {system : TransitionSystem} {start final state : system.State}
     {stem cycle : List (system.State -> system.Action)}
-    (stemRun : run system start stem = some final) {index : Nat}
+    (initialized : system.init start)
+    (stemRun : run system start stem = some final)
+    (cycleRun : run system final cycle = some final) (nonempty : cycle ≠ []) {index : Nat}
     (bounded : index <= stem.length)
     (reached : run system start (stem.take index) = some state)
-    : state ∈ lassoStates system start stem cycle := by
-  apply Stream'.Seq.get?_mem (n := index)
-  rw [lassoStates_get?, Option.some.injEq]
+    : state ∈ lassoTrace initialized stemRun cycleRun nonempty := by
+  apply Trace.stateAt_mem (n := index)
+  have position
+      : (lassoTrace initialized stemRun cycleRun nonempty).stateAt index
+          = some (lasso system start stem cycle index) := by
+    cases index <;> rfl
+  rw [position, Option.some.injEq]
   by_cases inStem : index < stem.length
   · simp [lasso, inStem, reached]
   · have last : index = stem.length := by omega
@@ -521,8 +515,10 @@ lemma committed_logs_prefix_witness
     1,
     (nodeState commitPrimaryCommitted 0).get commit_primary_present,
     (nodeState commitFollowerCommitted 1).get commit_follower_present,
-    lasso_mem stemRun (by decide) (eq_some_getD commit_primary_committed _),
-    lasso_mem stemRun (by decide) (eq_some_getD commit_follower_committed _),
+    lasso_mem (start_initial (by decide) (by decide)) stemRun commit_cycle
+      (by simp [commitCycle]) (by decide) (eq_some_getD commit_primary_committed _),
+    lasso_mem (start_initial (by decide) (by decide)) stemRun commit_cycle
+      (by simp [commitCycle]) (by decide) (eq_some_getD commit_follower_committed _),
     member_of_nodeState _,
     member_of_nodeState _,
     by decide,
@@ -586,7 +582,12 @@ lemma election_safety_witness
     1,
     leftState,
     rightState,
-    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
+    lasso_mem
+      (start_initial (by decide) (by decide))
+      stemRun election_cycle
+      (by simp [electionCycle])
+      le_rfl
+      (by rw [List.take_length]; exact stemRun),
     mem_of_nodeState leftFound,
     mem_of_nodeState rightFound,
     leftPrimary,
@@ -612,7 +613,12 @@ lemma committed_frontier_is_signature_witness
     singleFinal,
     0,
     (nodeState singleFinal 0).get single_final_present,
-    lasso_mem stemRun le_rfl (by rw [List.take_length]; exact stemRun),
+    lasso_mem
+      (start_initial (by decide) (by decide))
+      stemRun single_cycle
+      (by simp [singleCycle])
+      le_rfl
+      (by rw [List.take_length]; exact stemRun),
     member_of_nodeState _,
     by decide
   ⟩

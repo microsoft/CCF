@@ -11,7 +11,8 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
 | `CCF.Architecture`              | Checks of specification import layering                      |
 
-`CCF.Execution.Trace system` is a possibly infinite sequence of states and actions, and includes a proof of validity in the type - that each pair of states matches the recorded action, and the start state matches.
+`CCF.Execution.TraceImpl system` records an `init` state and a possibly infinite `steps` sequence pairing each action with its destination state.
+`CCF.Execution.Trace system` is the subtype whose `TraceImpl.Valid` proof establishes initialization and every recorded transition.
 `reachable_iff_trace` shows that finite execution traces reach exactly the reachable states.
 
 ## Event parsing
@@ -36,6 +37,8 @@ Use `abbrev` for concrete systems so Lean can unfold their bundled types during 
 Generic helpers use `system.State` and `system.Action`, while `system.Reachable state` and `Execution.Run system start actions final` describe executions.
 Traces have type `Execution.Trace system`, with validity carried by the structure rather than a separate premise.
 Use `trace.stateAt n` and `trace.actionAt n` for optional indexed access, `state ∈ trace` for state membership, and `trace.states` and `trace.actions` to access the sequences directly.
+The sequences are derived from `init` and `steps`, so finite traces always have one more state than action.
+Use `action ∈ trace.actions` for action membership; `State` and `Action` can be the same type, so `action ∈ trace` cannot safely be overloaded.
 `trace.reachable` proves that every member state is reachable.
 
 ## Import coverage

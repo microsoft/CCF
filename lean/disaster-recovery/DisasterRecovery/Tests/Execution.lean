@@ -28,21 +28,20 @@ example : Run counter 0 [true, false, true] 2 :=
   .cons rfl (.cons rfl (.cons rfl (.nil (system := counter) 2)))
 
 -- Stutters are recorded as enabled actions, not inserted implicitly.
-private def counting : Trace counter where
-  states := Stream'.Seq.ofList [0, 0, 1, 2]
-  actions := Stream'.Seq.ofList [false, true, true]
-  valid_init := ⟨0, rfl, rfl⟩
-  valid_domains := by
-    intro n
-    simp only [Stream'.Seq.ofList_get?, isSome_getElem?, List.length_cons, List.length_nil]
-    omega
-  valid_step := by
-    intro n before action first chosen
-    rcases n with _ | _ | _ | n <;>
-      simp only [Stream'.Seq.ofList_get?, List.getElem?_cons_zero,
-        List.getElem?_cons_succ, List.getElem?_nil, Option.some.injEq] at first chosen ⊢
-    all_goals subst_vars
-    all_goals first | rfl | cases chosen
+private def counting : Trace counter :=
+  ⟨
+    { init := 0, steps := Stream'.Seq.ofList [(false, 0), (true, 1), (true, 2)] },
+    rfl,
+    by
+      intro n before action first chosen
+      rcases n with _ | _ | _ | n <;>
+        simp only [Stream'.Seq.get?_cons_zero, Stream'.Seq.get?_cons_succ,
+          Stream'.Seq.map_get?, Stream'.Seq.ofList_get?, List.getElem?_cons_zero,
+          List.getElem?_cons_succ, List.getElem?_nil, Option.map_some, Option.map_none,
+          Option.some.injEq] at first chosen ⊢
+      all_goals subst_vars
+      all_goals first | rfl | cases chosen
+  ⟩
 
 example : counter.Reachable 2 :=
   counting.reachable (Trace.stateAt_mem (n := 3) rfl)
@@ -60,31 +59,46 @@ example : 2 ∈ counting := Trace.stateAt_mem (n := 3) rfl
 example : 2 ∈ counting.states := Stream'.Seq.get?_mem (n := 3) rfl
 example : false ∈ counting.actions := Stream'.Seq.get?_mem (n := 0) rfl
 
-private def initialOnly : Trace counter where
-  states := Stream'.Seq.ofList [0]
-  actions := Stream'.Seq.nil
-  valid_init := ⟨0, rfl, rfl⟩
-  valid_domains := by intro n; simp
-  valid_step := by intro n before action _ chosen; simp at chosen
+private def initialOnly : Trace counter :=
+  ⟨
+    { init := 0, steps := Stream'.Seq.nil },
+    rfl,
+    by intro n before action _ chosen; simp at chosen
+  ⟩
 
 example : initialOnly.stateAt 0 = some 0 := rfl
 example : initialOnly.stateAt 1 = none := rfl
 example : initialOnly.actionAt 0 = none := rfl
 
-private def infinite : Trace counter where
-  states := Stream'.Seq.ofStream id
-  actions := Stream'.Seq.ofStream (fun _ => true)
-  valid_init := ⟨0, rfl, rfl⟩
-  valid_step := by
-    intro n before action first chosen
-    cases first
-    cases chosen
-    rfl
-  valid_domains := fun _ => Iff.rfl
+private def infinite : Trace counter :=
+  ⟨
+    { init := 0, steps := Stream'.Seq.ofStream (fun n => (true, n + 1)) },
+    rfl,
+    by
+      intro n before action first chosen
+      cases n <;> cases first <;> cases chosen <;> rfl
+  ⟩
 
-example (n : Nat) : infinite.stateAt n = some n := rfl
+example (n : Nat) : infinite.stateAt n = some n := by cases n <;> rfl
 example (n : Nat) : infinite.actionAt n = some true := rfl
-example (n : Nat) : n ∈ infinite := Trace.stateAt_mem (n := n) rfl
+
+example (n : Nat) : n ∈ infinite :=
+  Trace.stateAt_mem (n := n) (by cases n <;> rfl)
+
+-- Actions and states may share a type, so trace membership remains state-only.
+example
+    (trace
+      : Trace
+          ({
+              State := Nat,
+              Action := Nat,
+              init := fun state => state = 0,
+              step := fun state action => some (state + action)
+            }
+            : TransitionSystem))
+    (state : Nat)
+    : state ∈ trace ↔ state ∈ trace.states :=
+  Iff.rfl
 
 -- A final state has no outgoing action, but each transition has one.
 example (trace : Trace counter)

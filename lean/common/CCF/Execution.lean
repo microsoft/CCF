@@ -1,7 +1,7 @@
 module
 
 public import CCF.TransitionSystem
-public import Mathlib.Data.Seq.Defs
+public import Mathlib.Data.Seq.Basic
 
 @[expose] public section
 
@@ -9,8 +9,8 @@ namespace CCF.Execution
 
 /-!
 Executions of a `TransitionSystem`. `Run` relates a start state, a finite
-action list, and an end state. `Trace` records the finite or infinite sequences
-of states and actions, together with proofs that they form an execution.
+action list, and an end state. `Trace` records an initial state and a finite or
+infinite sequence of actions paired with their successor states, with a validity proof.
 -/
 
 /-- `Run system start actions final`: executing `actions` from `start` reaches `final`. -/
@@ -25,25 +25,36 @@ inductive Run (system : TransitionSystem)
     (rest : Run system middle actions after)
     : Run system before (action :: actions) after
 
-/-- A nonempty execution, with one action for each pair of adjacent states.
-Finite traces have one more state than action; infinite traces have both at every index. -/
-structure Trace (system : TransitionSystem) where
-  /-- The visited states, initial state first. -/
-  states : Stream'.Seq system.State
-  /-- Action `n` takes state `n` to state `n + 1`. -/
-  actions : Stream'.Seq system.Action
-  /-- The first state exists and is initial. -/
-  valid_init : exists initial, states.get? 0 = some initial /\ system.init initial
-  /-- Each recorded action executes the corresponding transition. -/
-  valid_step
-    : forall n before action,
-        states.get? n = some before
-        -> actions.get? n = some action
-        -> system.step before action = states.get? (n + 1)
-  /-- Actions exist exactly where a successor state exists. -/
-  valid_domains : forall n, (actions.get? n).isSome <-> (states.get? (n + 1)).isSome
+/-- An initial state and recorded actions paired with their successor states. -/
+structure TraceImpl (system : TransitionSystem) where
+  /-- The initial state. -/
+  init : system.State
+  /-- Each action is paired with the state it reaches. -/
+  steps : Stream'.Seq (system.Action × system.State)
+
+/-- The initial state is allowed and each recorded action reaches its paired state. -/
+def TraceImpl.Valid {system : TransitionSystem} (trace : TraceImpl system) : Prop :=
+  system.init trace.init
+  /\ forall n before action,
+      (Stream'.Seq.cons trace.init (trace.steps.map Prod.snd)).get? n = some before
+      -> (trace.steps.map Prod.fst).get? n = some action
+      -> system.step before action = (trace.steps.map Prod.snd).get? n
+
+/-- A nonempty, valid finite or infinite execution. -/
+abbrev Trace (system : TransitionSystem) :=
+  {trace : TraceImpl system // trace.Valid}
 
 namespace Trace
+
+/-- The visited states, initial state first. -/
+def states {system : TransitionSystem} (trace : Trace system)
+    : Stream'.Seq system.State :=
+  Stream'.Seq.cons trace.val.init (trace.val.steps.map Prod.snd)
+
+/-- The actions recorded by the execution. -/
+def actions {system : TransitionSystem} (trace : Trace system)
+    : Stream'.Seq system.Action :=
+  trace.val.steps.map Prod.fst
 
 /-- The state at an index, or `none` beyond a finite trace. -/
 @[simp]
@@ -56,6 +67,23 @@ def stateAt {system : TransitionSystem} (trace : Trace system) (n : Nat)
 def actionAt {system : TransitionSystem} (trace : Trace system) (n : Nat)
     : Option system.Action :=
   trace.actions.get? n
+
+/-- The first state exists and is initial. -/
+theorem valid_init {system : TransitionSystem} (trace : Trace system)
+    : exists initial, trace.stateAt 0 = some initial /\ system.init initial :=
+  ⟨trace.val.init, Stream'.Seq.get?_cons_zero _ _, trace.property.1⟩
+
+/-- Each recorded action executes the corresponding transition. -/
+theorem valid_step {system : TransitionSystem} (trace : Trace system)
+    (n : Nat) (before : system.State) (action : system.Action)
+    (first : trace.stateAt n = some before) (chosen : trace.actionAt n = some action)
+    : system.step before action = trace.stateAt (n + 1) :=
+  trace.property.2 n before action first chosen
+
+/-- Actions exist exactly where a successor state exists, by construction. -/
+theorem valid_domains {system : TransitionSystem} (trace : Trace system) (n : Nat)
+    : (trace.actions.get? n).isSome <-> (trace.states.get? (n + 1)).isSome := by
+  simp [actions, states]
 
 instance {system : TransitionSystem} : Membership system.State (Trace system) :=
   ⟨fun trace state => state ∈ trace.states⟩
@@ -98,14 +126,16 @@ theorem reachable {system : TransitionSystem} (trace : Trace system)
   induction index generalizing state with
   | zero =>
       obtain ⟨initial, first, initialized⟩ := trace.valid_init
-      change some state = trace.states.get? 0 at found
       rw [first] at found
       cases found
       exact .initial initialized
   | succ index ih =>
       cases previous : trace.stateAt index with
       | none =>
-          simp [stateAt, trace.states.le_stable (Nat.le_succ index) previous] at found
+          have absent := trace.states.le_stable (Nat.le_succ index) previous
+          change trace.stateAt (index + 1) = none at absent
+          rw [absent] at found
+          cases found
       | some before =>
           obtain ⟨action, stepped⟩ := trace.step index before state previous found.symm
           exact .step (ih previous.symm) stepped
@@ -118,53 +148,54 @@ theorem reachable_iff_trace {system : TransitionSystem} {state : system.State}
     : system.Reachable state <-> exists trace : Trace system, state ∈ trace := by
   constructor
   · intro reachable
-    suffices finite : exists (states : List system.State) (actions : List system.Action),
-        exists lengths : states.length = actions.length,
-        (exists initial, (states ++ [state])[0]? = some initial /\ system.init initial)
-        /\ forall i : Fin actions.length,
-          system.step ((states ++ [state])[i.val]'(by simp; omega)) actions[i.val]
-            = some ((states ++ [state])[i.val + 1]'(by simp; omega)) by
-      obtain ⟨states, actions, lengths, initialized, steps⟩ := finite
-      refine ⟨{
-        states := Stream'.Seq.ofList (states ++ [state])
-        actions := Stream'.Seq.ofList actions
-        valid_init := by simpa only [Stream'.Seq.ofList_get?] using initialized
-        valid_domains := by
-          intro n
-          simp only [Stream'.Seq.ofList_get?, isSome_getElem?, List.length_append,
-            List.length_singleton]
-          omega
-        valid_step := by
-          intro n before action first chosen
-          simp only [Stream'.Seq.ofList_get?] at first chosen ⊢
-          obtain ⟨_, beforeEq⟩ := List.getElem?_eq_some_iff.mp first
-          obtain ⟨bound, actionEq⟩ := List.getElem?_eq_some_iff.mp chosen
-          rw [← beforeEq, ← actionEq, steps ⟨n, bound⟩]
-          symm
-          exact List.getElem?_eq_getElem (by simp; omega)
-      }, ?_⟩
-      exact Trace.stateAt_mem (n := states.length) (by simp [Trace.stateAt])
+    suffices finite : exists (initial : system.State) (steps : List (system.Action × system.State)),
+        system.init initial
+        /\ (initial :: steps.map Prod.snd)[steps.length]? = some state
+        /\ forall i : Fin steps.length,
+          system.step ((initial :: steps.map Prod.snd)[i.val]'(by simp; omega))
+            steps[i.val].1 = some steps[i.val].2 by
+      obtain ⟨initial, steps, initialized, last, enabled⟩ := finite
+      have indexed (n : Nat)
+          : (Stream'.Seq.cons initial ((Stream'.Seq.ofList steps).map Prod.snd)).get? n
+              = (initial :: steps.map Prod.snd)[n]? := by
+        cases n <;> simp
+      refine ⟨⟨{
+        init := initial
+        steps := Stream'.Seq.ofList steps
+      }, initialized, ?_⟩, ?_⟩
+      · intro n before action first chosen
+        change (steps[n]?).map Prod.fst = some action at chosen
+        obtain ⟨pair, present, actionEq⟩ := Option.map_eq_some_iff.mp chosen
+        obtain ⟨bound, pairEq⟩ := List.getElem?_eq_some_iff.mp present
+        have firstEq : (initial :: steps.map Prod.snd)[n]? = some before :=
+          (indexed n).symm.trans first
+        obtain ⟨_, beforeEq⟩ := List.getElem?_eq_some_iff.mp firstEq
+        change system.step before action = (steps[n]?).map Prod.snd
+        rw [present]
+        simpa only [← beforeEq, ← actionEq, ← pairEq, Option.map_some] using enabled ⟨n, bound⟩
+      · apply Trace.stateAt_mem (n := steps.length)
+        exact (indexed steps.length).trans last
     induction reachable with
     | initial initialized =>
-        exact ⟨[], [], rfl, ⟨_, rfl, initialized⟩, fun i => Fin.elim0 i⟩
+        exact ⟨_, [], initialized, rfl, fun i => Fin.elim0 i⟩
     | @step before after action _ step ih =>
-        obtain ⟨states, actions, lengths, initialized, steps⟩ := ih
-        refine ⟨states ++ [before], actions ++ [action], by simp [lengths], ?_, ?_⟩
-        · obtain ⟨initial, first, initialized⟩ := initialized
-          refine ⟨initial, ?_, initialized⟩
-          rw [List.getElem?_append_left (by simp)]
-          exact first
+        obtain ⟨initial, steps, initialized, last, enabled⟩ := ih
+        refine ⟨initial, steps ++ [(action, after)], initialized, ?_, ?_⟩
+        · simp [List.map_append]
         · intro ⟨index, bounded⟩
-          by_cases inside : index < actions.length
+          simp only [List.map_append, List.map_cons, List.map_nil]
+          simp only [← List.cons_append]
+          by_cases inside : index < steps.length
           · rw [List.getElem_append_left
-                (as := states ++ [before]) (i := index) (by simp; omega),
-              List.getElem_append_left
-                (as := states ++ [before]) (i := index + 1) (by simp; omega),
+                (as := initial :: steps.map Prod.snd) (i := index) (by simp; omega),
               List.getElem_append_left inside]
-            exact steps ⟨index, inside⟩
-          · have last : index = actions.length := by simp at bounded; omega
+            exact enabled ⟨index, inside⟩
+          · have lastIndex : index = steps.length := by simp at bounded; omega
             subst index
-            simpa [lengths] using step
+            have beforeEq := (List.getElem?_eq_some_iff.mp last).2
+            rw [List.getElem_append_left
+              (as := initial :: steps.map Prod.snd) (i := steps.length) (by simp)]
+            simpa [← beforeEq] using step
   · rintro ⟨trace, member⟩
     exact trace.reachable member
 
