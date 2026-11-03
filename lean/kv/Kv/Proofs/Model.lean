@@ -64,7 +64,8 @@ theorem publish_lookup (db : DB M K V) (version : Nat) (ws : Writes M K V) (a : 
       · cases value <;> simp [publish, find, h, find_set_other, find_erase_other, ← ih, publish]
 
 theorem publish_unique (db : DB M K V) (version : Nat) (ws : Writes M K V)
-    (h : Kv.Properties.Unique db) : Kv.Properties.Unique (publish db version ws) := by
+    (h : Kv.Properties.Unique db)
+    : Kv.Properties.Unique (publish db version ws) := by
   induction ws with
   | nil => exact h
   | cons p ws ih =>
