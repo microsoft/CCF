@@ -1042,6 +1042,14 @@ if(BUILD_TESTS)
     )
     target_link_libraries(kp_cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
+    if(TEST_MLDSA)
+      add_test_bin(
+        pqtest
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pqtest.cpp
+      )
+      target_link_libraries(pqtest PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+    endif()
+
     add_unit_test(
       channels_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
@@ -1190,6 +1198,15 @@ if(BUILD_TESTS)
     )
     add_test_target(csr_test kp_cert_test)
     add_test_label(csr_test unit)
+
+    if(TEST_MLDSA)
+      add_test(
+        NAME pq_tls_test
+        COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/pqtest.py ./pqtest
+      )
+      add_test_target(pq_tls_test pqtest)
+      add_test_label(pq_tls_test unit)
+    endif()
 
     add_test(
       NAME versionifier_test
