@@ -10,12 +10,12 @@
 #  include "ccf/crypto/mldsa_parameter_set.h"
 #  include "ccf/crypto/openssl/openssl_wrappers.h"
 
+#  include <initializer_list>
 #  include <openssl/core_names.h>
 #  include <openssl/obj_mac.h>
 #  include <openssl/params.h>
 #  include <optional>
 #  include <span>
-#  include <string_view>
 
 namespace ccf::crypto::mldsa
 {
@@ -43,28 +43,20 @@ namespace ccf::crypto::mldsa
   }
 
   /// The key's parameter set, or nullopt when it is not an ML-DSA key.
+  /// Matches any registered name of the key type, whatever order the provider
+  /// lists its aliases in, and never throws.
   inline std::optional<MLDSAParameterSet> find_parameter_set(
     const EVP_PKEY* key)
   {
-    const auto* type_name = EVP_PKEY_get0_type_name(key);
-    if (type_name == nullptr)
+    for (const auto parameter_set :
+         {MLDSAParameterSet::ML_DSA_44,
+          MLDSAParameterSet::ML_DSA_65,
+          MLDSAParameterSet::ML_DSA_87})
     {
-      throw std::runtime_error(fmt::format(
-        "OpenSSL error loading key type name: {}", OpenSSL::first_error()));
-    }
-
-    const std::string_view name(type_name);
-    if (name == LN_ML_DSA_44)
-    {
-      return MLDSAParameterSet::ML_DSA_44;
-    }
-    if (name == LN_ML_DSA_65)
-    {
-      return MLDSAParameterSet::ML_DSA_65;
-    }
-    if (name == LN_ML_DSA_87)
-    {
-      return MLDSAParameterSet::ML_DSA_87;
+      if (EVP_PKEY_is_a(key, openssl_name(parameter_set)) == 1)
+      {
+        return parameter_set;
+      }
     }
     return std::nullopt;
   }
