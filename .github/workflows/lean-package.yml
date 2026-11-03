@@ -24,7 +24,6 @@ jobs:
         shell: bash
     env:
       PACKAGE: ${{ inputs.package }}
-      ELAN_HOME: ${{ runner.temp }}/elan
 
     steps:
       - name: Install container prerequisites
@@ -34,6 +33,7 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y \
             ca-certificates git curl tar zstd build-essential libgmp-dev \
             elan python3-jsonschema jq
+          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
