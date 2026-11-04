@@ -255,10 +255,47 @@ theorem sort_eq_insertionSorted {α : Type} [LinearOrder α] (s : Finset α)
   obtain ⟨⟨list⟩, _⟩ := s
   exact List.mergeSort_eq_insertionSort _ list
 
-/-- Unfold a concrete run down to the model's broadcasts and replace each
-`Finset.sort` with `insertionSorted`, so that `decide` can evaluate the run. -/
+/-- `Finset.sort` by insertion sort, for any order accepted by `Finset.sort`. -/
+private def insertionSortedBy {α : Type} (s : Finset α) (r : α -> α -> Prop)
+    [DecidableRel r] [IsTrans α r] [Std.Antisymm r] [Std.Total r]
+    : List α :=
+  Quot.liftOn s.val (List.insertionSort r)
+    fun _ _ perm =>
+      ((List.perm_insertionSort r _).trans
+        (perm.trans (List.perm_insertionSort r _).symm)).eq_of_pairwise'
+        (List.pairwise_insertionSort r _) (List.pairwise_insertionSort r _)
+
+/-- `Finset.sort` itself, rather than each application of it, is insertion sort.
+The left side is closed, so `rw` replaces every sort in an unfolded run, including
+those under binders, without the congruence proofs `simp` builds for each one. -/
+private theorem sort_eq_insertionSortedBy {α : Type}
+    : @Finset.sort α = @insertionSortedBy α := by
+  funext s r _ _ _ _
+  obtain ⟨⟨list⟩, _⟩ := s
+  exact List.mergeSort_eq_insertionSort r list
+
+/-- `run` over a bare step function. Unlike `run`, its step argument is not a
+dependency of the other arguments' types, so tactics can rewrite inside it. -/
+private def runWith {S A : Type} (step : S -> A -> Option S) (start : S)
+    : List (S -> A) -> Option S
+  | [] => some start
+  | choose :: rest => (step start (choose start)).bind fun next => runWith step next rest
+
+private theorem run_eq_runWith (system : TransitionSystem) (start : system.State)
+    (choices : List (system.State -> system.Action))
+    : run system start choices
+      = runWith (fun state action => system.step state action) start choices := by
+  induction choices generalizing start with
+  | nil => rfl
+  | cons choose rest ih => simp only [run, runWith, ih]
+
+/-- Unfold the model's step function down to its broadcasts and replace each
+`Finset.sort` with insertion sort, so that the kernel can evaluate the run.
+Each run becomes a `runWith` over a single copy of the step function, rather
+than one copy per step; `dsimp` unfolds it without building proof terms; and a
+single `rw` replaces every sort. -/
 macro "sort_by_insertion" : tactic =>
-  `(tactic| simp (maxSteps := 10000000) only [run, Consensus.Model.transitionSystem, MultiNodeTransitionSystem.lift,
+  `(tactic| (simp only [run_eq_runWith]; dsimp only [Consensus.Model.transitionSystem, MultiNodeTransitionSystem.lift,
     MultiNodeTransitionSystem.next, Consensus.Model.protocol, Consensus.Model.Node.step,
     Consensus.Model.Node.act, Consensus.Model.Node.receive,
     Consensus.Model.Node.startElection, Consensus.Model.Node.becomePreVoteCandidate,
@@ -271,7 +308,7 @@ macro "sort_by_insertion" : tactic =>
     Consensus.Model.Node.handleAppendEntriesResponse,
     Consensus.Model.Node.handleRequestVoteResponse,
     Consensus.Model.Node.handleRequestPreVoteResponse,
-    Consensus.Model.Node.handleProposeRequestVoteRequest, sort_eq_insertionSorted])
+    Consensus.Model.Node.handleProposeRequestVoteRequest]; rw [sort_eq_insertionSortedBy]))
 
 open Lean Elab Tactic Meta in
 /-- Close a closed goal `lhs = rhs` by asking only the kernel to check
@@ -311,7 +348,6 @@ def electionCycle : List (Consensus.Model.State -> Consensus.Model.Action) :=
 
 theorem election_finished
     : (run electionSystem electionStart electionChoices).isSome := by
-  unfold electionSystem electionStart electionChoices
   sort_by_insertion
   decide +kernel
 
@@ -324,14 +360,14 @@ theorem election_run
 
 theorem election_cycle_finished
     : (run electionSystem electionFinal electionCycle).isSome := by
-  unfold electionFinal electionSystem electionStart electionChoices electionCycle
+  unfold electionFinal
   sort_by_insertion
   decide +kernel
 
 theorem election_cycle_returns
     : (run electionSystem electionFinal electionCycle).getD electionStart
       = electionFinal := by
-  unfold electionFinal electionSystem electionStart electionChoices electionCycle
+  unfold electionFinal
   sort_by_insertion
   kernel_rfl
 
@@ -345,7 +381,7 @@ def bothLead (state : Consensus.Model.State) : Bool :=
   && ((nodeState state 1).any fun local_ => decide (local_.role = .primary))
 
 theorem election_both_lead : bothLead electionFinal = true := by
-  unfold electionFinal electionSystem electionStart electionChoices
+  unfold electionFinal
   sort_by_insertion
   decide +kernel
 
@@ -381,7 +417,6 @@ def commitCycle : List (Consensus.Model.State -> Consensus.Model.Action) :=
   [input 1 (.timeout .election), deliverFrom 1 0, deliverFrom 0 1]
 
 theorem commit_finished : (run commitSystem commitStart commitChoices).isSome := by
-  unfold commitSystem commitStart commitChoices
   sort_by_insertion
   decide +kernel
 
@@ -392,13 +427,13 @@ theorem commit_run : run commitSystem commitStart commitChoices = some commitFin
   eq_some_getD commit_finished _
 
 theorem commit_cycle_finished : (run commitSystem commitFinal commitCycle).isSome := by
-  unfold commitFinal commitSystem commitStart commitChoices commitCycle
+  unfold commitFinal
   sort_by_insertion
   decide +kernel
 
 theorem commit_cycle_returns
     : (run commitSystem commitFinal commitCycle).getD commitStart = commitFinal := by
-  unfold commitFinal commitSystem commitStart commitChoices commitCycle
+  unfold commitFinal
   sort_by_insertion
   kernel_rfl
 
@@ -429,6 +464,9 @@ theorem commit_follower_present : (nodeState commitFollowerCommitted 1).isSome :
 end Commit
 
 section Single
+
+-- Every sort in this one-node system is of an empty set of peers, which the
+-- kernel evaluates directly, so these runs need no `sort_by_insertion`.
 
 abbrev singleSystem := Consensus.Model.transitionSystem {0} [0]
 
@@ -462,30 +500,22 @@ def extendAction : Consensus.Model.Action :=
   .local 0 (.append [{ content := .transaction 1 {} }, { content := .signature }])
 
 theorem single_final_distinct : (singleFinal.nodes.map Prod.fst).Nodup := by
-  unfold singleFinal singleSystem singleStart singleChoices
-  sort_by_insertion
-  decide
+  decide +kernel
 
 theorem extend_enabled : (singleSystem.step singleFinal extendAction).isSome := by
-  unfold singleSystem singleFinal singleStart singleChoices extendAction
-  sort_by_insertion
-  decide
+  decide +kernel
 
 def extendFinal : Consensus.Model.State :=
   (singleSystem.step singleFinal extendAction).getD singleFinal
 
 theorem extend_final_present : (nodeState extendFinal 0).isSome := by
-  unfold extendFinal singleSystem singleFinal singleStart singleChoices extendAction
-  sort_by_insertion
-  decide
+  decide +kernel
 
 theorem extend_committed
     : ((nodeState singleFinal 0).get single_final_present).committedLog ≠ []
       /\ ((nodeState singleFinal 0).get single_final_present).committedLog.length
           < ((nodeState extendFinal 0).get extend_final_present).committedLog.length := by
-  unfold extendFinal singleSystem singleFinal singleStart singleChoices extendAction
-  sort_by_insertion
-  decide
+  decide +kernel
 
 end Single
 
