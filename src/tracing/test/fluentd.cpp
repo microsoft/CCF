@@ -198,21 +198,34 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
 {
   nlohmann::json config_json = ccf::CCFConfig{};
   config_json.erase("observability");
-  CHECK_FALSE(
-    config_json.get<ccf::CCFConfig>().observability.fluentd.has_value());
+  CHECK(config_json.get<ccf::CCFConfig>().observability.fluentd.empty());
 
   config_json["observability"] = {
-    {"fluentd", {{"host", "127.0.0.1"}, {"port", "24224"}}}};
+    {"fluentd",
+     {{{"host", "127.0.0.1"}, {"port", "24224"}},
+      {{"host", "127.0.0.2"},
+       {"port", "24225"},
+       {"delivery", "unbuffered-non-blocking"}}}}};
   auto config = config_json.get<ccf::CCFConfig>();
-  REQUIRE(config.observability.fluentd.has_value());
-  CHECK(config.observability.fluentd->host == "127.0.0.1");
-  CHECK(config.observability.fluentd->port == "24224");
-  CHECK(config.observability.fluentd->queue_capacity == 4096);
+  REQUIRE(config.observability.fluentd.size() == 2);
+  CHECK(config.observability.fluentd[0].host == "127.0.0.1");
+  CHECK(config.observability.fluentd[0].port == "24224");
+  CHECK(config.observability.fluentd[0].queue_capacity == 4096);
+  CHECK(
+    config.observability.fluentd[0].delivery ==
+    ccf::FluentdConfig::Delivery::BUFFERED_BEST_EFFORT);
+  CHECK(
+    config.observability.fluentd[1].delivery ==
+    ccf::FluentdConfig::Delivery::UNBUFFERED_NON_BLOCKING);
 
-  config.observability.fluentd->queue_capacity = 17;
+  config.observability.fluentd[0].queue_capacity = 17;
   const nlohmann::json roundtrip = config;
-  CHECK(roundtrip.at("observability").at("fluentd").at("queue_capacity") == 17);
+  CHECK(
+    roundtrip.at("observability").at("fluentd")[0].at("queue_capacity") == 17);
   CHECK(roundtrip.get<ccf::CCFConfig>().observability == config.observability);
+
+  config_json["observability"]["fluentd"][1]["delivery"] = "reliable";
+  CHECK_THROWS_AS(config_json.get<ccf::CCFConfig>(), ccf::JsonParseError);
 }
 
 TEST_CASE("SPSC concurrent FIFO records outlive reused slots and the queue")

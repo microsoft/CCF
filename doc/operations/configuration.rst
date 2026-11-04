@@ -23,6 +23,44 @@ The configuration for each CCF node must be contained in a single JSON configura
 
 For migration from deprecated ringbuffer-era configuration, see :doc:`/build_apps/migration_7_x_to_8_x`.
 
+.. _observability_export:
+
+Observability Export
+--------------------
+
+To export CCF consensus protocol trace events, add the experimental ``observability.fluentd`` array to your node configuration.
+Changes take effect at node startup.
+Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticated and unencrypted.
+
+.. code-block:: json
+
+    {
+      "observability": {
+        "fluentd": [
+          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort" },
+          { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking" }
+        ]
+      }
+    }
+
+All sinks currently receive the same CCF consensus protocol trace events; ordinary console logging is unchanged.
+Omit the array or leave it empty to disable export.
+For a single sink, use a one-element array; wrap existing single-object configurations in an array.
+
+Choose a ``delivery`` policy per sink:
+
+- ``buffered-best-effort`` (default): retain queued records while the collector is unavailable or cannot accept data.
+- ``unbuffered-non-blocking``: drop records that have not started sending in those cases, including while an earlier partial record is pending.
+
+Neither policy waits for a collector, and a stalled sink does not block the node or other sinks.
+``queue_capacity`` defaults to 4096 records per node thread, per sink, not bytes.
+Larger queues use more memory; full queues drop new records under either policy.
+Each sink may also retain one in-flight record.
+
+Delivery is best effort, not a guarantee of collector receipt.
+Failed sends are not replayed.
+Shutdown drains for up to two seconds across all sinks, then drops remaining records.
+
 
 IPv6 Addresses
 --------------

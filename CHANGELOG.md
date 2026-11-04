@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Changed
 
 - CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag (#8657).
+- `observability.fluentd` now accepts an array of independent sinks with per-sink, nonblocking `buffered-best-effort` (default) or `unbuffered-non-blocking` TCP backpressure handling.
+  Wrap existing single-sink configurations in a one-element array; see [Configuration](doc/operations/configuration.rst).
 
 ### Fixed
 
