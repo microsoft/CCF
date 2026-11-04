@@ -1,7 +1,7 @@
-# Consensus model
+# CCF consensus protocol model
 
-An executable Lean model of CCF's consensus implementation ([`src/consensus/aft/consensus.h`](../../src/consensus/aft/consensus.h)) and the safety properties it is intended to satisfy.
-It assumes familiarity with the [CCF consensus documentation](../../doc/architecture/consensus/index.rst).
+An executable Lean model of the CCF consensus protocol ([`src/consensus/aft/cft.h`](../../src/consensus/aft/cft.h)) and the safety properties it is intended to satisfy.
+It assumes familiarity with the [CCF consensus protocol documentation](../../doc/architecture/consensus/index.rst).
 
 ## Source map
 

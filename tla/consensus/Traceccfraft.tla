@@ -29,9 +29,9 @@ IsHeader(msg, dst, src, logline, type) ==
 
 IsAppendEntriesRequest(msg, dst, src, logline) ==
     (*
-    | ccfraft.tla   | json               | consensus.h             |
+    | ccfraft.tla   | json               | cft.h              |
     |---------------|--------------------|--------------------|
-    | type          | .msg               | consensusType           |
+    | type          | .msg               | CftMsgType         |
     | term          | .term              | state->currentTerm |
     | prevLogTerm   | .prev_term         | prev_term          |
     | prevLogIndex  | .prev_idx          | prev_idx           |
@@ -642,7 +642,7 @@ AppendEntriesResponses ==
 -------------------------------------------------------------------------------------
 
 ComposedNext ==
-    \* The implementation consensus.h piggybacks UpdateTerm messages on the AppendEntries
+    \* CCF piggybacks UpdateTerm messages on the AppendEntries
      \* and Vote messages.  Thus, we need to compose the UpdateTerm action with the
      \* corresponding AppendEntries and RequestVote actions.  This is a reasonable
      \* code-level optimization that we do not want to model explicitly in TLA+.

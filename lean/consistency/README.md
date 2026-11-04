@@ -35,7 +35,7 @@ Property helpers use zero-based history positions.
 The initial view is 2; view 1 is reserved and cannot process requests.
 
 The model covers safety only, not liveness, disaster recovery, or non-forwarded reads.
-There is no refinement proof connecting it to the [Consensus model](../consensus/README.md) or implementation trace validation.
+There is no refinement proof connecting it to the [CCF consensus protocol model](../consensus/README.md) or implementation trace validation.
 
 ## Properties
 

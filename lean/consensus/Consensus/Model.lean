@@ -10,7 +10,7 @@ public import Mathlib.Data.Finset.Max
 @[expose] public section
 
 /-!
-# Consensus network
+# CCF consensus protocol network
 
 Composes `Node.step` into a network. Deliveries may select any queued envelope;
 an envelope never delivered models message loss.

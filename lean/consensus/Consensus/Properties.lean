@@ -11,7 +11,7 @@ import Consensus.Proofs.Witnesses
 @[expose] public section
 
 /-!
-Safety theorems about the Consensus model, each paired with a witness lemma
+Safety theorems about the CCF consensus protocol model, each paired with a witness lemma
 exhibiting a nontrivial execution relevant to that property.
 -/
 

@@ -1,7 +1,7 @@
-Consensus Protocol
-==================
+CCF consensus protocol
+======================
 
-CCF's consensus protocol implements Crash Fault Tolerance (:term:`CFT`) and is derived from `Raft <https://raft.github.io/raft.pdf>`_.
+The CCF consensus protocol implements Crash Fault Tolerance (:term:`CFT`) and is derived from `Raft <https://raft.github.io/raft.pdf>`_.
 The key differences from the original protocol are as follows:
 
 * Transactions in CCF are not considered committed until a subsequent signed transaction has been committed.
@@ -11,7 +11,7 @@ The key differences from the original protocol are as follows:
   If a node fails and is replaced, it must rejoin the network via reconfiguration.
 * In CCF, clients receive an early response with a :term:`Transaction ID` (view and sequence number) before the transaction has been replicated to the ledger.
   The client can later use this transaction ID to verify that the transaction has been committed.
-* The consensus protocol uses an additional mechanism so a newly elected leader can more efficiently determine the current state of a follower's ledger when the two ledgers have diverged.
+* CCF uses an additional mechanism so a newly elected leader can more efficiently determine the current state of a follower's ledger when the two ledgers have diverged.
   This enables the leader to bring the follower up to date more quickly.
   It also batches appendEntries messages.
 
@@ -26,7 +26,7 @@ CFT parameters can be configured when starting up a network (see :doc:`here </op
 Extensions for Omission Faults
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The CFT consensus implementation in CCF also supports some extensions for :term:`omission fault`.
+The CCF consensus protocol also supports some extensions for :term:`omission fault`.
 This may happen when the network is unreliable and may lead to one or more nodes being isolated from the rest of the network.
 
 Supported extensions include:
@@ -223,7 +223,7 @@ PreVote Extensions
 
 If a node's ``RequestVote`` requests are able to reach the cluster, but it is unable to hear the ``AppendEntries`` messages from the current leader (for example, due to network partitioning), it may start new elections, incrementing its view, which deposes the leader and disrupts the cluster.
 
-To mitigate this, the PreVote extension requires that a follower first become ``PreVoteCandidate`` and receive a quorum of speculative pre-votes, proving that they could be elected using CCF's consensus election conditions, before becoming ``Candidate`` and potentially disrupting the cluster.
+To mitigate this, the PreVote extension requires that a follower first become ``PreVoteCandidate`` and receive a quorum of speculative pre-votes, proving that they could be elected under the CCF consensus protocol, before becoming ``Candidate`` and potentially disrupting the cluster.
 
 More specifically, when a follower's election timeout elapses, it becomes a ``PreVoteCandidate`` for the current view and sends out ``RequestPreVote`` messages.
 If the ``PreVoteCandidate`` hears from a current leader, or a new leader, it reverts back to being a ``Follower``.

@@ -1,7 +1,7 @@
-# Consensus trace replay
+# CCF consensus protocol trace replay
 
-Replay native `consensus_driver` captures against the Lean Consensus model.
-The existing `consensus_scenario_test` collects native traces; `consensus-replay` validates one trace per invocation.
+Replay native `cft_driver` captures against the Lean model of the CCF consensus protocol.
+The existing `cft_scenario_test` collects native traces; `consensus-replay` validates one trace per invocation.
 
 ## Run replay
 
@@ -20,10 +20,10 @@ This needs Python `msgpack` available to CTest:
 
 ```bash
 set -euo pipefail
-cmake -S ../.. -B /tmp/consensus-build -GNinja
-cmake --build /tmp/consensus-build --target consensus_driver
-ctest --test-dir /tmp/consensus-build -VV -R '^consensus_scenario_test$' --no-tests=error
-for trace in /tmp/consensus-build/consensus/raw/*.ndjson; do
+cmake -S ../.. -B /tmp/cft-build -GNinja
+cmake --build /tmp/cft-build --target cft_driver
+ctest --test-dir /tmp/cft-build -VV -R '^cft_scenario_test$' --no-tests=error
+for trace in /tmp/cft-build/consensus/raw/*.ndjson; do
   ./.lake/build/bin/consensus-replay "$trace"
 done
 ```
@@ -45,7 +45,7 @@ Delivery is strict FIFO per directed node pair, preserving multiplicity and deli
 - [`Reduction.lean`](../Consensus/Replay/Reduction.lean): named rules, explicit boundaries and rule-tagged snapshot checks.
 - [`Interpreter.lean`](../Consensus/Replay/Interpreter.lean): boundary-state field comparisons, FIFO selection and model execution.
 - [`ReplayMain.lean`](ReplayMain.lean): single-trace validation CLI.
-- [`consensus_scenarios_runner.py`](../../../tests/consensus_scenarios_runner.py): existing native scenario runner and capture generation.
+- [`cft_scenarios_runner.py`](../../../tests/cft_scenarios_runner.py): existing native scenario runner and capture generation.
 
 See [failure fixtures](fixtures/README.md) for examples and expected diagnostics.
 

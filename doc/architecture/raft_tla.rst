@@ -4,9 +4,12 @@ TLA+ Specifications
 The CCF repository includes two formal specifications in TLA+ of CCF:
 
 * :ccf_repo:`tla/consistency` which models CCF at a high level of abstraction to test the consistency model exposed to the clients, and 
-* :ccf_repo:`tla/consensus` which models in detail the custom distributed consensus protocol implemented in CCF.
+* :ccf_repo:`tla/consensus` which models the CCF consensus protocol in detail.
 
-CCF implements various modifications to Raft as it was originally proposed by Ongaro and Ousterhout. Specifically, CCF constrains that only appended entries that were *signed* by the primary can be committed. Any other entry that has *not* been signed is rolled back. The TLA+ consensus specification models the intended behavior of Raft as it is modified for CCF. 
+The CCF consensus protocol is derived from Raft, originally proposed by Ongaro and Ousterhout.
+CCF constrains that only appended entries that were *signed* by the primary can be committed.
+Any other entry that has *not* been signed is rolled back.
+The TLA+ consensus specification models the intended behavior of the CCF consensus protocol.
 
 You can find the full specifications in the :ccf_repo:`tla/` directory and more information on TLA+ `here <https://lamport.azurewebsites.net/tla/tla.html>`_. Several good resources exist online, one good example is Lamport's `Specifying Systems <https://lamport.azurewebsites.net/tla/book.html>`_.
 
@@ -44,8 +47,8 @@ It is possible to produce fresh traces quickly from the driver by running the ``
 
 Calling the trace validation on, for example, the ``append`` scenario can then be done with ``./tlc.py tv --ccf-raft-trace ../build/append.ndjson consensus/Traceccfraft.tla``.
 
-Generating a trace of a scenario and validating it in one go can be done with ``./tlc.py --workers 1 tv --scenario ../tests/consensus_scenarios/append consensus/Traceccfraft.tla``.
-This runs the consensus_driver on the scenario, cleans the trace and then validates it against the TLA+ specification.
+Generating a trace of a scenario and validating it in one go can be done with ``./tlc.py --workers 1 tv --scenario ../tests/cft_scenarios/append consensus/Traceccfraft.tla``.
+This runs ``cft_driver`` on the scenario, cleans the trace and then validates it against the TLA+ specification.
 The scenario runner receives the driver's trace events as MessagePack over a local TCP connection.
 Install ``msgpack`` from :ccf_repo:`tests/requirements.txt` in the Python environment that runs ``tlc.py``.
 
