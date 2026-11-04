@@ -6,11 +6,13 @@
 static_assert(
   OPENSSL_VERSION_PREREQ(3, 5), "ML-DSA tests require OpenSSL 3.5 or newer");
 
+#include "ccf/crypto/base64.h"
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "crypto/openssl/mldsa.h"
 #include "crypto/openssl/mldsa_key_pair.h"
@@ -20,7 +22,10 @@ static_assert(
 #include <doctest/doctest.h>
 #include <future>
 #include <openssl/core_names.h>
+#include <openssl/err.h>
 #include <openssl/objects.h>
+#include <openssl/x509.h>
+#include <string>
 #include <type_traits>
 
 using namespace ccf::crypto;
@@ -32,9 +37,11 @@ namespace
     MLDSAParameterSet id;
     const char* name;
     int nid;
-    // FIPS 204 table 2: expanded private key and signature sizes; s2 offset
-    // within skEncode follows rho (32), K (32), tr (64) and l packed s1
-    // polynomials. https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.204.pdf
+    // FIPS 204 table 2: public key, expanded private key and signature
+    // sizes; s2 offset within skEncode follows rho (32), K (32), tr (64) and
+    // l packed s1 polynomials.
+    // https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.204.pdf
+    size_t public_key_size;
     size_t expanded_key_size;
     size_t s2_offset;
     size_t signature_size;
@@ -45,6 +52,7 @@ namespace
       MLDSAParameterSet::ML_DSA_44,
       LN_ML_DSA_44,
       NID_ML_DSA_44,
+      1312,
       2560,
       512,
       2420},
@@ -52,6 +60,7 @@ namespace
       MLDSAParameterSet::ML_DSA_65,
       LN_ML_DSA_65,
       NID_ML_DSA_65,
+      1952,
       4032,
       768,
       3309},
@@ -59,6 +68,7 @@ namespace
       MLDSAParameterSet::ML_DSA_87,
       LN_ML_DSA_87,
       NID_ML_DSA_87,
+      2592,
       4896,
       800,
       4627},
@@ -168,6 +178,27 @@ namespace
       PEM_write_bio(bio, label, "", der.data(), static_cast<long>(der.size())));
     const auto data = OpenSSL::bio_contents(bio);
     return Pem(data);
+  }
+
+  // Decodes the base64 body between the PEM boundary lines, independently of
+  // the parsers under test
+  std::vector<uint8_t> der_from_pem(const Pem& pem)
+  {
+    const auto& text = pem.str();
+    const auto body_begin = text.find('\n') + 1;
+    const auto body_end = text.rfind("-----END");
+    REQUIRE(body_begin > 0);
+    REQUIRE(body_end != std::string::npos);
+    REQUIRE(body_begin < body_end);
+    std::string base64;
+    for (const char c : text.substr(body_begin, body_end - body_begin))
+    {
+      if (c != '\n' && c != '\r')
+      {
+        base64.push_back(c);
+      }
+    }
+    return ccf::crypto::raw_from_b64(base64);
   }
 
   std::vector<uint8_t> asn1_field(
@@ -625,6 +656,176 @@ TEST_CASE("ML-DSA parameter-set pinning at admission")
   }
 }
 
+namespace
+{
+  OpenSSL::Unique_X509 parse_cert(const Pem& cert)
+  {
+    OpenSSL::Unique_BIO bio(cert);
+    return {bio, true, true};
+  }
+
+  bool has_subject_alt_name(const Pem& cert)
+  {
+    return X509_get_ext_by_NID(parse_cert(cert), NID_subject_alt_name, -1) >= 0;
+  }
+}
+
+TEST_CASE("ML-DSA certificates")
+{
+  const std::string subject = "CN=CCF Service";
+  const std::string valid_from = "20260101000000Z";
+  const std::string valid_to = "20270101000000Z";
+  const std::vector<SubjectAltName> node_sans = {
+    {"node.example.com", false}, {"10.0.0.1", true}};
+  // Both service certificates must encode one name and validity period.
+  const auto classical =
+    make_verifier(make_ec_key_pair()->self_sign(subject, valid_from, valid_to));
+
+  for (const auto& info : PARAMETER_SETS)
+  {
+    SUBCASE(info.name)
+    {
+      auto key = make_mldsa_key_pair(info.id);
+      const auto cert = key->self_sign(subject, valid_from, valid_to);
+      const auto signature = key->sign(message);
+
+      for (const auto& verifier :
+           {make_verifier(cert), make_verifier(cert_pem_to_der(cert))})
+      {
+        CHECK(verifier->public_key_der() == key->public_key_der());
+        CHECK(verifier->public_key_pem() == key->public_key_pem());
+        CHECK(verifier->subject() == classical->subject());
+        CHECK(verifier->validity_period() == classical->validity_period());
+        CHECK(verifier->is_self_signed());
+        CHECK(verifier->verify_certificate({&cert}, {}, true));
+        CHECK(verifier->verify(message, signature));
+        CHECK_FALSE(verifier->verify(context, signature));
+        CHECK_THROWS_AS(
+          (void)verifier->verify(message, signature, MDType::SHA256),
+          std::invalid_argument);
+        CHECK_THROWS_AS(
+          (void)verifier->verify_hash(std::vector<uint8_t>(32, 0), signature),
+          std::logic_error);
+      }
+      CHECK(get_subject_name(cert) == subject);
+      CHECK(
+        make_mldsa_public_key(make_verifier(cert)->public_key_der(), info.id)
+          ->verify(message, signature));
+      CHECK(
+        make_verifier(key->self_sign(subject, valid_from, valid_to))
+          ->serial_number() != make_verifier(cert)->serial_number());
+      CHECK_FALSE(has_subject_alt_name(cert));
+
+      auto other = make_mldsa_key_pair(info.id);
+      const auto other_cert = other->self_sign(subject, valid_from, valid_to);
+      {
+        const auto x509 = parse_cert(cert);
+        CHECK(X509_get_signature_nid(x509) == info.nid);
+        CHECK(X509_verify(x509, X509_get0_pubkey(x509)) == 1);
+        CHECK(X509_check_ca(x509) == 1);
+        CHECK(X509_verify(x509, native_public(other->public_key_der())) != 1);
+        ERR_clear_error();
+      }
+
+      // A node requests a certificate for its own key, the service issues it.
+      auto node_key = make_mldsa_key_pair(info.id);
+      const auto csr = node_key->create_csr("CN=CCF Node", node_sans);
+      const auto endorsed = key->sign_csr(cert, csr, valid_from, valid_to);
+      const auto endorsed_verifier = make_verifier(endorsed);
+      CHECK(endorsed_verifier->public_key_der() == node_key->public_key_der());
+      CHECK(get_subject_name(endorsed) == "CN=CCF Node");
+      CHECK(
+        endorsed_verifier->validity_period() == classical->validity_period());
+      CHECK_FALSE(endorsed_verifier->is_self_signed());
+      CHECK(endorsed_verifier->verify_certificate({&cert}, {}, true));
+      CHECK_FALSE(
+        endorsed_verifier->verify_certificate({&other_cert}, {}, true));
+      CHECK(endorsed_verifier->verify(message, node_key->sign(message)));
+      CHECK_FALSE(endorsed_verifier->verify(message, signature));
+      CHECK(has_subject_alt_name(endorsed));
+      {
+        const auto x509 = parse_cert(endorsed);
+        CHECK(X509_get_signature_nid(x509) == info.nid);
+        CHECK(X509_check_ca(x509) == 0);
+        CHECK(X509_verify(x509, native_public(key->public_key_der())) == 1);
+      }
+
+      // The issuer requests on behalf of a key it does not hold, as when
+      // re-endorsing a previous identity, so the request carries the
+      // issuer's signature instead of the subject's.
+      const auto reissue_csr =
+        key->create_csr("CN=Previous Service", {}, node_key->public_key_pem());
+      const auto reissued = key->sign_csr(
+        cert,
+        reissue_csr,
+        valid_from,
+        valid_to,
+        true,
+        MLDSAKeyPair::Signer::ISSUER);
+      CHECK(
+        make_verifier(reissued)->public_key_der() ==
+        node_key->public_key_der());
+      CHECK(get_subject_name(reissued) == "CN=Previous Service");
+      CHECK(make_verifier(reissued)->verify_certificate({&cert}, {}, true));
+      CHECK(X509_check_ca(parse_cert(reissued)) == 1);
+
+      // A request must carry the signature of the party named as its signer.
+      CHECK_THROWS_AS(
+        (void)key->sign_csr(cert, reissue_csr, valid_from, valid_to),
+        std::runtime_error);
+      CHECK_THROWS_AS(
+        (void)key->sign_csr(
+          cert, csr, valid_from, valid_to, false, MLDSAKeyPair::Signer::ISSUER),
+        std::runtime_error);
+      CHECK_THROWS_AS(
+        (void)key->sign_csr(cert, cert, valid_from, valid_to),
+        std::runtime_error);
+      ERR_clear_error();
+
+      CHECK_THROWS_AS(
+        (void)key->self_sign(subject, valid_to, valid_from), std::logic_error);
+      CHECK_THROWS_AS(
+        (void)key->self_sign(subject, "not a time", valid_to),
+        std::runtime_error);
+      CHECK_THROWS_AS(
+        (void)key->self_sign("NOTAFIELD=x", valid_from, valid_to),
+        std::runtime_error);
+      ERR_clear_error();
+
+      // A multi-RDN subject whose printed form cannot be parsed back is
+      // copied exactly when passed as DER, as when the PQ certificate takes
+      // the classical certificate's subject.
+      const auto multi_rdn = make_ec_key_pair()->self_sign(
+        "CN=CCF Service,O=CCF User", valid_from, valid_to);
+      const auto subject_der = make_verifier(multi_rdn)->subject_der();
+      CHECK_THROWS((void)key->self_sign(
+        get_subject_name(multi_rdn), valid_from, valid_to));
+      const auto copied = key->self_sign(subject_der, valid_from, valid_to);
+      CHECK(make_verifier(copied)->subject_der() == subject_der);
+      CHECK(make_verifier(copied)->subject() == get_subject_name(multi_rdn));
+      const auto copied_csr =
+        key->create_csr(subject_der, {}, node_key->public_key_pem());
+      CHECK(
+        make_verifier(key->sign_csr(
+                        cert,
+                        copied_csr,
+                        valid_from,
+                        valid_to,
+                        false,
+                        MLDSAKeyPair::Signer::ISSUER))
+          ->subject_der() == subject_der);
+      CHECK_THROWS_AS(
+        (void)key->create_csr(std::vector<uint8_t>{'n', 'o', 'p', 'e'}),
+        std::invalid_argument);
+      auto trailing_byte = subject_der;
+      trailing_byte.push_back(0);
+      CHECK_THROWS_AS(
+        (void)key->create_csr(trailing_byte), std::invalid_argument);
+      ERR_clear_error();
+    }
+  }
+}
+
 TEST_CASE("ML-DSA NIST ACVP pure sigVer known answers")
 {
   for (const auto& vector : mldsa_test_vectors::ACVP_SIG_VER)
@@ -638,6 +839,123 @@ TEST_CASE("ML-DSA NIST ACVP pure sigVer known answers")
       public_encoding(info_for(vector.parameters).nid, pk), vector.parameters);
     CHECK(key->verify(contents, signature, ctx) == vector.test_passed);
     CHECK_FALSE(key->verify(contents, signature));
+  }
+}
+
+TEST_CASE("ML-DSA RFC 9881 example certificates and private keys")
+{
+  // Certificates and keys produced by another implementation, with the
+  // encoding rules of RFC 9881 sections 2 to 6 checked on the certificate.
+  for (const auto& example : mldsa_test_vectors::RFC9881_EXAMPLES)
+  {
+    const auto& info = info_for(example.parameters);
+    SUBCASE(info.name)
+    {
+      const Pem cert{std::string(example.certificate)};
+      const Pem public_key_pem{std::string(example.public_key)};
+      const auto spki = der_from_pem(public_key_pem);
+
+      for (const auto& verifier :
+           {make_verifier(cert), make_verifier(cert_pem_to_der(cert))})
+      {
+        CHECK(verifier->public_key_der() == spki);
+        CHECK(verifier->subject() == "O=IETF, CN=LAMPS WG");
+        CHECK(
+          verifier->serial_number() ==
+          "159FFE6F22FD5CC42C524DF6FD5E28D0DE38F34E");
+        CHECK(
+          verifier->validity_period() ==
+          std::make_pair(
+            std::string("20200203043210Z"), std::string("20400129043210Z")));
+        CHECK(verifier->is_self_signed());
+        // Valid until 2040, so the validity period is checked as well
+        CHECK(verifier->verify_certificate({&cert}));
+      }
+      CHECK(
+        make_mldsa_public_key(public_key_pem, info.id)->public_key_der() ==
+        spki);
+      CHECK(
+        make_mldsa_public_key(spki, info.id)->get_parameter_set() == info.id);
+
+      {
+        const auto x509 = parse_cert(cert);
+        CHECK(X509_get_signature_nid(x509) == info.nid);
+        CHECK(X509_verify(x509, X509_get0_pubkey(x509)) == 1);
+
+        // The algorithm identifiers of the signature and of the public key
+        // carry the parameter set's OID and no parameters
+        const ASN1_BIT_STRING* signature = nullptr;
+        const X509_ALGOR* signature_algorithm = nullptr;
+        X509_get0_signature(&signature, &signature_algorithm, x509);
+        CHECK(
+          X509_ALGOR_cmp(signature_algorithm, X509_get0_tbs_sigalg(x509)) == 0);
+        const unsigned char* public_key = nullptr;
+        int public_key_length = 0;
+        X509_ALGOR* public_key_algorithm = nullptr;
+        OpenSSL::CHECK1(X509_PUBKEY_get0_param(
+          nullptr,
+          &public_key,
+          &public_key_length,
+          &public_key_algorithm,
+          X509_get_X509_PUBKEY(x509)));
+        for (const X509_ALGOR* algorithm :
+             {signature_algorithm,
+              static_cast<const X509_ALGOR*>(public_key_algorithm)})
+        {
+          const ASN1_OBJECT* oid = nullptr;
+          int parameters_type = 0;
+          X509_ALGOR_get0(&oid, &parameters_type, nullptr, algorithm);
+          CHECK(OBJ_obj2nid(oid) == info.nid);
+          CHECK(parameters_type == V_ASN1_UNDEF);
+        }
+
+        // Both BIT STRINGs hold the FIPS 204 encodings with no unused bits
+        CHECK(static_cast<size_t>(signature->length) == info.signature_size);
+        CHECK((signature->flags & ASN1_STRING_FLAG_BITS_LEFT) != 0);
+        CHECK((signature->flags & 0x07) == 0);
+        CHECK(static_cast<size_t>(public_key_length) == info.public_key_size);
+      }
+
+      // Every private key form is the key of the certificate, and signatures
+      // made with it verify under the certificate
+      const auto verifier = make_verifier(cert);
+      for (const auto& [form, pem] :
+           {std::pair{"seed", example.seed_private_key},
+            std::pair{"expanded", example.expanded_private_key},
+            std::pair{"both", example.both_private_key}})
+      {
+        CAPTURE(form);
+        const Pem private_pem{std::string(pem)};
+        for (const auto& key :
+             {make_mldsa_key_pair(private_pem),
+              make_mldsa_key_pair(der_from_pem(private_pem))})
+        {
+          CHECK(key->get_parameter_set() == info.id);
+          CHECK(key->public_key_der() == spki);
+          CHECK(verifier->verify(message, key->sign(message)));
+        }
+      }
+    }
+  }
+
+  SUBCASE("inconsistent seed and expanded private keys")
+  {
+    const auto& keys =
+      mldsa_test_vectors::RFC9881_INCONSISTENT_ML_DSA_44_PRIVATE_KEYS;
+    for (size_t index = 0; index < keys.size(); index++)
+    {
+      CAPTURE(index);
+      const Pem private_pem{std::string(keys[index])};
+      CHECK_THROWS_WITH_AS(
+        make_mldsa_key_pair(private_pem),
+        doctest::Contains("Malformed ML-DSA private key PEM"),
+        std::invalid_argument);
+      CHECK_THROWS_WITH_AS(
+        make_mldsa_key_pair(der_from_pem(private_pem)),
+        doctest::Contains("ML-DSA provider rejected the key material"),
+        std::invalid_argument);
+      CHECK(ERR_peek_error() == 0);
+    }
   }
 }
 
