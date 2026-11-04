@@ -23,7 +23,7 @@
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/tx.h"
-#include "consensus/aft/consensus.h"
+#include "consensus/aft/cft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
 #include "ds/ccf_assert.h"
@@ -94,7 +94,7 @@
 
 namespace ccf
 {
-  using ConsensusImpl = aft::Aft<::consensus::LedgerEnclave>;
+  using CftType = aft::Aft<::consensus::LedgerEnclave>;
 
   struct NodeCreateInfo
   {
@@ -2453,8 +2453,7 @@ namespace ccf
       network.tables->swap_private_maps(*recovery_store);
       recovery_store.reset();
 
-      // Consensus should deserialise all security domains when network is
-      // opened
+      // CCF should deserialise all security domains when the network is opened.
       consensus->enable_all_domains();
 
       // Snapshots are only generated after recovery is complete
@@ -3809,7 +3808,7 @@ namespace ccf
       auto retired_node_cleanup =
         std::make_shared<RetiredNodeCleanup>(node_client);
 
-      auto consensus_impl = std::make_shared<ConsensusImpl>(
+      auto cft = std::make_shared<CftType>(
         consensus_config,
         std::make_unique<aft::Adaptor<ccf::kv::Store>>(network.tables),
         std::make_unique<::consensus::LedgerEnclave>(ledger_subsystem),
@@ -3818,10 +3817,10 @@ namespace ccf
         [retired_node_cleanup]() { retired_node_cleanup->cleanup(); },
         commit_callbacks,
         public_only);
-      consensus_impl->register_periodic_tasks(
+      cft->register_periodic_tasks(
         ccf::tasks::get_main_job_board(),
         std::chrono::milliseconds(config.tick_interval));
-      consensus = std::move(consensus_impl);
+      consensus = std::move(cft);
 
       pending_node_cleanup = std::make_shared<PendingNodeCleanup>(
         node_client,

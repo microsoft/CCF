@@ -9,8 +9,8 @@ CMakeFiles/
 .vscode/
 .vs/
 libuv/
-consensus_tests.md
-tests/consensus_scenarios/scenario-*
+cft_tests.md
+tests/cft_scenarios/scenario-*
 *.pyc
 __pycache__/
 sphinx/build/

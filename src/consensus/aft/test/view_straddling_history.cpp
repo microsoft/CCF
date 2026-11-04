@@ -128,7 +128,7 @@ TEST_CASE(
   fixture.history->pause.release();
   stale_worker.join();
 
-  INFO("Consensus rejects A, and history, KV and ledger agree");
+  INFO("cft rejects A, and history, KV and ledger agree");
   REQUIRE(stale_result.has_value());
   CHECK(stale_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
   {
@@ -138,6 +138,6 @@ TEST_CASE(
     CHECK(final_root == baseline_root);
   }
   CHECK(fixture.store->current_txid().seqno == 1);
-  CHECK(fixture.consensus_impl->get_last_idx() == 1);
-  CHECK(fixture.consensus_impl->ledger->ledger.size() == 1);
+  CHECK(fixture.cft->get_last_idx() == 1);
+  CHECK(fixture.cft->ledger->ledger.size() == 1);
 }

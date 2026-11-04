@@ -57,23 +57,22 @@ DOCTEST_TEST_CASE(
   DOCTEST_CHECK(calls.size() == 3);
 }
 
-DOCTEST_TEST_CASE(
-  "Consensus owns its periodic timer" * doctest::test_suite("single"))
+DOCTEST_TEST_CASE("cft owns its periodic timer" * doctest::test_suite("single"))
 {
   const auto self = ccf::kv::test::PrimaryNodeId;
   auto kv_store = std::make_shared<Store>(self);
   ccf::tasks::JobBoard job_board;
-  auto consensus_impl = std::make_shared<TConsensus>(
-    consensus_settings,
+  auto cft = std::make_shared<TCft>(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(self),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(self),
     nullptr);
-  consensus_impl->register_periodic_tasks(job_board, ms(10));
+  cft->register_periodic_tasks(job_board, ms(10));
   aft::Configuration::Nodes config;
   config[self] = {};
-  consensus_impl->add_configuration(0, config);
+  cft->add_configuration(0, config);
   const auto run_all = [&]() {
     while (auto task = job_board.get_task())
     {
@@ -83,22 +82,22 @@ DOCTEST_TEST_CASE(
 
   job_board.tick(election_timeout * 5);
   run_all();
-  DOCTEST_REQUIRE_FALSE(consensus_impl->is_primary());
-  consensus_impl->start_ticking();
+  DOCTEST_REQUIRE_FALSE(cft->is_primary());
+  cft->start_ticking();
   for (size_t i = 0; i < 9; ++i)
   {
     job_board.tick(ms(10));
     run_all();
-    DOCTEST_REQUIRE_FALSE(consensus_impl->is_primary());
+    DOCTEST_REQUIRE_FALSE(cft->is_primary());
   }
   job_board.tick(ms(10));
   run_all();
-  DOCTEST_REQUIRE(consensus_impl->is_primary());
+  DOCTEST_REQUIRE(cft->is_primary());
 
   job_board.tick(ms(10));
-  std::weak_ptr<TConsensus> weak_consensus = consensus_impl;
-  consensus_impl.reset();
-  DOCTEST_REQUIRE(weak_consensus.expired());
+  std::weak_ptr<TCft> weak_cft = cft;
+  cft.reset();
+  DOCTEST_REQUIRE(weak_cft.expired());
   run_all();
   job_board.tick(election_timeout * 5);
   run_all();
@@ -106,15 +105,15 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
-  "Consensus maintenance, inbound processing and notices concurrency smoke" *
+  "cft maintenance, inbound processing and notices concurrency smoke" *
   doctest::test_suite("concurrent"))
 {
   const auto self = ccf::kv::test::PrimaryNodeId;
   const auto peer = ccf::kv::test::FirstBackupNodeId;
   auto kv_store = std::make_shared<Store>(self);
-  auto settings = consensus_settings;
+  auto settings = cft_settings;
   settings.election_timeout = ccf::ds::TimeString{"1s"};
-  TConsensus consensus_impl(
+  TCft cft(
     settings,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(self),
@@ -124,11 +123,11 @@ DOCTEST_TEST_CASE(
   aft::Configuration::Nodes config;
   config[self] = {};
   config[peer] = {};
-  consensus_impl.add_configuration(0, config);
-  consensus_impl.start_ticking();
-  consensus_impl.force_become_primary();
+  cft.add_configuration(0, config);
+  cft.start_ticking();
+  cft.force_become_primary();
   aft::RequestVote vote{};
-  vote.term = consensus_impl.get_view();
+  vote.term = cft.get_view();
   std::barrier start{4};
   constexpr size_t iterations = 200;
   // The barrier creates competing calls, not a guaranteed lock interleaving.
@@ -137,14 +136,14 @@ DOCTEST_TEST_CASE(
     start.arrive_and_wait();
     for (size_t i = 0; i < iterations; ++i)
     {
-      consensus_impl.periodic(ms(1));
+      cft.periodic(ms(1));
     }
   });
   std::thread inbound([&]() {
     start.arrive_and_wait();
     for (size_t i = 0; i < iterations; ++i)
     {
-      consensus_impl.recv_message(
+      cft.recv_message(
         peer, {reinterpret_cast<const uint8_t*>(&vote), sizeof(vote)});
     }
   });
@@ -152,7 +151,7 @@ DOCTEST_TEST_CASE(
     start.arrive_and_wait();
     for (size_t i = 0; i < iterations; ++i)
     {
-      consensus_impl.nominate_successor();
+      cft.nominate_successor();
     }
   });
   start.arrive_and_wait();
@@ -160,11 +159,11 @@ DOCTEST_TEST_CASE(
   inbound.join();
   notices.join();
   DOCTEST_REQUIRE(
-    channel_stub_proxy(consensus_impl)
-      ->count_messages_with_type(aft::cft_request_vote_response) == iterations);
+    channel_stub_proxy(cft)->count_messages_with_type(
+      aft::cft_request_vote_response) == iterations);
   DOCTEST_REQUIRE(
-    channel_stub_proxy(consensus_impl)
-      ->count_messages_with_type(aft::cft_propose_request_vote) == iterations);
+    channel_stub_proxy(cft)->count_messages_with_type(
+      aft::cft_propose_request_vote) == iterations);
 }
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
@@ -172,8 +171,8 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
   auto kv_store = std::make_shared<Store>(node_id);
 
-  TConsensus r0(
-    consensus_settings,
+  TCft r0(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -208,8 +207,8 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
   auto kv_store = std::make_shared<Store>(node_id);
 
-  TConsensus r0(
-    consensus_settings,
+  TCft r0(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -252,8 +251,8 @@ DOCTEST_TEST_CASE(
   // The stub models existing channels without registered peer addresses.
   auto channels = std::make_shared<aft::ChannelStubProxy>();
 
-  TConsensus consensus_impl(
-    consensus_settings,
+  TCft cft(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     channels,
@@ -265,7 +264,7 @@ DOCTEST_TEST_CASE(
   aft::Configuration::Nodes config;
   config[node_id0] = {};
   config[node_id1] = {"127.0.0.2", "8001"};
-  consensus_impl.add_configuration(0, config);
+  cft.add_configuration(0, config);
 
   DOCTEST_REQUIRE(channels->node_addresses.size() == 1);
   DOCTEST_REQUIRE(channels->node_addresses.contains(node_id1));
@@ -274,7 +273,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_CHECK_FALSE(channels->node_addresses.contains(node_id0));
 
   config[node_id2] = {"127.0.0.3", "8002"};
-  consensus_impl.add_configuration(1, config);
+  cft.add_configuration(1, config);
 
   DOCTEST_REQUIRE(channels->node_addresses.size() == 2);
   DOCTEST_REQUIRE(channels->node_addresses.contains(node_id2));
@@ -297,29 +296,29 @@ DOCTEST_TEST_CASE(
   auto kv_store2 = std::make_shared<Store>(node_id2);
   auto kv_store3 = std::make_shared<Store>(node_id3);
 
-  TConsensus r0(
-    consensus_settings,
+  TCft r0(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
     nullptr);
-  TConsensus r1(
-    consensus_settings,
+  TCft r1(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id1),
     nullptr);
-  TConsensus r2(
-    consensus_settings,
+  TCft r2(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id2),
     nullptr);
-  TConsensus r3(
-    consensus_settings,
+  TCft r3(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store3),
     std::make_unique<aft::LedgerStubProxy>(node_id3),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -545,22 +544,22 @@ DOCTEST_TEST_CASE(
   auto kv_store1 = std::make_shared<Store>(node_id1);
   auto kv_store2 = std::make_shared<Store>(node_id2);
 
-  TConsensus r0(
-    consensus_settings,
+  TCft r0(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
     nullptr);
-  TConsensus r1(
-    consensus_settings,
+  TCft r1(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id1),
     nullptr);
-  TConsensus r2(
-    consensus_settings,
+  TCft r2(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -575,7 +574,7 @@ DOCTEST_TEST_CASE(
   r1.add_configuration(0, config);
   r2.add_configuration(0, config);
 
-  std::map<ccf::NodeId, TConsensus*> nodes;
+  std::map<ccf::NodeId, TCft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
   nodes[node_id2] = &r2;
@@ -688,22 +687,22 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   auto kv_store1 = std::make_shared<Store>(node_id1);
   auto kv_store2 = std::make_shared<Store>(node_id2);
 
-  TConsensus r0(
-    consensus_settings,
+  TCft r0(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
     nullptr);
-  TConsensus r1(
-    consensus_settings,
+  TCft r1(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id1),
     nullptr);
-  TConsensus r2(
-    consensus_settings,
+  TCft r2(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -716,7 +715,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   r0.add_configuration(0, config);
   r1.add_configuration(0, config);
 
-  std::map<ccf::NodeId, TConsensus*> nodes;
+  std::map<ccf::NodeId, TCft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -807,15 +806,15 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   auto kv_store0 = std::make_shared<Store>(node_id0);
   auto kv_store1 = std::make_shared<Store>(node_id1);
 
-  TConsensus r0(
-    consensus_settings,
+  TCft r0(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
     nullptr);
-  TConsensus r1(
-    consensus_settings,
+  TCft r1(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -828,7 +827,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
-  std::map<ccf::NodeId, TConsensus*> nodes;
+  std::map<ccf::NodeId, TCft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -983,7 +982,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
       r0.rollback(last_correct_version);
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == last_correct_version);
 
-      // How do we force Consensus to increment its view? Currently by hacking
+      // How do we force CCF to increment its view? Currently by hacking
       // to follower then force_become_primary. There should be a neater way to
       // do this.
       r0.become_aware_of_new_term(2);
@@ -1064,22 +1063,22 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   auto kv_store1 = std::make_shared<Store>(node_id1);
   auto kv_store2 = std::make_shared<Store>(node_id2);
 
-  TConsensus r0(
-    consensus_settings,
+  TCft r0(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
     nullptr);
-  TConsensus r1(
-    consensus_settings,
+  TCft r1(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id1),
     nullptr);
-  TConsensus r2(
-    consensus_settings,
+  TCft r2(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store2),
     std::make_unique<aft::LedgerStubProxy>(node_id2),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -1092,7 +1091,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
-  std::map<ccf::NodeId, TConsensus*> nodes;
+  std::map<ccf::NodeId, TCft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -1221,22 +1220,22 @@ DOCTEST_TEST_CASE(
   auto kv_store0 = std::make_shared<Store>(node_id0);
   auto kv_store1 = std::make_shared<Store>(node_id1);
 
-  TConsensus r0(
-    consensus_settings,
+  TCft r0(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store0),
     std::make_unique<aft::LedgerStubProxy>(node_id0),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id0),
     nullptr);
-  TConsensus r1(
-    consensus_settings,
+  TCft r1(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store1),
     std::make_unique<aft::LedgerStubProxy>(node_id1),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id1),
     nullptr);
 
-  std::map<ccf::NodeId, TConsensus*> nodes;
+  std::map<ccf::NodeId, TCft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -1328,7 +1327,7 @@ static void require_nack(
 
 struct TestNodeOptions
 {
-  ccf::consensus::Configuration settings = consensus_settings;
+  ccf::consensus::Configuration settings = cft_settings;
   std::shared_ptr<Store> kv = nullptr;
   std::shared_ptr<ccf::CommitCallbackSubsystem> commit_callbacks = nullptr;
   bool public_only = false;
@@ -1339,13 +1338,13 @@ struct TestNodeOptions
 struct TestNode
 {
   std::shared_ptr<Store> kv;
-  TConsensus consensus_impl;
+  TCft cft;
 
   explicit TestNode(const ccf::NodeId& id, TestNodeOptions options = {}) :
     kv(
       options.kv != nullptr ? std::move(options.kv) :
                               std::make_shared<Store>(id)),
-    consensus_impl(
+    cft(
       options.settings,
       std::make_unique<Adaptor>(kv),
       std::make_unique<aft::LedgerStubProxy>(id),
@@ -1366,18 +1365,18 @@ struct PrimaryAndBackup
   const ccf::NodeId id1 = ccf::kv::test::FirstBackupNodeId;
   TestNode node0;
   TestNode node1;
-  TConsensus& r0;
-  TConsensus& r1;
+  TCft& r0;
+  TCft& r1;
   aft::ChannelStubProxy* c0;
   aft::ChannelStubProxy* c1;
-  std::map<ccf::NodeId, TConsensus*> nodes;
+  std::map<ccf::NodeId, TCft*> nodes;
 
   PrimaryAndBackup(
     TestNodeOptions primary_options = {}, TestNodeOptions backup_options = {}) :
     node0(id0, std::move(primary_options)),
     node1(id1, std::move(backup_options)),
-    r0(node0.consensus_impl),
-    r1(node1.consensus_impl),
+    r0(node0.cft),
+    r1(node1.cft),
     c0(channel_stub_proxy(r0)),
     c1(channel_stub_proxy(r1)),
     nodes{{id0, &r0}, {id1, &r1}}
@@ -1569,7 +1568,7 @@ DOCTEST_TEST_CASE(
   "Ledger overload clears and the backup catches up without new writes" *
   doctest::test_suite("multiple"))
 {
-  auto settings = consensus_settings;
+  auto settings = cft_settings;
   settings.max_uncommitted_tx_count = 1;
   PrimaryAndBackup n({.settings = settings}, {.settings = settings});
   n.replicate(1, 2);
@@ -1706,8 +1705,8 @@ DOCTEST_TEST_CASE(
 
   TestNode node0(node_id0);
   TestNode node1(node_id1);
-  auto& r0 = node0.consensus_impl;
-  auto& r1 = node1.consensus_impl;
+  auto& r0 = node0.cft;
+  auto& r1 = node1.cft;
   auto r0c = channel_stub_proxy(r0);
   auto r1c = channel_stub_proxy(r1);
 
@@ -1753,7 +1752,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(r1.get_last_idx() == 0);
 
   DOCTEST_INFO("Replication then proceeds as usual");
-  std::map<ccf::NodeId, TConsensus*> nodes{{node_id0, &r0}, {node_id1, &r1}};
+  std::map<ccf::NodeId, TCft*> nodes{{node_id0, &r0}, {node_id1, &r1}};
   // A heartbeat, which the backup NACKs, then the entries, which it ACKs
   for (size_t round = 0; round < 2; ++round)
   {
@@ -1773,7 +1772,7 @@ DOCTEST_TEST_CASE(
   ccf::NodeId node_id2 = ccf::kv::test::SecondBackupNodeId;
 
   TestNode node0(node_id0);
-  auto& r0 = node0.consensus_impl;
+  auto& r0 = node0.cft;
   auto r0c = channel_stub_proxy(r0);
 
   aft::Configuration::Nodes config;
@@ -1829,7 +1828,7 @@ DOCTEST_TEST_CASE(
   ccf::NodeId node_id2 = ccf::kv::test::SecondBackupNodeId;
 
   TestNode node0(node_id0);
-  auto& r0 = node0.consensus_impl;
+  auto& r0 = node0.cft;
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -1880,14 +1879,14 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
-  "Consensus messages that cannot be parsed are ignored" *
+  "cft messages that cannot be parsed are ignored" *
   doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
   ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
 
   TestNode node1(node_id1);
-  auto& r1 = node1.consensus_impl;
+  auto& r1 = node1.cft;
   auto r1c = channel_stub_proxy(r1);
 
   aft::Configuration::Nodes config;
@@ -2025,8 +2024,8 @@ DOCTEST_TEST_CASE(
   auto kv1 = std::make_shared<RecordingConfigurationStore>(id1);
   TestNode node0(id0, {.kv = kv0});
   TestNode node1(id1, {.kv = kv1});
-  auto& r0 = node0.consensus_impl;
-  auto& r1 = node1.consensus_impl;
+  auto& r0 = node0.cft;
+  auto& r1 = node1.cft;
   auto c0 = channel_stub_proxy(r0);
   auto c1 = channel_stub_proxy(r1);
 
@@ -2273,7 +2272,7 @@ DOCTEST_TEST_CASE(
   ccf::NodeId node_id2 = ccf::kv::test::SecondBackupNodeId;
 
   TestNode node0(node_id0);
-  auto& r0 = node0.consensus_impl;
+  auto& r0 = node0.cft;
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -2321,9 +2320,9 @@ DOCTEST_TEST_CASE(
   TestNode node0(node_id0);
   TestNode node1(node_id1);
   TestNode node2(node_id2);
-  auto& r0 = node0.consensus_impl;
-  auto& r1 = node1.consensus_impl;
-  auto& r2 = node2.consensus_impl;
+  auto& r0 = node0.cft;
+  auto& r1 = node1.cft;
+  auto& r2 = node2.cft;
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -2335,12 +2334,11 @@ DOCTEST_TEST_CASE(
   }
 
   // Delivers the first message of the given type from one node to another
-  const auto deliver =
-    [](TConsensus& from, TConsensus& to, aft::CftMsgType type) {
-      auto msg = channel_stub_proxy(from)->pop_first(type, to.id());
-      DOCTEST_REQUIRE(msg.has_value());
-      to.recv_message(from.id(), *msg);
-    };
+  const auto deliver = [](TCft& from, TCft& to, aft::CftMsgType type) {
+    auto msg = channel_stub_proxy(from)->pop_first(type, to.id());
+    DOCTEST_REQUIRE(msg.has_value());
+    to.recv_message(from.id(), *msg);
+  };
 
   DOCTEST_INFO("Nodes 0 and 1 both become pre-vote candidates in view 0");
   for (auto* r : {&r0, &r1})
@@ -2402,9 +2400,9 @@ DOCTEST_TEST_CASE(
   TestNode node0(node_id0);
   TestNode node1(node_id1);
   TestNode node2(node_id2);
-  auto& r0 = node0.consensus_impl;
-  auto& r1 = node1.consensus_impl;
-  auto& r2 = node2.consensus_impl;
+  auto& r0 = node0.cft;
+  auto& r1 = node1.cft;
+  auto& r2 = node2.cft;
 
   aft::Configuration::Nodes config0;
   config0[node_id0] = {};
@@ -2412,7 +2410,7 @@ DOCTEST_TEST_CASE(
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
-  std::map<ccf::NodeId, TConsensus*> nodes;
+  std::map<ccf::NodeId, TCft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -2479,15 +2477,15 @@ DOCTEST_TEST_CASE(
 
   TestNode node0(node_id0);
   TestNode node1(node_id1);
-  auto& r0 = node0.consensus_impl;
-  auto& r1 = node1.consensus_impl;
+  auto& r0 = node0.cft;
+  auto& r1 = node1.cft;
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
   config[node_id1] = {};
   r0.add_configuration(0, config);
 
-  std::map<ccf::NodeId, TConsensus*> nodes;
+  std::map<ccf::NodeId, TCft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -2537,8 +2535,8 @@ DOCTEST_TEST_CASE(
 
   TestNode node0(node_id0);
   TestNode node1(node_id1);
-  auto& r0 = node0.consensus_impl;
-  auto& r1 = node1.consensus_impl;
+  auto& r0 = node0.cft;
+  auto& r1 = node1.cft;
 
   aft::Configuration::Nodes config;
   config[node_id0] = {};
@@ -2546,7 +2544,7 @@ DOCTEST_TEST_CASE(
   r0.add_configuration(0, config);
   r1.add_configuration(0, config);
 
-  std::map<ccf::NodeId, TConsensus*> nodes;
+  std::map<ccf::NodeId, TCft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -2621,8 +2619,8 @@ DOCTEST_TEST_CASE(
   auto kv_store = std::make_shared<Store>(node_id);
 
   size_t cleanup_count = 0;
-  TConsensus r0(
-    consensus_settings,
+  TCft r0(
+    cft_settings,
     std::make_unique<Adaptor>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
@@ -2668,7 +2666,7 @@ DOCTEST_TEST_CASE(
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
 
   TestNode node(node_id);
-  auto& r0 = node.consensus_impl;
+  auto& r0 = node.cft;
   auto r0c = channel_stub_proxy(r0);
 
   r0.start_ticking();
@@ -2696,7 +2694,7 @@ DOCTEST_TEST_CASE(
   ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
 
   TestNode node(node_id0);
-  auto& r0 = node.consensus_impl;
+  auto& r0 = node.cft;
 
   aft::Configuration::Nodes config0;
   config0[node_id0] = {};
@@ -2804,7 +2802,7 @@ DOCTEST_TEST_CASE(
   "Ledger backlog applies backpressure independently of commit" *
   doctest::test_suite("multiple"))
 {
-  auto settings = consensus_settings;
+  auto settings = cft_settings;
   DOCTEST_SUBCASE("Uncommitted count disabled")
   {
     settings.max_uncommitted_tx_count = 0;
@@ -2845,13 +2843,13 @@ DOCTEST_TEST_CASE(
   doctest::test_suite("multiple"))
 {
   TestNode node(ccf::kv::test::FirstBackupNodeId);
-  auto& consensus_impl = node.consensus_impl;
-  DOCTEST_REQUIRE_FALSE(consensus_impl.is_primary());
-  DOCTEST_REQUIRE_FALSE(consensus_impl.should_apply_backpressure());
-  consensus_impl.ledger->backlogged = true;
-  DOCTEST_REQUIRE(consensus_impl.should_apply_backpressure());
-  consensus_impl.ledger->backlogged = false;
-  DOCTEST_REQUIRE_FALSE(consensus_impl.should_apply_backpressure());
+  auto& cft = node.cft;
+  DOCTEST_REQUIRE_FALSE(cft.is_primary());
+  DOCTEST_REQUIRE_FALSE(cft.should_apply_backpressure());
+  cft.ledger->backlogged = true;
+  DOCTEST_REQUIRE(cft.should_apply_backpressure());
+  cft.ledger->backlogged = false;
+  DOCTEST_REQUIRE_FALSE(cft.should_apply_backpressure());
 }
 
 DOCTEST_TEST_CASE(
@@ -2860,25 +2858,24 @@ DOCTEST_TEST_CASE(
 {
   const auto id = ccf::kv::test::PrimaryNodeId;
   TestNode node(id);
-  auto& consensus_impl = node.consensus_impl;
+  auto& cft = node.cft;
   aft::Configuration::Nodes config;
   config[id] = {};
-  consensus_impl.add_configuration(0, config);
-  consensus_impl.start_ticking();
-  consensus_impl.periodic(election_timeout * 2);
-  DOCTEST_REQUIRE(consensus_impl.is_primary());
+  cft.add_configuration(0, config);
+  cft.start_ticking();
+  cft.periodic(election_timeout * 2);
+  DOCTEST_REQUIRE(cft.is_primary());
 
   auto entry = std::make_shared<std::vector<uint8_t>>(3, 1);
-  DOCTEST_REQUIRE(consensus_impl.replicate(
-    ccf::kv::BatchVector{{1, entry, true, hooks}}, consensus_impl.get_view()));
-  DOCTEST_REQUIRE(
-    consensus_impl.get_committed_seqno() == consensus_impl.get_last_idx());
-  DOCTEST_REQUIRE_FALSE(consensus_impl.should_apply_backpressure());
+  DOCTEST_REQUIRE(cft.replicate(
+    ccf::kv::BatchVector{{1, entry, true, hooks}}, cft.get_view()));
+  DOCTEST_REQUIRE(cft.get_committed_seqno() == cft.get_last_idx());
+  DOCTEST_REQUIRE_FALSE(cft.should_apply_backpressure());
 
-  consensus_impl.ledger->backlogged = true;
-  DOCTEST_REQUIRE(consensus_impl.should_apply_backpressure());
-  consensus_impl.ledger->backlogged = false;
-  DOCTEST_REQUIRE_FALSE(consensus_impl.should_apply_backpressure());
+  cft.ledger->backlogged = true;
+  DOCTEST_REQUIRE(cft.should_apply_backpressure());
+  cft.ledger->backlogged = false;
+  DOCTEST_REQUIRE_FALSE(cft.should_apply_backpressure());
 }
 
 // Records whether each call to deserialize() was for public domains only
@@ -2933,7 +2930,7 @@ DOCTEST_TEST_CASE(
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
   auto commit_callbacks = std::make_shared<ccf::CommitCallbackSubsystem>();
   TestNode node(node_id, {.commit_callbacks = commit_callbacks});
-  auto& r0 = node.consensus_impl;
+  auto& r0 = node.cft;
 
   aft::Configuration::Nodes config;
   config[node_id] = {};
@@ -2978,7 +2975,7 @@ DOCTEST_TEST_CASE(
 {
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
   TestNode node(node_id);
-  auto& r0 = node.consensus_impl;
+  auto& r0 = node.cft;
 
   aft::Configuration::Nodes config;
   config[node_id] = {};
@@ -3011,7 +3008,7 @@ DOCTEST_TEST_CASE(
 {
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;
   TestNode node(node_id);
-  auto& r0 = node.consensus_impl;
+  auto& r0 = node.cft;
 
   aft::Configuration::Nodes config;
   config[node_id] = {};

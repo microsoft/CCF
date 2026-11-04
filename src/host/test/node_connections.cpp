@@ -303,7 +303,7 @@ namespace
     }
   }
 
-  // The host inspects the consensus_impl header of every outbound consensus
+  // The host inspects the header of every outbound CCF consensus protocol
   // message, so the payload has to be a plausible one. A pre-vote is used here
   // because it is what a stalled candidate sends, and unlike an append-entries
   // it carries no ledger indices for the host to read.

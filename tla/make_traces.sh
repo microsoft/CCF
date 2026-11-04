@@ -7,7 +7,7 @@ pushd ..
 mkdir -p build
 pushd build
 cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON ..
-ninja consensus_driver
+ninja cft_driver
 ./tests.sh -VV -R scenario
 popd
 popd

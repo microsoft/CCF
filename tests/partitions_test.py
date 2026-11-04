@@ -243,7 +243,7 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
             # re-joining node fails to get elected but causes others to rev up their
             # term. After that, a successful election needs to take place, and we
             # arbitrarily allow 3 time periods to avoid being too brittle when
-            # consensus timeouts line up badly.
+            # CCF consensus protocol timeouts line up badly.
             c.wait_for_commit(new_tx_resp, timeout=(network.election_duration * 4))
         except TimeoutError:
             details = c.get("/node/consensus").body.json()

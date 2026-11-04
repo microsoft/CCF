@@ -1,19 +1,19 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// A rollback triggered by consensus rejecting one transaction must not
-// discard the local application of another transaction which consensus is
+// A rollback triggered by CCF rejecting one transaction must not
+// discard the local application of another transaction which CCF is
 // still going to accept. Otherwise the second transaction reaches the ledger
-// but not the KV, and the Store's version falls behind Consensus's last index,
+// but not the KV, and the Store's version falls behind CCF's last log index,
 // so the next transaction reuses a seqno and is silently never replicated.
 //
-// Consensus::replicate() therefore must not roll back on a term mismatch: by
+// CCF therefore must not roll back on a term mismatch during replication: by
 // the time a stale entry is rejected, the election which moved the term has
 // already rolled back everything from the old term, and anything applied
 // since belongs to the current term.
 //
 // Interleaving, from review of PR #8209 (cjen1-msft,
-// src/consensus/aft/consensus.h):
+// src/consensus/aft/cft.h):
 //
 // - Tx A is applied locally in view V and given TxID V.2. It enters
 //   Store::commit(), passes the view check, and is descheduled before it
@@ -22,8 +22,8 @@
 //   rolls the Store back past A, to seqno 1.
 // - Tx B is applied locally in view W and given TxID W.2. It has not yet
 //   entered Store::commit().
-// - A continues. Consensus rejects it. If that rejection rolls the Store
-//   back to Consensus's last_idx (1), it discards B's local application as
+// - A continues. CCF rejects it. If that rejection rolls the Store
+//   back to CCF's last log index (1), it discards B's local application as
 //   well.
 // - B enters Store::commit(), passes the view check (W == W), and is
 //   replicated. It is in the ledger, but no longer in the KV.
@@ -38,12 +38,12 @@ namespace
   {
     const auto value = read_value(*fixture.store, fixture.table, 2);
     return fmt::format(
-      "store txid {}, key 2 -> {}, consensus_impl last_idx {}, ledger entries "
+      "store txid {}, key 2 -> {}, cft last_idx {}, ledger entries "
       "{}",
       fixture.store->current_txid().to_str(),
       value.has_value() ? std::to_string(value.value()) : "absent",
-      fixture.consensus_impl->get_last_idx(),
-      fixture.consensus_impl->ledger->ledger.size());
+      fixture.cft->get_last_idx(),
+      fixture.cft->ledger->ledger.size());
   }
 }
 
@@ -82,7 +82,7 @@ TEST_CASE(
   const auto reelection_view = fixture.reelect();
   REQUIRE(fixture.store->current_txid() == ccf::TxID(fixture.initial_view, 1));
   REQUIRE_FALSE(read_value(*fixture.store, fixture.table, 1).has_value());
-  REQUIRE(fixture.consensus_impl->get_last_idx() == 1);
+  REQUIRE(fixture.cft->get_last_idx() == 1);
 
   INFO(
     "B is applied at seqno 2 in the new view, then pauses before "
@@ -109,8 +109,8 @@ TEST_CASE(
   REQUIRE(stale_result.has_value());
   CHECK(stale_result.value() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
   MESSAGE("After A is rejected: " << describe(fixture));
-  CHECK(fixture.consensus_impl->get_last_idx() == 1);
-  CHECK(fixture.consensus_impl->ledger->ledger.size() == 1);
+  CHECK(fixture.cft->get_last_idx() == 1);
+  CHECK(fixture.cft->ledger->ledger.size() == 1);
   CHECK(fixture.store->current_txid() == ccf::TxID(reelection_view, 2));
   CHECK(read_value(*fixture.store, fixture.table, 2) == 3);
 
@@ -120,8 +120,8 @@ TEST_CASE(
   REQUIRE(current_result.has_value());
   CHECK(current_result.value() == ccf::kv::CommitResult::SUCCESS);
   MESSAGE("After B is replicated: " << describe(fixture));
-  CHECK(fixture.consensus_impl->get_last_idx() == 2);
-  CHECK(fixture.consensus_impl->ledger->ledger.size() == 2);
+  CHECK(fixture.cft->get_last_idx() == 2);
+  CHECK(fixture.cft->ledger->ledger.size() == 2);
   CHECK(fixture.store->current_txid() == ccf::TxID(reelection_view, 2));
   CHECK(read_value(*fixture.store, fixture.table, 2) == 3);
 
@@ -137,6 +137,6 @@ TEST_CASE(
   CHECK(next_txid == ccf::TxID(reelection_view, 3));
   CHECK(fixture.store->current_txid() == ccf::TxID(reelection_view, 3));
   CHECK(read_value(*fixture.store, fixture.table, 3) == 4);
-  CHECK(fixture.consensus_impl->get_last_idx() == 3);
-  CHECK(fixture.consensus_impl->ledger->ledger.size() == 3);
+  CHECK(fixture.cft->get_last_idx() == 3);
+  CHECK(fixture.cft->ledger->ledger.size() == 3);
 }

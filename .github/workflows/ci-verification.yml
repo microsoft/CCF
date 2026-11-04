@@ -199,7 +199,7 @@ jobs:
           mkdir build
           cd build
           cmake -L -GNinja .. -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
-          ninja consensus_driver
+          ninja cft_driver
         shell: bash
 
       - name: "Test"
@@ -208,7 +208,7 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          ./tests.sh -VV --timeout --no-compress-output -T Test -L consensus_scenario
+          ./tests.sh -VV --timeout --no-compress-output -T Test -L cft_scenario
         shell: bash
 
       - name: Run trace validation

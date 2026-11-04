@@ -9,8 +9,8 @@ from collections import defaultdict
 from contextlib import contextmanager
 from heapq import merge
 
-from consensus_scenarios_gen import generate_scenarios
-from consensus_trace import as_log_lines, run_driver
+from cft_scenarios_gen import generate_scenarios
+from cft_trace import as_log_lines, run_driver
 
 
 @contextmanager
@@ -106,8 +106,8 @@ def noop(log):
 def separate_log_lines(text, records, preprocess):
     mermaid = []
     for line in text.split(os.linesep):
-        if line.startswith("<ConsensusDriver>"):
-            mermaid.append(line[len("<ConsensusDriver>") :])
+        if line.startswith("<CftDriver>"):
+            mermaid.append(line[len("<CftDriver>") :])
     log = preprocess([json.dumps(entry) for entry in as_log_lines(records)])
     return (
         os.linesep.join(mermaid) + os.linesep,
@@ -130,7 +130,7 @@ def expand_files(files):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("driver", type=str, help="Path to consensus_driver binary")
+    parser.add_argument("driver", type=str, help="Path to cft_driver binary")
     parser.add_argument("--gen-scenarios", action="store_true")
     parser.add_argument("files", nargs="*", type=str, help="Path to scenario files")
     parser.add_argument(
@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
     ostream = sys.stdout
 
-    # Create consensus-specific output directory
+    # Create the CCF consensus protocol output directory.
     os.makedirs(args.output, exist_ok=True)
     raw_output = pathlib.Path(args.output) / "raw"
     raw_output.mkdir(exist_ok=True)

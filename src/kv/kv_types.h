@@ -469,9 +469,9 @@ namespace ccf::kv
     virtual std::optional<NodeId> primary() = 0;
 
     // The caller authenticates the sender and message before dispatch. The
-    // message contains only the Consensus message struct; the optional payload
-    // contains appended ledger entries, which still require ledger validation.
-    // Both views are borrowed for the duration of this call.
+    // message contains only the CCF consensus protocol message struct; the
+    // payload contains appended ledger entries, which still require ledger
+    // validation. Both views are borrowed for the duration of this call.
     virtual void recv_message(
       const NodeId& from,
       std::span<const uint8_t> message,

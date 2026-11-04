@@ -4,8 +4,8 @@
 
 #include "ccf/ds/locking.h"
 #include "ccf/entity_id.h"
+#include "consensus/aft/cft.h"
 #include "consensus/aft/cft_types.h"
-#include "consensus/aft/consensus.h"
 
 #include <map>
 #include <optional>

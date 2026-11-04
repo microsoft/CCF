@@ -29,8 +29,8 @@ int main(int argc, char** argv)
       "port");
   }
 
-  // Log all consensus_impl steps to stdout (python wrapper
-  // consensus_scenario_runner.py filters them).
+  // Log all CCF consensus protocol steps to stdout; cft_scenarios_runner.py
+  // filters them.
   ccf::logger::config::add_text_console_logger();
   ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
 
@@ -47,7 +47,7 @@ int main(int argc, char** argv)
       return 1;
     }
   }
-  auto driver = make_shared<ConsensusDriver>();
+  auto driver = make_shared<CftDriver>();
 
   const std::string filename = argv[1];
 
@@ -413,7 +413,7 @@ int main(int argc, char** argv)
   const auto dropped = ccf::tracing::FluentdSink::dropped_count();
   if (dropped != 0)
   {
-    LOG_FAIL_FMT("Consensus trace exporter dropped {} events", dropped);
+    LOG_FAIL_FMT("cft trace exporter dropped {} events", dropped);
     return 1;
   }
   return 0;

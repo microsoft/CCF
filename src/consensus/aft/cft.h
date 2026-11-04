@@ -115,10 +115,10 @@ namespace aft
 
     // When this node receives append entries from a new primary, it may need to
     // roll back a committable but uncommitted suffix it holds. The
-    // new primary dictates the index where this suffix begins, which
-    // following the Consensus election rules must be at least as high as the
-    // highest commit index reported by the previous primary. The window in
-    // which this rollback could be accepted is minimised to avoid unnecessary
+    // new primary dictates the index where this suffix begins. The CCF
+    // consensus protocol requires this to be at least as high as the highest
+    // commit index reported by the previous primary. The window in which this
+    // rollback could be accepted is minimised to avoid unnecessary
     // retransmissions - this node only executes this rollback instruction on
     // the first append entries after it became a follower. As with any append
     // entries, the initial index will not advance until this node acks.
@@ -2731,7 +2731,7 @@ namespace aft
           }
 
           CFT_INFO_FMT(
-            "Added consensus_impl node {} ({}:{})",
+            "Added cft node {} ({}:{})",
             node_info.first,
             node_info.second.hostname,
             node_info.second.port);

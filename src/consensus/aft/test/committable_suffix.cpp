@@ -84,8 +84,8 @@ void keep_earliest_append_entries_for_each_target(
 #define TEST_DECLARE_NODE(N) \
   ccf::NodeId node_id##N(#N); \
   auto store##N = std::make_shared<Store>(node_id##N); \
-  TConsensus r##N( \
-    consensus_settings, \
+  TCft r##N( \
+    cft_settings, \
     std::make_unique<Adaptor>(store##N), \
     std::make_unique<aft::LedgerStubProxy>(node_id##N), \
     std::make_shared<aft::ChannelStubProxy>(), \
@@ -157,7 +157,7 @@ DOCTEST_TEST_CASE("Retention of dead leader's commit")
   // Single configuration has all nodes, fully connected
   aft::Configuration::Nodes initial_config;
 
-  std::map<ccf::NodeId, TConsensus*> nodes;
+  std::map<ccf::NodeId, TCft*> nodes;
 
   // Network contains 5 nodes
   TEST_DECLARE_NODE(A);
@@ -513,7 +513,7 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
   // Single configuration has all nodes, fully connected
   aft::Configuration::Nodes initial_config;
 
-  std::map<ccf::NodeId, TConsensus*> nodes;
+  std::map<ccf::NodeId, TCft*> nodes;
 
   // Network contains 3 nodes
   TEST_DECLARE_NODE(A);

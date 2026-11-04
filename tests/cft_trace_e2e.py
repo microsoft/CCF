@@ -7,8 +7,8 @@
 3. Exporter configured but the collector refuses connections: transactions
    still commit.
 4. Exporter configured against a real Fluentd (only with --fluentd PATH): the
-   collector receives well-formed Consensus events, and the node keeps committing
-   after the collector is killed.
+   collector receives well-formed CCF consensus protocol events, and the node
+   keeps committing after the collector is killed.
 """
 
 import copy

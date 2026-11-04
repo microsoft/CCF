@@ -6,9 +6,9 @@ on:
       - "lean/**"
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
-      - "tests/consensus_trace*.py"
-      - "tests/consensus_scenarios*.py"
-      - "tests/consensus_scenarios/**"
+      - "tests/cft_trace*.py"
+      - "tests/cft_scenarios*.py"
+      - "tests/cft_scenarios/**"
       - "src/consensus/aft/**"
       - "src/kv/**"
       - "include/ccf/kv/**"
@@ -24,8 +24,8 @@ concurrency:
 permissions: read-all
 
 jobs:
-  consensus_traces:
-    name: Consensus scenario captures
+  cft_traces:
+    name: CCF consensus protocol scenario captures
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -56,16 +56,16 @@ jobs:
         run: |
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          cmake -S . -B "$RUNNER_TEMP/consensus-build" -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
-          cmake --build "$RUNNER_TEMP/consensus-build" --target consensus_driver --parallel "$(( ($(nproc) + 1) >> 1 ))"
+          cmake -S . -B "$RUNNER_TEMP/cft-build" -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
+          cmake --build "$RUNNER_TEMP/cft-build" --target cft_driver --parallel "$(( ($(nproc) + 1) >> 1 ))"
           uv run --no-project --with msgpack \
-            ctest --test-dir "$RUNNER_TEMP/consensus-build" -VV -R "^consensus_scenario_test$" --no-tests=error
+            ctest --test-dir "$RUNNER_TEMP/cft-build" -VV -R "^cft_scenario_test$" --no-tests=error
 
-      - name: Upload Consensus traces
+      - name: Upload CCF consensus protocol traces
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: consensus-scenario-traces
-          path: ${{ runner.temp }}/consensus-build/consensus/raw/*.ndjson
+          name: cft-scenario-traces
+          path: ${{ runner.temp }}/cft-build/consensus/raw/*.ndjson
           if-no-files-found: error
           retention-days: 1
           overwrite: true
@@ -203,7 +203,7 @@ jobs:
         working-directory: lean/kv
         run: lake build --wfail kv-replay
 
-      - name: Validate Consensus trace fixtures
+      - name: Validate CCF consensus protocol trace fixtures
         shell: bash
         run: |
           set -euo pipefail
@@ -214,7 +214,7 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Reject invalid Consensus trace fixtures
+      - name: Reject invalid CCF consensus protocol trace fixtures
         shell: bash
         run: |
           set -euo pipefail
@@ -263,7 +263,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          for job in "Consensus scenario captures" "KV trace captures"; do
+          for job in "CCF consensus protocol scenario captures" "KV trace captures"; do
             while true; do
               if ! state=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
                 --jq ".jobs[] | select(.name == \"${job}\") | \"\(.status) \(.conclusion)\""); then
@@ -286,18 +286,18 @@ jobs:
             done
           done
 
-      - name: Download Consensus traces
+      - name: Download CCF consensus protocol traces
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: consensus-scenario-traces
-          path: ${{ runner.temp }}/consensus-scenario-traces
+          name: cft-scenario-traces
+          path: ${{ runner.temp }}/cft-scenario-traces
 
-      - name: Validate Consensus traces
+      - name: Validate CCF consensus protocol traces
         shell: bash
         run: |
           set -euo pipefail
           shopt -s failglob
-          for trace in "$RUNNER_TEMP"/consensus-scenario-traces/*.ndjson; do
+          for trace in "$RUNNER_TEMP"/cft-scenario-traces/*.ndjson; do
             echo "::group::Validate $trace"
             lean/consensus/.lake/build/bin/consensus-replay "$trace"
             echo "::endgroup::"

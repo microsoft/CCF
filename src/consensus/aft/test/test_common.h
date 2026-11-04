@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/aft/consensus.h"
+#include "consensus/aft/cft.h"
 #include "ds/internal_logger.h"
 #include "kv/test/stub_consensus.h"
 #include "logging_stub.h"
@@ -10,7 +10,7 @@
 #include <chrono>
 #include <string>
 
-using TConsensus = aft::Aft<aft::LedgerStubProxy>;
+using TCft = aft::Aft<aft::LedgerStubProxy>;
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 
@@ -23,18 +23,18 @@ static const size_t max_uncommitted_tx_count_ = 0;
 static const std::chrono::milliseconds request_timeout = request_timeout_;
 static const std::chrono::milliseconds election_timeout = election_timeout_;
 
-static const ccf::consensus::Configuration consensus_settings{
+static const ccf::consensus::Configuration cft_settings{
   request_timeout_, election_timeout_, max_uncommitted_tx_count_};
 
 static auto hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
 
-static aft::ChannelStubProxy* channel_stub_proxy(const TConsensus& r)
+static aft::ChannelStubProxy* channel_stub_proxy(const TCft& r)
 {
   return (aft::ChannelStubProxy*)r.channels.get();
 }
 
 static void receive_message(
-  TConsensus& sender, TConsensus& receiver, std::vector<uint8_t> contents)
+  TCft& sender, TCft& receiver, std::vector<uint8_t> contents)
 {
   bool should_send = true;
   std::vector<uint8_t> body;
@@ -129,7 +129,7 @@ static std::shared_ptr<std::vector<uint8_t>> make_ledger_entry(
 
   // Each entry is so large that it produces a single AppendEntries, there are
   // never multiple combined into a single AppendEntries
-  e->resize(TConsensus::append_entries_size_limit);
+  e->resize(TCft::append_entries_size_limit);
 
   return e;
 }

@@ -147,13 +147,13 @@ def cli():
     # scenario trace generation
     tv.add_argument(
         "--raft-driver",
-        default="../build/consensus_driver",
-        help="Path to the consensus_driver binary",
+        default="../build/cft_driver",
+        help="Path to the cft_driver binary",
     )
     tv.add_argument(
         "--scenarios-runner",
-        default="../tests/consensus_scenarios_runner.py",
-        help="Path to the consensus_scenarios_runner.py script",
+        default="../tests/cft_scenarios_runner.py",
+        help="Path to the cft_scenarios_runner.py script",
     )
 
     # Simulation

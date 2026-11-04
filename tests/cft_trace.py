@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-"""Capture Fluentd Message-mode records in the Consensus driver's recorded order."""
+"""Capture CCF consensus protocol Fluentd records in the driver's recorded order."""
 
 import pathlib
 import socket
@@ -112,9 +112,7 @@ def run_driver(driver, scenario, timeout=60, *, text=True):
                     line = line.split("#", 1)[0].rstrip(" \t\n\r\f\v")
                     if line.startswith("===="):
                         break
-                    assert (
-                        not line
-                    ), f"No Consensus trace records captured for {scenario}"
+                    assert not line, f"No cft trace records captured for {scenario}"
         for sequence, record in enumerate(records):
             assert (
                 record["h_ts"] == sequence

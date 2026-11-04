@@ -430,13 +430,13 @@ def cli_args(
     )
     parser.add_argument(
         "--election-timeout-ms",
-        help="Consensus maximum election timeout for each node in the network",
+        help="CCF consensus protocol maximum election timeout for each node",
         type=int,
         default=os.getenv("ELECTION_TIMEOUT_MS") or 4000,
     )
     parser.add_argument(
         "--consensus-update-timeout-ms",
-        help="Consensus maximum timeout before primary sends updates",
+        help="CCF consensus protocol maximum timeout before primary sends updates",
         type=int,
         default=100,
     )
