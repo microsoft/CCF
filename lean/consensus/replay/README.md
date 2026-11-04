@@ -50,6 +50,7 @@ See [CI package isolation](../../disaster-recovery/README.md#ci-package-isolatio
 Every event must match a named rule; bootstrap selects the initial singleton membership.
 Rules read action inputs from their matching events, and only top-level alternatives backtrack.
 Actions must be enabled by the model.
+Consecutive packets to the same peer within a periodic or append-flush boundary reduce to one complete `sendEntries` pass, not independently scheduled batches.
 After bootstrap, each rule checks the native group's entry snapshot against model state before executing its protocol action.
 Retirement inputs may be enqueued before this check; they only take effect when the protocol action reaches the matching commit.
 

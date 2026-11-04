@@ -1,0 +1,57 @@
+# A delayed NACK can rewind sent_idx only after a complete send pass, not
+# between its term-bounded batches. The old Lean model allowed that interleaving.
+start_node,0
+emit_signature,2
+trust_nodes,2,1,2
+emit_signature,2
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_state_sync
+assert_last_txid,2,2.4
+
+# Only node 1 receives the old primary's suffix, so it is nominated next.
+replicate,2,old_term
+emit_signature,2
+periodic_one,0,10
+dispatch_single,0,1
+dispatch_single,1,0
+drop_pending_to,0,2
+assert_last_txid,1,2.6
+assert_last_txid,2,2.4
+nominate_successor,0
+dispatch_single,0,1
+dispatch_single,1,0
+dispatch_single,0,1
+assert_detail,1,leadership_state,Leader
+assert_detail,1,current_view,3
+
+# Drain the vote exchange, then retain two rejections of prev_idx=6.
+dispatch_single,1,2
+dispatch_single,2,1
+dispatch_single,1,2
+replicate,3,new_term
+emit_signature,3
+periodic_one,1,10
+dispatch_single,1,2
+assert_last_txid,2,2.4
+dispatch_single,2,1
+
+# One periodic call queues BOTH batches: (4,6] in term 2 and (6,8] in term 3.
+# Deliver the second, stale NACK before either batch reaches the follower.
+periodic_one,1,10
+dispatch_single,2,1
+dispatch_single,1,2
+assert_last_txid,2,2.6
+dispatch_single,1,2
+assert_last_txid,2,3.8
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,1,8
+assert_state_sync

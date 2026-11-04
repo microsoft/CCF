@@ -21,6 +21,9 @@ Each node reads membership, quorums and retirement ordering from its own ledger;
 There is no model-wide configuration after initialization.
 Initialization takes a nonempty initial voting membership, whose smallest member starts as primary with the genesis configuration transaction.
 Actions are local inputs (including timeouts) or delivery of a queued message; no clock is modeled.
+Each `sendEntries` input takes a peer and the list of batch end indexes for one complete, atomic send pass.
+Append-entry `flushes` use the same `(peer, batchEnds)` representation, preserving the per-entry, pre-commit flush boundary.
+Passes contain contiguous single-term batches ending at the current log end; responses cannot interleave between batches.
 
 ## Scope
 
@@ -46,6 +49,8 @@ CI runs this before import coverage, formatting, and linting so the initial buil
 The build also runs explicit action traces from an initialized network: committing a client request, and adding two nodes then electing a new primary and committing another request.
 The reconfiguration trace checks each node's ledger before delivery, after setup, after replication and commitment, after election, and after the new primary's client request.
 Append regressions check configuration heartbeats followed by flushing, pre-commit packet headers, per-entry flushing, term-bounded packets, and atomic rejection of invalid flush choices.
+Alignment regressions reject incomplete send passes and check that a delayed NACK rewinds the send frontier only after both term-bounded batches have been queued.
+The native [`atomic_send_pass` scenario](../../tests/cft_scenarios/atomic_send_pass) reproduces that delayed-NACK ordering across a leadership change; its raw capture can be checked with the [trace replayer](replay/README.md).
 These are regression examples, not exhaustive checking.
 `lake check` checks both default targets, `Consensus` and `consensus-replay`, in one invocation.
 It runs without sandboxing here, so build-time code must be trusted.

@@ -118,6 +118,28 @@ private def readAppendContent (head : Event) (config : Option Event)
     modify fun s => { s with nextRequestId := request + 1 }
     return .transaction request { configuration }
 
+/-- Consecutive packets to one peer belong to one locked send pass. -/
+private def sendPasses (packets : List (Event × NodeID × Nat))
+    : List (Event × NodeID × List Nat) :=
+  packets.foldr
+    (fun (source, destination, last) passes =>
+      match passes with
+      | (_, peer, ends) :: rest =>
+          if peer == destination then
+            (source, destination, last :: ends) :: rest
+          else
+            (source, destination, [last]) :: passes
+      | [] => [(source, destination, [last])])
+    []
+
+private def readSend (head : Event) : Reduction (Event × NodeID × Nat) := do
+  let next ← peek
+  event head "send_append_entries"
+  let packet ← readJson next next.message (field · "packet")
+  let destination ← modelNode next (← readJson next next.message (string · "to_node_id"))
+  let last ← readJson next packet (nat · "idx")
+  return (next, destination, last)
+
 private def ruleAppend : Reduction Unit := do
   let head ← peek
   -- consume
@@ -131,14 +153,10 @@ private def ruleAppend : Reduction Unit := do
   let flushes ←
     CCF.Parsec.optionalRule do
       event head "batch_flush"
-      CCF.Parsec.many do
-        let next ← peek
-        event head "send_append_entries"
-        let packet ← readJson next next.message (field · "packet")
-        let destination ←
-          modelNode next (← readJson next next.message (string · "to_node_id"))
-        let last ← readJson next packet (nat · "idx")
-        return (destination, last)
+      let packets ← CCF.Parsec.many (readSend head)
+      return (sendPasses packets).map
+        fun (_, destination, batchEnds) =>
+          (destination, batchEnds)
   optional_ (ruleCommit head)
   -- emit
   emitObserve head "append"
@@ -249,20 +267,13 @@ private def ruleTick : Reduction Unit := do
     emitObserve head "tick-election"
     emitAction head "tick-election" (.local head.node (.timeout .election))
   else
-    let sends ←
-      CCF.Parsec.many do
-        let next ← peek
-        event head "send_append_entries"
-        let packet ← readJson next next.message (field · "packet")
-        let destination ←
-          modelNode next (← readJson next next.message (string · "to_node_id"))
-        let last ← readJson next packet (nat · "idx")
-        return (next, destination, last)
+    let sends ← CCF.Parsec.many (readSend head)
     let demoted ← CCF.Parsec.optionalRule (event head "become_follower")
     -- emit
     emitObserve head "tick"
-    for (source, destination, last) in sends do
-      emitAction source "tick-send" (.local head.node (.sendEntries destination last))
+    for (source, destination, batchEnds) in sendPasses sends do
+      emitAction source "tick-send"
+        (.local head.node (.sendEntries destination batchEnds))
     if demoted.isSome then
       emitAction head "tick-check-quorum" (.local head.node (.timeout .checkQuorum))
 

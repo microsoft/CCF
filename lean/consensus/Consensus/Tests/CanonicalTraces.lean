@@ -76,13 +76,13 @@ private def clientRequestCommits : IO Unit := do
       [
         .local 0 (.append [{ content := .transaction 10 {} }]),
         .local 0 (.append [{ content := .signature }]),
-        .local 0 (.sendEntries 1 3),
+        .local 0 (.sendEntries 1 [3]),
         .deliver 0 1,
         .deliver 1 0,
-        .local 0 (.sendEntries 2 3),
+        .local 0 (.sendEntries 2 [3]),
         .deliver 0 2,
         .deliver 2 0,
-        .local 0 (.sendEntries 1 3),
+        .local 0 (.sendEntries 1 [3]),
         .deliver 0 1,
         .deliver 1 0
       ]
@@ -142,8 +142,8 @@ private def reconfigureElectAndCommit : IO Unit := do
   let state ←
     runTrace "replication" {0} nodes state
       [
-        .local 0 (.sendEntries 1 5),
-        .local 0 (.sendEntries 2 5),
+        .local 0 (.sendEntries 1 [5]),
+        .local 0 (.sendEntries 2 [5]),
         .deliver 0 1,
         .deliver 1 0,
         .deliver 0 2,
@@ -156,10 +156,10 @@ private def reconfigureElectAndCommit : IO Unit := do
   let state ←
     runTrace "commit notification" {0} nodes state
       [
-        .local 0 (.sendEntries 1 5),
+        .local 0 (.sendEntries 1 [5]),
         .deliver 0 1,
         .deliver 1 0,
-        .local 0 (.sendEntries 2 5),
+        .local 0 (.sendEntries 2 [5]),
         .deliver 0 2,
         .deliver 2 0
       ]
@@ -198,13 +198,13 @@ private def reconfigureElectAndCommit : IO Unit := do
       [
         .local 1 (.append [{ content := .transaction 30 {} }]),
         .local 1 (.append [{ content := .signature }]),
-        .local 1 (.sendEntries 0 7),
+        .local 1 (.sendEntries 0 [7]),
         .deliver 1 0,
         .deliver 0 1,
-        .local 1 (.sendEntries 2 7),
+        .local 1 (.sendEntries 2 [7]),
         .deliver 1 2,
         .deliver 2 1,
-        .local 1 (.sendEntries 0 7),
+        .local 1 (.sendEntries 0 [7]),
         .deliver 1 0,
         .deliver 0 1
       ]
@@ -224,10 +224,78 @@ private def reconfigureElectAndCommit : IO Unit := do
       s!"reconfigure, elect and commit: node {node} has the wrong term, role or membership"
   check state.network.isEmpty "reconfigure, elect and commit: undelivered messages remain"
 
+private def sendPassAlignment : IO Unit := do
+  let configuration : Finset NodeID := {0, 1, 2}
+  let system := Model.transitionSystem configuration [0, 1, 2]
+  let oldLog : List Entry :=
+    [
+      { term := 2, content := .transaction 0 { configuration := some configuration } },
+      { term := 2, content := .signature },
+      { term := 2, content := .transaction 1 {} },
+      { term := 2, content := .signature },
+      { term := 2, content := .transaction 2 {} },
+      { term := 2, content := .signature }
+    ]
+  let leader : NodeState :=
+    {
+      initialNodeState configuration 1 with
+        role := .primary
+        currentTerm := 3
+        log :=
+          oldLog
+          ++ [
+            { term := 3, content := .transaction 3 {} },
+            { term := 3, content := .signature }
+          ]
+        commitIndex := 4
+        sentIndex := fun _ => 4
+    }
+  let nack : Model.Envelope :=
+    {
+      source := 2
+      target := 1
+      payload := .appendEntriesResponse { term := 3, success := false, lastLogIndex := 4 }
+    }
+  let state : Model.State := { nodes := [(1, leader)], network := [nack] }
+  for ends in [[], [6], [8], [6, 6, 8], [6, 9]] do
+    check (system.step state (.local 1 (.sendEntries 2 ends))).isNone
+      s!"send pass: accepted incomplete, mixed-term or invalid batches {ends}"
+  let some sent := system.step state (.local 1 (.sendEntries 2 [6, 8]))
+  | throw (IO.userError "send pass: complete term-bounded pass was disabled")
+  check ((← get sent 1).sentIndex 2 == 8)
+    "send pass: frontier did not advance to the log end"
+  let packets := sent.network.filter fun envelope => envelope.source == 1
+  check
+    (packets.map (·.payload)
+      == [
+        .appendEntriesRequest (makeAppendEntriesRequest leader 4 6),
+        .appendEntriesRequest (makeAppendEntriesRequest leader 6 8)
+      ])
+    "send pass: batches were not queued together with contiguous headers"
+  let some rewound := system.step sent (.deliver nack)
+  | throw (IO.userError "send pass: delayed NACK was disabled")
+  check
+    ((← get rewound 1).sentIndex 2 == 4 && rewound.network == packets)
+    "send pass: delayed NACK did not rewind after both batches were queued"
+
+  let beforeAppend := { leader with log := leader.log.take 7 }
+  let state : Model.State := { nodes := [(1, beforeAppend)] }
+  let flush (ends : List Nat) : Model.Action :=
+    .local 1 (.append [{ content := .signature, flushes := [(2, ends)] }])
+  check (system.step state (flush [6])).isNone
+    "send pass: append accepted an incomplete flush"
+  let some flushed := system.step state (flush [6, 8])
+  | throw (IO.userError "send pass: complete append flush was disabled")
+  check
+    ((← get flushed 1).sentIndex 2 == 8
+      && flushed.network.map (·.payload) == packets.map (·.payload))
+    "send pass: append flush did not preserve the atomic pass or precommit headers"
+
 /-- Runs action traces and checks their ledgers and append-time packet emissions. -/
 def run : IO Unit := do
   clientRequestCommits
   reconfigureElectAndCommit
+  sendPassAlignment
   IO.println "Canonical action traces passed."
 
 #eval run
