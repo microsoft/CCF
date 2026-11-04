@@ -42,7 +42,7 @@ theorem reachable_store_data_invariants
     : ∀ (w : World) (sid : Nat) (s : Store),
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
-        → Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
+        → Kv.Properties.Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
   intro w sid s reachable live
   exact Proofs.Trace.reachable_store_data_invariants w (Invariants.reachable_invariant w reachable) sid s live
 
