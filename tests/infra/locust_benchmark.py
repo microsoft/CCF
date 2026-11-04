@@ -434,7 +434,7 @@ def measure(
         )
         LOG.info(f"Fluentd collector: {counts}")
         if collector.records == 0 or len(collector.processes) != len(args.nodes):
-            raise RuntimeError("Every benchmark node must export cft trace events")
+            raise RuntimeError("Every benchmark node must export ccf.cft trace events")
     return result
 
 
