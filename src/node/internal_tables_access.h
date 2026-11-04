@@ -18,6 +18,7 @@
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
 #include "crypto/cose.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
 #include "pal/uvm_endorsements.h"
@@ -355,6 +356,7 @@ namespace ccf
     static void create_service(
       ccf::kv::Tx& tx,
       const ccf::crypto::Pem& service_cert,
+      const std::optional<ccf::crypto::Pem>& pq_service_cert,
       ccf::TxID create_txid,
       nlohmann::json service_data = nullptr,
       bool recovering = false)
@@ -415,12 +417,14 @@ namespace ccf
         ->put(IdentityType::CLASSICAL, signing_identity);
 
       const ServiceInfo service_info{
-        service_cert,
-        recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
-        prev_service_created_at,
-        recovery_count,
-        service_data,
-        create_txid};
+        .cert = service_cert,
+        .pq_cert = pq_service_cert,
+        .status =
+          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
+        .previous_service_identity_version = prev_service_created_at,
+        .recovery_count = recovery_count,
+        .service_data = service_data,
+        .current_service_create_txid = create_txid};
       service->put(service_info);
     }
 
@@ -645,6 +649,25 @@ namespace ccf
       return service_status.has_value() &&
         (service_status.value() == ServiceStatus::RECOVERING ||
          service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES);
+    }
+
+    /// Prevents a downgrade: recovering a ledger whose service has an ML-DSA
+    /// identity on a build without ML-DSA would silently drop that identity.
+    /// @throws std::logic_error in that case
+    static void check_service_identity_supported(ccf::kv::ReadOnlyTx& tx)
+    {
+      if (ccf::crypto::mldsa_supported())
+      {
+        return;
+      }
+      const auto active_service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
+      if (active_service.has_value() && active_service->pq_cert.has_value())
+      {
+        throw std::logic_error(
+          "Cannot recover a ledger whose service has an ML-DSA identity with "
+          "a build without ML-DSA support. Use a build with OpenSSL 3.5 or "
+          "newer to recover this ledger.");
+      }
     }
 
     static void trust_node(

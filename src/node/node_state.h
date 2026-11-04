@@ -1002,6 +1002,26 @@ namespace ccf
         throw std::logic_error("Expected network info in join response");
       }
 
+      // The primary rejects such joins, so this only guards against a primary
+      // that ignores the declared capability. The identity never goes away, so
+      // do not keep retrying the join.
+      if (
+        !ccf::crypto::mldsa_supported() &&
+        resp.network_info->identity.pq_cert.has_value())
+      {
+        if (join_periodic_task != nullptr)
+        {
+          join_periodic_task->cancel_task();
+          join_periodic_task = nullptr;
+        }
+        const std::string error_msg =
+          "This build has no ML-DSA support and cannot join a service with an "
+          "ML-DSA service identity. Shutting down node gracefully...";
+        LOG_FAIL_FMT("{}", error_msg);
+        runtime_control.report_fatal_error(error_msg);
+        return;
+      }
+
       network.identity =
         std::make_unique<ccf::NetworkIdentity>(resp.network_info->identity);
       network.ledger_secrets->init_from_map(
@@ -1584,6 +1604,24 @@ namespace ccf
         config.attestation.snp_endorsements_servers);
     }
 
+    // Start and Recover must create an ML-DSA service identity on builds that
+    // support it; joiners install the primary's.
+    void check_pq_service_identity() const
+    {
+      if (network.identity->pq_cert.has_value())
+      {
+        return;
+      }
+      if (ccf::crypto::mldsa_supported())
+      {
+        throw std::logic_error(
+          "ML-DSA is supported but no ML-DSA service identity was created");
+      }
+      LOG_INFO_FMT(
+        "This build has no ML-DSA support: service_mldsa_parameter_set is "
+        "ignored and no ML-DSA service identity is created");
+    }
+
     NodeCreateInfo create(StartType start_type_, const ccf::CCFConfig& config_)
     {
       std::lock_guard<ds::Mutex> guard(lock);
@@ -1637,8 +1675,10 @@ namespace ccf
           network.identity = std::make_unique<ccf::NetworkIdentity>(
             config.command.start.service_subject_name,
             curve_id,
+            config.command.start.service_mldsa_parameter_set,
             startup_time,
             config.command.start.initial_service_certificate_validity_days);
+          check_pq_service_identity();
 
           network.ledger_secrets->init();
 
@@ -1691,8 +1731,10 @@ namespace ccf
             ccf::crypto::make_verifier(previous_service_identity_cert)
               ->subject_der(),
             curve_id,
+            config.command.recover.service_mldsa_parameter_set,
             startup_time,
             config.command.recover.initial_service_certificate_validity_days);
+          check_pq_service_identity();
 
           initiate_quote_generation();
 
@@ -1754,6 +1796,7 @@ namespace ccf
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = startup_inputs.node_data;
       join_params.ledger_sign_mode = ccf::get_ledger_sign_mode();
+      join_params.mldsa_supported = ccf::crypto::mldsa_supported();
       if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
         join_params.sealing_recovery_data = std::make_pair(
@@ -2271,6 +2314,8 @@ namespace ccf
           "Cannot recover a COSE-only ledger with a Dual signing binary. "
           "Use a COSE-only binary to recover this ledger.");
       }
+
+      InternalTablesAccess::check_service_identity_supported(tx);
 
       history->set_service_signing_identity(
         network.identity->get_key_pair(), cs_cfg);
@@ -3197,6 +3242,7 @@ namespace ccf
 
       create_params.public_key = node_sign_kp->public_key_pem();
       create_params.service_cert = network.identity->cert;
+      create_params.pq_service_cert = network.identity->pq_cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.measurement = node_measurement;
@@ -3617,6 +3663,7 @@ namespace ccf
         w->cert.str());
 
       network.identity->set_certificate(w->cert);
+      network.identity->set_pq_certificate(w->pq_cert);
       if (w->status == ServiceStatus::OPEN)
       {
         recovered_service_opening = RecoveredServiceOpening::Committed;

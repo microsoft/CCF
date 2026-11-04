@@ -502,6 +502,20 @@ namespace ccf
           payload);
       }
 
+      // Every node of a service with an ML-DSA identity must be able to hold
+      // it, so reject incapable joiners before they are recorded anywhere.
+      if (
+        active_service->pq_cert.has_value() &&
+        !in.mldsa_supported.value_or(false))
+      {
+        const std::string payload =
+          "This service has an ML-DSA identity and only accepts nodes built "
+          "with ML-DSA support (OpenSSL 3.5 or newer).";
+        LOG_INFO_FMT("Join request rejected: {}", payload);
+        return make_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, payload);
+      }
+
       auto* current_consensus = get_consensus();
       const auto should_redirect_to_primary =
         current_consensus != nullptr && !this->node_operation.can_replicate();
@@ -966,6 +980,7 @@ namespace ccf
         const auto& service_value = service_state.value();
         out.service_status = service_value.status;
         out.service_certificate = service_value.cert;
+        out.pq_service_certificate = service_value.pq_cert;
         out.recovery_count = service_value.recovery_count.value_or(0);
         out.service_data = service_value.service_data;
         out.current_service_create_txid =
@@ -1517,7 +1532,12 @@ namespace ccf
       }
 
       InternalTablesAccess::create_service(
-        ctx.tx, in.service_cert, in.create_txid, in.service_data, recovering);
+        ctx.tx,
+        in.service_cert,
+        in.pq_service_cert,
+        in.create_txid,
+        in.service_data,
+        recovering);
 
       if (recovering)
       {
@@ -1843,7 +1863,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.9";
+      openapi_info.document_version = "5.0.10";
     }
 
     void init_handlers() override
