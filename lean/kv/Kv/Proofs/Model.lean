@@ -36,15 +36,15 @@ theorem erase_keys (xs : Assoc K V) (k : K)
   (List.filter_map (f := Prod.fst) (p := (· != k)) (l := xs)).symm
 
 theorem erase_unique (xs : Assoc K V) (k : K) (h : Unique xs) : Unique (erase xs k) := by
-  unfold Unique
+  unfold Properties.Unique
   rw [erase_keys]
   exact List.Pairwise.filter _ h
 
 theorem set_unique (xs : Assoc K V) (k : K) (v : V) (h : Unique xs)
     : Unique (set xs k v) := by
-  simp only [Unique, Model.set, List.map_cons, List.nodup_cons]
+  simp only [Properties.Unique, Model.set, List.map_cons, List.nodup_cons]
   constructor
-  · simp [erase_keys]
+  · simp [erase_keys, eq_comm]
   · exact erase_unique xs k h
 
 theorem publish_lookup (db : DB M K V) (version : Nat) (ws : Writes M K V) (a : Addr M K)
