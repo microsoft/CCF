@@ -296,7 +296,7 @@ pre-vote and term 3 with node 2's votes while node 0 still leads term 2. -/
 def electionChoices : List (Consensus.Model.State -> Consensus.Model.Action) :=
   [
     input 0 (.append [{ content := .signature }]),
-    input 0 (.sendEntries 1 2),
+    input 0 (.sendEntries 1 [2]),
     deliverFrom 0 1,
     input 1 (.timeout .election),
     deliverFrom 1 2,
@@ -365,10 +365,10 @@ transaction, so node 1's log is behind and its pre-vote requests are refused.
 def commitChoices : List (Consensus.Model.State -> Consensus.Model.Action) :=
   [
     input 0 (.append [{ content := .signature }]),
-    input 0 (.sendEntries 1 2),
+    input 0 (.sendEntries 1 [2]),
     deliverOldest,
     deliverOldest,
-    input 0 (.sendEntries 1 2),
+    input 0 (.sendEntries 1 [2]),
     deliverOldest,
     input 0 (.append [{ content := .transaction 1 {} }, { content := .signature }]),
     input 1 (.timeout .election),
@@ -417,14 +417,14 @@ theorem commit_primary_present : (nodeState commitPrimaryCommitted 0).isSome := 
 
 theorem commit_follower_committed
     : (run commitSystem commitStart (commitChoices.take 6)).isSome := by
-  decide
+  decide +kernel
 
 /-- The state after node 1 learns the commit index. -/
 def commitFollowerCommitted : Consensus.Model.State :=
   (run commitSystem commitStart (commitChoices.take 6)).getD commitStart
 
 theorem commit_follower_present : (nodeState commitFollowerCommitted 1).isSome := by
-  decide
+  decide +kernel
 
 end Commit
 
@@ -523,7 +523,7 @@ lemma committed_logs_prefix_witness
     member_of_nodeState _,
     by decide,
     by decide,
-    by decide
+    by decide +kernel
   ⟩
 
 lemma single_node_committed_log_monotonic_witness
