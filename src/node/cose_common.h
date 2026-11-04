@@ -305,7 +305,9 @@ namespace ccf::cose
       }
 
       const auto array = vdp.map_value_at(i);
-      if (array.kind() != Kind::ARRAY || array.empty())
+      // Value::empty() reports a moved-from handle, not an empty container.
+      // NOLINTNEXTLINE(readability-container-size-empty)
+      if (array.kind() != Kind::ARRAY || array.size() == 0)
       {
         throw COSEDecodeError("Proofs must be a non-empty array");
       }

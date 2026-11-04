@@ -1150,6 +1150,7 @@ TEST_CASE("CCF receipt proof schema and mixed proofs")
          "a22081" + valid + "2180", // Empty consistency proofs array
        })
   {
+    CAPTURE(malformed_vdp);
     CHECK_THROWS(decode(malformed_vdp));
   }
 
