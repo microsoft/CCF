@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// A transaction which consensus is going to reject must never be published
+// A transaction which Cft is going to reject must never be published
 // to the ledger history. Readers of the history, for instance
 // set_root_on_proposals(), take no Store lock, so a transiently appended
 // digest would give them a root which is in neither the KV nor the ledger.
@@ -17,7 +17,7 @@
 // - Tx A passes Store::commit()'s view check under version_lock, which is
 //   then released.
 // - An election rolls the Store and the ledger history back to seqno 1.
-// - A appends its digest to the history, then consensus rejects it.
+// - A appends its digest to the history, then Cft rejects it.
 
 #include "node/history.h"
 #include "view_straddling_common.h"

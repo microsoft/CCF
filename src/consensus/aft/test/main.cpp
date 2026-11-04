@@ -977,7 +977,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
       r0.rollback(last_correct_version);
       DOCTEST_REQUIRE(r0.ledger->ledger.size() == last_correct_version);
 
-      // How do we force CCF to increment its view? Currently by hacking
+      // How do we force Cft to increment its view? Currently by hacking
       // to follower then force_become_primary. There should be a neater way to
       // do this.
       r0.become_aware_of_new_term(2);
@@ -1328,7 +1328,7 @@ struct TestNodeOptions
   bool public_only = false;
 };
 
-// A node's consensus, and the store it deserialises entries into. aft::Adaptor
+// A node's Cft, and the store it deserialises entries into. aft::Adaptor
 // only holds a weak_ptr to the store, so the two are kept together.
 struct TestNode
 {

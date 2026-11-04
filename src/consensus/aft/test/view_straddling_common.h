@@ -3,7 +3,7 @@
 #pragma once
 
 // Harness driving a real ccf::kv::Store through a single-node aft::Aft, so
-// CCF interleaves Store::commit() with replication and rollback as in
+// Cft interleaves Store::commit() with replication and rollback as in
 // production. Adapted from the harness in PR #8209.
 
 #include "kv/null_encryptor.h"
@@ -132,7 +132,7 @@ namespace straddling
   // transaction: hands over an already-serialised entry and cannot fail. It
   // pauses first, modelling the committing thread being descheduled after
   // Store::commit() has checked the transaction's view and released
-  // version_lock, but before it reaches consensus. In production this is the
+  // version_lock, but before it reaches Cft. In production this is the
   // thread blocking on aft::State::lock while an election holds it.
   class PausingMovePendingTx : public ccf::kv::PendingTx
   {
@@ -173,7 +173,7 @@ namespace straddling
     }
 
     // Split from the constructor so that a derived fixture can install a
-    // history before consensus is created and the baseline is committed.
+    // history before Cft is created and the baseline is committed.
     void start()
     {
       cft = std::make_shared<Cft>(

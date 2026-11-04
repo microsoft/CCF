@@ -29,7 +29,7 @@ int main(int argc, char** argv)
       "port");
   }
 
-  // Log all CCF consensus protocol steps to stdout; cft_scenarios_runner.py
+  // Log all Cft steps to stdout; cft_scenarios_runner.py
   // filters them.
   ccf::logger::config::add_text_console_logger();
   ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
