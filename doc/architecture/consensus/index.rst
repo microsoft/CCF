@@ -8,7 +8,7 @@ The key differences from the original protocol are as follows:
   More information can be found :doc:`here </architecture/merkle_tree>`.
   Transactions in the ledger before the last signed transactions are discarded during leader election.
 * CCF does not support node restart as the unique identity of each node is tied to the node process launch.
-  If a node fails and is replaced, it must rejoin the network via reconfiguration.
+  If the process running a node fails and is replaced by a new one, even on the same machine, it must be explicitly retired and the replacement must join the network via reconfiguration.
 * In CCF, clients receive an early response with a :term:`Transaction ID` (view and sequence number) before the transaction has been replicated to the ledger.
   The client can later use this transaction ID to verify that the transaction has been committed.
 * CCF uses an additional mechanism so a newly elected leader can more efficiently determine the current state of a follower's ledger when the two ledgers have diverged.
