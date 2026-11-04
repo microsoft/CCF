@@ -7,6 +7,7 @@
 #include "ccf/receipt.h"
 #include "crypto/cbor_helpers.h"
 
+#include <algorithm>
 #include <crypto/cbor_tags.h>
 #include <crypto/cose.h>
 #include <crypto/cose_utils.h>
@@ -129,32 +130,34 @@ namespace ccf::cose
     return ccf::crypto::Sha256Hash::from_span(fixed);
   }
 
+  static ccf::crypto::Sha256Hash fold_merkle_path(
+    ccf::crypto::Sha256Hash digest,
+    const std::vector<std::pair<int64_t, std::vector<uint8_t>>>& path)
+  {
+    for (const auto& [left, sibling_bytes] : path)
+    {
+      const auto sibling =
+        sha256_from_bytes(sibling_bytes, "Merkle proof sibling");
+      digest = left != 0 ? ccf::crypto::Sha256Hash(sibling, digest) :
+                           ccf::crypto::Sha256Hash(digest, sibling);
+    }
+
+    return digest;
+  }
+
   static std::vector<uint8_t> recompute_merkle_root(const MerkleProof& proof)
   {
     auto ce_digest = ccf::crypto::Sha256Hash(proof.leaf.commit_evidence);
 
-    auto leaf_digest = ccf::crypto::Sha256Hash(
+    const auto leaf_digest = ccf::crypto::Sha256Hash(
       sha256_from_bytes(
         proof.leaf.write_set_digest, "Merkle proof write set digest"),
       ce_digest,
       sha256_from_bytes(
         proof.leaf.claims_digest, "Merkle proof claims digest"));
 
-    for (const auto& element : proof.path)
-    {
-      const auto sibling =
-        sha256_from_bytes(element.second, "Merkle proof sibling");
-      if (element.first != 0)
-      {
-        leaf_digest = ccf::crypto::Sha256Hash(sibling, leaf_digest);
-      }
-      else
-      {
-        leaf_digest = ccf::crypto::Sha256Hash(leaf_digest, sibling);
-      }
-    }
-
-    return {leaf_digest.h.begin(), leaf_digest.h.end()};
+    const auto root = fold_merkle_path(leaf_digest, proof.path);
+    return {root.h.begin(), root.h.end()};
   }
 
   static void validate_array(
@@ -256,6 +259,11 @@ namespace ccf::cose
     return phdr;
   }
 
+  // Consistency proof map labels, draft-ietf-scitt-receipts-ccf-profile-06
+  // Section 4.
+  static constexpr int64_t CONSISTENCY_PROOF_ANCHOR_LABEL = 1;
+  static constexpr int64_t CONSISTENCY_PROOF_PATH_LABEL = 2;
+
   static std::vector<MerkleProof> decode_merkle_proofs(
     const tav::cbor::Value& cbor)
   {
@@ -276,19 +284,18 @@ namespace ccf::cose
       [&]() { return uhdr.map_at(make_signed(ccf::cose::header::iana::VDP)); },
       fmt::format("Parse vdp() map", ccf::cose::header::iana::VDP));
 
-    // Value::empty() checks handle ownership, not collection length.
-    const auto proof_types = vdp.kind() == Kind::MAP ? vdp.size() : 0;
-    if (proof_types == 0 || proof_types > 2)
+    if (vdp.kind() != Kind::MAP)
     {
-      throw COSEDecodeError("Invalid verifiable proofs map");
+      throw COSEDecodeError("Verifiable proofs must be a map");
     }
 
-    constexpr int64_t consistency_proofs_label = -2;
     bool has_consistency_proofs = false;
-    for (size_t i = 0; i < proof_types; ++i)
+    for (size_t i = 0; i < vdp.size(); ++i)
     {
-      const auto key = vdp.map_key_at(i).as_signed();
-      if (key == consistency_proofs_label)
+      const auto key = rethrow_with_msg(
+        [&]() { return vdp.map_key_at(i).as_signed(); },
+        "Parse verifiable proof type");
+      if (key == ccf::cose::header::iana::CONSISTENCY_PROOFS)
       {
         has_consistency_proofs = true;
       }
@@ -298,8 +305,7 @@ namespace ccf::cose
       }
 
       const auto array = vdp.map_value_at(i);
-      const auto proof_count = array.kind() == Kind::ARRAY ? array.size() : 0;
-      if (proof_count == 0)
+      if (array.kind() != Kind::ARRAY || array.size() == 0)
       {
         throw COSEDecodeError("Proofs must be a non-empty array");
       }
@@ -313,20 +319,9 @@ namespace ccf::cose
       "Parse inclusion proofs");
 
     std::vector<MerkleProof> proofs;
+    std::vector<uint8_t> root;
 
-    const auto proof_count = rethrow_with_msg(
-      [&]() {
-        const auto count = proofs_array.size();
-        if (count == 0)
-        {
-          throw DecodeError(Error::DECODE_FAILED, "Empty proofs array");
-        }
-
-        return count;
-      },
-      "Check proofs array");
-
-    for (size_t i = 0; i < proof_count; ++i)
+    for (size_t i = 0; i < proofs_array.size(); ++i)
     {
       auto cbor_proof = rethrow_with_msg(
         [&]() { return nondet_parse(proofs_array.array_at(i).as_bytes()); },
@@ -386,49 +381,65 @@ namespace ccf::cose
         },
         "Parse proof: path");
 
-      proof.path = decode_proof_path(cbor_path);
+      proof.path = rethrow_with_msg(
+        [&]() { return decode_proof_path(cbor_path); }, "Parse proof: path");
 
-      proofs.push_back(proof);
+      auto proof_root = recompute_merkle_root(proof);
+      if (proofs.empty())
+      {
+        root = std::move(proof_root);
+      }
+      else if (proof_root != root)
+      {
+        throw COSEDecodeError(
+          "Inconsistent Merkle roots computed from COSE receipt proofs");
+      }
+
+      proofs.push_back(std::move(proof));
     }
 
     if (has_consistency_proofs)
     {
       const auto consistency_proofs =
-        vdp.map_at(make_signed(consistency_proofs_label));
-      std::vector<std::vector<uint8_t>> newer_roots;
+        vdp.map_at(make_signed(ccf::cose::header::iana::CONSISTENCY_PROOFS));
       for (size_t i = 0; i < consistency_proofs.size(); ++i)
       {
-        const auto proof =
-          nondet_parse(consistency_proofs.array_at(i).as_bytes());
-        if (proof.kind() != Kind::MAP || proof.size() != 2)
+        const auto cbor_proof = rethrow_with_msg(
+          [&]() {
+            return nondet_parse(consistency_proofs.array_at(i).as_bytes());
+          },
+          "Parse an encoded consistency proof");
+
+        if (cbor_proof.kind() != Kind::MAP || cbor_proof.size() != 2)
         {
           throw COSEDecodeError(
             "Consistency proof must be a map with anchor and path");
         }
 
-        auto newer =
-          sha256_from_bytes(proof.map_at(make_signed(1)).as_bytes(), "anchor");
-        const auto path = decode_proof_path(proof.map_at(make_signed(2)));
+        const auto anchor = rethrow_with_msg(
+          [&]() {
+            return sha256_from_bytes(
+              cbor_proof.map_at(make_signed(CONSISTENCY_PROOF_ANCHOR_LABEL))
+                .as_bytes(),
+              "Consistency proof anchor");
+          },
+          "Parse consistency proof: anchor");
+
+        const auto path = rethrow_with_msg(
+          [&]() {
+            return decode_proof_path(
+              cbor_proof.map_at(make_signed(CONSISTENCY_PROOF_PATH_LABEL)));
+          },
+          "Parse consistency proof: path");
+
         if (path.empty() || path.front().first != 0)
         {
           throw COSEDecodeError(
             "Consistency proof must start with a right sibling");
         }
 
-        for (const auto& [left, digest] : path)
-        {
-          const auto sibling = sha256_from_bytes(digest, "sibling");
-          newer = left != 0 ? ccf::crypto::Sha256Hash(sibling, newer) :
-                              ccf::crypto::Sha256Hash(newer, sibling);
-        }
-
-        newer_roots.emplace_back(newer.h.begin(), newer.h.end());
-      }
-
-      const auto root = recompute_merkle_root(proofs.front());
-      for (const auto& newer : newer_roots)
-      {
-        if (newer != root)
+        const auto newer_root = fold_merkle_path(anchor, path);
+        if (!std::ranges::equal(newer_root.h, root))
         {
           throw COSEDecodeError(
             "Inconsistent Merkle roots computed from inclusion and consistency "
@@ -467,22 +478,13 @@ namespace ccf::cose
 
     if (recompute_root)
     {
-      auto proofs = decode_merkle_proofs(cose_envelope);
-      if (proofs.empty())
-      {
-        throw COSEDecodeError("No Merkle proofs found in COSE receipt");
-      }
-
+      // decode_merkle_proofs() guarantees at least one inclusion proof, and
+      // that all proofs recompute the same root.
+      const auto proofs = decode_merkle_proofs(cose_envelope);
       receipt.merkle_root = recompute_merkle_root(proofs[0]);
       receipt.claims_digest = proofs[0].leaf.claims_digest;
       for (size_t i = 1; i < proofs.size(); ++i)
       {
-        auto root = recompute_merkle_root(proofs[i]);
-        if (root != receipt.merkle_root)
-        {
-          throw COSEDecodeError(
-            "Inconsistent Merkle roots computed from COSE receipt proofs");
-        }
         if (proofs[i].leaf.claims_digest != receipt.claims_digest)
         {
           throw COSEDecodeError(fmt::format(

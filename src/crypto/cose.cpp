@@ -284,7 +284,13 @@ namespace ccf::cose::edit
       [&]() { return cose_envelope.array_at(3); },
       "Failed to parse COSE_Sign1 signature");
 
-    std::ignore = phdr.as_bytes();
+    if (phdr.kind() != Kind::BYTES)
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH,
+        "COSE_Sign1 protected header must be a byte string");
+    }
+
     if (cose_envelope.array_at(1).kind() != Kind::MAP)
     {
       throw DecodeError(
@@ -301,7 +307,11 @@ namespace ccf::cose::edit
         "COSE_Sign1 payload must be a byte string or nil");
     }
 
-    std::ignore = signature.as_bytes();
+    if (signature.kind() != Kind::BYTES)
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH, "COSE_Sign1 signature must be a byte string");
+    }
 
     Value replacement;
 
