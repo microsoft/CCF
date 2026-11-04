@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Added
 
 - `ccf::crypto::MLDSAKeyPair` can now issue X.509 certificates and PKCS#10 certificate signing requests signed with pure ML-DSA (`create_csr()`, `sign_csr()`, `self_sign()`), and `ccf::crypto::make_verifier()` accepts ML-DSA certificates, verifying their signatures with `MDType::NONE`. The ML-DSA headers are now included on every build; with OpenSSL older than 3.5, `make_mldsa_key_pair()` and `make_mldsa_public_key()` throw `std::runtime_error` (#8629).
-- Services started or recovered by a node built with OpenSSL 3.5 or newer also get an ML-DSA service certificate (`pq_cert` in `ccf::ServiceInfo`, `pq_service_certificate` in `GET /node/network`), with the parameter set chosen by the new [`service_mldsa_parameter_set`](doc/host_config_schema/host_config.json) setting, renewed by the new `set_pq_service_certificate_validity` proposal action of the default constitution. Only such nodes can join these services, and 8.x nodes without ML-DSA support refuse to recover them; recovering them with 7.x nodes is unsupported and drops the ML-DSA identity. See the [7.x to 8.x migration guide](doc/build_apps/migration_7_x_to_8_x.rst) (#8632).
+- Nodes built with OpenSSL 3.5 or newer give the services they start or recover an ML-DSA service certificate (`pq_service_certificate` in `GET /node/network`), selected by `service_mldsa_parameter_set` and renewed by the `set_pq_service_certificate_validity` proposal. Such services only accept nodes with ML-DSA support; see the [7.x to 8.x migration guide](doc/build_apps/migration_7_x_to_8_x.rst) (#8632).
 
 ### Changed
 
