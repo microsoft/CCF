@@ -29,9 +29,6 @@ EXTENSIONS=(
   js cjs mjs ts
   # Rust
   rs
-  # TLA+ specs and their model configs. TLA+ permits Unicode, but we enforce
-  # ASCII in lieu of an official formatter.
-  tla cfg
   # Build / config
   cmake toml ini
   # Data interchange / schemas
@@ -58,7 +55,6 @@ EXTENSIONS=(
 declare -A LEGACY_NON_ASCII_LINES=(
   ["python/src/ccf/ledger_viz.py"]="da452fa6d2ee3717bf92ca53b9225a3aa53ba66e838e39decba2d50edc539855"
   ["js/ccf-app/doc/theme/partials/analytics.hbs"]="d22a72116e0f20860074017113d763917f4516d95a566d9ab90464f60ec7f144"
-  ["tla/consensus/MCAliases.tla"]=$'b9acbf868d048a06807d3d7bd7d321610a271281285476e24d6c646fe88ce637\n57f4a8bc014081bb7465cb339edf54e506ced1cfabf26e468dc96b1dedab87af'
 )
 
 globs=(
