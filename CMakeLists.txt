@@ -863,14 +863,14 @@ if(BUILD_TESTS)
     target_link_libraries(tcp_test PRIVATE uv)
 
     add_unit_test(
-      raft_test
+      cft_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/committable_suffix.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_straddling_rollback.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_straddling_history.cpp
     )
-    target_link_libraries(raft_test PRIVATE ccfcrypto ccf_kv ccf_tasks)
+    target_link_libraries(cft_test PRIVATE ccfcrypto ccf_kv ccf_tasks)
 
     add_unit_test(
       tracing_test
@@ -884,11 +884,11 @@ if(BUILD_TESTS)
     set_tests_properties(tracing_test PROPERTIES TIMEOUT 30)
 
     add_unit_test(
-      raft_enclave_test
+      cft_enclave_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/enclave.cpp
     )
-    target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(raft_enclave_test PRIVATE ccfcrypto)
+    target_include_directories(cft_enclave_test PRIVATE ${CCFCRYPTO_INC})
+    target_link_libraries(cft_enclave_test PRIVATE ccfcrypto)
 
     add_unit_test(
       crypto_test
@@ -1205,35 +1205,35 @@ if(BUILD_TESTS)
       PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto
     )
 
-    # Raft driver and scenario test
+    # Consensus driver and scenario test
     add_executable(
-      raft_driver
+      cft_driver
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
     )
-    add_san(raft_driver)
-    add_warning_checks(raft_driver)
-    enable_coverage(raft_driver)
-    target_link_libraries(raft_driver PRIVATE ccfcrypto ccf_tasks)
-    target_include_directories(raft_driver PRIVATE src/aft)
+    add_san(cft_driver)
+    add_warning_checks(cft_driver)
+    enable_coverage(cft_driver)
+    target_link_libraries(cft_driver PRIVATE ccfcrypto ccf_tasks)
+    target_include_directories(cft_driver PRIVATE src/consensus/aft)
 
     add_test(
-      NAME raft_scenario_test
+      NAME cft_scenario_test
       COMMAND
-        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
-        ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios/
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/cft_scenarios_runner.py ./cft_driver
+        ${CMAKE_SOURCE_DIR}/tests/cft_scenarios/
     )
-    add_test_target(raft_scenario_test raft_driver)
-    add_test_label(raft_scenario_test raft_scenario bucket_c)
+    add_test_target(cft_scenario_test cft_driver)
+    add_test_label(cft_scenario_test cft_scenario bucket_c)
 
     if(COVERAGE)
-      # The scenario runner spawns raft_driver once per scenario file; give
+      # The scenario runner spawns cft_driver once per scenario file; give
       # each process a uniquely-named .profraw (by PID) in the build directory
       # so scripts/coverage.sh discovers them and the scenarios contribute to
       # the aggregated coverage report.
       set_property(
-        TEST raft_scenario_test
+        TEST cft_scenario_test
         APPEND
-        PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=raft_scenario-%p.profraw"
+        PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=cft_scenario-%p.profraw"
       )
     endif()
 
@@ -1544,8 +1544,8 @@ if(BUILD_TESTS)
     list(APPEND FLUENTD_TEST_ARGS --fluentd ${FLUENTD_EXECUTABLE})
   endif()
   add_e2e_test(
-    NAME raft_trace_e2e
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/raft_trace_e2e.py
+    NAME cft_trace_e2e
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/cft_trace_e2e.py
     BUCKET bucket_c
     BUILD_DEPENDS logging
     ADDITIONAL_ARGS --package samples/apps/logging/logging ${FLUENTD_TEST_ARGS}

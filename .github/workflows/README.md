@@ -150,10 +150,10 @@ File: `long-verification.yml`
 
 # TLA Shallow Verification
 
-Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
+Runs on pull requests that change `tla/` or `src/consensus/aft/cft.h`.
 
 - Simulates the consistency and consensus specifications on a GitHub-hosted runner. The simulation job has a 10-minute timeout.
-- Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
+- Builds the CCF consensus scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
 
 File: `tla-shallow.yml`
 3rd party dependencies: None
@@ -161,13 +161,13 @@ File: `tla-shallow.yml`
 # Lean
 
 Runs Lean verification for the repository, with each package checked in an isolated reusable-workflow job.
-All five packages (ccf-raft, common, consistency, disaster-recovery, and kv) run in one matrix.
+All five packages (consensus, common, consistency, disaster-recovery, and kv) run in one matrix.
 Package checks use the `gha-vmss-d16av7-ci` pool and trace replays use `gha-vmss-d16av7-ci-b`, both in Ubuntu 26.04 containers.
 Native trace captures remain on `gha-vmss-d16av7-ci-c` with Azure Linux containers, and the lightweight final gate uses GitHub-hosted Ubuntu.
 Each matrix job caches its third-party dependency checkouts and build outputs, including Mathlib and (where used) leanfmt, using GitHub Actions caching.
 Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
 CCF package and common build outputs are not cached, and all verification steps still run, including Mathlib's upstream cache retrieval.
-Raft and KV trace captures run in parallel with package checks.
+CCF consensus and KV trace captures run in parallel with package checks.
 Two independent trace-validation jobs each restore Mathlib caches, build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
 A final summary job requires every package and trace job to succeed.
 
@@ -198,7 +198,7 @@ The dedicated replay job builds `kv-replay` separately to validate the captured 
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
-It also runs on changes to the C++ sources and trace runners checked against the Raft and KV models: `src/consensus/aft/`, the Raft scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
+It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
