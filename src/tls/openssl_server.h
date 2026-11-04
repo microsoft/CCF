@@ -18,11 +18,13 @@
 #include "tls/inbound_admission.h"
 #include "tls/socket_utils.h"
 
+#include <algorithm>
 #include <arpa/inet.h>
 #include <atomic>
 #include <cassert>
 #include <cerrno>
 #include <chrono>
+#include <climits>
 #include <condition_variable>
 #include <cstdint>
 #include <cstring>
@@ -502,8 +504,7 @@ namespace ccf::tls
         (void)chain_cert.release();
       }
 
-      OpenSSL::Unique_BIO kbio(
-        key_pem.data(), static_cast<int>(key_pem.size()));
+      OpenSSL::Unique_BIO kbio(key_pem.data(), key_pem.size());
       OpenSSL::Unique_PKEY pkey(
         PEM_read_bio_PrivateKey(kbio, nullptr, nullptr, nullptr),
         EVP_PKEY_free,
@@ -916,10 +917,13 @@ namespace ccf::tls
       while (c.out_off < c.outbuf.size())
       {
         ERR_clear_error();
+        // SSL_write takes an int length. SSL_MODE_ENABLE_PARTIAL_WRITE is
+        // set, so each call may write any prefix of the remainder.
+        const size_t remaining = c.outbuf.size() - c.out_off;
         const int n = SSL_write(
           c.ssl,
           c.outbuf.data() + c.out_off,
-          static_cast<int>(c.outbuf.size() - c.out_off));
+          static_cast<int>(std::min(remaining, size_t{INT_MAX})));
         if (n > 0)
         {
           c.out_off += static_cast<size_t>(n);
