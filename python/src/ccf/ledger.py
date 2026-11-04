@@ -519,6 +519,7 @@ class LedgerValidator:
     """
     Ledger Validator contains the logic to verify that the ledger hasn't been tampered with.
     It has the ability to take transactions and it maintains a MerkleTree data structure similar to CCF.
+    The Merkle tree is pruned automatically to limit memory use.
 
     Ledger is valid and hasn't been tampered with if following conditions are met:
         1) The merkle proof is signed by a Trusted node in the given network
@@ -802,6 +803,9 @@ class LedgerValidator:
                         )
                     self.last_verified_seqno = transaction.gcm_header.seqno
                     self.last_verified_view = transaction.gcm_header.view
+
+            # Only subtree roots are needed to verify subsequent signatures.
+            self.merkle.flush(self.merkle.get_leaf_count() - 1)
 
         # Checks complete, add this transaction to tree (for MERKLE and above)
         if self.verification_level >= VerificationLevel.MERKLE:

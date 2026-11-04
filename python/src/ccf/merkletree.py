@@ -26,14 +26,43 @@ class MerkleTree:
         self._root = None  # Need to recalculate
 
     @property
-    def leaves(self):
-        return self._levels[0]
+    def leaves(self) -> list[bytes]:
+        """Return the retained leaves, excluding flushed subtree roots."""
+        return self._levels[0][self._num_flushed & 1 :]
 
     def get_leaf(self, index: int) -> bytes:
-        return self.leaves[index]
+        """Return a leaf by absolute index, raising IndexError if unavailable."""
+        if index < self._num_flushed or index >= self.get_leaf_count():
+            raise IndexError("Leaf index out of bounds")
+        return self._levels[0][index - self._num_flushed + (self._num_flushed & 1)]
 
     def get_leaf_count(self) -> int:
-        return len(self.leaves)
+        """Return the total number of leaves, including flushed leaves."""
+        return self._num_flushed + len(self._levels[0]) - (self._num_flushed & 1)
+
+    def flush(self, index: int) -> None:
+        """Discard leaves before an absolute index without changing the root.
+
+        The leaf at index is retained and new leaves can still be appended.
+        Flushing to an already flushed index is a no-op.
+
+        Raises:
+            IndexError: If index is negative or beyond the last leaf.
+        """
+        if index < 0:
+            raise IndexError("Leaf index out of bounds")
+        if index <= self._num_flushed:
+            return
+        if index >= self.get_leaf_count():
+            raise IndexError("Leaf index out of bounds")
+
+        self.get_merkle_root()
+        for level_idx, level in enumerate(self._levels):
+            # Keep the left sibling when the path to index goes right.
+            old_start = (self._num_flushed >> level_idx) & ~1
+            new_start = (index >> level_idx) & ~1
+            del level[: new_start - old_start]
+        self._num_flushed = index
 
     def get_merkle_root(self) -> bytes:
         if self._root is None:

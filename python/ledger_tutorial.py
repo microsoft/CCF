@@ -31,7 +31,6 @@ for chunk in ledger:
         public_tables = transaction.get_public_domain().get_tables()
 
         if target_table in public_tables:
-            # Ledger verification is happening implicitly in ccf.ledger.Ledger()
             for key, value in public_tables[target_table].items():
                 # Note: `key` and `value` are raw bytes here.
                 # This code needs to have knowledge of the serialisation format for each table.
