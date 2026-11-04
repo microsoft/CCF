@@ -14,6 +14,7 @@ Reasons for running the code upgrade procedure include:
     - If more than a majority of nodes have failed, the disaster recovery procedure should be run by operators instead (see :doc:`/operations/recovery`).
 
 .. note:: CCF guarantees specific live compatibility across different LTS versions. See :ref:`build_apps/release_policy:Operations compatibility` for more details.
+    A service that has an ML-DSA service identity only accepts nodes built with ML-DSA support (see :ref:`build_apps/migration_7_x_to_8_x:ML-DSA Service Identity`).
 
 Procedure
 ---------

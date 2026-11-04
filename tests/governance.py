@@ -480,6 +480,13 @@ def renew_service_certificate(network, args, valid_from, validity_period_days):
         valid_from=valid_from_x509,
         validity_period_days=validity_period_days,
     )
+    # Also renew the ML-DSA service certificate, when the service has one
+    if network.get_pq_service_certificate() is not None:
+        network.consortium.set_pq_service_certificate_validity(
+            primary,
+            valid_from=valid_from_x509,
+            validity_period_days=validity_period_days,
+        )
     network.verify_service_certificate_validity_period(
         validity_period_days or args.maximum_service_certificate_validity_days
     )
@@ -531,6 +538,42 @@ def test_service_cert_renewal_extended(network, args):
         # Using new cert also works
         with primary.client() as c:
             c.get("/node/network/nodes")
+
+    return network
+
+
+@reqs.description("Renew ML-DSA service certificate - rejected proposals")
+def test_pq_service_cert_renewal_rejected(network, args):
+    primary, _ = network.find_primary()
+    service_cert_before = network.get_service_identity()
+    pq_cert_before = network.get_pq_service_certificate()
+
+    test_vectors = [(-1, infra.proposal.ProposalNotCreated)]
+    if pq_cert_before is None:
+        # Nothing to renew on a classical-only service
+        test_vectors.append((None, infra.proposal.ProposalNotAccepted))
+    else:
+        test_vectors.append(
+            (
+                args.maximum_service_certificate_validity_days + 1,
+                infra.proposal.ProposalNotAccepted,
+            )
+        )
+
+    for validity_period_days, expected_exception in test_vectors:
+        try:
+            network.consortium.set_pq_service_certificate_validity(
+                primary,
+                valid_from=str(datetime.now(UTC)),
+                validity_period_days=validity_period_days,
+            )
+        except expected_exception:
+            continue
+        raise AssertionError("Proposal should have not succeeded")
+
+    # Rejected proposals leave both certificates unchanged
+    assert network.get_service_identity() == service_cert_before
+    assert network.get_pq_service_certificate() == pq_cert_before
 
     return network
 
@@ -627,6 +670,7 @@ def gov(args):
             test_all_nodes_cert_renewal(recovered_network, args)
             test_service_cert_renewal(recovered_network, args)
             test_service_cert_renewal_extended(recovered_network, args)
+            test_pq_service_cert_renewal_rejected(recovered_network, args)
         finally:
             recovered_network.stop_all_nodes(skip_verification=True)
 

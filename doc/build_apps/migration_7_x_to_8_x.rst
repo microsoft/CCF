@@ -40,3 +40,16 @@ Removal of the entire ``memory`` section is planned for 8.0. Migrate to the new 
 ``ledger.max_read_size`` limits ledger-entry data bytes, including entry framing. No ringbuffer response metadata allowance is subtracted, even when using the legacy alias.
 This increases the effective read budget by 2048 bytes compared with previous releases at the same configured size.
 ``ledger.max_transaction_size`` must not exceed this budget. The independent node-to-node limit includes message headers but excludes the 4-byte length prefix.
+
+ML-DSA Service Identity
+-----------------------
+
+A service started or recovered by a node built with ML-DSA support (OpenSSL 3.5 or newer, the Azure Linux 4 builds of 8.x) gets an ML-DSA service identity in addition to its classical one: an ML-DSA service certificate, stored as ``pq_cert`` in ``public:ccf.gov.service.info`` and returned by :http:GET:`/node/network`, with the parameter set chosen by ``command.start.service_mldsa_parameter_set`` or ``command.recover.service_mldsa_parameter_set`` (default ``ML-DSA-65``).
+Nodes that join a service never create one.
+
+- A live code upgrade does not create it. Joining nodes only receive the identity the service already has, so a 7.x service upgraded to 8.x nodes keeps its classical identity only.
+- Starting a new service or recovering an existing one on such a node always creates it. Recovery of a classical-only ledger is the way to give an existing service an ML-DSA identity.
+- Once a service has an ML-DSA identity, every node must be able to hold it. Join requests from nodes built without ML-DSA support, including all 7.x nodes, are rejected with ``400 Bad Request`` before the node is recorded, and a node built without ML-DSA support aborts the recovery of a ledger whose service has one at the end of the public ledger. Such a service therefore cannot be rolled back to 7.x nodes, by joining or by disaster recovery. Plan the recovery that introduces the identity for after the live upgrade has completed and been validated.
+- The ML-DSA service certificate is renewed by the ``set_pq_service_certificate_validity`` proposal of the 8.x default constitution (see :ref:`governance/common_member_operations:Renewing ML-DSA Service Certificate`).
+  A recovery keeps the constitution stored in the ledger, so under a 7.x or custom constitution the ML-DSA certificate expires after ``initial_service_certificate_validity_days``.
+  After the recovery that introduces the identity and before the first renewal, install the 8.x default constitution with ``set_constitution``, or port its ``set_pq_service_certificate_validity`` action into the custom constitution.

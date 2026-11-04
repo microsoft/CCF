@@ -13,6 +13,7 @@ namespace ccf::js::extensions
    * - ccf.network.getLatestLedgerSecretSeqno
    * - ccf.network.generateEndorsedCertificate
    * - ccf.network.generateNetworkCertificate
+   * - ccf.network.generatePQNetworkCertificate
    *
    **/
   class NetworkExtension : public ExtensionInterface
