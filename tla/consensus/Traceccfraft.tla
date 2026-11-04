@@ -1,12 +1,12 @@
 -------------------------------- MODULE Traceccfraft -------------------------------
 EXTENDS ccfraft, Json, IOUtils, Sequences, MCAliases
 
-\* raft_types.h enum RaftMsgType
-RaftMsgType ==
-    "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
-    "raft_request_vote" :> RequestVoteRequest @@ "raft_request_pre_vote" :> RequestVoteRequest @@ 
-    "raft_request_vote_response" :> RequestVoteResponse @@ "raft_request_pre_vote_response" :> RequestVoteResponse @@
-    "raft_propose_request_vote" :> ProposeVoteRequest
+\* cft_types.h enum CftMsgType
+CftMsgType ==
+    "append_entries" :> AppendEntriesRequest @@ "append_entries_response" :> AppendEntriesResponse @@
+    "request_vote" :> RequestVoteRequest @@ "request_pre_vote" :> RequestVoteRequest @@
+    "request_vote_response" :> RequestVoteResponse @@ "request_pre_vote_response" :> RequestVoteResponse @@
+    "propose_request_vote" :> ProposeVoteRequest
 
 ToLeadershipState ==
     "Follower" :>  Follower @@ 
@@ -22,16 +22,16 @@ ToMembershipState ==
 
 IsHeader(msg, dst, src, logline, type) ==
     /\ msg.type = type
-    /\ msg.type = RaftMsgType[logline.msg.packet.msg]
+    /\ msg.type = CftMsgType[logline.msg.packet.msg]
     /\ msg.dest   = dst
     /\ msg.source = src
     /\ msg.term = logline.msg.packet.term
 
 IsAppendEntriesRequest(msg, dst, src, logline) ==
     (*
-    | ccfraft.tla   | json               | raft.h             |
+    | ccfraft.tla   | json               | cft.h              |
     |---------------|--------------------|--------------------|
-    | type          | .msg               | raftType           |
+    | type          | .msg               | CftMsgType         |
     | term          | .term              | state->currentTerm |
     | prevLogTerm   | .prev_term         | prev_term          |
     | prevLogIndex  | .prev_idx          | prev_idx           |
@@ -49,7 +49,7 @@ IsAppendEntriesRequest(msg, dst, src, logline) ==
 
 IsAppendEntriesResponse(msg, dst, src, logline) ==
     /\ IsHeader(msg, dst, src, logline, AppendEntriesResponse)
-    \* raft_types.h enum AppendEntriesResponseType
+    \* cft_types.h enum AppendEntriesResponseType
     /\ msg.success = (logline.msg.packet.success = "OK")
     /\ msg.lastLogIndex = logline.msg.packet.last_log_idx
 
@@ -57,7 +57,7 @@ IsRequestVoteRequest(msg, dst, src, logline) ==
     /\ IsHeader(msg, dst, src, logline, RequestVoteRequest)
     /\ msg.lastCommittableIndex = logline.msg.packet.last_committable_idx
     /\ msg.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
-    /\ IF logline.msg.packet.msg = "raft_request_vote"
+    /\ IF logline.msg.packet.msg = "request_vote"
        THEN msg.isPreVote = FALSE
        ELSE msg.isPreVote = TRUE
 
@@ -396,7 +396,7 @@ IsSendRequestVoteResponse ==
            j == logline.msg.to_node_id
        IN \E m \in Network!Messages:
             /\ IsRequestVoteResponse(m, j, i, logline)
-            /\ m.isPreVote = (logline.msg.packet.msg = "raft_request_pre_vote_response")
+            /\ m.isPreVote = (logline.msg.packet.msg = "request_pre_vote_response")
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
@@ -642,7 +642,7 @@ AppendEntriesResponses ==
 -------------------------------------------------------------------------------------
 
 ComposedNext ==
-    \* The implementation raft.h piggybacks UpdateTerm messages on the AppendEntries
+    \* CCF piggybacks UpdateTerm messages on the AppendEntries
      \* and Vote messages.  Thus, we need to compose the UpdateTerm action with the
      \* corresponding AppendEntries and RequestVote actions.  This is a reasonable
      \* code-level optimization that we do not want to model explicitly in TLA+.

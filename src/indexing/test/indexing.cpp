@@ -4,7 +4,7 @@
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/indexing/strategies/seqnos_by_key_in_memory.h"
-#include "consensus/aft/raft.h"
+#include "consensus/aft/cft.h"
 #include "consensus/aft/test/logging_stub.h"
 #include "consensus/test/ledger_stub.h"
 #include "crypto/openssl/hash.h"
@@ -383,15 +383,15 @@ ccf::kv::Version rekey(
   return tx_version;
 }
 
-aft::LedgerStubProxy* add_raft_consensus(
+aft::LedgerStubProxy* add_cft_consensus(
   std::shared_ptr<ccf::kv::Store> kv_store,
   std::shared_ptr<ccf::indexing::Indexer> indexer)
 {
-  using TRaft = aft::Aft<aft::LedgerStubProxy>;
-  using AllCommittableRaftConsensus = AllCommittableWrapper<TRaft>;
+  using TCft = aft::Aft<aft::LedgerStubProxy>;
+  using AllCommittableCftConsensus = AllCommittableWrapper<TCft>;
   const std::string node_id = "Node 0";
   const ccf::consensus::Configuration settings{{"20ms"}, {"100ms"}};
-  auto consensus = std::make_shared<AllCommittableRaftConsensus>(
+  auto consensus = std::make_shared<AllCommittableCftConsensus>(
     settings,
     std::make_unique<aft::Adaptor<ccf::kv::Store>>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
@@ -435,7 +435,7 @@ TEST_CASE_TEMPLATE(
   auto index_a = std::make_shared<AA>(map_a);
   REQUIRE(indexer.install_strategy(index_a));
 
-  auto ledger = add_raft_consensus(kv_store_p, indexer_p);
+  auto ledger = add_cft_consensus(kv_store_p, indexer_p);
 
   ledger_secrets->init();
   {
@@ -631,7 +631,7 @@ TEST_CASE(
   auto index_b = std::make_shared<IndexB>(map_b);
   REQUIRE(indexer.install_strategy(index_b));
 
-  auto ledger = add_raft_consensus(kv_store_p, indexer_p);
+  auto ledger = add_cft_consensus(kv_store_p, indexer_p);
 
   ledger_secrets->init();
   {
@@ -869,7 +869,7 @@ TEST_CASE(
   auto index_b = std::make_shared<IndexB>(map_b);
   REQUIRE(indexer.install_strategy(index_b));
 
-  auto ledger = add_raft_consensus(kv_store_p, indexer_p);
+  auto ledger = add_cft_consensus(kv_store_p, indexer_p);
   fetcher->ledger = ledger;
 
   ledger_secrets->init();

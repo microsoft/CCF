@@ -4,8 +4,8 @@
 
 #include "ccf/ds/locking.h"
 #include "ccf/entity_id.h"
-#include "consensus/aft/raft.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft.h"
+#include "consensus/aft/cft_types.h"
 
 #include <map>
 #include <optional>
@@ -197,7 +197,7 @@ namespace aft
 
     ChannelStubProxy() {}
 
-    size_t count_messages_with_type(RaftMsgType type)
+    size_t count_messages_with_type(CftMsgType type)
     {
       size_t count = 0;
       for (const auto& [nid, m] : messages)
@@ -205,7 +205,7 @@ namespace aft
         const uint8_t* data = m.data();
         size_t size = m.size();
 
-        if (serialized::peek<RaftMsgType>(data, size) == type)
+        if (serialized::peek<CftMsgType>(data, size) == type)
         {
           ++count;
         }
@@ -215,7 +215,7 @@ namespace aft
     }
 
     std::optional<std::vector<uint8_t>> pop_first(
-      RaftMsgType type, ccf::NodeId target)
+      CftMsgType type, ccf::NodeId target)
     {
       for (auto it = messages.begin(); it != messages.end(); ++it)
       {
@@ -223,7 +223,7 @@ namespace aft
         const uint8_t* data = m.data();
         size_t size = m.size();
 
-        if (serialized::peek<RaftMsgType>(data, size) == type)
+        if (serialized::peek<CftMsgType>(data, size) == type)
         {
           if (target == nid)
           {

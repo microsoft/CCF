@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$PACKAGE" in
-            ccf-raft|common|consistency|disaster-recovery|kv) ;;
+            consensus|common|consistency|disaster-recovery|kv) ;;
             *)
               echo "::error::Unsupported Lean package: $PACKAGE"
               exit 1
@@ -57,7 +57,7 @@ jobs:
           elan run --install "$(cat lean/lean-toolchain)" lean --version
 
       - name: Restore dependency builds
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: lean/${{ inputs.package }}/.lake/packages
           key: lean-deps-v2-vmss-ubuntu-26.04-${{ runner.arch }}-${{ inputs.package }}-${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-package.yml') }}
@@ -72,11 +72,11 @@ jobs:
         working-directory: lean/${{ inputs.package }}
         run: |
           set -euo pipefail
-          if [ "$PACKAGE" = "ccf-raft" ]; then
+          if [ "$PACKAGE" = "consensus" ]; then
             original="$(mktemp)"
             cp lakefile.toml "$original"
             trap 'cp "$original" lakefile.toml; rm "$original"' EXIT
-            for target in CCFRaft ccfraft-replay; do
+            for target in Consensus consensus-replay; do
               echo "::group::Kernel and axiom check: $target"
               sed "s/^defaultTargets = .*/defaultTargets = [\"$target\"]/" "$original" > lakefile.toml
               lake check --inadvisably-no-sandbox
@@ -110,33 +110,33 @@ jobs:
           fi
           lake lint
 
-      - name: Build Raft replay
-        if: inputs.package == 'ccf-raft'
-        working-directory: lean/ccf-raft
+      - name: Build CCF consensus replay
+        if: inputs.package == 'consensus'
+        working-directory: lean/consensus
         run: |
           set -euo pipefail
-          lake build --wfail ccfraft-replay
+          lake build --wfail consensus-replay
 
-      - name: Validate Raft trace fixtures
-        if: inputs.package == 'ccf-raft'
+      - name: Validate CCF consensus trace fixtures
+        if: inputs.package == 'consensus'
         run: |
           set -euo pipefail
           shopt -s failglob
-          for trace in lean/ccf-raft/replay/fixtures/valid/*.ndjson; do
+          for trace in lean/consensus/replay/fixtures/valid/*.ndjson; do
             echo "::group::Validate $trace"
-            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace"
+            lean/consensus/.lake/build/bin/consensus-replay "$trace"
             echo "::endgroup::"
           done
 
-      - name: Reject invalid Raft trace fixtures
-        if: inputs.package == 'ccf-raft'
+      - name: Reject invalid CCF consensus trace fixtures
+        if: inputs.package == 'consensus'
         run: |
           set -euo pipefail
           shopt -s failglob
-          for trace in lean/ccf-raft/replay/fixtures/invalid/*.ndjson; do
+          for trace in lean/consensus/replay/fixtures/invalid/*.ndjson; do
             echo "::group::Reject $trace"
             status=0
-            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace" || status=$?
+            lean/consensus/.lake/build/bin/consensus-replay "$trace" || status=$?
             if [ "$status" -ne 1 ]; then
               echo "::error::$trace: expected rejection (exit 1), got exit $status"
               exit 1
