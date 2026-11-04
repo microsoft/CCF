@@ -36,18 +36,22 @@ Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticate
     {
       "observability": {
         "fluentd": [
-          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag_prefix": "ccf" },
-          { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking", "tag_prefix": "ccf.cft" }
+          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag_prefixes": ["ccf"] },
+          { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking", "tag_prefixes": ["ccf.cft", "ccf.sho"] }
         ]
       }
     }
 
-Set ``tag_prefix`` per sink to select events by a literal, case-sensitive prefix.
+Set ``tag_prefixes`` per sink to a whitelist of literal, case-sensitive prefixes.
+An event is selected if its tag starts with any listed prefix.
 For example, ``ccf`` matches all CCF tags and ``ccf.cft`` matches consensus traces.
-Omitted or empty matches every tag.
+Omitting ``tag_prefixes`` defaults to ``[""]``, which matches every tag.
+An empty list matches no tags; an empty string anywhere in the list matches every tag.
 There is no dot-boundary requirement, wildcard expansion, or regular-expression matching.
 An event matching multiple sinks is sent independently to each.
+Overlapping or repeated prefixes within one sink do not duplicate events.
 Events excluded by a sink are not queued or counted as dropped for it; events excluded by every sink are not encoded.
+Only consensus tracing currently uses this exporter; ``ccf.sho`` and ``ccf.kv`` are reserved for future self-healing open and KV tracing.
 Ordinary console logging is unchanged.
 Omit the array or leave it empty to disable export.
 For a single collector, use one array entry; to migrate an existing single-object configuration, wrap it in an array.

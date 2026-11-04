@@ -211,7 +211,9 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
   CHECK(config.observability.fluentd[0].host == "127.0.0.1");
   CHECK(config.observability.fluentd[0].port == "24224");
   CHECK(config.observability.fluentd[0].queue_capacity == 4096);
-  CHECK(config.observability.fluentd[0].tag_prefix.empty());
+  CHECK(
+    config.observability.fluentd[0].tag_prefixes ==
+    std::vector<std::string>{""});
   CHECK(
     config.observability.fluentd[0].delivery ==
     ccf::FluentdConfig::Delivery::BUFFERED_BEST_EFFORT);
@@ -220,19 +222,29 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
     ccf::FluentdConfig::Delivery::UNBUFFERED_NON_BLOCKING);
 
   config.observability.fluentd[0].queue_capacity = 17;
-  config.observability.fluentd[0].tag_prefix = "ccf.cft";
-  config.observability.fluentd[1].tag_prefix = "ccf.sho";
+  config.observability.fluentd[0].tag_prefixes = {"ccf.cft", "ccf.sho"};
+  config.observability.fluentd[1].tag_prefixes.clear();
   const nlohmann::json roundtrip = config;
   CHECK(
     roundtrip.at("observability").at("fluentd")[0].at("queue_capacity") == 17);
   CHECK(
-    roundtrip.at("observability").at("fluentd")[0].at("tag_prefix") ==
-    "ccf.cft");
+    roundtrip.at("observability").at("fluentd")[0].at("tag_prefixes") ==
+    nlohmann::json::array({"ccf.cft", "ccf.sho"}));
   CHECK(
-    roundtrip.at("observability").at("fluentd")[1].at("tag_prefix") ==
-    "ccf.sho");
+    roundtrip.at("observability").at("fluentd")[1].at("tag_prefixes") ==
+    nlohmann::json::array());
   CHECK(roundtrip.get<ccf::CCFConfig>().observability == config.observability);
 
+  for (const auto& invalid :
+       {nlohmann::json("ccf.cft"),
+        nlohmann::json(nullptr),
+        nlohmann::json::array({42}),
+        nlohmann::json::object()})
+  {
+    config_json["observability"]["fluentd"][0]["tag_prefixes"] = invalid;
+    CHECK_THROWS(config_json.get<ccf::CCFConfig>());
+  }
+  config_json["observability"]["fluentd"][0].erase("tag_prefixes");
   config_json["observability"]["fluentd"][1]["delivery"] = "reliable";
   CHECK_THROWS_AS(config_json.get<ccf::CCFConfig>(), ccf::JsonParseError);
 }
@@ -332,7 +344,8 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   REQUIRE(getsockname(listener, (sockaddr*)&address, &size) == 0);
   Sink::Endpoint endpoint{"127.0.0.1", std::to_string(ntohs(address.sin_port))};
   endpoint.queue_capacity = 3;
-  endpoint.tag_prefix = "ccf.request";
+  endpoint.tag_prefixes = {
+    "ccf.sho", "ccf.request", "ccf.request.child", "ccf.request"};
   const int excluded_listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   REQUIRE(excluded_listener >= 0);
   address.sin_port = 0;
@@ -341,7 +354,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   REQUIRE(listen(excluded_listener, 1) == 0);
   Sink::Endpoint excluded_endpoint{
     "127.0.0.1", std::to_string(ntohs(address.sin_port))};
-  excluded_endpoint.tag_prefix = "ccf.sho";
+  excluded_endpoint.tag_prefixes = {"ccf.kv", "ccf.unused"};
   Sink::configure(std::vector{endpoint, excluded_endpoint}, 2);
   Sink::bind_producer(0);
   const auto waiting = std::chrono::steady_clock::now();
@@ -354,7 +367,13 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(Sink::dropped_count() == 0);
   int peer = accept(listener, nullptr, nullptr);
   REQUIRE(peer >= 0);
-  CHECK(Sink::accepts("ccf.request"));
+  const auto before_matching = allocations;
+  const auto accepts_request = Sink::accepts("ccf.request");
+  const auto accepts_sho = Sink::accepts("ccf.sho");
+  const auto after_matching = allocations;
+  CHECK(accepts_request);
+  CHECK(accepts_sho);
+  CHECK(after_matching == before_matching);
   CHECK(Sink::accepts("ccf.request.child"));
   CHECK(Sink::accepts("ccf.requests"));
   CHECK_FALSE(Sink::accepts("ccf"));
@@ -445,6 +464,9 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   check_event(
     [] { ccf::tracing::emit("ccf.request.child", "nested", true); },
     {{"nested", true}});
+  check_event(
+    [] { ccf::tracing::emit("ccf.sho", "recovery", true); },
+    {{"recovery", true}});
   const auto sequence_before_filtering =
     nlohmann::json::from_msgpack(ccf::tracing::event_buffer())[2]["h_ts"]
       .get<uint64_t>();

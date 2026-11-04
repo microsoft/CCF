@@ -10,7 +10,7 @@
 5. Exporter configured against a real Fluentd (only with --fluentd PATH): the
    collector receives well-formed CCF consensus protocol events, and the node
    keeps committing after the collector is killed.
-6. Literal tag-prefix filters include or exclude events at the node, verified
+6. Literal prefix whitelists include or exclude events at the node, verified
    with a local Forward collector without requiring Fluentd.
 """
 
@@ -135,10 +135,18 @@ def run(args):
                     {
                         **excluded.endpoint,
                         "delivery": delivery,
-                        "tag_prefix": "ccf.sho",
+                        "tag_prefixes": ["ccf.sho", "ccf.kv"],
                     },
-                    {**broad.endpoint, "delivery": delivery, "tag_prefix": "ccf"},
-                    {**exact.endpoint, "delivery": delivery, "tag_prefix": "ccf.cft"},
+                    {
+                        **broad.endpoint,
+                        "delivery": delivery,
+                        "tag_prefixes": ["ccf", "ccf.cft", "ccf"],
+                    },
+                    {
+                        **exact.endpoint,
+                        "delivery": delivery,
+                        "tag_prefixes": ["ccf.kv", "ccf.cft", "ccf.sho"],
+                    },
                 ],
             )
         assert broad.records > 0
@@ -147,23 +155,24 @@ def run(args):
         assert broad.processes == exact.processes
         assert excluded.records == 0
         assert excluded.bytes == 0
-    for name, prefix, matches in (
+    for name, prefixes, matches in (
         ("omitted", None, True),
-        ("empty", "", True),
-        ("ccf", "ccf", True),
-        ("cft", "ccf.cft", True),
-        ("partial", "ccf.cf", True),
-        ("different", "ccf.sho", False),
-        ("kv", "ccf.kv", False),
-        ("longer", "ccf.cft.child", False),
-        ("case", "CCF", False),
-        ("substring", "cft", False),
-        ("wildcard", "ccf.*", False),
+        ("empty", [], False),
+        ("all", [""], True),
+        ("all_last", ["ccf.sho", ""], True),
+        ("ccf", ["ccf"], True),
+        ("cft", ["ccf.cft"], True),
+        ("partial", ["ccf.cf"], True),
+        ("different", ["ccf.sho", "ccf.kv"], False),
+        ("longer", ["ccf.cft.child"], False),
+        ("case", ["CCF"], False),
+        ("substring", ["cft"], False),
+        ("wildcard", ["ccf.*"], False),
     ):
         with infra.fluentd.Collector(node_count=1) as collector:
             filtered_endpoint = dict(collector.endpoint)
-            if prefix is not None:
-                filtered_endpoint["tag_prefix"] = prefix
+            if prefixes is not None:
+                filtered_endpoint["tag_prefixes"] = prefixes
             exercise(args, f"filter_{name}", [filtered_endpoint])
         if matches:
             assert collector.records > 0, name

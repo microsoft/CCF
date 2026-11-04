@@ -8,6 +8,7 @@
 #include "ds/internal_logger.h"
 #include "tracing/spsc_queue.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <charconv>
@@ -100,7 +101,7 @@ namespace ccf::tracing
         }
       };
 
-      const std::string tag_prefix;
+      const std::vector<std::string> tag_prefixes;
       sockaddr_storage address = {};
       socklen_t address_size = 0;
       Endpoint::Delivery delivery;
@@ -120,7 +121,7 @@ namespace ccf::tracing
       bool finished CCF_GUARDED_BY(mutex) = false;
 
       Transport(const Endpoint& endpoint, size_t producers) :
-        tag_prefix(endpoint.tag_prefix),
+        tag_prefixes(endpoint.tag_prefixes),
         delivery(endpoint.delivery),
         reader(queues)
       {
@@ -144,6 +145,14 @@ namespace ccf::tracing
         {
           queues.push_back(std::make_unique<SPSCQueue>(size));
         }
+      }
+
+      [[nodiscard]] bool accepts(std::string_view tag) const
+      {
+        return std::any_of(
+          tag_prefixes.begin(), tag_prefixes.end(), [tag](const auto& prefix) {
+            return tag.starts_with(prefix);
+          });
       }
 
       [[nodiscard]] bool expired() const CCF_REQUIRES(mutex)
@@ -492,7 +501,7 @@ namespace ccf::tracing
       }
       for (const auto& t : worker()->transports)
       {
-        if (tag.starts_with(t->tag_prefix))
+        if (t->accepts(tag))
         {
           return true;
         }
@@ -552,7 +561,7 @@ namespace ccf::tracing
       const auto slot = bound_slot();
       for (const auto& t : worker()->transports)
       {
-        if (!tag.starts_with(t->tag_prefix))
+        if (!t->accepts(tag))
         {
           continue;
         }
@@ -576,7 +585,7 @@ namespace ccf::tracing
       }
       for (const auto& t : worker()->transports)
       {
-        if (tag.starts_with(t->tag_prefix))
+        if (t->accepts(tag))
         {
           t->dropped.fetch_add(1, std::memory_order_relaxed);
         }
