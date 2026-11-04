@@ -2,6 +2,8 @@ module
 
 public import CCF.Execution
 
+import Mathlib.Data.Seq.Basic
+
 @[expose] public section
 
 namespace DisasterRecovery.Tests.Execution

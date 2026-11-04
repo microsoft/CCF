@@ -1,7 +1,6 @@
 module
 
 public import CCFRaft.Proofs.Config
-public import Mathlib.Tactic
 
 @[expose] public section
 
