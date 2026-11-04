@@ -9,6 +9,7 @@ from typing import Any
 import cbor2
 import ccf.cose
 import ccf.receipt
+import cwt
 import pytest
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
@@ -36,9 +37,11 @@ def _headers(identity):
         Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
     )
     return {
-        1: -35,
-        4: ccf.cose.key_fingerprint_from_key(pem.decode("ascii")).encode("ascii"),
-        395: 2,
+        int(cwt.COSEHeaders.ALG): -35,
+        int(cwt.COSEHeaders.KID): ccf.cose.key_fingerprint_from_key(
+            pem.decode("ascii")
+        ).encode("ascii"),
+        ccf.cose.COSE_PHDR_VDS_LABEL: ccf.cose.COSE_PHDR_VDS_CCF_LEDGER_SHA256,
     }
 
 

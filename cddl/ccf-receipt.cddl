@@ -22,10 +22,10 @@ verifiable-proofs = {
 }
 
 protected-headers = {
-  &(alg: 1) => int,                     ; signing algoritm ID, as per RFC8152
+  &(alg: 1) => int,                     ; signing algorithm ID, as per RFC8152
   &(kid: 4) => bstr,                    ; signing key hash
   &(cwt: 15) => cwt-map,                ; CWT claims, as per RFC8392
-  &(vds: 395) => 2,                     ; CCF_LEDGER_SHA256
+  &(vds: 395) => 2,                     ; CCF_LEDGER_SHA256, as per CCF Profile for COSE Receipts (https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-profile/)
   "ccf.v1" => ccf-map                   ; a set of CCF-specific parameters
 }
 

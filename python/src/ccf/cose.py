@@ -51,6 +51,12 @@ COSE_RECEIPT_CONSISTENCY_PROOF_LABEL = -2
 CCF_PROOF_LEAF_LABEL = 1
 CCF_PROOF_PATH_LABEL = 2
 
+# See https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-profile/
+
+CCF_CONSISTENCY_PROOF_ANCHOR_LABEL = 1
+CCF_CONSISTENCY_PROOF_PATH_LABEL = 2
+CCF_MAX_COMMIT_EVIDENCE_SIZE = 1024
+
 
 def default_algorithm_for_key(key) -> int:
     """

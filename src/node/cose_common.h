@@ -95,10 +95,17 @@ namespace ccf::cose
     std::vector<uint8_t> claims_digest;
   };
 
+  // Each element is (left, sibling digest), where left is non-zero if the
+  // sibling is on the left.
+  using MerklePath = std::vector<std::pair<int64_t, std::vector<uint8_t>>>;
+
+  // Maximum commit evidence size, draft-ietf-scitt-receipts-ccf-profile-06.
+  static constexpr size_t MAX_COMMIT_EVIDENCE_SIZE = 1024;
+
   struct MerkleProof
   {
     Leaf leaf;
-    std::vector<std::pair<int64_t, std::vector<uint8_t>>> path;
+    MerklePath path;
   };
 
   struct CcfCoseReceipt
@@ -131,8 +138,7 @@ namespace ccf::cose
   }
 
   static ccf::crypto::Sha256Hash fold_merkle_path(
-    ccf::crypto::Sha256Hash digest,
-    const std::vector<std::pair<int64_t, std::vector<uint8_t>>>& path)
+    ccf::crypto::Sha256Hash digest, const MerklePath& path)
   {
     for (const auto& [left, sibling_bytes] : path)
     {
@@ -160,7 +166,7 @@ namespace ccf::cose
     return {root.h.begin(), root.h.end()};
   }
 
-  static void validate_array(
+  static void validate_array_size(
     const tav::cbor::Value& value, size_t size, std::string_view field)
   {
     if (value.kind() != tav::cbor::Kind::ARRAY || value.size() != size)
@@ -170,8 +176,7 @@ namespace ccf::cose
     }
   }
 
-  static std::vector<std::pair<int64_t, std::vector<uint8_t>>>
-  decode_proof_path(const tav::cbor::Value& path)
+  static MerklePath decode_proof_path(const tav::cbor::Value& path)
   {
     using namespace tav::cbor;
 
@@ -180,11 +185,11 @@ namespace ccf::cose
       throw COSEDecodeError("Merkle proof path must be an array");
     }
 
-    std::vector<std::pair<int64_t, std::vector<uint8_t>>> decoded;
+    MerklePath decoded;
     for (size_t i = 0; i < path.size(); ++i)
     {
       const auto link = path.array_at(i);
-      validate_array(link, 2, "Merkle proof path element");
+      validate_array_size(link, 2, "Merkle proof path element");
       const auto left = simple_to_boolean(link.array_at(0).as_simple());
       const auto digest = link.array_at(1).as_bytes();
       validate_sha256_bytes(digest, "Merkle proof sibling");
@@ -259,17 +264,12 @@ namespace ccf::cose
     return phdr;
   }
 
-  // Consistency proof map labels, draft-ietf-scitt-receipts-ccf-profile-06
-  // Section 4.
-  static constexpr int64_t CONSISTENCY_PROOF_ANCHOR_LABEL = 1;
-  static constexpr int64_t CONSISTENCY_PROOF_PATH_LABEL = 2;
-
   static std::vector<MerkleProof> decode_merkle_proofs(
     const tav::cbor::Value& cbor)
   {
     using namespace tav::cbor;
 
-    validate_array(cbor, 4, "COSE_Sign1");
+    validate_array_size(cbor, 4, "COSE_Sign1");
     if (
       cbor.array_at(2).kind() != Kind::SIMPLE ||
       cbor.array_at(2).as_simple() != SimpleValue::Null)
@@ -305,7 +305,7 @@ namespace ccf::cose
       }
 
       const auto array = vdp.map_value_at(i);
-      if (array.kind() != Kind::ARRAY || array.size() == 0)
+      if (array.kind() != Kind::ARRAY || array.empty())
       {
         throw COSEDecodeError("Proofs must be a non-empty array");
       }
@@ -340,7 +340,7 @@ namespace ccf::cose
         },
         "Parse proof: leaf");
 
-      validate_array(leaf, 3, "Merkle proof leaf");
+      validate_array_size(leaf, 3, "Merkle proof leaf");
       MerkleProof proof;
 
       rethrow_with_msg(
@@ -360,10 +360,11 @@ namespace ccf::cose
 
       if (
         proof.leaf.commit_evidence.empty() ||
-        proof.leaf.commit_evidence.size() > 1024)
+        proof.leaf.commit_evidence.size() > MAX_COMMIT_EVIDENCE_SIZE)
       {
-        throw COSEDecodeError(
-          "Merkle proof commit evidence must contain 1 to 1024 UTF-8 bytes");
+        throw COSEDecodeError(fmt::format(
+          "Merkle proof commit evidence must contain 1 to {} UTF-8 bytes",
+          MAX_COMMIT_EVIDENCE_SIZE));
       }
 
       rethrow_with_msg(
@@ -400,8 +401,12 @@ namespace ccf::cose
 
     if (has_consistency_proofs)
     {
-      const auto consistency_proofs =
-        vdp.map_at(make_signed(ccf::cose::header::iana::CONSISTENCY_PROOFS));
+      const auto consistency_proofs = rethrow_with_msg(
+        [&]() {
+          return vdp.map_at(
+            make_signed(ccf::cose::header::iana::CONSISTENCY_PROOFS));
+        },
+        "Parse consistency proofs");
       for (size_t i = 0; i < consistency_proofs.size(); ++i)
       {
         const auto cbor_proof = rethrow_with_msg(
@@ -419,7 +424,9 @@ namespace ccf::cose
         const auto anchor = rethrow_with_msg(
           [&]() {
             return sha256_from_bytes(
-              cbor_proof.map_at(make_signed(CONSISTENCY_PROOF_ANCHOR_LABEL))
+              cbor_proof
+                .map_at(make_signed(
+                  ccf::ConsistencyProofLabel::CONSISTENCY_PROOF_ANCHOR_LABEL))
                 .as_bytes(),
               "Consistency proof anchor");
           },
@@ -427,8 +434,8 @@ namespace ccf::cose
 
         const auto path = rethrow_with_msg(
           [&]() {
-            return decode_proof_path(
-              cbor_proof.map_at(make_signed(CONSISTENCY_PROOF_PATH_LABEL)));
+            return decode_proof_path(cbor_proof.map_at(make_signed(
+              ccf::ConsistencyProofLabel::CONSISTENCY_PROOF_PATH_LABEL)));
           },
           "Parse consistency proof: path");
 
@@ -462,7 +469,7 @@ namespace ccf::cose
     const auto cose_envelope = rethrow_with_msg(
       [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
       "Parse COSE tag");
-    validate_array(cose_envelope, 4, "COSE_Sign1");
+    validate_array_size(cose_envelope, 4, "COSE_Sign1");
 
     const auto phdr_raw = rethrow_with_msg(
       [&]() { return cose_envelope.array_at(0); },

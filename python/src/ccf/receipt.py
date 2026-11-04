@@ -19,6 +19,9 @@ from cryptography.x509.verification import PolicyBuilder, Store
 
 import ccf.signatures
 from ccf.cose import (
+    CCF_CONSISTENCY_PROOF_ANCHOR_LABEL,
+    CCF_CONSISTENCY_PROOF_PATH_LABEL,
+    CCF_MAX_COMMIT_EVIDENCE_SIZE,
     CCF_PROOF_LEAF_LABEL,
     CCF_PROOF_PATH_LABEL,
     COSE_PHDR_VDP_LABEL,
@@ -37,6 +40,22 @@ from ccf.cose import (
 # imports here to make the workaround's dependency on cbor2 internals explicit.
 from cbor2._decoder import CBORDecoder, major_decoders
 from cbor2._types import CBORDecodeError, CBORTag, FrozenDict, break_marker
+
+# RFC 8949 Section 3: initial byte layout and major types.
+_CBOR_MAJOR_TYPE_SHIFT = 5
+_CBOR_ADDITIONAL_INFO_MASK = 0x1F
+_CBOR_MAJOR_MAP = 5
+_CBOR_MAJOR_TAG = 6
+_CBOR_MAJOR_SIMPLE_FLOAT = 7
+_CBOR_INDEFINITE_ARRAY = 0x9F
+_CBOR_BREAK = 0xFF
+_CBOR_SIMPLE_ONE_BYTE = 0xF8
+_CBOR_MIN_TWO_BYTE_SIMPLE = 32
+_CBOR_FLOAT_INITIAL_BYTES = {0xF9, 0xFA, 0xFB}
+# Fraction bits for half, single and double precision, by additional info.
+_CBOR_FLOAT_FRACTION_BITS = {25: 10, 26: 23, 27: 52}
+_CBOR_ADDITIONAL_INFO_UINT8 = 24
+_MAX_RECEIPT_CBOR_DEPTH = 400
 
 
 class _ReceiptDecoder(CBORDecoder):
@@ -57,14 +76,18 @@ class _ReceiptDecoder(CBORDecoder):
         position = self.fp.tell()
         initial = self.read(1)
         self.fp.seek(position)
-        if initial == b"\xff" and not self._allow_break:
+        if not initial:
+            # Raises the decoder's premature end-of-stream error.
+            self.read(1)
+        head = initial[0]
+        if head == _CBOR_BREAK and not self._allow_break:
             raise ValueError("Unexpected CBOR break")
-        if initial == b"\xf8":
+        if head == _CBOR_SIMPLE_ONE_BYTE:
             value = self.fp.read(2)
             self.fp.seek(position)
-            if len(value) == 2 and value[1] < 32:
+            if len(value) == 2 and value[1] < _CBOR_MIN_TWO_BYTE_SIMPLE:
                 raise ValueError("Invalid two-byte CBOR simple value")
-        if self._receipt_depth >= 400:
+        if self._receipt_depth >= _MAX_RECEIPT_CBOR_DEPTH:
             raise ValueError("Receipt CBOR nesting is too deep")
         self._receipt_depth += 1
         previous_allow_break = self._allow_break
@@ -74,28 +97,29 @@ class _ReceiptDecoder(CBORDecoder):
             self._immutable = True
         if unshared:
             self._share_index = None
-        self._allow_break = initial == b"\x9f"
+        self._allow_break = head == _CBOR_INDEFINITE_ARRAY
+        major = head >> _CBOR_MAJOR_TYPE_SHIFT
+        additional = head & _CBOR_ADDITIONAL_INFO_MASK
         try:
-            if initial and initial[0] >> 5 == 5:
+            if major == _CBOR_MAJOR_MAP:
                 self.read(1)
-                return self._decode_map(initial[0] & 31)
-            if initial and initial[0] >> 5 == 6:
+                return self._decode_map(additional)
+            if major == _CBOR_MAJOR_TAG:
                 self.read(1)
-                tag = self._decode_length(initial[0] & 31)
+                tag = self._decode_length(additional)
                 return CBORTag(tag, self.decode())
             self.read(1)
 
-            if self._immutable and initial[0] in (0xF9, 0xFA, 0xFB):
+            if self._immutable and head in _CBOR_FLOAT_INITIAL_BYTES:
                 position = self.fp.tell()
-                subtype = initial[0] & 31
-                encoded = self.read(1 << (subtype - 24))
+                encoded = self.read(1 << (additional - _CBOR_ADDITIONAL_INFO_UINT8))
                 self.fp.seek(position)
-                value = major_decoders[7](self, subtype)
+                value = major_decoders[_CBOR_MAJOR_SIMPLE_FLOAT](self, additional)
                 if isnan(value):
                     # RFC 8949 compares NaN key significands, not Python's
                     # always-false NaN equality. Intern equivalent keys,
                     # including NaNs inside immutable container keys.
-                    fraction_bits = {25: 10, 26: 23, 27: 52}[subtype]
+                    fraction_bits = _CBOR_FLOAT_FRACTION_BITS[additional]
                     significand = int.from_bytes(encoded, "big") & (
                         (1 << fraction_bits) - 1
                     )
@@ -104,7 +128,7 @@ class _ReceiptDecoder(CBORDecoder):
                     )
                 return value
 
-            return major_decoders[initial[0] >> 5](self, initial[0] & 31)
+            return major_decoders[major](self, additional)
         finally:
             self._allow_break = previous_allow_break
             self._immutable = previous_immutable
@@ -139,6 +163,7 @@ class _ReceiptDecoder(CBORDecoder):
 
 
 def _decode_receipt_cbor(encoded: bytes) -> Any:
+    """Strictly decode a single complete CBOR item from encoded."""
     if type(encoded) is not bytes:
         raise ValueError("Encoded receipt data must be bstr")
     stream = BytesIO(encoded)
@@ -151,7 +176,16 @@ def _decode_receipt_cbor(encoded: bytes) -> Any:
     return result
 
 
-def _require_map(value: Any, name: str, keys: set[int] | None = None) -> dict:
+# Each element is [left, sibling digest], where left is True if the sibling
+# is on the left.
+_ProofPath = list[list[Any]]
+
+
+def _require_map(
+    value: Any, name: str, keys: set[int] | None = None
+) -> dict[int | str, Any]:
+    """Return value if it is a map with integer or text labels, optionally
+    exactly matching keys."""
     if type(value) is not dict:
         raise ValueError(f"{name} must be a map")
     if any(type(label) not in (int, str) for label in value):
@@ -162,11 +196,13 @@ def _require_map(value: Any, name: str, keys: set[int] | None = None) -> dict:
 
 
 def _require_digest(value: Any) -> None:
+    """Raise unless value is a 32-byte bstr."""
     if type(value) is not bytes or len(value) != 32:
         raise ValueError("Digest must be a 32-byte bstr")
 
 
-def _proof_path(value: Any, *, consistency: bool = False) -> list:
+def _proof_path(value: Any, *, consistency: bool = False) -> _ProofPath:
+    """Return value if it is a valid inclusion or consistency proof path."""
     if type(value) is not list:
         raise ValueError("Proof path must be an array")
     if consistency and not value:
@@ -184,7 +220,8 @@ def _proof_path(value: Any, *, consistency: bool = False) -> list:
     return value
 
 
-def _fold_path(accumulator: bytes, path: list) -> bytes:
+def _fold_path(accumulator: bytes, path: _ProofPath) -> bytes:
+    """Hash accumulator with each sibling in path, returning the root."""
     for left, digest in path:
         accumulator = sha256(
             digest + accumulator if left else accumulator + digest
@@ -289,7 +326,7 @@ def verify_cose(
 
     receipt = _decode_receipt_cbor(receipt_bytes)
     if (
-        not isinstance(receipt, CBORTag)
+        type(receipt) is not CBORTag
         or receipt.tag != cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
         or type(receipt.value) is not list
         or len(receipt.value) != 4
@@ -326,14 +363,16 @@ def verify_cose(
     }:
         raise ValueError("Verifiable data proof contains invalid labels")
     for proof_list in proofs.values():
-        if type(proof_list) is not list or not proof_list:
-            raise ValueError("Proofs must be nonempty arrays of bstr")
-        if any(type(proof) is not bytes for proof in proof_list):
-            raise ValueError("Proofs must be nonempty arrays of bstr")
+        if (
+            type(proof_list) is not list
+            or not proof_list
+            or any(type(proof) is not bytes for proof in proof_list)
+        ):
+            raise ValueError("Proofs must be non-empty arrays of bstr")
     if COSE_RECEIPT_INCLUSION_PROOF_LABEL not in proofs:
         raise ValueError("Inclusion proof is required")
 
-    signed_root = b""
+    signed_root: bytes | None = None
     for inclusion_proof in proofs[COSE_RECEIPT_INCLUSION_PROOF_LABEL]:
         proof = _require_map(
             _decode_receipt_cbor(inclusion_proof),
@@ -345,15 +384,21 @@ def verify_cose(
             raise ValueError("Leaf must be a three-element array")
         _require_digest(leaf[0])
         _require_digest(leaf[2])
-        if type(leaf[1]) is not str or not 1 <= len(leaf[1].encode("utf-8")) <= 1024:
-            raise ValueError("Commit evidence must be a tstr of 1..1024 UTF-8 bytes")
+        if (
+            type(leaf[1]) is not str
+            or not 1 <= len(leaf[1].encode("utf-8")) <= CCF_MAX_COMMIT_EVIDENCE_SIZE
+        ):
+            raise ValueError(
+                "Commit evidence must be a tstr of "
+                f"1..{CCF_MAX_COMMIT_EVIDENCE_SIZE} UTF-8 bytes"
+            )
         if claim_digest != leaf[2]:
             raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
         accumulator = sha256(
             leaf[0] + sha256(leaf[1].encode()).digest() + leaf[2]
         ).digest()
         accumulator = _fold_path(accumulator, _proof_path(proof[CCF_PROOF_PATH_LABEL]))
-        if signed_root and accumulator != signed_root:
+        if signed_root is not None and accumulator != signed_root:
             raise ValueError("Inclusion proofs reconstruct different roots")
         signed_root = accumulator
 
@@ -361,14 +406,16 @@ def verify_cose(
         proof = _require_map(
             _decode_receipt_cbor(consistency_proof),
             "Consistency proof",
-            {CCF_PROOF_LEAF_LABEL, CCF_PROOF_PATH_LABEL},
+            {CCF_CONSISTENCY_PROOF_ANCHOR_LABEL, CCF_CONSISTENCY_PROOF_PATH_LABEL},
         )
-        anchor = proof[CCF_PROOF_LEAF_LABEL]
+        anchor = proof[CCF_CONSISTENCY_PROOF_ANCHOR_LABEL]
         _require_digest(anchor)
-        path = _proof_path(proof[CCF_PROOF_PATH_LABEL], consistency=True)
+        path = _proof_path(proof[CCF_CONSISTENCY_PROOF_PATH_LABEL], consistency=True)
         if _fold_path(anchor, path) != signed_root:
             raise ValueError("Consistency proof does not reconstruct the signed root")
 
+    # The inclusion proofs array is non-empty, so signed_root has been set.
+    assert signed_root is not None
     ic_phdr, _, _ = ccf.signatures._verify_cose_root_signature_with_key(
         key_pem.encode("ascii"), signed_root, receipt_bytes
     )

@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <doctest/doctest.h>
 #include <exception>
@@ -666,21 +667,17 @@ TEST_CASE("Unprotected header edits preserve submitted encodings")
 
   const auto original =
     nondet_parse(envelope_flat).tag_at(ccf::cbor::tag::COSE_SIGN_1);
-  const auto append_head = [](
-                             std::vector<uint8_t>& out,
-                             uint8_t major,
-                             size_t argument,
-                             size_t width) {
-    const auto additional = width == 1 ? 24 :
-      width == 2                       ? 25 :
-      width == 4                       ? 26 :
-                                         27;
-    out.push_back((major << 5) | additional);
-    for (size_t i = width; i > 0; --i)
-    {
-      out.push_back((static_cast<uint64_t>(argument) >> (8 * (i - 1))) & 0xff);
-    }
-  };
+  const auto append_head =
+    [](
+      std::vector<uint8_t>& out, uint8_t major, size_t argument, size_t width) {
+      // Additional info 24..27 selects a 1, 2, 4 or 8 byte argument.
+      const auto additional = 24 + std::countr_zero(width);
+      out.push_back((major << 5) | additional);
+      for (size_t i = width; i > 0; --i)
+      {
+        out.push_back((argument >> (8 * (i - 1))) & 0xff);
+      }
+    };
 
   const auto append_bytes =
     [&](std::vector<uint8_t>& out, const Value& bytes, size_t width) {
@@ -729,14 +726,15 @@ TEST_CASE("Unprotected header edits preserve submitted encodings")
     }
   }
 
-  for (const auto* malformed_hex :
-       {"d28340a040",
-        "d28540a0404000",
-        "d28440004040",
-        "d28440a00040",
-        "d28440a04000",
-        "d28440a0404000",
-        "d2845f40ffa04040"})
+  for (const auto* malformed_hex : {
+         "d28340a040", // Array of 3 elements
+         "d28540a0404000", // Array of 5 elements
+         "d28440004040", // Unprotected header is not a map
+         "d28440a00040", // Payload is neither bstr nor nil
+         "d28440a04000", // Signature is not a bstr
+         "d28440a0404000", // Trailing data after the envelope
+         "d2845f40ffa04040", // Indefinite-length protected header
+       })
   {
     CHECK_THROWS_AS(
       ccf::cose::edit::set_unprotected_header(
@@ -1098,24 +1096,37 @@ TEST_CASE("CCF receipt proof schema and mixed proofs")
   REQUIRE(decode("a12081" + valid).front().path.empty());
 
   for (const auto& malformed : {
+         // Leaf with 2 elements
          inclusion("82" + hash + "626365", "80"),
+         // Leaf with 4 elements
          inclusion("84" + hash + "626365" + hash + "00", "80"),
+         // Empty commit evidence
          inclusion("83" + hash + "60" + hash, "80"),
+         // Commit evidence over the maximum size
          inclusion(
            "83" + hash +
              ccf::ds::to_hex(
                make_string(std::string(1025, 'x')).nondet_serialize()) +
              hash,
            "80"),
+         // Commit evidence is a bstr, not a tstr
          inclusion("83" + hash + "426365" + hash, "80"),
+         // Claims digest of 31 bytes
          inclusion(
            "83" + hash + "626365" + "581f" + std::string(62, '0'), "80"),
+         // Path is a map, not an array
          inclusion(leaf, "a0"),
+         // Path element direction is an int, not a bool
          inclusion(leaf, "818200" + hash),
+         // Path element with 3 items
          inclusion(leaf, "8183f4" + hash + "00"),
+         // Path sibling of 31 bytes
          inclusion(leaf, "8182f4581f" + std::string(62, '0')),
+         // Unexpected extra label
          encode_bytes("a301" + leaf + "02800300"),
+         // Duplicate leaf label
          encode_bytes("a301" + leaf + "01800280"),
+         // Trailing data after the proof map
          encode_bytes("a201" + leaf + "028000"),
        })
   {
@@ -1130,13 +1141,14 @@ TEST_CASE("CCF receipt proof schema and mixed proofs")
   CHECK_NOTHROW(decode("a12081" + maximum_evidence));
 
   for (const auto& malformed_vdp : std::vector<std::string>{
-         "a0",
-         "a12080",
-         "a120a0",
-         "a1208140",
-         "a12281" + valid,
-         "a22081" + valid + "2081" + valid,
-         "a22081" + valid + "2180"})
+         "a0", // Empty verifiable proofs map
+         "a12080", // Empty inclusion proofs array
+         "a120a0", // Inclusion proofs is a map, not an array
+         "a1208140", // Inclusion proof is an empty bstr
+         "a12281" + valid, // Unsupported proof label -3
+         "a22081" + valid + "2081" + valid, // Duplicate inclusion label
+         "a22081" + valid + "2180", // Empty consistency proofs array
+       })
   {
     CHECK_THROWS(decode(malformed_vdp));
   }
@@ -1150,12 +1162,19 @@ TEST_CASE("CCF receipt proof schema and mixed proofs")
   CHECK_NOTHROW(decode("a22081" + inclusion_with_path + "2181" + consistency));
 
   for (const auto& malformed : {
+         // Anchor does not reconstruct the inclusion root
          encode_bytes("a201" + hash + "02" + path),
+         // Empty path
          encode_bytes("a2015820" + anchor + "0280"),
+         // First sibling is on the left
          encode_bytes("a2015820" + anchor + "028182f5" + hash),
+         // Path element direction is an int, not a bool
          encode_bytes("a2015820" + anchor + "02818200" + hash),
+         // Unexpected extra label
          encode_bytes("a3015820" + anchor + "02" + path + "0300"),
+         // Anchor of 31 bytes
          encode_bytes("a201581f" + std::string(62, '0') + "02" + path),
+         // Trailing data after the proof map
          encode_bytes("a2015820" + anchor + "02" + path + "00"),
        })
   {

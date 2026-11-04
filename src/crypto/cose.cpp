@@ -176,6 +176,18 @@ namespace ccf::cose::edit
 {
   namespace
   {
+    // RFC 8949 Section 3: initial byte layout and major types.
+    constexpr uint8_t CBOR_MAJOR_TYPE_SHIFT = 5;
+    constexpr uint8_t CBOR_ADDITIONAL_INFO_MASK = 0x1f;
+    constexpr uint8_t CBOR_ADDITIONAL_INFO_UINT8 = 24;
+    constexpr uint8_t CBOR_ADDITIONAL_INFO_UINT64 = 27;
+
+    constexpr uint8_t CBOR_MAJOR_BYTES = 2;
+    constexpr uint8_t CBOR_MAJOR_TEXT = 3;
+    constexpr uint8_t CBOR_MAJOR_ARRAY = 4;
+    constexpr uint8_t CBOR_MAJOR_MAP = 5;
+    constexpr uint8_t CBOR_MAJOR_TAG = 6;
+
     size_t skip_cbor_head(
       std::span<const uint8_t> input, uint8_t& major, uint64_t& argument)
     {
@@ -185,21 +197,22 @@ namespace ccf::cose::edit
         throw DecodeError(Error::DECODE_FAILED, "Truncated CBOR item");
       }
 
-      major = input[0] >> 5;
-      const auto additional = input[0] & 0x1f;
-      if (additional < 24)
+      major = input[0] >> CBOR_MAJOR_TYPE_SHIFT;
+      const auto additional = input[0] & CBOR_ADDITIONAL_INFO_MASK;
+      if (additional < CBOR_ADDITIONAL_INFO_UINT8)
       {
         argument = additional;
         return 1;
       }
 
-      if (additional > 27)
+      if (additional > CBOR_ADDITIONAL_INFO_UINT64)
       {
         throw DecodeError(
           Error::DECODE_FAILED, "Expected definite-length CBOR");
       }
 
-      const size_t width = size_t{1} << (additional - 24);
+      const size_t width = size_t{1}
+        << (additional - CBOR_ADDITIONAL_INFO_UINT8);
       if (input.size() < 1 + width)
       {
         throw DecodeError(Error::DECODE_FAILED, "Truncated CBOR argument");
@@ -226,7 +239,7 @@ namespace ccf::cose::edit
         uint64_t argument = 0;
         offset += skip_cbor_head(input.subspan(offset), major, argument);
         --pending;
-        if (major == 2 || major == 3)
+        if (major == CBOR_MAJOR_BYTES || major == CBOR_MAJOR_TEXT)
         {
           if (argument > input.size() - offset)
           {
@@ -236,10 +249,22 @@ namespace ccf::cose::edit
 
           offset += argument;
         }
-        else if (major == 4 || major == 5 || major == 6)
+        else if (
+          major == CBOR_MAJOR_ARRAY || major == CBOR_MAJOR_MAP ||
+          major == CBOR_MAJOR_TAG)
         {
-          const uint64_t children =
-            major == 6 ? 1 : argument * (major == 5 ? 2 : 1);
+          // A tag wraps one item, an array holds argument items, and a map
+          // holds argument key/value pairs.
+          uint64_t children = 1;
+          if (major == CBOR_MAJOR_ARRAY)
+          {
+            children = argument;
+          }
+          else if (major == CBOR_MAJOR_MAP)
+          {
+            children = argument * 2;
+          }
+
           if (children > input.size() - offset)
           {
             throw tav::cbor::DecodeError(
