@@ -1,0 +1,37 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -4,31 +3,0 @@
+-{"seq":4,"store":1,"tx":1,"type":"tx_create"}
+-{"global":0,"seq":5,"store":1,"term":0,"tx":1,"type":"snapshot","version":0}
+-{"global":0,"map":"a","seq":6,"store":1,"tx":1,"type":"map_acquire","version":0}
+-{"global":0,"map":"b","seq":7,"store":1,"tx":1,"type":"map_acquire","version":0}
+-{"key":"","map":"a","seq":8,"store":1,"tx":1,"type":"get","value":null}
+-{"key":"","map":"a","seq":9,"store":1,"tx":1,"type":"has","value":false}
+-{"key":"","map":"a","seq":10,"store":1,"tx":1,"type":"put","value":""}
+-{"key":"","map":"a","seq":11,"store":1,"tx":1,"type":"get","value":""}
+-{"key":"","map":"a","seq":12,"store":1,"tx":1,"type":"has","value":true}
+-{"key":"","map":"a","seq":13,"store":1,"tx":1,"type":"previous_write","value":null}
+-{"key":"","map":"a","seq":14,"store":1,"tx":1,"type":"get_global","value":null}
+-{"key":"","map":"a","seq":15,"store":1,"tx":1,"type":"has_global","value":false}
+-{"key":"","map":"a","seq":16,"store":1,"tx":1,"type":"remove"}
+-{"key":"","map":"a","seq":17,"store":1,"tx":1,"type":"get","value":null}
+-{"key":"00","map":"b","seq":18,"store":1,"tx":1,"type":"put","value":"22"}
+-{"map":"a","seq":19,"store":1,"tx":1,"type":"size","value":0}
+-{"map":"b","seq":20,"store":1,"tx":1,"type":"size","value":1}
+-{"seq":21,"store":1,"tx":1,"type":"commit_begin"}
+-{"seq":22,"store":1,"term":0,"tx":1,"type":"apply","version":1,"writes":[{"key":"","map":"a","value":null},{"key":"00","map":"b","value":"22"}]}
+-{"result":"success","seq":23,"store":1,"tx":1,"type":"commit_result","version":1}
+-{"seq":24,"store":1,"tx":1,"type":"tx_end"}
+-{"seq":25,"store":1,"tx":2,"type":"tx_create"}
+-{"global":0,"seq":26,"store":1,"term":0,"tx":2,"type":"snapshot","version":1}
+-{"global":0,"map":"a","seq":27,"store":1,"tx":2,"type":"map_acquire","version":0}
+-{"global":0,"map":"b","seq":28,"store":1,"tx":2,"type":"map_acquire","version":1}
+-{"key":"00","map":"b","seq":29,"store":1,"tx":2,"type":"previous_write","value":1}
+-{"key":"00","map":"b","seq":30,"store":1,"tx":2,"type":"get","value":"22"}
+-{"key":"00","map":"b","seq":31,"store":1,"tx":2,"type":"get_global","value":null}
+-{"seq":32,"store":1,"tx":2,"type":"commit_begin"}
+-{"result":"success","seq":33,"store":1,"tx":2,"type":"commit_result","version":0}
+-{"seq":34,"store":1,"tx":2,"type":"tx_end"}
+@@ -37 +6 @@
+-{"events":36,"seq":37,"type":"trace_end"}
++{"events":5,"seq":37,"type":"trace_end"}

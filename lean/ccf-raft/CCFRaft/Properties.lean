@@ -17,7 +17,8 @@ exhibiting a nontrivial execution relevant to that property.
 
 namespace CCFRaft.Properties
 
-abbrev GlobalTrace := CCF.Execution.Trace Model.State
+abbrev GlobalTrace (config : Finset Model.Node.NodeID) (nodes : List Model.Node.NodeID) :=
+  CCF.Execution.Trace (Model.transitionSystem config nodes)
 
 open Model.Node
 
@@ -25,11 +26,10 @@ open Model.Node
 any two nodes, in any two states of the trace. -/
 theorem committed_logs_prefix
     : forall (config : Finset NodeID),
-      forall (nodes : List NodeID) (trace : GlobalTrace),
+      forall (nodes : List NodeID) (trace : GlobalTrace config nodes),
       forall (stateA stateB : Model.State),
       forall (left right : NodeID) (leftState rightState : NodeState),
-        (trace.Valid (Model.transitionSystem config nodes)
-          /\ stateA ∈ trace
+        (stateA ∈ trace
           /\ stateB ∈ trace
           /\ (left, leftState) ∈ stateA.nodes
           /\ (right, rightState) ∈ stateB.nodes)
@@ -41,11 +41,10 @@ theorem committed_logs_prefix
 nonempty committed logs. -/
 lemma committed_logs_prefix_witness
     : exists (config : Finset NodeID),
-    exists (nodes : List NodeID) (trace : GlobalTrace),
+    exists (nodes : List NodeID) (trace : GlobalTrace config nodes),
     exists (stateA stateB : Model.State),
     exists (left right : NodeID) (leftState rightState : NodeState),
-      trace.Valid (Model.transitionSystem config nodes)
-      /\ stateA ∈ trace
+      stateA ∈ trace
       /\ stateB ∈ trace
       /\ (left, leftState) ∈ stateA.nodes
       /\ (right, rightState) ∈ stateB.nodes
@@ -86,10 +85,10 @@ lemma single_node_committed_log_monotonic_witness
 /-- No two distinct nodes are primary in the same term. -/
 theorem election_safety
     : forall (config : Finset NodeID),
-      forall (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
+      forall (nodes : List NodeID) (trace : GlobalTrace config nodes)
+              (state : Model.State),
       forall (left right : NodeID) (leftState rightState : NodeState),
-        (trace.Valid (Model.transitionSystem config nodes)
-          /\ state ∈ trace
+        (state ∈ trace
           /\ (left, leftState) ∈ state.nodes
           /\ (right, rightState) ∈ state.nodes
           /\ leftState.role = .primary
@@ -102,10 +101,9 @@ theorem election_safety
 lemma election_safety_witness
     : exists (config : Finset NodeID),
     exists
-    (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
+    (nodes : List NodeID) (trace : GlobalTrace config nodes) (state : Model.State),
     exists (left right : NodeID) (leftState rightState : NodeState),
-      trace.Valid (Model.transitionSystem config nodes)
-      /\ state ∈ trace
+      state ∈ trace
       /\ (left, leftState) ∈ state.nodes
       /\ (right, rightState) ∈ state.nodes
       /\ leftState.role = .primary
@@ -116,12 +114,10 @@ lemma election_safety_witness
 /-- Every positive commit index points to a signature entry. -/
 theorem committed_frontier_is_signature
     : forall (config : Finset NodeID),
-      forall (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
+      forall (nodes : List NodeID) (trace : GlobalTrace config nodes)
+              (state : Model.State),
       forall (node : NodeID) (nodeState : NodeState),
-        (trace.Valid (Model.transitionSystem config nodes)
-          /\ state ∈ trace
-          /\ (node, nodeState) ∈ state.nodes
-          /\ 0 < nodeState.commitIndex)
+        (state ∈ trace /\ (node, nodeState) ∈ state.nodes /\ 0 < nodeState.commitIndex)
         -> isSignatureAt nodeState.log nodeState.commitIndex = true := by
   exact Proofs.Direct.committed_frontier_is_signature
 
@@ -129,12 +125,9 @@ theorem committed_frontier_is_signature
 lemma committed_frontier_is_signature_witness
     : exists (config : Finset NodeID),
     exists
-    (nodes : List NodeID) (trace : GlobalTrace) (state : Model.State),
+    (nodes : List NodeID) (trace : GlobalTrace config nodes) (state : Model.State),
     exists (node : NodeID) (nodeState : NodeState),
-      trace.Valid (Model.transitionSystem config nodes)
-      /\ state ∈ trace
-      /\ (node, nodeState) ∈ state.nodes
-      /\ 0 < nodeState.commitIndex := by
+      state ∈ trace /\ (node, nodeState) ∈ state.nodes /\ 0 < nodeState.commitIndex := by
   exact Proofs.Witnesses.committed_frontier_is_signature_witness
 
 end CCFRaft.Properties

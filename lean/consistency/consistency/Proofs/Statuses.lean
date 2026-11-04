@@ -151,25 +151,25 @@ theorem mem_statuses_iff (history : List Event) (txid : TxID) (status : Status)
     exact ⟨.status txid status, listed, rfl⟩
 
 theorem committed_or_invalid
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ txid ∈ statusIDs state.history .committed,
             txid ∉ statusIDs state.history .invalid := by
-  intro trace state ⟨valid, member⟩ txid committed invalid
-  have impossible := separated_reachable (valid.reachable member)
+  intro trace state member txid committed invalid
+  have impossible := separated_reachable (trace.reachable member)
     txid committed txid invalid rfl
   omega
 
 theorem once_committed_prev_committed
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
             left.2 = .committed
             → left.1.view = right.1.view
             → right.1.seqno ≤ left.1.seqno
             → right.2 = .committed := by
-  intro trace state ⟨valid, member⟩ left first right second leftCommitted sameView bound
+  intro trace state member left first right second leftCommitted sameView bound
   have firstKnown := (mem_statuses_iff _ _ _).mp first
   rw [leftCommitted] at firstKnown
   have secondKnown := (mem_statuses_iff _ _ _).mp second
@@ -177,48 +177,48 @@ theorem once_committed_prev_committed
   | committed => rfl
   | invalid =>
       rw [value] at secondKnown
-      have impossible := separated_reachable (valid.reachable member)
+      have impossible := separated_reachable (trace.reachable member)
         left.1 firstKnown right.1 secondKnown sameView.symm
       omega
 
 theorem once_invalid_next_invalid
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
             left.2 = .invalid
             → left.1.view = right.1.view
             → left.1.seqno ≤ right.1.seqno
             → right.2 = .invalid := by
-  intro trace state ⟨valid, member⟩ left first right second leftInvalid sameView bound
+  intro trace state member left first right second leftInvalid sameView bound
   have firstKnown := (mem_statuses_iff _ _ _).mp first
   rw [leftInvalid] at firstKnown
   have secondKnown := (mem_statuses_iff _ _ _).mp second
   cases value : right.2 with
   | committed =>
       rw [value] at secondKnown
-      have impossible := separated_reachable (valid.reachable member)
+      have impossible := separated_reachable (trace.reachable member)
         right.1 secondKnown left.1 firstKnown sameView
       omega
   | invalid => rfl
 
 theorem once_committed_next_invalid
-    : forall (trace : CCF.Execution.Trace State) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+    : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
+        (state ∈ trace)
         → ∀ left ∈ statuses state.history,
           ∀ right ∈ statuses state.history,
             left.2 = .committed
             → left.1.seqno ≤ right.1.seqno
             → right.1.view < left.1.view
             → right.2 = .invalid := by
-  intro trace state ⟨valid, member⟩ left first right second leftCommitted bound older
+  intro trace state member left first right second leftCommitted bound older
   have firstKnown := (mem_statuses_iff _ _ _).mp first
   rw [leftCommitted] at firstKnown
   have secondKnown := (mem_statuses_iff _ _ _).mp second
   cases value : right.2 with
   | committed =>
       rw [value] at secondKnown
-      have impossible := ViewOrder.committed_views (valid.reachable member)
+      have impossible := ViewOrder.committed_views (trace.reachable member)
         firstKnown secondKnown bound
       omega
   | invalid => rfl

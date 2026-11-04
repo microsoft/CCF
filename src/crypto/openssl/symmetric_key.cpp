@@ -317,16 +317,24 @@ namespace ccf::crypto
   std::vector<uint8_t> KeyAesGcm_OpenSSL::ckm_aes_key_wrap_pad(
     std::span<const uint8_t> plain) const
   {
+    if (plain.size() > AES_KEY_WRAP_PAD_MAX_SIZE)
+    {
+      throw std::logic_error(fmt::format(
+        "AES key wrap input size {} exceeds the limit of {} bytes",
+        plain.size(),
+        AES_KEY_WRAP_PAD_MAX_SIZE));
+    }
+    const auto inl = static_cast<int>(plain.size());
+
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
     CHECK1(
       EVP_EncryptInit_ex(ctx, evp_cipher_wrap_pad, nullptr, nullptr, nullptr));
     CHECK1(EVP_EncryptInit_ex(ctx, nullptr, nullptr, key.data(), nullptr));
-    CHECK1(EVP_EncryptUpdate(ctx, nullptr, &len, plain.data(), plain.size()));
+    CHECK1(EVP_EncryptUpdate(ctx, nullptr, &len, plain.data(), inl));
     std::vector<uint8_t> cipher(len);
-    CHECK1(
-      EVP_EncryptUpdate(ctx, cipher.data(), &len, plain.data(), plain.size()));
+    CHECK1(EVP_EncryptUpdate(ctx, cipher.data(), &len, plain.data(), inl));
     CHECK1(EVP_EncryptFinal_ex(ctx, nullptr, &len));
     return cipher;
   }
@@ -334,16 +342,26 @@ namespace ccf::crypto
   std::vector<uint8_t> KeyAesGcm_OpenSSL::ckm_aes_key_unwrap_pad(
     std::span<const uint8_t> cipher) const
   {
+    // Never produced by ckm_aes_key_wrap_pad(), whose output is bounded, and
+    // not representable as the int length of the single update call.
+    if (cipher.size() > INT_MAX)
+    {
+      throw std::logic_error(fmt::format(
+        "AES key unwrap input size {} exceeds the limit of {} bytes",
+        cipher.size(),
+        INT_MAX));
+    }
+    const auto inl = static_cast<int>(cipher.size());
+
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
     CHECK1(
       EVP_DecryptInit_ex(ctx, evp_cipher_wrap_pad, nullptr, nullptr, nullptr));
     CHECK1(EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), nullptr));
-    CHECK1(EVP_DecryptUpdate(ctx, nullptr, &len, cipher.data(), cipher.size()));
+    CHECK1(EVP_DecryptUpdate(ctx, nullptr, &len, cipher.data(), inl));
     std::vector<uint8_t> plain(len);
-    CHECK1(
-      EVP_DecryptUpdate(ctx, plain.data(), &len, cipher.data(), cipher.size()));
+    CHECK1(EVP_DecryptUpdate(ctx, plain.data(), &len, cipher.data(), inl));
     plain.resize(len);
     if (EVP_DecryptFinal_ex(ctx, nullptr, &len) != 1)
     {

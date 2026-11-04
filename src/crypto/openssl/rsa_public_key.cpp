@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/bignum.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "ds/internal_logger.h"
@@ -26,8 +27,8 @@ namespace
     std::pair<Unique_BIGNUM, Unique_BIGNUM> ne;
     auto n_raw = raw_from_b64url(jwk.n);
     auto e_raw = raw_from_b64url(jwk.e);
-    OpenSSL::CHECKNULL(BN_bin2bn(n_raw.data(), n_raw.size(), ne.first));
-    OpenSSL::CHECKNULL(BN_bin2bn(e_raw.data(), e_raw.size(), ne.second));
+    ne.first = bn_from_bytes(n_raw);
+    ne.second = bn_from_bytes(e_raw);
 
     return ne;
   }
@@ -132,19 +133,7 @@ namespace ccf::crypto
     CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING));
     CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256()));
     CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256()));
-
-    if (label != nullptr && label_size > 0)
-    {
-      auto* openssl_label =
-        static_cast<unsigned char*>(OPENSSL_malloc(label_size));
-      std::copy(label, label + label_size, openssl_label);
-      OpenSSL::CHECK1(
-        EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size));
-    }
-    else
-    {
-      OpenSSL::CHECK1(EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, nullptr, 0));
-    }
+    set_rsa_oaep_label(ctx, label, label_size);
 
     size_t olen = 0;
     OpenSSL::CHECK1(EVP_PKEY_encrypt(ctx, nullptr, &olen, input, input_size));
@@ -297,6 +286,38 @@ namespace ccf::crypto
     std::vector<uint8_t> r(BN_num_bytes(bn));
     BN_bn2bin(bn, r.data());
     return r;
+  }
+
+  void set_rsa_oaep_label(
+    EVP_PKEY_CTX* ctx, const uint8_t* label, size_t label_size)
+  {
+    if (label == nullptr || label_size == 0)
+    {
+      CHECK1(EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, nullptr, 0));
+      return;
+    }
+
+    // The label length is passed as an int
+    if (label_size > INT_MAX)
+    {
+      throw std::invalid_argument(fmt::format(
+        "OAEP label size {} exceeds the maximum of {} bytes",
+        label_size,
+        INT_MAX));
+    }
+
+    // Ownership of the copy is transferred to the context only on success
+    auto* openssl_label =
+      static_cast<unsigned char*>(OPENSSL_malloc(label_size));
+    CHECKNULL(openssl_label);
+    std::copy(label, label + label_size, openssl_label);
+    const auto rc = EVP_PKEY_CTX_set0_rsa_oaep_label(
+      ctx, openssl_label, static_cast<int>(label_size));
+    if (rc != 1)
+    {
+      OPENSSL_free(openssl_label);
+    }
+    CHECK1(rc);
   }
 
   RSAPublicKeyPtr make_rsa_public_key(const uint8_t* data, size_t size)

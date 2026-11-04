@@ -3,8 +3,6 @@ module
 public import consistency.Properties.History
 public import CCF.Execution
 
-import Mathlib.Tactic
-
 @[expose] public section
 
 set_option linter.unusedSimpArgs false

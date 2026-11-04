@@ -30,6 +30,19 @@ done
 
 The scenario runner preserves the raw records in `consensus/raw/` alongside the existing TLA-preprocessed captures.
 
+## CI captures and replay
+
+The [Lean workflow](../../../.github/workflows/lean.yml) generates native captures on the existing Azure Linux runner while checking Lean packages independently on Ubuntu 26.04.
+Raft runs in the same package matrix as common, consistency, disaster-recovery, and KV.
+Its package check retains separate library and executable kernel checks, import/architecture checking, formatting, linting, and positive/negative replay fixtures.
+
+The independent replay job waits only for native captures, not package validation.
+It installs the pinned Lean toolchain, restores Mathlib caches, builds `ccfraft-replay` directly, downloads the captures from the same workflow run, and validates every native trace.
+The executable is built and run on the same Ubuntu 26.04 runner; no executable artifact is uploaded or downloaded.
+Missing artifacts, empty trace selections, build failures, and replay failures fail the job explicitly.
+There is no runner held idle polling capture status.
+See [CI package isolation](../../disaster-recovery/README.md#ci-package-isolation) for the aggregate gate and package inventory rules.
+
 ## Replay contract
 
 Every event must match a named rule; bootstrap selects the initial singleton membership.
@@ -52,5 +65,5 @@ See [failure fixtures](fixtures/README.md) for examples and expected diagnostics
 ### Kernel checks
 
 `lake check` is **CI-only**, not a local replay command.
-The [Lean workflow](../../../.github/workflows/lean.yml) checks the library and executable roots separately, allowing only `propext`, `Classical.choice` and `Quot.sound`.
+The [Lean workflow](../../../.github/workflows/lean.yml) checks the library and executable roots together, allowing only `propext`, `Classical.choice` and `Quot.sound`.
 See [model validation](../README.md#validation) for proof checks; a replay pass does not replace them.
