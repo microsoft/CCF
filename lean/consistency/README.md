@@ -84,4 +84,4 @@ lake build --wfail consistency-replay
 ```
 
 The [Lean workflow](../../.github/workflows/lean.yml) captures and replays this trace in separate jobs, following the KV and Raft setup, and also reuses the [TLA+ election/rollback fixtures](../../tla/consistency/traces).
-Checker regression tests run when the library is built.
+Synthetic [replay fixtures](replayer/fixtures/README.md) check that the replayer accepts valid traces and rejects invalid ones.
