@@ -1001,6 +1001,17 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def set_pq_service_certificate_validity(
+        self, remote_node, valid_from, validity_period_days
+    ):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_pq_service_certificate_validity",
+            valid_from=valid_from,
+            validity_period_days=validity_period_days,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def force_ledger_chunk(self, remote_node):
         # Submit a proposal to force a ledger chunk at the following signature
         proposal_body, careful_vote = self.make_proposal("trigger_ledger_chunk")

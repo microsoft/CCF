@@ -2666,11 +2666,18 @@ def run_service_subject_name_check(args):
         primary, _ = network.find_primary()
         renewed_validity_days = args.maximum_service_certificate_validity_days
         assert renewed_validity_days != args.initial_service_cert_validity_days
+        valid_from = str(datetime.now(UTC))
         network.consortium.set_service_certificate_validity(
             primary,
-            valid_from=str(datetime.now(UTC)),
+            valid_from=valid_from,
             validity_period_days=renewed_validity_days,
         )
+        if network.get_pq_service_certificate() is not None:
+            network.consortium.set_pq_service_certificate_validity(
+                primary,
+                valid_from=valid_from,
+                validity_period_days=renewed_validity_days,
+            )
         network.verify_service_certificate_validity_period(renewed_validity_days)
         network.refresh_service_identity_file(args)
         renewed_subject = service_subject(network)

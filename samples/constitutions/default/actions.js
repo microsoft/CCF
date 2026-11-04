@@ -469,6 +469,57 @@ function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
   );
 }
 
+function setPQServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
+  const rawConfig =
+    ccf.kv["public:ccf.gov.service.config"].get(getSingletonKvKey());
+  if (rawConfig === undefined) {
+    throw new Error("Service configuration could not be found");
+  }
+  const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
+
+  const default_validity_period_days = 365;
+  const max_allowed_cert_validity_period_days =
+    serviceConfig.maximum_service_certificate_validity_days ??
+    default_validity_period_days;
+
+  if (
+    validityPeriodDays !== undefined &&
+    validityPeriodDays > max_allowed_cert_validity_period_days
+  ) {
+    throw new Error(
+      `Validity period ${validityPeriodDays} (days) is not allowed: service max allowed is ${max_allowed_cert_validity_period_days} (days)`,
+    );
+  }
+
+  const serviceInfoTable = "public:ccf.gov.service.info";
+  const rawServiceInfo = ccf.kv[serviceInfoTable].get(getSingletonKvKey());
+  if (rawServiceInfo === undefined) {
+    throw new Error("Service info could not be found");
+  }
+  const serviceInfo = ccf.bufToJsonCompatible(rawServiceInfo);
+  if (serviceInfo.pq_cert === undefined) {
+    throw new Error("Service has no ML-DSA identity");
+  }
+
+  if (ccf.network.generatePQNetworkCertificate === undefined) {
+    throw new Error("This node has no ML-DSA support");
+  }
+  const renewed_pq_service_certificate =
+    ccf.network.generatePQNetworkCertificate(
+      validFrom,
+      validityPeriodDays ?? max_allowed_cert_validity_period_days,
+    );
+  if (renewed_pq_service_certificate === undefined) {
+    throw new Error("This node holds no ML-DSA service key");
+  }
+
+  serviceInfo.pq_cert = renewed_pq_service_certificate;
+  ccf.kv[serviceInfoTable].set(
+    getSingletonKvKey(),
+    ccf.jsonCompatibleToBuf(serviceInfo),
+  );
+}
+
 function setNodeCertificateValidityPeriod(
   nodeId,
   nodeInfo,
@@ -1685,6 +1736,33 @@ const actions = new Map([
       },
       function (args) {
         setServiceCertificateValidityPeriod(
+          args.valid_from,
+          args.validity_period_days,
+        );
+      },
+    ),
+  ],
+  [
+    "set_pq_service_certificate_validity",
+    new Action(
+      function (args) {
+        checkType(args.valid_from, "string", "valid_from");
+        if (args.validity_period_days !== undefined) {
+          checkType(
+            args.validity_period_days,
+            "integer",
+            "validity_period_days",
+          );
+          checkBounds(
+            args.validity_period_days,
+            1,
+            null,
+            "validity_period_days",
+          );
+        }
+      },
+      function (args) {
+        setPQServiceCertificateValidityPeriod(
           args.valid_from,
           args.validity_period_days,
         );
