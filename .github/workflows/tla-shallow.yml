@@ -4,10 +4,10 @@ on:
   pull_request:
     paths:
       - "tla/**"
-      - "src/consensus/aft/raft.h"
+      - "src/consensus/aft/cft.h"
       - "src/consensus/aft/test/**"
-      - "tests/raft_scenarios/**"
-      - "tests/raft_scenarios_runner.py"
+      - "tests/cft_scenarios/**"
+      - "tests/cft_scenarios_runner.py"
       - ".github/workflows/tla-shallow.yml"
 
 concurrency:
@@ -88,7 +88,7 @@ jobs:
           mkdir build
           cd build
           cmake -L -GNinja .. -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
-          ninja raft_driver
+          ninja cft_driver
         shell: bash
 
       - name: "Test"
@@ -97,7 +97,7 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          ./tests.sh -VV --timeout --no-compress-output -T Test -L raft_scenario
+          ./tests.sh -VV --timeout --no-compress-output -T Test -L cft_scenario
         shell: bash
 
       - name: Run trace validation

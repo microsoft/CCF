@@ -1,7 +1,7 @@
 module
 
 public import CCF.Execution
-public import Mathlib.Tactic
+public import Mathlib.Order.Basic
 
 @[expose] public section
 

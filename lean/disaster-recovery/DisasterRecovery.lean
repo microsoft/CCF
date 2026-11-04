@@ -23,7 +23,7 @@ public import DisasterRecovery.Tests.Execution
 public import DisasterRecovery.Tests.Initial
 public import DisasterRecovery.Tests.Network
 public import DisasterRecovery.Tests.QuorumCommit
-public import DisasterRecovery.Tests.RaftFreshness
+public import DisasterRecovery.Tests.ConsensusFreshness
 public import DisasterRecovery.Tests.Trace
 public import DisasterRecovery.Tests.Witnesses
 public import DisasterRecovery.TraceValidation

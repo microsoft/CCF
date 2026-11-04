@@ -35,7 +35,7 @@ Property helpers use zero-based history positions.
 The initial view is 2; view 1 is reserved and cannot process requests.
 
 The model covers safety only, not liveness, disaster recovery, or non-forwarded reads.
-There is no refinement proof connecting it to the [Raft model](../ccf-raft/README.md) or implementation trace validation.
+There is no refinement proof connecting it to the [CCF consensus protocol model](../consensus/README.md) or implementation trace validation.
 
 ## Properties
 
@@ -43,6 +43,7 @@ There is no refinement proof connecting it to the [Raft model](../ccf-raft/READM
 The primary consistency guarantee is expressed by `committed_rw_ordered_serializable` and `committed_rw_ordered_real_time` together.
 Committed writes serialize in transaction-ID order, and that order respects request-to-initial-response intervals rather than waiting for committed-status notifications.
 Supporting proofs live under [`Proofs/`](consistency/Proofs); [`Witnesses.lean`](consistency/Proofs/Witnesses.lean) constructs the witness executions by replaying model actions.
+Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
 
 ## Validation
 
