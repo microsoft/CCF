@@ -5,12 +5,10 @@ import json
 import os
 import pathlib
 import sys
-from collections import defaultdict
 from contextlib import contextmanager
-from heapq import merge
 
 from raft_scenarios_gen import generate_scenarios
-from raft_trace import as_log_lines, run_driver
+from raft_trace import run_driver
 
 
 @contextmanager
@@ -38,81 +36,12 @@ def write_error_report(errors=None):
         print("??? success \n")
 
 
-def preprocess_for_trace_validation(log):
-    """
-    For each node, remove the last "replicate" or "execute_append_entries_sync"
-    preceding an "add_configuration" entry. For the first node, check the initial
-    expected sequence of "become_leader", "add_configuration", "replicate" (committable),
-    followed by "commit", and replace it with a "bootstrap" entry.
-    """
-    # Scenarios without commands produce no trace records.
-    if not log:
-        return log
-    log_by_node = defaultdict(list)
-    initial_node = None
-    last_cmd = ""
-    for line in log:
-        entry = json.loads(line)
-        if "cmd" in entry and len(entry["cmd"]) > 0:
-            last_cmd = entry["cmd"]
-            continue
-        node = entry["msg"]["state"]["node_id"]
-        entry["cmd"] = last_cmd
-        entry["cmd_prefix"] = entry["cmd"].split(",")[0]
-        if initial_node is None:
-            initial_node = node
-        if entry["msg"]["function"] == "add_configuration":
-            removed = log_by_node[node].pop()
-            assert removed["msg"]["function"] in (
-                "replicate",
-                "execute_append_entries_sync",
-            ), removed
-            entry["cmd"] = entry["cmd"] or removed["cmd"]
-        log_by_node[node].append(entry)
-
-        # Collapse propose_vote->become_candidate to just propose_vote
-        if len(log_by_node[node]) >= 2 and [
-            e["msg"]["function"] for e in log_by_node[node][-2:]
-        ] == ["recv_propose_request_vote", "become_candidate"]:
-            bc = log_by_node[node].pop()
-            pr = log_by_node[node].pop()
-            assert bc["cmd"] == pr["cmd"], f"Command mismatch between {pr} and {bc}"
-            log_by_node[node].append(pr)
-
-    def head():
-        return log_by_node[initial_node].pop(0)
-
-    assert head()["msg"]["function"] == "become_leader"
-    assert head()["msg"]["function"] == "add_configuration"
-    signature = head()
-    assert signature["msg"]["function"] == "replicate", signature
-    assert signature["msg"]["globally_committable"], signature
-    commit = head()
-    assert commit["msg"]["function"] == "commit", commit
-    assert commit["msg"]["idx"] == 2, commit
-    # Commit becomes bootstrap, the entry point into the trace validation
-    commit["msg"]["function"] = "bootstrap"
-    log_by_node[initial_node].insert(0, commit)
-    return [
-        json.dumps(e)
-        for e in merge(*log_by_node.values(), key=lambda e: int(e["h_ts"]))
-    ]
-
-
-def noop(log):
-    return log
-
-
-def separate_log_lines(text, records, preprocess):
+def driver_diagram(text):
     mermaid = []
     for line in text.split(os.linesep):
         if line.startswith("<RaftDriver>"):
             mermaid.append(line[len("<RaftDriver>") :])
-    log = preprocess([json.dumps(entry) for entry in as_log_lines(records)])
-    return (
-        os.linesep.join(mermaid) + os.linesep,
-        os.linesep.join(log) + os.linesep if log else "",
-    )
+    return os.linesep.join(mermaid) + os.linesep
 
 
 def expand_files(files):
@@ -181,22 +110,8 @@ if __name__ == "__main__":
             with block(ostream, "stderr", 3):
                 ostream.write(err)
 
-        mermaid, log = separate_log_lines(
-            out,
-            records,
-            noop if "deprecated" in scenario else preprocess_for_trace_validation,
-        )
-
         with block(ostream, "diagram", 3, "mermaid", ["sequenceDiagram"]):
-            ostream.write(mermaid)
-
-        if log:
-            with open(
-                os.path.join(args.output, f"{os.path.basename(scenario)}.ndjson"),
-                "w",
-                encoding="utf-8",
-            ) as f:
-                f.write(log)
+            ostream.write(driver_diagram(out))
 
     write_error_report(err_list)
 

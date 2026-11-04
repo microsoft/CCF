@@ -1912,13 +1912,6 @@ if(BUILD_TESTS)
       BUCKET bucket_c
       BUILD_DEPENDS logging
     )
-
-    add_e2e_test(
-      NAME consistency_trace_validation
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
-      BUCKET bucket_c
-      BUILD_DEPENDS js_generic
-    )
   endif()
 
   if(COVERAGE)

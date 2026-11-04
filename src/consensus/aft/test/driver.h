@@ -1231,7 +1231,6 @@ public:
     // Confirm that the index this node considers committed, is present on a
     // majority of nodes (ledger matches exactly up to and including this
     // seqno).
-    // Similar to the QuorumLogInv invariant from the TLA spec.
     const auto& raft = _nodes.at(node_id).raft;
     const auto committed_seqno = raft->get_committed_seqno();
 

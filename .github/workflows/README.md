@@ -133,31 +133,6 @@ File: `codeql-analysis.yml`
 - `github/codeql-action/init@v4`
 - `github/codeql-action/analyze@v4`
 
-# Continuous Verification
-
-Runs the standard model checking, simulation, trace validation, and counterexample jobs each week.
-
-File: `ci-verification.yml`
-3rd party dependencies: None
-
-# Long Verification
-
-Runs the longer consensus model checking and simulation jobs each week.
-VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
-
-File: `long-verification.yml`
-3rd party dependencies: None
-
-# TLA Shallow Verification
-
-Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
-
-- Simulates the consistency and consensus specifications on a GitHub-hosted runner. The simulation job has a 10-minute timeout.
-- Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
-
-File: `tla-shallow.yml`
-3rd party dependencies: None
-
 # Lean
 
 Runs Lean verification for the repository, with each package checked in an isolated reusable-workflow job.

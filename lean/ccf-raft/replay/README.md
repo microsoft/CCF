@@ -28,7 +28,7 @@ for trace in /tmp/ccf-raft-build/consensus/raw/*.ndjson; do
 done
 ```
 
-The scenario runner preserves the raw records in `consensus/raw/` alongside the existing TLA-preprocessed captures.
+The scenario runner writes the raw records to `consensus/raw/`.
 
 ## CI captures and replay
 
