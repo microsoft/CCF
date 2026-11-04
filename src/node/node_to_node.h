@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/aft/cft_types.h"
 #include "consensus/aft/consensus_channels.h"
-#include "consensus/aft/raft_types.h"
 #include "ds/internal_logger.h"
 #include "ds/serialized.h"
 #include "node/rpc/rpc_handler.h"
@@ -75,44 +75,44 @@ namespace ccf
     {
       const uint8_t* data = buffer;
       size_t header_size = 0;
-      switch (serialized::peek<aft::RaftMsgType>(data, size))
+      switch (serialized::peek<aft::CftMsgType>(data, size))
       {
-        case aft::raft_append_entries:
+        case aft::append_entries:
         {
           header_size = sizeof(aft::AppendEntries);
           break;
         }
-        case aft::raft_append_entries_response:
+        case aft::append_entries_response:
         {
           header_size = sizeof(aft::AppendEntriesResponse);
           break;
         }
-        case aft::raft_request_vote:
+        case aft::request_vote:
         {
           header_size = sizeof(aft::RequestVote);
           break;
         }
-        case aft::raft_request_vote_response:
+        case aft::request_vote_response:
         {
           header_size = sizeof(aft::RequestVoteResponse);
           break;
         }
-        case aft::raft_request_pre_vote:
+        case aft::request_pre_vote:
         {
           header_size = sizeof(aft::RequestPreVote);
           break;
         }
-        case aft::raft_request_pre_vote_response:
+        case aft::request_pre_vote_response:
         {
           header_size = sizeof(aft::RequestPreVoteResponse);
           break;
         }
-        case aft::raft_propose_request_vote:
+        case aft::propose_request_vote:
         {
           header_size = sizeof(aft::ProposeRequestVote);
           break;
         }
-        case aft::raft_append_entries_signed_response:
+        case aft::append_entries_signed_response:
         default:
         {
           throw std::runtime_error("Unsupported legacy consensus message");

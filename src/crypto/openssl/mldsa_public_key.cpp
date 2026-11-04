@@ -1,20 +1,31 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/mldsa_public_key.h"
+
+#include "crypto/openssl/mldsa.h"
+
 #include <openssl/opensslv.h>
 
 #if OPENSSL_VERSION_PREREQ(3, 5)
 
-#  include "crypto/openssl/mldsa.h"
 #  include "crypto/openssl/mldsa_public_key.h"
 #  include "ds/internal_logger.h"
 
 #  include <openssl/pem.h>
 #  include <openssl/x509.h>
 #  include <stdexcept>
+#  include <tuple>
 
 namespace ccf::crypto
 {
+  MLDSAPublicKey_OpenSSL::MLDSAPublicKey_OpenSSL(EVP_PKEY* pk)
+  {
+    key.reset(pk);
+    std::ignore = mldsa::parameter_set(key);
+    OpenSSL::check_key(key, false);
+  }
+
   MLDSAPublicKey_OpenSSL::MLDSAPublicKey_OpenSSL(
     const Pem& pem, std::optional<MLDSAParameterSet> expected)
   {
@@ -136,6 +147,32 @@ namespace ccf::crypto
     std::span<const uint8_t> der, MLDSAParameterSet expected)
   {
     return std::make_shared<MLDSAPublicKey_OpenSSL>(der, expected);
+  }
+}
+#else // Remove this fallback after dropping AL3 support.
+
+namespace ccf::crypto
+{
+  MLDSAPublicKeyPtr make_mldsa_public_key(const Pem& /*pem*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAPublicKeyPtr make_mldsa_public_key(std::span<const uint8_t> /*der*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAPublicKeyPtr make_mldsa_public_key(
+    const Pem& /*pem*/, MLDSAParameterSet /*expected*/)
+  {
+    mldsa::unsupported();
+  }
+
+  MLDSAPublicKeyPtr make_mldsa_public_key(
+    std::span<const uint8_t> /*der*/, MLDSAParameterSet /*expected*/)
+  {
+    mldsa::unsupported();
   }
 }
 #endif // OPENSSL_VERSION_PREREQ

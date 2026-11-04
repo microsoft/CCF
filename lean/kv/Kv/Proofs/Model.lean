@@ -45,7 +45,7 @@ theorem set_unique (xs : Assoc K V) (k : K) (v : V) (h : Kv.Properties.Unique xs
     : Kv.Properties.Unique (set xs k v) := by
   simp only [Kv.Properties.Unique, Model.set, List.map_cons, List.nodup_cons]
   constructor
-  · simp [erase_keys]
+  · simp [erase_keys, eq_comm]
   · exact erase_unique xs k h
 
 theorem publish_lookup (db : DB M K V) (version : Nat) (ws : Writes M K V) (a : Addr M K)

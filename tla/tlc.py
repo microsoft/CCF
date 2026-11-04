@@ -147,13 +147,13 @@ def cli():
     # scenario trace generation
     tv.add_argument(
         "--raft-driver",
-        default="../build/raft_driver",
-        help="Path to the raft_driver binary",
+        default="../build/cft_driver",
+        help="Path to the cft_driver binary",
     )
     tv.add_argument(
         "--scenarios-runner",
-        default="../tests/raft_scenarios_runner.py",
-        help="Path to the raft_scenarios_runner.py script",
+        default="../tests/cft_scenarios_runner.py",
+        help="Path to the cft_scenarios_runner.py script",
     )
 
     # Simulation
