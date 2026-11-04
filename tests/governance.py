@@ -480,13 +480,6 @@ def renew_service_certificate(network, args, valid_from, validity_period_days):
         valid_from=valid_from_x509,
         validity_period_days=validity_period_days,
     )
-    # Also renew the ML-DSA service certificate, when the service has one
-    if network.get_pq_service_certificate() is not None:
-        network.consortium.set_pq_service_certificate_validity(
-            primary,
-            valid_from=valid_from_x509,
-            validity_period_days=validity_period_days,
-        )
     network.verify_service_certificate_validity_period(
         validity_period_days or args.maximum_service_certificate_validity_days
     )
@@ -538,6 +531,41 @@ def test_service_cert_renewal_extended(network, args):
         # Using new cert also works
         with primary.client() as c:
             c.get("/node/network/nodes")
+
+    return network
+
+
+@reqs.description("Renew ML-DSA service certificate independently")
+def test_pq_service_cert_renewal(network, args):
+    if network.get_pq_service_certificate() is None:
+        LOG.warning("Skipping ML-DSA renewal test: service has no ML-DSA certificate")
+        return network
+
+    primary, _ = network.find_primary()
+    now = datetime.now(UTC)
+    service_validity_days = args.maximum_service_certificate_validity_days
+    pq_validity_days = service_validity_days // 2
+    assert pq_validity_days not in (0, service_validity_days)
+
+    renew_service_certificate(network, args, now, service_validity_days)
+
+    # Each certificate keeps its own validity period when the other is renewed
+    network.consortium.set_pq_service_certificate_validity(
+        primary,
+        valid_from=str(now),
+        validity_period_days=pq_validity_days,
+    )
+    network.verify_pq_service_certificate_validity_period(pq_validity_days)
+    network.verify_service_certificate_validity_period(service_validity_days)
+
+    renew_service_certificate(network, args, now, service_validity_days - 1)
+    network.verify_pq_service_certificate_validity_period(pq_validity_days)
+
+    # Omitting the period defaults to the service-wide maximum
+    network.consortium.set_pq_service_certificate_validity(
+        primary, valid_from=str(now), validity_period_days=None
+    )
+    network.verify_pq_service_certificate_validity_period(service_validity_days)
 
     return network
 
@@ -670,6 +698,7 @@ def gov(args):
             test_all_nodes_cert_renewal(recovered_network, args)
             test_service_cert_renewal(recovered_network, args)
             test_service_cert_renewal_extended(recovered_network, args)
+            test_pq_service_cert_renewal(recovered_network, args)
             test_pq_service_cert_renewal_rejected(recovered_network, args)
         finally:
             recovered_network.stop_all_nodes(skip_verification=True)
