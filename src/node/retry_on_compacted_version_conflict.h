@@ -21,8 +21,10 @@ namespace ccf
   // node down. Such callers should keep handle creation close together and
   // wrap it in this helper. Each call to fn must create a fresh transaction.
   //
-  // The conflict is only ever thrown while handles are created, never by
-  // commit, so a transaction retried by this helper never commits twice.
+  // fn completes successfully at most once, but may be partially executed
+  // multiple times. Avoid externally visible side effects, such as committing
+  // a transaction or recording results, until all required handles have been
+  // acquired.
   // Attempts are made back to back without any backoff, as the conflict
   // window is only as long as the time between handle creations.
   //

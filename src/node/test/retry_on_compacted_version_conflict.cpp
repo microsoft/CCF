@@ -12,6 +12,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -94,6 +95,52 @@ namespace
       store.compact(store.current_version());
     }
   };
+}
+
+TEST_CASE("Read-only transaction retries a conflict on its first handle")
+{
+  struct CompactingOnReadStore : public ccf::kv::Store
+  {
+    bool compact_on_read = false;
+
+    std::pair<ccf::TxID, ccf::kv::Term> current_txid_and_commit_term() override
+    {
+      auto result = Store::current_txid_and_commit_term();
+      if (compact_on_read)
+      {
+        compact_on_read = false;
+        auto tx = create_tx();
+        tx.rw<ccf::kv::Map<std::string, std::size_t>>("public:map")
+          ->put("k", 1);
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+        compact(current_version());
+      }
+      return result;
+    }
+  };
+
+  CompactingOnReadStore store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  ccf::kv::Map<std::string, std::size_t> map("public:map");
+  {
+    auto tx = store.create_tx();
+    tx.rw(map)->put("k", 0);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  store.compact_on_read = true;
+  std::size_t attempts = 0;
+  std::optional<std::size_t> value;
+  const bool completed =
+    ccf::retry_on_compacted_version_conflict("Test first handle", [&] {
+      ++attempts;
+      auto tx = store.create_read_only_tx();
+      value = tx.ro(map)->get("k");
+    });
+
+  REQUIRE(completed);
+  REQUIRE(attempts == 2);
+  REQUIRE(value == 1U);
 }
 
 TEST_CASE("Read-only transaction recovers from a KV compaction conflict")
