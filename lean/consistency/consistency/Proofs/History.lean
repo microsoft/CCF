@@ -109,19 +109,31 @@ theorem causal_response (history : List Event) (causal : Causal history)
 theorem step_causal (before after : State) (action : Action)
     (causal : Causal before.history) (transition : step before action = some after)
     : Causal after.history := by
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (exact causal)
-      | (exact causal_request _ causal _ _)
-      | (exact causal_status _ causal _ _)
-      | (solve | apply causal_response _ causal <;> assumption)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
+  cases action with
+  | request =>
+      rw [Structural.request_some transition]
+      exact causal_request _ causal _ _
+  | execute =>
+      obtain ⟨_, _, _, _, rfl⟩ := Structural.execute_some transition
+      exact causal
+  | respond =>
+      obtain ⟨_, _, _, found, _, _, _, _, _, rfl⟩ := Structural.respond_some transition
+      exact causal_response _ causal _ _ found
+  | read =>
+      obtain ⟨_, _, _, found, _, _, _, _, rfl⟩ := Structural.read_some transition
+      exact causal_response _ causal _ _ found
+  | commit =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, _, _, rfl⟩ := Structural.commit_some transition
+      exact causal_status _ causal _ _
+  | invalidate =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.invalidate_some transition
+      exact causal_status _ causal _ _
+  | appendOther =>
+      obtain ⟨_, rfl⟩ := Structural.appendOther_some transition
+      exact causal
+  | elect =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.elect_some transition
+      exact causal
 
 theorem causal_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Causal state.history := by
@@ -197,17 +209,31 @@ theorem step_requests (before after : State) (action : Action)
     (invariant : RequestInvariant before.history)
     (transition : step before action = some after)
     : RequestInvariant after.history := by
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (exact invariant)
-      | (solve | apply requests_snoc _ _ invariant; simp)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
+  cases action with
+  | request =>
+      rw [Structural.request_some transition]
+      exact requests_snoc _ _ invariant (by intro _ _ same; cases same; rfl)
+  | execute =>
+      obtain ⟨_, _, _, _, rfl⟩ := Structural.execute_some transition
+      exact invariant
+  | respond =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, rfl⟩ := Structural.respond_some transition
+      exact requests_snoc _ _ invariant (by intro _ _ same; cases same)
+  | read =>
+      obtain ⟨_, _, _, _, _, _, _, _, rfl⟩ := Structural.read_some transition
+      exact requests_snoc _ _ invariant (by intro _ _ same; cases same)
+  | commit =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, _, _, rfl⟩ := Structural.commit_some transition
+      exact requests_snoc _ _ invariant (by intro _ _ same; cases same)
+  | invalidate =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.invalidate_some transition
+      exact requests_snoc _ _ invariant (by intro _ _ same; cases same)
+  | appendOther =>
+      obtain ⟨_, rfl⟩ := Structural.appendOther_some transition
+      exact invariant
+  | elect =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.elect_some transition
+      exact invariant
 
 theorem requests_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : RequestInvariant state.history := by

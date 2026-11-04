@@ -85,18 +85,31 @@ theorem step_responses (before after : State) (action : Action)
     (requests : RequestInvariant before.history)
     (transition : step before action = some after)
     : UniqueResponses after.history := by
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff, guard]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (exact invariant)
-      | (solve | apply responses_snoc _ _ invariant; simp)
-      | (solve | apply responses_response _ invariant causal requests <;> assumption)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
+  cases action with
+  | request =>
+      rw [Structural.request_some transition]
+      exact responses_snoc _ _ invariant (by intro _ _ _ _ same; cases same)
+  | execute =>
+      obtain ⟨_, _, _, _, rfl⟩ := Structural.execute_some transition
+      exact invariant
+  | respond =>
+      obtain ⟨_, _, _, found, unanswered, _, _, _, _, rfl⟩ := Structural.respond_some transition
+      exact responses_response _ invariant causal requests _ _ found unanswered
+  | read =>
+      obtain ⟨_, _, _, found, unanswered, _, _, _, rfl⟩ := Structural.read_some transition
+      exact responses_response _ invariant causal requests _ _ found unanswered
+  | commit =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, _, _, rfl⟩ := Structural.commit_some transition
+      exact responses_snoc _ _ invariant (by intro _ _ _ _ same; cases same)
+  | invalidate =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.invalidate_some transition
+      exact responses_snoc _ _ invariant (by intro _ _ _ _ same; cases same)
+  | appendOther =>
+      obtain ⟨_, rfl⟩ := Structural.appendOther_some transition
+      exact invariant
+  | elect =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.elect_some transition
+      exact invariant
 
 theorem responses_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : UniqueResponses state.history := by

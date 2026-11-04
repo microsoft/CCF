@@ -42,11 +42,25 @@ theorem status_ids_snoc (history : List Event) (event : Event) (txid : TxID)
     (status : Status)
     : txid ∈ statusIDs (history ++ [event]) status
       ↔ txid ∈ statusIDs history status ∨ event = .status txid status := by
+  unfold statusIDs
+  rw [List.filterMap_append, List.mem_append]
+  apply or_congr_right
   cases event with
-  | request kind tx => simp [statusIDs, List.filterMap_append]
-  | response kind tx observed id => simp [statusIDs, List.filterMap_append]
+  | request =>
+      simp only [List.filterMap_cons, List.filterMap_nil, List.not_mem_nil, reduceCtorEq]
+  | response =>
+      simp only [List.filterMap_cons, List.filterMap_nil, List.not_mem_nil, reduceCtorEq]
   | status id value =>
-      cases value <;> cases status <;> simp [statusIDs, List.filterMap_append, eq_comm]
+      by_cases same : value = status
+      · subst same
+        simp only [List.filterMap_cons, List.filterMap_nil, ite_true, List.mem_singleton,
+          Event.status.injEq, and_true]
+        exact eq_comm
+      · simp only [List.filterMap_cons, List.filterMap_nil, same, ite_false, List.not_mem_nil,
+          false_iff]
+        intro equal
+        cases equal
+        exact same rfl
 
 def Separated (history : List Event) : Prop :=
   ∀ committed ∈ statusIDs history .committed,
@@ -112,20 +126,37 @@ theorem step_separated (before after : State) (action : Action)
     (snapshots : Snapshots before.branches before.history)
     (transition : step before action = some after)
     : Separated after.history := by
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff, guard]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (exact separated)
-      | (solve | apply separated_snoc _ _ separated <;> simp)
-      | (solve | apply separated_commit _ separated; assumption)
-      | (solve | apply separated_invalidate before separated anchored current snapshots
-          <;> assumption)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
+  cases action with
+  | request =>
+      rw [Structural.request_some transition]
+      exact separated_snoc _ _ separated
+        (by intro _ same; cases same)
+        (by intro _ same; cases same)
+  | execute =>
+      obtain ⟨_, _, _, _, rfl⟩ := Structural.execute_some transition
+      exact separated
+  | respond =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, rfl⟩ := Structural.respond_some transition
+      exact separated_snoc _ _ separated
+        (by intro _ same; cases same)
+        (by intro _ same; cases same)
+  | read =>
+      obtain ⟨_, _, _, _, _, _, _, _, rfl⟩ := Structural.read_some transition
+      exact separated_snoc _ _ separated
+        (by intro _ same; cases same)
+        (by intro _ same; cases same)
+  | commit =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, allowed, _, rfl⟩ := Structural.commit_some transition
+      exact separated_commit _ separated _ allowed
+  | invalidate =>
+      obtain ⟨_, _, _, found, allowed, rfl⟩ := Structural.invalidate_some transition
+      exact separated_invalidate before separated anchored current snapshots found allowed
+  | appendOther =>
+      obtain ⟨_, rfl⟩ := Structural.appendOther_some transition
+      exact separated
+  | elect =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.elect_some transition
+      exact separated
 
 theorem separated_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Separated state.history := by
@@ -140,15 +171,28 @@ theorem separated_reachable {state : State} (reachable : transitionSystem.Reacha
 
 theorem mem_statuses_iff (history : List Event) (txid : TxID) (status : Status)
     : (txid, status) ∈ statuses history ↔ txid ∈ statusIDs history status := by
+  simp only [statuses, statusIDs, List.mem_filterMap]
   constructor
-  · intro member
-    obtain ⟨event, listed, mapped⟩ := List.mem_filterMap.mp member
-    cases event <;> simp_all [statusIDs, List.mem_filterMap]
-    exact ⟨.status txid status, listed, by simp⟩
-  · intro member
-    obtain ⟨event, listed, mapped⟩ := List.mem_filterMap.mp member
-    cases event <;> simp_all [statuses, List.mem_filterMap]
-    exact ⟨.status txid status, listed, rfl⟩
+  · rintro ⟨event, listed, mapped⟩
+    refine ⟨event, listed, ?_⟩
+    cases event with
+    | status id value =>
+        cases mapped
+        exact ite_eq_left rfl
+    | _ => cases mapped
+  · rintro ⟨event, listed, mapped⟩
+    refine ⟨event, listed, ?_⟩
+    cases event with
+    | status id value =>
+        dsimp only at mapped
+        by_cases same : value = status
+        · rw [ite_eq_left same] at mapped
+          cases mapped
+          cases same
+          rfl
+        · rw [ite_eq_right same] at mapped
+          cases mapped
+    | _ => cases mapped
 
 theorem committed_or_invalid
     : forall (trace : CCF.Execution.Trace transitionSystem) (state : State),
