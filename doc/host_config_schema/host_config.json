@@ -12,7 +12,7 @@
         "fluentd": {
           "type": "array",
           "default": [],
-          "description": "Experimental CCF consensus protocol trace export to Fluentd ``in_forward`` TCP listeners. All sinks receive the same events; console logging is unchanged. Omitted or empty disables export. Use only trusted collectors on a trusted network: TCP is unauthenticated and unencrypted. See :ref:`observability_export` for configuration and delivery limitations",
+          "description": "Experimental CCF consensus protocol trace export to Fluentd ``in_forward`` TCP listeners. Each sink selects events by its optional tag prefix; console logging is unchanged. Omitted or empty disables export. Use only trusted collectors on a trusted network: TCP is unauthenticated and unencrypted. See :ref:`observability_export` for configuration and delivery limitations",
           "items": {
             "type": "object",
             "properties": {
@@ -38,6 +38,12 @@
                 "enum": ["buffered-best-effort", "unbuffered-non-blocking"],
                 "default": "buffered-best-effort",
                 "description": "``buffered-best-effort`` retains queued records while the collector cannot accept data; ``unbuffered-non-blocking`` drops queued records on backpressure or disconnection. See :ref:`observability_export` for delivery details and limitations"
+              },
+              "tag_prefix": {
+                "type": "string",
+                "default": "",
+                "description": "Export only events whose tag starts with this literal, case-sensitive prefix. Omitted or empty matches every tag. For example, ``ccf`` matches all CCF tags and ``ccf.cft`` matches consensus traces, without requiring a dot boundary. Wildcards and regular expressions are not supported. Events excluded by this sink are not queued or counted as dropped for it; events excluded by every sink are not encoded",
+                "examples": ["ccf", "ccf.cft"]
               }
             },
             "required": ["host", "port"]

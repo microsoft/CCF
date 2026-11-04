@@ -47,7 +47,7 @@ namespace
     std::atomic<size_t> reports = 0;
     std::atomic<size_t> close_errors = 0;
     size_t shutdown_reports = 0;
-    std::string shutdown_message;
+    std::vector<std::string> shutdown_messages;
 
     void write(const ccf::logger::LogLine& line) override
     {
@@ -58,7 +58,7 @@ namespace
       if (line.msg.starts_with("Fluentd exporter shutdown:"))
       {
         ++shutdown_reports;
-        shutdown_message = line.msg;
+        shutdown_messages.push_back(line.msg);
       }
     }
   };
@@ -211,6 +211,7 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
   CHECK(config.observability.fluentd[0].host == "127.0.0.1");
   CHECK(config.observability.fluentd[0].port == "24224");
   CHECK(config.observability.fluentd[0].queue_capacity == 4096);
+  CHECK(config.observability.fluentd[0].tag_prefix.empty());
   CHECK(
     config.observability.fluentd[0].delivery ==
     ccf::FluentdConfig::Delivery::BUFFERED_BEST_EFFORT);
@@ -219,9 +220,17 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
     ccf::FluentdConfig::Delivery::UNBUFFERED_NON_BLOCKING);
 
   config.observability.fluentd[0].queue_capacity = 17;
+  config.observability.fluentd[0].tag_prefix = "ccf.cft";
+  config.observability.fluentd[1].tag_prefix = "ccf.sho";
   const nlohmann::json roundtrip = config;
   CHECK(
     roundtrip.at("observability").at("fluentd")[0].at("queue_capacity") == 17);
+  CHECK(
+    roundtrip.at("observability").at("fluentd")[0].at("tag_prefix") ==
+    "ccf.cft");
+  CHECK(
+    roundtrip.at("observability").at("fluentd")[1].at("tag_prefix") ==
+    "ccf.sho");
   CHECK(roundtrip.get<ccf::CCFConfig>().observability == config.observability);
 
   config_json["observability"]["fluentd"][1]["delivery"] = "reliable";
@@ -300,7 +309,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   const auto after_unconfigured = allocations;
   CHECK(after_unconfigured == before_unconfigured);
   CHECK_FALSE(encoded);
-  CHECK_FALSE(Sink::enqueue({}));
+  CHECK_FALSE(Sink::enqueue("ccf.request", {}));
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::milliseconds(0)));
   CHECK_THROWS_AS(
     Sink::configure(Sink::Endpoint{"127.0.0.1", "0"}), std::invalid_argument);
@@ -323,7 +332,17 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   REQUIRE(getsockname(listener, (sockaddr*)&address, &size) == 0);
   Sink::Endpoint endpoint{"127.0.0.1", std::to_string(ntohs(address.sin_port))};
   endpoint.queue_capacity = 3;
-  Sink::configure(endpoint, 2);
+  endpoint.tag_prefix = "ccf.request";
+  const int excluded_listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  REQUIRE(excluded_listener >= 0);
+  address.sin_port = 0;
+  REQUIRE(bind(excluded_listener, (sockaddr*)&address, sizeof(address)) == 0);
+  REQUIRE(getsockname(excluded_listener, (sockaddr*)&address, &size) == 0);
+  REQUIRE(listen(excluded_listener, 1) == 0);
+  Sink::Endpoint excluded_endpoint{
+    "127.0.0.1", std::to_string(ntohs(address.sin_port))};
+  excluded_endpoint.tag_prefix = "ccf.sho";
+  Sink::configure(std::vector{endpoint, excluded_endpoint}, 2);
   Sink::bind_producer(0);
   const auto waiting = std::chrono::steady_clock::now();
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::milliseconds(150)));
@@ -335,6 +354,24 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(Sink::dropped_count() == 0);
   int peer = accept(listener, nullptr, nullptr);
   REQUIRE(peer >= 0);
+  CHECK(Sink::accepts("ccf.request"));
+  CHECK(Sink::accepts("ccf.request.child"));
+  CHECK(Sink::accepts("ccf.requests"));
+  CHECK_FALSE(Sink::accepts("ccf"));
+  CHECK_FALSE(Sink::accepts("CCF.request"));
+  CHECK_FALSE(Sink::accepts("prefix.ccf.request"));
+  CHECK_FALSE(Sink::accepts(""));
+  const auto drops_before_filtering = Sink::dropped_count();
+  const auto before_filtering = allocations;
+  for (const auto tag : {"ccf.cft", "ccf.recovery", "ccf.reques", "ccf.*"})
+  {
+    ccf::tracing::emit(tag, "probe", request_trace::EncodingProbe{encoded});
+  }
+  const auto after_filtering = allocations;
+  CHECK(after_filtering == before_filtering);
+  REQUIRE_FALSE(encoded);
+  CHECK(Sink::dropped_count() == drops_before_filtering);
+  CHECK(calls == 0);
   // Fail the first buffer reserve, then process identity initialization.
   for (size_t failure = 1; failure <= 2; ++failure)
   {
@@ -405,6 +442,20 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
      {"status", 1},
      {"cached", false}});
   CHECK(evaluations == 1);
+  check_event(
+    [] { ccf::tracing::emit("ccf.request.child", "nested", true); },
+    {{"nested", true}});
+  const auto sequence_before_filtering =
+    nlohmann::json::from_msgpack(ccf::tracing::event_buffer())[2]["h_ts"]
+      .get<uint64_t>();
+  const auto buffer_before_filtering = ccf::tracing::event_buffer();
+  ccf::tracing::emit("ccf.cft", "probe", request_trace::EncodingProbe{encoded});
+  CHECK_FALSE(encoded);
+  CHECK(ccf::tracing::event_buffer() == buffer_before_filtering);
+  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  CHECK(
+    nlohmann::json::from_msgpack(ccf::tracing::event_buffer())[2]["h_ts"] ==
+    sequence_before_filtering + 1);
 
   const std::string large_value(
     ccf::tracing::event_buffer().capacity() + 1, 'x');
@@ -424,7 +475,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
 
   std::thread second([&] {
     Sink::bind_producer(1);
-    CHECK(Sink::enqueue(bytes));
+    CHECK(Sink::enqueue("ccf.request", bytes));
   });
   second.join();
   std::vector<uint8_t> received(bytes.size());
@@ -437,7 +488,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   {
     const auto drops_before_disconnect = Sink::dropped_count();
     fail_at = calls + failure;
-    REQUIRE(Sink::enqueue(bytes));
+    REQUIRE(Sink::enqueue("ccf.request", bytes));
     if (failure == 2)
     {
       REQUIRE(recv(peer, chunk.data(), 7, MSG_WAITALL) == 7);
@@ -458,7 +509,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   for (size_t failure = 1; failure <= 2; ++failure)
   {
     allocation_failure = allocations + failure;
-    const auto pushed = Sink::enqueue(bytes);
+    const auto pushed = Sink::enqueue("ccf.request", bytes);
     allocation_failure = 0;
     CHECK_FALSE(pushed);
   }
@@ -480,14 +531,14 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   stalled = true;
   std::array<uint8_t, 128> payload = {};
   const auto previous = calls.load();
-  REQUIRE(Sink::enqueue(payload));
+  REQUIRE(Sink::enqueue("ccf.request", payload));
   while (calls == previous)
     std::this_thread::yield();
-  REQUIRE(Sink::enqueue(payload));
-  REQUIRE(Sink::enqueue(payload));
-  REQUIRE(Sink::enqueue(payload));
+  REQUIRE(Sink::enqueue("ccf.request", payload));
+  REQUIRE(Sink::enqueue("ccf.request", payload));
+  REQUIRE(Sink::enqueue("ccf.request", payload));
   const auto full_before = allocations;
-  const auto full = Sink::enqueue(payload);
+  const auto full = Sink::enqueue("ccf.request", payload);
   const auto full_after = allocations;
   CHECK_FALSE(full);
   CHECK(full_before == full_after);
@@ -497,9 +548,9 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   try
   {
     for (size_t i = 0; i < Sink::DROP_REPORT_INTERVAL * 2; ++i)
-      Sink::enqueue(oversize);
+      Sink::enqueue("ccf.request", oversize);
     for (size_t i = 0; i < 32; ++i)
-      Sink::enqueue(payload);
+      Sink::enqueue("ccf.request", payload);
   }
   catch (...)
   {
@@ -519,7 +570,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   size_t unbound_allocations = 0;
   std::thread unbound([&] {
     const auto before = allocations;
-    unbound_pushed = Sink::enqueue(payload);
+    unbound_pushed = Sink::enqueue("ccf.request", payload);
     unbound_allocations = allocations - before;
   });
   unbound.join();
@@ -532,23 +583,26 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   const auto start = std::chrono::steady_clock::now();
   Sink::shutdown();
   CHECK_FALSE(fail_next_close);
-  CHECK(close_calls == closes_before_shutdown + 1);
+  CHECK(close_calls == closes_before_shutdown + 2);
   CHECK(logs->close_errors == 1);
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::seconds(1)));
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(3));
   CHECK(Sink::dropped_count() == drops_before_shutdown + 4);
-  CHECK(logs->shutdown_reports == 1);
+  CHECK(logs->shutdown_reports == 2);
   CHECK(
-    logs->shutdown_message ==
+    logs->shutdown_messages[0] ==
     fmt::format(
       "Fluentd exporter shutdown: {} dropped events",
       drops_before_shutdown + 4));
+  CHECK(
+    logs->shutdown_messages[1] ==
+    "Fluentd exporter shutdown: 0 dropped events");
   Sink::shutdown();
-  CHECK(logs->shutdown_reports == 1);
+  CHECK(logs->shutdown_reports == 2);
   // Use the empty queue so a full queue cannot mask shutdown rejection.
   Sink::bind_producer(1);
   const auto allocations_before_shutdown_enqueue = allocations;
-  const auto shutdown_pushed = Sink::enqueue(payload);
+  const auto shutdown_pushed = Sink::enqueue("ccf.request", payload);
   const auto allocations_after_shutdown_enqueue = allocations;
   CHECK_FALSE(shutdown_pushed);
   CHECK(
@@ -558,4 +612,5 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK_FALSE(wrong_thread);
   close(peer);
   close(listener);
+  close(excluded_listener);
 }

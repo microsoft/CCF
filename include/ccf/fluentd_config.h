@@ -21,6 +21,7 @@ namespace ccf
     std::string port;
     size_t queue_capacity = 4096;
     Delivery delivery = Delivery::BUFFERED_BEST_EFFORT;
+    std::string tag_prefix = "";
 
     bool operator==(const FluentdConfig&) const = default;
   };

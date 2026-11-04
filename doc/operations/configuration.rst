@@ -36,15 +36,21 @@ Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticate
     {
       "observability": {
         "fluentd": [
-          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort" },
-          { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking" }
+          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag_prefix": "ccf" },
+          { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking", "tag_prefix": "ccf.cft" }
         ]
       }
     }
 
-Each collector receives the same traces.
-For a single collector, use one array entry; to migrate an existing single-object configuration, wrap it in an array.
+Set ``tag_prefix`` per sink to select events by a literal, case-sensitive prefix.
+For example, ``ccf`` matches all CCF tags and ``ccf.cft`` matches consensus traces.
+Omitted or empty matches every tag.
+There is no dot-boundary requirement, wildcard expansion, or regular-expression matching.
+An event matching multiple sinks is sent independently to each.
+Events excluded by a sink are not queued or counted as dropped for it; events excluded by every sink are not encoded.
+Ordinary console logging is unchanged.
 Omit the array or leave it empty to disable export.
+For a single collector, use one array entry; to migrate an existing single-object configuration, wrap it in an array.
 
 Choose a ``delivery`` policy per collector:
 

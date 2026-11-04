@@ -20,6 +20,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
@@ -99,6 +100,7 @@ namespace ccf::tracing
         }
       };
 
+      const std::string tag_prefix;
       sockaddr_storage address = {};
       socklen_t address_size = 0;
       Endpoint::Delivery delivery;
@@ -118,6 +120,7 @@ namespace ccf::tracing
       bool finished CCF_GUARDED_BY(mutex) = false;
 
       Transport(const Endpoint& endpoint, size_t producers) :
+        tag_prefix(endpoint.tag_prefix),
         delivery(endpoint.delivery),
         reader(queues)
       {
@@ -481,6 +484,22 @@ namespace ccf::tracing
       return worker() != nullptr;
     }
 
+    static bool accepts(std::string_view tag)
+    {
+      if (!is_configured())
+      {
+        return false;
+      }
+      for (const auto& t : worker()->transports)
+      {
+        if (tag.starts_with(t->tag_prefix))
+        {
+          return true;
+        }
+      }
+      return false;
+    }
+
     // Startup only: a connection observed here does not guarantee delivery.
     static bool wait_for_connection(std::chrono::milliseconds timeout)
     {
@@ -523,7 +542,7 @@ namespace ccf::tracing
     }
 
     // False may mean partial acceptance: other sinks still receive the record.
-    static bool enqueue(std::span<const uint8_t> bytes)
+    static bool enqueue(std::string_view tag, std::span<const uint8_t> bytes)
     {
       if (!is_configured())
       {
@@ -533,6 +552,10 @@ namespace ccf::tracing
       const auto slot = bound_slot();
       for (const auto& t : worker()->transports)
       {
+        if (!tag.starts_with(t->tag_prefix))
+        {
+          continue;
+        }
         if (
           slot >= t->queues.size() ||
           t->stopping.load(std::memory_order_relaxed) ||
@@ -545,7 +568,7 @@ namespace ccf::tracing
       return enqueued;
     }
 
-    static void record_drop()
+    static void record_drop(std::string_view tag)
     {
       if (!is_configured())
       {
@@ -553,7 +576,10 @@ namespace ccf::tracing
       }
       for (const auto& t : worker()->transports)
       {
-        t->dropped.fetch_add(1, std::memory_order_relaxed);
+        if (tag.starts_with(t->tag_prefix))
+        {
+          t->dropped.fetch_add(1, std::memory_order_relaxed);
+        }
       }
     }
 
