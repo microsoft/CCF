@@ -74,6 +74,10 @@ namespace ccf::kv
     // through retaining the map state.
     MapSetLockGuard map_set_guard(*pimpl->store, first_acquisition);
 
+#ifdef CCF_KV_TRACING
+    trace::Context trace_context(pimpl->trace_attempt.id);
+#endif
+
     if (first_acquisition)
     {
       // Grab opacity version that all Maps should be queried at.
@@ -156,6 +160,7 @@ namespace ccf::kv
   {
     pimpl = std::make_unique<PrivateImpl>();
     pimpl->store = store_;
+    KV_TRACE(pimpl->trace_attempt.bind(store_));
   }
 
   // Use default destructor, but instantiate here where PrivateImpl is not

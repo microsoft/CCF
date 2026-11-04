@@ -40,14 +40,15 @@ lake exe replay-checks
 ```
 
 Run `lake check` only in CI, not locally.
-The [per-root kernel checks](replay/README.md#kernel-checks) build with compiler warnings, including `sorry`, treated as errors, before separately replaying the compiled proofs in Lean's kernel and rejecting nonstandard axioms.
+The [kernel check](replay/README.md#kernel-checks) builds with compiler warnings, including `sorry`, treated as errors, before replaying the compiled proofs in Lean's kernel and rejecting nonstandard axioms.
 Kernel tracing reports the declarations checked during compilation; cached modules do not emit fresh compilation traces.
 CI runs this before import coverage, formatting, and linting so the initial build and its traces occur in this step.
 The build also runs explicit action traces from an initialized network: committing a client request, and adding two nodes then electing a new primary and committing another request.
 The reconfiguration trace checks each node's ledger before delivery, after setup, after replication and commitment, after election, and after the new primary's client request.
 Append regressions check configuration heartbeats followed by flushing, pre-commit packet headers, per-entry flushing, term-bounded packets, and atomic rejection of invalid flush choices.
 These are regression examples, not exhaustive checking.
-`lake check` runs without sandboxing here, so build-time code must be trusted.
+`lake check` checks both default targets, `CCFRaft` and `ccfraft-replay`, in one invocation.
+It runs without sandboxing here, so build-time code must be trusted.
 `CCFRaft.lean` reexports `Properties.lean` and the replay API transitively, while importing tests privately.
 The shared `check-imports` command rejects modules missing from that import closure.
 
@@ -55,6 +56,7 @@ The shared `check-imports` command rejects modules missing from that import clos
 
 `Properties.lean` contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
 Import `CCFRaft.Properties` and use `CCFRaft.Properties.<name>` for these declarations.
+Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
 `Proofs/Direct/` establishes node-local commit invariants; `Proofs/Safety/` establishes the cross-node history invariant used for election safety and committed-log comparability.
 `Proofs/Witnesses.lean` supplies concrete executions checked by the kernel.
 

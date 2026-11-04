@@ -1,7 +1,6 @@
 module
 
 public import DisasterRecovery.Properties.Utils
-public import Mathlib.Tactic
 
 import all Init.Control.State
 
