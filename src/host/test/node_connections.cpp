@@ -310,7 +310,7 @@ namespace
   std::vector<uint8_t> make_pre_vote()
   {
     std::vector<uint8_t> m(sizeof(aft::Node2NodeMsg) + 16, 0);
-    const auto type = static_cast<aft::Node2NodeMsg>(aft::cft_request_pre_vote);
+    const auto type = static_cast<aft::Node2NodeMsg>(aft::request_pre_vote);
     std::memcpy(m.data(), &type, sizeof(type));
     return m;
   }
@@ -469,7 +469,7 @@ namespace
   std::vector<uint8_t> make_append_entries(
     ::consensus::Index prev_idx, ::consensus::Index idx)
   {
-    const auto type = static_cast<aft::Node2NodeMsg>(aft::cft_append_entries);
+    const auto type = static_cast<aft::Node2NodeMsg>(aft::append_entries);
     const ::consensus::AppendEntriesIndex ae{.idx = idx, .prev_idx = prev_idx};
     std::vector<uint8_t> m(sizeof(type) + sizeof(ae) + 16, 0xab);
     std::memcpy(m.data(), &type, sizeof(type));

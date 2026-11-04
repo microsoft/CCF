@@ -44,7 +44,7 @@ static void receive_message(
     const uint8_t* data = contents.data();
     auto size = contents.size();
     auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
-    if (msg_type == aft::cft_append_entries)
+    if (msg_type == aft::append_entries)
     {
       // Parse the indices to be sent to the recipient.
       auto ae = *(aft::AppendEntries*)data;

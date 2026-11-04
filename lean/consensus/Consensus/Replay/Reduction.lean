@@ -150,7 +150,7 @@ private def readReceive (head : Event) (families : List String) : Reduction Step
 
 private def ruleRecvAppendEntries : Reduction Unit := do
   let head ← peek
-  let action ← readReceive head ["cft_append_entries"]
+  let action ← readReceive head ["append_entries"]
   -- consume
   event head "recv_append_entries"
   optional_ (event head "become_follower")
@@ -169,7 +169,7 @@ private def ruleRecvAppendEntries : Reduction Unit := do
 
 private def ruleRecvAppendEntriesResponse : Reduction Unit := do
   let head ← peek
-  let action ← readReceive head ["cft_append_entries_response"]
+  let action ← readReceive head ["append_entries_response"]
   -- consume
   event head "recv_append_entries_response"
   optional_ (event head "become_follower")
@@ -182,7 +182,7 @@ private def ruleRecvAppendEntriesResponse : Reduction Unit := do
 
 private def ruleRecvRequestVote : Reduction Unit := do
   let head ← peek
-  let action ← readReceive head ["cft_request_vote", "cft_request_pre_vote"]
+  let action ← readReceive head ["request_vote", "request_pre_vote"]
   -- consume
   event head "recv_request_vote"
   optional_ (event head "become_follower")
@@ -193,7 +193,7 @@ private def ruleRecvRequestVote : Reduction Unit := do
 
 private def ruleRecvProposeRequestVote : Reduction Unit := do
   let head ← peek
-  let action ← readReceive head ["cft_propose_request_vote"]
+  let action ← readReceive head ["propose_request_vote"]
   -- consume
   event head "recv_propose_request_vote"
   optional_ do
@@ -211,8 +211,7 @@ private def ruleRecvProposeRequestVote : Reduction Unit := do
 
 private def ruleRecvRequestVoteResponse : Reduction Unit := do
   let head ← peek
-  let action ←
-    readReceive head ["cft_request_vote_response", "cft_request_pre_vote_response"]
+  let action ← readReceive head ["request_vote_response", "request_pre_vote_response"]
   -- consume
   event head "recv_request_vote_response"
   optional_

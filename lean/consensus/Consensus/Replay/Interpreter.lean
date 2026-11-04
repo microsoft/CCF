@@ -189,7 +189,7 @@ def messageJson (message : Model.Node.Message) : Json :=
     match message with
     | .appendEntriesRequest request =>
         [
-          ("msg", toJson "cft_append_entries"),
+          ("msg", toJson "append_entries"),
           ("prev_idx", toJson request.prevLogIndex),
           ("prev_term", toJson request.prevLogTerm),
           ("idx", toJson (request.prevLogIndex + request.entries.length)),
@@ -202,33 +202,33 @@ def messageJson (message : Model.Node.Message) : Json :=
         ]
     | .appendEntriesResponse response =>
         [
-          ("msg", toJson "cft_append_entries_response"),
+          ("msg", toJson "append_entries_response"),
           ("success", toJson (if response.success then "OK" else "FAIL")),
           ("last_log_idx", toJson response.lastLogIndex)
         ]
     | .requestVoteRequest request =>
         [
-          ("msg", toJson "cft_request_vote"),
+          ("msg", toJson "request_vote"),
           ("last_committable_idx", toJson request.lastCommittableIndex),
           ("term_of_last_committable_idx", toJson request.lastCommittableTerm)
         ]
     | .requestPreVoteRequest request =>
         [
-          ("msg", toJson "cft_request_pre_vote"),
+          ("msg", toJson "request_pre_vote"),
           ("last_committable_idx", toJson request.lastCommittableIndex),
           ("term_of_last_committable_idx", toJson request.lastCommittableTerm)
         ]
     | .requestVoteResponse response =>
         [
-          ("msg", toJson "cft_request_vote_response"),
+          ("msg", toJson "request_vote_response"),
           ("vote_granted", toJson response.voteGranted)
         ]
     | .requestPreVoteResponse response =>
         [
-          ("msg", toJson "cft_request_pre_vote_response"),
+          ("msg", toJson "request_pre_vote_response"),
           ("vote_granted", toJson response.voteGranted)
         ]
-    | .proposeRequestVoteRequest _ => [("msg", toJson "cft_propose_request_vote")]
+    | .proposeRequestVoteRequest _ => [("msg", toJson "propose_request_vote")]
   Json.mkObj (("term", toJson message.term) :: fields)
 
 private def selectPacket (state : ReplayState) (source destination : NodeID)

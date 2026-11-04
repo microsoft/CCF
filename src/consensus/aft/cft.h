@@ -749,7 +749,7 @@ namespace aft
       {
         switch (type)
         {
-          case cft_append_entries:
+          case append_entries:
           {
             const auto r = serialized::overlay<AppendEntries>(data, size);
             if (ledger->is_backlogged())
@@ -768,7 +768,7 @@ namespace aft
             break;
           }
 
-          case cft_append_entries_response:
+          case append_entries_response:
           {
             const auto r =
               serialized::overlay<AppendEntriesResponse>(data, size);
@@ -776,21 +776,21 @@ namespace aft
             break;
           }
 
-          case cft_request_pre_vote:
+          case request_pre_vote:
           {
             const auto r = serialized::overlay<RequestPreVote>(data, size);
             recv_request_pre_vote(from, r);
             break;
           }
 
-          case cft_request_vote:
+          case request_vote:
           {
             const auto r = serialized::overlay<RequestVote>(data, size);
             recv_request_vote(from, r);
             break;
           }
 
-          case cft_request_pre_vote_response:
+          case request_pre_vote_response:
           {
             const auto r =
               serialized::overlay<RequestPreVoteResponse>(data, size);
@@ -798,21 +798,21 @@ namespace aft
             break;
           }
 
-          case cft_request_vote_response:
+          case request_vote_response:
           {
             const auto r = serialized::overlay<RequestVoteResponse>(data, size);
             recv_request_vote_response(from, r);
             break;
           }
 
-          case cft_propose_request_vote:
+          case propose_request_vote:
           {
             const auto r = serialized::overlay<ProposeRequestVote>(data, size);
             recv_propose_request_vote(from, r);
             break;
           }
 
-          case cft_append_entries_signed_response:
+          case append_entries_signed_response:
           default:
           {
             CFT_FAIL_FMT("Received unhandled AFT message type: {}", type);
@@ -1798,7 +1798,7 @@ namespace aft
         .last_committable_idx = r.last_committable_idx,
         .term_of_last_committable_idx = r.term_of_last_committable_idx,
       };
-      rv.msg = CftMsgType::cft_request_pre_vote;
+      rv.msg = CftMsgType::request_pre_vote;
       recv_request_vote_unsafe(from, rv, ElectionType::PreVote);
     }
 
@@ -1960,7 +1960,7 @@ namespace aft
       const ccf::NodeId& from, RequestPreVoteResponse r)
     {
       RequestVoteResponse rvr{.term = r.term, .vote_granted = r.vote_granted};
-      rvr.msg = CftMsgType::cft_request_pre_vote_response;
+      rvr.msg = CftMsgType::request_pre_vote_response;
       recv_request_vote_response(from, rvr, ElectionType::PreVote);
     }
 

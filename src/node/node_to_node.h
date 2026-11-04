@@ -77,42 +77,42 @@ namespace ccf
       size_t header_size = 0;
       switch (serialized::peek<aft::CftMsgType>(data, size))
       {
-        case aft::cft_append_entries:
+        case aft::append_entries:
         {
           header_size = sizeof(aft::AppendEntries);
           break;
         }
-        case aft::cft_append_entries_response:
+        case aft::append_entries_response:
         {
           header_size = sizeof(aft::AppendEntriesResponse);
           break;
         }
-        case aft::cft_request_vote:
+        case aft::request_vote:
         {
           header_size = sizeof(aft::RequestVote);
           break;
         }
-        case aft::cft_request_vote_response:
+        case aft::request_vote_response:
         {
           header_size = sizeof(aft::RequestVoteResponse);
           break;
         }
-        case aft::cft_request_pre_vote:
+        case aft::request_pre_vote:
         {
           header_size = sizeof(aft::RequestPreVote);
           break;
         }
-        case aft::cft_request_pre_vote_response:
+        case aft::request_pre_vote_response:
         {
           header_size = sizeof(aft::RequestPreVoteResponse);
           break;
         }
-        case aft::cft_propose_request_vote:
+        case aft::propose_request_vote:
         {
           header_size = sizeof(aft::ProposeRequestVote);
           break;
         }
-        case aft::cft_append_entries_signed_response:
+        case aft::append_entries_signed_response:
         default:
         {
           throw std::runtime_error("Unsupported legacy consensus message");

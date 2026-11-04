@@ -29,6 +29,7 @@ done
 ```
 
 The scenario runner preserves the raw records in `consensus/raw/` alongside the existing TLA-preprocessed captures.
+The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `append_entries` and `request_vote`.
 
 ## Replay contract
 

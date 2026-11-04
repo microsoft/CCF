@@ -604,8 +604,7 @@ namespace asynchost
 
       if (
         msg_type == ccf::NodeMsgType::consensus_msg &&
-        (serialized::read<aft::CftMsgType>(data, size) ==
-         aft::cft_append_entries))
+        (serialized::read<aft::CftMsgType>(data, size) == aft::append_entries))
       {
         const auto& ae =
           serialized::overlay<::consensus::AppendEntriesIndex>(data, size);

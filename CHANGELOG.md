@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Changed
 
-- CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag and `cft_*` for serialized message names.
+- CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag and unprefixed serialized message names such as `append_entries` and `request_vote`.
   Scenario tools now use `cft_*` names, and the Lean model and replay executable are named `Consensus` and `consensus-replay`; see [CCF consensus protocol trace replay](lean/consensus/replay/README.md) (#8657).
 
 ## [7.0.23]

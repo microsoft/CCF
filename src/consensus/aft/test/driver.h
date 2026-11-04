@@ -528,48 +528,48 @@ public:
     const auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
     switch (msg_type)
     {
-      case (aft::CftMsgType::cft_request_vote):
+      case (aft::CftMsgType::request_vote):
       {
         auto rv = *(aft::RequestVote*)data;
         log_packet(rv);
         break;
       }
-      case (aft::CftMsgType::cft_request_pre_vote):
+      case (aft::CftMsgType::request_pre_vote):
       {
         auto rpv = *(aft::RequestPreVote*)data;
         log_packet(rpv);
         break;
       }
-      case (aft::CftMsgType::cft_request_vote_response):
+      case (aft::CftMsgType::request_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
         log_packet(rvr);
         break;
       }
-      case (aft::CftMsgType::cft_request_pre_vote_response):
+      case (aft::CftMsgType::request_pre_vote_response):
       {
         auto rvr = *(aft::RequestPreVoteResponse*)data;
         log_packet(rvr);
         break;
       }
-      case (aft::CftMsgType::cft_append_entries):
+      case (aft::CftMsgType::append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
         log_packet(ae);
         break;
       }
-      case (aft::CftMsgType::cft_append_entries_response):
+      case (aft::CftMsgType::append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
         log_packet(aer);
         break;
       }
-      case (aft::CftMsgType::cft_append_entries_signed_response):
+      case (aft::CftMsgType::append_entries_signed_response):
       {
         throw std::runtime_error(
-          "cft_append_entries_signed_response is not handled by the driver");
+          "append_entries_signed_response is not handled by the driver");
       }
-      case (aft::CftMsgType::cft_propose_request_vote):
+      case (aft::CftMsgType::propose_request_vote):
       {
         auto prv = *(aft::ProposeRequestVote*)data;
         log_packet(prv);
@@ -644,15 +644,15 @@ public:
     const auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
     switch (msg_type)
     {
-      case (aft::CftMsgType::cft_request_vote):
+      case (aft::CftMsgType::request_vote):
       {
         return "RV";
       }
-      case (aft::CftMsgType::cft_request_vote_response):
+      case (aft::CftMsgType::request_vote_response):
       {
         return "RVR";
       }
-      case (aft::CftMsgType::cft_append_entries):
+      case (aft::CftMsgType::append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
         return fmt::format(
@@ -663,7 +663,7 @@ public:
           ae.term_of_idx,
           ae.idx);
       }
-      case (aft::CftMsgType::cft_append_entries_response):
+      case (aft::CftMsgType::append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
         return fmt::format(
@@ -672,19 +672,19 @@ public:
           aer.term,
           aer.last_log_idx);
       }
-      case (aft::CftMsgType::cft_append_entries_signed_response):
+      case (aft::CftMsgType::append_entries_signed_response):
       {
         return "AESR";
       }
-      case (aft::CftMsgType::cft_propose_request_vote):
+      case (aft::CftMsgType::propose_request_vote):
       {
         return "PRV";
       }
-      case (aft::CftMsgType::cft_request_pre_vote):
+      case (aft::CftMsgType::request_pre_vote):
       {
         return "RPV";
       }
-      case (aft::CftMsgType::cft_request_pre_vote_response):
+      case (aft::CftMsgType::request_pre_vote_response):
       {
         return "RPVR";
       }
@@ -771,7 +771,7 @@ public:
       auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
       bool should_send = true;
       std::vector<uint8_t> body;
-      if (msg_type == aft::cft_append_entries)
+      if (msg_type == aft::append_entries)
       {
         // Parse the indices to be sent to the recipient.
         auto ae = *(aft::AppendEntries*)data;

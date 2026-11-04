@@ -87,29 +87,28 @@ namespace aft
   // NOLINTNEXTLINE(performance-enum-size)
   enum CftMsgType : Node2NodeMsg
   {
-    cft_append_entries = 0,
-    cft_append_entries_response,
-    cft_append_entries_signed_response,
-    cft_request_vote,
-    cft_request_vote_response,
-    cft_propose_request_vote,
-    cft_request_pre_vote,
-    cft_request_pre_vote_response,
+    append_entries = 0,
+    append_entries_response,
+    append_entries_signed_response,
+    request_vote,
+    request_vote_response,
+    propose_request_vote,
+    request_pre_vote,
+    request_pre_vote_response,
   };
 
   DECLARE_JSON_ENUM(
     CftMsgType,
     {
-      {CftMsgType::cft_append_entries, "cft_append_entries"},
-      {CftMsgType::cft_append_entries_response, "cft_append_entries_response"},
-      {CftMsgType::cft_append_entries_signed_response,
-       "cft_append_entries_signed_response"},
-      {CftMsgType::cft_request_vote, "cft_request_vote"},
-      {CftMsgType::cft_request_vote_response, "cft_request_vote_response"},
-      {CftMsgType::cft_propose_request_vote, "cft_propose_request_vote"},
-      {CftMsgType::cft_request_pre_vote, "cft_request_pre_vote"},
-      {CftMsgType::cft_request_pre_vote_response,
-       "cft_request_pre_vote_response"},
+      {CftMsgType::append_entries, "append_entries"},
+      {CftMsgType::append_entries_response, "append_entries_response"},
+      {CftMsgType::append_entries_signed_response,
+       "append_entries_signed_response"},
+      {CftMsgType::request_vote, "request_vote"},
+      {CftMsgType::request_vote_response, "request_vote_response"},
+      {CftMsgType::propose_request_vote, "propose_request_vote"},
+      {CftMsgType::request_pre_vote, "request_pre_vote"},
+      {CftMsgType::request_pre_vote_response, "request_pre_vote_response"},
     });
 
 #pragma pack(push, 1)
@@ -120,10 +119,10 @@ namespace aft
     CftMsgType msg = M;
   };
 
-  DECLARE_JSON_TYPE(CftHeader<cft_append_entries>);
-  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<cft_append_entries>, msg);
+  DECLARE_JSON_TYPE(CftHeader<append_entries>);
+  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<append_entries>, msg);
 
-  struct AppendEntries : CftHeader<cft_append_entries>,
+  struct AppendEntries : CftHeader<append_entries>,
                          ::consensus::AppendEntriesIndex
   {
     Term term;
@@ -140,9 +139,7 @@ namespace aft
   };
 
   DECLARE_JSON_TYPE_WITH_2BASES(
-    AppendEntries,
-    CftHeader<cft_append_entries>,
-    ::consensus::AppendEntriesIndex);
+    AppendEntries, CftHeader<append_entries>, ::consensus::AppendEntriesIndex);
   DECLARE_JSON_REQUIRED_FIELDS(
     AppendEntries,
     term,
@@ -161,10 +158,10 @@ namespace aft
     {{AppendEntriesResponseType::OK, "OK"},
      {AppendEntriesResponseType::FAIL, "FAIL"}});
 
-  DECLARE_JSON_TYPE(CftHeader<cft_append_entries_response>);
-  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<cft_append_entries_response>, msg);
+  DECLARE_JSON_TYPE(CftHeader<append_entries_response>);
+  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<append_entries_response>, msg);
 
-  struct AppendEntriesResponse : CftHeader<cft_append_entries_response>
+  struct AppendEntriesResponse : CftHeader<append_entries_response>
   {
     // This term and idx usually refer to the tail of the sender's log. The
     // exception is in a rejection because of a mismatching suffix, in which
@@ -180,7 +177,7 @@ namespace aft
   };
 
   DECLARE_JSON_TYPE_WITH_BASE(
-    AppendEntriesResponse, CftHeader<cft_append_entries_response>);
+    AppendEntriesResponse, CftHeader<append_entries_response>);
   DECLARE_JSON_REQUIRED_FIELDS(
     AppendEntriesResponse, term, last_log_idx, success);
 
@@ -195,64 +192,64 @@ namespace aft
     {{ElectionType::PreVote, "PreVote"},
      {ElectionType::RegularVote, "RegularVote"}});
 
-  DECLARE_JSON_TYPE(CftHeader<cft_request_vote>);
-  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<cft_request_vote>, msg);
+  DECLARE_JSON_TYPE(CftHeader<request_vote>);
+  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<request_vote>, msg);
 
-  struct RequestVote : CftHeader<cft_request_vote>
+  struct RequestVote : CftHeader<request_vote>
   {
     Term term;
     Index last_committable_idx;
     Term term_of_last_committable_idx;
   };
 
-  DECLARE_JSON_TYPE_WITH_BASE(RequestVote, CftHeader<cft_request_vote>);
+  DECLARE_JSON_TYPE_WITH_BASE(RequestVote, CftHeader<request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(
     RequestVote, term, last_committable_idx, term_of_last_committable_idx);
 
-  DECLARE_JSON_TYPE(CftHeader<cft_request_pre_vote>);
-  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<cft_request_pre_vote>, msg);
+  DECLARE_JSON_TYPE(CftHeader<request_pre_vote>);
+  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<request_pre_vote>, msg);
 
-  struct RequestPreVote : CftHeader<cft_request_pre_vote>
+  struct RequestPreVote : CftHeader<request_pre_vote>
   {
     Term term;
     Index last_committable_idx;
     Term term_of_last_committable_idx;
   };
 
-  DECLARE_JSON_TYPE_WITH_BASE(RequestPreVote, CftHeader<cft_request_pre_vote>);
+  DECLARE_JSON_TYPE_WITH_BASE(RequestPreVote, CftHeader<request_pre_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(
     RequestPreVote, term, last_committable_idx, term_of_last_committable_idx);
 
-  DECLARE_JSON_TYPE(CftHeader<cft_request_vote_response>);
-  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<cft_request_vote_response>, msg);
+  DECLARE_JSON_TYPE(CftHeader<request_vote_response>);
+  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<request_vote_response>, msg);
 
-  struct RequestVoteResponse : CftHeader<cft_request_vote_response>
+  struct RequestVoteResponse : CftHeader<request_vote_response>
   {
     Term term;
     bool vote_granted;
   };
 
   DECLARE_JSON_TYPE_WITH_BASE(
-    RequestVoteResponse, CftHeader<cft_request_vote_response>);
+    RequestVoteResponse, CftHeader<request_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
 
-  DECLARE_JSON_TYPE(CftHeader<cft_request_pre_vote_response>);
-  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<cft_request_pre_vote_response>, msg);
+  DECLARE_JSON_TYPE(CftHeader<request_pre_vote_response>);
+  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<request_pre_vote_response>, msg);
 
-  struct RequestPreVoteResponse : CftHeader<cft_request_pre_vote_response>
+  struct RequestPreVoteResponse : CftHeader<request_pre_vote_response>
   {
     Term term;
     bool vote_granted;
   };
 
   DECLARE_JSON_TYPE_WITH_BASE(
-    RequestPreVoteResponse, CftHeader<cft_request_pre_vote_response>);
+    RequestPreVoteResponse, CftHeader<request_pre_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestPreVoteResponse, term, vote_granted);
 
-  DECLARE_JSON_TYPE(CftHeader<cft_propose_request_vote>);
-  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<cft_propose_request_vote>, msg);
+  DECLARE_JSON_TYPE(CftHeader<propose_request_vote>);
+  DECLARE_JSON_REQUIRED_FIELDS(CftHeader<propose_request_vote>, msg);
 
-  struct ProposeRequestVote : CftHeader<cft_propose_request_vote>
+  struct ProposeRequestVote : CftHeader<propose_request_vote>
   {
     // A node sends this to nudge another node to begin an election, for
     // instance because the sender is a retiring primary
@@ -260,7 +257,7 @@ namespace aft
   };
 
   DECLARE_JSON_TYPE_WITH_BASE(
-    ProposeRequestVote, CftHeader<cft_propose_request_vote>);
+    ProposeRequestVote, CftHeader<propose_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(ProposeRequestVote, term);
 
 #pragma pack(pop)
@@ -283,35 +280,35 @@ struct formatter<aft::CftMsgType>
   {
     switch (msg_type)
     {
-      case (aft::CftMsgType::cft_append_entries):
+      case (aft::CftMsgType::append_entries):
       {
         return fmt::format_to(ctx.out(), "append_entries");
       }
-      case (aft::CftMsgType::cft_append_entries_response):
+      case (aft::CftMsgType::append_entries_response):
       {
         return fmt::format_to(ctx.out(), "append_entries_response");
       }
-      case (aft::CftMsgType::cft_append_entries_signed_response):
+      case (aft::CftMsgType::append_entries_signed_response):
       {
         return fmt::format_to(ctx.out(), "append_entries_signed_response");
       }
-      case (aft::CftMsgType::cft_request_vote):
+      case (aft::CftMsgType::request_vote):
       {
         return fmt::format_to(ctx.out(), "request_vote");
       }
-      case (aft::CftMsgType::cft_request_vote_response):
+      case (aft::CftMsgType::request_vote_response):
       {
         return fmt::format_to(ctx.out(), "request_vote_response");
       }
-      case (aft::CftMsgType::cft_propose_request_vote):
+      case (aft::CftMsgType::propose_request_vote):
       {
         return fmt::format_to(ctx.out(), "propose_request_vote");
       }
-      case (aft::CftMsgType::cft_request_pre_vote):
+      case (aft::CftMsgType::request_pre_vote):
       {
         return fmt::format_to(ctx.out(), "request_pre_vote");
       }
-      case (aft::CftMsgType::cft_request_pre_vote_response):
+      case (aft::CftMsgType::request_pre_vote_response):
       {
         return fmt::format_to(ctx.out(), "request_pre_vote_response");
       }

@@ -160,10 +160,10 @@ DOCTEST_TEST_CASE(
   notices.join();
   DOCTEST_REQUIRE(
     channel_stub_proxy(cft)->count_messages_with_type(
-      aft::cft_request_vote_response) == iterations);
+      aft::request_vote_response) == iterations);
   DOCTEST_REQUIRE(
     channel_stub_proxy(cft)->count_messages_with_type(
-      aft::cft_propose_request_vote) == iterations);
+      aft::propose_request_vote) == iterations);
 }
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
@@ -345,12 +345,11 @@ DOCTEST_TEST_CASE(
   r0.start_ticking();
   r0.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
-    r0c->count_messages_with_type(aft::CftMsgType::cft_request_pre_vote) == 3);
+    r0c->count_messages_with_type(aft::CftMsgType::request_pre_vote) == 3);
 
   DOCTEST_INFO("Node 1 receives the request pre-vote");
 
-  auto rpv_raw =
-    r0c->pop_first(aft::CftMsgType::cft_request_pre_vote, node_id1);
+  auto rpv_raw = r0c->pop_first(aft::CftMsgType::request_pre_vote, node_id1);
   DOCTEST_REQUIRE(rpv_raw.has_value());
   {
     auto rpv = *(aft::RequestPreVote*)rpv_raw->data();
@@ -364,7 +363,7 @@ DOCTEST_TEST_CASE(
 
   DOCTEST_INFO("Node 2 receives the request pre-vote");
 
-  rpv_raw = r0c->pop_first(aft::CftMsgType::cft_request_pre_vote, node_id2);
+  rpv_raw = r0c->pop_first(aft::CftMsgType::request_pre_vote, node_id2);
   DOCTEST_REQUIRE(rpv_raw.has_value());
   {
     auto rpv = *(aft::RequestPreVote*)rpv_raw->data();
@@ -379,11 +378,11 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Node 1 pre-votes for Node 0");
 
   DOCTEST_REQUIRE(
-    r1c->count_messages_with_type(
-      aft::CftMsgType::cft_request_pre_vote_response) == 1);
+    r1c->count_messages_with_type(aft::CftMsgType::request_pre_vote_response) ==
+    1);
 
   auto rpvr_raw =
-    r1c->pop_first(aft::CftMsgType::cft_request_pre_vote_response, node_id0);
+    r1c->pop_first(aft::CftMsgType::request_pre_vote_response, node_id0);
   DOCTEST_REQUIRE(rpvr_raw.has_value());
   {
     auto rvrc = *(aft::RequestPreVoteResponse*)rpvr_raw->data();
@@ -396,11 +395,11 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Node 2 pre-votes for Node 0");
 
   DOCTEST_REQUIRE(
-    r2c->count_messages_with_type(
-      aft::CftMsgType::cft_request_pre_vote_response) == 1);
+    r2c->count_messages_with_type(aft::CftMsgType::request_pre_vote_response) ==
+    1);
 
   rpvr_raw =
-    r2c->pop_first(aft::CftMsgType::cft_request_pre_vote_response, node_id0);
+    r2c->pop_first(aft::CftMsgType::request_pre_vote_response, node_id0);
   DOCTEST_REQUIRE(rpvr_raw.has_value());
   {
     auto rvrc = *(aft::RequestPreVoteResponse*)rpvr_raw->data();
@@ -411,11 +410,11 @@ DOCTEST_TEST_CASE(
   receive_message(r2, r0, *rpvr_raw);
 
   DOCTEST_REQUIRE(
-    r0c->count_messages_with_type(aft::CftMsgType::cft_request_vote) == 3);
+    r0c->count_messages_with_type(aft::CftMsgType::request_vote) == 3);
 
   DOCTEST_INFO("Node 1 receives the request vote");
 
-  auto rv_raw = r0c->pop_first(aft::CftMsgType::cft_request_vote, node_id1);
+  auto rv_raw = r0c->pop_first(aft::CftMsgType::request_vote, node_id1);
   DOCTEST_REQUIRE(rv_raw.has_value());
   {
     auto rvc = *(aft::RequestVote*)rv_raw->data();
@@ -429,7 +428,7 @@ DOCTEST_TEST_CASE(
 
   DOCTEST_INFO("Node 2 receives the request vote");
 
-  rv_raw = r0c->pop_first(aft::CftMsgType::cft_request_vote, node_id2);
+  rv_raw = r0c->pop_first(aft::CftMsgType::request_vote, node_id2);
   DOCTEST_REQUIRE(rv_raw.has_value());
   {
     auto rvc = *(aft::RequestVote*)rv_raw->data();
@@ -444,11 +443,10 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Node 1 votes for Node 0");
 
   DOCTEST_REQUIRE(
-    r1c->count_messages_with_type(aft::CftMsgType::cft_request_vote_response) ==
-    1);
+    r1c->count_messages_with_type(aft::CftMsgType::request_vote_response) == 1);
 
   auto rvr_raw =
-    r1c->pop_first(aft::CftMsgType::cft_request_vote_response, node_id0);
+    r1c->pop_first(aft::CftMsgType::request_vote_response, node_id0);
   DOCTEST_REQUIRE(rvr_raw.has_value());
   {
     auto rvrc = *(aft::RequestVoteResponse*)rvr_raw->data();
@@ -461,11 +459,9 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Node 2 votes for Node 0");
 
   DOCTEST_REQUIRE(
-    r2c->count_messages_with_type(aft::CftMsgType::cft_request_vote_response) ==
-    1);
+    r2c->count_messages_with_type(aft::CftMsgType::request_vote_response) == 1);
 
-  rvr_raw =
-    r2c->pop_first(aft::CftMsgType::cft_request_vote_response, node_id0);
+  rvr_raw = r2c->pop_first(aft::CftMsgType::request_vote_response, node_id0);
   DOCTEST_REQUIRE(rvr_raw.has_value());
   {
     auto rvrc = *(aft::RequestVoteResponse*)rvr_raw->data();
@@ -480,9 +476,9 @@ DOCTEST_TEST_CASE(
 
   DOCTEST_REQUIRE(r0.is_primary());
   DOCTEST_REQUIRE(
-    r0c->count_messages_with_type(aft::CftMsgType::cft_append_entries) == 3);
+    r0c->count_messages_with_type(aft::CftMsgType::append_entries) == 3);
 
-  auto ae_raw = r0c->pop_first(aft::CftMsgType::cft_append_entries, node_id1);
+  auto ae_raw = r0c->pop_first(aft::CftMsgType::append_entries, node_id1);
   DOCTEST_REQUIRE(ae_raw.has_value());
   {
     auto aec = *(aft::AppendEntries*)ae_raw->data();
@@ -493,7 +489,7 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(aec.leader_commit_idx == 0);
   }
 
-  ae_raw = r0c->pop_first(aft::CftMsgType::cft_append_entries, node_id2);
+  ae_raw = r0c->pop_first(aft::CftMsgType::append_entries, node_id2);
   DOCTEST_REQUIRE(ae_raw.has_value());
   {
     auto aec = *(aft::AppendEntries*)ae_raw->data();
@@ -508,9 +504,8 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Node 3 finds out that Node 0 is primary from append entries");
 
   // Intercept vote request from 0 to 3
-  auto vote_for_r0 =
-    r0c->pop_first(aft::CftMsgType::cft_request_vote, node_id3);
-  rvr_raw = r0c->pop_first(aft::CftMsgType::cft_append_entries, node_id3);
+  auto vote_for_r0 = r0c->pop_first(aft::CftMsgType::request_vote, node_id3);
+  rvr_raw = r0c->pop_first(aft::CftMsgType::append_entries, node_id3);
 
   receive_message(r0, r3, *rvr_raw);
 
@@ -525,7 +520,7 @@ DOCTEST_TEST_CASE(
   receive_message(r0, r3, *vote_for_r0);
 
   auto vote_resp_raw =
-    r3c->pop_first(aft::CftMsgType::cft_request_vote_response, node_id0);
+    r3c->pop_first(aft::CftMsgType::request_vote_response, node_id0);
   DOCTEST_REQUIRE(vote_resp_raw.has_value());
   {
     auto vr = *(aft::RequestVoteResponse*)vote_resp_raw->data();
@@ -1253,7 +1248,7 @@ DOCTEST_TEST_CASE(
     "because it is not ticking");
   r0.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
-    r0c->count_messages_with_type(aft::CftMsgType::cft_request_vote) == 0);
+    r0c->count_messages_with_type(aft::CftMsgType::request_vote) == 0);
 
   DOCTEST_INFO(
     "Node 0 starts ticking, exceeds its election timeout and so does start an "
@@ -1281,7 +1276,7 @@ DOCTEST_TEST_CASE(
     "because it isn't ticking yet");
   r1.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
-    r1c->count_messages_with_type(aft::CftMsgType::cft_request_pre_vote) == 0);
+    r1c->count_messages_with_type(aft::CftMsgType::request_pre_vote) == 0);
 
   r1.start_ticking();
   DOCTEST_INFO(
@@ -1289,7 +1284,7 @@ DOCTEST_TEST_CASE(
     "election");
   r1.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
-    r1c->count_messages_with_type(aft::CftMsgType::cft_request_pre_vote) == 1);
+    r1c->count_messages_with_type(aft::CftMsgType::request_pre_vote) == 1);
 }
 
 template <typename T>
@@ -1416,7 +1411,7 @@ struct PrimaryAndBackup
   // without the ledger entries the host appends to it
   std::vector<uint8_t> take_append_entries_header()
   {
-    auto msg = c0->pop_first(aft::cft_append_entries, id1);
+    auto msg = c0->pop_first(aft::append_entries, id1);
     DOCTEST_REQUIRE(msg.has_value());
     return msg.value();
   }
@@ -1442,7 +1437,7 @@ struct PrimaryAndBackup
       id0,
       message.first(sizeof(aft::AppendEntries)),
       message.subspan(sizeof(aft::AppendEntries)));
-    auto response = c1->pop_first(aft::cft_append_entries_response, id0);
+    auto response = c1->pop_first(aft::append_entries_response, id0);
     DOCTEST_REQUIRE(c1->messages.empty());
     if (!response.has_value())
     {
@@ -1491,8 +1486,7 @@ DOCTEST_TEST_CASE(
 
   const auto before = body;
   n.r1.recv_message(n.id0, header, body);
-  const auto response =
-    n.c1->pop_first(aft::cft_append_entries_response, n.id0);
+  const auto response = n.c1->pop_first(aft::append_entries_response, n.id0);
   DOCTEST_REQUIRE(response.has_value());
   const auto ack = read_msg<aft::AppendEntriesResponse>(response.value());
   if (valid)
@@ -1627,7 +1621,7 @@ DOCTEST_TEST_CASE(
       .term_of_last_committable_idx = 0});
     n.r1.recv_message(n.id0, request);
     DOCTEST_REQUIRE(
-      n.c1->count_messages_with_type(aft::cft_request_vote_response) == 1);
+      n.c1->count_messages_with_type(aft::request_vote_response) == 1);
     DOCTEST_REQUIRE(n.r1.get_view() == n.r0.get_view() + 1);
   }
   DOCTEST_SUBCASE("AppendEntries response")
@@ -1737,7 +1731,7 @@ DOCTEST_TEST_CASE(
     "So its next AppendEntries starts beyond its own log, from prev_term "
     "VIEW_UNKNOWN");
   r0.periodic(request_timeout);
-  const auto msg = r0c->pop_first(aft::cft_append_entries, node_id1);
+  const auto msg = r0c->pop_first(aft::append_entries, node_id1);
   DOCTEST_REQUIRE(msg.has_value());
   const auto ae = read_msg<aft::AppendEntries>(msg.value());
   DOCTEST_REQUIRE(ae.prev_idx == r0.get_last_idx() + 1);
@@ -1804,8 +1798,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(r0.get_details().acks.contains(node_id2));
   r0c->messages.clear();
   r0.periodic(request_timeout);
-  DOCTEST_REQUIRE(
-    r0c->pop_first(aft::cft_append_entries, node_id2).has_value());
+  DOCTEST_REQUIRE(r0c->pop_first(aft::append_entries, node_id2).has_value());
 
   DOCTEST_INFO("The globally committed deletion does");
   r0.remove_deleted_nodes(1, {node_id2});
@@ -1813,9 +1806,8 @@ DOCTEST_TEST_CASE(
   r0c->messages.clear();
   r0.periodic(request_timeout);
   DOCTEST_REQUIRE_FALSE(
-    r0c->pop_first(aft::cft_append_entries, node_id2).has_value());
-  DOCTEST_REQUIRE(
-    r0c->pop_first(aft::cft_append_entries, node_id1).has_value());
+    r0c->pop_first(aft::append_entries, node_id2).has_value());
+  DOCTEST_REQUIRE(r0c->pop_first(aft::append_entries, node_id1).has_value());
   DOCTEST_REQUIRE(r0.is_primary());
 }
 
@@ -1905,13 +1897,13 @@ DOCTEST_TEST_CASE(
   DOCTEST_SUBCASE("Truncated message of each handled type")
   {
     const std::vector<aft::CftMsgType> handled_types = {
-      aft::cft_append_entries,
-      aft::cft_append_entries_response,
-      aft::cft_request_pre_vote,
-      aft::cft_request_vote,
-      aft::cft_request_pre_vote_response,
-      aft::cft_request_vote_response,
-      aft::cft_propose_request_vote,
+      aft::append_entries,
+      aft::append_entries_response,
+      aft::request_pre_vote,
+      aft::request_vote,
+      aft::request_pre_vote_response,
+      aft::request_vote_response,
+      aft::propose_request_vote,
     };
 
     for (const auto type : handled_types)
@@ -1934,7 +1926,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_SUBCASE("Known but unhandled message type")
   {
     const auto msg =
-      as_bytes(aft::CftHeader<aft::cft_append_entries_signed_response>{});
+      as_bytes(aft::CftHeader<aft::append_entries_signed_response>{});
     r1.recv_message(node_id0, msg);
     require_unchanged();
   }
@@ -2078,19 +2070,18 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(r0.get_committed_seqno() == 2);
 
   DOCTEST_INFO("Hold two genuine NACKs reporting the joiner's empty log");
-  const auto first_probe = c0->pop_first(aft::cft_append_entries, id1);
+  const auto first_probe = c0->pop_first(aft::append_entries, id1);
   DOCTEST_REQUIRE(first_probe.has_value());
   receive_message(r0, r1, first_probe.value());
-  const auto first_nack = c1->pop_first(aft::cft_append_entries_response, id0);
+  const auto first_nack = c1->pop_first(aft::append_entries_response, id0);
   DOCTEST_REQUIRE(first_nack.has_value());
   require_nack(read_msg<aft::AppendEntriesResponse>(first_nack.value()), 0);
 
   r0.periodic(request_timeout);
-  const auto second_probe = c0->pop_first(aft::cft_append_entries, id1);
+  const auto second_probe = c0->pop_first(aft::append_entries, id1);
   DOCTEST_REQUIRE(second_probe.has_value());
   receive_message(r0, r1, second_probe.value());
-  const auto delayed_nack =
-    c1->pop_first(aft::cft_append_entries_response, id0);
+  const auto delayed_nack = c1->pop_first(aft::append_entries_response, id0);
   DOCTEST_REQUIRE(delayed_nack.has_value());
   require_nack(read_msg<aft::AppendEntriesResponse>(delayed_nack.value()), 0);
   DOCTEST_REQUIRE(r1.get_last_idx() == 0);
@@ -2100,7 +2091,7 @@ DOCTEST_TEST_CASE(
 
   receive_message(r1, r0, first_nack.value());
   r0.periodic(request_timeout);
-  const auto first_batch = c0->pop_first(aft::cft_append_entries, id1);
+  const auto first_batch = c0->pop_first(aft::append_entries, id1);
   DOCTEST_REQUIRE(first_batch.has_value());
   const auto ae = read_msg<aft::AppendEntries>(first_batch.value());
   DOCTEST_REQUIRE(ae.prev_idx == 0);
@@ -2127,15 +2118,14 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(r1.get_latest_configuration() == genesis_configuration);
   DOCTEST_REQUIRE(r1.get_view(1) == ccf::VIEW_UNKNOWN);
   DOCTEST_REQUIRE(kv1->rollbacks.empty());
-  const auto failure_nack =
-    c1->pop_first(aft::cft_append_entries_response, id0);
+  const auto failure_nack = c1->pop_first(aft::append_entries_response, id0);
   DOCTEST_REQUIRE(failure_nack.has_value());
   require_nack(read_msg<aft::AppendEntriesResponse>(failure_nack.value()), 1);
 
   DOCTEST_INFO("The older NACK makes the primary retry from 0 rather than 1");
   receive_message(r1, r0, delayed_nack.value());
   r0.periodic(request_timeout);
-  const auto retry = c0->pop_first(aft::cft_append_entries, id1);
+  const auto retry = c0->pop_first(aft::append_entries, id1);
   DOCTEST_REQUIRE(retry.has_value());
   DOCTEST_REQUIRE(read_msg<aft::AppendEntries>(retry.value()).prev_idx == 0);
   DOCTEST_REQUIRE(read_msg<aft::AppendEntries>(retry.value()).idx == 4);
@@ -2157,15 +2147,14 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(r1.get_view(1) == r0.get_view());
 
   DOCTEST_INFO("Valid replay and its acknowledgement restore normal progress");
-  const auto acknowledgement =
-    c1->pop_first(aft::cft_append_entries_response, id0);
+  const auto acknowledgement = c1->pop_first(aft::append_entries_response, id0);
   DOCTEST_REQUIRE(acknowledgement.has_value());
   require_ack(read_msg<aft::AppendEntriesResponse>(acknowledgement.value()), 4);
   receive_message(r1, r0, acknowledgement.value());
   DOCTEST_REQUIRE(r0.get_committed_seqno() == 4);
 
   r0.periodic(request_timeout);
-  const auto commit = c0->pop_first(aft::cft_append_entries, id1);
+  const auto commit = c0->pop_first(aft::append_entries, id1);
   DOCTEST_REQUIRE(commit.has_value());
   receive_message(r0, r1, commit.value());
   DOCTEST_REQUIRE(r1.get_committed_seqno() == 4);
@@ -2351,22 +2340,22 @@ DOCTEST_TEST_CASE(
   }
 
   DOCTEST_INFO("Node 1 grants node 0 a pre-vote");
-  deliver(r0, r1, aft::cft_request_pre_vote);
+  deliver(r0, r1, aft::request_pre_vote);
 
   DOCTEST_INFO("With node 2's pre-vote, node 1 becomes a candidate in view 1");
-  deliver(r1, r2, aft::cft_request_pre_vote);
-  deliver(r2, r1, aft::cft_request_pre_vote_response);
+  deliver(r1, r2, aft::request_pre_vote);
+  deliver(r2, r1, aft::request_pre_vote_response);
   DOCTEST_REQUIRE(r1.is_candidate());
   DOCTEST_REQUIRE(r1.get_view() == 1);
 
   DOCTEST_INFO(
     "Node 2 votes for node 1, moving to view 1, so refuses node 0's pre-vote");
-  deliver(r1, r2, aft::cft_request_vote);
-  deliver(r0, r2, aft::cft_request_pre_vote);
+  deliver(r1, r2, aft::request_vote);
+  deliver(r0, r2, aft::request_pre_vote);
   DOCTEST_REQUIRE(r2.get_view() == 1);
 
   DOCTEST_INFO("With node 1's pre-vote, node 0 becomes a candidate in view 1");
-  deliver(r1, r0, aft::cft_request_pre_vote_response);
+  deliver(r1, r0, aft::request_pre_vote_response);
   DOCTEST_REQUIRE(r0.is_candidate());
   DOCTEST_REQUIRE(r0.get_view() == 1);
   channel_stub_proxy(r0)->messages.clear();
@@ -2374,7 +2363,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO(
     "Node 2's refusal carries node 0's new view, but node 0's pre-vote is "
     "over, so the refusal is ignored");
-  deliver(r2, r0, aft::cft_request_pre_vote_response);
+  deliver(r2, r0, aft::request_pre_vote_response);
   DOCTEST_REQUIRE(r0.is_candidate());
   DOCTEST_REQUIRE(r0.get_view() == 1);
   DOCTEST_REQUIRE(channel_stub_proxy(r0)->messages.empty());
@@ -2447,7 +2436,7 @@ DOCTEST_TEST_CASE(
   r0.periodic(request_timeout);
 
   auto r0c = channel_stub_proxy(r0);
-  const auto first = r0c->pop_first(aft::cft_append_entries, node_id2);
+  const auto first = r0c->pop_first(aft::append_entries, node_id2);
   DOCTEST_REQUIRE(first.has_value());
   const auto first_ae = read_msg<aft::AppendEntries>(first.value());
   DOCTEST_REQUIRE(first_ae.idx == 1);
@@ -2459,7 +2448,7 @@ DOCTEST_TEST_CASE(
   DOCTEST_REQUIRE(r2.get_last_idx() == 1);
   DOCTEST_REQUIRE(r2.get_committed_seqno() == 0);
 
-  const auto second = r0c->pop_first(aft::cft_append_entries, node_id2);
+  const auto second = r0c->pop_first(aft::append_entries, node_id2);
   DOCTEST_REQUIRE(second.has_value());
   receive_message(r0, r2, second.value());
   DOCTEST_REQUIRE(r2.get_last_idx() == 2);

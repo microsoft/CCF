@@ -59,7 +59,7 @@ void keep_earliest_append_entries_for_each_target(
     const uint8_t* data = contents.data();
     auto size = contents.size();
     auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
-    if (msg_type == aft::cft_append_entries)
+    if (msg_type == aft::append_entries)
     {
       const auto ae = *(aft::AppendEntries*)data;
 

@@ -3,10 +3,10 @@ EXTENDS ccfraft, Json, IOUtils, Sequences, MCAliases
 
 \* cft_types.h enum CftMsgType
 CftMsgType ==
-    "cft_append_entries" :> AppendEntriesRequest @@ "cft_append_entries_response" :> AppendEntriesResponse @@
-    "cft_request_vote" :> RequestVoteRequest @@ "cft_request_pre_vote" :> RequestVoteRequest @@
-    "cft_request_vote_response" :> RequestVoteResponse @@ "cft_request_pre_vote_response" :> RequestVoteResponse @@
-    "cft_propose_request_vote" :> ProposeVoteRequest
+    "append_entries" :> AppendEntriesRequest @@ "append_entries_response" :> AppendEntriesResponse @@
+    "request_vote" :> RequestVoteRequest @@ "request_pre_vote" :> RequestVoteRequest @@
+    "request_vote_response" :> RequestVoteResponse @@ "request_pre_vote_response" :> RequestVoteResponse @@
+    "propose_request_vote" :> ProposeVoteRequest
 
 ToLeadershipState ==
     "Follower" :>  Follower @@ 
@@ -57,7 +57,7 @@ IsRequestVoteRequest(msg, dst, src, logline) ==
     /\ IsHeader(msg, dst, src, logline, RequestVoteRequest)
     /\ msg.lastCommittableIndex = logline.msg.packet.last_committable_idx
     /\ msg.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
-    /\ IF logline.msg.packet.msg = "cft_request_vote"
+    /\ IF logline.msg.packet.msg = "request_vote"
        THEN msg.isPreVote = FALSE
        ELSE msg.isPreVote = TRUE
 
@@ -396,7 +396,7 @@ IsSendRequestVoteResponse ==
            j == logline.msg.to_node_id
        IN \E m \in Network!Messages:
             /\ IsRequestVoteResponse(m, j, i, logline)
-            /\ m.isPreVote = (logline.msg.packet.msg = "cft_request_pre_vote_response")
+            /\ m.isPreVote = (logline.msg.packet.msg = "request_pre_vote_response")
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
