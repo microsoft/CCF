@@ -50,43 +50,39 @@ class MerkleTree:
 
         return self._root
 
-    def _recalculate_level(self, prev_level, current_level):
+    @staticmethod
+    def _recalculate_level(prev_level: list, level: list, start: int) -> None:
         """
-        Compute the next level of hashes from the previous level.
-        Reuses already-computed hashes where possible.
+        Extend level with the hashes of prev_level, in place.
+        Reuses already-computed hashes, so the cost is proportional to the
+        number of new entries rather than the size of the level.
 
         Args:
             prev_level: List of hashes from the previous (lower) level
-            current_level: List of already-computed hashes at this level
-
-        Returns:
-            Updated list of computed hashes for this level
+            level: Level to update. level[:start] holds a preserved flushed
+                hash, and level[start:] holds previously computed hashes.
+            start: Number of preserved entries at the start of level (0 or 1)
         """
-        # Handle solo leaf: if last entry was a promoted solo, pop it for recalc
-        if current_level:
-            current_level.pop(-1)
+        # The last computed entry may be a promoted solo node, so recompute it
+        if len(level) > start:
+            level.pop()
 
         # Determine how many pairs are already computed
-        done = len(current_level)
+        done = len(level) - start
 
         # Handle odd count on input level
-        number_of_leaves_on_prev_level = len(prev_level)
-        solo_leaf = None
-        if number_of_leaves_on_prev_level % 2 == 1:
-            solo_leaf = prev_level[-1]
-            number_of_leaves_on_prev_level -= 1
+        number_of_nodes_on_prev_level = len(prev_level)
+        solo_node = None
+        if number_of_nodes_on_prev_level % 2 == 1:
+            solo_node = prev_level[-1]
+            number_of_nodes_on_prev_level -= 1
 
         # Compute new pairs starting after 'done' existing pairs
-        for left_node, right_node in zip(
-            prev_level[done * 2 : number_of_leaves_on_prev_level : 2],
-            prev_level[done * 2 + 1 : number_of_leaves_on_prev_level : 2],
-        ):
-            current_level.append(sha256(left_node + right_node).digest())
+        for i in range(done * 2, number_of_nodes_on_prev_level, 2):
+            level.append(sha256(prev_level[i] + prev_level[i + 1]).digest())
 
-        if solo_leaf is not None:
-            current_level.append(solo_leaf)
-
-        return current_level
+        if solo_node is not None:
+            level.append(solo_node)
 
     def _make_tree(self):
         if self.get_leaf_count() == 0:
@@ -95,30 +91,20 @@ class MerkleTree:
         # Build tree from leaves. After deserialize, _levels[i] contains:
         # - Flushed hash at [0] if bit i of num_flushed is set
         # - Followed by any previously computed hashes
-        # We read from _levels[level_idx] and write computed hashes to _levels[level_idx+1].
+        # We read from _levels[level_idx] and update _levels[level_idx+1] in
+        # place. Copying levels here would make each root computation O(N).
         it = self._num_flushed
         level_idx = 0
 
         while len(self._levels[level_idx]) > 1 or it != 0:
-            prev_level = self._levels[level_idx]
-
             # Ensure next level exists
             if level_idx + 1 >= len(self._levels):
                 self._levels.append([])
 
-            # Check if next level has a flushed hash at [0] that we must preserve
+            # Preserve a flushed hash at [0] of the next level, if present
             next_level = self._levels[level_idx + 1]
-            next_has_flushed = (it >> 1) & 0x01 and next_level
-
-            # Compute next level, reusing hashes after the flushed one
-            skip = 1 if next_has_flushed else 0
-            computed = self._recalculate_level(prev_level, next_level[skip:])
-
-            # Store result, preserving flushed hash at [0] if present
-            if next_has_flushed:
-                self._levels[level_idx + 1] = [next_level[0]] + computed
-            else:
-                self._levels[level_idx + 1] = computed
+            start = 1 if (it >> 1) & 0x01 and next_level else 0
+            self._recalculate_level(self._levels[level_idx], next_level, start)
 
             it >>= 1
             level_idx += 1
