@@ -192,7 +192,8 @@ namespace ccf
 
       void do_action() override
       {
-        self->serialise_snapshot_(std::move(snapshot), timestamp, serialised);
+        self->serialise_snapshot_(
+          std::move(snapshot), generation_count, timestamp, serialised);
       }
 
       [[nodiscard]] const std::string& get_name() const override
@@ -242,6 +243,7 @@ namespace ccf
 
     void serialise_snapshot_(
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
+      uint32_t generation,
       TimePoint timestamp,
       const std::shared_ptr<SnapshotSerialisation>& serialised)
     {
@@ -311,11 +313,15 @@ namespace ccf
           "Could not commit snapshot evidence for seqno {} after repeated "
           "compaction conflicts",
           snapshot_version);
-        return;
       }
 
-      if (!committed)
+      if (!evidence_tx_completed || !committed)
       {
+        // Without evidence this snapshot can never be released, so drop it
+        // rather than let it count against max_pending_snapshots_count
+        // until the next rollback. A rollback may already have removed it.
+        std::lock_guard<ccf::ds::Mutex> guard(lock);
+        pending_snapshots.erase(generation);
         return;
       }
 
