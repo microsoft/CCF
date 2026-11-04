@@ -53,6 +53,7 @@ def Step.name : Step → String
   | .local _ (.sendEntries ..) => "sendEntries"
   | .local _ (.timeout _) => "timeout"
   | .local _ .nominateSuccessor => "nominateSuccessor"
+  | .local _ (.retirementObservations _) => "retirementObservations"
   | .receive .. => "receive"
   | .drop .. => "drop"
 
@@ -102,6 +103,13 @@ private def lookup (header : Header) (replay : ReplayState) (node : String)
   let some state := nodeState replay.state nodeId
   | throw s!"node '{node}' is not in the network"
   return state
+
+private def checkRetirementsConsumed (state : Model.State) (node : NodeID)
+    : Except String Unit := do
+  let some state := nodeState state node
+  | throw s!"node {node} is not in the network"
+  unless state.pendingRetirements.isEmpty do
+    throw "unconsumed retirement observations at action boundary"
 
 private def members (header : Header) (nodes : Finset NodeID) : List String :=
   (header.declared.zipIdx).filterMap
@@ -258,17 +266,23 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
       | .append entries =>
           for entry in entries do
             let metadata := entry.content.metadata
-            for member
-                in metadata.configuration.getD ∅ ∪ metadata.retirementConfirmations
-                    |>.sort do
+            for member in metadata.configuration.getD ∅ |>.sort do
               unless member < header.declared.length do
                 throw s!"undeclared model node {member}"
             for (destination, _) in entry.flushes do
               unless destination < header.declared.length do
                 throw s!"undeclared model node {destination}"
+      | .retirementObservations observations =>
+          for observation in observations do
+            for member in observation.nodes do
+              unless member < header.declared.length do
+                throw s!"undeclared model node {member}"
       | _ => pure ()
       let some state := system.step replay.state (.local node input)
       | throw s!"disabled model action '{step.name}'"
+      match input with
+      | .retirementObservations _ => pure ()
+      | _ => checkRetirementsConsumed state node
       return { replay with state }
   | .action (.receive source destination packet) _ =>
       let source ← header.nodeId source
@@ -276,6 +290,7 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
       let envelope ← selectPacket replay source destination packet
       let some state := system.step replay.state (.deliver envelope)
       | throw "disabled model action 'receive'"
+      checkRetirementsConsumed state destination
       return { replay with state }
   | .action (.drop source destination) _ =>
       let source ← header.nodeId source

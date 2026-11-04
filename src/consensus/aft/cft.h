@@ -315,6 +315,7 @@ namespace aft
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
+      trace::retired_committed(*state, seqno, node_ids);
       for (const auto& node_id : node_ids)
       {
         if (id() == node_id)

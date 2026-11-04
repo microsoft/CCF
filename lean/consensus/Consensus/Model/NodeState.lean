@@ -23,8 +23,6 @@ abbrev ReqID := Nat
 /-- The consensus-relevant changes recorded by one transaction. -/
 structure TransactionMetadata where
   configuration : Option (Finset NodeID) := none
-  /-- Nodes whose retirement this transaction confirms, whether committed or not. -/
-  retirementConfirmations : Finset NodeID := ∅
 deriving DecidableEq
 
 inductive EntryContent where
@@ -54,6 +52,13 @@ inductive Role where
   | primary
 deriving DecidableEq, Repr
 
+/-- One global-commit hook, in callback and node iteration order. -/
+structure RetirementObservation where
+  commitIndex : Nat
+  seqno : Nat
+  nodes : List NodeID
+deriving DecidableEq, Repr
+
 structure NodeState where
   /-- Election role, independent of membership and retirement status. -/
   role : Role
@@ -72,10 +77,13 @@ structure NodeState where
   votesGranted : Finset NodeID
   preVotesGranted : Finset NodeID := {}
   /--
-  One-based log index of the transaction confirming this node's retirement,
-  populated only once that confirmation commits.
+  Sequence number supplied by the global-commit retirement hook.
   -/
   retiredCommittedIndex : Option Nat := none
+  /-- Hook facts are irreversible local state, not transaction metadata. -/
+  retiredCommittedNodes : Finset NodeID := ∅
+  /-- Environment inputs for the next protocol step, consumed inside commit. -/
+  pendingRetirements : List RetirementObservation := []
 
 namespace NodeState
 

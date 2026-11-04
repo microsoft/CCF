@@ -353,29 +353,89 @@ lemma NodeState.activeMembers_eq (state : NodeState)
     : state.activeMembers = activeNodeUnion state := by
   simp [Model.Node.NodeState.activeMembers, activeNodeUnion, configurationMembers]
 
-/-- Recording a commit changes the commit index and retirement latch, and may
+lemma retireNodes_eq (self seqno : Nat) (state : NodeState) (nodes : List NodeID)
+    : exists retiredCommittedIndex retiredCommittedNodes role primaryKnown,
+        (retireNodes self seqno state nodes).1
+          = {
+            state with
+              retiredCommittedIndex, retiredCommittedNodes, role, primaryKnown
+          }
+        /\ (role = state.role \/ role = .none) := by
+  induction nodes generalizing state with
+  | nil => exact ⟨_, _, _, _, rfl, Or.inl rfl⟩
+  | cons node rest ih =>
+      simp only [retireNodes]
+      split
+      · obtain ⟨retired, nodes, role, known, eq, roleCase⟩ := ih _
+        rw [eq]
+        exact ⟨retired, nodes, role, known, rfl, Or.inr (by simpa using roleCase)⟩
+      · obtain ⟨retired, nodes, role, known, eq, roleCase⟩ := ih _
+        rw [eq]
+        exact ⟨retired, nodes, role, known, rfl, roleCase⟩
+
+lemma consumeRetirements_eq (self : NodeID) (state : NodeState) (index : Nat)
+    (observations : List RetirementObservation)
+    : exists retiredCommittedIndex retiredCommittedNodes pendingRetirements role primaryKnown,
+        (consumeRetirements self state index observations).1
+          = {
+            state with
+              retiredCommittedIndex,
+              retiredCommittedNodes,
+              pendingRetirements,
+              role,
+              primaryKnown
+          }
+        /\ (role = state.role \/ role = .none) := by
+  induction observations generalizing state with
+  | nil => exact ⟨_, _, _, _, _, rfl, Or.inl rfl⟩
+  | cons observation rest ih =>
+      simp only [consumeRetirements]
+      split
+      · obtain ⟨retired₀, nodes₀, role₀, known₀, eq₀, roleCase₀⟩ :=
+          retireNodes_eq self observation.seqno state observation.nodes
+        dsimp only
+        rw [eq₀]
+        obtain ⟨retired, nodes, pending, role, known, eq, roleCase⟩ := ih _
+        rw [eq]
+        refine ⟨retired, nodes, pending, role, known, rfl, ?_⟩
+        rcases roleCase with same | none
+        · rw [same]
+          exact roleCase₀
+        · exact Or.inr none
+      · exact ⟨_, _, _, _, _, rfl, Or.inl rfl⟩
+
+/-- Recording a commit changes the commit index and retirement state, and may
 clear the role and primary knowledge. -/
 lemma NodeState.recordCommit_eq (node : NodeID) (state : NodeState) (index : Nat)
-    : exists retiredCommittedIndex role primaryKnown,
+    : exists retiredCommittedIndex retiredCommittedNodes pendingRetirements role primaryKnown,
         state.recordCommit node index
-          = { state with commitIndex := index, retiredCommittedIndex, role, primaryKnown }
+          = {
+            state with
+              commitIndex := index
+              retiredCommittedIndex
+              retiredCommittedNodes
+              pendingRetirements
+              role
+              primaryKnown
+          }
         /\ (role = state.role \/ role = .none) := by
   unfold NodeState.recordCommit
+  obtain ⟨retired, nodes, pending, role, known, eq, roleCase⟩ :=
+    consumeRetirements_eq node state index state.pendingRetirements
   dsimp only
-  split
-  · exact ⟨_, _, _, rfl, Or.inr rfl⟩
-  · exact ⟨_, _, _, rfl, Or.inl rfl⟩
+  rw [eq]
+  exact ⟨retired, nodes, pending, role, known, rfl, roleCase⟩
 
 @[simp]
 lemma NodeState.recordCommit_log (node : NodeID) (state : NodeState) (index : Nat)
     : (state.recordCommit node index).log = state.log := by
-  obtain ⟨_, _, _, eq, _⟩ := NodeState.recordCommit_eq node state index
+  obtain ⟨_, _, _, _, _, eq, _⟩ := NodeState.recordCommit_eq node state index
   rw [eq]
 
 @[simp]
 lemma NodeState.recordCommit_commitIndex (node : NodeID) (state : NodeState) (index : Nat)
     : (state.recordCommit node index).commitIndex = index := by
-  obtain ⟨_, _, _, eq, _⟩ := NodeState.recordCommit_eq node state index
+  obtain ⟨_, _, _, _, _, eq, _⟩ := NodeState.recordCommit_eq node state index
   rw [eq]
 
 /-- Extending a log cannot move its bounded committable frontier backwards. -/
@@ -388,7 +448,7 @@ lemma maxCommittableIndexUpTo_mono {left right : List Entry}
 fields, and may clear the role. -/
 lemma fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entry)
     : forall (state : NodeState),
-        exists commitIndex retiredCommittedIndex role primaryKnown,
+        exists commitIndex retiredCommittedIndex retiredCommittedNodes pendingRetirements role primaryKnown,
           entries.foldl
               (fun state entry =>
                 let state := { state with log := state.log ++ [entry] }
@@ -403,6 +463,8 @@ lemma fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entry)
                 log := state.log ++ entries,
                 commitIndex,
                 retiredCommittedIndex,
+                retiredCommittedNodes,
+                pendingRetirements,
                 role,
                 primaryKnown
             }
@@ -417,6 +479,8 @@ lemma fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entry)
       exact ⟨
         state.commitIndex,
         state.retiredCommittedIndex,
+        state.retiredCommittedNodes,
+        state.pendingRetirements,
         state.role,
         state.primaryKnown,
         by simp,
@@ -432,24 +496,24 @@ lemma fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entry)
       simp only [List.append_assoc, List.cons_append, List.nil_append] at mono
       by_cases signature : entry.content.isSignature
       · simp only [signature, ↓reduceIte]
-        obtain ⟨retired₀, role₀, known₀, eq₀, roleCase₀⟩ :=
+        obtain ⟨retired₀, nodes₀, pending₀, role₀, known₀, eq₀, roleCase₀⟩ :=
           NodeState.recordCommit_eq self { state with log := state.log ++ [entry] }
             (max state.commitIndex
               (maxCommittableIndexUpTo (state.log ++ [entry]) limit))
         rw [eq₀]
-        obtain ⟨commitIndex, retired, role, known, eq, roleCase, lower, upper⟩ := ih _
+        obtain ⟨commitIndex, retired, nodes, pending, role, known, eq, roleCase, lower, upper⟩ := ih _
         rw [eq]
         simp only [List.append_assoc, List.cons_append, List.nil_append] at lower upper roleCase ⊢
-        refine ⟨commitIndex, retired, role, known, rfl, ?_, by omega, by omega⟩
+        refine ⟨commitIndex, retired, nodes, pending, role, known, rfl, ?_, by omega, by omega⟩
         rcases roleCase with same | none
         · rw [same]
           exact roleCase₀
         · exact Or.inr none
       · simp only [signature, Bool.false_eq_true, ↓reduceIte]
-        obtain ⟨commitIndex, retired, role, known, eq, roleCase, lower, upper⟩ := ih _
+        obtain ⟨commitIndex, retired, nodes, pending, role, known, eq, roleCase, lower, upper⟩ := ih _
         rw [eq]
         simp only [List.append_assoc, List.cons_append, List.nil_append] at lower upper roleCase ⊢
-        exact ⟨commitIndex, retired, role, known, rfl, roleCase, lower, by omega⟩
+        exact ⟨commitIndex, retired, nodes, pending, role, known, rfl, roleCase, lower, by omega⟩
 
 /--
 Intermediate commits use prefixes of the final log, so the follower's final
@@ -459,7 +523,7 @@ lemma handleAppendEntiresFromPrimary_eq (self : NodeID) (state : NodeState)
     (request : AppendEntriesRequest)
     : let log :=
         state.log ++ request.entries.drop (state.log.length - request.prevLogIndex)
-      exists retiredCommittedIndex role primaryKnown,
+      exists retiredCommittedIndex retiredCommittedNodes pendingRetirements role primaryKnown,
         handleAppendEntiresFromPrimary self state request
           = (
             {
@@ -471,6 +535,8 @@ lemma handleAppendEntiresFromPrimary_eq (self : NodeID) (state : NodeState)
                       (min request.primaryCommit
                         (request.prevLogIndex + request.entries.length)))
                 retiredCommittedIndex
+                retiredCommittedNodes
+                pendingRetirements
                 role
                 primaryKnown
             },
@@ -482,16 +548,16 @@ lemma handleAppendEntiresFromPrimary_eq (self : NodeID) (state : NodeState)
           )
         /\ (role = state.role \/ role = .none) := by
   intro log
-  obtain ⟨commitIndex, retired, role, known, eq, roleCase, lower, upper⟩ :=
+  obtain ⟨commitIndex, retired, nodes, pending, role, known, eq, roleCase, lower, upper⟩ :=
     fromLeader_loop self
       (min request.primaryCommit (request.prevLogIndex + request.entries.length))
       (request.entries.drop (state.log.length - request.prevLogIndex)) state
   unfold handleAppendEntiresFromPrimary
   dsimp only
   rw [eq]
-  obtain ⟨retired', role', known', eq', roleCase'⟩ := NodeState.recordCommit_eq self _ _
+  obtain ⟨retired', nodes', pending', role', known', eq', roleCase'⟩ := NodeState.recordCommit_eq self _ _
   rw [eq']
-  refine ⟨retired', role', known', ?_, ?_⟩
+  refine ⟨retired', nodes', pending', role', known', ?_, ?_⟩
   · simp only [log]
     congr 2
     omega

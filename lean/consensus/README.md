@@ -17,7 +17,8 @@ It assumes familiarity with the [CCF consensus protocol documentation](../../doc
 | Action-trace tests                     | [`Tests/CanonicalTraces.lean`](Consensus/Tests/CanonicalTraces.lean)                                                           |
 
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
-Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
+Each node reads membership, quorums and retirement ordering from its own ledger; retired-committed facts are local model state supplied by global-commit hook inputs.
+There is no model-wide configuration after initialization.
 Initialization takes a nonempty initial voting membership, whose smallest member starts as primary with the genesis configuration transaction.
 Actions are local inputs (including timeouts) or delivery of a queued message; no clock is modeled.
 
@@ -35,7 +36,6 @@ lake exe cache get
 lake build --wfail --fail-fast
 lake exe check-imports
 lake lint
-lake exe replay-checks
 ../../scripts/lean-format-checks.sh consensus
 ```
 

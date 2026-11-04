@@ -14,6 +14,7 @@ REPLAY_BOUNDARY_EVENTS = {
     "batch_flush",
     "tick",
     "nomination",
+    "retired_committed",
 }
 
 
