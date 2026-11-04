@@ -20,7 +20,7 @@ jobs:
   simulation:
     name: TLA Simulation
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: tla
