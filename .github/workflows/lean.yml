@@ -6,9 +6,9 @@ on:
       - "lean/**"
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
-      - "tests/raft_trace*.py"
-      - "tests/raft_scenarios*.py"
-      - "tests/raft_scenarios/**"
+      - "tests/cft_trace*.py"
+      - "tests/cft_scenarios*.py"
+      - "tests/cft_scenarios/**"
       - "src/consensus/aft/**"
       - "src/kv/**"
       - "include/ccf/kv/**"
@@ -30,8 +30,8 @@ concurrency:
 permissions: read-all
 
 jobs:
-  raft_traces:
-    name: Raft scenario captures
+  cft_traces:
+    name: CCF consensus scenario captures
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -62,16 +62,16 @@ jobs:
         run: |
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          cmake -S . -B "$RUNNER_TEMP/ccf-raft-build" -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
-          cmake --build "$RUNNER_TEMP/ccf-raft-build" --target raft_driver --parallel "$(( ($(nproc) + 1) >> 1 ))"
+          cmake -S . -B "$RUNNER_TEMP/cft-build" -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
+          cmake --build "$RUNNER_TEMP/cft-build" --target cft_driver --parallel "$(( ($(nproc) + 1) >> 1 ))"
           uv run --no-project --with msgpack \
-            ctest --test-dir "$RUNNER_TEMP/ccf-raft-build" -VV -R "^raft_scenario_test$" --no-tests=error
+            ctest --test-dir "$RUNNER_TEMP/cft-build" -VV -R "^cft_scenario_test$" --no-tests=error
 
-      - name: Upload Raft traces
+      - name: Upload CCF consensus traces
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: raft-scenario-traces
-          path: ${{ runner.temp }}/ccf-raft-build/consensus/raw/*.ndjson
+          name: cft-scenario-traces
+          path: ${{ runner.temp }}/cft-build/consensus/raw/*.ndjson
           if-no-files-found: error
           retention-days: 1
           overwrite: true
@@ -205,14 +205,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [ccf-raft, common, consistency, disaster-recovery, kv]
+        package: [consensus, common, consistency, disaster-recovery, kv]
     uses: ./.github/workflows/lean-package.yml
     with:
       package: ${{ matrix.package }}
 
-  raft_replay:
-    name: Replay native Raft traces
-    needs: [raft_traces]
+  cft_replay:
+    name: Replay native CCF consensus traces
+    needs: [cft_traces]
     runs-on: [gha-vmss-d16av7-ci-b]
     container:
       image: ubuntu:26.04
@@ -242,31 +242,31 @@ jobs:
           elan run --install "$(cat lean/lean-toolchain)" lean --version
 
       - name: Restore Mathlib cache
-        working-directory: lean/ccf-raft
+        working-directory: lean/consensus
         run: |
           set -euo pipefail
           lake exe cache get
 
-      - name: Build Raft replay
-        working-directory: lean/ccf-raft
+      - name: Build CCF consensus replay
+        working-directory: lean/consensus
         run: |
           set -euo pipefail
-          lake build --wfail ccfraft-replay
+          lake build --wfail consensus-replay
 
-      - name: Download Raft traces
+      - name: Download CCF consensus traces
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: raft-scenario-traces
-          path: ${{ runner.temp }}/raft-scenario-traces
+          name: cft-scenario-traces
+          path: ${{ runner.temp }}/cft-scenario-traces
 
-      - name: Validate Raft traces
+      - name: Validate CCF consensus traces
         shell: bash
         run: |
           set -euo pipefail
           shopt -s failglob
-          for trace in "$RUNNER_TEMP"/raft-scenario-traces/*.ndjson; do
+          for trace in "$RUNNER_TEMP"/cft-scenario-traces/*.ndjson; do
             echo "::group::Validate $trace"
-            lean/ccf-raft/.lake/build/bin/ccfraft-replay "$trace"
+            lean/consensus/.lake/build/bin/consensus-replay "$trace"
             echo "::endgroup::"
           done
 
@@ -275,8 +275,8 @@ jobs:
     needs:
       [
         packages,
-        raft_traces,
-        raft_replay,
+        cft_traces,
+        cft_replay,
         kv_traces,
         kv_replay,
         consistency_traces,
@@ -301,8 +301,8 @@ jobs:
 
           expected = {
               "packages",
-              "raft_traces",
-              "raft_replay",
+              "cft_traces",
+              "cft_replay",
               "kv_traces",
               "kv_replay",
               "consistency_traces",
@@ -323,7 +323,7 @@ jobs:
           python3 - <<'PY'
           import pathlib
 
-          expected = {"ccf-raft", "common", "consistency", "disaster-recovery", "kv"}
+          expected = {"consensus", "common", "consistency", "disaster-recovery", "kv"}
           actual = {config.parent.name for config in pathlib.Path("lean").glob("*/lakefile.toml")}
           if actual != expected:
               raise SystemExit(

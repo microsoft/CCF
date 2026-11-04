@@ -35,7 +35,7 @@ Property helpers use zero-based history positions.
 The initial view is 2; view 1 is reserved and cannot process requests.
 
 The model covers safety only, not liveness, disaster recovery, or non-forwarded reads.
-There is no refinement proof connecting it to the [Raft model](../ccf-raft/README.md).
+There is no refinement proof connecting it to the [CCF consensus protocol model](../consensus/README.md).
 
 ## Properties
 
@@ -83,5 +83,5 @@ lake build --wfail consistency-replay
 .lake/build/bin/consistency-replay ../../build/consistency/trace.ndjson
 ```
 
-The [Lean workflow](../../.github/workflows/lean.yml) captures and replays this trace in separate jobs, following the KV and Raft setup, and also reuses the [TLA+ election/rollback fixtures](../../tla/consistency/traces).
+The [Lean workflow](../../.github/workflows/lean.yml) captures and replays this trace in separate jobs, following the KV and CCF consensus setup, and also reuses the [TLA+ election/rollback fixtures](../../tla/consistency/traces).
 Synthetic [replay fixtures](replayer/fixtures/README.md) check that the replayer accepts valid traces and rejects invalid ones.

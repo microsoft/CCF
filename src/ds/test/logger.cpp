@@ -94,7 +94,7 @@ public:
   }
 };
 
-#ifndef CCF_RAFT_TRACING
+#ifndef CCF_CFT_TRACING
 TEST_CASE("Logger timestamp retains microsecond precision")
 {
   std::tm tm{};

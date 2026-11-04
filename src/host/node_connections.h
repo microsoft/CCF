@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft_types.h"
 #include "ds/serialized.h"
 #include "ledger.h"
 #include "ledger_subsystem.h"
@@ -604,8 +604,7 @@ namespace asynchost
 
       if (
         msg_type == ccf::NodeMsgType::consensus_msg &&
-        (serialized::read<aft::RaftMsgType>(data, size) ==
-         aft::raft_append_entries))
+        (serialized::read<aft::CftMsgType>(data, size) == aft::append_entries))
       {
         const auto& ae =
           serialized::overlay<::consensus::AppendEntriesIndex>(data, size);

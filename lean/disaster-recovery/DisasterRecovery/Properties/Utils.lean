@@ -17,13 +17,13 @@ abbrev LocalStep :=
   CCF.MultiNodeTransitionSystem.LocalStep Location NodeState Event Message Notification
 
 open Model.Local in
-/-- Raft's vote freshness check on last signed TxIDs, not a log-prefix relation. -/
+/-- Consensus's vote freshness check on last signed TxIDs, not a log-prefix relation. -/
 abbrev LogUpToDate (candidate voter : TxID) : Prop :=
   voter.view < candidate.view
   \/ (voter.view = candidate.view /\ voter.seqno <= candidate.seqno)
 
 open Model.Local in
-/-- The candidate passes Raft's log freshness check against a strict majority.
+/-- The candidate passes Consensus's log freshness check against a strict majority.
 Valid model configs give one recovered ledger per configured node. -/
 def UpToDateWithQuorum (config : Model.Config) (candidate : TxID) : Prop :=
   voteQuorum config.protocol
