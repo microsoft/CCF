@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Fixed
 
 - Acquiring a transaction's first KV map handle no longer fails because of concurrent compaction; acquiring handles for additional maps can still encounter compaction conflicts (see [KV transaction semantics](doc/build_apps/kv/kv_how_to.rst#transaction-semantics)) (#8656).
+- Hardened `ccf::crypto` OpenSSL call sites taking `int` lengths against inputs larger than 2 GiB, and Base64 encoding and decoding no longer use stack buffers proportional to the input size. `ccf::crypto::OpenSSL::Unique_BIO(const void*, int)` now takes a `size_t` and throws `std::invalid_argument` rather than accepting a negative length (#8645).
 
 ## [7.0.23]
 

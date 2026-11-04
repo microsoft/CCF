@@ -35,14 +35,15 @@ theorem erase_keys (xs : Assoc K V) (k : K)
     : (erase xs k).map Prod.fst = (xs.map Prod.fst).filter (· != k) :=
   (List.filter_map (f := Prod.fst) (p := (· != k)) (l := xs)).symm
 
-theorem erase_unique (xs : Assoc K V) (k : K) (h : Unique xs) : Unique (erase xs k) := by
-  unfold Unique
+theorem erase_unique (xs : Assoc K V) (k : K) (h : Kv.Properties.Unique xs)
+    : Kv.Properties.Unique (erase xs k) := by
+  unfold Kv.Properties.Unique
   rw [erase_keys]
   exact List.Pairwise.filter _ h
 
-theorem set_unique (xs : Assoc K V) (k : K) (v : V) (h : Unique xs)
-    : Unique (set xs k v) := by
-  simp only [Unique, Model.set, List.map_cons, List.nodup_cons]
+theorem set_unique (xs : Assoc K V) (k : K) (v : V) (h : Kv.Properties.Unique xs)
+    : Kv.Properties.Unique (set xs k v) := by
+  simp only [Kv.Properties.Unique, Model.set, List.map_cons, List.nodup_cons]
   constructor
   · simp [erase_keys]
   · exact erase_unique xs k h
@@ -62,8 +63,9 @@ theorem publish_lookup (db : DB M K V) (version : Nat) (ws : Writes M K V) (a : 
         cases value <;> simp [publish, find, find_set_same, find_erase_same]
       · cases value <;> simp [publish, find, h, find_set_other, find_erase_other, ← ih, publish]
 
-theorem publish_unique (db : DB M K V) (version : Nat) (ws : Writes M K V) (h : Unique db)
-    : Unique (publish db version ws) := by
+theorem publish_unique (db : DB M K V) (version : Nat) (ws : Writes M K V)
+    (h : Kv.Properties.Unique db)
+    : Kv.Properties.Unique (publish db version ws) := by
   induction ws with
   | nil => exact h
   | cons p ws ih =>
