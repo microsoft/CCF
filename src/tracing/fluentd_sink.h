@@ -14,6 +14,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <netdb.h>
 #include <poll.h>
 #include <span>
@@ -65,8 +66,10 @@ namespace ccf::tracing
       Endpoint::Delivery delivery;
       std::vector<std::unique_ptr<SPSCQueue>> queues;
       std::atomic<uint64_t> dropped = 0;
+      std::mutex mutex;
+      // Producers observe shutdown without taking the transport mutex.
       std::atomic<bool> stopping = false;
-      std::atomic<bool> connected = false;
+      bool connected = false;
       std::chrono::steady_clock::time_point deadline;
       std::chrono::steady_clock::time_point retry_after;
       uint64_t reported = 0;
@@ -103,7 +106,7 @@ namespace ccf::tracing
 
       [[nodiscard]] bool expired() const
       {
-        return stopping.load(std::memory_order_acquire) &&
+        return stopping.load(std::memory_order_relaxed) &&
           std::chrono::steady_clock::now() >= deadline;
       }
 
@@ -123,7 +126,7 @@ namespace ccf::tracing
 
       void disconnect()
       {
-        connected.store(false, std::memory_order_release);
+        connected = false;
         if (pending)
         {
           pending.reset();
@@ -147,44 +150,44 @@ namespace ccf::tracing
           std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
       }
 
-      bool connect()
+      void connect()
       {
-        if (connected.load(std::memory_order_acquire))
+        if (connected)
         {
-          return true;
+          return;
         }
         if (fd < 0)
         {
           if (std::chrono::steady_clock::now() < retry_after)
           {
-            return false;
+            return;
           }
           fd = ::socket(
             address.ss_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
           if (fd < 0)
           {
             disconnect();
-            return false;
+            return;
           }
           if (
             ::connect(
               fd, reinterpret_cast<const sockaddr*>(&address), address_size) ==
             0)
           {
-            connected.store(true, std::memory_order_release);
-            return true;
+            connected = true;
+            return;
           }
           if (errno != EINPROGRESS)
           {
             disconnect();
-            return false;
+            return;
           }
         }
         pollfd descriptor{fd, POLLOUT, 0};
         const auto rc = ::poll(&descriptor, 1, 0);
         if (rc == 0 || (rc < 0 && errno == EINTR))
         {
-          return false;
+          return;
         }
         if (
           rc > 0 && (descriptor.revents & POLLOUT) != 0 &&
@@ -196,12 +199,11 @@ namespace ccf::tracing
             getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &size) == 0 &&
             error == 0)
           {
-            connected.store(true, std::memory_order_release);
-            return true;
+            connected = true;
+            return;
           }
         }
         disconnect();
-        return false;
       }
 
       void write()
@@ -246,20 +248,20 @@ namespace ccf::tracing
       void run()
       {
         size_t next_queue = 0;
+        std::unique_lock lock(mutex);
         while (!expired())
         {
-          bool ready = connect();
+          connect();
           bool progress = false;
-          if (ready && pending)
+          if (connected && pending)
           {
             write();
-            ready = connected.load(std::memory_order_acquire);
           }
           for (size_t q = 0; q < queues.size() && !expired(); ++q)
           {
             if (
               delivery == Endpoint::Delivery::BUFFERED_BEST_EFFORT &&
-              (!ready || pending))
+              (!connected || pending))
             {
               break;
             }
@@ -269,7 +271,7 @@ namespace ccf::tracing
             {
               if (
                 delivery == Endpoint::Delivery::BUFFERED_BEST_EFFORT &&
-                (!ready || pending))
+                (!connected || pending))
               {
                 break;
               }
@@ -279,17 +281,16 @@ namespace ccf::tracing
                 break;
               }
               progress = true;
-              if (!ready || pending)
+              if (!connected || pending)
               {
                 dropped.fetch_add(1, std::memory_order_relaxed);
                 continue;
               }
               pending = std::move(record);
               write();
-              ready = connected.load(std::memory_order_acquire);
             }
           }
-          if (!progress && stopping.load(std::memory_order_acquire))
+          if (!progress && stopping.load(std::memory_order_relaxed))
           {
             bool empty = !pending;
             for (const auto& queue : queues)
@@ -301,11 +302,13 @@ namespace ccf::tracing
               break;
             }
           }
+          lock.unlock();
           report_drops();
           if (!progress)
           {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
           }
+          lock.lock();
         }
         size_t remaining = 0;
         for (const auto& queue : queues)
@@ -314,15 +317,17 @@ namespace ccf::tracing
         }
         dropped.fetch_add(remaining, std::memory_order_relaxed);
         disconnect();
+        lock.unlock();
         report_drops();
       }
 
       void stop(std::chrono::steady_clock::time_point shutdown_deadline)
       {
-        if (!stopping.load(std::memory_order_acquire))
+        std::lock_guard lock(mutex);
+        if (!stopping.load(std::memory_order_relaxed))
         {
           deadline = shutdown_deadline;
-          stopping.store(true, std::memory_order_release);
+          stopping.store(true, std::memory_order_relaxed);
         }
       }
 
@@ -397,11 +402,12 @@ namespace ccf::tracing
         bool connected = true;
         for (const auto& t : transports())
         {
-          if (t->stopping.load(std::memory_order_acquire))
+          std::lock_guard lock(t->mutex);
+          if (t->stopping.load(std::memory_order_relaxed))
           {
             return false;
           }
-          connected &= t->connected.load(std::memory_order_acquire);
+          connected &= t->connected;
         }
         if (connected)
         {
@@ -433,7 +439,7 @@ namespace ccf::tracing
       {
         if (
           slot >= t->queues.size() ||
-          t->stopping.load(std::memory_order_acquire) ||
+          t->stopping.load(std::memory_order_relaxed) ||
           !t->queues[slot]->push(bytes))
         {
           t->dropped.fetch_add(1, std::memory_order_relaxed);
