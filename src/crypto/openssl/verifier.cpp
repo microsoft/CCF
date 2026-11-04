@@ -12,9 +12,15 @@
 
 #include <algorithm>
 #include <openssl/evp.h>
+#include <openssl/opensslv.h>
 #include <openssl/ossl_typ.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
+
+#if OPENSSL_VERSION_PREREQ(3, 5)
+#  include "crypto/openssl/mldsa.h"
+#  include "crypto/openssl/mldsa_public_key.h"
+#endif
 
 namespace
 {
@@ -132,6 +138,13 @@ namespace ccf::crypto
     {
       public_key = std::make_shared<RSAPublicKey_OpenSSL>(pk);
     }
+#if OPENSSL_VERSION_PREREQ(3, 5)
+    // Provider-native ML-DSA keys have no legacy base id.
+    else if (mldsa::find_parameter_set(pk).has_value())
+    {
+      public_key = std::make_shared<MLDSAPublicKey_OpenSSL>(pk);
+    }
+#endif
     else
     {
       EVP_PKEY_free(pk);
