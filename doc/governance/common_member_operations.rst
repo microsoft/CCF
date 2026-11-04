@@ -206,7 +206,7 @@ Renewing ML-DSA Service Certificate
 .. note:: This proposal only applies to services with an ML-DSA service certificate (see :ref:`operations/certificates:Service Certificate`), and is rejected otherwise.
 
 Similarly, the ML-DSA service certificate can be renewed via the ``set_pq_service_certificate_validity`` proposal, which takes the same arguments.
-The ML-DSA service certificate should not outlive the service certificate, so members should submit both proposals with the same ``valid_from`` and ``validity_period_days``.
+Its validity period is independent of the service certificate's.
 The proposal fails if the primary node cannot issue the ML-DSA certificate, for example when it is built without ML-DSA support.
 
 A sample proposal is:

@@ -2483,20 +2483,27 @@ class Network:
                 f'Validity period for service certificate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
             )
 
-        # Tests renew an ML-DSA service certificate, when present, with the
-        # same period as the service certificate, so their validity periods
-        # must match
-        pq_cert = network_info.get("pq_service_certificate")
-        if pq_cert is not None:
-            pq_validity = infra.crypto.get_validity_period_from_pem_cert(pq_cert)
-            if pq_validity != (valid_from, valid_to):
-                raise ValueError(
-                    f'Validity period for ML-DSA service certificate {pq_validity} does not match service certificate ("{valid_from}", "{valid_to}")'
-                )
-
         validity_period = valid_to - valid_from + timedelta(seconds=1)
         LOG.info(
             f"Certificate validity period for service: {valid_from} - {valid_to} (for {validity_period})"
+        )
+
+    def verify_pq_service_certificate_validity_period(self, expected_validity_days):
+        pq_cert = self.get_pq_service_certificate()
+        assert pq_cert is not None, "Service has no ML-DSA certificate"
+        valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(pq_cert)
+
+        expected_valid_to = valid_from + timedelta(
+            days=expected_validity_days, seconds=-1
+        )
+        if valid_to != expected_valid_to:
+            raise ValueError(
+                f'Validity period for ML-DSA service certificate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
+            )
+
+        validity_period = valid_to - valid_from + timedelta(seconds=1)
+        LOG.info(
+            f"ML-DSA certificate validity period for service: {valid_from} - {valid_to} (for {validity_period})"
         )
 
     def refresh_service_identity_file(self, args):

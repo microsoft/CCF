@@ -68,7 +68,7 @@ An 8.x node built without ML-DSA support also refuses to recover a ledger whose 
     - Once renewed, the service certificate should be distributed to clients to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network.
 
 The procedure that operators and members should follow is summarised in the following diagram.
-When the service has an ML-DSA service certificate, it follows the same timeline and must be renewed alongside the service certificate:
+An ML-DSA service certificate, when the service has one, starts with the same initial validity period and is then renewed by its own proposal:
 
 .. mermaid::
 
@@ -80,7 +80,7 @@ When the service has an ML-DSA service certificate, it follows the same timeline
 
     section Members
     Service Open By Members + set_service_certificate_validity (and set_pq_service_certificate_validity) :milestone, 01-01/15:00, 0d
-    Members must renew both certs before expiry (set_service_certificate_validity and set_pq_service_certificate_validity)              :crit, 01-05/15:00, 1d
+    Members must renew each cert before its expiry (set_service_certificate_validity and set_pq_service_certificate_validity)              :crit, 01-05/15:00, 1d
 
     section Service <br> Certificate
     Initial Validity Period (24h default): done, 01-01/00:00, 1d
