@@ -1,7 +1,6 @@
 module
 
 public import Consensus.Proofs.Config
-public import Mathlib.Tactic
 
 @[expose] public section
 

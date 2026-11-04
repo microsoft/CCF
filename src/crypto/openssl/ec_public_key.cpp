@@ -4,6 +4,7 @@
 #include "crypto/openssl/ec_public_key.h"
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/bignum.h"
 #include "crypto/openssl/hash.h"
 #include "ds/internal_logger.h"
 
@@ -79,8 +80,8 @@ namespace ccf::crypto
     std::pair<Unique_BIGNUM, Unique_BIGNUM> xy;
     auto x_raw = raw_from_b64url(jwk.x);
     auto y_raw = raw_from_b64url(jwk.y);
-    OpenSSL::CHECKNULL(BN_bin2bn(x_raw.data(), x_raw.size(), xy.first));
-    OpenSSL::CHECKNULL(BN_bin2bn(y_raw.data(), y_raw.size(), xy.second));
+    xy.first = bn_from_bytes(x_raw);
+    xy.second = bn_from_bytes(y_raw);
 
     return xy;
   }

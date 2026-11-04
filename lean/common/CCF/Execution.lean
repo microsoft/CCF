@@ -1,7 +1,10 @@
 module
 
 public import CCF.TransitionSystem
-public import Mathlib.Data.Seq.Basic
+public import Mathlib.Data.Seq.Defs
+
+import Mathlib.Data.Seq.Basic
+import Std.Tactic.BVDecide.Normalize.Prop
 
 @[expose] public section
 

@@ -100,6 +100,7 @@ This applies to ordinary Lake builds as well as CI.
 
 The model, proofs, tests, and replayer use Lean's module system, as required by the Mathlib dependency.
 The properties entrypoint publicly imports the model types and property helpers used by its statements, while its implementation imports remain private.
+Proof modules and the assembled root follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
 `@[expose] public section` keeps definitions used by cross-module proofs transparent; runtime-only helpers remain private.
 `mk_all --module` generates the corresponding package-level import root.
 
@@ -119,6 +120,24 @@ The `--inadvisably-no-sandbox` flag allows the check to build the shared modules
 It disables build isolation, not proof or axiom checking; run it only on code you trust.
 CI checks the package in an Ubuntu 26.04 job using disk-backed temporary storage.
 Additional bundled checkers are not enabled.
+
+### CI package isolation
+
+The [Lean workflow](../../.github/workflows/lean.yml) checks `consensus`, `common`, `consistency`, `disaster-recovery`, and `kv` in one matrix with fail-fast disabled, using the same [package workflow](../../.github/workflows/lean-package.yml).
+Each invocation has its own checkout and writable build directories, including `common/.lake`, because the packages reference `../common` without copying it.
+Mathlib cache setup precedes kernel and axiom checking, which precedes import/architecture checking, formatting, linting, and package-specific fixtures.
+Common receives its own kernel, import, and lint checks; the disaster-recovery formatting selector also covers common and tracked Lean files outside `lean/`.
+Recovery schema validation, positive/negative replay fixtures, and viewer dump generation run in the disaster-recovery job.
+
+Native CCF consensus and KV captures run independently of package checking.
+The [CCF consensus replay job](../consensus/replay/README.md#ci-captures-and-replay) and the KV replay job each wait only for their corresponding native captures, restore Mathlib caches, and build their own replay executable without depending on the package matrix.
+The final check retains the name `Lean models and proofs` and requires all package checks, captures, and replay to succeed.
+Failed, cancelled, skipped, or missing prerequisites cannot yield a successful gate; a cancelled workflow may cancel the gate itself.
+The gate also rejects package inventory drift.
+Adding or removing a package requires updating the workflow matrix, gate inventory, reusable workflow input validation, and formatting ownership.
+
+Concurrency trades additional simultaneous runners and repeated dependency setup/builds for potential wall-time reduction.
+It is not a same-hardware speedup, and actual latency and aggregate runner minutes need matched CI measurements.
 
 See [Formatting](#formatting) for the [leanfmt](https://github.com/duckki/leanfmt) check.
 To update a tool dependency without changing the toolchain, run `lake update --keep-toolchain <package>`.

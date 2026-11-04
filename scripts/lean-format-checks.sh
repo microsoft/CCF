@@ -43,6 +43,9 @@ for package in "${PACKAGES[@]}"; do
   (
     cd "$ROOT_DIR/lean/$package"
     # leanfmt loads imported modules to parse project-specific syntax.
+    if [ "$package" == "disaster-recovery" ]; then
+      lake build ccf_common/+CCF
+    fi
     lake build "$library"
     git -C "$ROOT_DIR" ls-files -z -- "${PATHSPEC[@]}" |
       while IFS= read -r -d '' file; do
