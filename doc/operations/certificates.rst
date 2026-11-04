@@ -59,7 +59,8 @@ The ``command.start.service_configuration.maximum_service_certificate_validity_d
 Nodes built with OpenSSL 3.5 or newer also create an ML-DSA service certificate when starting or recovering a service, with the same subject and validity period as the classical service certificate, using the parameter set selected by the ``service_mldsa_parameter_set`` entry of ``command.start`` or ``command.recover`` (see :doc:`configuration </operations/configuration>`).
 It is stored in the ``public:ccf.gov.service.info`` table of the ledger and renewed by members via the :ref:`set_pq_service_certificate_validity proposal <governance/common_member_operations:Renewing ML-DSA Service Certificate>`; both certificates must be renewed before they expire.
 A node built without ML-DSA support cannot join a service that has an ML-DSA service certificate.
-Its join request is rejected before the node is recorded, so a joiner must be built with ML-DSA support (OpenSSL 3.5 or newer); nodes of versions without this capability are rejected too, and such a node also refuses to recover a ledger whose service has an ML-DSA service certificate (see :ref:`build_apps/migration_7_x_to_8_x:ML-DSA Service Identity`).
+Its join request is rejected before the node is recorded, so a joiner must be built with ML-DSA support (OpenSSL 3.5 or newer); nodes of versions without this capability are rejected too.
+An 8.x node built without ML-DSA support also refuses to recover a ledger whose service has an ML-DSA service certificate, and recovering such a ledger with 7.x nodes is unsupported (see :ref:`build_apps/migration_7_x_to_8_x:ML-DSA Service Identity`).
 
 .. tip::
 
