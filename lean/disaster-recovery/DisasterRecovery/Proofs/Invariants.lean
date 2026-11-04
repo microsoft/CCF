@@ -16,8 +16,6 @@ open Execution
 open Execution.Local hiding Config
 open Execution.Global Predicates
 
-attribute [local simp] Execution.Local.transitionSystem rejectionReason guard failure
-
 lemma recovered_configured
     {config : Config}
     {node : Location}
@@ -43,29 +41,14 @@ lemma messageForEffect_source
     : envelope.source = source /\ envelope.sourceState = sourceState := by
   cases effect with
   | sendGossip target =>
-      cases found : recoveredTxID config source with
-      | none =>
-          simp [messageForEffect, found] at created
-      | some txid =>
-          simp [messageForEffect, found] at created
-          rw [←created]
-          exact ⟨rfl, rfl⟩
-  | sendVote target =>
-      simp [messageForEffect] at created
-      rw [←created]
+      simp only [messageForEffect, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq] at created
+      obtain ⟨_, _, rfl⟩ := created
       exact ⟨rfl, rfl⟩
-  | sendIAmOpen target =>
-      simp [messageForEffect] at created
-      rw [←created]
+  | sendVote target | sendIAmOpen target =>
+      cases created
       exact ⟨rfl, rfl⟩
-  | opening kind =>
-      simp_all [messageForEffect]
-  | restart chosen =>
-      simp_all [messageForEffect]
-  | completed =>
-      simp_all [messageForEffect]
-  | rejected reason =>
-      simp_all [messageForEffect]
+  | opening _ | restart _ | completed | rejected _ => cases created
 
 lemma retryMessages_source
     {config : Config}
@@ -117,42 +100,88 @@ lemma valid_gossip_uses_recovered_txid
     ⟨effect, _, created⟩
   cases effect with
   | sendGossip target =>
-      cases found : recoveredTxID config envelope.source with
-      | none =>
-          simp [messageForEffect, found] at created
-      | some recovered =>
-          simp [messageForEffect, found] at created
-          rw [←created] at gossip
-          injection gossip with same
-          subst recovered
-          rfl
-  | sendVote target =>
-      simp [messageForEffect] at created
-      rw [←created] at gossip
-      contradiction
-  | sendIAmOpen target =>
-      simp [messageForEffect] at created
-      rw [←created] at gossip
-      contradiction
-  | opening kind =>
-      simp [messageForEffect] at created
-  | restart chosen =>
-      simp [messageForEffect] at created
-  | completed =>
-      simp [messageForEffect] at created
-  | rejected reason =>
-      simp [messageForEffect] at created
+      simp only [messageForEffect, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq] at created
+      obtain ⟨recovered, found, created⟩ := created
+      rw [← created] at gossip
+      cases gossip
+      exact found
+  | sendVote target | sendIAmOpen target =>
+      rw [← Option.some.inj created] at gossip
+      cases gossip
+  | opening _ | restart _ | completed | rejected _ => cases created
+
+private lemma lane_location (state : NodeState) (timeout : Bool)
+    : (advanceTimeoutLane state timeout).location = state.location := by
+  cases timeout <;> rfl
+
+private lemma advance_location {config : Execution.Local.Config} {state : NodeState}
+    {timeout : Bool} {output : StepOutput}
+    (advanced : advance config state timeout = some output)
+    : output.state.location = state.location := by
+  unfold advance at advanced
+  cases phase : state.phase <;> simp only [phase] at advanced
+  · split at advanced
+    · split at advanced
+      · cases advanced
+      · cases advanced
+        exact lane_location _ timeout
+    · cases advanced
+      exact lane_location _ timeout
+  · split at advanced
+    · split at advanced <;> cases advanced
+      · rfl
+      · exact lane_location _ timeout
+    · cases advanced
+      exact lane_location _ timeout
+  · split at advanced <;> cases advanced <;> exact lane_location _ timeout
+  · split at advanced <;> cases advanced
+    exact lane_location _ timeout
+  · cases advanced
+    exact lane_location _ timeout
 
 lemma step_preserves_location
     (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event)
     : (step config state event).state.location = state.location := by
-  cases event
-  all_goals try cases_type Validation
-  all_goals
-    simp [step, rejected, advance, advanceTimeoutLane]
-  all_goals repeat first | split | simp_all
+  suffices stepped :
+    forall output,
+      (Execution.Local.transitionSystem config state.location).step { state } event
+        = some output
+      -> output.state.location = state.location by
+    unfold step
+    cases found
+          : (Execution.Local.transitionSystem config state.location).step
+              { state } event with
+    | none => rfl
+    | some output => exact stepped output found
+  intro output stepped
+  cases event with
+  | receiveGossip source txid validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · split at stepped
+        · exact (advance_location stepped :)
+        · cases stepped
+      · cases stepped
+  | receiveVote source validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · exact (advance_location stepped :)
+      · cases stepped
+  | receiveIAmOpen source validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · split at stepped
+        · exact advance_location (config := config) (timeout := false)
+            (state := { state with phase := .joining, chosen := some source }) stepped
+        · cases stepped
+      · cases stepped
+  | timeout => exact advance_location stepped
+  | retry =>
+      cases stepped
+      rfl
 
 lemma nodeState_location
     {state : State}
@@ -250,9 +279,24 @@ lemma recordEffect_preserves_histories_configured
     (nodeConfigured : node ∈ config.protocol.expectedLocations)
     : HistoriesConfigured config (recordEffect node nodeState state effect) := by
   rcases wellFormed with ⟨openings, restarts, completed⟩
-  cases effect <;>
-    constructor <;>
-    simp_all [recordEffect]
+  cases effect with
+  | opening kind =>
+      refine ⟨fun opening member => ?_, restarts, completed⟩
+      rcases List.mem_cons.mp member with rfl | old
+      · exact nodeConfigured
+      · exact openings opening old
+  | restart chosen =>
+      refine ⟨openings, fun restarted member => ?_, completed⟩
+      rcases List.mem_cons.mp member with rfl | old
+      · exact nodeConfigured
+      · exact restarts restarted old
+  | completed =>
+      refine ⟨openings, restarts, fun finished member => ?_⟩
+      rcases List.mem_cons.mp member with rfl | old
+      · exact nodeConfigured
+      · exact completed finished old
+  | sendGossip | sendVote | sendIAmOpen | rejected =>
+      exact ⟨openings, restarts, completed⟩
 
 lemma recordEffects_preserves_histories_configured
     {config : Config}
@@ -290,7 +334,7 @@ lemma mem_openings_recordEffect
     {opening : Opening}
     (membership : opening ∈ state.openings)
     : opening ∈ (recordEffect node nodeState state effect).openings := by
-  cases effect <;> simp_all [recordEffect]
+  cases effect <;> first | exact List.mem_cons_of_mem _ membership | exact membership
 
 lemma mem_restarts_recordEffect
     {node : Location}
@@ -300,7 +344,7 @@ lemma mem_restarts_recordEffect
     {restart : Location}
     (membership : restart ∈ state.restarts)
     : restart ∈ (recordEffect node nodeState state effect).restarts := by
-  cases effect <;> simp_all [recordEffect]
+  cases effect <;> first | exact List.mem_cons_of_mem _ membership | exact membership
 
 lemma mem_completed_recordEffect
     {node : Location}
@@ -310,7 +354,7 @@ lemma mem_completed_recordEffect
     {completed : Location}
     (membership : completed ∈ state.completed)
     : completed ∈ (recordEffect node nodeState state effect).completed := by
-  cases effect <;> simp_all [recordEffect]
+  cases effect <;> first | exact List.mem_cons_of_mem _ membership | exact membership
 
 lemma mem_openings_recordEffects
     {node : Location}
@@ -442,7 +486,8 @@ lemma systemStep_node_keys_eq
     {output : StepOutput}
     (transition : systemStep config before target event = some (after, output))
     : after.nodes.map Prod.fst = before.nodes.map Prod.fst := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.map_eq_some_iff,
+    Option.pure_def, Option.some.injEq, Prod.mk.injEq] at transition
   rcases transition with ⟨node, _, stateEq, _⟩
   rw [←stateEq]
   exact replaceNode_keys target
@@ -457,9 +502,10 @@ lemma systemStep_preserves_node_locations
     (locations : forall entry, entry ∈ before.nodes -> entry.2.location = entry.1)
     (transition : systemStep config before target event = some (after, output))
     : forall entry, entry ∈ after.nodes -> entry.2.location = entry.1 := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.map_eq_some_iff,
+    Option.pure_def, Option.some.injEq, Prod.mk.injEq] at transition
   rcases transition with
-    ⟨node, ⟨key, found⟩, stateEq, _⟩
+    ⟨_, ⟨⟨key, node⟩, found, rfl⟩, stateEq, _⟩
   rw [←stateEq]
   apply replaceNode_locations
   · exact locations
@@ -484,11 +530,68 @@ lemma systemStep_other_node_eq
     (transition : systemStep config before target event = some (after, output))
     : (after.nodes.find? fun entry => entry.1 == other).map Prod.snd
       = (before.nodes.find? fun entry => entry.1 == other).map Prod.snd := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
+  simp only [systemStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.map_eq_some_iff,
+    Option.pure_def, Option.some.injEq, Prod.mk.injEq] at transition
   rcases transition with ⟨node, _, stateEq, _⟩
   rw [←stateEq]
   exact findNode_replaceNode_ne target other
     (step config node event).state before.nodes different
+
+private lemma retry_cases
+    {config : Config}
+    {before after : State}
+    {source : Location}
+    (transition : next config before (.retry source) = some after)
+    : (recoveredTxID config source).isSome = true
+      /\ exists sourceState,
+          nodeState before source = some sourceState
+          /\ {
+                  before with
+                    network := before.network ++ retryMessages config source sourceState
+                    sent := before.sent ++ retryMessages config source sourceState
+                }
+              = after := by
+  simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.pure_def, Option.some.injEq, Option.ite_none_right_eq_some, exists_const,
+    and_true] at transition
+  obtain ⟨recovered, sourceState, found, _, rfl⟩ := transition
+  exact ⟨recovered, sourceState, found, rfl⟩
+
+private lemma deliver_cases
+    {config : Config}
+    {before after : State}
+    {envelope : Envelope}
+    (transition : next config before (.deliver envelope) = some after)
+    : envelope ∈ before.network
+      /\ (recoveredTxID config envelope.target).isSome = true
+      /\ exists system output,
+          systemStep config.protocol before.system envelope.target (eventFor envelope)
+            = some (system, output)
+          /\ recordEffects envelope.target output.state output.effects
+                { before with system, network := removeOne envelope before.network }
+              = after := by
+  simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.pure_def, Option.some.injEq, Option.ite_none_right_eq_some,
+    List.contains_iff_mem, exists_const, and_true] at transition
+  obtain ⟨pending, recovered, ⟨system, output⟩, stepped, rfl⟩ := transition
+  exact ⟨pending, recovered, system, output, stepped, rfl⟩
+
+private lemma timeout_cases
+    {config : Config}
+    {before after : State}
+    {target : Location}
+    (transition : next config before (.timeout target) = some after)
+    : (recoveredTxID config target).isSome = true
+      /\ exists system output,
+          systemStep config.protocol before.system target .timeout = some (system, output)
+          /\ output.accepted = true
+          /\ recordEffects target output.state output.effects { before with system }
+              = after := by
+  simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.pure_def, Option.some.injEq, Option.ite_none_right_eq_some, exists_const,
+    and_true] at transition
+  obtain ⟨recovered, ⟨system, output⟩, stepped, accepted, rfl⟩ := transition
+  exact ⟨recovered, system, output, stepped, accepted, rfl⟩
 
 lemma next_node_keys_eq
     {config : Config}
@@ -498,16 +601,13 @@ lemma next_node_keys_eq
     : after.system.nodes.map Prod.fst = before.system.nodes.map Prod.fst := by
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, sourceState, _, _, rfl⟩
+      obtain ⟨_, sourceState, _, rfl⟩ := retry_cases transition
       rfl
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, _, system, output, systemStep, rfl⟩
+      obtain ⟨_, _, system, output, systemStep, rfl⟩ := deliver_cases transition
       simpa using systemStep_node_keys_eq systemStep
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, system, output, systemStep, _, rfl⟩
+      obtain ⟨_, system, output, systemStep, _, rfl⟩ := timeout_cases transition
       simpa using systemStep_node_keys_eq systemStep
 
 lemma retry_system_eq
@@ -516,8 +616,7 @@ lemma retry_system_eq
     {source : Location}
     (transition : next config before (.retry source) = some after)
     : after.system = before.system := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with ⟨_, sourceState, _, _, rfl⟩
+  obtain ⟨_, sourceState, _, rfl⟩ := retry_cases transition
   rfl
 
 lemma deliver_network_eq
@@ -526,9 +625,7 @@ lemma deliver_network_eq
     {envelope : Envelope}
     (transition : next config before (.deliver envelope) = some after)
     : after.network = removeOne envelope before.network := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, _, system, output, _, rfl⟩
+  obtain ⟨_, _, system, output, _, rfl⟩ := deliver_cases transition
   simp
 
 lemma timeout_network_eq
@@ -537,9 +634,7 @@ lemma timeout_network_eq
     {target : Location}
     (transition : next config before (.timeout target) = some after)
     : after.network = before.network := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, system, output, _, _, rfl⟩
+  obtain ⟨_, system, output, _, _, rfl⟩ := timeout_cases transition
   simp
 
 lemma deliver_other_node_eq
@@ -550,9 +645,7 @@ lemma deliver_other_node_eq
     (different : other ≠ envelope.target)
     (transition : next config before (.deliver envelope) = some after)
     : nodeState after other = nodeState before other := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, _, system, output, systemStep, stateEq⟩
+  obtain ⟨_, _, system, output, systemStep, stateEq⟩ := deliver_cases transition
   rw [←stateEq]
   simp only [nodeState, recordEffects_system]
   exact systemStep_other_node_eq different systemStep
@@ -564,9 +657,7 @@ lemma timeout_other_node_eq
     (different : other ≠ target)
     (transition : next config before (.timeout target) = some after)
     : nodeState after other = nodeState before other := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, system, output, systemStep, _, stateEq⟩
+  obtain ⟨_, system, output, systemStep, _, stateEq⟩ := timeout_cases transition
   rw [←stateEq]
   simp only [nodeState, recordEffects_system]
   exact systemStep_other_node_eq different systemStep
@@ -579,19 +670,14 @@ lemma next_sent_extends
     : exists added, after.sent = before.sent ++ added := by
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, sourceState, _, _, rfl⟩
+      obtain ⟨_, sourceState, _, rfl⟩ := retry_cases transition
       exact ⟨retryMessages config source sourceState, rfl⟩
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, _, system, output, _, rfl⟩
+      obtain ⟨_, _, system, output, _, rfl⟩ := deliver_cases transition
       refine ⟨[], ?_⟩
       simp
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, system, output, _, _, rfl⟩
+      obtain ⟨_, system, output, _, _, rfl⟩ := timeout_cases transition
       refine ⟨[], ?_⟩
       simp
 
@@ -604,19 +690,14 @@ lemma next_openings_monotonic
   intro opening membership
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, sourceState, _, _, rfl⟩
+      obtain ⟨_, sourceState, _, rfl⟩ := retry_cases transition
       exact membership
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, _, system, output, _, rfl⟩
+      obtain ⟨_, _, system, output, _, rfl⟩ := deliver_cases transition
       apply mem_openings_recordEffects
       simpa using membership
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, system, output, _, _, rfl⟩
+      obtain ⟨_, system, output, _, _, rfl⟩ := timeout_cases transition
       apply mem_openings_recordEffects
       simpa using membership
 
@@ -629,19 +710,14 @@ lemma next_restarts_monotonic
   intro restart membership
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, sourceState, _, _, rfl⟩
+      obtain ⟨_, sourceState, _, rfl⟩ := retry_cases transition
       exact membership
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, _, system, output, _, rfl⟩
+      obtain ⟨_, _, system, output, _, rfl⟩ := deliver_cases transition
       apply mem_restarts_recordEffects
       simpa using membership
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, system, output, _, _, rfl⟩
+      obtain ⟨_, system, output, _, _, rfl⟩ := timeout_cases transition
       apply mem_restarts_recordEffects
       simpa using membership
 
@@ -654,19 +730,14 @@ lemma next_completed_monotonic
   intro completed membership
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, sourceState, _, _, rfl⟩
+      obtain ⟨_, sourceState, _, rfl⟩ := retry_cases transition
       exact membership
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, _, system, output, _, rfl⟩
+      obtain ⟨_, _, system, output, _, rfl⟩ := deliver_cases transition
       apply mem_completed_recordEffects
       simpa using membership
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, system, output, _, _, rfl⟩
+      obtain ⟨_, system, output, _, _, rfl⟩ := timeout_cases transition
       apply mem_completed_recordEffects
       simpa using membership
 
@@ -677,9 +748,7 @@ lemma retry_preserves_well_formed
     (wellFormed : WellFormed config before)
     (transition : next config before (.retry source) = some after)
     : WellFormed config after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨sourceRecovered, sourceState, found, _, stateEq⟩
+  obtain ⟨sourceRecovered, sourceState, found, stateEq⟩ := retry_cases transition
   have sourceLocation : sourceState.location = source :=
     nodeState_location wellFormed.nodeLocations found
   rw [←stateEq]
@@ -699,7 +768,8 @@ lemma retry_preserves_well_formed
     rcases membership with membership | membership
     · exact wellFormed.sentSourceConfigured envelope membership
     · rw [(retryMessages_source membership).1]
-      exact recovered_configured wellFormed.recoveredKeys sourceRecovered
+      exact recovered_configured wellFormed.recoveredKeys
+        (Option.isSome_iff_ne_none.mp sourceRecovered)
   · intro envelope membership
     rw [List.mem_append] at membership ⊢
     rcases membership with membership | membership
@@ -717,9 +787,7 @@ lemma deliver_preserves_well_formed
     (wellFormed : WellFormed config before)
     (transition : next config before (.deliver envelope) = some after)
     : WellFormed config after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, targetRecovered, system, output, systemStep, stateEq⟩
+  obtain ⟨_, targetRecovered, system, output, systemStep, stateEq⟩ := deliver_cases transition
   rw [←stateEq]
   constructor
   · simp only [recordEffects_system]
@@ -747,7 +815,8 @@ lemma deliver_preserves_well_formed
       · simpa using wellFormed.historiesConfigured.openings
       · simpa using wellFormed.historiesConfigured.restarts
       · simpa using wellFormed.historiesConfigured.completed
-    · exact recovered_configured wellFormed.recoveredKeys targetRecovered
+    · exact recovered_configured wellFormed.recoveredKeys
+        (Option.isSome_iff_ne_none.mp targetRecovered)
 
 lemma timeout_preserves_well_formed
     {config : Config}
@@ -756,9 +825,7 @@ lemma timeout_preserves_well_formed
     (wellFormed : WellFormed config before)
     (transition : next config before (.timeout target) = some after)
     : WellFormed config after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨targetRecovered, system, output, systemStep, _, stateEq⟩
+  obtain ⟨targetRecovered, system, output, systemStep, _, stateEq⟩ := timeout_cases transition
   rw [←stateEq]
   constructor
   · simp only [recordEffects_system]
@@ -785,7 +852,8 @@ lemma timeout_preserves_well_formed
       · simpa using wellFormed.historiesConfigured.openings
       · simpa using wellFormed.historiesConfigured.restarts
       · simpa using wellFormed.historiesConfigured.completed
-    · exact recovered_configured wellFormed.recoveredKeys targetRecovered
+    · exact recovered_configured wellFormed.recoveredKeys
+        (Option.isSome_iff_ne_none.mp targetRecovered)
 
 lemma next_preserves_well_formed
     {config : Config}
