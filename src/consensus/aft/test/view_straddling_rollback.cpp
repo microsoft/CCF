@@ -1,13 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// A rollback triggered by Cft rejecting one transaction must not
-// discard the local application of another transaction which Cft is
+// A rollback triggered by CFT rejecting one transaction must not
+// discard the local application of another transaction which CFT is
 // still going to accept. Otherwise the second transaction reaches the ledger
-// but not the KV, and the Store's version falls behind Cft's last log index,
+// but not the KV, and the Store's version falls behind CFT's last log index,
 // so the next transaction reuses a seqno and is silently never replicated.
 //
-// Cft therefore must not roll back on a term mismatch during replication: by
+// CFT therefore must not roll back on a term mismatch during replication: by
 // the time a stale entry is rejected, the election which moved the term has
 // already rolled back everything from the old term, and anything applied
 // since belongs to the current term.
@@ -17,13 +17,13 @@
 //
 // - Tx A is applied locally in view V and given TxID V.2. It enters
 //   Store::commit(), passes the view check, and is descheduled before it
-//   reaches Cft.
+//   reaches CFT.
 // - An election happens. The node wins in view W > V, and become_leader()
 //   rolls the Store back past A, to seqno 1.
 // - Tx B is applied locally in view W and given TxID W.2. It has not yet
 //   entered Store::commit().
-// - A continues. Cft rejects it. If that rejection rolls the Store
-//   back to Cft's last log index (1), it discards B's local application as
+// - A continues. CFT rejects it. If that rejection rolls the Store
+//   back to CFT's last log index (1), it discards B's local application as
 //   well.
 // - B enters Store::commit(), passes the view check (W == W), and is
 //   replicated. It is in the ledger, but no longer in the KV.

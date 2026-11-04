@@ -212,7 +212,7 @@ namespace aft
     //
     // Written only under `lock`, but read without it by the unsynchronised
     // accessors (is_primary(), is_candidate(), ...) which callers outside
-    // Cft rely on. Atomic so those reads are not data races. Taking
+    // CFT rely on. Atomic so those reads are not data races. Taking
     // `lock` in those accessors instead is not an option: Store::commit()
     // calls is_primary() while holding the KV version lock, and Aft calls
     // into the Store from under `lock`, so locking here would invert an

@@ -115,7 +115,7 @@ namespace aft
 
     // When this node receives append entries from a new primary, it may need to
     // roll back a committable but uncommitted suffix it holds. The
-    // new primary dictates the index where this suffix begins. Cft
+    // new primary dictates the index where this suffix begins. CFT
     // requires this to be at least as high as the highest
     // commit index reported by the previous primary. The window in which this
     // rollback could be accepted is minimised to avoid unnecessary
@@ -349,7 +349,7 @@ namespace aft
       {
         // A deleted node may have rejoined with the same identity and been
         // trusted again, in a configuration later than the deletion. It is
-        // then an active peer, and must remain known to Cft.
+        // then an active peer, and must remain known to CFT.
         const auto in_later_configuration = std::any_of(
           configurations.begin(),
           configurations.end(),
@@ -2357,7 +2357,7 @@ namespace aft
 
       std::optional<Index> new_agreement_index = std::nullopt;
 
-      // Obtain Cft watermarks
+      // Obtain CFT watermarks
       for (auto const& c : configurations)
       {
         // The majority must be checked separately for each active

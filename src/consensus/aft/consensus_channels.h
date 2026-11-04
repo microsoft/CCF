@@ -9,9 +9,9 @@
 
 namespace aft
 {
-  // The authenticated node-to-node channels, as used by Cft. Implemented
+  // The authenticated node-to-node channels, as used by CFT. Implemented
   // by the node's channel manager (ccf::NodeToNode), which sends these as
-  // Cft messages.
+  // CFT messages.
   class ConsensusChannels
   {
   public:
