@@ -257,24 +257,17 @@ namespace ccf::tracing
           {
             write();
           }
-          for (size_t q = 0; q < queues.size() && !expired(); ++q)
+          const auto can_dequeue = [this] {
+            return !expired() &&
+              (delivery == Endpoint::Delivery::UNBUFFERED_NON_BLOCKING ||
+               (connected && !pending));
+          };
+          for (size_t q = 0; q < queues.size() && can_dequeue(); ++q)
           {
-            if (
-              delivery == Endpoint::Delivery::BUFFERED_BEST_EFFORT &&
-              (!connected || pending))
-            {
-              break;
-            }
             auto& queue = queues[next_queue];
             next_queue = (next_queue + 1) % queues.size();
-            for (size_t i = 0; i < 64 && !expired(); ++i)
+            for (size_t i = 0; i < 64 && can_dequeue(); ++i)
             {
-              if (
-                delivery == Endpoint::Delivery::BUFFERED_BEST_EFFORT &&
-                (!connected || pending))
-              {
-                break;
-              }
               auto record = queue->pop();
               if (!record)
               {
