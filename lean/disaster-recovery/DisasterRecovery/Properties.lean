@@ -17,29 +17,27 @@ open Model.Local
 /-- In a valid trace, all `opening quorum` notifications are emitted by the same
 node. -/
 theorem quorum_opener_unique
-    : forall (config : Model.Config) (trace : GlobalTrace),
+    : forall (config : Model.Config) (trace : GlobalTrace config),
       forall (firstStep secondStep : Nat) (firstOpener secondOpener : Location),
-        (trace.Valid (Model.transitionSystem config)
-          /\ Trace.NotificationAt config trace firstStep firstOpener (.opening .quorum)
+        (Trace.NotificationAt config trace firstStep firstOpener (.opening .quorum)
           /\ Trace.NotificationAt config trace secondStep secondOpener (.opening .quorum))
         -> firstOpener = secondOpener := by
   exact Proofs.Model.quorum_opener_unique
 
 /-- Witness: a valid trace exists with a step emitting `opening quorum`. -/
 lemma quorum_opener_unique_witness
-    : exists (config : Model.Config) (trace : GlobalTrace),
+    : exists (config : Model.Config) (trace : GlobalTrace config),
     exists (step : Nat) (opener : Location),
-      trace.Valid (Model.transitionSystem config)
-      /\ Trace.NotificationAt config trace step opener (.opening .quorum) := by
+      Trace.NotificationAt config trace step opener (.opening .quorum) := by
   exact Proofs.Witnesses.quorum_opener_unique_witness
 
 /-- A quorum opener whose voters received their own gossip is up to date with a
 quorum of recovered ledgers. -/
 theorem quorum_open_preserves_commit
-    : forall (config : Model.Config) (trace : GlobalTrace) (openedState : Model.State),
+    : forall (config : Model.Config) (trace : GlobalTrace config)
+              (openedState : Model.State),
       forall (opener : Location) (openerState : NodeState),
-        (trace.Valid (Model.transitionSystem config)
-          /\ openedState ∈ trace
+        (openedState ∈ trace
           /\ (opener, openerState) ∈ openedState.nodes
           /\ openerState.openKind = some .quorum
           /\ (forall voter, voter ∈ openerState.votes -> ReceivedOwnGossip trace voter))
@@ -51,10 +49,10 @@ theorem quorum_open_preserves_commit
 /-- Witness: a valid trace and a state in it with a node with `openKind = quorum` whose
 voters all satisfy `ReceivedOwnGossip` exist. -/
 lemma quorum_open_preserves_commit_witness
-    : exists (config : Model.Config) (trace : GlobalTrace) (openedState : Model.State),
+    : exists
+    (config : Model.Config) (trace : GlobalTrace config) (openedState : Model.State),
     exists (opener : Location) (openerState : NodeState),
-      trace.Valid (Model.transitionSystem config)
-      /\ openedState ∈ trace
+      openedState ∈ trace
       /\ (opener, openerState) ∈ openedState.nodes
       /\ openerState.openKind = some .quorum
       /\ (forall voter, voter ∈ openerState.votes -> ReceivedOwnGossip trace voter) := by
@@ -63,11 +61,10 @@ lemma quorum_open_preserves_commit_witness
 /-- If every configured location has full gossip somewhere in a valid trace, every opener,
 including failover openers, is up to date with a quorum of recovered ledgers. -/
 theorem full_gossip_preserves_commit
-    : forall (config : Model.Config) (trace : GlobalTrace)
+    : forall (config : Model.Config) (trace : GlobalTrace config)
               (gossipedState openedState : Model.State),
       forall (opener : Location) (openerState : NodeState),
-        (trace.Valid (Model.transitionSystem config)
-          /\ gossipedState ∈ trace
+        (gossipedState ∈ trace
           /\ (forall node nodeState,
                 node ∈ config.protocol.expectedLocations
                 -> (node, nodeState) ∈ gossipedState.nodes
@@ -84,11 +81,10 @@ theorem full_gossip_preserves_commit
 /-- Witness: a valid trace with a full-gossip state and a state in it with a node with
 `openKind = failover` exist. -/
 lemma full_gossip_preserves_commit_witness
-    : exists (config : Model.Config) (trace : GlobalTrace),
+    : exists (config : Model.Config) (trace : GlobalTrace config),
     exists (gossipedState openedState : Model.State),
     exists (opener : Location) (openerState : NodeState),
-      trace.Valid (Model.transitionSystem config)
-      /\ gossipedState ∈ trace
+      gossipedState ∈ trace
       /\ (forall node nodeState,
             node ∈ config.protocol.expectedLocations
             -> (node, nodeState) ∈ gossipedState.nodes

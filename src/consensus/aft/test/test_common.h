@@ -37,10 +37,10 @@ static void receive_message(
   TRaft& sender, TRaft& receiver, std::vector<uint8_t> contents)
 {
   bool should_send = true;
+  std::vector<uint8_t> body;
 
   {
-    // If this is AppendEntries, then append the serialised ledger entries to
-    // the message before transmitting
+    // If this is AppendEntries, fetch the corresponding ledger entries.
     const uint8_t* data = contents.data();
     auto size = contents.size();
     auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
@@ -49,11 +49,10 @@ static void receive_message(
       // Parse the indices to be sent to the recipient.
       auto ae = *(aft::AppendEntries*)data;
 
-      const auto payload_opt = sender.ledger->get_append_entries_payload(ae);
+      auto payload_opt = sender.ledger->get_append_entries_payload(ae);
       if (payload_opt.has_value())
       {
-        contents.insert(
-          contents.end(), payload_opt->begin(), payload_opt->end());
+        body = std::move(*payload_opt);
       }
       else
       {
@@ -64,7 +63,7 @@ static void receive_message(
 
   if (should_send)
   {
-    receiver.recv_message(sender.id(), contents.data(), contents.size());
+    receiver.recv_message(sender.id(), contents, body);
   }
 }
 

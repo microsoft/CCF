@@ -6,6 +6,7 @@
 #include "ccf/crypto/base64.h"
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/ec_key_pair.h"
+#include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
 #include "ccf/crypto/hmac.h"
@@ -42,6 +43,7 @@
 #include <mutex>
 #include <optional>
 #include <span>
+#include <sys/mman.h>
 #include <tav/cbor.hpp>
 #include <thread>
 #include <utility>
@@ -1505,6 +1507,388 @@ TEST_CASE("AES-GCM caller-owned ciphertext")
   key->encrypt(iv, {}, aad, empty_output, tag);
   REQUIRE(key->decrypt(iv, tag, empty_output, aad, decrypted));
   REQUIRE(decrypted.empty());
+}
+
+static void check_gcm_updates(
+  size_t plain_size,
+  size_t aad_size,
+  size_t key_size = 16,
+  size_t iv_length = 12)
+{
+  CAPTURE(plain_size);
+  CAPTURE(aad_size);
+  CAPTURE(key_size);
+  CAPTURE(iv_length);
+  // Must match a single OpenSSL call over the same inputs
+  const std::vector<uint8_t> raw_key(key_size, 0x42);
+  auto key = make_key_aes_gcm(raw_key);
+  const std::vector<uint8_t> iv(iv_length, 0);
+  auto entropy = get_entropy();
+  const auto plain = entropy->random(plain_size);
+  auto aad = entropy->random(aad_size);
+
+  std::vector<uint8_t> expected_cipher(plain.size());
+  uint8_t expected_tag[GCM_SIZE_TAG] = {};
+  {
+    OpenSSL::Unique_EVP_CIPHER_CTX ctx;
+    const auto* algorithm = key_size == 16 ? EVP_aes_128_gcm() :
+      key_size == 24                       ? EVP_aes_192_gcm() :
+                                             EVP_aes_256_gcm();
+    int outl = 0;
+    REQUIRE(
+      EVP_EncryptInit_ex2(ctx, algorithm, raw_key.data(), nullptr, nullptr) ==
+      1);
+    REQUIRE(
+      EVP_CIPHER_CTX_ctrl(
+        ctx, EVP_CTRL_GCM_SET_IVLEN, static_cast<int>(iv.size()), nullptr) ==
+      1);
+    REQUIRE(
+      EVP_EncryptInit_ex2(ctx, nullptr, nullptr, iv.data(), nullptr) == 1);
+    if (!aad.empty())
+    {
+      REQUIRE(
+        EVP_EncryptUpdate(
+          ctx, nullptr, &outl, aad.data(), static_cast<int>(aad.size())) == 1);
+    }
+    if (!plain.empty())
+    {
+      REQUIRE(
+        EVP_EncryptUpdate(
+          ctx,
+          expected_cipher.data(),
+          &outl,
+          plain.data(),
+          static_cast<int>(plain.size())) == 1);
+      REQUIRE(static_cast<size_t>(outl) == plain.size());
+    }
+    uint8_t final[EVP_MAX_BLOCK_LENGTH] = {};
+    REQUIRE(EVP_EncryptFinal_ex(ctx, final, &outl) == 1);
+    REQUIRE(outl == 0);
+    REQUIRE(
+      EVP_CIPHER_CTX_ctrl(
+        ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, expected_tag) == 1);
+  }
+
+  std::vector<uint8_t> cipher;
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  key->encrypt(iv, plain, aad, cipher, tag);
+  REQUIRE(cipher == expected_cipher);
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+
+  std::vector<uint8_t> decrypted;
+  REQUIRE(key->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+
+  auto context = key->make_context();
+  REQUIRE(context->decrypt(iv, expected_tag, expected_cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+  context->encrypt(iv, plain, aad, cipher, tag);
+  REQUIRE(cipher == expected_cipher);
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+  cipher = plain;
+  context->encrypt(iv, cipher, aad, std::span<uint8_t>(cipher), tag);
+  REQUIRE(cipher == expected_cipher);
+  REQUIRE(std::equal(std::begin(tag), std::end(tag), std::begin(expected_tag)));
+
+  tag[GCM_SIZE_TAG - 1] ^= 1;
+  REQUIRE_FALSE(context->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted.empty());
+  tag[GCM_SIZE_TAG - 1] ^= 1;
+  if (!cipher.empty())
+  {
+    cipher.back() ^= 1;
+    REQUIRE_FALSE(context->decrypt(iv, tag, cipher, aad, decrypted));
+    REQUIRE(decrypted.empty());
+    cipher.back() ^= 1;
+  }
+  if (!aad.empty())
+  {
+    aad.back() ^= 1;
+    REQUIRE_FALSE(context->decrypt(iv, tag, cipher, aad, decrypted));
+    REQUIRE(decrypted.empty());
+    aad.back() ^= 1;
+  }
+  REQUIRE(context->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+}
+
+TEST_CASE("AES-GCM inputs spanning several OpenSSL updates")
+{
+  check_gcm_updates(GCM_MAX_UPDATE_SIZE + 31, GCM_MAX_UPDATE_SIZE + 7);
+}
+
+TEST_CASE("AES-GCM chunk boundaries")
+{
+  for (const auto size :
+       {GCM_MAX_UPDATE_SIZE - 1,
+        GCM_MAX_UPDATE_SIZE,
+        GCM_MAX_UPDATE_SIZE + 1,
+        2 * GCM_MAX_UPDATE_SIZE + 31})
+  {
+    check_gcm_updates(size, 17);
+    check_gcm_updates(17, size);
+  }
+}
+
+TEST_CASE("AES-GCM key IV and block boundaries")
+{
+  for (const size_t key_size : {16, 24, 32})
+  {
+    for (const size_t iv_length : {12, 16})
+    {
+      for (const size_t size : {0, 1, 15, 16, 17, 31, 32, 33})
+      {
+        check_gcm_updates(size, 17, key_size, iv_length);
+        check_gcm_updates(17, size, key_size, iv_length);
+      }
+    }
+  }
+}
+
+TEST_CASE("AES-GCM AAD larger than INT_MAX")
+{
+  // OpenSSL update calls take an int length. The AAD is mapped lazily, so its
+  // untouched zero pages do not use memory.
+  constexpr size_t aad_size = size_t{std::numeric_limits<int>::max()} + 17;
+  auto unmap = [](void* data) { munmap(data, aad_size); };
+  std::unique_ptr<void, decltype(unmap)> mapping(
+    mmap(
+      nullptr,
+      aad_size,
+      PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+      -1,
+      0),
+    unmap);
+  REQUIRE(mapping.get() != MAP_FAILED);
+  std::span<uint8_t> aad(static_cast<uint8_t*>(mapping.get()), aad_size);
+
+  auto key = make_key_aes_gcm(get_raw_key());
+  const std::vector<uint8_t> iv(12, 0);
+  const std::vector<uint8_t> plain(31, 0x24);
+  std::vector<uint8_t> cipher;
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  key->encrypt(iv, plain, aad, cipher, tag);
+
+  std::vector<uint8_t> decrypted;
+  REQUIRE(key->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+
+  // Ledger entries, snapshots included, are decrypted through a reusable
+  // context
+  auto context = key->make_context();
+  decrypted.clear();
+  REQUIRE(context->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted == plain);
+
+  // The AAD past INT_MAX is authenticated too. Each pass hashes the full 2 GiB,
+  // so no further passes: the other API entry points share this code path.
+  aad.back() ^= 1;
+  REQUIRE_FALSE(key->decrypt(iv, tag, cipher, aad, decrypted));
+  REQUIRE(decrypted.empty());
+}
+
+TEST_CASE("AES-GCM data larger than the GCM limit")
+{
+  // Inaccessible, so the data must be rejected before any byte is read
+  constexpr size_t data_size = GCM_MAX_DATA_SIZE + 1;
+  auto unmap = [](void* data) { munmap(data, data_size); };
+  std::unique_ptr<void, decltype(unmap)> mapping(
+    mmap(
+      nullptr,
+      data_size,
+      PROT_NONE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+      -1,
+      0),
+    unmap);
+  REQUIRE(mapping.get() != MAP_FAILED);
+  std::span<uint8_t> oversized(static_cast<uint8_t*>(mapping.get()), data_size);
+
+  auto key = make_key_aes_gcm(get_raw_key());
+  const std::vector<uint8_t> iv(12, 0);
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  REQUIRE_THROWS_AS(
+    key->encrypt(iv, oversized, {}, oversized, tag), std::logic_error);
+
+  std::vector<uint8_t> decrypted(8, 0xAB);
+  REQUIRE_FALSE(key->decrypt(iv, tag, oversized, {}, decrypted));
+  REQUIRE(decrypted.empty());
+
+  auto context = key->make_context();
+  REQUIRE_THROWS_AS(
+    context->encrypt(iv, oversized, {}, oversized, tag), std::logic_error);
+  decrypted.assign(8, 0xAB);
+  REQUIRE_FALSE(context->decrypt(iv, tag, oversized, {}, decrypted));
+  REQUIRE(decrypted.empty());
+  const std::vector<uint8_t> plain(31, 0x24);
+  std::vector<uint8_t> cipher;
+  context->encrypt(iv, plain, {}, cipher, tag);
+  REQUIRE(context->decrypt(iv, tag, cipher, {}, decrypted));
+  REQUIRE(decrypted == plain);
+}
+
+namespace
+{
+  // Anonymous mapping whose untouched pages use no memory. With PROT_NONE, any
+  // access faults, so a rejected input is shown never to have been read.
+  struct LazyMapping
+  {
+    void* data = MAP_FAILED;
+    size_t size;
+
+    LazyMapping(size_t size_, int prot) : size(size_)
+    {
+      data = mmap(
+        nullptr,
+        size,
+        prot,
+        MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+        -1,
+        0);
+      REQUIRE(data != MAP_FAILED);
+    }
+
+    LazyMapping(const LazyMapping&) = delete;
+    LazyMapping& operator=(const LazyMapping&) = delete;
+
+    ~LazyMapping()
+    {
+      munmap(data, size);
+    }
+
+    std::span<uint8_t> span() const
+    {
+      return {static_cast<uint8_t*>(data), size};
+    }
+  };
+
+  constexpr size_t over_int_max = size_t{std::numeric_limits<int>::max()} + 1;
+}
+
+TEST_CASE("Memory BIO larger than INT_MAX")
+{
+  // BIO_new_mem_buf takes an int length, and reads a negative one as a
+  // NUL-terminated string. Neither constructor reads the buffer, so the
+  // in-range size is accepted without any page being touched.
+  LazyMapping mapping(over_int_max, PROT_NONE);
+  const auto oversized = mapping.span();
+  REQUIRE_THROWS_AS(
+    OpenSSL::Unique_BIO(std::span<const uint8_t>(oversized)),
+    std::invalid_argument);
+  REQUIRE_THROWS_AS(
+    OpenSSL::Unique_BIO(oversized.data(), oversized.size()),
+    std::invalid_argument);
+
+  const auto largest = oversized.first(over_int_max - 1);
+  REQUIRE_NOTHROW(OpenSSL::Unique_BIO(std::span<const uint8_t>(largest)));
+  REQUIRE_NOTHROW(OpenSSL::Unique_BIO(largest.data(), largest.size()));
+}
+
+TEST_CASE("AES key wrap inputs larger than INT_MAX")
+{
+  // The single EVP update call takes an int length, so an input of
+  // 2^32 + n bytes would wrap to the same n-byte prefix
+  LazyMapping mapping(over_int_max, PROT_NONE);
+  const auto oversized = mapping.span();
+  auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(get_raw_key());
+
+  // The wrapped output must also fit, so the input limit is a little lower
+  REQUIRE_THROWS_AS(
+    (void)ossl->ckm_aes_key_wrap_pad(
+      oversized.first(AES_KEY_WRAP_PAD_MAX_SIZE + 1)),
+    std::logic_error);
+  REQUIRE_THROWS_AS(
+    (void)ossl->ckm_aes_key_unwrap_pad(oversized), std::logic_error);
+
+  const std::vector<uint8_t> key_to_wrap(17, 0x42);
+  REQUIRE(
+    ossl->ckm_aes_key_unwrap_pad(ossl->ckm_aes_key_wrap_pad(key_to_wrap)) ==
+    key_to_wrap);
+}
+
+TEST_CASE("Entropy larger than INT_MAX")
+{
+  // RAND_bytes takes an int length, so 2^32 + n bytes would fill only an
+  // n-byte prefix yet report success. INT_MAX + 1 is the smallest size that
+  // is not representable.
+  //
+  // Unlike the other oversized-input tests, this one cannot use an
+  // inaccessible mapping: the fix is that every byte is written, so every
+  // page is committed. It costs about 2 GiB of transient memory and a second
+  // or two of DRBG output on a modern machine. That is a known, accepted
+  // cost: the alternative, a fake RAND provider which records the length,
+  // would not exercise OpenSSL and so would not have caught the defect.
+  LazyMapping mapping(over_int_max, PROT_READ | PROT_WRITE);
+  const auto data = mapping.span();
+  get_entropy()->random(data.data(), data.size());
+
+  // All-zero would mean the end of the buffer was never written to
+  const auto tail = data.last(16);
+  REQUIRE(
+    std::any_of(tail.begin(), tail.end(), [](uint8_t b) { return b != 0; }));
+}
+
+TEST_CASE("Base64 text larger than INT_MAX")
+{
+  // Decoding is a single update call taking an int length, so the input is
+  // rejected without being read. Encoding is chunked, so it is not limited.
+  LazyMapping mapping(over_int_max, PROT_NONE);
+  const auto oversized = mapping.span();
+  REQUIRE_THROWS_AS(
+    (void)raw_from_b64(std::string_view(
+      reinterpret_cast<const char*>(oversized.data()), oversized.size())),
+    std::invalid_argument);
+}
+
+TEST_CASE("Base64 inputs spanning several encoded lines")
+{
+  // OpenSSL breaks encoded output into 64-character lines, removed on return
+  for (size_t length = 40; length < 300; length += 7)
+  {
+    std::vector<uint8_t> raw(length);
+    std::generate(raw.begin(), raw.end(), rand);
+
+    const auto encoded = b64_from_raw(raw.data(), raw.size());
+    REQUIRE(encoded.find('\n') == std::string::npos);
+    REQUIRE(encoded.size() == (length + 2) / 3 * 4);
+    REQUIRE(raw_from_b64(encoded) == raw);
+  }
+}
+
+TEST_CASE("Other OpenSSL int lengths larger than INT_MAX")
+{
+  LazyMapping mapping(over_int_max, PROT_NONE);
+  const auto oversized = mapping.span();
+
+  INFO("RSA-OAEP label");
+  {
+    auto rsa_kp = make_rsa_key_pair();
+    const std::vector<uint8_t> input(16, 0x24);
+    REQUIRE_THROWS_AS(
+      (void)rsa_kp->rsa_oaep_wrap(
+        input.data(), input.size(), oversized.data(), oversized.size()),
+      std::invalid_argument);
+  }
+
+  INFO("ECDSA signature components");
+  {
+    const std::vector<uint8_t> small(1, 0x01);
+    REQUIRE_THROWS_AS(
+      (void)ecdsa_sig_from_r_s(
+        oversized.data(), oversized.size(), small.data(), small.size(), true),
+      std::invalid_argument);
+    REQUIRE_THROWS_AS(
+      (void)ecdsa_sig_from_r_s(
+        small.data(), small.size(), oversized.data(), oversized.size(), false),
+      std::invalid_argument);
+  }
+
+  INFO("RSA key size");
+  {
+    REQUIRE_THROWS_AS(
+      (void)make_rsa_key_pair(over_int_max), std::invalid_argument);
+  }
 }
 
 TEST_CASE("Const GCM header serialisation")

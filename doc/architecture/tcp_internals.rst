@@ -39,6 +39,13 @@ Complete payloads are copied into owned buffers and passed to the node's inbound
 The node queues their processing through :ccf_repo:`NodeIngress </src/node/node_inbound_message.h>`.
 The transport's association of a connection with a node ID is not authentication; authenticated node-to-node channels protect the messages above this TCP layer.
 
+Before dispatching a consensus message to Raft, the channels layer verifies the legacy consensus header and its replay counter, then passes separate header and ledger-body views that omit the channel tag.
+Neither view copies or modifies the owned inbound buffer.
+The consensus receive API takes a ``message`` span containing only the Raft message struct and an optional ``payload`` span containing appended ledger bytes.
+The payload defaults to an empty view for messages without appended entries, including heartbeats.
+Those ledger bytes are not authenticated by the legacy channel and retain their independent ledger validation.
+Raft consumes the normalized buffer synchronously, while the inbound handler retains ownership.
+
 Outbound transport operations may be submitted from any thread.
 Sends, address updates, and closes first pass through the same ordered task lane as ledger mutations.
 This ensures that an ``AppendEntries`` message reads ledger entries only after preceding appends have been applied and preserves the order of transport operations.

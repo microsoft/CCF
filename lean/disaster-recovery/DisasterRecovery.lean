@@ -18,7 +18,6 @@ public import DisasterRecovery.Proofs.Trace
 public import DisasterRecovery.Proofs.Witnesses
 public import DisasterRecovery.Properties
 public import DisasterRecovery.Properties.Utils
-public import DisasterRecovery.Tests.Architecture
 public import DisasterRecovery.Tests.CanonicalTests
 public import DisasterRecovery.Tests.Execution
 public import DisasterRecovery.Tests.Initial

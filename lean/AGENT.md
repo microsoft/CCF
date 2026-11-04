@@ -79,5 +79,6 @@ The proof entrypoint does not replace either check.
 After moving modules, update the import root and run the package's existing checks.
 For disaster recovery, see the [validation commands](disaster-recovery/README.md#validation).
 
-Each model package's `Tests/Architecture.lean` checks dependency direction during the build.
+The shared `lake exe check-imports` command checks dependency direction for every specification library root discovered from Lake.
+Do not add per-model architecture tests; see [the common package](common/README.md#architecture-checks) for the policy.
 It keeps common and model modules independent of properties and proofs, property helpers independent of proofs and theorem entrypoints, and proof implementations independent of the final theorem entrypoint.

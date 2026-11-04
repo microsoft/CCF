@@ -116,7 +116,9 @@ TraceAppendEntriesBatchsize(i, j) ==
 TraceInitReconfigurationVars ==
     /\ InitLogConfigServerVars({TraceLog[1].msg.state.node_id}, StartLog)
 
-TraceInitPreVoteStatus == PreVoteStatusTypeInv
+\* Native traces always use pre-vote; its status is no longer a trace field.
+TraceInitPreVoteStatus ==
+    preVoteStatus = [i \in Servers |-> {PreVoteCapable, PreVoteEnabled}]
 
 -------------------------------------------------------------------------------------
 
@@ -159,11 +161,8 @@ IsDropPendingTo ==
     /\ UNCHANGED <<preVoteStatus, reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 IsTimeout ==
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
-    /\ \/ /\ IsEvent("become_pre_vote_candidate")
-          /\ logline.msg.state.leadership_state = "PreVoteCandidate"
-       \/ /\ IsEvent("become_candidate")
-          /\ logline.msg.state.leadership_state = "Candidate"
+    /\ IsEvent("become_pre_vote_candidate")
+    /\ logline.msg.state.leadership_state = "PreVoteCandidate"
     /\ Timeout(logline.msg.state.node_id)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
@@ -174,7 +173,6 @@ IsTimeout ==
 IsBecomeCandidate ==
     /\ IsEvent("become_candidate")
     /\ logline.msg.state.leadership_state = "Candidate"
-    /\ logline.msg.state.pre_vote_enabled /\ PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id]
     /\ BecomeCandidateFromPreVoteCandidate(logline.msg.state.node_id)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
@@ -194,7 +192,6 @@ IsRcvProposeVoteRequest ==
            \/ DropIgnoredMessage(m.dest,m.source,m)
   /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
   /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-  /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsBecomeLeader ==
     /\ IsEvent("become_leader")
@@ -206,7 +203,6 @@ IsBecomeLeader ==
     \* The log is truncated during BecomeLeader to the last committable index, and so membership state may have also changed
     /\ membershipState'[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
     
 IsClientRequest ==
     /\ IsEvent("replicate")
@@ -218,7 +214,6 @@ IsClientRequest ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsCleanupNodes ==
     /\ IsEvent("replicate")
@@ -230,7 +225,6 @@ IsCleanupNodes ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsSendAppendEntries ==
     /\ IsEvent("send_append_entries")
@@ -250,7 +244,6 @@ IsSendAppendEntries ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
@@ -266,7 +259,6 @@ IsRcvAppendEntriesRequest ==
               /\ IsAppendEntriesRequest(m, i, j, logline)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsSendAppendEntriesResponse ==
     \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
@@ -278,14 +270,12 @@ IsSendAppendEntriesResponse ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
  
 IsAddConfiguration ==
     /\ IsEvent("add_configuration")
     /\ leadershipState[logline.msg.state.node_id] = Follower
     /\ UNCHANGED vars
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsSignCommittableMessages ==
     /\ IsEvent("replicate")
@@ -302,7 +292,6 @@ IsSignCommittableMessages ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsAdvanceCommitIndex ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
@@ -317,13 +306,11 @@ IsAdvanceCommitIndex ==
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
        /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-       /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
     \/ /\ IsEvent("commit")
        /\ UNCHANGED vars
        /\ logline.msg.state.leadership_state = "Follower"
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-       /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
@@ -336,7 +323,6 @@ IsChangeConfiguration ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
@@ -358,7 +344,6 @@ IsRcvAppendEntriesResponse ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsSendRequestVote ==
     /\ IsEvent("send_request_vote")
@@ -375,7 +360,6 @@ IsSendRequestVote ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsRcvRequestVoteRequest ==
     \/ /\ IsEvent("recv_request_vote")
@@ -391,7 +375,6 @@ IsRcvRequestVoteRequest ==
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsExecuteAppendEntries ==
     \* Skip append because ccfraft!HandleRequestVoteRequest atomically handles the request, sends the response,
@@ -404,7 +387,6 @@ IsExecuteAppendEntries ==
        /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-       /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsSendRequestVoteResponse ==
     \* HandleRequestVoteRequest already sent the response.
@@ -421,7 +403,6 @@ IsSendRequestVoteResponse ==
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsRcvRequestVoteResponse ==
     /\ \/ IsEvent("recv_request_vote_response")
@@ -442,7 +423,6 @@ IsRcvRequestVoteResponse ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
@@ -452,7 +432,6 @@ IsBecomeFollower ==
     /\ leadershipState[logline.msg.state.node_id] # Leader
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsCheckQuorum ==
     /\ IsEvent("become_follower")
@@ -463,7 +442,6 @@ IsCheckQuorum ==
     /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 IsSigTermProposeVote ==
     /\ IsEvent("step_down_and_nominate_successor")
@@ -483,7 +461,6 @@ IsSigTermProposeVote ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
-    /\ (logline.msg.state.pre_vote_enabled => PreVoteEnabled \in preVoteStatus[logline.msg.state.node_id])
 
 TraceNext ==
     \/ IsTimeout

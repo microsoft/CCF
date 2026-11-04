@@ -22,10 +22,10 @@ if ! command -v lake >/dev/null 2>&1; then
   exit 1
 fi
 
-declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [ccf-raft]=CCFRaft)
+declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [ccf-raft]=CCFRaft [consistency]=consistency [kv]=Kv)
 PACKAGES=("$@")
 if [ ${#PACKAGES[@]} -eq 0 ]; then
-  PACKAGES=(disaster-recovery ccf-raft)
+  PACKAGES=(disaster-recovery ccf-raft consistency kv)
 fi
 
 for package in "${PACKAGES[@]}"; do
@@ -36,13 +36,16 @@ for package in "${PACKAGES[@]}"; do
   fi
   # The disaster recovery package also checks Lean files outside lean/.
   if [ "$package" == "disaster-recovery" ]; then
-    PATHSPEC=("*.lean" ":(exclude)lean/ccf-raft/*")
+    PATHSPEC=("*.lean" ":(exclude)lean/ccf-raft/*" ":(exclude)lean/consistency/*" ":(exclude)lean/kv/*")
   else
     PATHSPEC=("lean/$package/*.lean")
   fi
   (
     cd "$ROOT_DIR/lean/$package"
     # leanfmt loads imported modules to parse project-specific syntax.
+    if [ "$package" == "disaster-recovery" ]; then
+      lake build ccf_common/+CCF
+    fi
     lake build "$library"
     git -C "$ROOT_DIR" ls-files -z -- "${PATHSPEC[@]}" |
       while IFS= read -r -d '' file; do

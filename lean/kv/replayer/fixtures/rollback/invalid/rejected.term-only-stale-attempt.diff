@@ -1,0 +1,8 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -136 +136 @@
+-{"requested":1,"seq":136,"store":4,"term":0,"type":"rollback","version":1}
++{"requested":1,"seq":136,"store":4,"term":1,"type":"rollback","version":1}
+@@ -139 +139 @@
+-{"seq":139,"store":4,"term":0,"tx":32,"type":"apply","version":2,"writes":[{"key":"00","map":"a","value":"33"}]}
++{"seq":139,"store":4,"term":1,"tx":32,"type":"apply","version":2,"writes":[{"key":"00","map":"a","value":"33"}]}

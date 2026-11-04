@@ -8,6 +8,7 @@
 
 #define FMT_HEADER_ONLY
 #include <array>
+#include <climits>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <map>
@@ -54,6 +55,14 @@ namespace ccf::crypto::OpenSSL
     Unique_X509_NAME subject_name;
     for (const auto& [field, value] : parse_name(name))
     {
+      // The value length is passed as an int
+      if (value.size() > INT_MAX)
+      {
+        throw std::invalid_argument(fmt::format(
+          "Subject name value for {} exceeds the maximum of {} bytes",
+          field,
+          INT_MAX));
+      }
       CHECK1(X509_NAME_add_entry_by_txt(
         subject_name,
         field.c_str(),

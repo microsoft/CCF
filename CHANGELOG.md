@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - `ccf::crypto::MLDSAKeyPair` can now issue X.509 certificates and PKCS#10 certificate signing requests signed with pure ML-DSA (`create_csr()`, `sign_csr()`, `self_sign()`), and `ccf::crypto::make_verifier()` accepts ML-DSA certificates, verifying their signatures with `MDType::NONE`. The ML-DSA headers are now included on every build; with OpenSSL older than 3.5, `make_mldsa_key_pair()` and `make_mldsa_public_key()` throw `std::runtime_error` (#8629).
 
+### Fixed
+
+- Hardened `ccf::crypto` OpenSSL call sites taking `int` lengths against inputs larger than 2 GiB, and Base64 encoding and decoding no longer use stack buffers proportional to the input size. `ccf::crypto::OpenSSL::Unique_BIO(const void*, int)` now takes a `size_t` and throws `std::invalid_argument` rather than accepting a negative length (#8645).
+
 ## [7.0.23]
 
 [7.0.23]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.23
@@ -24,6 +28,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - `ccf::crypto::Verifier::remaining_seconds()` now returns the whole validity period before that period starts, and `remaining_percentage()` always returns a fraction between 0.0 and 1.0, including for a certificate whose validity period ends before it starts (#8626).
 - Service certificate renewal, recovery and previous-identity endorsements now preserve multi-RDN `service_subject_name` values such as `CN=CCF Service,O=CCF User` (#8627).
+- Nodes can now generate and load snapshots of services whose public or private state exceeds 2 GiB, including the snapshot taken when a recovered service opens. `ccf::crypto::KeyAesGcm` encryption and decryption now accept AAD and data larger than 2 GiB (#8644).
 
 ## [7.0.22]
 

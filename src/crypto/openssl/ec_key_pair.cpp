@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/bignum.h"
 #include "crypto/openssl/csr.h"
 #include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/hash.h"
@@ -55,9 +56,8 @@ namespace ccf::crypto
 
   ECKeyPair_OpenSSL::ECKeyPair_OpenSSL(const JsonWebKeyECPrivate& jwk)
   {
-    Unique_BIGNUM d;
     auto d_raw = raw_from_b64url(jwk.d);
-    OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
+    Unique_BIGNUM d = bn_from_bytes(d_raw);
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     // Note: d_raw is big endian while OSSL_PARAM_construct_BN expects native
     // endianness
