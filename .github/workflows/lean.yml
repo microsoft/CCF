@@ -25,7 +25,7 @@ permissions: read-all
 
 jobs:
   cft_traces:
-    name: CCF consensus protocol scenario captures
+    name: CCF consensus scenario captures
     runs-on: [gha-vmss-d16av7-ci-c]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -61,7 +61,7 @@ jobs:
           uv run --no-project --with msgpack \
             ctest --test-dir "$RUNNER_TEMP/cft-build" -VV -R "^cft_scenario_test$" --no-tests=error
 
-      - name: Upload CCF consensus protocol traces
+      - name: Upload CCF consensus traces
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cft-scenario-traces
@@ -203,7 +203,7 @@ jobs:
         working-directory: lean/kv
         run: lake build --wfail kv-replay
 
-      - name: Validate CCF consensus protocol trace fixtures
+      - name: Validate CCF consensus trace fixtures
         shell: bash
         run: |
           set -euo pipefail
@@ -214,7 +214,7 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Reject invalid CCF consensus protocol trace fixtures
+      - name: Reject invalid CCF consensus trace fixtures
         shell: bash
         run: |
           set -euo pipefail
@@ -263,7 +263,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          for job in "CCF consensus protocol scenario captures" "KV trace captures"; do
+          for job in "CCF consensus scenario captures" "KV trace captures"; do
             while true; do
               if ! state=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
                 --jq ".jobs[] | select(.name == \"${job}\") | \"\(.status) \(.conclusion)\""); then
@@ -286,13 +286,13 @@ jobs:
             done
           done
 
-      - name: Download CCF consensus protocol traces
+      - name: Download CCF consensus traces
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: cft-scenario-traces
           path: ${{ runner.temp }}/cft-scenario-traces
 
-      - name: Validate CCF consensus protocol traces
+      - name: Validate CCF consensus traces
         shell: bash
         run: |
           set -euo pipefail
