@@ -1,0 +1,2 @@
+{"action":"RwTxRequestAction","type":"RwTxRequest","tx":0}
+{"action":"RwTxResponseAction","type":"RwTxResponse","tx":0,"tx_id":[2,10]}

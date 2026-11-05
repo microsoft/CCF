@@ -14,8 +14,6 @@ open Execution.Local hiding Config
 open Execution.Global
 open Invariants Quorum
 
-attribute [local simp] Execution.Local.transitionSystem rejectionReason guard failure
-
 /-- Gossip and votes grow monotonically, and choosing a node freezes its gossip. -/
 structure Evolves (before after : NodeState) : Prop where
   /-- Previously accepted gossips remain present. -/
@@ -59,17 +57,100 @@ lemma insertVote_extends (source : Location) (votes : List Location)
   · exact member
   · exact (List.mergeSort_perm _ _).mem_iff.mpr (List.mem_cons_of_mem _ member)
 
+private abbrev Frame (before after : NodeState) : Prop :=
+  after.gossips = before.gossips
+  /\ after.votes = before.votes
+  /\ (before.chosen.isSome = true -> after.chosen.isSome = true)
+
+private lemma frame_lane {before after : NodeState} (timeout : Bool)
+    (frame : Frame before after)
+    : Frame before (advanceTimeoutLane after timeout) := by
+  cases timeout <;> exact frame
+
+private lemma advance_frame {config : Execution.Local.Config} {state : NodeState}
+    {timeout : Bool} {output : StepOutput}
+    (advanced : advance config state timeout = some output)
+    : Frame state output.state := by
+  unfold advance at advanced
+  cases phase : state.phase <;> simp only [phase] at advanced
+  · split at advanced
+    · split at advanced
+      · cases advanced
+      · cases advanced
+        exact frame_lane timeout ⟨rfl, rfl, fun _ => rfl⟩
+    · cases advanced
+      exact frame_lane timeout ⟨rfl, rfl, id⟩
+  · split at advanced
+    · split at advanced <;> cases advanced
+      · exact ⟨rfl, rfl, id⟩
+      · exact frame_lane timeout ⟨rfl, rfl, id⟩
+    · cases advanced
+      exact frame_lane timeout ⟨rfl, rfl, id⟩
+  · split at advanced <;> cases advanced <;> exact frame_lane timeout ⟨rfl, rfl, id⟩
+  · split at advanced <;> cases advanced
+    exact frame_lane timeout ⟨rfl, rfl, id⟩
+  · cases advanced
+    exact frame_lane timeout ⟨rfl, rfl, id⟩
+
+private lemma evolves_of_advance {config : Execution.Local.Config}
+    {state received : NodeState} {timeout : Bool} {output : StepOutput}
+    (advanced : advance config received timeout = some output)
+    (gossips : state.gossips ⊆ received.gossips) (votes : state.votes ⊆ received.votes)
+    (frozen
+      : state.chosen.isSome = true
+        -> received.chosen.isSome = true /\ received.gossips = state.gossips)
+    : Evolves state output.state := by
+  obtain ⟨sameGossips, sameVotes, keepsChoice⟩ := advance_frame advanced
+  refine ⟨sameGossips ▸ gossips, sameVotes ▸ votes, fun chosen => ?_⟩
+  obtain ⟨chosen', same⟩ := frozen chosen
+  exact ⟨keepsChoice chosen', sameGossips.trans same⟩
+
 lemma step_evolves (config : Execution.Local.Config) (state : NodeState) (event : Event)
     : Evolves state (step config state event).state := by
-  cases event <;> try cases_type Model.Local.Validation
-  all_goals simp [step, rejected, advance, advanceTimeoutLane]
-  all_goals repeat' first | split | apply evolves_refl
-  all_goals constructor
-  all_goals first
-    | exact fun _ h => h
-    | exact insertGossip_extends _ _ _
-    | exact insertVote_extends _ _
-    | simp_all
+  suffices stepped :
+    forall output,
+      (Execution.Local.transitionSystem config state.location).step { state } event
+        = some output
+      -> Evolves state output.state by
+    unfold step
+    cases found
+          : (Execution.Local.transitionSystem config state.location).step
+              { state } event with
+    | none => exact evolves_refl state
+    | some output => exact stepped output found
+  intro output stepped
+  cases event with
+  | receiveGossip source txid validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · split at stepped
+        · rename_i unchosen
+          refine evolves_of_advance stepped (insertGossip_extends _ _ _) (fun _ h => h)
+            fun chosen => ?_
+          rw [unchosen] at chosen
+          cases chosen
+        · cases stepped
+      · cases stepped
+  | receiveVote source validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · exact evolves_of_advance stepped (fun _ h => h) (insertVote_extends _ _)
+          fun chosen => ⟨chosen, rfl⟩
+      · cases stepped
+  | receiveIAmOpen source validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · split at stepped
+        · exact evolves_of_advance (config := config) (timeout := false)
+            (received := { state with phase := .joining, chosen := some source })
+            stepped (fun _ h => h) (fun _ h => h) fun _ => ⟨rfl, rfl⟩
+        · cases stepped
+      · cases stepped
+  | timeout =>
+      exact evolves_of_advance stepped (fun _ h => h) (fun _ h => h) fun chosen => ⟨chosen, rfl⟩
+  | retry =>
+      cases stepped
+      exact evolves_refl state
 
 /-- Every node's accepted gossip comes from the configured recovered ledger tips. -/
 def Genuine (config : Config) (nodes : List (Location × NodeState)) : Prop :=
@@ -96,17 +177,58 @@ lemma insertGossip_genuine {config : Config} {state : NodeState} {source : Locat
 lemma step_genuine (config : Config) (state : NodeState) (event : Event)
     (prior : state.gossips ⊆ config.recovered) (incoming : EventGenuine config event)
     : (step config.protocol state event).state.gossips ⊆ config.recovered := by
-  cases event <;> try cases_type Model.Local.Validation
-  all_goals simp [step, rejected, advance, advanceTimeoutLane]
-  all_goals repeat' first | split | exact prior
-  all_goals exact insertGossip_genuine prior incoming
+  suffices stepped :
+    forall output,
+      (Execution.Local.transitionSystem config.protocol state.location).step { state }
+          event
+        = some output
+      -> output.state.gossips ⊆ config.recovered by
+    unfold step
+    cases found
+          : (Execution.Local.transitionSystem config.protocol state.location).step
+              { state } event with
+    | none => exact prior
+    | some output => exact stepped output found
+  intro output stepped
+  cases event with
+  | receiveGossip source txid validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · split at stepped
+        · rename_i accepted _
+          subst accepted
+          rw [(advance_frame stepped).1]
+          exact insertGossip_genuine prior incoming
+        · cases stepped
+      · cases stepped
+  | receiveVote source validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · rw [(advance_frame stepped).1]
+        exact prior
+      · cases stepped
+  | receiveIAmOpen source validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · split at stepped
+        · rw [(advance_frame (config := config.protocol) (timeout := false)
+            (state := { state with phase := .joining, chosen := some source }) stepped).1]
+          exact prior
+        · cases stepped
+      · cases stepped
+  | timeout =>
+      rw [(advance_frame stepped).1]
+      exact prior
+  | retry =>
+      cases stepped
+      exact prior
 
 lemma lookup_member {state : State} {node : Location} {current : NodeState}
     (found : nodeState state node = some current)
     : (node, current) ∈ state.system.nodes := by
   obtain ⟨entry, found, same⟩ := Option.map_eq_some_iff.mp found
   have key := beq_iff_eq.mp
-    (List.find?_some (p := fun entry : Location × NodeState => entry.1 == node) found)
+    (List.find?_some found :)
   have entryEq : entry = (node, current) := Prod.ext key same
   rw [← entryEq]
   exact List.mem_of_find?_eq_some found
@@ -117,11 +239,12 @@ lemma systemStep_evolves {config : Execution.Local.Config} {before after : Syste
     (transition : systemStep config before target event = some (after, output))
     {node : Location} {current : NodeState} (member : (node, current) ∈ before.nodes)
     : exists next, (node, next) ∈ after.nodes /\ Evolves current next := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
-  obtain ⟨foundState, ⟨key, found⟩, rfl, _⟩ := transition
+  simp only [systemStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.map_eq_some_iff,
+    Option.pure_def, Option.some.injEq, Prod.mk.injEq] at transition
+  obtain ⟨_, ⟨⟨key, foundState⟩, found, rfl⟩, rfl, _⟩ := transition
   have foundMember := List.mem_of_find?_eq_some found
   have keyEq : key = target := beq_iff_eq.mp
-    (List.find?_some (p := fun entry : Location × NodeState => entry.1 == target) found)
+    (List.find?_some found :)
   by_cases same : node = target
   · have equal := eq_of_key_eq nodup member foundMember (same.trans keyEq.symm)
     have stateEq := congrArg Prod.snd equal
@@ -137,8 +260,9 @@ lemma systemStep_genuine {config : Config} {before after : SystemState}
     (prior : Genuine config before.nodes) (incoming : EventGenuine config event)
     (transition : systemStep config.protocol before target event = some (after, output))
     : Genuine config after.nodes := by
-  simp [systemStep, Option.bind_eq_some_iff] at transition
-  obtain ⟨current, ⟨key, found⟩, rfl, _⟩ := transition
+  simp only [systemStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.map_eq_some_iff,
+    Option.pure_def, Option.some.injEq, Prod.mk.injEq] at transition
+  obtain ⟨_, ⟨⟨key, current⟩, found, rfl⟩, rfl, _⟩ := transition
   intro entry member
   obtain ⟨previous, present, rfl⟩ := List.mem_map.mp member
   split
@@ -157,12 +281,16 @@ lemma next_evolves {config : Config} {before after : State} {action : Action}
       rw [retry_system_eq transition]
       exact ⟨current, member, evolves_refl current⟩
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      obtain ⟨_, _, system, output, updated, rfl⟩ := transition
+      simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq, Option.ite_none_right_eq_some,
+        List.contains_iff_mem, exists_const, and_true] at transition
+      obtain ⟨_, _, ⟨system, output⟩, updated, rfl⟩ := transition
       simpa only [recordEffects_system] using systemStep_evolves wf.nodeKeysNodup updated member
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      obtain ⟨_, system, output, updated, _, rfl⟩ := transition
+      simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq, Option.ite_none_right_eq_some, exists_const,
+        and_true] at transition
+      obtain ⟨_, ⟨system, output⟩, updated, _, rfl⟩ := transition
       simpa only [recordEffects_system] using systemStep_evolves wf.nodeKeysNodup updated member
 
 lemma next_genuine {config : Config} {before after : State} {action : Action}
@@ -174,23 +302,34 @@ lemma next_genuine {config : Config} {before after : State} {action : Action}
   | retry source =>
       simpa only [retry_system_eq transition] using prior
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      obtain ⟨pending, _, system, output, updated, rfl⟩ := transition
+      simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq, Option.ite_none_right_eq_some,
+        List.contains_iff_mem, exists_const, and_true] at transition
+      obtain ⟨pending, _, ⟨system, output⟩, updated, rfl⟩ := transition
       have incoming : EventGenuine config (eventFor envelope) := by
-        cases payload : envelope.payload <;> simp [eventFor, payload, EventGenuine]
-        case gossip txid =>
-          have recovered := valid_gossip_uses_recovered_txid
-            (wf.sentValid _ (wf.networkSent _ pending)) payload
-          obtain ⟨entry, found, value⟩ := Option.map_eq_some_iff.mp recovered
-          have key := beq_iff_eq.mp
-            (List.find?_some (p := fun entry : Location × TxID => entry.1 == envelope.source) found)
-          have entryEq : entry = (envelope.source, txid) := Prod.ext key value
-          rw [← entryEq]
-          exact List.mem_of_find?_eq_some found
+        cases payload : envelope.payload with
+        | vote | iAmOpen =>
+            unfold eventFor
+            rw [payload]
+            trivial
+        | gossip txid =>
+            unfold eventFor
+            rw [payload]
+            show (envelope.source, txid) ∈ config.recovered
+            have recovered := valid_gossip_uses_recovered_txid
+              (wf.sentValid _ (wf.networkSent _ pending)) payload
+            obtain ⟨entry, found, value⟩ := Option.map_eq_some_iff.mp recovered
+            have key := beq_iff_eq.mp
+              (List.find?_some found :)
+            have entryEq : entry = (envelope.source, txid) := Prod.ext key value
+            rw [← entryEq]
+            exact List.mem_of_find?_eq_some found
       simpa only [recordEffects_system] using systemStep_genuine prior incoming updated
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      obtain ⟨_, system, output, updated, _, rfl⟩ := transition
+      simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq, Option.ite_none_right_eq_some, exists_const,
+        and_true] at transition
+      obtain ⟨_, ⟨system, output⟩, updated, _, rfl⟩ := transition
       simpa only [recordEffects_system]
         using systemStep_genuine prior (by trivial) updated
 
@@ -219,7 +358,9 @@ lemma next_frozen {config : Config} {before after : State} {action : Action}
     exact ⟨updated, present', chosen', same'.trans same⟩
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
+      simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq, Option.ite_none_right_eq_some, exists_const,
+        and_true] at transition
       obtain ⟨_, current, found, _, rfl⟩ := transition
       intro envelope sent vote
       rcases List.mem_append.mp sent with old | fresh
@@ -233,12 +374,16 @@ lemma next_frozen {config : Config} {before after : State} {action : Action}
         · rw [← snapshot.2, selected]
           rfl
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      obtain ⟨_, _, system, output, _, rfl⟩ := transition
+      simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq, Option.ite_none_right_eq_some,
+        List.contains_iff_mem, exists_const, and_true] at transition
+      obtain ⟨_, _, ⟨system, output⟩, _, rfl⟩ := transition
       simpa only [FrozenVotes, recordEffects_sent] using carry
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      obtain ⟨_, system, output, _, _, rfl⟩ := transition
+      simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq, Option.ite_none_right_eq_some, exists_const,
+        and_true] at transition
+      obtain ⟨_, ⟨system, output⟩, _, _, rfl⟩ := transition
       simpa only [FrozenVotes, recordEffects_sent] using carry
 
 lemma reachable_gossip_invariant {config : Config} {state : State}
@@ -249,8 +394,11 @@ lemma reachable_gossip_invariant {config : Config} {state : State}
   | initial initialized =>
       obtain ⟨_, nodes, _, _, rfl⟩ := initialized
       constructor
-      · simp [Genuine, initial, initialNode]
-      · simp [FrozenVotes, initial]
+      · intro entry member
+        obtain ⟨node, _, rfl⟩ := List.mem_map.mp member
+        exact List.nil_subset _
+      · intro envelope sent
+        cases sent
   | step reachable transition ih =>
       have wf := reachable_well_formed reachable
       exact ⟨next_genuine wf ih.1 transition, next_frozen wf ih.2 transition⟩

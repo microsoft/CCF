@@ -3,6 +3,7 @@ module  -- shake: keep-all --deprecated_module: ignore
 public import DisasterRecovery.Model
 public import DisasterRecovery.Model.Local
 public import DisasterRecovery.Proofs.Committed
+public import DisasterRecovery.Proofs.Evaluation
 public import DisasterRecovery.Proofs.Execution
 public import DisasterRecovery.Proofs.ExecutionLocal
 public import DisasterRecovery.Proofs.Gossip

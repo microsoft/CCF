@@ -35,7 +35,7 @@ Property helpers use zero-based history positions.
 The initial view is 2; view 1 is reserved and cannot process requests.
 
 The model covers safety only, not liveness, disaster recovery, or non-forwarded reads.
-There is no refinement proof connecting it to the [CCF consensus protocol model](../consensus/README.md) or implementation trace validation.
+There is no refinement proof connecting it to the [CCF consensus protocol model](../consensus/README.md).
 
 ## Properties
 
@@ -60,3 +60,28 @@ lake lint
 `lake check` checks proofs against the kernel and standard axiom allowlist, without allowing unfinished proofs.
 `lake exe check-imports` checks module coverage and dependency direction.
 The unsandboxed check executes build-time code, which must be trusted.
+
+## Trace validation
+
+`consistency-replay` consumes the existing NDJSON format from [`tests/tvc.py`](../../tests/tvc.py), also used by TLA+'s `TraceMultiNodeReads`.
+It replays requests, write executions, responses, and final statuses through `Model.step`, checking request IDs and response transaction IDs.
+As in the TLA+ validator, missing views and non-application ledger entries are backfilled before write executions and reads.
+Backfilling uses guarded model elections and appends; it cannot roll back a known committed prefix.
+Elections discard known-invalid suffixes before filling gaps in the new view.
+This is a deterministic reconstruction for these captures, not a complete search for all possible model executions.
+The capture contains no application read values, so this does not validate the model's append-and-read application observations.
+An unfinished final request is allowed, but empty traces, malformed records, and disabled transitions fail with a line-numbered diagnostic and nonzero exit code.
+
+From the repository root, generate a capture using the existing e2e test (requires the [CCF build prerequisites](../../doc/contribute/build_setup.rst)):
+
+```sh
+cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON
+cmake --build build --target consistency_trace_validation
+(cd build && ./tests.sh -VV -R '^consistency_trace_validation$' --no-tests=error)
+cd lean/consistency
+lake build --wfail consistency-replay
+.lake/build/bin/consistency-replay ../../build/consistency/trace.ndjson
+```
+
+The [Lean workflow](../../.github/workflows/lean.yml) captures and replays this trace in separate jobs, following the KV and CCF consensus setup, and also reuses the [TLA+ election/rollback fixtures](../../tla/consistency/traces).
+Synthetic [replay fixtures](replayer/fixtures/README.md) check that the replayer accepts valid traces and rejects invalid ones.

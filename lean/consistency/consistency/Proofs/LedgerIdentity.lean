@@ -70,11 +70,11 @@ theorem anchored_modify (branches : List (List Entry)) (anchored : Anchored bran
   intro index ledger found seqno value atEntry
   have bounds := at_bounds found
   have lookup : (branches.modify (branch - 1) (· ++ [entry]))[index - 1]? =
-      some ledger := by simpa [at?, Nat.ne_of_gt bounds.1] using found
+      some ledger := (Structural.at_of_pos bounds.1).symm.trans found
   rw [List.getElem?_modify] at lookup
   obtain ⟨oldLedger, oldLookup, same⟩ := Option.map_eq_some_iff.mp lookup
-  have oldFound : at? branches index = some oldLedger := by
-    simpa [at?, Nat.ne_of_gt bounds.1] using oldLookup
+  have oldFound : at? branches index = some oldLedger :=
+    (Structural.at_of_pos bounds.1).trans oldLookup
   by_cases selected : branch - 1 = index - 1
   · simp only [selected, ite_true] at same
     subst ledger
@@ -88,7 +88,8 @@ theorem anchored_modify (branches : List (List Entry)) (anchored : Anchored bran
     · subst value
       have equal : branch = index := by omega
       refine ⟨by omega, oldLedger ++ [entry], ?_, ?_⟩
-      · simpa [view, equal] using found
+      · rw [view.trans equal]
+        exact found
       · exact List.take_prefix _ _
   · simp only [selected, ite_false] at same
     subst ledger
@@ -122,18 +123,31 @@ theorem step_anchored (before after : State) (action : Action)
     (anchored : Anchored before.branches)
     (transition : step before action = some after)
     : Anchored after.branches := by
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff, guard]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (exact anchored)
-      | (solve | apply anchored_modify _ anchored _ _ rfl; apply active_positive before; assumption)
-      | (solve | apply anchored_elect _ anchored; assumption)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
+  cases action with
+  | request =>
+      rw [Structural.request_some transition]
+      exact anchored
+  | execute =>
+      obtain ⟨_, _, active, _, rfl⟩ := Structural.execute_some transition
+      exact anchored_modify _ anchored _ _ rfl (active_positive before active)
+  | respond =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, rfl⟩ := Structural.respond_some transition
+      exact anchored
+  | read =>
+      obtain ⟨_, _, _, _, _, _, _, _, rfl⟩ := Structural.read_some transition
+      exact anchored
+  | commit =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, _, _, rfl⟩ := Structural.commit_some transition
+      exact anchored
+  | invalidate =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.invalidate_some transition
+      exact anchored
+  | appendOther =>
+      obtain ⟨active, rfl⟩ := Structural.appendOther_some transition
+      exact anchored_modify _ anchored _ _ rfl (active_positive before active)
+  | elect =>
+      obtain ⟨_, found, _, _, _, rfl⟩ := Structural.elect_some transition
+      exact anchored_elect _ anchored found _
 
 theorem anchored_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Anchored state.branches := by
@@ -251,21 +265,32 @@ theorem step_snapshots (before after : State) (action : Action)
     (transition : step before action = some after)
     : Snapshots after.branches after.history := by
   have extension := Structural.step_branches before after action transition
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff, guard]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (exact snapshots_mono _ _ _ snapshots extension)
-      | (solve | apply snapshots_snoc _ _ _ snapshots; simp)
-      | (solve | apply snapshots_response _ _ snapshots; apply snapshot_source _ anchored
-          <;> first | assumption | simp_all)
-      | (solve | apply snapshots_response _ _ snapshots; apply snapshot_last _ anchored
-          <;> assumption)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
+  cases action with
+  | request =>
+      rw [Structural.request_some transition]
+      exact snapshots_snoc _ _ _ snapshots (by intro _ _ _ _ same; cases same)
+  | execute =>
+      obtain ⟨_, _, _, _, rfl⟩ := Structural.execute_some transition
+      exact snapshots_mono _ _ _ snapshots extension
+  | respond =>
+      obtain ⟨tx, _, _, _, _, _, ledgerFound, entryFound, txMatches, rfl⟩ := Structural.respond_some transition
+      exact snapshots_response _ _ snapshots
+        (snapshot_source _ anchored ledgerFound entryFound .rw tx fun _ => txMatches)
+  | read =>
+      obtain ⟨tx, _, _, _, _, _, ledgerFound, last, rfl⟩ := Structural.read_some transition
+      exact snapshots_response _ _ snapshots (snapshot_last _ anchored ledgerFound last tx)
+  | commit =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, _, _, rfl⟩ := Structural.commit_some transition
+      exact snapshots_snoc _ _ _ snapshots (by intro _ _ _ _ same; cases same)
+  | invalidate =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.invalidate_some transition
+      exact snapshots_snoc _ _ _ snapshots (by intro _ _ _ _ same; cases same)
+  | appendOther =>
+      obtain ⟨_, rfl⟩ := Structural.appendOther_some transition
+      exact snapshots_mono _ _ _ snapshots extension
+  | elect =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.elect_some transition
+      exact snapshots_mono _ _ _ snapshots extension
 
 theorem snapshots_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Snapshots state.branches state.history := by

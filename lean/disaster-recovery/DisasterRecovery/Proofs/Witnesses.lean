@@ -1,13 +1,9 @@
 module
 
-import all Init.Data.List.Sort.Basic
-import Mathlib.Data.Seq.Basic
-import Mathlib.Tactic.IntervalCases
+import all Init.Control.State
 
 public import DisasterRecovery.Properties.Utils
-public import DisasterRecovery.Proofs.Local
-public import Mathlib.Data.Fintype.Fin
-public import Mathlib.Tactic.FinCases
+public import DisasterRecovery.Proofs.Evaluation
 
 @[expose] public section
 
@@ -15,8 +11,7 @@ namespace DisasterRecovery.Proofs.Witnesses
 
 open CCF
 open Model.Local
-open DisasterRecovery.Proofs.Local
-attribute [local simp] StateT.run
+open DisasterRecovery.Proofs.Evaluation
 
 private def initial (config : Model.Config) : Model.State :=
   { nodes := config.protocol.expectedLocations.map fun node => (node, initialNode node) }
@@ -69,46 +64,38 @@ private def quorumSteps : List (Model.Action × Model.State) :=
     (.deliver vote, quorumOpened)
   ]
 
-private def quorumTrace : Properties.GlobalTrace quorumConfig := by
-  refine ⟨
-    { init := initial quorumConfig, steps := Stream'.Seq.ofList quorumSteps },
-    initialized (by unfold Model.Config.Valid; decide),
-    ?_
-  ⟩
-  intro i before action first chosen
-  have bound : i < 4 := by
-    have present : (quorumSteps[i]?).isSome := by
-      change (quorumSteps[i]?).map Prod.fst = some action at chosen
-      have := congrArg Option.isSome chosen
-      simpa using this
-    simpa [quorumSteps] using present
-  interval_cases i <;>
-    simp only [quorumSteps, Stream'.Seq.get?_cons_zero,
-      Stream'.Seq.get?_cons_succ, Stream'.Seq.map_get?,
-      Option.map_some, Stream'.Seq.ofList_get?,
-      List.getElem?_cons_zero, List.getElem?_cons_succ,
-      Option.some.injEq] at first chosen <;> subst before <;> subst action
-  all_goals
-    simp [quorumSteps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
-      MultiNodeTransitionSystem.next, quorumConfig, initial, quorumReady, quorumVoteSent,
-      quorumOpened, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
-      MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.receive, step, guard]
-  all_goals cbv
-  all_goals simp [advance, rejected, validTimeout, maximumGossip, advanceTimeoutLane]
+private def quorumTrace : Properties.GlobalTrace quorumConfig :=
+  ofSteps
+    (initial quorumConfig)
+    quorumSteps
+    (initialized (by unfold Model.Config.Valid; decide))
+    (by
+      simp only [StepsFrom, quorumSteps, Model.transitionSystem,
+        MultiNodeTransitionSystem.lift, Model.protocol, step, insertGossip_eval,
+        insertVote_eval, and_true]
+      and_intros <;> rfl)
 
 private theorem quorum_notified
     : Properties.Trace.NotificationAt quorumConfig quorumTrace 3 "A"
         (.opening .quorum) := by
-  refine ⟨quorumVoteSent, quorumOpened, .deliver vote, quorumSelected, quorumOpener,
-    { notifications := [.opening .quorum] }, ?_, ?_, ?_, rfl, rfl, rfl, ?_, ?_⟩
-  · rfl
-  · rfl
-  · rfl
-  · simp [Model.protocol, quorumConfig]
-    cbv
-    simp [advance, rejected, validTimeout, voteQuorum, advanceTimeoutLane]
-  · simp
+  refine ⟨
+    quorumVoteSent,
+    quorumOpened,
+    .deliver vote,
+    quorumSelected,
+    quorumOpener,
+    { notifications := [.opening .quorum] },
+    rfl,
+    rfl,
+    rfl,
+    rfl,
+    rfl,
+    rfl,
+    ?_,
+    by simp
+  ⟩
+  simp only [Properties.Trace.event, Model.receive, Model.protocol, step, insertVote_eval]
+  rfl
 
 theorem quorum_opener_unique_witness
     : exists (config : Model.Config) (trace : Properties.GlobalTrace config) (step
@@ -253,34 +240,16 @@ private def fullSteps : List (Model.Action × Model.State) :=
     (.local "A" .timeout, failoverOpened)
   ]
 
-set_option maxHeartbeats 2000000 in
-private def fullTrace : Properties.GlobalTrace fullConfig := by
-  refine ⟨
-    { init := initial fullConfig, steps := Stream'.Seq.ofList fullSteps },
-    initialized (by unfold Model.Config.Valid; decide),
-    ?_
-  ⟩
-  intro i before action first chosen
-  have bound : i < 16 := by
-    have present : (fullSteps[i]?).isSome := by
-      change (fullSteps[i]?).map Prod.fst = some action at chosen
-      have := congrArg Option.isSome chosen
-      simpa using this
-    simpa [fullSteps] using present
-  interval_cases i <;>
-    simp only [fullSteps, Stream'.Seq.get?_cons_zero,
-      Stream'.Seq.get?_cons_succ, Stream'.Seq.map_get?,
-      Option.map_some, Stream'.Seq.ofList_get?,
-      List.getElem?_cons_zero, List.getElem?_cons_succ,
-      Option.some.injEq] at first chosen <;> subst before <;> subst action
-  all_goals
-    simp [fullSteps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
-      MultiNodeTransitionSystem.next, fullConfig, initial, partialGossip, partialNode,
-      fullPending, fullSelected, fullGossiped, fullVoteSent, fullVoted, fullTimeout,
-      failoverOpened, failoverOpener, gossip, vote, high, MultiNodeTransitionSystem.nodeState,
-      MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.receive, step, guard]
-    cbv
+private def fullTrace : Properties.GlobalTrace fullConfig :=
+  ofSteps
+    (initial fullConfig)
+    fullSteps
+    (initialized (by unfold Model.Config.Valid; decide))
+    (by
+      simp only [StepsFrom, fullSteps, Model.transitionSystem,
+        MultiNodeTransitionSystem.lift, Model.protocol, step, insertGossip_eval,
+        insertVote_eval, and_true]
+      and_intros <;> rfl)
 
 theorem full_gossip_preserves_commit_witness
     : exists
@@ -331,9 +300,7 @@ theorem gossip_freezes_after_choice_witness
       /\ localStep.action = .receiveGossip source txid .accepted
       /\ localStep.before.chosen.isSome = true := by
   refine ⟨quorumConfig, frozenGossip, "A", high, ?_, rfl, rfl⟩
-  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
-    frozenGossip]
-  cbv
+  rfl
 
 private def rejectedGossip : Properties.LocalStep :=
   {
@@ -351,9 +318,7 @@ theorem rejected_gossip_stutters_witness
       (Model.protocol config).ValidStep localStep
       /\ localStep.action = .receiveGossip source txid .rejected := by
   refine ⟨quorumConfig, rejectedGossip, "A", high, ?_, rfl⟩
-  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
-    rejectedGossip]
-  cbv
+  rfl
 
 private def quorumTimeout : Properties.LocalStep :=
   {
@@ -373,9 +338,7 @@ theorem quorum_advance_opens_witness
       /\ localStep.before.phase = .voting
       /\ localStep.before.votes.length >= Model.Local.voteQuorum config.protocol := by
   refine ⟨quorumConfig, quorumTimeout, ?_, Or.inl rfl, rfl, by decide⟩
-  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
-    quorumTimeout]
-  cbv
+  rfl
 
 private def openingTimeout : Properties.LocalStep :=
   {
@@ -394,8 +357,6 @@ theorem aligned_opening_timeout_completes_witness
       /\ localStep.before.phase = .opening
       /\ localStep.before.timeoutState = .opening := by
   refine ⟨quorumConfig, openingTimeout, ?_, rfl, rfl, rfl⟩
-  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, quorumConfig,
-    openingTimeout]
-  cbv
+  rfl
 
 end DisasterRecovery.Proofs.Witnesses

@@ -61,18 +61,31 @@ theorem step_ordered (before after : State) (action : Action)
     (ordered : Ordered before.branches) (anchored : Anchored before.branches)
     (transition : step before action = some after)
     : Ordered after.branches := by
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff, guard]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (exact ordered)
-      | (solve | apply ordered_modify _ ordered anchored _ _ rfl; apply active_positive before; assumption)
-      | (solve | apply ordered_elect _ ordered; apply mem_of_at?; assumption)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
+  cases action with
+  | request =>
+      rw [Structural.request_some transition]
+      exact ordered
+  | execute =>
+      obtain ⟨_, _, active, _, rfl⟩ := Structural.execute_some transition
+      exact ordered_modify _ ordered anchored _ _ rfl (active_positive before active)
+  | respond =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, rfl⟩ := Structural.respond_some transition
+      exact ordered
+  | read =>
+      obtain ⟨_, _, _, _, _, _, _, _, rfl⟩ := Structural.read_some transition
+      exact ordered
+  | commit =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, _, _, rfl⟩ := Structural.commit_some transition
+      exact ordered
+  | invalidate =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.invalidate_some transition
+      exact ordered
+  | appendOther =>
+      obtain ⟨active, rfl⟩ := Structural.appendOther_some transition
+      exact ordered_modify _ ordered anchored _ _ rfl (active_positive before active)
+  | elect =>
+      obtain ⟨_, found, _, _, _, rfl⟩ := Structural.elect_some transition
+      exact ordered_elect _ ordered (mem_of_at? found) _
 
 theorem ordered_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Ordered state.branches := by
@@ -94,16 +107,17 @@ theorem entry_views {ledger : List Entry}
   · rw [same, second] at first
     cases first
     exact Nat.le_refl _
-  · have firstLookup : ledger[leftSeq - 1]? = some left := by
-      simpa [at?, Nat.ne_of_gt (at_bounds first).1] using first
-    have secondLookup : ledger[rightSeq - 1]? = some right := by
-      simpa [at?, Nat.ne_of_gt (at_bounds second).1] using second
+  · have firstLookup : ledger[leftSeq - 1]? = some left :=
+      (Structural.at_of_pos (at_bounds first).1).symm.trans first
+    have secondLookup : ledger[rightSeq - 1]? = some right :=
+      (Structural.at_of_pos (at_bounds second).1).symm.trans second
     obtain ⟨leftBound, leftValue⟩ := List.getElem?_eq_some_iff.mp firstLookup
     obtain ⟨rightBound, rightValue⟩ := List.getElem?_eq_some_iff.mp secondLookup
     have related := ordered.rel_getElem_of_lt leftBound rightBound (by
       have := (at_bounds first).1
       omega)
-    simpa [leftValue, rightValue] using related
+    rw [leftValue, rightValue] at related
+    exact related
 
 theorem committed_views {state : State}
     (reachable : transitionSystem.Reachable state) {left right : TxID}

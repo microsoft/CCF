@@ -1,13 +1,11 @@
 module
 
 import all Init.Control.State
-import all Init.Data.List.Sort.Basic
 
 public import DisasterRecovery.Properties
 public import DisasterRecovery.Tests.Initial
-public import Mathlib.Tactic.IntervalCases
 
-import Mathlib.Data.Seq.Basic
+import DisasterRecovery.Proofs.Evaluation
 
 @[expose] public section
 
@@ -15,6 +13,7 @@ namespace DisasterRecovery.Tests.QuorumCommit
 
 open CCF
 open Model.Local
+open Proofs.Evaluation
 
 private def high : TxID := { view := 1, seqno := 10 }
 private def low : TxID := { view := 1, seqno := 5 }
@@ -97,28 +96,12 @@ private theorem initialized : (Model.transitionSystem config).init initial := by
   · simp [initial, Tests.initial, config]
   · simp [initial, Tests.initial, config, Model.protocol]
 
-private def trace : Properties.GlobalTrace config := by
-  refine ⟨{ init := initial, steps := Stream'.Seq.ofList steps }, initialized, ?_⟩
-  intro i before action first chosen
-  have bound : i < 11 := by
-    have present : (steps[i]?).isSome := by
-      change (steps[i]?).map Prod.fst = some action at chosen
-      have := congrArg Option.isSome chosen
-      simpa using this
-    simpa [steps] using present
-  interval_cases i <;>
-    simp only [steps, Stream'.Seq.get?_cons_zero,
-      Stream'.Seq.get?_cons_succ, Stream'.Seq.map_get?,
-      Option.map_some, Stream'.Seq.ofList_get?,
-      List.getElem?_cons_zero, List.getElem?_cons_succ,
-      Option.some.injEq] at first chosen <;> subst before <;> subst action
-  all_goals
-    dsimp only [Model.transitionSystem, MultiNodeTransitionSystem.lift]
-    simp [steps, MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
-      MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.receive, step, guard, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9,
-      s10, s11, aGossips, bGossips, gossip, vote, high, low]
-  all_goals cbv
+private def trace : Properties.GlobalTrace config :=
+  ofSteps initial steps initialized
+    (by
+      simp only [StepsFrom, steps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+        Model.protocol, step, insertGossip_eval, insertVote_eval, and_true]
+      and_intros <;> rfl)
 
 private theorem opened : ("C", openedC) ∈ s11.nodes := by
   simp [s11, snapshot]
@@ -140,18 +123,13 @@ example
 
 private theorem missing_own : ¬ Properties.ReceivedOwnGossip trace "A" := by
   rintro ⟨state, member, current, txid, present, gossipPresent⟩
-  obtain ⟨i, found⟩ := Execution.Trace.mem_iff_exists_stateAt.mp member
-  replace member := List.mem_of_getElem?
-    (show (initial :: steps.map Prod.snd)[i]? = some state from
-      by cases i <;> simpa [trace, Execution.Trace.states] using found.symm)
-  simp only [steps, List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil,
-    or_false] at member
-  rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-  all_goals
-    simp [initial, Tests.initial, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9,
-      s10, s11, openedC, selected, heard, initialNode] at present
-    subst current
-    simp at gossipPresent
+  rw [trace, mem_ofSteps] at member
+  have absent
+      : forall snapshot, snapshot ∈ initial :: steps.map Prod.snd
+        -> forall entry, entry ∈ snapshot.nodes
+        -> forall gossip, gossip ∈ entry.2.gossips -> entry.1 = "A" -> gossip.1 ≠ "A" := by
+    decide +kernel
+  exact absent state member _ present _ gossipPresent rfl rfl
 
 example
     : ¬ (forall voter,
