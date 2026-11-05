@@ -31,7 +31,7 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | `lean-format-checks.sh`    | All tracked Lean files                                       | leanfmt                                            | `-f`              |
 | `python-format-checks.sh`  | Python in `tests/`, `python/`, `scripts/`                    | black                                              | `-f`              |
 | `python-lint-checks.sh`    | Python in `python/`, `tests/`                                | ruff                                               | `-f`              |
-| `python-types-checks.sh`   | Python SDK                                                   | mypy                                               | No                |
+| `python-types-checks.sh`   | Python SDK, tutorial, and SDK tests under `python/`          | Pyright                                            | No                |
 | `prettier-checks.sh`       | TS, JS, Markdown, YAML, JSON (excluding `tests/sandbox/`)    | prettier                                           | `-f`              |
 | `doc-newline-checks.sh`    | Markdown and RST prose                                       | Mid-sentence newline policy                        | `-f`              |
 | `cmake-format-checks.sh`   | CMake files                                                  | gersemi                                            | `-f`              |

@@ -10,15 +10,17 @@ class MerkleTree:
     Basic Merkle Tree implementation where leaves comprise of hashed transactions.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.reset_tree()
 
-    def reset_tree(self):
-        self._levels = [[]]
-        self._root = None
+    def reset_tree(self) -> None:
+        """Reset the tree to an empty set of leaves."""
+        self._levels: list[list[bytes]] = [[]]
+        self._root: bytes | None = None
         self._num_flushed = 0
 
-    def add_leaf(self, values: bytes, do_hash=True):
+    def add_leaf(self, values: bytes, do_hash: bool = True) -> None:
+        """Append a leaf, hashing its value unless it is already a digest."""
         digest = values
         if do_hash:
             digest = sha256(values).digest()
@@ -26,7 +28,8 @@ class MerkleTree:
         self._root = None  # Need to recalculate
 
     @property
-    def leaves(self):
+    def leaves(self) -> list[bytes]:
+        """Return the retained leaf hashes."""
         return self._levels[0]
 
     def get_leaf(self, index: int) -> bytes:
@@ -51,7 +54,9 @@ class MerkleTree:
         return self._root
 
     @staticmethod
-    def _recalculate_level(prev_level: list, level: list, start: int) -> None:
+    def _recalculate_level(
+        prev_level: list[bytes], level: list[bytes], start: int
+    ) -> None:
         """
         Extend level with the hashes of prev_level, in place.
         Reuses already-computed hashes, so the cost is proportional to the
@@ -84,7 +89,7 @@ class MerkleTree:
         if solo_node is not None:
             level.append(solo_node)
 
-    def _make_tree(self):
+    def _make_tree(self) -> None:
         if self.get_leaf_count() == 0:
             return
 

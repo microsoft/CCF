@@ -43,18 +43,218 @@ lemma mem_insertVote
     rw [List.mem_cons] at unsorted
     exact unsorted.symm
 
+@[local simp]
+private lemma lane_phase (state : NodeState) (timeout : Bool)
+    : (advanceTimeoutLane state timeout).phase = state.phase := by
+  cases timeout <;> rfl
+
+@[local simp]
+private lemma lane_votes (state : NodeState) (timeout : Bool)
+    : (advanceTimeoutLane state timeout).votes = state.votes := by
+  cases timeout <;> rfl
+
+@[local simp]
+private lemma lane_gossips (state : NodeState) (timeout : Bool)
+    : (advanceTimeoutLane state timeout).gossips = state.gossips := by
+  cases timeout <;> rfl
+
+@[local simp]
+private lemma lane_chosen (state : NodeState) (timeout : Bool)
+    : (advanceTimeoutLane state timeout).chosen = state.chosen := by
+  cases timeout <;> rfl
+
+@[local simp]
+private lemma lane_openKind (state : NodeState) (timeout : Bool)
+    : (advanceTimeoutLane state timeout).openKind = state.openKind := by
+  cases timeout <;> rfl
+
+/-- The facts about one successful `advance` used by the quorum invariants. -/
+private structure AdvanceSpec
+    (config : Execution.Local.Config) (input : NodeState) (out : StepOutput)
+    : Prop where
+  votes : out.state.votes = input.votes
+  gossips : out.state.gossips = input.gossips
+  nonGossiping : input.phase ≠ .gossiping -> out.state.phase ≠ .gossiping
+  voting
+    : out.state.phase = .voting
+      -> (input.phase = .voting /\ out.state.chosen = input.chosen)
+          \/ (input.phase = .gossiping /\ NodeVotingSelection out.state)
+  opening
+    : forall kind,
+        .opening kind ∈ out.effects
+        -> out.state.phase = .opening
+            /\ out.state.openKind = some kind
+            /\ (kind = .quorum -> voteQuorum config <= input.votes.length)
+
+private lemma AdvanceSpec.lane {config : Execution.Local.Config} {input : NodeState}
+    {timeout : Bool} {out : StepOutput}
+    (stateEq : out.state = advanceTimeoutLane input timeout)
+    (effectsEq : out.effects = [])
+    : AdvanceSpec config input out where
+  votes := by simp [stateEq]
+  gossips := by simp [stateEq]
+  nonGossiping := by simp [stateEq]
+  voting voting := Or.inl ⟨by simpa [stateEq] using voting, by simp [stateEq]⟩
+  opening := by simp [effectsEq]
+
+/-- Characterizes every successful phase advance once, so callers avoid re-unfolding it. -/
+private lemma advance_spec {config : Execution.Local.Config} {input : NodeState}
+    {timeout : Bool} {out : StepOutput}
+    (advanced : advance config input timeout = some out)
+    : AdvanceSpec config input out := by
+  cases phase : input.phase <;> simp only [advance, phase] at advanced
+  · split at advanced
+    · split at advanced
+      · cases advanced
+      · cases advanced
+        rename_i chosen txid found
+        exact {
+          votes := by simp
+          gossips := by simp
+          nonGossiping := fun pastGossip => absurd phase pastGossip
+          voting := fun _ => Or.inr ⟨phase, by simp [NodeVotingSelection, found]⟩
+          opening := by simp }
+    · cases advanced
+      exact AdvanceSpec.lane rfl rfl
+  · split at advanced
+    · split at advanced
+      · cases advanced
+        exact AdvanceSpec.lane (timeout := false) rfl rfl
+      · cases advanced
+        rename_i sufficient _
+        exact {
+          votes := by simp
+          gossips := by simp
+          nonGossiping := by simp
+          voting := by simp
+          opening := by
+            simp only [List.mem_singleton, Effect.opening.injEq]
+            rintro kind rfl
+            refine ⟨by simp, by simp, ?_⟩
+            intro quorum
+            split at quorum
+            · cases quorum
+            · grind }
+    · cases advanced
+      exact AdvanceSpec.lane rfl rfl
+  · split at advanced
+    · cases advanced
+      exact {
+        votes := by simp
+        gossips := by simp
+        nonGossiping := by simp
+        voting := by simp
+        opening := by simp }
+    · cases advanced
+      exact AdvanceSpec.lane rfl rfl
+  · split at advanced
+    · cases advanced
+    · cases advanced
+      exact {
+        votes := by simp
+        gossips := by simp
+        nonGossiping := by simp [phase]
+        voting := by simp [phase]
+        opening := by simp }
+  · cases advanced
+    exact AdvanceSpec.lane rfl rfl
+
+/-- How an accepted event's pre-advance state relates to the original state. -/
+private structure Received (state : NodeState) (event : Event) (received : NodeState)
+    : Prop where
+  gossiping : received.phase = .gossiping -> state.phase = .gossiping
+  voting
+    : received.phase = .voting
+      -> state.phase = .voting
+          /\ received.chosen = state.chosen
+          /\ (received.gossips = state.gossips \/ state.chosen = none)
+  votes
+    : received.votes = state.votes
+      \/ exists source,
+          acceptedVoteSource event = some source
+          /\ received.votes = insertVote source state.votes
+
+/-- A local step either keeps the state without opening, or advances a related state. -/
+private def StepSpec (config : Execution.Local.Config) (state : NodeState) (event : Event)
+    (out : StepOutput)
+    : Prop :=
+  (out.state = state /\ forall kind, .opening kind ∉ out.effects)
+  \/ exists received timeout,
+      Received state event received /\ advance config received timeout = some out
+
+private lemma advance_getD_spec
+    {config : Execution.Local.Config} {state received : NodeState} {event : Event}
+    {timeout : Bool} (reason : String) (related : Received state event received)
+    : StepSpec config state event
+        ((advance config received timeout).getD (rejected state reason)) := by
+  cases advanced : advance config received timeout with
+  | none => exact Or.inl ⟨rfl, by simp [rejected]⟩
+  | some out => exact Or.inr ⟨received, timeout, related, advanced⟩
+
+private lemma rejected_spec {config : Execution.Local.Config} {state : NodeState}
+    {event : Event} (reason : String)
+    : StepSpec config state event (rejected state reason) :=
+  Or.inl ⟨rfl, by simp [rejected]⟩
+
+/-- Characterizes every local step once; the per-field step lemmas below follow from it. -/
+private lemma step_spec (config : Execution.Local.Config) (state : NodeState)
+    (event : Event)
+    : StepSpec config state event (step config state event) := by
+  cases event with
+  | receiveGossip source txid validation =>
+      cases validation
+      · by_cases chosen : state.chosen = none
+        · simp only [step, Execution.Local.transitionSystem, guard, chosen]
+          exact advance_getD_spec _
+            { gossiping := id
+              voting := fun voting => ⟨voting, chosen.symm, Or.inr chosen⟩
+              votes := Or.inl rfl }
+        · simp only [step, Execution.Local.transitionSystem, guard, chosen]
+          exact rejected_spec _
+      · exact rejected_spec _
+  | receiveVote source validation =>
+      cases validation
+      · exact advance_getD_spec _
+          { gossiping := id
+            voting := fun voting => ⟨voting, rfl, Or.inl rfl⟩
+            votes := Or.inr ⟨source, rfl, rfl⟩ }
+      · exact rejected_spec _
+  | receiveIAmOpen source validation =>
+      cases validation
+      · by_cases active : state.phase ≠ .opening /\ state.phase ≠ .open
+        · obtain ⟨notOpening, notOpen⟩ := active
+          simp only [step, Execution.Local.transitionSystem, guard, ne_eq, notOpening, notOpen,
+            not_false_eq_true, and_self, ↓reduceIte, pure_bind]
+          refine advance_getD_spec _ ⟨?_, ?_, Or.inl rfl⟩ <;> intro joining <;> cases joining
+        · simp only [step, Execution.Local.transitionSystem, guard, active, ↓reduceIte]
+          exact rejected_spec _
+      · exact rejected_spec _
+  | timeout =>
+      exact advance_getD_spec _
+        { gossiping := id
+          voting := fun voting => ⟨voting, rfl, Or.inl rfl⟩
+          votes := Or.inl rfl }
+  | retry =>
+      refine Or.inl ⟨rfl, ?_⟩
+      simp only [step, Execution.Local.transitionSystem]
+      split <;> try split
+      all_goals simp
+
 lemma step_preserves_votes_nodup
     (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event)
     (nodup : state.votes.Nodup)
     : (step config state event).state.votes.Nodup := by
-  cases event
-  all_goals try cases_type Validation
-  all_goals
-    simp [step, rejected, advance, advanceTimeoutLane]
-  all_goals
-    repeat first | split | simp_all [insertVote_nodup]
+  rcases step_spec config state event with ⟨same, _⟩ | ⟨received, _, fromState, advanced⟩
+  · rw [same]
+    exact nodup
+  · rw [(advance_spec advanced).votes]
+    rcases fromState.votes with same | ⟨source, _, inserted⟩
+    · rw [same]
+      exact nodup
+    · rw [inserted]
+      exact insertVote_nodup source nodup
 
 lemma step_votes_shape
     (config : Execution.Local.Config)
@@ -64,11 +264,10 @@ lemma step_votes_shape
       \/ exists source,
           acceptedVoteSource event = some source
           /\ (step config state event).state.votes = insertVote source state.votes := by
-  cases event
-  all_goals try cases_type Validation
-  all_goals
-    simp [acceptedVoteSource, step, rejected, advance, advanceTimeoutLane]
-  all_goals repeat first | split | simp_all
+  rcases step_spec config state event with ⟨same, _⟩ | ⟨received, _, fromState, advanced⟩
+  · exact Or.inl (by rw [same])
+  · rw [(advance_spec advanced).votes]
+    exact fromState.votes
 
 lemma step_vote_origin
     (config : Execution.Local.Config)
@@ -93,11 +292,11 @@ lemma step_preserves_non_gossiping
     (event : Event)
     (pastGossip : state.phase ≠ .gossiping)
     : (step config state event).state.phase ≠ .gossiping := by
-  cases event
-  all_goals try cases_type Validation
-  all_goals
-    simp [step, rejected, advance, advanceTimeoutLane]
-  all_goals repeat first | split | simp_all
+  rcases step_spec config state event with ⟨same, _⟩ | ⟨received, _, fromState, advanced⟩
+  · rw [same]
+    exact pastGossip
+  · exact (advance_spec advanced).nonGossiping
+      (fun gossiping => pastGossip (fromState.gossiping gossiping))
 
 lemma voting_step_preserves_choice
     (config : Execution.Local.Config)
@@ -106,11 +305,14 @@ lemma voting_step_preserves_choice
     (pastGossip : state.phase ≠ .gossiping)
     (stillVoting : (step config state event).state.phase = .voting)
     : state.phase = .voting /\ (step config state event).state.chosen = state.chosen := by
-  cases event
-  all_goals try cases_type Validation
-  all_goals
-    simp [step, rejected, advance, advanceTimeoutLane] at stillVoting ⊢
-  all_goals repeat first | split at stillVoting | split | simp_all
+  rcases step_spec config state event with ⟨same, _⟩ | ⟨received, _, fromState, advanced⟩
+  · rw [same] at stillVoting ⊢
+    exact ⟨stillVoting, rfl⟩
+  · rcases (advance_spec advanced).voting stillVoting with
+      ⟨receivedVoting, chosen⟩ | ⟨gossiping, _⟩
+    · obtain ⟨stateVoting, receivedChosen, _⟩ := fromState.voting receivedVoting
+      exact ⟨stateVoting, chosen.trans receivedChosen⟩
+    · exact absurd (fromState.gossiping gossiping) pastGossip
 
 lemma step_preserves_voting_selection
     (config : Execution.Local.Config)
@@ -119,13 +321,28 @@ lemma step_preserves_voting_selection
     (before : state.phase = .voting -> NodeVotingSelection state)
     (voting : (step config state event).state.phase = .voting)
     : NodeVotingSelection (step config state event).state := by
-  cases event
-  all_goals try cases_type Validation
-  all_goals
-    simp [NodeVotingSelection, step, rejected, advance,
-      advanceTimeoutLane, validTimeout] at before voting ⊢
-  all_goals
-    repeat first | split at voting | split | simp_all
+  rcases step_spec config state event with ⟨same, _⟩ | ⟨received, _, fromState, advanced⟩
+  · rw [same] at voting ⊢
+    exact before voting
+  · have spec := advance_spec advanced
+    rcases spec.voting voting with ⟨receivedVoting, chosen⟩ | ⟨_, selection⟩
+    · obtain ⟨stateVoting, receivedChosen, gossips⟩ := fromState.voting receivedVoting
+      obtain ⟨target, txid, stateChosen, maximum⟩ := before stateVoting
+      refine ⟨target, txid, by rw [chosen, receivedChosen, stateChosen], ?_⟩
+      rcases gossips with gossips | unchosen
+      · rw [spec.gossips, gossips]
+        exact maximum
+      · rw [stateChosen] at unchosen
+        cases unchosen
+    · exact selection
+
+private lemma retry_sendVote_state
+    {config : Execution.Local.Config} {state : NodeState} {target : Location}
+    (member : .sendVote target ∈ (step config state .retry).effects)
+    : state.phase = .voting /\ state.chosen = some target := by
+  simp only [step, Execution.Local.transitionSystem] at member
+  cases phase : state.phase <;> simp [phase] at member
+  cases chosen : state.chosen <;> simp_all
 
 lemma retry_vote_state
     {config : Config}
@@ -138,33 +355,21 @@ lemma retry_vote_state
     ⟨effect, member, created⟩
   cases effect with
   | sendGossip target =>
-      cases found : recoveredTxID config envelope.source with
-      | none =>
-          simp [messageForEffect, found] at created
-      | some txid =>
-          simp [messageForEffect, found] at created
-          rw [←created] at vote
-          contradiction
+      cases found : recoveredTxID config envelope.source <;>
+        rw [messageForEffect, found] at created
+      · cases created
+      · rw [← Option.some.inj created] at vote
+        cases vote
   | sendVote target =>
-      simp [messageForEffect] at created
-      rw [←created] at vote ⊢
-      cases phase : envelope.sourceState.phase <;>
-        simp [step, phase] at member
-      next =>
-        cases chosen : envelope.sourceState.chosen <;>
-          simp_all
+      rw [← Option.some.inj created]
+      exact retry_sendVote_state member
   | sendIAmOpen target =>
-      simp [messageForEffect] at created
-      rw [←created] at vote
-      contradiction
-  | opening kind =>
-      simp [messageForEffect] at created
-  | restart chosen =>
-      simp [messageForEffect] at created
-  | completed =>
-      simp [messageForEffect] at created
-  | rejected reason =>
-      simp [messageForEffect] at created
+      rw [← Option.some.inj created] at vote
+      cases vote
+  | opening kind => cases created
+  | restart chosen => cases created
+  | completed => cases created
+  | rejected reason => cases created
 
 lemma opening_effect_state
     (config : Execution.Local.Config)
@@ -174,13 +379,10 @@ lemma opening_effect_state
     (opening : .opening kind ∈ (step config state event).effects)
     : (step config state event).state.phase = .opening
       /\ (step config state event).state.openKind = some kind := by
-  cases event
-  all_goals try cases_type Validation
-  all_goals
-    simp [step, rejected, advance, advanceTimeoutLane, validTimeout]
-      at opening ⊢
-  all_goals
-    repeat first | split at opening | split | simp_all
+  rcases step_spec config state event with ⟨_, noOpening⟩ | ⟨received, _, _, advanced⟩
+  · exact absurd opening (noOpening kind)
+  · obtain ⟨phase, openKind, _⟩ := (advance_spec advanced).opening kind opening
+    exact ⟨phase, openKind⟩
 
 lemma quorum_effect_has_threshold
     (config : Execution.Local.Config)
@@ -188,13 +390,11 @@ lemma quorum_effect_has_threshold
     (event : Event)
     (opening : .opening .quorum ∈ (step config state event).effects)
     : voteQuorum config <= (step config state event).state.votes.length := by
-  cases event
-  all_goals try cases_type Validation
-  all_goals
-    simp [step, rejected, advance, advanceTimeoutLane, validTimeout]
-      at opening ⊢
-  all_goals
-    repeat first | split at opening | split | simp_all | aesop
+  rcases step_spec config state event with ⟨_, noOpening⟩ | ⟨received, _, _, advanced⟩
+  · exact absurd opening (noOpening .quorum)
+  · have spec := advance_spec advanced
+    rw [spec.votes]
+    exact (spec.opening .quorum opening).2.2 rfl
 
 lemma sentVote_mono
     {before after : State}
@@ -460,31 +660,37 @@ lemma systemStep_quorum_effect_has_threshold
 
 lemma initial_node_votes_nodup (config : Config) (nodes : List Location)
     : NodeVotesNodup (initial config nodes) := by
-  simp [NodeVotesNodup, Execution.Global.initial, initialNode]
+  intro _ membership
+  obtain ⟨_, _, rfl⟩ := List.mem_map.mp membership
+  exact List.nodup_nil
 
 lemma initial_node_votes_sent (config : Config) (nodes : List Location)
     : NodeVotesSent (initial config nodes) := by
-  simp [NodeVotesSent, Execution.Global.initial, initialNode]
+  intro _ membership _ vote
+  obtain ⟨_, _, rfl⟩ := List.mem_map.mp membership
+  nomatch vote
 
 lemma initial_sent_votes_functional (config : Config) (nodes : List Location)
-    : SentVotesFunctional (initial config nodes) := by
-  simp [SentVotesFunctional, SentVote, Execution.Global.initial]
+    : SentVotesFunctional (initial config nodes) :=
+  fun _ _ _ ⟨_, sent, _⟩ => nomatch sent
 
 lemma initial_sent_vote_stable (config : Config) (nodes : List Location)
-    : SentVoteStable (initial config nodes) := by
-  simp [SentVoteStable, Execution.Global.initial]
+    : SentVoteStable (initial config nodes) :=
+  fun _ sent => nomatch sent
 
 lemma initial_voting_selections (config : Config) (nodes : List Location)
     : VotingSelectionsValid (initial config nodes) := by
-  simp [VotingSelectionsValid, Execution.Global.initial, initialNode]
+  intro _ membership voting
+  obtain ⟨_, _, rfl⟩ := List.mem_map.mp membership
+  nomatch voting
 
 lemma initial_sent_votes_selected (config : Config) (nodes : List Location)
-    : SentVotesSelected (initial config nodes) := by
-  simp [SentVotesSelected, Execution.Global.initial]
+    : SentVotesSelected (initial config nodes) :=
+  fun _ sent => nomatch sent
 
 lemma initial_openings_valid (config : Config) (nodes : List Location)
-    : OpeningsValid config (initial config nodes) := by
-  simp [OpeningsValid, Execution.Global.initial]
+    : OpeningsValid config (initial config nodes) :=
+  fun _ opened => nomatch opened
 
 lemma systemStep_preserves_node_votes_sent
     {config : Execution.Local.Config}
@@ -616,6 +822,49 @@ lemma systemStep_preserves_vote_stability
     exact stable previous previousMember
       (by simpa [notTarget] using sourceEq)
 
+/-- Inverts a successful retry transition. -/
+private lemma next_retry_inv
+    {config : Config} {before after : State} {source : Location}
+    (transition : next config before (.retry source) = some after)
+    : exists sourceState,
+        nodeState before source = some sourceState
+        /\ {
+                before with
+                  network := before.network ++ retryMessages config source sourceState
+                  sent := before.sent ++ retryMessages config source sourceState
+              }
+            = after := by
+  simp [next, Option.bind_eq_some_iff] at transition
+  rcases transition with ⟨_, sourceState, found, _, stateEq⟩
+  exact ⟨sourceState, found, stateEq⟩
+
+/-- Inverts a successful delivery transition. -/
+private lemma next_deliver_inv
+    {config : Config} {before after : State} {envelope : Envelope}
+    (transition : next config before (.deliver envelope) = some after)
+    : exists system output,
+        envelope ∈ before.network
+        /\ systemStep config.protocol before.system envelope.target (eventFor envelope)
+            = some (system, output)
+        /\ recordEffects envelope.target output.state output.effects
+              { before with system, network := removeOne envelope before.network }
+            = after := by
+  simp [next, Option.bind_eq_some_iff] at transition
+  rcases transition with ⟨inNetwork, _, system, output, stepped, stateEq⟩
+  exact ⟨system, output, inNetwork, stepped, stateEq⟩
+
+/-- Inverts a successful timeout transition. -/
+private lemma next_timeout_inv
+    {config : Config} {before after : State} {target : Location}
+    (transition : next config before (.timeout target) = some after)
+    : exists system output,
+        systemStep config.protocol before.system target .timeout = some (system, output)
+        /\ recordEffects target output.state output.effects { before with system }
+            = after := by
+  simp [next, Option.bind_eq_some_iff] at transition
+  rcases transition with ⟨_, system, output, stepped, _, stateEq⟩
+  exact ⟨system, output, stepped, stateEq⟩
+
 lemma next_preserves_node_votes_nodup
     {config : Config}
     {before after : State}
@@ -625,21 +874,17 @@ lemma next_preserves_node_votes_nodup
     : NodeVotesNodup after := by
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, sourceState, _, _, rfl⟩
+      rcases next_retry_inv transition with ⟨sourceState, _, rfl⟩
       exact nodup
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, _, system, output, systemStep, rfl⟩
+      rcases next_deliver_inv transition with
+        ⟨system, output, _, systemStep, rfl⟩
       intro entry membership
       rw [recordEffects_system] at membership
       exact systemStep_preserves_votes_nodup nodup systemStep
         entry membership
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, system, output, systemStep, _, rfl⟩
+      rcases next_timeout_inv transition with ⟨system, output, systemStep, rfl⟩
       intro entry membership
       rw [recordEffects_system] at membership
       exact systemStep_preserves_votes_nodup nodup systemStep
@@ -654,21 +899,17 @@ lemma next_preserves_voting_selections
     : VotingSelectionsValid after := by
   cases action with
   | retry source =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with ⟨_, sourceState, _, _, rfl⟩
+      rcases next_retry_inv transition with ⟨sourceState, _, rfl⟩
       exact valid
   | deliver envelope =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, _, system, output, systemStep, rfl⟩
+      rcases next_deliver_inv transition with
+        ⟨system, output, _, systemStep, rfl⟩
       intro entry membership voting
       rw [recordEffects_system] at membership
       exact systemStep_preserves_voting_selections valid systemStep
         entry membership voting
   | timeout target =>
-      simp [next, Option.bind_eq_some_iff] at transition
-      rcases transition with
-        ⟨_, system, output, systemStep, _, rfl⟩
+      rcases next_timeout_inv transition with ⟨system, output, systemStep, rfl⟩
       intro entry membership voting
       rw [recordEffects_system] at membership
       exact systemStep_preserves_voting_selections valid systemStep
@@ -683,9 +924,7 @@ lemma retry_preserves_sent_votes_selected
     (selected : SentVotesSelected before)
     (transition : next config before (.retry source) = some after)
     : SentVotesSelected after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, sourceState, found, _, stateEq⟩
+  rcases next_retry_inv transition with ⟨sourceState, found, stateEq⟩
   have sourceLocation : sourceState.location = source :=
     nodeState_location wellFormed.nodeLocations found
   rw [←stateEq]
@@ -713,9 +952,8 @@ lemma deliver_preserves_sent_votes_selected
     (selected : SentVotesSelected before)
     (transition : next config before (.deliver envelope) = some after)
     : SentVotesSelected after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, _, system, output, _, stateEq⟩
+  rcases next_deliver_inv transition with
+    ⟨system, output, _, _, stateEq⟩
   rw [←stateEq]
   intro vote membership payload
   rw [recordEffects_sent] at membership
@@ -728,9 +966,7 @@ lemma timeout_preserves_sent_votes_selected
     (selected : SentVotesSelected before)
     (transition : next config before (.timeout target) = some after)
     : SentVotesSelected after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, system, output, _, _, stateEq⟩
+  rcases next_timeout_inv transition with ⟨system, output, _, stateEq⟩
   rw [←stateEq]
   intro vote membership payload
   rw [recordEffects_sent] at membership
@@ -743,8 +979,7 @@ lemma retry_preserves_node_votes_sent
     (votesSent : NodeVotesSent before)
     (transition : next config before (.retry source) = some after)
     : NodeVotesSent after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with ⟨_, sourceState, _, _, rfl⟩
+  rcases next_retry_inv transition with ⟨sourceState, _, rfl⟩
   intro entry membership voter vote
   apply sentVote_mono (before := before)
   · intro envelope sent
@@ -759,9 +994,8 @@ lemma deliver_preserves_node_votes_sent
     (votesSent : NodeVotesSent before)
     (transition : next config before (.deliver envelope) = some after)
     : NodeVotesSent after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨inNetwork, _, system, output, systemStep, stateEq⟩
+  rcases next_deliver_inv transition with
+    ⟨system, output, inNetwork, systemStep, stateEq⟩
   rw [←stateEq]
   intro entry membership voter vote
   rw [recordEffects_system] at membership
@@ -808,9 +1042,7 @@ lemma timeout_preserves_node_votes_sent
     (votesSent : NodeVotesSent before)
     (transition : next config before (.timeout target) = some after)
     : NodeVotesSent after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, system, output, systemStep, _, stateEq⟩
+  rcases next_timeout_inv transition with ⟨system, output, systemStep, stateEq⟩
   rw [←stateEq]
   intro entry membership voter vote
   rw [recordEffects_system] at membership
@@ -847,8 +1079,7 @@ lemma retry_preserves_openings_valid
     (valid : OpeningsValid config before)
     (transition : next config before (.retry source) = some after)
     : OpeningsValid config after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with ⟨_, sourceState, _, _, stateEq⟩
+  rcases next_retry_inv transition with ⟨sourceState, _, stateEq⟩
   rw [←stateEq]
   intro opening membership
   apply opening_valid_mono
@@ -870,9 +1101,8 @@ lemma deliver_preserves_openings_valid
     next_preserves_node_votes_nodup votesNodup transition
   have afterVotesSent :=
     deliver_preserves_node_votes_sent wellFormed votesSent transition
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, _, system, output, systemStep, stateEq⟩
+  rcases next_deliver_inv transition with
+    ⟨system, output, _, systemStep, stateEq⟩
   rw [←stateEq] at afterNodup afterVotesSent ⊢
   let delivered : State := {
     before with
@@ -923,9 +1153,7 @@ lemma timeout_preserves_openings_valid
     next_preserves_node_votes_nodup votesNodup transition
   have afterVotesSent :=
     timeout_preserves_node_votes_sent votesSent transition
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, system, output, systemStep, _, stateEq⟩
+  rcases next_timeout_inv transition with ⟨system, output, systemStep, stateEq⟩
   rw [←stateEq] at afterNodup afterVotesSent ⊢
   let timedOut : State := { before with system }
   apply recordEffects_preserves_openings_valid
@@ -966,9 +1194,7 @@ lemma retry_preserves_sent_vote_stable
     (stable : SentVoteStable before)
     (transition : next config before (.retry source) = some after)
     : SentVoteStable after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, sourceState, found, _, stateEq⟩
+  rcases next_retry_inv transition with ⟨sourceState, found, stateEq⟩
   have sourceLocation : sourceState.location = source :=
     nodeState_location wellFormed.nodeLocations found
   rw [←stateEq]
@@ -1005,9 +1231,8 @@ lemma deliver_preserves_sent_vote_stable
     (stable : SentVoteStable before)
     (transition : next config before (.deliver delivered) = some after)
     : SentVoteStable after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, _, system, output, systemStep, stateEq⟩
+  rcases next_deliver_inv transition with
+    ⟨system, output, _, systemStep, stateEq⟩
   rw [←stateEq]
   intro envelope membership payload entry entryMember keyEq
   rw [recordEffects_sent] at membership
@@ -1024,9 +1249,7 @@ lemma timeout_preserves_sent_vote_stable
     (stable : SentVoteStable before)
     (transition : next config before (.timeout target) = some after)
     : SentVoteStable after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, system, output, systemStep, _, stateEq⟩
+  rcases next_timeout_inv transition with ⟨system, output, systemStep, stateEq⟩
   rw [←stateEq]
   intro envelope membership payload entry entryMember keyEq
   rw [recordEffects_sent] at membership
@@ -1071,9 +1294,7 @@ lemma retry_preserves_sent_votes_functional
     (stable : SentVoteStable before)
     (transition : next config before (.retry source) = some after)
     : SentVotesFunctional after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, sourceState, found, _, stateEq⟩
+  rcases next_retry_inv transition with ⟨sourceState, found, stateEq⟩
   have sourceLocation : sourceState.location = source :=
     nodeState_location wellFormed.nodeLocations found
   rw [←stateEq]
@@ -1139,9 +1360,8 @@ lemma deliver_preserves_sent_votes_functional
     (functional : SentVotesFunctional before)
     (transition : next config before (.deliver envelope) = some after)
     : SentVotesFunctional after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, _, system, output, _, stateEq⟩
+  rcases next_deliver_inv transition with
+    ⟨system, output, _, _, stateEq⟩
   rw [←stateEq]
   intro voter first second firstVote secondVote
   apply functional voter first second
@@ -1155,9 +1375,7 @@ lemma timeout_preserves_sent_votes_functional
     (functional : SentVotesFunctional before)
     (transition : next config before (.timeout target) = some after)
     : SentVotesFunctional after := by
-  simp [next, Option.bind_eq_some_iff] at transition
-  rcases transition with
-    ⟨_, system, output, _, _, stateEq⟩
+  rcases next_timeout_inv transition with ⟨system, output, _, stateEq⟩
   rw [←stateEq]
   intro voter first second firstVote secondVote
   apply functional voter first second

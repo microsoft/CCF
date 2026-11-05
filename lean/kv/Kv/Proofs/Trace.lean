@@ -14,6 +14,15 @@ namespace Kv.Proofs.Trace
 
 open Kv.Model Kv.Proofs.Invariants Kv.Properties Kv.Proofs.Model
 
+/-- The head of `after` is that of `before`, or follows from it by applying the listed attempt. -/
+inductive HeadEffect (before after : Store) : List Tx → Prop
+  /-- The head data and version are unchanged. -/
+  | stutter (data : after.head.data = before.head.data)
+    (version : after.head.version = before.head.version)
+    : HeadEffect before after []
+  /-- One attempt is applied. -/
+  | apply (tx : Tx) (one : tryApply before tx = some after) : HeadEffect before after [tx]
+
 theorem storeOf_ok (w : World) (sid : Nat) (s : Store)
     : storeOf w sid = .ok s ↔ find w.stores sid = some s := by
   cases h : find w.stores sid <;> simp [storeOf, present, invalid, h]
@@ -64,15 +73,12 @@ theorem snapshot_store_effect (w next : World) (sid : Nat) (s : Store)
     (id tid version global term : Nat) (hs : find w.stores sid = some s)
     (accepted : stepEvent w (.snapshot id tid version global term) = .ok next)
     : ∃ after, find next.stores sid = some after ∧ HeadEffect s after [] := by
-  simp only [stepEvent, Bind.bind, Pure.pure, Except.bind, Except.pure] at accepted
-  cases ho : storeOf w id with
-  | error err => simp [ho] at accepted
-  | ok old =>
-      simp only [ho] at accepted
-      have same := withTx_preserves_stores _ next id tid _ accepted
-      apply stable_update_store_effect w next sid id s old _ hs
-        ((storeOf_ok w id old).mp ho) same
-      split <;> rfl
+  cases stepEvent_effect w next _ accepted with
+  | same stores _ _ | update _ _ stores _ _ =>
+      exact ⟨s, by rw [stores]; exact hs, .stutter rfl rfl⟩
+  | snapshot store _ head _ _ _ stores _ =>
+      exact stable_update_store_effect w next sid _ s _ _ hs ((storeOf_ok _ _ _).mp store) stores
+        head
 
 theorem stepEvent_store_effect (w next : World) (sid : Nat) (s : Store) (e : Event)
     (hs : find w.stores sid = some s) (segment : SegmentEvent sid e)
@@ -80,41 +86,41 @@ theorem stepEvent_store_effect (w next : World) (sid : Nat) (s : Store) (e : Eve
     : ∃ after,
         find next.stores sid = some after
         ∧ HeadEffect s after (projectedApplication w sid e) := by
-  cases e <;> try first
-    | exact unchanged_store_effect w next sid s _ hs
-        (withTx_preserves_stores w next _ _ _ accepted) rfl
-    | exact snapshot_store_effect w next sid s _ _ _ _ _ hs accepted
-  all_goals simp only [stepEvent, Bind.bind, Pure.pure, Except.bind, Except.pure,
-    require, expect, invalid, reject] at accepted
-  all_goals simp only [SegmentEvent] at segment
-  all_goals repeat' first
-    | contradiction
-    | exact unchanged_store_effect w next sid s _ hs
-        (withTx_preserves_stores w next _ _ _ accepted) rfl
-    | exact ⟨s, hs, .stutter rfl rfl⟩
-    | exact ⟨s, by simpa [find_set_other, find_erase_other, segment] using hs, .stutter rfl rfl⟩
-    | cases accepted
-    | split at accepted
-  all_goals first
-    | exact stable_update_store_effect w _ sid _ s _ _ hs
-        ((storeOf_ok _ _ _).mp (by assumption)) rfl (compact_preserves_head _ _)
-    | exact applied_update_store_effect w _ sid _ _ s _ _ _ hs
-        (by assumption) (by assumption) (by assumption) rfl
+  cases stepEvent_effect w next e accepted with
+  | same stores _ noApply =>
+      exact unchanged_store_effect w next sid s _ hs stores (noApply sid)
+  | storeCreate stores _ | rollback _ stores _ =>
+      exact ⟨
+        s,
+        by rw [stores, find_set_other _ _ _ _ segment]; exact hs,
+        .stutter rfl rfl
+      ⟩
+  | storeEnd stores _ =>
+      exact ⟨
+        s,
+        by rw [stores, find_erase_other _ _ _ segment]; exact hs,
+        .stutter rfl rfl
+      ⟩
+  | txCreate stores _ | txEnd stores _ | acquire _ _ _ stores _ =>
+      exact unchanged_store_effect w next sid s _ hs stores rfl
+  | compact store stores _ =>
+      exact stable_update_store_effect w next sid _ s _ _ hs ((storeOf_ok _ _ _).mp store) stores
+        (compact_preserves_head _ _)
+  | snapshot store _ head _ _ _ stores _ =>
+      exact stable_update_store_effect w next sid _ s _ _ hs ((storeOf_ok _ _ _).mp store) stores
+        head
+  | apply store tx applied stores _ =>
+      exact applied_update_store_effect w next sid _ _ s _ _ _ hs store tx applied stores
+  | update _ _ stores _ noApply =>
+      exact unchanged_store_effect w next sid s _ hs stores (noApply sid)
 
 theorem step_event_result (w next : World) (r : Record) (accepted : step w r = .ok next)
     : ∃ eventNext,
         stepEvent w r.event = .ok eventNext
         ∧ next.stores = eventNext.stores
         ∧ next.txs = eventNext.txs := by
-  simp only [step, Bind.bind, Pure.pure, Except.bind, Except.pure,
-    require, invalid] at accepted
-  repeat' first
-    | contradiction
-    | cases accepted
-    | split at accepted
-  all_goals
-    rename_i eventNext he
-    exact ⟨eventNext, he, rfl, rfl⟩
+  obtain ⟨eventNext, event, rfl⟩ := step_ok accepted
+  exact ⟨eventNext, event, rfl, rfl⟩
 
 theorem step_store_effect (w next : World) (sid : Nat) (s : Store) (r : Record)
     (hs : find w.stores sid = some s) (segment : SegmentEvent sid r.event)
@@ -244,6 +250,13 @@ theorem foldlM_tx_fixed {A B : Type} (g : Tx → B) (items : List A)
           have rest : items.foldlM f middle = .ok next := by simpa [one] using accepted
           exact (ih middle rest).trans (fixed t a middle one)
 
+private theorem absent_ne {xs : Assoc String GlobalView} {map wanted : String}
+    {view : GlobalView} (absent : find xs map = none) (found : find xs wanted = some view)
+    : map ≠ wanted :=
+  fun same => by
+    rw [same, found] at absent
+    cases absent
+
 theorem clearWrites_snapshot_fixed (entries : Assoc String String) (map : String)
     (t next : Tx) (accepted : clearWrites t map entries = .ok next)
     : next.snapshot = t.snapshot :=
@@ -255,13 +268,85 @@ theorem clearWrites_snapshot_fixed (entries : Assoc String String) (map : String
 theorem acquireMap_snapshot_fixed (s : Store) (t next : Tx) (map : String)
     (version global : Nat) (accepted : acquireMap s t map version global = .ok next)
     : next.snapshot = t.snapshot := by
-  simp only [acquireMap, Bind.bind, Pure.pure, Except.bind, Except.pure,
-    require, expect, invalid, reject] at accepted
-  repeat' first
-    | contradiction
-    | rfl
-    | cases accepted
-    | split at accepted
+  obtain ⟨_, _, _, _, _, rfl⟩ := acquireMap_ok accepted
+  rfl
+
+/-- The attempt keeps its captured snapshot, global views and pinned map data. -/
+private def Kept (before after : Tx) : Prop :=
+  (∀ snap, before.snapshot = some snap → after.snapshot = some snap)
+  ∧ ∀ map view,
+      find before.globalViews map = some view
+      → find after.globalViews map = some view
+        ∧ image after.data map = image before.data map
+
+private theorem Kept.refl (t : Tx) : Kept t t := ⟨fun _ h => h, fun _ _ h => ⟨h, rfl⟩⟩
+
+private theorem Kept.frozen {t next : Tx} (frozen : Frozen t next) : Kept t next :=
+  ⟨
+    fun _ h => frozen.snapshot.trans h,
+    fun _ _ h => by
+      rw [frozen.globals, frozen.data]
+      exact ⟨h, rfl⟩
+  ⟩
+
+private theorem set_kept {xs : Assoc Nat Tx} {tid id : Nat} {before next : Tx}
+    (live : find xs tid = some before) (kept : id = tid → Kept before next)
+    : ∃ after, find (set xs id next) tid = some after ∧ Kept before after := by
+  by_cases h : id = tid
+  · subst h
+    exact ⟨next, find_set_same _ _ _, kept rfl⟩
+  · exact ⟨before, by rw [find_set_other _ _ _ _ h]; exact live, Kept.refl before⟩
+
+private theorem stepEvent_attempt_kept (w next : World) (tid : Nat) (before : Tx)
+    (e : Event) (live : find w.txs tid = some before) (segment : AttemptEvent tid e)
+    (accepted : stepEvent w e = .ok next)
+    : ∃ after, find next.txs tid = some after ∧ Kept before after := by
+  cases stepEvent_effect w next e accepted with
+  | same _ txs | storeCreate _ txs | storeEnd _ txs | compact _ _ txs | rollback _ _ txs
+    =>
+      exact ⟨before, by rw [txs]; exact live, Kept.refl before⟩
+  | txCreate _ txs =>
+      exact ⟨
+        before,
+        by rw [txs, find_set_other _ _ _ _ segment]; exact live,
+        Kept.refl before
+      ⟩
+  | txEnd _ txs =>
+      exact ⟨
+        before,
+        by rw [txs, find_erase_other _ _ _ segment]; exact live,
+        Kept.refl before
+      ⟩
+  | snapshot _ _ _ _ tx fresh _ txs =>
+      rw [txs]
+      refine set_kept live fun same => ?_
+      subst same
+      cases tx.symm.trans live
+      exact ⟨fun _ h => (by rw [fresh] at h; cases h), fun _ _ h => ⟨h, rfl⟩⟩
+  | acquire _ tx acquired _ txs =>
+      rw [txs]
+      refine set_kept live fun same => ?_
+      subst same
+      cases (txOf_found _ _ _ _ tx).symm.trans live
+      obtain ⟨snap, _, fresh, _, _, rfl⟩ := acquireMap_ok acquired
+      refine ⟨fun _ h => h, fun map view h => ?_⟩
+      have other := absent_ne fresh h
+      exact ⟨
+        by rw [find_set_other _ _ _ _ other]; exact h,
+        Invariants.pinData_other _ _ _ _ (Ne.symm other)
+      ⟩
+  | apply _ tx _ _ txs =>
+      rw [txs]
+      refine set_kept live fun same => ?_
+      subst same
+      cases (txOf_found _ _ _ _ tx).symm.trans live
+      exact Kept.refl _
+  | update tx frozen _ txs =>
+      rw [txs]
+      refine set_kept live fun same => ?_
+      subst same
+      cases (txOf_found _ _ _ _ tx).symm.trans live
+      exact Kept.frozen frozen
 
 theorem stepEvent_snapshot_fixed (w next : World) (tid : Nat) (before after : Tx)
     (snap : Snapshot) (e : Event)
@@ -269,16 +354,10 @@ theorem stepEvent_snapshot_fixed (w next : World) (tid : Nat) (before after : Tx
     (captured : before.snapshot = some snap) (segment : AttemptEvent tid e)
     (accepted : stepEvent w e = .ok next)
     : after.snapshot = some snap := by
-  cases e <;> simp only [stepEvent, withTx, Bind.bind, Pure.pure, Except.bind, Except.pure,
-    require, expect, invalid, reject] at accepted
-  all_goals simp only [AttemptEvent] at segment
-  all_goals repeat' first
-    | contradiction
-    | cases accepted
-    | split at accepted
-  all_goals grind only [→ txOf_found, → runOp_preserves_snapshot, → clearWrites_snapshot_fixed,
-    → acquireMap_snapshot_fixed,
-    find_set_cases, find_erase_cases]
+  obtain ⟨found, live', kept⟩ :=
+    stepEvent_attempt_kept w next tid before e live segment accepted
+  cases stillLive.symm.trans live'
+  exact kept.1 snap captured
 
 theorem step_snapshot_fixed (w next : World) (tid : Nat) (before after : Tx)
     (snap : Snapshot) (r : Record)
@@ -301,16 +380,8 @@ theorem stepEvent_attempt_live (w next : World) (tid : Nat) (before : Tx) (e : E
     (live : find w.txs tid = some before) (segment : AttemptEvent tid e)
     (accepted : stepEvent w e = .ok next)
     : ∃ after, find next.txs tid = some after := by
-  cases e <;> simp only [stepEvent, withTx, Bind.bind, Pure.pure, Except.bind, Except.pure,
-    require, expect, invalid, reject] at accepted
-  all_goals simp only [AttemptEvent] at segment
-  all_goals repeat' first
-    | contradiction
-    | exact ⟨before, live⟩
-    | exact find_set_live _ tid before _ _ live
-    | exact ⟨before, by simpa [find_erase_other, segment] using live⟩
-    | cases accepted
-    | split at accepted
+  obtain ⟨after, found, -⟩ := stepEvent_attempt_kept w next tid before e live segment accepted
+  exact ⟨after, found⟩
 
 theorem replay_attempt_invariant (tid : Nat) (P : Tx → Prop)
     (preserve
@@ -359,13 +430,17 @@ theorem stepEvent_capture_metadata (w next : World) (sid tid version global term
     (capturedTx : find next.txs tid = some t)
     : ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term := by
   refine ⟨{ current := s.head, term }, ?_, rfl, rfl⟩
-  simp only [stepEvent, withTx, source, Bind.bind, Pure.pure, Except.bind, Except.pure,
-    expect, invalid, reject] at accepted
-  repeat' first
-    | contradiction
-    | cases accepted
-    | split at accepted
-  all_goals grind only [find_set_cases]
+  obtain ⟨_, store, accepted⟩ := bind_ok accepted
+  cases source.symm.trans store
+  obtain ⟨_, _, -, h, rfl⟩ := withTx_ok accepted
+  obtain ⟨_, -, h⟩ := bind_ok h
+  split at h
+  · obtain ⟨_, -, h⟩ := bind_ok h
+    cases pure_ok h
+    simp only [find_set_same, Option.some.injEq] at capturedTx
+    subst capturedTx
+    rfl
+  · cases h
 
 theorem step_capture_metadata (w next : World) (sid tid version global term seq : Nat)
     (s : Store) (t : Tx) (source : storeOf w sid = .ok s)
@@ -380,13 +455,16 @@ theorem stepEvent_capture_cut_values (w next : World) (sid tid version global te
     (s : Store) (source : storeOf w sid = .ok s)
     (accepted : stepEvent w (.snapshot sid tid version global term) = .ok next)
     : version = s.head.version ∧ global = s.global := by
-  simp only [stepEvent, withTx, source, Bind.bind, Pure.pure, Except.bind, Except.pure,
-    expect, invalid, reject] at accepted
-  repeat' first
-    | contradiction
-    | cases accepted
-    | split at accepted
-  all_goals grind only
+  obtain ⟨_, store, accepted⟩ := bind_ok accepted
+  cases source.symm.trans store
+  obtain ⟨_, _, -, h, -⟩ := withTx_ok accepted
+  obtain ⟨_, -, h⟩ := bind_ok h
+  split at h
+  · obtain ⟨_, metadata, -⟩ := bind_ok h
+    have metadata := expect_ok metadata
+    simp only [Bool.and_eq_true, beq_iff_eq] at metadata
+    exact metadata.1
+  · cases h
 
 theorem step_capture_cut_values (w next : World) (sid tid version global term seq : Nat)
     (s : Store) (source : storeOf w sid = .ok s)
@@ -473,13 +551,13 @@ theorem stepEvent_get_global (w next : World) (sid tid : Nat) (map key : String)
     (source : txOf w sid tid = .ok t) (captured : find t.globalViews map = some view)
     (accepted : stepEvent w (.get sid tid map key value true) = .ok next)
     : value = (find view.frame.data (map, key)).map Cell.value := by
-  simp only [stepEvent, withTx, source, globalOf, captured, present,
-    Bind.bind, Pure.pure, Except.bind, Except.pure, expect, reject] at accepted
-  repeat' first
-    | contradiction
-    | cases accepted
-    | split at accepted
-  all_goals grind only
+  obtain ⟨_, _, tx, h, -⟩ := withTx_ok accepted
+  cases source.symm.trans tx
+  obtain ⟨_, -, h⟩ := bind_ok h
+  obtain ⟨_, found, h⟩ := bind_ok h
+  cases captured.symm.trans (present_ok found)
+  obtain ⟨_, observed, -⟩ := bind_ok h
+  exact (beq_iff_eq.mp (expect_ok observed)).symm
 
 theorem map_global_view_safety (view : GlobalView) (valid : GlobalInvariant view)
     : view.frame = {}
@@ -514,13 +592,13 @@ theorem stepEvent_has_global (w next : World) (sid tid : Nat) (map key : String)
     (source : txOf w sid tid = .ok t) (captured : find t.globalViews map = some view)
     (accepted : stepEvent w (.has sid tid map key value true) = .ok next)
     : value = (find view.frame.data (map, key)).isSome := by
-  simp only [stepEvent, withTx, source, globalOf, captured, present,
-    Bind.bind, Pure.pure, Except.bind, Except.pure, expect, reject] at accepted
-  repeat' first
-    | contradiction
-    | cases accepted
-    | split at accepted
-  all_goals grind only
+  obtain ⟨_, _, tx, h, -⟩ := withTx_ok accepted
+  cases source.symm.trans tx
+  obtain ⟨_, -, h⟩ := bind_ok h
+  obtain ⟨_, found, h⟩ := bind_ok h
+  cases captured.symm.trans (present_ok found)
+  obtain ⟨_, observed, -⟩ := bind_ok h
+  exact (beq_iff_eq.mp (expect_ok observed)).symm
 
 theorem step_global_has_from_captured_map (w next : World) (sid tid seq : Nat)
     (valid : WorldInvariant w)
@@ -562,14 +640,16 @@ theorem stepEvent_map_capture (w next : World) (sid tid localVersion globalVersi
     : find after.globalViews map = some (captureGlobal s snap map)
       ∧ localVersion = (revision (captureLocal s snap map) map).version
       ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version := by
-  simp only [stepEvent, withTx, acquireMap, store, tx, snapOf, snapshot, present,
-    Bind.bind, Pure.pure, Except.bind, Except.pure, require, expect, invalid, reject,
-    captureGlobal_current] at accepted
-  repeat' first
-    | contradiction
-    | cases accepted
-    | split at accepted
-  all_goals grind only [find_set_cases]
+  obtain ⟨_, store', accepted⟩ := bind_ok accepted
+  cases store.symm.trans store'
+  obtain ⟨_, _, tx', h, rfl⟩ := withTx_ok accepted
+  cases tx.symm.trans tx'
+  obtain ⟨_, captured, -, versions, _, rfl⟩ := acquireMap_ok h
+  cases snapshot.symm.trans captured
+  simp only [find_set_same, Option.some.injEq] at live
+  subst live
+  rw [captureGlobal_current] at versions
+  exact ⟨find_set_same _ _ _, versions⟩
 
 theorem step_map_capture (w next : World) (sid tid localVersion globalVersion seq : Nat)
     (map : String) (s : Store) (before after : Tx) (snap : Snapshot)
@@ -611,16 +691,10 @@ theorem acquireMap_global_fixed (s : Store) (t next : Tx) (map wanted : String)
     (captured : find t.globalViews wanted = some view)
     (accepted : acquireMap s t map version global = .ok next)
     : find next.globalViews wanted = some view := by
-  simp only [acquireMap, Bind.bind, Pure.pure, Except.bind, Except.pure,
-    require, expect, invalid, reject] at accepted
-  repeat' first
-    | contradiction
-    | cases accepted
-    | split at accepted
-  all_goals
-    by_cases hm : map = wanted
-    · subst map; simp_all
-    · simpa [find_set_other, hm] using captured
+  obtain ⟨_, _, fresh, _, _, rfl⟩ := acquireMap_ok accepted
+  have other := absent_ne fresh captured
+  rw [find_set_other _ _ _ _ other]
+  exact captured
 
 theorem stepEvent_map_global_fixed (w next : World) (tid : Nat) (before after : Tx)
     (map : String) (view : GlobalView) (e : Event)
@@ -628,16 +702,10 @@ theorem stepEvent_map_global_fixed (w next : World) (tid : Nat) (before after : 
     (captured : find before.globalViews map = some view) (segment : AttemptEvent tid e)
     (accepted : stepEvent w e = .ok next)
     : find after.globalViews map = some view := by
-  cases e <;> simp only [stepEvent, withTx, Bind.bind, Pure.pure, Except.bind, Except.pure,
-    require, expect, invalid, reject] at accepted
-  all_goals simp only [AttemptEvent] at segment
-  all_goals repeat' first
-    | contradiction
-    | cases accepted
-    | split at accepted
-  all_goals grind only [→ txOf_found, → runOp_globalViews_fixed, → clearWrites_globalViews_fixed,
-    → acquireMap_global_fixed,
-    find_set_cases, find_erase_cases]
+  obtain ⟨found, live', kept⟩ :=
+    stepEvent_attempt_kept w next tid before e live segment accepted
+  cases stillLive.symm.trans live'
+  exact (kept.2 map view captured).1
 
 theorem step_map_global_fixed (w next : World) (tid : Nat) (before after : Tx)
     (map : String) (view : GlobalView) (r : Record) (live : find w.txs tid = some before)
@@ -685,16 +753,9 @@ theorem acquireMap_data_fixed (s : Store) (t next : Tx) (map wanted : String)
     (captured : find t.globalViews wanted = some view)
     (accepted : acquireMap s t map version global = .ok next)
     : image next.data wanted = image t.data wanted := by
-  simp only [acquireMap, Bind.bind, Pure.pure, Except.bind, Except.pure,
-    require, expect, invalid, reject] at accepted
-  repeat' first
-    | contradiction
-    | cases accepted
-    | split at accepted
-  all_goals
-    by_cases hm : map = wanted
-    · subst map; simp_all
-    · exact Invariants.pinData_other _ _ _ _ (Ne.symm hm)
+  obtain ⟨_, _, fresh, _, _, rfl⟩ := acquireMap_ok accepted
+  have other := absent_ne fresh captured
+  exact Invariants.pinData_other _ _ _ _ (Ne.symm other)
 
 theorem stepEvent_map_local_fixed (w next : World) (tid : Nat) (before after : Tx)
     (map : String) (view : GlobalView) (e : Event)
@@ -702,15 +763,10 @@ theorem stepEvent_map_local_fixed (w next : World) (tid : Nat) (before after : T
     (captured : find before.globalViews map = some view) (segment : AttemptEvent tid e)
     (accepted : stepEvent w e = .ok next)
     : image after.data map = image before.data map := by
-  cases e <;> simp only [stepEvent, withTx, Bind.bind, Pure.pure, Except.bind, Except.pure,
-    require, expect, invalid, reject] at accepted
-  all_goals simp only [AttemptEvent] at segment
-  all_goals repeat' first
-    | contradiction
-    | cases accepted
-    | split at accepted
-  all_goals grind only [→ txOf_found, → runOp_data_fixed, → clearWrites_data_fixed,
-    → acquireMap_data_fixed, find_set_cases, find_erase_cases]
+  obtain ⟨found, live', kept⟩ :=
+    stepEvent_attempt_kept w next tid before e live segment accepted
+  cases stillLive.symm.trans live'
+  exact (kept.2 map view captured).2
 
 theorem replay_map_local_fixed (w final : World) (tid : Nat) (before : Tx) (map : String)
     (view : GlobalView) (rs : List Record) (live : find w.txs tid = some before)

@@ -12,6 +12,54 @@ namespace Kv.Proofs.Properties
 
 open Kv.Model Kv.Properties
 
+theorem transaction_snapshot_serial
+    : ∀ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        → find w.txs tid = some t
+        → t.snapshot = some snap
+        → serialRun t.data [] t.normal.log = some t.normal.writes := by
+  intro w tid t snap reachable live captured
+  exact Proofs.Model.transaction_snapshot_serial t snap
+    ((Proofs.Invariants.reachable_invariant w reachable).txs tid t live).normal captured
+
+theorem transaction_application_serial
+    : ∀ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        → storeOf w sid = .ok s
+        → txOf w sid tid = .ok t
+        → t.snapshot = some snap
+        → canApply s t = true
+        → serialRun s.head.data [] t.normal.log = some t.normal.writes := by
+  intro w sid tid s t snap reachable _store tx captured applies
+  exact Proofs.Model.transaction_application_serial s t snap
+    (Proofs.Invariants.txOf_invariant w
+      (Proofs.Invariants.reachable_invariant w reachable) sid tid t tx).normal
+    captured applies
+
+theorem executable_branch_serializability
+    : ∀ (s final : Store) (ts : List Tx),
+        (∀ t ∈ ts,
+          ∃ (w : World) (tid : Nat),
+            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+        → AppliedBranch s ts final
+        → serialTransactions s.head.data s.head.version ts = some final.head.data := by
+  intro s final ts reachable branch
+  apply Proofs.Model.executable_branch_serializability s final ts _ branch
+  intro t member
+  obtain ⟨w, tid, reached, live⟩ := reachable t member
+  exact ((Proofs.Invariants.reachable_invariant w reached).txs tid t live).normal
+
+theorem durable_cut_survives_rollback
+    : ∀ (w : World) (sid : Nat) (s : Store) (v term cut : Nat),
+        Model.transitionSystem.Reachable w
+        → find w.stores sid = some s
+        → cut ≤ s.global
+        → s.global ≤ v
+        → (atCut (rollbackStore s v term) cut).data = (atCut s cut).data := by
+  intro w sid s v term cut reachable live below boundary
+  exact Proofs.Model.durable_cut_survives_rollback s v term cut
+    ((Proofs.Invariants.reachable_invariant w reachable).stores sid s live) below boundary
+
 theorem replay_segment_serializability
     : ∀ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
         Model.transitionSystem.Reachable w
