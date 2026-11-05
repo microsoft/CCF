@@ -321,9 +321,11 @@ namespace ccf::kv
     virtual void start_map(const std::string& name, SecurityDomain domain) = 0;
     virtual void serialise_raw(const std::vector<uint8_t>& raw) = 0;
     // Appends a size-prefixed payload of the given size, written in place by
-    // fill, to avoid an intermediate copy of large payloads
+    // fill, to avoid an intermediate copy of large payloads. fill is passed
+    // the payload's span, of exactly size bytes, and must write all of it.
+    // Serialisers which only measure sizes do not call fill.
     virtual void serialise_raw_in_place(
-      size_t size, const std::function<void(uint8_t*)>& fill) = 0;
+      size_t size, const std::function<void(std::span<uint8_t>)>& fill) = 0;
     virtual void serialise_view_history(
       const std::vector<Version>& view_history) = 0;
     virtual void serialise_entry_version(const Version& version) = 0;

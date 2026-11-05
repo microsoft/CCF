@@ -286,8 +286,9 @@ namespace ccf::kv::untyped
         s.serialise_entry_version(version);
 
         s.serialise_raw_in_place(
-          map_snapshot->get_serialized_size(),
-          [this](uint8_t* data) { map_snapshot->serialize(data); });
+          map_snapshot->get_serialized_size(), [this](std::span<uint8_t> data) {
+            map_snapshot->serialize(data.data());
+          });
       }
 
       [[nodiscard]] SecurityDomain get_security_domain() const override

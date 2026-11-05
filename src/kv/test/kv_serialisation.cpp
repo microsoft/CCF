@@ -14,6 +14,8 @@
 #include <array>
 #include <cstring>
 #include <limits>
+#include <numeric>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -496,7 +498,8 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "RawWriter and SizeWriter agree" * doctest::test_suite("serialisation"))
+  "RawWriter, SizeWriter and SpanWriter agree" *
+  doctest::test_suite("serialisation"))
 {
   const auto check = [](const auto& entry) {
     ccf::kv::RawWriter raw_writer;
@@ -506,6 +509,16 @@ TEST_CASE(
     size_writer.append(entry);
     REQUIRE(raw_writer.size() == expected_size);
     REQUIRE(size_writer.size() == expected_size);
+
+    // A SpanWriter writes the same bytes into a buffer of exactly that size,
+    // and nothing beyond it
+    std::vector<uint8_t> buffer(expected_size);
+    ccf::kv::SpanWriter span_writer(buffer);
+    span_writer.append(entry);
+    REQUIRE(span_writer.size() == expected_size);
+    REQUIRE(buffer == raw_writer.get_raw_data());
+    REQUIRE_THROWS_AS(span_writer.append(entry), std::length_error);
+    REQUIRE(span_writer.size() == expected_size);
   };
 
   check(ccf::kv::EntryType::WriteSetWithCommitEvidenceAndClaims);
@@ -520,6 +533,53 @@ TEST_CASE(
   check(std::vector<ccf::kv::Version>{1, 2, 3});
   check(ccf::kv::serialisers::SerialisedEntry());
   check(ccf::kv::serialisers::SerialisedEntry(91, 'y'));
+}
+
+TEST_CASE(
+  "Writers append size-prefixed payloads in place" *
+  doctest::test_suite("serialisation"))
+{
+  for (const size_t payload_size : {0, 37})
+  {
+    INFO(payload_size);
+    std::vector<uint8_t> payload(payload_size);
+    std::iota(payload.begin(), payload.end(), uint8_t{1});
+    ccf::kv::RawWriter expected;
+    expected.append(payload);
+
+    size_t fills = 0;
+    const auto fill = [&](std::span<uint8_t> out) {
+      ++fills;
+      REQUIRE(out.size() == payload.size());
+      std::ranges::copy(payload, out.begin());
+    };
+
+    ccf::kv::RawWriter raw_writer;
+    raw_writer.append_size_prefixed_in_place(payload_size, fill);
+    REQUIRE(raw_writer.get_raw_data() == expected.get_raw_data());
+
+    // Only measures, so does not fill
+    ccf::kv::SizeWriter size_writer;
+    size_writer.append_size_prefixed_in_place(payload_size, fill);
+    REQUIRE(size_writer.size() == expected.size());
+
+    std::vector<uint8_t> buffer(expected.size());
+    ccf::kv::SpanWriter span_writer(buffer);
+    span_writer.append_size_prefixed_in_place(payload_size, fill);
+    REQUIRE(span_writer.size() == expected.size());
+    REQUIRE(buffer == expected.get_raw_data());
+
+    // A buffer too small for the payload is detected before filling it
+    std::vector<uint8_t> small_buffer(expected.size() - 1);
+    ccf::kv::SpanWriter small_writer(small_buffer);
+    REQUIRE_THROWS_AS(
+      small_writer.append_size_prefixed_in_place(payload_size, fill),
+      std::length_error);
+    REQUIRE(small_writer.size() == 0);
+
+    // Empty payloads are not filled
+    REQUIRE(fills == (payload_size == 0 ? 0 : 2));
+  }
 }
 
 TEST_CASE(
