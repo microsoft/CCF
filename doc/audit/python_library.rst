@@ -202,3 +202,5 @@ API
 
 .. automodule:: ccf.receipt
     :members:
+
+.. autofunction:: ccf.cose.verify_receipt
