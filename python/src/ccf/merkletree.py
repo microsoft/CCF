@@ -36,7 +36,11 @@ class MerkleTree:
 
     @property
     def leaves(self) -> list[bytes]:
-        """Return the retained leaves, excluding flushed subtree roots."""
+        """Return the retained leaves, excluding flushed subtree roots.
+
+        leaves[0] is the first unflushed leaf, so once the tree has been
+        flushed, leaves[i] is not get_leaf(i), which takes an absolute index.
+        """
         return self._levels[0][self._first_unflushed_offset :]
 
     def get_leaf(self, index: int) -> bytes:
@@ -67,11 +71,19 @@ class MerkleTree:
 
         self.get_merkle_root()
         for level_idx, level in enumerate(self._levels):
-            # Keep the left sibling when the path to index goes right.
-            old_start = (self._num_flushed >> level_idx) & ~1
-            new_start = (index >> level_idx) & ~1
+            old_start = self._level_start(self._num_flushed, level_idx)
+            new_start = self._level_start(index, level_idx)
             del level[: new_start - old_start]
         self._num_flushed = index
+
+    @staticmethod
+    def _level_start(num_flushed: int, level: int) -> int:
+        """Absolute index of the first node retained at level.
+
+        Rounded down to even, so that when the path to the first unflushed
+        leaf goes right, its left sibling is kept to recompute the root.
+        """
+        return (num_flushed >> level) & ~1
 
     def get_merkle_root(self) -> bytes:
         if self._root is None:
