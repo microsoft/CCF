@@ -80,6 +80,9 @@ namespace ccf::tls
       // Loop to register this server's handles on.
       uv_loop_t* loop = uv_default_loop();
 
+      // Optional. Runs once on a connection worker after each TLS handshake,
+      // before any application reads or writes; returning false closes the
+      // connection. See OpenSSLConnectionEngine::OnHandshake.
       OnHandshake on_handshake = {};
       // Linux TCP_USER_TIMEOUT, independent of application inactivity.
       // Unset preserves the operating system's defaults for RPC.

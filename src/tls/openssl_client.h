@@ -25,6 +25,9 @@ namespace ccf::tls
       std::optional<std::chrono::milliseconds> idle_timeout = std::nullopt;
       std::atomic<::tcp::ConnID>* shared_next_id = nullptr;
       std::shared_ptr<InboundAdmission> inbound_admission = nullptr;
+      // Optional. Runs once on a connection worker after each TLS handshake,
+      // before any application reads or queued writes; returning false closes
+      // the connection. See OpenSSLConnectionEngine::OnHandshake.
       OnHandshake on_handshake = {};
     };
 
@@ -37,7 +40,11 @@ namespace ccf::tls
       uint16_t source_port = 0;
       // Configured by the owner before submission; do not mutate while in use.
       std::shared_ptr<SSL_CTX> tls_context = nullptr;
-      std::chrono::milliseconds timeout{5000};
+      // Bounds each establishment phase separately, not the whole attempt:
+      // target resolution, source resolution (if any), each TCP address
+      // candidate, and the TLS handshake. An attempt with N address candidates
+      // can therefore take up to (N + 3) times this before OnClose.
+      std::chrono::milliseconds per_phase_timeout{5000};
       std::optional<std::chrono::milliseconds> tcp_user_timeout = std::nullopt;
     };
 
@@ -127,7 +134,7 @@ namespace ccf::tls
         .tls_context = std::move(dial.config.tls_context),
         .outgoing = true,
         .poll = std::exchange(dial.poll, nullptr),
-        .handshake_timeout = dial.config.timeout,
+        .handshake_timeout = dial.config.per_phase_timeout,
         .pending_commands = std::move(dial.pending_commands)};
       dials.erase(id);
       if (!engine->adopt(std::move(socket)) && on_close)
@@ -213,7 +220,8 @@ namespace ccf::tls
         }
         dial.poll = poll.release();
         dial.poll->data = &dial;
-        dial.deadline = std::chrono::steady_clock::now() + dial.config.timeout;
+        dial.deadline =
+          std::chrono::steady_clock::now() + dial.config.per_phase_timeout;
         if (rc == 0)
         {
           connected(id);
@@ -263,7 +271,8 @@ namespace ccf::tls
       const auto& host = source ? dial.config.source_host : dial.config.host;
       const auto port =
         std::to_string(source ? dial.config.source_port : dial.config.port);
-      dial.deadline = std::chrono::steady_clock::now() + dial.config.timeout;
+      dial.deadline =
+        std::chrono::steady_clock::now() + dial.config.per_phase_timeout;
       const int rc = uv_getaddrinfo(
         loop,
         &request->request,
@@ -522,7 +531,7 @@ namespace ccf::tls
       details::validate_user_timeout(config.tcp_user_timeout);
       if (
         config.host.empty() || config.port == 0 ||
-        config.tls_context == nullptr || config.timeout.count() <= 0)
+        config.tls_context == nullptr || config.per_phase_timeout.count() <= 0)
       {
         throw std::invalid_argument(
           "Invalid outbound TLS connection configuration");

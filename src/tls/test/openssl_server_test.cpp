@@ -839,7 +839,7 @@ namespace
         .port = server->port(),
         .source_host = "127.0.0.2",
         .tls_context = client_ctx,
-        .timeout = std::chrono::milliseconds(500),
+        .per_phase_timeout = std::chrono::milliseconds(500),
         .tcp_user_timeout = std::chrono::milliseconds(1234)};
     }
 
@@ -1321,7 +1321,7 @@ TEST_CASE("Outbound stalled TLS establishment times out, cancels and stops")
   blackhole->start();
   auto config = pair.config();
   config.port = blackhole->port();
-  config.timeout = std::chrono::milliseconds(200);
+  config.per_phase_timeout = std::chrono::milliseconds(200);
   const auto id = pair.client->connect(config).value();
   pair.client->send(id, std::vector<uint8_t>(1024 * 1024, 1));
   pair.loop.start();
@@ -1439,7 +1439,7 @@ TEST_CASE("Outbound reconnect from OnClose during shutdown is refused")
     EnginePair pair;
     auto config = pair.config();
     // Long enough that only shutdown, never a timeout, ends the attempt.
-    config.timeout = std::chrono::seconds(30);
+    config.per_phase_timeout = std::chrono::seconds(30);
     std::vector<std::optional<::tcp::ConnID>> reconnects;
     bool threw = false;
     pair.on_client_close = [&](::tcp::ConnID) {
@@ -1519,7 +1519,7 @@ TEST_CASE("Outbound late DNS completion is safe after timeout or destruction")
   {
     EnginePair pair;
     auto config = pair.config();
-    config.timeout = std::chrono::milliseconds(100);
+    config.per_phase_timeout = std::chrono::milliseconds(100);
     REQUIRE(pair.client->connect(config).has_value());
     pair.loop.start();
     bool completed = false;
@@ -1599,7 +1599,8 @@ TEST_CASE("Outbound candidate timeout falls back without losing queued data")
   suppress_connect_poll = false;
 
   REQUIRE(received);
-  CHECK(std::chrono::steady_clock::now() - started_at >= config.timeout);
+  CHECK(
+    std::chrono::steady_clock::now() - started_at >= config.per_phase_timeout);
   CHECK(suppressed_connect_polls == 1);
   CHECK(ordered.completions == 1);
   CHECK(socket_calls == sockets_before + ordered.candidates.size());
@@ -1613,7 +1614,7 @@ TEST_CASE("Outbound cancellation and shutdown during connect prevent retry")
   EnginePair pair;
   auto config = pair.config();
   config.source_host.clear();
-  config.timeout = std::chrono::milliseconds(100);
+  config.per_phase_timeout = std::chrono::milliseconds(100);
   suppressed_connect_polls = 0;
   suppress_connect_poll = true;
   const auto id = pair.client->connect(config).value();
@@ -1638,7 +1639,7 @@ TEST_CASE("Outbound cancellation and shutdown during connect prevent retry")
     CHECK(pair.client_closed == 1);
   }
   std::unique_lock<std::mutex> lock(pair.mutex);
-  CHECK_FALSE(pair.cv.wait_for(lock, config.timeout * 3, [&]() {
+  CHECK_FALSE(pair.cv.wait_for(lock, config.per_phase_timeout * 3, [&]() {
     return pair.client_closed != 1 || pair.client_handshakes != 0;
   }));
 }

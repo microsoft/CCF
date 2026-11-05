@@ -47,9 +47,11 @@ Initiating connections
 
 ``OpenSSLClient::connect()`` initiates TLS connections through the shared engine.
 It returns a connection id immediately (see below for when it does not), queues asynchronous ``uv_getaddrinfo`` resolution of the destination and optional source address, binds a matching local address when requested, and tries the resolved TCP candidates with non-blocking sockets.
-Each candidate has a timeout before falling back to the next address.
-Resolution and TLS establishment have their own bounded timeouts.
 TLS handshake failures and admission rejection terminate the attempt rather than retrying another address.
+
+``ConnectConfig::per_phase_timeout`` bounds each establishment phase separately: destination resolution, source resolution when requested, each TCP address candidate, and the TLS handshake.
+When a candidate times out, the client falls back to the next address.
+It is not an overall deadline: an attempt with several address candidates can take a multiple of this value before its close notification.
 
 The client owns each resolution/connect attempt until TCP establishment succeeds.
 It then transfers the connected socket, poll handle, TLS context, handshake timeout, and queued output to the engine.
@@ -161,10 +163,13 @@ Idle connections are closed separately. If an idle timeout is configured, a repe
 Threading
 ~~~~~~~~~
 
-``OpenSSLServer`` does not create a thread or a private reactor. It splits its work between the existing host ``libuv`` thread and the general task system, along a single dividing line:
+``OpenSSLServer``, ``OpenSSLClient`` and their shared ``OpenSSLConnectionEngine`` do not create a thread or a private reactor.
+They split their work between the existing host ``libuv`` thread and the general task system, along a single dividing line:
 
-- The **loop thread** owns everything that touches the server's own state: accepting connections, the connection and identifier maps, ``uv_poll_t`` registration, building and replacing the ``SSL_CTX``, sweeping idle connections, and finally closing file descriptors. It performs no ``SSL`` operations.
-- Each connection owns an :ccf_repo:`OrderedTasks </src/tasks/ordered_tasks.h>` queue, and every ``SSL`` operation for that connection - ``SSL_new``, ``SSL_accept``, ``SSL_read``, ``SSL_write``, ``SSL_shutdown``, ``SSL_free`` - runs there, as does the ``OnData`` callback. This keeps handshakes and bulk encryption off the loop thread.
+- The **loop thread** owns everything that touches transport state: accepting connections (server), resolving and dialing addresses (client), the connection and identifier maps, ``uv_poll_t`` registration, building and replacing the server ``SSL_CTX``, sweeping idle connections and establishment deadlines, and finally closing file descriptors.
+  It performs no ``SSL`` operations.
+- Each connection owns an :ccf_repo:`OrderedTasks </src/tasks/ordered_tasks.h>` queue, and every ``SSL`` operation for that connection - ``SSL_new``, ``SSL_do_handshake``, ``SSL_read``, ``SSL_write``, ``SSL_shutdown``, ``SSL_free`` - runs there, as do the ``OnHandshake`` and ``OnData`` callbacks.
+  This keeps handshakes and bulk encryption off the loop thread.
 
 Work reaches the loop in one of two ways: file descriptor readiness reported through ``uv_poll_t``, or a cross-thread request (a queued write, a close, or a certificate update) posted to a mutex-guarded queue and signalled through ``uv_async_t``. Either way the loop only ever *schedules* a pass over the connection; it never performs the I/O itself.
 
@@ -174,7 +179,8 @@ A connection is serviced by at most one worker pass at a time. Before dispatchin
 
     OpenSSL's error queue is **thread-local**, and successive passes over the same connection may run on different worker threads. ``SSL_get_error`` consults that queue, so an error left behind by unrelated work on the same thread can be misattributed to this connection.
 
-    Every ``SSL_accept``, ``SSL_read`` and ``SSL_write`` is therefore preceded by ``ERR_clear_error()``. Omitting this causes healthy keep-alive connections to be closed spuriously, because a stale error (for example a previous client disconnecting without ``close_notify``) is read as a fatal error on an unrelated connection.
+    Every ``SSL_do_handshake``, ``SSL_read`` and ``SSL_write`` is therefore preceded by ``ERR_clear_error()``.
+    Omitting this causes healthy keep-alive connections to be closed spuriously, because a stale error (for example a previous client disconnecting without ``close_notify``) is read as a fatal error on an unrelated connection.
 
 Unsecured interfaces
 ~~~~~~~~~~~~~~~~~~~~
@@ -184,16 +190,20 @@ An interface configured as ``UNSECURED`` runs the same loop with no ``SSL`` obje
 Outbound connections
 ~~~~~~~~~~~~~~~~~~~~
 
-``OpenSSLServer`` is inbound only. Outbound requests - fetching quote endorsements, refreshing JWT signing keys, and the recovery decision protocol - are made with libcurl, which does its own TLS.
+``OpenSSLServer`` is inbound only.
+``OpenSSLClient`` (see `Initiating connections`_) is the outbound counterpart built on the same connection engine, but no node component uses it yet.
+Existing outbound requests - fetching quote endorsements, refreshing JWT signing keys, and the recovery decision protocol - are made with libcurl, which does its own TLS.
 
-CCF no longer has any OpenSSL client helpers of its own: the ``CA`` and ``Cert`` wrappers were removed along with the last C++ clients that used them.
+The former ``CA`` and ``Cert`` OpenSSL client helpers were removed along with the last C++ clients that used them.
+``OpenSSLClient`` does not reintroduce them: its owner supplies an already configured ``SSL_CTX``.
 
 Why OpenSSL?
 ~~~~~~~~~~~~
 
 CCF originally used MbedTLS, and the OpenSSL implementation that replaced it emulated MbedTLS conventions, notably negated error codes and a memory-BIO indirection driven by callbacks.
 
-Both are now gone. ``OpenSSLServer`` calls ``SSL_read``/``SSL_write`` on a socket-backed ``SSL`` and interprets ``SSL_get_error`` directly, and ``src/tls`` no longer exists.
+Both are now gone.
+The connection engine calls ``SSL_read``/``SSL_write`` on a socket-backed ``SSL`` and interprets ``SSL_get_error`` directly.
 
 The reasons for OpenSSL remain:
 
