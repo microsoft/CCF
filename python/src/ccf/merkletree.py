@@ -26,19 +26,28 @@ class MerkleTree:
         self._root = None  # Need to recalculate
 
     @property
+    def _first_unflushed_offset(self) -> int:
+        """Position of the first unflushed leaf in _levels[0].
+
+        When _num_flushed is odd, _levels[0][0] is the flushed left sibling
+        of the first unflushed leaf, retained to recompute the root.
+        """
+        return self._num_flushed & 1
+
+    @property
     def leaves(self) -> list[bytes]:
         """Return the retained leaves, excluding flushed subtree roots."""
-        return self._levels[0][self._num_flushed & 1 :]
+        return self._levels[0][self._first_unflushed_offset :]
 
     def get_leaf(self, index: int) -> bytes:
         """Return a leaf by absolute index, raising IndexError if unavailable."""
         if index < self._num_flushed or index >= self.get_leaf_count():
             raise IndexError("Leaf index out of bounds")
-        return self._levels[0][index - self._num_flushed + (self._num_flushed & 1)]
+        return self._levels[0][index - self._num_flushed + self._first_unflushed_offset]
 
     def get_leaf_count(self) -> int:
         """Return the total number of leaves, including flushed leaves."""
-        return self._num_flushed + len(self._levels[0]) - (self._num_flushed & 1)
+        return self._num_flushed + len(self._levels[0]) - self._first_unflushed_offset
 
     def flush(self, index: int) -> None:
         """Discard leaves before an absolute index without changing the root.
