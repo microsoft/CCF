@@ -380,7 +380,7 @@ def measure(
     ) as collector:
         if collector is not None:
             args = copy.deepcopy(args)
-            args.observability = {"fluentd": collector.endpoint}
+            args.observability = {"fluentd": [collector.endpoint]}
         LOG.info(f"Starting nodes on {args.nodes} with {sig_ms_interval}ms signatures")
         with infra.network.network(
             args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb

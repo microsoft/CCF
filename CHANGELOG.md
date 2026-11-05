@@ -15,10 +15,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Changed
 
 - CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag (#8657).
+- `observability.fluentd` now accepts an array of independent sinks, and configurable delivery behaviour.
+  See [Observability Export](doc/operations/configuration.rst#observability-export) for more details (#8666).
 
 ### Fixed
 
 - `ccf::indexing::strategies::SeqnosByKey_Bucketed` queries remain unavailable while a rebuild is pending after a missing or corrupt index file is detected, including when indexing advances concurrently. See [Indexing](doc/architecture/indexing.rst) for rebuild behaviour (#8684).
+- Python ledger verification now uses less memory on large ledgers; see [Python Library](doc/audit/python_library.rst) (#8665).
 - `ccf.receipt.verify_cose` now rejects receipts that do not conform to the [CCF Profile for COSE Receipts, draft -06](https://www.ietf.org/archive/id/draft-ietf-scitt-receipts-ccf-profile-06.html), including malformed CBOR or proofs and proofs that do not all recompute the signed root, and `ccf::cose::edit::set_unprotected_header` now preserves all bytes outside the unprotected header. See [COSE Receipt Verification](doc/use_apps/verify_tx.rst#cose-receipt-verification) for details, including migration from the deprecated `ccf.cose.verify_receipt` (#8646).
 - Nodes no longer abort when a compaction races a transaction run outside of an endpoint, such as the primary's snapshot evidence transaction, a backup's lookup of the primary before fetching a snapshot, JWT key auto-refresh, or the network identity fetch; the operation is retried and otherwise skipped until its next scheduled run. A backup also no longer aborts if a fetched snapshot cannot be written to disk (#8652).
 - The `ccf.merkletree.MerkleTree` Python class now computes each root in time proportional to the leaves added since the previous root, so `ccf.ledger.LedgerValidator` no longer slows down as ledgers grow (#8660).
