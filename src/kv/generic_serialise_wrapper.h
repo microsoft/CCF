@@ -34,6 +34,11 @@ namespace ccf::kv
     // If true, consider historical ledger secrets when encrypting entries
     bool historical_hint;
 
+    // Set by finalise_in_place(), which encrypts the private domain in place
+    // with an IV determined by tx_id: encrypting it again, by either
+    // finalise_in_place() or get_raw_data(), would restore the plaintext
+    bool finalised = false;
+
     template <typename T>
     void serialise_internal(const T& t)
     {
@@ -75,6 +80,35 @@ namespace ccf::kv
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
       bool historical_hint_ = false,
       size_t max_transaction_size_ = max_serialised_entry_size) :
+      GenericSerialiseWrapper(
+        W{},
+        W{},
+        std::move(e),
+        tx_id_,
+        entry_type_,
+        header_flags_,
+        commit_evidence_digest_,
+        claims_digest_,
+        historical_hint_,
+        max_transaction_size_)
+    {}
+
+    // As above, serialising each domain with the given writer, e.g. a
+    // SpanWriter over that domain's region of the output entry (see
+    // public_domain_offset() and finalise_in_place())
+    GenericSerialiseWrapper(
+      W&& public_writer_,
+      W&& private_writer_,
+      std::shared_ptr<AbstractTxEncryptor> e,
+      const TxID& tx_id_,
+      EntryType entry_type_,
+      SerialisedEntryFlags header_flags_,
+      const ccf::crypto::Sha256Hash& commit_evidence_digest_ = {},
+      const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
+      bool historical_hint_ = false,
+      size_t max_transaction_size_ = max_serialised_entry_size) :
+      public_writer(std::move(public_writer_)),
+      private_writer(std::move(private_writer_)),
       tx_id(tx_id_),
       entry_type(entry_type_),
       header_flags(header_flags_),
@@ -118,6 +152,12 @@ namespace ccf::kv
       serialise_internal(raw);
     }
 
+    void serialise_raw_in_place(
+      size_t size, const std::function<void(uint8_t*)>& fill) override
+    {
+      current_writer->append_size_prefixed_in_place(size, fill);
+    }
+
     void serialise_view_history(
       const std::vector<Version>& view_history) override
     {
@@ -148,13 +188,119 @@ namespace ccf::kv
 
     std::vector<uint8_t> get_raw_data() override
     {
+      if (finalised)
+      {
+        throw std::logic_error("Entry was already finalised in place");
+      }
+
       // make sure the private buffer is empty when we return
       auto writer_guard_func = [](W* writer) { writer->clear(); };
       std::unique_ptr<decltype(private_writer), decltype(writer_guard_func)>
         writer_guard(&private_writer, writer_guard_func);
 
-      return serialise_domains(
-        public_writer.get_raw_data(), private_writer.get_raw_data());
+      // Serialise directly from the writers' buffers, which may be as large as
+      // a snapshot, rather than from copies of them
+      return serialise_domains(public_writer.view(), private_writer.view());
+    }
+
+    [[nodiscard]] size_t get_public_domain_size() const
+    {
+      return public_writer.size();
+    }
+
+    [[nodiscard]] size_t get_private_domain_size() const
+    {
+      return private_writer.size();
+    }
+
+    /** Offset of the public domain in a serialised entry. The private domain
+     * immediately follows the public domain.
+     */
+    static size_t public_domain_offset(
+      const std::shared_ptr<AbstractTxEncryptor>& e)
+    {
+      return sizeof(SerialisedEntryHeader) +
+        (e ? e->get_header_length() + sizeof(size_t) : 0);
+    }
+
+    /** Completes an entry whose domains were serialised in place, by writers
+     * over its public and private regions: writes the headers and encrypts the
+     * private domain in place. entry must be exactly the size of the
+     * serialised entry. May be called at most once, even if it throws.
+     */
+    void finalise_in_place(std::span<uint8_t> entry)
+    {
+      if (finalised)
+      {
+        throw std::logic_error("Entry was already finalised in place");
+      }
+      finalised = true;
+
+      const auto public_size = public_writer.size();
+      const auto private_size = private_writer.size();
+      const auto offset = public_domain_offset(crypto_util);
+
+      if (entry.size() != offset + public_size + private_size)
+      {
+        throw std::logic_error(fmt::format(
+          "Entry of size {} does not match serialised size {}",
+          entry.size(),
+          offset + public_size + private_size));
+      }
+      if (
+        (public_size != 0 &&
+         public_writer.view().data() != entry.data() + offset) ||
+        (private_size != 0 &&
+         private_writer.view().data() != entry.data() + offset + public_size))
+      {
+        throw std::logic_error("Domains were not serialised in place");
+      }
+      if (!crypto_util && private_size != 0)
+      {
+        throw std::logic_error(
+          "Private domain cannot be serialised without an encryptor");
+      }
+      if (entry.size() > max_transaction_size)
+      {
+        throw KvSerialiserException(describe_serialised_entry_size_error(
+          entry.size(), max_transaction_size));
+      }
+
+      SerialisedEntryHeader entry_header;
+      entry_header.version = entry_format_v1;
+      entry_header.flags = header_flags;
+      entry_header.set_size(entry.size() - sizeof(SerialisedEntryHeader));
+
+      auto* data_ = entry.data();
+      auto size_ = entry.size();
+      serialized::write(data_, size_, entry_header);
+
+      if (!crypto_util)
+      {
+        return;
+      }
+
+      const auto header_size = crypto_util->get_header_length();
+      std::span<uint8_t> serialised_hdr(data_, header_size);
+      data_ += header_size;
+      size_ -= header_size;
+      serialized::write(data_, size_, public_size);
+
+      const auto public_data = std::span<const uint8_t>(data_, public_size);
+      const auto private_data =
+        std::span<uint8_t>(data_ + public_size, private_size);
+      if (!crypto_util->encrypt(
+            private_data,
+            public_data,
+            serialised_hdr,
+            private_data,
+            tx_id,
+            entry_type,
+            historical_hint))
+      {
+        throw KvSerialiserException(fmt::format(
+          "Could not serialise transaction at seqno {}", tx_id.seqno));
+      }
     }
 
     /** Size of the ledger entry which get_raw_data() would produce for
@@ -181,6 +327,15 @@ namespace ccf::kv
     std::vector<uint8_t> serialise_domains(
       const std::vector<uint8_t>& serialised_public_domain,
       const std::vector<uint8_t>& serialised_private_domain) override
+    {
+      return serialise_domains(
+        std::span<const uint8_t>(serialised_public_domain),
+        std::span<const uint8_t>(serialised_private_domain));
+    }
+
+    std::vector<uint8_t> serialise_domains(
+      std::span<const uint8_t> serialised_public_domain,
+      std::span<const uint8_t> serialised_private_domain)
     {
       size_t size_ = serialised_public_domain.size();
 
