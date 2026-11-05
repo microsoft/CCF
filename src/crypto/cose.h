@@ -77,6 +77,7 @@ namespace ccf
 
         // https://www.ietf.org/archive/id/draft-ietf-cose-merkle-tree-proofs-18.html#name-cose-header-parameter
         static constexpr int64_t INCLUSION_PROOFS = -1;
+        static constexpr int64_t CONSISTENCY_PROOFS = -2;
       }
 
       namespace custom
