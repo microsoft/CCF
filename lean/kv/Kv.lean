@@ -1,8 +1,10 @@
 module  -- shake: keep-all --deprecated_module: ignore
 
 public import Kv.Model
+public import Kv.Model.Transitions
 public import Kv.Model.Types
 public import Kv.Proofs.Execution
+public import Kv.Proofs.Invariants
 public import Kv.Proofs.Model
 public import Kv.Proofs.Properties
 public import Kv.Proofs.Trace
