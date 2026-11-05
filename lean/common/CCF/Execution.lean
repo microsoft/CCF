@@ -230,7 +230,10 @@ theorem reachable_iff_trace {system : TransitionSystem} {state : system.State}
   · rintro ⟨trace, member⟩
     exact trace.reachable member
 
-/-- A state visited by an executable prefix of a finite action list, including its start. -/
+/--
+A state visited by an executable prefix of a finite action list, including its start.
+The remaining actions need not be enabled; require `Run` separately for the full execution.
+-/
 def Visits (system : TransitionSystem) (start : system.State)
     (actions : List system.Action) (state : system.State) : Prop :=
   exists preceding following,

@@ -777,7 +777,11 @@ theorem compacted_map_unavailable_witness
         ∧ (revision f m).version < (revision (atCut s s.global) m).version := by
   exact Proofs.Witnesses.compacted_map_unavailable_witness
 
-/-- An absent, empty, unrevised map cut for a live attempt is available. -/
+/--
+An absent, empty, unrevised map cut for a live attempt is available.
+This specialization only considers `captureLocal` frames, which are empty when the map is absent;
+it no longer describes arbitrary frames.
+-/
 theorem absent_map_available
     : forall (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot) (m : String),
     let f := captureLocal s snap m
@@ -797,7 +801,10 @@ theorem absent_map_available_witness
         find f.births m = none ∧ image f.data m = [] ∧ find f.revisions m = none := by
   exact Proofs.Witnesses.absent_map_available_witness
 
-/-- An available absent map cut for a live attempt contains no values. -/
+/--
+An available absent map cut for a live attempt contains no values.
+As above, the absent `captureLocal` frame is empty by construction, unlike an arbitrary frame.
+-/
 theorem absent_placeholder_has_no_values
     : forall (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot) (m key : String),
     let f := captureLocal s snap m

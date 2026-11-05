@@ -87,7 +87,10 @@ def NetworkStep (config : Model.Config) (before : Model.State) (action : Model.A
   /\ localStep.action = Trace.event action
   /\ (Model.protocol config).ValidStep localStep
 
-/-- Own gossip appears at some point in this finite execution, possibly after opening. -/
+/--
+Own gossip appears along an executable prefix, possibly after opening.
+The property separately requires the complete action list to form a run.
+-/
 def ReceivedOwnGossipDuring (config : Model.Config) (start : Model.State)
     (actions : List Model.Action) (node : Location) : Prop :=
   exists state nodeState txid,
