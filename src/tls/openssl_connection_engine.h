@@ -1240,17 +1240,21 @@ namespace ccf::tls
     // Thread-safe. Submission and stop publication share the lifecycle gate.
     // enqueue must only append to the owner's queue and must not call back
     // into this engine. Its work is consumed by Config::on_wake or on_stop.
+    // Returns false, without calling enqueue, unless the engine is started and
+    // not stopping. Callers may race stop(), including from OnClose callbacks
+    // run during teardown, so this is an expected outcome rather than an error.
     template <typename Enqueue>
-    void submit(Enqueue&& enqueue) CCF_EXCLUDES(lifecycle_mutex)
+    [[nodiscard]] bool try_submit(Enqueue&& enqueue)
+      CCF_EXCLUDES(lifecycle_mutex)
     {
       ccf::ds::SharedMutexReadGuard guard(lifecycle_mutex);
       if (!started || stopping.load())
       {
-        throw std::logic_error(
-          "Connection submission requires a running engine");
+        return false;
       }
       std::forward<Enqueue>(enqueue)();
       notify_loop();
+      return true;
     }
 
     ::tcp::ConnID allocate_id()

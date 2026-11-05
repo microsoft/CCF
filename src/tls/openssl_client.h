@@ -512,9 +512,12 @@ namespace ccf::tls
       engine->stop(state);
     }
 
-    // Thread-safe. Each returned id receives exactly one OnClose, including
-    // failed/cancelled attempts. TLS/admission failures do not retry addresses.
-    ::tcp::ConnID connect(ConnectConfig config)
+    // Thread-safe, and safe to call from OnClose. Each returned id receives
+    // exactly one OnClose, including failed/cancelled attempts. TLS/admission
+    // failures do not retry addresses. Returns nullopt, with no OnClose, if the
+    // client has not been started or is stopping. Throws std::invalid_argument
+    // for an invalid configuration.
+    [[nodiscard]] std::optional<::tcp::ConnID> connect(ConnectConfig config)
     {
       details::validate_user_timeout(config.tcp_user_timeout);
       if (
@@ -525,10 +528,14 @@ namespace ccf::tls
           "Invalid outbound TLS connection configuration");
       }
       const auto id = engine->allocate_id();
-      engine->submit([&]() {
+      const bool submitted = engine->try_submit([&]() {
         ccf::ds::MutexGuard guard(pending_mutex);
         pending_connects.emplace_back(id, std::move(config));
       });
+      if (!submitted)
+      {
+        return std::nullopt;
+      }
       return id;
     }
 

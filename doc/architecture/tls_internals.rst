@@ -46,7 +46,7 @@ Initiating connections
 ~~~~~~~~~~~~~~~~~~~~~~
 
 ``OpenSSLClient::connect()`` initiates TLS connections through the shared engine.
-It returns a connection id immediately, queues asynchronous ``uv_getaddrinfo`` resolution of the destination and optional source address, binds a matching local address when requested, and tries the resolved TCP candidates with non-blocking sockets.
+It returns a connection id immediately (see below for when it does not), queues asynchronous ``uv_getaddrinfo`` resolution of the destination and optional source address, binds a matching local address when requested, and tries the resolved TCP candidates with non-blocking sockets.
 Each candidate has a timeout before falling back to the next address.
 Resolution and TLS establishment have their own bounded timeouts.
 TLS handshake failures and admission rejection terminate the attempt rather than retrying another address.
@@ -69,6 +69,8 @@ Callbacks must not throw or block waiting for engine shutdown.
 
 Initiating connections use the same worker scheduling, buffers, ``send()``, ``OnData``, and ``OnClose`` as accepted connections.
 Each id returned by ``connect()`` receives exactly one close notification, including failed or cancelled attempts.
+``connect()`` returns no id, and no close notification follows, if the client has not been started or is stopping.
+This is an expected outcome rather than an error, so ``connect()`` is safe to call from ``OnClose``, including the close notifications delivered during shutdown.
 ``close_connection()`` cancels establishment without flushing pending application data; after establishment it retains the normal flush-before-close behavior.
 For initiating connections, the loop's cancellation and the worker's entry into handshake admission atomically claim the establishment state.
 If cancellation wins, a concurrently completing TLS handshake cannot invoke admission or perform application I/O.

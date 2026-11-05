@@ -702,6 +702,9 @@ namespace
     unsigned int client_user_timeout = 0;
     unsigned int server_user_timeout = 0;
     std::function<void(::tcp::ConnID)> after_client_handshake;
+    // Runs on the loop thread after client_closed is incremented, without
+    // holding mutex, so it may call back into the client.
+    std::function<void(::tcp::ConnID)> on_client_close;
     UVLoopRunner loop;
     std::shared_ptr<OpenSSLServer> server;
     std::shared_ptr<OpenSSLClient> client;
@@ -814,9 +817,15 @@ namespace
           received.insert(received.end(), data.begin(), data.end());
           cv.notify_all();
         },
-        [this](::tcp::ConnID) {
-          std::lock_guard<std::mutex> guard(mutex);
-          ++client_closed;
+        [this](::tcp::ConnID id) {
+          {
+            std::lock_guard<std::mutex> guard(mutex);
+            ++client_closed;
+          }
+          if (on_client_close)
+          {
+            on_client_close(id);
+          }
           cv.notify_all();
         });
       server->start();
@@ -856,7 +865,7 @@ TEST_CASE(
   "Outbound engine exchanges real bidirectional TLS application traffic")
 {
   EnginePair pair;
-  const auto id = pair.client->connect(pair.config());
+  const auto id = pair.client->connect(pair.config()).value();
   std::vector<uint8_t> payload(512 * 1024, 42);
   pair.client->send(id, payload.data(), payload.size());
   pair.loop.start();
@@ -1028,7 +1037,7 @@ TEST_CASE("Outbound handshake admission gates reads and queued writes")
   {
     pair.reject_server = true;
   }
-  const auto id = pair.client->connect(pair.config());
+  const auto id = pair.client->connect(pair.config()).value();
   pair.client->send(id, std::vector<uint8_t>{1, 2, 3});
   pair.loop.start();
   REQUIRE(pair.wait(
@@ -1050,7 +1059,7 @@ TEST_CASE("Outbound admission callback send-and-close flushes application data")
     pair.client->send(id, payload.data(), payload.size());
     pair.client->close_connection(id);
   };
-  pair.client->connect(pair.config());
+  REQUIRE(pair.client->connect(pair.config()).has_value());
   pair.loop.start();
   REQUIRE(pair.wait([&]() {
     return pair.client_closed == 1 &&
@@ -1313,7 +1322,7 @@ TEST_CASE("Outbound stalled TLS establishment times out, cancels and stops")
   auto config = pair.config();
   config.port = blackhole->port();
   config.timeout = std::chrono::milliseconds(200);
-  const auto id = pair.client->connect(config);
+  const auto id = pair.client->connect(config).value();
   pair.client->send(id, std::vector<uint8_t>(1024 * 1024, 1));
   pair.loop.start();
   const bool sent_hello = pair.wait([&]() { return hello_bytes > 0; });
@@ -1344,7 +1353,7 @@ TEST_CASE(
   config.tls_context = {SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
   REQUIRE(config.tls_context != nullptr);
   SSL_CTX_set_verify(config.tls_context.get(), SSL_VERIFY_PEER, nullptr);
-  pair.client->connect(config);
+  REQUIRE(pair.client->connect(config).has_value());
   pair.loop.start();
   REQUIRE(pair.wait([&]() { return pair.client_closed == 1; }));
   CHECK(pair.client_handshakes == 0);
@@ -1353,7 +1362,7 @@ TEST_CASE(
 TEST_CASE("Outbound cancellation cannot resurrect a resolving connection")
 {
   EnginePair pair;
-  const auto id = pair.client->connect(pair.config());
+  const auto id = pair.client->connect(pair.config()).value();
   pair.client->send(id, std::vector<uint8_t>{1});
   pair.client->close_connection(id);
   pair.loop.start();
@@ -1389,7 +1398,7 @@ TEST_CASE("Outbound resolution, source binding and TCP failures close once")
     config.host = "127.0.0.1";
     config.port = unlistening->port();
   }
-  const auto id = pair.client->connect(config);
+  const auto id = pair.client->connect(config).value();
   pair.loop.start();
   REQUIRE(pair.wait([&]() { return pair.client_closed == 1; }));
   pair.client->close_connection(id);
@@ -1402,7 +1411,7 @@ TEST_CASE("Outbound shutdown releases queued attempts without running the loop")
 {
   {
     EnginePair pair;
-    pair.client->connect(pair.config());
+    REQUIRE(pair.client->connect(pair.config()).has_value());
     pair.client->stop();
     CHECK(pair.client_closed == 1);
   }
@@ -1410,6 +1419,97 @@ TEST_CASE("Outbound shutdown releases queued attempts without running the loop")
   {
     uv_run(uv_default_loop(), UV_RUN_NOWAIT);
   }
+}
+
+// A natural owner reconnects from OnClose. During teardown that callback runs
+// inside the engine's shutdown path (a libuv callback, or the destructor when
+// no loop is running), where an exception would terminate the process and
+// strand the remaining attempts without their OnClose.
+TEST_CASE("Outbound reconnect from OnClose during shutdown is refused")
+{
+  struct ResetSuppression
+  {
+    ~ResetSuppression()
+    {
+      suppress_connect_poll = false;
+    }
+  } reset;
+
+  {
+    EnginePair pair;
+    auto config = pair.config();
+    // Long enough that only shutdown, never a timeout, ends the attempt.
+    config.timeout = std::chrono::seconds(30);
+    std::vector<std::optional<::tcp::ConnID>> reconnects;
+    bool threw = false;
+    pair.on_client_close = [&](::tcp::ConnID) {
+      try
+      {
+        reconnects.push_back(pair.client->connect(config));
+      }
+      catch (...)
+      {
+        threw = true;
+      }
+    };
+
+    SUBCASE("Loop running")
+    {
+      // Hold the attempt in TCP connect so that only shutdown can close it.
+      suppressed_connect_polls = 0;
+      suppress_connect_poll = true;
+      REQUIRE(pair.client->connect(config).has_value());
+      pair.loop.start();
+      const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(5);
+      while (suppressed_connect_polls == 0 &&
+             std::chrono::steady_clock::now() < deadline)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      REQUIRE(suppressed_connect_polls == 1);
+      pair.client->stop(OpenSSLClient::LoopState::Running);
+    }
+    SUBCASE("Loop not running")
+    {
+      REQUIRE(pair.client->connect(config).has_value());
+      pair.client->stop();
+    }
+
+    CHECK_FALSE(threw);
+    CHECK(pair.client_closed == 1);
+    REQUIRE(reconnects.size() == 1);
+    CHECK_FALSE(reconnects.front().has_value());
+    // Callers on other threads observe the same outcome once stopped.
+    CHECK_FALSE(pair.client->connect(config).has_value());
+  }
+  while (uv_loop_alive(uv_default_loop()) != 0)
+  {
+    uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+  }
+}
+
+TEST_CASE("Outbound connect before start is refused")
+{
+  uv_loop_t loop{};
+  REQUIRE(uv_loop_init(&loop) == 0);
+  {
+    auto client = OpenSSLClient::create(
+      OpenSSLClient::Config{.loop = &loop},
+      [](
+        ::tcp::ConnID,
+        std::vector<uint8_t>,
+        const std::vector<uint8_t>&,
+        bool) {});
+    std::shared_ptr<SSL_CTX> context(
+      SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
+    REQUIRE(context != nullptr);
+    CHECK_FALSE(
+      client->connect({.host = "localhost", .port = 1, .tls_context = context})
+        .has_value());
+  }
+  uv_run(&loop, UV_RUN_DEFAULT);
+  CHECK(uv_loop_close(&loop) == 0);
 }
 
 TEST_CASE("Outbound late DNS completion is safe after timeout or destruction")
@@ -1420,7 +1520,7 @@ TEST_CASE("Outbound late DNS completion is safe after timeout or destruction")
     EnginePair pair;
     auto config = pair.config();
     config.timeout = std::chrono::milliseconds(100);
-    pair.client->connect(config);
+    REQUIRE(pair.client->connect(config).has_value());
     pair.loop.start();
     bool completed = false;
     {
@@ -1491,7 +1591,7 @@ TEST_CASE("Outbound candidate timeout falls back without losing queued data")
 
   const auto sockets_before = socket_calls.load();
   const auto started_at = std::chrono::steady_clock::now();
-  const auto id = pair.client->connect(config);
+  const auto id = pair.client->connect(config).value();
   pair.client->send(id, std::vector<uint8_t>{42});
   pair.loop.start();
 
@@ -1516,7 +1616,7 @@ TEST_CASE("Outbound cancellation and shutdown during connect prevent retry")
   config.timeout = std::chrono::milliseconds(100);
   suppressed_connect_polls = 0;
   suppress_connect_poll = true;
-  const auto id = pair.client->connect(config);
+  const auto id = pair.client->connect(config).value();
   pair.loop.start();
   const auto deadline =
     std::chrono::steady_clock::now() + std::chrono::seconds(5);
@@ -1547,7 +1647,7 @@ TEST_CASE(
   "Outbound optional established TCP timeout applies to accepted sockets")
 {
   EnginePair pair(std::chrono::milliseconds(2345));
-  pair.client->connect(pair.config());
+  REQUIRE(pair.client->connect(pair.config()).has_value());
   pair.loop.start();
   REQUIRE(pair.wait([&]() { return pair.received.size() == 2; }));
   std::lock_guard<std::mutex> guard(pair.mutex);
