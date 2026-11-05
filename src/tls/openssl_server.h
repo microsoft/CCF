@@ -4,7 +4,6 @@
 
 #include "tls/openssl_connection_engine.h"
 
-#include <algorithm>
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netdb.h>
