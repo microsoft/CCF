@@ -51,7 +51,19 @@ Finally, the ledger can be iterated over. For each transaction in the ledger, th
     :start-after: SNIPPET_START: iterate_over_ledger
     :end-before: SNIPPET_END: iterate_over_ledger
 
-.. tip:: The integrity of the ledger is automatically verified when iterating over transactions.
+To verify ledger integrity, pass each transaction to a ``LedgerValidator``:
+
+.. code-block:: python
+
+    validator = ccf.ledger.LedgerValidator()
+    for chunk in ledger:
+        for transaction in chunk:
+            validator.add_transaction(transaction)
+
+``LedgerValidator`` automatically prunes its Merkle tree to limit memory use when verifying large ledgers.
+
+For trees used directly, ``ccf.merkletree.MerkleTree.flush(index)`` discards leaves before ``index`` without changing the root.
+New leaves can still be appended.
 
 .. _read_ledger.py:
 
