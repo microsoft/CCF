@@ -49,6 +49,8 @@ Use `abbrev` for concrete systems so Lean can unfold their bundled types during 
 Generic helpers use `system.State` and `system.Action`, while `system.Reachable state` and `Execution.Run system start actions final` describe executions.
 `system.ReachableFrom start finish` hides the actions and relates the endpoints of a finite execution, including the empty execution.
 `system.Reachable state` means that some state satisfying `system.init` reaches `state` via `system.ReachableFrom`.
+Both are Mathlib `Set`s, so statements can quantify directly over their members with Lean's bounded binder notation.
+That notation needs the Unicode universal quantifier; the ASCII `forall` keyword does not accept a bounded binder.
 Use `Execution.Run` when the action list matters; `Execution.reachableFrom_iff_run` relates the two presentations.
 `Execution.Visits` identifies a state reached by an executable prefix; it does not require the remaining actions to be enabled.
 `Execution.Executes` locates an enabled transition with executable prefixes and suffixes in the full finite run.

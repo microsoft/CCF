@@ -1,6 +1,7 @@
 module
 
 public import Std
+public import Mathlib.Data.Set.Operations
 
 @[expose] public section
 
@@ -28,7 +29,7 @@ namespace TransitionSystem
 
 /-- States connected by finitely many enabled steps, without fixing the actions. -/
 inductive ReachableFrom (system : TransitionSystem) (start : system.State)
-    : system.State -> Prop where
+    : Set system.State where
   /-- Taking no steps reaches the starting state. -/
   | refl : ReachableFrom system start start
   /-- An enabled step preserves reachability. -/
@@ -40,8 +41,8 @@ inductive ReachableFrom (system : TransitionSystem) (start : system.State)
     : ReachableFrom system start nextState
 
 /-- States reached from some initial state by finitely many enabled steps. -/
-def Reachable (system : TransitionSystem) (state : system.State) : Prop :=
-  exists initial, system.init initial /\ system.ReachableFrom initial state
+def Reachable (system : TransitionSystem) : Set system.State :=
+  {state | exists initial, system.init initial /\ system.ReachableFrom initial state}
 
 namespace Reachable
 

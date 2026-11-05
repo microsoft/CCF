@@ -16,10 +16,11 @@ open Model.Local
 
 /-- All quorum-opening notifications along one reachable execution have the same emitter. -/
 theorem quorum_opener_unique
-    : forall (config : Model.Config) (start final : Model.State) (actions : List Model.Action)
+    : forall (config : Model.Config),
+    ∀ start ∈ (Model.transitionSystem config).Reachable,
+    forall (final : Model.State) (actions : List Model.Action)
     (firstOpener secondOpener : Location),
-    ((Model.transitionSystem config).Reachable start
-      /\ CCF.Execution.Run (Model.transitionSystem config) start actions final
+    (CCF.Execution.Run (Model.transitionSystem config) start actions final
       /\ NotificationDuring config start actions final firstOpener (.opening .quorum)
       /\ NotificationDuring config start actions final secondOpener (.opening .quorum))
     -> firstOpener = secondOpener := by
@@ -34,10 +35,11 @@ lemma quorum_opener_unique_witness
 
 /-- A reachable quorum opener whose voters receive own gossip in the same execution is fresh. -/
 theorem quorum_open_preserves_commit
-    : forall (config : Model.Config) (start final openedState : Model.State)
-    (actions : List Model.Action) (opener : Location) (openerState : NodeState),
-    ((Model.transitionSystem config).Reachable start
-      /\ CCF.Execution.Run (Model.transitionSystem config) start actions final
+    : forall (config : Model.Config),
+    ∀ start ∈ (Model.transitionSystem config).Reachable,
+    forall (final openedState : Model.State) (actions : List Model.Action)
+    (opener : Location) (openerState : NodeState),
+    (CCF.Execution.Run (Model.transitionSystem config) start actions final
       /\ CCF.Execution.Visits (Model.transitionSystem config) start actions openedState
       /\ (opener, openerState) ∈ openedState.nodes
       /\ openerState.openKind = some .quorum
@@ -62,10 +64,11 @@ lemma quorum_open_preserves_commit_witness
 
 /-- Full gossip and opening in the same reachable execution imply freshness, in either order. -/
 theorem full_gossip_preserves_commit
-    : forall (config : Model.Config) (start final gossipedState openedState : Model.State)
-    (actions : List Model.Action) (opener : Location) (openerState : NodeState),
-    ((Model.transitionSystem config).Reachable start
-      /\ CCF.Execution.Run (Model.transitionSystem config) start actions final
+    : forall (config : Model.Config),
+    ∀ start ∈ (Model.transitionSystem config).Reachable,
+    forall (final gossipedState openedState : Model.State) (actions : List Model.Action)
+    (opener : Location) (openerState : NodeState),
+    (CCF.Execution.Run (Model.transitionSystem config) start actions final
       /\ CCF.Execution.Visits (Model.transitionSystem config) start actions gossipedState
       /\ (forall node nodeState,
           (node ∈ config.protocol.expectedLocations
@@ -100,10 +103,11 @@ lemma full_gossip_preserves_commit_witness
 
 /-- A reachable delivery of accepted gossip after choice stutters and reports frozen gossip. -/
 theorem gossip_freezes_after_choice
-    : forall (config : Model.Config) (before after : Model.State) (action : Model.Action)
-    (localStep : LocalStep) (source : Location) (txid : TxID),
-    ((Model.transitionSystem config).Reachable before
-      /\ NetworkStep config before action after localStep
+    : forall (config : Model.Config),
+    ∀ before ∈ (Model.transitionSystem config).Reachable,
+    forall (after : Model.State) (action : Model.Action) (localStep : LocalStep)
+    (source : Location) (txid : TxID),
+    (NetworkStep config before action after localStep
       /\ localStep.action = .receiveGossip source txid .accepted
       /\ localStep.before.chosen.isSome = true)
     -> localStep.after = localStep.before
@@ -126,10 +130,11 @@ This is vacuous in the current network model: `Model.receive` only constructs ac
 The underlying local proof and unchanged witness cover the rejected-event handler.
 -/
 theorem rejected_gossip_stutters
-    : forall (config : Model.Config) (before after : Model.State) (action : Model.Action)
-    (localStep : LocalStep) (source : Location) (txid : TxID),
-    ((Model.transitionSystem config).Reachable before
-      /\ NetworkStep config before action after localStep
+    : forall (config : Model.Config),
+    ∀ before ∈ (Model.transitionSystem config).Reachable,
+    forall (after : Model.State) (action : Model.Action) (localStep : LocalStep)
+    (source : Location) (txid : TxID),
+    (NetworkStep config before action after localStep
       /\ localStep.action = .receiveGossip source txid .rejected)
     -> localStep.after = localStep.before
       /\ .rejected "quote-or-certificate" ∈ localStep.effects.notifications := by
@@ -146,10 +151,10 @@ lemma rejected_gossip_stutters_witness
 
 /-- A reachable timeout or accepted vote with a voting quorum opens by quorum. -/
 theorem quorum_advance_opens
-    : forall (config : Model.Config) (before after : Model.State) (action : Model.Action)
-    (localStep : LocalStep),
-    ((Model.transitionSystem config).Reachable before
-      /\ NetworkStep config before action after localStep
+    : forall (config : Model.Config),
+    ∀ before ∈ (Model.transitionSystem config).Reachable,
+    forall (after : Model.State) (action : Model.Action) (localStep : LocalStep),
+    (NetworkStep config before action after localStep
       /\ (localStep.action = .timeout
           \/ exists source, localStep.action = .receiveVote source .accepted)
       /\ localStep.before.phase = .voting
@@ -173,10 +178,10 @@ lemma quorum_advance_opens_witness
 
 /-- A reachable aligned opening timeout only changes the phase to open and completes. -/
 theorem aligned_opening_timeout_completes
-    : forall (config : Model.Config) (before after : Model.State) (action : Model.Action)
-    (localStep : LocalStep),
-    ((Model.transitionSystem config).Reachable before
-      /\ NetworkStep config before action after localStep
+    : forall (config : Model.Config),
+    ∀ before ∈ (Model.transitionSystem config).Reachable,
+    forall (after : Model.State) (action : Model.Action) (localStep : LocalStep),
+    (NetworkStep config before action after localStep
       /\ localStep.action = .timeout
       /\ localStep.before.phase = .opening
       /\ localStep.before.timeoutState = .opening)
