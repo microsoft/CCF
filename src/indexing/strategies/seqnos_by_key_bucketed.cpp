@@ -37,6 +37,8 @@ namespace ccf::indexing::strategies
     // taken at the same time, results_access should be first
     ccf::ds::Mutex results_access;
 
+    bool rebuild_requested = false;
+
     std::string name;
 
     std::shared_ptr<AbstractLFSAccess> lfs_access;
@@ -173,6 +175,12 @@ namespace ccf::indexing::strategies
           fmt::format("Range goes backwards: {} -> {}", from, to));
       }
 
+      std::lock_guard<ccf::ds::Mutex> results_guard(results_access);
+      if (rebuild_requested)
+      {
+        return std::nullopt;
+      }
+
       if (std::lock_guard<ccf::ds::Mutex> guard(current_txid_lock);
           to > current_txid.seqno)
       {
@@ -217,8 +225,6 @@ namespace ccf::indexing::strategies
 
       while (true)
       {
-        std::lock_guard<ccf::ds::Mutex> guard(results_access);
-
         const auto bucket_key = std::make_pair(serialised_key, from_range);
         const auto old_it = old_results.find(bucket_key);
         if (old_it != old_results.end())
@@ -255,8 +261,8 @@ namespace ccf::indexing::strategies
               case (ccf::indexing::FetchResult::FetchResultType::Corrupt):
               {
                 // This class previously wrote a bucket to disk which is no
-                // longer available or corrupted. Reset the watermark of what
-                // has been indexed, to re-index and rewrite those files.
+                // longer available or corrupted. Request a rebuild on the
+                // serialized indexing path, and withhold results until then.
                 const auto* problem = fetch_result ==
                     ccf::indexing::FetchResult::FetchResultType::NotFound ?
                   "missing" :
@@ -266,19 +272,7 @@ namespace ccf::indexing::strategies
                 LOG_DEBUG_FMT(
                   "The {} file is {}", problem, bucket_value.first->key);
 
-                // NB: This could probably be more precise about what is
-                // re-indexed. Technically only need to build an index to build
-                // the current query, and that applies to re-indexing too. But
-                // for safety, and consistency with the simple indexing
-                // strategies currently used, this re-indexes everything from
-                // the start of time.
-                {
-                  std::lock_guard<ccf::ds::Mutex> current_txid_guard(
-                    current_txid_lock);
-                  current_txid = {};
-                }
-                old_results.clear();
-                current_results.clear();
+                rebuild_requested = true;
 
                 return std::nullopt;
               }
@@ -355,6 +349,21 @@ namespace ccf::indexing::strategies
       return ((old_results.get_max_size() - 1) * seqnos_per_bucket);
     }
   };
+
+  void SeqnosByKey_Bucketed_Untyped::tick()
+  {
+    std::lock_guard<ccf::ds::Mutex> guard(impl->results_access);
+    if (impl->rebuild_requested)
+    {
+      // The indexer serializes ticks with transaction delivery and watermark
+      // publication, so no in-flight transaction can undo this reset.
+      std::lock_guard<ccf::ds::Mutex> current_txid_guard(current_txid_lock);
+      current_txid = {};
+      impl->old_results.clear();
+      impl->current_results.clear();
+      impl->rebuild_requested = false;
+    }
+  }
 
   void SeqnosByKey_Bucketed_Untyped::visit_entry(
     const ccf::TxID& tx_id, const ccf::ByteVector& k, const ccf::ByteVector& v)
