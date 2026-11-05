@@ -1160,6 +1160,15 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      retry_on_compacted_version_conflict_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/retry_on_compacted_version_conflict.cpp
+    )
+    target_link_libraries(
+      retry_on_compacted_version_conflict_test
+      PRIVATE ccf_kv
+    )
+
+    add_unit_test(
       tx_status_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
     )

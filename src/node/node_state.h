@@ -53,6 +53,7 @@
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
 #include "node/retired_nodes_cleanup.h"
+#include "node/retry_on_compacted_version_conflict.h"
 #include "node/rpc/abstract_rpc_sessions.h"
 #include "node/rpc/ledger_interface.h"
 #include "node/runtime_control.h"
@@ -314,9 +315,21 @@ namespace ccf
             return;
           }
 
-          auto tx = owner->network.tables->create_read_only_tx();
-          auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
-          auto node_info = nodes->get(primary_id.value());
+          std::optional<ccf::NodeInfo> node_info;
+          if (!ccf::retry_on_compacted_version_conflict(
+                "BackupSnapshotFetch: Primary node lookup", [&] {
+                  auto tx = owner->network.tables->create_read_only_tx();
+                  node_info =
+                    tx.ro<ccf::Nodes>(Tables::NODES)->get(primary_id.value());
+                }))
+          {
+            LOG_FAIL_FMT(
+              "BackupSnapshotFetch: Could not read primary node {} from nodes "
+              "table after repeated compaction conflicts, skipping fetch",
+              primary_id.value());
+            return;
+          }
+
           if (!node_info.has_value())
           {
             LOG_INFO_FMT(
@@ -402,7 +415,32 @@ namespace ccf
             return;
           }
 
-          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+          try
+          {
+            files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT(
+              "BackupSnapshotFetch: Failed to write snapshot {}: {}",
+              dst_path.string(),
+              e.what());
+
+            // A partial file sits under the committed snapshot name, so it
+            // would be mistaken for a usable snapshot and never fetched again
+            std::error_code ec;
+            std::filesystem::remove(dst_path, ec);
+            if (ec)
+            {
+              LOG_FAIL_FMT(
+                "BackupSnapshotFetch: Failed to remove incomplete snapshot {}: "
+                "{}",
+                dst_path.string(),
+                ec.message());
+            }
+            return;
+          }
+
           LOG_INFO_FMT(
             "BackupSnapshotFetch: Wrote snapshot {} ({} bytes)",
             dst_path.string(),

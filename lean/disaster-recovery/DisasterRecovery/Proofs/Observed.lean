@@ -19,6 +19,52 @@ def OpeningThresholds (config : Model.Config) (state : State) : Prop :=
         -> (if kind = .quorum then voteQuorum config.protocol else 1)
             <= entry.2.votes.length
 
+private abbrev Threshold (config : Config) (state : NodeState) : Prop :=
+  forall kind,
+    state.openKind = some kind
+    -> (if kind = .quorum then voteQuorum config else 1) <= state.votes.length
+
+private lemma lane_threshold {config : Config} {state : NodeState} (timeout : Bool)
+    (threshold : Threshold config state)
+    : Threshold config (advanceTimeoutLane state timeout) := by
+  cases timeout <;> exact threshold
+
+private lemma advance_threshold {config : Config} {state : NodeState} {timeout : Bool}
+    {output : StepOutput} (advanced : advance config state timeout = some output)
+    (threshold : Threshold config state)
+    : Threshold config output.state := by
+  unfold advance at advanced
+  cases phase : state.phase <;> simp only [phase] at advanced
+  · split at advanced
+    · split at advanced
+      · cases advanced
+      · cases advanced
+        exact lane_threshold timeout threshold
+    · cases advanced
+      exact lane_threshold timeout threshold
+  · split at advanced
+    · split at advanced
+      · cases advanced
+        exact threshold
+      · cases advanced
+        apply lane_threshold
+        rintro kind ⟨⟩
+        by_cases enough : voteQuorum config <= state.votes.length
+        · simp [enough]
+        · rename_i sufficient _
+          have aligned : validTimeout state timeout = true := by
+            simpa [enough] using sufficient
+          cases votes : state.votes <;> simp_all
+    · cases advanced
+      exact lane_threshold timeout threshold
+  · split at advanced <;> cases advanced <;> exact lane_threshold timeout threshold
+  · split at advanced
+    · cases advanced
+    · cases advanced
+      exact lane_threshold timeout threshold
+  · cases advanced
+    exact lane_threshold timeout threshold
+
 lemma step_preserves_opening_threshold (config : Config) (state : NodeState)
     (event : Event)
     (threshold
@@ -29,25 +75,47 @@ lemma step_preserves_opening_threshold (config : Config) (state : NodeState)
         (step config state event).state.openKind = some kind
         -> (if kind = .quorum then voteQuorum config else 1)
             <= (step config state event).state.votes.length := by
-  intro kind
-  specialize threshold kind
-  have grows (source : Location) :
-      state.votes.length <= (insertVote source state.votes).length := by
-    unfold insertVote
-    split <;> simp
-  cases kind <;> by_cases empty : state.votes = [] <;>
-    cases event <;> try cases_type DisasterRecovery.Model.Local.Validation
-  all_goals
-    dsimp only [step, Execution.Local.transitionSystem]
-    simp [rejectionReason, rejected, advance,
-      advanceTimeoutLane, guard, failure]
-  all_goals
-    repeat' first
-      | split
-      | simp_all [validTimeout, ← List.length_eq_zero_iff]
-      | exact fun chosen => Nat.le_trans (threshold chosen) (grows _)
-      | omega
-      | tauto
+  suffices stepped :
+    forall output,
+      (Execution.Local.transitionSystem config state.location).step { state } event
+        = some output
+      -> Threshold config output.state by
+    unfold step
+    cases found
+          : (Execution.Local.transitionSystem config state.location).step
+              { state } event with
+    | none => exact threshold
+    | some output => exact stepped output found
+  intro output stepped
+  cases event with
+  | receiveGossip source txid validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · split at stepped
+        · exact advance_threshold stepped threshold
+        · cases stepped
+      · cases stepped
+  | receiveVote source validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · refine advance_threshold stepped fun kind opened => ?_
+        refine Nat.le_trans (threshold kind opened) ?_
+        unfold insertVote
+        split <;> simp
+      · cases stepped
+  | receiveIAmOpen source validation =>
+      simp only [Execution.Local.transitionSystem, guard] at stepped
+      split at stepped
+      · split at stepped
+        · exact advance_threshold (timeout := false)
+            (state := { state with phase := .joining, chosen := some source })
+            stepped threshold
+        · cases stepped
+      · cases stepped
+  | timeout => exact advance_threshold stepped threshold
+  | retry =>
+      cases stepped
+      exact threshold
 
 lemma systemStep_preserves_opening_thresholds
     (config : Model.Config) (before after : SystemState)
@@ -86,21 +154,23 @@ lemma next_preserves_opening_thresholds (config : Model.Config) (before after : 
     : OpeningThresholds config after := by
   cases action with
   | retry source =>
-      simp [next, guard, failure, Option.bind_eq_some_iff] at trans
-      rcases trans with ⟨_, state, _, _, rfl⟩
-      exact threshold
+      simpa only [OpeningThresholds, Invariants.retry_system_eq trans] using threshold
   | deliver envelope =>
-      simp [next, guard, failure, Option.bind_eq_some_iff] at trans
-      rcases trans with ⟨_, _, system, output, systemStep, rfl⟩
-      simpa [OpeningThresholds]
-        using systemStep_preserves_opening_thresholds config before.system system
-          envelope.target (eventFor envelope) output threshold systemStep
+      simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq] at trans
+      obtain ⟨_, _, _, _, ⟨system, output⟩, systemStep, rfl⟩ := trans
+      intro entry member
+      rw [Invariants.recordEffects_system] at member
+      exact systemStep_preserves_opening_thresholds config before.system system
+        envelope.target (eventFor envelope) output threshold systemStep entry member
   | timeout target =>
-      simp [next, guard, failure, Option.bind_eq_some_iff] at trans
-      rcases trans with ⟨_, system, output, systemStep, _, rfl⟩
-      simpa [OpeningThresholds]
-        using systemStep_preserves_opening_thresholds config before.system system
-          target .timeout output threshold systemStep
+      simp only [next, guard, failure, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq] at trans
+      obtain ⟨_, _, ⟨system, output⟩, systemStep, _, _, rfl⟩ := trans
+      intro entry member
+      rw [Invariants.recordEffects_system] at member
+      exact systemStep_preserves_opening_thresholds config before.system system
+        target .timeout output threshold systemStep entry member
 
 lemma reachable_opening_thresholds {config : Model.Config} {state : State}
     (reachable : Reachable config state)
@@ -160,14 +230,15 @@ lemma notification_opening_state {config : Model.Config}
       (step config.protocol nodeBefore (Properties.Trace.event action)).effects := by
     rw [← notifications] at notified
     obtain ⟨effect, member, diagnostic⟩ := List.mem_filterMap.mp notified
-    cases effect <;> simp_all [Effect.diagnostic]
+    cases effect <;> cases diagnostic
+    exact member
   have opened := (Quorum.opening_effect_state config.protocol nodeBefore
     (Properties.Trace.event action) kind recorded).2
   rw [stateEq] at opened
   refine ⟨after, nodeAfter, atAfter, ?_, opened⟩
   obtain ⟨entry, found, value⟩ := Option.map_eq_some_iff.mp foundAfter
   have key := beq_iff_eq.mp
-    (List.find?_some (p := fun entry : Location × NodeState => entry.1 == node) found)
+    (List.find?_some found :)
   have same : entry = (node, nodeAfter) := Prod.ext key value
   rw [← same]
   exact List.mem_of_find?_eq_some found

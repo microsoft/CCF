@@ -4,6 +4,7 @@
 
 #include "ccf/service/tables/service.h"
 #include "node/historical_queries.h"
+#include "node/retry_on_compacted_version_conflict.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/node_interface.h"
 #include "service/tables/signing_identities.h"
@@ -65,8 +66,19 @@ namespace ccf
     CurrentServiceIdentity get_current_service_identity() override
     {
       auto store = node_state.get_store();
-      auto tx = store->create_read_only_tx();
-      return read_current_service_identity(tx);
+      CurrentServiceIdentity identity;
+      if (!ccf::retry_on_compacted_version_conflict(
+            "Current service identity lookup", [&] {
+              auto tx = store->create_read_only_tx();
+              identity = read_current_service_identity(tx);
+            }))
+      {
+        // Reported as not yet available, which the caller retries later
+        LOG_FAIL_FMT(
+          "Could not read current service identity after repeated compaction "
+          "conflicts");
+      }
+      return identity;
     }
   };
 

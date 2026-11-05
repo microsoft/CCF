@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Fixed
 
 - Python ledger verification now uses less memory on large ledgers; see [Python Library](doc/audit/python_library.rst) (#8665).
+- Nodes no longer abort when a compaction races a transaction run outside of an endpoint, such as the primary's snapshot evidence transaction, a backup's lookup of the primary before fetching a snapshot, JWT key auto-refresh, or the network identity fetch; the operation is retried and otherwise skipped until its next scheduled run. A backup also no longer aborts if a fetched snapshot cannot be written to disk (#8652).
 - The `ccf.merkletree.MerkleTree` Python class now computes each root in time proportional to the leaves added since the previous root, so `ccf.ledger.LedgerValidator` no longer slows down as ledgers grow (#8660).
 - Hardened `ccf::crypto` OpenSSL call sites taking `int` lengths against inputs larger than 2 GiB, and Base64 encoding and decoding no longer use stack buffers proportional to the input size. `ccf::crypto::OpenSSL::Unique_BIO(const void*, int)` now takes a `size_t` and throws `std::invalid_argument` rather than accepting a negative length (#8645).
 

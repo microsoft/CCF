@@ -121,19 +121,31 @@ theorem step_unique (before after : State) (action : Action)
     (unique : UniqueWrites before.branches)
     (transition : step before action = some after)
     : UniqueWrites after.branches := by
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff, guard]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (exact unique)
-      | (solve | apply unique_write before unique <;> assumption)
-      | (solve | apply unique_other before unique; assumption)
-      | (solve | apply unique_elect _ unique; apply mem_of_at?; assumption)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
+  cases action with
+  | request =>
+      rw [Structural.request_some transition]
+      exact unique
+  | execute =>
+      obtain ⟨_, _, active, fresh, rfl⟩ := Structural.execute_some transition
+      exact unique_write before unique _ _ active fresh
+  | respond =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, rfl⟩ := Structural.respond_some transition
+      exact unique
+  | read =>
+      obtain ⟨_, _, _, _, _, _, _, _, rfl⟩ := Structural.read_some transition
+      exact unique
+  | commit =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, _, _, rfl⟩ := Structural.commit_some transition
+      exact unique
+  | invalidate =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.invalidate_some transition
+      exact unique
+  | appendOther =>
+      obtain ⟨active, rfl⟩ := Structural.appendOther_some transition
+      exact unique_other before unique _ active
+  | elect =>
+      obtain ⟨_, found, _, _, _, rfl⟩ := Structural.elect_some transition
+      exact unique_elect _ unique (mem_of_at? found) _
 
 theorem unique_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : UniqueWrites state.branches := by
@@ -141,7 +153,9 @@ theorem unique_reachable {state : State} (reachable : transitionSystem.Reachable
   | @initial state initialized =>
       change state = initialState at initialized
       subst state
-      simp [UniqueWrites, initialState, List.mem_replicate, at?]
+      intro left first _ _ _ _ _ _ _ leftAt
+      rw [(List.mem_replicate.mp first).2] at leftAt
+      cases mem_of_at? leftAt
   | @step before after action _ transition ih =>
       exact step_unique before after action ih transition
 
@@ -278,19 +292,42 @@ theorem step_clean (before after : State) (action : Action)
     (transition : step before action = some after)
     : Clean after.branches after.history := by
   have extension := Structural.step_branches before after action transition
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff, guard]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (exact clean_mono _ _ _ clean current anchored extension)
-      | (solve | apply clean_snoc _ _ _ clean <;> simp)
-      | (solve | apply clean_commit before clean anchored <;> assumption)
-      | (solve | apply clean_invalidate before clean anchored current; assumption)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
+  cases action with
+  | request =>
+      rw [Structural.request_some transition]
+      exact clean_snoc _ _ _ clean
+        (by intro _ same; cases same)
+        (by intro _ same; cases same)
+  | execute =>
+      obtain ⟨_, _, _, _, rfl⟩ := Structural.execute_some transition
+      exact clean_mono _ _ _ clean current anchored extension
+  | respond =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, rfl⟩ := Structural.respond_some transition
+      exact clean_snoc _ _ _ clean
+        (by intro _ same; cases same)
+        (by intro _ same; cases same)
+  | read =>
+      obtain ⟨_, _, _, _, _, _, _, _, rfl⟩ := Structural.read_some transition
+      exact clean_snoc _ _ _ clean
+        (by intro _ same; cases same)
+        (by intro _ same; cases same)
+  | commit =>
+      obtain ⟨_, _, txid, _, _, _, latestFound, entryFound, view, _, copied, rfl⟩ := Structural.commit_some transition
+      apply clean_commit before clean anchored txid latestFound entryFound view
+      intro invalid member bound
+      split
+      · rename_i predecessor predecessorFound
+        exact beq_false_of_ne (copied invalid member bound predecessor predecessorFound)
+      · rfl
+  | invalidate =>
+      obtain ⟨_, _, txid, _, allowed, rfl⟩ := Structural.invalidate_some transition
+      exact clean_invalidate before clean anchored current txid allowed
+  | appendOther =>
+      obtain ⟨_, rfl⟩ := Structural.appendOther_some transition
+      exact clean_mono _ _ _ clean current anchored extension
+  | elect =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.elect_some transition
+      exact clean_mono _ _ _ clean current anchored extension
 
 theorem clean_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Clean state.branches state.history := by
@@ -298,7 +335,8 @@ theorem clean_reachable {state : State} (reachable : transitionSystem.Reachable 
   | @initial state initialized =>
       change state = initialState at initialized
       subst state
-      simp [Clean, initialState, statusIDs]
+      intro _ known
+      cases known
   | @step before after action reachable transition ih =>
       exact step_clean before after action ih (anchored_reachable reachable)
         (current_reachable reachable) transition
@@ -325,7 +363,9 @@ theorem invalid_not_observed_by_committed
   obtain ⟨observedEntry, inPrefix, observedTx⟩ := List.mem_filterMap.mp observed
   obtain ⟨index, lookup⟩ := List.mem_iff_getElem?.mp inPrefix
   have prefixAt : at? (observerOrigin.take observer.2.txid.seqno) (index + 1) =
-      some observedEntry := by simpa [at?] using lookup
+      some observedEntry := by
+    rw [at?, ite_eq_right (Nat.succ_ne_zero index)]
+    exact lookup
   have observerAt := at_prefix (List.take_prefix _ _) prefixAt
   have bound : index + 1 ≤ observer.2.txid.seqno := by
     have := (at_bounds prefixAt).2
@@ -335,10 +375,10 @@ theorem invalid_not_observed_by_committed
     invalidOrigin (mem_of_at? invalidFound) observerOrigin (mem_of_at? observerFound)
     _ _ _ _ _ invalidAt observerAt (invalidTx invalidKind) observedTx
   have committed : observer.2.txid ∈ statusIDs state.history .committed := by
-    simpa using (List.mem_filter.mp second).2
+    exact List.contains_iff_mem.mp (List.mem_filter.mp second).2
   have excluded := clean_reachable reachable observer.2.txid committed
     invalid.2.txid invalidKnown observerOrigin observerFound observedEntry
-    (by simpa [sameSeq] using observerAt) (by omega)
+    (by rw [sameSeq]; exact observerAt) (by omega)
   exact excluded (sameView.symm.trans invalidView)
 
 end consistency.Proofs.InvalidObservations
