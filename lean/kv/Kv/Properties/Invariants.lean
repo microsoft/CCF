@@ -24,15 +24,6 @@ def projectedApplication (w : World) (sid : Nat) : Event → List Tx
       if id = sid then (txOf w id tid).toOption.toList else []
   | _ => []
 
-/-- The head of `after` is that of `before`, or follows from it by applying the listed attempt. -/
-inductive HeadEffect (before after : Store) : List Tx → Prop
-  /-- The head data and version are unchanged. -/
-  | stutter (data : after.head.data = before.head.data)
-    (version : after.head.version = before.head.version)
-    : HeadEffect before after []
-  /-- One attempt is applied. -/
-  | apply (tx : Tx) (one : tryApply before tx = some after) : HeadEffect before after [tx]
-
 /-- The attempts a record sequence applies to store `sid`, in order. -/
 def projectApplications (w : World) (sid : Nat) : List Record → Except Failure (List Tx)
   | [] => .ok []
