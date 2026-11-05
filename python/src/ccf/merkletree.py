@@ -4,24 +4,35 @@
 import struct
 from hashlib import sha256
 
+_HASH_SIZE = 32  # SHA-256 digest size
+
 
 class MerkleTree:
     """
     Basic Merkle Tree implementation where leaves comprise of hashed transactions.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.reset_tree()
 
-    def reset_tree(self):
-        self._levels = [[]]
-        self._root = None
-        self._num_flushed = 0
+    def reset_tree(self) -> None:
+        self._levels: list[list[bytes]] = [[]]
+        self._root: bytes | None = None
+        self._num_flushed: int = 0
 
-    def add_leaf(self, values: bytes, do_hash=True):
+    def add_leaf(self, values: bytes, do_hash: bool = True) -> None:
+        """Append a leaf, hashing values unless do_hash is False.
+
+        Raises:
+            ValueError: If do_hash is False and values is not a SHA-256 digest.
+        """
         digest = values
         if do_hash:
             digest = sha256(values).digest()
+        elif len(digest) != _HASH_SIZE:
+            raise ValueError(
+                f"Leaf digest must be {_HASH_SIZE} bytes, got {len(digest)}"
+            )
         self._levels[0].append(digest)
         self._root = None  # Need to recalculate
 
@@ -101,7 +112,9 @@ class MerkleTree:
         return self._root
 
     @staticmethod
-    def _recalculate_level(prev_level: list, level: list, start: int) -> None:
+    def _recalculate_level(
+        prev_level: list[bytes], level: list[bytes], start: int
+    ) -> None:
         """
         Extend level with the hashes of prev_level, in place.
         Reuses already-computed hashes, so the cost is proportional to the
@@ -134,7 +147,7 @@ class MerkleTree:
         if solo_node is not None:
             level.append(solo_node)
 
-    def _make_tree(self):
+    def _make_tree(self) -> None:
         if self.get_leaf_count() == 0:
             return
 
@@ -177,7 +190,6 @@ class MerkleTree:
         Returns:
             The new position in the buffer after deserialisation
         """
-        HASH_SIZE = 32  # SHA-256 hash size
 
         # Helper function to read bytes and advance position
         def read_bytes(pos: int, size: int) -> tuple[bytes, int]:
@@ -206,7 +218,7 @@ class MerkleTree:
 
         # Read leaf hashes into _levels[0]
         for _ in range(num_leaf_nodes):
-            leaf_hash, position = read_bytes(position, HASH_SIZE)
+            leaf_hash, position = read_bytes(position, _HASH_SIZE)
             self._levels[0].append(leaf_hash)
 
         # Read flushed subtree hashes into their conceptual levels.
@@ -217,7 +229,7 @@ class MerkleTree:
 
         while it != 0:
             if it & 0x01:
-                flushed_hash, position = read_bytes(position, HASH_SIZE)
+                flushed_hash, position = read_bytes(position, _HASH_SIZE)
                 if level == 0:
                     # Flushed leaf - insert at beginning of level 0
                     self._levels[0].insert(0, flushed_hash)

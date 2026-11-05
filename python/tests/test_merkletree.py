@@ -221,3 +221,16 @@ def test_periodic_flush_releases_allocations():
     # A generous relative bound catches retained historical hashes without
     # specifying how a tree stores the remaining nodes.
     assert flushed_bytes < unflushed_bytes // 10
+
+
+@pytest.mark.parametrize("size", [0, 31, 33, 64])
+def test_unhashed_leaf_must_be_digest(size: int):
+    tree = MerkleTree()
+    tree.add_leaf(leaf(0), do_hash=False)
+    root = tree.get_merkle_root()
+    with pytest.raises(ValueError, match="Leaf digest must be 32 bytes"):
+        tree.add_leaf(bytes(size), do_hash=False)
+    assert tree.get_leaf_count() == 1
+    assert tree.get_merkle_root() == root
+    tree.add_leaf(bytes(size))
+    assert tree.get_leaf(1) == sha256(bytes(size)).digest()
