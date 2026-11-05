@@ -8,9 +8,10 @@
 
 namespace ccf::indexing::strategies
 {
-  // Stores only a subset of results in-memory, on-demand, and dumps the
-  // remainder to disk. The size of the per-key buckets which will be retained,
-  // and the number of buckets which may be held in-memory, are configurable
+  // Retains a trusted current bucket for every distinct key. Completed
+  // non-empty buckets and immutable directory pages are authenticated by LFS
+  // and fetched through bounded caches. Each key also retains an unfinished
+  // directory page; memory still grows with the number of distinct keys.
   class SeqnosByKey_Bucketed_Untyped : public VisitEachEntryInMap
   {
   protected:
@@ -34,6 +35,9 @@ namespace ccf::indexing::strategies
       size_t seqnos_per_bucket_ = 1000,
       size_t max_buckets_ = 10);
 
+    // Inclusive queries with to - from above this limit are rejected.
+    // Directory lookup progresses across asynchronous retries independently
+    // of file-cache eviction.
     [[nodiscard]] size_t max_requestable_range() const;
   };
 

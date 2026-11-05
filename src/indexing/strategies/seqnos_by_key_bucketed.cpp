@@ -11,36 +11,73 @@
 #include "indexing/lfs_interface.h"
 #include "kv/kv_types.h"
 
+#include <algorithm>
+
 namespace ccf::indexing::strategies
 {
   struct SeqnosByKey_Bucketed_Untyped::Impl
   {
   public:
+    static constexpr size_t DIRECTORY_PAGE_SIZE = 256;
     const size_t seqnos_per_bucket;
 
     // Inclusive begin, exclusive end
     using Range = std::pair<ccf::SeqNo, ccf::SeqNo>;
+    using DirectoryPage = std::vector<ccf::SeqNo>;
 
-    // Store a single bucket of current results for each key
-    using CurrentResult = std::pair<Range, SeqNoCollection>;
+    struct CurrentResult
+    {
+      Range range;
+      SeqNoCollection seqnos = {};
+      size_t page_count = 0;
+      std::optional<ccf::SeqNo> last_paged_bucket = std::nullopt;
+      DirectoryPage directory = {};
+    };
+
+    // These trusted heads must not be evicted: absence means never written.
     std::unordered_map<ccf::ByteVector, CurrentResult> current_results;
 
-    // Maintain an LRU of old, requested buckets, which are asynchronously
-    // fetched from disk
     using BucketKey = std::pair<ccf::ByteVector, Range>;
-    // First element is a handle while result is being fetched. Second is parsed
-    // result, after fetch completes, at which point the first is set to nullptr
-    using BucketValue = std::pair<FetchResultPtr, SeqNoCollection>;
-    LRU<BucketKey, BucketValue> old_results;
+    using PageKey = std::pair<ccf::ByteVector, size_t>;
+    using CachedBucket = std::shared_ptr<const SeqNoCollection>;
+    LRU<BucketKey, CachedBucket> old_results;
+    LRU<PageKey, DirectoryPage> directory_pages;
 
-    // When results_access and current_txid_lock need to be
-    // taken at the same time, results_access should be first
+    struct BucketRequest
+    {
+      ccf::SeqNo start;
+      FetchResultPtr pending;
+      bool required;
+      CachedBucket seqnos = nullptr;
+    };
+
+    struct Query
+    {
+      enum class Phase
+      {
+        Direct,
+        Seek,
+        Scan,
+        Complete,
+      };
+      Phase phase = Phase::Direct;
+      SeqNoCollection current;
+      std::optional<SeqNoCollection> result;
+      std::vector<BucketRequest> buckets;
+      size_t page_count = 0;
+      size_t low = 0;
+      size_t high = 0;
+      FetchResultPtr page_pending;
+    };
+
+    using QueryKey = std::pair<ccf::ByteVector, Range>;
+    // Pending reads and search bounds survive eviction from either file cache.
+    LRU<QueryKey, Query> queries;
+
+    // When both locks are needed, results_access must be taken first.
     ccf::ds::Mutex results_access;
-
     std::string name;
-
     std::shared_ptr<AbstractLFSAccess> lfs_access;
-
     ccf::ds::Mutex& current_txid_lock;
     ccf::TxID& current_txid;
 
@@ -53,6 +90,8 @@ namespace ccf::indexing::strategies
       size_t max_buckets_) :
       seqnos_per_bucket(seqnos_per_bucket_),
       old_results(max_buckets_),
+      directory_pages(max_buckets_),
+      queries(max_buckets_),
       name(std::move(name_)),
       lfs_access(lfs_access_),
       current_txid_lock(current_txid_lock_),
@@ -60,108 +99,152 @@ namespace ccf::indexing::strategies
     {
       if (lfs_access == nullptr)
       {
-        throw std::logic_error(fmt::format(
-          "Cannot create this strategy without access to the LFS subsystem"));
+        throw std::logic_error(
+          "Cannot create this strategy without access to the LFS subsystem");
+      }
+
+      if (seqnos_per_bucket == 0 || max_buckets_ == 0)
+      {
+        throw std::logic_error(
+          "Bucketed indexing requires a non-zero bucket size and cache "
+          "capacity");
       }
     }
 
-    static LFSContents serialise(SeqNoCollection&& seqnos)
+    static LFSContents serialise(const auto& seqnos)
     {
-      LFSContents blob;
-
+      LFSContents blob(sizeof(size_t) + seqnos.size() * sizeof(ccf::SeqNo));
+      auto* data = blob.data();
+      auto size = blob.size();
+      serialized::write(data, size, seqnos.size());
+      for (auto seqno : seqnos)
       {
-        // Write number of seqnos
-        const auto orig_size = blob.size();
-        blob.resize(orig_size + sizeof(seqnos.size()));
-        auto* data = blob.data() + orig_size;
-        auto size = blob.size() - orig_size;
-        serialized::write(data, size, seqnos.size());
-      }
-
-      // Write each seqno
-      for (const auto& seqno : seqnos)
-      {
-        const auto orig_size = blob.size();
-        blob.resize(orig_size + sizeof(seqno));
-        auto* data = blob.data() + orig_size;
-        auto size = blob.size() - orig_size;
         serialized::write(data, size, seqno);
       }
 
       return blob;
     }
 
-    SeqNoCollection deserialise(const LFSContents& raw, bool& corrupt)
+    std::optional<std::vector<ccf::SeqNo>> deserialise(
+      const LFSContents& raw, size_t max_count)
     {
-      corrupt = false;
       try
       {
         const auto* data = raw.data();
         auto size = raw.size();
-
-        // Read number of seqnos
-        const auto seqno_count = serialized::read<size_t>(data, size);
-        SeqNoCollection seqnos;
-
-        for (auto j = 0U; j < seqno_count; ++j)
+        const auto count = serialized::read<size_t>(data, size);
+        if (
+          count == 0 || count > max_count ||
+          count != size / sizeof(ccf::SeqNo) || size % sizeof(ccf::SeqNo) != 0)
         {
-          seqnos.insert(serialized::read<ccf::SeqNo>(data, size));
+          LOG_FAIL_FMT("Invalid sparse index contents for {}", name);
+          return std::nullopt;
         }
 
-        if (size != 0)
+        std::vector<ccf::SeqNo> seqnos;
+        seqnos.reserve(count);
+        for (size_t j = 0; j < count; ++j)
         {
-          LOG_TRACE_FMT("{} bytes remaining after deserialisation", size);
-          corrupt = true;
-          return {};
+          const auto seqno = serialized::read<ccf::SeqNo>(data, size);
+          if (!seqnos.empty() && seqno <= seqnos.back())
+          {
+            LOG_FAIL_FMT("Unordered sparse index contents for {}", name);
+            return std::nullopt;
+          }
+
+          seqnos.push_back(seqno);
         }
 
         return seqnos;
       }
-      // Catch errors thrown by serialized::read
       catch (const serialized::InsufficientSpaceException& e)
       {
-        LOG_TRACE_FMT("Deserialisation failed: {}", e.what());
-        corrupt = true;
-        return {};
+        LOG_FAIL_FMT("Sparse index deserialisation failed: {}", e.what());
+        return std::nullopt;
       }
     }
 
     LFSKey get_blob_name(const BucketKey& bk)
     {
       const auto hex_key = ds::to_hex(bk.first.begin(), bk.first.end());
-      const auto& range = bk.second;
       return fmt::format(
-        "{}: {} -> {} for {}", name, range.first, range.second, hex_key);
+        "{}: {} -> {} for {}",
+        name,
+        bk.second.first,
+        bk.second.second,
+        hex_key);
     }
 
-    void store_empty_buckets(
-      const ccf::ByteVector& k, Range begin, const Range& end)
+    LFSKey get_page_name(const PageKey& pk)
     {
-      while (begin != end)
-      {
-        LOG_TRACE_FMT(
-          "Storing empty bucket for range [{}, {}) for key {:02x}",
-          begin.first,
-          begin.second,
-          fmt::join(k, ""));
-        store_to_disk(k, begin, {});
-        begin = get_range_for(begin.second);
-      }
-    }
-
-    void store_to_disk(
-      const ccf::ByteVector& k, const Range& range, SeqNoCollection&& seqnos)
-    {
-      const BucketKey bucket_key{k, range};
-      const auto blob_key = get_blob_name(bucket_key);
-      lfs_access->store(blob_key, serialise(std::move(seqnos)));
+      const auto hex_key = ds::to_hex(pk.first.begin(), pk.first.end());
+      return fmt::format(
+        "{}: directory {} ({} seqnos per bucket) for {}",
+        name,
+        pk.second,
+        seqnos_per_bucket,
+        hex_key);
     }
 
     Range get_range_for(ccf::SeqNo seqno) const
     {
       const auto begin = (seqno / seqnos_per_bucket) * seqnos_per_bucket;
-      const auto end = begin + seqnos_per_bucket;
-      return {begin, end};
+      return {begin, begin + seqnos_per_bucket};
+    }
+
+    void rebuild()
+    {
+      LOG_FAIL_FMT(
+        "A file that {} requires is missing or corrupt. Re-indexing.", name);
+      std::lock_guard<ccf::ds::Mutex> guard(current_txid_lock);
+      current_txid = {};
+      old_results.clear();
+      directory_pages.clear();
+      queries.clear();
+      current_results.clear();
+    }
+
+    const DirectoryPage* load_page(const PageKey& key, Query& query)
+    {
+      auto cached = directory_pages.find(key);
+      if (cached != directory_pages.end())
+      {
+        directory_pages.promote(cached);
+        query.page_pending = nullptr;
+        return &cached->second;
+      }
+
+      if (query.page_pending == nullptr)
+      {
+        query.page_pending = lfs_access->fetch(get_page_name(key));
+      }
+
+      const auto status = query.page_pending->fetch_result.load();
+      if (status == FetchResult::FetchResultType::Fetching)
+      {
+        return nullptr;
+      }
+
+      std::optional<DirectoryPage> page;
+      if (status == FetchResult::FetchResultType::Loaded)
+      {
+        page = deserialise(query.page_pending->contents, DIRECTORY_PAGE_SIZE);
+      }
+
+      if (
+        !page.has_value() || page->size() != DIRECTORY_PAGE_SIZE ||
+        std::any_of(page->begin(), page->end(), [&](auto start) {
+          return start % seqnos_per_bucket != 0;
+        }))
+      {
+        LOG_FAIL_FMT(
+          "Required directory page unavailable: {}", get_page_name(key));
+        rebuild();
+        return nullptr;
+      }
+
+      query.page_pending = nullptr;
+      return &directory_pages.insert(key, std::move(*page))->second;
     }
 
     std::optional<SeqNoCollection> get_write_txs_impl(
@@ -173,183 +256,253 @@ namespace ccf::indexing::strategies
           fmt::format("Range goes backwards: {} -> {}", from, to));
       }
 
-      if (std::lock_guard<ccf::ds::Mutex> guard(current_txid_lock);
-          to > current_txid.seqno)
+      std::lock_guard<ccf::ds::Mutex> guard(results_access);
       {
-        // If the requested range hasn't been populated yet, indicate
-        // that with nullopt
-        return std::nullopt;
+        std::lock_guard<ccf::ds::Mutex> txid_guard(current_txid_lock);
+        if (to > current_txid.seqno)
+        {
+          return std::nullopt;
+        }
       }
 
-      auto from_range = get_range_for(from);
-      const auto to_range = get_range_for(to);
-
-      // Check that once the entire requested range is fetched, it will fit
-      // into the LRU at the same time
-      const auto range_len = to - from;
-      if (range_len > max_requestable_range())
+      if (to - from > max_requestable_range())
       {
         throw std::logic_error(fmt::format(
-          "Requesting transactions from {} to {} requires buckets covering "
-          "[{}, {}). These {} transactions are larger than the maximum "
+          "Requesting transactions from {} to {} exceeds the maximum "
           "requestable {}",
           from,
           to,
-          from_range.first,
-          to_range.second,
-          range_len,
           max_requestable_range()));
       }
 
-      SeqNoCollection result;
-
-      auto append_bucket_result = [&](const SeqNoCollection& seqnos) {
-        for (auto n : seqnos)
+      const auto from_range = get_range_for(from);
+      const auto to_range = get_range_for(to);
+      auto append = [&](SeqNoCollection& result, const auto& seqnos) {
+        for (auto seqno : seqnos)
         {
-          if (n >= from && n <= to)
+          if (seqno >= from && seqno <= to)
           {
-            result.insert(n);
+            result.insert(seqno);
           }
         }
       };
 
-      bool complete = true;
-
-      while (true)
+      const QueryKey query_key{serialised_key, {from, to}};
+      auto query_it = queries.find(query_key);
+      if (query_it == queries.end())
       {
-        std::lock_guard<ccf::ds::Mutex> guard(results_access);
-
-        const auto bucket_key = std::make_pair(serialised_key, from_range);
-        const auto old_it = old_results.find(bucket_key);
-        if (old_it != old_results.end())
+        const auto head_it = current_results.find(serialised_key);
+        if (
+          head_it == current_results.end() ||
+          head_it->second.range.second <= from)
         {
-          auto& bucket_value = old_it->second;
-
-          // We were already trying to fetch this. If it's finished fetching,
-          // parse and store the result
-          if (bucket_value.first != nullptr)
-          {
-            const auto fetch_result = bucket_value.first->fetch_result.load();
-            switch (fetch_result)
-            {
-              case (ccf::indexing::FetchResult::FetchResultType::Fetching):
-              {
-                complete = false;
-                break;
-              }
-              case (ccf::indexing::FetchResult::FetchResultType::Loaded):
-              {
-                bool corrupt = false;
-                bucket_value.second =
-                  deserialise(bucket_value.first->contents, corrupt);
-                if (!corrupt)
-                {
-                  bucket_value.first = nullptr;
-                  break;
-                }
-                // Deliberately fall through to the case below. If this can't
-                // deserialise the value, consider the file corrupted
-                LOG_FAIL_FMT("Deserialisation failed");
-              }
-              case (ccf::indexing::FetchResult::FetchResultType::NotFound):
-              case (ccf::indexing::FetchResult::FetchResultType::Corrupt):
-              {
-                // This class previously wrote a bucket to disk which is no
-                // longer available or corrupted. Reset the watermark of what
-                // has been indexed, to re-index and rewrite those files.
-                const auto* problem = fetch_result ==
-                    ccf::indexing::FetchResult::FetchResultType::NotFound ?
-                  "missing" :
-                  "corrupt";
-                LOG_FAIL_FMT(
-                  "A file that {} requires is {}. Re-indexing.", name, problem);
-                LOG_DEBUG_FMT(
-                  "The {} file is {}", problem, bucket_value.first->key);
-
-                // NB: This could probably be more precise about what is
-                // re-indexed. Technically only need to build an index to build
-                // the current query, and that applies to re-indexing too. But
-                // for safety, and consistency with the simple indexing
-                // strategies currently used, this re-indexes everything from
-                // the start of time.
-                {
-                  std::lock_guard<ccf::ds::Mutex> current_txid_guard(
-                    current_txid_lock);
-                  current_txid = {};
-                }
-                old_results.clear();
-                current_results.clear();
-
-                return std::nullopt;
-              }
-            }
-          }
-
-          if (bucket_value.first == nullptr && complete)
-          {
-            // Still building a contiguous result, and have a parsed result for
-            // this bucket - insert it
-            append_bucket_result(bucket_value.second);
-          }
+          return SeqNoCollection{};
         }
-        else
-        {
-          // We're not currently fetching this. First check if it's in our
-          // current results
-          const auto current_it = current_results.find(serialised_key);
-          if (
-            current_it != current_results.end() &&
-            current_it->second.first == from_range)
+
+        const auto& head = head_it->second;
+        Query query;
+        append(query.current, head.seqnos);
+        query.page_count = head.page_count;
+        query.high = head.page_count;
+        auto request = [&](ccf::SeqNo start, bool required) {
+          const BucketKey key{serialised_key, get_range_for(start)};
+          auto cached = old_results.find(key);
+          if (cached != old_results.end())
           {
-            if (complete)
-            {
-              append_bucket_result(current_it->second.second);
-            }
-          }
-          // Another possibility is that the requested range is _after_ the
-          // current_results for this key. That means, assuming we have
-          // constructed a complete index up to to_range, that there are no
-          // later buckets to fetch - we have constructed a complete result.
-          // Similarly, if we have _no_ current_results for this key, then
-          // (assuming we have a complete index), there are no writes to this
-          // key, and we have constructed a complete result.
-          else if (
-            (current_it != current_results.end() &&
-             current_it->second.first.first < from_range.first) ||
-            current_it == current_results.end())
-          {
-            break;
+            old_results.promote(cached);
+            query.buckets.push_back({start, nullptr, required, cached->second});
           }
           else
           {
-            // Begin fetching this bucket from disk
-            auto fetch_handle = lfs_access->fetch(get_blob_name(bucket_key));
-            old_results.insert(
-              bucket_key, std::make_pair(fetch_handle, SeqNoCollection()));
-            complete = false;
+            query.buckets.push_back(
+              {start, lfs_access->fetch(get_blob_name(key)), required});
+          }
+        };
+
+        // All speculative reads are confined to the requested range. The
+        // trusted unfinished directory proves gaps after the last sealed page.
+        if (head.last_paged_bucket.has_value())
+        {
+          const auto end = std::min(to_range.first, *head.last_paged_bucket);
+          for (auto start = from_range.first; start <= end;
+               start += seqnos_per_bucket)
+          {
+            request(start, false);
           }
         }
 
-        if (from_range == to_range)
+        for (auto start : head.directory)
+        {
+          if (start >= from_range.first && start <= to_range.first)
+          {
+            request(start, true);
+          }
+        }
+
+        query_it = queries.insert(query_key, std::move(query));
+      }
+
+      queries.promote(query_it);
+      auto& query = query_it->second;
+
+      if (query.phase == Query::Phase::Direct)
+      {
+        bool pending = false;
+        bool need_directory = false;
+        for (auto& request : query.buckets)
+        {
+          if (request.pending != nullptr)
+          {
+            const auto status = request.pending->fetch_result.load();
+            if (status == FetchResult::FetchResultType::Fetching)
+            {
+              pending = true;
+              continue;
+            }
+
+            if (status == FetchResult::FetchResultType::Loaded)
+            {
+              auto seqnos =
+                deserialise(request.pending->contents, seqnos_per_bucket);
+              const auto range = get_range_for(request.start);
+              if (
+                seqnos.has_value() && seqnos->front() >= range.first &&
+                seqnos->back() < range.second)
+              {
+                auto collection = std::make_shared<SeqNoCollection>();
+                for (auto seqno : *seqnos)
+                {
+                  collection->insert(seqno);
+                }
+
+                request.seqnos = collection;
+                old_results.insert(
+                  {serialised_key, range}, std::move(collection));
+              }
+            }
+
+            request.pending = nullptr;
+          }
+
+          if (request.seqnos == nullptr)
+          {
+            if (request.required)
+            {
+              LOG_FAIL_FMT(
+                "Required bucket unavailable: {}",
+                get_blob_name({serialised_key, get_range_for(request.start)}));
+              rebuild();
+              return std::nullopt;
+            }
+
+            need_directory = true;
+          }
+        }
+
+        if (pending)
+        {
+          return std::nullopt;
+        }
+
+        query.phase =
+          need_directory ? Query::Phase::Seek : Query::Phase::Complete;
+      }
+
+      // Page ordinals are dense and bounded by a trusted count. Unlike data
+      // bucket existence, their ordered contents support binary search. Every
+      // page consulted here is required; an unavailable page cannot prove a
+      // gap.
+      while (query.phase == Query::Phase::Seek && query.low < query.high)
+      {
+        const auto mid = query.low + (query.high - query.low) / 2;
+        const auto* page = load_page({serialised_key, mid}, query);
+        if (page == nullptr)
+        {
+          return std::nullopt;
+        }
+
+        if (page->back() < from_range.first)
+        {
+          query.low = mid + 1;
+        }
+        else
+        {
+          query.high = mid;
+        }
+      }
+
+      if (query.phase == Query::Phase::Seek)
+      {
+        query.phase = Query::Phase::Scan;
+      }
+
+      while (query.phase == Query::Phase::Scan && query.low < query.page_count)
+      {
+        const auto* page = load_page({serialised_key, query.low}, query);
+        if (page == nullptr)
+        {
+          return std::nullopt;
+        }
+
+        for (auto start : *page)
+        {
+          if (start < from_range.first || start > to_range.first)
+          {
+            continue;
+          }
+
+          const auto request = std::lower_bound(
+            query.buckets.begin(),
+            query.buckets.end(),
+            start,
+            [](const auto& entry, auto bucket_start) {
+              return entry.start < bucket_start;
+            });
+          if (request == query.buckets.end() || request->start != start)
+          {
+            throw std::logic_error("Directory bucket was not requested");
+          }
+
+          if (request->seqnos == nullptr)
+          {
+            LOG_FAIL_FMT(
+              "Directory requires unavailable bucket: {}",
+              get_blob_name({serialised_key, get_range_for(start)}));
+            rebuild();
+            return std::nullopt;
+          }
+        }
+
+        ++query.low;
+        if (page->back() >= to_range.first)
         {
           break;
         }
-        from_range.first += seqnos_per_bucket;
-        from_range.second += seqnos_per_bucket;
       }
 
-      if (complete)
+      query.phase = Query::Phase::Complete;
+      if (!query.result.has_value())
       {
-        return result;
+        // ContiguousSet is vector-backed. Assemble in bucket order only after
+        // all reads and gap proofs complete, avoiding quadratic front inserts
+        // when newer buckets were cached before older reads finished.
+        query.result.emplace();
+        for (const auto& request : query.buckets)
+        {
+          if (request.seqnos != nullptr)
+          {
+            append(*query.result, *request.seqnos);
+          }
+        }
+
+        append(*query.result, query.current);
+        query.buckets.clear();
+        query.current.clear();
       }
 
-      return std::nullopt;
+      return query.result;
     }
 
-    // This returns the max range which may be requested. This accounts for the
-    // case where the range is not aligned with a bucket start, in which case we
-    // will have unrequested entries sharing a bucket with the requested entries
-    // at the beginning and end, essentially wasting some space.
     size_t max_requestable_range() const
     {
       return ((old_results.get_max_size() - 1) * seqnos_per_bucket);
@@ -361,48 +514,34 @@ namespace ccf::indexing::strategies
   {
     (void)v;
     const auto range = impl->get_range_for(tx_id.seqno);
-
     std::lock_guard<ccf::ds::Mutex> guard(impl->results_access);
-
     auto it = impl->current_results.find(k);
-    if (it != impl->current_results.end())
+    if (it == impl->current_results.end())
     {
-      // Have existing results. If they're from an old range, they must be
-      // flushed, and the bucket updated to contain the new entry
-      auto& current_result = it->second;
-      const auto current_range = current_result.first;
-      if (range != current_range)
+      it =
+        impl->current_results.emplace(k, Impl::CurrentResult{range, {}}).first;
+    }
+    else if (it->second.range != range)
+    {
+      auto& head = it->second;
+      impl->lfs_access->store(
+        impl->get_blob_name({k, head.range}), Impl::serialise(head.seqnos));
+      head.directory.push_back(head.range.first);
+      if (head.directory.size() == Impl::DIRECTORY_PAGE_SIZE)
       {
-        LOG_TRACE_FMT(
-          "Storing {} entries from real range [{}, {}) for key {:02x}",
-          current_result.second.size(),
-          current_range.first,
-          current_range.second,
-          fmt::join(k, ""));
-        impl->store_to_disk(k, current_range, std::move(current_result.second));
-
-        const auto next_range = impl->get_range_for(current_range.second);
-        if (next_range != range)
-        {
-          impl->store_empty_buckets(k, next_range, range);
-        }
-
-        current_result.first = range;
-        current_result.second.clear();
+        impl->lfs_access->store(
+          impl->get_page_name({k, head.page_count}),
+          Impl::serialise(head.directory));
+        ++head.page_count;
+        head.last_paged_bucket = head.directory.back();
+        head.directory.clear();
       }
-    }
-    else
-    {
-      // This key has never been seen before. Insert a new bucket for it
-      impl->store_empty_buckets(k, impl->get_range_for(0), range);
-      it = impl->current_results
-             .emplace(k, std::make_pair(range, SeqNoCollection()))
-             .first;
+
+      head.range = range;
+      head.seqnos.clear();
     }
 
-    auto& current_result = it->second;
-    auto& current_seqnos = current_result.second;
-    current_seqnos.insert(tx_id.seqno);
+    it->second.seqnos.insert(tx_id.seqno);
   }
 
   nlohmann::json SeqnosByKey_Bucketed_Untyped::describe()
@@ -414,6 +553,8 @@ namespace ccf::indexing::strategies
       j["old_results_max_size"] = impl->old_results.get_max_size();
       j["old_results_current_size"] = impl->old_results.size();
       j["current_results_size"] = impl->current_results.size();
+      j["directory_page_size"] = Impl::DIRECTORY_PAGE_SIZE;
+      j["directory_pages_current_size"] = impl->directory_pages.size();
     }
     return j;
   }
@@ -442,7 +583,6 @@ namespace ccf::indexing::strategies
         get_name(),
         map_name_));
     }
-
     impl = std::make_shared<Impl>(
       get_name(),
       current_txid_lock,

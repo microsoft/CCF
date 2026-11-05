@@ -221,7 +221,29 @@ A :cpp:type:`ccf::indexing::Strategy` may offload partial results to disk to avo
 Since the indexing system and all the strategies it manages exist entirely within the enclave, this has the same trust guarantees as any other in-enclave code - users can trust that the results are accurate and complete, and the query may process private data.
 
 An example :cpp:type:`ccf::indexing::Strategy` is included in the logging app, to accelerate historical range queries.
-This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` stores the list of seqnos where every key is written to, offloading completed ranges to disk to cap the total memory usage.
+This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` stores the list of seqnos where every key is written to, offloading completed non-empty buckets to disk.
+It retains a trusted current bucket for every distinct key, so memory usage still grows with the number of distinct keys; this is not a total memory cap.
+Neither late first writes nor gaps between writes create empty bucket files.
+An ordered per-key directory records completed non-empty bucket starts in pages of 256 entries.
+Full pages are written once with consecutive page numbers; the trusted in-memory head retains the page count, the last paged bucket start, and the unfinished page.
+This adds one metadata file per 256 completed non-empty buckets and at most 2 KiB of retained bucket-number storage per distinct key, plus container and bookkeeping overhead.
+Short histories allocate directory storage incrementally rather than reserving a full page for every key.
+LFS authenticates data and directory contents and their identities.
+Every directory page below the trusted count must exist: a missing page is never interpreted as an empty range.
+If a required file is missing or corrupt, queries remain unavailable while the index is rebuilt.
+
+Queries retain the existing inclusive range API and maximum requestable range, returning no result until the entire range is available.
+Data reads are queued together for the requested range, preserving batched fetching for populated ranges without reading newer data buckets.
+The unfinished directory identifies required buckets and empty gaps directly in memory.
+For older history covered by sealed pages, failed direct data reads require a binary search of directory pages followed by a scan of pages overlapping the requested range.
+The directory either proves those buckets empty or identifies missing/corrupt required data and triggers rebuilding.
+For a cold query spanning B data buckets and a key with D sealed directory pages, the populated-range fast path costs at most B batched data reads; failed probes add O(log D) metadata reads plus pages covering the range.
+Unlike the predecessor-chain approach, old empty ranges do not require reading all newer non-empty data buckets.
+Directory search progresses asynchronously across retries even when its working set exceeds the metadata cache capacity.
+A bounded LRU of query cursors retains partial results and pending fetches; eviction of a cursor restarts that query on its next retry.
+Speculative data reads are bounded by the existing maximum requestable range, not by the age of the key or the length of gaps between writes.
+This strategy remains public-table-only and compatible with ``LazyStrategy``.
+Indexes are still built independently on each node and rebuilt after restart; disk persistence, node sharing, and per-key eviction are not provided.
 In the endpoint handler, rather than requesting every transaction in the requested range, the node relies on its index to fetch only the `interesting` transactions; those which write to the target key:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
