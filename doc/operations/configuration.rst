@@ -28,8 +28,7 @@ For migration from deprecated ringbuffer-era configuration, see :doc:`/build_app
 Observability Export
 --------------------
 
-To export CCF consensus protocol trace events, add the experimental ``observability.fluentd`` array to your node configuration.
-Changes take effect at node startup.
+To export consensus protocol traces (not ordinary console logs), add the experimental ``observability.fluentd`` array to your node configuration and restart the node.
 Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticated and unencrypted.
 
 .. code-block:: json
@@ -43,23 +42,20 @@ Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticate
       }
     }
 
-All sinks currently receive the same CCF consensus protocol trace events; ordinary console logging is unchanged.
+Each collector receives the same traces.
+For a single collector, use one array entry; to migrate an existing single-object configuration, wrap it in an array.
 Omit the array or leave it empty to disable export.
-For a single sink, use a one-element array; wrap existing single-object configurations in an array.
 
-Choose a ``delivery`` policy per sink:
+Choose a ``delivery`` policy per collector:
 
 - ``buffered-best-effort`` (default): retain queued records while the collector is unavailable or cannot accept data.
-- ``unbuffered-non-blocking``: drop records that have not started sending in those cases, including while an earlier partial record is pending.
+- ``unbuffered-non-blocking``: drop queued records when the collector is unavailable or cannot accept data.
 
-Neither policy waits for a collector, and a stalled sink does not block the node or other sinks.
-``queue_capacity`` defaults to 4096 records per node thread, per sink, not bytes.
-Larger queues use more memory; full queues drop new records under either policy.
-Each sink may also retain one in-flight record.
+Optional ``queue_capacity`` on each array entry defaults to 4096 records per node thread.
+Full queues drop new records under either policy; larger queues use more memory.
 
-Delivery is best effort, not a guarantee of collector receipt.
-Failed sends are not replayed.
-Shutdown drains for up to two seconds across all sinks, then drops remaining records.
+Both policies retain one in-flight record for retry, but delivery is not guaranteed and retries can produce duplicates.
+Shutdown attempts to drain all collectors for up to two seconds, then drops remaining records; blocked console output can delay shutdown.
 
 
 IPv6 Addresses

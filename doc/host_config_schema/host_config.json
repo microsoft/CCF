@@ -31,13 +31,13 @@
                 "type": "integer",
                 "minimum": 1,
                 "default": 4096,
-                "description": "Maximum queued records per node thread for this sink, not bytes. Memory use grows with queue capacity, thread count and sink count. Both policies drop new records when full, when a record exceeds 1 MiB, or when record allocation fails. Each sink may also retain one in-flight record"
+                "description": "Maximum queued records per node thread for this sink, not bytes. Memory use grows with queue capacity, thread count and sink count. Both policies drop new records when full, when a record exceeds 1 MiB, or when record allocation fails"
               },
               "delivery": {
                 "type": "string",
                 "enum": ["buffered-best-effort", "unbuffered-non-blocking"],
                 "default": "buffered-best-effort",
-                "description": "``buffered-best-effort`` retains queued records while the collector is unavailable or cannot accept data. ``unbuffered-non-blocking`` drops records that have not started sending in those cases, including while a partial record is pending. Neither policy waits for network writability"
+                "description": "``buffered-best-effort`` retains queued records while the collector cannot accept data; ``unbuffered-non-blocking`` drops queued records on backpressure or disconnection. See :ref:`observability_export` for delivery details and limitations"
               }
             },
             "required": ["host", "port"]

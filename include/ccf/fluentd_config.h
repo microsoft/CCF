@@ -3,13 +3,14 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace ccf
 {
   struct FluentdConfig
   {
-    enum class Delivery
+    enum class Delivery : uint8_t
     {
       BUFFERED_BEST_EFFORT,
       UNBUFFERED_NON_BLOCKING

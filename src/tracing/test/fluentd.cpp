@@ -433,26 +433,26 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     static_cast<ssize_t>(received.size()));
   CHECK(received == bytes);
 
-  const auto drops_before_disconnect = Sink::dropped_count();
-  fail_at = calls + 2;
-  REQUIRE(Sink::enqueue(bytes));
-  REQUIRE(recv(peer, chunk.data(), chunk.size(), MSG_WAITALL) == 7);
-  CHECK(recv(peer, chunk.data(), chunk.size(), 0) == 0);
-  close(peer);
-  const auto drop_deadline =
-    std::chrono::steady_clock::now() + std::chrono::seconds(1);
-  while (Sink::dropped_count() == drops_before_disconnect &&
-         std::chrono::steady_clock::now() < drop_deadline)
-    std::this_thread::yield();
-  CHECK(Sink::dropped_count() == drops_before_disconnect + 1);
-  REQUIRE(Sink::wait_for_connection(std::chrono::seconds(2)));
-  REQUIRE(Sink::enqueue(bytes));
-  peer = accept(listener, nullptr, nullptr);
-  REQUIRE(peer >= 0);
-  REQUIRE(
-    recv(peer, received.data(), received.size(), MSG_WAITALL) ==
-    static_cast<ssize_t>(received.size()));
-  CHECK(received == bytes);
+  for (size_t failure = 1; failure <= 2; ++failure)
+  {
+    const auto drops_before_disconnect = Sink::dropped_count();
+    fail_at = calls + failure;
+    REQUIRE(Sink::enqueue(bytes));
+    if (failure == 2)
+    {
+      REQUIRE(recv(peer, chunk.data(), 7, MSG_WAITALL) == 7);
+    }
+    CHECK(recv(peer, chunk.data(), chunk.size(), 0) == 0);
+    close(peer);
+    peer = accept(listener, nullptr, nullptr);
+    REQUIRE(peer >= 0);
+    REQUIRE(
+      recv(peer, received.data(), received.size(), MSG_WAITALL) ==
+      static_cast<ssize_t>(received.size()));
+    CHECK(received == bytes);
+    CHECK(Sink::dropped_count() == drops_before_disconnect);
+    check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  }
 
   const auto drops_before_allocation_failures = Sink::dropped_count();
   for (size_t failure = 1; failure <= 2; ++failure)
