@@ -62,7 +62,7 @@ The full-gossip witness includes a failover opening.
 `Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
 
 Freshness is a necessary condition for election, not a definition of commitment in CCF.
-`update_commit` additionally requires a current-term signature replicated on a majority, and the CCF consensus protocol safety specification (`tla/consensus/ccfraft.tla`) is stated on log prefixes.
+`update_commit` additionally requires a current-term signature replicated on a majority, and the [consensus safety properties](../consensus/Consensus/Properties.lean) are stated on committed log prefixes.
 The model stores only the last signed TxID of each ledger, so this package does not prove committed-prefix preservation.
 Liveness properties are out of scope.
 

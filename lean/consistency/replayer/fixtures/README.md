@@ -1,14 +1,18 @@
 # Replay fixtures
 
-The [Lean package workflow](../../../../.github/workflows/lean-package.yml) runs these synthetic fixtures through the real replay executable.
+The [Lean package workflow](../../../../.github/workflows/lean-package.yml) runs these fixtures through the real replay executable.
 Every [valid](valid) fixture must be accepted, and every [invalid](invalid) fixture must be rejected with exit status 1.
 
-| Valid fixture                                                 | Behaviour                                                      |
-| ------------------------------------------------------------- | -------------------------------------------------------------- |
-| [Write and commit](valid/write-commit.ndjson)                 | Write executed, responded and committed                        |
-| [Forwarded read](valid/forwarded-read.ndjson)                 | Read-only request after a committed write                      |
-| [Read backfill](valid/read-backfill.ndjson)                   | Read in a later view, backfilling elections and ledger entries |
-| [Election drops invalid](valid/election-drops-invalid.ndjson) | Election discards a known-invalid write before filling a gap   |
+| Valid fixture                                                             | Behaviour                                                      |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| [Write and commit](valid/write-commit.ndjson)                             | Write executed, responded and committed                        |
+| [Forwarded read](valid/forwarded-read.ndjson)                             | Read-only request after a committed write                      |
+| [Read backfill](valid/read-backfill.ndjson)                               | Read in a later view, backfilling elections and ledger entries |
+| [Election drops invalid](valid/election-drops-invalid.ndjson)             | Election discards a known-invalid write before filling a gap   |
+| [Election without rollback](valid/election_no_rollback.ndjson)            | Election preserves the committed prefix                        |
+| [Non-contiguous view election](valid/election_non_contiguous_view.ndjson) | Election skips intermediate views                              |
+| [Rollback at the same sequence number](valid/rollback_same_seqno.ndjson)  | Election replaces an invalid write                             |
+| [Rollback of two transactions](valid/rollback_two_transactions.ndjson)    | Election replaces an invalid suffix and commits a new write    |
 
 | Invalid fixture                                                   | Expected failure                                   |
 | ----------------------------------------------------------------- | -------------------------------------------------- |

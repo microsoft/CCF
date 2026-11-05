@@ -17,7 +17,6 @@ on:
       - "tests/consistency_trace_validation.py"
       - "tests/tvc.py"
       - "samples/apps/basic_tv/**"
-      - "tla/consistency/traces/**"
       - "CMakeLists.txt"
       - ".github/workflows/lean.yml"
       - ".github/workflows/lean-package.yml"
@@ -444,7 +443,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s failglob
-          for trace in "$RUNNER_TEMP"/consistency-traces/*.ndjson tla/consistency/traces/*.ndjson; do
+          for trace in "$RUNNER_TEMP"/consistency-traces/*.ndjson lean/consistency/replayer/fixtures/valid/*.ndjson; do
             echo "::group::Validate $trace"
             lean/consistency/.lake/build/bin/consistency-replay "$trace"
             echo "::endgroup::"
