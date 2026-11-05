@@ -3,11 +3,8 @@ module  -- shake: keep-all --deprecated_module: ignore
 public import Kv.Model
 public import Kv.Model.Transitions
 public import Kv.Model.Types
-public import Kv.Proofs.Execution
-public import Kv.Proofs.Invariants
-public import Kv.Proofs.Model
-public import Kv.Proofs.Properties
-public import Kv.Proofs.Trace
+public import Kv.Proofs.Reachable
+public import Kv.Proofs.Replay
 public import Kv.Proofs.Witnesses
 public import Kv.Properties
 public import Kv.Properties.Invariants
