@@ -214,7 +214,7 @@ def run(
                         pass
                     elif print_mode == PrintMode.Digests:
                         print(
-                            f"{transaction.gcm_header.view}.{transaction.gcm_header.seqno} {transaction.get_write_set_digest().hex()}"
+                            f"{transaction.get_txid()} {transaction.get_write_set_digest().hex()}"
                         )
                     elif print_mode == PrintMode.Contents:
                         dump_entry(transaction, table_filter, tables_format_rules)

@@ -118,8 +118,9 @@ def main():
 
             public = tx.get_public_domain().get_tables()
 
-            view = tx.gcm_header.view
-            seqno = tx.gcm_header.seqno
+            txid = tx.get_txid()
+            view = txid.view
+            seqno = txid.seqno
             pre_code_ids = code_ids_with_trusted_nodes()
 
             if ccf.ledger.NODES_TABLE_NAME in public:

@@ -8,8 +8,11 @@ import glob
 import json
 import os
 import struct
+from unittest.mock import patch
 
 import ccf.ledger
+import ccf.signatures
+import ccf.split_ledger
 import pytest
 
 TABLE = "public:test"
@@ -201,66 +204,64 @@ class TestPeek:
         assert buffer.tell() == 3
 
 
-class InMemoryTransaction:
-    def __init__(self, seqno: int, domain: bytes):
-        self._seqno = seqno
-        self._domain = ccf.ledger.PublicDomain(domain)
-        self._domain._version = seqno
-
-    def get_public_domain(self) -> ccf.ledger.PublicDomain:
-        return self._domain
-
-
-class InMemoryLedger(ccf.ledger.Ledger):
-    def __init__(self, domains: list[bytes]):
-        self._transactions = [
-            InMemoryTransaction(seqno, domain)
-            for seqno, domain in enumerate(domains, start=1)
-        ]
-
-    def __iter__(self):
-        yield self._transactions
+def ledger_from_domains(directory: str, domains: list[bytes]) -> ccf.ledger.Ledger:
+    """Write a real ledger chunk containing the supplied public domains."""
+    entries = [
+        entry(seqno, {}, domain=domain) for seqno, domain in enumerate(domains, start=1)
+    ]
+    path = write_chunk(directory, "ledger_1", entries)
+    return ccf.ledger.Ledger([path], committed_only=False)
 
 
 class TestLatestPublicState:
-    def test_first_write_with_deletion(self):
-        ledger = InMemoryLedger([write_set_domain({b"a": b"1"}, [b"b"])])
+    def test_first_write_with_deletion(self, tmp_path):
+        ledger = ledger_from_domains(
+            str(tmp_path), [write_set_domain({b"a": b"1"}, [b"b"])]
+        )
         assert ledger.get_latest_public_state() == ({TABLE: {b"a": b"1"}}, 1)
 
-    def test_deletion_only_first_write(self):
-        ledger = InMemoryLedger([write_set_domain({}, [b"b"])])
+    def test_deletion_only_first_write(self, tmp_path):
+        ledger = ledger_from_domains(str(tmp_path), [write_set_domain({}, [b"b"])])
         assert ledger.get_latest_public_state() == ({TABLE: {}}, 1)
 
-    def test_write_then_delete(self):
-        ledger = InMemoryLedger(
+    def test_write_then_delete(self, tmp_path):
+        ledger = ledger_from_domains(
+            str(tmp_path),
             [
                 write_set_domain({b"a": b"1", b"b": b"2"}, []),
-                write_set_domain({b"c": b"3"}, [b"a"]),
-            ]
+                write_set_domain({b"c": b"3"}, [b"a"], version=2),
+            ],
         )
         assert ledger.get_latest_public_state() == (
             {TABLE: {b"b": b"2", b"c": b"3"}},
             2,
         )
 
-    def test_delete_then_rewrite(self):
-        ledger = InMemoryLedger(
+    def test_delete_then_rewrite(self, tmp_path):
+        ledger = ledger_from_domains(
+            str(tmp_path),
             [
                 write_set_domain({b"a": b"1"}, []),
-                write_set_domain({}, [b"a"]),
-                write_set_domain({b"a": b"2"}, []),
-            ]
+                write_set_domain({}, [b"a"], version=2),
+                write_set_domain({b"a": b"2"}, [], version=3),
+            ],
         )
         assert ledger.get_latest_public_state() == ({TABLE: {b"a": b"2"}}, 3)
 
     def test_transaction_tables_not_mutated(self):
-        first = write_set_domain({b"a": b"1"}, [])
-        ledger = InMemoryLedger([first, write_set_domain({b"b": b"2"}, [b"a"])])
-        state, _ = ledger.get_latest_public_state()
+        transactions = [
+            transaction(entry(1, {}, domain=write_set_domain({b"a": b"1"}, []))),
+            transaction(
+                entry(2, {}, domain=write_set_domain({b"b": b"2"}, [b"a"], version=2))
+            ),
+        ]
+        ledger = ccf.ledger.Ledger([])
+        with patch.object(
+            ccf.ledger.Ledger, "__iter__", return_value=iter([transactions])
+        ):
+            state, _ = ledger.get_latest_public_state()
         assert state == {TABLE: {b"b": b"2"}}
-        assert ledger._transactions[0].get_public_domain().get_tables() == {
-            TABLE: {b"a": b"1"}
-        }
+        assert transactions[0].get_public_domain().get_tables() == {TABLE: {b"a": b"1"}}
 
 
 def gcm_header(seqno: int, view: int = 2) -> bytes:
@@ -429,6 +430,59 @@ def write_chunk(directory: str, name: str, entries: list[bytes], cut: int = 0) -
     with open(path, "wb") as f:
         f.write(data)
     return path
+
+
+class TestSplitLedger:
+    @pytest.mark.parametrize("entries", [[], [entry(1, {b"a": b"1"})]])
+    def test_missing_target_cleans_up(self, tmp_path, entries: list[bytes]):
+        path = write_chunk(str(tmp_path), "ledger_1", entries)
+        output = tmp_path / "output"
+        with pytest.raises(ValueError, match="Could not find seqno 2"):
+            ccf.split_ledger.run([path, "2", "--output-dir", str(output)])
+        assert list(output.iterdir()) == []
+
+    def test_non_signature_target_cleans_up(self, tmp_path):
+        signature_domain = write_set_domain(
+            {b"signature": b"value"},
+            [],
+            table=ccf.signatures.SIGNATURE_TX_TABLE_NAME,
+            version=2,
+        )
+        path = write_chunk(
+            str(tmp_path),
+            "ledger_1",
+            [entry(1, {}), entry(2, {}, domain=signature_domain)],
+        )
+        output = tmp_path / "output"
+        with pytest.raises(ValueError, match="Next signature is at seqno 2"):
+            ccf.split_ledger.run([path, "1", "--output-dir", str(output)])
+        assert list(output.iterdir()) == []
+
+    @pytest.mark.parametrize("target", [1, 2])
+    def test_split_preserves_entries(self, tmp_path, target: int):
+        entries = [entry(1, {b"a": b"1"}), entry(2, {b"b": b"2"})]
+        path = write_chunk(str(tmp_path), "ledger_1", entries)
+        output = tmp_path / "output"
+        did_split = ccf.split_ledger.run(
+            [path, str(target), "--output-dir", str(output), "--allow-non-signature"]
+        )
+        assert did_split == (target == 1)
+        chunks = [
+            chunk for chunk in ccf.ledger.Ledger([str(output)], committed_only=False)
+        ]
+        assert len(chunks) == (2 if did_split else 1)
+        assert [tx.get_raw_tx() for chunk in chunks for tx in chunk] == entries
+        assert not (output / ccf.split_ledger.TEMPORARY_LEDGER_FILE_NAME).exists()
+
+
+def test_chunk_index_and_slice(tmp_path):
+    entries = [entry(1, {b"a": b"1"}), entry(2, {b"b": b"2"})]
+    path = write_chunk(str(tmp_path), "ledger_1", entries)
+    chunk = ccf.ledger.LedgerChunk(path)
+    assert chunk[0].get_raw_tx() == entries[0]
+    assert chunk[-1].get_raw_tx() == entries[-1]
+    assert [tx.get_raw_tx() for tx in chunk[:]] == entries
+    assert [tx.get_raw_tx() for tx in chunk[::-1]] == entries[::-1]
 
 
 class TestTornChunkTail:

@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 @dataclass(order=True)
 class TxID:
-    view: int
-    seqno: int
+    view: int | None
+    seqno: int | None
 
     def __str__(self):
         return f"{self.view}.{self.seqno}"
@@ -16,11 +16,13 @@ class TxID:
         return self.view is not None and self.seqno != 0
 
     @staticmethod
-    def from_str(s: str):
+    def from_str(s: str) -> "TxID":
+        """Parse a transaction ID, retaining None fields for invalid input."""
         return TxID(*TxID.parse(s))
 
     @staticmethod
-    def parse(s: str | None):
+    def parse(s: str | None) -> tuple[int, int] | tuple[None, None]:
+        """Return the view and sequence number, or (None, None) for invalid input."""
         try:
             if s is not None:
                 view_s, seqno_s = s.split(".")
