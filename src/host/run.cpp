@@ -416,8 +416,10 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        LOG_FATAL_FMT(
+        const auto message = fmt::format(
           "Invalid address for RPC interface {}: {}. Exiting.", name, e.what());
+        LOG_FATAL_FMT("{}", message);
+        ccf::logger::write_fatal_diagnostic(message);
         return static_cast<int>(CLI::ExitCodes::ValidationError);
       }
     }
@@ -434,9 +436,11 @@ namespace ccf
         files::exists(config.ledger.directory) &&
         !fs::is_empty(config.ledger.directory))
       {
-        LOG_FATAL_FMT(
+        const auto message = fmt::format(
           "On start, ledger directory should not exist or be empty ({})",
           config.ledger.directory);
+        LOG_FATAL_FMT("{}", message);
+        ccf::logger::write_fatal_diagnostic(message);
         return static_cast<int>(CLI::ExitCodes::ValidationError);
       }
 
@@ -447,10 +451,12 @@ namespace ccf
           files::exists(readonly_ledger_directory) &&
           !fs::is_empty(readonly_ledger_directory))
         {
-          LOG_FATAL_FMT(
+          const auto message = fmt::format(
             "On start, read-only ledger directories should not exist or be "
             "empty ({})",
             readonly_ledger_directory);
+          LOG_FATAL_FMT("{}", message);
+          ccf::logger::write_fatal_diagnostic(message);
           return static_cast<int>(CLI::ExitCodes::ValidationError);
         }
       }
@@ -459,7 +465,9 @@ namespace ccf
       config.command.type != StartType::Join &&
       config.command.type != StartType::Recover)
     {
-      LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
+      constexpr auto message = "Start command should be start|join|recover.";
+      LOG_FATAL_FMT("{} Exiting.", message);
+      ccf::logger::write_fatal_diagnostic(message);
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
@@ -471,6 +479,8 @@ namespace ccf
     {
       LOG_FAIL_FMT(
         "2TX reconfiguration is experimental, disabled in release mode");
+      ccf::logger::write_fatal_diagnostic(
+        "2TX reconfiguration is disabled in release mode");
       return CreateNodeStatus::ReconfigurationMethodNotSupported;
     }
 
@@ -525,11 +535,21 @@ namespace ccf
       // Startup diagnostics are safe here: no runtime thread has executed,
       // and locally generated secrets will be discarded.
       LOG_FAIL_FMT("Error starting node: {}", e.what());
+      ccf::logger::write_fatal_diagnostic(
+        "Node startup failed; see stdout logs for details");
       return failure_status;
     }
 
     run_enclave_threads(config, *enclave);
-    runtime_control->throw_if_fatal_error();
+    try
+    {
+      runtime_control->throw_if_fatal_error();
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
+      return CreateNodeStatus::InternalError;
+    }
 
     return std::nullopt;
   }
@@ -552,11 +572,12 @@ namespace ccf
 #endif
   }
 
-  int run(int argc, char** argv) // NOLINT(bugprone-exception-escape)
+  static int run_impl(int argc, char** argv)
   {
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
     {
       LOG_FAIL_FMT("Failed to ignore SIGPIPE");
+      ccf::logger::write_fatal_diagnostic("Failed to ignore SIGPIPE");
       return 1;
     }
 
@@ -703,6 +724,7 @@ namespace ccf
     catch (const std::logic_error& e)
     {
       LOG_FATAL_FMT("{}. Exiting.", e.what());
+      ccf::logger::write_fatal_diagnostic(e.what());
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
@@ -769,6 +791,7 @@ namespace ccf
     catch (const std::logic_error& e)
     {
       LOG_FATAL_FMT("{}. Exiting.", e.what());
+      ccf::logger::write_fatal_diagnostic(e.what());
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
@@ -777,6 +800,8 @@ namespace ccf
     {
       LOG_FATAL_FMT(
         "PID file {} already exists. Exiting.", pid_file_path.string());
+      ccf::logger::write_fatal_diagnostic(
+        fmt::format("PID file {} already exists", pid_file_path.string()));
       return static_cast<int>(CLI::ExitCodes::FileError);
     }
 
@@ -797,6 +822,9 @@ namespace ccf
     catch (const std::exception& e)
     {
       LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
+      ccf::logger::write_fatal_diagnostic(
+        "Unhandled exception while running the node; see stdout logs for "
+        "details");
       inner_ret = CreateNodeStatus::InternalError;
     }
 
@@ -821,6 +849,8 @@ namespace ccf
     {
       LOG_FAIL_FMT(
         "Failed to close uv loop cleanly: {}", uv_err_name(loop_close_rc));
+      ccf::logger::write_fatal_diagnostic(fmt::format(
+        "Failed to close the host event loop: {}", uv_err_name(loop_close_rc)));
       // walk loop to diagnose unclosed handles
       auto cb = [](uv_handle_t* handle, void* arg) {
         (void)arg;
@@ -834,5 +864,26 @@ namespace ccf
     curl_global_cleanup();
 
     return inner_ret.value_or(loop_close_rc);
+  }
+
+  int run(int argc, char** argv) // NOLINT(bugprone-exception-escape)
+  {
+    try
+    {
+      return run_impl(argc, argv);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Unhandled exception in ccf::run: {}", e.what());
+      ccf::logger::write_fatal_diagnostic(
+        fmt::format("Unhandled exception in CCF node: {}", e.what()));
+      return CreateNodeStatus::InternalError;
+    }
+    catch (...)
+    {
+      LOG_FAIL_FMT("Unhandled exception in ccf::run");
+      ccf::logger::write_fatal_diagnostic("Unhandled exception in CCF node");
+      return CreateNodeStatus::InternalError;
+    }
   }
 }

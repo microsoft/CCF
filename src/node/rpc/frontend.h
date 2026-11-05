@@ -1100,7 +1100,9 @@ namespace ccf
           // to recover safely (https://github.com/microsoft/CCF/issues/338).
           // Better to abort.
           LOG_DEBUG_FMT("Failed to serialise: {}", e.what());
-          LOG_FATAL_FMT("Failed to serialise");
+          LOG_FATAL_FMT("Failed to serialise committed transaction");
+          ccf::logger::write_fatal_diagnostic(
+            "Failed to serialise committed transaction");
           abort();
         }
         catch (const std::exception& e)

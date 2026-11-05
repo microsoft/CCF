@@ -9,8 +9,10 @@
 #include <cstdint>
 #include <ctime>
 #include <doctest/doctest.h>
+#include <iostream>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -91,6 +93,27 @@ public:
     ccf::logger::config::loggers() = std::move(previous_loggers);
     ccf::logger::config::level() = previous_level;
     ccf::ds::TimeBoundLogger::default_max_time = previous_default_max_time;
+  }
+};
+
+class ScopedCerrCapture
+{
+  std::ostringstream captured;
+  std::streambuf* previous = std::cerr.rdbuf(captured.rdbuf());
+
+public:
+  ScopedCerrCapture() = default;
+  ScopedCerrCapture(const ScopedCerrCapture&) = delete;
+  ScopedCerrCapture& operator=(const ScopedCerrCapture&) = delete;
+
+  ~ScopedCerrCapture()
+  {
+    std::cerr.rdbuf(previous);
+  }
+
+  std::string str() const
+  {
+    return captured.str();
   }
 };
 
@@ -255,6 +278,28 @@ TEST_CASE("Framework logging macros")
   }
 
   ccf::logger::config::loggers().clear();
+}
+
+TEST_CASE("Only explicit fatal diagnostics write to stderr")
+{
+  const ScopedLoggerConfig restore_config;
+  std::vector<std::string> logs;
+  ccf::logger::config::level() = ccf::LoggerLevel::TRACE;
+  ccf::logger::config::loggers().emplace_back(
+    std::make_unique<TestTextLogger>(logs));
+  const ScopedCerrCapture captured;
+
+  LOG_INFO_FMT("Recoverable information");
+  LOG_FAIL_FMT("Recoverable failure");
+  LOG_FATAL_FMT("Fatal severity label without termination");
+  CHECK(captured.str().empty());
+  REQUIRE(logs.size() == 3);
+  CHECK(logs[0].contains("[info"));
+  CHECK(logs[1].contains("[fail"));
+  CHECK(logs[2].contains("[fatal"));
+
+  ccf::logger::write_fatal_diagnostic("Node terminated");
+  CHECK(captured.str() == "Fatal error: Node terminated\n");
 }
 
 TEST_CASE("Application logging macros")
