@@ -26,12 +26,6 @@ inductive History : List Frame → Nat → Prop
     (tail : History fs n)
     : History (f :: fs) (n + 1)
 
-/-- Executes operations in order with `normalStep`. -/
-def normalRun {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
-    (snapshot : DB M K V) (n : Normal M K V) (ops : List (NormalOp M K V))
-    : Option (Normal M K V) :=
-  ops.foldlM (normalStep snapshot) n
-
 section Generic
 variable {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
 
