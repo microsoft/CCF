@@ -15,6 +15,7 @@
 #include "tcp/msg_types.h"
 #include "tls/inbound_admission.h"
 #include "tls/openssl_connection_utils.h"
+#include "tls/traffic_keys.h"
 
 #include <algorithm>
 #include <atomic>
@@ -64,7 +65,8 @@ namespace ccf::tls
     using OnClose = std::function<void(::tcp::ConnID conn_id)>;
 
     // Runs once on a worker after TLS establishment, before application reads
-    // or queued writes. The SSL is borrowed for this call only. Returning false
+    // or queued writes. The SSL is borrowed for inspection only; do not perform
+    // I/O or replace its callbacks. Returning false
     // rejects the peer. Policy (including certificate verification) belongs to
     // the owner; the engine does not relax the supplied context's policy.
     using OnHandshake = std::function<bool(::tcp::ConnID, SSL*, bool outgoing)>;
@@ -86,6 +88,7 @@ namespace ccf::tls
       std::atomic<::tcp::ConnID>* shared_next_id = nullptr;
       std::shared_ptr<InboundAdmission> inbound_admission = nullptr;
       OnHandshake on_handshake = {};
+      std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt;
       // Owner callbacks run on the loop and remain valid until stop returns.
       std::function<void()> on_wake = {};
       std::function<void()> on_stop = {};
@@ -128,6 +131,8 @@ namespace ccf::tls
       std::shared_ptr<ccf::tasks::OrderedTasks> tls_tasks;
       std::shared_ptr<SSL_CTX> tls_context;
       SSL* ssl = nullptr;
+      std::optional<TrafficKeys> traffic_keys;
+      size_t write_retry_length = 0;
       ::tcp::ConnID id = 0;
       // Admission decision from OnAccept, passed to OnData.
       bool soft_limited = false;
@@ -166,6 +171,8 @@ namespace ccf::tls
       // True when progress needs the socket to become writable (handshake
       // wants write, or there is buffered outbound data).
       bool want_write = false;
+      bool read_wants_write = false;
+      bool read_paused = false;
       // A close was requested but is deferred until the buffered output has
       // been fully written, so a response queued just before close is not
       // truncated.
@@ -199,9 +206,8 @@ namespace ccf::tls
     {
       std::shared_ptr<Conn> conn;
       bool alive = true;
-      // The pass stopped at the per-pass read cap with bytes still available
-      // that will not produce a new readability event. The loop must schedule
-      // another pass rather than re-arm polling.
+      // Buffered OpenSSL input needs another pass without depending on a
+      // fresh socket readiness event.
       bool more_to_read = false;
       std::chrono::steady_clock::time_point last_active;
     };
@@ -233,13 +239,19 @@ namespace ccf::tls
     // The subset of a connection's pending events which may be acted on now.
     // Read interest is withheld while the node holds more unprocessed inbound
     // data than it is willing to.
-    [[nodiscard]] int actionable_events(const Conn& c) const
+    [[nodiscard]] int actionable_events(const Conn& connection) const
     {
-      if (!inbound_saturated())
+      const bool saturated = inbound_saturated();
+      int events = connection.pending_events;
+      if (saturated || connection.read_paused)
       {
-        return c.pending_events;
+        events &= ~UV_READABLE;
       }
-      return c.pending_events & ~UV_READABLE;
+      if (saturated && connection.read_wants_write)
+      {
+        events &= ~UV_WRITABLE;
+      }
+      return events;
     }
 
     // Cross-thread outbound queue: send()/close_connection() append here from
@@ -255,6 +267,7 @@ namespace ccf::tls
     OnData on_data;
     OnClose on_close;
     OnHandshake on_handshake;
+    std::optional<TrafficKeyPolicy> traffic_key_policy;
     std::function<void()> owner_wake;
     std::function<void()> owner_stop;
     std::function<void(::tcp::ConnID, std::vector<uint8_t>, bool)>
@@ -321,18 +334,22 @@ namespace ccf::tls
       }
     }
 
-    void update_interest(Conn& c) const
+    void update_interest(Conn& connection) const
     {
-      if (c.poll == nullptr)
+      if (connection.poll == nullptr)
       {
         return;
       }
-      int events = c.want_write ? UV_WRITABLE : 0;
-      if (!inbound_saturated())
+      const bool saturated = inbound_saturated();
+      int events =
+        connection.want_write && !(saturated && connection.read_wants_write) ?
+        UV_WRITABLE :
+        0;
+      if (!saturated && !connection.read_paused)
       {
         events |= UV_READABLE;
       }
-      if (events == c.polled_events)
+      if (events == connection.polled_events)
       {
         return;
       }
@@ -341,38 +358,40 @@ namespace ccf::tls
         // uv_poll_start rejects an empty mask, and there is genuinely nothing
         // to wait for: this connection resumes when the node drops back under
         // its inbound budget, at which point every transport is woken.
-        (void)uv_poll_stop(c.poll);
-        c.polled_events = 0;
+        (void)uv_poll_stop(connection.poll);
+        connection.polled_events = 0;
         return;
       }
-      const int rc = uv_poll_start(c.poll, events, on_connection_poll);
+      const int rc = uv_poll_start(connection.poll, events, on_connection_poll);
       if (rc != 0)
       {
         // Should not happen. If it does the connection will make no further
         // progress, so it is worth reporting loudly rather than hiding.
         LOG_FAIL_FMT(
-          "uv_poll_start failed for connection {}: {}", c.id, uv_strerror(rc));
+          "uv_poll_start failed for connection {}: {}",
+          connection.id,
+          uv_strerror(rc));
       }
       else
       {
-        c.polled_events = events;
+        connection.polled_events = events;
       }
     }
 
     // Returns false if the connection should be closed.
-    bool do_handshake(Conn& c, bool& more_to_read)
+    bool do_handshake(Conn& connection, bool& more_to_read)
     {
       // The error queue is thread-local and SSL_get_error() consults it. Clear
       // it before each operation because successive actions for this
       // connection may execute on different workers.
       ERR_clear_error();
-      const int r = SSL_do_handshake(c.ssl);
+      const int r = SSL_do_handshake(connection.ssl);
       if (r == 1)
       {
-        if (c.outgoing)
+        if (connection.outgoing)
         {
           auto expected = Conn::Establishment::Pending;
-          if (!c.establishment.compare_exchange_strong(
+          if (!connection.establishment.compare_exchange_strong(
                 expected, Conn::Establishment::Admitting))
           {
             return false;
@@ -380,83 +399,92 @@ namespace ccf::tls
         }
         // With no post-handshake session tickets, the peer may wait for the
         // delayed ACK of its Finished before Nagle sends its first request.
-        if (const auto error = details::request_tcp_quickack(c.fd))
+        if (const auto error = details::request_tcp_quickack(connection.fd))
         {
           LOG_DEBUG_FMT(
             "setsockopt({}) failed for connection {} after TLS handshake: {}",
             error->option,
-            c.id,
+            connection.id,
             std::generic_category().message(error->error));
         }
-        c.state = Conn::Ready;
-        c.want_write = false;
-        X509* cert = SSL_get1_peer_certificate(c.ssl);
+        connection.state = Conn::Ready;
+        connection.want_write = false;
+        if (connection.traffic_keys)
+        {
+          connection.traffic_keys->start();
+        }
+        X509* cert = SSL_get1_peer_certificate(connection.ssl);
         if (cert != nullptr)
         {
           const int len = i2d_X509(cert, nullptr);
           if (len > 0)
           {
-            c.peer_cert.resize(static_cast<size_t>(len));
-            unsigned char* p = c.peer_cert.data();
+            connection.peer_cert.resize(static_cast<size_t>(len));
+            unsigned char* p = connection.peer_cert.data();
             if (i2d_X509(cert, &p) != len)
             {
-              c.peer_cert.clear();
+              connection.peer_cert.clear();
             }
           }
           X509_free(cert);
         }
         // Only completed handshakes reach this point. Ready connections do
         // not re-enter do_handshake(), so retries cannot duplicate this event.
-        const auto* group = SSL_get0_group_name(c.ssl);
+        const auto* group = SSL_get0_group_name(connection.ssl);
         LOG_INFO_FMT(
           "TLS handshake completed: connection_id={}, negotiated_group={}",
-          c.id,
+          connection.id,
           group != nullptr ? group : "none");
-        if (on_handshake && !on_handshake(c.id, c.ssl, c.outgoing))
+        if (
+          on_handshake &&
+          !on_handshake(connection.id, connection.ssl, connection.outgoing))
         {
-          LOG_DEBUG_FMT("Connection {}: rejected after TLS handshake", c.id);
+          LOG_DEBUG_FMT(
+            "Connection {}: rejected after TLS handshake", connection.id);
           return false;
         }
-        return do_read(c, more_to_read) && do_write(c);
+        return do_read(connection, more_to_read) && do_write(connection);
       }
 
-      const int e = SSL_get_error(c.ssl, r);
+      const int e = SSL_get_error(connection.ssl, r);
       if (e == SSL_ERROR_WANT_READ)
       {
-        c.want_write = false;
+        connection.want_write = false;
         return true;
       }
       if (e == SSL_ERROR_WANT_WRITE)
       {
-        c.want_write = true;
+        connection.want_write = true;
         return true;
       }
       // Entirely client-controlled (an unsupported cipher, a rejected
       // certificate, or simply a port scan), so this must stay at a level
       // which cannot be used to flood the log.
       LOG_DEBUG_FMT(
-        "Connection {}: handshake failed: {}", c.id, ssl_error_string(e));
+        "Connection {}: handshake failed: {}",
+        connection.id,
+        ssl_error_string(e));
       return false;
     }
 
     // Returns false if the connection should be closed.
-    bool do_read_plaintext(Conn& c, bool& more_to_read)
+    bool do_read_plaintext(Conn& connection, bool& more_to_read)
     {
       size_t total_read = 0;
       while (total_read < max_read_per_event)
       {
         uint8_t buf[read_chunk];
-        const ssize_t n = ::recv(c.fd, buf, sizeof(buf), 0);
+        const ssize_t n = ::recv(connection.fd, buf, sizeof(buf), 0);
         if (n > 0)
         {
           total_read += static_cast<size_t>(n);
           if (on_data)
           {
             on_data(
-              c.id,
+              connection.id,
               std::vector<uint8_t>(buf, buf + static_cast<size_t>(n)),
-              c.peer_cert,
-              c.soft_limited);
+              connection.peer_cert,
+              connection.soft_limited);
           }
           continue;
         }
@@ -482,24 +510,24 @@ namespace ccf::tls
     }
 
     // Returns false if the connection should be closed.
-    bool do_write_plaintext(Conn& c)
+    bool do_write_plaintext(Conn& connection)
     {
-      while (c.out_off < c.outbuf.size())
+      while (connection.out_off < connection.outbuf.size())
       {
         const ssize_t n = ::send(
-          c.fd,
-          c.outbuf.data() + c.out_off,
-          c.outbuf.size() - c.out_off,
+          connection.fd,
+          connection.outbuf.data() + connection.out_off,
+          connection.outbuf.size() - connection.out_off,
           MSG_NOSIGNAL);
         if (n > 0)
         {
-          c.out_off += static_cast<size_t>(n);
+          connection.out_off += static_cast<size_t>(n);
           continue;
         }
         if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
         {
-          c.want_write = true;
-          compact_outbuf(c);
+          connection.want_write = true;
+          compact_outbuf(connection);
           return true;
         }
         if (n < 0 && errno == EINTR)
@@ -508,40 +536,96 @@ namespace ccf::tls
         }
         return false;
       }
-      c.outbuf.clear();
-      c.out_off = 0;
-      c.want_write = false;
+      connection.outbuf.clear();
+      connection.out_off = 0;
+      connection.want_write = false;
+      return true;
+    }
+
+    bool check_traffic_keys(const Conn& connection) const
+    {
+      if (connection.traffic_keys && connection.traffic_keys->failed())
+      {
+        LOG_DEBUG_FMT(
+          "Connection {}: TLS traffic-key record budget exceeded",
+          connection.id);
+        return false;
+      }
+      return true;
+    }
+
+    // OpenSSL drives the scheduled update through the next ordinary I/O
+    // operation. Do not schedule another while an I/O retry is outstanding.
+    bool schedule_traffic_keys(Conn& connection)
+    {
+      if (
+        !connection.traffic_keys || connection.write_retry_length != 0 ||
+        connection.read_wants_write || SSL_in_init(connection.ssl) != 0)
+      {
+        return true;
+      }
+      if (!check_traffic_keys(connection))
+      {
+        return false;
+      }
+      if (connection.traffic_keys->update_due())
+      {
+        ERR_clear_error();
+        if (SSL_key_update(connection.ssl, SSL_KEY_UPDATE_NOT_REQUESTED) != 1)
+        {
+          LOG_DEBUG_FMT(
+            "Connection {}: scheduling KeyUpdate failed: {}",
+            connection.id,
+            ccf::crypto::OpenSSL::first_error());
+          return false;
+        }
+      }
       return true;
     }
 
     // Returns false if the connection should be closed.
-    bool do_read(Conn& c, bool& more_to_read)
+    bool do_read(Conn& connection, bool& more_to_read)
     {
-      if (c.ssl == nullptr)
+      if (connection.ssl == nullptr)
       {
-        return do_read_plaintext(c, more_to_read);
+        return do_read_plaintext(connection, more_to_read);
       }
       size_t total_read = 0;
       while (total_read < max_read_per_event)
       {
+        if (connection.traffic_keys && inbound_saturated())
+        {
+          return true;
+        }
         uint8_t buf[read_chunk];
         ERR_clear_error();
-        const int n = SSL_read(c.ssl, buf, static_cast<int>(sizeof(buf)));
+        const int n =
+          SSL_read(connection.ssl, buf, static_cast<int>(sizeof(buf)));
+        const int e = n > 0 ? SSL_ERROR_NONE : SSL_get_error(connection.ssl, n);
+        if (!check_traffic_keys(connection))
+        {
+          return false;
+        }
+        connection.read_wants_write = false;
         if (n > 0)
         {
           total_read += static_cast<size_t>(n);
           if (on_data)
           {
             on_data(
-              c.id,
+              connection.id,
               std::vector<uint8_t>(buf, buf + n),
-              c.peer_cert,
-              c.soft_limited);
+              connection.peer_cert,
+              connection.soft_limited);
+          }
+          if (connection.write_retry_length != 0)
+          {
+            more_to_read = SSL_has_pending(connection.ssl) == 1;
+            return true;
           }
           continue;
         }
 
-        const int e = SSL_get_error(c.ssl, n);
         if (e == SSL_ERROR_WANT_READ)
         {
           return true;
@@ -549,11 +633,14 @@ namespace ccf::tls
         if (e == SSL_ERROR_WANT_WRITE)
         {
           // A renegotiation needs the socket to become writable.
-          c.want_write = true;
+          connection.want_write = true;
+          connection.read_wants_write = true;
           return true;
         }
         // SSL_ERROR_ZERO_RETURN (clean close), an unclean EOF from the peer
         // (no close_notify), or a fatal error - in all cases close.
+        LOG_DEBUG_FMT(
+          "Connection {}: read failed: {}", connection.id, ssl_error_string(e));
         return false;
       }
 
@@ -565,7 +652,7 @@ namespace ccf::tls
       // instead. SSL_has_pending() covers both processed and unprocessed
       // buffered data; if it is only a partial record, the next pass returns
       // WANT_READ and polling resumes normally.
-      more_to_read = SSL_has_pending(c.ssl) == 1;
+      more_to_read = SSL_has_pending(connection.ssl) == 1;
       return true;
     }
 
@@ -578,73 +665,141 @@ namespace ccf::tls
     // flush anyway would be pure overhead. Only worth the copy once most of
     // the buffer is consumed, which also bounds the total copying for one
     // response to O(its size).
-    static void compact_outbuf(Conn& c)
+    static void compact_outbuf(Conn& connection)
     {
-      if (c.out_off == 0 || c.out_off <= c.outbuf.size() / 2)
+      if (
+        connection.out_off == 0 ||
+        connection.out_off <= connection.outbuf.size() / 2)
       {
         return;
       }
       std::vector<uint8_t> remaining(
-        c.outbuf.data() + c.out_off, c.outbuf.data() + c.outbuf.size());
-      c.outbuf = std::move(remaining);
-      c.out_off = 0;
+        connection.outbuf.data() + connection.out_off,
+        connection.outbuf.data() + connection.outbuf.size());
+      connection.outbuf = std::move(remaining);
+      connection.out_off = 0;
     }
 
     // Returns false if the connection should be closed. Implements
     // backpressure: a WANT_WRITE leaves the remaining plaintext buffered and
     // arms UV_WRITABLE.
-    bool do_write(Conn& c)
+    bool do_write(Conn& connection)
     {
-      if (c.ssl == nullptr)
+      if (connection.ssl == nullptr)
       {
-        return do_write_plaintext(c);
+        return do_write_plaintext(connection);
       }
-      while (c.out_off < c.outbuf.size())
+      if (connection.read_wants_write)
       {
+        return true;
+      }
+      while (connection.out_off < connection.outbuf.size())
+      {
+        if (!schedule_traffic_keys(connection))
+        {
+          return false;
+        }
         ERR_clear_error();
         // SSL_write takes an int length. SSL_MODE_ENABLE_PARTIAL_WRITE is
         // set, so each call may write any prefix of the remainder.
-        const size_t remaining = c.outbuf.size() - c.out_off;
+        const size_t remaining = connection.outbuf.size() - connection.out_off;
+        const size_t length = connection.write_retry_length != 0 ?
+          connection.write_retry_length :
+          std::min(
+            remaining, connection.traffic_keys ? read_chunk : size_t{INT_MAX});
         const int n = SSL_write(
-          c.ssl,
-          c.outbuf.data() + c.out_off,
-          static_cast<int>(std::min(remaining, size_t{INT_MAX})));
+          connection.ssl,
+          connection.outbuf.data() + connection.out_off,
+          static_cast<int>(length));
+        const int e = n > 0 ? SSL_ERROR_NONE : SSL_get_error(connection.ssl, n);
+        if (!check_traffic_keys(connection))
+        {
+          return false;
+        }
         if (n > 0)
         {
-          c.out_off += static_cast<size_t>(n);
+          connection.write_retry_length = 0;
+          connection.out_off += static_cast<size_t>(n);
+          if (
+            connection.traffic_keys &&
+            connection.out_off < connection.outbuf.size())
+          {
+            connection.want_write = true;
+            return true;
+          }
           continue;
         }
 
-        const int e = SSL_get_error(c.ssl, n);
+        connection.write_retry_length = length;
         if (e == SSL_ERROR_WANT_WRITE)
         {
-          c.want_write = true;
-          compact_outbuf(c);
+          connection.want_write = true;
+          compact_outbuf(connection);
           return true;
         }
         if (e == SSL_ERROR_WANT_READ)
         {
           // A renegotiation needs to read before we can write more.
+          connection.want_write = false;
           return true;
         }
         // Usually just the peer having gone away mid-response, so again a
         // level which a client cannot use to flood the log.
         LOG_DEBUG_FMT(
-          "Connection {}: write failed: {}", c.id, ssl_error_string(e));
+          "Connection {}: write failed: {}",
+          connection.id,
+          ssl_error_string(e));
         return false;
       }
 
       // Fully flushed.
-      c.outbuf.clear();
-      c.out_off = 0;
-      c.want_write = false;
+      connection.outbuf.clear();
+      connection.out_off = 0;
+      connection.want_write = false;
       return true;
+    }
+
+    static bool read_blocked_by_write(const Conn& connection)
+    {
+      return connection.traffic_keys && connection.ssl != nullptr &&
+        connection.write_retry_length != 0 && connection.want_write &&
+        !connection.read_wants_write &&
+        (SSL_in_init(connection.ssl) != 0 ||
+         SSL_get_key_update_type(connection.ssl) != SSL_KEY_UPDATE_NONE);
+    }
+
+    bool drive_ready(Conn& connection, int events, bool& more_to_read)
+    {
+      // A locally scheduled update is part of the pending SSL_write retry.
+      // Resume that operation before entering SSL_read's handshake path.
+      if (connection.write_retry_length != 0)
+      {
+        if (!do_write(connection))
+        {
+          return false;
+        }
+        if (read_blocked_by_write(connection))
+        {
+          return true;
+        }
+      }
+      // OpenSSL can consume a peer update while an application write is
+      // pending, and defers the response until that write completes.
+      if (
+        ((events & (UV_READABLE | UV_DISCONNECT)) != 0 ||
+         connection.read_wants_write) &&
+        !do_read(connection, more_to_read))
+      {
+        return false;
+      }
+      return do_write(connection);
     }
 
     void complete_drive(
       std::shared_ptr<Conn> conn, bool alive, bool more_to_read)
       CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
+      conn->read_paused = read_blocked_by_write(*conn);
       {
         ccf::ds::MutexGuard guard(out_mutex);
         completed_drives.push_back(
@@ -699,6 +854,39 @@ namespace ccf::tls
         SSL_set_mode(
           conn->ssl,
           SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_ENABLE_PARTIAL_WRITE);
+        if (traffic_key_policy)
+        {
+          auto& keys = conn->traffic_keys.emplace(*traffic_key_policy);
+          SSL_set_msg_callback(conn->ssl, TrafficKeys::observe);
+          SSL_set_msg_callback_arg(conn->ssl, &keys);
+          SSL_set_read_ahead(conn->ssl, 0);
+          // Return to the poll/worker loop after a control record so a
+          // pending application write can finish before another peer update.
+          SSL_clear_mode(conn->ssl, SSL_MODE_AUTO_RETRY);
+          SSL_clear_options(conn->ssl, SSL_OP_ENABLE_KTLS);
+          if (
+            SSL_set_min_proto_version(conn->ssl, TLS1_3_VERSION) != 1 ||
+            SSL_set_max_proto_version(conn->ssl, TLS1_3_VERSION) != 1 ||
+            SSL_set_ciphersuites(
+              conn->ssl,
+              "TLS_AES_256_GCM_SHA384:"
+              "TLS_AES_128_GCM_SHA256") != 1 ||
+            SSL_set_max_send_fragment(conn->ssl, read_chunk) != 1 ||
+            SSL_set_split_send_fragment(conn->ssl, read_chunk) != 1 ||
+            SSL_set_max_pipelines(conn->ssl, 1) != 1 ||
+            SSL_set_num_tickets(conn->ssl, 0) != 1 ||
+            SSL_set_max_early_data(conn->ssl, 0) != 1)
+          {
+            LOG_FAIL_FMT(
+              "Connection {}: traffic-key policy setup failed: {}",
+              conn->id,
+              ccf::crypto::OpenSSL::first_error());
+            SSL_free(conn->ssl);
+            conn->ssl = nullptr;
+            complete_drive(std::move(conn), false, false);
+            return;
+          }
+        }
         if (conn->outgoing)
         {
           SSL_set_connect_state(conn->ssl);
@@ -740,19 +928,12 @@ namespace ccf::tls
       }
       else
       {
-        if ((input.events & (UV_READABLE | UV_DISCONNECT)) != 0)
-        {
-          alive = do_read(*conn, more_to_read);
-        }
-        if (alive)
-        {
-          alive = do_write(*conn);
-        }
+        alive = drive_ready(*conn, input.events, more_to_read);
       }
 
       if (
         alive && conn->close_after_flush &&
-        conn->out_off >= conn->outbuf.size())
+        conn->out_off >= conn->outbuf.size() && !conn->read_wants_write)
       {
         alive = false;
       }
@@ -840,10 +1021,10 @@ namespace ccf::tls
       {
         return;
       }
-      auto& c = it->second;
-      c->last_active = std::chrono::steady_clock::now();
-      c->pending_events |= events;
-      dispatch_connection(c);
+      auto& connection = it->second;
+      connection->last_active = std::chrono::steady_clock::now();
+      connection->pending_events |= events;
+      dispatch_connection(connection);
     }
 
     static void on_connection_poll(uv_poll_t* handle, int status, int events)
@@ -1036,9 +1217,11 @@ namespace ccf::tls
       }
       const auto now = std::chrono::steady_clock::now();
       std::vector<int> to_close;
-      for (const auto& [fd, c] : conns)
+      for (const auto& [fd, connection] : conns)
       {
-        if (!c->worker_active && now - c->last_active > *idle_timeout)
+        if (
+          !connection->worker_active &&
+          now - connection->last_active > *idle_timeout)
         {
           to_close.push_back(fd);
         }
@@ -1302,6 +1485,12 @@ namespace ccf::tls
         details::close_socket(conn->fd);
         return false;
       };
+      if (traffic_key_policy && conn->tls_context == nullptr)
+      {
+        LOG_FAIL_FMT(
+          "Connection {}: traffic-key policy requires TLS", conn->id);
+        return fail();
+      }
       if (conn->poll != nullptr)
       {
         (void)uv_poll_stop(conn->poll);
@@ -1370,10 +1559,21 @@ namespace ccf::tls
       on_data(std::move(on_data_)),
       on_close(std::move(on_close_)),
       on_handshake(std::move(config.on_handshake)),
+      traffic_key_policy(config.traffic_key_policy),
       owner_wake(std::move(config.on_wake)),
       owner_stop(std::move(config.on_stop)),
       on_unconnected(std::move(config.on_unconnected))
-    {}
+    {
+      if (
+        traffic_key_policy &&
+        (traffic_key_policy->record_budget < 2 ||
+         traffic_key_policy->record_budget >
+           TrafficKeyPolicy::MAX_RECORD_BUDGET))
+      {
+        throw std::invalid_argument(
+          "TLS traffic-key record budget must be between 2 and 2^24");
+      }
+    }
 
     OpenSSLConnectionEngine(const OpenSSLConnectionEngine&) = delete;
     OpenSSLConnectionEngine& operator=(const OpenSSLConnectionEngine&) = delete;

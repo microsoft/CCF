@@ -6,7 +6,9 @@ Overview
 
 In CCF, the :term:`TLS` layer is implemented using OpenSSL (3.3 or later).
 
-TLS is terminated in the **connection layer**: OpenSSL owns the socket file descriptor directly. The existing host ``libuv`` loop reports file descriptor readiness, and a per-connection worker drives the non-blocking handshake, reads, writes and graceful close. Everything above the connection layer, including HTTP parsing and endpoint dispatch, only ever sees plaintext.
+TLS is terminated in the **connection layer**: OpenSSL uses the socket file descriptor directly.
+The existing host ``libuv`` loop reports file descriptor readiness, and a per-connection worker drives the non-blocking handshake, reads, writes and graceful close.
+Everything above the connection layer, including HTTP parsing and endpoint dispatch, only ever sees plaintext.
 
 This document describes the connection layer and its interface to the session layer above it.
 
@@ -64,7 +66,7 @@ The context must not be mutated while in use.
 OpenSSL client contexts otherwise default to ``SSL_VERIFY_NONE``, which completes the handshake with any certificate.
 This check cannot detect a verification callback which overrides failures; such a callback remains the owner's responsibility.
 The engine does not impose N2N policy on RPC: RPC retains its existing TLS configuration.
-This foundation does not activate N2N endpoints, route messages, or implement the future N2N TLS 1.3 and record-based KeyUpdate policy.
+This foundation does not activate N2N endpoints or route messages.
 
 ``Config::on_handshake`` is optional and applies to both accepted and initiating TLS connections.
 It runs once on a connection worker after TLS establishment, with a borrowed ``SSL`` and a direction flag.
@@ -87,6 +89,26 @@ When stopping without a running loop, the caller must eventually drain the loop 
 An optional ``tcp_user_timeout`` sets Linux ``TCP_USER_TIMEOUT`` on accepted sockets (in ``Config``) or an initiating socket (in ``ConnectConfig``).
 It bounds how long transmitted data can remain unacknowledged or blocked by a zero receive window, independently of the application's idle timeout.
 Leaving it unset preserves the operating system defaults, including existing RPC behavior.
+
+Opt-in traffic-key policy
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The internal ``Config::traffic_key_policy`` option on the shared engine, server and client enables :ccf_repo:`TrafficKeyPolicy </src/tls/traffic_keys.h>` for both accepted and initiating connections.
+It requires TLS 1.3 with AES-GCM, without changing the supplied context or the owner's certificate and admission policy.
+It is unset by default, preserving RPC behavior, and neither activates N2N endpoints nor adds an operator configuration option.
+
+OpenSSL implements the standard TLS 1.3 `KeyUpdate protocol <https://docs.openssl.org/3.3/man3/SSL_key_update/>`_, but does not automatically initiate record-usage-based updates for ordinary TLS connections.
+The engine counts encrypted records separately by direction through OpenSSL's `record callbacks <https://docs.openssl.org/3.3/man3/SSL_CTX_set_msg_callback/>`_, including KeyUpdate under the old key, rather than counting application messages or I/O calls.
+The internal ``record_budget`` field defaults to 2^20 records and accepts values from 2 through 2^24, below the AES-GCM limit in RFC 8446 section 5.5.
+Tests configure eight records through the same field.
+Each sender reserves a record for its own KeyUpdate.
+The engine does not periodically request peer updates: it closes without delivering plaintext from the first record beyond the receive budget if the peer fails to update.
+
+The engine schedules updates only between ordinary TLS I/O operations, leaving OpenSSL to derive keys, transmit KeyUpdate and handle peer-requested responses.
+OpenSSL may defer a requested response until the next application write, as permitted by TLS 1.3.
+The existing ordered workers and readable/writable polling handle I/O retries; no separate ciphertext buffer or update-driving state machine is used.
+Policy reads yield after control records, allowing a pending write to finish before processing further peer updates that could require another write.
+Application reads remain subject to inbound admission, and existing flush-before-close and forced-shutdown behavior is retained.
 
 Certificates
 ~~~~~~~~~~~~
