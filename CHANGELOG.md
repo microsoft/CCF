@@ -15,7 +15,6 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Changed
 
 - CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag (#8657).
-- Nodes now need only about the size of a snapshot in additional memory while generating it, reducing peak memory use with large snapshots.
 
 ### Fixed
 
