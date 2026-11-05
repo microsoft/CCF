@@ -29,6 +29,7 @@ def make_final_ledger_file_name(
     is_complete: bool,
     is_committed: bool,
 ) -> str:
+    """Construct the final ledger chunk name from its range and completion state."""
     file_name = f"ledger_{start_seqno}"
     if is_complete:
         file_name += f"-{end_seqno}"
@@ -39,12 +40,17 @@ def make_final_ledger_file_name(
 
 
 def close_ledger_file(
-    ledger_file, entry_positions: list[int], final_file_name: str, complete_file=True
-):
+    ledger_file: BinaryIO,
+    entry_positions: list[int],
+    final_file_name: str,
+    complete_file: bool = True,
+) -> None:
+    """Write the optional offsets table, close the chunk, and rename it."""
     if complete_file:
         positions_offset = ledger_file.tell()
-        for pos in entry_positions:
-            ledger_file.write(int.to_bytes(pos, length=4, byteorder="little"))
+        ledger_file.writelines(
+            int.to_bytes(pos, length=4, byteorder="little") for pos in entry_positions
+        )
         ledger_file.seek(0)
         ledger_file.write(
             int.to_bytes(

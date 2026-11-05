@@ -1,17 +1,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from packaging.version import (  # type: ignore
+from packaging.version import (
     InvalidVersion,
     Version,
 )
 
 
-def _replace_char(s, n, c):
+def _replace_char(s: str, n: int, c: str) -> str:
     return s[:n] + str(c) + s[n + 1 :]
 
 
-def to_python_version(original):
+def to_python_version(original: str) -> Version:
+    """Convert a CCF release identifier into a Python package version."""
     unprefixed = original.removeprefix("ccf-")
 
     # Try to parse this as a Version (with automatic normalisation).
