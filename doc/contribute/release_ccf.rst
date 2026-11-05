@@ -1,6 +1,33 @@
 Release or patch a CCF release
 ==============================
 
+Prepare release notes
+---------------------
+
+Normal PRs add change descriptions in ``.changes/`` instead of editing the changelog.
+In a release-preparation PR, install ``scripts/requirements.txt``, choose the version, and preview the collected notes:
+
+.. code-block:: bash
+
+    python3 scripts/gather_changelog.py --version 7.0.25 --base-branch main
+    python3 scripts/gather_changelog.py --version 7.0.25 --base-branch main --write
+
+The default is to collect all change descriptions; pass explicit ``.changes/*.md`` paths to select a subset.
+Preview does not change files; ``--write`` prepends the release section and deletes only the selected change descriptions.
+Other change descriptions may remain for future releases.
+The collector uses PyGithub to find each change description's introducing commit and associated merged PR on ``--base-branch``.
+Missing or ambiguous references stop collection before files are changed; use ``--pr receipt-validation.fixed.md=1234`` to override that change description's PR lookup at release time.
+
+Manually update ``project.version`` in ``python/pyproject.toml`` to match the first changelog version, converting prereleases such as ``8.0.0-dev10`` to ``8.0.0.dev10``.
+Review and commit the changelog, SDK version change, and selected change-description deletions together, then validate:
+
+.. code-block:: bash
+
+    scripts/release-notes-checks.sh
+
+After merging the release PR, tag the reviewed release commit using the existing release process.
+The collector does not assign versions, edit SDK metadata, commit, tag, or publish.
+
 Patch an LTS release
 --------------------
 
@@ -8,20 +35,23 @@ CCF releases are cut from branches named ``release/N.x`` where ``N`` is the majo
 Patching a release, ie. issuing a ``N.0.x+1`` version when the current version is ``N.0.x`` involves the following steps:
 
 #. Apply commits to ``release/N.x``, and/or cherry-pick them from ``main``
-#. Tag head of ``release/N.x`` as ``ccf-N.0.x+1``
+#. Prepare and merge a release-notes PR as described above.
+#. Tag the reviewed release commit as ``ccf-N.0.x+1``.
 
 Create an LTS release
 ---------------------
 
 #. Create a ``release/N.x`` branch from the head of ``main``
-#. Tag head of ``release/N.x`` as ``ccf-N.0.0-rc0``
+#. Prepare and merge a release-notes PR for ``N.0.0-rc0``.
+#. Tag the reviewed release commit as ``ccf-N.0.0-rc0``.
 #. If necessary, apply patch process outline above with ``ccf-N.0.0-rc1`` etc
-#. When ready, tag the head of ``release/N.x`` as ``ccf-N.0.0`` 
+#. When ready, prepare the release-notes PR for ``N.0.0`` and tag its reviewed commit as ``ccf-N.0.0``.
 
 Create a dev release
 ---------------------
 
-#. Tag the head of ``main`` as ``ccf-N+1.0.0-devX+1``, where ``N`` is the latest LTS, and ``X`` the latest dev release.
+#. Prepare and merge a release-notes PR on ``main`` for ``N+1.0.0-devX+1``, where ``N`` is the latest LTS, and ``X`` the latest dev release.
+#. Tag the reviewed release commit as ``ccf-N+1.0.0-devX+1``.
 
 Labelling LTS PRs
 -----------------
