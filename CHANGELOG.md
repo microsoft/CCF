@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag (#8657).
 - `observability.fluentd` now accepts an array of independent sinks (wrap existing single-sink configurations in a one-element array), each with nonblocking `buffered-best-effort` (default) or `unbuffered-non-blocking` delivery (#8666).
-  In-flight records restart after reconnect and may be duplicated; see [Observability Export](doc/operations/configuration.rst#observability-export).
+  See [Observability Export](doc/operations/configuration.rst#observability-export).
 
 ### Fixed
 
