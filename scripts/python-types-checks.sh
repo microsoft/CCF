@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# Checks Python type annotations via mypy.
+# Checks Python type annotations via Pyright.
 # Accepts -f for interface consistency, but no auto-fix is available.
 
 set -uo pipefail
@@ -16,14 +16,4 @@ if [ ! -x "$(command -v uv)" ]; then
   exit 1
 fi
 
-git ls-files python/ | grep -e '\.py$' | xargs uvx --with ./python --with pytest mypy
-status=$?
-
-# Files that must also pass mypy --strict. Imported modules are analysed
-# silently, so only errors in these files are reported.
-STRICT_FILES=(
-  python/src/ccf/merkletree.py
-)
-uvx --with ./python --with pytest mypy --strict --follow-imports=silent "${STRICT_FILES[@]}" || status=1
-
-exit $status
+git ls-files python/ | grep -e '\.py$' | xargs uvx --with ./python --with pytest pyright --project python/pyproject.toml

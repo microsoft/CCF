@@ -16,12 +16,13 @@ class MerkleTree:
         self.reset_tree()
 
     def reset_tree(self) -> None:
+        """Reset the tree to an empty set of leaves."""
         self._levels: list[list[bytes]] = [[]]
         self._root: bytes | None = None
-        self._num_flushed: int = 0
+        self._num_flushed = 0
 
     def add_leaf(self, values: bytes, do_hash: bool = True) -> None:
-        """Append a leaf, hashing values unless do_hash is False.
+        """Append a leaf, hashing its value unless it is already a digest.
 
         Raises:
             ValueError: If do_hash is False and values is not a SHA-256 digest.
