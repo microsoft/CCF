@@ -17,7 +17,7 @@ open Model.Local
 /-- All quorum-opening notifications along one reachable execution have the same emitter. -/
 theorem quorum_opener_unique
     : forall (config : Model.Config),
-    ∀ start ∈ (Model.transitionSystem config).Reachable,
+    forall start ∈ (Model.transitionSystem config).Reachable,
     forall (final : Model.State) (actions : List Model.Action)
     (firstOpener secondOpener : Location),
     (CCF.Execution.Run (Model.transitionSystem config) start actions final
@@ -36,7 +36,7 @@ lemma quorum_opener_unique_witness
 /-- A reachable quorum opener whose voters receive own gossip in the same execution is fresh. -/
 theorem quorum_open_preserves_commit
     : forall (config : Model.Config),
-    ∀ start ∈ (Model.transitionSystem config).Reachable,
+    forall start ∈ (Model.transitionSystem config).Reachable,
     forall (final openedState : Model.State) (actions : List Model.Action)
     (opener : Location) (openerState : NodeState),
     (CCF.Execution.Run (Model.transitionSystem config) start actions final
@@ -65,7 +65,7 @@ lemma quorum_open_preserves_commit_witness
 /-- Full gossip and opening in the same reachable execution imply freshness, in either order. -/
 theorem full_gossip_preserves_commit
     : forall (config : Model.Config),
-    ∀ start ∈ (Model.transitionSystem config).Reachable,
+    forall start ∈ (Model.transitionSystem config).Reachable,
     forall (final gossipedState openedState : Model.State) (actions : List Model.Action)
     (opener : Location) (openerState : NodeState),
     (CCF.Execution.Run (Model.transitionSystem config) start actions final
@@ -104,7 +104,7 @@ lemma full_gossip_preserves_commit_witness
 /-- A reachable delivery of accepted gossip after choice stutters and reports frozen gossip. -/
 theorem gossip_freezes_after_choice
     : forall (config : Model.Config),
-    ∀ before ∈ (Model.transitionSystem config).Reachable,
+    forall before ∈ (Model.transitionSystem config).Reachable,
     forall (after : Model.State) (action : Model.Action) (localStep : LocalStep)
     (source : Location) (txid : TxID),
     (NetworkStep config before action after localStep
@@ -131,7 +131,7 @@ The underlying local proof and unchanged witness cover the rejected-event handle
 -/
 theorem rejected_gossip_stutters
     : forall (config : Model.Config),
-    ∀ before ∈ (Model.transitionSystem config).Reachable,
+    forall before ∈ (Model.transitionSystem config).Reachable,
     forall (after : Model.State) (action : Model.Action) (localStep : LocalStep)
     (source : Location) (txid : TxID),
     (NetworkStep config before action after localStep
@@ -152,7 +152,7 @@ lemma rejected_gossip_stutters_witness
 /-- A reachable timeout or accepted vote with a voting quorum opens by quorum. -/
 theorem quorum_advance_opens
     : forall (config : Model.Config),
-    ∀ before ∈ (Model.transitionSystem config).Reachable,
+    forall before ∈ (Model.transitionSystem config).Reachable,
     forall (after : Model.State) (action : Model.Action) (localStep : LocalStep),
     (NetworkStep config before action after localStep
       /\ (localStep.action = .timeout
@@ -179,7 +179,7 @@ lemma quorum_advance_opens_witness
 /-- A reachable aligned opening timeout only changes the phase to open and completes. -/
 theorem aligned_opening_timeout_completes
     : forall (config : Model.Config),
-    ∀ before ∈ (Model.transitionSystem config).Reachable,
+    forall before ∈ (Model.transitionSystem config).Reachable,
     forall (after : Model.State) (action : Model.Action) (localStep : LocalStep),
     (NetworkStep config before action after localStep
       /\ localStep.action = .timeout

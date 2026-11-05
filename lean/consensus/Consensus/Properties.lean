@@ -25,8 +25,8 @@ open Model.Node
 /-- Committed logs at two ordered points of one reachable execution are comparable. -/
 theorem committed_logs_prefix
     : forall (config : Finset NodeID) (nodes : List NodeID),
-    ∀ stateA ∈ (Model.transitionSystem config nodes).Reachable,
-    ∀ stateB ∈ (Model.transitionSystem config nodes).ReachableFrom stateA,
+    forall stateA ∈ (Model.transitionSystem config nodes).Reachable,
+    forall stateB ∈ (Model.transitionSystem config nodes).ReachableFrom stateA,
     forall (left right : NodeID) (leftState rightState : NodeState),
     ((left, leftState) ∈ stateA.nodes
       /\ (right, rightState) ∈ stateB.nodes)
@@ -53,7 +53,7 @@ lemma committed_logs_prefix_witness
 /-- Every enabled step from a reachable network state preserves each committed prefix. -/
 theorem single_node_committed_log_monotonic
     : forall (config : Finset NodeID) (nodes : List NodeID),
-    ∀ pre ∈ (Model.transitionSystem config nodes).Reachable,
+    forall pre ∈ (Model.transitionSystem config nodes).Reachable,
     forall (post : Model.State) (nodeId : NodeID) (nodePre nodePost : NodeState)
     (action : Model.Action),
     ((Model.transitionSystem config nodes).step pre action = some post
@@ -80,7 +80,7 @@ lemma single_node_committed_log_monotonic_witness
 /-- No two distinct nodes in a reachable network state are primary in the same term. -/
 theorem election_safety
     : forall (config : Finset NodeID) (nodes : List NodeID),
-    ∀ state ∈ (Model.transitionSystem config nodes).Reachable,
+    forall state ∈ (Model.transitionSystem config nodes).Reachable,
     forall (left right : NodeID) (leftState rightState : NodeState),
     ((left, leftState) ∈ state.nodes
       /\ (right, rightState) ∈ state.nodes
@@ -107,7 +107,7 @@ lemma election_safety_witness
 /-- Every positive commit index in a reachable network state points to a signature. -/
 theorem committed_frontier_is_signature
     : forall (config : Finset NodeID) (nodes : List NodeID),
-    ∀ state ∈ (Model.transitionSystem config nodes).Reachable,
+    forall state ∈ (Model.transitionSystem config nodes).Reachable,
     forall (node : NodeID) (nodeState : NodeState),
     ((node, nodeState) ∈ state.nodes
       /\ 0 < nodeState.commitIndex)

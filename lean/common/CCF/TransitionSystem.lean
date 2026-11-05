@@ -1,6 +1,7 @@
 module
 
 public import Std
+public import CCF.AsciiBinders
 public import Mathlib.Data.Set.Operations
 
 @[expose] public section

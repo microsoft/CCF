@@ -26,7 +26,7 @@ open Kv.Model
 
 /-- An accepted put in a reachable world is visible to the attempt that staged it. -/
 theorem read_your_write
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid seq : Nat) (map key value : String) (after : Tx),
     (Model.transitionSystem.step w ⟨seq, .put sid tid map key value⟩ = some next
       /\ txOf next sid tid = .ok after)
@@ -42,7 +42,7 @@ theorem read_your_write_witness
 
 /-- An accepted removal in a reachable world is visible to the attempt that staged it. -/
 theorem read_your_deletion
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid seq : Nat) (map key : String) (after : Tx),
     (Model.transitionSystem.step w ⟨seq, .remove sid tid map key⟩ = some next
       /\ txOf next sid tid = .ok after)
@@ -58,7 +58,7 @@ theorem read_your_deletion_witness
 
 /-- An address neither staged nor present in a live attempt's pinned data reads as absent. -/
 theorem absent_read
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid tid : Nat) (t : Tx) (a : Addr String String),
     (txOf w sid tid = .ok t
       /\ find t.normal.writes a = none
@@ -75,7 +75,7 @@ theorem absent_read_witness
 
 /-- An accepted put or removal leaves other addresses in the same attempt unchanged. -/
 theorem staged_noninterference
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid seq : Nat) (before after : Tx) (a b : Addr String String)
     (value : Option String),
     let event := match value with
@@ -94,7 +94,7 @@ theorem staged_noninterference_witness : ∃ a b : Addr String String, a ≠ b :
 
 /-- An accepted previous-version read ignores the live attempt's pending writes. -/
 theorem previous_ignores_pending
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid seq : Nat) (map key : String) (version : Option Nat)
     (t : Tx),
     (txOf w sid tid = .ok t
@@ -111,7 +111,7 @@ theorem previous_ignores_pending_witness
 
 /-- An accepted application replaces written cells and keeps unwritten cells. -/
 theorem publish_lookup
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid seq version term : Nat) (writes : Pending)
     (before after : Store) (t : Tx) (a : Addr String String),
     (storeOf w sid = .ok before
@@ -135,7 +135,7 @@ theorem publish_lookup_witness
 
 /-- An accepted application leaves addresses outside its staged write set unchanged. -/
 theorem publication_noninterference
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid seq version term : Nat) (writes : Pending)
     (before after : Store) (t : Tx) (a : Addr String String),
     (storeOf w sid = .ok before
@@ -157,7 +157,7 @@ An accepted application in a reachable world produces unique committed keys.
 This specialization is covered by `reachable_store_data_invariants` at the successor world.
 -/
 theorem publish_unique
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid seq version term : Nat) (writes : Pending)
     (after : Store),
     (Model.transitionSystem.step w ⟨seq, .apply sid tid version term writes⟩ = some next
@@ -171,7 +171,7 @@ theorem publish_unique_witness : ∃ db : DB String String String, Unique db := 
 
 /-- An accepted application atomically publishes the attempt's entire staged write set. -/
 theorem apply_atomic
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid seq version term : Nat) (writes : Pending)
     (before after : Store) (t : Tx),
     (storeOf w sid = .ok before
@@ -191,7 +191,7 @@ theorem apply_atomic_witness
 
 /-- An attempt's operation log runs serially on its pinned local views to its staged writes. -/
 theorem transaction_snapshot_serial
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (tid : Nat) (t : Tx) (snap : Snapshot),
     (find w.txs tid = some t
       /\ t.snapshot = some snap)
@@ -211,7 +211,7 @@ theorem transaction_snapshot_serial_witness
 
 /-- An attempt that may apply runs serially on the current head to the same staged writes. -/
 theorem transaction_application_serial
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
     (storeOf w sid = .ok s
       /\ txOf w sid tid = .ok t
@@ -241,10 +241,10 @@ Unlike the algebraic `AppliedBranch` claim, the attempts come from one actual mo
 This specialization is covered by `replay_segment_serializability`, which also counts versions.
 -/
 theorem executable_branch_serializability
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (final : World) (sid : Nat) (s : Store) (rs : List Record),
     (find w.stores sid = some s
-      /\ (∀ r ∈ rs, SegmentEvent sid r.event)
+      /\ (forall r ∈ rs, SegmentEvent sid r.event)
       /\ CCF.Execution.Run Model.transitionSystem w rs final)
     -> exists after txs,
       find final.stores sid = some after
@@ -269,10 +269,10 @@ theorem executable_branch_serializability_witness
 /-- In an accepted record segment that keeps store `sid` alive, the applications projected
 onto that store run serially to its final head. -/
 theorem replay_segment_serializability
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (final : World) (sid : Nat) (s : Store) (rs : List Record),
     (find w.stores sid = some s
-      /\ (∀ r ∈ rs, SegmentEvent sid r.event)
+      /\ (forall r ∈ rs, SegmentEvent sid r.event)
       /\ CCF.Execution.Run Model.transitionSystem w rs final)
     -> exists after txs,
         find final.stores sid = some after
@@ -296,7 +296,7 @@ theorem replay_segment_serializability_witness
 /-- Every live store in a reachable world has a well-formed history whose head is newest, and a
 global version within it that is the version of its global cut. -/
 theorem reachable_store_invariants
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid : Nat) (s : Store),
     find w.stores sid = some s
     -> History s.history s.head.version
@@ -314,7 +314,7 @@ theorem reachable_store_invariants_witness
 /-- Every live store's head data in a reachable world has unique keys and versions no later than
 the head. -/
 theorem reachable_store_data_invariants
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid : Nat) (s : Store),
     find w.stores sid = some s
     -> Unique s.head.data /\ CellsBounded s.head.data s.head.version := by
@@ -330,7 +330,7 @@ theorem reachable_store_data_invariants_witness
 
 /-- A reachable snapshot capture records the current head and the reported term. -/
 theorem step_capture_metadata
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
     (storeOf w sid = .ok s
       /\ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩ = some next
@@ -349,7 +349,7 @@ theorem step_capture_metadata_witness
 
 /-- A reachable snapshot capture reports the current head and global versions. -/
 theorem step_capture_cut_values
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid version global term seq : Nat) (s : Store),
     (storeOf w sid = .ok s
       /\ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩ = some next)
@@ -366,14 +366,14 @@ theorem step_capture_cut_values_witness
 
 /-- A snapshot captured from a reachable world retains its head and term in the same attempt. -/
 theorem capture_replay_preserves_metadata
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (capturedWorld final : World) (sid tid version global term seq : Nat) (s : Store)
     (t : Tx) (tail : List Record),
     (storeOf w sid = .ok s
       /\ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
           = some capturedWorld
       /\ find capturedWorld.txs tid = some t
-      /\ (∀ r ∈ tail, AttemptEvent tid r.event)
+      /\ (forall r ∈ tail, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem capturedWorld tail final)
     -> exists after snap,
       find final.txs tid = some after
@@ -397,11 +397,11 @@ theorem capture_replay_preserves_metadata_witness
 
 /-- A reachable attempt's snapshot is fixed until the attempt ends. -/
 theorem replay_snapshot_fixed
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (final : World) (tid : Nat) (before : Tx) (snap : Snapshot) (rs : List Record),
     (find w.txs tid = some before
       /\ before.snapshot = some snap
-      /\ (∀ r ∈ rs, AttemptEvent tid r.event)
+      /\ (forall r ∈ rs, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem w rs final)
     -> exists after, find final.txs tid = some after /\ after.snapshot = some snap := by
   exact Proofs.Properties.replay_snapshot_fixed
@@ -420,7 +420,7 @@ theorem replay_snapshot_fixed_witness
 
 /-- A reachable acquisition captures the global view and checks both reported revisions. -/
 theorem step_map_capture
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid localVersion globalVersion seq : Nat) (map : String)
     (s : Store) (before after : Tx) (snap : Snapshot),
     (storeOf w sid = .ok s
@@ -449,12 +449,12 @@ theorem step_map_capture_witness
 
 /-- A reachable attempt's acquired global view is fixed until the attempt ends. -/
 theorem replay_map_global_fixed
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
     (rs : List Record),
     (find w.txs tid = some before
       /\ find before.globalViews map = some view
-      /\ (∀ r ∈ rs, AttemptEvent tid r.event)
+      /\ (forall r ∈ rs, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem w rs final)
     -> exists after,
       find final.txs tid = some after /\ find after.globalViews map = some view := by
@@ -473,12 +473,12 @@ theorem replay_map_global_fixed_witness
 
 /-- A reachable attempt's acquired local map data is fixed until the attempt ends. -/
 theorem replay_map_local_fixed
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
     (rs : List Record),
     (find w.txs tid = some before
       /\ find before.globalViews map = some view
-      /\ (∀ r ∈ rs, AttemptEvent tid r.event)
+      /\ (forall r ∈ rs, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem w rs final)
     -> exists after,
       find final.txs tid = some after /\ image after.data map = image before.data map := by
@@ -497,7 +497,7 @@ theorem replay_map_local_fixed_witness
 
 /-- A reachable acquisition's global view and reported revisions persist in the same attempt. -/
 theorem capture_replay_preserves_map
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (capturedWorld final : World) (sid tid localVersion globalVersion seq : Nat)
     (map : String) (s : Store) (before capturedTx : Tx) (snap : Snapshot)
     (tail : List Record),
@@ -507,7 +507,7 @@ theorem capture_replay_preserves_map
       /\ Model.transitionSystem.step w ⟨seq, .acquire sid tid map localVersion globalVersion⟩
           = some capturedWorld
       /\ find capturedWorld.txs tid = some capturedTx
-      /\ (∀ r ∈ tail, AttemptEvent tid r.event)
+      /\ (forall r ∈ tail, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem capturedWorld tail final)
     -> exists after,
       find final.txs tid = some after
@@ -535,7 +535,7 @@ theorem capture_replay_preserves_map_witness
 
 /-- A live attempt acquiring a not-yet-created map would capture an empty global frame. -/
 theorem captureGlobal_placeholder
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot) (map : String),
     (storeOf w sid = .ok s
       /\ txOf w sid tid = .ok t
@@ -552,7 +552,7 @@ theorem captureGlobal_placeholder_witness
 
 /-- A live attempt acquiring an existing map would capture the store's global cut. -/
 theorem captureGlobal_committed
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot) (map : String)
     (birth : Stamp),
     (storeOf w sid = .ok s
@@ -571,7 +571,7 @@ theorem captureGlobal_committed_witness
 /-- A global read returns the captured view's value, and that view is empty or a store's global
 cut with no cell newer than it. -/
 theorem step_global_read_from_captured_map
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid seq : Nat) (map key : String) (value : Option String)
     (t : Tx) (view : GlobalView),
     (txOf w sid tid = .ok t
@@ -599,7 +599,7 @@ theorem step_global_read_from_captured_map_witness
 /-- A global presence test reflects the captured view, and that view is empty or a store's
 global cut with no cell newer than it. -/
 theorem step_global_has_from_captured_map
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid tid seq : Nat) (map key : String) (value : Bool) (t : Tx)
     (view : GlobalView),
     (txOf w sid tid = .ok t
@@ -628,7 +628,7 @@ theorem step_global_has_from_captured_map_witness
 
 /-- An accepted above-head compaction leaves the live store unchanged. -/
 theorem compact_above_head_noop
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid seq version requested : Nat) (s after : Store),
     (storeOf w sid = .ok s
       /\ s.head.version < requested
@@ -644,7 +644,7 @@ theorem compact_above_head_noop_witness
 
 /-- An accepted rollback retains every frame at or below the live store's global version. -/
 theorem rollback_keeps_prefix
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid seq version requested term : Nat) (s after : Store)
     (f : Frame),
     (storeOf w sid = .ok s
@@ -662,7 +662,7 @@ theorem rollback_keeps_prefix_witness
 
 /-- An accepted rollback discards frames above its effective version. -/
 theorem rollback_discards_suffix
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid seq version requested term : Nat) (s after : Store)
     (f : Frame),
     (storeOf w sid = .ok s
@@ -681,7 +681,7 @@ theorem rollback_discards_suffix_witness
 
 /-- An accepted rollback preserves the data of every globally durable cut. -/
 theorem durable_cut_survives_rollback
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (next : World) (sid seq version requested term cut : Nat) (s after : Store),
     (storeOf w sid = .ok s
       /\ Model.transitionSystem.step w ⟨seq, .rollback sid version requested term⟩ = some next
@@ -704,7 +704,7 @@ theorem durable_cut_survives_rollback_witness
 
 /-- A live attempt whose snapshot term differs from its store's cannot apply. -/
 theorem stale_term_cannot_apply
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
     (storeOf w sid = .ok s
       /\ txOf w sid tid = .ok t
@@ -721,14 +721,14 @@ theorem stale_term_cannot_apply_witness
 
 /-- A live attempt with an acquired revision absent from its store's branch cannot apply. -/
 theorem discarded_handle_cannot_apply
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot) (m : String)
     (view : GlobalView),
     (storeOf w sid = .ok s
       /\ txOf w sid tid = .ok t
       /\ t.snapshot = some snap
       /\ (m, view) ∈ t.globalViews
-      /\ (∀ f ∈ s.history, (revision f m == revision view.current m) = false))
+      /\ (forall f ∈ s.history, (revision f m == revision view.current m) = false))
     -> canApply s t = false := by
   exact Proofs.Properties.discarded_handle_cannot_apply
 
@@ -742,14 +742,14 @@ theorem discarded_handle_cannot_apply_witness
 
 /-- A live attempt with an acquired map creation absent from its store's branch cannot apply. -/
 theorem discarded_birth_cannot_apply
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot) (m : String)
     (view : GlobalView),
     (storeOf w sid = .ok s
       /\ txOf w sid tid = .ok t
       /\ t.snapshot = some snap
       /\ (m, view) ∈ t.globalViews
-      /\ (∀ f ∈ s.history, (find f.births m == find view.current.births m) = false))
+      /\ (forall f ∈ s.history, (find f.births m == find view.current.births m) = false))
     -> canApply s t = false := by
   exact Proofs.Properties.discarded_birth_cannot_apply
 
@@ -763,7 +763,7 @@ theorem discarded_birth_cannot_apply_witness
 
 /-- An acquired map revision older than the live store's global revision is unavailable. -/
 theorem compacted_map_unavailable
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid tid : Nat) (s : Store) (t : Tx) (m : String) (view : GlobalView)
     (birth : Stamp),
     (storeOf w sid = .ok s
@@ -787,7 +787,7 @@ This specialization only considers `captureLocal` frames, which are empty when t
 it no longer describes arbitrary frames.
 -/
 theorem absent_map_available
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot) (m : String),
     let f := captureLocal s snap m
     (storeOf w sid = .ok s
@@ -810,7 +810,7 @@ An available absent map cut for a live attempt contains no values.
 As above, the absent `captureLocal` frame is empty by construction, unlike an arbitrary frame.
 -/
 theorem absent_placeholder_has_no_values
-    : ∀ w ∈ Model.transitionSystem.Reachable,
+    : forall w ∈ Model.transitionSystem.Reachable,
     forall (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot) (m key : String),
     let f := captureLocal s snap m
     (storeOf w sid = .ok s
