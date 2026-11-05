@@ -236,7 +236,10 @@ def Visits (system : TransitionSystem) (start : system.State)
   exists preceding following,
     actions = preceding ++ following /\ Run system start preceding state
 
-/-- A particular transition within a finite run, with executable prefixes and suffixes. -/
+/--
+`Executes system start actions final before action after` locates `before --action--> after`
+within the run from `start` to `final`, with executable prefixes and suffixes.
+-/
 def Executes (system : TransitionSystem) (start : system.State)
     (actions : List system.Action) (final before : system.State)
     (action : system.Action) (after : system.State) : Prop :=

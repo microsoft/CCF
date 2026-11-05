@@ -50,6 +50,7 @@ Generic helpers use `system.State` and `system.Action`, while `system.Reachable 
 `system.ReachableFrom start finish` hides the actions and relates the endpoints of a finite execution, including the empty execution.
 `system.Reachable state` means that some state satisfying `system.init` reaches `state` via `system.ReachableFrom`.
 Use `Execution.Run` when the action list matters; `Execution.reachableFrom_iff_run` relates the two presentations.
+`Execution.Visits` and `Execution.Executes` locate a visited state or an enabled transition within a finite run.
 Traces have type `Execution.Trace system`, with validity carried by the structure rather than a separate premise.
 Use `trace.stateAt n` and `trace.actionAt n` for optional indexed access, `state ∈ trace` for state membership, and `trace.states` and `trace.actions` to access the sequences directly.
 The sequences are derived from `init` and `steps`, so finite traces always have one more state than action.

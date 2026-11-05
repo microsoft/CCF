@@ -152,7 +152,10 @@ theorem publication_noninterference_witness
         find ws a = none := by
   exact Proofs.Witnesses.publication_noninterference_witness
 
-/-- An accepted application in a reachable world produces unique committed keys. -/
+/--
+An accepted application in a reachable world produces unique committed keys.
+This specialization is covered by `reachable_store_data_invariants` at the successor world.
+-/
 theorem publish_unique
     : forall (w next : World) (sid tid seq version term : Nat) (writes : Pending) (after : Store),
     (Model.transitionSystem.Reachable w
@@ -187,11 +190,11 @@ theorem apply_atomic_witness
 
 /-- An attempt's operation log runs serially on its pinned local views to its staged writes. -/
 theorem transaction_snapshot_serial
-    : ∀ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
-        (Model.transitionSystem.Reachable w
-          /\ find w.txs tid = some t
-          /\ t.snapshot = some snap)
-        → serialRun t.data [] t.normal.log = some t.normal.writes := by
+    : forall (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
+    (Model.transitionSystem.Reachable w
+      /\ find w.txs tid = some t
+      /\ t.snapshot = some snap)
+    -> serialRun t.data [] t.normal.log = some t.normal.writes := by
   intro w tid t snap reachable live captured
   exact Proofs.Model.transaction_snapshot_serial t snap
     ((Proofs.Invariants.reachable_invariant w reachable).txs tid t live).normal captured
@@ -207,13 +210,13 @@ theorem transaction_snapshot_serial_witness
 
 /-- An attempt that may apply runs serially on the current head to the same staged writes. -/
 theorem transaction_application_serial
-    : ∀ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
-        (Model.transitionSystem.Reachable w
-          /\ storeOf w sid = .ok s
-          /\ txOf w sid tid = .ok t
-          /\ t.snapshot = some snap
-          /\ canApply s t = true)
-        → serialRun s.head.data [] t.normal.log = some t.normal.writes := by
+    : forall (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
+    (Model.transitionSystem.Reachable w
+      /\ storeOf w sid = .ok s
+      /\ txOf w sid tid = .ok t
+      /\ t.snapshot = some snap
+      /\ canApply s t = true)
+    -> serialRun s.head.data [] t.normal.log = some t.normal.writes := by
   intro w sid tid s t snap reachable _store tx captured applies
   exact Proofs.Model.transaction_application_serial s t snap
     (Proofs.Invariants.txOf_invariant w
@@ -234,6 +237,7 @@ theorem transaction_application_serial_witness
 /--
 Applications on one reachable store branch run serially from its starting head.
 Unlike the algebraic `AppliedBranch` claim, the attempts come from one actual model run.
+This specialization is covered by `replay_segment_serializability`, which also counts versions.
 -/
 theorem executable_branch_serializability
     : forall (w final : World) (sid : Nat) (s : Store) (rs : List Record),
@@ -264,16 +268,16 @@ theorem executable_branch_serializability_witness
 /-- In an accepted record segment that keeps store `sid` alive, the applications projected
 onto that store run serially to its final head. -/
 theorem replay_segment_serializability
-    : ∀ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        (Model.transitionSystem.Reachable w
-          /\ find w.stores sid = some s
-          /\ (∀ r ∈ rs, SegmentEvent sid r.event)
-          /\ CCF.Execution.Run Model.transitionSystem w rs final)
-        → ∃ after txs,
-            find final.stores sid = some after
-            ∧ projectApplications w sid rs = .ok txs
-            ∧ serialTransactions s.head.data s.head.version txs = some after.head.data
-            ∧ after.head.version = s.head.version + txs.length := by
+    : forall (w final : World) (sid : Nat) (s : Store) (rs : List Record),
+    (Model.transitionSystem.Reachable w
+      /\ find w.stores sid = some s
+      /\ (forall r ∈ rs, SegmentEvent sid r.event)
+      /\ CCF.Execution.Run Model.transitionSystem w rs final)
+    -> exists after txs,
+        find final.stores sid = some after
+        /\ projectApplications w sid rs = .ok txs
+        /\ serialTransactions s.head.data s.head.version txs = some after.head.data
+        /\ after.head.version = s.head.version + txs.length := by
   exact Proofs.Properties.replay_segment_serializability
 
 /-- Witness: an accepted nonempty segment can keep a store alive. -/
@@ -291,13 +295,13 @@ theorem replay_segment_serializability_witness
 /-- Every live store in a reachable world has a well-formed history whose head is newest, and a
 global version within it that is the version of its global cut. -/
 theorem reachable_store_invariants
-    : ∀ (w : World) (sid : Nat) (s : Store),
-        (Model.transitionSystem.Reachable w
-          /\ find w.stores sid = some s)
-        → History s.history s.head.version
-          ∧ s.history.head? = some s.head
-          ∧ s.global ≤ s.head.version
-          ∧ (atCut s s.global).version = s.global := by
+    : forall (w : World) (sid : Nat) (s : Store),
+    (Model.transitionSystem.Reachable w
+      /\ find w.stores sid = some s)
+    -> History s.history s.head.version
+      /\ s.history.head? = some s.head
+      /\ s.global ≤ s.head.version
+      /\ (atCut s s.global).version = s.global := by
   exact Proofs.Properties.reachable_store_invariants
 
 /-- Witness: a reachable world can have a live store. -/
@@ -309,10 +313,10 @@ theorem reachable_store_invariants_witness
 /-- Every live store's head data in a reachable world has unique keys and versions no later than
 the head. -/
 theorem reachable_store_data_invariants
-    : ∀ (w : World) (sid : Nat) (s : Store),
-        (Model.transitionSystem.Reachable w
-          /\ find w.stores sid = some s)
-        → Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
+    : forall (w : World) (sid : Nat) (s : Store),
+    (Model.transitionSystem.Reachable w
+      /\ find w.stores sid = some s)
+    -> Unique s.head.data /\ CellsBounded s.head.data s.head.version := by
   exact Proofs.Properties.reachable_store_data_invariants
 
 /-- Witness: a reachable world can have a live store. -/
@@ -366,7 +370,7 @@ theorem capture_replay_preserves_metadata
     (Model.transitionSystem.Reachable w
       /\ storeOf w sid = .ok s
       /\ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-      = some capturedWorld
+          = some capturedWorld
       /\ find capturedWorld.txs tid = some t
       /\ (forall r ∈ tail, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem capturedWorld tail final)
@@ -422,7 +426,7 @@ theorem step_map_capture
       /\ txOf w sid tid = .ok before
       /\ before.snapshot = some snap
       /\ Model.transitionSystem.step w ⟨seq, .acquire sid tid map localVersion globalVersion⟩
-      = some next
+          = some next
       /\ find next.txs tid = some after)
     -> find after.globalViews map = some (captureGlobal s snap map)
       /\ localVersion = (revision (captureLocal s snap map) map).version
@@ -499,7 +503,7 @@ theorem capture_replay_preserves_map
       /\ txOf w sid tid = .ok before
       /\ before.snapshot = some snap
       /\ Model.transitionSystem.step w ⟨seq, .acquire sid tid map localVersion globalVersion⟩
-      = some capturedWorld
+          = some capturedWorld
       /\ find capturedWorld.txs tid = some capturedTx
       /\ (forall r ∈ tail, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem capturedWorld tail final)
@@ -565,18 +569,18 @@ theorem captureGlobal_committed_witness
 /-- A global read returns the captured view's value, and that view is empty or a store's global
 cut with no cell newer than it. -/
 theorem step_global_read_from_captured_map
-    : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Option String)
-        (t : Tx) (view : GlobalView),
-        (Model.transitionSystem.Reachable w
-          /\ txOf w sid tid = .ok t
-          /\ find t.globalViews map = some view
-          /\ Model.transitionSystem.step w ⟨seq, .get sid tid map key value true⟩ = some next)
-        → value = (find view.frame.data (map, key)).map Cell.value
-          ∧ (view.frame = {}
-              ∨ ∃ origin : Store,
-                  view.frame = atCut origin origin.global
-                  ∧ view.frame.version = origin.global
-                  ∧ CellsBounded view.frame.data origin.global) := by
+    : forall (w next : World) (sid tid seq : Nat) (map key : String) (value : Option String)
+    (t : Tx) (view : GlobalView),
+    (Model.transitionSystem.Reachable w
+      /\ txOf w sid tid = .ok t
+      /\ find t.globalViews map = some view
+      /\ Model.transitionSystem.step w ⟨seq, .get sid tid map key value true⟩ = some next)
+    -> value = (find view.frame.data (map, key)).map Cell.value
+      /\ (view.frame = {}
+          \/ exists origin : Store,
+              view.frame = atCut origin origin.global
+              /\ view.frame.version = origin.global
+              /\ CellsBounded view.frame.data origin.global) := by
   exact Proofs.Properties.step_global_read_from_captured_map
 
 /-- Witness: a global read of a committed value can be accepted. -/
@@ -593,18 +597,18 @@ theorem step_global_read_from_captured_map_witness
 /-- A global presence test reflects the captured view, and that view is empty or a store's
 global cut with no cell newer than it. -/
 theorem step_global_has_from_captured_map
-    : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Bool) (t : Tx)
-        (view : GlobalView),
-        (Model.transitionSystem.Reachable w
-          /\ txOf w sid tid = .ok t
-          /\ find t.globalViews map = some view
-          /\ Model.transitionSystem.step w ⟨seq, .has sid tid map key value true⟩ = some next)
-        → value = (find view.frame.data (map, key)).isSome
-          ∧ (view.frame = {}
-              ∨ ∃ origin : Store,
-                  view.frame = atCut origin origin.global
-                  ∧ view.frame.version = origin.global
-                  ∧ CellsBounded view.frame.data origin.global) := by
+    : forall (w next : World) (sid tid seq : Nat) (map key : String) (value : Bool) (t : Tx)
+    (view : GlobalView),
+    (Model.transitionSystem.Reachable w
+      /\ txOf w sid tid = .ok t
+      /\ find t.globalViews map = some view
+      /\ Model.transitionSystem.step w ⟨seq, .has sid tid map key value true⟩ = some next)
+    -> value = (find view.frame.data (map, key)).isSome
+      /\ (view.frame = {}
+          \/ exists origin : Store,
+              view.frame = atCut origin origin.global
+              /\ view.frame.version = origin.global
+              /\ CellsBounded view.frame.data origin.global) := by
   exact Proofs.Properties.step_global_has_from_captured_map
 
 /-- Witness: a global presence test of a committed key can be accepted. -/

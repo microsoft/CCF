@@ -67,9 +67,10 @@ theorem full_gossip_preserves_commit
     ((Model.transitionSystem config).Reachable start
       /\ CCF.Execution.Run (Model.transitionSystem config) start actions final
       /\ CCF.Execution.Visits (Model.transitionSystem config) start actions gossipedState
-      /\ (forall node nodeState, node ∈ config.protocol.expectedLocations
-        -> (node, nodeState) ∈ gossipedState.nodes
-        -> forall gossip, gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
+      /\ (forall node nodeState,
+          (node ∈ config.protocol.expectedLocations
+            /\ (node, nodeState) ∈ gossipedState.nodes)
+          -> forall gossip, gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
       /\ CCF.Execution.Visits (Model.transitionSystem config) start actions openedState
       /\ (opener, openerState) ∈ openedState.nodes
       /\ openerState.openKind.isSome = true)
@@ -95,6 +96,7 @@ lemma full_gossip_preserves_commit_witness
   exact Proofs.Witnesses.full_gossip_preserves_commit_witness
 
 -- Local effects of enabled steps from reachable network states.
+-- The underlying local proofs cover every ValidStep, without reachability.
 
 /-- A reachable delivery of accepted gossip after choice stutters and reports frozen gossip. -/
 theorem gossip_freezes_after_choice
@@ -149,7 +151,7 @@ theorem quorum_advance_opens
     ((Model.transitionSystem config).Reachable before
       /\ NetworkStep config before action after localStep
       /\ (localStep.action = .timeout
-      \/ exists source, localStep.action = .receiveVote source .accepted)
+          \/ exists source, localStep.action = .receiveVote source .accepted)
       /\ localStep.before.phase = .voting
       /\ localStep.before.votes.length >= voteQuorum config.protocol)
     -> localStep.after.phase = .opening
