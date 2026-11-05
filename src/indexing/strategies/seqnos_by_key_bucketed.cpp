@@ -17,13 +17,18 @@ namespace ccf::indexing::strategies
   {
   public:
     const size_t seqnos_per_bucket;
+    const size_t max_buckets;
+
+    // When both locks are needed, results_access must be acquired first.
+    ccf::ds::Mutex results_access CCF_ACQUIRED_BEFORE(current_txid_lock);
 
     // Inclusive begin, exclusive end
     using Range = std::pair<ccf::SeqNo, ccf::SeqNo>;
 
     // Store a single bucket of current results for each key
     using CurrentResult = std::pair<Range, SeqNoCollection>;
-    std::unordered_map<ccf::ByteVector, CurrentResult> current_results;
+    std::unordered_map<ccf::ByteVector, CurrentResult> current_results
+      CCF_GUARDED_BY(results_access);
 
     // Maintain an LRU of old, requested buckets, which are asynchronously
     // fetched from disk
@@ -31,20 +36,16 @@ namespace ccf::indexing::strategies
     // First element is a handle while result is being fetched. Second is parsed
     // result, after fetch completes, at which point the first is set to nullptr
     using BucketValue = std::pair<FetchResultPtr, SeqNoCollection>;
-    LRU<BucketKey, BucketValue> old_results;
+    LRU<BucketKey, BucketValue> old_results CCF_GUARDED_BY(results_access);
 
-    // When results_access and current_txid_lock need to be
-    // taken at the same time, results_access should be first
-    ccf::ds::Mutex results_access;
-
-    bool rebuild_requested = false;
+    bool rebuild_requested CCF_GUARDED_BY(results_access) = false;
 
     std::string name;
 
     std::shared_ptr<AbstractLFSAccess> lfs_access;
 
     ccf::ds::Mutex& current_txid_lock;
-    ccf::TxID& current_txid;
+    ccf::TxID& current_txid CCF_GUARDED_BY(current_txid_lock);
 
     Impl(
       std::string name_,
@@ -54,6 +55,7 @@ namespace ccf::indexing::strategies
       size_t seqnos_per_bucket_,
       size_t max_buckets_) :
       seqnos_per_bucket(seqnos_per_bucket_),
+      max_buckets(max_buckets_),
       old_results(max_buckets_),
       name(std::move(name_)),
       lfs_access(lfs_access_),
@@ -138,6 +140,7 @@ namespace ccf::indexing::strategies
 
     void store_empty_buckets(
       const ccf::ByteVector& k, Range begin, const Range& end)
+      CCF_REQUIRES(results_access)
     {
       while (begin != end)
       {
@@ -153,6 +156,7 @@ namespace ccf::indexing::strategies
 
     void store_to_disk(
       const ccf::ByteVector& k, const Range& range, SeqNoCollection&& seqnos)
+      CCF_REQUIRES(results_access)
     {
       const BucketKey bucket_key{k, range};
       const auto blob_key = get_blob_name(bucket_key);
@@ -175,14 +179,13 @@ namespace ccf::indexing::strategies
           fmt::format("Range goes backwards: {} -> {}", from, to));
       }
 
-      std::lock_guard<ccf::ds::Mutex> results_guard(results_access);
+      ccf::ds::MutexGuard results_guard(results_access);
       if (rebuild_requested)
       {
         return std::nullopt;
       }
 
-      if (std::lock_guard<ccf::ds::Mutex> guard(current_txid_lock);
-          to > current_txid.seqno)
+      if (ccf::ds::MutexGuard guard(current_txid_lock); to > current_txid.seqno)
       {
         // If the requested range hasn't been populated yet, indicate
         // that with nullopt
@@ -346,18 +349,18 @@ namespace ccf::indexing::strategies
     // at the beginning and end, essentially wasting some space.
     size_t max_requestable_range() const
     {
-      return ((old_results.get_max_size() - 1) * seqnos_per_bucket);
+      return ((max_buckets - 1) * seqnos_per_bucket);
     }
   };
 
   void SeqnosByKey_Bucketed_Untyped::tick()
   {
-    std::lock_guard<ccf::ds::Mutex> guard(impl->results_access);
+    ccf::ds::MutexGuard guard(impl->results_access);
     if (impl->rebuild_requested)
     {
       // The indexer serializes ticks with transaction delivery and watermark
       // publication, so no in-flight transaction can undo this reset.
-      std::lock_guard<ccf::ds::Mutex> current_txid_guard(current_txid_lock);
+      ccf::ds::MutexGuard current_txid_guard(current_txid_lock);
       current_txid = {};
       impl->old_results.clear();
       impl->current_results.clear();
@@ -371,7 +374,7 @@ namespace ccf::indexing::strategies
     (void)v;
     const auto range = impl->get_range_for(tx_id.seqno);
 
-    std::lock_guard<ccf::ds::Mutex> guard(impl->results_access);
+    ccf::ds::MutexGuard guard(impl->results_access);
 
     auto it = impl->current_results.find(k);
     if (it != impl->current_results.end())
@@ -418,7 +421,7 @@ namespace ccf::indexing::strategies
   {
     auto j = VisitEachEntryInMap::describe();
     {
-      std::lock_guard<ccf::ds::Mutex> guard(impl->results_access);
+      ccf::ds::MutexGuard guard(impl->results_access);
       j["seqnos_per_bucket"] = impl->seqnos_per_bucket;
       j["old_results_max_size"] = impl->old_results.get_max_size();
       j["old_results_current_size"] = impl->old_results.size();
