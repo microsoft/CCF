@@ -13,6 +13,7 @@
 #include "indexing/test/common.h"
 #include "node/share_manager.h"
 
+#include <future>
 #include <thread>
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -889,10 +890,25 @@ public:
   {
     last_fetch = std::make_shared<ccf::indexing::FetchResult>();
     last_fetch->key = key;
-    last_fetch->contents = files.at(key);
     last_fetch->fetch_result =
       ccf::indexing::FetchResult::FetchResultType::Fetching;
     return last_fetch;
+  }
+
+  void complete_fetch()
+  {
+    const auto it = files.find(last_fetch->key);
+    if (it == files.end())
+    {
+      last_fetch->fetch_result =
+        ccf::indexing::FetchResult::FetchResultType::NotFound;
+    }
+    else
+    {
+      last_fetch->contents = it->second;
+      last_fetch->fetch_result =
+        ccf::indexing::FetchResult::FetchResultType::Loaded;
+    }
   }
 };
 
@@ -943,26 +959,66 @@ void test_bucketed_rebuild(ccf::indexing::FetchResult::FetchResultType failure)
   REQUIRE(indexer.update_strategies(step_time, initial));
   REQUIRE(strategy->get_indexed_watermark() == initial);
   REQUIRE(check_seqnos({2}, strategy->get_write_txs_in_range("hello", 2, 2)));
+  REQUIRE_FALSE(strategy->get_write_txs_in_range("hello", 2, 3).has_value());
   REQUIRE(strategy->get_indexed_watermark() == initial);
   REQUIRE_FALSE(strategy->get_write_txs_in_range("hello", 1, 1).has_value());
   REQUIRE(lfs->last_fetch != nullptr);
+  REQUIRE(lfs->last_fetch->contents.empty());
 
   const auto fail_query = [&]() {
     // Run a query on another thread while the serialized indexing update is
     // between its tick and watermark publication.
-    std::thread query([&]() {
-      CHECK_FALSE(strategy->get_write_txs_in_range("hello", 1, 1).has_value());
-      CHECK(strategy->get_indexed_watermark() == initial);
-      CHECK_FALSE(strategy->get_write_txs_in_range("hello", 2, 2).has_value());
-      CHECK_FALSE(strategy->get_write_txs_in_range("absent", 1, 1).has_value());
+    struct Observations
+    {
+      bool failed_range_available;
+      ccf::TxID watermark;
+      bool cached_range_available;
+      bool absent_key_available;
+      bool zero_range_available;
+    };
+    auto query = std::async(std::launch::async, [&]() {
+      return Observations{
+        strategy->get_write_txs_in_range("hello", 1, 1).has_value(),
+        strategy->get_indexed_watermark(),
+        strategy->get_write_txs_in_range("hello", 2, 2).has_value(),
+        strategy->get_write_txs_in_range("absent", 1, 1).has_value(),
+        strategy->get_write_txs_in_range("absent", 0, 0).has_value()};
     });
-    query.join();
+    const auto observed = query.get();
+    CHECK_FALSE(observed.failed_range_available);
+    CHECK(observed.watermark == initial);
+    CHECK_FALSE(observed.cached_range_available);
+    CHECK_FALSE(observed.absent_key_available);
+    CHECK_FALSE(observed.zero_range_available);
   };
 
   extend(3);
   supply(3);
-  lfs->last_fetch->contents.clear();
-  lfs->last_fetch->fetch_result = failure;
+  switch (failure)
+  {
+    case FetchState::NotFound:
+    {
+      lfs->files.erase(lfs->last_fetch->key);
+      lfs->complete_fetch();
+      break;
+    }
+    case FetchState::Loaded:
+    {
+      lfs->files.at(lfs->last_fetch->key).clear();
+      lfs->complete_fetch();
+      break;
+    }
+    case FetchState::Corrupt:
+    {
+      lfs->last_fetch->fetch_result = FetchState::Corrupt;
+      break;
+    }
+    case FetchState::Fetching:
+    {
+      FAIL("A completed failed fetch is required");
+    }
+  }
+  REQUIRE(lfs->last_fetch->fetch_result == failure);
   SUBCASE("Failure between final visit and watermark publication")
   {
     strategy->after_visit = fail_query;
@@ -978,6 +1034,7 @@ void test_bucketed_rebuild(ccf::indexing::FetchResult::FetchResultType failure)
   REQUIRE(strategy->get_indexed_watermark() == store.current_txid());
   REQUIRE_FALSE(strategy->get_write_txs_in_range("hello", 2, 3).has_value());
   REQUIRE_FALSE(strategy->get_write_txs_in_range("absent", 1, 1).has_value());
+  REQUIRE_FALSE(strategy->get_write_txs_in_range("absent", 0, 0).has_value());
 
   // Even a lazy strategy which has reached its limit must process the reset.
   REQUIRE(indexer.update_strategies(step_time, store.current_txid()));
@@ -995,7 +1052,9 @@ void test_bucketed_rebuild(ccf::indexing::FetchResult::FetchResultType failure)
   REQUIRE(strategy->get_indexed_watermark() == store.current_txid());
   REQUIRE_FALSE(strategy->get_write_txs_in_range("hello", 1, 3).has_value());
   REQUIRE(lfs->last_fetch->fetch_result == FetchState::Fetching);
-  lfs->last_fetch->fetch_result = FetchState::Loaded;
+  REQUIRE(lfs->last_fetch->contents.empty());
+  lfs->complete_fetch();
+  REQUIRE(lfs->last_fetch->fetch_result == FetchState::Loaded);
   REQUIRE(
     check_seqnos(expected, strategy->get_write_txs_in_range("hello", 1, 3)));
   REQUIRE(check_seqnos({}, strategy->get_write_txs_in_range("absent", 1, 3)));

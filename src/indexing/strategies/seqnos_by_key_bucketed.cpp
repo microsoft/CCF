@@ -179,6 +179,14 @@ namespace ccf::indexing::strategies
           fmt::format("Range goes backwards: {} -> {}", from, to));
       }
 
+      {
+        ccf::ds::MutexGuard guard(current_txid_lock);
+        if (to > current_txid.seqno)
+        {
+          return std::nullopt;
+        }
+      }
+
       ccf::ds::MutexGuard results_guard(results_access);
       if (rebuild_requested)
       {
@@ -187,8 +195,7 @@ namespace ccf::indexing::strategies
 
       if (ccf::ds::MutexGuard guard(current_txid_lock); to > current_txid.seqno)
       {
-        // If the requested range hasn't been populated yet, indicate
-        // that with nullopt
+        // A tick may have reset the index since the initial watermark check.
         return std::nullopt;
       }
 
