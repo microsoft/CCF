@@ -12,16 +12,17 @@ namespace DisasterRecovery.Properties
 
 open Model.Local
 
--- Global invariants for all valid traces and corresponding witness
+-- Global invariants from reachable network states.
 
-/-- In a valid trace, all `opening quorum` notifications are emitted by the same
-node. -/
+/-- All quorum-opening notifications along one reachable execution have the same emitter. -/
 theorem quorum_opener_unique
-    : forall (config : Model.Config) (trace : GlobalTrace config),
-      forall (firstStep secondStep : Nat) (firstOpener secondOpener : Location),
-        (Trace.NotificationAt config trace firstStep firstOpener (.opening .quorum)
-          /\ Trace.NotificationAt config trace secondStep secondOpener (.opening .quorum))
-        -> firstOpener = secondOpener := by
+    : forall (config : Model.Config) (start final : Model.State) (actions : List Model.Action)
+    (firstOpener secondOpener : Location),
+    ((Model.transitionSystem config).Reachable start
+      /\ CCF.Execution.Run (Model.transitionSystem config) start actions final
+      /\ NotificationDuring config start actions final firstOpener (.opening .quorum)
+      /\ NotificationDuring config start actions final secondOpener (.opening .quorum))
+    -> firstOpener = secondOpener := by
   exact Proofs.Model.quorum_opener_unique
 
 /-- Witness: a valid trace exists with a step emitting `opening quorum`. -/
@@ -31,19 +32,20 @@ lemma quorum_opener_unique_witness
       Trace.NotificationAt config trace step opener (.opening .quorum) := by
   exact Proofs.Witnesses.quorum_opener_unique_witness
 
-/-- A quorum opener whose voters received their own gossip is up to date with a
-quorum of recovered ledgers. -/
+/-- A reachable quorum opener whose voters receive own gossip in the same execution is fresh. -/
 theorem quorum_open_preserves_commit
-    : forall (config : Model.Config) (trace : GlobalTrace config)
-              (openedState : Model.State),
-      forall (opener : Location) (openerState : NodeState),
-        (openedState ∈ trace
-          /\ (opener, openerState) ∈ openedState.nodes
-          /\ openerState.openKind = some .quorum
-          /\ (forall voter, voter ∈ openerState.votes -> ReceivedOwnGossip trace voter))
-        -> exists openerTxID,
-            Model.recoveredTxID config opener = some openerTxID
-            /\ UpToDateWithQuorum config openerTxID := by
+    : forall (config : Model.Config) (start final openedState : Model.State)
+    (actions : List Model.Action) (opener : Location) (openerState : NodeState),
+    ((Model.transitionSystem config).Reachable start
+      /\ CCF.Execution.Run (Model.transitionSystem config) start actions final
+      /\ CCF.Execution.Visits (Model.transitionSystem config) start actions openedState
+      /\ (opener, openerState) ∈ openedState.nodes
+      /\ openerState.openKind = some .quorum
+      /\ (forall voter, voter ∈ openerState.votes
+        -> ReceivedOwnGossipDuring config start actions voter))
+    -> exists openerTxID,
+      Model.recoveredTxID config opener = some openerTxID
+      /\ UpToDateWithQuorum config openerTxID := by
   exact Proofs.Gossip.quorum_open_preserves_commit
 
 /-- Witness: a valid trace and a state in it with a node with `openKind = quorum` whose
@@ -58,24 +60,23 @@ lemma quorum_open_preserves_commit_witness
       /\ (forall voter, voter ∈ openerState.votes -> ReceivedOwnGossip trace voter) := by
   exact Proofs.Witnesses.quorum_open_preserves_commit_witness
 
-/-- If every configured location has full gossip somewhere in a valid trace, every opener,
-including failover openers, is up to date with a quorum of recovered ledgers. -/
+/-- Full gossip and opening in the same reachable execution imply freshness, in either order. -/
 theorem full_gossip_preserves_commit
-    : forall (config : Model.Config) (trace : GlobalTrace config)
-              (gossipedState openedState : Model.State),
-      forall (opener : Location) (openerState : NodeState),
-        (gossipedState ∈ trace
-          /\ (forall node nodeState,
-                node ∈ config.protocol.expectedLocations
-                -> (node, nodeState) ∈ gossipedState.nodes
-                -> forall gossip,
-                    gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
-          /\ openedState ∈ trace
-          /\ (opener, openerState) ∈ openedState.nodes
-          /\ openerState.openKind.isSome = true)
-        -> exists openerTxID,
-            Model.recoveredTxID config opener = some openerTxID
-            /\ UpToDateWithQuorum config openerTxID := by
+    : forall (config : Model.Config) (start final gossipedState openedState : Model.State)
+    (actions : List Model.Action) (opener : Location) (openerState : NodeState),
+    ((Model.transitionSystem config).Reachable start
+      /\ CCF.Execution.Run (Model.transitionSystem config) start actions final
+      /\ CCF.Execution.Visits (Model.transitionSystem config) start actions gossipedState
+      /\ (forall node nodeState,
+          (node ∈ config.protocol.expectedLocations
+            /\ (node, nodeState) ∈ gossipedState.nodes)
+          -> forall gossip, gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
+      /\ CCF.Execution.Visits (Model.transitionSystem config) start actions openedState
+      /\ (opener, openerState) ∈ openedState.nodes
+      /\ openerState.openKind.isSome = true)
+    -> exists openerTxID,
+      Model.recoveredTxID config opener = some openerTxID
+      /\ UpToDateWithQuorum config openerTxID := by
   exact Proofs.Gossip.full_gossip_preserves_commit
 
 /-- Witness: a valid trace with a full-gossip state and a state in it with a node with
@@ -94,20 +95,19 @@ lemma full_gossip_preserves_commit_witness
       /\ openerState.openKind = some .failover := by
   exact Proofs.Witnesses.full_gossip_preserves_commit_witness
 
--- Local invariants of the step function: they hold for every node state,
--- not only reachable ones.
+-- Local effects of enabled steps from reachable network states.
+-- The underlying local proofs cover every ValidStep, without reachability.
 
-/-- A valid step receiving accepted gossip when `chosen` is set leaves the state
-unchanged and notifies `rejected "gossip-frozen"`. -/
+/-- A reachable delivery of accepted gossip after choice stutters and reports frozen gossip. -/
 theorem gossip_freezes_after_choice
-    : forall (config : Model.Config),
-      forall localStep : LocalStep,
-      forall (source : Location) (txid : TxID),
-        ((Model.protocol config).ValidStep localStep
-          /\ localStep.action = .receiveGossip source txid .accepted
-          /\ localStep.before.chosen.isSome = true)
-        -> localStep.after = localStep.before
-            /\ .rejected "gossip-frozen" ∈ localStep.effects.notifications := by
+    : forall (config : Model.Config) (before after : Model.State) (action : Model.Action)
+    (localStep : LocalStep) (source : Location) (txid : TxID),
+    ((Model.transitionSystem config).Reachable before
+      /\ NetworkStep config before action after localStep
+      /\ localStep.action = .receiveGossip source txid .accepted
+      /\ localStep.before.chosen.isSome = true)
+    -> localStep.after = localStep.before
+      /\ .rejected "gossip-frozen" ∈ localStep.effects.notifications := by
   exact Proofs.Local.gossip_freezes_after_choice
 
 /-- Witness: a valid step exists that receives accepted gossip when `chosen` is set. -/
@@ -120,16 +120,19 @@ lemma gossip_freezes_after_choice_witness
       /\ localStep.before.chosen.isSome = true := by
   exact Proofs.Witnesses.gossip_freezes_after_choice_witness
 
-/-- A valid step receiving rejected gossip leaves the state unchanged and notifies
-`rejected "quote-or-certificate"`. -/
+/--
+A reachable rejected-gossip step would stutter and report rejection.
+This is vacuous in the current network model: `Model.receive` only constructs accepted events.
+The underlying local proof and unchanged witness cover the rejected-event handler.
+-/
 theorem rejected_gossip_stutters
-    : forall (config : Model.Config),
-      forall localStep : LocalStep,
-      forall (source : Location) (txid : TxID),
-        ((Model.protocol config).ValidStep localStep
-          /\ localStep.action = .receiveGossip source txid .rejected)
-        -> localStep.after = localStep.before
-            /\ .rejected "quote-or-certificate" ∈ localStep.effects.notifications := by
+    : forall (config : Model.Config) (before after : Model.State) (action : Model.Action)
+    (localStep : LocalStep) (source : Location) (txid : TxID),
+    ((Model.transitionSystem config).Reachable before
+      /\ NetworkStep config before action after localStep
+      /\ localStep.action = .receiveGossip source txid .rejected)
+    -> localStep.after = localStep.before
+      /\ .rejected "quote-or-certificate" ∈ localStep.effects.notifications := by
   exact Proofs.Local.rejected_gossip_stutters
 
 /-- Witness: a valid step exists that receives rejected gossip. -/
@@ -141,19 +144,19 @@ lemma rejected_gossip_stutters_witness
       /\ localStep.action = .receiveGossip source txid .rejected := by
   exact Proofs.Witnesses.rejected_gossip_stutters_witness
 
-/-- A valid timeout or accepted-vote step from `voting` with at least `voteQuorum`
-votes moves to `opening` with `openKind = quorum` and notifies `opening quorum`. -/
+/-- A reachable timeout or accepted vote with a voting quorum opens by quorum. -/
 theorem quorum_advance_opens
-    : forall (config : Model.Config),
-      forall localStep : LocalStep,
-        ((Model.protocol config).ValidStep localStep
-          /\ (localStep.action = .timeout
-              \/ exists source, localStep.action = .receiveVote source .accepted)
-          /\ localStep.before.phase = .voting
-          /\ localStep.before.votes.length >= voteQuorum config.protocol)
-        -> localStep.after.phase = .opening
-            /\ localStep.after.openKind = some .quorum
-            /\ .opening .quorum ∈ localStep.effects.notifications := by
+    : forall (config : Model.Config) (before after : Model.State) (action : Model.Action)
+    (localStep : LocalStep),
+    ((Model.transitionSystem config).Reachable before
+      /\ NetworkStep config before action after localStep
+      /\ (localStep.action = .timeout
+          \/ exists source, localStep.action = .receiveVote source .accepted)
+      /\ localStep.before.phase = .voting
+      /\ localStep.before.votes.length >= voteQuorum config.protocol)
+    -> localStep.after.phase = .opening
+      /\ localStep.after.openKind = some .quorum
+      /\ .opening .quorum ∈ localStep.effects.notifications := by
   exact Proofs.Local.quorum_step_opens
 
 /-- Witness: a valid timeout or accepted-vote step exists from `voting` with at
@@ -168,17 +171,17 @@ lemma quorum_advance_opens_witness
       /\ localStep.before.votes.length >= voteQuorum config.protocol := by
   exact Proofs.Witnesses.quorum_advance_opens_witness
 
-/-- A valid timeout step with `phase` and `timeoutState` both `opening` only sets
-`phase` to `open`, and notifies `completed`. -/
+/-- A reachable aligned opening timeout only changes the phase to open and completes. -/
 theorem aligned_opening_timeout_completes
-    : forall (config : Model.Config),
-      forall localStep : LocalStep,
-        ((Model.protocol config).ValidStep localStep
-          /\ localStep.action = .timeout
-          /\ localStep.before.phase = .opening
-          /\ localStep.before.timeoutState = .opening)
-        -> localStep.after = { localStep.before with phase := .open }
-            /\ .completed ∈ localStep.effects.notifications := by
+    : forall (config : Model.Config) (before after : Model.State) (action : Model.Action)
+    (localStep : LocalStep),
+    ((Model.transitionSystem config).Reachable before
+      /\ NetworkStep config before action after localStep
+      /\ localStep.action = .timeout
+      /\ localStep.before.phase = .opening
+      /\ localStep.before.timeoutState = .opening)
+    -> localStep.after = { localStep.before with phase := .open }
+      /\ .completed ∈ localStep.effects.notifications := by
   exact Proofs.Local.aligned_opening_timeout_completes
 
 /-- Witness: a valid timeout step exists with `phase` and `timeoutState` both

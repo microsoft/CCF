@@ -28,6 +28,33 @@ inductive Run (system : TransitionSystem)
     (rest : Run system middle actions after)
     : Run system before (action :: actions) after
 
+/-- Hiding a finite run's actions gives endpoint reachability, and conversely. -/
+theorem reachableFrom_iff_run {system : TransitionSystem} {start final : system.State}
+    : system.ReachableFrom start final <-> exists actions, Run system start actions final := by
+  constructor
+  · intro path
+    suffices append : forall {before middle after : system.State}
+        {actions : List system.Action} {action : system.Action},
+        Run system before actions middle -> system.step middle action = some after
+        -> Run system before (actions ++ [action]) after by
+      induction path with
+      | refl => exact ⟨[], .nil _⟩
+      | step _ transition ih =>
+          obtain ⟨actions, run⟩ := ih
+          exact ⟨actions ++ [_], append run transition⟩
+    intro before middle after actions action run transition
+    induction run with
+    | nil => exact .cons transition (.nil _)
+    | cons first _ ih => exact .cons first (ih transition)
+  · rintro ⟨actions, run⟩
+    suffices extend : forall {before after : system.State} {actions : List system.Action},
+        Run system before actions after -> system.ReachableFrom start before
+        -> system.ReachableFrom start after from extend run .refl
+    intro before after actions run path
+    induction run with
+    | nil => exact path
+    | cons first _ ih => exact ih (.step path first)
+
 /-- An initial state and recorded actions paired with their successor states. -/
 structure TraceImpl (system : TransitionSystem) where
   /-- The initial state. -/
@@ -178,8 +205,9 @@ theorem reachable_iff_trace {system : TransitionSystem} {state : system.State}
         simpa only [← beforeEq, ← actionEq, ← pairEq, Option.map_some] using enabled ⟨n, bound⟩
       · apply Trace.stateAt_mem (n := steps.length)
         exact (indexed steps.length).trans last
-    induction reachable with
-    | initial initialized =>
+    obtain ⟨start, initialized, path⟩ := reachable
+    induction path with
+    | refl =>
         exact ⟨_, [], initialized, rfl, fun i => Fin.elim0 i⟩
     | @step before after action _ step ih =>
         obtain ⟨initial, steps, initialized, last, enabled⟩ := ih
@@ -201,5 +229,27 @@ theorem reachable_iff_trace {system : TransitionSystem} {state : system.State}
             simpa [← beforeEq] using step
   · rintro ⟨trace, member⟩
     exact trace.reachable member
+
+/--
+A state visited by an executable prefix of a finite action list, including its start.
+The remaining actions need not be enabled; require `Run` separately for the full execution.
+-/
+def Visits (system : TransitionSystem) (start : system.State)
+    (actions : List system.Action) (state : system.State) : Prop :=
+  exists preceding following,
+    actions = preceding ++ following /\ Run system start preceding state
+
+/--
+`Executes system start actions final before action after` locates `before --action--> after`
+within the run from `start` to `final`, with executable prefixes and suffixes.
+-/
+def Executes (system : TransitionSystem) (start : system.State)
+    (actions : List system.Action) (final before : system.State)
+    (action : system.Action) (after : system.State) : Prop :=
+  exists preceding following,
+    actions = preceding ++ action :: following
+    /\ Run system start preceding before
+    /\ system.step before action = some after
+    /\ Run system after following final
 
 end CCF.Execution

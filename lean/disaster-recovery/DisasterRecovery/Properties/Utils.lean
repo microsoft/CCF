@@ -75,4 +75,38 @@ def NotificationAt (config : Model.Config) (trace : GlobalTrace config) (step : 
 
 end Trace
 
+open Model.Local
+
+/-- The local execution performed by an enabled step of the complete network. -/
+def NetworkStep (config : Model.Config) (before : Model.State) (action : Model.Action)
+    (after : Model.State) (localStep : LocalStep) : Prop :=
+  (Model.transitionSystem config).step before action = some after
+  /\ localStep.node = Trace.actor action
+  /\ CCF.MultiNodeTransitionSystem.nodeState before localStep.node = some localStep.before
+  /\ CCF.MultiNodeTransitionSystem.nodeState after localStep.node = some localStep.after
+  /\ localStep.action = Trace.event action
+  /\ (Model.protocol config).ValidStep localStep
+
+/--
+Own gossip appears along an executable prefix, possibly after opening.
+The property separately requires the complete action list to form a run.
+-/
+def ReceivedOwnGossipDuring (config : Model.Config) (start : Model.State)
+    (actions : List Model.Action) (node : Location) : Prop :=
+  exists state nodeState txid,
+    CCF.Execution.Visits (Model.transitionSystem config) start actions state
+    /\ (node, nodeState) ∈ state.nodes
+    /\ (node, txid) ∈ nodeState.gossips
+
+/-- A notification emitted by a real network step within this finite execution. -/
+def NotificationDuring (config : Model.Config) (start : Model.State)
+    (actions : List Model.Action) (final : Model.State)
+    (node : Location) (notification : Notification) : Prop :=
+  exists before action after localStep,
+    CCF.Execution.Executes (Model.transitionSystem config) start actions final
+      before action after
+    /\ NetworkStep config before action after localStep
+    /\ localStep.node = node
+    /\ notification ∈ localStep.effects.notifications
+
 end DisasterRecovery.Properties
