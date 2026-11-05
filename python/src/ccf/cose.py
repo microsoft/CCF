@@ -7,8 +7,9 @@ import hashlib
 import json
 import sys
 import warnings
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 import cbor2
 import cwt
@@ -27,6 +28,14 @@ from cryptography.hazmat.primitives.serialization import (
 from cryptography.x509 import load_pem_x509_certificate
 
 Pem = str
+
+
+class PreparedCoseSign1(TypedDict):
+    """Algorithm and base64-encoded digest to send to an external signer."""
+
+    alg: int
+    value: str
+
 
 GOV_MSG_TYPES_WITH_PROPOSAL_ID = ["ballot", "withdrawal"]
 
@@ -58,7 +67,7 @@ CCF_CONSISTENCY_PROOF_PATH_LABEL = 2
 CCF_MAX_COMMIT_EVIDENCE_SIZE = 1024
 
 
-def default_algorithm_for_key(key) -> int:
+def default_algorithm_for_key(key: CertificatePublicKeyTypes) -> int:
     """
     Get the default algorithm for a given key, based on its
     type and parameters.
@@ -76,12 +85,14 @@ def default_algorithm_for_key(key) -> int:
         raise NotImplementedError("unsupported key type")
 
 
-def cert_fingerprint(cert_pem: Pem):
+def cert_fingerprint(cert_pem: Pem) -> bytes:
+    """Return the hexadecimal SHA-256 certificate fingerprint as UTF-8 bytes."""
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     return cert.fingerprint(hashes.SHA256()).hex().encode("utf-8")
 
 
-def key_fingerprint_from_cert(cert_pem: Pem):
+def key_fingerprint_from_cert(cert_pem: Pem) -> str:
+    """Return the hexadecimal SHA-256 fingerprint of a certificate's public key."""
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     pub_key = cert.public_key().public_bytes(
         Encoding.DER, PublicFormat.SubjectPublicKeyInfo
@@ -89,7 +100,8 @@ def key_fingerprint_from_cert(cert_pem: Pem):
     return hashlib.sha256(pub_key).hexdigest()
 
 
-def key_fingerprint_from_key(key_pem: Pem):
+def key_fingerprint_from_key(key_pem: Pem) -> str:
+    """Return the hexadecimal SHA-256 fingerprint of a PEM public key."""
     key = load_pem_public_key(key_pem.encode("ascii"))
     pub_key = key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
     return hashlib.sha256(pub_key).hexdigest()
@@ -99,8 +111,9 @@ def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
     cert_pem: Pem,
-    additional_protected_header: dict | None = None,
+    additional_protected_header: Mapping[Any, Any] | None = None,
 ) -> bytes:
+    """Sign a payload with the supplied PEM private key and certificate."""
     cose_ctx = cwt.COSE.new(alg_auto_inclusion=True, deterministic_header=True)
     cose_key = cwt.COSEKey.from_pem(key_priv_pem, kid=cert_fingerprint(cert_pem))
     # kid is passed explicitly in the protected header, because kid_auto_inclusion
@@ -110,7 +123,9 @@ def create_cose_sign1(
     phdr.update(additional_header)
     # cwt accepts ResolvedHeader, but encode_and_sign annotates only dict.
     encoded = cose_ctx.encode_and_sign(
-        payload, cose_key, protected=cast(dict, cwt.utils.ResolvedHeader(phdr))
+        payload,
+        cose_key,
+        protected=cast(dict[str | int, Any], cwt.utils.ResolvedHeader(phdr)),
     )
     if not isinstance(encoded, bytes):
         raise TypeError("Expected an encoded COSE Sign1 byte string")
@@ -120,8 +135,9 @@ def create_cose_sign1(
 def create_cose_sign1_prepare(
     payload: bytes,
     cert_pem: Pem,
-    additional_protected_header: dict | None = None,
-) -> dict:
+    additional_protected_header: Mapping[Any, Any] | None = None,
+) -> PreparedCoseSign1:
+    """Prepare a digest and algorithm identifier for an external signer."""
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
@@ -146,7 +162,7 @@ def create_cose_sign1_finish(
     payload: bytes,
     cert_pem: Pem,
     signature: str | bytes,
-    additional_protected_header: dict | None = None,
+    additional_protected_header: Mapping[Any, Any] | None = None,
 ) -> bytes:
     """Finish a COSE Sign1 message using a base64url-encoded signature."""
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
@@ -170,7 +186,13 @@ def create_cose_sign1_finish(
     return cbor2.dumps(msg)
 
 
-def verify_cose_sign1_with_cert(certificate, cose_sign1, use_key=True, payload=None):
+def verify_cose_sign1_with_cert(
+    certificate: bytes,
+    cose_sign1: bytes,
+    use_key: bool = True,
+    payload: bytes | None = None,
+) -> tuple[dict[str | int, Any], dict[str | int, Any], bytes]:
+    """Verify a COSE Sign1 message and return its headers and payload."""
     cose_ctx = cwt.COSE.new()
     cert_pem = certificate.decode()
     cose_key = cwt.COSEKey.from_pem(
@@ -184,7 +206,10 @@ def verify_cose_sign1_with_cert(certificate, cose_sign1, use_key=True, payload=N
     return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
 
 
-def verify_cose_sign1_with_key(key, cose_sign1, payload=None):
+def verify_cose_sign1_with_key(
+    key: bytes, cose_sign1: bytes, payload: bytes | None = None
+) -> tuple[dict[str | int, Any], dict[str | int, Any], bytes]:
+    """Verify a COSE Sign1 message using a PEM public key."""
     cose_ctx = cwt.COSE.new()
     key_pem = key.decode()
     cose_key = cwt.COSEKey.from_pem(key_pem, kid=key_fingerprint_from_key(key_pem))
@@ -283,7 +308,7 @@ ccf_cose_sign1_finish --content ... | curl http://... -H 'Content-Type: applicat
 """
 
 
-def _common_parser(description):
+def _common_parser(description: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=description,
         formatter_class=argparse.RawTextHelpFormatter,

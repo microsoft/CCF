@@ -229,7 +229,7 @@ def _fold_path(accumulator: bytes, path: _ProofPath) -> bytes:
     return accumulator
 
 
-def root(leaf: str, proof: list[dict]):
+def root(leaf: str, proof: list[dict[str, str]]) -> str:
     """
     Recompute root of Merkle tree from a leaf and a proof of the form:
     [{"left": digest}, {"right": digest}, ...]
@@ -416,7 +416,7 @@ def verify_cose(
 
     # The inclusion proofs array is non-empty, so signed_root has been set.
     assert signed_root is not None
-    ic_phdr, _, _ = ccf.signatures._verify_cose_root_signature_with_key(
+    ic_phdr, _, _ = ccf.signatures.verify_cose_root_signature_with_key(
         key_pem.encode("ascii"), signed_root, receipt_bytes
     )
     return ic_phdr

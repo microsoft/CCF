@@ -7,10 +7,14 @@ import base64
 import glob
 import json
 import os
+import re
+import runpy
 import struct
 from unittest.mock import patch
 
 import ccf.ledger
+import ccf.ledger_viz
+import ccf.read_ledger
 import ccf.signatures
 import ccf.split_ledger
 import pytest
@@ -421,6 +425,87 @@ class TestNodeRemoval:
         assert "n1" not in validator.node_activity_status
 
 
+@pytest.mark.parametrize("removed", [False, True])
+def test_service_info_requires_a_non_null_value(removed: bool):
+    key = ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+    tx = governance_transaction(
+        1,
+        table_write_set(
+            ccf.ledger.SERVICE_INFO_TABLE_NAME, {}, [key] if removed else []
+        ),
+    )
+    validator = ccf.ledger.LedgerValidator()
+    with pytest.raises(TypeError, match="non-null singleton"):
+        validator.add_transaction(tx)
+
+
+def test_merkle_tree_requires_a_non_null_value():
+    tx = governance_transaction(
+        1,
+        table_write_set(
+            ccf.ledger.TREE_TABLE_NAME,
+            {},
+            [ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY],
+        ),
+        table_write_set(ccf.signatures.SIGNATURE_TX_TABLE_NAME, {}, []),
+    )
+    validator = ccf.ledger.LedgerValidator(
+        verification_level=ccf.ledger.VerificationLevel.MERKLE
+    )
+    with pytest.raises(TypeError, match="non-null value"):
+        validator.add_transaction(tx)
+
+
+def test_visualiser_service_info():
+    assert ccf.ledger_viz.try_get_service_info({}) is None
+    key = ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+    assert ccf.ledger_viz.try_get_service_info(
+        {ccf.ledger.SERVICE_INFO_TABLE_NAME: {key: b'{"status": "Open"}'}}
+    ) == {"status": "Open"}
+    with pytest.raises(TypeError, match="non-null singleton"):
+        ccf.ledger_viz.try_get_service_info(
+            {ccf.ledger.SERVICE_INFO_TABLE_NAME: {key: None}}
+        )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"), [(b'{"v": 1}', '"v": 1'), (b"\xff", "b'\\xff'")]
+)
+def test_dump_entry_formats_values_and_preserves_binary_fallback(
+    capsys, value: bytes, expected: str
+):
+    tx = governance_transaction(1, table_write_set(TABLE, {b"kept": value}, [b"gone"]))
+    rules: ccf.read_ledger.CompiledTablesFormatRules = [
+        (
+            re.compile(".*"),
+            {"key": ccf.read_ledger.fmt_str, "value": ccf.read_ledger.fmt_json},
+        )
+    ]
+    ccf.read_ledger.dump_entry(tx, None, rules)
+    output = capsys.readouterr().out
+    assert expected in output
+    assert "Removed gone" in output
+
+
+def test_tutorial_handles_node_deletions(tmp_path, capsys):
+    ledger_from_domains(
+        str(tmp_path),
+        [
+            write_set_domain(
+                {b"n1": node_info("Trusted")}, [], table=NODES_TABLE, version=1
+            ),
+            write_set_domain(
+                {b"n2": node_info("Trusted")}, [], table=NODES_TABLE, version=2
+            ),
+            write_set_domain({}, [b"n1"], table=NODES_TABLE, version=3),
+        ],
+    )
+    tutorial = os.path.join(os.path.dirname(__file__), "..", "ledger_tutorial.py")
+    with patch("sys.argv", [tutorial, str(tmp_path)]):
+        runpy.run_path(tutorial, run_name="__main__")
+    assert "n1 : <removed>" in capsys.readouterr().out
+
+
 def write_chunk(directory: str, name: str, entries: list[bytes], cut: int = 0) -> str:
     # An uncommitted chunk: zero positions-table offset, no positions table
     data = (0).to_bytes(ccf.ledger.LEDGER_HEADER_SIZE, "little") + b"".join(entries)
@@ -483,6 +568,19 @@ def test_chunk_index_and_slice(tmp_path):
     assert chunk[-1].get_raw_tx() == entries[-1]
     assert [tx.get_raw_tx() for tx in chunk[:]] == entries
     assert [tx.get_raw_tx() for tx in chunk[::-1]] == entries[::-1]
+
+
+def test_ledger_iterators(tmp_path):
+    ledger = ledger_from_domains(str(tmp_path), [write_set_domain({b"a": b"1"}, [])])
+    chunks = iter(ledger)
+    assert iter(chunks) is chunks
+    chunk = next(chunks)
+    assert ledger[0].filename() == chunk.filename()
+    assert [c.filename() for c in ledger[:]] == [chunk.filename()]
+    transactions = iter(chunk)
+    assert iter(transactions) is transactions
+    assert [tx.get_public_domain().get_seqno() for tx in transactions] == [1]
+    assert [tx.get_public_domain().get_seqno() for tx in ledger.transactions()] == [1]
 
 
 class TestTornChunkTail:

@@ -5,8 +5,10 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Callable, Sized
 from datetime import UTC, datetime
 from enum import Enum, auto
+from typing import TypedDict
 
 import ccf.ledger
 
@@ -17,33 +19,51 @@ class PrintMode(Enum):
     Contents = auto()
 
 
-def indent(n):
+class FormatRule(TypedDict):
+    """Formatters for a table's binary keys and values."""
+
+    key: Callable[[bytes], str]
+    value: Callable[[bytes], str]
+
+
+TablesFormatRules = list[tuple[str, FormatRule]]
+CompiledTablesFormatRules = list[tuple[re.Pattern[str], FormatRule]]
+
+
+def indent(n: int) -> str:
+    """Return n spaces."""
     return " " * n
 
 
-def fmt_uint_le(data):
+def fmt_uint_le(data: bytes) -> str:
+    """Format a little-endian unsigned integer with its bit width."""
     return (
         f'<u{8 * len(data)}: {int.from_bytes(data, byteorder="little", signed=False)}>'
     )
 
 
-def fmt_raw(data):
+def fmt_raw(data: bytes) -> str:
+    """Format bytes using their Python representation."""
     return str(data)
 
 
-def fmt_hex(data):
+def fmt_hex(data: bytes) -> str:
+    """Format bytes as hexadecimal."""
     return data.hex()
 
 
-def fmt_str(data):
+def fmt_str(data: bytes) -> str:
+    """Decode a UTF-8 string."""
     return data.decode()
 
 
-def fmt_json(data):
+def fmt_json(data: bytes) -> str:
+    """Pretty-print a JSON-encoded value."""
     return json.dumps(json.loads(data), indent=2)
 
 
-def fmt_cose_recent_timestamp(data):
+def fmt_cose_recent_timestamp(data: bytes) -> str:
+    """Format a recent-proposal key with its creation timestamp."""
     s = data.decode()
     ts, _ = s.split(":")
     dt = datetime.fromtimestamp(int(ts), UTC)
@@ -53,8 +73,8 @@ def fmt_cose_recent_timestamp(data):
 # List of table name regex to key and value format functions (first match is used)
 # Callers can specify additional rules (e.g. for application-specific
 # public tables) which get looked up first.
-default_format_rule = {"key": fmt_raw, "value": fmt_raw}
-default_tables_format_rules = [
+default_format_rule: FormatRule = {"key": fmt_raw, "value": fmt_raw}
+default_tables_format_rules: TablesFormatRules = [
     (
         "^public:ccf\\.gov\\.cose_recent_proposals$",
         {
@@ -81,14 +101,24 @@ default_tables_format_rules = [
 ]
 
 
-def find_rule(tables_format_rules, target_table_name):
+def find_rule(
+    tables_format_rules: CompiledTablesFormatRules, target_table_name: str
+) -> FormatRule:
+    """Return the first matching table rule, or the default binary formatters."""
     for table_name_re, format_rules in tables_format_rules:
         if table_name_re.match(target_table_name):
             return format_rules
     return default_format_rule
 
 
-def print_key(key, table_name, tables_format_rules, indent_s, is_removed=False):
+def print_key(
+    key: bytes,
+    table_name: str,
+    tables_format_rules: CompiledTablesFormatRules,
+    indent_s: str,
+    is_removed: bool = False,
+) -> None:
+    """Print a table key, indicating deletions when requested."""
     k = find_rule(tables_format_rules, table_name)["key"](key)
 
     if is_removed:
@@ -97,11 +127,17 @@ def print_key(key, table_name, tables_format_rules, indent_s, is_removed=False):
         print(f"{indent_s}{k}:")
 
 
-def counted_string(string, name):
+def counted_string(string: Sized, name: str) -> str:
+    """Format an object's length with a pluralised label."""
     return f"{len(string)} {name}{'s' * bool(len(string) != 1)}"
 
 
-def dump_entry(entry, table_filter, tables_format_rules):
+def dump_entry(
+    entry: ccf.ledger.Transaction | ccf.ledger.Snapshot,
+    table_filter: re.Pattern[str] | None,
+    tables_format_rules: CompiledTablesFormatRules,
+) -> None:
+    """Print an entry's public writes and private-domain size."""
     public_transaction = entry.get_public_domain()
     public_tables = public_transaction.get_tables()
     flags = entry.get_transaction_header().flags
@@ -130,16 +166,19 @@ def dump_entry(entry, table_filter, tables_format_rules):
         value_indent = indent(8)
         for key, value in records.items():
             if value is not None:
+                display_value: bytes | str = value
                 try:
-                    value = find_rule(tables_format_rules, table_name)["value"](value)
-                    value = value.replace(
+                    formatted_value = find_rule(tables_format_rules, table_name)[
+                        "value"
+                    ](value)
+                    display_value = formatted_value.replace(
                         "\n", f"\n{value_indent}"
                     )  # Indent every line within stringified JSON
                 except (json.decoder.JSONDecodeError, UnicodeDecodeError):
                     pass
                 finally:
                     print_key(key, table_name, tables_format_rules, key_indent)
-                    print(f"{value_indent}{value}")
+                    print(f"{value_indent}{display_value}")
             else:
                 print_key(
                     key, table_name, tables_format_rules, key_indent, is_removed=True
@@ -147,17 +186,18 @@ def dump_entry(entry, table_filter, tables_format_rules):
 
 
 def run(
-    paths,
+    paths: list[str],
     print_mode: PrintMode,
-    is_snapshot=False,
-    tables_regex=None,
-    verification_level=None,
-    uncommitted=False,
-    read_recovery_files=False,
-    tables_format_rules=None,
+    is_snapshot: bool = False,
+    tables_regex: str | None = None,
+    verification_level: ccf.ledger.VerificationLevel | None = None,
+    uncommitted: bool = False,
+    read_recovery_files: bool = False,
+    tables_format_rules: TablesFormatRules | None = None,
     # Deprecated parameter, kept for backward compatibility
-    insecure_skip_verification=None,
-):
+    insecure_skip_verification: bool | None = None,
+) -> bool:
+    """Read and optionally verify ledger chunks or a snapshot, reporting failures."""
     # Handle backward compatibility
     if insecure_skip_verification is not None and verification_level is None:
         verification_level = (
@@ -174,7 +214,7 @@ def run(
     # Extend and compile rules
     tables_format_rules = tables_format_rules or []
     tables_format_rules.extend(default_tables_format_rules)
-    tables_format_rules = [
+    compiled_tables_format_rules = [
         (re.compile(table_name_re), _) for (table_name_re, _) in tables_format_rules
     ]
 
@@ -184,7 +224,7 @@ def run(
             print(
                 f"Reading snapshot from {snapshot_file} ({'' if snapshot.is_committed() else 'un'}committed)"
             )
-            dump_entry(snapshot, table_filter, tables_format_rules)
+            dump_entry(snapshot, table_filter, compiled_tables_format_rules)
         return True
     else:
         # Create validator if verification level is not NONE
@@ -217,7 +257,9 @@ def run(
                             f"{transaction.get_txid()} {transaction.get_write_set_digest().hex()}"
                         )
                     elif print_mode == PrintMode.Contents:
-                        dump_entry(transaction, table_filter, tables_format_rules)
+                        dump_entry(
+                            transaction, table_filter, compiled_tables_format_rules
+                        )
 
                     if validator:
                         validator.add_transaction(transaction)
