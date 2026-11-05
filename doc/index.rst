@@ -10,46 +10,9 @@ CCF Documentation
 
     .. grid-item-card:: :fas:`tools` :doc:`build_apps/index`
 
-        .. grid:: 3
-          :gutter: 1
-
-          .. grid-item-card::
-            :link: build_apps/example
-            :link-type: doc
-            :link-alt: Write a CCF application in C++
-            :shadow: none
-            :class-card: sd-border-0
-            :class-body: sd-p-0
-
-            .. image:: img/cpp.svg
-              :width: 32
-              :alt: C++
-
-          .. grid-item-card::
-            :link: build_apps/js_app_ts
-            :link-type: doc
-            :link-alt: Write a CCF application in TypeScript
-            :shadow: none
-            :class-card: sd-border-0
-            :class-body: sd-p-0
-
-            .. image:: img/ts.svg
-              :width: 32
-              :alt: TypeScript
-
-          .. grid-item-card::
-            :link: build_apps/example_rust
-            :link-type: doc
-            :link-alt: Write a CCF application in Rust (experimental)
-            :shadow: none
-            :class-card: sd-border-0
-            :class-body: sd-p-0
-
-            .. image:: img/rust.svg
-              :width: 32
-              :alt: Rust
-
         Write application logic against the CCF key-value store in C++, JavaScript/TypeScript or Rust (experimental).
+
+        |cpp| :doc:`C++ <build_apps/example>` \| |ts| :doc:`TypeScript <build_apps/js_app_ts>` \| |rust| :doc:`Rust <build_apps/example_rust>`
 
     .. grid-item-card:: :fas:`user` :doc:`use_apps/index`
 
@@ -92,3 +55,15 @@ CCF Documentation
     contribute/index.rst
     architecture/index.rst
     research/index.rst
+
+.. |cpp| image:: img/cpp.svg
+    :alt: C++
+    :class: ccf-inline-icon
+
+.. |ts| image:: img/ts.svg
+    :alt: TypeScript
+    :class: ccf-inline-icon
+
+.. |rust| image:: img/rust.svg
+    :alt: Rust
+    :class: ccf-inline-icon

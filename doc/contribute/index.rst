@@ -17,7 +17,7 @@ The CCF team welcome contributions to any part of the framework, including this 
 
         Set up a development environment to build CCF from source.
 
-    .. grid-item-card:: :fas:`gears` :doc:`build_ccf`
+    .. grid-item-card:: :fas:`cogs` :doc:`build_ccf`
 
         Build CCF from source.
 

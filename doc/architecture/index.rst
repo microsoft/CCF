@@ -44,11 +44,11 @@ Architecture
 
         Understand how receipts support ledger auditing.
 
-    .. grid-item-card:: :fas:`gears` :doc:`tls_internals`
+    .. grid-item-card:: :fas:`cogs` :doc:`tls_internals`
 
         Explore the internal implementation of TLS communication.
 
-    .. grid-item-card:: :fas:`gears` :doc:`tcp_internals`
+    .. grid-item-card:: :fas:`cogs` :doc:`tcp_internals`
 
         Explore the internal implementation of the TCP host layer.
 

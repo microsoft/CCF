@@ -14,7 +14,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
         Start a new instance of a CCF service, and add an initial set of execution nodes.
 
-    .. grid-item-card:: :fas:`gears` :doc:`configuration`
+    .. grid-item-card:: :fas:`cogs` :doc:`configuration`
 
         Configure CCF nodes using a JSON configuration file.
 

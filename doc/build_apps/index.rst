@@ -20,30 +20,15 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
         Install CCF on Linux.
 
-    .. grid-item-card:: :doc:`example`
-
-        .. image:: ../img/cpp.svg
-          :alt: C++
-          :align: left
-          :class: ccf-tile-icon
+    .. grid-item-card:: |cpp| :doc:`example`
 
         Write a CCF application in C++.
 
-    .. grid-item-card:: :doc:`js_app_ts`
-
-        .. image:: ../img/ts.svg
-          :alt: TypeScript
-          :align: left
-          :class: ccf-tile-icon
+    .. grid-item-card:: |ts| :doc:`js_app_ts`
 
         Write a CCF application in TypeScript using :typedoc-package:`ccf-app`.
 
-    .. grid-item-card:: :doc:`example_rust`
-
-        .. image:: ../img/rust.svg
-          :alt: Rust
-          :align: left
-          :class: ccf-tile-icon
+    .. grid-item-card:: |rust| :doc:`example_rust`
 
         Write a native CCF application in Rust (experimental).
 
@@ -91,7 +76,7 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
         Prepare applications and deployments for CCF 8.x.
 
-    .. grid-item-card:: :fas:`mail-forward` :doc:`fwd_to_redirect`
+    .. grid-item-card:: :fas:`share` :doc:`fwd_to_redirect`
 
         Migrate from forwarding (deprecated) to redirect (recommended) endpoints.
 
@@ -115,3 +100,15 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     release_policy
     migration_7_x_to_8_x
     fwd_to_redirect
+
+.. |cpp| image:: ../img/cpp.svg
+    :alt: C++
+    :class: ccf-inline-icon
+
+.. |ts| image:: ../img/ts.svg
+    :alt: TypeScript
+    :class: ccf-inline-icon
+
+.. |rust| image:: ../img/rust.svg
+    :alt: Rust
+    :class: ccf-inline-icon
