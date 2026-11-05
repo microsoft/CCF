@@ -169,21 +169,31 @@ theorem safe_elect (state : State) (safe : Safe state) (ledger : List Entry) (co
 theorem step_safe (before after : State) (action : Action)
     (safe : Safe before) (transition : step before action = some after)
     : Safe after := by
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff, guard]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (solve | apply safe_event _ _ safe; simp)
-      | (solve | apply safe_write _ safe <;> first | assumption | apply mem_of_at?; assumption)
-      | (exact safe_other _ safe _)
-      | (solve | apply safe_elect _ safe; apply mem_of_at?; assumption)
-      | (solve | apply safe_response_branch _ safe; assumption)
-      | (solve | apply safe_response_take _ safe; assumption)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
+  cases action with
+  | request =>
+      rw [Structural.request_some transition]
+      exact safe_event _ _ safe (by intro _ _ _ _ same; cases same)
+  | execute =>
+      obtain ⟨_, found, _, fresh, rfl⟩ := Structural.execute_some transition
+      exact safe_write _ safe _ _ (mem_of_at? found) fresh
+  | respond =>
+      obtain ⟨_, _, _, _, _, _, ledgerFound, _, _, rfl⟩ := Structural.respond_some transition
+      exact safe_response_take _ safe _ _ _ _ _ ledgerFound
+  | read =>
+      obtain ⟨_, _, _, _, _, _, ledgerFound, _, rfl⟩ := Structural.read_some transition
+      exact safe_response_branch _ safe _ _ _ _ ledgerFound
+  | commit =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, _, _, rfl⟩ := Structural.commit_some transition
+      exact safe_event _ _ safe (by intro _ _ _ _ same; cases same)
+  | invalidate =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.invalidate_some transition
+      exact safe_event _ _ safe (by intro _ _ _ _ same; cases same)
+  | appendOther =>
+      obtain ⟨_, rfl⟩ := Structural.appendOther_some transition
+      exact safe_other _ safe _
+  | elect =>
+      obtain ⟨_, found, _, _, _, rfl⟩ := Structural.elect_some transition
+      exact safe_elect _ safe _ _ (mem_of_at? found)
 
 theorem safe_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Safe state := by

@@ -99,10 +99,19 @@ theorem current_snoc (branches : List (List Entry)) (history : List Event) (even
               ∧ ∃ entry, at? ledger txid.seqno = some entry ∧ entry.view = txid.view)
     : Current branches (history ++ [event]) := by
   intro txid member
-  simp only [statusIDs, List.filterMap_append, List.mem_append] at member
+  unfold statusIDs at member
+  rw [List.filterMap_append, List.mem_append] at member
   rcases member with old | new
   · exact current txid old
-  · cases event <;> simp_all
+  · apply newCommit
+    cases event with
+    | status id value =>
+        cases value
+        · simp only [List.filterMap_cons, List.filterMap_nil, ite_true, List.mem_singleton] at new
+          rw [new]
+        · simp only [List.filterMap_cons, List.filterMap_nil, reduceCtorEq, ite_false,
+            List.not_mem_nil] at new
+    | _ => simp only [List.filterMap_cons, List.filterMap_nil, List.not_mem_nil] at new
 
 theorem current_commit (branches : List (List Entry)) (history : List Event)
     (current : Current branches history) (txid : TxID) {ledger : List Entry}
@@ -157,19 +166,33 @@ theorem step_current (before after : State) (action : Action)
     (anchored : Anchored before.branches)
     (transition : step before action = some after)
     : Current after.branches after.history := by
-  cases action <;>
-    simp only [step, request, execute, respond, Model.read, commit, invalidate, appendOther, elect]
-      at transition
-  all_goals
-    simp_all [Option.bind_eq_some_iff, guard]
-    repeat' first
-      | (rcases transition with ⟨condition, transition⟩)
-      | (split at transition)
-      | (solve | apply current_snoc _ _ _ current; simp)
-      | (solve | apply current_commit _ _ current <;> assumption)
-      | (exact current_mono _ _ _ current (Structural.branches_modify _ _ _) (by simp))
-      | (solve | apply current_elect before current anchored <;> first | assumption | omega)
-      | (simp_all [appendEvent, appendEntry, Option.bind_eq_some_iff])
+  cases action with
+  | request =>
+      rw [Structural.request_some transition]
+      exact current_snoc _ _ _ current (by intro _ same; cases same)
+  | execute =>
+      obtain ⟨_, _, _, _, rfl⟩ := Structural.execute_some transition
+      exact current_mono _ _ _ current (Structural.branches_modify _ _ _)
+        (List.length_modify _ _ _)
+  | respond =>
+      obtain ⟨_, _, _, _, _, _, _, _, _, rfl⟩ := Structural.respond_some transition
+      exact current_snoc _ _ _ current (by intro _ same; cases same)
+  | read =>
+      obtain ⟨_, _, _, _, _, _, _, _, rfl⟩ := Structural.read_some transition
+      exact current_snoc _ _ _ current (by intro _ same; cases same)
+  | commit =>
+      obtain ⟨_, _, txid, _, _, _, latestFound, entryFound, view, _, _, rfl⟩ := Structural.commit_some transition
+      exact current_commit _ _ current txid latestFound entryFound view
+  | invalidate =>
+      obtain ⟨_, _, _, _, _, rfl⟩ := Structural.invalidate_some transition
+      exact current_snoc _ _ _ current (by intro _ same; cases same)
+  | appendOther =>
+      obtain ⟨_, rfl⟩ := Structural.appendOther_some transition
+      exact current_mono _ _ _ current (Structural.branches_modify _ _ _)
+        (List.length_modify _ _ _)
+  | elect =>
+      obtain ⟨_, found, compatible, retained, _, rfl⟩ := Structural.elect_some transition
+      exact current_elect before current anchored found _ compatible retained
 
 theorem current_reachable {state : State} (reachable : transitionSystem.Reachable state)
     : Current state.branches state.history := by
