@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from hashlib import sha256
 from io import BytesIO
 from math import isnan
-from typing import Any
+from typing import Any, cast
 
 import cwt
 import cwt.const
@@ -141,7 +141,7 @@ class _ReceiptDecoder(CBORDecoder):
         # of decode. Both paths must apply the receipt-specific checks.
         return self.decode(immutable=immutable, unshared=unshared)
 
-    def _decode_map(self, subtype: int) -> Mapping:
+    def _decode_map(self, subtype: int) -> Mapping[Any, Any]:
         length = self._decode_length(subtype, allow_indefinite=True)
         result: dict[Any, Any] = {}
         remaining = length
@@ -188,11 +188,12 @@ def _require_map(
     exactly matching keys."""
     if type(value) is not dict:
         raise ValueError(f"{name} must be a map")
-    if any(type(label) not in (int, str) for label in value):
+    result = cast(dict[int | str, Any], value)
+    if any(type(label) not in (int, str) for label in result):
         raise ValueError(f"{name} labels must be integers or text strings")
-    if keys is not None and value.keys() != keys:
+    if keys is not None and result.keys() != keys:
         raise ValueError(f"{name} must contain exactly labels {sorted(keys)}")
-    return value
+    return result
 
 
 def _require_digest(value: Any) -> None:
@@ -205,9 +206,10 @@ def _proof_path(value: Any, *, consistency: bool = False) -> _ProofPath:
     """Return value if it is a valid inclusion or consistency proof path."""
     if type(value) is not list:
         raise ValueError("Proof path must be an array")
-    if consistency and not value:
+    path = cast(_ProofPath, value)
+    if consistency and not path:
         raise ValueError("Consistency proof path must not be empty")
-    for element in value:
+    for element in path:
         if (
             type(element) is not list
             or len(element) != 2
@@ -215,9 +217,9 @@ def _proof_path(value: Any, *, consistency: bool = False) -> _ProofPath:
         ):
             raise ValueError("Proof path elements must be [bool, bstr32]")
         _require_digest(element[1])
-    if consistency and value[0][0]:
+    if consistency and path[0][0]:
         raise ValueError("First consistency proof sibling must be on the right")
-    return value
+    return path
 
 
 def _fold_path(accumulator: bytes, path: _ProofPath) -> bytes:
@@ -328,11 +330,12 @@ def verify_cose(
     if (
         type(receipt) is not CBORTag
         or receipt.tag != cwt.const.COSE_TYPE_TO_TAG[cwt.COSETypes.SIGN1]
-        or type(receipt.value) is not list
-        or len(receipt.value) != 4
     ):
         raise ValueError("Receipt must be a tagged four-element COSE Sign1 message")
-    phdr_bytes, uhdr, payload, signature = receipt.value
+    receipt_value = cast(list[Any], receipt.value)
+    if type(receipt_value) is not list or len(receipt_value) != 4:
+        raise ValueError("Receipt must be a tagged four-element COSE Sign1 message")
+    phdr_bytes, uhdr, payload, signature = receipt_value
     phdr = _require_map(_decode_receipt_cbor(phdr_bytes), "Protected header")
     uhdr = _require_map(uhdr, "Unprotected header")
     if payload is not None:
@@ -366,7 +369,7 @@ def verify_cose(
         if (
             type(proof_list) is not list
             or not proof_list
-            or any(type(proof) is not bytes for proof in proof_list)
+            or any(type(proof) is not bytes for proof in cast(list[Any], proof_list))
         ):
             raise ValueError("Proofs must be non-empty arrays of bstr")
     if COSE_RECEIPT_INCLUSION_PROOF_LABEL not in proofs:
@@ -379,7 +382,7 @@ def verify_cose(
             "Inclusion proof",
             {CCF_PROOF_LEAF_LABEL, CCF_PROOF_PATH_LABEL},
         )
-        leaf = proof[CCF_PROOF_LEAF_LABEL]
+        leaf = cast(list[Any], proof[CCF_PROOF_LEAF_LABEL])
         if type(leaf) is not list or len(leaf) != 3:
             raise ValueError("Leaf must be a three-element array")
         _require_digest(leaf[0])
