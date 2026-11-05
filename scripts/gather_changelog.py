@@ -6,13 +6,15 @@ import argparse
 import os
 import re
 import textwrap
+from collections.abc import Iterator
 from pathlib import Path
+from urllib.parse import quote, urljoin, urlparse
 
-from github import Auth, Github, GithubException
-from github.Repository import Repository
+import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "microsoft/CCF"
+GITHUB_API_URL = "https://api.github.com"
 CATEGORIES = (
     "added",
     "changed",
@@ -47,15 +49,42 @@ def change_descriptions(
     return pending
 
 
-def resolve_pr(repository: Repository, path: str, base_branch: str) -> int:
+def paginated_get(
+    client: httpx.Client, path: str, params: dict[str, str] | None = None
+) -> Iterator[dict[str, object]]:
+    url = path
+    while url:
+        response = client.get(url, params=params)
+        response.raise_for_status()
+        values = response.json()
+        if not isinstance(values, list) or not all(
+            isinstance(value, dict) for value in values
+        ):
+            raise ValueError(f"Unexpected GitHub API response from {response.url}")
+        yield from values
+
+        next_url = response.links.get("next", {}).get("url")
+        url = urljoin(str(response.url), next_url) if next_url else ""
+        if url:
+            parsed_url = urlparse(url)
+            if parsed_url.scheme != "https" or parsed_url.netloc != "api.github.com":
+                raise ValueError(f"Unexpected GitHub pagination URL: {url}")
+        params = None
+
+
+def resolve_pr(client: httpx.Client, path: str, base_branch: str) -> int:
     # Find the latest addition, not later edits or previous uses of this name.
     commit = next(
         (
             commit
-            for commit in repository.get_commits(sha=base_branch, path=path)
+            for commit in paginated_get(
+                client,
+                f"/repos/{REPOSITORY}/commits",
+                params={"sha": base_branch, "path": path},
+            )
             if any(
-                file.filename == path and file.status == "added"
-                for file in commit.files
+                file.get("filename") == path and file.get("status") == "added"
+                for file in get_commit_files(client, commit)
             )
         ),
         None,
@@ -63,11 +92,18 @@ def resolve_pr(repository: Repository, path: str, base_branch: str) -> int:
     if commit is None:
         raise ValueError(f"No GitHub addition for {path} on {base_branch}; use --pr.")
     candidates = {
-        pr.number
-        for pr in commit.get_pulls()
-        if pr.merged_at is not None
-        and pr.base.ref == base_branch
-        and pr.base.repo.full_name.lower() == REPOSITORY.lower()
+        pr["number"]
+        for pr in paginated_get(
+            client,
+            f"/repos/{REPOSITORY}/commits/{quote(str(commit['sha']), safe='')}/pulls",
+        )
+        if isinstance(pr.get("number"), int)
+        and pr.get("merged_at") is not None
+        and isinstance(pr.get("base"), dict)
+        and pr["base"].get("ref") == base_branch
+        and isinstance(pr["base"].get("repo"), dict)
+        and isinstance(pr["base"]["repo"].get("full_name"), str)
+        and pr["base"]["repo"].get("full_name", "").lower() == REPOSITORY.lower()
     }
     if len(candidates) != 1:
         raise ValueError(
@@ -75,6 +111,23 @@ def resolve_pr(repository: Repository, path: str, base_branch: str) -> int:
             f"found {sorted(candidates)}. Use --pr {Path(path).name}=NUMBER."
         )
     return candidates.pop()
+
+
+def get_commit_files(
+    client: httpx.Client, commit: dict[str, object]
+) -> list[dict[str, object]]:
+    sha = commit.get("sha")
+    if not isinstance(sha, str):
+        raise ValueError("Unexpected GitHub commit response: missing SHA")
+    response = client.get(f"/repos/{REPOSITORY}/commits/{quote(sha, safe='')}")
+    response.raise_for_status()
+    commit_details = response.json()
+    if not isinstance(commit_details, dict):
+        raise ValueError(f"Unexpected GitHub commit response from {response.url}")
+    files = commit_details.get("files")
+    if not isinstance(files, list) or not all(isinstance(file, dict) for file in files):
+        raise ValueError(f"Unexpected GitHub commit response from {response.url}")
+    return files
 
 
 def gather(
@@ -105,15 +158,18 @@ def gather(
     content = changelog.read_text(encoding="utf-8")
     entries: dict[str, list[str]] = {category: [] for category in CATEGORIES}
     token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
-    with Github(auth=Auth.Token(token) if token else None, lazy=True) as github:
-        repository = github.get_repo(REPOSITORY)
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2026-03-10",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    with httpx.Client(base_url=GITHUB_API_URL, headers=headers, timeout=20) as client:
         for path, (category, text) in pending.items():
             number = (
                 overrides[path.name]
                 if path.name in overrides
-                else resolve_pr(
-                    repository, path.relative_to(root).as_posix(), base_branch
-                )
+                else resolve_pr(client, path.relative_to(root).as_posix(), base_branch)
             )
             entries[category].append(f"- {textwrap.indent(text, '  ')[2:]} (#{number})")
     lines = [
@@ -191,7 +247,7 @@ def main() -> None:
                 ),
                 end="",
             )
-    except (ValueError, OSError, GithubException) as error:
+    except (ValueError, OSError, httpx.HTTPError) as error:
         parser.exit(1, f"Error: {error}\n")
 
 
