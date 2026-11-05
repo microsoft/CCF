@@ -4,15 +4,28 @@
 import argparse
 import json
 import sys
+from collections.abc import Sized
+from typing import Any, TypedDict
 
 import ccf.ledger
 
 
-def counted_string(string, name):
+class HistoricalLedgerEntry(TypedDict):
+    """Historical secret contents and the transaction that recorded them."""
+
+    txid: tuple[int | None, int | None]
+    entry: dict[str, Any]
+
+
+def counted_string(string: Sized, name: str) -> str:
+    """Format an object's length with a pluralised label."""
     return f"{len(string)} {name}{'s' * bool(len(string) != 1)}"
 
 
-def historical_secrets_invariant(current, prev):
+def historical_secrets_invariant(
+    current: HistoricalLedgerEntry, prev: HistoricalLedgerEntry | None
+) -> None:
+    """Check that successive historical secrets link to the expected version."""
     if not prev:
         return
 
@@ -23,12 +36,15 @@ def historical_secrets_invariant(current, prev):
         assert expected_next_version == reported_version
     # During rekey adds one to the previous versions txid
     else:
-        expected_next_version = prev["txid"][1] + 1
+        previous_seqno = prev["txid"][1]
+        assert previous_seqno is not None
+        expected_next_version = previous_seqno + 1
         reported_next_version = current["entry"]["previous_ledger_secret"]["version"]
         assert expected_next_version == reported_next_version
 
 
-def run(paths, uncommitted=False):
+def run(paths: list[str], uncommitted: bool = False) -> bool:
+    """Check the historical secret chain in ledger chunks, reporting failures."""
     historical_secrets_table = "public:ccf.internal.historical_encrypted_ledger_secret"
 
     ledger_paths = paths
@@ -41,7 +57,7 @@ def run(paths, uncommitted=False):
     print(f"Reading ledger from {ledger_paths}")
     print(f"Contains {counted_string(ledger, 'chunk')}")
     try:
-        previous_historical_ledger_entry = None
+        previous_historical_ledger_entry: HistoricalLedgerEntry | None = None
         for chunk in ledger:
             print(
                 f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
@@ -55,11 +71,9 @@ def run(paths, uncommitted=False):
 
                     for value in records.values():
                         if value is not None:
-                            txid = (
-                                transaction.gcm_header.view,
-                                transaction.gcm_header.seqno,
-                            )
-                            entry = {
+                            transaction_id = transaction.get_txid()
+                            txid = (transaction_id.view, transaction_id.seqno)
+                            entry: HistoricalLedgerEntry = {
                                 "txid": txid,
                                 "entry": json.loads(value.decode("utf-8")),
                             }

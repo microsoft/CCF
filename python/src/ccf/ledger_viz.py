@@ -4,7 +4,8 @@
 import argparse
 import json
 import shutil
-from typing import ClassVar
+from collections.abc import Iterable
+from typing import Any, ClassVar, Protocol
 
 import ccf.ledger
 import ccf.signatures
@@ -23,6 +24,7 @@ COLORS = {
 
 
 def cs(s: str, background_colour: str | None = None) -> str:
+    """Wrap a string in an optional ANSI background colour."""
     if background_colour is not None and background_colour in COLORS:
         return f"\033[{COLORS[background_colour]}m{s}\033[0m"
     return s
@@ -56,18 +58,22 @@ class DefaultLiner(Liner):
         "User Public": "Blue",
         "User Private": "Cyan",
     }
-    _last_view = None
+    _last_view: int | None = None
 
     @staticmethod
-    def view_to_char(view):
+    def view_to_char(view: int) -> str:
+        """Return the last decimal digit of a view."""
         return str(view)[-1]
 
-    def __init__(self, write_views, split_views, split_services):
+    def __init__(
+        self, write_views: bool, split_views: bool, split_services: bool
+    ) -> None:
         self.write_views = write_views
         self.split_views = split_views
         self.split_services = split_services
 
-    def entry(self, category, view, seqno):
+    def entry(self, category: str, view: int, seqno: int) -> None:
+        """Append a transaction tile, splitting lines at configured boundaries."""
         view_change = view != self._last_view
         self._last_view = view
 
@@ -104,19 +110,33 @@ class DefaultLiner(Liner):
         print()
 
 
-def try_get_service_info(public_tables):
-    return (
-        json.loads(
-            public_tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
-                ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
-            ]
-        )
-        if ccf.ledger.SERVICE_INFO_TABLE_NAME in public_tables
-        else None
-    )
+def try_get_service_info(
+    public_tables: dict[str, dict[bytes, bytes | None]],
+) -> dict[str, Any] | None:
+    """Decode service info if its table is present."""
+    if ccf.ledger.SERVICE_INFO_TABLE_NAME not in public_tables:
+        return None
+    service_info = public_tables[ccf.ledger.SERVICE_INFO_TABLE_NAME][
+        ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+    ]
+    if service_info is None:
+        raise TypeError("Service info must contain a non-null singleton value")
+    return json.loads(service_info)
 
 
-def visualise(ledger, liner, validator=None):
+class EntryLiner(Protocol):
+    """Output sink for categorised ledger transactions."""
+
+    def entry(self, category: str, view: int, seqno: int) -> None: ...
+
+    def flush(self) -> None: ...
+
+
+def visualise(
+    ledger: Iterable[Iterable[ccf.ledger.Transaction]],
+    liner: EntryLiner,
+    validator: ccf.ledger.LedgerValidator | None = None,
+) -> None:
     """Iterate over the given ledger and dispatch each transaction to
     ``liner.entry(category, view, seqno)`` after categorising it. If a
     ``validator`` is provided, every transaction is also fed to it via
@@ -132,6 +152,7 @@ def visualise(ledger, liner, validator=None):
             public = tx.get_public_domain().get_tables()
             has_private = tx.get_private_domain_size()
 
+            assert tx.gcm_header is not None
             view = tx.gcm_header.view
             seqno = tx.gcm_header.seqno
             if not has_private:
