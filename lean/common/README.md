@@ -47,6 +47,9 @@ Protocol-specific matching, diagnostics, and output emission belong in the consu
 Define a model as `system : TransitionSystem`, setting `State` and `Action` in the structure rather than supplying type parameters.
 Use `abbrev` for concrete systems so Lean can unfold their bundled types during typeclass inference.
 Generic helpers use `system.State` and `system.Action`, while `system.Reachable state` and `Execution.Run system start actions final` describe executions.
+`system.ReachableFrom start finish` hides the actions and relates the endpoints of a finite execution, including the empty execution.
+`system.Reachable state` means that some state satisfying `system.init` reaches `state` via `system.ReachableFrom`.
+Use `Execution.Run` when the action list matters; `Execution.reachableFrom_iff_run` relates the two presentations.
 Traces have type `Execution.Trace system`, with validity carried by the structure rather than a separate premise.
 Use `trace.stateAt n` and `trace.actionAt n` for optional indexed access, `state ∈ trace` for state membership, and `trace.states` and `trace.actions` to access the sequences directly.
 The sequences are derived from `init` and `steps`, so finite traces always have one more state than action.

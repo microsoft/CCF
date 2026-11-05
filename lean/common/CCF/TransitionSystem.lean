@@ -26,18 +26,39 @@ structure TransitionSystem where
 
 namespace TransitionSystem
 
-/-- States reached from an initial state by finitely many enabled steps. -/
-inductive Reachable (system : TransitionSystem) : system.State -> Prop where
-  /-- An initial state is reachable without taking any steps. -/
-  | initial {state : system.State} (initialized : system.init state)
-    : Reachable system state
+/-- States connected by finitely many enabled steps, without fixing the actions. -/
+inductive ReachableFrom (system : TransitionSystem) (start : system.State)
+    : system.State -> Prop where
+  /-- Taking no steps reaches the starting state. -/
+  | refl : ReachableFrom system start start
   /-- An enabled step preserves reachability. -/
   | step
     {state nextState : system.State}
     {action : system.Action}
-    (reachable : Reachable system state)
+    (reachable : ReachableFrom system start state)
     (transition : system.step state action = some nextState)
-    : Reachable system nextState
+    : ReachableFrom system start nextState
+
+/-- States reached from some initial state by finitely many enabled steps. -/
+def Reachable (system : TransitionSystem) (state : system.State) : Prop :=
+  exists initial, system.init initial /\ system.ReachableFrom initial state
+
+namespace Reachable
+
+/-- An initial state is reachable without taking any steps. -/
+theorem initial {system : TransitionSystem} {state : system.State}
+    (initialized : system.init state) : system.Reachable state :=
+  ⟨state, initialized, .refl⟩
+
+/-- An enabled step from a reachable state reaches another reachable state. -/
+theorem step {system : TransitionSystem} {state nextState : system.State}
+    {action : system.Action} (reachable : system.Reachable state)
+    (transition : system.step state action = some nextState)
+    : system.Reachable nextState := by
+  obtain ⟨initial, initialized, path⟩ := reachable
+  exact ⟨initial, initialized, .step path transition⟩
+
+end Reachable
 
 end TransitionSystem
 
