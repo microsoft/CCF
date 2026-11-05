@@ -14,6 +14,15 @@ namespace Kv.Proofs.Trace
 
 open Kv.Model Kv.Proofs.Invariants Kv.Properties Kv.Proofs.Model
 
+/-- The head of `after` is that of `before`, or follows from it by applying the listed attempt. -/
+inductive HeadEffect (before after : Store) : List Tx → Prop
+  /-- The head data and version are unchanged. -/
+  | stutter (data : after.head.data = before.head.data)
+    (version : after.head.version = before.head.version)
+    : HeadEffect before after []
+  /-- One attempt is applied. -/
+  | apply (tx : Tx) (one : tryApply before tx = some after) : HeadEffect before after [tx]
+
 theorem storeOf_ok (w : World) (sid : Nat) (s : Store)
     : storeOf w sid = .ok s ↔ find w.stores sid = some s := by
   cases h : find w.stores sid <;> simp [storeOf, present, invalid, h]

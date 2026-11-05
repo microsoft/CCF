@@ -8,18 +8,19 @@ This profile follows the implementation's **per-map globally committed views**.
 
 ## Contents
 
-| Purpose                                                   | Location                          |
-| --------------------------------------------------------- | --------------------------------- |
-| Proved theorems and their witnesses                       | `Kv/Properties.lean`              |
-| State, observations, and dependencies                     | `Kv/Model/Types.lean`             |
-| Executable transitions, replay, and the transition system | `Kv/Model.lean`, `../common/CCF/` |
-| Sequential reference, trace projections, and invariants   | `Kv/Properties/`                  |
-| Proof implementations                                     | `Kv/Proofs/`                      |
-| Replay self-tests                                         | `Kv/Tests/`                       |
-| Valid and invalid trace fixtures                          | `replayer/fixtures/`              |
-| Replay of recorded C++ traces                             | `Kv/TraceValidation.lean`         |
-| Strict decoding of those traces                           | `Kv/TraceValidation/`             |
-| Replayer executable                                       | `replayer/`                       |
+| Purpose                                                     | Location                          |
+| ----------------------------------------------------------- | --------------------------------- |
+| Proved theorems and their witnesses                         | `Kv/Properties.lean`              |
+| State, observations, and dependencies                       | `Kv/Model/Types.lean`             |
+| Executable transitions and replay                           | `Kv/Model/Transitions.lean`       |
+| Transition-system assembly and shared execution definitions | `Kv/Model.lean`, `../common/CCF/` |
+| Sequential reference, trace projections, and invariants     | `Kv/Properties/`                  |
+| Proof implementations                                       | `Kv/Proofs/`                      |
+| Replay self-tests                                           | `Kv/Tests/`                       |
+| Valid and invalid trace fixtures                            | `replayer/fixtures/`              |
+| Replay of recorded C++ traces                               | `Kv/TraceValidation.lean`         |
+| Strict decoding of those traces                             | `Kv/TraceValidation/`             |
+| Replayer executable                                         | `replayer/`                       |
 
 Human review covers the model, the full theorem statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
 The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
@@ -35,7 +36,8 @@ There are no fixed bounds on map/key/transaction counts.
 `Unique` (in `Properties/Programs.lean`), `publish_unique` and `publish_lookup` describe the finite-map representation.
 Empty bytes and absence are distinct: `""` denotes a present zero-byte value, `null` denotes absence, and a missing required `value` field is an invalid trace.
 
-`Kv/Model.lean` implements the **one transition used by replay**.
+`Kv/Model/Transitions.lean` implements the **one transition used by replay**.
+`Kv/Model.lean` assembles it as `Model.transitionSystem`.
 The [observation contract](../../doc/build_apps/kv/semantics.rst#observation-contract), [snapshot and global-view semantics](../../doc/build_apps/kv/semantics.rst#current-and-globally-committed-views), and [application, compaction and rollback rules](../../doc/build_apps/kv/semantics.rst#local-application-commitment-and-rollback) are documented in the KV guide.
 Model states are plain data and carry no proofs; a step checks only the conditions that C++ must satisfy, never a sequential oracle.
 
@@ -57,6 +59,7 @@ Store histories start with the empty version-zero frame, contain every descendin
 Each live attempt's operation log, replayed against its pinned data, reproduces its normal view.
 Each snapshot comes from a store head, and each global view is either an empty placeholder or a store's frame at its global cut.
 None of these is a replay acceptance condition.
+The normal-view reconstruction function `normalRun` and the per-step head-effect relation `HeadEffect` are proof machinery under `Proofs/`, not definitions needed to understand the public claims.
 
 ## Properties
 
