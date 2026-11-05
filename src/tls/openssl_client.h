@@ -6,6 +6,7 @@
 
 #include <cstring>
 #include <netdb.h>
+#include <openssl/x509_vfy.h>
 
 namespace ccf::tls
 {
@@ -39,6 +40,10 @@ namespace ccf::tls
       std::string source_host = {};
       uint16_t source_port = 0;
       // Configured by the owner before submission; do not mutate while in use.
+      // connect() rejects a context which does not set SSL_VERIFY_PEER or has
+      // no trusted certificate in its store, so a misconfigured owner fails
+      // closed rather than connecting to an unauthenticated peer. A verify
+      // callback which overrides failures is the owner's responsibility.
       std::shared_ptr<SSL_CTX> tls_context = nullptr;
       // Bounds each establishment phase separately, not the whole attempt:
       // target resolution, source resolution (if any), each TCP address
@@ -89,6 +94,46 @@ namespace ccf::tls
       CCF_GUARDED_BY(pending_mutex);
     std::unordered_map<::tcp::ConnID, std::unique_ptr<Dial>> dials;
     uv_timer_t* connect_timer = nullptr;
+
+    // OpenSSL client contexts default to SSL_VERIFY_NONE, which completes the
+    // handshake with any certificate. Require peer verification against at
+    // least one explicitly loaded trust anchor instead.
+    static void require_peer_verification(SSL_CTX* ctx)
+    {
+      if ((SSL_CTX_get_verify_mode(ctx) & SSL_VERIFY_PEER) == 0)
+      {
+        throw std::invalid_argument(
+          "Outbound TLS context must set SSL_VERIFY_PEER");
+      }
+      auto* store = SSL_CTX_get_cert_store(ctx);
+
+      struct FreeObjects
+      {
+        void operator()(STACK_OF(X509_OBJECT) * objs) const
+        {
+          sk_X509_OBJECT_pop_free(objs, X509_OBJECT_free);
+        }
+      };
+
+      // get1 copies the objects under the store's lock, so this is safe while
+      // other connections are handshaking with the same context.
+      const std::unique_ptr<STACK_OF(X509_OBJECT), FreeObjects> objects(
+        store != nullptr ? X509_STORE_get1_objects(store) : nullptr);
+      if (objects != nullptr)
+      {
+        for (int i = 0; i < sk_X509_OBJECT_num(objects.get()); ++i)
+        {
+          if (
+            X509_OBJECT_get_type(sk_X509_OBJECT_value(objects.get(), i)) ==
+            X509_LU_X509)
+          {
+            return;
+          }
+        }
+      }
+      throw std::invalid_argument(
+        "Outbound TLS context must trust at least one certificate");
+    }
 
     void discard_candidate(Dial& dial)
     {
@@ -525,7 +570,8 @@ namespace ccf::tls
     // exactly one OnClose, including failed/cancelled attempts. TLS/admission
     // failures do not retry addresses. Returns nullopt, with no OnClose, if the
     // client has not been started or is stopping. Throws std::invalid_argument
-    // for an invalid configuration.
+    // for an invalid configuration, including a TLS context which would not
+    // authenticate the peer (see ConnectConfig::tls_context).
     [[nodiscard]] std::optional<::tcp::ConnID> connect(ConnectConfig config)
     {
       details::validate_user_timeout(config.tcp_user_timeout);
@@ -536,6 +582,7 @@ namespace ccf::tls
         throw std::invalid_argument(
           "Invalid outbound TLS connection configuration");
       }
+      require_peer_verification(config.tls_context.get());
       const auto id = engine->allocate_id();
       const bool submitted = engine->try_submit([&]() {
         ccf::ds::MutexGuard guard(pending_mutex);

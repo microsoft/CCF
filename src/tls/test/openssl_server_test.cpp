@@ -277,6 +277,23 @@ namespace
         kp, "CN=issuer", {}, valid_from, /*validity_days*/ 365)};
   }
 
+  // A client context which OpenSSLClient::connect() accepts: it verifies the
+  // peer against the given trust anchor.
+  std::shared_ptr<SSL_CTX> make_verifying_client_context(
+    const ccf::crypto::Pem& trusted)
+  {
+    std::shared_ptr<SSL_CTX> context(
+      SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
+    REQUIRE(context != nullptr);
+    ccf::crypto::OpenSSL::Unique_BIO bio(trusted);
+    ccf::crypto::OpenSSL::Unique_X509 anchor(bio, true);
+    REQUIRE(anchor != nullptr);
+    REQUIRE(
+      X509_STORE_add_cert(SSL_CTX_get_cert_store(context.get()), anchor) == 1);
+    SSL_CTX_set_verify(context.get(), SSL_VERIFY_PEER, nullptr);
+    return context;
+  }
+
   std::pair<std::string, std::string> make_endorsed_server_cert(
     const TestCA& ca)
   {
@@ -1350,13 +1367,38 @@ TEST_CASE(
 {
   EnginePair pair;
   auto config = pair.config();
-  config.tls_context = {SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
-  REQUIRE(config.tls_context != nullptr);
-  SSL_CTX_set_verify(config.tls_context.get(), SSL_VERIFY_PEER, nullptr);
+  // Passes connect()'s configuration check, but trusts an unrelated issuer, so
+  // the server's certificate fails verification during the handshake.
+  config.tls_context = make_verifying_client_context(make_ca().cert);
   REQUIRE(pair.client->connect(config).has_value());
   pair.loop.start();
   REQUIRE(pair.wait([&]() { return pair.client_closed == 1; }));
   CHECK(pair.client_handshakes == 0);
+}
+
+TEST_CASE("Outbound connect rejects contexts which would not verify the peer")
+{
+  EnginePair pair;
+  auto config = pair.config();
+  config.tls_context = {SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
+  REQUIRE(config.tls_context != nullptr);
+  SUBCASE("OpenSSL default: no verification and no trust anchors") {}
+  SUBCASE("Trust anchor without SSL_VERIFY_PEER")
+  {
+    config.tls_context = make_verifying_client_context(make_ca().cert);
+    SSL_CTX_set_verify(config.tls_context.get(), SSL_VERIFY_NONE, nullptr);
+  }
+  SUBCASE("SSL_VERIFY_PEER without trust anchors")
+  {
+    SSL_CTX_set_verify(config.tls_context.get(), SSL_VERIFY_PEER, nullptr);
+  }
+  CHECK_THROWS_AS((void)pair.client->connect(config), std::invalid_argument);
+  // Rejected synchronously, so there is no attempt and no close notification.
+  pair.loop.start();
+  pair.client->stop(OpenSSLClient::LoopState::Running);
+  std::lock_guard<std::mutex> guard(pair.mutex);
+  CHECK(pair.client_closed == 0);
+  CHECK(pair.server_handshakes == 0);
 }
 
 TEST_CASE("Outbound cancellation cannot resurrect a resolving connection")
@@ -1501,11 +1543,12 @@ TEST_CASE("Outbound connect before start is refused")
         std::vector<uint8_t>,
         const std::vector<uint8_t>&,
         bool) {});
-    std::shared_ptr<SSL_CTX> context(
-      SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
-    REQUIRE(context != nullptr);
     CHECK_FALSE(
-      client->connect({.host = "localhost", .port = 1, .tls_context = context})
+      client
+        ->connect(
+          {.host = "localhost",
+           .port = 1,
+           .tls_context = make_verifying_client_context(make_ca().cert)})
         .has_value());
   }
   uv_run(&loop, UV_RUN_DEFAULT);

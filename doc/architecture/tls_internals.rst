@@ -60,6 +60,9 @@ The client and server each stop their own establishment resources through the en
 
 The owner supplies an already configured client-capable ``SSL_CTX`` and retains responsibility for protocol versions, trust anchors, certificate verification and peer identity policy.
 The context must not be mutated while in use.
+``connect()`` fails closed on a context which would not authenticate the peer: it throws unless the context sets ``SSL_VERIFY_PEER`` and its store holds at least one trusted certificate.
+OpenSSL client contexts otherwise default to ``SSL_VERIFY_NONE``, which completes the handshake with any certificate.
+This check cannot detect a verification callback which overrides failures; such a callback remains the owner's responsibility.
 The engine does not impose N2N policy on RPC: RPC retains its existing TLS configuration.
 This foundation does not activate N2N endpoints, route messages, or implement the future N2N TLS 1.3 and record-based KeyUpdate policy.
 
