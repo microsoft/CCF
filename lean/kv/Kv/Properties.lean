@@ -243,7 +243,7 @@ theorem executable_branch_serializability
     : forall (w final : World) (sid : Nat) (s : Store) (rs : List Record),
     (Model.transitionSystem.Reachable w
       /\ find w.stores sid = some s
-      /\ (forall r ∈ rs, SegmentEvent sid r.event)
+      /\ (∀ r ∈ rs, SegmentEvent sid r.event)
       /\ CCF.Execution.Run Model.transitionSystem w rs final)
     -> exists after txs,
       find final.stores sid = some after
@@ -271,7 +271,7 @@ theorem replay_segment_serializability
     : forall (w final : World) (sid : Nat) (s : Store) (rs : List Record),
     (Model.transitionSystem.Reachable w
       /\ find w.stores sid = some s
-      /\ (forall r ∈ rs, SegmentEvent sid r.event)
+      /\ (∀ r ∈ rs, SegmentEvent sid r.event)
       /\ CCF.Execution.Run Model.transitionSystem w rs final)
     -> exists after txs,
         find final.stores sid = some after
@@ -372,7 +372,7 @@ theorem capture_replay_preserves_metadata
       /\ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
           = some capturedWorld
       /\ find capturedWorld.txs tid = some t
-      /\ (forall r ∈ tail, AttemptEvent tid r.event)
+      /\ (∀ r ∈ tail, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem capturedWorld tail final)
     -> exists after snap,
       find final.txs tid = some after
@@ -400,7 +400,7 @@ theorem replay_snapshot_fixed
     (Model.transitionSystem.Reachable w
       /\ find w.txs tid = some before
       /\ before.snapshot = some snap
-      /\ (forall r ∈ rs, AttemptEvent tid r.event)
+      /\ (∀ r ∈ rs, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem w rs final)
     -> exists after, find final.txs tid = some after /\ after.snapshot = some snap := by
   exact Proofs.Properties.replay_snapshot_fixed
@@ -453,7 +453,7 @@ theorem replay_map_global_fixed
     (Model.transitionSystem.Reachable w
       /\ find w.txs tid = some before
       /\ find before.globalViews map = some view
-      /\ (forall r ∈ rs, AttemptEvent tid r.event)
+      /\ (∀ r ∈ rs, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem w rs final)
     -> exists after,
       find final.txs tid = some after /\ find after.globalViews map = some view := by
@@ -477,7 +477,7 @@ theorem replay_map_local_fixed
     (Model.transitionSystem.Reachable w
       /\ find w.txs tid = some before
       /\ find before.globalViews map = some view
-      /\ (forall r ∈ rs, AttemptEvent tid r.event)
+      /\ (∀ r ∈ rs, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem w rs final)
     -> exists after,
       find final.txs tid = some after /\ image after.data map = image before.data map := by
@@ -505,7 +505,7 @@ theorem capture_replay_preserves_map
       /\ Model.transitionSystem.step w ⟨seq, .acquire sid tid map localVersion globalVersion⟩
           = some capturedWorld
       /\ find capturedWorld.txs tid = some capturedTx
-      /\ (forall r ∈ tail, AttemptEvent tid r.event)
+      /\ (∀ r ∈ tail, AttemptEvent tid r.event)
       /\ CCF.Execution.Run Model.transitionSystem capturedWorld tail final)
     -> exists after,
       find final.txs tid = some after
@@ -724,7 +724,7 @@ theorem discarded_handle_cannot_apply
       /\ txOf w sid tid = .ok t
       /\ t.snapshot = some snap
       /\ (m, view) ∈ t.globalViews
-      /\ (forall f ∈ s.history, (revision f m == revision view.current m) = false))
+      /\ (∀ f ∈ s.history, (revision f m == revision view.current m) = false))
     -> canApply s t = false := by
   exact Proofs.Properties.discarded_handle_cannot_apply
 
@@ -745,7 +745,7 @@ theorem discarded_birth_cannot_apply
       /\ txOf w sid tid = .ok t
       /\ t.snapshot = some snap
       /\ (m, view) ∈ t.globalViews
-      /\ (forall f ∈ s.history, (find f.births m == find view.current.births m) = false))
+      /\ (∀ f ∈ s.history, (find f.births m == find view.current.births m) = false))
     -> canApply s t = false := by
   exact Proofs.Properties.discarded_birth_cannot_apply
 
