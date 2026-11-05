@@ -460,8 +460,9 @@ namespace ccf::tls
       }
     }
 
-  public:
-    OpenSSLClient(Config config, OnData on_data_, OnClose on_close_ = {}) :
+    // Private so every instance is created by create(). Resolver callbacks
+    // hold weak_from_this(), which is empty unless a shared_ptr owns this.
+    OpenSSLClient(Config config, OnData on_data_, OnClose on_close_) :
       loop(config.loop),
       on_close(std::move(on_close_))
     {
@@ -480,6 +481,21 @@ namespace ccf::tls
       engine = std::make_shared<OpenSSLConnectionEngine>(
         std::move(engine_config), std::move(on_data_), on_close);
     }
+
+  public:
+    static std::shared_ptr<OpenSSLClient> create(
+      Config config, OnData on_data, OnClose on_close = {})
+    {
+      // make_shared cannot reach the private constructor.
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      return std::shared_ptr<OpenSSLClient>(new OpenSSLClient(
+        std::move(config), std::move(on_data), std::move(on_close)));
+    }
+
+    OpenSSLClient(const OpenSSLClient&) = delete;
+    OpenSSLClient& operator=(const OpenSSLClient&) = delete;
+    OpenSSLClient(OpenSSLClient&&) = delete;
+    OpenSSLClient& operator=(OpenSSLClient&&) = delete;
 
     ~OpenSSLClient()
     {

@@ -801,7 +801,7 @@ namespace
           cv.notify_all();
           return admitted;
         };
-      client = std::make_shared<OpenSSLClient>(
+      client = OpenSSLClient::create(
         client_config,
         [this](
           ::tcp::ConnID,
@@ -884,7 +884,7 @@ TEST_CASE("Outbound client startup allocates no listener or socket")
   REQUIRE(uv_loop_init(&loop) == 0);
   const auto before = socket_calls.load();
   {
-    auto client = std::make_shared<OpenSSLClient>(
+    auto client = OpenSSLClient::create(
       OpenSSLClient::Config{.loop = &loop},
       [](
         ::tcp::ConnID,
