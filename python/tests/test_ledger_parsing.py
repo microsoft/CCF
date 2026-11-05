@@ -421,6 +421,27 @@ class TestNodeRemoval:
         assert "n1" not in validator.node_activity_status
 
 
+def test_merkle_level_accepts_empty_first_embedded_tree():
+    # MERKLE trusts the first signature's embedded tree, even an empty one
+    key = ccf.ledger.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+    validator = ccf.ledger.LedgerValidator(
+        verification_level=ccf.ledger.VerificationLevel.MERKLE
+    )
+    validator.add_transaction(
+        governance_transaction(
+            1,
+            table_write_set(
+                ccf.ledger.signatures.SIGNATURE_TX_TABLE_NAME, {key: b"{}"}, []
+            ),
+            table_write_set(
+                ccf.ledger.TREE_TABLE_NAME, {key: struct.pack(">QQ", 0, 0)}, []
+            ),
+        )
+    )
+    assert validator.first_signature_seen
+    assert validator.merkle.get_leaf_count() == 1
+
+
 def write_chunk(directory: str, name: str, entries: list[bytes], cut: int = 0) -> str:
     # An uncommitted chunk: zero positions-table offset, no positions table
     data = (0).to_bytes(ccf.ledger.LEDGER_HEADER_SIZE, "little") + b"".join(entries)

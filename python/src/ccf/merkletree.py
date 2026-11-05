@@ -138,7 +138,8 @@ class MerkleTree:
         if self.get_leaf_count() == 0:
             return
 
-        # Build tree from leaves. After deserialize, _levels[i] contains:
+        # Build tree from leaves. After deserialise or flush, _levels[i]
+        # contains:
         # - Flushed hash at [0] if bit i of num_flushed is set
         # - Followed by any previously computed hashes
         # We read from _levels[level_idx] and update _levels[level_idx+1] in

@@ -805,7 +805,9 @@ class LedgerValidator:
                     self.last_verified_view = transaction.gcm_header.view
 
             # Only subtree roots are needed to verify subsequent signatures.
-            self.merkle.flush(self.merkle.get_leaf_count() - 1)
+            leaf_count = self.merkle.get_leaf_count()
+            if leaf_count > 0:
+                self.merkle.flush(leaf_count - 1)
 
         # Checks complete, add this transaction to tree (for MERKLE and above)
         if self.verification_level >= VerificationLevel.MERKLE:
