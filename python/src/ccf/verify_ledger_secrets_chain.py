@@ -55,10 +55,8 @@ def run(paths, uncommitted=False):
 
                     for value in records.values():
                         if value is not None:
-                            txid = (
-                                transaction.gcm_header.view,
-                                transaction.gcm_header.seqno,
-                            )
+                            transaction_id = transaction.get_txid()
+                            txid = (transaction_id.view, transaction_id.seqno)
                             entry = {
                                 "txid": txid,
                                 "entry": json.loads(value.decode("utf-8")),

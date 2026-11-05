@@ -8,6 +8,7 @@ import warnings
 from dataclasses import dataclass
 from enum import Enum, Flag, IntEnum, auto
 from hashlib import sha256
+from typing import overload
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_pem_x509_certificate
@@ -537,7 +538,7 @@ class LedgerValidator:
         accept_deprecated_entry_types: bool = True,
         verification_level: VerificationLevel = VerificationLevel.FULL,
     ):
-        self.node_certificates: dict[str, str] = {}
+        self.node_certificates: dict[str, bytes] = {}
         self.node_activity_status: dict[str, tuple[str, int, bool]] = {}
         self.accept_deprecated_entry_types = accept_deprecated_entry_types
         self.verification_level = verification_level
@@ -1164,7 +1165,7 @@ def find_tx_positions(file: SimpleBuffer, file_size: int) -> list[int]:
 def latest_snapshot(snapshots_dir):
     best_name, best_seqno = None, None
     for s in os.listdir(snapshots_dir):
-        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
+        with Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
             snapshot_seqno = snapshot.get_public_domain().get_seqno()
             if best_seqno is None or snapshot_seqno > best_seqno:
                 best_name = s
@@ -1237,7 +1238,14 @@ class LedgerChunk:
                     f"Invalid ledger chunk {name}: Expected to contain {tx_count_from_filename} transactions due to filename, but found {tx_count_from_positions} by reading file"
                 )
 
-    def __getitem__(self, key):
+    @overload
+    def __getitem__(self, key: int) -> Transaction: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> list[Transaction]: ...
+
+    def __getitem__(self, key: int | slice) -> Transaction | list[Transaction]:
+        """Return a transaction by index, or a list of transactions for a slice."""
         if isinstance(key, int):
             position = self._positions[key]
             return Transaction(self._file.clone(at_loc=position))

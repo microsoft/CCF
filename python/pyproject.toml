@@ -23,6 +23,11 @@ dependencies = [
     "packaging >= 25, < 27"
 ]
 
+[tool.pyright]
+include = ["src", "tests", "ledger_tutorial.py"]
+extraPaths = ["src"]
+pythonVersion = "3.12"
+
 [tool.setuptools]
 script-files = [
     "utils/keygenerator.sh",

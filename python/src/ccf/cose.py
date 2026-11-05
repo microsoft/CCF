@@ -8,7 +8,7 @@ import json
 import sys
 import warnings
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import cbor2
 import cwt
@@ -18,13 +18,13 @@ import cwt.utils
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+from cryptography.hazmat.primitives.asymmetric.types import CertificatePublicKeyTypes
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
     PublicFormat,
     load_pem_public_key,
 )
 from cryptography.x509 import load_pem_x509_certificate
-from cryptography.x509.base import CertificatePublicKeyTypes
 
 Pem = str
 
@@ -108,9 +108,13 @@ def create_cose_sign1(
     phdr: dict[Any, Any] = {int(cwt.COSEHeaders.KID): cert_fingerprint(cert_pem)}
     additional_header = additional_protected_header or {}
     phdr.update(additional_header)
-    return cose_ctx.encode_and_sign(
-        payload, cose_key, protected=cwt.utils.ResolvedHeader(phdr)
+    # cwt accepts ResolvedHeader, but encode_and_sign annotates only dict.
+    encoded = cose_ctx.encode_and_sign(
+        payload, cose_key, protected=cast(dict, cwt.utils.ResolvedHeader(phdr))
     )
+    if not isinstance(encoded, bytes):
+        raise TypeError("Expected an encoded COSE Sign1 byte string")
+    return encoded
 
 
 def create_cose_sign1_prepare(
@@ -141,9 +145,10 @@ def create_cose_sign1_prepare(
 def create_cose_sign1_finish(
     payload: bytes,
     cert_pem: Pem,
-    signature: str,
+    signature: str | bytes,
     additional_protected_header: dict | None = None,
 ) -> bytes:
+    """Finish a COSE Sign1 message using a base64url-encoded signature."""
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
@@ -159,7 +164,7 @@ def create_cose_sign1_finish(
     sig = base64.urlsafe_b64decode(signature)
     assert isinstance(sig, bytes)
     msg = cbor2.CBORTag(
-        cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1],
+        cwt.const.COSE_TYPE_TO_TAG[cwt.COSETypes.SIGN1],
         [phdr_encoded, {}, payload, sig],
     )
     return cbor2.dumps(msg)
@@ -208,7 +213,7 @@ def verify_receipt(
     cose_ctx = cwt.COSE.new()
 
     receipt = cbor2.loads(receipt_bytes)
-    assert receipt.tag == cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
+    assert receipt.tag == cwt.const.COSE_TYPE_TO_TAG[cwt.COSETypes.SIGN1]
     phdr, uhdr, _payload, _sig = receipt.value
     phdr = cbor2.loads(phdr)
 

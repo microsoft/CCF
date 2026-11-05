@@ -12,9 +12,9 @@ import cwt
 import cwt.const
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
+from cryptography.hazmat.primitives.asymmetric.types import CertificatePublicKeyTypes
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from cryptography.x509 import Certificate
-from cryptography.x509.base import CertificatePublicKeyTypes
 from cryptography.x509.verification import PolicyBuilder, Store
 
 import ccf.signatures
@@ -327,7 +327,7 @@ def verify_cose(
     receipt = _decode_receipt_cbor(receipt_bytes)
     if (
         type(receipt) is not CBORTag
-        or receipt.tag != cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
+        or receipt.tag != cwt.const.COSE_TYPE_TO_TAG[cwt.COSETypes.SIGN1]
         or type(receipt.value) is not list
         or len(receipt.value) != 4
     ):
