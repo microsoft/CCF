@@ -14,6 +14,12 @@ namespace Kv.Proofs.Invariants
 
 open Kv.Model Kv.Properties
 
+/-- Executes operations in order with `normalStep` to reconstruct the normal view. -/
+def normalRun {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
+    (snapshot : DB M K V) (n : Normal M K V) (ops : List (NormalOp M K V))
+    : Option (Normal M K V) :=
+  ops.foldlM (normalStep snapshot) n
+
 /-- Store histories are contiguous, headed by the current frame, and contain the global cut. -/
 structure StoreInvariant (s : Store) : Prop where
   /-- Every frame follows by publishing writes to its predecessor. -/
