@@ -1,1 +1,130 @@
-<svg width="605" height="605" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" overflow="hidden"><defs><clipPath id="clip0"><rect x="0" y="0" width="605" height="605"/></clipPath></defs><g clip-path="url(#clip0)"><rect x="0" y="0" width="605" height="605" fill="#FFFFFF"/><path d="M113.5 336.5C113.5 321.036 125.812 308.5 141 308.5 156.188 308.5 168.5 321.036 168.5 336.5 168.5 351.964 156.188 364.5 141 364.5 125.812 364.5 113.5 351.964 113.5 336.5Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd" fill-opacity="0.360784"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(131.695 342)">H1</text><path d="M175.5 336.5C175.5 321.036 188.036 308.5 203.5 308.5 218.964 308.5 231.5 321.036 231.5 336.5 231.5 351.964 218.964 364.5 203.5 364.5 188.036 364.5 175.5 351.964 175.5 336.5Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd" fill-opacity="0.360784"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(194.14 342)">H2</text><path d="M238.5 336.5C238.5 321.036 250.812 308.5 266 308.5 281.188 308.5 293.5 321.036 293.5 336.5 293.5 351.964 281.188 364.5 266 364.5 250.812 364.5 238.5 351.964 238.5 336.5Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd" fill-opacity="0.360784"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(256.585 342)">H3</text><path d="M300.5 336.5C300.5 321.036 312.812 308.5 328 308.5 343.188 308.5 355.5 321.036 355.5 336.5 355.5 351.964 343.188 364.5 328 364.5 312.812 364.5 300.5 351.964 300.5 336.5Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd" fill-opacity="0.360784"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(319.03 342)">H4</text><path d="M148.5 268.5C148.5 253.036 160.812 240.5 176 240.5 191.188 240.5 203.5 253.036 203.5 268.5 203.5 283.964 191.188 296.5 176 296.5 160.812 296.5 148.5 283.964 148.5 268.5Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd" fill-opacity="0.360784"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="12" transform="translate(165.578 272)">H12</text><path d="M265.5 268.5C265.5 253.036 278.036 240.5 293.5 240.5 308.964 240.5 321.5 253.036 321.5 268.5 321.5 283.964 308.964 296.5 293.5 296.5 278.036 296.5 265.5 283.964 265.5 268.5Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd" fill-opacity="0.360784"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="12" transform="translate(283.313 272)">H34</text><path d="M0 0 15.2519 20.865" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" fill="none" fill-rule="evenodd" transform="matrix(1 0 0 -1 140.5 309.365)"/><path d="M203.597 309.365 195.5 288.5" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" fill="none" fill-rule="evenodd"/><path d="M0 0 8.09685 20.865" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" fill="none" fill-rule="evenodd" transform="matrix(1 0 0 -1 265.5 309.365)"/><path d="M328.752 309.365 313.5 288.5" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" fill="none" fill-rule="evenodd"/><path d="M0 0 48.0485 29.3576" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" fill="none" fill-rule="evenodd" transform="matrix(1 0 0 -1 175.5 240.858)"/><path d="M363.5 336.5C363.5 321.036 375.812 308.5 391 308.5 406.188 308.5 418.5 321.036 418.5 336.5 418.5 351.964 406.188 364.5 391 364.5 375.812 364.5 363.5 351.964 363.5 336.5Z" stroke="#2F5597" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(381.475 342)">H5</text><path d="M112.5 467.5C112.5 452.036 125.036 439.5 140.5 439.5 155.964 439.5 168.5 452.036 168.5 467.5 168.5 482.964 155.964 495.5 140.5 495.5 125.036 495.5 112.5 482.964 112.5 467.5Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd" fill-opacity="0.6"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(132.803 463)">Tx<tspan font-size="16" x="3.33517" y="18">1</tspan></text><path d="M175.5 467.5C175.5 452.036 188.036 439.5 203.5 439.5 218.964 439.5 231.5 452.036 231.5 467.5 231.5 482.964 218.964 495.5 203.5 495.5 188.036 495.5 175.5 482.964 175.5 467.5Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd" fill-opacity="0.6"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(195.641 463)">Tx<tspan font-size="16" x="3.33517" y="18">2</tspan></text><path d="M238.5 467.5C238.5 452.036 251.036 439.5 266.5 439.5 281.964 439.5 294.5 452.036 294.5 467.5 294.5 482.964 281.964 495.5 266.5 495.5 251.036 495.5 238.5 482.964 238.5 467.5Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd" fill-opacity="0.6"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(258.873 463)">Tx<tspan font-size="16" x="3.33517" y="18">3</tspan></text><path d="M300.5 468C300.5 452.812 312.812 440.5 328 440.5 343.188 440.5 355.5 452.812 355.5 468 355.5 483.188 343.188 495.5 328 495.5 312.812 495.5 300.5 483.188 300.5 468Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd" fill-opacity="0.6"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(320.531 464)">Tx<tspan font-size="16" x="3.33517" y="18">4</tspan></text><rect x="79" y="426" width="428" height="149" stroke="#4472C4" stroke-width="4.0022" stroke-miterlimit="8" fill="none"/><text fill="#2F5597" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="700" font-size="31" transform="translate(96.2857 557)">Ledger</text><path d="M0 0 0.393498 75.4972" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" stroke-dasharray="2.66814 2.0011" fill="none" fill-rule="evenodd" transform="matrix(-1 0 0 1 140.893 364.5)"/><path d="M0 0 0.000315134 75.4972" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" stroke-dasharray="2.66814 2.0011" fill="none" fill-rule="evenodd" transform="matrix(-1 0 0 1 203.5 364.5)"/><path d="M265.5 364.5 266.287 439.997" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" stroke-dasharray="2.66814 2.0011" fill="none" fill-rule="evenodd"/><path d="M328.5 364.5 328.5 440.327" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" stroke-dasharray="2.66814 2.0011" fill="none" fill-rule="evenodd"/><path d="M363.5 467.5C363.5 452.036 375.812 439.5 391 439.5 406.188 439.5 418.5 452.036 418.5 467.5 418.5 482.964 406.188 495.5 391 495.5 375.812 495.5 363.5 482.964 363.5 467.5Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd" fill-opacity="0.6"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(383.525 463)">Tx<tspan font-size="16" x="3.33517" y="18">5</tspan></text><path d="M390.5 364.5 391.049 439.997" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" stroke-dasharray="2.66814 2.0011" fill="none" fill-rule="evenodd"/><path d="M215.5 192C215.5 176.812 227.812 164.5 243 164.5 258.188 164.5 270.5 176.812 270.5 192 270.5 207.188 258.188 219.5 243 219.5 227.812 219.5 215.5 207.188 215.5 192Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="7" transform="translate(234.092 194)">H1234</text><path d="M293.09 240.858 262.5 211.5" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" fill="none" fill-rule="evenodd"/><path d="M289.5 119C289.5 103.812 302.036 91.5 317.5 91.5 332.964 91.5 345.5 103.812 345.5 119 345.5 134.188 332.964 146.5 317.5 146.5 302.036 146.5 289.5 134.188 289.5 119Z" stroke="#ED7D31" stroke-width="1.33407" stroke-miterlimit="8" fill="#ED7D31" fill-rule="evenodd"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="9" transform="translate(308.078 116)">Root <tspan font-size="9" x="1.66757" y="11">at 6</tspan></text><path d="M0 0 35.0577 34.0298" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" fill="none" fill-rule="evenodd" transform="matrix(1 0 0 -1 262.5 172.53)"/><path d="M427.5 467.5C427.5 452.036 439.812 439.5 455 439.5 470.188 439.5 482.5 452.036 482.5 467.5 482.5 482.964 470.188 495.5 455 495.5 439.812 495.5 427.5 482.964 427.5 467.5Z" stroke="#507E32" stroke-width="1.33407" stroke-miterlimit="8" fill="#70AD47" fill-rule="evenodd" fill-opacity="0.6"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(445.516 463)">Sig <tspan font-size="16" x="5.08948" y="18">6</tspan></text><path d="M425.5 336.5C425.5 321.036 437.812 308.5 453 308.5 468.188 308.5 480.5 321.036 480.5 336.5 480.5 351.964 468.188 364.5 453 364.5 437.812 364.5 425.5 351.964 425.5 336.5Z" stroke="#2F5597" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="16" transform="translate(443.757 342)">H6</text><path d="M393.5 265C393.5 249.812 406.036 237.5 421.5 237.5 436.964 237.5 449.5 249.812 449.5 265 449.5 280.188 436.964 292.5 421.5 292.5 406.036 292.5 393.5 280.188 393.5 265Z" stroke="#2F528F" stroke-width="1.33407" stroke-miterlimit="8" fill="#4472C4" fill-rule="evenodd"/><text fill="#FFFFFF" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="400" font-size="12" transform="translate(411.413 269)">H56</text><path d="M453.38 308.88 441.5 284.5" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" fill="none" fill-rule="evenodd"/><path d="M0 0 11.3071 24.3797" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" fill="none" fill-rule="evenodd" transform="matrix(1 0 0 -1 390.5 308.88)"/><path d="M402.489 245.566 337.5 138.5" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" fill="none" fill-rule="evenodd"/><text fill="#4472C4" font-family="Calibri,Calibri_MSFontService,sans-serif" font-weight="700" font-size="16" transform="translate(41.752 44)">After H6 is inserted, assumes <tspan font-size="16" x="0" y="18">consensus commits and tree so </tspan><tspan font-size="16" x="0" y="37">far is compacted at 6</tspan><tspan font-size="16" x="0" y="74">(The tree still contains </tspan><tspan font-size="16" x="0" y="93">intermediate hashes to issue </tspan><tspan font-size="16" x="0" y="112">receipts for the left</tspan>-most leaf in <tspan font-size="16" x="0" y="131">the new tree, </tspan>i.e.<tspan font-size="16" x="113.896" y="131">H6)</tspan><tspan fill="#ED7D31" font-size="16" x="328.006" y="61">Root at 6 (occupies same </tspan><tspan fill="#ED7D31" font-size="16" x="328.006" y="79">position as Root at 5 in the tree </tspan><tspan fill="#ED7D31" font-size="16" x="328.006" y="98">but has different value)</tspan></text><path d="M453.5 364.5 455.509 439.997" stroke="#4472C4" stroke-width="0.667034" stroke-miterlimit="8" stroke-dasharray="2.66814 2.0011" fill="none" fill-rule="evenodd"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="959" height="604" viewBox="0 0 959 604" fill="none" role="img" aria-labelledby="title desc">
+<title id="title">Compacted Merkle tree</title>
+<desc id="desc">After H6, the hash of the signature transaction at seqno 6, is inserted and consensus commits, the tree is compacted: H1 to H4, H12 and H34 are discarded, while H1234, H5, H6 and H56 are retained to issue receipts from seqno 6 onwards.</desc>
+<defs>
+<filter id="blur3" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3"/></filter>
+<filter id="blur6" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
+<filter id="blur14" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur stdDeviation="14"/></filter>
+<symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10.5" rx="2.5" fill="currentColor"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
+<linearGradient id="hash" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#6CC2E8"/><stop offset=".55" stop-color="#4AA3D4"/><stop offset="1" stop-color="#3C8FC4"/></linearGradient>
+<linearGradient id="root" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8D9BF5"/><stop offset=".5" stop-color="#5D6FE6"/><stop offset="1" stop-color="#3F4FB8"/></linearGradient>
+</defs>
+<g font-family="Inter, 'Segoe UI', ui-sans-serif, system-ui, sans-serif">
+<rect x="32" y="44" width="895" height="538" rx="22" fill="#1D3B58" opacity=".16" filter="url(#blur14)"/>
+<rect x="20" y="28" width="919" height="546" rx="20" fill="#C6D2DE"/>
+<rect x="20" y="23" width="919" height="546" rx="20" fill="#DFE7EF"/>
+<rect x="20" y="18" width="919" height="546" rx="20" fill="#FFFFFF"/>
+<text x="48" y="58" fill="#7D8FA3" font-size="14" font-weight="700" letter-spacing="2.4">MERKLE TREE</text>
+<path d="M98 308L137 280" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M176 308L137 280" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M254 308L293 280" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M332 308L293 280" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M410 308L449 280" stroke="#A7B9CB" stroke-width="2" stroke-linecap="round"/>
+<path d="M488 308L449 280" stroke="#A7B9CB" stroke-width="2" stroke-linecap="round"/>
+<path d="M137 236L215 208" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M293 236L215 208" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M215 164L332 141" stroke="#A7B9CB" stroke-width="2" stroke-linecap="round"/>
+<path d="M449 236L332 141" stroke="#A7B9CB" stroke-width="2" stroke-linecap="round"/>
+<rect x="51" y="394" width="484" height="114" rx="14" fill="#F2FBF8" stroke="#CDEDE4" stroke-width="1.2"/>
+<text x="67" y="495" fill="#3E9F8B" font-size="10.5" font-weight="700" letter-spacing="1.6">LEDGER</text>
+<path d="M98 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
+<path d="M176 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
+<path d="M254 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
+<path d="M332 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
+<path d="M410 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
+<path d="M488 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
+<rect x="67" y="312" width="62" height="40" rx="10" fill="#E6ECF2"/>
+<rect x="67" y="308" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="98" y="332.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H1</text>
+<rect x="145" y="312" width="62" height="40" rx="10" fill="#E6ECF2"/>
+<rect x="145" y="308" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="176" y="332.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H2</text>
+<rect x="223" y="312" width="62" height="40" rx="10" fill="#E6ECF2"/>
+<rect x="223" y="308" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="254" y="332.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H3</text>
+<rect x="301" y="312" width="62" height="40" rx="10" fill="#E6ECF2"/>
+<rect x="301" y="308" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="332" y="332.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H4</text>
+<rect x="382" y="316" width="56" height="40" rx="10" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
+<rect x="379" y="312" width="62" height="40" rx="10" fill="#2F78A8"/>
+<rect x="379" y="308" width="62" height="40" rx="10" fill="url(#hash)"/>
+<rect x="380" y="309" width="60" height="38" rx="9" stroke="#FFFFFF" stroke-opacity=".3" stroke-width="1"/>
+<text x="410" y="332.5" fill="#FFFFFF" font-size="13" font-weight="650" text-anchor="middle">H5</text>
+<rect x="460" y="316" width="56" height="40" rx="10" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
+<rect x="457" y="312" width="62" height="40" rx="10" fill="#2F78A8"/>
+<rect x="457" y="308" width="62" height="40" rx="10" fill="url(#hash)"/>
+<rect x="458" y="309" width="60" height="38" rx="9" stroke="#FFFFFF" stroke-opacity=".3" stroke-width="1"/>
+<text x="488" y="332.5" fill="#FFFFFF" font-size="13" font-weight="650" text-anchor="middle">H6</text>
+<rect x="106" y="240" width="62" height="40" rx="10" fill="#E6ECF2"/>
+<rect x="106" y="236" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="137" y="260.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H12</text>
+<rect x="262" y="240" width="62" height="40" rx="10" fill="#E6ECF2"/>
+<rect x="262" y="236" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="293" y="260.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H34</text>
+<rect x="421" y="244" width="56" height="40" rx="10" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
+<rect x="418" y="240" width="62" height="40" rx="10" fill="#2F78A8"/>
+<rect x="418" y="236" width="62" height="40" rx="10" fill="url(#hash)"/>
+<rect x="419" y="237" width="60" height="38" rx="9" stroke="#FFFFFF" stroke-opacity=".3" stroke-width="1"/>
+<text x="449" y="260.5" fill="#FFFFFF" font-size="13" font-weight="650" text-anchor="middle">H56</text>
+<rect x="187" y="172" width="56" height="40" rx="10" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
+<rect x="184" y="168" width="62" height="40" rx="10" fill="#2F78A8"/>
+<rect x="184" y="164" width="62" height="40" rx="10" fill="url(#hash)"/>
+<rect x="185" y="165" width="60" height="38" rx="9" stroke="#FFFFFF" stroke-opacity=".3" stroke-width="1"/>
+<text x="215" y="188.5" fill="#FFFFFF" font-size="13" font-weight="650" text-anchor="middle">H1234</text>
+<rect x="283" y="95" width="98" height="50" rx="10" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
+<rect x="280" y="91" width="104" height="50" rx="10" fill="#33409A"/>
+<rect x="280" y="87" width="104" height="50" rx="10" fill="url(#root)"/>
+<rect x="281" y="88" width="102" height="48" rx="9" stroke="#FFFFFF" stroke-opacity=".3" stroke-width="1"/>
+<text x="332" y="109" fill="#E3E7FD" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1.6">ROOT</text>
+<text x="332" y="126" fill="#FFFFFF" font-size="13" font-weight="650" text-anchor="middle">at seqno 6</text>
+<path d="M79 414H111L123 426V468Q123 474 117 474H79Q73 474 73 468V420Q73 414 79 414Z" transform="translate(2 5)" fill="#1D3B58" opacity=".12" filter="url(#blur3)"/>
+<path d="M79 414H111L123 426V468Q123 474 117 474H79Q73 474 73 468V420Q73 414 79 414Z" fill="#DDF4EE" stroke="#A9DECF" stroke-width="1.2"/>
+<path d="M111 414V423Q111 426 114 426H123Z" fill="#B9E6DB"/>
+<text x="98" y="436" fill="#3E9F8B" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1.4">TX</text>
+<text x="98" y="460" fill="#1E2F42" font-size="18" font-weight="700" text-anchor="middle">1</text>
+<path d="M157 414H189L201 426V468Q201 474 195 474H157Q151 474 151 468V420Q151 414 157 414Z" transform="translate(2 5)" fill="#1D3B58" opacity=".12" filter="url(#blur3)"/>
+<path d="M157 414H189L201 426V468Q201 474 195 474H157Q151 474 151 468V420Q151 414 157 414Z" fill="#DDF4EE" stroke="#A9DECF" stroke-width="1.2"/>
+<path d="M189 414V423Q189 426 192 426H201Z" fill="#B9E6DB"/>
+<text x="176" y="436" fill="#3E9F8B" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1.4">TX</text>
+<text x="176" y="460" fill="#1E2F42" font-size="18" font-weight="700" text-anchor="middle">2</text>
+<path d="M235 414H267L279 426V468Q279 474 273 474H235Q229 474 229 468V420Q229 414 235 414Z" transform="translate(2 5)" fill="#1D3B58" opacity=".12" filter="url(#blur3)"/>
+<path d="M235 414H267L279 426V468Q279 474 273 474H235Q229 474 229 468V420Q229 414 235 414Z" fill="#DDF4EE" stroke="#A9DECF" stroke-width="1.2"/>
+<path d="M267 414V423Q267 426 270 426H279Z" fill="#B9E6DB"/>
+<text x="254" y="436" fill="#3E9F8B" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1.4">TX</text>
+<text x="254" y="460" fill="#1E2F42" font-size="18" font-weight="700" text-anchor="middle">3</text>
+<path d="M313 414H345L357 426V468Q357 474 351 474H313Q307 474 307 468V420Q307 414 313 414Z" transform="translate(2 5)" fill="#1D3B58" opacity=".12" filter="url(#blur3)"/>
+<path d="M313 414H345L357 426V468Q357 474 351 474H313Q307 474 307 468V420Q307 414 313 414Z" fill="#DDF4EE" stroke="#A9DECF" stroke-width="1.2"/>
+<path d="M345 414V423Q345 426 348 426H357Z" fill="#B9E6DB"/>
+<text x="332" y="436" fill="#3E9F8B" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1.4">TX</text>
+<text x="332" y="460" fill="#1E2F42" font-size="18" font-weight="700" text-anchor="middle">4</text>
+<path d="M391 414H423L435 426V468Q435 474 429 474H391Q385 474 385 468V420Q385 414 391 414Z" transform="translate(2 5)" fill="#1D3B58" opacity=".12" filter="url(#blur3)"/>
+<path d="M391 414H423L435 426V468Q435 474 429 474H391Q385 474 385 468V420Q385 414 391 414Z" fill="#DDF4EE" stroke="#A9DECF" stroke-width="1.2"/>
+<path d="M423 414V423Q423 426 426 426H435Z" fill="#B9E6DB"/>
+<text x="410" y="436" fill="#3E9F8B" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1.4">TX</text>
+<text x="410" y="460" fill="#1E2F42" font-size="18" font-weight="700" text-anchor="middle">5</text>
+<path d="M469 414H501L513 426V468Q513 474 507 474H469Q463 474 463 468V420Q463 414 469 414Z" transform="translate(2 5)" fill="#1D3B58" opacity=".12" filter="url(#blur3)"/>
+<path d="M469 414H501L513 426V468Q513 474 507 474H469Q463 474 463 468V420Q463 414 469 414Z" fill="#E6E9FC" stroke="#C3CAF8" stroke-width="1.2"/>
+<path d="M501 414V423Q501 426 504 426H513Z" fill="#C3CAF8"/>
+<use href="#lock" x="471" y="425" width="13" height="13" color="#5D6FE6"/>
+<text x="494" y="436" fill="#3F4FB8" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1.4">SIG</text>
+<text x="488" y="460" fill="#1E2F42" font-size="18" font-weight="700" text-anchor="middle">6</text>
+<path d="M396 112H585" stroke="#9AABBD" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="1 5"/>
+<circle cx="396" cy="112" r="3" fill="#9AABBD"/>
+<rect x="595" y="90" width="3" height="64" rx="1.5" fill="#5D6FE6"/>
+<text x="611" y="105" fill="#1E2F42" font-size="14.5" font-weight="650">Root at seqno 6</text>
+<text x="611" y="130" fill="#6B7C8F" font-size="13">Occupies the same position as the root at</text>
+<text x="611" y="149" fill="#6B7C8F" font-size="13">seqno 5, but has a different value.</text>
+<rect x="595" y="220" width="3" height="127" rx="1.5" fill="#3C8FC4"/>
+<text x="611" y="235" fill="#1E2F42" font-size="14.5" font-weight="650">Compacted at seqno 6</text>
+<text x="611" y="260" fill="#6B7C8F" font-size="13">After H6 is inserted, consensus commits and</text>
+<text x="611" y="279" fill="#6B7C8F" font-size="13">the tree so far is compacted at seqno 6.</text>
+<text x="611" y="304" fill="#6B7C8F" font-size="13">The tree still contains the intermediate</text>
+<text x="611" y="323" fill="#6B7C8F" font-size="13">hashes needed to issue receipts for H6, the</text>
+<text x="611" y="342" fill="#6B7C8F" font-size="13">left-most leaf of the new tree.</text>
+<rect x="55" y="530" width="26" height="18" rx="5" fill="#2F78A8"/>
+<rect x="55" y="527" width="26" height="18" rx="5" fill="url(#hash)"/>
+<text x="91" y="540.5" fill="#6B7C8F" font-size="13">Retained hash</text>
+<rect x="212.57" y="527" width="26" height="18" rx="5" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="3 3"/>
+<text x="248.57" y="540.5" fill="#6B7C8F" font-size="13">Discarded on compaction</text>
+</g>
+</svg>

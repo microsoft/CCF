@@ -75,8 +75,9 @@ A long term support release (LTS) will be supported for at least a year starting
 
 REST API guarantees spelled out in the first section apply across releases, but new features, for example revisions of the User-facing C++ API or additions to the node API can only be introduced in a new release, never back-ported to an existing LTS.
 
-.. image:: /img/ccf_release.png
-    :alt: Release
+.. image:: /img/ccf_release.svg
+    :alt: Support windows of consecutive major releases N, N+1 and N+2, each supported for at least a year with an upgrade window before end of life
+    :align: center
 
 Support calendar
 ----------------
