@@ -28,6 +28,9 @@ namespace ccf
   {
     /// x.509 Service Certificate, as a PEM string
     ccf::crypto::Pem cert;
+    /// x.509 ML-DSA Service Certificate, as a PEM string (absent when the
+    /// service has no ML-DSA identity)
+    std::optional<ccf::crypto::Pem> pq_cert = std::nullopt;
     /// Status of the service
     ServiceStatus status = ServiceStatus::OPENING;
     /// Version (seqno) of previous service identity (before the last recovery)
@@ -46,6 +49,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
   DECLARE_JSON_OPTIONAL_FIELDS(
     ServiceInfo,
+    pq_cert,
     previous_service_identity_version,
     recovery_count,
     service_data,
