@@ -163,6 +163,49 @@ namespace ccf::indexing::strategies
       lfs_access->store(blob_key, serialise(std::move(seqnos)));
     }
 
+    bool resolve_fetch_result(BucketValue& bucket_value, bool& complete)
+      CCF_REQUIRES(results_access)
+    {
+      const auto fetch_result = bucket_value.first->fetch_result.load();
+      switch (fetch_result)
+      {
+        case (ccf::indexing::FetchResult::FetchResultType::Fetching):
+        {
+          complete = false;
+          break;
+        }
+        case (ccf::indexing::FetchResult::FetchResultType::Loaded):
+        {
+          bool corrupt = false;
+          bucket_value.second =
+            deserialise(bucket_value.first->contents, corrupt);
+          if (!corrupt)
+          {
+            bucket_value.first = nullptr;
+            break;
+          }
+          LOG_FAIL_FMT("Deserialisation failed");
+          [[fallthrough]];
+        }
+        case (ccf::indexing::FetchResult::FetchResultType::NotFound):
+        case (ccf::indexing::FetchResult::FetchResultType::Corrupt):
+        {
+          const auto* problem = fetch_result ==
+              ccf::indexing::FetchResult::FetchResultType::NotFound ?
+            "missing" :
+            "corrupt";
+          LOG_FAIL_FMT(
+            "A file that {} requires is {}. Re-indexing.", name, problem);
+          LOG_DEBUG_FMT("The {} file is {}", problem, bucket_value.first->key);
+
+          rebuild_requested = true;
+          return false;
+        }
+      }
+
+      return true;
+    }
+
     Range get_range_for(ccf::SeqNo seqno) const
     {
       const auto begin = (seqno / seqnos_per_bucket) * seqnos_per_bucket;
@@ -245,47 +288,9 @@ namespace ccf::indexing::strategies
           // parse and store the result
           if (bucket_value.first != nullptr)
           {
-            const auto fetch_result = bucket_value.first->fetch_result.load();
-            switch (fetch_result)
+            if (!resolve_fetch_result(bucket_value, complete))
             {
-              case (ccf::indexing::FetchResult::FetchResultType::Fetching):
-              {
-                complete = false;
-                break;
-              }
-              case (ccf::indexing::FetchResult::FetchResultType::Loaded):
-              {
-                bool corrupt = false;
-                bucket_value.second =
-                  deserialise(bucket_value.first->contents, corrupt);
-                if (!corrupt)
-                {
-                  bucket_value.first = nullptr;
-                  break;
-                }
-                // Deliberately fall through to the case below. If this can't
-                // deserialise the value, consider the file corrupted
-                LOG_FAIL_FMT("Deserialisation failed");
-              }
-              case (ccf::indexing::FetchResult::FetchResultType::NotFound):
-              case (ccf::indexing::FetchResult::FetchResultType::Corrupt):
-              {
-                // This class previously wrote a bucket to disk which is no
-                // longer available or corrupted. Request a rebuild on the
-                // serialized indexing path, and withhold results until then.
-                const auto* problem = fetch_result ==
-                    ccf::indexing::FetchResult::FetchResultType::NotFound ?
-                  "missing" :
-                  "corrupt";
-                LOG_FAIL_FMT(
-                  "A file that {} requires is {}. Re-indexing.", name, problem);
-                LOG_DEBUG_FMT(
-                  "The {} file is {}", problem, bucket_value.first->key);
-
-                rebuild_requested = true;
-
-                return std::nullopt;
-              }
+              return std::nullopt;
             }
           }
 
