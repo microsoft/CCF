@@ -928,13 +928,15 @@ namespace
 
   // Serialises a snapshot's contents as StoreSnapshot::serialise() did before
   // snapshots were serialised in place: into a buffer for each domain, which
-  // are then copied into the entry, encrypting the private domain
+  // are then copied into the entry, encrypting the private domain (with
+  // historical_hint, which StoreSnapshot::serialise() always sets)
   std::vector<uint8_t> serialise_buffered(
     const std::shared_ptr<ccf::kv::AbstractTxEncryptor>& encryptor,
     ccf::kv::Version version,
     const std::optional<std::vector<uint8_t>>& hash_at_snapshot,
     const std::optional<std::vector<ccf::kv::Version>>& view_history,
-    const MapSnapshots& maps)
+    const MapSnapshots& maps,
+    bool historical_hint = true)
   {
     ccf::kv::RawKvStoreSerialiser serialiser(
       encryptor,
@@ -943,7 +945,7 @@ namespace
       0,
       {},
       ccf::no_claims(),
-      true);
+      historical_hint);
     if (hash_at_snapshot.has_value())
     {
       serialiser.serialise_raw(hash_at_snapshot.value());
@@ -1105,6 +1107,67 @@ TEST_CASE(
       }
     }
   }
+}
+
+TEST_CASE(
+  "Snapshot is encrypted with the ledger secret for its version" *
+  doctest::test_suite("snapshot"))
+{
+  const auto first_secret = ccf::make_ledger_secret();
+  const auto second_secret = ccf::make_ledger_secret();
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init_from_map({{1, first_secret}});
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+
+  MapTypes::StringString private_map("private_map");
+  const auto write = [&](const std::string& value) {
+    auto tx = store.create_tx();
+    tx.rw(string_map)->put("public", value);
+    tx.rw(private_map)->put("private", value);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    return tx.commit_version();
+  };
+  const auto version = write("snapshotted");
+  const std::vector<std::string> names{"public:string_map", "private_map"};
+  ccf::kv::StoreSnapshot snapshot(version);
+  for (auto& map : snapshot_maps(store, version, names))
+  {
+    snapshot.add_map_snapshot(std::move(map));
+  }
+  const auto maps = snapshot_maps(store, version, names);
+
+  // The service is rekeyed after the snapshot's version, and encrypts a later
+  // transaction with the new ledger secret before the snapshot is serialised
+  secrets->set_secret(version + 1, ccf::LedgerSecretPtr(second_secret));
+  REQUIRE(write("later") == version + 1);
+
+  // The snapshot is still encrypted with the ledger secret for its version,
+  // rather than the one now used for new transactions
+  const auto entry = snapshot.serialise(encryptor);
+  REQUIRE(
+    entry ==
+    serialise_buffered(encryptor, version, std::nullopt, std::nullopt, maps));
+  REQUIRE(
+    entry !=
+    serialise_buffered(
+      encryptor, version, std::nullopt, std::nullopt, maps, false));
+
+  // so that a node with both ledger secrets, e.g. joining or recovering the
+  // service, can install it
+  auto node_secrets = std::make_shared<ccf::LedgerSecrets>();
+  node_secrets->init_from_map(
+    {{1, first_secret}, {version + 1, second_secret}});
+  ccf::kv::Store node_store;
+  node_store.set_encryptor(std::make_shared<ccf::NodeEncryptor>(node_secrets));
+  ccf::kv::ConsensusHookPtrs hooks;
+  REQUIRE(
+    node_store.deserialise_snapshot(entry.data(), entry.size(), hooks) ==
+    ccf::kv::ApplyResult::PASS);
+  auto tx = node_store.create_read_only_tx();
+  REQUIRE(tx.ro(string_map)->get("public") == "snapshotted");
+  REQUIRE(tx.ro(private_map)->get("private") == "snapshotted");
 }
 
 TEST_CASE(
