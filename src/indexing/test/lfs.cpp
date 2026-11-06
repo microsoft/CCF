@@ -1424,6 +1424,55 @@ TEST_CASE(
   REQUIRE(check_seqnos({41}, large.get_write_txs_in_range("key", 41, 41)));
 }
 
+TEST_CASE(
+  "Sparse bucket inconsistent directory rebuilds" * doctest::test_suite("lfs"))
+{
+  ccf::tasks::JobBoard board;
+  auto lfs = std::make_shared<CountingLFS>(board);
+  ccf::AbstractNodeContext context;
+  context.install_subsystem(lfs);
+  SparseBucketTestIndex index(map_a, context, 10, 101);
+  for (size_t bucket = 0; bucket < 256; ++bucket)
+  {
+    index.write(bucket * 20 + 1, "key");
+  }
+  index.write(20'001, "key");
+  REQUIRE(lfs->page_stores.size() == 1);
+  flush_lfs(board);
+
+  // Inject authenticated but inconsistent metadata through the trusted test
+  // writer. The host cannot forge this; it exercises an internal invariant
+  // failure without mistaking it for an ordinary missing data bucket.
+  ccf::indexing::LFSContents contents(
+    sizeof(size_t) + 256 * sizeof(ccf::SeqNo));
+  auto* data = contents.data();
+  auto size = contents.size();
+  serialized::write<size_t>(data, size, 256);
+  for (size_t bucket = 0; bucket < 256; ++bucket)
+  {
+    serialized::write<ccf::SeqNo>(
+      data, size, bucket == 255 ? 6000 : bucket * 20);
+  }
+  const auto page_key = lfs->page_stores.front();
+  lfs->store(page_key, std::move(contents));
+  flush_lfs(board);
+
+  auto result = index.get_write_txs_in_range("key", 5090, 6000);
+  for (size_t retry = 0; retry < 2; ++retry)
+  {
+    REQUIRE_FALSE(result.has_value());
+    REQUIRE(flush_lfs(board) > 0);
+    result = index.get_write_txs_in_range("key", 5090, 6000);
+  }
+  REQUIRE_FALSE(result.has_value());
+  // Fail closed until the serialized indexing tick performs the reset.
+  CHECK(index.get_indexed_watermark().seqno == 20'001);
+  CHECK_FALSE(index.get_write_txs_in_range("key", 20'001, 20'001).has_value());
+  index.tick();
+  CHECK(index.get_indexed_watermark() == ccf::TxID());
+  CHECK(index.next_requested() == 1);
+}
+
 TEST_CASE("Sparse bucket single-slot cache" * doctest::test_suite("lfs"))
 {
   ccf::tasks::JobBoard board;

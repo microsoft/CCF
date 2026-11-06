@@ -208,6 +208,17 @@ namespace ccf::indexing::strategies
     const DirectoryPage* load_page(const PageKey& key, Query& query)
       CCF_REQUIRES(results_access)
     {
+      const auto page_name = get_page_name(key);
+      if (query.page_pending != nullptr && query.page_pending->key != page_name)
+      {
+        LOG_FAIL_FMT(
+          "Pending directory fetch {} does not match {}",
+          query.page_pending->key,
+          page_name);
+        rebuild();
+        return nullptr;
+      }
+
       auto cached = directory_pages.find(key);
       if (cached != directory_pages.end())
       {
@@ -218,7 +229,7 @@ namespace ccf::indexing::strategies
 
       if (query.page_pending == nullptr)
       {
-        query.page_pending = lfs_access->fetch(get_page_name(key));
+        query.page_pending = lfs_access->fetch(page_name);
       }
 
       const auto status = query.page_pending->fetch_result.load();
@@ -372,7 +383,11 @@ namespace ccf::indexing::strategies
             });
           if (request == query.buckets.end() || request->start != start)
           {
-            throw std::logic_error("Directory bucket was not requested");
+            LOG_FAIL_FMT(
+              "Directory requires unrequested bucket: {}",
+              get_blob_name({serialised_key, get_range_for(start)}));
+            rebuild();
+            return false;
           }
 
           if (request->seqnos == nullptr)
