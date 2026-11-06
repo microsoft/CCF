@@ -24,9 +24,10 @@ This profile follows the implementation's **per-map globally committed views**.
 
 Human review covers the model, the full theorem statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
 The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
+The proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
 
 `Model.transitionSystem` presents `step` as a [`CCF.TransitionSystem`](../common/CCF/TransitionSystem.lean) from the empty world.
-Properties of executions use the shared `CCF.Execution.Run` and `TransitionSystem.Reachable`, and `Proofs/Execution.lean` shows that they coincide with successful `replay`.
+Properties of executions use the shared `CCF.Execution.Run` and `TransitionSystem.Reachable`, and the proof modules show that they coincide with successful `replay`.
 
 ## Model
 
@@ -54,7 +55,7 @@ The first acquisition of a map selects the newest surviving frame at or below th
 `Tx.globalViews` stores one `GlobalView` per acquired map: the pinned local frame and the globally committed frame.
 Once acquired, neither frame changes for the rest of the attempt, and `Tx.data` combines the pinned local data used by normal observations.
 
-The invariants used by the proofs are stated separately, in `Proofs/Invariants.lean`, and proved for every state reachable from the empty world.
+The invariants used by the proofs are stated separately, in `Proofs/Reachable.lean`, and proved for every state reachable from the empty world.
 Store histories start with the empty version-zero frame, contain every descending version through the current head, and each successor frame results from publishing a finite write set over its predecessor; the head is the first history frame and the global cut never exceeds it.
 Each live attempt's operation log, replayed against its pinned data, reproduces its normal view.
 Each snapshot comes from a store head, and each global view is either an empty placeholder or a store's frame at its global cut.
@@ -65,7 +66,7 @@ The normal-view reconstruction function `normalRun` and the per-step head-effect
 
 `Kv/Properties.lean` states each claim as a proved theorem in `Kv.Properties`, whose one-line proof refers to an implementation in `Kv/Proofs/`.
 No `sorry`, custom axioms, unsafe declarations, or external solver are used; `lake check` accepts only Lean's standard `propext`, `Quot.sound` and `Classical.choice`.
-Claims that depend on the model's state invariants assume `Model.transitionSystem.Reachable`; `Proofs/Invariants.lean` proves those invariants hold initially and are preserved by every step.
+Claims that depend on the model's state invariants assume `Model.transitionSystem.Reachable`; `Proofs/Reachable.lean` proves those invariants hold initially and are preserved by every step.
 
 Each claim is followed by a `_witness` lemma, so no claim is vacuous.
 For a claim with premises, the witness asserts that some concrete state, trace or program satisfies them.
