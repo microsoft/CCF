@@ -12,7 +12,7 @@
         "fluentd": {
           "type": "array",
           "default": [],
-          "description": "Experimental CCF consensus protocol trace export to Fluentd ``in_forward`` TCP listeners. Use ``tag-allow-list`` to select events per collector. Omitted or empty disables export. Use only trusted collectors on a trusted network: TCP is unauthenticated and unencrypted. See :ref:`observability_export` for configuration and delivery limitations",
+          "description": "Experimental CCF consensus protocol trace export to Fluentd ``in_forward`` TCP listeners. Use ``tag-prefix-allow-list`` to select events per collector. Omitted or empty disables export. Use only trusted collectors on a trusted network: TCP is unauthenticated and unencrypted. See :ref:`observability_export` for configuration and delivery limitations",
           "items": {
             "type": "object",
             "properties": {
@@ -39,7 +39,7 @@
                 "default": "buffered-best-effort",
                 "description": "``buffered-best-effort`` retains queued records while the collector cannot accept data; ``unbuffered-non-blocking`` drops queued records on backpressure or disconnection. See :ref:`observability_export` for delivery details and limitations"
               },
-              "tag-allow-list": {
+              "tag-prefix-allow-list": {
                 "type": "array",
                 "items": {
                   "type": "string"

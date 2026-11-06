@@ -432,8 +432,8 @@ namespace ccf
     "queue_capacity",
     delivery,
     "delivery",
-    tag_allow_list,
-    "tag-allow-list");
+    tag_prefix_allow_list,
+    "tag-prefix-allow-list");
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability);

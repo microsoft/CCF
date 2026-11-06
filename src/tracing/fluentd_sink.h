@@ -101,7 +101,7 @@ namespace ccf::tracing
         }
       };
 
-      const std::vector<std::string> tag_allow_list;
+      const std::vector<std::string> tag_prefix_allow_list;
       sockaddr_storage address = {};
       socklen_t address_size = 0;
       Endpoint::Delivery delivery;
@@ -121,7 +121,7 @@ namespace ccf::tracing
       bool finished CCF_GUARDED_BY(mutex) = false;
 
       Transport(const Endpoint& endpoint, size_t producers) :
-        tag_allow_list(endpoint.tag_allow_list),
+        tag_prefix_allow_list(endpoint.tag_prefix_allow_list),
         delivery(endpoint.delivery),
         reader(queues)
       {
@@ -150,8 +150,8 @@ namespace ccf::tracing
       [[nodiscard]] bool accepts(std::string_view tag) const
       {
         return std::any_of(
-          tag_allow_list.begin(),
-          tag_allow_list.end(),
+          tag_prefix_allow_list.begin(),
+          tag_prefix_allow_list.end(),
           [tag](const auto& prefix) { return tag.starts_with(prefix); });
       }
 

@@ -135,17 +135,17 @@ def run(args):
                     {
                         **excluded.endpoint,
                         "delivery": delivery,
-                        "tag-allow-list": ["ccf.sho", "ccf.kv"],
+                        "tag-prefix-allow-list": ["ccf.sho", "ccf.kv"],
                     },
                     {
                         **broad.endpoint,
                         "delivery": delivery,
-                        "tag-allow-list": ["ccf", "ccf.cft", "ccf"],
+                        "tag-prefix-allow-list": ["ccf", "ccf.cft", "ccf"],
                     },
                     {
                         **exact.endpoint,
                         "delivery": delivery,
-                        "tag-allow-list": ["ccf.kv", "ccf.cft", "ccf.sho"],
+                        "tag-prefix-allow-list": ["ccf.kv", "ccf.cft", "ccf.sho"],
                     },
                 ],
             )
@@ -172,7 +172,7 @@ def run(args):
         with infra.fluentd.Collector(node_count=1) as collector:
             filtered_endpoint = dict(collector.endpoint)
             if prefixes is not None:
-                filtered_endpoint["tag-allow-list"] = prefixes
+                filtered_endpoint["tag-prefix-allow-list"] = prefixes
             exercise(args, f"filter_{name}", [filtered_endpoint])
         if matches:
             assert collector.records > 0, name

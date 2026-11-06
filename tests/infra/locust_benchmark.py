@@ -381,7 +381,7 @@ def measure(
         if collector is not None:
             args = copy.deepcopy(args)
             args.observability = {
-                "fluentd": [{**collector.endpoint, "tag-allow-list": ["ccf"]}]
+                "fluentd": [{**collector.endpoint, "tag-prefix-allow-list": ["ccf"]}]
             }
         LOG.info(f"Starting nodes on {args.nodes} with {sig_ms_interval}ms signatures")
         with infra.network.network(

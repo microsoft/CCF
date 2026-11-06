@@ -36,15 +36,15 @@ Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticate
     {
       "observability": {
         "fluentd": [
-          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag-allow-list": ["ccf"] },
-          { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking", "tag-allow-list": ["ccf.cft"] }
+          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag-prefix-allow-list": ["ccf"] },
+          { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking", "tag-prefix-allow-list": ["ccf.cft"] }
         ]
       }
     }
 
-Set ``tag-allow-list`` per collector to a list of literal, case-sensitive prefixes; an event is selected if its tag starts with any listed prefix.
+Set ``tag-prefix-allow-list`` per collector to a list of literal, case-sensitive prefixes; an event is selected if its tag starts with any listed prefix.
 ``["ccf"]`` selects all CCF tags; ``["ccf.cft"]`` selects consensus traces.
-Omitting ``tag-allow-list`` defaults to ``[""]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
+Omitting ``tag-prefix-allow-list`` defaults to ``[""]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
 Prefixes have no dot-boundary requirement and do not support wildcards or regular expressions.
 Matching multiple prefixes within one collector entry does not duplicate events; an event matching multiple collectors is sent to each.
 Excluded events do not count as dropped for that collector.
