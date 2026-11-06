@@ -1,46 +1,28 @@
 Audit
 =====
 
-.. panels::
+.. grid:: 1 2 2 2
+    :gutter: 3
 
-    :fa:`scroll` :doc:`receipts`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`scroll` :doc:`receipts`
 
-    Receipts can be used with the ledger for audit purposes.
+        Audit ledger transactions using receipts.
 
-    ---
+    .. grid-item-card:: :fas:`table` :doc:`builtin_maps`
 
-    :fa:`table` :doc:`builtin_maps`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Consult the schema reference for built-in maps containing service state.
 
-    Schema reference for built-in maps containing service state.
+    .. grid-item-card:: |python| :doc:`python_library`
 
-    ---
+        Write ledger audit scripts using the Python library.
 
-    .. image:: ../img/python.svg
-      :alt: Python
-      :align: left
-      :class: ccf-tile-icon
+    .. grid-item-card:: :fas:`shield-alt` :doc:`read_write_restrictions`
 
+        Understand which KV maps may be modified during governance transactions.
 
-    :doc:`python_library`
-    ^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`hammer` :doc:`reproducible_build`
 
-    Utility library that can be used to write ledger audit scripts quickly and easily.
-
-    ---
-
-    :fa:`shield-alt` :doc:`read_write_restrictions`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Some KV maps should only be modified during governance transactions.
-
-    ---
-
-    :fa:`trowel-bricks` :doc:`reproducible_build`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Reproduce CCF RPM packages from the source code.
+        Reproduce CCF RPM packages from the source code.
 
 .. toctree::
     :hidden:
@@ -50,3 +32,6 @@ Audit
     python_library
     read_write_restrictions
     reproducible_build
+.. |python| image:: ../img/python.svg
+    :alt: Python
+    :class: ccf-inline-icon

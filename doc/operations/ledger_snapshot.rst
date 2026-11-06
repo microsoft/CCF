@@ -187,9 +187,9 @@ When the client already holds a chunk and wants to check if it has changed, it s
 
     sequenceDiagram
         Note over Client: Client already has chunk with known ETag
-        Client->>+Node: GET /node/ledger_chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:47DEQpj8HBSa+/TImW...=:"
+        Client->>+Node: GET /node/ledger_chunk/ledger_1-100.committed If-None-Match: "sha-256=:47DEQpj8HBSa+/TImW...=:"
         Note over Node: Computes digest, matches If-None-Match
-        Node->>-Client: 304 Not Modified<br/>ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"
+        Node->>-Client: 304 Not Modified ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"
         Note over Client: No body transferred, client keeps existing copy
 
 If the ``If-None-Match`` ETag does not match the current content (e.g. the client has an outdated copy, or is checking a different chunk), the server returns the full content as a fresh download:
@@ -198,9 +198,9 @@ If the ``If-None-Match`` ETag does not match the current content (e.g. the clien
 
     sequenceDiagram
         Note over Client: Client sends an ETag that does not match
-        Client->>+Node: GET /node/ledger_chunk/ledger_1-100.committed<br/>If-None-Match: "sha-256=:AAAA...=:"
+        Client->>+Node: GET /node/ledger_chunk/ledger_1-100.committed If-None-Match: "sha-256=:AAAA...=:"
         Note over Node: Computes digest, does not match If-None-Match
-        Node->>-Client: 200 OK<br/>ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:"<br/><Chunk Contents>
+        Node->>-Client: 200 OK ETag: "sha-256=:47DEQpj8HBSa+/TImW...=:" <Chunk Contents>
         Note over Client: Client stores chunk and new ETag for future requests
 
 Snapshots

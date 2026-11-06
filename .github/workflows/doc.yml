@@ -59,7 +59,7 @@ jobs:
           uv pip install -e ./python
           uv pip install -r doc/requirements.txt
           uv pip install -r doc/historical_ccf_requirements.txt
-          sphinx-multiversion -D smv_remote_whitelist=origin doc build/html
+          python3 scripts/build-docs.py -D smv_remote_whitelist=origin doc build/html
         shell: bash
 
       - name: Set up top-level directory
