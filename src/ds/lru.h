@@ -139,4 +139,10 @@ public:
     entries_list.clear();
     iter_map.clear();
   }
+
+  void erase(const Iterator& it)
+  {
+    iter_map.erase(it->first);
+    entries_list.erase(it);
+  }
 };
