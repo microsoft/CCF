@@ -89,3 +89,7 @@ An ML-DSA service certificate, when the service has one, starts with the same in
     section ML-DSA Service <br> Certificate (if any)
     Initial Validity Period (24h default): done, 01-01/00:00, 1d
     Post Service Open Validity Period    : 01-01/15:00, 5d
+
+    section ML-DSA Service <br> Certificate (if any)
+    Initial Validity Period (24h default): done, 01-01/00:00, 1d
+    Post Service Open Validity Period    : 01-01/15:00, 5d
