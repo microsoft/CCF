@@ -10,37 +10,33 @@
 <linearGradient id="root" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8D9BF5"/><stop offset=".5" stop-color="#5D6FE6"/><stop offset="1" stop-color="#3F4FB8"/></linearGradient>
 </defs>
 <g font-family="Inter, 'Segoe UI', ui-sans-serif, system-ui, sans-serif">
-<text x="48" y="58" fill="#7D8FA3" font-size="14" font-weight="700" letter-spacing="2.4">MERKLE TREE</text>
-<path d="M98 308L137 280" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
-<path d="M176 308L137 280" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
-<path d="M254 308L293 280" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
-<path d="M332 308L293 280" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
-<path d="M410 308L449 280" stroke="#A7B9CB" stroke-width="2" stroke-linecap="round"/>
-<path d="M488 308L449 280" stroke="#A7B9CB" stroke-width="2" stroke-linecap="round"/>
-<path d="M137 236L215 208" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
-<path d="M293 236L215 208" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
-<path d="M215 164L332 141" stroke="#A7B9CB" stroke-width="2" stroke-linecap="round"/>
-<path d="M449 236L332 141" stroke="#A7B9CB" stroke-width="2" stroke-linecap="round"/>
-<rect x="51" y="394" width="484" height="114" rx="14" fill="#F2FBF8" stroke="#CDEDE4" stroke-width="1.2"/>
-<text x="67" y="495" fill="#3E9F8B" font-size="10.5" font-weight="700" letter-spacing="1.6">LEDGER</text>
+<text x="48" y="58" fill="#6A7E95" font-size="14" font-weight="700" letter-spacing="2.4">MERKLE TREE</text>
+<path d="M98 308L137 280" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M176 308L137 280" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M254 308L293 280" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M332 308L293 280" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M410 308L449 280" stroke="#8495A8" stroke-width="2" stroke-linecap="round"/>
+<path d="M488 308L449 280" stroke="#8495A8" stroke-width="2" stroke-linecap="round"/>
+<path d="M137 236L215 208" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M293 236L215 208" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+<path d="M215 164L332 141" stroke="#8495A8" stroke-width="2" stroke-linecap="round"/>
+<path d="M449 236L332 141" stroke="#8495A8" stroke-width="2" stroke-linecap="round"/>
+<rect x="51" y="394" width="484" height="114" rx="14" fill="#3FB39D" fill-opacity=".08" stroke="#3FB39D" stroke-opacity=".4" stroke-width="1.2"/>
+<text x="67" y="495" fill="#358877" font-size="10.5" font-weight="700" letter-spacing="1.6">LEDGER</text>
 <path d="M98 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
 <path d="M176 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
 <path d="M254 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
 <path d="M332 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
 <path d="M410 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
 <path d="M488 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
-<rect x="67" y="312" width="62" height="40" rx="10" fill="#E6ECF2"/>
-<rect x="67" y="308" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
-<text x="98" y="332.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H1</text>
-<rect x="145" y="312" width="62" height="40" rx="10" fill="#E6ECF2"/>
-<rect x="145" y="308" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
-<text x="176" y="332.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H2</text>
-<rect x="223" y="312" width="62" height="40" rx="10" fill="#E6ECF2"/>
-<rect x="223" y="308" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
-<text x="254" y="332.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H3</text>
-<rect x="301" y="312" width="62" height="40" rx="10" fill="#E6ECF2"/>
-<rect x="301" y="308" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
-<text x="332" y="332.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H4</text>
+<rect x="67" y="308" width="62" height="40" rx="10" fill="#8495A8" fill-opacity=".08" stroke="#8495A8" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="98" y="332.5" fill="#8495A8" font-size="13" font-weight="650" text-anchor="middle">H1</text>
+<rect x="145" y="308" width="62" height="40" rx="10" fill="#8495A8" fill-opacity=".08" stroke="#8495A8" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="176" y="332.5" fill="#8495A8" font-size="13" font-weight="650" text-anchor="middle">H2</text>
+<rect x="223" y="308" width="62" height="40" rx="10" fill="#8495A8" fill-opacity=".08" stroke="#8495A8" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="254" y="332.5" fill="#8495A8" font-size="13" font-weight="650" text-anchor="middle">H3</text>
+<rect x="301" y="308" width="62" height="40" rx="10" fill="#8495A8" fill-opacity=".08" stroke="#8495A8" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="332" y="332.5" fill="#8495A8" font-size="13" font-weight="650" text-anchor="middle">H4</text>
 <rect x="382" y="316" width="56" height="40" rx="10" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
 <rect x="379" y="312" width="62" height="40" rx="10" fill="#2F78A8"/>
 <rect x="379" y="308" width="62" height="40" rx="10" fill="url(#hash)"/>
@@ -51,12 +47,10 @@
 <rect x="457" y="308" width="62" height="40" rx="10" fill="url(#hash)"/>
 <rect x="458" y="309" width="60" height="38" rx="9" stroke="#FFFFFF" stroke-opacity=".3" stroke-width="1"/>
 <text x="488" y="332.5" fill="#FFFFFF" font-size="13" font-weight="650" text-anchor="middle">H6</text>
-<rect x="106" y="240" width="62" height="40" rx="10" fill="#E6ECF2"/>
-<rect x="106" y="236" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
-<text x="137" y="260.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H12</text>
-<rect x="262" y="240" width="62" height="40" rx="10" fill="#E6ECF2"/>
-<rect x="262" y="236" width="62" height="40" rx="10" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="4 4"/>
-<text x="293" y="260.5" fill="#9AABBD" font-size="13" font-weight="650" text-anchor="middle">H34</text>
+<rect x="106" y="236" width="62" height="40" rx="10" fill="#8495A8" fill-opacity=".08" stroke="#8495A8" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="137" y="260.5" fill="#8495A8" font-size="13" font-weight="650" text-anchor="middle">H12</text>
+<rect x="262" y="236" width="62" height="40" rx="10" fill="#8495A8" fill-opacity=".08" stroke="#8495A8" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="293" y="260.5" fill="#8495A8" font-size="13" font-weight="650" text-anchor="middle">H34</text>
 <rect x="421" y="244" width="56" height="40" rx="10" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
 <rect x="418" y="240" width="62" height="40" rx="10" fill="#2F78A8"/>
 <rect x="418" y="236" width="62" height="40" rx="10" fill="url(#hash)"/>
@@ -104,14 +98,14 @@
 <use href="#lock" x="471" y="425" width="13" height="13" color="#5D6FE6"/>
 <text x="494" y="436" fill="#3F4FB8" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1.4">SIG</text>
 <text x="488" y="460" fill="#1E2F42" font-size="18" font-weight="700" text-anchor="middle">6</text>
-<path d="M396 112H585" stroke="#9AABBD" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="1 5"/>
-<circle cx="396" cy="112" r="3" fill="#9AABBD"/>
+<path d="M396 112H585" stroke="#8495A8" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="1 5"/>
+<circle cx="396" cy="112" r="3" fill="#8495A8"/>
 <rect x="595" y="90" width="3" height="64" rx="1.5" fill="#5D6FE6"/>
-<text x="611" y="105" fill="#1E2F42" font-size="14.5" font-weight="650">Root at seqno 6</text>
+<text x="611" y="105" fill="#5E7896" font-size="14.5" font-weight="650">Root at seqno 6</text>
 <text x="611" y="130" fill="#6B7C8F" font-size="13">Occupies the same position as the root at</text>
 <text x="611" y="149" fill="#6B7C8F" font-size="13">seqno 5, but has a different value.</text>
 <rect x="595" y="220" width="3" height="127" rx="1.5" fill="#3C8FC4"/>
-<text x="611" y="235" fill="#1E2F42" font-size="14.5" font-weight="650">Compacted at seqno 6</text>
+<text x="611" y="235" fill="#5E7896" font-size="14.5" font-weight="650">Compacted at seqno 6</text>
 <text x="611" y="260" fill="#6B7C8F" font-size="13">After H6 is inserted, consensus commits and</text>
 <text x="611" y="279" fill="#6B7C8F" font-size="13">the tree so far is compacted at seqno 6.</text>
 <text x="611" y="304" fill="#6B7C8F" font-size="13">The tree still contains the intermediate</text>
@@ -120,7 +114,7 @@
 <rect x="55" y="530" width="26" height="18" rx="5" fill="#2F78A8"/>
 <rect x="55" y="527" width="26" height="18" rx="5" fill="url(#hash)"/>
 <text x="91" y="540.5" fill="#6B7C8F" font-size="13">Retained hash</text>
-<rect x="212.57" y="527" width="26" height="18" rx="5" fill="#F7F9FB" stroke="#C6D2DE" stroke-width="1.4" stroke-dasharray="3 3"/>
+<rect x="212.57" y="527" width="26" height="18" rx="5" fill="#8495A8" fill-opacity=".08" stroke="#8495A8" stroke-width="1.4" stroke-dasharray="3 3"/>
 <text x="248.57" y="540.5" fill="#6B7C8F" font-size="13">Discarded on compaction</text>
 </g>
 </svg>

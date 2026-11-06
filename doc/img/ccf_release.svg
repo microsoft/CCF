@@ -10,20 +10,20 @@
 <linearGradient id="root" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8D9BF5"/><stop offset=".5" stop-color="#5D6FE6"/><stop offset="1" stop-color="#3F4FB8"/></linearGradient>
 <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#EE9533"/><stop offset=".6" stop-color="#EE9533"/><stop offset="1" stop-color="#EE9533" stop-opacity="0"/></linearGradient></defs>
 <g font-family="Inter, 'Segoe UI', ui-sans-serif, system-ui, sans-serif">
-<text x="48" y="58" fill="#7D8FA3" font-size="14" font-weight="700" letter-spacing="2.4">LTS SUPPORT WINDOW</text>
-<path d="M92 220V540" stroke="#D5DEE7" stroke-width="1.4" stroke-dasharray="1 5" stroke-linecap="round"/>
-<path d="M380 350V540" stroke="#D5DEE7" stroke-width="1.4" stroke-dasharray="1 5" stroke-linecap="round"/>
-<path d="M668 480V540" stroke="#D5DEE7" stroke-width="1.4" stroke-dasharray="1 5" stroke-linecap="round"/>
-<path d="M60 548H930" stroke="#7D8FA3" stroke-width="3" stroke-linecap="round"/>
-<polygon points="944,548 928,540 928,556" fill="#7D8FA3"/>
-<text x="930" y="534" fill="#7D8FA3" font-size="11" font-weight="700" text-anchor="end" letter-spacing="1.8">TIME</text>
+<text x="48" y="58" fill="#6A7E95" font-size="14" font-weight="700" letter-spacing="2.4">LTS SUPPORT WINDOW</text>
+<path d="M92 220V540" stroke="#8495A8" stroke-opacity=".5" stroke-width="1.4" stroke-dasharray="1 5" stroke-linecap="round"/>
+<path d="M380 350V540" stroke="#8495A8" stroke-opacity=".5" stroke-width="1.4" stroke-dasharray="1 5" stroke-linecap="round"/>
+<path d="M668 480V540" stroke="#8495A8" stroke-opacity=".5" stroke-width="1.4" stroke-dasharray="1 5" stroke-linecap="round"/>
+<path d="M60 548H930" stroke="#8495A8" stroke-width="3" stroke-linecap="round"/>
+<polygon points="944,548 928,540 928,556" fill="#8495A8"/>
+<text x="930" y="534" fill="#6A7E95" font-size="11" font-weight="700" text-anchor="end" letter-spacing="1.8">TIME</text>
 <rect x="92" y="209" width="384" height="10" rx="5" fill="#1D3B58" opacity=".12" filter="url(#blur3)"/>
 <rect x="92" y="205" width="384" height="10" rx="5" fill="#5D6FE6"/>
 <ellipse cx="92" cy="194" rx="19.05" ry="8.4" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
 <polygon points="74.68,162 92,172 92,192 74.68,182" fill="#5BB3DE"/>
 <polygon points="109.32,162 92,172 92,192 109.32,182" fill="#3C8FC4"/>
 <polygon points="92,152 109.32,162 92,172 74.68,162" fill="#A9DDF3"/>
-<text x="92" y="138" fill="#1E2F42" font-size="16" font-weight="650" text-anchor="middle">N.0.0</text>
+<text x="92" y="138" fill="#5E7896" font-size="16" font-weight="650" text-anchor="middle">N.0.0</text>
 <ellipse cx="164" cy="200" rx="9.53" ry="4.2" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
 <polygon points="155.34,183 164,188 164,198 155.34,193" fill="#5BB3DE"/>
 <polygon points="172.66,183 164,188 164,198 172.66,193" fill="#3C8FC4"/>
@@ -42,14 +42,14 @@
 <polygon points="514.78,216.12 506.12,224.78 493.88,224.78 485.22,216.12 485.22,203.88 493.88,195.22 506.12,195.22 514.78,203.88" transform="translate(1 3)" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
 <polygon points="514.78,216.12 506.12,224.78 493.88,224.78 485.22,216.12 485.22,203.88 493.88,195.22 506.12,195.22 514.78,203.88" fill="#E5534B"/>
 <text x="500" y="213.8" fill="#FFFFFF" font-size="10.5" font-weight="700" text-anchor="middle" letter-spacing=".6">EOL</text>
-<circle cx="92" cy="548" r="5" fill="#FFFFFF" stroke="#5D6FE6" stroke-width="3"/>
+<circle cx="92" cy="548" r="6" fill="#5D6FE6"/>
 <rect x="380" y="339" width="384" height="10" rx="5" fill="#1D3B58" opacity=".12" filter="url(#blur3)"/>
 <rect x="380" y="335" width="384" height="10" rx="5" fill="#3FB39D"/>
 <ellipse cx="380" cy="324" rx="19.05" ry="8.4" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
 <polygon points="362.68,292 380,302 380,322 362.68,312" fill="#5BB3DE"/>
 <polygon points="397.32,292 380,302 380,322 397.32,312" fill="#3C8FC4"/>
 <polygon points="380,282 397.32,292 380,302 362.68,292" fill="#A9DDF3"/>
-<text x="380" y="268" fill="#1E2F42" font-size="16" font-weight="650" text-anchor="middle">N+1.0.0</text>
+<text x="380" y="268" fill="#5E7896" font-size="16" font-weight="650" text-anchor="middle">N+1.0.0</text>
 <ellipse cx="452" cy="330" rx="9.53" ry="4.2" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
 <polygon points="443.34,313 452,318 452,328 443.34,323" fill="#5BB3DE"/>
 <polygon points="460.66,313 452,318 452,328 460.66,323" fill="#3C8FC4"/>
@@ -68,14 +68,14 @@
 <polygon points="802.78,346.12 794.12,354.78 781.88,354.78 773.22,346.12 773.22,333.88 781.88,325.22 794.12,325.22 802.78,333.88" transform="translate(1 3)" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
 <polygon points="802.78,346.12 794.12,354.78 781.88,354.78 773.22,346.12 773.22,333.88 781.88,325.22 794.12,325.22 802.78,333.88" fill="#E5534B"/>
 <text x="788" y="343.8" fill="#FFFFFF" font-size="10.5" font-weight="700" text-anchor="middle" letter-spacing=".6">EOL</text>
-<circle cx="380" cy="548" r="5" fill="#FFFFFF" stroke="#3FB39D" stroke-width="3"/>
+<circle cx="380" cy="548" r="6" fill="#3FB39D"/>
 <rect x="668" y="469" width="272" height="10" rx="5" fill="#1D3B58" opacity=".12" filter="url(#blur3)"/>
 <rect x="668" y="465" width="272" height="10" rx="5" fill="url(#fade)"/>
 <ellipse cx="668" cy="454" rx="19.05" ry="8.4" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
 <polygon points="650.68,422 668,432 668,452 650.68,442" fill="#5BB3DE"/>
 <polygon points="685.32,422 668,432 668,452 685.32,442" fill="#3C8FC4"/>
 <polygon points="668,412 685.32,422 668,432 650.68,422" fill="#A9DDF3"/>
-<text x="668" y="398" fill="#1E2F42" font-size="16" font-weight="650" text-anchor="middle">N+2.0.0</text>
+<text x="668" y="398" fill="#5E7896" font-size="16" font-weight="650" text-anchor="middle">N+2.0.0</text>
 <ellipse cx="740" cy="460" rx="9.53" ry="4.2" fill="#1D3B58" opacity=".16" filter="url(#blur3)"/>
 <polygon points="731.34,443 740,448 740,458 731.34,453" fill="#5BB3DE"/>
 <polygon points="748.66,443 740,448 740,458 748.66,453" fill="#3C8FC4"/>
@@ -86,13 +86,13 @@
 <polygon points="820.66,443 812,448 812,458 820.66,453" fill="#3C8FC4"/>
 <polygon points="812,438 820.66,443 812,448 803.34,443" fill="#A9DDF3"/>
 <text x="812" y="428" fill="#6B7C8F" font-size="12" font-weight="500" text-anchor="middle">N+2.0.2</text>
-<circle cx="668" cy="548" r="5" fill="#FFFFFF" stroke="#EE9533" stroke-width="3"/>
-<path d="M92 226V232H476V226M284 232V240" stroke="#9AABBD" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="668" cy="548" r="6" fill="#EE9533"/>
+<path d="M92 226V232H476V226M284 232V240" stroke="#8495A8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
 <text x="284" y="260" fill="#6B7C8F" font-size="13" font-weight="500" text-anchor="middle">At least 1 year</text>
-<path d="M668 282V276H764V282M716 276V268" stroke="#9AABBD" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M668 282V276H764V282M716 276V268" stroke="#8495A8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
 <text x="716" y="260" fill="#6B7C8F" font-size="13" font-weight="500" text-anchor="middle">Upgrade window</text>
 <rect x="560" y="112" width="3" height="114" rx="1.5" fill="#5D6FE6"/>
-<text x="576" y="127" fill="#1E2F42" font-size="14.5" font-weight="650">Patch releases (N.0.x)</text>
+<text x="576" y="127" fill="#5E7896" font-size="14.5" font-weight="650">Patch releases (N.0.x)</text>
 <circle cx="579" cy="147.5" r="2.6" fill="#5D6FE6"/>
 <text x="588" y="152" fill="#6B7C8F" font-size="13">Bug fixes, including security patches</text>
 <circle cx="579" cy="172.5" r="2.6" fill="#5D6FE6"/>
@@ -101,7 +101,7 @@
 <text x="588" y="202" fill="#6B7C8F" font-size="13">API compatible: rebuild, but no application code</text>
 <text x="588" y="221" fill="#6B7C8F" font-size="13">changes</text>
 <rect x="684" y="570" width="3" height="64" rx="1.5" fill="#EE9533"/>
-<text x="700" y="585" fill="#1E2F42" font-size="14.5" font-weight="650">New major release (N+2.0.0)</text>
+<text x="700" y="585" fill="#5E7896" font-size="14.5" font-weight="650">New major release (N+2.0.0)</text>
 <text x="700" y="610" fill="#6B7C8F" font-size="13">New features, may require</text>
 <text x="700" y="629" fill="#6B7C8F" font-size="13">application code changes</text>
 </g>
