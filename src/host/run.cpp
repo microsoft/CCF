@@ -572,6 +572,7 @@ namespace ccf
 #endif
   }
 
+  // NOLINTNEXTLINE(misc-use-anonymous-namespace)
   static int run_impl(int argc, char** argv)
   {
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)

@@ -117,6 +117,33 @@ public:
   }
 };
 
+class ScopedCoutCapture
+{
+  std::ostringstream captured;
+  std::streambuf* previous = std::cout.rdbuf(captured.rdbuf());
+
+public:
+  ScopedCoutCapture() = default;
+  ScopedCoutCapture(const ScopedCoutCapture&) = delete;
+  ScopedCoutCapture& operator=(const ScopedCoutCapture&) = delete;
+
+  ~ScopedCoutCapture()
+  {
+    std::cout.rdbuf(previous);
+  }
+
+  void clear()
+  {
+    captured.str("");
+    captured.clear();
+  }
+
+  std::string str() const
+  {
+    return captured.str();
+  }
+};
+
 #ifndef CCF_CFT_TRACING
 TEST_CASE("Logger timestamp retains microsecond precision")
 {
@@ -283,23 +310,58 @@ TEST_CASE("Framework logging macros")
 TEST_CASE("Only explicit fatal diagnostics write to stderr")
 {
   const ScopedLoggerConfig restore_config;
-  std::vector<std::string> logs;
   ccf::logger::config::level() = ccf::LoggerLevel::TRACE;
-  ccf::logger::config::loggers().emplace_back(
-    std::make_unique<TestTextLogger>(logs));
-  const ScopedCerrCapture captured;
+  ScopedCoutCapture captured_out;
+  ScopedCerrCapture captured_err;
 
-  LOG_INFO_FMT("Recoverable information");
-  LOG_FAIL_FMT("Recoverable failure");
-  LOG_FATAL_FMT("Fatal severity label without termination");
-  CHECK(captured.str().empty());
-  REQUIRE(logs.size() == 3);
-  CHECK(logs[0].contains("[info"));
-  CHECK(logs[1].contains("[fail"));
-  CHECK(logs[2].contains("[fatal"));
+  const auto check_console_logger = [&](auto logger, bool json) {
+    auto& loggers = ccf::logger::config::loggers();
+    loggers.clear();
+    loggers.emplace_back(std::move(logger));
+    captured_out.clear();
 
+    LOG_INFO_FMT("Recoverable information");
+    LOG_FAIL_FMT("Recoverable failure");
+    LOG_FATAL_FMT("Fatal severity label without termination");
+
+    CHECK(captured_err.str().empty());
+    const auto output = captured_out.str();
+    if (json)
+    {
+      std::istringstream lines(output);
+      std::string line;
+      const std::vector<std::pair<std::string, std::string>> expected = {
+        {"info", "Recoverable information"},
+        {"fail", "Recoverable failure"},
+        {"fatal", "Fatal severity label without termination"}};
+      for (const auto& [level, message] : expected)
+      {
+        REQUIRE(std::getline(lines, line));
+        const auto record = nlohmann::json::parse(line);
+        CHECK(record["level"] == level);
+        CHECK(record["msg"] == message);
+      }
+      CHECK_FALSE(std::getline(lines, line));
+    }
+    else
+    {
+      CHECK(output.contains("[info"));
+      CHECK(output.contains("[fail"));
+      CHECK(output.contains("[fatal"));
+      CHECK(output.contains("Recoverable information"));
+      CHECK(output.contains("Recoverable failure"));
+      CHECK(output.contains("Fatal severity label without termination"));
+    }
+  };
+
+  check_console_logger(
+    std::make_unique<ccf::logger::TextConsoleLogger>(), false);
+  check_console_logger(
+    std::make_unique<ccf::logger::JsonConsoleLogger>(), true);
+  captured_out.clear();
   ccf::logger::write_fatal_diagnostic("Node terminated");
-  CHECK(captured.str() == "Fatal error: Node terminated\n");
+  CHECK(captured_out.str().empty());
+  CHECK(captured_err.str() == "Fatal error: Node terminated\n");
 }
 
 TEST_CASE("Application logging macros")
