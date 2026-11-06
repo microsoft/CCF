@@ -232,7 +232,7 @@ jobs:
           set -euo pipefail
           dnf -y install \
             ca-certificates git curl tar zstd gcc gcc-c++ make glibc-devel \
-            gmp-devel diffutils findutils gawk gzip
+            gmp-devel diffutils findutils gawk gzip which
           curl --proto '=https' --tlsv1.2 -sSf \
             https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
             -o /tmp/elan-init.sh
@@ -363,7 +363,7 @@ jobs:
           set -euo pipefail
           dnf -y install \
             ca-certificates git curl tar zstd gcc gcc-c++ make glibc-devel \
-            gmp-devel diffutils findutils gawk gzip
+            gmp-devel diffutils findutils gawk gzip which
           curl --proto '=https' --tlsv1.2 -sSf \
             https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
             -o /tmp/elan-init.sh
@@ -431,7 +431,7 @@ jobs:
           set -euo pipefail
           dnf -y install \
             ca-certificates git curl tar zstd gcc gcc-c++ make glibc-devel \
-            gmp-devel diffutils findutils gawk gzip
+            gmp-devel diffutils findutils gawk gzip which
           curl --proto '=https' --tlsv1.2 -sSf \
             https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
             -o /tmp/elan-init.sh
