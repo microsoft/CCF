@@ -12,7 +12,7 @@
         "fluentd": {
           "type": "array",
           "default": [],
-          "description": "Experimental CCF consensus protocol trace export to Fluentd ``in_forward`` TCP listeners. Each sink selects events by its optional tag-prefix whitelist; console logging is unchanged. Omitted or empty disables export. Use only trusted collectors on a trusted network: TCP is unauthenticated and unencrypted. See :ref:`observability_export` for configuration and delivery limitations",
+          "description": "Experimental CCF consensus protocol trace export to Fluentd ``in_forward`` TCP listeners. Use ``tag_prefixes`` to select events per collector. Omitted or empty disables export. Use only trusted collectors on a trusted network: TCP is unauthenticated and unencrypted. See :ref:`observability_export` for configuration and delivery limitations",
           "items": {
             "type": "object",
             "properties": {
@@ -45,8 +45,8 @@
                   "type": "string"
                 },
                 "default": [""],
-                "description": "Export only events whose tag starts with any literal, case-sensitive prefix in this whitelist. Omitted or a list containing the empty string matches every tag; an empty list matches none. For example, ``ccf`` matches all CCF tags and ``ccf.cft`` matches consensus traces, without requiring a dot boundary. Wildcards and regular expressions are not supported. Multiple matching prefixes do not duplicate events within a sink. Events excluded by this sink are not queued or counted as dropped for it; events excluded by every sink are not encoded",
-                "examples": [["ccf"], ["ccf.cft", "ccf.sho"]]
+                "description": "Export events whose tags start with any listed literal, case-sensitive prefix. Omitted or a list containing the empty string selects every tag; an empty list selects none. No dot-boundary requirement, wildcards or regular expressions. See :ref:`observability_export` for examples and delivery behaviour",
+                "examples": [["ccf"], ["ccf.cft"]]
               }
             },
             "required": ["host", "port"]
