@@ -391,6 +391,7 @@ def test_tcb_version_tables(network, args):
     except TimeoutError as e:
         thrown_exception = e
     assert thrown_exception is not None, "New node should not have been able to join"
+    ignore_expected_node_failure_diagnostics(network)
 
     LOG.info("Change the current cpuid's TCB version using the old API")
     network.consortium.set_snp_minimum_tcb_version(
@@ -514,6 +515,7 @@ def test_start_node_with_mismatched_host_data(network, args):
             )
     except (TimeoutError, RuntimeError):
         LOG.info("As expected, node with invalid security policy failed to startup")
+        ignore_expected_node_failure_diagnostics(network)
     else:
         raise AssertionError("Node startup unexpectedly succeeded")
 
@@ -538,6 +540,7 @@ def test_add_node_with_untrusted_measurement(network, args):
         network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
     except infra.network.MeasurementNotFound:
         LOG.info("As expected, node with untrusted measurement failed to join")
+        ignore_expected_node_failure_diagnostics(network)
     else:
         raise AssertionError("Node join unexpectedly succeeded")
 
@@ -609,8 +612,16 @@ def assert_node_join_fails(network, args):
         assert (
             "host data is not authorised" in e.error_line
         ), f"Expected 'host data is not authorised' in error, got: {e.error_line}"
+        ignore_expected_node_failure_diagnostics(network)
     else:
         raise AssertionError("Node join unexpectedly succeeded")
+
+
+def ignore_expected_node_failure_diagnostics(network):
+    network.ignore_error_pattern_on_shutdown("Fatal error: Join request to")
+    network.ignore_error_pattern_on_shutdown(
+        "Fatal error: Node startup failed; see stdout logs for details"
+    )
 
 
 def get_cose_signatures_config(node):
@@ -802,6 +813,7 @@ def test_add_node_with_untrusted_host_data(network, args):
         network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
     except infra.network.HostDataNotFound:
         LOG.info("As expected, node with untrusted host data failed to join")
+        ignore_expected_node_failure_diagnostics(network)
     else:
         raise AssertionError("Node join unexpectedly succeeded")
 
@@ -837,6 +849,7 @@ def test_add_node_with_no_uvm_endorsements(network, args):
             )
         except infra.network.MeasurementNotFound:
             LOG.info("As expected, node with no UVM endorsements failed to join")
+            ignore_expected_node_failure_diagnostics(network)
         else:
             raise AssertionError("Node join unexpectedly succeeded")
 
@@ -896,6 +909,7 @@ def test_add_node_with_different_package(network, args):
     assert (
         exception_thrown is not None
     ), f"Adding a node with {replacement_package} should fail"
+    ignore_expected_node_failure_diagnostics(network)
     if infra.platform_detection.is_virtual():
         assert isinstance(
             exception_thrown, infra.network.HostDataNotFound
@@ -1220,6 +1234,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
         network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
     except infra.network.UVMEndorsementsNotAuthorised:
         LOG.info("As expected, node with no UVM endorsements failed to join")
+        ignore_expected_node_failure_diagnostics(network)
     else:
         raise AssertionError("Node join unexpectedly succeeded")
 

@@ -3132,6 +3132,9 @@ def run_empty_ledger_dir_check(args):
                 network.start(args, ledger_dir=tmp_dir)
             except Exception as start_error:
                 LOG.debug(f"Ignoring expected network start failure: {start_error}")
+                network.ignore_error_pattern_on_shutdown(
+                    "On start, ledger directory should not exist or be empty"
+                )
 
             # Check that the node has failed with the expected error message
             if not primary.check_log_for_error_message(
