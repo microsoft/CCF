@@ -39,13 +39,12 @@ Every inserted action goes through the model's guards, including committed-prefi
 private def prepare (invalid : List TxID) (state : State) (id : TxID) (length : Nat)
     : Except String State := do
   let mut state := state
-  let dropped := statusIDs state.history .invalid ++ invalid
   for _ in [:id.view - state.branches.length] do
     let source := state.branches.length
     let some ledger := at? state.branches source | throw "missing election source"
     let retained :=
       (ledger.zipIdx.takeWhile
-        fun (entry, index) => !(dropped.contains ⟨entry.view, index + 1⟩)).length
+        fun (entry, index) => !(invalid.contains ⟨entry.view, index + 1⟩)).length
     state ← apply state (.elect source (min (id.seqno - 1) retained))
   let some ledger := at? state.branches id.view | throw "missing branch"
   unless ledger.length ≤ length do
@@ -77,10 +76,12 @@ private def checkResponse (state : State) (id : TxID) : Except String State := d
     throw s!"response ID mismatch: expected {repr id}, got {repr observed}"
   return state
 
-private def replayAction (invalid : List TxID) (state : State) (record : Json)
-    (action : String)
+/-- Replay one existing `tests/tvc.py` record using the guarded consistency model.
+`invalid` lists every transaction ID reported invalid anywhere in the trace.
+Application values are absent from this format and are not compared. -/
+def replayRecord (invalid : List TxID) (state : State) (record : Json)
     : Except String State := do
-  match action, ← string record "type" with
+  match ← string record "action", ← string record "type" with
   | "RwTxRequestAction", "RwTxRequest"
   | "RoTxRequestAction", "RoTxRequest" =>
       unless (← tx record) == nextRequestId state.history do
@@ -110,16 +111,6 @@ private def replayAction (invalid : List TxID) (state : State) (record : Json)
         throw "invalid action requires InvalidStatus"
       apply state (.invalidate (← responseIndex state (← txid record)))
   | action, kind => throw s!"unknown action/type pair: {action}/{kind}"
-
-/-- Replay one existing `tests/tvc.py` record using the guarded consistency model.
-`invalid` lists every transaction ID reported invalid anywhere in the trace.
-Application values are absent from this format and are not compared. -/
-def replayRecord (invalid : List TxID) (state : State) (record : Json)
-    : Except String State := do
-  let action ← string record "action"
-  match replayAction invalid state record action with
-  | .ok next => return next
-  | .error message => throw s!"{action}: {message}"
 
 /-- Transaction IDs of every well-formed invalid status report, in trace order. -/
 private def invalidIDs (lines : Array String) : List TxID :=

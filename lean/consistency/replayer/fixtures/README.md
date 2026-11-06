@@ -14,8 +14,6 @@ Every [valid](valid) fixture must be accepted, and every [invalid](invalid) fixt
 | [Rollback at the same sequence number](valid/rollback_same_seqno.ndjson)  | Election replaces an invalid write                             |
 | [Rollback of two transactions](valid/rollback_two_transactions.ndjson)    | Election replaces an invalid suffix and commits a new write    |
 | [Invalid after election](valid/invalid-after-election.ndjson)             | Lost write reported invalid after a later view commits         |
-| [Replaced lost write](valid/same-seqno-after-election.ndjson)             | Later view commits at a lost write's sequence number           |
-| [Primary read after election](valid/primary-read-after-election.ndjson)   | New primary read before a lost write is reported invalid       |
 | [Partitions capture](valid/partitions-isolate-reconnect.ndjson)           | Isolate-and-reconnect capture from `partitions_test.py`        |
 
 | Invalid fixture                                                   | Expected failure                                   |

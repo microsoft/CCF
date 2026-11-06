@@ -520,5 +520,6 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s failglob globstar
-          lean/consistency/.lake/build/bin/consistency-replay \
-            "$RUNNER_TEMP"/partitions-consistency-traces/**/consistency_trace.ndjson
+          for trace in "$RUNNER_TEMP"/partitions-consistency-traces/**/consistency_trace.ndjson; do
+            lean/consistency/.lake/build/bin/consistency-replay "$trace"
+          done
