@@ -6,27 +6,14 @@
 
 namespace ccf::tracing
 {
-  class FluentdLogger : public ccf::logger::AbstractLogger
+  inline void emit_log(const ccf::logger::LogLine& line)
   {
-  public:
-    void write(const ccf::logger::LogLine& line) override
+    if (!FluentdSink::is_running())
     {
-      if (!FluentdSink::is_running() || !FluentdSink::accepts("ccf.log"))
-      {
-        return;
-      }
-      try
-      {
-        FluentdSink::enqueue_log(
-          "ccf.log", encode_record("ccf.log", [&](auto& buffer) {
-            nlohmann::json::to_msgpack(
-              ccf::logger::format_to_json(line), buffer);
-          }));
-      }
-      catch (const std::bad_alloc&)
-      {
-        FluentdSink::record_drop("ccf.log");
-      }
+      return;
     }
-  };
+    emit_record("ccf.log", [&](auto& buffer) {
+      nlohmann::json::to_msgpack(ccf::logger::format_to_json(line), buffer);
+    });
+  }
 }

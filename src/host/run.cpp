@@ -683,8 +683,8 @@ namespace ccf
     }
     if (ccf::tracing::FluentdSink::is_configured())
     {
-      ccf::logger::config::loggers().emplace_back(
-        std::make_unique<ccf::tracing::FluentdLogger>());
+      ccf::logger::config::trace_callback().store(
+        ccf::tracing::emit_log, std::memory_order_release);
     }
 
     LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
