@@ -10,6 +10,7 @@ import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import infra.consistency_trace as ct
 from infra.tx_status import TxStatus
@@ -38,9 +39,11 @@ class FakeNode:
 
     @contextlib.contextmanager
     def client(self, *args, **kwargs):
-        def get(path):
+        def get(path, timeout=None):
             self.paths.append(path)
             reply = self.replies[path]
+            if callable(reply):
+                return reply(timeout)
             return reply.pop(0) if isinstance(reply, list) else reply
 
         yield SimpleNamespace(get=get)
@@ -52,9 +55,21 @@ class FakeNetwork:
         self.common_dir = common_dir
         self.find_primary_calls = 0
 
-    def find_primary(self, nodes=None):
+    def find_primary(self, nodes=None, timeout=10):
         self.find_primary_calls += 1
         return self.node, None
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        assert seconds >= 0
+        self.now += seconds
 
 
 class Untouchable:
@@ -203,6 +218,42 @@ class RecorderTests(unittest.TestCase):
         trace.write(response(2, 11))
         trace.close(FakeNetwork(node), timeout=1)
         self.assertEqual(self.records()[6:], [tvc_status([2, 10], "Committed")])
+
+    def sweep_with_slow_node(self, request_seconds):
+        clock = FakeClock()
+        timeouts = []
+
+        def pending(timeout):
+            assert 0 < timeout <= 10 - clock.now
+            timeouts.append(timeout)
+            if request_seconds > timeout:
+                clock.now += timeout
+                raise TimeoutError
+            clock.now += request_seconds
+            return response(None, None, body={"status": "Pending"})
+
+        node = FakeNode(
+            {
+                "/node/tx?transaction_id=2.10": pending,
+                "/node/tx?transaction_id=2.11": pending,
+            }
+        )
+        trace = ct.ConsistencyTrace(self.path)
+        trace.write(response(2, 10))
+        trace.write(response(2, 11))
+        with patch.object(ct, "time", clock):
+            trace.close(FakeNetwork(node), timeout=10)
+        return clock.now, timeouts
+
+    def test_close_sweep_stops_at_deadline(self):
+        now, timeouts = self.sweep_with_slow_node(request_seconds=60)
+        self.assertEqual((now, timeouts), (10, [10]))
+        self.assertEqual(len(self.records()), 6)
+
+        now, timeouts = self.sweep_with_slow_node(request_seconds=0.3)
+        self.assertLessEqual(now, 10)
+        self.assertGreater(len(timeouts), 2)
+        self.assertEqual(len(self.records()), 6)
 
     def test_disabled_recording_does_nothing(self):
         with ct.recording(Untouchable(), enabled=False) as trace:

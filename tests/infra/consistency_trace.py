@@ -127,21 +127,31 @@ class ConsistencyTrace:
         )
         return True
 
+    def _pending(self):
+        return [txid for txid, status in self._writes.items() if status is None]
+
     def _sweep(self, network, timeout):
-        end_time = time.time() + timeout
-        while True:
-            pending = [txid for txid, status in self._writes.items() if status is None]
-            if not pending or time.time() > end_time:
-                break
-            primary, _ = network.find_primary()
+        # Every wait is capped by the time remaining. Only find_primary's
+        # per-node probes (1s each) can extend past the deadline.
+        end_time = time.monotonic() + timeout
+
+        def remaining():
+            return end_time - time.monotonic()
+
+        while self._pending() and remaining() > 0:
+            primary, _ = network.find_primary(timeout=remaining())
             with primary.client() as c:
-                for view, seqno in pending:
-                    r = c.get(f"/node/tx?transaction_id={view}.{seqno}")
+                for view, seqno in self._pending():
+                    if remaining() <= 0:
+                        break
+                    r = c.get(
+                        f"/node/tx?transaction_id={view}.{seqno}", timeout=remaining()
+                    )
                     status = TxStatus(r.body.json()["status"])
                     if status in TERMINAL_STATUSES:
                         self.status(_TxIDResponse(view, seqno), status)
-            time.sleep(0.5)
-        if pending:
+            time.sleep(max(0, min(0.5, remaining())))
+        if pending := self._pending():
             LOG.info(f"Omitting statuses of non-terminal writes: {pending}")
 
     def close(self, network=None, timeout=10):
