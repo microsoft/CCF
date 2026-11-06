@@ -29,7 +29,7 @@
 
 namespace ccf::tracing
 {
-  // Configure and bind before producers start; stop producers before shutdown.
+  // Configure before producers start; stop producers before shutdown.
   class FluentdSink
   {
     static_assert(std::atomic<uint64_t>::is_always_lock_free);
@@ -145,6 +145,7 @@ namespace ccf::tracing
         {
           queues.push_back(std::make_unique<SPSCQueue>(size));
         }
+        // Unbound producers share one queue, serialised before enqueueing.
         queues.push_back(std::make_unique<SPSCQueue>(size));
       }
 
@@ -391,7 +392,7 @@ namespace ccf::tracing
     struct Worker
     {
       std::vector<std::unique_ptr<Transport>> transports;
-      ccf::ds::Mutex logger_mutex;
+      ccf::ds::Mutex unbound_producer_mutex;
       std::thread consumer;
 
       explicit Worker(std::vector<std::unique_ptr<Transport>> instances) :
@@ -555,9 +556,8 @@ namespace ccf::tracing
       {
         if (slot >= worker()->transports.front()->queues.size() - 1)
         {
-          throw std::out_of_range("Trace producer slot is reserved for logs");
+          throw std::out_of_range("Trace producer slot out of range");
         }
-        std::ignore = worker()->transports.front()->queues.at(slot);
         bound_slot() = slot;
       }
     }
@@ -566,10 +566,6 @@ namespace ccf::tracing
     static bool enqueue_at_slot(
       std::string_view tag, std::span<const uint8_t> bytes, size_t slot)
     {
-      if (!is_configured())
-      {
-        return false;
-      }
       bool enqueued = true;
       for (const auto& t : worker()->transports)
       {
@@ -593,20 +589,18 @@ namespace ccf::tracing
     // False may mean partial acceptance: other sinks still receive the record.
     static bool enqueue(std::string_view tag, std::span<const uint8_t> bytes)
     {
-      return enqueue_at_slot(tag, bytes, bound_slot());
-    }
-
-    static bool enqueue_log(
-      std::string_view tag, std::span<const uint8_t> bytes)
-    {
       if (!is_configured())
       {
         return false;
       }
-      // The shared log queue also accepts unbound transport diagnostic threads.
-      ccf::ds::MutexGuard lock(worker()->logger_mutex);
-      return enqueue_at_slot(
-        tag, bytes, worker()->transports.front()->queues.size() - 1);
+      const auto slot = bound_slot();
+      if (slot == std::numeric_limits<size_t>::max())
+      {
+        ccf::ds::MutexGuard lock(worker()->unbound_producer_mutex);
+        return enqueue_at_slot(
+          tag, bytes, worker()->transports.front()->queues.size() - 1);
+      }
+      return enqueue_at_slot(tag, bytes, slot);
     }
 
     static void record_drop(std::string_view tag)
