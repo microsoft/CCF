@@ -568,10 +568,18 @@ class Network:
             r = c.get("/node/network")
             assert r.status_code == 200, r
             pq_cert = r.body.json().get("pq_service_certificate")
-        if pq_cert is not None:
-            self.nodes[0].remote.get_pq_service_certificate(self.common_dir)
-            with open(self.pq_cert_path, encoding="utf-8") as f:
-                assert f.read() == pq_cert, "Startup ML-DSA certificate mismatch"
+        for i, node in enumerate(self.nodes):
+            if i == 0 and pq_cert is not None:
+                node.remote.get_pq_service_certificate(self.common_dir)
+                with open(self.pq_cert_path, encoding="utf-8") as f:
+                    assert f.read() == pq_cert, "Startup ML-DSA certificate mismatch"
+            else:
+                pq_cert_path = os.path.join(
+                    node.remote.remote.root, node.remote.pq_service_cert_file
+                )
+                assert not os.path.exists(
+                    pq_cert_path
+                ), f"Unexpected ML-DSA certificate output: {pq_cert_path}"
         return primary
 
     def _setup_common_folder(self, constitution):
@@ -2453,7 +2461,10 @@ class Network:
 
     @functools.cached_property
     def pq_cert_path(self):
-        return os.path.join(self.common_dir, "pq_service_cert.pem")
+        return os.path.join(
+            self.common_dir,
+            os.path.basename(self.nodes[0].remote.pq_service_cert_file),
+        )
 
     @functools.cached_property
     def cert(self):
