@@ -41,16 +41,9 @@ Separate [package checks](../../../.github/workflows/lean-package.yml) cover the
 ## Replay contract
 
 Every protocol event must match a named rule; bootstrap selects the initial singleton membership.
-Rules group a head protocol event with its callbacks and read action inputs from those events; only top-level alternatives backtrack.
+Rules group related protocol events and read action inputs from those events; only top-level alternatives backtrack.
 Actions must be enabled by the model.
 After bootstrap, each rule emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
-
-`retired_committed_tx` records describe nodes-table writes, not global retirement completion.
-Input preparation associates earlier metadata with accepted `replicate` events by source node and seqno, filling the model's existing ledger transaction metadata before rule reduction.
-Metadata is retained even after a match; unmatched records are not errors and do not change model state.
-Matching omits the transaction view, so seqno reuse after rejection or rollback may attach stale metadata or reject a signature with `retirement metadata on signature`.
-Use complete raw captures generated with this tracing; older retirement captures need regeneration because cleanup commands no longer supply missing metadata.
-Replay does not detect missing metadata, so a pass alone does not establish that retirement writes were captured.
 
 Delivery is strict FIFO per directed node pair, preserving multiplicity and delivering the queued **model payload**, not reconstructing unrecorded native bytes.
 

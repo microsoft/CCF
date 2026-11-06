@@ -89,6 +89,8 @@ private def readAppendContent (head : Event) (config : Option Event)
   if signature then
     return .signature
   else
+    -- Input preparation matches earlier retired_committed_tx write events by node and seqno.
+    -- The view is not checked, so seqno reuse may attach stale metadata.
     let retirementConfirmations ← modelMembers head head.retirementConfirmations
     let request := (← get).nextRequestId
     modify fun s => { s with nextRequestId := request + 1 }
