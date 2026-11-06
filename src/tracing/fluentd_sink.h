@@ -493,6 +493,13 @@ namespace ccf::tracing
       return worker() != nullptr;
     }
 
+    static bool is_producer_active()
+    {
+      return is_configured() &&
+        bound_slot() < worker()->transports.front()->queues.size() &&
+        !worker()->transports.front()->stopping.load(std::memory_order_relaxed);
+    }
+
     static bool accepts(std::string_view tag)
     {
       if (!is_configured())
