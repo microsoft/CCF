@@ -895,7 +895,7 @@ class CCFRemote:
         if self.start_type in {StartType.start, StartType.recover}:
             self.remote.get("service_cert.pem", dst_path, timeout=timeout)
 
-    def get_pq_service_certificate(self, dst_path, timeout=FILE_TIMEOUT_S):
+    def get_pq_service_certificate_file(self, dst_path, timeout=FILE_TIMEOUT_S):
         self.remote.get(self.pq_service_cert_file, dst_path, timeout=timeout)
 
     def debug_node_cmd(self):
