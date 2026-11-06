@@ -103,7 +103,7 @@ The following diagram summarises the steps that operators and members should fol
         Node 1->>+Node 0: Poll for "Trusted" state
         Node 0-->>-Node 1: "Trusted" state (includes ledger secrets and service private key)
 
-        Note over Node 1: State: "PartOfNetwork" <br/> Ledger replication started <br/> Application open to users
+        Note over Node 1: State: "PartOfNetwork" Ledger replication started Application open to users
 
         loop Node 1 ledger replication
             Node 0->>+Node 1: Ledger replication
@@ -116,7 +116,7 @@ The following diagram summarises the steps that operators and members should fol
             Node 0->>+Node 1: Ledger replication
         end
 
-        Node 1->>+Node 1: Observe own addition to store <br> Endorse TLS with service private key
+        Node 1->>+Node 1: Observe own addition to store Endorse TLS with service private key
 
         Note over Operators: Operators monitor progress of ledger replication
         Operators->>+Node 1: Poll GET /node/commit

@@ -1,14 +1,17 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-"""Check the Fluentd exporter across four node startup cases.
+"""Check the Fluentd exporter across startup, fan-out and tag-filter cases.
 
 1. No exporter configured: transactions commit as usual.
 2. Invalid exporter configuration: the node rejects it at startup.
 3. Exporter configured but the collector refuses connections: transactions
    still commit.
-4. Exporter configured against a real Fluentd (only with --fluentd PATH): the
+4. Both delivery policies export traces to independent, healthy collectors.
+5. Exporter configured against a real Fluentd (only with --fluentd PATH): the
    collector receives well-formed CCF consensus protocol events, and the node
    keeps committing after the collector is killed.
+6. Tag allow lists of literal prefixes include or exclude events at the node, verified
+   with a local Forward collector without requiring Fluentd.
 """
 
 import copy
@@ -19,13 +22,14 @@ import subprocess
 import time
 
 import infra.e2e_args
+import infra.fluentd
 import infra.network
 
 
-def exercise(args, name, endpoint, while_running=None):
+def exercise(args, name, endpoints, while_running=None):
     args = copy.deepcopy(args)
     args.label += "_" + name
-    args.observability = {"fluentd": endpoint} if endpoint else None
+    args.observability = {"fluentd": endpoints} if endpoints is not None else None
     with infra.network.network(
         infra.e2e_args.nodes(args, 1), args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
@@ -49,13 +53,16 @@ def run(args):
     baseline = exercise(args, "disabled", None)
     invalid_path = pathlib.Path(f"{args.label}_invalid.json")
     try:
-        for endpoint, valid in (
-            ({"host": "127.0.0.1", "port": "0"}, False),
-            ({"host": "127.0.0.1", "port": "24224", "queue_capacity": 0}, False),
-            ({"host": "127.0.0.1", "port": "24224", "queue_capacity": -1}, False),
-            ({"host": "127.0.0.1", "port": "24224", "queue_capacity": 1048577}, True),
+        for endpoints, valid in (
+            ([{"host": "127.0.0.1", "port": "0"}], False),
+            ([{"host": "127.0.0.1", "port": "24224", "queue_capacity": 0}], False),
+            ([{"host": "127.0.0.1", "port": "24224", "queue_capacity": -1}], False),
+            (
+                [{"host": "127.0.0.1", "port": "24224", "queue_capacity": 1048577}],
+                True,
+            ),
         ):
-            baseline["observability"] = {"fluentd": endpoint}
+            baseline["observability"] = {"fluentd": endpoints}
             invalid_path.write_text(json.dumps(baseline), encoding="utf-8")
             result = subprocess.run(
                 [
@@ -102,7 +109,77 @@ def run(args):
         port = reservation.getsockname()[1]
         endpoint = {"host": "127.0.0.1", "port": str(port)}
         # A bound, non-listening port reliably refuses connections.
-        exercise(args, "outage", endpoint)
+        exercise(args, "outage", [endpoint])
+    with infra.fluentd.Collector(1) as first, infra.fluentd.Collector(1) as second:
+        exercise(
+            args,
+            "multiple",
+            [
+                {**first.endpoint, "delivery": "buffered-best-effort"},
+                {**second.endpoint, "delivery": "unbuffered-non-blocking"},
+            ],
+        )
+    assert first.records > 0
+    assert second.records > 0
+    assert first.processes == second.processes
+    for delivery in ("buffered-best-effort", "unbuffered-non-blocking"):
+        with (
+            infra.fluentd.Collector(1) as broad,
+            infra.fluentd.Collector(1) as exact,
+            infra.fluentd.Collector(1) as excluded,
+        ):
+            exercise(
+                args,
+                f"filtered_fanout_{delivery}",
+                [
+                    {
+                        **excluded.endpoint,
+                        "delivery": delivery,
+                        "tag-prefix-allow-list": ["ccf.sho", "ccf.kv"],
+                    },
+                    {
+                        **broad.endpoint,
+                        "delivery": delivery,
+                        "tag-prefix-allow-list": ["ccf", "ccf.cft", "ccf"],
+                    },
+                    {
+                        **exact.endpoint,
+                        "delivery": delivery,
+                        "tag-prefix-allow-list": ["ccf.kv", "ccf.cft", "ccf.sho"],
+                    },
+                ],
+            )
+        assert broad.records > 0
+        assert exact.records > 0
+        assert broad.tags == exact.tags == {"ccf.cft"}
+        assert broad.processes == exact.processes
+        assert excluded.records == 0
+        assert excluded.bytes == 0
+    for name, prefixes, matches in (
+        ("omitted", None, True),
+        ("empty", [], False),
+        ("all", [""], True),
+        ("all_last", ["ccf.sho", ""], True),
+        ("ccf", ["ccf"], True),
+        ("cft", ["ccf.cft"], True),
+        ("partial", ["ccf.cf"], True),
+        ("different", ["ccf.sho", "ccf.kv"], False),
+        ("longer", ["ccf.cft.child"], False),
+        ("case", ["CCF"], False),
+        ("substring", ["cft"], False),
+        ("wildcard", ["ccf.*"], False),
+    ):
+        with infra.fluentd.Collector(node_count=1) as collector:
+            filtered_endpoint = dict(collector.endpoint)
+            if prefixes is not None:
+                filtered_endpoint["tag-prefix-allow-list"] = prefixes
+            exercise(args, f"filter_{name}", [filtered_endpoint])
+        if matches:
+            assert collector.records > 0, name
+            assert collector.tags == {"ccf.cft"}, (name, collector.tags)
+        else:
+            assert collector.records == 0, (name, collector.records)
+            assert collector.bytes == 0, (name, collector.bytes)
     if not args.fluentd:
         print("Real Fluentd test not selected: pass --fluentd PATH")
         return
@@ -136,7 +213,7 @@ def run(args):
                 process.terminate()
                 process.wait(timeout=5)
 
-            exercise(args, "enabled", endpoint, stop_collector)
+            exercise(args, "enabled", [endpoint], stop_collector)
         finally:
             if process.poll() is None:
                 process.terminate()

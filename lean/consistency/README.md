@@ -42,7 +42,8 @@ There is no refinement proof connecting it to the [CCF consensus protocol model]
 [`Properties.lean`](consistency/Properties.lean) contains 17 proved safety theorems over valid model executions, each with an adjacent non-vacuity witness.
 The primary consistency guarantee is expressed by `committed_rw_ordered_serializable` and `committed_rw_ordered_real_time` together.
 Committed writes serialize in transaction-ID order, and that order respects request-to-initial-response intervals rather than waiting for committed-status notifications.
-Supporting proofs live under [`Proofs/`](consistency/Proofs); [`Witnesses.lean`](consistency/Proofs/Witnesses.lean) constructs the witness executions by replaying model actions.
+Supporting proofs live under [`Proofs/`](consistency/Proofs); [`Witnesses.lean`](consistency/Proofs/Witnesses.lean) constructs the witness executions by replaying model actions and also holds the history-only proofs.
+The proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
 Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
 
 ## Validation
@@ -63,9 +64,9 @@ The unsandboxed check executes build-time code, which must be trusted.
 
 ## Trace validation
 
-`consistency-replay` consumes the existing NDJSON format from [`tests/tvc.py`](../../tests/tvc.py), also used by TLA+'s `TraceMultiNodeReads`.
+`consistency-replay` consumes the NDJSON format from [`tests/tvc.py`](../../tests/tvc.py).
 It replays requests, write executions, responses, and final statuses through `Model.step`, checking request IDs and response transaction IDs.
-As in the TLA+ validator, missing views and non-application ledger entries are backfilled before write executions and reads.
+Missing views and non-application ledger entries are backfilled before write executions and reads.
 Backfilling uses guarded model elections and appends; it cannot roll back a known committed prefix.
 Elections discard known-invalid suffixes before filling gaps in the new view.
 This is a deterministic reconstruction for these captures, not a complete search for all possible model executions.
@@ -83,5 +84,5 @@ lake build --wfail consistency-replay
 .lake/build/bin/consistency-replay ../../build/consistency/trace.ndjson
 ```
 
-The [Lean workflow](../../.github/workflows/lean.yml) captures and replays this trace in separate jobs, following the KV and CCF consensus setup, and also reuses the [TLA+ election/rollback fixtures](../../tla/consistency/traces).
-Synthetic [replay fixtures](replayer/fixtures/README.md) check that the replayer accepts valid traces and rejects invalid ones.
+The [Lean workflow](../../.github/workflows/lean.yml) captures and replays this trace in separate jobs, following the KV and CCF consensus setup, and also checks the [replay fixtures](replayer/fixtures/README.md), including election and rollback traces.
+The replay fixtures check that the replayer accepts valid traces and rejects invalid ones.

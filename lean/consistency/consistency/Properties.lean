@@ -3,10 +3,8 @@ module
 public import consistency.Properties.History
 public import CCF.Execution
 
-import consistency.Proofs.Responses
-import consistency.Proofs.Statuses
-import consistency.Proofs.Ordered
-import consistency.Proofs.InvalidObservations
+import consistency.Proofs.Invalidation
+import consistency.Proofs.Ordering
 import consistency.Proofs.Witnesses
 
 @[expose] public section

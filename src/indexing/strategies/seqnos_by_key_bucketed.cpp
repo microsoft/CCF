@@ -17,13 +17,18 @@ namespace ccf::indexing::strategies
   {
   public:
     const size_t seqnos_per_bucket;
+    const size_t max_buckets;
+
+    // When both locks are needed, results_access must be acquired first.
+    ccf::ds::Mutex results_access CCF_ACQUIRED_BEFORE(current_txid_lock);
 
     // Inclusive begin, exclusive end
     using Range = std::pair<ccf::SeqNo, ccf::SeqNo>;
 
     // Store a single bucket of current results for each key
     using CurrentResult = std::pair<Range, SeqNoCollection>;
-    std::unordered_map<ccf::ByteVector, CurrentResult> current_results;
+    std::unordered_map<ccf::ByteVector, CurrentResult> current_results
+      CCF_GUARDED_BY(results_access);
 
     // Maintain an LRU of old, requested buckets, which are asynchronously
     // fetched from disk
@@ -31,18 +36,16 @@ namespace ccf::indexing::strategies
     // First element is a handle while result is being fetched. Second is parsed
     // result, after fetch completes, at which point the first is set to nullptr
     using BucketValue = std::pair<FetchResultPtr, SeqNoCollection>;
-    LRU<BucketKey, BucketValue> old_results;
+    LRU<BucketKey, BucketValue> old_results CCF_GUARDED_BY(results_access);
 
-    // When results_access and current_txid_lock need to be
-    // taken at the same time, results_access should be first
-    ccf::ds::Mutex results_access;
+    bool rebuild_requested CCF_GUARDED_BY(results_access) = false;
 
     std::string name;
 
     std::shared_ptr<AbstractLFSAccess> lfs_access;
 
     ccf::ds::Mutex& current_txid_lock;
-    ccf::TxID& current_txid;
+    ccf::TxID& current_txid CCF_GUARDED_BY(current_txid_lock);
 
     Impl(
       std::string name_,
@@ -52,6 +55,7 @@ namespace ccf::indexing::strategies
       size_t seqnos_per_bucket_,
       size_t max_buckets_) :
       seqnos_per_bucket(seqnos_per_bucket_),
+      max_buckets(max_buckets_),
       old_results(max_buckets_),
       name(std::move(name_)),
       lfs_access(lfs_access_),
@@ -136,6 +140,7 @@ namespace ccf::indexing::strategies
 
     void store_empty_buckets(
       const ccf::ByteVector& k, Range begin, const Range& end)
+      CCF_REQUIRES(results_access)
     {
       while (begin != end)
       {
@@ -151,10 +156,54 @@ namespace ccf::indexing::strategies
 
     void store_to_disk(
       const ccf::ByteVector& k, const Range& range, SeqNoCollection&& seqnos)
+      CCF_REQUIRES(results_access)
     {
       const BucketKey bucket_key{k, range};
       const auto blob_key = get_blob_name(bucket_key);
       lfs_access->store(blob_key, serialise(std::move(seqnos)));
+    }
+
+    bool resolve_fetch_result(BucketValue& bucket_value, bool& complete)
+      CCF_REQUIRES(results_access)
+    {
+      const auto fetch_result = bucket_value.first->fetch_result.load();
+      switch (fetch_result)
+      {
+        case (ccf::indexing::FetchResult::FetchResultType::Fetching):
+        {
+          complete = false;
+          break;
+        }
+        case (ccf::indexing::FetchResult::FetchResultType::Loaded):
+        {
+          bool corrupt = false;
+          bucket_value.second =
+            deserialise(bucket_value.first->contents, corrupt);
+          if (!corrupt)
+          {
+            bucket_value.first = nullptr;
+            break;
+          }
+          LOG_FAIL_FMT("Deserialisation failed");
+          [[fallthrough]];
+        }
+        case (ccf::indexing::FetchResult::FetchResultType::NotFound):
+        case (ccf::indexing::FetchResult::FetchResultType::Corrupt):
+        {
+          const auto* problem = fetch_result ==
+              ccf::indexing::FetchResult::FetchResultType::NotFound ?
+            "missing" :
+            "corrupt";
+          LOG_FAIL_FMT(
+            "A file that {} requires is {}. Re-indexing.", name, problem);
+          LOG_DEBUG_FMT("The {} file is {}", problem, bucket_value.first->key);
+
+          rebuild_requested = true;
+          return false;
+        }
+      }
+
+      return true;
     }
 
     Range get_range_for(ccf::SeqNo seqno) const
@@ -173,11 +222,23 @@ namespace ccf::indexing::strategies
           fmt::format("Range goes backwards: {} -> {}", from, to));
       }
 
-      if (std::lock_guard<ccf::ds::Mutex> guard(current_txid_lock);
-          to > current_txid.seqno)
       {
-        // If the requested range hasn't been populated yet, indicate
-        // that with nullopt
+        ccf::ds::MutexGuard guard(current_txid_lock);
+        if (to > current_txid.seqno)
+        {
+          return std::nullopt;
+        }
+      }
+
+      ccf::ds::MutexGuard results_guard(results_access);
+      if (rebuild_requested)
+      {
+        return std::nullopt;
+      }
+
+      if (ccf::ds::MutexGuard guard(current_txid_lock); to > current_txid.seqno)
+      {
+        // A tick may have reset the index since the initial watermark check.
         return std::nullopt;
       }
 
@@ -217,8 +278,6 @@ namespace ccf::indexing::strategies
 
       while (true)
       {
-        std::lock_guard<ccf::ds::Mutex> guard(results_access);
-
         const auto bucket_key = std::make_pair(serialised_key, from_range);
         const auto old_it = old_results.find(bucket_key);
         if (old_it != old_results.end())
@@ -229,59 +288,9 @@ namespace ccf::indexing::strategies
           // parse and store the result
           if (bucket_value.first != nullptr)
           {
-            const auto fetch_result = bucket_value.first->fetch_result.load();
-            switch (fetch_result)
+            if (!resolve_fetch_result(bucket_value, complete))
             {
-              case (ccf::indexing::FetchResult::FetchResultType::Fetching):
-              {
-                complete = false;
-                break;
-              }
-              case (ccf::indexing::FetchResult::FetchResultType::Loaded):
-              {
-                bool corrupt = false;
-                bucket_value.second =
-                  deserialise(bucket_value.first->contents, corrupt);
-                if (!corrupt)
-                {
-                  bucket_value.first = nullptr;
-                  break;
-                }
-                // Deliberately fall through to the case below. If this can't
-                // deserialise the value, consider the file corrupted
-                LOG_FAIL_FMT("Deserialisation failed");
-              }
-              case (ccf::indexing::FetchResult::FetchResultType::NotFound):
-              case (ccf::indexing::FetchResult::FetchResultType::Corrupt):
-              {
-                // This class previously wrote a bucket to disk which is no
-                // longer available or corrupted. Reset the watermark of what
-                // has been indexed, to re-index and rewrite those files.
-                const auto* problem = fetch_result ==
-                    ccf::indexing::FetchResult::FetchResultType::NotFound ?
-                  "missing" :
-                  "corrupt";
-                LOG_FAIL_FMT(
-                  "A file that {} requires is {}. Re-indexing.", name, problem);
-                LOG_DEBUG_FMT(
-                  "The {} file is {}", problem, bucket_value.first->key);
-
-                // NB: This could probably be more precise about what is
-                // re-indexed. Technically only need to build an index to build
-                // the current query, and that applies to re-indexing too. But
-                // for safety, and consistency with the simple indexing
-                // strategies currently used, this re-indexes everything from
-                // the start of time.
-                {
-                  std::lock_guard<ccf::ds::Mutex> current_txid_guard(
-                    current_txid_lock);
-                  current_txid = {};
-                }
-                old_results.clear();
-                current_results.clear();
-
-                return std::nullopt;
-              }
+              return std::nullopt;
             }
           }
 
@@ -352,9 +361,24 @@ namespace ccf::indexing::strategies
     // at the beginning and end, essentially wasting some space.
     size_t max_requestable_range() const
     {
-      return ((old_results.get_max_size() - 1) * seqnos_per_bucket);
+      return ((max_buckets - 1) * seqnos_per_bucket);
     }
   };
+
+  void SeqnosByKey_Bucketed_Untyped::tick()
+  {
+    ccf::ds::MutexGuard guard(impl->results_access);
+    if (impl->rebuild_requested)
+    {
+      // The indexer serializes ticks with transaction delivery and watermark
+      // publication, so no in-flight transaction can undo this reset.
+      ccf::ds::MutexGuard current_txid_guard(current_txid_lock);
+      current_txid = {};
+      impl->old_results.clear();
+      impl->current_results.clear();
+      impl->rebuild_requested = false;
+    }
+  }
 
   void SeqnosByKey_Bucketed_Untyped::visit_entry(
     const ccf::TxID& tx_id, const ccf::ByteVector& k, const ccf::ByteVector& v)
@@ -362,7 +386,7 @@ namespace ccf::indexing::strategies
     (void)v;
     const auto range = impl->get_range_for(tx_id.seqno);
 
-    std::lock_guard<ccf::ds::Mutex> guard(impl->results_access);
+    ccf::ds::MutexGuard guard(impl->results_access);
 
     auto it = impl->current_results.find(k);
     if (it != impl->current_results.end())
@@ -409,7 +433,7 @@ namespace ccf::indexing::strategies
   {
     auto j = VisitEachEntryInMap::describe();
     {
-      std::lock_guard<ccf::ds::Mutex> guard(impl->results_access);
+      ccf::ds::MutexGuard guard(impl->results_access);
       j["seqnos_per_bucket"] = impl->seqnos_per_bucket;
       j["old_results_max_size"] = impl->old_results.get_max_size();
       j["old_results_current_size"] = impl->old_results.size();

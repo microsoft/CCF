@@ -848,7 +848,13 @@ if(BUILD_TESTS)
     target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
     target_link_options(
       openssl_server_test
-      PRIVATE "LINKER:--wrap=uv_async_send"
+      PRIVATE
+        "LINKER:--wrap=uv_async_send"
+        "LINKER:--wrap=uv_poll_start"
+        "LINKER:--wrap=uv_getaddrinfo"
+        "LINKER:--wrap=uv_freeaddrinfo"
+        "LINKER:--wrap=socket"
+        "LINKER:--wrap=SSL_do_handshake"
     )
     add_unit_test(
       node_connections_test
@@ -1510,8 +1516,8 @@ if(BUILD_TESTS)
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
       COMMAND
         rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
-        --branch v3.2rc4 --single-branch -c advice.detachedHead=false
-        https://github.com/drwetter/testssl.sh
+        --branch v3.2.5 --single-branch -c advice.detachedHead=false
+        https://github.com/testssl/testssl.sh
         ${CMAKE_CURRENT_BINARY_DIR}/testssl
     )
     add_custom_target(

@@ -685,10 +685,10 @@ namespace ccf
     try
     {
       validate_ledger_transaction_size(config);
-      if (config.observability.fluentd)
+      for (const auto& endpoint : config.observability.fluentd)
       {
         ccf::tracing::FluentdSink::validate(
-          *config.observability.fluentd, config.worker_threads + 3);
+          endpoint, config.worker_threads + 3);
       }
       const auto pending_node_timeout =
         std::chrono::microseconds(config.pending_node_timeout);

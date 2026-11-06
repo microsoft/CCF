@@ -42,6 +42,7 @@ namespace ccf::gov::endpoints
         std::nullopt;
       nlohmann::json service_data = nullptr;
       std::optional<ServiceConfiguration> configuration = std::nullopt;
+      std::optional<std::string> pq_certificate = std::nullopt;
     };
 
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceInfo);
@@ -62,7 +63,9 @@ namespace ccf::gov::endpoints
       previous_service_creation_transaction_id,
       "previousServiceCreationTransactionId",
       configuration,
-      "configuration");
+      "configuration",
+      pq_certificate,
+      "pqCertificate");
 
     struct JavascriptApp
     {
@@ -508,6 +511,11 @@ namespace ccf::gov::endpoints
             std::nullopt,
             service_info->service_data,
             std::nullopt};
+
+          if (service_info->pq_cert.has_value())
+          {
+            response_body.pq_certificate = service_info->pq_cert->str();
+          }
 
           if (!service_info->current_service_create_txid.has_value())
           {
