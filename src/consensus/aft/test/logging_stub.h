@@ -6,7 +6,6 @@
 #include "ccf/entity_id.h"
 #include "consensus/aft/cft.h"
 #include "consensus/aft/cft_types.h"
-#include "consensus/reconfiguration_trace.h"
 
 #include <map>
 #include <optional>
@@ -519,7 +518,7 @@ namespace aft
         retired_committed_entries.emplace_back(version, configuration);
         for (const auto& [node_id, _] : configuration)
         {
-          ccf::reconfiguration::trace::retired_committed_tx(
+          aft::trace::retired_committed_tx(
             _id.value(), version, node_id.value());
         }
       }

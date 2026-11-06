@@ -174,7 +174,7 @@ private:
         idx, retired_committed.value());
       for (const auto& [retired_node_id, _] : retired_committed.value())
       {
-        ccf::reconfiguration::trace::retired_committed_tx(
+        aft::trace::retired_committed_tx(
           node_id.value(), idx, retired_node_id.value());
       }
 

@@ -25,7 +25,6 @@
 #include "ccf/tx.h"
 #include "consensus/aft/cft.h"
 #include "consensus/ledger_enclave.h"
-#include "consensus/reconfiguration_trace.h"
 #include "crypto/certs.h"
 #include "ds/ccf_assert.h"
 #include "ds/files.h"
@@ -3886,7 +3885,7 @@ namespace ccf
             {
               if (ni.has_value() && ni->retired_committed)
               {
-                reconfiguration::trace::retired_committed_tx(
+                aft::trace::retired_committed_tx(
                   source.value(), version, node_id.value());
               }
             }
