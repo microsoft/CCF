@@ -35,6 +35,8 @@ namespace ccf::indexing::strategies
       size_t seqnos_per_bucket_ = 1000,
       size_t max_buckets_ = 10);
 
+    void tick() override;
+
     // Inclusive queries with to - from above this limit are rejected.
     // Directory lookup progresses across asynchronous retries independently
     // of file-cache eviction.

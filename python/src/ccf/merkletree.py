@@ -4,6 +4,8 @@
 import struct
 from hashlib import sha256
 
+_HASH_SIZE = 32  # SHA-256 digest size
+
 
 class MerkleTree:
     """
@@ -20,23 +22,80 @@ class MerkleTree:
         self._num_flushed = 0
 
     def add_leaf(self, values: bytes, do_hash: bool = True) -> None:
-        """Append a leaf, hashing its value unless it is already a digest."""
+        """Append a leaf, hashing its value unless it is already a digest.
+
+        Raises:
+            ValueError: If do_hash is False and values is not a SHA-256 digest.
+        """
         digest = values
         if do_hash:
             digest = sha256(values).digest()
+        elif len(digest) != _HASH_SIZE:
+            raise ValueError(
+                f"Leaf digest must be {_HASH_SIZE} bytes, got {len(digest)}"
+            )
         self._levels[0].append(digest)
         self._root = None  # Need to recalculate
 
     @property
+    def _first_unflushed_offset(self) -> int:
+        """Position of the first unflushed leaf in _levels[0].
+
+        When _num_flushed is odd, _levels[0][0] is the flushed left sibling
+        of the first unflushed leaf, retained to recompute the root.
+        """
+        return self._num_flushed & 1
+
+    @property
     def leaves(self) -> list[bytes]:
-        """Return the retained leaf hashes."""
-        return self._levels[0]
+        """Return the retained leaves, excluding flushed subtree roots.
+
+        leaves[0] is the first unflushed leaf, so once the tree has been
+        flushed, leaves[i] is not get_leaf(i), which takes an absolute index.
+        """
+        return self._levels[0][self._first_unflushed_offset :]
 
     def get_leaf(self, index: int) -> bytes:
-        return self.leaves[index]
+        """Return a leaf by absolute index, raising IndexError if unavailable."""
+        if index < self._num_flushed or index >= self.get_leaf_count():
+            raise IndexError("Leaf index out of bounds")
+        return self._levels[0][index - self._num_flushed + self._first_unflushed_offset]
 
     def get_leaf_count(self) -> int:
-        return len(self.leaves)
+        """Return the total number of leaves, including flushed leaves."""
+        return self._num_flushed + len(self._levels[0]) - self._first_unflushed_offset
+
+    def flush(self, index: int) -> None:
+        """Discard leaves before an absolute index without changing the root.
+
+        The leaf at index is retained and new leaves can still be appended.
+        Flushing to an already flushed index is a no-op.
+
+        Raises:
+            IndexError: If index is negative or beyond the last leaf.
+        """
+        if index < 0:
+            raise IndexError("Leaf index out of bounds")
+        if index <= self._num_flushed:
+            return
+        if index >= self.get_leaf_count():
+            raise IndexError("Leaf index out of bounds")
+
+        self.get_merkle_root()
+        for level_idx, level in enumerate(self._levels):
+            old_start = self._level_start(self._num_flushed, level_idx)
+            new_start = self._level_start(index, level_idx)
+            del level[: new_start - old_start]
+        self._num_flushed = index
+
+    @staticmethod
+    def _level_start(num_flushed: int, level: int) -> int:
+        """Absolute index of the first node retained at level.
+
+        Rounded down to even, so that when the path to the first unflushed
+        leaf goes right, its left sibling is kept to recompute the root.
+        """
+        return (num_flushed >> level) & ~1
 
     def get_merkle_root(self) -> bytes:
         if self._root is None:
@@ -93,7 +152,8 @@ class MerkleTree:
         if self.get_leaf_count() == 0:
             return
 
-        # Build tree from leaves. After deserialize, _levels[i] contains:
+        # Build tree from leaves. After deserialise or flush, _levels[i]
+        # contains:
         # - Flushed hash at [0] if bit i of num_flushed is set
         # - Followed by any previously computed hashes
         # We read from _levels[level_idx] and update _levels[level_idx+1] in
@@ -131,7 +191,6 @@ class MerkleTree:
         Returns:
             The new position in the buffer after deserialisation
         """
-        HASH_SIZE = 32  # SHA-256 hash size
 
         # Helper function to read bytes and advance position
         def read_bytes(pos: int, size: int) -> tuple[bytes, int]:
@@ -160,7 +219,7 @@ class MerkleTree:
 
         # Read leaf hashes into _levels[0]
         for _ in range(num_leaf_nodes):
-            leaf_hash, position = read_bytes(position, HASH_SIZE)
+            leaf_hash, position = read_bytes(position, _HASH_SIZE)
             self._levels[0].append(leaf_hash)
 
         # Read flushed subtree hashes into their conceptual levels.
@@ -171,7 +230,7 @@ class MerkleTree:
 
         while it != 0:
             if it & 0x01:
-                flushed_hash, position = read_bytes(position, HASH_SIZE)
+                flushed_hash, position = read_bytes(position, _HASH_SIZE)
                 if level == 0:
                     # Flushed leaf - insert at beginning of level 0
                     self._levels[0].insert(0, flushed_hash)

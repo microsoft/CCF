@@ -3,7 +3,7 @@ module
 public import DisasterRecovery.Properties.Utils
 
 import DisasterRecovery.Proofs.Local
-import DisasterRecovery.Proofs.Model
+import DisasterRecovery.Proofs.Safety
 import DisasterRecovery.Proofs.Witnesses
 
 @[expose] public section

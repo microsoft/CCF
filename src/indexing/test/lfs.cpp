@@ -357,12 +357,13 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
       while (!results.has_value())
       {
         REQUIRE(++retries <= current_seqno + 1);
-        if (should_fail && strat->get_indexed_watermark() == ccf::TxID())
+        const auto flushed = flush_lfs(board);
+        if (should_fail && flushed == 0)
         {
           return;
         }
         // This required an async load from disk
-        REQUIRE(flush_lfs(board) > 0);
+        REQUIRE(flushed > 0);
 
         results = strat->get_write_txs_in_range(key, range_start, range_end);
       }
@@ -400,12 +401,13 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
       while (!results.has_value())
       {
         REQUIRE(++retries <= current_seqno + 1);
-        if (should_fail && strat->get_indexed_watermark() == ccf::TxID())
+        const auto flushed = flush_lfs(board);
+        if (should_fail && flushed == 0)
         {
           return;
         }
         // This required an async load from disk
-        REQUIRE(flush_lfs(board) > 0);
+        REQUIRE(flushed > 0);
 
         results = strat->get_write_txs_in_range(range_start, range_end);
       }
@@ -481,16 +483,21 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     auto identify_error_and_reindex = [&]() {
       fetch_all(index_a, "hello", seqnos_hello, true);
 
-      // index_a has seen a missing file and reset, but index_b hasn't (yet)
-      REQUIRE(index_a->get_indexed_watermark() != current);
+      // Queries request a rebuild without resetting the watermark themselves.
+      REQUIRE(index_a->get_indexed_watermark() == current);
       REQUIRE(index_b->get_indexed_watermark() == current);
+      REQUIRE_FALSE(
+        index_a->get_write_txs_in_range("hello", current_seqno, current_seqno)
+          .has_value());
 
       fetch_all(index_b, 1, seqnos_1, true);
       fetch_all(index_set, "set key", seqnos_set, true);
       fetch_all_value(index_value, seqnos_value, true);
 
-      // Now index_b has also seen a missing file
-      REQUIRE(index_b->get_indexed_watermark() != current);
+      REQUIRE(index_b->get_indexed_watermark() == current);
+      REQUIRE_FALSE(
+        index_b->get_write_txs_in_range(1, current_seqno, current_seqno)
+          .has_value());
 
       // This call does the actual re-indexing
       tick_until_caught_up();
@@ -931,6 +938,7 @@ TEST_CASE("Sparse bucket required files" * doctest::test_suite("lfs"))
         const ccf::SeqNo from =
           target * 1000 + (gap ? 5 : (target == 0 ? 1 : 0));
         auto result = index.get_write_txs_in_range("chain", from, from);
+        index.tick();
         for (size_t retry = 0;
              index.get_indexed_watermark().seqno != 0 && retry < 4;
              ++retry)
@@ -938,6 +946,7 @@ TEST_CASE("Sparse bucket required files" * doctest::test_suite("lfs"))
           REQUIRE_FALSE(result.has_value());
           REQUIRE(flush_lfs(board) > 0);
           result = index.get_write_txs_in_range("chain", from, from);
+          index.tick();
         }
         CHECK_FALSE(result.has_value());
         REQUIRE(index.get_indexed_watermark() == ccf::TxID());
@@ -1069,6 +1078,7 @@ TEST_CASE(
     CHECK(lfs->fetches[1] == lfs->stores[1]);
     flush_lfs(board);
     CHECK_FALSE(index.get_write_txs_in_range("chain", 0, 19).has_value());
+    index.tick();
     CHECK(index.get_indexed_watermark() == ccf::TxID());
   }
 }
@@ -1300,6 +1310,7 @@ TEST_CASE("Sparse bucket required directory pages" * doctest::test_suite("lfs"))
           std::filesystem::copy_options::overwrite_existing));
       }
       auto result = index.get_write_txs_in_range("key", 10, 10);
+      index.tick();
       for (size_t retry = 0;
            index.get_indexed_watermark().seqno != 0 && retry < 5;
            ++retry)
@@ -1307,6 +1318,7 @@ TEST_CASE("Sparse bucket required directory pages" * doctest::test_suite("lfs"))
         REQUIRE_FALSE(result.has_value());
         REQUIRE(flush_lfs(board) > 0);
         result = index.get_write_txs_in_range("key", 10, 10);
+        index.tick();
       }
       REQUIRE_FALSE(result.has_value());
       REQUIRE(index.get_indexed_watermark() == ccf::TxID());
@@ -1356,6 +1368,7 @@ TEST_CASE(
       REQUIRE(std::filesystem::remove(path));
     }
     auto result = index.get_write_txs_in_range("key", 0, 21);
+    index.tick();
     REQUIRE(lfs->data_fetches.size() == 3);
     for (size_t retry = 0;
          index.get_indexed_watermark().seqno != 0 && retry < 3;
@@ -1364,6 +1377,7 @@ TEST_CASE(
       REQUIRE_FALSE(result.has_value());
       REQUIRE(flush_lfs(board) > 0);
       result = index.get_write_txs_in_range("key", 0, 21);
+      index.tick();
     }
     REQUIRE_FALSE(result.has_value());
     CHECK(lfs->page_fetches.size() == 1);
@@ -1394,12 +1408,14 @@ TEST_CASE(
     std::filesystem::path(".index") /
     CountingLFS::obfuscate_key(lfs->data_stores[2])));
   auto result = small.get_write_txs_in_range("key", 21, 21);
+  small.tick();
   for (size_t retry = 0; small.get_indexed_watermark().seqno != 0 && retry < 3;
        ++retry)
   {
     REQUIRE_FALSE(result.has_value());
     flush_lfs(board);
     result = small.get_write_txs_in_range("key", 21, 21);
+    small.tick();
   }
   REQUIRE_FALSE(result.has_value());
   CHECK(small.get_indexed_watermark() == ccf::TxID());

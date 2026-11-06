@@ -18,7 +18,7 @@ CCF (Confidential Consortium Framework) is a replicated state machine for confid
 - `src/crypto/`, `src/tls/`, `src/http/`: cryptography, TLS, and HTTP transport.
 - `include/ccf/`: public C++ API; `src/ds/`: internal utilities.
 - `tests/`, `tests/infra/`: Python e2e tests and network infrastructure; C++ unit tests live alongside implementation code.
-- `python/`: Python SDK; `doc/`: Sphinx/RST documentation; `tla/`: formal specifications; `cmake/`: build helpers.
+- `python/`: Python SDK; `doc/`: Sphinx/RST documentation; `lean/`: formal models and proofs; `cmake/`: build helpers.
 
 ## Task-specific guidance
 
@@ -27,7 +27,8 @@ CCF (Confidential Consortium Framework) is a replicated state machine for confid
 - Before formatting or linting, load the [formatting-and-linting skill](/.github/skills/formatting-and-linting/SKILL.md).
 - In Markdown and reStructuredText prose, do not manually wrap prose to a fixed column width or insert line breaks within a sentence.
   When editing an existing paragraph, put each sentence in that paragraph on its own line.
-- For user-facing API or behaviour changes, update existing documentation and follow the [changelog instructions](/.github/instructions/changelog.instructions.md). Link to existing documentation rather than duplicating it.
+- For user-facing API or behaviour changes, update existing documentation and add a change description following the [change-description instructions](/.github/instructions/changelog.instructions.md).
+  Link to existing documentation rather than duplicating it.
 
 ## Validation
 

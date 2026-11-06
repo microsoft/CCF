@@ -11,14 +11,19 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Added
 
 - `ccf::crypto::MLDSAKeyPair` can now issue X.509 certificates and PKCS#10 certificate signing requests signed with pure ML-DSA (`create_csr()`, `sign_csr()`, `self_sign()`), and `ccf::crypto::make_verifier()` accepts ML-DSA certificates, verifying their signatures with `MDType::NONE`. The ML-DSA headers are now included on every build; with OpenSSL older than 3.5, `make_mldsa_key_pair()` and `make_mldsa_public_key()` throw `std::runtime_error` (#8629).
+- Nodes built with OpenSSL 3.5 or newer give the services they start or recover an ML-DSA service certificate (`pq_service_certificate` in `GET /node/network`, `pqCertificate` in `GET /gov/service/info`), selected by `service_mldsa_parameter_set` and renewed by the `set_pq_service_certificate_validity` proposal. Such services only accept nodes with ML-DSA support; see the [7.x to 8.x migration guide](doc/build_apps/migration_7_x_to_8_x.rst) (#8632).
 
 ### Changed
 
 - CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag (#8657).
+- `observability.fluentd` now accepts an array of independent sinks, and configurable delivery behaviour.
+  See [Observability Export](doc/operations/configuration.rst#observability-export) for more details (#8666).
 
 ### Fixed
 
 - `SeqnosByKey_Bucketed` no longer creates empty bucket files for late first writes or gaps between writes. See [indexing strategies](doc/build_apps/example_cpp.rst) for query costs and remaining memory limitations (#8686).
+- `ccf::indexing::strategies::SeqnosByKey_Bucketed` queries remain unavailable while a rebuild is pending after a missing or corrupt index file is detected, including when indexing advances concurrently. See [Indexing](doc/architecture/indexing.rst) for rebuild behaviour (#8684).
+- Python ledger verification now uses less memory on large ledgers; see [Python Library](doc/audit/python_library.rst) (#8665).
 - `ccf.receipt.verify_cose` now rejects receipts that do not conform to the [CCF Profile for COSE Receipts, draft -06](https://www.ietf.org/archive/id/draft-ietf-scitt-receipts-ccf-profile-06.html), including malformed CBOR or proofs and proofs that do not all recompute the signed root, and `ccf::cose::edit::set_unprotected_header` now preserves all bytes outside the unprotected header. See [COSE Receipt Verification](doc/use_apps/verify_tx.rst#cose-receipt-verification) for details, including migration from the deprecated `ccf.cose.verify_receipt` (#8646).
 - Nodes no longer abort when a compaction races a transaction run outside of an endpoint, such as the primary's snapshot evidence transaction, a backup's lookup of the primary before fetching a snapshot, JWT key auto-refresh, or the network identity fetch; the operation is retried and otherwise skipped until its next scheduled run. A backup also no longer aborts if a fetched snapshot cannot be written to disk (#8652).
 - The `ccf.merkletree.MerkleTree` Python class now computes each root in time proportional to the leaves added since the previous root, so `ccf.ledger.LedgerValidator` no longer slows down as ledgers grow (#8660).

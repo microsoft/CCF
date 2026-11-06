@@ -1,80 +1,46 @@
 CCF Documentation
 =================
 
-.. panels::
+.. grid:: 1 2 2 2
+    :gutter: 3
 
-    :fa:`info-circle` :doc:`overview/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`info-circle` :doc:`overview/index`
 
-    Get started with the Confidential Consortium Framework and its core concepts.
+        Get started with the Confidential Consortium Framework and its core concepts.
 
-    ---
+    .. grid-item-card:: :fas:`tools` :doc:`build_apps/index`
 
-    :fa:`tools` :doc:`build_apps/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Write application logic against the CCF key-value store in C++, JavaScript/TypeScript or Rust (experimental).
 
-    .. image:: img/ts.svg
-      :width: 32
-      :target: ./build_apps/js_app_ts.html
-      :alt: TypeScript
-      :align: left
+        |cpp| :doc:`C++ <build_apps/example>` \| |ts| :doc:`TypeScript <build_apps/js_app_ts>` \| |rust| :doc:`Rust <build_apps/example_rust>`
 
-    .. image:: img/cpp.svg
-      :width: 32
-      :target: ./build_apps/example.html
-      :alt: C++
-      :align: left
+    .. grid-item-card:: :fas:`user` :doc:`use_apps/index`
 
-    Write application logic against the CCF Key-Value store in C++, JavaScript or TypeScript.
+        Interact with a CCF application, using HTTP over TLS.
 
-    ---
+    .. grid-item-card:: :fas:`tachometer-alt` :doc:`operations/index`
 
-    :fa:`user` :doc:`use_apps/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Provision and operate a network of CCF nodes hosting an application.
 
-    Interact with a CCF application, using HTTP over TLS.
+    .. grid-item-card:: :fas:`users` :doc:`governance/index`
 
-    ---
+        Propose and vote changes to a CCF network, the rules that define it and the application it runs.
 
-    :fa:`tachometer-alt` :doc:`operations/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`eye` :doc:`audit/index`
 
-    Provision and operate a network of CCF nodes hosting an application.
+        Audit a running CCF network and its complete history.
 
-    ---
+    .. grid-item-card:: :fas:`code-branch` :doc:`contribute/index`
 
-    :fa:`users` :doc:`governance/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Contribute to the CCF GitHub repository.
 
-    Propose and vote changes to a CCF network, the rules that define it and the application it runs.
+    .. grid-item-card:: :fas:`shapes` :doc:`architecture/index`
 
-    ---
+        Explore CCF design and architecture.
 
-    :fa:`eye` :doc:`audit/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`flask` :doc:`research/index`
 
-    Audit a running CCF network and its complete history.
-
-    ---
-
-    :fa:`code-branch` :doc:`contribute/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Contribute to the CCF GitHub repository.
-
-    ---
-
-    :fa:`shapes` :doc:`architecture/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    CCF design and architecture elements.
-
-    ---
-
-    :fa:`flask` :doc:`research/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    CCF-related research papers and technical reports.
+        Read CCF-related research papers and technical reports.
 
 .. toctree::
     :maxdepth: 1
@@ -89,3 +55,15 @@ CCF Documentation
     contribute/index.rst
     architecture/index.rst
     research/index.rst
+
+.. |cpp| image:: img/cpp.svg
+    :alt: C++
+    :class: ccf-inline-icon
+
+.. |ts| image:: img/ts.svg
+    :alt: TypeScript
+    :class: ccf-inline-icon
+
+.. |rust| image:: img/rust.svg
+    :alt: Rust
+    :class: ccf-inline-icon

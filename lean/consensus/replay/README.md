@@ -28,7 +28,7 @@ for trace in /tmp/cft-build/consensus/raw/*.ndjson; do
 done
 ```
 
-The scenario runner preserves the raw records in `consensus/raw/` alongside the existing TLA-preprocessed captures.
+The scenario runner writes the raw records to `consensus/raw/`.
 The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `append_entries` and `request_vote`.
 
 ## CI captures and replay

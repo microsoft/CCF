@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import ccf.ledger
 import ccf.ledger_viz
+import ccf.merkletree
 import ccf.read_ledger
 import ccf.signatures
 import ccf.split_ledger
@@ -425,6 +426,25 @@ class TestNodeRemoval:
         assert "n1" not in validator.node_activity_status
 
 
+def test_merkle_level_accepts_empty_first_embedded_tree():
+    # MERKLE trusts the first signature's embedded tree, even an empty one
+    key = ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+    validator = ccf.ledger.LedgerValidator(
+        verification_level=ccf.ledger.VerificationLevel.MERKLE
+    )
+    validator.add_transaction(
+        governance_transaction(
+            1,
+            table_write_set(ccf.signatures.SIGNATURE_TX_TABLE_NAME, {key: b"{}"}, []),
+            table_write_set(
+                ccf.ledger.TREE_TABLE_NAME, {key: struct.pack(">QQ", 0, 0)}, []
+            ),
+        )
+    )
+    assert validator.first_signature_seen
+    assert validator.merkle.get_leaf_count() == 1
+
+
 @pytest.mark.parametrize("removed", [False, True])
 def test_service_info_requires_a_non_null_value(removed: bool):
     key = ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
@@ -627,19 +647,60 @@ def fixture_services() -> list[str]:
     )
 
 
+@pytest.mark.parametrize(
+    "level", [ccf.ledger.VerificationLevel.FULL, ccf.ledger.VerificationLevel.MERKLE]
+)
+def test_failed_signature_does_not_flush_tree(level: ccf.ledger.VerificationLevel):
+    validator = ccf.ledger.LedgerValidator(verification_level=level)
+    ledger_dir = os.path.join(TESTDATA_DIR, "cose_upgraded_service", "ledger")
+    ledger = ccf.ledger.Ledger([ledger_dir], committed_only=False)
+    corrupted = False
+    for chunk in ledger:
+        for tx in chunk:
+            if corrupted and ccf.signatures.is_signature_transaction(
+                tx.get_public_domain().get_tables()
+            ):
+                leaves = validator.merkle.leaves
+                count = validator.merkle.get_leaf_count()
+                with pytest.raises(ccf.signatures.InvalidRootException):
+                    validator.add_transaction(tx)
+                assert validator.merkle.leaves == leaves
+                assert validator.merkle.get_leaf_count() == count
+                return
+            validator.add_transaction(tx)
+            if validator.last_verified_seqno == tx.get_txid().seqno:
+                # Insert an extra leaf so the next signature cannot match.
+                validator.merkle.add_leaf(bytes(32), do_hash=False)
+                corrupted = True
+    pytest.fail("Fixture must contain at least two signature transactions")
+
+
 @pytest.mark.parametrize("service", fixture_services())
-def test_fixture_service_parses(service: str):
+@pytest.mark.parametrize(
+    "level", [ccf.ledger.VerificationLevel.FULL, ccf.ledger.VerificationLevel.MERKLE]
+)
+def test_fixture_service_parses(service: str, level: ccf.ledger.VerificationLevel):
     ledger_dir = os.path.join(TESTDATA_DIR, service, "ledger")
+    validator = ccf.ledger.LedgerValidator(verification_level=level)
+    reference = ccf.merkletree.MerkleTree()
+    reference.add_leaf(bytes(ccf.ledger.SHA256_DIGEST_SIZE), do_hash=False)
     transactions = 0
     for chunk in ccf.ledger.Ledger(
         [ledger_dir],
         committed_only=False,
-        verification_level=ccf.ledger.VerificationLevel.FULL,
+        verification_level=level,
     ):
         for transaction in chunk:
+            validator.add_transaction(transaction)
+            reference.add_leaf(transaction.get_tx_digest(), do_hash=False)
             transaction.get_public_domain().get_tables()
             transactions += 1
     assert transactions > 0
+    assert validator.signature_count > 0
+    assert validator.last_verified_seqno > 0
+    assert validator.merkle.get_merkle_root() == reference.get_merkle_root()
+    assert validator.merkle.get_leaf_count() == reference.get_leaf_count()
+    assert len(validator.merkle.leaves) < validator.merkle.get_leaf_count()
 
     state, seqno = ccf.ledger.Ledger(
         [ledger_dir], committed_only=False

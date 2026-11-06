@@ -36,6 +36,10 @@ In the current design these indexes are entirely node-local and never shared, so
 For simplicity, we aim to provide the same protections on all data rather than distinguishing public and private data at this stage.
 While we consider this scheme further, only data from public tables will be indexed in this way, to avoid leakage of confidential data.
 
+If a ``SeqnosByKey_Bucketed`` query encounters a missing or corrupt required index file, it requests a rebuild and returns ``std::nullopt``.
+All subsequent queries remain unavailable until the indexing thread resets the index on its next strategy tick.
+Indexing then restarts from transaction 1, and queries remain unavailable until their requested range has been indexed and any required files have been fetched again.
+
 The intended high-level flow is as follows:
 
 * A strategy produces a blob of data for the LFS system inside the enclave to store: ``store(name, data)``

@@ -23,6 +23,40 @@ The configuration for each CCF node must be contained in a single JSON configura
 
 For migration from deprecated ringbuffer-era configuration, see :doc:`/build_apps/migration_7_x_to_8_x`.
 
+.. _observability_export:
+
+Observability Export
+--------------------
+
+To export consensus protocol traces (not ordinary console logs), add the experimental ``observability.fluentd`` array to your node configuration and restart the node.
+Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticated and unencrypted.
+
+.. code-block:: json
+
+    {
+      "observability": {
+        "fluentd": [
+          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort" },
+          { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking" }
+        ]
+      }
+    }
+
+Each collector receives the same traces.
+For a single collector, use one array entry; to migrate an existing single-object configuration, wrap it in an array.
+Omit the array or leave it empty to disable export.
+
+Choose a ``delivery`` policy per collector:
+
+- ``buffered-best-effort`` (default): retain queued records while the collector is unavailable or cannot accept data.
+- ``unbuffered-non-blocking``: drop queued records when the collector is unavailable or cannot accept data.
+
+Optional ``queue_capacity`` on each array entry defaults to 4096 records per node thread.
+Full queues drop new records under either policy; larger queues use more memory.
+
+Both policies retain one in-flight record for retry, but delivery is not guaranteed and retries can produce duplicates.
+Shutdown attempts to drain all collectors for up to two seconds, then drops remaining records; blocked console output can delay shutdown.
+
 
 IPv6 Addresses
 --------------

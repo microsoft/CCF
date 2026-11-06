@@ -20,6 +20,10 @@ namespace ccf::indexing::strategies
   public:
     static constexpr size_t DIRECTORY_PAGE_SIZE = 256;
     const size_t seqnos_per_bucket;
+    const size_t max_buckets;
+
+    // When both locks are needed, results_access must be acquired first.
+    ccf::ds::Mutex results_access CCF_ACQUIRED_BEFORE(current_txid_lock);
 
     // Inclusive begin, exclusive end
     using Range = std::pair<ccf::SeqNo, ccf::SeqNo>;
@@ -35,13 +39,14 @@ namespace ccf::indexing::strategies
     };
 
     // These trusted heads must not be evicted: absence means never written.
-    std::unordered_map<ccf::ByteVector, CurrentResult> current_results;
+    std::unordered_map<ccf::ByteVector, CurrentResult> current_results
+      CCF_GUARDED_BY(results_access);
 
     using BucketKey = std::pair<ccf::ByteVector, Range>;
     using PageKey = std::pair<ccf::ByteVector, size_t>;
     using CachedBucket = std::shared_ptr<const SeqNoCollection>;
-    LRU<BucketKey, CachedBucket> old_results;
-    LRU<PageKey, DirectoryPage> directory_pages;
+    LRU<BucketKey, CachedBucket> old_results CCF_GUARDED_BY(results_access);
+    LRU<PageKey, DirectoryPage> directory_pages CCF_GUARDED_BY(results_access);
 
     struct BucketRequest
     {
@@ -72,14 +77,14 @@ namespace ccf::indexing::strategies
 
     using QueryKey = std::pair<ccf::ByteVector, Range>;
     // Pending reads and search bounds survive eviction from either file cache.
-    LRU<QueryKey, Query> queries;
+    LRU<QueryKey, Query> queries CCF_GUARDED_BY(results_access);
 
-    // When both locks are needed, results_access must be taken first.
-    ccf::ds::Mutex results_access;
+    bool rebuild_requested CCF_GUARDED_BY(results_access) = false;
+
     std::string name;
     std::shared_ptr<AbstractLFSAccess> lfs_access;
     ccf::ds::Mutex& current_txid_lock;
-    ccf::TxID& current_txid;
+    ccf::TxID& current_txid CCF_GUARDED_BY(current_txid_lock);
 
     Impl(
       std::string name_,
@@ -89,6 +94,7 @@ namespace ccf::indexing::strategies
       size_t seqnos_per_bucket_,
       size_t max_buckets_) :
       seqnos_per_bucket(seqnos_per_bucket_),
+      max_buckets(max_buckets_),
       old_results(max_buckets_),
       directory_pages(max_buckets_),
       queries(max_buckets_),
@@ -192,19 +198,15 @@ namespace ccf::indexing::strategies
       return {begin, begin + seqnos_per_bucket};
     }
 
-    void rebuild()
+    void rebuild() CCF_REQUIRES(results_access)
     {
       LOG_FAIL_FMT(
         "A file that {} requires is missing or corrupt. Re-indexing.", name);
-      std::lock_guard<ccf::ds::Mutex> guard(current_txid_lock);
-      current_txid = {};
-      old_results.clear();
-      directory_pages.clear();
-      queries.clear();
-      current_results.clear();
+      rebuild_requested = true;
     }
 
     const DirectoryPage* load_page(const PageKey& key, Query& query)
+      CCF_REQUIRES(results_access)
     {
       auto cached = directory_pages.find(key);
       if (cached != directory_pages.end())
@@ -248,6 +250,7 @@ namespace ccf::indexing::strategies
     }
 
     bool fetch_buckets(const ccf::ByteVector& serialised_key, Query& query)
+      CCF_REQUIRES(results_access)
     {
       bool pending = false;
       bool need_directory = false;
@@ -315,7 +318,7 @@ namespace ccf::indexing::strategies
       const ccf::ByteVector& serialised_key,
       Query& query,
       const Range& from_range,
-      const Range& to_range)
+      const Range& to_range) CCF_REQUIRES(results_access)
     {
       // Page ordinals are dense and bounded by a trusted count. Unlike data
       // bucket existence, their ordered contents support binary search. Every
@@ -402,13 +405,24 @@ namespace ccf::indexing::strategies
           fmt::format("Range goes backwards: {} -> {}", from, to));
       }
 
-      std::lock_guard<ccf::ds::Mutex> guard(results_access);
       {
-        std::lock_guard<ccf::ds::Mutex> txid_guard(current_txid_lock);
+        ccf::ds::MutexGuard guard(current_txid_lock);
         if (to > current_txid.seqno)
         {
           return std::nullopt;
         }
+      }
+
+      ccf::ds::MutexGuard results_guard(results_access);
+      if (rebuild_requested)
+      {
+        return std::nullopt;
+      }
+
+      if (ccf::ds::MutexGuard guard(current_txid_lock); to > current_txid.seqno)
+      {
+        // A tick may have reset the index since the initial watermark check.
+        return std::nullopt;
       }
 
       if (to - from > max_requestable_range())
@@ -450,7 +464,8 @@ namespace ccf::indexing::strategies
         append(query.current, head.seqnos);
         query.page_count = head.page_count;
         query.high = head.page_count;
-        auto request = [&](ccf::SeqNo start, bool required) {
+        auto request = [&](ccf::SeqNo start, bool required) CCF_REQUIRES(
+                         results_access) {
           const BucketKey key{serialised_key, get_range_for(start)};
           auto cached = old_results.find(key);
           if (cached != old_results.end())
@@ -527,16 +542,33 @@ namespace ccf::indexing::strategies
 
     size_t max_requestable_range() const
     {
-      return ((old_results.get_max_size() - 1) * seqnos_per_bucket);
+      return ((max_buckets - 1) * seqnos_per_bucket);
     }
   };
+
+  void SeqnosByKey_Bucketed_Untyped::tick()
+  {
+    ccf::ds::MutexGuard guard(impl->results_access);
+    if (impl->rebuild_requested)
+    {
+      // The indexer serializes ticks with transaction delivery and watermark
+      // publication, so no in-flight transaction can undo this reset.
+      ccf::ds::MutexGuard current_txid_guard(current_txid_lock);
+      current_txid = {};
+      impl->old_results.clear();
+      impl->directory_pages.clear();
+      impl->queries.clear();
+      impl->current_results.clear();
+      impl->rebuild_requested = false;
+    }
+  }
 
   void SeqnosByKey_Bucketed_Untyped::visit_entry(
     const ccf::TxID& tx_id, const ccf::ByteVector& k, const ccf::ByteVector& v)
   {
     (void)v;
     const auto range = impl->get_range_for(tx_id.seqno);
-    std::lock_guard<ccf::ds::Mutex> guard(impl->results_access);
+    ccf::ds::MutexGuard guard(impl->results_access);
     auto it = impl->current_results.find(k);
     if (it == impl->current_results.end())
     {
@@ -571,7 +603,7 @@ namespace ccf::indexing::strategies
   {
     auto j = VisitEachEntryInMap::describe();
     {
-      std::lock_guard<ccf::ds::Mutex> guard(impl->results_access);
+      ccf::ds::MutexGuard guard(impl->results_access);
       j["seqnos_per_bucket"] = impl->seqnos_per_bucket;
       j["old_results_max_size"] = impl->old_results.get_max_size();
       j["old_results_current_size"] = impl->old_results.size();
