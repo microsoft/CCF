@@ -33,6 +33,11 @@ The end-to-end service performance tests can also be from the CCF build director
 
 Each of these tests creates a temporary CCF service on the local machine, then sends a high volume of transactions to measure peak and average throughput. The Python test wrappers print throughput and latency summary statistics when the test completes.
 
+All Locust benchmarks enable buffered Fluentd export of ``ccf.log`` to a local Forward collector.
+The ``fluentd`` observability-overhead benchmark sets ``CCF_BENCHMARK_FLUENTD=1`` to select ``ccf`` instead, exporting all CCF tags with the same buffered delivery policy.
+Each run saves collector tags, record and byte counts, process counts and exporter drops in ``workspace/<benchmark-label>_common/<signature-interval>ms_fluentd.json`` under the build directory.
+See :ref:`observability_export` for the event format and delivery guarantees.
+
 For a finer grained view of performance the clients in these tests can also dump the precise times each transaction was sent and its response received, for later analysis. The ``samples`` folder contains a ``plot_tx_times`` Python script which produces plots from this data.
 
 Profiling

@@ -28,7 +28,7 @@ For migration from deprecated ringbuffer-era configuration, see :doc:`/build_app
 Observability Export
 --------------------
 
-To export consensus protocol traces (not ordinary console logs), add the experimental ``observability.fluentd`` array to your node configuration and restart the node.
+To export logs and consensus protocol traces, add the experimental ``observability.fluentd`` array to your node configuration and restart the node.
 Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticated and unencrypted.
 
 .. code-block:: json
@@ -36,26 +36,40 @@ Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticate
     {
       "observability": {
         "fluentd": [
-          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag-prefix-allow-list": ["ccf"] },
+          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag-prefix-allow-list": ["ccf.log"] },
           { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking", "tag-prefix-allow-list": ["ccf.cft"] }
         ]
       }
     }
 
 Set ``tag-prefix-allow-list`` per collector to a list of literal, case-sensitive prefixes; an event is selected if its tag starts with any listed prefix.
-``["ccf"]`` selects all CCF tags; ``["ccf.cft"]`` selects consensus traces.
-Omitting ``tag-prefix-allow-list`` defaults to ``[""]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
+``["ccf.log"]`` selects logs; ``["ccf.cft"]`` selects consensus traces; ``["ccf"]`` selects all CCF tags.
+Omitting ``tag-prefix-allow-list`` defaults to ``["ccf.log"]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
+Existing collectors that omit this field must set ``["ccf"]`` explicitly to keep receiving consensus traces as well as logs.
 Prefixes have no dot-boundary requirement and do not support wildcards or regular expressions.
 Matching multiple prefixes within one collector entry does not duplicate events; an event matching multiple collectors is sent to each.
 Excluded events do not count as dropped for that collector.
 Omit the array or leave it empty to disable export.
+
+All records passing the node's logger are exported under ``ccf.log``, regardless of the console format, including TRACE and DEBUG when enabled.
+Logging macros use the same producer path as traces: bound threads enqueue to their existing queue, while unbound threads use a shared queue protected by a mutex.
+Console logging and Fluentd export are initialised together and remain active through startup and final host cleanup.
+The Forward record uses the trace envelope (``process_id``, sequence number ``h_ts``, and ``msg``).
+Its ``msg`` uses the JSON console schema, with string-valued fields: ``h_ts`` (UTC timestamp), ``thread_id``, ``level``, ``tag``, ``file``, ``number`` and ``msg`` (message text).
+Console and Fluentd timestamps are sampled separately and need not match; record ordering can also differ.
+Runtime exporter drop diagnostics also follow this path.
+Messages emitted while logging or the exporter is being initialised or shut down may remain console-only, including the exporter's final shutdown summary.
+Configuration checks (``--check``) do not initialise the exporter.
+Raw stdout writes and stderr are not captured.
+Startup logs can contain configuration and environment values, so use collectors trusted to receive those values.
 
 Choose a ``delivery`` policy per collector:
 
 - ``buffered-best-effort`` (default): retain queued records while the collector is unavailable or cannot accept data.
 - ``unbuffered-non-blocking``: drop queued records when the collector is unavailable or cannot accept data.
 
-Optional ``queue_capacity`` on each array entry defaults to 4096 records per node thread.
+Optional ``queue_capacity`` on each array entry defaults to 4096 records per producer thread, shared by that thread's logs and traces.
+Unbound producers share one additional queue of the same capacity.
 Full queues drop new records under either policy; larger queues use more memory.
 
 Both policies retain one in-flight record for retry, but delivery is not guaranteed and retries can produce duplicates.
