@@ -535,6 +535,18 @@ def test_service_cert_renewal_extended(network, args):
     return network
 
 
+def check_gov_pq_service_certificate(network, args):
+    # GET /gov/service/info must report the same ML-DSA certificate as
+    # GET /node/network, and omit it when the service has none
+    pq_cert = network.get_pq_service_certificate()
+    primary, _ = network.find_primary()
+    with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/info")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json().get("pqCertificate") == pq_cert, r.body.json()
+    return pq_cert
+
+
 @reqs.description("Renew ML-DSA service certificate independently")
 def test_pq_service_cert_renewal(network, args):
     if network.get_pq_service_certificate() is None:
@@ -542,6 +554,7 @@ def test_pq_service_cert_renewal(network, args):
         return network
 
     primary, _ = network.find_primary()
+    pq_cert_before = check_gov_pq_service_certificate(network, args)
     now = datetime.now(UTC)
     service_validity_days = args.maximum_service_certificate_validity_days
     pq_validity_days = service_validity_days // 2
@@ -566,6 +579,7 @@ def test_pq_service_cert_renewal(network, args):
         primary, valid_from=str(now), validity_period_days=None
     )
     network.verify_pq_service_certificate_validity_period(service_validity_days)
+    assert check_gov_pq_service_certificate(network, args) != pq_cert_before
 
     return network
 
@@ -602,6 +616,7 @@ def test_pq_service_cert_renewal_rejected(network, args):
     # Rejected proposals leave both certificates unchanged
     assert network.get_service_identity() == service_cert_before
     assert network.get_pq_service_certificate() == pq_cert_before
+    assert check_gov_pq_service_certificate(network, args) == pq_cert_before
 
     return network
 
