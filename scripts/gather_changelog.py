@@ -50,13 +50,18 @@ def change_descriptions(
 
 
 def paginated_get(
-    client: httpx.Client, path: str, params: dict[str, str] | None = None
+    client: httpx.Client,
+    path: str,
+    params: dict[str, str] | None = None,
+    field: str | None = None,
 ) -> Iterator[dict[str, object]]:
     url = path
     while url:
         response = client.get(url, params=params)
         response.raise_for_status()
         values = response.json()
+        if field is not None:
+            values = values.get(field) if isinstance(values, dict) else None
         if not isinstance(values, list) or not all(
             isinstance(value, dict) for value in values
         ):
@@ -84,50 +89,25 @@ def resolve_pr(client: httpx.Client, path: str, base_branch: str) -> int:
             )
             if any(
                 file.get("filename") == path and file.get("status") == "added"
-                for file in get_commit_files(client, commit)
+                for file in paginated_get(
+                    client,
+                    f"/repos/{REPOSITORY}/commits/{quote(commit['sha'], safe='')}",
+                    field="files",
+                )
             )
         ),
         None,
     )
     if commit is None:
         raise ValueError(f"No GitHub addition for {path} on {base_branch}; use --pr.")
-    candidates = {
-        pr["number"]
-        for pr in paginated_get(
-            client,
-            f"/repos/{REPOSITORY}/commits/{quote(str(commit['sha']), safe='')}/pulls",
-        )
-        if isinstance(pr.get("number"), int)
-        and pr.get("merged_at") is not None
-        and isinstance(pr.get("base"), dict)
-        and pr["base"].get("ref") == base_branch
-        and isinstance(pr["base"].get("repo"), dict)
-        and isinstance(pr["base"]["repo"].get("full_name"), str)
-        and pr["base"]["repo"].get("full_name", "").lower() == REPOSITORY.lower()
-    }
-    if len(candidates) != 1:
+    subject = commit["commit"]["message"].split("\n", 1)[0]
+    reference = re.search(r"\(#([1-9][0-9]*)\)$", subject)
+    if reference is None:
         raise ValueError(
-            f"{path}: expected one merged PR targeting {base_branch}, "
-            f"found {sorted(candidates)}. Use --pr {Path(path).name}=NUMBER."
+            f"{path}: adding commit has no trailing PR reference: {subject!r}. "
+            f"Use --pr {Path(path).name}=NUMBER."
         )
-    return candidates.pop()
-
-
-def get_commit_files(
-    client: httpx.Client, commit: dict[str, object]
-) -> list[dict[str, object]]:
-    sha = commit.get("sha")
-    if not isinstance(sha, str):
-        raise ValueError("Unexpected GitHub commit response: missing SHA")
-    response = client.get(f"/repos/{REPOSITORY}/commits/{quote(sha, safe='')}")
-    response.raise_for_status()
-    commit_details = response.json()
-    if not isinstance(commit_details, dict):
-        raise ValueError(f"Unexpected GitHub commit response from {response.url}")
-    files = commit_details.get("files")
-    if not isinstance(files, list) or not all(isinstance(file, dict) for file in files):
-        raise ValueError(f"Unexpected GitHub commit response from {response.url}")
-    return files
+    return int(reference[1])
 
 
 def gather(

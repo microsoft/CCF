@@ -9,3 +9,10 @@ applyTo: ".changes/*.md,CHANGELOG.md,python/pyproject.toml"
 - Categories are `added`, `changed`, `deprecated`, `removed`, `fixed`, `security`, and `dependencies`.
 - Use one or two concise sentences of plain Markdown, naming affected APIs or dependency versions and linking to documentation relative to the repository root, without a leading bullet, heading, release version, or PR number.
 - Leave `CHANGELOG.md` and the SDK version unchanged outside release preparation; follow the [release procedure](../../doc/contribute/release_ccf.rst) for releases.
+
+For example, `.changes/receipt-validation.fixed.md` could contain:
+
+```markdown
+`ccf.receipt.verify_cose` now rejects receipts with invalid proofs.
+See [COSE receipt verification](doc/use_apps/verify_tx.rst#cose-receipt-verification) for details.
+```

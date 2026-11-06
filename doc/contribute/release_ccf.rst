@@ -15,8 +15,8 @@ In a release-preparation PR, install ``scripts/requirements.txt``, choose the ve
 The default is to collect all change descriptions; pass explicit ``.changes/*.md`` paths to select a subset.
 Preview does not change files; ``--write`` prepends the release section and deletes only the selected change descriptions.
 Other change descriptions may remain for future releases.
-The collector uses PyGithub to find each change description's introducing commit and associated merged PR on ``--base-branch``.
-Missing or ambiguous references stop collection before files are changed; use ``--pr receipt-validation.fixed.md=1234`` to override that change description's PR lookup at release time.
+The collector uses the GitHub API to find each change description's adding commit on ``--base-branch`` and reads the trailing ``(#1234)`` reference from its squash-merge subject.
+Missing references stop collection before files are changed; use ``--pr receipt-validation.fixed.md=1234`` to override that change description's PR lookup at release time.
 
 Manually update ``project.version`` in ``python/pyproject.toml`` to match the first changelog version, converting prereleases such as ``8.0.0-dev10`` to ``8.0.0.dev10``.
 Review and commit the changelog, SDK version change, and selected change-description deletions together, then validate:
