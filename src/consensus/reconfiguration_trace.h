@@ -7,5 +7,5 @@
 namespace ccf::reconfiguration::trace
 {
   DECLARE_TRACE_EVENT(
-    retired_committed_tx, "ccf.reconfig", node_id, seqno, retired_node_id);
+    retired_committed_tx, "ccf.cft", node_id, seqno, retired_node_id);
 }

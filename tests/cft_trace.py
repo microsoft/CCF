@@ -68,7 +68,7 @@ def run_driver(driver, scenario, timeout=60, *, text=True):
                                 received += len(data)
                                 unpacker.feed(data)
                                 for tag, timestamp, record in unpacker:
-                                    assert tag in {"ccf.cft", "ccf.reconfig"}
+                                    assert tag == "ccf.cft"
                                     assert isinstance(timestamp, msgpack.ExtType)
                                     assert timestamp.code == 0
                                     seconds, nanos = struct.unpack(
