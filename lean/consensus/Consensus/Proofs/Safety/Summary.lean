@@ -1181,7 +1181,7 @@ theorem aeReply (self source : NodeID) (z : NodeState)
           rfl rfl rfl (Or.inl rfl) fun c => (notCand c).elim))
     fun go => ?_
   have matches_ : appendEntryMatchesLog z r := by
-    have m : appendEntryMatchesLog w r := by tauto
+    have m : appendEntryMatchesLog w r := Classical.not_not.mp (not_or.mp accept).2
     unfold appendEntryMatchesLog at m ⊢
     rw [wLog] at m
     exact m

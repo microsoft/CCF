@@ -45,13 +45,6 @@ Architecture
 
     ---
 
-    :fa:`check-double` :doc:`raft_tla`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    TLA+ specifications of CCF.
-
-    ---
-
     :fa:`paper-plane` :doc:`node_to_node`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -95,7 +88,6 @@ Architecture
     threading
     merkle_tree
     ledger
-    raft_tla
     node_to_node
     indexing
     receipts

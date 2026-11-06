@@ -848,7 +848,13 @@ if(BUILD_TESTS)
     target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
     target_link_options(
       openssl_server_test
-      PRIVATE "LINKER:--wrap=uv_async_send"
+      PRIVATE
+        "LINKER:--wrap=uv_async_send"
+        "LINKER:--wrap=uv_poll_start"
+        "LINKER:--wrap=uv_getaddrinfo"
+        "LINKER:--wrap=uv_freeaddrinfo"
+        "LINKER:--wrap=socket"
+        "LINKER:--wrap=SSL_do_handshake"
     )
     add_unit_test(
       node_connections_test
@@ -1157,6 +1163,15 @@ if(BUILD_TESTS)
     target_link_libraries(
       jwt_key_auto_refresh_test
       PRIVATE http_parser ccf_endpoints ccf_kv ccf_tasks curl uv
+    )
+
+    add_unit_test(
+      retry_on_compacted_version_conflict_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/retry_on_compacted_version_conflict.cpp
+    )
+    target_link_libraries(
+      retry_on_compacted_version_conflict_test
+      PRIVATE ccf_kv
     )
 
     add_unit_test(

@@ -11,30 +11,14 @@ namespace DisasterRecovery.Proofs.Local
 open CCF
 open Model.Local
 
-@[simp]
-lemma effect_pure {S A : Type} (a : A) (s : S)
-    : (pure a : StateT S Option A) s = some (a, s) :=
-  rfl
-
-@[simp]
-lemma effect_bind {S A B : Type} (a : StateT S Option A)
+@[local simp]
+private lemma effect_bind {S A B : Type} (a : StateT S Option A)
     (f : A -> StateT S Option B) (s : S)
     : (a >>= f) s = (a s).bind (fun (a, s) => f a s) :=
   rfl
 
-@[simp]
-lemma effect_map {S A B : Type} (f : A -> B) (a : StateT S Option A) (s : S)
-    : (f <$> a) s = (a s).map (fun (a, s) => (f a, s)) := by
-  change (a s).bind (fun (a, s) => some (f a, s)) = _
-  cases a s <;> rfl
-
-@[simp]
-lemma effect_modify {S : Type} (f : S -> S) (s : S)
-    : (modify f : StateT S Option Unit) s = some ((), f s) :=
-  rfl
-
-@[simp]
-lemma effect_lift {S A : Type} (a : Option A) (s : S)
+@[local simp]
+private lemma effect_lift {S A : Type} (a : Option A) (s : S)
     : (liftM a : StateT S Option A) s = a.map (fun a => (a, s)) := by
   cases a <;> rfl
 
@@ -43,42 +27,13 @@ private lemma effect_orElse_internal {S A : Type} (a : StateT S Option A)
     : (StateT.orElse a b) s = (a s <|> b () s) :=
   rfl
 
-@[simp]
-lemma effect_orElse {S A : Type} (a : StateT S Option A)
+@[local simp]
+private lemma effect_orElse {S A : Type} (a : StateT S Option A)
     (b : Unit -> StateT S Option A) (s : S)
     : (StateT.orElse a b) s = (a s <|> b () s) :=
   effect_orElse_internal a b s
 
-private lemma effect_failure_internal {S A : Type} (s : S)
-    : (failure : StateT S Option A) s = none :=
-  rfl
-
-@[simp]
-lemma effect_failure {S A : Type} (s : S) : (failure : StateT S Option A) s = none :=
-  effect_failure_internal s
-
-@[simp]
-lemma effect_failure_explicit {S A : Type} (s : S)
-    : (StateT.failure : StateT S Option A) s = none :=
-  effect_failure_internal s
-
-@[simp]
-lemma effect_alternative {S A : Type} (a b : StateT S Option A) (s : S)
-    : (a <|> b) s = (a s <|> b s) :=
-  effect_orElse_internal a (fun _ => b) s
-
-@[simp]
-lemma effect_bind_explicit {S A B : Type} (a : StateT S Option A)
-    (f : A -> StateT S Option B) (s : S)
-    : StateT.bind a f s = (a s).bind (fun (a, s) => f a s) :=
-  rfl
-
-@[simp]
-lemma effect_pure_explicit {S A : Type} (a : A) (s : S)
-    : (StateT.pure a : StateT S Option A) s = some (a, s) :=
-  rfl
-
-lemma validStep_run {config : Model.Config}
+private lemma validStep_run {config : Model.Config}
     {s
       : MultiNodeTransitionSystem.LocalStep Location NodeState Event Message Notification}
     (valid : (Model.protocol config).ValidStep s)
@@ -125,8 +80,8 @@ lemma rejected_gossip_stutters
   obtain ⟨states, effects⟩ := run
   exact ⟨states.symm, by rw [← effects]; simp⟩
 
-lemma quorum_advance_opens (config : Config) (state : NodeState) (source : Location)
-    (timeout : Bool) (phase : state.phase = .voting)
+private lemma quorum_advance_opens (config : Config) (state : NodeState)
+    (source : Location) (timeout : Bool) (phase : state.phase = .voting)
     (quorum : state.votes.length >= voteQuorum config)
     : exists next effects,
         (advance (Capabilities.record source) config state timeout).run {}

@@ -10,13 +10,6 @@ import threading
 
 import msgpack
 
-REPLAY_BOUNDARY_EVENTS = {
-    "batch_flush",
-    "tick",
-    "nomination",
-    "retired_committed_tx",
-}
-
 
 class CaptureError(RuntimeError):
     """A failed collection with unchanged process bytes and received records."""
@@ -130,29 +123,3 @@ def run_driver(driver, scenario, timeout=60, *, text=True):
         )
     except Exception as error:
         raise CaptureError(error, stdout, stderr, records) from error
-
-
-def as_log_lines(records):
-    """Adapt protocol callbacks for the legacy TLA consumer, not Lean replay."""
-    lines = []
-    for record in records:
-        message = record["msg"]
-        if message.get("function") in REPLAY_BOUNDARY_EVENTS:
-            continue
-        if "cmd" in message:
-            lines.append({"tag": "raft_trace", **message})
-        else:
-            if "state" in message:
-                # TLA still expects a mode field; native pre-vote is unconditional.
-                message = {
-                    **message,
-                    "state": {**message["state"], "pre_vote_enabled": True},
-                }
-            lines.append(
-                {
-                    "tag": "raft_trace",
-                    "h_ts": str(record["h_ts"]),
-                    "msg": message,
-                }
-            )
-    return lines

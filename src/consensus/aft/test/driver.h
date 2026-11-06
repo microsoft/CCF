@@ -1236,7 +1236,6 @@ public:
     // Confirm that the index this node considers committed, is present on a
     // majority of nodes (ledger matches exactly up to and including this
     // seqno).
-    // Similar to the QuorumLogInv invariant from the TLA spec.
     const auto& cft = _nodes.at(node_id).cft;
     const auto committed_seqno = cft->get_committed_seqno();
 
