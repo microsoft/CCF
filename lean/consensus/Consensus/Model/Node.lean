@@ -45,8 +45,6 @@ inductive Input where
   | sendEntries (destination : NodeID) (endIndex : Nat)
   | timeout (kind : TimeoutKind)
   | nominateSuccessor
-  /-- Supply the next step's global-commit callbacks without changing the ledger. -/
-  | retirementObservations (observations : List RetirementObservation)
 deriving DecidableEq
 
 inductive Event where
@@ -59,9 +57,7 @@ inductive Event where
 Approximates `all_other_nodes`; unlike CCF, peers lost on rollback are not retained.
 -/
 def eligiblePeers (state : NodeState) (self : NodeID) : Finset NodeID :=
-  ((state.activeMembers ∪ state.retirementCompletedNodes)
-    \ state.retiredCommittedNodes).erase
-    self
+  (state.activeMembers ∪ state.retirementCompletedNodes).erase self
 
 /-- Maximize replication progress, latest active membership, then node ID. -/
 def findSuccessor (state : NodeState) (self : NodeID) : Option NodeID :=
@@ -115,53 +111,27 @@ def highestCommittableIndex (state : NodeState) (self : NodeID) : Nat :=
         highest)
     0
 
-/-- Process node IDs in order, choosing a successor exactly when self is reached. -/
-def retireNodes (self seqno : Nat) (state : NodeState)
-    : List NodeID → NodeState × Option NodeID
-  | [] => (state, none)
-  | node :: rest =>
-      let successor :=
-        if node = self /\ state.role = .primary then findSuccessor state self else none
-      let state :=
-        { state with retiredCommittedNodes := insert node state.retiredCommittedNodes }
-      let state :=
-        if node = self then
-          {
-            state with
-              retiredCommittedIndex := some seqno, role := .none, primaryKnown := false
-          }
-        else
-          state
-      let (state, laterSuccessor) := retireNodes self seqno state rest
-      (state, successor.or laterSuccessor)
-
-/-- Introduce retirement nondeterminism through explicit environment observations,
-consuming admissible choices sequentially at the matching commit boundary.
-Invalid or premature observations remain pending for the commit path to reject. -/
-def consumeRetirements (node : NodeID) (state : NodeState) (commitIndex : Nat)
-    : List RetirementObservation → NodeState × Option NodeID
-  | [] => ({ state with pendingRetirements := [] }, none)
-  | observation :: rest =>
-      if observation.commitIndex = commitIndex
-          /\ state.commitIndex < observation.seqno
-          /\ observation.seqno <= commitIndex
-          /\ observation.nodes.toFinset
-              ⊆ { state with commitIndex }.retirementCompletedNodes
-                ∪ state.retiredCommittedNodes
-          /\ observation.nodes.count node <= 1
-          /\ (node ∈ observation.nodes → state.retiredCommittedIndex.isNone) then
-        let (state, successor) :=
-          retireNodes node observation.seqno state observation.nodes
-        let (state, laterSuccessor) := consumeRetirements node state commitIndex rest
-        (state, successor.or laterSuccessor)
-      else
-        ({ state with pendingRetirements := observation :: rest }, none)
-
-/-- Process retirement updates before advancing the derived configuration view. -/
+/--
+Record a chosen commit index, latching the original transaction index once this
+node's retirement confirmation commits and clearing its role and primary knowledge.
+-/
 def NodeState.recordCommit (node : NodeID) (state : NodeState) (commitIndex : Nat)
     : NodeState :=
-  let (state, _) := consumeRetirements node state commitIndex state.pendingRetirements
-  { state with commitIndex }
+  let previouslyConfirmed := state.retiredCommittedIndex.isSome
+  let state :=
+    {
+      state with
+        commitIndex
+        retiredCommittedIndex :=
+          state.retiredCommittedIndex.orElse
+            fun _ =>
+              firstLogIndexAfter (state.log.take commitIndex) 0
+                fun content => decide (node ∈ content.metadata.retirementConfirmations)
+    }
+  if !previouslyConfirmed /\ state.isRetiredCommitted node then
+    { state with role := .none, primaryKnown := false }
+  else
+    state
 
 /--
 Retirement nominates using the precommit peer and configuration view, before
@@ -171,16 +141,16 @@ def advanceCommit (caps : Caps) (state : NodeState) (self : NodeID)
     : NodeEffect NodeState := do
   let commitIndex := highestCommittableIndex state self
   if commitIndex <= state.commitIndex then
-    guard (state.pendingRetirements = [])
     return state
   else
-    let (state, successor) :=
-      consumeRetirements self state commitIndex state.pendingRetirements
-    let state := { state with commitIndex }
-    guard (state.pendingRetirements = [])
-    if let some successor := successor then
-      caps.send (.proposeRequestVoteRequest state.currentTerm) successor
-    return state
+    let preCommitState := state
+    let state := state.recordCommit self commitIndex
+    if state.isRetiredCommitted self then
+      if preCommitState.role = .primary then
+        let _ ← nominateSuccessor caps preCommitState self
+      return state
+    else
+      return state
 
 /-! ## Outgoing messages -/
 
@@ -230,6 +200,10 @@ def appendEntry (caps : Caps) (self : NodeID) (state : NodeState) (content : Ent
   if content.isSignature then
     guard (Not (state.log = []))
   let metadata := content.metadata
+  if metadata.retirementConfirmations.Nonempty then
+    guard
+      (metadata.retirementConfirmations
+        ⊆ state.retirementCompletedNodes \ retiredCommittedNodes state.log)
   let state <- do
     match metadata.configuration with
     | none => pure state
@@ -373,7 +347,6 @@ def handleAppendEntriesRequest
         | some index =>
             { state with log := state.log.take (index - 1), isNewFollower := false }
       let (state, response) := handleAppendEntiresFromPrimary self state request
-      guard (state.pendingRetirements = [])
       caps.send (.appendEntriesResponse response) source
       return state
 
@@ -629,8 +602,6 @@ def act (caps : Caps) (self : NodeID) (state : NodeState) : Input -> NodeEffect 
   | .timeout .election => startElection caps state self
   | .timeout .checkQuorum => checkQuorum state self
   | .nominateSuccessor => nominateSuccessor caps state self
-  | .retirementObservations observations =>
-      pure { state with pendingRetirements := state.pendingRetirements ++ observations }
 
 def step (caps : Caps) (self : NodeID) (state : NodeState) : Event -> NodeEffect NodeState
   | .internal input => act caps self state input

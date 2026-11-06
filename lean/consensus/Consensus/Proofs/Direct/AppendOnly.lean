@@ -68,7 +68,7 @@ variable {self : NodeID} {state : NodeState}
 
 theorem Extends.fromLeader
     : Extends state (handleAppendEntiresFromPrimary self state request).1 := by
-  obtain ⟨retired, nodes, pending, role, known, eq, -⟩ :=
+  obtain ⟨retired, role, known, eq, -⟩ :=
     Ledger.handleAppendEntiresFromPrimary_eq self state request
   rw [eq]
   exact ⟨le_max_left _ _, (List.take_prefix _ _).trans (List.prefix_append _ _)⟩
@@ -97,7 +97,7 @@ theorem Extends.handleAppendEntriesRequest (caps : Caps) (source : NodeID)
     simp only [not_or] at notBefore
     omega
   split
-  · exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.pure'
+  · exact Keeps.seq' fun _ => Keeps.pure'
       ((stepped.trans (Extends.of_log (after := { current with primaryKnown := true }) rfl
         rfl)).trans Extends.fromLeader)
   · rename_i index conflict
@@ -107,8 +107,7 @@ theorem Extends.handleAppendEntriesRequest (caps : Caps) (source : NodeID)
           primaryKnown := true, log := current.log.take (index - 1), isNewFollower := false
       } :=
       Extends.of_prefix (count := index - 1) (by omega) (List.prefix_refl _) le_rfl
-    exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.pure'
-      ((stepped.trans truncated).trans Extends.fromLeader)
+    exact Keeps.seq' fun _ => Keeps.pure' ((stepped.trans truncated).trans Extends.fromLeader)
 
 end AppendEntries
 
@@ -119,17 +118,17 @@ variable (caps : Caps) (self : NodeID)
 theorem Extends.advanced (state : NodeState)
     : Keeps (Extends state) (Model.Node.advanceCommit caps state self) := by
   unfold Model.Node.advanceCommit
-  refine Keeps.ite' (fun _ => Keeps.seq' fun _ => Keeps.pure' (Extends.refl _))
-    fun ahead => ?_
+  refine Keeps.ite' (fun _ => Keeps.pure' (Extends.refl _)) fun ahead => ?_
   have advanced : Extends state
       (state.recordCommit self (highestCommittableIndex state self)) :=
     ⟨by rw [Ledger.NodeState.recordCommit_commitIndex]; omega,
       by rw [Ledger.NodeState.recordCommit_log]; exact List.take_prefix _ _⟩
   dsimp only
-  refine Keeps.seq' fun _ => ?_
-  split
-  · exact Keeps.seq' fun _ => Keeps.pure' advanced
-  · exact Keeps.pure' advanced
+  exact Keeps.ite'
+    (fun _ => Keeps.ite'
+      (fun _ => Keeps.seq' fun _ => Keeps.pure' (advanced.trans (Extends.of_log rfl rfl)))
+      fun _ => Keeps.pure' (advanced.trans (Extends.of_log rfl rfl)))
+    fun _ => Keeps.pure' advanced
 
 theorem Extends.appendEntry (state : NodeState) (content : EntryContent)
     : Keeps (Extends state) (Model.Node.appendEntry caps self state content) := by
@@ -216,9 +215,6 @@ theorem Extends.act (state : NodeState) (input : Input)
   | nominateSuccessor =>
       exact (Keeps.nominateSuccessor caps self state).mono fun _ same =>
         same ▸ Extends.of_log rfl rfl
-  | retirementObservations observations =>
-      unfold Model.Node.act
-      exact Keeps.pure' (Extends.of_log rfl rfl)
 
 theorem Extends.receive (state : NodeState) (source : NodeID) (message : Message)
     : Keeps (Extends state) (Model.Node.receive caps self source state message) := by
@@ -273,8 +269,10 @@ theorem extends_step {self : NodeID} {state after : NodeState}
     : Extends state after := by
   cases event with
   | internal input =>
-      exact Extends.act (Capabilities.record self) self state input _ _ _ stepped
+      simp only [Model.Node.step] at stepped
+      exact Extends.act _ self state _ _ _ _ stepped
   | receive source message =>
+      simp only [Model.Node.step] at stepped
       exact Extends.receive _ self state source message _ _ _ stepped
 
 section Global
@@ -313,10 +311,10 @@ theorem committed_log_step {nodes : List NodeID} {before after : Model.State}
   cases action with
   | «local» actor input =>
       obtain ⟨old, new, outputs, found, acted, rfl⟩ := step_local stepped
-      exact extended found (extends_step acted) afterMember
+      exact extended found (Extends.act _ actor old input _ _ _ acted) afterMember
   | deliver envelope =>
       obtain ⟨_, old, new, outputs, found, received, rfl⟩ := step_deliver stepped
-      exact extended found (extends_step received) afterMember
+      exact extended found (Extends.receive _ _ old _ _ _ _ _ received) afterMember
 
 /-- A node present before a step is present after it. -/
 theorem present_after_step {nodes : List NodeID} {before after : Model.State}

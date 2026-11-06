@@ -74,31 +74,6 @@ private def ruleBootstrap : Reduction String := do
   event head "add_configuration"
   return head.node
 
-private def ruleCommit (head : Event) : Reduction Unit := do
-  let commit ← peek
-  event head "commit"
-  let index ← readJson commit commit.message (nat · "idx")
-  let retirements ←
-    CCF.Parsec.many do
-      let hook ← peek
-      event head "retired_committed"
-      let seqno ← readJson hook hook.message (nat · "seqno")
-      let names ←
-        readJson hook hook.message
-          fun message => do
-            (← (← field message "node_ids").getArr?).toList.mapM text
-      let nodes ← names.mapM (modelNode hook)
-      liftExcept hook do
-        require ((← nat hook.state "commit_idx") == index)
-          "retirement hook must observe the advanced commit index"
-      optional_ (event head "step_down_and_nominate_successor")
-      pure { commitIndex := index, seqno, nodes : RetirementObservation }
-  -- Enqueue retirement inputs separately rather than adding the possibility
-  -- of retirement to every action's arguments.
-  unless retirements.isEmpty do
-    emitAction commit "commit-retirements"
-      (.local head.node (.retirementObservations retirements))
-
 private def readAppendContent (head : Event) (config : Option Event)
     : Reduction EntryContent := do
   let signature ← readJson head head.message (boolean · "globally_committable")
@@ -114,9 +89,10 @@ private def readAppendContent (head : Event) (config : Option Event)
   if signature then
     return .signature
   else
+    let retirementConfirmations ← modelMembers head head.retirementConfirmations
     let request := (← get).nextRequestId
     modify fun s => { s with nextRequestId := request + 1 }
-    return .transaction request { configuration }
+    return .transaction request { configuration, retirementConfirmations }
 
 private def ruleAppend : Reduction Unit := do
   let head ← peek
@@ -139,7 +115,9 @@ private def ruleAppend : Reduction Unit := do
           modelNode next (← readJson next next.message (string · "to_node_id"))
         let last ← readJson next packet (nat · "idx")
         return (destination, last)
-  optional_ (ruleCommit head)
+  optional_ do
+    event head "commit"
+    optional_ (event head "step_down_and_nominate_successor")
   -- emit
   emitObserve head "append"
   emitAction head "append"
@@ -165,7 +143,9 @@ private def ruleRecvAppendEntries : Reduction Unit := do
       <|> (do
             event head "add_configuration"
             many_ (event head "send_append_entries"))
-      <|> ruleCommit head)
+      <|> (do
+            event head "commit"
+            optional_ (event head "step_down_and_nominate_successor")))
   optional_ (event head "send_append_entries_response")
   -- emit
   emitObserve head "recv-append-entries"
@@ -177,7 +157,9 @@ private def ruleRecvAppendEntriesResponse : Reduction Unit := do
   -- consume
   event head "recv_append_entries_response"
   optional_ (event head "become_follower")
-  optional_ (ruleCommit head)
+  optional_ do
+    event head "commit"
+    optional_ (event head "step_down_and_nominate_successor")
   -- emit
   emitObserve head "recv-append-entries-response"
   emitAction head "recv-append-entries-response" action
@@ -202,7 +184,9 @@ private def ruleRecvProposeRequestVote : Reduction Unit := do
     event head "become_candidate"
     optional_ do
       event head "become_leader"
-      optional_ (ruleCommit head)
+      optional_ do
+        event head "commit"
+        optional_ (event head "step_down_and_nominate_successor")
       many_ (event head "send_append_entries")
     many_ (event head "send_request_vote")
   -- emit
@@ -220,12 +204,16 @@ private def ruleRecvRequestVoteResponse : Reduction Unit := do
             event head "become_candidate"
             optional_ do
               event head "become_leader"
-              optional_ (ruleCommit head)
+              optional_ do
+                event head "commit"
+                optional_ (event head "step_down_and_nominate_successor")
               many_ (event head "send_append_entries")
             many_ (event head "send_request_vote"))
       <|> (do
             event head "become_leader"
-            optional_ (ruleCommit head)
+            optional_ do
+              event head "commit"
+              optional_ (event head "step_down_and_nominate_successor")
             many_ (event head "send_append_entries")))
   -- emit
   emitObserve head "recv-request-vote-response"
@@ -241,7 +229,9 @@ private def ruleTick : Reduction Unit := do
       event head "become_candidate"
       optional_ do
         event head "become_leader"
-        optional_ (ruleCommit head)
+        optional_ do
+          event head "commit"
+          optional_ (event head "step_down_and_nominate_successor")
         many_ (event head "send_append_entries")
       many_ (event head "send_request_vote")
     many_ (event head "send_request_vote")

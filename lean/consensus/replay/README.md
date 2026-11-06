@@ -20,7 +20,6 @@ This needs Python `msgpack` available to CTest:
 
 ```bash
 set -euo pipefail
-shopt -s failglob
 cmake -S ../.. -B /tmp/cft-build -GNinja
 cmake --build /tmp/cft-build --target cft_driver
 ctest --test-dir /tmp/cft-build -VV -R '^cft_scenario_test$' --no-tests=error
@@ -30,7 +29,10 @@ done
 ```
 
 The scenario runner preserves the raw records in `consensus/raw/` alongside the existing TLA-preprocessed captures.
-The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `append_entries` and `request_vote`.
+Protocol events use the Fluentd tag `ccf.cft`; retirement transaction metadata uses `ccf.reconfig` and carries the source node, seqno, and retired node.
+Replay associates metadata with accepted appends by source node and seqno; unmatched metadata does not change model state.
+Matching currently omits the transaction view, so a seqno reused after rejection or rollback may pick up stale metadata.
+Packet message names are unprefixed, for example `append_entries` and `request_vote`.
 
 ## CI captures and replay
 
@@ -50,32 +52,13 @@ See [CI package isolation](../../disaster-recovery/README.md#ci-package-isolatio
 Every event must match a named rule; bootstrap selects the initial singleton membership.
 Rules read action inputs from their matching events, and only top-level alternatives backtrack.
 Actions must be enabled by the model.
-After bootstrap, each rule checks the native group's entry snapshot against model state before executing its protocol action.
-Retirement inputs may be enqueued before this check; they only take effect when the protocol action reaches the matching commit.
+After bootstrap, each rule emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
 
 Delivery is strict FIFO per directed node pair, preserving multiplicity and delivering the queued **model payload**, not reconstructing unrecorded native bytes.
 
-### Global-commit retirement hooks
-
-Native `retired_committed` events supply retirement inputs (`seqno` and ordered `node_ids`) rather than ledger metadata.
-The reducer queues these inputs for consumption at the enclosing commit, including intermediate commits within a receive.
-Nodes are processed in order, so a retiring primary chooses its successor after earlier peer removals but before later ones and before discarding old configurations.
-Invalid or unconsumed inputs reject replay.
-
-### Scope
-
-Replay ignores driver commands and assumes complete, ordered native events, a singleton bootstrap and paired replication/configuration events.
-It does not validate application data or the KV's retirement decisions, and does not model rollback-retained peers or `remove_deleted_nodes`.
-
-## Replay checks
-
-CI replays every scenario capture and checks the existing valid and invalid trace fixtures.
-The [`retirement_hook_order`](../../../tests/cft_scenarios/retirement_hook_order) scenario removes a more-replicated peer before self-retirement, so reversing that order selects the wrong successor.
-The [empty-hook fixture](fixtures/valid/empty-retirement-hook.ndjson) checks consumption of an event with no node IDs.
-
 ## Source and checks
 
-- [`Input.lean`](../Consensus/Replay/Input.lean): decode native events, ignore driver commands and collect identities.
+- [`Input.lean`](../Consensus/Replay/Input.lean): decode events, carry optional command provenance and collect identities.
 - [`Reduction.lean`](../Consensus/Replay/Reduction.lean): named rules, explicit boundaries and rule-tagged snapshot checks.
 - [`Interpreter.lean`](../Consensus/Replay/Interpreter.lean): boundary-state field comparisons, FIFO selection and model execution.
 - [`ReplayMain.lean`](ReplayMain.lean): single-trace validation CLI.

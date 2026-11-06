@@ -135,7 +135,7 @@ variable {self : NodeID} {state : NodeState}
 
 theorem CommitFrontier.fromLeader (frontier : CommitFrontier state)
     : CommitFrontier (handleAppendEntiresFromPrimary self state request).1 := by
-  obtain ⟨retired, nodes, pending, role, known, eq, -⟩ :=
+  obtain ⟨retired, role, known, eq, -⟩ :=
     Ledger.handleAppendEntiresFromPrimary_eq self state request
   rw [eq]
   exact (CommitFrontier.advance
@@ -168,12 +168,12 @@ theorem CommitFrontier.handleAppendEntriesRequest (frontier : CommitFrontier sta
     simp only [not_or] at notBefore
     omega
   split
-  · exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.pure'
+  · exact Keeps.seq' fun _ => Keeps.pure'
       (CommitFrontier.of_log stepped (after := { current with primaryKnown := true }) rfl
         rfl).fromLeader
   · rename_i index conflict
     have := Ledger.firstTermConflictIndex_ge conflict
-    exact Keeps.seq' fun _ => Keeps.seq' fun _ => Keeps.pure'
+    exact Keeps.seq' fun _ => Keeps.pure'
       (CommitFrontier.of_log (stepped.keep (count := index - 1) (by omega) (suffix := []))
         (after :=
           {
@@ -188,16 +188,17 @@ theorem CommitFrontier.advanced {state : NodeState} (self : NodeID)
     (frontier : CommitFrontier state) (caps : Caps)
     : Keeps CommitFrontier (Model.Node.advanceCommit caps state self) := by
   unfold Model.Node.advanceCommit
-  refine Keeps.ite' (fun _ => Keeps.seq' fun _ => Keeps.pure' frontier) fun ahead => ?_
+  refine Keeps.ite' (fun _ => Keeps.pure' frontier) fun ahead => ?_
   have signature := highestCommittableIndex_signature state self (by omega)
   have advanced : CommitFrontier
       (state.recordCommit self (highestCommittableIndex state self)) :=
     ⟨by simpa using signature_le_length signature, fun _ => by simpa using signature⟩
   dsimp only
-  refine Keeps.seq' fun _ => ?_
-  split
-  · exact Keeps.seq' fun _ => Keeps.pure' advanced
-  · exact Keeps.pure' advanced
+  exact Keeps.ite'
+    (fun _ =>
+      Keeps.ite' (fun _ => Keeps.seq' fun _ => Keeps.pure' advanced)
+        fun _ => Keeps.pure' advanced)
+    fun _ => Keeps.pure' advanced
 
 theorem CommitFrontier.withSent {state : NodeState}
     (frontier : CommitFrontier state) {sentIndex : NodeID -> Nat}
@@ -311,9 +312,6 @@ theorem CommitFrontier.act {state : NodeState}
           exact Keeps.seq' fun _ => Keeps.pure' (frontier.of_log rfl rfl)
   | nominateSuccessor =>
       exact (Keeps.nominateSuccessor caps self state).mono fun _ same => same ▸ frontier
-  | retirementObservations observations =>
-      unfold Model.Node.act
-      exact Keeps.pure' (frontier.of_log rfl rfl)
 
 theorem CommitFrontier.receive {state : NodeState}
     (frontier : CommitFrontier state) (source : NodeID) (message : Message)
@@ -366,8 +364,10 @@ theorem commitFrontier_invariant [Config.InitialConfiguration]
   intro self state event after outputs frontier stepped
   cases event with
   | internal input =>
-      exact frontier.act (Capabilities.record self) self input _ _ _ stepped
+      simp only [Model.Node.step] at stepped
+      exact frontier.act _ self _ _ _ _ stepped
   | receive source message =>
+      simp only [Model.Node.step] at stepped
       exact frontier.receive _ self source message _ _ _ stepped
 
 theorem committed_frontier_is_signature

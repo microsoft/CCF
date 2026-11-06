@@ -1,6 +1,0 @@
-{"msg":{"function":"become_leader","state":{"node_id":"0"}}}
-{"msg":{"function":"replicate","state":{"node_id":"0"},"globally_committable":false}}
-{"msg":{"function":"add_configuration","state":{"node_id":"0"},"nodes":{"0":{}}}}
-{"msg":{"function":"replicate","state":{"node_id":"0","current_view":2,"last_idx":1,"commit_idx":0,"leadership_state":"Leader"},"globally_committable":true}}
-{"msg":{"function":"commit","state":{"node_id":"0"},"idx":2}}
-{"msg":{"function":"retired_committed","state":{"node_id":"0","commit_idx":2},"seqno":1,"node_ids":[]}}

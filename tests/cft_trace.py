@@ -14,7 +14,7 @@ REPLAY_BOUNDARY_EVENTS = {
     "batch_flush",
     "tick",
     "nomination",
-    "retired_committed",
+    "retired_committed_tx",
 }
 
 
@@ -68,7 +68,7 @@ def run_driver(driver, scenario, timeout=60, *, text=True):
                                 received += len(data)
                                 unpacker.feed(data)
                                 for tag, timestamp, record in unpacker:
-                                    assert tag == "ccf.cft"
+                                    assert tag in {"ccf.cft", "ccf.reconfig"}
                                     assert isinstance(timestamp, msgpack.ExtType)
                                     assert timestamp.code == 0
                                     seconds, nanos = struct.unpack(

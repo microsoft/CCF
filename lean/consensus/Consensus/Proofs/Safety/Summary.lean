@@ -372,24 +372,19 @@ theorem advanceCommit_sends (middle : NodeState)
         (advanceCommit caps middle self) := by
   unfold advanceCommit
   dsimp only
-  refine Sends.ite'
-    (fun _ => Sends.guard_bind fun _ => Sends.pure' ⟨Or.inl rfl, by simp⟩)
-    fun ahead => ?_
+  refine Sends.ite' (fun _ => Sends.pure' ⟨Or.inl rfl, by simp⟩) fun ahead => ?_
   have advanced : Advance self middle
       (middle.recordCommit self (highestCommittableIndex middle self)) := by
-    obtain ⟨_, _, _, _, _, eq, roleCase⟩ :=
+    obtain ⟨_, _, _, eq, roleCase⟩ :=
       NodeState.recordCommit_eq self middle (highestCommittableIndex middle self)
     rw [eq]
     exact Or.inr ⟨rfl, rfl, rfl, rfl, rfl, rfl, by simp only; omega, rfl, roleCase⟩
-  have sameTerm :
-      (consumeRetirements self middle (highestCommittableIndex middle self)
-        middle.pendingRetirements).1.currentTerm = middle.currentTerm :=
-    advanced.term
-  refine Sends.guard_bind fun _ => ?_
-  split
-  · exact Sends.bind' (Sends.send _ _ _) fun _ sent eq =>
-      Sends.pure' ⟨advanced, by simp [eq, sameTerm]⟩
-  · exact Sends.pure' ⟨advanced, by simp⟩
+  refine Sends.ite'
+    (fun _ => Sends.ite' (fun _ => ?_) fun _ => Sends.pure' ⟨advanced, by simp⟩)
+    fun _ => Sends.pure' ⟨advanced, by simp⟩
+  exact Sends.bind' (nominate_sends self middle)
+    fun _ sent nominated =>
+      Sends.pure' ⟨advanced, by simpa using nominated.2.2⟩
 
 theorem broadcast_sends (state : NodeState) (message : Message)
     : Sends
@@ -1101,7 +1096,7 @@ theorem fromLeader_spec (self : NodeID) (state : NodeState)
             success := true,
             lastLogIndex := request.prevLogIndex + request.entries.length
           } := by
-  obtain ⟨_, _, _, _, _, eq, roleCase⟩ := Ledger.handleAppendEntiresFromPrimary_eq self state request
+  obtain ⟨_, _, _, eq, roleCase⟩ := Ledger.handleAppendEntiresFromPrimary_eq self state request
   simp [eq, roleCase]
 
 theorem aeReply (self source : NodeID) (z : NodeState)
@@ -1202,7 +1197,6 @@ theorem aeReply (self source : NodeID) (z : NodeState)
       -> Sends (AEReply self source z r)
           (do
             let (state, response) := handleAppendEntiresFromPrimary self v r
-            guard (state.pendingRetirements = [])
             (Capabilities.record self).send (.appendEntriesResponse response) source
             return state : NodeEffect _) := by
     intro v vLog vTerm vCommit vVoted vMatch vRole
@@ -1211,7 +1205,6 @@ theorem aeReply (self source : NodeID) (z : NodeState)
       ⟨_, rfl⟩
     simp only [hres] at spec ⊢
     obtain ⟨term, voted, matchEq, _, role, log, commit, response⟩ := spec
-    refine Sends.guard_bind fun _ => ?_
     refine Sends.bind' (Sends.send _ _ _) fun _ sent eq => Sends.pure' ?_
     subst eq
     refine common _ _ (Or.inr ⟨same, commitLe, matches_, ?_, ?_, _, rfl, rfl, rfl, ?_⟩)
@@ -1452,8 +1445,7 @@ theorem summary (self : NodeID) (before : NodeState) (event : Event)
   cases event with
   | internal input =>
       cases input with
-      | append contents =>
-          exact appendBatch_summary self before contents
+      | append contents => exact appendBatch_summary self before contents
       | sendEntries destination endIndex =>
           exact sendEntries_summary self before destination endIndex
       | timeout kind =>
@@ -1461,10 +1453,6 @@ theorem summary (self : NodeID) (before : NodeState) (event : Event)
           | election => exact startElection_summary self before
           | checkQuorum => exact checkQuorum_summary self before _
       | nominateSuccessor => exact nominate_summary self before
-      | retirementObservations observations =>
-          unfold Model.Node.step Model.Node.act
-          exact Sends.pure'
-            (quiet_summary rfl rfl rfl rfl rfl rfl rfl (by simp) (by simp))
   | receive source message =>
       cases message with
       | appendEntriesRequest request =>
