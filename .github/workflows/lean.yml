@@ -20,6 +20,8 @@ on:
       - "CMakeLists.txt"
       - ".github/workflows/lean.yml"
       - ".github/workflows/lean-package.yml"
+      - ".github/workflows/lean-replay.yml"
+      - ".github/actions/install-lean/**"
   workflow_dispatch:
 
 concurrency:
@@ -212,71 +214,12 @@ jobs:
   cft_replay:
     name: Replay native CCF consensus traces
     needs: [cft_traces]
-    runs-on: [gha-vmss-d16av7-ci-b]
-    container:
-      image: mcr.microsoft.com/azurelinux-beta/base/core:4.0
-      options: --user root
-      # The image does not set PATH, which GITHUB_PATH entries would otherwise replace
-      env:
-        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    defaults:
-      run:
-        shell: bash
-
-    steps:
-      - name: Install container prerequisites
-        run: |
-          set -euo pipefail
-          dnf -y install \
-            ca-certificates git curl tar zstd gcc gcc-c++ make glibc-devel \
-            gmp-devel diffutils findutils gawk gzip which
-          curl --proto '=https' --tlsv1.2 -sSf \
-            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
-            -o /tmp/elan-init.sh
-          ELAN_HOME="$RUNNER_TEMP/elan" sh /tmp/elan-init.sh -y --no-modify-path --default-toolchain none
-          rm /tmp/elan-init.sh
-          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
-          echo "$RUNNER_TEMP/elan/bin" >> "$GITHUB_PATH"
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Lean
-        run: |
-          set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          elan run --install "$(cat lean/lean-toolchain)" lean --version
-
-      - name: Restore Mathlib cache
-        working-directory: lean/consensus
-        run: |
-          set -euo pipefail
-          lake exe cache get
-
-      - name: Build CCF consensus replay
-        working-directory: lean/consensus
-        run: |
-          set -euo pipefail
-          lake build --wfail consensus-replay
-
-      - name: Download CCF consensus traces
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: cft-scenario-traces
-          path: ${{ runner.temp }}/cft-scenario-traces
-
-      - name: Validate CCF consensus traces
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s failglob
-          for trace in "$RUNNER_TEMP"/cft-scenario-traces/*.ndjson; do
-            echo "::group::Validate $trace"
-            lean/consensus/.lake/build/bin/consensus-replay "$trace"
-            echo "::endgroup::"
-          done
+    uses: ./.github/workflows/lean-replay.yml
+    with:
+      package: consensus
+      target: consensus-replay
+      artifact: cft-scenario-traces
+      traces: "*.ndjson"
 
   models:
     name: Lean models and proofs
@@ -343,135 +286,20 @@ jobs:
   kv_replay:
     name: Replay KV traces
     needs: [kv_traces]
-    runs-on: [gha-vmss-d16av7-ci-b]
-    container:
-      image: mcr.microsoft.com/azurelinux-beta/base/core:4.0
-      options: --user root
-      # The image does not set PATH, which GITHUB_PATH entries would otherwise replace
-      env:
-        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    defaults:
-      run:
-        shell: bash
-
-    steps:
-      - name: Install container prerequisites
-        run: |
-          set -euo pipefail
-          dnf -y install \
-            ca-certificates git curl tar zstd gcc gcc-c++ make glibc-devel \
-            gmp-devel diffutils findutils gawk gzip which
-          curl --proto '=https' --tlsv1.2 -sSf \
-            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
-            -o /tmp/elan-init.sh
-          ELAN_HOME="$RUNNER_TEMP/elan" sh /tmp/elan-init.sh -y --no-modify-path --default-toolchain none
-          rm /tmp/elan-init.sh
-          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
-          echo "$RUNNER_TEMP/elan/bin" >> "$GITHUB_PATH"
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Lean
-        run: |
-          set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          elan run --install "$(cat lean/lean-toolchain)" lean --version
-
-      - name: Restore Mathlib cache
-        working-directory: lean/kv
-        run: |
-          set -euo pipefail
-          lake exe cache get
-
-      - name: Build KV replay
-        working-directory: lean/kv
-        run: |
-          set -euo pipefail
-          lake build --wfail kv-replay
-
-      - name: Download KV traces
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: kv-traces
-          path: ${{ runner.temp }}/kv-traces
-
-      - name: Validate KV traces
-        run: |
-          set -euo pipefail
-          shopt -s failglob
-          for trace in "$RUNNER_TEMP"/kv-traces/*/trace.ndjson; do
-            echo "::group::Validate $trace"
-            lean/kv/.lake/build/bin/kv-replay "$trace"
-            echo "::endgroup::"
-          done
+    uses: ./.github/workflows/lean-replay.yml
+    with:
+      package: kv
+      target: kv-replay
+      artifact: kv-traces
+      traces: "*/trace.ndjson"
 
   consistency_replay:
     name: Replay consistency traces
     needs: [consistency_traces]
-    runs-on: [gha-vmss-d16av7-ci-b]
-    container:
-      image: mcr.microsoft.com/azurelinux-beta/base/core:4.0
-      options: --user root
-      # The image does not set PATH, which GITHUB_PATH entries would otherwise replace
-      env:
-        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    defaults:
-      run:
-        shell: bash
-
-    steps:
-      - name: Install container prerequisites
-        run: |
-          set -euo pipefail
-          dnf -y install \
-            ca-certificates git curl tar zstd gcc gcc-c++ make glibc-devel \
-            gmp-devel diffutils findutils gawk gzip which
-          curl --proto '=https' --tlsv1.2 -sSf \
-            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
-            -o /tmp/elan-init.sh
-          ELAN_HOME="$RUNNER_TEMP/elan" sh /tmp/elan-init.sh -y --no-modify-path --default-toolchain none
-          rm /tmp/elan-init.sh
-          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
-          echo "$RUNNER_TEMP/elan/bin" >> "$GITHUB_PATH"
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Lean
-        run: |
-          set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          elan run --install "$(cat lean/lean-toolchain)" lean --version
-
-      - name: Restore Mathlib cache
-        working-directory: lean/consistency
-        run: |
-          set -euo pipefail
-          lake exe cache get
-
-      - name: Build consistency replay
-        working-directory: lean/consistency
-        run: |
-          set -euo pipefail
-          lake build --wfail consistency-replay
-
-      - name: Download consistency traces
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: consistency-traces
-          path: ${{ runner.temp }}/consistency-traces
-
-      - name: Validate consistency traces and election fixtures
-        run: |
-          set -euo pipefail
-          shopt -s failglob
-          for trace in "$RUNNER_TEMP"/consistency-traces/*.ndjson lean/consistency/replayer/fixtures/valid/*.ndjson; do
-            echo "::group::Validate $trace"
-            lean/consistency/.lake/build/bin/consistency-replay "$trace"
-            echo "::endgroup::"
-          done
+    uses: ./.github/workflows/lean-replay.yml
+    with:
+      package: consistency
+      target: consistency-replay
+      artifact: consistency-traces
+      traces: "*.ndjson"
+      extra-traces: lean/consistency/replayer/fixtures/valid/*.ndjson

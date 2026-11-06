@@ -278,16 +278,12 @@ jobs:
           python3 tests/infra/platform_detection.py snp genoa
         shell: bash
 
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
+
       - name: "Build Lean recovery trace replayer"
         run: |
           set -euo pipefail
-          curl --proto '=https' --tlsv1.2 -sSf \
-            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
-            -o /tmp/elan-init.sh
-          sh /tmp/elan-init.sh -y --default-toolchain none
-          rm /tmp/elan-init.sh
-          export PATH="${HOME}/.elan/bin:${PATH}"
-          elan toolchain install "$(cat lean/lean-toolchain)"
           cd lean/disaster-recovery
           lake build disaster-recovery-replay
         shell: bash

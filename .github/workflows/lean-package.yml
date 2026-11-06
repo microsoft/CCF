@@ -29,20 +29,8 @@ jobs:
       PACKAGE: ${{ inputs.package }}
 
     steps:
-      - name: Install container prerequisites
-        run: |
-          set -euo pipefail
-          dnf -y install \
-            ca-certificates git curl tar zstd gcc gcc-c++ make glibc-devel \
-            gmp-devel diffutils findutils gawk gzip which \
-            jq python3 python3-jsonschema
-          curl --proto '=https' --tlsv1.2 -sSf \
-            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
-            -o /tmp/elan-init.sh
-          ELAN_HOME="$RUNNER_TEMP/elan" sh /tmp/elan-init.sh -y --no-modify-path --default-toolchain none
-          rm /tmp/elan-init.sh
-          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
-          echo "$RUNNER_TEMP/elan/bin" >> "$GITHUB_PATH"
+      - name: Install checkout prerequisites
+        run: dnf -y install git tar
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -60,10 +48,11 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
 
-      - name: Install Lean and check prerequisites
-        run: |
-          set -euo pipefail
-          elan run --install "$(cat lean/lean-toolchain)" lean --version
+      - name: Install Lean
+        uses: ./.github/actions/install-lean
+        with:
+          install-system-dependencies: "true"
+          extra-packages: jq python3 python3-jsonschema
 
       - name: Restore dependency builds
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
