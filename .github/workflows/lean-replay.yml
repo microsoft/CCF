@@ -1,0 +1,95 @@
+name: Lean replay
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: Lean package directory under lean/
+        required: true
+        type: string
+      target:
+        description: Lake executable target that replays traces
+        required: true
+        type: string
+      artifact:
+        description: Name of the trace artifact to replay
+        required: true
+        type: string
+      traces:
+        description: Glob of traces to replay, relative to the downloaded artifact
+        required: true
+        type: string
+      extra-traces:
+        description: Optional glob of additional traces to replay, relative to the repository root
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    name: Replay
+    runs-on: [gha-vmss-d16av7-ci-b]
+    container:
+      image: mcr.microsoft.com/azurelinux-beta/base/core:4.0
+      options: --user root
+      # The image does not set PATH, which GITHUB_PATH entries would otherwise replace
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      PACKAGE: ${{ inputs.package }}
+      TARGET: ${{ inputs.target }}
+      ARTIFACT: ${{ inputs.artifact }}
+      TRACES: ${{ inputs.traces }}
+      EXTRA_TRACES: ${{ inputs.extra-traces }}
+
+    steps:
+      # The Lean toolchain bundles its own compiler, linker and libraries.
+      # git: checkout and lake dependencies; tar, gzip, gawk: elan-init.sh.
+      - name: Install system dependencies
+        run: dnf -y install --setopt=install_weak_deps=False git-core tar gzip gawk
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Lean
+        uses: ./.github/actions/install-lean
+
+      - name: Restore Mathlib cache
+        working-directory: lean/${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          lake exe cache get
+
+      - name: Build replay
+        working-directory: lean/${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          lake build --wfail "$TARGET"
+
+      # Runners may be reused without cleaning RUNNER_TEMP
+      - name: Clear trace directory
+        run: rm -rf "$RUNNER_TEMP/$ARTIFACT"
+
+      - name: Download traces
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.artifact }}
+          path: ${{ runner.temp }}/${{ inputs.artifact }}
+
+      - name: Validate traces
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          # shellcheck disable=SC2086
+          for trace in "$RUNNER_TEMP/$ARTIFACT"/$TRACES $EXTRA_TRACES; do
+            echo "::group::Validate $trace"
+            "lean/$PACKAGE/.lake/build/bin/$TARGET" "$trace"
+            echo "::endgroup::"
+          done

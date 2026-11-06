@@ -16,8 +16,11 @@ jobs:
     name: Check ${{ inputs.package }}
     runs-on: [gha-vmss-d16av7-ci]
     container:
-      image: ubuntu:26.04
+      image: mcr.microsoft.com/azurelinux-beta/base/core:4.0
       options: --user root
+      # The image does not set PATH, which GITHUB_PATH entries would otherwise replace
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     timeout-minutes: 90
     defaults:
       run:
@@ -26,14 +29,13 @@ jobs:
       PACKAGE: ${{ inputs.package }}
 
     steps:
-      - name: Install container prerequisites
+      # The Lean toolchain bundles its own compiler, linker and libraries.
+      # git: checkout, lake dependencies, fixture diffs; tar, gzip, gawk: elan-init.sh
+      # and actions/cache; which: lake check; jq, python3-jsonschema: fixture checks.
+      - name: Install system dependencies
         run: |
-          set -euo pipefail
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            ca-certificates git curl tar zstd build-essential libgmp-dev \
-            elan python3-jsonschema jq
-          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
+          dnf -y install --setopt=install_weak_deps=False \
+            git-core tar gzip gawk which jq python3-jsonschema
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -51,16 +53,14 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
 
-      - name: Install Lean and check prerequisites
-        run: |
-          set -euo pipefail
-          elan run --install "$(cat lean/lean-toolchain)" lean --version
+      - name: Install Lean
+        uses: ./.github/actions/install-lean
 
       - name: Restore dependency builds
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: lean/${{ inputs.package }}/.lake/packages
-          key: lean-deps-v2-vmss-ubuntu-26.04-${{ runner.arch }}-${{ inputs.package }}-${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-package.yml') }}
+          key: lean-deps-v2-vmss-azurelinux-4.0-${{ runner.arch }}-${{ inputs.package }}-${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-package.yml') }}
 
       - name: Restore Mathlib cache
         working-directory: lean/${{ inputs.package }}

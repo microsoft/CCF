@@ -1,0 +1,24 @@
+name: Install Lean
+description: Install elan and the Lean toolchain pinned in lean/lean-toolchain (needs curl, tar, gzip and awk)
+
+runs:
+  using: composite
+  steps:
+    - name: Install elan and Lean toolchain
+      shell: bash
+      env:
+        # elan-init.sh only bootstraps elan: it always installs the latest elan release.
+        # The Lean toolchain itself is pinned by lean/lean-toolchain.
+        ELAN_INIT_URL: https://raw.githubusercontent.com/leanprover/elan/55dc2814ca42ace25f05ba4dd7a43a8c701a0549/elan-init.sh
+      run: |
+        set -euo pipefail
+        elan_home="${ELAN_HOME:-$HOME/.elan}"
+        elan_init="$(mktemp)"
+        curl --proto '=https' --tlsv1.2 -sSf "$ELAN_INIT_URL" -o "$elan_init"
+        ELAN_HOME="$elan_home" sh "$elan_init" -y --no-modify-path --default-toolchain none
+        rm "$elan_init"
+        echo "ELAN_HOME=$elan_home" >> "$GITHUB_ENV"
+        echo "$elan_home/bin" >> "$GITHUB_PATH"
+        export ELAN_HOME="$elan_home"
+        "$elan_home/bin/elan" toolchain install "$(cat lean/lean-toolchain)"
+        "$elan_home/bin/elan" run "$(cat lean/lean-toolchain)" lean --version
