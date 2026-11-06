@@ -216,7 +216,8 @@ namespace ccf
         config.command.service_certificate_file);
       if (!pq_service_cert.empty())
       {
-        files::dump(pq_service_cert, config.command.pq_service_certificate_file);
+        files::dump(
+          pq_service_cert, config.command.pq_service_certificate_file);
         LOG_INFO_FMT(
           "Output ML-DSA service certificate to {}",
           config.command.pq_service_certificate_file);
@@ -526,7 +527,10 @@ namespace ccf
           startup.rpc_addresses, config.output_files.rpc_addresses_file);
       }
       write_certificates_to_disk(
-        config, startup.node_cert, startup.service_cert, startup.pq_service_cert);
+        config,
+        startup.node_cert,
+        startup.service_cert,
+        startup.pq_service_cert);
     }
     catch (const std::exception& e)
     {
