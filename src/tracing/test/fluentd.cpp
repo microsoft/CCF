@@ -212,7 +212,7 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
   CHECK(config.observability.fluentd[0].port == "24224");
   CHECK(config.observability.fluentd[0].queue_capacity == 4096);
   CHECK(
-    config.observability.fluentd[0].tag_prefixes ==
+    config.observability.fluentd[0].tag_allow_list ==
     std::vector<std::string>{""});
   CHECK(
     config.observability.fluentd[0].delivery ==
@@ -222,16 +222,16 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
     ccf::FluentdConfig::Delivery::UNBUFFERED_NON_BLOCKING);
 
   config.observability.fluentd[0].queue_capacity = 17;
-  config.observability.fluentd[0].tag_prefixes = {"ccf.cft", "ccf.sho"};
-  config.observability.fluentd[1].tag_prefixes.clear();
+  config.observability.fluentd[0].tag_allow_list = {"ccf.cft", "ccf.sho"};
+  config.observability.fluentd[1].tag_allow_list.clear();
   const nlohmann::json roundtrip = config;
   CHECK(
     roundtrip.at("observability").at("fluentd")[0].at("queue_capacity") == 17);
   CHECK(
-    roundtrip.at("observability").at("fluentd")[0].at("tag_prefixes") ==
+    roundtrip.at("observability").at("fluentd")[0].at("tag-allow-list") ==
     nlohmann::json::array({"ccf.cft", "ccf.sho"}));
   CHECK(
-    roundtrip.at("observability").at("fluentd")[1].at("tag_prefixes") ==
+    roundtrip.at("observability").at("fluentd")[1].at("tag-allow-list") ==
     nlohmann::json::array());
   CHECK(roundtrip.get<ccf::CCFConfig>().observability == config.observability);
 
@@ -241,10 +241,10 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
         nlohmann::json::array({42}),
         nlohmann::json::object()})
   {
-    config_json["observability"]["fluentd"][0]["tag_prefixes"] = invalid;
+    config_json["observability"]["fluentd"][0]["tag-allow-list"] = invalid;
     CHECK_THROWS(config_json.get<ccf::CCFConfig>());
   }
-  config_json["observability"]["fluentd"][0].erase("tag_prefixes");
+  config_json["observability"]["fluentd"][0].erase("tag-allow-list");
   config_json["observability"]["fluentd"][1]["delivery"] = "reliable";
   CHECK_THROWS_AS(config_json.get<ccf::CCFConfig>(), ccf::JsonParseError);
 }
@@ -344,7 +344,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   REQUIRE(getsockname(listener, (sockaddr*)&address, &size) == 0);
   Sink::Endpoint endpoint{"127.0.0.1", std::to_string(ntohs(address.sin_port))};
   endpoint.queue_capacity = 3;
-  endpoint.tag_prefixes = {
+  endpoint.tag_allow_list = {
     "ccf.sho", "ccf.request", "ccf.request.child", "ccf.request"};
   const int excluded_listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   REQUIRE(excluded_listener >= 0);
@@ -354,7 +354,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   REQUIRE(listen(excluded_listener, 1) == 0);
   Sink::Endpoint excluded_endpoint{
     "127.0.0.1", std::to_string(ntohs(address.sin_port))};
-  excluded_endpoint.tag_prefixes = {"ccf.kv", "ccf.unused"};
+  excluded_endpoint.tag_allow_list = {"ccf.kv", "ccf.unused"};
   Sink::configure(std::vector{endpoint, excluded_endpoint}, 2);
   Sink::bind_producer(0);
   const auto waiting = std::chrono::steady_clock::now();

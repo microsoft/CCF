@@ -10,7 +10,7 @@
 5. Exporter configured against a real Fluentd (only with --fluentd PATH): the
    collector receives well-formed CCF consensus protocol events, and the node
    keeps committing after the collector is killed.
-6. Literal prefix whitelists include or exclude events at the node, verified
+6. Tag allow lists of literal prefixes include or exclude events at the node, verified
    with a local Forward collector without requiring Fluentd.
 """
 
@@ -135,17 +135,17 @@ def run(args):
                     {
                         **excluded.endpoint,
                         "delivery": delivery,
-                        "tag_prefixes": ["ccf.sho", "ccf.kv"],
+                        "tag-allow-list": ["ccf.sho", "ccf.kv"],
                     },
                     {
                         **broad.endpoint,
                         "delivery": delivery,
-                        "tag_prefixes": ["ccf", "ccf.cft", "ccf"],
+                        "tag-allow-list": ["ccf", "ccf.cft", "ccf"],
                     },
                     {
                         **exact.endpoint,
                         "delivery": delivery,
-                        "tag_prefixes": ["ccf.kv", "ccf.cft", "ccf.sho"],
+                        "tag-allow-list": ["ccf.kv", "ccf.cft", "ccf.sho"],
                     },
                 ],
             )
@@ -172,7 +172,7 @@ def run(args):
         with infra.fluentd.Collector(node_count=1) as collector:
             filtered_endpoint = dict(collector.endpoint)
             if prefixes is not None:
-                filtered_endpoint["tag_prefixes"] = prefixes
+                filtered_endpoint["tag-allow-list"] = prefixes
             exercise(args, f"filter_{name}", [filtered_endpoint])
         if matches:
             assert collector.records > 0, name

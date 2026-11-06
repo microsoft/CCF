@@ -426,8 +426,14 @@ namespace ccf
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability::Fluentd);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability::Fluentd, host, port);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::Observability::Fluentd, queue_capacity, delivery, tag_prefixes);
+  DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
+    CCFConfig::Observability::Fluentd,
+    queue_capacity,
+    "queue_capacity",
+    delivery,
+    "delivery",
+    tag_allow_list,
+    "tag-allow-list");
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability);
