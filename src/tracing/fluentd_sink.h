@@ -145,6 +145,7 @@ namespace ccf::tracing
         {
           queues.push_back(std::make_unique<SPSCQueue>(size));
         }
+        queues.push_back(std::make_unique<SPSCQueue>(size));
       }
 
       [[nodiscard]] bool accepts(std::string_view tag) const
@@ -390,6 +391,7 @@ namespace ccf::tracing
     struct Worker
     {
       std::vector<std::unique_ptr<Transport>> transports;
+      ccf::ds::Mutex logger_mutex;
       std::thread consumer;
 
       explicit Worker(std::vector<std::unique_ptr<Transport>> instances) :
@@ -493,10 +495,9 @@ namespace ccf::tracing
       return worker() != nullptr;
     }
 
-    static bool is_producer_active()
+    static bool is_running()
     {
       return is_configured() &&
-        bound_slot() < worker()->transports.front()->queues.size() &&
         !worker()->transports.front()->stopping.load(std::memory_order_relaxed);
     }
 
@@ -552,20 +553,24 @@ namespace ccf::tracing
     {
       if (is_configured())
       {
+        if (slot >= worker()->transports.front()->queues.size() - 1)
+        {
+          throw std::out_of_range("Trace producer slot is reserved for logs");
+        }
         std::ignore = worker()->transports.front()->queues.at(slot);
         bound_slot() = slot;
       }
     }
 
-    // False may mean partial acceptance: other sinks still receive the record.
-    static bool enqueue(std::string_view tag, std::span<const uint8_t> bytes)
+  private:
+    static bool enqueue_at_slot(
+      std::string_view tag, std::span<const uint8_t> bytes, size_t slot)
     {
       if (!is_configured())
       {
         return false;
       }
       bool enqueued = true;
-      const auto slot = bound_slot();
       for (const auto& t : worker()->transports)
       {
         if (!t->accepts(tag))
@@ -582,6 +587,26 @@ namespace ccf::tracing
         }
       }
       return enqueued;
+    }
+
+  public:
+    // False may mean partial acceptance: other sinks still receive the record.
+    static bool enqueue(std::string_view tag, std::span<const uint8_t> bytes)
+    {
+      return enqueue_at_slot(tag, bytes, bound_slot());
+    }
+
+    static bool enqueue_log(
+      std::string_view tag, std::span<const uint8_t> bytes)
+    {
+      if (!is_configured())
+      {
+        return false;
+      }
+      // The shared log queue also accepts unbound transport diagnostic threads.
+      ccf::ds::MutexGuard lock(worker()->logger_mutex);
+      return enqueue_at_slot(
+        tag, bytes, worker()->transports.front()->queues.size() - 1);
     }
 
     static void record_drop(std::string_view tag)

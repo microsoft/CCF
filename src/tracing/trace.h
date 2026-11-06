@@ -12,6 +12,7 @@
 #include <string>
 #include <tuple>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 namespace ccf::tracing
@@ -42,30 +43,38 @@ namespace ccf::tracing
   }
 
   template <typename Encode>
+  inline const std::vector<uint8_t>& encode_record(
+    std::string_view tag, Encode&& encode)
+  {
+    const auto sequence = next_sequence();
+    auto& buffer = event_buffer();
+    buffer.clear();
+    msgpack::write_array_header(buffer, 3);
+    msgpack::write_str(buffer, tag);
+    msgpack::write_fluentd_event_time(
+      buffer,
+      msgpack::FluentdEventTime::make(std::chrono::system_clock::now()));
+    msgpack::write_map_header(buffer, 3);
+    msgpack::write_str(buffer, "process_id");
+    msgpack::write_str(buffer, process_identity());
+    msgpack::write_str(buffer, "h_ts");
+    msgpack::write_uint(buffer, sequence);
+    msgpack::write_str(buffer, "msg");
+    std::forward<Encode>(encode)(buffer);
+    return buffer;
+  }
+
+  template <typename Encode>
   inline void emit_record(std::string_view tag, Encode&& encode)
   {
     if (!FluentdSink::accepts(tag))
     {
       return;
     }
-    const auto sequence = next_sequence();
     try
     {
-      auto& buffer = event_buffer();
-      buffer.clear();
-      msgpack::write_array_header(buffer, 3);
-      msgpack::write_str(buffer, tag);
-      msgpack::write_fluentd_event_time(
-        buffer,
-        msgpack::FluentdEventTime::make(std::chrono::system_clock::now()));
-      msgpack::write_map_header(buffer, 3);
-      msgpack::write_str(buffer, "process_id");
-      msgpack::write_str(buffer, process_identity());
-      msgpack::write_str(buffer, "h_ts");
-      msgpack::write_uint(buffer, sequence);
-      msgpack::write_str(buffer, "msg");
-      encode(buffer);
-      FluentdSink::enqueue(tag, buffer);
+      FluentdSink::enqueue(
+        tag, encode_record(tag, std::forward<Encode>(encode)));
     }
     catch (const std::bad_alloc&)
     {

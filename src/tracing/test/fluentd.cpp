@@ -487,12 +487,10 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     nlohmann::json::from_msgpack(ccf::tracing::event_buffer())[2]["h_ts"] ==
     sequence_before_filtering + 1);
 
-  const auto before_verbose = ccf::tracing::event_buffer();
-  LOG_TRACE_FMT("Do not export trace logs");
-  LOG_DEBUG_FMT("Do not export debug logs");
-  CHECK(ccf::tracing::event_buffer() == before_verbose);
   for (const auto level :
-       {ccf::LoggerLevel::INFO,
+       {ccf::LoggerLevel::TRACE,
+        ccf::LoggerLevel::DEBUG,
+        ccf::LoggerLevel::INFO,
         ccf::LoggerLevel::FAIL,
         ccf::LoggerLevel::FATAL})
   {
@@ -522,7 +520,9 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     CHECK(actual == buffer);
   }
   for (auto log :
-       {+[] { LOG_INFO_FMT("Info exported"); },
+       {+[] { LOG_TRACE_FMT("Trace exported"); },
+        +[] { LOG_DEBUG_FMT("Debug exported"); },
+        +[] { LOG_INFO_FMT("Info exported"); },
         +[] { LOG_FAIL_FMT("Failure exported"); },
         +[] { LOG_FATAL_FMT("Fatal exported"); }})
   {
@@ -542,9 +542,21 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(ccf::tracing::event_buffer() == before_level_filtering);
   ccf::logger::config::level() = ccf::logger::MOST_VERBOSE;
   const auto drops_before_unbound_log = Sink::dropped_count();
-  std::thread unbound_logger([] { LOG_FAIL_FMT("Console only"); });
+  std::vector<uint8_t> unbound_bytes;
+  std::thread unbound_logger([&] {
+    LOG_FAIL_FMT("Dropped 65536 trace events (observed 65536)");
+    unbound_bytes = ccf::tracing::event_buffer();
+  });
   unbound_logger.join();
   CHECK(Sink::dropped_count() == drops_before_unbound_log);
+  std::vector<uint8_t> unbound_received(unbound_bytes.size());
+  REQUIRE(
+    recv(peer, unbound_received.data(), unbound_received.size(), MSG_WAITALL) ==
+    static_cast<ssize_t>(unbound_received.size()));
+  CHECK(unbound_received == unbound_bytes);
+  CHECK(
+    nlohmann::json::from_msgpack(unbound_received)[2]["msg"]["msg"] ==
+    "Dropped 65536 trace events (observed 65536)");
 
   const std::string large_value(
     ccf::tracing::event_buffer().capacity() + 1, 'x');
@@ -676,13 +688,13 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(logs->close_errors == 1);
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::seconds(1)));
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(3));
-  CHECK(Sink::dropped_count() == drops_before_shutdown + 4);
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 6);
   CHECK(logs->shutdown_reports == 2);
   CHECK(
     logs->shutdown_messages[0] ==
     fmt::format(
       "Fluentd exporter shutdown: {} dropped events",
-      drops_before_shutdown + 4));
+      drops_before_shutdown + 6));
   CHECK(
     logs->shutdown_messages[1] ==
     "Fluentd exporter shutdown: 0 dropped events");
@@ -696,7 +708,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK_FALSE(shutdown_pushed);
   CHECK(
     allocations_after_shutdown_enqueue == allocations_before_shutdown_enqueue);
-  CHECK(Sink::dropped_count() == drops_before_shutdown + 5);
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 7);
   CHECK(logs->reports == 2);
   CHECK_FALSE(wrong_thread);
   close(peer);
