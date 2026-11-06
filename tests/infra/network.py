@@ -570,13 +570,10 @@ class Network:
         primary, _ = self.find_primary(
             timeout=args.ledger_recovery_timeout if recovery else 10
         )
-        with primary.client() as c:
-            r = c.get("/node/network")
-            assert r.status_code == 200, r
-            pq_cert = r.body.json().get("pq_service_certificate")
+        pq_cert = self.get_pq_service_certificate(primary)
         for i, node in enumerate(self.nodes):
             if i == 0 and pq_cert is not None:
-                node.remote.get_pq_service_certificate(self.common_dir)
+                node.remote.get_pq_service_certificate_file(self.common_dir)
                 with open(self.pq_cert_path, encoding="utf-8") as f:
                     assert f.read() == pq_cert, "Startup ML-DSA certificate mismatch"
             else:
@@ -2562,9 +2559,9 @@ class Network:
             current_ident = r.body.json()["service_certificate"]
         return current_ident
 
-    def get_pq_service_certificate(self):
+    def get_pq_service_certificate(self, node=None):
         # None when the service has no ML-DSA identity
-        n = self.find_random_node()
+        n = node if node is not None else self.find_random_node()
         with n.client() as c:
             r = c.get("/node/network")
             assert r.status_code == 200, r
