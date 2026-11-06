@@ -49,15 +49,15 @@ jobs:
       EXTRA_TRACES: ${{ inputs.extra-traces }}
 
     steps:
-      - name: Install checkout prerequisites
-        run: dnf -y install git tar
+      # The Lean toolchain bundles its own compiler, linker and libraries.
+      # git: checkout and lake dependencies; tar, gzip, gawk: elan-init.sh.
+      - name: Install system dependencies
+        run: dnf -y install --setopt=install_weak_deps=False git-core tar gzip gawk
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Lean
         uses: ./.github/actions/install-lean
-        with:
-          install-system-dependencies: "true"
 
       - name: Restore Mathlib cache
         working-directory: lean/${{ inputs.package }}

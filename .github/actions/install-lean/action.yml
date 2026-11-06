@@ -1,32 +1,9 @@
 name: Install Lean
-description: Install elan and the Lean toolchain pinned in lean/lean-toolchain
-
-inputs:
-  install-system-dependencies:
-    description: Install the Azure Linux 4 packages needed to build Lean packages with dnf
-    required: false
-    default: "false"
-  extra-packages:
-    description: Space-separated additional dnf packages, installed with the system dependencies
-    required: false
-    default: ""
+description: Install elan and the Lean toolchain pinned in lean/lean-toolchain (needs curl, tar, gzip and awk)
 
 runs:
   using: composite
   steps:
-    - name: Install system dependencies
-      if: inputs.install-system-dependencies == 'true'
-      shell: bash
-      env:
-        EXTRA_PACKAGES: ${{ inputs.extra-packages }}
-      run: |
-        set -euo pipefail
-        # elan-init.sh needs gawk; lake check needs which
-        # shellcheck disable=SC2086
-        dnf -y install \
-          ca-certificates git curl tar zstd gzip gcc gcc-c++ make glibc-devel \
-          gmp-devel diffutils findutils gawk which $EXTRA_PACKAGES
-
     - name: Install elan and Lean toolchain
       shell: bash
       env:

@@ -29,8 +29,13 @@ jobs:
       PACKAGE: ${{ inputs.package }}
 
     steps:
-      - name: Install checkout prerequisites
-        run: dnf -y install git tar
+      # The Lean toolchain bundles its own compiler, linker and libraries.
+      # git: checkout, lake dependencies, fixture diffs; tar, gzip, gawk: elan-init.sh
+      # and actions/cache; which: lake check; jq, python3-jsonschema: fixture checks.
+      - name: Install system dependencies
+        run: |
+          dnf -y install --setopt=install_weak_deps=False \
+            git-core tar gzip gawk which jq python3-jsonschema
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -50,9 +55,6 @@ jobs:
 
       - name: Install Lean
         uses: ./.github/actions/install-lean
-        with:
-          install-system-dependencies: "true"
-          extra-packages: jq python3 python3-jsonschema
 
       - name: Restore dependency builds
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
