@@ -10,7 +10,7 @@
 <linearGradient id="root" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8D9BF5"/><stop offset=".5" stop-color="#5D6FE6"/><stop offset="1" stop-color="#3F4FB8"/></linearGradient>
 </defs>
 <g font-family="Inter, 'Segoe UI', ui-sans-serif, system-ui, sans-serif">
-<text x="48" y="58" fill="#6A7E95" font-size="14" font-weight="700" letter-spacing="2.4">MERKLE TREE</text>
+<text x="48" y="58" fill="#6E8298" font-size="14" font-weight="700" letter-spacing="2.4">MERKLE TREE</text>
 <path d="M98 308L137 280" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
 <path d="M176 308L137 280" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
 <path d="M254 308L293 280" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
@@ -22,7 +22,7 @@
 <path d="M215 164L332 141" stroke="#8495A8" stroke-width="2" stroke-linecap="round"/>
 <path d="M449 236L332 141" stroke="#8495A8" stroke-width="2" stroke-linecap="round"/>
 <rect x="51" y="394" width="484" height="114" rx="14" fill="#3FB39D" fill-opacity=".08" stroke="#3FB39D" stroke-opacity=".4" stroke-width="1.2"/>
-<text x="67" y="495" fill="#358877" font-size="10.5" font-weight="700" letter-spacing="1.6">LEDGER</text>
+<text x="67" y="495" fill="#378D7C" font-size="10.5" font-weight="700" letter-spacing="1.6">LEDGER</text>
 <path d="M98 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
 <path d="M176 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
 <path d="M254 358V408" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
@@ -101,20 +101,20 @@
 <path d="M396 112H585" stroke="#8495A8" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="1 5"/>
 <circle cx="396" cy="112" r="3" fill="#8495A8"/>
 <rect x="595" y="90" width="3" height="64" rx="1.5" fill="#5D6FE6"/>
-<text x="611" y="105" fill="#5E7896" font-size="14.5" font-weight="650">Root at seqno 6</text>
-<text x="611" y="130" fill="#6B7C8F" font-size="13">Occupies the same position as the root at</text>
-<text x="611" y="149" fill="#6B7C8F" font-size="13">seqno 5, but has a different value.</text>
+<text x="611" y="105" fill="#6882A0" font-size="14.5" font-weight="650">Root at seqno 6</text>
+<text x="611" y="130" fill="#708194" font-size="13">Occupies the same position as the root at</text>
+<text x="611" y="149" fill="#708194" font-size="13">seqno 5, but has a different value.</text>
 <rect x="595" y="220" width="3" height="127" rx="1.5" fill="#3C8FC4"/>
-<text x="611" y="235" fill="#5E7896" font-size="14.5" font-weight="650">Compacted at seqno 6</text>
-<text x="611" y="260" fill="#6B7C8F" font-size="13">After H6 is inserted, consensus commits and</text>
-<text x="611" y="279" fill="#6B7C8F" font-size="13">the tree so far is compacted at seqno 6.</text>
-<text x="611" y="304" fill="#6B7C8F" font-size="13">The tree still contains the intermediate</text>
-<text x="611" y="323" fill="#6B7C8F" font-size="13">hashes needed to issue receipts for H6, the</text>
-<text x="611" y="342" fill="#6B7C8F" font-size="13">left-most leaf of the new tree.</text>
+<text x="611" y="235" fill="#6882A0" font-size="14.5" font-weight="650">Compacted at seqno 6</text>
+<text x="611" y="260" fill="#708194" font-size="13">After H6 is inserted, consensus commits and</text>
+<text x="611" y="279" fill="#708194" font-size="13">the tree so far is compacted at seqno 6.</text>
+<text x="611" y="304" fill="#708194" font-size="13">The tree still contains the intermediate</text>
+<text x="611" y="323" fill="#708194" font-size="13">hashes needed to issue receipts for H6, the</text>
+<text x="611" y="342" fill="#708194" font-size="13">left-most leaf of the new tree.</text>
 <rect x="55" y="530" width="26" height="18" rx="5" fill="#2F78A8"/>
 <rect x="55" y="527" width="26" height="18" rx="5" fill="url(#hash)"/>
-<text x="91" y="540.5" fill="#6B7C8F" font-size="13">Retained hash</text>
+<text x="91" y="540.5" fill="#708194" font-size="13">Retained hash</text>
 <rect x="212.57" y="527" width="26" height="18" rx="5" fill="#8495A8" fill-opacity=".08" stroke="#8495A8" stroke-width="1.4" stroke-dasharray="3 3"/>
-<text x="248.57" y="540.5" fill="#6B7C8F" font-size="13">Discarded on compaction</text>
+<text x="248.57" y="540.5" fill="#708194" font-size="13">Discarded on compaction</text>
 </g>
 </svg>

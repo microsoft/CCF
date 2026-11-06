@@ -141,6 +141,19 @@ html_theme_options = {
             "class": "",
         }
     ],
+    # Dimmed slate dark mode, lighter than Furo's default near-black, so that
+    # diagrams with transparent backgrounds read well in both modes
+    "dark_css_variables": {
+        "color-background-primary": "#1e232b",
+        "color-background-secondary": "#252b34",
+        "color-background-hover": "#2c333dff",
+        "color-background-hover--transparent": "#2c333d00",
+        "color-background-border": "#39414c",
+        "color-background-item": "#4a5360",
+        "color-foreground-muted": "#8f949b",
+        "color-admonition-background": "#232932",
+        "color-card-background": "#232932",
+    },
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,

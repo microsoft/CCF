@@ -10,7 +10,7 @@
 <linearGradient id="root" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8D9BF5"/><stop offset=".5" stop-color="#5D6FE6"/><stop offset="1" stop-color="#3F4FB8"/></linearGradient>
 </defs>
 <g font-family="Inter, 'Segoe UI', ui-sans-serif, system-ui, sans-serif">
-<text x="48" y="58" fill="#6A7E95" font-size="14" font-weight="700" letter-spacing="2.4">MERKLE TREE</text>
+<text x="48" y="58" fill="#6E8298" font-size="14" font-weight="700" letter-spacing="2.4">MERKLE TREE</text>
 <path d="M98 380L137 352" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
 <path d="M176 380L137 352" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
 <path d="M254 380L293 352" stroke="#8495A8" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
@@ -30,7 +30,7 @@
 <path d="M371 164L566 141" stroke="#8495A8" stroke-width="2" stroke-linecap="round"/>
 <path d="M761 308L566 141" stroke="#8495A8" stroke-width="2" stroke-linecap="round"/>
 <rect x="51" y="466" width="874" height="114" rx="14" fill="#3FB39D" fill-opacity=".08" stroke="#3FB39D" stroke-opacity=".4" stroke-width="1.2"/>
-<text x="67" y="567" fill="#358877" font-size="10.5" font-weight="700" letter-spacing="1.6">LEDGER</text>
+<text x="67" y="567" fill="#378D7C" font-size="10.5" font-weight="700" letter-spacing="1.6">LEDGER</text>
 <path d="M98 430V480" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
 <path d="M176 430V480" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
 <path d="M254 430V480" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
@@ -43,7 +43,7 @@
 <path d="M800 430V480" stroke="#3FB39D" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 6"/>
 <path d="M878 478V124Q878 112 866 112H632" stroke="#5D6FE6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
 <polygon points="621,112 633,105.5 633,118.5" fill="#5D6FE6"/>
-<text x="755.5" y="101" fill="#6573CA" font-size="14.5" font-weight="600" text-anchor="middle" letter-spacing=".2">signs</text>
+<text x="755.5" y="101" fill="#6D7ACD" font-size="14.5" font-weight="600" text-anchor="middle" letter-spacing=".2">signs</text>
 <rect x="67" y="380" width="62" height="40" rx="10" fill="#8495A8" fill-opacity=".08" stroke="#8495A8" stroke-width="1.4" stroke-dasharray="4 4"/>
 <text x="98" y="404.5" fill="#8495A8" font-size="13" font-weight="650" text-anchor="middle">H1</text>
 <rect x="145" y="380" width="62" height="40" rx="10" fill="#8495A8" fill-opacity=".08" stroke="#8495A8" stroke-width="1.4" stroke-dasharray="4 4"/>
@@ -181,8 +181,8 @@
 <text x="878" y="532" fill="#1E2F42" font-size="18" font-weight="700" text-anchor="middle">11</text>
 <rect x="55" y="602" width="26" height="18" rx="5" fill="#2F78A8"/>
 <rect x="55" y="599" width="26" height="18" rx="5" fill="url(#hash)"/>
-<text x="91" y="612.5" fill="#6B7C8F" font-size="13">Retained hash</text>
+<text x="91" y="612.5" fill="#708194" font-size="13">Retained hash</text>
 <rect x="212.57" y="599" width="26" height="18" rx="5" fill="#8495A8" fill-opacity=".08" stroke="#8495A8" stroke-width="1.4" stroke-dasharray="3 3"/>
-<text x="248.57" y="612.5" fill="#6B7C8F" font-size="13">Discarded on compaction</text>
+<text x="248.57" y="612.5" fill="#708194" font-size="13">Discarded on compaction</text>
 </g>
 </svg>
