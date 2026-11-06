@@ -2657,8 +2657,12 @@ def run_service_subject_name_check(args):
         pdb=args.pdb,
     ) as network:
         network.start_and_open(
-            args, service_subject_name="CN=https://this.test.service,O=CCF User"
+            args,
+            service_subject_name="CN=https://this.test.service,O=CCF User",
+            pq_service_cert_file="custom_pq_service_cert.pem",
         )
+        assert os.path.basename(network.pq_cert_path) == "custom_pq_service_cert.pem"
+        assert "pq_service_cert.pem" not in network.nodes[0].remote.remote.list_files()
         subject = service_subject(network)
         assert subject == expected_subject, subject
 
