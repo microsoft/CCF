@@ -19,6 +19,7 @@ The public proof API is `DisasterRecovery.Properties`; its full theorem statemen
 
 Human review covers the model, the full theorem and lemma statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
 The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
+The proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
 
 ## Model
 
