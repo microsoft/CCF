@@ -5,7 +5,8 @@ module
 
 public import Kv.Properties.Invariants
 
-import Kv.Proofs.Properties
+import Kv.Proofs.Reachable
+import Kv.Proofs.Replay
 import Kv.Proofs.Witnesses
 
 @[expose] public section
@@ -222,7 +223,7 @@ theorem replay_segment_serializability
             ∧ projectApplications w sid rs = .ok txs
             ∧ serialTransactions s.head.data s.head.version txs = some after.head.data
             ∧ after.head.version = s.head.version + txs.length := by
-  exact Proofs.Properties.replay_segment_serializability
+  exact Proofs.Trace.replay_segment_serializability_claim
 
 /-- Witness: an accepted nonempty segment can keep a store alive. -/
 lemma replay_segment_serializability_witness
@@ -246,7 +247,7 @@ theorem reachable_store_invariants
           ∧ s.history.head? = some s.head
           ∧ s.global ≤ s.head.version
           ∧ (atCut s s.global).version = s.global := by
-  exact Proofs.Properties.reachable_store_invariants
+  exact Proofs.Trace.reachable_store_invariants_claim
 
 /-- Witness: a reachable world can have a live store. -/
 lemma reachable_store_invariants_witness
@@ -261,7 +262,7 @@ theorem reachable_store_data_invariants
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
         → Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
-  exact Proofs.Properties.reachable_store_data_invariants
+  exact Proofs.Trace.reachable_store_data_invariants_claim
 
 /-- Witness: a reachable world can have a live store. -/
 lemma reachable_store_data_invariants_witness
@@ -279,7 +280,7 @@ theorem step_capture_metadata
           = some next
         → find next.txs tid = some t
         → ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term := by
-  exact Proofs.Properties.step_capture_metadata
+  exact Proofs.Trace.step_capture_metadata_claim
 
 /-- Witness: a snapshot capture can be accepted. -/
 lemma step_capture_metadata_witness
@@ -297,7 +298,7 @@ theorem step_capture_cut_values
         → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
           = some next
         → version = s.head.version ∧ global = s.global := by
-  exact Proofs.Properties.step_capture_cut_values
+  exact Proofs.Trace.step_capture_cut_values_claim
 
 /-- Witness: a snapshot capture can be accepted. -/
 lemma step_capture_cut_values_witness
@@ -323,7 +324,7 @@ theorem capture_replay_preserves_metadata
             ∧ after.snapshot = some snap
             ∧ snap.current = s.head
             ∧ snap.term = term := by
-  exact Proofs.Properties.capture_replay_preserves_metadata
+  exact Proofs.Trace.capture_replay_preserves_metadata_claim
 
 /-- Witness: a snapshot capture can be followed by an accepted nonempty run that keeps the attempt. -/
 lemma capture_replay_preserves_metadata_witness
@@ -346,7 +347,7 @@ theorem replay_snapshot_fixed
         → (∀ r ∈ rs, AttemptEvent tid r.event)
         → CCF.Execution.Run Model.transitionSystem w rs final
         → ∃ after, find final.txs tid = some after ∧ after.snapshot = some snap := by
-  exact Proofs.Properties.replay_snapshot_fixed
+  exact Proofs.Trace.replay_snapshot_fixed_claim
 
 /-- Witness: an attempt with a snapshot can be followed by an accepted nonempty run that keeps it. -/
 lemma replay_snapshot_fixed_witness
@@ -374,7 +375,7 @@ theorem step_map_capture
         → find after.globalViews map = some (captureGlobal s snap map)
           ∧ localVersion = (revision (captureLocal s snap map) map).version
           ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version := by
-  exact Proofs.Properties.step_map_capture
+  exact Proofs.Trace.step_map_capture_claim
 
 /-- Witness: a map acquisition can be accepted. -/
 lemma step_map_capture_witness
@@ -399,7 +400,7 @@ theorem replay_map_global_fixed
         → CCF.Execution.Run Model.transitionSystem w rs final
         → ∃ after,
             find final.txs tid = some after ∧ find after.globalViews map = some view := by
-  exact Proofs.Properties.replay_map_global_fixed
+  exact Proofs.Trace.replay_map_global_fixed_claim
 
 /-- Witness: an attempt with an acquired map can be followed by an accepted nonempty run that keeps it. -/
 lemma replay_map_global_fixed_witness
@@ -423,7 +424,7 @@ theorem replay_map_local_fixed
         → ∃ after,
             find final.txs tid = some after
             ∧ image after.data map = image before.data map := by
-  exact Proofs.Properties.replay_map_local_fixed
+  exact Proofs.Trace.replay_map_local_fixed_claim
 
 /-- Witness: an acquired map can survive a nonempty accepted segment. -/
 lemma replay_map_local_fixed_witness
@@ -457,7 +458,7 @@ theorem capture_replay_preserves_map
             ∧ localVersion = (revision (captureLocal s snap map) map).version
             ∧ globalVersion
               = (revision (captureGlobal s snap map).frame map).version := by
-  exact Proofs.Properties.capture_replay_preserves_map
+  exact Proofs.Trace.capture_replay_preserves_map_claim
 
 /-- Witness: a map acquisition can be followed by an accepted nonempty run that keeps the attempt. -/
 lemma capture_replay_preserves_map_witness
@@ -517,7 +518,7 @@ theorem step_global_read_from_captured_map
                   view.frame = atCut origin origin.global
                   ∧ view.frame.version = origin.global
                   ∧ CellsBounded view.frame.data origin.global) := by
-  exact Proofs.Properties.step_global_read_from_captured_map
+  exact Proofs.Trace.step_global_read_from_captured_map_claim
 
 /-- Witness: a global read of a committed value can be accepted. -/
 lemma step_global_read_from_captured_map_witness
@@ -545,7 +546,7 @@ theorem step_global_has_from_captured_map
                   view.frame = atCut origin origin.global
                   ∧ view.frame.version = origin.global
                   ∧ CellsBounded view.frame.data origin.global) := by
-  exact Proofs.Properties.step_global_has_from_captured_map
+  exact Proofs.Trace.step_global_has_from_captured_map_claim
 
 /-- Witness: a global presence test of a committed key can be accepted. -/
 lemma step_global_has_from_captured_map_witness

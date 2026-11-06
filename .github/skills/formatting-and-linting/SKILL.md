@@ -29,7 +29,7 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | `cpp-format-checks.sh`     | C/C++ in `include/`, `src/`, `samples/`                      | clang-format                                       | `-f`              |
 | `clang-tidier.py -p build` | First-party C++ compile commands and their headers           | clang-query: braces for non-empty case bodies      | No                |
 | `lean-format-checks.sh`    | All tracked Lean files                                       | leanfmt                                            | `-f`              |
-| `python-format-checks.sh`  | Python in `tests/`, `python/`, `scripts/`, `tla/`            | black                                              | `-f`              |
+| `python-format-checks.sh`  | Python in `tests/`, `python/`, `scripts/`                    | black                                              | `-f`              |
 | `python-lint-checks.sh`    | Python in `python/`, `tests/`                                | ruff                                               | `-f`              |
 | `python-types-checks.sh`   | Python SDK, tutorial, and SDK tests under `python/`          | Pyright                                            | No                |
 | `prettier-checks.sh`       | TS, JS, Markdown, YAML, JSON (excluding `tests/sandbox/`)    | prettier                                           | `-f`              |
@@ -55,4 +55,4 @@ The Lean formatting check runs in `.github/workflows/lean.yml`, not `scripts/ci-
 It requires elan and the package's Lean toolchain.
 See [Lean formatting setup](../../../lean/disaster-recovery/README.md#formatting).
 
-The ASCII check includes Rust and TLA+, but exempts Lean source files (`*.lean`) and excludes `3rdparty/`. Vendored third-party dependencies are exempt from the authoring policy; preserve their upstream contents. In checked files, existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.
+The ASCII check includes Rust, but exempts Lean source files (`*.lean`) and excludes `3rdparty/`. Vendored third-party dependencies are exempt from the authoring policy; preserve their upstream contents. In checked files, existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.
