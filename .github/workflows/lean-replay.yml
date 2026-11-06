@@ -45,6 +45,7 @@ jobs:
     env:
       PACKAGE: ${{ inputs.package }}
       TARGET: ${{ inputs.target }}
+      ARTIFACT: ${{ inputs.artifact }}
       TRACES: ${{ inputs.traces }}
       EXTRA_TRACES: ${{ inputs.extra-traces }}
 
@@ -72,18 +73,22 @@ jobs:
           set -euo pipefail
           lake build --wfail "$TARGET"
 
+      # Runners may be reused without cleaning RUNNER_TEMP
+      - name: Clear trace directory
+        run: rm -rf "$RUNNER_TEMP/$ARTIFACT"
+
       - name: Download traces
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ inputs.artifact }}
-          path: ${{ runner.temp }}/traces
+          path: ${{ runner.temp }}/${{ inputs.artifact }}
 
       - name: Validate traces
         run: |
           set -euo pipefail
           shopt -s failglob
           # shellcheck disable=SC2086
-          for trace in "$RUNNER_TEMP"/traces/$TRACES $EXTRA_TRACES; do
+          for trace in "$RUNNER_TEMP/$ARTIFACT"/$TRACES $EXTRA_TRACES; do
             echo "::group::Validate $trace"
             "lean/$PACKAGE/.lake/build/bin/$TARGET" "$trace"
             echo "::endgroup::"
