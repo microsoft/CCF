@@ -1049,6 +1049,78 @@ TEST_CASE("Reader: nullopt for uncovered seqno in Partial")
   REQUIRE(chain->size() == 1);
 }
 
+TEST_CASE("Historical endorsements accept transaction-local service records")
+{
+  const ccf::NetworkIdentity identity(
+    "CN=Historical Service",
+    ccf::crypto::CurveID::SECP384R1,
+    ccf::crypto::MLDSAParameterSet::ML_DSA_65,
+    "20200101000000Z",
+    1);
+  ccf::kv::Store historical_store;
+  historical_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  auto tx = historical_store.create_tx();
+  tx.rw<ccf::Service>(ccf::Tables::SERVICE)
+    ->put(ccf::ServiceInfo{
+      .cert = identity.cert,
+      .pq_cert = identity.pq_cert,
+      .status = ccf::ServiceStatus::OPEN});
+  auto endorsement = make_self_endorsement(2, 1);
+  endorsement.endorsing_key =
+    ccf::crypto::make_verifier(identity.cert)->public_key_der();
+  auto* endorsements = tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+    ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+  endorsements->put(ccf::IdentityType::CLASSICAL, endorsement);
+  auto* identities =
+    tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES);
+
+  SUBCASE("Unchanged signing identities are absent from this transaction") {}
+
+  SUBCASE("A matching CLASSICAL identity written here is checked")
+  {
+    identities->put(
+      ccf::IdentityType::CLASSICAL,
+      ccf::signing_identity_from_cert(identity.cert));
+  }
+
+  SUBCASE("A mismatched CLASSICAL identity written here is rejected")
+  {
+    identities->put(
+      ccf::IdentityType::CLASSICAL,
+      {ccf::IdentityKind::X509_SPKI_DER,
+       ccf::crypto::make_ec_key_pair()->public_key_der()});
+    REQUIRE_THROWS_WITH_AS(
+      ccf::read_historical_service_endorsement(tx, 10),
+      "Service signing identity does not match its service certificate",
+      std::logic_error);
+    return;
+  }
+
+  SUBCASE("An absent endorsement remains an error")
+  {
+    endorsements->remove(ccf::IdentityType::CLASSICAL);
+    REQUIRE_THROWS_WITH_AS(
+      ccf::read_historical_service_endorsement(tx, 10),
+      "COSE endorsement entry for seqno 10 is missing from its historical "
+      "state",
+      std::runtime_error);
+    return;
+  }
+
+  const auto actual = ccf::read_historical_service_endorsement(tx, 10);
+  REQUIRE(
+    actual.endorsement_epoch_begin == endorsement.endorsement_epoch_begin);
+  REQUIRE(actual.endorsing_key == endorsement.endorsing_key);
+  if (identity.pq_cert.has_value())
+  {
+    REQUIRE_THROWS_WITH_AS(
+      ccf::check_signing_identity_matches_service_cert(tx),
+      "PQ signing identity and service certificate must both be present or "
+      "absent",
+      std::logic_error);
+  }
+}
+
 TEST_CASE("Reader: get_trusted_identity_for boundary semantics")
 {
   SubsystemFixture f;
@@ -1212,6 +1284,7 @@ TEST_CASE("NetworkIdentity carries an ML-DSA identity when the build has one")
   {
     REQUIRE_FALSE(identity.pq_cert.has_value());
     REQUIRE_FALSE(identity.pq_priv_key.has_value());
+    REQUIRE(identity.get_pq_key_pair() == nullptr);
     return;
   }
 
@@ -1225,6 +1298,21 @@ TEST_CASE("NetworkIdentity carries an ML-DSA identity when the build has one")
     ccf::crypto::make_mldsa_key_pair(
       identity.pq_priv_key.value(), parameter_set)
       ->public_key_der() == pq->public_key_der());
+  const auto key_pair = identity.get_pq_key_pair();
+  REQUIRE(key_pair != nullptr);
+  REQUIRE(key_pair->get_parameter_set() == parameter_set);
+  REQUIRE(key_pair->public_key_der() == pq->public_key_der());
+}
+
+TEST_CASE("NetworkIdentity never substitutes a classical key for PQ")
+{
+  ccf::NetworkIdentity identity;
+  identity.priv_key = ccf::crypto::make_ec_key_pair()->private_key_pem();
+  REQUIRE(identity.get_key_pair() != nullptr);
+  REQUIRE(identity.get_pq_key_pair() == nullptr);
+
+  identity.pq_priv_key = identity.priv_key;
+  REQUIRE_THROWS(identity.get_pq_key_pair());
 }
 
 TEST_CASE(
