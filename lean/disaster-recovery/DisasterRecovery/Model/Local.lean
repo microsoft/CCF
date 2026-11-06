@@ -13,7 +13,7 @@ abbrev Location := String
 
 /-- The view and sequence number of a recovered ledger's last signed transaction. -/
 structure TxID where
-  /-- The transaction's Raft view. -/
+  /-- The transaction's Consensus view. -/
   view : Nat
   /-- The transaction's sequence number. -/
   seqno : Nat

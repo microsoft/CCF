@@ -198,21 +198,34 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
 {
   nlohmann::json config_json = ccf::CCFConfig{};
   config_json.erase("observability");
-  CHECK_FALSE(
-    config_json.get<ccf::CCFConfig>().observability.fluentd.has_value());
+  CHECK(config_json.get<ccf::CCFConfig>().observability.fluentd.empty());
 
   config_json["observability"] = {
-    {"fluentd", {{"host", "127.0.0.1"}, {"port", "24224"}}}};
+    {"fluentd",
+     {{{"host", "127.0.0.1"}, {"port", "24224"}},
+      {{"host", "127.0.0.2"},
+       {"port", "24225"},
+       {"delivery", "unbuffered-non-blocking"}}}}};
   auto config = config_json.get<ccf::CCFConfig>();
-  REQUIRE(config.observability.fluentd.has_value());
-  CHECK(config.observability.fluentd->host == "127.0.0.1");
-  CHECK(config.observability.fluentd->port == "24224");
-  CHECK(config.observability.fluentd->queue_capacity == 4096);
+  REQUIRE(config.observability.fluentd.size() == 2);
+  CHECK(config.observability.fluentd[0].host == "127.0.0.1");
+  CHECK(config.observability.fluentd[0].port == "24224");
+  CHECK(config.observability.fluentd[0].queue_capacity == 4096);
+  CHECK(
+    config.observability.fluentd[0].delivery ==
+    ccf::FluentdConfig::Delivery::BUFFERED_BEST_EFFORT);
+  CHECK(
+    config.observability.fluentd[1].delivery ==
+    ccf::FluentdConfig::Delivery::UNBUFFERED_NON_BLOCKING);
 
-  config.observability.fluentd->queue_capacity = 17;
+  config.observability.fluentd[0].queue_capacity = 17;
   const nlohmann::json roundtrip = config;
-  CHECK(roundtrip.at("observability").at("fluentd").at("queue_capacity") == 17);
+  CHECK(
+    roundtrip.at("observability").at("fluentd")[0].at("queue_capacity") == 17);
   CHECK(roundtrip.get<ccf::CCFConfig>().observability == config.observability);
+
+  config_json["observability"]["fluentd"][1]["delivery"] = "reliable";
+  CHECK_THROWS_AS(config_json.get<ccf::CCFConfig>(), ccf::JsonParseError);
 }
 
 TEST_CASE("SPSC concurrent FIFO records outlive reused slots and the queue")
@@ -420,26 +433,26 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     static_cast<ssize_t>(received.size()));
   CHECK(received == bytes);
 
-  const auto drops_before_disconnect = Sink::dropped_count();
-  fail_at = calls + 2;
-  REQUIRE(Sink::enqueue(bytes));
-  REQUIRE(recv(peer, chunk.data(), chunk.size(), MSG_WAITALL) == 7);
-  CHECK(recv(peer, chunk.data(), chunk.size(), 0) == 0);
-  close(peer);
-  const auto drop_deadline =
-    std::chrono::steady_clock::now() + std::chrono::seconds(1);
-  while (Sink::dropped_count() == drops_before_disconnect &&
-         std::chrono::steady_clock::now() < drop_deadline)
-    std::this_thread::yield();
-  CHECK(Sink::dropped_count() == drops_before_disconnect + 1);
-  REQUIRE(Sink::wait_for_connection(std::chrono::seconds(2)));
-  REQUIRE(Sink::enqueue(bytes));
-  peer = accept(listener, nullptr, nullptr);
-  REQUIRE(peer >= 0);
-  REQUIRE(
-    recv(peer, received.data(), received.size(), MSG_WAITALL) ==
-    static_cast<ssize_t>(received.size()));
-  CHECK(received == bytes);
+  for (size_t failure = 1; failure <= 2; ++failure)
+  {
+    const auto drops_before_disconnect = Sink::dropped_count();
+    fail_at = calls + failure;
+    REQUIRE(Sink::enqueue(bytes));
+    if (failure == 2)
+    {
+      REQUIRE(recv(peer, chunk.data(), 7, MSG_WAITALL) == 7);
+    }
+    CHECK(recv(peer, chunk.data(), chunk.size(), 0) == 0);
+    close(peer);
+    peer = accept(listener, nullptr, nullptr);
+    REQUIRE(peer >= 0);
+    REQUIRE(
+      recv(peer, received.data(), received.size(), MSG_WAITALL) ==
+      static_cast<ssize_t>(received.size()));
+    CHECK(received == bytes);
+    CHECK(Sink::dropped_count() == drops_before_disconnect);
+    check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  }
 
   const auto drops_before_allocation_failures = Sink::dropped_count();
   for (size_t failure = 1; failure <= 2; ++failure)

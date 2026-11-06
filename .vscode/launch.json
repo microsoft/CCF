@@ -126,13 +126,13 @@
       ]
     },
     {
-      "name": "Debug Raft Test Scenarios (gdb)",
+      "name": "Debug CCF consensus protocol scenarios (gdb)",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/raft_driver",
+      "program": "${workspaceFolder}/build/cft_driver",
       "args": ["${file}"],
       "stopAtEntry": false,
-      "cwd": "${workspaceFolder}/tests/raft_scenarios/",
+      "cwd": "${workspaceFolder}/tests/cft_scenarios/",
       "environment": [],
       "externalConsole": false,
       "MIMode": "gdb",

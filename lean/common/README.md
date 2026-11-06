@@ -21,7 +21,7 @@ Specification proofs import the Mathlib tactics they need rather than the `Mathl
 Their CCF declarations, theorem statements, exposed definitions, and required tactic support remain available, but importing a proof module or an assembled specification root does not promise to reexport unrelated Mathlib tactics or theory.
 `CCF.Execution` publicly imports `Mathlib.Data.Seq.Defs` and keeps `Mathlib.Data.Seq.Basic` private for its internal proofs.
 Consumers that need other Mathlib facilities should import their defining modules explicitly.
-The documented property entrypoints remain the public proof APIs; see the [Raft](../ccf-raft/README.md#proofs), [consistency](../consistency/README.md#properties), and [disaster recovery](../disaster-recovery/README.md#properties) packages.
+The documented property entrypoints remain the public proof APIs; see the [CCF consensus protocol](../consensus/README.md#proofs), [consistency](../consistency/README.md#properties), and [disaster recovery](../disaster-recovery/README.md#properties) packages.
 
 Selective imports do not reduce the checked CCF roots or omit tests.
 `lake check` still exports the complete imported environment and checks its safe declarations and axiom dependencies, including declarations from dependencies.

@@ -23,7 +23,7 @@
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/tx.h"
-#include "consensus/aft/raft.h"
+#include "consensus/aft/cft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
 #include "ds/ccf_assert.h"
@@ -53,6 +53,7 @@
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
 #include "node/retired_nodes_cleanup.h"
+#include "node/retry_on_compacted_version_conflict.h"
 #include "node/rpc/abstract_rpc_sessions.h"
 #include "node/rpc/ledger_interface.h"
 #include "node/runtime_control.h"
@@ -94,7 +95,7 @@
 
 namespace ccf
 {
-  using RaftType = aft::Aft<::consensus::LedgerEnclave>;
+  using CftType = aft::Aft<::consensus::LedgerEnclave>;
 
   struct NodeCreateInfo
   {
@@ -314,9 +315,21 @@ namespace ccf
             return;
           }
 
-          auto tx = owner->network.tables->create_read_only_tx();
-          auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
-          auto node_info = nodes->get(primary_id.value());
+          std::optional<ccf::NodeInfo> node_info;
+          if (!ccf::retry_on_compacted_version_conflict(
+                "BackupSnapshotFetch: Primary node lookup", [&] {
+                  auto tx = owner->network.tables->create_read_only_tx();
+                  node_info =
+                    tx.ro<ccf::Nodes>(Tables::NODES)->get(primary_id.value());
+                }))
+          {
+            LOG_FAIL_FMT(
+              "BackupSnapshotFetch: Could not read primary node {} from nodes "
+              "table after repeated compaction conflicts, skipping fetch",
+              primary_id.value());
+            return;
+          }
+
           if (!node_info.has_value())
           {
             LOG_INFO_FMT(
@@ -402,7 +415,32 @@ namespace ccf
             return;
           }
 
-          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+          try
+          {
+            files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT(
+              "BackupSnapshotFetch: Failed to write snapshot {}: {}",
+              dst_path.string(),
+              e.what());
+
+            // A partial file sits under the committed snapshot name, so it
+            // would be mistaken for a usable snapshot and never fetched again
+            std::error_code ec;
+            std::filesystem::remove(dst_path, ec);
+            if (ec)
+            {
+              LOG_FAIL_FMT(
+                "BackupSnapshotFetch: Failed to remove incomplete snapshot {}: "
+                "{}",
+                dst_path.string(),
+                ec.message());
+            }
+            return;
+          }
+
           LOG_INFO_FMT(
             "BackupSnapshotFetch: Wrote snapshot {} ({} bytes)",
             dst_path.string(),
@@ -2498,7 +2536,7 @@ namespace ccf
       network.tables->swap_private_maps(*recovery_store);
       recovery_store.reset();
 
-      // Raft should deserialise all security domains when network is opened
+      // CCF should deserialise all security domains when the network is opened.
       consensus->enable_all_domains();
 
       // Snapshots are only generated after recovery is complete
@@ -3855,7 +3893,7 @@ namespace ccf
       auto retired_node_cleanup =
         std::make_shared<RetiredNodeCleanup>(node_client);
 
-      auto raft = std::make_shared<RaftType>(
+      auto cft = std::make_shared<CftType>(
         consensus_config,
         std::make_unique<aft::Adaptor<ccf::kv::Store>>(network.tables),
         std::make_unique<::consensus::LedgerEnclave>(ledger_subsystem),
@@ -3864,10 +3902,10 @@ namespace ccf
         [retired_node_cleanup]() { retired_node_cleanup->cleanup(); },
         commit_callbacks,
         public_only);
-      raft->register_periodic_tasks(
+      cft->register_periodic_tasks(
         ccf::tasks::get_main_job_board(),
         std::chrono::milliseconds(config.tick_interval));
-      consensus = std::move(raft);
+      consensus = std::move(cft);
 
       pending_node_cleanup = std::make_shared<PendingNodeCleanup>(
         node_client,

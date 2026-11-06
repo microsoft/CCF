@@ -634,7 +634,7 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
 @reqs.description("Adding as many pending nodes as current number of nodes")
 @reqs.supports_methods("/app/log/private")
 def test_add_as_many_pending_nodes(network, args):
-    # Killing pending nodes should not change the raft consensus rules
+    # Killing pending nodes should not change the CCF consensus protocol rules.
     primary, _ = network.find_primary()
     number_new_nodes = len(network.nodes)
     LOG.info(
