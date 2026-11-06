@@ -16,7 +16,7 @@ jobs:
     name: Check ${{ inputs.package }}
     runs-on: [gha-vmss-d16av7-ci]
     container:
-      image: ubuntu:26.04
+      image: mcr.microsoft.com/azurelinux-beta/base/core:4.0
       options: --user root
     timeout-minutes: 90
     defaults:
@@ -29,11 +29,17 @@ jobs:
       - name: Install container prerequisites
         run: |
           set -euo pipefail
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            ca-certificates git curl tar zstd build-essential libgmp-dev \
-            elan python3-jsonschema jq
+          dnf -y install \
+            ca-certificates git curl tar zstd gcc gcc-c++ make glibc-devel \
+            gmp-devel diffutils findutils \
+            jq python3 python3-jsonschema
+          curl --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
+            -o /tmp/elan-init.sh
+          ELAN_HOME="$RUNNER_TEMP/elan" sh /tmp/elan-init.sh -y --no-modify-path --default-toolchain none
+          rm /tmp/elan-init.sh
           echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/elan/bin" >> "$GITHUB_PATH"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -60,7 +66,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: lean/${{ inputs.package }}/.lake/packages
-          key: lean-deps-v2-vmss-ubuntu-26.04-${{ runner.arch }}-${{ inputs.package }}-${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-package.yml') }}
+          key: lean-deps-v2-vmss-azurelinux-4.0-${{ runner.arch }}-${{ inputs.package }}-${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-package.yml') }}
 
       - name: Restore Mathlib cache
         working-directory: lean/${{ inputs.package }}
