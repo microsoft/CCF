@@ -74,11 +74,11 @@ namespace ccf::kv
       const auto offset =
         SpanKvStoreSerialiser::public_domain_offset(encryptor);
 
-      std::vector<uint8_t> entry(offset + public_size + private_size);
+      std::vector<uint8_t> entry(sizer.get_serialised_size());
       const auto entry_span = std::span<uint8_t>(entry);
       SpanKvStoreSerialiser serialiser(
         SpanWriter(entry_span.subspan(offset, public_size)),
-        SpanWriter(entry_span.subspan(offset + public_size, private_size)),
+        SpanWriter(entry_span.subspan(offset + public_size)),
         encryptor,
         tx_id,
         ccf::kv::EntryType::Snapshot,

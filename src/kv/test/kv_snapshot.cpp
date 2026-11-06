@@ -1147,16 +1147,15 @@ TEST_CASE(
     true);
   serialise_maps(sizer);
   const auto public_size = sizer.get_public_domain_size();
-  const auto private_size = sizer.get_private_domain_size();
   const auto offset =
     ccf::kv::SpanKvStoreSerialiser::public_domain_offset(encryptor);
   const auto private_offset = offset + public_size;
 
-  std::vector<uint8_t> entry(private_offset + private_size);
+  std::vector<uint8_t> entry(sizer.get_serialised_size());
   const auto entry_span = std::span<uint8_t>(entry);
   ccf::kv::SpanKvStoreSerialiser serialiser(
     ccf::kv::SpanWriter(entry_span.subspan(offset, public_size)),
-    ccf::kv::SpanWriter(entry_span.subspan(private_offset, private_size)),
+    ccf::kv::SpanWriter(entry_span.subspan(private_offset)),
     encryptor,
     tx_id,
     ccf::kv::EntryType::Snapshot,
