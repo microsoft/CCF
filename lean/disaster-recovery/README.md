@@ -52,8 +52,8 @@ See the [shared trace definitions](../common/README.md#transition-systems) for i
 
 `quorum_opener_unique` states that all `opening quorum` notifications in a trace originate from one node.
 
-`quorum_open_preserves_commit` and `full_gossip_preserves_commit` conclude that the opener satisfies Raft's vote freshness check against a strict majority of the recovered ledgers.
-`LogUpToDate` is that check, comparing view and then sequence number, as in `recv_request_vote` in `src/consensus/aft/raft.h`.
+`quorum_open_preserves_commit` and `full_gossip_preserves_commit` conclude that the opener satisfies the CCF consensus protocol's vote freshness check against a strict majority of the recovered ledgers.
+`LogUpToDate` is that check, comparing view and then sequence number, as in `recv_request_vote` in `src/consensus/aft/cft.h`.
 The first property requires each voter to have received its own gossip; without this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by quorum.
 The second requires a state in which every node's gossip equals `config.recovered`, and it also covers failover openings.
 
@@ -61,8 +61,8 @@ Each safety theorem has a corresponding `_witness` lemma asserting that some val
 The full-gossip witness includes a failover opening.
 `Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
 
-Freshness is a necessary condition for election, not a definition of Raft commitment.
-`update_commit` additionally requires a current-term signature replicated on a majority, and the Raft safety specification (`tla/consensus/ccfraft.tla`) is stated on log prefixes.
+Freshness is a necessary condition for election, not a definition of commitment in CCF.
+`update_commit` additionally requires a current-term signature replicated on a majority, and the [consensus safety properties](../consensus/Consensus/Properties.lean) are stated on committed log prefixes.
 The model stores only the last signed TxID of each ledger, so this package does not prove committed-prefix preservation.
 Liveness properties are out of scope.
 
@@ -120,6 +120,24 @@ The `--inadvisably-no-sandbox` flag allows the check to build the shared modules
 It disables build isolation, not proof or axiom checking; run it only on code you trust.
 CI checks the package in an Ubuntu 26.04 job using disk-backed temporary storage.
 Additional bundled checkers are not enabled.
+
+### CI package isolation
+
+The [Lean workflow](../../.github/workflows/lean.yml) checks `consensus`, `common`, `consistency`, `disaster-recovery`, and `kv` in one matrix with fail-fast disabled, using the same [package workflow](../../.github/workflows/lean-package.yml).
+Each invocation has its own checkout and writable build directories, including `common/.lake`, because the packages reference `../common` without copying it.
+Mathlib cache setup precedes kernel and axiom checking, which precedes import/architecture checking, formatting, linting, and package-specific fixtures.
+Common receives its own kernel, import, and lint checks; the disaster-recovery formatting selector also covers common and tracked Lean files outside `lean/`.
+Recovery schema validation, positive/negative replay fixtures, and viewer dump generation run in the disaster-recovery job.
+
+Native CCF consensus and KV captures run independently of package checking.
+The [CCF consensus replay job](../consensus/replay/README.md#ci-captures-and-replay) and the KV replay job each wait only for their corresponding native captures, restore Mathlib caches, and build their own replay executable without depending on the package matrix.
+The final check retains the name `Lean models and proofs` and requires all package checks, captures, and replay to succeed.
+Failed, cancelled, skipped, or missing prerequisites cannot yield a successful gate; a cancelled workflow may cancel the gate itself.
+The gate also rejects package inventory drift.
+Adding or removing a package requires updating the workflow matrix, gate inventory, reusable workflow input validation, and formatting ownership.
+
+Concurrency trades additional simultaneous runners and repeated dependency setup/builds for potential wall-time reduction.
+It is not a same-hardware speedup, and actual latency and aggregate runner minutes need matched CI measurements.
 
 See [Formatting](#formatting) for the [leanfmt](https://github.com/duckki/leanfmt) check.
 To update a tool dependency without changing the toolchain, run `lake update --keep-toolchain <package>`.

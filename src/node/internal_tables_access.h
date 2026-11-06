@@ -16,7 +16,7 @@
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft_types.h"
 #include "crypto/cose.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"

@@ -3,6 +3,7 @@ module  -- shake: keep-all --deprecated_module: ignore
 public import DisasterRecovery.Model
 public import DisasterRecovery.Model.Local
 public import DisasterRecovery.Proofs.Committed
+public import DisasterRecovery.Proofs.Evaluation
 public import DisasterRecovery.Proofs.Execution
 public import DisasterRecovery.Proofs.ExecutionLocal
 public import DisasterRecovery.Proofs.Gossip
@@ -23,7 +24,7 @@ public import DisasterRecovery.Tests.Execution
 public import DisasterRecovery.Tests.Initial
 public import DisasterRecovery.Tests.Network
 public import DisasterRecovery.Tests.QuorumCommit
-public import DisasterRecovery.Tests.RaftFreshness
+public import DisasterRecovery.Tests.ConsensusFreshness
 public import DisasterRecovery.Tests.Trace
 public import DisasterRecovery.Tests.Witnesses
 public import DisasterRecovery.TraceValidation

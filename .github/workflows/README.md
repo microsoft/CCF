@@ -133,34 +133,19 @@ File: `codeql-analysis.yml`
 - `github/codeql-action/init@v4`
 - `github/codeql-action/analyze@v4`
 
-# Continuous Verification
-
-Runs the standard model checking, simulation, trace validation, and counterexample jobs each week.
-
-File: `ci-verification.yml`
-3rd party dependencies: None
-
-# Long Verification
-
-Runs the longer consensus model checking and simulation jobs each week.
-VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
-
-File: `long-verification.yml`
-3rd party dependencies: None
-
-# TLA Shallow Verification
-
-Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
-
-- Simulates the consistency and consensus specifications on a GitHub-hosted runner. The simulation job has a 10-minute timeout.
-- Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
-
-File: `tla-shallow.yml`
-3rd party dependencies: None
-
 # Lean
 
-Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
+Runs Lean verification for the repository, with each package checked in an isolated reusable-workflow job.
+All five packages (consensus, common, consistency, disaster-recovery, and kv) run in one matrix.
+Package checks use the `gha-vmss-d16av7-ci` pool and trace replays use `gha-vmss-d16av7-ci-b`, both in Ubuntu 26.04 containers.
+Native trace captures remain on `gha-vmss-d16av7-ci-c` with Azure Linux containers, and the lightweight final gate uses GitHub-hosted Ubuntu.
+Each matrix job caches its third-party dependency checkouts and build outputs, including Mathlib and (where used) leanfmt, using GitHub Actions caching.
+Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
+CCF package and common build outputs are not cached, and all verification steps still run, including Mathlib's upstream cache retrieval.
+CCF consensus, KV, and consistency trace captures run in parallel with package checks.
+Three independent trace-validation jobs each restore Mathlib caches, build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
+Consistency capture reuses the existing `consistency_trace_validation` e2e test, and its replay job also checks the consistency replay fixtures, including election and rollback traces.
+A final summary job requires every package and trace job to succeed.
 
 The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.
 Canonical behavior checks run with `#eval` when their test module is built, and assertion failures fail the build.
@@ -183,11 +168,13 @@ It then runs the trace viewer's `viewer/build.py`, which fails if a dump the vie
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
 
-The `KV trace captures` job builds the `CCF_KV_TRACING` unit tests on Azure Linux 3 and captures their traces with `tests/kv_trace_validation.py --capture-only`; the model job replays them with `kv-replay` after its own checks, which include `lean/kv/replayer/check-fixtures.sh` replaying the KV fixtures and their valid and invalid diffs.
+The `KV trace captures` job builds the `CCF_KV_TRACING` unit tests on Azure Linux 3 and captures their traces with `tests/kv_trace_validation.py --capture-only`.
+The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fixtures.
+The dedicated replay job builds `kv-replay` separately to validate the captured traces; no replay executables are transferred between jobs.
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
-It also runs on changes to the C++ sources and trace runners checked against the Raft and KV models: `src/consensus/aft/`, the Raft scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
+It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`

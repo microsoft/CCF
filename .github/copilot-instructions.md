@@ -18,7 +18,7 @@ CCF (Confidential Consortium Framework) is a replicated state machine for confid
 - `src/crypto/`, `src/tls/`, `src/http/`: cryptography, TLS, and HTTP transport.
 - `include/ccf/`: public C++ API; `src/ds/`: internal utilities.
 - `tests/`, `tests/infra/`: Python e2e tests and network infrastructure; C++ unit tests live alongside implementation code.
-- `python/`: Python SDK; `doc/`: Sphinx/RST documentation; `tla/`: formal specifications; `cmake/`: build helpers.
+- `python/`: Python SDK; `doc/`: Sphinx/RST documentation; `lean/`: formal models and proofs; `cmake/`: build helpers.
 
 ## Task-specific guidance
 

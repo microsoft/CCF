@@ -28,10 +28,6 @@ Architecture
 
         Understand ledger persistence for recovery and auditing.
 
-    .. grid-item-card:: :fas:`check-double` :doc:`raft_tla`
-
-        Explore the TLA+ specifications of CCF.
-
     .. grid-item-card:: :fas:`paper-plane` :doc:`node_to_node`
 
         Understand the node-to-node channel protocol used for consensus and forwarding.
@@ -62,7 +58,6 @@ Architecture
     threading
     merkle_tree
     ledger
-    raft_tla
     node_to_node
     indexing
     receipts
