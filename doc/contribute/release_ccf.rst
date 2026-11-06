@@ -31,7 +31,14 @@ The historical changelog remains available and can still be validated or extract
     scripts/release-notes-checks.sh
 
 Historical changelog validation does not require its first version to match the current SDK version.
-Tag the reviewed release commit using the existing release process.
+
+Before tagging any release, manually update ``project.version`` in ``python/pyproject.toml`` to match the intended release version and commit the bump.
+This is the only release-version field in source that requires a manual bump; native and npm package versions are derived from the release tag.
+Use Python version spelling for prereleases, for example ``8.0.0.dev10`` for ``ccf-8.0.0-dev10`` and ``8.0.0rc0`` for ``ccf-8.0.0-rc0``.
+Tag the reviewed commit containing the version bump using the existing release process.
+The OneBranch PyPI publisher checks the tag against SDK metadata before building the wheel, including prerelease normalization.
+GitHub release-note generation does not perform this check, so a forgotten bump can fail the later PyPI build after the GitHub release has already been published.
+
 The workflow generates a release-notes artifact, including on dry runs for a tagged commit, and uses it when creating the draft GitHub release.
 The collector does not assign versions, commit, tag, or publish.
 
