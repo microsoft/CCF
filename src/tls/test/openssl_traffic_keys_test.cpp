@@ -11,7 +11,9 @@
 #include <fcntl.h>
 #include <future>
 #include <mutex>
+#include <optional>
 #include <poll.h>
+#include <string>
 #include <string_view>
 #include <thread>
 
@@ -23,6 +25,38 @@ namespace
   using namespace ccf::tls::test;
   using namespace std::chrono_literals;
   constexpr size_t RECORD_SIZE = 16384;
+
+  // A TLS 1.3 ciphersuite outside the policy's AES-GCM list which this OpenSSL
+  // build can negotiate. Platform providers, such as SymCrypt in FIPS
+  // configurations, may leave ChaCha20-Poly1305 out.
+  std::optional<std::string> negotiable_non_gcm_suite()
+  {
+    for (const char* suite :
+         {"TLS_CHACHA20_POLY1305_SHA256", "TLS_AES_128_CCM_SHA256"})
+    {
+      auto context = make_client_context();
+      if (SSL_CTX_set_ciphersuites(context.get(), suite) != 1)
+      {
+        continue;
+      }
+      std::unique_ptr<SSL, decltype(&SSL_free)> ssl(
+        SSL_new(context.get()), SSL_free);
+      REQUIRE(ssl != nullptr);
+      std::unique_ptr<STACK_OF(SSL_CIPHER), void (*)(STACK_OF(SSL_CIPHER)*)>
+        supported(SSL_get1_supported_ciphers(ssl.get()), [](auto* ciphers) {
+          sk_SSL_CIPHER_free(ciphers);
+        });
+      for (int index = 0; index < sk_SSL_CIPHER_num(supported.get()); ++index)
+      {
+        const auto* cipher = sk_SSL_CIPHER_value(supported.get(), index);
+        if (std::string_view(SSL_CIPHER_get_name(cipher)) == suite)
+        {
+          return suite;
+        }
+      }
+    }
+    return std::nullopt;
+  }
 
   struct WriteGate
   {
@@ -661,14 +695,23 @@ namespace
 
   TEST_CASE("Traffic keys reject non-AES-GCM ciphersuites only when opted in")
   {
-    constexpr const char* chacha = "TLS_CHACHA20_POLY1305_SHA256";
-    PairConfig config{.engine_peer = false};
+    const auto suite = negotiable_non_gcm_suite();
+    if (!suite)
+    {
+      MESSAGE("no non-AES-GCM TLS 1.3 ciphersuite is negotiable; skipping");
+      return;
+    }
+    // The server context permits the suite alongside AES-GCM, so a refusal
+    // can only come from the per-connection policy.
+    const std::string permissive = *suite + ":TLS_AES_256_GCM_SHA384";
+    PairConfig config{
+      .engine_peer = false, .server_ciphersuites = permissive.c_str()};
     SUBCASE("Accepted policy") {}
     SUBCASE("Initiating policy")
     {
       config.engine_peer = true;
       config.budgets = {std::nullopt, 8};
-      config.server_ciphersuites = chacha;
+      config.server_ciphersuites = suite->c_str();
     }
     // The engine adds no ciphersuite restriction of its own without the
     // policy; production RPC contexts restrict TLS 1.3 to AES-GCM separately.
@@ -679,14 +722,14 @@ namespace
     EnginePair pair(config);
     if (pair.peer)
     {
-      REQUIRE(SSL_set_ciphersuites(pair.peer.get(), chacha) == 1);
+      REQUIRE(SSL_set_ciphersuites(pair.peer.get(), suite->c_str()) == 1);
     }
     pair.start(false);
     if (!config.budgets[0] && !config.budgets[1])
     {
       REQUIRE(
         pair.peer_io([&]() { return SSL_connect(pair.peer.get()); }) == 1);
-      CHECK(std::string_view(SSL_get_cipher_name(pair.peer.get())) == chacha);
+      CHECK(std::string_view(SSL_get_cipher_name(pair.peer.get())) == *suite);
       REQUIRE(SSL_write(pair.peer.get(), "rpc", 3) == 3);
       pair.expect(0, {'r', 'p', 'c'});
     }
