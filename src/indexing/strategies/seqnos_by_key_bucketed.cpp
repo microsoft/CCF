@@ -28,10 +28,10 @@ namespace ccf::indexing::strategies
     struct CurrentResult
     {
       Range range;
-      SeqNoCollection seqnos = {};
+      SeqNoCollection seqnos;
       size_t page_count = 0;
       std::optional<ccf::SeqNo> last_paged_bucket = std::nullopt;
-      DirectoryPage directory = {};
+      DirectoryPage directory;
     };
 
     // These trusted heads must not be evicted: absence means never written.
@@ -53,7 +53,7 @@ namespace ccf::indexing::strategies
 
     struct Query
     {
-      enum class Phase
+      enum class Phase : uint8_t
       {
         Direct,
         Seek,
@@ -247,6 +247,152 @@ namespace ccf::indexing::strategies
       return &directory_pages.insert(key, std::move(*page))->second;
     }
 
+    bool fetch_buckets(const ccf::ByteVector& serialised_key, Query& query)
+    {
+      bool pending = false;
+      bool need_directory = false;
+      for (auto& request : query.buckets)
+      {
+        if (request.pending != nullptr)
+        {
+          const auto status = request.pending->fetch_result.load();
+          if (status == FetchResult::FetchResultType::Fetching)
+          {
+            pending = true;
+            continue;
+          }
+
+          if (status == FetchResult::FetchResultType::Loaded)
+          {
+            auto seqnos =
+              deserialise(request.pending->contents, seqnos_per_bucket);
+            const auto range = get_range_for(request.start);
+            if (
+              seqnos.has_value() && seqnos->front() >= range.first &&
+              seqnos->back() < range.second)
+            {
+              auto collection = std::make_shared<SeqNoCollection>();
+              for (auto seqno : *seqnos)
+              {
+                collection->insert(seqno);
+              }
+
+              request.seqnos = collection;
+              old_results.insert(
+                {serialised_key, range}, std::move(collection));
+            }
+          }
+
+          request.pending = nullptr;
+        }
+
+        if (request.seqnos == nullptr)
+        {
+          if (request.required)
+          {
+            LOG_FAIL_FMT(
+              "Required bucket unavailable: {}",
+              get_blob_name({serialised_key, get_range_for(request.start)}));
+            rebuild();
+            return false;
+          }
+
+          need_directory = true;
+        }
+      }
+
+      if (pending)
+      {
+        return false;
+      }
+
+      query.phase =
+        need_directory ? Query::Phase::Seek : Query::Phase::Complete;
+      return true;
+    }
+
+    bool lookup_directory(
+      const ccf::ByteVector& serialised_key,
+      Query& query,
+      const Range& from_range,
+      const Range& to_range)
+    {
+      // Page ordinals are dense and bounded by a trusted count. Unlike data
+      // bucket existence, their ordered contents support binary search. Every
+      // page consulted here is required; an unavailable page cannot prove a
+      // gap.
+      while (query.phase == Query::Phase::Seek && query.low < query.high)
+      {
+        const auto mid = query.low + (query.high - query.low) / 2;
+        const auto* page = load_page({serialised_key, mid}, query);
+        if (page == nullptr)
+        {
+          return false;
+        }
+
+        if (page->back() < from_range.first)
+        {
+          query.low = mid + 1;
+        }
+        else
+        {
+          query.high = mid;
+        }
+      }
+
+      if (query.phase == Query::Phase::Seek)
+      {
+        query.phase = Query::Phase::Scan;
+      }
+
+      while (query.phase == Query::Phase::Scan && query.low < query.page_count)
+      {
+        const auto* page = load_page({serialised_key, query.low}, query);
+        if (page == nullptr)
+        {
+          return false;
+        }
+
+        for (auto start : *page)
+        {
+          if (start < from_range.first || start > to_range.first)
+          {
+            continue;
+          }
+
+          const auto request = std::lower_bound(
+            query.buckets.begin(),
+            query.buckets.end(),
+            start,
+            [](const auto& entry, auto bucket_start) {
+              return entry.start < bucket_start;
+            });
+          if (request == query.buckets.end() || request->start != start)
+          {
+            throw std::logic_error("Directory bucket was not requested");
+          }
+
+          if (request->seqnos == nullptr)
+          {
+            LOG_FAIL_FMT(
+              "Directory requires unavailable bucket: {}",
+              get_blob_name({serialised_key, get_range_for(start)}));
+            rebuild();
+            return false;
+          }
+        }
+
+        ++query.low;
+        if (page->back() >= to_range.first)
+        {
+          break;
+        }
+      }
+
+      query.phase = Query::Phase::Complete;
+      return true;
+    }
+
     std::optional<SeqNoCollection> get_write_txs_impl(
       const ccf::ByteVector& serialised_key, ccf::SeqNo from, ccf::SeqNo to)
     {
@@ -345,157 +491,33 @@ namespace ccf::indexing::strategies
       queries.promote(query_it);
       auto& query = query_it->second;
 
-      if (query.phase == Query::Phase::Direct)
+      if (
+        query.phase == Query::Phase::Direct &&
+        !fetch_buckets(serialised_key, query))
       {
-        bool pending = false;
-        bool need_directory = false;
-        for (auto& request : query.buckets)
-        {
-          if (request.pending != nullptr)
-          {
-            const auto status = request.pending->fetch_result.load();
-            if (status == FetchResult::FetchResultType::Fetching)
-            {
-              pending = true;
-              continue;
-            }
-
-            if (status == FetchResult::FetchResultType::Loaded)
-            {
-              auto seqnos =
-                deserialise(request.pending->contents, seqnos_per_bucket);
-              const auto range = get_range_for(request.start);
-              if (
-                seqnos.has_value() && seqnos->front() >= range.first &&
-                seqnos->back() < range.second)
-              {
-                auto collection = std::make_shared<SeqNoCollection>();
-                for (auto seqno : *seqnos)
-                {
-                  collection->insert(seqno);
-                }
-
-                request.seqnos = collection;
-                old_results.insert(
-                  {serialised_key, range}, std::move(collection));
-              }
-            }
-
-            request.pending = nullptr;
-          }
-
-          if (request.seqnos == nullptr)
-          {
-            if (request.required)
-            {
-              LOG_FAIL_FMT(
-                "Required bucket unavailable: {}",
-                get_blob_name({serialised_key, get_range_for(request.start)}));
-              rebuild();
-              return std::nullopt;
-            }
-
-            need_directory = true;
-          }
-        }
-
-        if (pending)
-        {
-          return std::nullopt;
-        }
-
-        query.phase =
-          need_directory ? Query::Phase::Seek : Query::Phase::Complete;
+        return std::nullopt;
       }
 
-      // Page ordinals are dense and bounded by a trusted count. Unlike data
-      // bucket existence, their ordered contents support binary search. Every
-      // page consulted here is required; an unavailable page cannot prove a
-      // gap.
-      while (query.phase == Query::Phase::Seek && query.low < query.high)
+      if (!lookup_directory(serialised_key, query, from_range, to_range))
       {
-        const auto mid = query.low + (query.high - query.low) / 2;
-        const auto* page = load_page({serialised_key, mid}, query);
-        if (page == nullptr)
-        {
-          return std::nullopt;
-        }
-
-        if (page->back() < from_range.first)
-        {
-          query.low = mid + 1;
-        }
-        else
-        {
-          query.high = mid;
-        }
+        return std::nullopt;
       }
 
-      if (query.phase == Query::Phase::Seek)
-      {
-        query.phase = Query::Phase::Scan;
-      }
-
-      while (query.phase == Query::Phase::Scan && query.low < query.page_count)
-      {
-        const auto* page = load_page({serialised_key, query.low}, query);
-        if (page == nullptr)
-        {
-          return std::nullopt;
-        }
-
-        for (auto start : *page)
-        {
-          if (start < from_range.first || start > to_range.first)
-          {
-            continue;
-          }
-
-          const auto request = std::lower_bound(
-            query.buckets.begin(),
-            query.buckets.end(),
-            start,
-            [](const auto& entry, auto bucket_start) {
-              return entry.start < bucket_start;
-            });
-          if (request == query.buckets.end() || request->start != start)
-          {
-            throw std::logic_error("Directory bucket was not requested");
-          }
-
-          if (request->seqnos == nullptr)
-          {
-            LOG_FAIL_FMT(
-              "Directory requires unavailable bucket: {}",
-              get_blob_name({serialised_key, get_range_for(start)}));
-            rebuild();
-            return std::nullopt;
-          }
-        }
-
-        ++query.low;
-        if (page->back() >= to_range.first)
-        {
-          break;
-        }
-      }
-
-      query.phase = Query::Phase::Complete;
       if (!query.result.has_value())
       {
         // ContiguousSet is vector-backed. Assemble in bucket order only after
         // all reads and gap proofs complete, avoiding quadratic front inserts
         // when newer buckets were cached before older reads finished.
-        query.result.emplace();
+        auto& result = query.result.emplace();
         for (const auto& request : query.buckets)
         {
           if (request.seqnos != nullptr)
           {
-            append(*query.result, *request.seqnos);
+            append(result, *request.seqnos);
           }
         }
 
-        append(*query.result, query.current);
+        append(result, query.current);
         query.buckets.clear();
         query.current.clear();
       }
@@ -518,8 +540,9 @@ namespace ccf::indexing::strategies
     auto it = impl->current_results.find(k);
     if (it == impl->current_results.end())
     {
-      it =
-        impl->current_results.emplace(k, Impl::CurrentResult{range, {}}).first;
+      it = impl->current_results
+             .emplace(k, Impl::CurrentResult{range, {}, 0, std::nullopt, {}})
+             .first;
     }
     else if (it->second.range != range)
     {
