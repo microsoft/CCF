@@ -564,6 +564,14 @@ class Network:
         primary, _ = self.find_primary(
             timeout=args.ledger_recovery_timeout if recovery else 10
         )
+        with primary.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == 200, r
+            pq_cert = r.body.json().get("pq_service_certificate")
+        if pq_cert is not None:
+            self.nodes[0].remote.get_pq_service_certificate(self.common_dir)
+            with open(self.pq_cert_path, encoding="utf-8") as f:
+                assert f.read() == pq_cert, "Startup ML-DSA certificate mismatch"
         return primary
 
     def _setup_common_folder(self, constitution):
@@ -2442,6 +2450,10 @@ class Network:
     @functools.cached_property
     def cert_path(self):
         return os.path.join(self.common_dir, "service_cert.pem")
+
+    @functools.cached_property
+    def pq_cert_path(self):
+        return os.path.join(self.common_dir, "pq_service_cert.pem")
 
     @functools.cached_property
     def cert(self):

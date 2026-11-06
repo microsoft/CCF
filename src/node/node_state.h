@@ -100,6 +100,7 @@ namespace ccf
   {
     ccf::crypto::Pem self_signed_node_cert;
     ccf::crypto::Pem service_cert;
+    std::optional<ccf::crypto::Pem> pq_service_cert = std::nullopt;
   };
 
   inline void reset_data(std::vector<uint8_t>& data)
@@ -1696,7 +1697,10 @@ namespace ccf
           initiate_quote_generation();
 
           LOG_INFO_FMT("Created new node {}", self);
-          return {new_self_signed_node_cert, network.identity->cert};
+          return {
+            new_self_signed_node_cert,
+            network.identity->cert,
+            network.identity->pq_cert};
         }
         case StartType::Join:
         {
@@ -1739,7 +1743,10 @@ namespace ccf
           initiate_quote_generation();
 
           LOG_INFO_FMT("Created recovery node {}", self);
-          return {new_self_signed_node_cert, network.identity->cert};
+          return {
+            new_self_signed_node_cert,
+            network.identity->cert,
+            network.identity->pq_cert};
         }
         default:
         {
