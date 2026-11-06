@@ -49,6 +49,29 @@ namespace ccf
     return result;
   }
 
+  inline CoseEndorsement read_historical_service_endorsement(
+    ccf::kv::ReadOnlyTx& tx, SeqNo seqno)
+  {
+    auto endorsement = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
+                           ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+                         ->get(ccf::IdentityType::CLASSICAL);
+    if (!endorsement.has_value())
+    {
+      throw std::runtime_error(fmt::format(
+        "COSE endorsement entry for seqno {} is missing from its "
+        "historical state",
+        seqno));
+    }
+
+    // Historical stores contain only this transaction's writes, so unchanged
+    // PQ identities may be absent. Preserve the CLASSICAL-only read check.
+    check_signing_identity_matches_service_cert(
+      tx.ro<SigningIdentities>(Tables::SIGNING_IDENTITIES)
+        ->get(IdentityType::CLASSICAL),
+      tx.ro<Service>(Tables::SERVICE)->get());
+    return endorsement.value();
+  }
+
   class NodeStateAccessor : public INodeStateAccessor
   {
   protected:
@@ -111,20 +134,7 @@ namespace ccf
           seq));
       }
       auto htx = state->store->create_read_only_tx();
-      auto endorsement =
-        htx
-          .template ro<ccf::PreviousServiceIdentityEndorsement>(
-            ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-          ->get(ccf::IdentityType::CLASSICAL);
-      if (!endorsement.has_value())
-      {
-        throw std::runtime_error(fmt::format(
-          "COSE endorsement entry for seqno {} is missing from its "
-          "historical state",
-          seq));
-      }
-      check_signing_identity_matches_service_cert(htx);
-      return endorsement;
+      return read_historical_service_endorsement(htx, seq);
     }
   };
 
