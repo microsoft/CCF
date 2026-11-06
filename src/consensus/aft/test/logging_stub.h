@@ -516,6 +516,11 @@ namespace aft
         ccf::kv::Configuration::Nodes configuration =
           nlohmann::json::parse(r.data);
         retired_committed_entries.emplace_back(version, configuration);
+        for (const auto& [node_id, _] : configuration)
+        {
+          aft::trace::retired_committed_tx(
+            _id.value(), version, node_id.value());
+        }
       }
 
       return std::make_unique<ExecutionWrapper>(

@@ -16,6 +16,7 @@ lake build --wfail consensus-replay
 ```
 
 To generate captures, build the native driver and run the existing scenario test.
+Use a fresh build directory to avoid replaying stale captures from earlier runs.
 This needs Python `msgpack` available to CTest:
 
 ```bash
@@ -46,8 +47,8 @@ See [CI package isolation](../../disaster-recovery/README.md#ci-package-isolatio
 
 ## Replay contract
 
-Every event must match a named rule; bootstrap selects the initial singleton membership.
-Rules read action inputs from their matching events, and only top-level alternatives backtrack.
+Every protocol event must match a named rule; bootstrap selects the initial singleton membership.
+Rules group related protocol events and read action inputs from those events; only top-level alternatives backtrack.
 Actions must be enabled by the model.
 After bootstrap, each rule emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
 
