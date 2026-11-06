@@ -18,6 +18,9 @@ jobs:
     container:
       image: mcr.microsoft.com/azurelinux-beta/base/core:4.0
       options: --user root
+      # The image does not set PATH, which GITHUB_PATH entries would otherwise replace
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     timeout-minutes: 90
     defaults:
       run:
