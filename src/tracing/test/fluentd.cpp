@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/node/configuration.h"
+#include "tracing/logger.h"
 #include "tracing/test/events.h"
 
 #include <arpa/inet.h>
@@ -213,7 +214,7 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
   CHECK(config.observability.fluentd[0].queue_capacity == 4096);
   CHECK(
     config.observability.fluentd[0].tag_prefix_allow_list ==
-    std::vector<std::string>{""});
+    std::vector<std::string>{"ccf.log"});
   CHECK(
     config.observability.fluentd[0].delivery ==
     ccf::FluentdConfig::Delivery::BUFFERED_BEST_EFFORT);
@@ -350,7 +351,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   Sink::Endpoint endpoint{"127.0.0.1", std::to_string(ntohs(address.sin_port))};
   endpoint.queue_capacity = 3;
   endpoint.tag_prefix_allow_list = {
-    "ccf.sho", "ccf.request", "ccf.request.child", "ccf.request"};
+    "ccf.sho", "ccf.request", "ccf.request.child", "ccf.request", "ccf.log"};
   const int excluded_listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   REQUIRE(excluded_listener >= 0);
   address.sin_port = 0;
@@ -360,6 +361,8 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   Sink::Endpoint excluded_endpoint{
     "127.0.0.1", std::to_string(ntohs(address.sin_port))};
   excluded_endpoint.tag_prefix_allow_list = {"ccf.kv", "ccf.unused"};
+  ccf::logger::config::loggers().emplace_back(
+    std::make_unique<ccf::tracing::FluentdLogger>());
   Sink::configure(std::vector{endpoint, excluded_endpoint}, 2);
   Sink::bind_producer(0);
   const auto waiting = std::chrono::steady_clock::now();
@@ -483,6 +486,65 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(
     nlohmann::json::from_msgpack(ccf::tracing::event_buffer())[2]["h_ts"] ==
     sequence_before_filtering + 1);
+
+  const auto before_verbose = ccf::tracing::event_buffer();
+  LOG_TRACE_FMT("Do not export trace logs");
+  LOG_DEBUG_FMT("Do not export debug logs");
+  CHECK(ccf::tracing::event_buffer() == before_verbose);
+  for (const auto level :
+       {ccf::LoggerLevel::INFO,
+        ccf::LoggerLevel::FAIL,
+        ccf::LoggerLevel::FATAL})
+  {
+    ccf::logger::LogLine line(level, "app", "file\"name.cpp", 42);
+    line << "message with \"quotes\", a newline\nand backslash\\";
+    line.finalize();
+    ccf::tracing::FluentdLogger logger;
+    logger.write(line);
+    const auto& buffer = ccf::tracing::event_buffer();
+    const auto event = nlohmann::json::from_msgpack(buffer);
+    CHECK(event[0] == "ccf.log");
+    CHECK(event[2]["msg"]["h_ts"].is_string());
+    CHECK(event[2]["msg"]["h_ts"].get<std::string>().ends_with("Z"));
+    const nlohmann::json expected = {
+      {"h_ts", event[2]["msg"]["h_ts"]},
+      {"thread_id", fmt::format("{}", line.thread_id)},
+      {"level", ccf::logger::to_string(level)},
+      {"tag", "app"},
+      {"file", "file\"name.cpp"},
+      {"number", "42"},
+      {"msg", "message with \"quotes\", a newline\nand backslash\\"}};
+    CHECK(event[2]["msg"] == expected);
+    std::vector<uint8_t> actual(buffer.size());
+    REQUIRE(
+      recv(peer, actual.data(), actual.size(), MSG_WAITALL) ==
+      static_cast<ssize_t>(actual.size()));
+    CHECK(actual == buffer);
+  }
+  for (auto log :
+       {+[] { LOG_INFO_FMT("Info exported"); },
+        +[] { LOG_FAIL_FMT("Failure exported"); },
+        +[] { LOG_FATAL_FMT("Fatal exported"); }})
+  {
+    log();
+    const auto& buffer = ccf::tracing::event_buffer();
+    CHECK(nlohmann::json::from_msgpack(buffer)[0] == "ccf.log");
+    std::vector<uint8_t> actual(buffer.size());
+    REQUIRE(
+      recv(peer, actual.data(), actual.size(), MSG_WAITALL) ==
+      static_cast<ssize_t>(actual.size()));
+    CHECK(actual == buffer);
+  }
+  ccf::logger::config::level() = ccf::LoggerLevel::FATAL;
+  const auto before_level_filtering = ccf::tracing::event_buffer();
+  LOG_INFO_FMT("Filtered info");
+  LOG_FAIL_FMT("Filtered failure");
+  CHECK(ccf::tracing::event_buffer() == before_level_filtering);
+  ccf::logger::config::level() = ccf::logger::MOST_VERBOSE;
+  const auto drops_before_unbound_log = Sink::dropped_count();
+  std::thread unbound_logger([] { LOG_FAIL_FMT("Console only"); });
+  unbound_logger.join();
+  CHECK(Sink::dropped_count() == drops_before_unbound_log);
 
   const std::string large_value(
     ccf::tracing::event_buffer().capacity() + 1, 'x');

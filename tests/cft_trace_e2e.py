@@ -151,32 +151,34 @@ def run(args):
             )
         assert broad.records > 0
         assert exact.records > 0
-        assert broad.tags == exact.tags == {"ccf.cft"}
+        assert broad.tags == {"ccf.cft", "ccf.log"}
+        assert exact.tags == {"ccf.cft"}
         assert broad.processes == exact.processes
         assert excluded.records == 0
         assert excluded.bytes == 0
-    for name, prefixes, matches in (
-        ("omitted", None, True),
-        ("empty", [], False),
-        ("all", [""], True),
-        ("all_last", ["ccf.sho", ""], True),
-        ("ccf", ["ccf"], True),
-        ("cft", ["ccf.cft"], True),
-        ("partial", ["ccf.cf"], True),
-        ("different", ["ccf.sho", "ccf.kv"], False),
-        ("longer", ["ccf.cft.child"], False),
-        ("case", ["CCF"], False),
-        ("substring", ["cft"], False),
-        ("wildcard", ["ccf.*"], False),
+    for name, prefixes, tags in (
+        ("omitted", None, {"ccf.log"}),
+        ("empty", [], set()),
+        ("all", [""], {"ccf.cft", "ccf.log"}),
+        ("all_last", ["ccf.sho", ""], {"ccf.cft", "ccf.log"}),
+        ("ccf", ["ccf"], {"ccf.cft", "ccf.log"}),
+        ("cft", ["ccf.cft"], {"ccf.cft"}),
+        ("log", ["ccf.log"], {"ccf.log"}),
+        ("partial", ["ccf.cf"], {"ccf.cft"}),
+        ("different", ["ccf.sho", "ccf.kv"], set()),
+        ("longer", ["ccf.cft.child"], set()),
+        ("case", ["CCF"], set()),
+        ("substring", ["cft"], set()),
+        ("wildcard", ["ccf.*"], set()),
     ):
         with infra.fluentd.Collector(node_count=1) as collector:
             filtered_endpoint = dict(collector.endpoint)
             if prefixes is not None:
                 filtered_endpoint["tag-prefix-allow-list"] = prefixes
             exercise(args, f"filter_{name}", [filtered_endpoint])
-        if matches:
+        if tags:
             assert collector.records > 0, name
-            assert collector.tags == {"ccf.cft"}, (name, collector.tags)
+            assert collector.tags == tags, (name, collector.tags)
         else:
             assert collector.records == 0, (name, collector.records)
             assert collector.bytes == 0, (name, collector.bytes)
@@ -213,7 +215,12 @@ def run(args):
                 process.terminate()
                 process.wait(timeout=5)
 
-            exercise(args, "enabled", [endpoint], stop_collector)
+            exercise(
+                args,
+                "enabled",
+                [{**endpoint, "tag-prefix-allow-list": ["ccf.cft"]}],
+                stop_collector,
+            )
         finally:
             if process.poll() is None:
                 process.terminate()

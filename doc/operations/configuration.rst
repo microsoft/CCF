@@ -28,7 +28,7 @@ For migration from deprecated ringbuffer-era configuration, see :doc:`/build_app
 Observability Export
 --------------------
 
-To export consensus protocol traces (not ordinary console logs), add the experimental ``observability.fluentd`` array to your node configuration and restart the node.
+To export logs and consensus protocol traces, add the experimental ``observability.fluentd`` array to your node configuration and restart the node.
 Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticated and unencrypted.
 
 .. code-block:: json
@@ -36,19 +36,24 @@ Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticate
     {
       "observability": {
         "fluentd": [
-          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag-prefix-allow-list": ["ccf"] },
+          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag-prefix-allow-list": ["ccf.log"] },
           { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking", "tag-prefix-allow-list": ["ccf.cft"] }
         ]
       }
     }
 
 Set ``tag-prefix-allow-list`` per collector to a list of literal, case-sensitive prefixes; an event is selected if its tag starts with any listed prefix.
-``["ccf"]`` selects all CCF tags; ``["ccf.cft"]`` selects consensus traces.
-Omitting ``tag-prefix-allow-list`` defaults to ``[""]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
+``["ccf.log"]`` selects logs; ``["ccf.cft"]`` selects consensus traces; ``["ccf"]`` selects all CCF tags.
+Omitting ``tag-prefix-allow-list`` defaults to ``["ccf.log"]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
 Prefixes have no dot-boundary requirement and do not support wildcards or regular expressions.
 Matching multiple prefixes within one collector entry does not duplicate events; an event matching multiple collectors is sent to each.
 Excluded events do not count as dropped for that collector.
 Omit the array or leave it empty to disable export.
+
+INFO, FAIL and FATAL logs that pass the node's log-level filter are also exported under ``ccf.log``, regardless of the console format.
+The Forward record uses the trace envelope (``process_id``, sequence number ``h_ts``, and ``msg``).
+Its ``msg`` contains the same fields and string values as JSON console logging: ``h_ts`` (UTC timestamp), ``thread_id``, ``level``, ``tag``, ``file``, ``number`` and ``msg`` (message text).
+TRACE and DEBUG logs, exporter transport diagnostics, and logs outside the exporter lifetime are console-only.
 
 Choose a ``delivery`` policy per collector:
 

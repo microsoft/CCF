@@ -35,7 +35,7 @@
 #include "sig_term.h"
 #include "task_ticker.h"
 #include "tcp.h"
-#include "tracing/fluentd_sink.h"
+#include "tracing/logger.h"
 
 #include <CLI11/CLI11.hpp>
 #include <chrono>
@@ -478,6 +478,11 @@ namespace ccf
       config.observability.fluentd, config.worker_threads + 2);
     ccf::tracing::FluentdSink::bind_producer(config.worker_threads + 1);
     ccf::tracing::FluentdSink::Lifetime trace_lifetime;
+    if (ccf::tracing::FluentdSink::is_configured())
+    {
+      ccf::logger::config::loggers().emplace_back(
+        std::make_unique<ccf::tracing::FluentdLogger>());
+    }
 
     // The stop callback's owner must outlive RuntimeControl, but the runtime
     // itself must be destroyed before its host dependencies.
