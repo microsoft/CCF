@@ -119,4 +119,30 @@ namespace
     CHECK_FALSE(accounting.keys.update_due());
     CHECK_FALSE(accounting.keys.failed());
   }
+
+  TEST_CASE("Traffic-key accounting counts received handshake messages")
+  {
+    Accounting accounting;
+    const std::array<uint8_t, 8> ticket{SSL3_MT_NEWSESSION_TICKET, 0, 0, 4};
+    const auto message = [&](bool writing) {
+      TrafficKeys::observe(
+        static_cast<int>(writing),
+        TLS1_3_VERSION,
+        SSL3_RT_HANDSHAKE,
+        ticket.data(),
+        ticket.size(),
+        nullptr,
+        &accounting.keys);
+    };
+    message(false);
+    CHECK(accounting.keys.handshake_messages_received() == 0);
+    accounting.keys.start();
+    message(true);
+    accounting.record(false, SSL3_RT_HANDSHAKE);
+    accounting.record(false);
+    CHECK(accounting.keys.handshake_messages_received() == 0);
+    message(false);
+    accounting.update(false);
+    CHECK(accounting.keys.handshake_messages_received() == 2);
+  }
 }

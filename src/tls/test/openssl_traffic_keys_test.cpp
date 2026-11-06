@@ -670,7 +670,9 @@ namespace
       config.budgets = {std::nullopt, 8};
       config.server_ciphersuites = chacha;
     }
-    SUBCASE("Default RPC behavior")
+    // The engine adds no ciphersuite restriction of its own without the
+    // policy; production RPC contexts restrict TLS 1.3 to AES-GCM separately.
+    SUBCASE("Policy disabled")
     {
       config.budgets = {};
     }

@@ -122,6 +122,9 @@ namespace ccf::tls
   private:
     static constexpr size_t read_chunk = 16384;
     static constexpr size_t max_read_per_event = read_chunk * 4;
+    // Further SSL_read attempts per pass for control messages OpenSSL has
+    // already taken off the socket (see do_read).
+    static constexpr size_t max_pending_retries = 8;
 
     struct Conn
     {
@@ -591,7 +594,7 @@ namespace ccf::tls
         return do_read_plaintext(connection, more_to_read);
       }
       size_t total_read = 0;
-      bool retried_pending = false;
+      size_t pending_retries = 0;
       while (total_read < max_read_per_event)
       {
         // A read retry (read_wants_write) or an application send can reach
@@ -601,10 +604,13 @@ namespace ccf::tls
         {
           // Data a retry was about to process is already off the socket and
           // will not produce a readability event; keep that read pending.
-          more_to_read = retried_pending;
+          more_to_read = pending_retries != 0;
           return true;
         }
         uint8_t buf[read_chunk];
+        const uint64_t messages_before = connection.traffic_keys ?
+          connection.traffic_keys->handshake_messages_received() :
+          0;
         ERR_clear_error();
         const int n =
           SSL_read(connection.ssl, buf, static_cast<int>(sizeof(buf)));
@@ -616,7 +622,7 @@ namespace ccf::tls
         connection.read_wants_write = false;
         if (n > 0)
         {
-          retried_pending = false;
+          pending_retries = 0;
           total_read += static_cast<size_t>(n);
           if (on_data)
           {
@@ -636,18 +642,23 @@ namespace ccf::tls
 
         if (e == SSL_ERROR_WANT_READ)
         {
-          // Without SSL_MODE_AUTO_RETRY, OpenSSL returns here after sending a
-          // deferred KeyUpdate response even though the handshake record which
-          // triggered it is already read and unprocessed. No readability event
-          // will announce it, so make one further attempt. A partial record
-          // also reports pending data; that attempt then fails again and
-          // polling resumes as usual.
+          // Without SSL_MODE_AUTO_RETRY, OpenSSL returns here after each
+          // post-handshake message, and after sending a deferred KeyUpdate
+          // response, even though the record holding the next message is
+          // already read and unprocessed. No readability event will announce
+          // it, so make a further attempt. A partial record also reports
+          // pending data; a first attempt is allowed to find out, but only an
+          // attempt which consumed a message earns another.
+          const bool consumed_message = connection.traffic_keys &&
+            connection.traffic_keys->handshake_messages_received() !=
+              messages_before;
           if (
-            !retried_pending &&
+            pending_retries < max_pending_retries &&
+            (pending_retries == 0 || consumed_message) &&
             (SSL_get_mode(connection.ssl) & SSL_MODE_AUTO_RETRY) == 0 &&
             SSL_has_pending(connection.ssl) == 1)
           {
-            retried_pending = true;
+            ++pending_retries;
             continue;
           }
           return true;

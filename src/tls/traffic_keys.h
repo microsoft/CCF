@@ -20,6 +20,7 @@ namespace ccf::tls
   {
     uint64_t sent = 0;
     uint64_t received = 0;
+    uint64_t received_handshake_messages = 0;
     bool exceeded = false;
     bool active = false;
     uint64_t limit;
@@ -60,20 +61,27 @@ namespace ccf::tls
           self.exceeded = true;
         }
       }
-      else if (
-        type == SSL3_RT_HANDSHAKE && size == 5 &&
-        bytes[0] == SSL3_MT_KEY_UPDATE)
+      else if (type == SSL3_RT_HANDSHAKE)
       {
-        // KeyUpdate itself uses the OLD key. OpenSSL reports the complete
-        // message before installing the new key; a failed operation must
-        // therefore still close the connection, never deliver plaintext.
-        if (writing != 0)
+        if (writing == 0)
         {
-          self.sent = 0;
+          // Complete post-handshake messages consumed from a record, which the
+          // read loop uses to tell buffered progress from a partial record.
+          ++self.received_handshake_messages;
         }
-        else
+        if (size == 5 && bytes[0] == SSL3_MT_KEY_UPDATE)
         {
-          self.received = 0;
+          // KeyUpdate itself uses the OLD key. OpenSSL reports the complete
+          // message before installing the new key; a failed operation must
+          // therefore still close the connection, never deliver plaintext.
+          if (writing != 0)
+          {
+            self.sent = 0;
+          }
+          else
+          {
+            self.received = 0;
+          }
         }
       }
     }
@@ -81,6 +89,11 @@ namespace ccf::tls
     [[nodiscard]] bool failed() const
     {
       return exceeded;
+    }
+
+    [[nodiscard]] uint64_t handshake_messages_received() const
+    {
+      return received_handshake_messages;
     }
 
     [[nodiscard]] bool update_due() const

@@ -108,7 +108,7 @@ The engine schedules updates only between ordinary TLS I/O operations, leaving O
 OpenSSL may defer a requested response until the next application write, as permitted by TLS 1.3.
 The existing ordered workers and readable/writable polling handle I/O retries; no separate ciphertext buffer or update-driving state machine is used.
 Policy reads yield after control records, allowing a pending write to finish before processing further peer updates that could require another write.
-A control record which OpenSSL has already read when it yields is processed by one further read attempt, because the socket will not report it again.
+Control messages which OpenSSL has already read when it yields are processed by a bounded number of further read attempts, because the socket will not report them again.
 Application reads remain subject to inbound admission, and existing flush-before-close and forced-shutdown behavior is retained.
 
 Certificates
