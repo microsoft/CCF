@@ -131,6 +131,7 @@ namespace
     int version = TLS1_3_VERSION;
     int send_buffer = 4096;
     std::shared_ptr<InboundAdmission> admission = nullptr;
+    const char* server_ciphersuites = nullptr;
   };
 
   struct EnginePair : public AsyncTest
@@ -152,6 +153,12 @@ namespace
       const auto [cert, key] = make_server_cert();
       contexts = {make_server_context(cert, key), make_client_context()};
       REQUIRE(SSL_CTX_set_num_tickets(contexts[0].get(), 0) == 1);
+      if (config.server_ciphersuites != nullptr)
+      {
+        REQUIRE(
+          SSL_CTX_set_ciphersuites(
+            contexts[0].get(), config.server_ciphersuites) == 1);
+      }
       int sockets[2];
       REQUIRE(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) == 0);
       for (size_t side = 0; side < 2; ++side)
@@ -458,6 +465,72 @@ namespace
     CHECK(pair.events[0].updates[1] == 0);
   }
 
+  TEST_CASE("Traffic keys count peer KeyUpdate records against the budget")
+  {
+    EnginePair pair({.engine_peer = false});
+    pair.start();
+    const auto write_records = [&](size_t count) {
+      const std::vector<uint8_t> data(count * RECORD_SIZE, 42);
+      REQUIRE(pair.peer_io([&]() {
+        return SSL_write(pair.peer.get(), data.data(), data.size());
+      }) == static_cast<int>(data.size()));
+    };
+    const auto key_update = [&]() {
+      REQUIRE(
+        SSL_key_update(pair.peer.get(), SSL_KEY_UPDATE_NOT_REQUESTED) == 1);
+      REQUIRE(
+        pair.peer_io([&]() { return SSL_do_handshake(pair.peer.get()); }) == 1);
+    };
+    SUBCASE("The final record under a key may be the KeyUpdate itself")
+    {
+      write_records(7);
+      key_update();
+      write_records(8);
+      pair.expect(0, std::vector<uint8_t>(size_t{15} * RECORD_SIZE, 42));
+      CHECK(pair.closes[0] == 0);
+      CHECK(pair.events[0].updates[1] == 1);
+    }
+    SUBCASE("A KeyUpdate beyond the budget closes the connection")
+    {
+      write_records(8);
+      key_update();
+      REQUIRE(pair.wait([&]() { return pair.closes[0] == 1; }));
+      pair.expect(0, std::vector<uint8_t>(size_t{8} * RECORD_SIZE, 42));
+    }
+  }
+
+  TEST_CASE("Traffic keys survive repeated peer update requests")
+  {
+    constexpr size_t requests = 200;
+    // The peer does not read until the end, so its socket must hold every
+    // response; a full send buffer would be ordinary write backpressure.
+    EnginePair pair({.engine_peer = false, .send_buffer = 1024 * 1024});
+    pair.start();
+    for (size_t request = 0; request < requests; ++request)
+    {
+      REQUIRE(SSL_key_update(pair.peer.get(), SSL_KEY_UPDATE_REQUESTED) == 1);
+      REQUIRE(
+        pair.peer_io([&]() { return SSL_do_handshake(pair.peer.get()); }) == 1);
+    }
+    // Every request installs a new receive key and is answered under the old
+    // sending key. Neither direction may trip the engine's own accounting.
+    REQUIRE(pair.wait([&]() { return pair.events[0].updates[1] == requests; }));
+    CHECK(pair.events[0].updates[0] >= 1);
+    CHECK(pair.events[0].updates[0] <= requests);
+    CHECK(pair.closes[0] == 0);
+    const uint8_t marker = 17;
+    pair.engines[0]->send(1, &marker, 1);
+    uint8_t received_marker = 0;
+    REQUIRE(pair.peer_io([&]() {
+      return SSL_read(pair.peer.get(), &received_marker, 1);
+    }) == 1);
+    CHECK(received_marker == marker);
+    pair.expect_peer_update(requests);
+    REQUIRE(SSL_write(pair.peer.get(), "x", 1) == 1);
+    pair.expect(0, {'x'});
+    CHECK(pair.closes[0] == 0);
+  }
+
   TEST_CASE("Traffic keys preserve blocked updates, partial writes and close")
   {
     WriteGate gate;
@@ -586,6 +659,51 @@ namespace
     }
   }
 
+  TEST_CASE("Traffic keys reject non-AES-GCM ciphersuites only when opted in")
+  {
+    constexpr const char* chacha = "TLS_CHACHA20_POLY1305_SHA256";
+    PairConfig config{.engine_peer = false};
+    SUBCASE("Accepted policy") {}
+    SUBCASE("Initiating policy")
+    {
+      config.engine_peer = true;
+      config.budgets = {std::nullopt, 8};
+      config.server_ciphersuites = chacha;
+    }
+    SUBCASE("Default RPC behavior")
+    {
+      config.budgets = {};
+    }
+    EnginePair pair(config);
+    if (pair.peer)
+    {
+      REQUIRE(SSL_set_ciphersuites(pair.peer.get(), chacha) == 1);
+    }
+    pair.start(false);
+    if (!config.budgets[0] && !config.budgets[1])
+    {
+      REQUIRE(
+        pair.peer_io([&]() { return SSL_connect(pair.peer.get()); }) == 1);
+      CHECK(std::string_view(SSL_get_cipher_name(pair.peer.get())) == chacha);
+      REQUIRE(SSL_write(pair.peer.get(), "rpc", 3) == 3);
+      pair.expect(0, {'r', 'p', 'c'});
+    }
+    else
+    {
+      if (pair.peer)
+      {
+        ERR_clear_error();
+        CHECK(
+          pair.peer_io([&]() { return SSL_connect(pair.peer.get()); }) != 1);
+      }
+      REQUIRE(pair.wait([&]() {
+        return pair.closes[0] == 1 && (pair.peer || pair.closes[1] == 1);
+      }));
+      CHECK(pair.handshakes[0] == 0);
+      CHECK(pair.handshakes[1] == 0);
+    }
+  }
+
   TEST_CASE("Traffic keys retain inbound admission during outbound progress")
   {
     auto admission = std::make_shared<InboundAdmission>(1);
@@ -608,13 +726,18 @@ namespace
 
   TEST_CASE("Traffic keys pause read retries while inbound admission is full")
   {
+    PairConfig config{.engine_peer = false};
+    SUBCASE("Accepted policy") {}
+    SUBCASE("Default RPC behavior")
+    {
+      config.budgets = {};
+    }
     auto admission = std::make_shared<InboundAdmission>(1);
     WriteGate gate;
     auto blocked = gate.blocked.get_future();
-    EnginePair pair(
-      {.engine_peer = false,
-       .gates = {&gate, nullptr},
-       .admission = admission});
+    config.gates = {&gate, nullptr};
+    config.admission = admission;
+    EnginePair pair(config);
     pair.start();
     for (size_t request = 0; request < 2; ++request)
     {
@@ -629,14 +752,26 @@ namespace
     gate.block = false;
     std::this_thread::sleep_for(50ms);
     CHECK(tls_test_poll_starts() - polls <= 4);
-    admission->consumed(1);
+    // A queued send dispatches the connection with its read retry outstanding
+    // and no actionable poll events. Inbound data must stay in the socket.
+    const std::vector<uint8_t> data(1000, 42);
+    REQUIRE(pair.peer_io([&]() {
+      return SSL_write(pair.peer.get(), data.data(), data.size());
+    }) == static_cast<int>(data.size()));
     const uint8_t marker = 17;
     pair.engines[0]->send(1, &marker, 1);
+    std::this_thread::sleep_for(50ms);
+    {
+      std::lock_guard lock(pair.mutex);
+      CHECK(pair.received[0].empty());
+    }
+    admission->consumed(1);
     uint8_t received = 0;
     REQUIRE(pair.peer_io([&]() {
       return SSL_read(pair.peer.get(), &received, 1);
     }) == 1);
     CHECK(received == marker);
+    pair.expect(0, data);
     pair.expect_peer_update(2);
   }
 

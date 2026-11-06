@@ -591,10 +591,17 @@ namespace ccf::tls
         return do_read_plaintext(connection, more_to_read);
       }
       size_t total_read = 0;
+      bool retried_pending = false;
       while (total_read < max_read_per_event)
       {
-        if (connection.traffic_keys && inbound_saturated())
+        // A read retry (read_wants_write) or an application send can reach
+        // here with read interest withheld, so re-check the budget per record
+        // rather than relying on actionable_events() alone.
+        if (inbound_saturated())
         {
+          // Data a retry was about to process is already off the socket and
+          // will not produce a readability event; keep that read pending.
+          more_to_read = retried_pending;
           return true;
         }
         uint8_t buf[read_chunk];
@@ -609,6 +616,7 @@ namespace ccf::tls
         connection.read_wants_write = false;
         if (n > 0)
         {
+          retried_pending = false;
           total_read += static_cast<size_t>(n);
           if (on_data)
           {
@@ -628,6 +636,20 @@ namespace ccf::tls
 
         if (e == SSL_ERROR_WANT_READ)
         {
+          // Without SSL_MODE_AUTO_RETRY, OpenSSL returns here after sending a
+          // deferred KeyUpdate response even though the handshake record which
+          // triggered it is already read and unprocessed. No readability event
+          // will announce it, so make one further attempt. A partial record
+          // also reports pending data; that attempt then fails again and
+          // polling resumes as usual.
+          if (
+            !retried_pending &&
+            (SSL_get_mode(connection.ssl) & SSL_MODE_AUTO_RETRY) == 0 &&
+            SSL_has_pending(connection.ssl) == 1)
+          {
+            retried_pending = true;
+            continue;
+          }
           return true;
         }
         if (e == SSL_ERROR_WANT_WRITE)
