@@ -908,6 +908,126 @@ private theorem replaced_writes_trace
       ]
       (.initial rfl) (by decide))
 
+/-- Older-view writes are invalidated after a higher view commits, through the
+frontier-passed and higher-view-below alternatives of `mayInvalidate`. A leader is
+then elected from a branch whose length equals the commit frontier, and a write
+copied into a newer view commits. -/
+private theorem superseded_writes_trace
+    : ∃ trace : CCF.Execution.Trace transitionSystem,
+        ({
+            history :=
+              [
+                .request .rw 0,
+                .response .rw 0 [0] ⟨2, 1⟩,
+                .request .rw 1,
+                .response .rw 1 [0, 1] ⟨2, 2⟩,
+                .request .rw 2,
+                .response .rw 2 [2] ⟨3, 1⟩,
+                .status ⟨3, 1⟩ .committed,
+                .status ⟨2, 1⟩ .invalid,
+                .status ⟨2, 2⟩ .invalid,
+                .request .rw 3,
+                .response .rw 3 [2, 3] ⟨3, 2⟩,
+                .status ⟨3, 2⟩ .committed
+              ]
+            branches :=
+              [
+                [],
+                [⟨2, some 0⟩, ⟨2, some 1⟩],
+                [⟨3, some 2⟩, ⟨3, some 3⟩],
+                [⟨3, some 2⟩],
+                [⟨3, some 2⟩, ⟨3, some 3⟩]
+              ]
+          }
+          : State)
+        ∈ trace :=
+  (CCF.Execution.reachable_iff_trace (system := transitionSystem)).mp
+    (replay_reachable
+      [
+        .request .rw,
+        .execute 1 2,
+        .respond 1 2 1,
+        .request .rw,
+        .execute 3 2,
+        .respond 3 2 2,
+        .elect 2 0,
+        .request .rw,
+        .execute 5 3,
+        .respond 5 3 1,
+        .commit 6,
+        .invalidate 2,
+        .invalidate 4,
+        .elect 3 1,
+        .request .rw,
+        .execute 10 3,
+        .respond 10 3 2,
+        .elect 3 2,
+        .commit 11
+      ]
+      (.initial rfl) (by decide))
+
+/-- Overlapping writes respond out of request and transaction-ID order, a ledger
+entry carries no application write, and a former leader keeps responding after an
+election. The former leader's later write shares a sequence number with the new
+leader's committed write and is invalidated. -/
+private theorem reordered_writes_trace
+    : ∃ trace : CCF.Execution.Trace transitionSystem,
+        ({
+            history :=
+              [
+                .request .rw 0,
+                .request .rw 1,
+                .response .rw 1 [0, 1] ⟨2, 2⟩,
+                .response .rw 0 [0] ⟨2, 1⟩,
+                .status ⟨2, 2⟩ .committed,
+                .status ⟨2, 1⟩ .committed,
+                .request .rw 2,
+                .request .rw 3,
+                .response .rw 3 [0, 1, 2, 3] ⟨3, 5⟩,
+                .response .rw 2 [0, 1, 2] ⟨2, 4⟩,
+                .status ⟨3, 5⟩ .committed,
+                .status ⟨2, 4⟩ .committed,
+                .request .rw 4,
+                .response .rw 4 [0, 1, 2, 4] ⟨2, 5⟩,
+                .status ⟨2, 5⟩ .invalid
+              ]
+            branches :=
+              [
+                [],
+                [⟨2, some 0⟩, ⟨2, some 1⟩, ⟨2, none⟩, ⟨2, some 2⟩, ⟨2, some 4⟩],
+                [⟨2, some 0⟩, ⟨2, some 1⟩, ⟨2, none⟩, ⟨2, some 2⟩, ⟨3, some 3⟩]
+              ]
+          }
+          : State)
+        ∈ trace :=
+  (CCF.Execution.reachable_iff_trace (system := transitionSystem)).mp
+    (replay_reachable
+      [
+        .request .rw,
+        .request .rw,
+        .execute 1 2,
+        .execute 2 2,
+        .respond 2 2 2,
+        .respond 1 2 1,
+        .commit 3,
+        .commit 4,
+        .appendOther 2,
+        .request .rw,
+        .execute 7 2,
+        .elect 2 4,
+        .request .rw,
+        .execute 8 3,
+        .respond 8 3 5,
+        .respond 7 2 4,
+        .commit 9,
+        .commit 10,
+        .request .rw,
+        .execute 13 2,
+        .respond 13 2 5,
+        .invalidate 14
+      ]
+      (.initial rfl) (by decide))
+
 theorem all_received_witness
     : ∃ (trace : CCF.Execution.Trace transitionSystem) (state : State)
         (write read : Nat × Response),
@@ -1029,7 +1149,7 @@ theorem once_committed_next_invalid_witness
         ∧ left.2 = .committed
         ∧ left.1.seqno ≤ right.1.seqno
         ∧ right.1.view < left.1.view := by
-  obtain ⟨trace, member⟩ := replaced_writes_trace
+  obtain ⟨trace, member⟩ := superseded_writes_trace
   exact ⟨trace, _, ⟨⟨3, 1⟩, .committed⟩, ⟨⟨2, 2⟩, .invalid⟩, member, by decide⟩
 
 theorem once_invalid_next_invalid_witness
@@ -1069,13 +1189,13 @@ theorem real_time_witness
         ∧ later ∈ committedResponses state.history .rw
         ∧ later.2.tx = request.2.2
         ∧ earlier.1 < request.1 := by
-  obtain ⟨trace, member⟩ := writes_and_reads_trace
+  obtain ⟨trace, member⟩ := reordered_writes_trace
   exact ⟨
     trace,
     _,
-    (⟨1, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
-    (⟨3, ⟨.rw, 1, [0, 1], ⟨2, 2⟩⟩⟩ : Nat × Response),
-    ⟨2, .rw, 1⟩,
+    (⟨3, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
+    (⟨8, ⟨.rw, 3, [0, 1, 2, 3], ⟨3, 5⟩⟩⟩ : Nat × Response),
+    ⟨7, .rw, 3⟩,
     member,
     by decide
   ⟩
@@ -1088,12 +1208,12 @@ theorem invalid_not_observed_by_committed_witness
         ∧ observer ∈ committedResponses state.history .rw
         ∧ invalid.1 ≠ observer.1
         ∧ invalid.2.txid ∈ statusIDs state.history .invalid := by
-  obtain ⟨trace, member⟩ := replaced_writes_trace
+  obtain ⟨trace, member⟩ := reordered_writes_trace
   exact ⟨
     trace,
     _,
-    (⟨1, ⟨.rw, 0, [0], ⟨2, 1⟩⟩⟩ : Nat × Response),
-    ⟨7, ⟨.rw, 2, [2], ⟨3, 1⟩⟩⟩,
+    (⟨13, ⟨.rw, 4, [0, 1, 2, 4], ⟨2, 5⟩⟩⟩ : Nat × Response),
+    (⟨8, ⟨.rw, 3, [0, 1, 2, 3], ⟨3, 5⟩⟩⟩ : Nat × Response),
     member,
     by decide
   ⟩
@@ -1121,34 +1241,55 @@ theorem committed_rw_ordered_serializable_witness
         ∧ (left, right)
           ∈ (committedRwResponses state.history).zip
               (committedRwResponses state.history).tail := by
-  have writes_and_reads_ordered
+  -- Sorting reverses both the same-view and the cross-view response pairs.
+  have reordered_writes_ordered
       : committedRwResponses ({
         history :=
           [
             .request .rw 0,
-            .response .rw 0 [0] ⟨2, 1⟩,
             .request .rw 1,
             .response .rw 1 [0, 1] ⟨2, 2⟩,
-            .status ⟨2, 1⟩ .committed,
+            .response .rw 0 [0] ⟨2, 1⟩,
             .status ⟨2, 2⟩ .committed,
-            .request .ro 2,
-            .response .ro 2 [0, 1] ⟨2, 2⟩,
-            .request .ro 3,
-            .response .ro 3 [0, 1] ⟨2, 2⟩
+            .status ⟨2, 1⟩ .committed,
+            .request .rw 2,
+            .request .rw 3,
+            .response .rw 3 [0, 1, 2, 3] ⟨3, 5⟩,
+            .response .rw 2 [0, 1, 2] ⟨2, 4⟩,
+            .status ⟨3, 5⟩ .committed,
+            .status ⟨2, 4⟩ .committed,
+            .request .rw 4,
+            .response .rw 4 [0, 1, 2, 4] ⟨2, 5⟩,
+            .status ⟨2, 5⟩ .invalid
           ]
-        branches := [[], [⟨2, some 0⟩, ⟨2, some 1⟩]]
-      } : State).history = [(⟨.rw, 0, [0], ⟨2, 1⟩⟩ : Response), (⟨.rw, 1, [0, 1], ⟨2, 2⟩⟩ : Response)] := by
-    change [(⟨.rw, 0, [0], ⟨2, 1⟩⟩ : Response), (⟨.rw, 1, [0, 1], ⟨2, 2⟩⟩ : Response)].mergeSort _ = _
-    rw [List.mergeSort_pair]
-    rfl
-  obtain ⟨trace, member⟩ := writes_and_reads_trace
+        branches :=
+          [
+            [],
+            [⟨2, some 0⟩, ⟨2, some 1⟩, ⟨2, none⟩, ⟨2, some 2⟩, ⟨2, some 4⟩],
+            [⟨2, some 0⟩, ⟨2, some 1⟩, ⟨2, none⟩, ⟨2, some 2⟩, ⟨3, some 3⟩]
+          ]
+      } : State).history
+        = [
+            (⟨.rw, 0, [0], ⟨2, 1⟩⟩ : Response),
+            (⟨.rw, 1, [0, 1], ⟨2, 2⟩⟩ : Response),
+            (⟨.rw, 2, [0, 1, 2], ⟨2, 4⟩⟩ : Response),
+            (⟨.rw, 3, [0, 1, 2, 3], ⟨3, 5⟩⟩ : Response)
+          ] := by
+    change ([(⟨.rw, 1, [0, 1], ⟨2, 2⟩⟩ : Response), (⟨.rw, 0, [0], ⟨2, 1⟩⟩ : Response)]
+            ++ [(⟨.rw, 3, [0, 1, 2, 3], ⟨3, 5⟩⟩ : Response),
+              (⟨.rw, 2, [0, 1, 2], ⟨2, 4⟩⟩ : Response)]).mergeSort
+            _
+    = _
+    rw [List.mergeSort_append _ _ (by simp) (by simp)]
+    simp [txIDStrictlyLessThan]
+  obtain ⟨trace, member⟩ := reordered_writes_trace
   exact ⟨
     trace,
     _,
     (⟨.rw, 0, [0], ⟨2, 1⟩⟩ : Response),
     (⟨.rw, 1, [0, 1], ⟨2, 2⟩⟩ : Response),
     member,
-    by rw [writes_and_reads_ordered]; decide
+    by rw [reordered_writes_ordered]; decide
   ⟩
 
 end consistency.Proofs.Witnesses
