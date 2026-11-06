@@ -518,6 +518,7 @@ TEST_CASE(
     span_writer.append(entry);
     REQUIRE(span_writer.size() == expected_size);
     REQUIRE(buffer == raw_writer.get_raw_data());
+    REQUIRE_THROWS_AS(span_writer.append(1), std::length_error);
     REQUIRE_THROWS_AS(span_writer.append(entry), std::length_error);
     REQUIRE(span_writer.size() == expected_size);
 
@@ -676,6 +677,11 @@ TEST_CASE(
       std::length_error);
     REQUIRE(size_writer.size() == 0);
   }
+
+  // A payload which, with its size prefix, fits exactly is accepted
+  ccf::kv::SizeWriter exact_writer;
+  exact_writer.append_size_prefixed_in_place(max_size - sizeof(size_t), fill);
+  REQUIRE(exact_writer.size() == max_size);
 
   // The total measured by a SizeWriter is bounded the same way, up to and
   // including the limit, whichever way it is reached
