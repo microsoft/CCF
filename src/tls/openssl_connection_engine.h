@@ -557,21 +557,37 @@ namespace ccf::tls
       return true;
     }
 
+    static bool has_queued_output(const Conn& connection)
+    {
+      return connection.out_off < connection.outbuf.size();
+    }
+
+    static bool has_buffered_ciphertext(const Conn& connection)
+    {
+      return BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) != 0;
+    }
+
     static bool has_pending_input(const Conn& connection)
     {
       return SSL_has_pending(connection.ssl) == 1 ||
-        BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) != 0;
+        has_buffered_ciphertext(connection);
+    }
+
+    static bool should_yield_to_output(const Conn& connection)
+    {
+      return connection.traffic_keys && connection.write_retry_length == 0 &&
+        has_queued_output(connection) && !has_buffered_ciphertext(connection);
     }
 
     // Drain the current input batch without allowing its socket BIO to refill
     // it. SSL_read may otherwise refill halfway through an application record.
-    struct InputBatch
+    struct ScopedSocketReadPause
     {
       BIO* socket;
       BIO_callback_fn_ex callback;
       char* argument;
 
-      explicit InputBatch(BIO* socket_) :
+      explicit ScopedSocketReadPause(BIO* socket_) :
         socket(socket_),
         callback(BIO_get_callback_ex(socket)),
         argument(BIO_get_callback_arg(socket))
@@ -580,7 +596,7 @@ namespace ccf::tls
         BIO_set_callback_ex(socket, observe);
       }
 
-      ~InputBatch()
+      ~ScopedSocketReadPause()
       {
         BIO_set_callback_ex(socket, callback);
         BIO_set_callback_arg(socket, argument);
@@ -596,25 +612,39 @@ namespace ccf::tls
         int result,
         size_t* processed)
       {
-        auto& batch = *reinterpret_cast<InputBatch*>(BIO_get_callback_arg(bio));
+        auto& pause =
+          *reinterpret_cast<ScopedSocketReadPause*>(BIO_get_callback_arg(bio));
         if (operation == BIO_CB_READ)
         {
           BIO_set_retry_read(bio);
           return -1;
         }
-        if (batch.callback == nullptr)
+        if (pause.callback == nullptr)
         {
           return result;
         }
-        BIO_set_callback_ex(bio, batch.callback);
-        BIO_set_callback_arg(bio, batch.argument);
-        const long forwarded = batch.callback(
+        BIO_set_callback_ex(bio, pause.callback);
+        BIO_set_callback_arg(bio, pause.argument);
+        const long forwarded = pause.callback(
           bio, operation, data, size, number, value, result, processed);
-        BIO_set_callback_arg(bio, reinterpret_cast<char*>(&batch));
+        BIO_set_callback_arg(bio, reinterpret_cast<char*>(&pause));
         BIO_set_callback_ex(bio, observe);
         return forwarded;
       }
     };
+
+    static int read_tls(Conn& connection, uint8_t* buffer, int size)
+    {
+      const bool drain_input_batch = connection.traffic_keys &&
+        connection.write_retry_length == 0 && !connection.read_wants_write &&
+        has_queued_output(connection) && has_buffered_ciphertext(connection);
+      if (drain_input_batch)
+      {
+        ScopedSocketReadPause pause(BIO_next(SSL_get_rbio(connection.ssl)));
+        return SSL_read(connection.ssl, buffer, size);
+      }
+      return SSL_read(connection.ssl, buffer, size);
+    }
 
     // OpenSSL drives the scheduled update through the next ordinary I/O
     // operation. Do not schedule another while an I/O retry is outstanding.
@@ -673,20 +703,7 @@ namespace ccf::tls
           0;
         const int update_before = SSL_get_key_update_type(connection.ssl);
         ERR_clear_error();
-        int n = 0;
-        if (
-          connection.traffic_keys && connection.write_retry_length == 0 &&
-          !connection.read_wants_write &&
-          connection.out_off < connection.outbuf.size() &&
-          BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) != 0)
-        {
-          InputBatch batch(BIO_next(SSL_get_rbio(connection.ssl)));
-          n = SSL_read(connection.ssl, buf, static_cast<int>(sizeof(buf)));
-        }
-        else
-        {
-          n = SSL_read(connection.ssl, buf, static_cast<int>(sizeof(buf)));
-        }
+        const int n = read_tls(connection, buf, static_cast<int>(sizeof(buf)));
         const int e = n > 0 ? SSL_ERROR_NONE : SSL_get_error(connection.ssl, n);
         if (!check_traffic_keys(connection))
         {
@@ -707,9 +724,7 @@ namespace ccf::tls
           }
           if (
             connection.write_retry_length != 0 ||
-            (connection.traffic_keys &&
-             connection.out_off < connection.outbuf.size() &&
-             BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) == 0))
+            should_yield_to_output(connection))
           {
             // Once prefetched input drains, give queued output a turn before
             // another socket read refills the buffer. A pending write still
@@ -722,10 +737,7 @@ namespace ccf::tls
 
         if (e == SSL_ERROR_WANT_READ)
         {
-          if (
-            connection.traffic_keys && connection.write_retry_length == 0 &&
-            connection.out_off < connection.outbuf.size() &&
-            BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) == 0)
+          if (should_yield_to_output(connection))
           {
             more_to_read = has_pending_input(connection);
             return true;
@@ -825,7 +837,7 @@ namespace ccf::tls
       }
       if (
         connection.traffic_keys && connection.write_retry_length == 0 &&
-        BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) != 0)
+        has_buffered_ciphertext(connection))
       {
         // Consume previously prefetched input before starting another write.
         // Those bytes must not occupy the only receive buffer if both peers
@@ -833,7 +845,7 @@ namespace ccf::tls
         connection.want_write = false;
         return true;
       }
-      while (connection.out_off < connection.outbuf.size())
+      while (has_queued_output(connection))
       {
         if (!schedule_traffic_keys(connection))
         {
@@ -860,9 +872,7 @@ namespace ccf::tls
         {
           connection.write_retry_length = 0;
           connection.out_off += static_cast<size_t>(n);
-          if (
-            connection.traffic_keys &&
-            connection.out_off < connection.outbuf.size())
+          if (connection.traffic_keys && has_queued_output(connection))
           {
             connection.want_write = true;
             return true;
@@ -925,7 +935,7 @@ namespace ccf::tls
           // freeing space for a peer whose KeyUpdate is also write-blocked.
           if (
             !inbound_saturated() && (events & UV_READABLE) != 0 &&
-            BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) == 0)
+            !has_buffered_ciphertext(connection))
           {
             char byte = 0;
             ERR_clear_error();
@@ -962,7 +972,7 @@ namespace ccf::tls
       const bool alive = do_write(connection);
       more_to_read |= connection.traffic_keys && !connection.read_wants_write &&
         !read_blocked_by_write(connection) &&
-        BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) != 0;
+        has_buffered_ciphertext(connection);
       return alive;
     }
 
@@ -970,8 +980,8 @@ namespace ccf::tls
       std::shared_ptr<Conn> conn, bool alive, bool more_to_read)
       CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
-      conn->read_paused = read_blocked_by_write(*conn) &&
-        BIO_ctrl_pending(SSL_get_rbio(conn->ssl)) != 0;
+      conn->read_paused =
+        read_blocked_by_write(*conn) && has_buffered_ciphertext(*conn);
       {
         ccf::ds::MutexGuard guard(out_mutex);
         completed_drives.push_back(
