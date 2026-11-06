@@ -535,6 +535,92 @@ def test_service_cert_renewal_extended(network, args):
     return network
 
 
+def check_gov_pq_service_certificate(network, args):
+    # GET /gov/service/info must report the same ML-DSA certificate as
+    # GET /node/network, and omit it when the service has none
+    pq_cert = network.get_pq_service_certificate()
+    primary, _ = network.find_primary()
+    with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/info")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json().get("pqCertificate") == pq_cert, r.body.json()
+    return pq_cert
+
+
+@reqs.description("Renew ML-DSA service certificate independently")
+def test_pq_service_cert_renewal(network, args):
+    if network.get_pq_service_certificate() is None:
+        LOG.warning("Skipping ML-DSA renewal test: service has no ML-DSA certificate")
+        return network
+
+    primary, _ = network.find_primary()
+    pq_cert_before = check_gov_pq_service_certificate(network, args)
+    now = datetime.now(UTC)
+    service_validity_days = args.maximum_service_certificate_validity_days
+    pq_validity_days = service_validity_days // 2
+    assert pq_validity_days not in (0, service_validity_days)
+
+    renew_service_certificate(network, args, now, service_validity_days)
+
+    # Each certificate keeps its own validity period when the other is renewed
+    network.consortium.set_pq_service_certificate_validity(
+        primary,
+        valid_from=str(now),
+        validity_period_days=pq_validity_days,
+    )
+    network.verify_pq_service_certificate_validity_period(pq_validity_days)
+    network.verify_service_certificate_validity_period(service_validity_days)
+
+    renew_service_certificate(network, args, now, service_validity_days - 1)
+    network.verify_pq_service_certificate_validity_period(pq_validity_days)
+
+    # Omitting the period defaults to the service-wide maximum
+    network.consortium.set_pq_service_certificate_validity(
+        primary, valid_from=str(now), validity_period_days=None
+    )
+    network.verify_pq_service_certificate_validity_period(service_validity_days)
+    assert check_gov_pq_service_certificate(network, args) != pq_cert_before
+
+    return network
+
+
+@reqs.description("Renew ML-DSA service certificate - rejected proposals")
+def test_pq_service_cert_renewal_rejected(network, args):
+    primary, _ = network.find_primary()
+    service_cert_before = network.get_service_identity()
+    pq_cert_before = network.get_pq_service_certificate()
+
+    test_vectors = [(-1, infra.proposal.ProposalNotCreated)]
+    if pq_cert_before is None:
+        # Nothing to renew on a classical-only service
+        test_vectors.append((None, infra.proposal.ProposalNotAccepted))
+    else:
+        test_vectors.append(
+            (
+                args.maximum_service_certificate_validity_days + 1,
+                infra.proposal.ProposalNotAccepted,
+            )
+        )
+
+    for validity_period_days, expected_exception in test_vectors:
+        try:
+            network.consortium.set_pq_service_certificate_validity(
+                primary,
+                valid_from=str(datetime.now(UTC)),
+                validity_period_days=validity_period_days,
+            )
+        except expected_exception:
+            continue
+        raise AssertionError("Proposal should have not succeeded")
+
+    # Rejected proposals leave both certificates unchanged
+    assert network.get_service_identity() == service_cert_before
+    assert network.get_pq_service_certificate() == pq_cert_before
+    assert check_gov_pq_service_certificate(network, args) == pq_cert_before
+
+    return network
+
+
 @reqs.description("Binding proposal to service identity")
 def test_binding_proposal_to_service_identity(network, args):
     primary, _ = network.find_primary()
@@ -627,6 +713,8 @@ def gov(args):
             test_all_nodes_cert_renewal(recovered_network, args)
             test_service_cert_renewal(recovered_network, args)
             test_service_cert_renewal_extended(recovered_network, args)
+            test_pq_service_cert_renewal(recovered_network, args)
+            test_pq_service_cert_renewal_rejected(recovered_network, args)
         finally:
             recovered_network.stop_all_nodes(skip_verification=True)
 

@@ -57,8 +57,9 @@ The shared `check-imports` command rejects modules missing from that import clos
 `Properties.lean` contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
 Import `Consensus.Properties` and use `Consensus.Properties.<name>` for these declarations.
 Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
-`Proofs/Direct/` establishes node-local commit invariants; `Proofs/Safety/` establishes the cross-node history invariant used for election safety and committed-log comparability.
+`Proofs/Direct.lean` establishes node-local commit invariants; `Proofs/SafetyInvariant.lean` establishes the cross-node history invariant, in the `Consensus.Proofs.Safety` namespace, used for election safety and committed-log comparability.
 `Proofs/Witnesses.lean` supplies concrete executions checked by the kernel.
+The proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
 
 To list the safety-invariant declarations used by the exported theorems, run `lake env lean scripts/invariant-dependencies.lean`.
 

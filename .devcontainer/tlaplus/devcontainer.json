@@ -1,4 +1,0 @@
-{
-  "name": "TLA+ CCF",
-  "postCreateCommand": "(cd tla/ && python install_deps.py)"
-}

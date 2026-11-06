@@ -18,7 +18,6 @@ cp "$SCRIPT_DIR/ascii-checks.sh" "$TEST_ROOT/scripts/ascii-checks.sh"
 legacy_files=(
   "python/src/ccf/ledger_viz.py"
   "js/ccf-app/doc/theme/partials/analytics.hbs"
-  "tla/consensus/MCAliases.tla"
 )
 for file in "${legacy_files[@]}"; do
   mkdir -p "$TEST_ROOT/$(dirname "$file")"

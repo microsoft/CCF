@@ -3,9 +3,8 @@ module
 public import Consensus.Model
 public import CCF.Execution
 
-import Consensus.Proofs.CommittedLogs
-import Consensus.Proofs.Direct.CommitFrontier
-import Consensus.Proofs.Election
+import Consensus.Proofs.Direct
+import Consensus.Proofs.SafetyInvariant
 import Consensus.Proofs.Witnesses
 
 @[expose] public section

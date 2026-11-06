@@ -487,16 +487,21 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     auto identify_error_and_reindex = [&]() {
       fetch_all(index_a, "hello", seqnos_hello, true);
 
-      // index_a has seen a missing file and reset, but index_b hasn't (yet)
-      REQUIRE(index_a->get_indexed_watermark() != current);
+      // Queries request a rebuild without resetting the watermark themselves.
+      REQUIRE(index_a->get_indexed_watermark() == current);
       REQUIRE(index_b->get_indexed_watermark() == current);
+      REQUIRE_FALSE(
+        index_a->get_write_txs_in_range("hello", current_seqno, current_seqno)
+          .has_value());
 
       fetch_all(index_b, 1, seqnos_1, true);
       fetch_all(index_set, "set key", seqnos_set, true);
       fetch_all_value(index_value, seqnos_value, true);
 
-      // Now index_b has also seen a missing file
-      REQUIRE(index_b->get_indexed_watermark() != current);
+      REQUIRE(index_b->get_indexed_watermark() == current);
+      REQUIRE_FALSE(
+        index_b->get_write_txs_in_range(1, current_seqno, current_seqno)
+          .has_value());
 
       // This call does the actual re-indexing
       tick_until_caught_up();

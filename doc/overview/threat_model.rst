@@ -41,17 +41,17 @@ A CCF service runs the same application on several nodes. Typical deployments ha
         client["Client"]
         lb["Load balancer"]
         subgraph s1["C-ACI node 1"]
-            n1("CCF node<br/>current primary")
+            n1("CCF node current primary")
             d1[("Local disk")]
             n1 --- d1
         end
         subgraph s2["C-ACI node 2"]
-            n2("CCF node<br/>backup")
+            n2("CCF node backup")
             d2[("Local disk")]
             n2 --- d2
         end
         subgraph s3["C-ACI node 3"]
-            n3("CCF node<br/>backup")
+            n3("CCF node backup")
             d3[("Local disk")]
             n3 --- d3
         end
