@@ -111,6 +111,8 @@ Policy reads yield after control records, allowing a pending write to finish bef
 An OpenSSL input-buffer BIO holds at most 64 KiB of ciphertext per opted-in connection.
 When both peers' updates are write-blocked, the worker can fill that buffer without processing TLS, freeing socket space without violating the pending-write retry contract.
 Application reads still obey inbound admission, buffered input is scheduled without requiring a new socket event, and outgoing ciphertext is written directly to the socket.
+When output is queued, a read pass drains the current ciphertext batch without refilling it from the socket, then gives the write a turn.
+This keeps a continuously active sender from indefinitely delaying responses while retaining receive space for a later blocked KeyUpdate.
 Control messages which OpenSSL has already read when it yields are processed by a bounded number of further read attempts, because the socket will not report them again.
 Application reads remain subject to inbound admission, and existing flush-before-close and forced-shutdown behavior is retained.
 

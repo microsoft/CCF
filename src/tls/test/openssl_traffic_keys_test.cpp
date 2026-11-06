@@ -79,6 +79,7 @@ namespace
     std::shared_ptr<InboundAdmission> pause_reads_on_admission;
     std::atomic<uint64_t> socket_records{0};
     std::function<void()> notify;
+    std::function<void()> on_write;
 
     void install(SSL* connection)
     {
@@ -96,6 +97,10 @@ namespace
           int result,
           size_t* /*processed*/) -> long {
           auto& gate = *reinterpret_cast<WriteGate*>(BIO_get_callback_arg(bio));
+          if (operation == BIO_CB_WRITE && gate.on_write)
+          {
+            gate.on_write();
+          }
           // Close the admission-check/syscall race when constructing a
           // completely full socket in the reciprocal-backpressure test.
           if (
@@ -209,6 +214,7 @@ namespace
     bool shared_admission = false;
     std::shared_ptr<InboundAdmission> peer_admission = nullptr;
     bool charge_admission = false;
+    std::function<void(size_t)> on_data = nullptr;
     const char* server_ciphersuites = nullptr;
   };
 
@@ -302,21 +308,31 @@ namespace
             .traffic_key_policy = budget ?
               std::optional{TrafficKeyPolicy{.record_budget = *budget}} :
               std::nullopt},
-          [this, side, admission, charge = config.charge_admission](
+          [this,
+           side,
+           admission,
+           charge = config.charge_admission,
+           on_data = config.on_data](
             ::tcp::ConnID,
             std::vector<uint8_t> data,
             const std::vector<uint8_t>&,
             bool) {
-            std::lock_guard lock(mutex);
-            received[side].insert(
-              received[side].end(), data.begin(), data.end());
-            if (charge && admission)
             {
-              admission->queued(data.size());
-              events[side].buffered_input =
-                BIO_ctrl_pending(SSL_get_rbio(connections[side]));
+              std::lock_guard lock(mutex);
+              received[side].insert(
+                received[side].end(), data.begin(), data.end());
+              if (charge && admission)
+              {
+                admission->queued(data.size());
+                events[side].buffered_input =
+                  BIO_ctrl_pending(SSL_get_rbio(connections[side]));
+              }
+              cv.notify_all();
             }
-            cv.notify_all();
+            if (on_data)
+            {
+              on_data(side);
+            }
           },
           [this, side](::tcp::ConnID) {
             std::lock_guard lock(mutex);
@@ -716,6 +732,44 @@ namespace
     pair.expect_peer_update(requests);
   }
 
+  TEST_CASE(
+    "Traffic keys resume control input after yielding to a queued response")
+  {
+    auto admission = std::make_shared<InboundAdmission>(1);
+    WriteGate gate;
+    gate.block = false;
+    gate.pause_reads_on_admission = admission;
+    EnginePair pair(
+      {.engine_peer = false,
+       .gates = {&gate, nullptr},
+       .admission = admission,
+       .charge_admission = true});
+    pair.start();
+    admission->queued(1);
+    REQUIRE(SSL_write(pair.peer.get(), "x", 1) == 1);
+    for (size_t request = 0; request < 2; ++request)
+    {
+      REQUIRE(SSL_key_update(pair.peer.get(), SSL_KEY_UPDATE_REQUESTED) == 1);
+      REQUIRE(
+        pair.peer_io([&]() { return SSL_do_handshake(pair.peer.get()); }) == 1);
+    }
+    admission->consumed(1);
+    pair.expect(0, {'x'});
+    REQUIRE(pair.events[0].buffered_input == 54);
+    const uint8_t marker = 17;
+    pair.engines[0]->send(1, &marker, 1);
+    admission->consumed(1);
+    uint8_t received = 0;
+    REQUIRE(pair.peer_io([&]() {
+      return SSL_read(pair.peer.get(), &received, 1);
+    }) == 1);
+    CHECK(received == marker);
+    // No application input or further socket event should be necessary to
+    // process a control record OpenSSL held while yielding to that marker.
+    REQUIRE(pair.wait([&]() { return pair.events[0].updates[1] == 2; }));
+    pair.expect_peer_update(2);
+  }
+
   TEST_CASE("Traffic keys reject TLS 1.2 only when opted in")
   {
     PairConfig config{.engine_peer = false, .version = TLS1_2_VERSION};
@@ -827,6 +881,56 @@ namespace
     }
     admission->consumed(1);
     pair.expect(0, data);
+  }
+
+  TEST_CASE(
+    "Traffic keys give responses a turn during sustained incoming traffic")
+  {
+    size_t fragment = RECORD_SIZE;
+    SUBCASE("Full-sized records") {}
+    SUBCASE("Smaller records")
+    {
+      fragment = 4096;
+    }
+    WriteGate observer;
+    observer.block = false;
+    EnginePair* connection = nullptr;
+    std::atomic<bool> response_queued{false};
+    std::atomic<size_t> response_after{SIZE_MAX};
+    const uint8_t marker = 17;
+    EnginePair pair(
+      {.engine_peer = false,
+       .budgets = {1024, 1024},
+       .gates = {&observer, nullptr},
+       .on_data = [&](size_t side) {
+         if (side == 0 && !response_queued.exchange(true))
+         {
+           connection->engines[0]->send(1, &marker, 1);
+         }
+       }});
+    connection = &pair;
+    observer.on_write = [&]() {
+      std::lock_guard lock(pair.mutex);
+      if (response_after == SIZE_MAX)
+      {
+        response_after = pair.received[0].size();
+      }
+    };
+    REQUIRE(SSL_set_max_send_fragment(pair.peer.get(), fragment) == 1);
+    pair.start();
+    const std::vector<uint8_t> incoming(size_t{2} * 1024 * 1024, 42);
+    REQUIRE(pair.peer_io([&]() {
+      return SSL_write(pair.peer.get(), incoming.data(), incoming.size());
+    }) == static_cast<int>(incoming.size()));
+    uint8_t received = 0;
+    REQUIRE(pair.peer_io([&]() {
+      return SSL_read(pair.peer.get(), &received, 1);
+    }) == 1);
+    CHECK(received == marker);
+    // At most an in-flight read pass, then one pass draining the fixed input
+    // buffer, may precede the response. The whole stream must not go first.
+    CHECK(response_after.load() <= size_t{128} * 1024);
+    pair.expect(0, incoming);
   }
 
   TEST_CASE(

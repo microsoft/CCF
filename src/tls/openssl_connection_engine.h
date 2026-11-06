@@ -563,6 +563,59 @@ namespace ccf::tls
         BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) != 0;
     }
 
+    // Drain the current input batch without allowing its socket BIO to refill
+    // it. SSL_read may otherwise refill halfway through an application record.
+    struct InputBatch
+    {
+      BIO* socket;
+      BIO_callback_fn_ex callback;
+      char* argument;
+
+      explicit InputBatch(BIO* socket_) :
+        socket(socket_),
+        callback(BIO_get_callback_ex(socket)),
+        argument(BIO_get_callback_arg(socket))
+      {
+        BIO_set_callback_arg(socket, reinterpret_cast<char*>(this));
+        BIO_set_callback_ex(socket, observe);
+      }
+
+      ~InputBatch()
+      {
+        BIO_set_callback_ex(socket, callback);
+        BIO_set_callback_arg(socket, argument);
+      }
+
+      static long observe(
+        BIO* bio,
+        int operation,
+        const char* data,
+        size_t size,
+        int number,
+        long value,
+        int result,
+        size_t* processed)
+      {
+        auto& batch = *reinterpret_cast<InputBatch*>(BIO_get_callback_arg(bio));
+        if (operation == BIO_CB_READ)
+        {
+          BIO_set_retry_read(bio);
+          return -1;
+        }
+        if (batch.callback == nullptr)
+        {
+          return result;
+        }
+        BIO_set_callback_ex(bio, batch.callback);
+        BIO_set_callback_arg(bio, batch.argument);
+        const long forwarded = batch.callback(
+          bio, operation, data, size, number, value, result, processed);
+        BIO_set_callback_arg(bio, reinterpret_cast<char*>(&batch));
+        BIO_set_callback_ex(bio, observe);
+        return forwarded;
+      }
+    };
+
     // OpenSSL drives the scheduled update through the next ordinary I/O
     // operation. Do not schedule another while an I/O retry is outstanding.
     bool schedule_traffic_keys(Conn& connection)
@@ -620,8 +673,20 @@ namespace ccf::tls
           0;
         const int update_before = SSL_get_key_update_type(connection.ssl);
         ERR_clear_error();
-        const int n =
-          SSL_read(connection.ssl, buf, static_cast<int>(sizeof(buf)));
+        int n = 0;
+        if (
+          connection.traffic_keys && connection.write_retry_length == 0 &&
+          !connection.read_wants_write &&
+          connection.out_off < connection.outbuf.size() &&
+          BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) != 0)
+        {
+          InputBatch batch(BIO_next(SSL_get_rbio(connection.ssl)));
+          n = SSL_read(connection.ssl, buf, static_cast<int>(sizeof(buf)));
+        }
+        else
+        {
+          n = SSL_read(connection.ssl, buf, static_cast<int>(sizeof(buf)));
+        }
         const int e = n > 0 ? SSL_ERROR_NONE : SSL_get_error(connection.ssl, n);
         if (!check_traffic_keys(connection))
         {
@@ -640,8 +705,15 @@ namespace ccf::tls
               connection.peer_cert,
               connection.soft_limited);
           }
-          if (connection.write_retry_length != 0)
+          if (
+            connection.write_retry_length != 0 ||
+            (connection.traffic_keys &&
+             connection.out_off < connection.outbuf.size() &&
+             BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) == 0))
           {
+            // Once prefetched input drains, give queued output a turn before
+            // another socket read refills the buffer. A pending write still
+            // gets its retry after each application record as before.
             more_to_read = has_pending_input(connection);
             return true;
           }
@@ -650,6 +722,14 @@ namespace ccf::tls
 
         if (e == SSL_ERROR_WANT_READ)
         {
+          if (
+            connection.traffic_keys && connection.write_retry_length == 0 &&
+            connection.out_off < connection.outbuf.size() &&
+            BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) == 0)
+          {
+            more_to_read = has_pending_input(connection);
+            return true;
+          }
           // Without SSL_MODE_AUTO_RETRY, OpenSSL returns here after each
           // post-handshake message, and after sending a deferred KeyUpdate
           // response, even though the record holding the next message is
