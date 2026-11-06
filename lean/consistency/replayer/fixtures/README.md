@@ -13,6 +13,8 @@ Every [valid](valid) fixture must be accepted, and every [invalid](invalid) fixt
 | [Non-contiguous view election](valid/election_non_contiguous_view.ndjson) | Election skips intermediate views                              |
 | [Rollback at the same sequence number](valid/rollback_same_seqno.ndjson)  | Election replaces an invalid write                             |
 | [Rollback of two transactions](valid/rollback_two_transactions.ndjson)    | Election replaces an invalid suffix and commits a new write    |
+| [Invalid after election](valid/invalid-after-election.ndjson)             | Lost write reported invalid after a later view commits         |
+| [Partitions capture](valid/partitions-isolate-reconnect.ndjson)           | Isolate-and-reconnect capture from `partitions_test.py`        |
 
 | Invalid fixture                                                   | Expected failure                                   |
 | ----------------------------------------------------------------- | -------------------------------------------------- |
@@ -33,6 +35,7 @@ Every [valid](valid) fixture must be accepted, and every [invalid](invalid) fixt
 | [Rollback below commit](invalid/rollback-below-commit.ndjson)     | New view would roll back a committed write         |
 | [Status without response](invalid/status-without-response.ndjson) | Status for a transaction ID never returned         |
 | [Status mismatch](invalid/status-mismatch.ndjson)                 | Status field disagrees with the action             |
+| [Lost write committed](invalid/lost-write-committed.ndjson)       | Write replaced in a later view reported committed  |
 
 From `lean/consistency`, inspect a failure directly (exit status 1 is expected):
 

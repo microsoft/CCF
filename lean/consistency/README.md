@@ -68,7 +68,7 @@ The unsandboxed check executes build-time code, which must be trusted.
 It replays requests, write executions, responses, and final statuses through `Model.step`, checking request IDs and response transaction IDs.
 Missing views and non-application ledger entries are backfilled before write executions and reads.
 Backfilling uses guarded model elections and appends; it cannot roll back a known committed prefix.
-Elections discard known-invalid suffixes before filling gaps in the new view.
+Elections discard suffixes starting at any write reported invalid anywhere in the trace, since such reports can follow the election, before filling gaps in the new view.
 This is a deterministic reconstruction for these captures, not a complete search for all possible model executions.
 The capture contains no application read values, so this does not validate the model's append-and-read application observations.
 An unfinished final request is allowed, but empty traces, malformed records, and disabled transitions fail with a line-numbered diagnostic and nonzero exit code.
@@ -84,5 +84,12 @@ lake build --wfail consistency-replay
 .lake/build/bin/consistency-replay ../../build/consistency/trace.ndjson
 ```
 
-The [Lean workflow](../../.github/workflows/lean.yml) captures and replays this trace in separate jobs, following the KV and CCF consensus setup, and also checks the [replay fixtures](replayer/fixtures/README.md), including election and rollback traces.
+[`tests/partitions_test.py`](../../tests/partitions_test.py) also records traces when `CCF_CONSISTENCY_TRACE=1` is set, using [`tests/infra/consistency_trace.py`](../../tests/infra/consistency_trace.py).
+Its `basic` and `isolate-reconnect` groups each write `consistency_trace.ndjson` in their network's common directory:
+
+```sh
+(cd build && CR_FILTER="basic|isolate-reconnect" CCF_CONSISTENCY_TRACE=1 ./tests.sh -VV -C partitions -R '^partitions$' --no-tests=error)
+```
+
+The [Lean workflow](../../.github/workflows/lean.yml) captures and replays both kinds of trace in separate jobs, following the KV and CCF consensus setup, and also checks the [replay fixtures](replayer/fixtures/README.md), including election and rollback traces.
 The replay fixtures check that the replayer accepts valid traces and rejects invalid ones.

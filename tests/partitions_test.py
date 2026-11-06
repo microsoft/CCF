@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 
 import ccf.ledger
 import infra.concurrency
+import infra.consistency_trace
 import infra.e2e_args
 import infra.interfaces
 import infra.logging_app as app
@@ -41,6 +42,10 @@ UNCOMMITTABLE_MESSAGE_REPEAT = 1024
 # Small chunk size so that the writes made while the primary is isolated are
 # guaranteed to roll over into new (uncommitted) ledger chunks quickly.
 UNCOMMITTABLE_TEST_LEDGER_CHUNK_BYTES = "16KB"
+
+# Opt-in recording of client observations for lean/consistency trace
+# validation. When unset, no trace is created and tests behave as before.
+CONSISTENCY_TRACE = os.environ.get("CCF_CONSISTENCY_TRACE") == "1"
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -211,7 +216,7 @@ def test_isolate_primary_from_one_backup(network, args):
 
 
 @reqs.description("Isolate and reconnect primary")
-def test_isolate_and_reconnect_primary(network, args, **kwargs):
+def test_isolate_and_reconnect_primary(network, args, trace=None, **kwargs):
     primary, backups = network.find_nodes()
 
     with primary.client() as c:
@@ -219,9 +224,15 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
 
     with network.partitioner.partition(backups):
         lost_tx_resp = check_does_not_progress(primary)
+        if trace:
+            trace.write(lost_tx_resp)
 
         new_primary, _ = network.wait_for_new_primary(primary, nodes=backups)
         new_tx_resp = check_can_progress(new_primary)
+        if trace:
+            trace.write(new_tx_resp)
+            trace.status(new_tx_resp, TxStatus.Committed)
+            trace.primary_read(network, nodes=backups)
 
         # CheckQuorum: the primary node should automatically step
         # down if it has not heard back from a majority of backups.
@@ -255,11 +266,13 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         r = c.get(f"/node/tx?transaction_id={lost_tx_resp.view}.{lost_tx_resp.seqno}")
         status = TxStatus(r.body.json()["status"])
         assert status == TxStatus.Invalid, r
+        if trace:
+            trace.status(lost_tx_resp, TxStatus.Invalid)
 
 
 @reqs.description("New joiner helps liveness")
 @reqs.exactly_n_nodes(3)
-def test_new_joiner_helps_liveness(network, args):
+def test_new_joiner_helps_liveness(network, args, trace=None):
     primary, backups = network.find_nodes()
 
     # Issue some transactions, so there is a ledger history that a new node must receive
@@ -288,7 +301,11 @@ def test_new_joiner_helps_liveness(network, args):
 
         # Trust the new node, and wait for commit of this (but don't ask the new node itself, which doesn't know this yet)
         network.trust_node(new_node, args, no_wait=True)
-        check_can_progress(primary)
+        r = check_can_progress(primary)
+        if trace:
+            trace.write(r)
+            trace.status(r, TxStatus.Committed)
+            trace.primary_read(network, nodes=[primary, *backups])
 
         # Partition the primary, temporarily creating a minority service that cannot make progress
         minority_partition = backups[len(backups) // 2 :] + new_joiner_partition
@@ -310,7 +327,11 @@ def test_new_joiner_helps_liveness(network, args):
 
         # Confirm that the new node catches up, and progress can be made in this majority partition
         network.wait_for_new_primary(primary, minority_partition)
-        check_can_progress(new_node)
+        r = check_can_progress(new_node)
+        if trace:
+            trace.write(r)
+            trace.status(r, TxStatus.Committed)
+            trace.primary_read(network, nodes=minority_partition)
 
         # Explicitly drop rules before continuing
         minority_rules.drop()
@@ -1463,11 +1484,13 @@ def partitioned_network(args):
 
 
 def run_basic_partitions(args):
-    with partitioned_network(args) as network:
+    with partitioned_network(args) as network, infra.consistency_trace.recording(
+        network, CONSISTENCY_TRACE
+    ) as trace:
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
-        test_new_joiner_helps_liveness(network, args)
+        test_new_joiner_helps_liveness(network, args, trace)
 
 
 def run_certificate_partitions(args):
@@ -1477,9 +1500,11 @@ def run_certificate_partitions(args):
 
 
 def run_isolate_and_reconnect(args):
-    with partitioned_network(args) as network:
+    with partitioned_network(args) as network, infra.consistency_trace.recording(
+        network, CONSISTENCY_TRACE
+    ) as trace:
         for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, iteration=n)
+            test_isolate_and_reconnect_primary(network, args, trace, iteration=n)
 
 
 def run_reconfiguration_partitions(args):
