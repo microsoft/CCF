@@ -257,9 +257,19 @@ Service identity and status.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Public keys for verifying service COSE signatures.
-Each key is the public key of the service certificate in ``service.info``.
-The table is only written when a service is created or recovered, so a service created before it existed has no entry until its next recovery, including after a live update of its nodes.
-For ``CLASSICAL``, an empty table therefore falls back to the key of ``service.info.cert``.
+New entries are published as ``COSE_KEY`` values holding the public key of the corresponding service certificate in ``service.info``.
+``CLASSICAL`` holds the EC public key of ``service.info.cert``, with its curve's signing algorithm.
+A service with an ML-DSA identity also publishes ``PQ``, an RFC 9964 AKP key (``kty = 7``) with the parameter set's algorithm (``-48``, ``-49`` or ``-50``) and FIPS 204 public key.
+The ``PQ`` entry is present exactly when ``service.info.pq_cert`` is present, and must hold that certificate's public key.
+Current-state identity reads reject an incomplete or mismatched PQ pair; there is no PQ certificate or CLASSICAL fallback.
+This invariant applies to reconstructed KV state; a historical transaction only includes the entries written by that transaction.
+
+The keys and certificates are published in the same transaction when a service is created or recovered.
+Certificate renewal preserves the public keys and does not rewrite this table.
+Classical-only services remain supported, but creation or recovery cannot discard an existing PQ identity, and builds with ML-DSA require a PQ certificate.
+A service created before this table existed has no ``CLASSICAL`` entry until its next recovery, including after a live update of its nodes.
+Existing ``CLASSICAL`` entries retain their encoding, including legacy DER certificates or public keys.
+Only ``CLASSICAL`` therefore falls back to the key of ``service.info.cert`` when its entry is absent.
 
 **Key** Identity type as a little-endian 64-bit unsigned integer.
 
