@@ -16,6 +16,8 @@
 #include "tls/openssl_server.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include "tls/test/tls_test_helpers.h"
+
 #include <arpa/inet.h>
 #include <array>
 #include <atomic>
@@ -43,6 +45,7 @@
 #include <vector>
 
 using namespace ccf::tls;
+using namespace ccf::tls::test;
 using ccf::OpenSSLSessionManager;
 
 namespace
@@ -83,6 +86,7 @@ namespace
   std::atomic<bool> suppress_connect_poll = false;
   std::atomic<size_t> suppressed_connect_polls = 0;
   std::atomic<size_t> socket_calls = 0;
+  std::atomic<size_t> poll_starts = 0;
 
   struct ResolutionGate
   {
@@ -110,6 +114,11 @@ namespace
 }
 
 extern "C" int __real_SSL_do_handshake(SSL* ssl);
+
+[[nodiscard]] size_t tls_test_poll_starts()
+{
+  return poll_starts.load();
+}
 
 extern "C" int __wrap_SSL_do_handshake(SSL* ssl)
 {
@@ -213,6 +222,7 @@ extern "C" int __real_uv_poll_start(uv_poll_t*, int, uv_poll_cb);
 extern "C" int __wrap_uv_poll_start(
   uv_poll_t* poll, int events, uv_poll_cb callback)
 {
+  ++poll_starts;
   if (events == UV_WRITABLE && suppress_connect_poll.exchange(false))
   {
     ++suppressed_connect_polls;
@@ -247,17 +257,6 @@ namespace
   [[maybe_unused]] const bool ignore_sigpipe = []() {
     return signal(SIGPIPE, SIG_IGN) != SIG_ERR;
   }();
-
-  std::pair<std::string, std::string> make_server_cert()
-  {
-    using namespace std::literals;
-    auto kp = ccf::crypto::make_ec_key_pair();
-    const auto valid_from =
-      ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-    auto cert = ccf::crypto::create_self_signed_cert(
-      kp, "CN=localhost", {}, valid_from, /*validity_days*/ 365);
-    return {cert.str(), kp->private_key_pem().str()};
-  }
 
   struct TestCA
   {
@@ -598,25 +597,6 @@ namespace
     return ok;
   }
 
-  // Echoes received plaintext back to the same connection via send().
-  struct UVLoopRunner
-  {
-    std::thread thread;
-
-    void start()
-    {
-      thread = std::thread([]() { uv_run(uv_default_loop(), UV_RUN_DEFAULT); });
-    }
-
-    ~UVLoopRunner()
-    {
-      if (thread.joinable())
-      {
-        thread.join();
-      }
-    }
-  };
-
   struct EchoServer
   {
     std::shared_ptr<OpenSSLServer> server;
@@ -701,10 +681,8 @@ namespace
 
 namespace
 {
-  struct EnginePair
+  struct EnginePair : public AsyncTest
   {
-    std::mutex mutex;
-    std::condition_variable cv;
     std::vector<uint8_t> received;
     std::vector<uint8_t> accepted_data;
     size_t client_closed = 0;
@@ -728,23 +706,16 @@ namespace
     std::shared_ptr<SSL_CTX> client_ctx;
 
     EnginePair(
-      std::optional<std::chrono::milliseconds> server_timeout = std::nullopt)
+      std::optional<std::chrono::milliseconds> server_timeout = std::nullopt,
+      std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt)
     {
       auto [cert, key] = make_server_cert();
-      client_ctx = {SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
-      REQUIRE(client_ctx != nullptr);
-      ccf::crypto::OpenSSL::Unique_BIO bio(
-        cert.data(), static_cast<int>(cert.size()));
-      ccf::crypto::OpenSSL::Unique_X509 root(bio, true);
-      REQUIRE(root != nullptr);
-      REQUIRE(
-        X509_STORE_add_cert(SSL_CTX_get_cert_store(client_ctx.get()), root) ==
-        1);
-      SSL_CTX_set_verify(client_ctx.get(), SSL_VERIFY_PEER, nullptr);
+      client_ctx = make_client_context(cert);
 
       OpenSSLServer::Config config{
         .host = "127.0.0.1", .cert_pem = cert, .key_pem = key};
       config.tcp_user_timeout = server_timeout;
+      config.traffic_key_policy = traffic_key_policy;
       config.on_handshake = [this](::tcp::ConnID id, SSL* ssl, bool outgoing) {
         std::lock_guard<std::mutex> guard(mutex);
         CHECK_FALSE(outgoing);
@@ -798,6 +769,7 @@ namespace
           cv.notify_all();
         });
       OpenSSLClient::Config client_config;
+      client_config.traffic_key_policy = traffic_key_policy;
       client_config.on_handshake =
         [this](::tcp::ConnID id, SSL* ssl, bool outgoing) {
           std::lock_guard<std::mutex> guard(mutex);
@@ -860,13 +832,6 @@ namespace
         .tcp_user_timeout = std::chrono::milliseconds(1234)};
     }
 
-    template <typename Predicate>
-    bool wait(Predicate predicate)
-    {
-      std::unique_lock<std::mutex> lock(mutex);
-      return cv.wait_for(lock, std::chrono::seconds(5), predicate);
-    }
-
     ~EnginePair()
     {
       const auto state = loop.thread.joinable() ?
@@ -902,6 +867,32 @@ TEST_CASE(
   }
   pair.client->close_connection(id);
   REQUIRE(pair.wait([&]() { return pair.client_closed == 1; }));
+}
+
+namespace
+{
+  TEST_CASE("Client and server owners propagate the opt-in traffic-key policy")
+  {
+    EnginePair pair(std::nullopt, TrafficKeyPolicy{});
+    // The per-SSL policy, rather than a mutation of the caller's context,
+    // must establish TLS 1.3 even with this inherited TLS 1.2 maximum.
+    REQUIRE(
+      SSL_CTX_set_max_proto_version(pair.client_ctx.get(), TLS1_2_VERSION) ==
+      1);
+    const auto id = pair.client->connect(pair.config()).value();
+    const std::vector<uint8_t> payload(size_t{32} * 1024, 42);
+    pair.client->send(id, payload.data(), payload.size());
+    pair.loop.start();
+    REQUIRE(
+      pair.wait([&]() { return pair.received.size() == payload.size() + 2; }));
+    std::lock_guard<std::mutex> guard(pair.mutex);
+    CHECK(pair.accepted_data == payload);
+    CHECK(
+      std::vector<uint8_t>(pair.received.begin() + 2, pair.received.end()) ==
+      payload);
+    CHECK(
+      SSL_CTX_get_max_proto_version(pair.client_ctx.get()) == TLS1_2_VERSION);
+  }
 }
 
 TEST_CASE("Outbound client startup allocates no listener or socket")
@@ -951,20 +942,8 @@ TEST_CASE("Shared engine supports caller TLS policy without a negotiated group")
     ca.kp->private_key_pem(),
     ca.cert);
   const auto key_pem = key->private_key_pem();
-  std::shared_ptr<SSL_CTX> server_ctx(
-    SSL_CTX_new(TLS_server_method()), SSL_CTX_free);
-  std::shared_ptr<SSL_CTX> client_ctx(
-    SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
-  REQUIRE(server_ctx != nullptr);
-  REQUIRE(client_ctx != nullptr);
-  ccf::crypto::OpenSSL::Unique_BIO cert_bio(cert);
-  ccf::crypto::OpenSSL::Unique_X509 x509(cert_bio, true);
-  REQUIRE(x509 != nullptr);
-  ccf::crypto::OpenSSL::Unique_BIO key_bio(key_pem);
-  ccf::crypto::OpenSSL::Unique_PKEY pkey(
-    PEM_read_bio_PrivateKey(key_bio, nullptr, nullptr, nullptr), EVP_PKEY_free);
-  REQUIRE(SSL_CTX_use_certificate(server_ctx.get(), x509) == 1);
-  REQUIRE(SSL_CTX_use_PrivateKey(server_ctx.get(), pkey) == 1);
+  auto server_ctx = make_server_context(cert.str(), key_pem.str());
+  auto client_ctx = make_client_context();
   for (auto* context : {server_ctx.get(), client_ctx.get()})
   {
     REQUIRE(SSL_CTX_set_min_proto_version(context, TLS1_2_VERSION) == 1);
@@ -1099,22 +1078,8 @@ namespace
       shutdown = true;
     }
     auto [cert, key] = make_server_cert();
-    std::shared_ptr<SSL_CTX> server_context(
-      SSL_CTX_new(TLS_server_method()), SSL_CTX_free);
-    std::shared_ptr<SSL_CTX> client_context(
-      SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
-    REQUIRE(server_context != nullptr);
-    REQUIRE(client_context != nullptr);
-    ccf::crypto::OpenSSL::Unique_BIO cert_bio(
-      cert.data(), static_cast<int>(cert.size()));
-    ccf::crypto::OpenSSL::Unique_X509 x509(cert_bio, true);
-    ccf::crypto::OpenSSL::Unique_BIO key_bio(
-      key.data(), static_cast<int>(key.size()));
-    ccf::crypto::OpenSSL::Unique_PKEY pkey(
-      PEM_read_bio_PrivateKey(key_bio, nullptr, nullptr, nullptr),
-      EVP_PKEY_free);
-    REQUIRE(SSL_CTX_use_certificate(server_context.get(), x509) == 1);
-    REQUIRE(SSL_CTX_use_PrivateKey(server_context.get(), pkey) == 1);
+    auto server_context = make_server_context(cert, key);
+    auto client_context = make_client_context();
     REQUIRE(SSL_CTX_set_num_tickets(server_context.get(), 0) == 1);
 
     int sockets[2] = {-1, -1};

@@ -844,6 +844,8 @@ if(BUILD_TESTS)
     add_unit_test(
       openssl_server_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/openssl_server_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/openssl_traffic_keys_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/traffic_keys_test.cpp
     )
     target_link_libraries(openssl_server_test PRIVATE ccf_tasks http_parser uv)
     target_link_options(
