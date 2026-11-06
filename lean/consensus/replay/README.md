@@ -48,7 +48,7 @@ Delivery is strict FIFO per directed node pair, preserving multiplicity and deli
 
 ## Source and checks
 
-- [`Input.lean`](../Consensus/Replay/Input.lean): decode events, associate retirement metadata, carry optional command provenance and collect identities.
+- [`Input.lean`](../Consensus/Replay/Input.lean): decode events, carry optional command provenance and collect identities.
 - [`Reduction.lean`](../Consensus/Replay/Reduction.lean): named rules, explicit boundaries and rule-tagged snapshot checks.
 - [`Interpreter.lean`](../Consensus/Replay/Interpreter.lean): boundary-state field comparisons, FIFO selection and model execution.
 - [`ReplayMain.lean`](ReplayMain.lean): single-trace validation CLI.

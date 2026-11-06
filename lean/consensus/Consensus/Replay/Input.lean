@@ -76,7 +76,6 @@ structure Event where
   node : String
   message : Json
   state : Json
-  retirementConfirmations : List String := []
 deriving Inhabited
 
 def Event.origin (event : Event) (rule : String) : Origin :=
@@ -88,7 +87,6 @@ def prepareEvents (records : Array Record)
   let mut events := #[]
   let mut command : Option Record := none
   let mut declared : List String := []
-  let mut retirements : Std.HashMap (String × Nat) (List String) := {}
   for record in records do
     try
       let message ← field record.value "msg"
@@ -96,29 +94,19 @@ def prepareEvents (records : Array Record)
         command := some record
       else
         let function ← string message "function"
+        let state ←
+          if function == "retired_committed_tx" then
+            pure Json.null
+          else
+            field message "state"
+        let node ←
+          string (if function == "retired_committed_tx" then message else state) "node_id"
+        events := events.push { record, command, function, node, message, state }
+        declared := node :: declared
         if function == "retired_committed_tx" then
-          let key := (← string message "node_id", ← nat message "seqno")
-          let retired ← string message "retired_node_id"
-          retirements := retirements.insert key (retired :: retirements.getD key [])
-        else
-          let state ← field message "state"
-          let node ← string state "node_id"
-          let retirementConfirmations ←
-            if function == "replicate" && !retirements.isEmpty then do
-              let key := (node, ← nat message "seqno")
-              let confirmations := retirements.getD key []
-              require
-                (confirmations.isEmpty || !(← boolean message "globally_committable"))
-                "retirement metadata on signature"
-              pure confirmations
-            else
-              pure []
-          events :=
-            events.push
-              { record, command, function, node, message, state, retirementConfirmations }
-          declared := node :: retirementConfirmations ++ declared
-          if function == "add_configuration" then
-            declared := (← configuration message) ++ declared
+          declared := (← string message "retired_node_id") :: declared
+        if function == "add_configuration" then
+          declared := (← configuration message) ++ declared
     catch error =>
       throw s!"{record.location}: {error}"
   return (events, declared.mergeSort.eraseDups)
