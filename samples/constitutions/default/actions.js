@@ -501,9 +501,6 @@ function setPQServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
     throw new Error("Service has no ML-DSA identity");
   }
 
-  if (ccf.network.generatePQNetworkCertificate === undefined) {
-    throw new Error("This node has no ML-DSA support");
-  }
   const renewed_pq_service_certificate =
     ccf.network.generatePQNetworkCertificate(
       validFrom,
