@@ -67,7 +67,6 @@ namespace ccf::indexing::strategies
       };
       Phase phase = Phase::Direct;
       SeqNoCollection current;
-      std::optional<SeqNoCollection> result;
       std::vector<BucketRequest> buckets;
       size_t page_count = 0;
       size_t low = 0;
@@ -533,26 +532,21 @@ namespace ccf::indexing::strategies
         return std::nullopt;
       }
 
-      if (!query.result.has_value())
+      // ContiguousSet is vector-backed. Assemble in bucket order only after
+      // all reads and gap proofs complete, avoiding quadratic front inserts
+      // when newer buckets were cached before older reads finished.
+      SeqNoCollection result;
+      for (const auto& request : query.buckets)
       {
-        // ContiguousSet is vector-backed. Assemble in bucket order only after
-        // all reads and gap proofs complete, avoiding quadratic front inserts
-        // when newer buckets were cached before older reads finished.
-        auto& result = query.result.emplace();
-        for (const auto& request : query.buckets)
+        if (request.seqnos != nullptr)
         {
-          if (request.seqnos != nullptr)
-          {
-            append(result, *request.seqnos);
-          }
+          append(result, *request.seqnos);
         }
-
-        append(result, query.current);
-        query.buckets.clear();
-        query.current.clear();
       }
 
-      return query.result;
+      append(result, query.current);
+      queries.erase(query_it);
+      return result;
     }
 
     size_t max_requestable_range() const
@@ -625,6 +619,7 @@ namespace ccf::indexing::strategies
       j["current_results_size"] = impl->current_results.size();
       j["directory_page_size"] = Impl::DIRECTORY_PAGE_SIZE;
       j["directory_pages_current_size"] = impl->directory_pages.size();
+      j["queries_current_size"] = impl->queries.size();
     }
     return j;
   }

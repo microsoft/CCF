@@ -1154,6 +1154,51 @@ TEST_CASE(
   CHECK(lfs->data_fetches.size() == 19);
 }
 
+TEST_CASE(
+  "Sparse bucket completed queries release cursors" *
+  doctest::test_suite("lfs"))
+{
+  ccf::tasks::JobBoard board;
+  auto lfs = std::make_shared<CountingLFS>(board);
+  ccf::AbstractNodeContext context;
+  context.install_subsystem(lfs);
+  constexpr size_t cache_slots = 20;
+  constexpr ccf::SeqNo bucket_size = 100;
+  constexpr ccf::SeqNo width = (cache_slots - 1) * bucket_size;
+  SparseBucketTestIndex index(map_a, context, bucket_size, cache_slots);
+  for (ccf::SeqNo seqno = 1; seqno <= width + 2 * cache_slots + 1; seqno += 2)
+  {
+    index.write(seqno, "fragmented");
+  }
+
+  for (ccf::SeqNo from = 0; from < cache_slots; ++from)
+  {
+    auto result =
+      index.get_write_txs_in_range("fragmented", from, from + width);
+    if (!result.has_value())
+    {
+      CHECK(index.describe()["queries_current_size"] == 1);
+      REQUIRE(flush_lfs(board) > 0);
+      result = index.get_write_txs_in_range("fragmented", from, from + width);
+    }
+
+    ExpectedSeqNos expected;
+    for (auto seqno = from | 1; seqno <= from + width; seqno += 2)
+    {
+      expected.insert(seqno);
+    }
+    REQUIRE(check_seqnos(expected, result));
+    CHECK(index.describe()["queries_current_size"] == 0);
+
+    // Repeating a completed request rebuilds its response from bounded bucket
+    // caches, without retaining any completed per-range payload.
+    REQUIRE(check_seqnos(
+      expected,
+      index.get_write_txs_in_range("fragmented", from, from + width)));
+    CHECK(index.describe()["queries_current_size"] == 0);
+  }
+}
+
 TEST_CASE("Sparse bucket paged directory costs" * doctest::test_suite("lfs"))
 {
   const std::pair<size_t, ccf::SeqNo> cases[] = {
