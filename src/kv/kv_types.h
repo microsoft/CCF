@@ -585,6 +585,10 @@ namespace ccf::kv
       EntryType entry_type = EntryType::WriteSet,
       bool historical_hint = false) = 0;
 
+    // As above, writing into the given spans. plain and cipher may be the same
+    // buffer (in-place encryption), but must otherwise not overlap each other,
+    // serialised_header or additional_data. Implementations must support
+    // in-place encryption: this default implementation copies plain first.
     virtual bool encrypt(
       std::span<const uint8_t> plain,
       std::span<const uint8_t> additional_data,
