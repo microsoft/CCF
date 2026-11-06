@@ -11,7 +11,9 @@
 #include <fcntl.h>
 #include <future>
 #include <mutex>
+#include <optional>
 #include <poll.h>
+#include <string>
 #include <string_view>
 #include <thread>
 
@@ -23,6 +25,49 @@ namespace
   using namespace ccf::tls::test;
   using namespace std::chrono_literals;
   constexpr size_t RECORD_SIZE = 16384;
+
+  // A TLS 1.3 ciphersuite outside the policy's AES-GCM list which this OpenSSL
+  // build can negotiate. Platform providers, such as SymCrypt in FIPS
+  // configurations, may leave ChaCha20-Poly1305 out.
+  std::optional<std::string> negotiable_non_gcm_suite()
+  {
+    for (const char* suite :
+         {"TLS_CHACHA20_POLY1305_SHA256", "TLS_AES_128_CCM_SHA256"})
+    {
+      auto context = make_client_context();
+      if (SSL_CTX_set_ciphersuites(context.get(), suite) != 1)
+      {
+        continue;
+      }
+      std::unique_ptr<SSL, decltype(&SSL_free)> ssl(
+        SSL_new(context.get()), SSL_free);
+      REQUIRE(ssl != nullptr);
+      std::unique_ptr<STACK_OF(SSL_CIPHER), void (*)(STACK_OF(SSL_CIPHER)*)>
+        supported(SSL_get1_supported_ciphers(ssl.get()), [](auto* ciphers) {
+          sk_SSL_CIPHER_free(ciphers);
+        });
+      for (int index = 0; index < sk_SSL_CIPHER_num(supported.get()); ++index)
+      {
+        const auto* cipher = sk_SSL_CIPHER_value(supported.get(), index);
+        if (std::string_view(SSL_CIPHER_get_name(cipher)) == suite)
+        {
+          std::unique_ptr<EVP_CIPHER, decltype(&EVP_CIPHER_free)>
+            implementation(
+              EVP_CIPHER_fetch(
+                nullptr,
+                OBJ_nid2sn(SSL_CIPHER_get_cipher_nid(cipher)),
+                nullptr),
+              EVP_CIPHER_free);
+          if (implementation != nullptr)
+          {
+            return suite;
+          }
+          ERR_clear_error();
+        }
+      }
+    }
+    return std::nullopt;
+  }
 
   struct WriteGate
   {
@@ -710,62 +755,23 @@ namespace
 
   TEST_CASE("Traffic keys reject non-AES-GCM ciphersuites only when opted in")
   {
-    // ChaCha20 is absent in some supported OpenSSL builds. Select from the
-    // suites that this build and its security policy actually permit.
-    auto probe = make_client_context();
-    REQUIRE(
-      SSL_CTX_set_ciphersuites(
-        probe.get(),
-        "TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_CCM_SHA256:"
-        "TLS_AES_128_CCM_8_SHA256") == 1);
-    std::unique_ptr<SSL, decltype(&SSL_free)> ssl(
-      SSL_new(probe.get()), SSL_free);
-    REQUIRE(ssl != nullptr);
-    const auto free_suites = [](STACK_OF(SSL_CIPHER) * stack) {
-      sk_SSL_CIPHER_free(stack);
-    };
-    std::unique_ptr<STACK_OF(SSL_CIPHER), decltype(free_suites)> suites(
-      SSL_get1_supported_ciphers(ssl.get()), free_suites);
-    const SSL_CIPHER* suite = nullptr;
-    if (suites != nullptr)
+    const auto suite = negotiable_non_gcm_suite();
+    if (!suite)
     {
-      for (int index = 0; index < sk_SSL_CIPHER_num(suites.get()); ++index)
-      {
-        const auto* candidate = sk_SSL_CIPHER_value(suites.get(), index);
-        if (
-          SSL_CIPHER_get_protocol_id(candidate) >= 0x1301 &&
-          SSL_CIPHER_get_protocol_id(candidate) <= 0x1305)
-        {
-          std::unique_ptr<EVP_CIPHER, decltype(&EVP_CIPHER_free)> cipher(
-            EVP_CIPHER_fetch(
-              nullptr,
-              OBJ_nid2sn(SSL_CIPHER_get_cipher_nid(candidate)),
-              nullptr),
-            EVP_CIPHER_free);
-          if (cipher != nullptr)
-          {
-            suite = candidate;
-            break;
-          }
-          ERR_clear_error();
-        }
-      }
-    }
-    if (suite == nullptr)
-    {
-      MESSAGE(
-        "Skipping non-GCM negotiation: no supported non-GCM TLS 1.3 suite");
+      MESSAGE("no non-AES-GCM TLS 1.3 ciphersuite is negotiable; skipping");
       return;
     }
-    const char* non_gcm = SSL_CIPHER_get_name(suite);
-    INFO("Non-GCM suite: " << std::string_view(non_gcm));
-    PairConfig config{.engine_peer = false, .server_ciphersuites = non_gcm};
+    // The server context permits the suite alongside AES-GCM, so a refusal
+    // can only come from the per-connection policy.
+    const std::string permissive = *suite + ":TLS_AES_256_GCM_SHA384";
+    PairConfig config{
+      .engine_peer = false, .server_ciphersuites = permissive.c_str()};
     SUBCASE("Accepted policy") {}
     SUBCASE("Initiating policy")
     {
       config.engine_peer = true;
       config.budgets = {std::nullopt, 8};
-      config.server_ciphersuites = non_gcm;
+      config.server_ciphersuites = suite->c_str();
     }
     // The engine adds no ciphersuite restriction of its own without the
     // policy; production RPC contexts restrict TLS 1.3 to AES-GCM separately.
@@ -776,14 +782,14 @@ namespace
     EnginePair pair(config);
     if (pair.peer)
     {
-      REQUIRE(SSL_set_ciphersuites(pair.peer.get(), non_gcm) == 1);
+      REQUIRE(SSL_set_ciphersuites(pair.peer.get(), suite->c_str()) == 1);
     }
     pair.start(false);
     if (!config.budgets[0] && !config.budgets[1])
     {
       REQUIRE(
         pair.peer_io([&]() { return SSL_connect(pair.peer.get()); }) == 1);
-      CHECK(std::string_view(SSL_get_cipher_name(pair.peer.get())) == non_gcm);
+      CHECK(std::string_view(SSL_get_cipher_name(pair.peer.get())) == *suite);
       REQUIRE(SSL_write(pair.peer.get(), "rpc", 3) == 3);
       pair.expect(0, {'r', 'p', 'c'});
     }
