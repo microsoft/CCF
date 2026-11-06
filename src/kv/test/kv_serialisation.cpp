@@ -592,6 +592,58 @@ TEST_CASE(
 }
 
 TEST_CASE(
+  "Writers discard a payload whose in-place fill throws" *
+  doctest::test_suite("serialisation"))
+{
+  // Payloads within and beyond RawWriter's inline capacity
+  for (const size_t payload_size : {37, 1000})
+  {
+    INFO(payload_size);
+    const uint32_t header = 0x01020304;
+    std::vector<uint8_t> payload(payload_size);
+    std::iota(payload.begin(), payload.end(), uint8_t{1});
+    ccf::kv::RawWriter expected;
+    expected.append(header);
+    expected.append(payload);
+    const auto expected_header = expected.view().first(sizeof(header));
+
+    const auto failing_fill = [](std::span<uint8_t> out) {
+      std::ranges::fill(out.first(out.size() / 2), uint8_t{0xff});
+      throw std::runtime_error("fill failed");
+    };
+    const auto fill = [&](std::span<uint8_t> out) {
+      std::ranges::copy(payload, out.begin());
+    };
+
+    // The writer keeps only what it held before the failed append, so it
+    // exports neither the payload's size nor the part of it that was written,
+    // and can still be appended to
+    ccf::kv::RawWriter raw_writer;
+    raw_writer.append(header);
+    REQUIRE_THROWS_WITH_AS(
+      raw_writer.append_size_prefixed_in_place(payload_size, failing_fill),
+      "fill failed",
+      std::runtime_error);
+    REQUIRE(raw_writer.size() == sizeof(header));
+    REQUIRE(std::ranges::equal(raw_writer.view(), expected_header));
+    raw_writer.append_size_prefixed_in_place(payload_size, fill);
+    REQUIRE(raw_writer.get_raw_data() == expected.get_raw_data());
+
+    std::vector<uint8_t> buffer(expected.size());
+    ccf::kv::SpanWriter span_writer(buffer);
+    span_writer.append(header);
+    REQUIRE_THROWS_WITH_AS(
+      span_writer.append_size_prefixed_in_place(payload_size, failing_fill),
+      "fill failed",
+      std::runtime_error);
+    REQUIRE(span_writer.size() == sizeof(header));
+    REQUIRE(std::ranges::equal(span_writer.view(), expected_header));
+    span_writer.append_size_prefixed_in_place(payload_size, fill);
+    REQUIRE(buffer == expected.get_raw_data());
+  }
+}
+
+TEST_CASE(
   "Writers reject sizes beyond the serialisable limit" *
   doctest::test_suite("serialisation"))
 {

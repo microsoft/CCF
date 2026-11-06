@@ -20,7 +20,8 @@ namespace ccf::kv
 {
   /** Encodes entries for writers which store them contiguously. Derived
    * provides the storage, through an extend(n) member which appends n bytes to
-   * it, or throws, and returns a pointer to them for the caller to write.
+   * it, or throws, and returns a pointer to them for the caller to write, and a
+   * truncate(n) member which keeps only its first n bytes.
    */
   template <typename Derived>
   class BufferWriter
@@ -114,17 +115,28 @@ namespace ccf::kv
 
     /** Appends a payload of payload_size bytes, preceded by its size, which
      * fill writes in place: fill is passed the payload's span, and must write
-     * all of it.
+     * all of it. If fill throws, the writer is truncated to its size before
+     * this call, so that it does not export a partially written payload, and
+     * the exception is rethrown.
      */
     template <typename F>
     void append_size_prefixed_in_place(size_t payload_size, F&& fill)
     {
+      const auto previous_size = derived().size();
       auto* destination = derived().extend(size_with_prefix(payload_size));
       std::memcpy(destination, &payload_size, sizeof(payload_size));
       if (payload_size != 0)
       {
-        std::forward<F>(fill)(
-          std::span<uint8_t>(destination + sizeof(size_t), payload_size));
+        try
+        {
+          std::forward<F>(fill)(
+            std::span<uint8_t>(destination + sizeof(size_t), payload_size));
+        }
+        catch (...)
+        {
+          derived().truncate(previous_size);
+          throw;
+        }
       }
     }
 
@@ -215,6 +227,11 @@ namespace ccf::kv
       }
       used = required;
       return data + previous;
+    }
+
+    void truncate(size_t new_size) noexcept
+    {
+      used = new_size;
     }
 
     void move_from(RawWriter& other) noexcept
@@ -387,6 +404,11 @@ namespace ccf::kv
       auto* destination = target.data() + used;
       used += additional;
       return destination;
+    }
+
+    void truncate(size_t new_size) noexcept
+    {
+      used = new_size;
     }
 
   public:
