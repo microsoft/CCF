@@ -9,6 +9,7 @@ from typing import Any
 import cbor2
 import ccf.cose
 import ccf.receipt
+import ccf.signatures
 import cwt
 import pytest
 from cryptography.hazmat.primitives import hashes

@@ -31,8 +31,10 @@ for chunk in ledger:
         public_tables = transaction.get_public_domain().get_tables()
 
         if target_table in public_tables:
-            # Ledger verification is happening implicitly in ccf.ledger.Ledger()
             for key, value in public_tables[target_table].items():
+                if value is None:
+                    print(f"{key.decode()} : <removed>")
+                    continue
                 # Note: `key` and `value` are raw bytes here.
                 # This code needs to have knowledge of the serialisation format for each table.
                 # In this case, the target table 'public:ccf.gov.nodes.info' is raw bytes to JSON.
