@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="979" height="676" viewBox="0 0 979 676" fill="none" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="939" height="618" viewBox="20 18 939 618" fill="none" role="img" aria-labelledby="title desc">
 <title id="title">Merkle tree with two signatures</title>
 <desc id="desc">The compacted Merkle tree from seqno 6 is extended with the hashes H7 to H10 of transactions 7 to 10. The signature transaction at seqno 11 signs the root of the tree at seqno 10.</desc>
 <defs>
@@ -10,10 +10,6 @@
 <linearGradient id="root" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8D9BF5"/><stop offset=".5" stop-color="#5D6FE6"/><stop offset="1" stop-color="#3F4FB8"/></linearGradient>
 </defs>
 <g font-family="Inter, 'Segoe UI', ui-sans-serif, system-ui, sans-serif">
-<rect x="32" y="44" width="915" height="610" rx="22" fill="#1D3B58" opacity=".16" filter="url(#blur14)"/>
-<rect x="20" y="28" width="939" height="618" rx="20" fill="#C6D2DE"/>
-<rect x="20" y="23" width="939" height="618" rx="20" fill="#DFE7EF"/>
-<rect x="20" y="18" width="939" height="618" rx="20" fill="#FFFFFF"/>
 <text x="48" y="58" fill="#7D8FA3" font-size="14" font-weight="700" letter-spacing="2.4">MERKLE TREE</text>
 <path d="M98 380L137 352" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
 <path d="M176 380L137 352" stroke="#D5DEE7" stroke-width="1.6" stroke-dasharray="4 5" stroke-linecap="round"/>
