@@ -16,6 +16,9 @@ on:
       - "tests/kv_trace_validation*.py"
       - "tests/consistency_trace_validation.py"
       - "tests/tvc.py"
+      - "tests/partitions_test.py"
+      - "tests/infra/consistency_trace.py"
+      - "tests/consistency_trace_test.py"
       - "samples/apps/basic_tv/**"
       - "CMakeLists.txt"
       - ".github/workflows/lean.yml"
@@ -199,6 +202,68 @@ jobs:
           retention-days: 1
           overwrite: true
 
+  partitions_consistency_traces:
+    name: Partitions consistency trace captures
+    runs-on: [gha-vmss-d16av7-ci-c]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout dependencies
+        run: |
+          set -euo pipefail
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        uses: ./.github/actions/install-ci-dependencies
+
+      - name: Check trace recorder
+        run: |
+          set -euo pipefail
+          uv run --no-project --with loguru python3 tests/consistency_trace_test.py
+
+      - name: Build and capture partitions consistency traces
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build --target partitions --parallel "$(( ($(nproc) + 1) >> 1 ))"
+          cd build
+          CR_FILTER="basic|isolate-reconnect" CCF_CONSISTENCY_TRACE=1 \
+            ./tests.sh --timeout 900 -VV -C partitions -R "^partitions$" --no-tests=error
+
+      - name: Upload partitions consistency traces
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: partitions-consistency-traces
+          path: build/workspace/*/consistency_trace.ndjson
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+      - name: Upload partitions consistency diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: partitions-consistency-trace-diagnostics
+          path: |
+            build/Testing/
+            build/workspace/
+          if-no-files-found: warn
+          retention-days: 1
+          overwrite: true
+
   packages:
     name: Lean package (${{ matrix.package }})
     strategy:
@@ -280,6 +345,8 @@ jobs:
         kv_replay,
         consistency_traces,
         consistency_replay,
+        partitions_consistency_traces,
+        partitions_consistency_replay,
       ]
     if: ${{ always() }}
     runs-on: ubuntu-26.04
@@ -306,6 +373,8 @@ jobs:
               "kv_replay",
               "consistency_traces",
               "consistency_replay",
+              "partitions_consistency_traces",
+              "partitions_consistency_replay",
           }
           needs = json.loads(os.environ["NEEDS"])
           print(json.dumps(needs, indent=2))
@@ -448,3 +517,59 @@ jobs:
             lean/consistency/.lake/build/bin/consistency-replay "$trace"
             echo "::endgroup::"
           done
+
+  partitions_consistency_replay:
+    name: Replay partitions consistency traces
+    needs: [partitions_consistency_traces]
+    runs-on: [gha-vmss-d16av7-ci-b]
+    container:
+      image: ubuntu:26.04
+      options: --user root
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Install container prerequisites
+        run: |
+          set -euo pipefail
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            ca-certificates git curl tar zstd build-essential libgmp-dev elan
+          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Lean
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          elan run --install "$(cat lean/lean-toolchain)" lean --version
+
+      - name: Restore Mathlib cache
+        working-directory: lean/consistency
+        run: |
+          set -euo pipefail
+          lake exe cache get
+
+      - name: Build consistency replay
+        working-directory: lean/consistency
+        run: |
+          set -euo pipefail
+          lake build --wfail consistency-replay
+
+      - name: Download partitions consistency traces
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: partitions-consistency-traces
+          path: ${{ runner.temp }}/partitions-consistency-traces
+
+      - name: Validate partitions consistency traces
+        run: |
+          set -euo pipefail
+          shopt -s failglob globstar
+          lean/consistency/.lake/build/bin/consistency-replay \
+            "$RUNNER_TEMP"/partitions-consistency-traces/**/consistency_trace.ndjson

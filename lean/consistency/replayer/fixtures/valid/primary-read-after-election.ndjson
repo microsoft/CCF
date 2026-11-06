@@ -1,0 +1,14 @@
+{"action":"RwTxRequestAction","type":"RwTxRequest","tx":0}
+{"action":"RwTxExecuteAction","type":"RwTxExecute","tx":0,"tx_id":[2,10]}
+{"action":"RwTxResponseAction","type":"RwTxResponse","tx":0,"tx_id":[2,10]}
+{"action":"StatusCommittedResponseAction","type":"TxStatusReceived","tx_id":[2,10],"status":"CommittedStatus"}
+{"action":"RwTxRequestAction","type":"RwTxRequest","tx":1}
+{"action":"RwTxExecuteAction","type":"RwTxExecute","tx":1,"tx_id":[2,12]}
+{"action":"RwTxResponseAction","type":"RwTxResponse","tx":1,"tx_id":[2,12]}
+{"action":"RwTxRequestAction","type":"RwTxRequest","tx":2}
+{"action":"RwTxExecuteAction","type":"RwTxExecute","tx":2,"tx_id":[3,14]}
+{"action":"RwTxResponseAction","type":"RwTxResponse","tx":2,"tx_id":[3,14]}
+{"action":"StatusCommittedResponseAction","type":"TxStatusReceived","tx_id":[3,14],"status":"CommittedStatus"}
+{"action":"RoTxRequestAction","type":"RoTxRequest","tx":3}
+{"action":"RoTxResponseAction","type":"RoTxResponse","tx":3,"tx_id":[3,15]}
+{"action":"StatusInvalidResponseAction","type":"TxStatusReceived","tx_id":[2,12],"status":"InvalidStatus"}

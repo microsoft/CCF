@@ -68,10 +68,11 @@ The unsandboxed check executes build-time code, which must be trusted.
 It replays requests, write executions, responses, and final statuses through `Model.step`, checking request IDs and response transaction IDs.
 Missing views and non-application ledger entries are backfilled before write executions and reads.
 Backfilling uses guarded model elections and appends; it cannot roll back a known committed prefix.
-Elections discard known-invalid suffixes before filling gaps in the new view.
+Elections discard suffixes starting at any write reported invalid anywhere in the trace, before filling gaps in the new view, because a write is often reported invalid only after a later view has been observed.
 This is a deterministic reconstruction for these captures, not a complete search for all possible model executions.
 The capture contains no application read values, so this does not validate the model's append-and-read application observations.
-An unfinished final request is allowed, but empty traces, malformed records, and disabled transitions fail with a line-numbered diagnostic and nonzero exit code.
+An unfinished final request is allowed, but empty traces, malformed records, and disabled transitions fail with a diagnostic naming the line and trace action, and a nonzero exit code.
+Several traces can be given at once; each is checked, and the exit code is nonzero if any is rejected.
 
 From the repository root, generate a capture using the existing e2e test (requires the [CCF build prerequisites](../../doc/contribute/build_setup.rst)):
 
@@ -84,5 +85,17 @@ lake build --wfail consistency-replay
 .lake/build/bin/consistency-replay ../../build/consistency/trace.ndjson
 ```
 
-The [Lean workflow](../../.github/workflows/lean.yml) captures and replays this trace in separate jobs, following the KV and CCF consensus setup, and also checks the [replay fixtures](replayer/fixtures/README.md), including election and rollback traces.
+[`tests/partitions_test.py`](../../tests/partitions_test.py) also records traces, from its `basic` and `isolate-reconnect` groups, when `CCF_CONSISTENCY_TRACE=1` is set.
+Its tests record observations explicitly with [`tests/infra/consistency_trace.py`](../../tests/infra/consistency_trace.py): committed writes, writes lost when an isolated primary is replaced and later reported invalid, and reads served by a node that is primary before and after the read.
+Unrecorded transactions, such as other tests' writes and governance, are backfilled as non-application ledger entries.
+Each group writes `consistency_trace.ndjson` in its network's common directory.
+The partitions test needs `NET_ADMIN` and `NET_RAW` capabilities to install `iptables` rules:
+
+```sh
+cmake --build build --target partitions
+(cd build && CR_FILTER="basic|isolate-reconnect" CCF_CONSISTENCY_TRACE=1 ./tests.sh -VV -C partitions -R '^partitions$' --no-tests=error)
+lean/consistency/.lake/build/bin/consistency-replay build/workspace/*/consistency_trace.ndjson
+```
+
+The [Lean workflow](../../.github/workflows/lean.yml) captures and replays both kinds of trace in separate jobs, following the KV and CCF consensus setup, and also checks the [replay fixtures](replayer/fixtures/README.md), including election and rollback traces.
 The replay fixtures check that the replayer accepts valid traces and rejects invalid ones.

@@ -33,16 +33,19 @@ private def apply (state : State) (action : Action) : Except String State := do
   return next
 
 /-- Fill unobserved elections and non-application entries as in TraceMultiNodeReads.
+Elections keep the prefix before the first write reported invalid anywhere in the trace,
+since a write reported invalid later can have been dropped by an earlier election.
 Every inserted action goes through the model's guards, including committed-prefix checks. -/
-private def prepare (state : State) (id : TxID) (length : Nat) : Except String State := do
+private def prepare (invalid : List TxID) (state : State) (id : TxID) (length : Nat)
+    : Except String State := do
   let mut state := state
+  let dropped := statusIDs state.history .invalid ++ invalid
   for _ in [:id.view - state.branches.length] do
     let source := state.branches.length
     let some ledger := at? state.branches source | throw "missing election source"
     let retained :=
       (ledger.zipIdx.takeWhile
-        fun (entry, index) =>
-          !((statusIDs state.history .invalid).contains ⟨entry.view, index + 1⟩)).length
+        fun (entry, index) => !(dropped.contains ⟨entry.view, index + 1⟩)).length
     state ← apply state (.elect source (min (id.seqno - 1) retained))
   let some ledger := at? state.branches id.view | throw "missing branch"
   unless ledger.length ≤ length do
@@ -74,10 +77,10 @@ private def checkResponse (state : State) (id : TxID) : Except String State := d
     throw s!"response ID mismatch: expected {repr id}, got {repr observed}"
   return state
 
-/-- Replay one existing `tests/tvc.py` record using the guarded consistency model.
-Application values are absent from this format and are not compared. -/
-def replayRecord (state : State) (record : Json) : Except String State := do
-  match ← string record "action", ← string record "type" with
+private def replayAction (invalid : List TxID) (state : State) (record : Json)
+    (action : String)
+    : Except String State := do
+  match action, ← string record "type" with
   | "RwTxRequestAction", "RwTxRequest"
   | "RoTxRequestAction", "RoTxRequest" =>
       unless (← tx record) == nextRequestId state.history do
@@ -87,7 +90,7 @@ def replayRecord (state : State) (record : Json) : Except String State := do
   | "RwTxExecuteAction", "RwTxExecute" =>
       let id ← txid record
       let index ← requestIndex state .rw (← tx record)
-      let state ← prepare state id (id.seqno - 1)
+      let state ← prepare invalid state id (id.seqno - 1)
       apply state (.execute index id.view)
   | "RwTxResponseAction", "RwTxResponse" =>
       let id ← txid record
@@ -96,7 +99,7 @@ def replayRecord (state : State) (record : Json) : Except String State := do
   | "RoTxResponseAction", "RoTxResponse" =>
       let id ← txid record
       let index ← requestIndex state .ro (← tx record)
-      let state ← prepare state id id.seqno
+      let state ← prepare invalid state id id.seqno
       checkResponse (← apply state (.read index id.view)) id
   | "StatusCommittedResponseAction", "TxStatusReceived" =>
       unless (← string record "status") == "CommittedStatus" do
@@ -108,18 +111,36 @@ def replayRecord (state : State) (record : Json) : Except String State := do
       apply state (.invalidate (← responseIndex state (← txid record)))
   | action, kind => throw s!"unknown action/type pair: {action}/{kind}"
 
+/-- Replay one existing `tests/tvc.py` record using the guarded consistency model.
+`invalid` lists every transaction ID reported invalid anywhere in the trace.
+Application values are absent from this format and are not compared. -/
+def replayRecord (invalid : List TxID) (state : State) (record : Json)
+    : Except String State := do
+  let action ← string record "action"
+  match replayAction invalid state record action with
+  | .ok next => return next
+  | .error message => throw s!"{action}: {message}"
+
+/-- Transaction IDs of every well-formed invalid status report, in trace order. -/
+private def invalidIDs (lines : Array String) : List TxID :=
+  lines.toList.filterMap
+    fun line =>
+      match Json.parse line with
+      | .error _ => none
+      | .ok record =>
+          match string record "action", txid record with
+          | .ok "StatusInvalidResponseAction", .ok id => some id
+          | _, _ => none
+
 /-- Replay a nonempty NDJSON capture, reporting the exact failing line. -/
 def checkFile (path : System.FilePath) : IO Nat := do
-  let input ← IO.FS.Handle.mk path .read
+  let lines ← IO.FS.lines path
+  let invalid := invalidIDs lines
   let mut state := initialState
-  let mut lineNumber := 0
   let mut events := 0
-  repeat
-    let line ← input.getLine
-    if line.isEmpty then break
-    lineNumber := lineNumber + 1
+  for line in lines, lineNumber in [1:lines.size + 1] do
     if line.trimAscii.toString.isEmpty then continue
-    match (Json.parse line).bind (replayRecord state) with
+    match (Json.parse line).bind (replayRecord invalid state) with
     | .error message => throw (IO.userError s!"{path}:{lineNumber}: {message}")
     | .ok next => state := next
     events := events + 1
