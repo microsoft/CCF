@@ -135,6 +135,7 @@ Summary Diagram
 ---------------
 
 .. mermaid::
+    :config: {sequence: {width: 300}}
 
     sequenceDiagram
         participant Member A
@@ -148,7 +149,7 @@ Summary Diagram
         Member B->>+Network: Vote for Proposal ID
         Network-->>Member B: State: Accepted
 
-        Note over Network: transition_service_to_open proposal completes. <br> Service is ready to accept recovery shares.
+        Note over Network: transition_service_to_open proposal completes. Service is ready to accept recovery shares.
 
         Member A->>+Network: GET /gov/recovery/encrypted-shares/<member0_id>
         Network-->>Member A: Encrypted recovery share for Member A

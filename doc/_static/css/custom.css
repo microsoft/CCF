@@ -3,3 +3,16 @@ img.ccf-inline-icon {
   height: 1em;
   vertical-align: -0.125em;
 }
+
+.sd-card .fas,
+.sd-card .far,
+.sd-card .fab,
+.sd-card img.ccf-inline-icon {
+  margin-inline-end: 0.35em;
+}
+
+.sd-card .fas,
+.sd-card .far,
+.sd-card .fab {
+  color: var(--color-sidebar-link-text);
+}

@@ -58,14 +58,14 @@ The primary node periodically signs the root of the Merkle Tree of all transacti
         ServicePubk -.- ServicePrivk[Service Identity Private Key]
         NodePubk[Node Identity Public Key] -.- NodePrivk[Node Identity Private Key]
         class ServicePrivk,NodePrivk EnclaveKey
-        ServiceCert -- recorded in <br> ccf.gov.service.info --> Ledger[(Ledger)]
-        NodeCert[Node Identity Certificate] -- recorded in <br> ccf.gov.nodes.endorsed_certificates --> Ledger
+        ServiceCert -- recorded in ccf.gov.service.info --> Ledger[(Ledger)]
+        NodeCert[Node Identity Certificate] -- recorded in ccf.gov.nodes.endorsed_certificates --> Ledger
         ServicePrivk -- signs --> NodeCert
-        NodePrivk -- signs --> Signature[Ledger Signatures <br> over Merkle Tree root]
-        Signature -- recorded in <br> ccf.internal.signatures --> Ledger
-        Attestation[Node Enclave Attestation <br> + Collaterals] -- contains hash of --> NodePubk
+        NodePrivk -- signs --> Signature[Ledger Signatures over Merkle Tree root]
+        Signature -- recorded in ccf.internal.signatures --> Ledger
+        Attestation[Node Enclave Attestation + Collaterals] -- contains hash of --> NodePubk
         NodeCert -- contains --> NodePubk
-        Attestation -- recorded in <br> ccf.gov.nodes.info --> Ledger
+        Attestation -- recorded in ccf.gov.nodes.info --> Ledger
 
 
 Ledger Secrets
@@ -83,27 +83,27 @@ Each node also has an encryption public-key (``Node Encryption Public Key``) use
 
     flowchart TB
         classDef EnclaveKey stroke-width:3px
-        WrappingKey -- split into --> RecoveryShares{{k-of-n <br> Recovery Shares}}
-        MemberPublicKeys{{Members Encryption <br> Public Keys}} --key--> F[/encrypts/]
-        RecoveryShares --in--> F[/encrypts/] --> EncryptedRecoveryShares{{Encrypted k-of-n <br> Recovery Shares}}
-        EncryptedRecoveryShares -- recorded in <br> ccf.internal.recovery_shares --> Ledger
+        WrappingKey -- split into --> RecoveryShares{{k-of-n Recovery Shares}}
+        MemberPublicKeys{{Members Encryption Public Keys}} --key--> F[/encrypts/]
+        RecoveryShares --in--> F[/encrypts/] --> EncryptedRecoveryShares{{Encrypted k-of-n Recovery Shares}}
+        EncryptedRecoveryShares -- recorded in ccf.internal.recovery_shares --> Ledger
 
-        WrappingKey[Ledger Secret <br> Wrapping Key] --key--> N[/encrypts/]
-        LedgerSecret --in--> N[/encrypts/] --> EncryptedLedgerSecret[Encrypted <br> Ledger Secret]
+        WrappingKey[Ledger Secret Wrapping Key] --key--> N[/encrypts/]
+        LedgerSecret --in--> N[/encrypts/] --> EncryptedLedgerSecret[Encrypted Ledger Secret]
         EncryptedLedgerSecret -- recorded in ccf.internal --> Ledger[(Ledger)]
 
-        PreviousLedgerSecret[Previous <br> Ledger Secret] --in--> H[/encrypts/] --> EncryptedPreviousLedgerSecret[Encrypted Previous <br> Ledger Secret]
+        PreviousLedgerSecret[Previous Ledger Secret] --in--> H[/encrypts/] --> EncryptedPreviousLedgerSecret[Encrypted Previous Ledger Secret]
         LedgerSecret --key--> H[/encrypts/]
-        EncryptedPreviousLedgerSecret -- recorded in <br> ccf.internal.<br>historical_encrypted_ledger_secret --> Ledger
+        EncryptedPreviousLedgerSecret -- recorded in ccf.internal.historical_encrypted_ledger_secret --> Ledger
 
-        LedgerSecret[Ledger <br> Secret] -- "encrypts <br> (AES-GCM)" --> Transactions[All CCF Transactions]
+        LedgerSecret[Ledger Secret] -- "encrypts (AES-GCM)" --> Transactions[All CCF Transactions]
         class WrappingKey,LedgerSecret,PreviousLedgerSecret EnclaveKey
         Transactions -- recorded in --> Ledger
 
         LedgerSecret --in--> K[/encrypts/] --> NodeEncryptedLedgerSecrets{{Node Encrypted Ledger Secrets}}
-        NodeEncryptionPublicKeys{{Node Encryption <br> Public Keys}} --key--> K[/encrypt/]
-        NodeEncryptedLedgerSecrets{{Node Encrypted <br> Ledger Secrets}}
-        NodeEncryptedLedgerSecrets -- recorded in <br> ccf.internal.<br>encrypted_ledger_secrets --> Ledger
+        NodeEncryptionPublicKeys{{Node Encryption Public Keys}} --key--> K[/encrypt/]
+        NodeEncryptedLedgerSecrets{{Node Encrypted Ledger Secrets}}
+        NodeEncryptedLedgerSecrets -- recorded in ccf.internal.encrypted_ledger_secrets --> Ledger
 
 
 Algorithms and Curves

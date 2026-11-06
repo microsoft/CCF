@@ -30,10 +30,10 @@ The new/recovered node may also need to have access to all ``.committed`` ledger
 
     graph TD;
     subgraph ccf network;
-    A["Node 0 (Primary)<br> [Read-Write directory]"];
-    B["Node 1<br> [Read-Write directory]"];
-    C["Node 2<br> [Read-Write directory]"];
-    D["Shared Mount<br>[Read-Only ledger directory]"]
+    A["Node 0 (Primary) [Read-Write directory]"];
+    B["Node 1 [Read-Write directory]"];
+    C["Node 2 [Read-Write directory]"];
+    D["Shared Mount [Read-Only ledger directory]"]
     A-->D
     A-. copy committed ledger files .-> D
     B-->D
