@@ -557,6 +557,12 @@ namespace ccf::tls
       return true;
     }
 
+    static bool has_pending_input(const Conn& connection)
+    {
+      return SSL_has_pending(connection.ssl) == 1 ||
+        BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) != 0;
+    }
+
     // OpenSSL drives the scheduled update through the next ordinary I/O
     // operation. Do not schedule another while an I/O retry is outstanding.
     bool schedule_traffic_keys(Conn& connection)
@@ -595,6 +601,7 @@ namespace ccf::tls
       }
       size_t total_read = 0;
       size_t pending_retries = 0;
+      bool control_progress = false;
       while (total_read < max_read_per_event)
       {
         // A read retry (read_wants_write) or an application send can reach
@@ -604,13 +611,14 @@ namespace ccf::tls
         {
           // Data a retry was about to process is already off the socket and
           // will not produce a readability event; keep that read pending.
-          more_to_read = pending_retries != 0;
+          more_to_read = has_pending_input(connection);
           return true;
         }
         uint8_t buf[read_chunk];
         const uint64_t messages_before = connection.traffic_keys ?
           connection.traffic_keys->handshake_messages_received() :
           0;
+        const int update_before = SSL_get_key_update_type(connection.ssl);
         ERR_clear_error();
         const int n =
           SSL_read(connection.ssl, buf, static_cast<int>(sizeof(buf)));
@@ -634,7 +642,7 @@ namespace ccf::tls
           }
           if (connection.write_retry_length != 0)
           {
-            more_to_read = SSL_has_pending(connection.ssl) == 1;
+            more_to_read = has_pending_input(connection);
             return true;
           }
           continue;
@@ -652,15 +660,24 @@ namespace ccf::tls
           const bool consumed_message = connection.traffic_keys &&
             connection.traffic_keys->handshake_messages_received() !=
               messages_before;
+          const bool sent_response = update_before != SSL_KEY_UPDATE_NONE &&
+            SSL_get_key_update_type(connection.ssl) == SSL_KEY_UPDATE_NONE;
+          const bool progressed = consumed_message || sent_response;
+          control_progress |= progressed;
+          if (read_blocked_by_write(connection))
+          {
+            return true;
+          }
           if (
             pending_retries < max_pending_retries &&
-            (pending_retries == 0 || consumed_message) &&
+            (pending_retries == 0 || progressed) &&
             (SSL_get_mode(connection.ssl) & SSL_MODE_AUTO_RETRY) == 0 &&
-            SSL_has_pending(connection.ssl) == 1)
+            has_pending_input(connection))
           {
             ++pending_retries;
             continue;
           }
+          more_to_read = control_progress && has_pending_input(connection);
           return true;
         }
         if (e == SSL_ERROR_WANT_WRITE)
@@ -685,7 +702,7 @@ namespace ccf::tls
       // instead. SSL_has_pending() covers both processed and unprocessed
       // buffered data; if it is only a partial record, the next pass returns
       // WANT_READ and polling resumes normally.
-      more_to_read = SSL_has_pending(connection.ssl) == 1;
+      more_to_read = has_pending_input(connection);
       return true;
     }
 
@@ -724,6 +741,16 @@ namespace ccf::tls
       }
       if (connection.read_wants_write)
       {
+        return true;
+      }
+      if (
+        connection.traffic_keys && connection.write_retry_length == 0 &&
+        BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) != 0)
+      {
+        // Consume previously prefetched input before starting another write.
+        // Those bytes must not occupy the only receive buffer if both peers
+        // later need to drain their sockets to finish a KeyUpdate.
+        connection.want_write = false;
         return true;
       }
       while (connection.out_off < connection.outbuf.size())
@@ -813,26 +840,58 @@ namespace ccf::tls
         }
         if (read_blocked_by_write(connection))
         {
-          return true;
+          // Do not re-enter SSL_read while its handshake would conflict with
+          // the write retry. A bounded stock BIO can still drain ciphertext,
+          // freeing space for a peer whose KeyUpdate is also write-blocked.
+          if (
+            !inbound_saturated() && (events & UV_READABLE) != 0 &&
+            BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) == 0)
+          {
+            char byte = 0;
+            ERR_clear_error();
+            if (
+              BIO_buffer_peek(SSL_get_rbio(connection.ssl), &byte, 1) <= 0 &&
+              !BIO_should_retry(SSL_get_rbio(connection.ssl)))
+            {
+              LOG_DEBUG_FMT(
+                "Connection {}: ciphertext input ended during a write retry",
+                connection.id);
+              return false;
+            }
+            if (!do_write(connection))
+            {
+              return false;
+            }
+          }
+          if (read_blocked_by_write(connection))
+          {
+            return true;
+          }
         }
       }
       // OpenSSL can consume a peer update while an application write is
       // pending, and defers the response until that write completes.
       if (
         ((events & (UV_READABLE | UV_DISCONNECT)) != 0 ||
-         connection.read_wants_write) &&
+         connection.read_wants_write ||
+         (connection.traffic_keys && has_pending_input(connection))) &&
         !do_read(connection, more_to_read))
       {
         return false;
       }
-      return do_write(connection);
+      const bool alive = do_write(connection);
+      more_to_read |= connection.traffic_keys && !connection.read_wants_write &&
+        !read_blocked_by_write(connection) &&
+        BIO_ctrl_pending(SSL_get_rbio(connection.ssl)) != 0;
+      return alive;
     }
 
     void complete_drive(
       std::shared_ptr<Conn> conn, bool alive, bool more_to_read)
       CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
-      conn->read_paused = read_blocked_by_write(*conn);
+      conn->read_paused = read_blocked_by_write(*conn) &&
+        BIO_ctrl_pending(SSL_get_rbio(conn->ssl)) != 0;
       {
         ccf::ds::MutexGuard guard(out_mutex);
         completed_drives.push_back(
@@ -889,6 +948,8 @@ namespace ccf::tls
           SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_ENABLE_PARTIAL_WRITE);
         if (traffic_key_policy)
         {
+          std::unique_ptr<BIO, decltype(&BIO_free_all)> input_bio(
+            BIO_new(BIO_f_buffer()), BIO_free_all);
           auto& keys = conn->traffic_keys.emplace(*traffic_key_policy);
           SSL_set_msg_callback(conn->ssl, TrafficKeys::observe);
           SSL_set_msg_callback_arg(conn->ssl, &keys);
@@ -908,7 +969,10 @@ namespace ccf::tls
             SSL_set_split_send_fragment(conn->ssl, read_chunk) != 1 ||
             SSL_set_max_pipelines(conn->ssl, 1) != 1 ||
             SSL_set_num_tickets(conn->ssl, 0) != 1 ||
-            SSL_set_max_early_data(conn->ssl, 0) != 1)
+            SSL_set_max_early_data(conn->ssl, 0) != 1 || input_bio == nullptr ||
+            BIO_set_read_buffer_size(input_bio.get(), max_read_per_event) !=
+              1 ||
+            BIO_up_ref(SSL_get_rbio(conn->ssl)) != 1)
           {
             LOG_FAIL_FMT(
               "Connection {}: traffic-key policy setup failed: {}",
@@ -919,6 +983,8 @@ namespace ccf::tls
             complete_drive(std::move(conn), false, false);
             return;
           }
+          BIO_push(input_bio.get(), SSL_get_rbio(conn->ssl));
+          SSL_set0_rbio(conn->ssl, input_bio.release());
         }
         if (conn->outgoing)
         {

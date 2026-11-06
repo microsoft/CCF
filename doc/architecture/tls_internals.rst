@@ -106,8 +106,11 @@ The engine does not periodically request peer updates: it closes without deliver
 
 The engine schedules updates only between ordinary TLS I/O operations, leaving OpenSSL to derive keys, transmit KeyUpdate and handle peer-requested responses.
 OpenSSL may defer a requested response until the next application write, as permitted by TLS 1.3.
-The existing ordered workers and readable/writable polling handle I/O retries; no separate ciphertext buffer or update-driving state machine is used.
+The existing ordered workers and readable/writable polling handle I/O retries, without a separate update-driving state machine.
 Policy reads yield after control records, allowing a pending write to finish before processing further peer updates that could require another write.
+An OpenSSL input-buffer BIO holds at most 64 KiB of ciphertext per opted-in connection.
+When both peers' updates are write-blocked, the worker can fill that buffer without processing TLS, freeing socket space without violating the pending-write retry contract.
+Application reads still obey inbound admission, buffered input is scheduled without requiring a new socket event, and outgoing ciphertext is written directly to the socket.
 Control messages which OpenSSL has already read when it yields are processed by a bounded number of further read attempts, because the socket will not report them again.
 Application reads remain subject to inbound admission, and existing flush-before-close and forced-shutdown behavior is retained.
 

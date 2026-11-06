@@ -30,6 +30,10 @@ namespace
     std::atomic<bool> notified{false};
     std::promise<void> blocked;
     bool application = false;
+    bool observe_socket_retries = false;
+    std::shared_ptr<InboundAdmission> pause_reads_on_admission;
+    std::atomic<uint64_t> socket_records{0};
+    std::function<void()> notify;
 
     void install(SSL* connection)
     {
@@ -47,6 +51,31 @@ namespace
           int result,
           size_t* /*processed*/) -> long {
           auto& gate = *reinterpret_cast<WriteGate*>(BIO_get_callback_arg(bio));
+          // Close the admission-check/syscall race when constructing a
+          // completely full socket in the reciprocal-backpressure test.
+          if (
+            operation == BIO_CB_READ && gate.pause_reads_on_admission &&
+            gate.pause_reads_on_admission->saturated())
+          {
+            BIO_set_retry_read(bio);
+            return -1;
+          }
+          if (
+            gate.observe_socket_retries &&
+            operation == (BIO_CB_WRITE | BIO_CB_RETURN) && result > 0 &&
+            size == 23)
+          {
+            ++gate.socket_records;
+            gate.notify();
+          }
+          if (
+            gate.observe_socket_retries &&
+            operation == (BIO_CB_WRITE | BIO_CB_RETURN) && result <= 0 &&
+            BIO_should_write(bio) && size == 27 &&
+            !gate.notified.exchange(true))
+          {
+            gate.blocked.set_value();
+          }
           // KeyUpdate: header + five-byte message + inner type + GCM tag.
           if (
             operation == BIO_CB_WRITE && gate.block &&
@@ -66,6 +95,7 @@ namespace
 
   struct KeyEvents
   {
+    std::atomic<size_t> buffered_input{0};
     std::array<std::atomic<size_t>, 2> updates{};
     size_t records = 0;
     size_t epoch_records = 0;
@@ -131,6 +161,9 @@ namespace
     int version = TLS1_3_VERSION;
     int send_buffer = 4096;
     std::shared_ptr<InboundAdmission> admission = nullptr;
+    bool shared_admission = false;
+    std::shared_ptr<InboundAdmission> peer_admission = nullptr;
+    bool charge_admission = false;
     const char* server_ciphersuites = nullptr;
   };
 
@@ -144,6 +177,7 @@ namespace
     std::array<KeyEvents, 2> events;
     std::array<std::shared_ptr<SSL_CTX>, 2> contexts;
     std::array<std::shared_ptr<OpenSSLConnectionEngine>, 2> engines;
+    std::array<SSL*, 2> connections{};
     int peer_fd = -1;
     std::unique_ptr<SSL, decltype(&SSL_free)> peer{nullptr, SSL_free};
 
@@ -198,16 +232,21 @@ namespace
           SSL_CTX_set_options(contexts[side].get(), SSL_OP_ENABLE_KTLS);
         }
         const auto budget = config.budgets[side];
+        const auto admission = side == 0 || config.shared_admission ?
+          config.admission :
+          config.peer_admission;
         engines[side] = std::make_shared<OpenSSLConnectionEngine>(
           OpenSSLConnectionEngine::Config{
             .loop = &loop,
-            .inbound_admission = side == 0 ? config.admission : nullptr,
+            .inbound_admission = admission,
             .on_handshake =
               [this, side, gate = config.gates[side], fd = sockets[side]](
                 ::tcp::ConnID, SSL* ssl, bool) {
                 CHECK(SSL_get_fd(ssl) == fd);
+                connections[side] = ssl;
                 if (gate != nullptr)
                 {
+                  gate->notify = events[side].notify;
                   gate->install(ssl);
                 }
                 std::lock_guard lock(mutex);
@@ -218,7 +257,7 @@ namespace
             .traffic_key_policy = budget ?
               std::optional{TrafficKeyPolicy{.record_budget = *budget}} :
               std::nullopt},
-          [this, side](
+          [this, side, admission, charge = config.charge_admission](
             ::tcp::ConnID,
             std::vector<uint8_t> data,
             const std::vector<uint8_t>&,
@@ -226,6 +265,12 @@ namespace
             std::lock_guard lock(mutex);
             received[side].insert(
               received[side].end(), data.begin(), data.end());
+            if (charge && admission)
+            {
+              admission->queued(data.size());
+              events[side].buffered_input =
+                BIO_ctrl_pending(SSL_get_rbio(connections[side]));
+            }
             cv.notify_all();
           },
           [this, side](::tcp::ConnID) {
@@ -514,7 +559,11 @@ namespace
     }
     // Every request installs a new receive key and is answered under the old
     // sending key. Neither direction may trip the engine's own accounting.
-    REQUIRE(pair.wait([&]() { return pair.events[0].updates[1] == requests; }));
+    const bool complete =
+      pair.wait([&]() { return pair.events[0].updates[1] == requests; });
+    INFO("Receive key updates: " << pair.events[0].updates[1].load());
+    INFO("Sending key updates: " << pair.events[0].updates[0].load());
+    REQUIRE(complete);
     CHECK(pair.events[0].updates[0] >= 1);
     CHECK(pair.events[0].updates[0] <= requests);
     CHECK(pair.closes[0] == 0);
@@ -661,14 +710,62 @@ namespace
 
   TEST_CASE("Traffic keys reject non-AES-GCM ciphersuites only when opted in")
   {
-    constexpr const char* chacha = "TLS_CHACHA20_POLY1305_SHA256";
-    PairConfig config{.engine_peer = false};
+    // ChaCha20 is absent in some supported OpenSSL builds. Select from the
+    // suites that this build and its security policy actually permit.
+    auto probe = make_client_context();
+    REQUIRE(
+      SSL_CTX_set_ciphersuites(
+        probe.get(),
+        "TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_CCM_SHA256:"
+        "TLS_AES_128_CCM_8_SHA256") == 1);
+    std::unique_ptr<SSL, decltype(&SSL_free)> ssl(
+      SSL_new(probe.get()), SSL_free);
+    REQUIRE(ssl != nullptr);
+    const auto free_suites = [](STACK_OF(SSL_CIPHER) * stack) {
+      sk_SSL_CIPHER_free(stack);
+    };
+    std::unique_ptr<STACK_OF(SSL_CIPHER), decltype(free_suites)> suites(
+      SSL_get1_supported_ciphers(ssl.get()), free_suites);
+    const SSL_CIPHER* suite = nullptr;
+    if (suites != nullptr)
+    {
+      for (int index = 0; index < sk_SSL_CIPHER_num(suites.get()); ++index)
+      {
+        const auto* candidate = sk_SSL_CIPHER_value(suites.get(), index);
+        if (
+          SSL_CIPHER_get_protocol_id(candidate) >= 0x1301 &&
+          SSL_CIPHER_get_protocol_id(candidate) <= 0x1305)
+        {
+          std::unique_ptr<EVP_CIPHER, decltype(&EVP_CIPHER_free)> cipher(
+            EVP_CIPHER_fetch(
+              nullptr,
+              OBJ_nid2sn(SSL_CIPHER_get_cipher_nid(candidate)),
+              nullptr),
+            EVP_CIPHER_free);
+          if (cipher != nullptr)
+          {
+            suite = candidate;
+            break;
+          }
+          ERR_clear_error();
+        }
+      }
+    }
+    if (suite == nullptr)
+    {
+      MESSAGE(
+        "Skipping non-GCM negotiation: no supported non-GCM TLS 1.3 suite");
+      return;
+    }
+    const char* non_gcm = SSL_CIPHER_get_name(suite);
+    INFO("Non-GCM suite: " << std::string_view(non_gcm));
+    PairConfig config{.engine_peer = false, .server_ciphersuites = non_gcm};
     SUBCASE("Accepted policy") {}
     SUBCASE("Initiating policy")
     {
       config.engine_peer = true;
       config.budgets = {std::nullopt, 8};
-      config.server_ciphersuites = chacha;
+      config.server_ciphersuites = non_gcm;
     }
     // The engine adds no ciphersuite restriction of its own without the
     // policy; production RPC contexts restrict TLS 1.3 to AES-GCM separately.
@@ -679,14 +776,14 @@ namespace
     EnginePair pair(config);
     if (pair.peer)
     {
-      REQUIRE(SSL_set_ciphersuites(pair.peer.get(), chacha) == 1);
+      REQUIRE(SSL_set_ciphersuites(pair.peer.get(), non_gcm) == 1);
     }
     pair.start(false);
     if (!config.budgets[0] && !config.budgets[1])
     {
       REQUIRE(
         pair.peer_io([&]() { return SSL_connect(pair.peer.get()); }) == 1);
-      CHECK(std::string_view(SSL_get_cipher_name(pair.peer.get())) == chacha);
+      CHECK(std::string_view(SSL_get_cipher_name(pair.peer.get())) == non_gcm);
       REQUIRE(SSL_write(pair.peer.get(), "rpc", 3) == 3);
       pair.expect(0, {'r', 'p', 'c'});
     }
@@ -724,6 +821,73 @@ namespace
     }
     admission->consumed(1);
     pair.expect(0, data);
+  }
+
+  TEST_CASE(
+    "Traffic keys drain sockets when both local updates are write-blocked")
+  {
+    // Measure the small-record capacity rather than assuming a kernel-specific
+    // AF_UNIX buffer overhead. One more record will be the pending KeyUpdate.
+    int sockets[2];
+    REQUIRE(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) == 0);
+    const int buffer = 4096;
+    REQUIRE(
+      setsockopt(sockets[0], SOL_SOCKET, SO_SNDBUF, &buffer, sizeof(buffer)) ==
+      0);
+    REQUIRE(fcntl(sockets[0], F_SETFL, O_NONBLOCK) == 0);
+    const std::array<uint8_t, 23> record{};
+    uint64_t records = 0;
+    while (::send(sockets[0], record.data(), record.size(), MSG_NOSIGNAL) > 0)
+    {
+      ++records;
+    }
+    const int error = errno;
+    details::close_socket(sockets[0]);
+    details::close_socket(sockets[1]);
+    REQUIRE(error == EAGAIN);
+    REQUIRE(records > 0);
+    auto admission = std::make_shared<InboundAdmission>(1);
+    WriteGate server;
+    WriteGate client;
+    server.block = client.block = false;
+    server.observe_socket_retries = client.observe_socket_retries = true;
+    server.pause_reads_on_admission = client.pause_reads_on_admission =
+      admission;
+    auto server_blocked = server.blocked.get_future();
+    auto client_blocked = client.blocked.get_future();
+    EnginePair pair(
+      {.budgets = {records + 1, records + 1},
+       .gates = {&server, &client},
+       .admission = admission,
+       .shared_admission = true});
+    pair.start();
+    admission->queued(1);
+    const uint8_t byte = 17;
+    // Waiting for each record's syscall prevents queued sends coalescing.
+    for (uint64_t index = 0; index <= records; ++index)
+    {
+      for (auto& engine : pair.engines)
+      {
+        engine->send(1, &byte, 1);
+      }
+      if (index < records)
+      {
+        REQUIRE(pair.wait([&]() {
+          return server.socket_records > index && client.socket_records > index;
+        }));
+      }
+    }
+    REQUIRE(server_blocked.wait_for(5s) == std::future_status::ready);
+    REQUIRE(client_blocked.wait_for(5s) == std::future_status::ready);
+    {
+      std::lock_guard lock(pair.mutex);
+      CHECK(pair.received[0].empty());
+      CHECK(pair.received[1].empty());
+    }
+    admission->consumed(1);
+    const std::vector<uint8_t> expected(records + 1, byte);
+    pair.expect(0, expected);
+    pair.expect(1, expected);
   }
 
   TEST_CASE("Traffic keys pause read retries while inbound admission is full")
@@ -775,6 +939,62 @@ namespace
     CHECK(received == marker);
     pair.expect(0, data);
     pair.expect_peer_update(2);
+  }
+
+  TEST_CASE("Traffic keys drain old input before starting another KeyUpdate")
+  {
+    auto server_admission = std::make_shared<InboundAdmission>(1);
+    auto client_admission = std::make_shared<InboundAdmission>(1);
+    WriteGate server;
+    WriteGate client;
+    server.block = client.block = false;
+    server.observe_socket_retries = client.observe_socket_retries = true;
+    server.pause_reads_on_admission = server_admission;
+    client.pause_reads_on_admission = client_admission;
+    EnginePair pair(
+      {.budgets = {3, 3},
+       .gates = {&server, &client},
+       .admission = server_admission,
+       .peer_admission = client_admission,
+       .charge_admission = true});
+    pair.start();
+    server_admission->queued(1);
+    client_admission->queued(1);
+    const uint8_t byte = 17;
+    for (uint64_t record = 1; record <= 2; ++record)
+    {
+      for (auto& engine : pair.engines)
+      {
+        engine->send(1, &byte, 1);
+      }
+      REQUIRE(pair.wait([&]() {
+        return server.socket_records == record &&
+          client.socket_records == record;
+      }));
+    }
+    server_admission->consumed(1);
+    client_admission->consumed(1);
+    pair.expect(0, {byte});
+    pair.expect(1, {byte});
+    // The first delivery pauses admission with the next record solely in BIO.
+    REQUIRE(pair.events[0].buffered_input > 0);
+    REQUIRE(pair.events[1].buffered_input > 0);
+    for (auto& engine : pair.engines)
+    {
+      engine->send(1, &byte, 1);
+    }
+    std::this_thread::sleep_for(50ms);
+    CHECK(server.socket_records == 2);
+    CHECK(client.socket_records == 2);
+    for (size_t size = 2; size <= 3; ++size)
+    {
+      server_admission->consumed(1);
+      client_admission->consumed(1);
+      pair.expect(0, std::vector<uint8_t>(size, byte));
+      pair.expect(1, std::vector<uint8_t>(size, byte));
+    }
+    CHECK(pair.events[0].updates[1] == 1);
+    CHECK(pair.events[1].updates[0] == 1);
   }
 
   TEST_CASE("Traffic keys reject invalid internal budgets")
