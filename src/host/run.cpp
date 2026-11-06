@@ -474,16 +474,6 @@ namespace ccf
       return CreateNodeStatus::ReconfigurationMethodNotSupported;
     }
 
-    ccf::tracing::FluentdSink::configure(
-      config.observability.fluentd, config.worker_threads + 2);
-    ccf::tracing::FluentdSink::bind_producer(config.worker_threads + 1);
-    ccf::tracing::FluentdSink::Lifetime trace_lifetime;
-    if (ccf::tracing::FluentdSink::is_configured())
-    {
-      ccf::logger::config::loggers().emplace_back(
-        std::make_unique<ccf::tracing::FluentdLogger>());
-    }
-
     // The stop callback's owner must outlive RuntimeControl, but the runtime
     // itself must be destroyed before its host dependencies.
     struct RuntimeCleanup
@@ -675,6 +665,26 @@ namespace ccf
     else
     {
       ccf::logger::config::add_text_console_logger();
+    }
+    ccf::tracing::FluentdSink::Lifetime fluentd_lifetime;
+    try
+    {
+      if (!check_config_only)
+      {
+        ccf::tracing::FluentdSink::configure(
+          config.observability.fluentd, config.worker_threads + 3);
+        ccf::tracing::FluentdSink::bind_producer(config.worker_threads + 2);
+      }
+    }
+    catch (const std::logic_error& e)
+    {
+      LOG_FATAL_FMT("{}. Exiting.", e.what());
+      return static_cast<int>(CLI::ExitCodes::ValidationError);
+    }
+    if (ccf::tracing::FluentdSink::is_configured())
+    {
+      ccf::logger::config::loggers().emplace_back(
+        std::make_unique<ccf::tracing::FluentdLogger>());
     }
 
     LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);

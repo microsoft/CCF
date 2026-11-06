@@ -26,7 +26,7 @@ import infra.fluentd
 import infra.network
 
 
-def exercise(args, name, endpoints, while_running=None):
+def exercise(args, name, endpoints, while_running=None, logs=None):
     args = copy.deepcopy(args)
     args.label += "_" + name
     args.observability = {"fluentd": endpoints} if endpoints is not None else None
@@ -44,6 +44,9 @@ def exercise(args, name, endpoints, while_running=None):
                 response = client.post("/app/log/private", {"id": 2, "msg": "outage"})
                 assert response.status_code == 200
                 client.wait_for_commit(response)
+        if logs is not None:
+            network.stop_all_nodes()
+            logs.extend(primary.get_logs())
         return json.loads(
             (pathlib.Path(network.common_dir) / "0.config.json").read_text()
         )
@@ -122,6 +125,37 @@ def run(args):
     assert first.records > 0
     assert second.records > 0
     assert first.processes == second.processes
+    log_args = copy.deepcopy(args)
+    log_args.log_level = "trace"
+    records = []
+    paths = []
+    with infra.fluentd.Collector(
+        1,
+        record_callback=lambda tag, timestamp, record: records.append(record["msg"]),
+    ) as collector:
+        exercise(
+            log_args,
+            "all_logs",
+            [collector.endpoint],
+            logs=paths,
+        )
+    console = pathlib.Path(paths[0]).read_text(encoding="utf-8")
+    for prefix in (
+        "CCF version:",
+        "Configuration file ",
+        "Environment:",
+        "Created new node",
+        "Exited event loop",
+        "Ran an extra ",
+    ):
+        assert prefix in console, prefix
+        assert any(record["msg"].startswith(prefix) for record in records), prefix
+    assert {"trace", "debug", "info"} <= {record["level"] for record in records}
+    assert all(
+        set(record) == {"h_ts", "thread_id", "level", "tag", "file", "number", "msg"}
+        and all(isinstance(value, str) for value in record.values())
+        for record in records
+    )
     for delivery in ("buffered-best-effort", "unbuffered-non-blocking"):
         with (
             infra.fluentd.Collector(1) as broad,

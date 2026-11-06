@@ -11,16 +11,22 @@ namespace ccf::tracing
   public:
     void write(const ccf::logger::LogLine& line) override
     {
-      // Transport diagnostics run on an unbound consumer: never feed them back.
-      if (
-        line.log_level < ccf::LoggerLevel::INFO ||
-        !FluentdSink::is_producer_active())
+      if (!FluentdSink::is_running() || !FluentdSink::accepts("ccf.log"))
       {
         return;
       }
-      emit_record("ccf.log", [&](auto& buffer) {
-        nlohmann::json::to_msgpack(ccf::logger::format_to_json(line), buffer);
-      });
+      try
+      {
+        FluentdSink::enqueue_log(
+          "ccf.log", encode_record("ccf.log", [&](auto& buffer) {
+            nlohmann::json::to_msgpack(
+              ccf::logger::format_to_json(line), buffer);
+          }));
+      }
+      catch (const std::bad_alloc&)
+      {
+        FluentdSink::record_drop("ccf.log");
+      }
     }
   };
 }

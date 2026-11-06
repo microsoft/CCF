@@ -45,22 +45,29 @@ Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticate
 Set ``tag-prefix-allow-list`` per collector to a list of literal, case-sensitive prefixes; an event is selected if its tag starts with any listed prefix.
 ``["ccf.log"]`` selects logs; ``["ccf.cft"]`` selects consensus traces; ``["ccf"]`` selects all CCF tags.
 Omitting ``tag-prefix-allow-list`` defaults to ``["ccf.log"]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
+Existing collectors that omit this field must set ``["ccf"]`` explicitly to keep receiving consensus traces as well as logs.
 Prefixes have no dot-boundary requirement and do not support wildcards or regular expressions.
 Matching multiple prefixes within one collector entry does not duplicate events; an event matching multiple collectors is sent to each.
 Excluded events do not count as dropped for that collector.
 Omit the array or leave it empty to disable export.
 
-INFO, FAIL and FATAL logs that pass the node's log-level filter are also exported under ``ccf.log``, regardless of the console format.
+All records passing the node's logger are exported under ``ccf.log``, regardless of the console format, including TRACE and DEBUG when enabled.
+Console and Fluentd loggers are initialised together and remain active through startup and final host cleanup.
 The Forward record uses the trace envelope (``process_id``, sequence number ``h_ts``, and ``msg``).
-Its ``msg`` contains the same fields and string values as JSON console logging: ``h_ts`` (UTC timestamp), ``thread_id``, ``level``, ``tag``, ``file``, ``number`` and ``msg`` (message text).
-TRACE and DEBUG logs, exporter transport diagnostics, and logs outside the exporter lifetime are console-only.
+Its ``msg`` uses the JSON console schema, with string-valued fields: ``h_ts`` (UTC timestamp), ``thread_id``, ``level``, ``tag``, ``file``, ``number`` and ``msg`` (message text).
+Console and Fluentd timestamps are sampled separately and need not match; record ordering can also differ.
+Runtime exporter drop diagnostics also follow this path.
+Messages emitted while the loggers or exporter are being initialised or shut down may remain console-only, including the exporter's final shutdown summary.
+Configuration checks (``--check``) do not initialise the exporter.
+Raw stdout writes and stderr are not captured.
+Startup logs can contain configuration and environment values, so use collectors trusted to receive those values.
 
 Choose a ``delivery`` policy per collector:
 
 - ``buffered-best-effort`` (default): retain queued records while the collector is unavailable or cannot accept data.
 - ``unbuffered-non-blocking``: drop queued records when the collector is unavailable or cannot accept data.
 
-Optional ``queue_capacity`` on each array entry defaults to 4096 records per node thread.
+Optional ``queue_capacity`` on each array entry defaults to 4096 records per node thread for traces and 4096 records in a shared log queue.
 Full queues drop new records under either policy; larger queues use more memory.
 
 Both policies retain one in-flight record for retry, but delivery is not guaranteed and retries can produce duplicates.
