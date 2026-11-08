@@ -665,7 +665,6 @@
         },
         "required": [
           "userId",
-          "certificate",
           "userData"
         ],
         "type": "object"

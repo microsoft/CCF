@@ -57,6 +57,7 @@ namespace ccf
     // Member tables
     //
     const MemberCerts member_certs = {Tables::MEMBER_CERTS};
+    const MemberPublicKeys member_public_keys = {Tables::MEMBER_PUBLIC_KEYS};
     const MemberPublicEncryptionKeys member_encryption_public_keys = {
       Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS};
     const MemberInfo member_info = {Tables::MEMBER_INFO};
@@ -66,6 +67,7 @@ namespace ccf
     // User tables
     //
     const UserCerts user_certs = {Tables::USER_CERTS};
+    const UserPublicKeys user_public_keys = {Tables::USER_PUBLIC_KEYS};
     const UserInfo user_info = {Tables::USER_INFO};
 
     //

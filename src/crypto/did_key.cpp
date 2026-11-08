@@ -299,4 +299,14 @@ namespace ccf::crypto
     Unique_X509 right(d2i_X509(nullptr, &r, rhs.size()), X509_free);
     return same_public_key(X509_get0_pubkey(left), X509_get0_pubkey(right));
   }
+
+  bool cert_has_public_key(
+    std::span<const uint8_t> cert, std::span<const uint8_t> public_key)
+  {
+    using namespace OpenSSL;
+    const auto* p = cert.data();
+    Unique_X509 certificate(d2i_X509(nullptr, &p, cert.size()), X509_free);
+    const auto key = parse_public_key(public_key);
+    return same_public_key(X509_get0_pubkey(certificate), key);
+  }
 }

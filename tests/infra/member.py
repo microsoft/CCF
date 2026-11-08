@@ -308,6 +308,10 @@ class Member:
             )
 
         LOG.info(f"Member {self.local_id} created: {self.service_id}")
+        if self.id_format == "did:key":
+            del self.member_info["certificate_file"]
+            self.member_info.pop("id_format", None)
+            self.member_info["did_key"] = self.service_id
 
     def auth(self, write=False):
         if self.authenticate_session == "COSE":
@@ -317,9 +321,10 @@ class Member:
                     None,
                     infra.clients.Identity(
                         os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
-                        os.path.join(self.common_dir, f"{self.local_id}_cert.pem"),
+                        None,
                         self.local_id,
                         self.id_format,
+                        did_key=self.service_id,
                     ),
                 )
             return (None, None, self.local_id)
@@ -404,9 +409,9 @@ class Member:
             os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
         ]
         if self.id_format != "sha256":
-            if "--identity-id-format" not in help_out:
+            if "--member-did-key" not in help_out:
                 raise ValueError("Recovery script does not support did:key identities")
-            cmd += ["--identity-id-format", self.id_format]
+            cmd += ["--member-did-key", self.service_id]
 
         # Versions of the script that support --member-id arguments use COSE Sign1
         # to authenticate with the service.
@@ -414,9 +419,12 @@ class Member:
             cmd += [
                 "--member-id-privk",
                 os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
-                "--member-id-cert",
-                os.path.join(self.common_dir, f"{self.local_id}_cert.pem"),
             ]
+            if self.id_format == "sha256":
+                cmd += [
+                    "--member-id-cert",
+                    os.path.join(self.common_dir, f"{self.local_id}_cert.pem"),
+                ]
 
         if supports_api_version:
             api_version = (

@@ -6,7 +6,10 @@ export function validate(input) {
     const definition = actions.get(action.name);
     if (definition) {
       try {
-        definition.validate(action.args);
+        definition.validate(
+          action.args,
+          proposal["actions"].slice(0, position),
+        );
       } catch (e) {
         errors.push(
           `${action.name} at position ${position} failed validation: ${e}\n${e.stack}`,

@@ -178,9 +178,13 @@ class Consortium:
 
         proposal_body, careful_vote = self.make_proposal(
             "set_member",
-            id_format=id_format if id_format != "sha256" else None,
-            cert=slurp_file(
-                os.path.join(self.common_dir, f"{new_member.local_id}_cert.pem")
+            did_key=new_member.service_id if id_format == "did:key" else None,
+            cert=(
+                slurp_file(
+                    os.path.join(self.common_dir, f"{new_member.local_id}_cert.pem")
+                )
+                if id_format == "sha256"
+                else None
             ),
             encryption_pub_key=(
                 slurp_file(
@@ -493,10 +497,15 @@ class Consortium:
         return os.path.join(self.common_dir, f"{user_id}_cert.pem")
 
     def add_user(self, remote_node, user_id, user_data=None, id_format="sha256"):
+        cert = slurp_file(self.user_cert_path(user_id))
         proposal, careful_vote = self.make_proposal(
             "set_user",
-            id_format=id_format if id_format != "sha256" else None,
-            cert=slurp_file(self.user_cert_path(user_id)),
+            cert=cert if id_format == "sha256" else None,
+            did_key=(
+                infra.crypto.identity_id_from_cert(cert, "did:key")
+                if id_format == "did:key"
+                else None
+            ),
             user_data=user_data,
         )
 

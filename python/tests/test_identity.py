@@ -67,3 +67,15 @@ def test_published_did_key_vectors(curve, point, did):
     # Public test vectors from https://w3c-ccg.github.io/did-key-spec/.
     key = ec.EllipticCurvePublicKey.from_encoded_point(curve, bytes.fromhex(point))
     assert ccf.identity.did_key_from_public_key(key) == did
+
+
+@pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])
+def test_did_key_roundtrip_without_certificate(curve):
+    key = ec.generate_private_key(curve).public_key()
+    did = ccf.identity.did_key_from_public_key(key)
+    decoded = ccf.identity.public_key_from_did_key(did)
+    assert isinstance(decoded, ec.EllipticCurvePublicKey)
+    assert decoded.public_numbers() == key.public_numbers()
+    for invalid in [did + "#fragment", did + "?query", "did:key:z1", did[:-1]]:
+        with pytest.raises(ValueError):
+            ccf.identity.public_key_from_did_key(invalid)

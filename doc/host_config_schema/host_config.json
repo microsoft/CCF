@@ -302,9 +302,14 @@
                         },
                         "id_format": {
                           "type": "string",
-                          "enum": ["sha256", "did:key"],
+                          "enum": ["sha256"],
                           "default": "sha256",
-                          "description": "Canonical member ID format; did:key identifies the certificate public key rather than the certificate"
+                          "description": "Legacy certificate identity format; use did_key without certificate_file for certificate-free enrollment"
+                        },
+                        "did_key": {
+                          "type": "string",
+                          "pattern": "^did:key:z[1-9A-HJ-NP-Za-km-z]+$",
+                          "description": "Canonical member did:key containing its public key; mutually exclusive with certificate_file and id_format"
                         },
                         "encryption_public_key_file": {
                           "type": ["string", "null"],
@@ -320,10 +325,24 @@
                           "description": "Whether the member acts as a recovery participant and gets assigned a share that can contribute towards a recovery threshold or as an owner and gets assigned a full recovery key"
                         }
                       },
-                      "required": ["certificate_file"],
+                      "oneOf": [
+                        {
+                          "required": ["certificate_file"],
+                          "not": { "required": ["did_key"] }
+                        },
+                        {
+                          "required": ["did_key"],
+                          "not": {
+                            "anyOf": [
+                              { "required": ["certificate_file"] },
+                              { "required": ["id_format"] }
+                            ]
+                          }
+                        }
+                      ],
                       "additionalProperties": false
                     },
-                    "description": "List of initial consortium members files, including identity certificates, public encryption keys and member data files"
+                    "description": "List of initial consortium members, enrolled with a certificate_file or a certificate-free did_key, plus optional recovery keys and member data"
                   },
                   "service_configuration": {
                     "type": "object",

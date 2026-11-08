@@ -16,11 +16,12 @@ namespace ccf
     ccf::crypto::Pem cert;
     nlohmann::json user_data = nullptr;
     IdentityIdFormat id_format = IdentityIdFormat::SHA256;
+    std::optional<std::string> did_key = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewUser);
-  DECLARE_JSON_REQUIRED_FIELDS(NewUser, cert);
-  DECLARE_JSON_OPTIONAL_FIELDS(NewUser, user_data, id_format);
+  DECLARE_JSON_REQUIRED_FIELDS(NewUser);
+  DECLARE_JSON_OPTIONAL_FIELDS(NewUser, cert, user_data, id_format, did_key);
 
   struct UserDetails
   {
@@ -33,11 +34,14 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(UserDetails, user_data);
 
   using UserCerts = ccf::kv::RawCopySerialisedMap<UserId, ccf::crypto::Pem>;
+  using UserPublicKeys =
+    ccf::kv::RawCopySerialisedMap<UserId, std::vector<uint8_t>>;
   using UserInfo = ServiceMap<UserId, UserDetails>;
 
   namespace Tables
   {
     static constexpr auto USER_CERTS = "public:ccf.gov.users.certs";
+    static constexpr auto USER_PUBLIC_KEYS = "public:ccf.gov.users.public_keys";
     static constexpr auto USER_INFO = "public:ccf.gov.users.info";
   }
 }

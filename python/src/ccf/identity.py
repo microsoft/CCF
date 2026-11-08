@@ -9,7 +9,7 @@ from enum import StrEnum
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
-from cryptography.x509.base import CertificatePublicKeyTypes
+from cryptography.hazmat.primitives.asymmetric.types import PublicKeyTypes
 
 
 class IdentityIdFormat(StrEnum):
@@ -28,7 +28,7 @@ _EC_CODECS = {
 
 
 def did_key_from_public_key(
-    key: CertificatePublicKeyTypes,
+    key: PublicKeyTypes,
 ) -> str:
     """Encode an existing NIST EC or 2048-16384-bit RSA key as a bare did:key.
 
@@ -61,6 +61,41 @@ def did_key_from_public_key(
         value, digit = divmod(value, 58)
         digits.append(_BASE58[digit])
     return "did:key:z" + "".join(reversed(digits))
+
+
+def public_key_from_did_key(
+    did_key: str,
+) -> ec.EllipticCurvePublicKey | rsa.RSAPublicKey:
+    """Decode a canonical supported DID to its public key.
+
+    Raises ValueError for malformed, non-canonical, or unsupported identities.
+    """
+    if not did_key.startswith("did:key:z") or not 9 < len(did_key) <= 3000:
+        raise ValueError("Invalid did:key")
+    value = 0
+    for digit in did_key[9:]:
+        if digit not in _BASE58:
+            raise ValueError("Invalid did:key alphabet")
+        value = value * 58 + _BASE58.index(digit)
+    raw = value.to_bytes((value.bit_length() + 7) // 8, "big")
+    if len(raw) < 3 or raw[1] != 0x24:
+        raise ValueError("Invalid did:key multicodec")
+    curves = {
+        0x80: ec.SECP256R1(),
+        0x81: ec.SECP384R1(),
+        0x82: ec.SECP521R1(),
+    }
+    if raw[0] in curves:
+        key = ec.EllipticCurvePublicKey.from_encoded_point(curves[raw[0]], raw[2:])
+    elif raw[0] == 0x85:
+        key = serialization.load_der_public_key(raw[2:])
+        if not isinstance(key, rsa.RSAPublicKey):
+            raise ValueError("Invalid did:key RSA key")
+    else:
+        raise ValueError("Unsupported did:key multicodec")
+    if did_key_from_public_key(key) != did_key:
+        raise ValueError("Non-canonical did:key")
+    return key
 
 
 def identity_id_from_cert(
@@ -105,12 +140,21 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cert", required=True, help="PEM certificate file")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--cert", help="Legacy PEM certificate file")
+    source.add_argument("--public-key", help="Public key file to encode as did:key")
     parser.add_argument(
         "--id-format", choices=list(IdentityIdFormat), default=IdentityIdFormat.SHA256
     )
     parser.add_argument("--node", action="store_true", help="Derive a node ID")
     args = parser.parse_args()
+    if args.public_key:
+        if args.node or args.id_format != IdentityIdFormat.DID_KEY:
+            parser.error("--public-key requires --id-format did:key without --node")
+        with open(args.public_key, "rb") as key_file:
+            key = serialization.load_pem_public_key(key_file.read())
+        print(did_key_from_public_key(key))
+        return
     with open(args.cert, encoding="ascii") as cert_file:
         cert = cert_file.read()
     derive = node_id_from_cert if args.node else identity_id_from_cert

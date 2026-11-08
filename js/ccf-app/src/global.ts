@@ -643,6 +643,9 @@ export interface CCF {
   /** Validate a legacy identity ID or a supported canonical bare did:key. */
   isValidEntityId(id: string): boolean;
 
+  /** Decode a canonical did:key to its DER SubjectPublicKeyInfo public key. */
+  publicKeyFromDidKey(id: string): ArrayBuffer;
+
   /** Compare certificate public keys independently of certificate metadata. */
   certificatesHaveSamePublicKey(lhs: string, rhs: string): boolean;
 

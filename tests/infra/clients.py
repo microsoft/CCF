@@ -166,16 +166,17 @@ class Request:
 @dataclass
 class Identity:
     """
-    Identity (as private key and corresponding certificate) for a :py:class:`infra.clients.CCFClient` client.
+    Private key with a legacy certificate or enrolled DID for a :py:class:`infra.clients.CCFClient` client.
     """
 
     #: Path to file containing private key
     key: str
     #: Path to file containing PEM certificate
-    cert: str
+    cert: str | None
     #: Identity description
     description: str
     id_format: str = "sha256"
+    did_key: str | None = None
 
 
 class FakeSocket:
@@ -539,8 +540,16 @@ class CurlClient:
                         ["--ccf-gov-msg-proposal_id", phdr["ccf.gov.msg.proposal_id"]]
                     )
                 pre_cmd.extend(["--signing-key", self.cose_signing_auth.key])
-                pre_cmd.extend(["--signing-cert", self.cose_signing_auth.cert])
-                if self.cose_signing_auth.id_format != "sha256":
+                if self.cose_signing_auth.did_key is not None:
+                    pre_cmd.extend(
+                        ["--signing-did-key", self.cose_signing_auth.did_key]
+                    )
+                else:
+                    pre_cmd.extend(["--signing-cert", self.cose_signing_auth.cert])
+                if (
+                    self.cose_signing_auth.did_key is None
+                    and self.cose_signing_auth.id_format != "sha256"
+                ):
                     pre_cmd.extend(
                         ["--identity-id-format", self.cose_signing_auth.id_format]
                     )
@@ -675,7 +684,9 @@ class HttpxClient:
             kwargs.pop("protocol")
         self.session = httpx.Client(verify=context, **kwargs)
         sig_auth = signing_auth or cose_signing_auth
-        if sig_auth:
+        if sig_auth and sig_auth.did_key is not None:
+            self.key_id = sig_auth.did_key
+        elif sig_auth:
             with open(sig_auth.cert, encoding="utf-8") as cert_file:
                 self.key_id = (
                     x509.load_pem_x509_certificate(
@@ -774,8 +785,10 @@ class HttpxClient:
         if self.cose_signing_auth is not None and request.http_verb != "GET":
             with open(self.cose_signing_auth.key, encoding="utf-8") as key_file:
                 key = key_file.read()
-            with open(self.cose_signing_auth.cert, encoding="utf-8") as cert_file:
-                cert = cert_file.read()
+            cert = None
+            if self.cose_signing_auth.did_key is None:
+                with open(self.cose_signing_auth.cert, encoding="utf-8") as cert_file:
+                    cert = cert_file.read()
             phdr = self.cose_header_builder(request.path, self.created_at_override)
             phdr.update(cose_header_parameters_override or {})
             if "ccf.gov.msg.created_at" in phdr and not isinstance(
@@ -793,9 +806,13 @@ class HttpxClient:
                 cert,
                 phdr,
                 **(
-                    {"id_format": self.cose_signing_auth.id_format}
-                    if self.cose_signing_auth.id_format != "sha256"
-                    else {}
+                    {"did_key": self.cose_signing_auth.did_key}
+                    if self.cose_signing_auth.did_key is not None
+                    else (
+                        {"id_format": self.cose_signing_auth.id_format}
+                        if self.cose_signing_auth.id_format != "sha256"
+                        else {}
+                    )
                 ),
             )
             if self._corrupt_signature:

@@ -46,20 +46,21 @@ Once the new member's keys and certificate have been generated, the existing con
 
 The :ref:`governance/proposals:Submitting a New Proposal` section describes the steps that members should follow to register a new member.
 
-To enroll a new member using a public-key ID, include ``"id_format": "did:key"`` in the ``set_member`` action's arguments alongside ``cert`` and any encryption key or member data.
-For initial consortium members, set the same field on the member's entry in ``command.start.members``.
-Omitting the field retains the legacy certificate-fingerprint ID.
+To enroll a certificate-free member, pass ``"did_key": "<canonical-did:key>"`` to ``set_member``, alongside any recovery encryption key or member data.
+Do not pass ``cert`` or ``id_format`` for DID enrollment.
+For initial consortium members, set ``did_key`` instead of ``certificate_file`` on the member's entry in ``command.start.members``.
+The legacy ``cert`` action argument retains the certificate-fingerprint ID.
 See :ref:`architecture/cryptography:Identity IDs` and :doc:`migrating_identity_ids` before migrating existing members.
 
 The Python SDK can derive the DID locally:
 
 .. code-block:: bash
 
-    $ python3 -m ccf.identity --cert new_member_cert.pem --id-format did:key
+    $ python3 -m ccf.identity --public-key new_member_pubk.pem --id-format did:key
 
 For a DID member, percent-encode the ID's colons in governance URLs (``did%3Akey%3Az...``), leaving action suffixes such as ``:update`` and ``:ack`` unchanged.
-Pass ``--identity-id-format did:key`` to every ``ccf_cose_sign1`` operation, including activation and recovery.
-Pass the same option to ``submit_recovery_share.sh`` before its curl options.
+Pass ``--signing-did-key <canonical-did:key>`` instead of ``--signing-cert`` to every ``ccf_cose_sign1`` operation, including activation and recovery.
+Pass ``--member-did-key <canonical-did:key>`` instead of ``--member-id-cert`` to ``submit_recovery_share.sh`` before its curl options.
 
 Activating a New Member
 -----------------------

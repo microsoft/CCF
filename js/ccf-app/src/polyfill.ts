@@ -87,15 +87,15 @@ function didKeyFromKey(key: jscrypto.KeyObject): string {
   return "did:key:z" + result;
 }
 
-function validateDidKey(id: string): boolean {
+function publicKeyFromDidKey(id: string): jscrypto.KeyObject {
   if (!id.startsWith("did:key:z") || id.length <= 9 || id.length > 3000) {
-    return false;
+    throw new TypeError("Invalid did:key");
   }
   let value = 0n;
   for (const c of id.slice(9)) {
     const digit = base58Alphabet.indexOf(c);
     if (digit < 0) {
-      return false;
+      throw new TypeError("Invalid did:key alphabet");
     }
     value = value * 58n + BigInt(digit);
   }
@@ -105,7 +105,7 @@ function validateDidKey(id: string): boolean {
   }
   const bytes = Buffer.from(hex, "hex");
   if (bytes.length < 3 || bytes[1] !== 0x24) {
-    return false;
+    throw new TypeError("Invalid did:key multicodec");
   }
   const raw = bytes.subarray(2);
   try {
@@ -129,7 +129,7 @@ function validateDidKey(id: string): boolean {
       };
       const curve = curves[bytes[0]];
       if (!curve || raw.length !== curve[2] || (raw[0] !== 2 && raw[0] !== 3)) {
-        return false;
+        throw new TypeError("Invalid did:key EC key");
       }
       const expanded = jscrypto.ECDH.convertKey(raw, curve[0]);
       if (!Buffer.isBuffer(expanded)) {
@@ -146,9 +146,21 @@ function validateDidKey(id: string): boolean {
         format: "jwk",
       });
     }
-    return didKeyFromKey(key) === id;
+    if (didKeyFromKey(key) !== id) {
+      throw new TypeError("Non-canonical did:key");
+    }
+    return key;
   } catch (error) {
-    if (error instanceof Error) {
+    throw new TypeError(`Invalid did:key public key: ${error}`);
+  }
+}
+
+function validateDidKey(id: string): boolean {
+  try {
+    publicKeyFromDidKey(id);
+    return true;
+  } catch (error) {
+    if (error instanceof TypeError) {
       return false;
     }
     throw error;
@@ -206,6 +218,12 @@ class CCFPolyfill implements CCF {
 
   isValidEntityId(id: string): boolean {
     return /^[a-fA-F0-9]{64}$/.test(id) || validateDidKey(id);
+  }
+
+  publicKeyFromDidKey(id: string): ArrayBuffer {
+    return toArrayBuffer(
+      publicKeyFromDidKey(id).export({ format: "der", type: "spki" }),
+    );
   }
 
   certificatesHaveSamePublicKey(lhs: string, rhs: string): boolean {

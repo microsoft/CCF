@@ -841,7 +841,10 @@ class CCFRemote:
             if not members_info:
                 raise ValueError("no members info for start node")
             for mi in members_info:
-                data_files += [os.path.join(self.common_dir, mi["certificate_file"])]
+                if mi.get("certificate_file"):
+                    data_files += [
+                        os.path.join(self.common_dir, mi["certificate_file"])
+                    ]
                 if mi["encryption_public_key_file"]:
                     data_files += [
                         os.path.join(self.common_dir, mi["encryption_public_key_file"])

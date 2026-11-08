@@ -125,7 +125,7 @@ TEST_CASE("Node configuration retains operator file paths")
            {"encryption_public_key_file", "not-loaded/member_enc.pem"},
            {"data_json_file", "not-loaded/member.json"},
            {"recovery_role", MemberRecoveryRole::Owner},
-           {"id_format", "did:key"}}}},
+           {"id_format", "sha256"}}}},
         {"constitution_files", {"not-loaded/first.js", "not-loaded/second.js"}},
         {"initial_service_certificate_validity_days", 7},
         {"service_subject_name", "CN=Configured Service"},
@@ -147,7 +147,7 @@ TEST_CASE("Node configuration retains operator file paths")
   auto config = input.get<CCFConfig>();
   CHECK(config.node_certificate.id_format == IdentityIdFormat::DIDKey);
   CHECK(
-    config.command.start.members.front().id_format == IdentityIdFormat::DIDKey);
+    config.command.start.members.front().id_format == IdentityIdFormat::SHA256);
   CHECK(config.command.type == StartType::Start);
   CHECK(
     config.command.start.members.front().certificate_file ==
@@ -391,13 +391,17 @@ TEST_CASE("Startup inputs are read from files")
      MemberRecoveryRole::Owner});
   start.members.push_back(
     {write_test_file(dir, "member1_cert.pem", member_cert.str())});
+  ParsedMemberInfo did_member;
+  did_member.did_key =
+    ccf::crypto::compute_cert_id(member_cert, IdentityIdFormat::DIDKey);
+  start.members.push_back(did_member);
   start.constitution_files = {
     write_test_file(dir, "first.js", "first"),
     write_test_file(dir, "second.js", "second")};
   start.service_configuration.recovery_threshold = 1;
 
   const auto genesis = resolve_genesis_info(start);
-  REQUIRE(genesis.members.size() == 2);
+  REQUIRE(genesis.members.size() == 3);
   CHECK(genesis.members[0].cert == member_cert);
   CHECK(genesis.members[0].encryption_pub_key == encryption_key);
   CHECK(genesis.members[0].member_data == json{{"is_operator", true}});
@@ -406,6 +410,11 @@ TEST_CASE("Startup inputs are read from files")
   CHECK_FALSE(genesis.members[1].encryption_pub_key.has_value());
   CHECK(genesis.members[1].member_data.is_null());
   CHECK_FALSE(genesis.members[1].recovery_role.has_value());
+  CHECK(genesis.members[2].cert.empty());
+  CHECK(genesis.members[2].did_key == did_member.did_key);
+  auto conflicting = start;
+  conflicting.members[2].certificate_file = "must-not-be-read.pem";
+  CHECK_THROWS_AS(resolve_genesis_info(conflicting), std::logic_error);
   CHECK(genesis.constitution == "first\nsecond");
   CHECK(genesis.service_configuration == start.service_configuration);
 
@@ -795,6 +804,7 @@ TEST_CASE("Add a node to an opening service")
   INFO("Adding the same key under a different ID format is rejected");
   {
     JoinNetworkNodeToNode::In join_input;
+    join_input.mldsa_supported = ccf::crypto::mldsa_supported();
     join_input.id_format = id_format == IdentityIdFormat::DIDKey ?
       IdentityIdFormat::SHA256 :
       IdentityIdFormat::DIDKey;

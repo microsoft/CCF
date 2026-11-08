@@ -27,4 +27,8 @@ namespace ccf::crypto
   /// certificate fields and public-key encoding.
   bool certs_have_same_public_key(
     std::span<const uint8_t> lhs, std::span<const uint8_t> rhs);
+
+  /// Compare a DER certificate's public key with a DER SubjectPublicKeyInfo.
+  bool cert_has_public_key(
+    std::span<const uint8_t> cert, std::span<const uint8_t> public_key);
 }

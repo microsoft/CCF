@@ -3,9 +3,12 @@
 
 import base64
 import datetime
+import subprocess
+import sys
 
 import cbor2
 import ccf.cose
+import ccf.identity
 import cwt
 import pytest
 from cryptography import x509
@@ -141,3 +144,73 @@ def test_create_cose_sign1_prepare_and_finish(curve, id_format):
     ccf.cose.verify_cose_sign1_with_cert(
         cert.encode(), finished_cose_sign1, use_key=False, id_format=id_format
     )
+
+
+@pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])
+def test_certificate_free_signing(curve):
+    private_key = make_private_key(curve)
+    private_pem, _ = make_pem_pair(private_key)
+    did = ccf.identity.did_key_from_public_key(private_key.public_key())
+    payload = b"Certificate-free governance"
+    signed = ccf.cose.create_cose_sign1(payload, private_pem, did_key=did)
+    protected, _, verified = ccf.cose.verify_cose_sign1_with_did_key(did, signed)
+    assert protected[int(cwt.COSEHeaders.KID)] == did.encode("ascii")
+    assert verified == payload
+
+    prepared = ccf.cose.create_cose_sign1_prepare(payload, did_key=did)
+    digest = base64.b64decode(prepared["value"])
+    signature = private_key.sign(
+        digest, ec.ECDSA(utils.Prehashed(hash_algo(private_key)))
+    )
+    r, s = utils.decode_dss_signature(signature)
+    size = (private_key.key_size + 7) // 8
+    raw = i2osp(r, size) + i2osp(s, size)
+    finished = ccf.cose.create_cose_sign1_finish(
+        payload, signature=base64.urlsafe_b64encode(raw), did_key=did
+    )
+    assert ccf.cose.verify_cose_sign1_with_did_key(did, finished)[2] == payload
+
+    wrong_private_pem, _ = make_pem_pair(make_private_key(curve))
+    with pytest.raises(ValueError, match="does not match"):
+        ccf.cose.create_cose_sign1(payload, wrong_private_pem, did_key=did)
+    with pytest.raises(ValueError, match="must not be combined"):
+        ccf.cose.create_cose_sign1(
+            payload,
+            private_pem,
+            make_self_signed_cert(private_key, "test"),
+            did_key=did,
+        )
+
+
+@pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])
+def test_certificate_free_signing_cli(curve, tmp_path):
+    private_key = make_private_key(curve)
+    private_pem, _ = make_pem_pair(private_key)
+    did = ccf.identity.did_key_from_public_key(private_key.public_key())
+    key_file = tmp_path / "identity_key.pem"
+    key_file.write_text(private_pem, encoding="ascii")
+    payload = b"Certificate-free CLI request"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from ccf.cose import sign_cli; sign_cli()",
+            "--signing-key",
+            str(key_file),
+            "--signing-did-key",
+            did,
+            "--content",
+            "-",
+            "--ccf-gov-msg-type",
+            "proposal",
+            "--ccf-gov-msg-created_at",
+            "2025-01-01T00:00:00+00:00",
+        ],
+        input=payload,
+        capture_output=True,
+        check=True,
+    )
+    protected, _, verified = ccf.cose.verify_cose_sign1_with_did_key(did, result.stdout)
+    assert protected[int(cwt.COSEHeaders.KID)] == did.encode("ascii")
+    assert protected["ccf.gov.msg.type"] == "proposal"
+    assert verified == payload

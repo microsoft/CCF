@@ -17,9 +17,10 @@ namespace ccf
 {
   namespace
   {
-    template <typename Certs>
+    template <typename Certs, typename Keys>
     std::optional<std::string> find_certificate_identity(
       Certs* certs,
+      Keys* keys,
       const SessionContext& session,
       std::string_view role,
       std::string& error_reason)
@@ -32,11 +33,10 @@ namespace ccf
       {
         auto did = crypto::did_key_from_public_key_der(
           crypto::public_key_der_from_cert(session.caller_cert));
-        auto enrolled = certs->get(did);
+        auto enrolled = keys->get(did);
         if (enrolled.has_value())
         {
-          if (
-            crypto::compute_cert_id(*enrolled, IdentityIdFormat::DIDKey) != did)
+          if (!crypto::cert_has_public_key(session.caller_cert, *enrolled))
           {
             error_reason = "Enrolled did:key does not match its public key";
             return std::nullopt;
@@ -160,17 +160,21 @@ namespace ccf
       return nullptr;
     }
 
-    if (!validity_periods->is_cert_valid_now(caller_cert, error_reason))
-    {
-      // Error is set by the call when necessary
-      return nullptr;
-    }
-
     auto* user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
-    const auto caller_id =
-      find_certificate_identity(user_certs, *session, "user", error_reason);
+    const auto caller_id = find_certificate_identity(
+      user_certs,
+      tx.ro<UserPublicKeys>(Tables::USER_PUBLIC_KEYS),
+      *session,
+      "user",
+      error_reason);
     if (caller_id.has_value())
     {
+      if (
+        !caller_id->starts_with("did:key:") &&
+        !validity_periods->is_cert_valid_now(caller_cert, error_reason))
+      {
+        return nullptr;
+      }
       auto identity = std::make_unique<UserCertAuthnIdentity>();
       identity->user_id = *caller_id;
       return identity;
@@ -199,8 +203,12 @@ namespace ccf
     }
 
     auto* member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
-    const auto caller_id =
-      find_certificate_identity(member_certs, *session, "member", error_reason);
+    const auto caller_id = find_certificate_identity(
+      member_certs,
+      tx.ro<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS),
+      *session,
+      "member",
+      error_reason);
     if (caller_id.has_value())
     {
       auto identity = std::make_unique<MemberCertAuthnIdentity>();

@@ -234,6 +234,33 @@ namespace ccf::js::extensions
       }
     }
 
+    JSValue js_public_key_from_did_key(
+      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+    {
+      if (argc != 1)
+      {
+        return JS_ThrowTypeError(ctx, "Expected one did:key string");
+      }
+      auto& jsctx =
+        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
+      auto id = jsctx.to_str(argv[0]);
+      if (!id.has_value())
+      {
+        return ccf::js::core::constants::Exception;
+      }
+      try
+      {
+        const auto der = ccf::crypto::public_key_der_from_did_key(*id);
+        auto result = jsctx.new_array_buffer_copy(der.data(), der.size());
+        JS_CHECK_EXC(result);
+        return result.take();
+      }
+      catch (const std::exception& e)
+      {
+        return JS_ThrowTypeError(ctx, "Invalid did:key: %s", e.what());
+      }
+    }
+
     JSValue js_certificates_have_same_public_key(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
@@ -358,6 +385,10 @@ namespace ccf::js::extensions
     JS_CHECK_OR_THROW(ccf.set(
       "isValidEntityId",
       ctx.new_c_function(js_is_valid_entity_id, "isValidEntityId", 1)));
+    JS_CHECK_OR_THROW(ccf.set(
+      "publicKeyFromDidKey",
+      ctx.new_c_function(
+        js_public_key_from_did_key, "publicKeyFromDidKey", 1)));
     JS_CHECK_OR_THROW(ccf.set(
       "certificatesHaveSamePublicKey",
       ctx.new_c_function(

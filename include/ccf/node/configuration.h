@@ -37,6 +37,7 @@ namespace ccf
     std::optional<std::string> data_json_file = std::nullopt;
     std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
     IdentityIdFormat id_format = IdentityIdFormat::SHA256;
+    std::optional<std::string> did_key = std::nullopt;
 
     bool operator==(const ParsedMemberInfo&) const = default;
   };
@@ -457,13 +458,15 @@ namespace ccf
     LogFormat, {{LogFormat::TEXT, "Text"}, {LogFormat::JSON, "Json"}});
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ParsedMemberInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(ParsedMemberInfo, certificate_file);
+  DECLARE_JSON_REQUIRED_FIELDS(ParsedMemberInfo);
   DECLARE_JSON_OPTIONAL_FIELDS(
     ParsedMemberInfo,
+    certificate_file,
     encryption_public_key_file,
     data_json_file,
     recovery_role,
-    id_format);
+    id_format,
+    did_key);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::OutputFiles);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::OutputFiles);

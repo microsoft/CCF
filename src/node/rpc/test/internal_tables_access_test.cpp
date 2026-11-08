@@ -189,24 +189,25 @@ TEST_CASE(
 
   SUBCASE("Member DID then legacy")
   {
-    NewMember member{identity.cert};
-    member.id_format = IdentityIdFormat::DIDKey;
+    NewMember member;
+    member.did_key = did;
     REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
     REQUIRE(InternalTablesAccess::activate_member(tx, did));
-    member.cert = replacement;
     REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
     REQUIRE(
       tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(did)->status ==
       MemberStatus::ACTIVE);
-    member.id_format = IdentityIdFormat::SHA256;
+    REQUIRE_FALSE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(did));
+    member.did_key = std::nullopt;
+    member.cert = replacement;
     CHECK_THROWS_AS(
       InternalTablesAccess::add_member(tx, member), std::logic_error);
   }
   SUBCASE("Member legacy then DID")
   {
     InternalTablesAccess::add_member(tx, {identity.cert});
-    NewMember member{replacement};
-    member.id_format = IdentityIdFormat::DIDKey;
+    NewMember member;
+    member.did_key = did;
     CHECK_THROWS_AS(
       InternalTablesAccess::add_member(tx, member), std::logic_error);
   }
@@ -214,10 +215,11 @@ TEST_CASE(
   {
     REQUIRE(
       InternalTablesAccess::add_user(
-        tx, {identity.cert, nullptr, IdentityIdFormat::DIDKey})
+        tx, {{}, nullptr, IdentityIdFormat::SHA256, did})
         .value() == did);
     CHECK_THROWS_AS(
       InternalTablesAccess::add_user(tx, {replacement}), std::logic_error);
+    REQUIRE_FALSE(tx.ro<UserCerts>(Tables::USER_CERTS)->has(did));
     InternalTablesAccess::remove_user(tx, did);
     CHECK_NOTHROW(InternalTablesAccess::add_user(tx, {replacement}));
   }
@@ -226,10 +228,29 @@ TEST_CASE(
     InternalTablesAccess::add_user(tx, {identity.cert});
     CHECK_THROWS_AS(
       InternalTablesAccess::add_user(
-        tx, {replacement, nullptr, IdentityIdFormat::DIDKey}),
+        tx, {{}, nullptr, IdentityIdFormat::SHA256, did}),
       std::logic_error);
   }
   CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
+TEST_CASE("DID enrollment rejects certificates and malformed keys")
+{
+  ccf::kv::Store store;
+  auto tx = store.create_tx();
+  const auto key = ccf::crypto::make_ec_key_pair();
+  const auto did =
+    ccf::crypto::did_key_from_public_key_der(key->public_key_der());
+  NewMember member;
+  member.did_key = did;
+  member.cert = key->self_sign("CN=test", "20200101000000Z", "20201231235959Z");
+  CHECK_THROWS_AS(
+    InternalTablesAccess::add_member(tx, member), std::logic_error);
+  member.cert = {};
+  member.did_key = did + "#fragment";
+  CHECK_THROWS(InternalTablesAccess::add_member(tx, member));
+  CHECK_FALSE(tx.ro<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->has(did));
+  CHECK_FALSE(tx.ro<MemberInfo>(Tables::MEMBER_INFO)->has(did));
 }
 
 TEST_CASE("Enrollment ID format defaults and invalid selections")

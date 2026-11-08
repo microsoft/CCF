@@ -1862,7 +1862,7 @@
         },
         "certificate": {
           "$ref": "#/definitions/ServiceState.pem",
-          "description": "x509 certificate used as this member's identity."
+          "description": "Legacy x509 enrollment certificate. Omitted for certificate-free did:key members."
         },
         "publicEncryptionKey": {
           "$ref": "#/definitions/ServiceState.pem",
@@ -1871,8 +1871,7 @@
       },
       "required": [
         "memberId",
-        "status",
-        "certificate"
+        "status"
       ]
     },
     "ServiceState.MemberStatus": {
