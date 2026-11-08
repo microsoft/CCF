@@ -4,7 +4,7 @@
 
 #include "ccf/ds/logger.h"
 
-#include <mutex>
+#include <iostream>
 #include <string_view>
 
 // Defines the LOG_*_FMT macros that should be used for logging by
@@ -15,9 +15,9 @@ namespace ccf::logger
 {
   inline void write_fatal_diagnostic(std::string_view message)
   {
-    static std::mutex stderr_mutex;
-    const std::lock_guard<std::mutex> guard(stderr_mutex);
-    std::cerr << "Fatal error: " << message << std::endl;
+    // A single insertion keeps concurrent diagnostics on separate lines, since
+    // std::cerr is synchronised with stdio and each write takes its lock.
+    std::cerr << fmt::format("Fatal error: {}\n", message) << std::flush;
   }
 
 #define LOG_TRACE_FMT CCF_LOG_FMT(TRACE, "")

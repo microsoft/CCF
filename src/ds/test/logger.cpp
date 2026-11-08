@@ -7,13 +7,16 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <ctime>
 #include <doctest/doctest.h>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <sstream>
 #include <thread>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
@@ -362,6 +365,70 @@ TEST_CASE("Only explicit fatal diagnostics write to stderr")
   ccf::logger::write_fatal_diagnostic("Node terminated");
   CHECK(captured_out.str().empty());
   CHECK(captured_err.str() == "Fatal error: Node terminated\n");
+}
+
+TEST_CASE("Concurrent fatal diagnostics are written as whole lines")
+{
+  char path[] = "/tmp/ccf_fatal_diagnostic_XXXXXX";
+  const int file_fd = mkstemp(path);
+  REQUIRE(file_fd != -1);
+  std::fflush(stderr);
+  const int saved_stderr = dup(STDERR_FILENO);
+  REQUIRE(saved_stderr != -1);
+  REQUIRE(dup2(file_fd, STDERR_FILENO) != -1);
+
+  constexpr size_t thread_count = 8;
+  constexpr size_t lines_per_thread = 200;
+  const std::string padding(200, 'x');
+  {
+    std::vector<std::thread> writers;
+    for (size_t i = 0; i < thread_count; ++i)
+    {
+      writers.emplace_back([i, &padding]() {
+        for (size_t j = 0; j < lines_per_thread; ++j)
+        {
+          ccf::logger::write_fatal_diagnostic(
+            fmt::format("writer {} {}", i, padding));
+        }
+      });
+    }
+    for (auto& writer : writers)
+    {
+      writer.join();
+    }
+  }
+
+  std::fflush(stderr);
+  REQUIRE(dup2(saved_stderr, STDERR_FILENO) != -1);
+  close(saved_stderr);
+  close(file_fd);
+
+  std::ifstream written(path);
+  std::vector<size_t> counts(thread_count, 0);
+  std::string line;
+  size_t total = 0;
+  while (std::getline(written, line))
+  {
+    ++total;
+    bool matched = false;
+    for (size_t i = 0; i < thread_count; ++i)
+    {
+      if (line == fmt::format("Fatal error: writer {} {}", i, padding))
+      {
+        ++counts[i];
+        matched = true;
+        break;
+      }
+    }
+    CHECK_MESSAGE(matched, "Interleaved diagnostic line: ", line);
+  }
+  std::remove(path);
+
+  CHECK(total == thread_count * lines_per_thread);
+  for (const auto count : counts)
+  {
+    CHECK(count == lines_per_thread);
+  }
 }
 
 TEST_CASE("Application logging macros")
