@@ -246,6 +246,8 @@ namespace ccf
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT("Exception in ccf::run: {}", e.what());
+        ccf::logger::write_fatal_diagnostic(
+          "Enclave runtime thread failed; see stdout logs for details");
 
         throw;
       }
