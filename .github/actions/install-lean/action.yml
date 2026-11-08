@@ -1,10 +1,55 @@
 name: Install Lean
 description: Install elan and the Lean toolchain pinned in lean/lean-toolchain (needs curl, tar, gzip and awk)
 
+inputs:
+  package:
+    description: Optional package under lean/ whose dependencies and Mathlib downloads should be cached
+    required: false
+    default: ""
+
 runs:
   using: composite
   steps:
+    - name: Configure Lean caches
+      id: configure
+      shell: bash
+      env:
+        PACKAGE: ${{ inputs.package }}
+        TOOLCHAIN_HASH: ${{ hashFiles('lean/lean-toolchain', '.github/actions/install-lean/action.yml') }}
+        DEPENDENCY_HASH: ${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/actions/install-lean/action.yml') }}
+      run: |
+        set -euo pipefail
+        if [ -n "$PACKAGE" ]; then
+          case "$PACKAGE" in
+            consensus|common|consistency|disaster-recovery|kv) ;;
+            *)
+              echo "::error::Unsupported Lean package: $PACKAGE"
+              exit 1
+              ;;
+          esac
+          test -f "lean/$PACKAGE/lake-manifest.json"
+        fi
+        . /etc/os-release
+        elan_home="${ELAN_HOME:-$HOME/.elan}"
+        mathlib_cache_dir="${MATHLIB_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/mathlib}"
+        echo "ELAN_HOME=$elan_home" >> "$GITHUB_ENV"
+        echo "$elan_home/bin" >> "$GITHUB_PATH"
+        echo "MATHLIB_CACHE_DIR=$mathlib_cache_dir" >> "$GITHUB_ENV"
+        echo "elan-home=$elan_home" >> "$GITHUB_OUTPUT"
+        echo "mathlib-cache-dir=$mathlib_cache_dir" >> "$GITHUB_OUTPUT"
+        echo "toolchain-key=lean-toolchain-v1-$ID-$VERSION_ID-${{ runner.arch }}-$TOOLCHAIN_HASH" >> "$GITHUB_OUTPUT"
+        # Snapshot the key before lake checks temporarily modify lakefile.toml.
+        echo "dependency-key=lean-deps-v3-$ID-$VERSION_ID-${{ runner.arch }}-$PACKAGE-$DEPENDENCY_HASH" >> "$GITHUB_OUTPUT"
+
+    - name: Restore elan and Lean toolchain
+      id: toolchain-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.configure.outputs.elan-home }}
+        key: ${{ steps.configure.outputs.toolchain-key }}
+
     - name: Install elan and Lean toolchain
+      if: steps.toolchain-cache.outputs.cache-hit != 'true'
       shell: bash
       env:
         # elan-init.sh only bootstraps elan: it always installs the latest elan release.
@@ -12,13 +57,33 @@ runs:
         ELAN_INIT_URL: https://raw.githubusercontent.com/leanprover/elan/55dc2814ca42ace25f05ba4dd7a43a8c701a0549/elan-init.sh
       run: |
         set -euo pipefail
-        elan_home="${ELAN_HOME:-$HOME/.elan}"
         elan_init="$(mktemp)"
         curl --proto '=https' --tlsv1.2 -sSf "$ELAN_INIT_URL" -o "$elan_init"
-        ELAN_HOME="$elan_home" sh "$elan_init" -y --no-modify-path --default-toolchain none
+        sh "$elan_init" -y --no-modify-path --default-toolchain none
         rm "$elan_init"
-        echo "ELAN_HOME=$elan_home" >> "$GITHUB_ENV"
-        echo "$elan_home/bin" >> "$GITHUB_PATH"
-        export ELAN_HOME="$elan_home"
-        "$elan_home/bin/elan" toolchain install "$(cat lean/lean-toolchain)"
-        "$elan_home/bin/elan" run "$(cat lean/lean-toolchain)" lean --version
+        "$ELAN_HOME/bin/elan" toolchain install "$(cat lean/lean-toolchain)"
+
+    - name: Verify Lean toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        "$ELAN_HOME/bin/elan" run "$(cat lean/lean-toolchain)" lean --version
+
+    - name: Restore Lean dependencies and Mathlib downloads
+      if: inputs.package != ''
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          lean/${{ inputs.package }}/.lake/packages
+          lean/common/.lake/packages
+          ${{ steps.configure.outputs.mathlib-cache-dir }}
+        key: ${{ steps.configure.outputs.dependency-key }}
+
+    - name: Restore Mathlib builds
+      if: inputs.package != ''
+      shell: bash
+      working-directory: lean/${{ inputs.package }}
+      run: |
+        set -euo pipefail
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        lake exe cache get

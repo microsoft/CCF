@@ -280,6 +280,8 @@ jobs:
 
       - name: "Install Lean"
         uses: ./.github/actions/install-lean
+        with:
+          package: disaster-recovery
 
       - name: "Build Lean recovery trace replayer"
         run: |

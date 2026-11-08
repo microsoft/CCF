@@ -40,6 +40,8 @@ jobs:
       # conf.py builds the recovery trace viewer's replayer with lake.
       - name: Install Lean
         uses: ./.github/actions/install-lean
+        with:
+          package: disaster-recovery
 
       - name: Build Documentation
         run: |

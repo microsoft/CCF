@@ -51,7 +51,7 @@ jobs:
 
     steps:
       # The Lean toolchain bundles its own compiler, linker and libraries.
-      # git: checkout and lake dependencies; tar, gzip, gawk: elan-init.sh.
+      # git: checkout and lake dependencies; tar, gzip, gawk: elan-init.sh and actions/cache.
       - name: Install system dependencies
         run: dnf -y install --setopt=install_weak_deps=False git-core tar gzip gawk
 
@@ -59,13 +59,8 @@ jobs:
 
       - name: Install Lean
         uses: ./.github/actions/install-lean
-
-      - name: Restore Mathlib cache
-        working-directory: lean/${{ inputs.package }}
-        run: |
-          set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          lake exe cache get
+        with:
+          package: ${{ inputs.package }}
 
       - name: Build replay
         working-directory: lean/${{ inputs.package }}

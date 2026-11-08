@@ -40,6 +40,8 @@ lake exe replay-checks
 ```
 
 Run `lake check` only in CI, not locally.
+The shared [Lean setup action](../../.github/actions/install-lean/action.yml) caches elan, the pinned toolchain, dependency sources and builds, and Mathlib download archives using GitHub Actions caches.
+Caches are keyed by Linux distribution/version, architecture, toolchain, and dependency manifests/configuration; package checks and trace replays share matching caches, while local CCF build outputs remain uncached so kernel checks still compile the current proofs.
 The [kernel check](replay/README.md#kernel-checks) builds with compiler warnings, including `sorry`, treated as errors, before replaying the compiled proofs in Lean's kernel and rejecting nonstandard axioms.
 Kernel tracing reports the declarations checked during compilation; cached modules do not emit fresh compilation traces.
 CI runs this before import coverage, formatting, and linting so the initial build and its traces occur in this step.
