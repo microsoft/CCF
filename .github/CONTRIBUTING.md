@@ -17,5 +17,9 @@ Code must also meet format requirements enforced by [`checks`](https://github.co
 
 Other workflows [are available](https://github.com/microsoft/CCF/blob/main/.github/workflows/README.md), and may be used to refresh base images, cut releases, or run longer or performance tests.
 
+For notable user-facing changes, add a change description in `.changes/<unique-name>.<category>.md` alongside the code, choosing `added`, `changed`, `deprecated`, `removed`, `fixed`, `security`, or `dependencies` for the category.
+Write one or two concise sentences of plain Markdown, without a leading bullet, heading, version, or PR number; documentation links should be relative to the repository root.
+Internal-only changes need no change description.
+
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
