@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Changed
 
-- CCF-owned fatal termination paths now emit flushed diagnostics to stderr, while recoverable logs and fatal-severity-only entries remain on stdout. Direct application/dependency writes and runtime-generated diagnostics are outside this contract; see [Logging](doc/build_apps/logging.rst) (#8690).
+- CCF-owned fatal termination paths now all emit flushed diagnostics to stderr, while recoverable logs and fatal-severity-only entries remain on stdout. see [Logging](doc/build_apps/logging.rst) (#8690).
 - CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag (#8657).
 - `observability.fluentd` now accepts an array of independent sinks, and configurable delivery behaviour.
   See [Observability Export](doc/operations/configuration.rst#observability-export) for more details (#8666).
