@@ -634,7 +634,7 @@ def test_add_node_from_snapshot(network, args, copy_ledger=True, from_backup=Fal
 @reqs.description("Adding as many pending nodes as current number of nodes")
 @reqs.supports_methods("/app/log/private")
 def test_add_as_many_pending_nodes(network, args):
-    # Killing pending nodes should not change the raft consensus rules
+    # Killing pending nodes should not change the CCF consensus protocol rules.
     primary, _ = network.find_primary()
     number_new_nodes = len(network.nodes)
     LOG.info(
@@ -767,6 +767,7 @@ def test_issue_fake_join(network, args):
     }
     req["consensus_type"] = "CFT"
     req["startup_seqno"] = 0
+    req["mldsa_supported"] = True
     with open(
         os.path.join(network.common_dir, "member0_enc_pubk.pem"), "r", encoding="utf-8"
     ) as f:
@@ -775,6 +776,25 @@ def test_issue_fake_join(network, args):
     with primary.client(identity="user0") as c:
         # First, retrieve real quote from primary node
         own_quote = c.get("/node/quotes/self").body.json()
+
+        has_pq_identity = (
+            c.get("/node/network").body.json().get("pq_service_certificate") is not None
+        )
+        LOG.info(
+            f"Join without declaring ML-DSA support (service has ML-DSA identity: {has_pq_identity})"
+        )
+        req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}
+        del req["mldsa_supported"]
+        r = c.post("/node/join", body=req, validate_openapi=False)
+        if has_pq_identity:
+            # Rejected before the quote is even looked at
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+            assert r.body.json()["error"]["code"] == "InvalidInput", r
+            assert "ML-DSA" in r.body.json()["error"]["message"], r
+        else:
+            assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
+            assert r.body.json()["error"]["code"] == "InvalidQuote", r
+        req["mldsa_supported"] = True
 
         LOG.info("Join with SGX dummy quote")
         req["quote_info"] = {"format": "OE_SGX_v1", "quote": "", "endorsements": ""}

@@ -49,7 +49,7 @@ The :ref:`governance/proposals:Submitting a New Proposal` section describes the 
 To enroll a new member using a public-key ID, include ``"id_format": "did:key"`` in the ``set_member`` action's arguments alongside ``cert`` and any encryption key or member data.
 For initial consortium members, set the same field on the member's entry in ``command.start.members``.
 Omitting the field retains the legacy certificate-fingerprint ID.
-See :ref:`architecture/cryptography:Identity IDs` before migrating existing members.
+See :ref:`architecture/cryptography:Identity IDs` and :doc:`migrating_identity_ids` before migrating existing members.
 
 The Python SDK can derive the DID locally:
 

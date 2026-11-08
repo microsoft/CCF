@@ -5,7 +5,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/locking.h"
 #include "ccf/tx_status.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft_types.h"
 #include "ds/internal_logger.h"
 #include "kv/kv_types.h"
 
@@ -212,7 +212,7 @@ namespace aft
     //
     // Written only under `lock`, but read without it by the unsynchronised
     // accessors (is_primary(), is_candidate(), ...) which callers outside
-    // consensus rely on. Atomic so those reads are not data races. Taking
+    // CFT rely on. Atomic so those reads are not data races. Taking
     // `lock` in those accessors instead is not an option: Store::commit()
     // calls is_primary() while holding the KV version lock, and Aft calls
     // into the Store from under `lock`, so locking here would invert an

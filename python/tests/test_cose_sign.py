@@ -78,7 +78,8 @@ def make_self_signed_cert(priv, subject_name: str):
 
 @pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])
 @pytest.mark.parametrize("id_format", ["sha256", "did:key"])
-def test_create_cose_sign1_finish(curve, id_format):
+@pytest.mark.parametrize("signature_as_text", [False, True])
+def test_create_cose_sign1_finish(curve, id_format, signature_as_text: bool):
     """
     Check create_cose_sign1_finish() produces the same output when passed
     a signature as create_cose_sign1().
@@ -97,7 +98,9 @@ def test_create_cose_sign1_finish(curve, id_format):
     assert cbor2.loads(protected)[int(cwt.COSEHeaders.KID)] == (
         ccf.identity.identity_id_from_cert(cert, id_format).encode()
     )
-    b64_sig = base64.urlsafe_b64encode(sig)
+    b64_sig: str | bytes = base64.urlsafe_b64encode(sig)
+    if signature_as_text:
+        b64_sig = b64_sig.decode("ascii")
 
     ccf.cose.verify_cose_sign1_with_cert(
         cert.encode(), cose_sign1, use_key=False, id_format=id_format

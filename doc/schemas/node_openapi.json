@@ -294,6 +294,9 @@
               }
             ]
           },
+          "pq_service_certificate": {
+            "$ref": "#/components/schemas/Pem"
+          },
           "primary_id": {
             "anyOf": [
               {

@@ -85,16 +85,16 @@ def main():
         committed_only=not args.uncommitted,
     )
 
-    def fmt_digest(d):
+    def fmt_digest(d: str) -> str:
         return d[:6] if args.s else d
 
-    def fmt_code_identity(ci):
+    def fmt_code_identity(ci: CodeIdentity) -> CodeIdentity:
         fmt, cd = ci
         return (fmt, cd[:6] if args.s else cd)
 
-    code_to_nodes = defaultdict(set)
+    code_to_nodes: defaultdict[CodeIdentity, set[bytes]] = defaultdict(set)
 
-    def print_state(view, seqno):
+    def print_state(view: int | None, seqno: int | None) -> None:
         if args.v:
             state = {
                 fmt_code_identity(version): [
@@ -105,7 +105,7 @@ def main():
             }
             print(f"{view}.{seqno}: {state}")
 
-    def code_ids_with_trusted_nodes():
+    def code_ids_with_trusted_nodes() -> set[CodeIdentity]:
         return {code_id for code_id, nodes in code_to_nodes.items() if nodes}
 
     validator = (
@@ -118,8 +118,9 @@ def main():
 
             public = tx.get_public_domain().get_tables()
 
-            view = tx.gcm_header.view
-            seqno = tx.gcm_header.seqno
+            txid = tx.get_txid()
+            view = txid.view
+            seqno = txid.seqno
             pre_code_ids = code_ids_with_trusted_nodes()
 
             if ccf.ledger.NODES_TABLE_NAME in public:

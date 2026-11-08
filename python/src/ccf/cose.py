@@ -7,8 +7,9 @@ import hashlib
 import json
 import sys
 import warnings
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Any
+from typing import Any, TypedDict, cast
 
 import cbor2
 import cwt
@@ -18,17 +19,25 @@ import cwt.utils
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+from cryptography.hazmat.primitives.asymmetric.types import CertificatePublicKeyTypes
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
     PublicFormat,
     load_pem_public_key,
 )
 from cryptography.x509 import load_pem_x509_certificate
-from cryptography.x509.base import CertificatePublicKeyTypes
 
 from ccf.identity import IdentityIdFormat, identity_id_from_cert
 
 Pem = str
+
+
+class PreparedCoseSign1(TypedDict):
+    """Algorithm and base64-encoded digest to send to an external signer."""
+
+    alg: int
+    value: str
+
 
 GOV_MSG_TYPES_WITH_PROPOSAL_ID = ["ballot", "withdrawal"]
 
@@ -46,14 +55,21 @@ COSE_PHDR_VDP_LABEL = 396
 COSE_PHDR_VDS_LABEL = 395
 COSE_PHDR_VDS_CCF_LEDGER_SHA256 = 2
 COSE_RECEIPT_INCLUSION_PROOF_LABEL = -1
+COSE_RECEIPT_CONSISTENCY_PROOF_LABEL = -2
 
 # See https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
 
 CCF_PROOF_LEAF_LABEL = 1
 CCF_PROOF_PATH_LABEL = 2
 
+# See https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-profile/
 
-def default_algorithm_for_key(key) -> int:
+CCF_CONSISTENCY_PROOF_ANCHOR_LABEL = 1
+CCF_CONSISTENCY_PROOF_PATH_LABEL = 2
+CCF_MAX_COMMIT_EVIDENCE_SIZE = 1024
+
+
+def default_algorithm_for_key(key: CertificatePublicKeyTypes) -> int:
     """
     Get the default algorithm for a given key, based on its
     type and parameters.
@@ -71,12 +87,14 @@ def default_algorithm_for_key(key) -> int:
         raise NotImplementedError("unsupported key type")
 
 
-def cert_fingerprint(cert_pem: Pem):
+def cert_fingerprint(cert_pem: Pem) -> bytes:
+    """Return the hexadecimal SHA-256 certificate fingerprint as UTF-8 bytes."""
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     return cert.fingerprint(hashes.SHA256()).hex().encode("utf-8")
 
 
-def key_fingerprint_from_cert(cert_pem: Pem):
+def key_fingerprint_from_cert(cert_pem: Pem) -> str:
+    """Return the hexadecimal SHA-256 fingerprint of a certificate's public key."""
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     pub_key = cert.public_key().public_bytes(
         Encoding.DER, PublicFormat.SubjectPublicKeyInfo
@@ -84,7 +102,8 @@ def key_fingerprint_from_cert(cert_pem: Pem):
     return hashlib.sha256(pub_key).hexdigest()
 
 
-def key_fingerprint_from_key(key_pem: Pem):
+def key_fingerprint_from_key(key_pem: Pem) -> str:
+    """Return the hexadecimal SHA-256 fingerprint of a PEM public key."""
     key = load_pem_public_key(key_pem.encode("ascii"))
     pub_key = key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
     return hashlib.sha256(pub_key).hexdigest()
@@ -94,7 +113,7 @@ def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
     cert_pem: Pem,
-    additional_protected_header: dict | None = None,
+    additional_protected_header: Mapping[Any, Any] | None = None,
     id_format: IdentityIdFormat | str = IdentityIdFormat.SHA256,
 ) -> bytes:
     """Sign a request using its enrolled identity format for the protected kid."""
@@ -106,17 +125,23 @@ def create_cose_sign1(
     phdr: dict[Any, Any] = {int(cwt.COSEHeaders.KID): kid}
     additional_header = additional_protected_header or {}
     phdr.update(additional_header)
-    return cose_ctx.encode_and_sign(
-        payload, cose_key, protected=cwt.utils.ResolvedHeader(phdr)
+    # cwt accepts ResolvedHeader, but encode_and_sign annotates only dict.
+    encoded = cose_ctx.encode_and_sign(
+        payload,
+        cose_key,
+        protected=cast(dict[str | int, Any], cwt.utils.ResolvedHeader(phdr)),
     )
+    if not isinstance(encoded, bytes):
+        raise TypeError("Expected an encoded COSE Sign1 byte string")
+    return encoded
 
 
 def create_cose_sign1_prepare(
     payload: bytes,
     cert_pem: Pem,
-    additional_protected_header: dict | None = None,
+    additional_protected_header: Mapping[Any, Any] | None = None,
     id_format: IdentityIdFormat | str = IdentityIdFormat.SHA256,
-) -> dict:
+) -> PreparedCoseSign1:
     """Prepare external signing with the same identity format as the finish step."""
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     alg = default_algorithm_for_key(cert.public_key())
@@ -141,8 +166,8 @@ def create_cose_sign1_prepare(
 def create_cose_sign1_finish(
     payload: bytes,
     cert_pem: Pem,
-    signature: str,
-    additional_protected_header: dict | None = None,
+    signature: str | bytes,
+    additional_protected_header: Mapping[Any, Any] | None = None,
     id_format: IdentityIdFormat | str = IdentityIdFormat.SHA256,
 ) -> bytes:
     """Assemble an externally signed request with its enrolled identity format."""
@@ -161,7 +186,7 @@ def create_cose_sign1_finish(
     sig = base64.urlsafe_b64decode(signature)
     assert isinstance(sig, bytes)
     msg = cbor2.CBORTag(
-        cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1],
+        cwt.const.COSE_TYPE_TO_TAG[cwt.COSETypes.SIGN1],
         [phdr_encoded, {}, payload, sig],
     )
     return cbor2.dumps(msg)
@@ -188,7 +213,10 @@ def verify_cose_sign1_with_cert(
     return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
 
 
-def verify_cose_sign1_with_key(key, cose_sign1, payload=None):
+def verify_cose_sign1_with_key(
+    key: bytes, cose_sign1: bytes, payload: bytes | None = None
+) -> tuple[dict[str | int, Any], dict[str | int, Any], bytes]:
+    """Verify a COSE Sign1 message using a PEM public key."""
     cose_ctx = cwt.COSE.new()
     key_pem = key.decode()
     cose_key = cwt.COSEKey.from_pem(key_pem, kid=key_fingerprint_from_key(key_pem))
@@ -217,7 +245,7 @@ def verify_receipt(
     cose_ctx = cwt.COSE.new()
 
     receipt = cbor2.loads(receipt_bytes)
-    assert receipt.tag == cwt.const.COSE_TYPE_TO_TAG[cwt.const.COSETypes.SIGN1]
+    assert receipt.tag == cwt.const.COSE_TYPE_TO_TAG[cwt.COSETypes.SIGN1]
     phdr, uhdr, _payload, _sig = receipt.value
     phdr = cbor2.loads(phdr)
 
@@ -287,7 +315,7 @@ ccf_cose_sign1_finish --content ... | curl http://... -H 'Content-Type: applicat
 """
 
 
-def _common_parser(description):
+def _common_parser(description: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=description,
         formatter_class=argparse.RawTextHelpFormatter,

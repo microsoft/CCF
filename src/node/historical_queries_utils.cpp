@@ -6,7 +6,7 @@
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft_types.h"
 #include "kv/kv_types.h"
 #include "node/cose_common.h"
 #include "node/historical_queries.h"

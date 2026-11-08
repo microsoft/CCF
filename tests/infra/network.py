@@ -1649,6 +1649,7 @@ class Network:
             },
             "consensus_type": "CFT",
             "startup_seqno": 0,
+            "mldsa_supported": True,
             "quote_info": {
                 "format": own_quote["format"],
                 "quote": forged_quote_b64,
@@ -2467,10 +2468,10 @@ class Network:
             return
 
         with primary.client() as c:
-            r = c.get("/node/network")
-            valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
-                r.body.json()["service_certificate"]
-            )
+            network_info = c.get("/node/network").body.json()
+        valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(
+            network_info["service_certificate"]
+        )
 
         if self.service_certificate_valid_from is None:
             # If the service certificate has not been renewed, assume that certificate has
@@ -2494,6 +2495,24 @@ class Network:
         validity_period = valid_to - valid_from + timedelta(seconds=1)
         LOG.info(
             f"Certificate validity period for service: {valid_from} - {valid_to} (for {validity_period})"
+        )
+
+    def verify_pq_service_certificate_validity_period(self, expected_validity_days):
+        pq_cert = self.get_pq_service_certificate()
+        assert pq_cert is not None, "Service has no ML-DSA certificate"
+        valid_from, valid_to = infra.crypto.get_validity_period_from_pem_cert(pq_cert)
+
+        expected_valid_to = valid_from + timedelta(
+            days=expected_validity_days, seconds=-1
+        )
+        if valid_to != expected_valid_to:
+            raise ValueError(
+                f'Validity period for ML-DSA service certificate is not as expected: valid to "{valid_to}" but expected "{expected_valid_to}"'
+            )
+
+        validity_period = valid_to - valid_from + timedelta(seconds=1)
+        LOG.info(
+            f"ML-DSA certificate validity period for service: {valid_from} - {valid_to} (for {validity_period})"
         )
 
     def refresh_service_identity_file(self, args):
@@ -2522,6 +2541,14 @@ class Network:
             assert r.status_code == 200, r
             current_ident = r.body.json()["service_certificate"]
         return current_ident
+
+    def get_pq_service_certificate(self):
+        # None when the service has no ML-DSA identity
+        n = self.find_random_node()
+        with n.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == 200, r
+            return r.body.json().get("pq_service_certificate")
 
     def save_service_identity_to_file(self):
         current_ident = self.get_service_identity()

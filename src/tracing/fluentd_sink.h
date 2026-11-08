@@ -2,22 +2,26 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/locking.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/fluentd_config.h"
 #include "ds/internal_logger.h"
 #include "tracing/spsc_queue.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <charconv>
 #include <chrono>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <netdb.h>
 #include <poll.h>
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
@@ -59,19 +63,67 @@ namespace ccf::tracing
   private:
     struct Transport
     {
+      static constexpr size_t TURN_BUDGET = 256;
+
+      class QueueReader
+      {
+        static constexpr size_t QUEUE_QUOTA = 64;
+
+        const std::vector<std::unique_ptr<SPSCQueue>>& queues;
+        size_t next_queue = 0;
+        size_t queue_records = 0;
+
+      public:
+        explicit QueueReader(
+          const std::vector<std::unique_ptr<SPSCQueue>>& queues) :
+          queues(queues)
+        {}
+
+        std::unique_ptr<std::vector<uint8_t>> next()
+        {
+          for (size_t q = 0; q < queues.size(); ++q)
+          {
+            if (queue_records == QUEUE_QUOTA)
+            {
+              next_queue = (next_queue + 1) % queues.size();
+              queue_records = 0;
+            }
+            auto record = queues[next_queue]->pop();
+            if (record)
+            {
+              ++queue_records;
+              return record;
+            }
+            next_queue = (next_queue + 1) % queues.size();
+            queue_records = 0;
+          }
+          return nullptr;
+        }
+      };
+
+      const std::vector<std::string> tag_prefix_allow_list;
       sockaddr_storage address = {};
       socklen_t address_size = 0;
+      Endpoint::Delivery delivery;
       std::vector<std::unique_ptr<SPSCQueue>> queues;
       std::atomic<uint64_t> dropped = 0;
+      ccf::ds::Mutex mutex;
+      // Producers observe shutdown without taking the transport mutex.
       std::atomic<bool> stopping = false;
-      std::atomic<bool> connected = false;
-      std::chrono::steady_clock::time_point deadline;
-      std::chrono::steady_clock::time_point retry_after;
+      bool connected CCF_GUARDED_BY(mutex) = false;
+      std::chrono::steady_clock::time_point deadline CCF_GUARDED_BY(mutex);
+      std::chrono::steady_clock::time_point retry_after CCF_GUARDED_BY(mutex);
       uint64_t reported = 0;
-      int fd = -1;
-      std::thread consumer;
+      int fd CCF_GUARDED_BY(mutex) = -1;
+      std::unique_ptr<std::vector<uint8_t>> pending CCF_GUARDED_BY(mutex);
+      size_t write_offset CCF_GUARDED_BY(mutex) = 0;
+      QueueReader reader CCF_GUARDED_BY(mutex);
+      bool finished CCF_GUARDED_BY(mutex) = false;
 
-      Transport(const Endpoint& endpoint, size_t producers)
+      Transport(const Endpoint& endpoint, size_t producers) :
+        tag_prefix_allow_list(endpoint.tag_prefix_allow_list),
+        delivery(endpoint.delivery),
+        reader(queues)
       {
         const auto size = validate(endpoint, producers);
         addrinfo hints = {};
@@ -93,12 +145,19 @@ namespace ccf::tracing
         {
           queues.push_back(std::make_unique<SPSCQueue>(size));
         }
-        consumer = std::thread([this] { run(); });
       }
 
-      [[nodiscard]] bool expired() const
+      [[nodiscard]] bool accepts(std::string_view tag) const
       {
-        return stopping.load(std::memory_order_acquire) &&
+        return std::any_of(
+          tag_prefix_allow_list.begin(),
+          tag_prefix_allow_list.end(),
+          [tag](const auto& prefix) { return tag.starts_with(prefix); });
+      }
+
+      [[nodiscard]] bool expired() const CCF_REQUIRES(mutex)
+      {
+        return stopping.load(std::memory_order_relaxed) &&
           std::chrono::steady_clock::now() >= deadline;
       }
 
@@ -116,9 +175,10 @@ namespace ccf::tracing
         }
       }
 
-      void disconnect()
+      void disconnect() CCF_REQUIRES(mutex)
       {
-        connected.store(false, std::memory_order_release);
+        connected = false;
+        write_offset = 0;
         if (fd >= 0)
         {
           // Do not retry close, even on EINTR: the descriptor may be reused.
@@ -136,47 +196,48 @@ namespace ccf::tracing
           std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
       }
 
-      bool wait_writable()
+      void connect() CCF_REQUIRES(mutex)
       {
-        while (!expired())
+        if (connected)
         {
-          report_drops();
-          pollfd descriptor{fd, POLLOUT, 0};
-          const auto rc = ::poll(&descriptor, 1, 50);
-          if (rc > 0)
-          {
-            return (descriptor.revents & POLLOUT) != 0 &&
-              (descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) == 0;
-          }
-          if (rc < 0 && errno != EINTR)
-          {
-            return false;
-          }
+          return;
         }
-        return false;
-      }
-
-      bool connect()
-      {
-        if (std::chrono::steady_clock::now() < retry_after)
-        {
-          return false;
-        }
-        fd = ::socket(
-          address.ss_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
         if (fd < 0)
         {
-          disconnect();
-          return false;
+          if (std::chrono::steady_clock::now() < retry_after)
+          {
+            return;
+          }
+          fd = ::socket(
+            address.ss_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+          if (fd < 0)
+          {
+            disconnect();
+            return;
+          }
+          if (
+            ::connect(
+              fd, reinterpret_cast<const sockaddr*>(&address), address_size) ==
+            0)
+          {
+            connected = true;
+            return;
+          }
+          if (errno != EINPROGRESS)
+          {
+            disconnect();
+            return;
+          }
+        }
+        pollfd descriptor{fd, POLLOUT, 0};
+        const auto rc = ::poll(&descriptor, 1, 0);
+        if (rc == 0 || (rc < 0 && errno == EINTR))
+        {
+          return;
         }
         if (
-          ::connect(
-            fd, reinterpret_cast<const sockaddr*>(&address), address_size) == 0)
-        {
-          connected.store(true, std::memory_order_release);
-          return true;
-        }
-        if (errno == EINPROGRESS && wait_writable())
+          rc > 0 && (descriptor.revents & POLLOUT) != 0 &&
+          (descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) == 0)
         {
           int error = 0;
           socklen_t size = sizeof(error);
@@ -184,160 +245,291 @@ namespace ccf::tracing
             getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &size) == 0 &&
             error == 0)
           {
-            connected.store(true, std::memory_order_release);
-            return true;
+            connected = true;
+            return;
           }
         }
         disconnect();
-        return false;
       }
 
-      void write(std::span<const uint8_t> bytes)
+      struct SendResult
       {
-        if (expired() || (fd < 0 && !connect()))
-        {
-          dropped.fetch_add(1, std::memory_order_relaxed);
-          return;
-        }
-        while (!bytes.empty() && !expired())
-        {
-          report_drops();
-          const auto sent =
-            ::send(fd, bytes.data(), bytes.size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-          if (sent > 0)
-          {
-            bytes = bytes.subspan(static_cast<size_t>(sent));
-          }
-          else if (sent < 0 && errno == EINTR)
-          {
-            continue;
-          }
-          else if (
-            sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) &&
-            wait_writable())
-          {
-            continue;
-          }
-          else
-          {
-            break;
-          }
-        }
-        if (!bytes.empty())
-        {
-          // Never append a new frame to a partially written frame.
-          disconnect();
-          dropped.fetch_add(1, std::memory_order_relaxed);
-        }
-      }
+        bool progress = false;
+        bool blocked = false;
+      };
 
-      void run()
+      SendResult send_turn() CCF_REQUIRES(mutex)
       {
-        while (!expired())
+        SendResult result{.blocked = !connected};
+        // Bound syscalls as well as messages so a busy sink cannot monopolise
+        // the shared worker, including when writes are short or interrupted.
+        for (size_t i = 0; i < TURN_BUDGET && connected && !expired(); ++i)
         {
-          if (fd < 0 && !stopping.load(std::memory_order_acquire))
+          if (!pending)
           {
-            connect();
-          }
-          bool progress = false;
-          for (auto& queue : queues)
-          {
-            if (expired())
+            pending = reader.next();
+            if (!pending)
             {
               break;
             }
-            for (size_t i = 0; i < 64 && !expired(); ++i)
-            {
-              auto record = queue->pop();
-              if (!record)
-              {
-                break;
-              }
-              progress = true;
-              write(*record);
-            }
+            result.progress = true;
           }
-          if (!progress && stopping.load(std::memory_order_acquire))
+          if (write_offset == pending->size())
+          {
+            pending.reset();
+            continue;
+          }
+          const auto sent = ::send(
+            fd,
+            pending->data() + write_offset,
+            pending->size() - write_offset,
+            MSG_NOSIGNAL | MSG_DONTWAIT);
+          if (sent > 0)
+          {
+            result.progress = true;
+            write_offset += static_cast<size_t>(sent);
+            if (write_offset == pending->size())
+            {
+              pending.reset();
+              write_offset = 0;
+            }
+            continue;
+          }
+          if (sent < 0 && errno == EINTR)
+          {
+            continue;
+          }
+          if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+          {
+            result.blocked = true;
+            break;
+          }
+          disconnect();
+          result.blocked = true;
+          break;
+        }
+        return result;
+      }
+
+      bool discard_queued() CCF_REQUIRES(mutex)
+      {
+        size_t discarded = 0;
+        for (const auto& queue : queues)
+        {
+          const auto count = queue->size();
+          for (size_t i = 0; i < count; ++i)
+          {
+            std::ignore = queue->pop();
+          }
+          discarded += count;
+        }
+        dropped.fetch_add(discarded, std::memory_order_relaxed);
+        return discarded != 0;
+      }
+
+      void finish_if_done() CCF_REQUIRES(mutex)
+      {
+        if (!stopping.load(std::memory_order_relaxed))
+        {
+          return;
+        }
+        size_t remaining = pending ? 1 : 0;
+        for (const auto& queue : queues)
+        {
+          remaining += queue->size();
+        }
+        if (expired() || remaining == 0)
+        {
+          dropped.fetch_add(remaining, std::memory_order_relaxed);
+          pending.reset();
+          disconnect();
+          finished = true;
+        }
+      }
+
+      bool step() CCF_REQUIRES(mutex)
+      {
+        if (finished)
+        {
+          return false;
+        }
+        bool progress = false;
+        if (!expired())
+        {
+          connect();
+          const auto sent = send_turn();
+          progress = sent.progress;
+          if (
+            delivery == Endpoint::Delivery::UNBUFFERED_NON_BLOCKING &&
+            sent.blocked)
+          {
+            progress |= discard_queued();
+          }
+        }
+        finish_if_done();
+        return progress;
+      }
+
+      void stop(std::chrono::steady_clock::time_point shutdown_deadline)
+      {
+        ccf::ds::MutexGuard lock(mutex);
+        if (!stopping.load(std::memory_order_relaxed))
+        {
+          deadline = shutdown_deadline;
+          stopping.store(true, std::memory_order_relaxed);
+        }
+      }
+
+      ~Transport()
+      {
+        ccf::ds::MutexGuard lock(mutex);
+        disconnect();
+      }
+    };
+
+    struct Worker
+    {
+      std::vector<std::unique_ptr<Transport>> transports;
+      std::thread consumer;
+
+      explicit Worker(std::vector<std::unique_ptr<Transport>> instances) :
+        transports(std::move(instances)),
+        consumer([this] { run(); })
+      {}
+
+      void run()
+      {
+        while (true)
+        {
+          bool progress = false;
+          bool finished = true;
+          for (const auto& t : transports)
+          {
+            {
+              ccf::ds::MutexGuard lock(t->mutex);
+              progress |= t->step();
+              finished &= t->finished;
+            }
+            t->report_drops();
+          }
+          if (finished)
           {
             break;
           }
-          report_drops();
           if (!progress)
           {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
           }
         }
-        size_t pending = 0;
-        for (const auto& queue : queues)
-        {
-          pending += queue->size();
-        }
-        dropped.fetch_add(pending, std::memory_order_relaxed);
-        report_drops();
-        disconnect();
       }
 
       void shutdown()
       {
         if (consumer.joinable())
         {
-          deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-          stopping.store(true, std::memory_order_release);
+          const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(2);
+          for (const auto& t : transports)
+          {
+            t->stop(deadline);
+          }
           consumer.join();
-          LOG_INFO_FMT(
-            "Fluentd exporter shutdown: {} dropped events", dropped.load());
+          for (const auto& t : transports)
+          {
+            LOG_INFO_FMT(
+              "Fluentd exporter shutdown: {} dropped events",
+              t->dropped.load());
+          }
         }
       }
 
-      ~Transport()
+      ~Worker()
       {
         shutdown();
       }
     };
 
-    static std::unique_ptr<Transport>& transport()
+    static std::unique_ptr<Worker>& worker()
     {
-      static std::unique_ptr<Transport> instance;
+      static std::unique_ptr<Worker> instance;
       return instance;
     }
 
-    static SPSCQueue*& bound_queue()
+    static size_t& bound_slot()
     {
-      thread_local SPSCQueue* queue = nullptr;
-      return queue;
+      thread_local size_t slot = std::numeric_limits<size_t>::max();
+      return slot;
     }
 
   public:
     static void configure(
-      std::optional<Endpoint> endpoint, size_t producers = 1)
+      const std::vector<Endpoint>& endpoints, size_t producers = 1)
     {
-      if (transport())
+      if (is_configured())
       {
         throw std::logic_error("Trace exporter already configured");
       }
-      if (endpoint)
+      std::vector<std::unique_ptr<Transport>> instances;
+      instances.reserve(endpoints.size());
+      for (const auto& endpoint : endpoints)
       {
-        transport() = std::make_unique<Transport>(*endpoint, producers);
+        instances.push_back(std::make_unique<Transport>(endpoint, producers));
       }
+      if (!instances.empty())
+      {
+        worker() = std::make_unique<Worker>(std::move(instances));
+      }
+    }
+
+    static void configure(
+      std::optional<Endpoint> endpoint, size_t producers = 1)
+    {
+      configure(
+        endpoint ? std::vector{*endpoint} : std::vector<Endpoint>{}, producers);
     }
 
     static bool is_configured()
     {
-      return transport() != nullptr;
+      return worker() != nullptr;
+    }
+
+    static bool accepts(std::string_view tag)
+    {
+      if (!is_configured())
+      {
+        return false;
+      }
+      for (const auto& t : worker()->transports)
+      {
+        if (t->accepts(tag))
+        {
+          return true;
+        }
+      }
+      return false;
     }
 
     // Startup only: a connection observed here does not guarantee delivery.
     static bool wait_for_connection(std::chrono::milliseconds timeout)
     {
-      const auto* t = transport().get();
-      if (t == nullptr)
+      if (!is_configured())
       {
         return false;
       }
       const auto deadline = std::chrono::steady_clock::now() + timeout;
-      while (!t->stopping.load(std::memory_order_acquire))
+      while (true)
       {
-        if (t->connected.load(std::memory_order_acquire))
+        bool connected = true;
+        for (const auto& t : worker()->transports)
+        {
+          ccf::ds::MutexGuard lock(t->mutex);
+          if (t->stopping.load(std::memory_order_relaxed))
+          {
+            return false;
+          }
+          connected &= t->connected;
+        }
+        if (connected)
         {
           return true;
         }
@@ -347,54 +539,79 @@ namespace ccf::tracing
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
-      return false;
     }
 
     static void bind_producer(size_t slot)
     {
-      if (transport())
+      if (is_configured())
       {
-        bound_queue() = transport()->queues.at(slot).get();
+        std::ignore = worker()->transports.front()->queues.at(slot);
+        bound_slot() = slot;
       }
     }
 
-    static bool enqueue(std::span<const uint8_t> bytes)
+    // False may mean partial acceptance: other sinks still receive the record.
+    static bool enqueue(std::string_view tag, std::span<const uint8_t> bytes)
     {
-      auto* t = transport().get();
-      if (t == nullptr)
+      if (!is_configured())
       {
         return false;
       }
-      auto* q = bound_queue();
-      if (
-        q == nullptr || t->stopping.load(std::memory_order_acquire) ||
-        !q->push(bytes))
+      bool enqueued = true;
+      const auto slot = bound_slot();
+      for (const auto& t : worker()->transports)
       {
-        t->dropped.fetch_add(1, std::memory_order_relaxed);
-        return false;
+        if (!t->accepts(tag))
+        {
+          continue;
+        }
+        if (
+          slot >= t->queues.size() ||
+          t->stopping.load(std::memory_order_relaxed) ||
+          !t->queues[slot]->push(bytes))
+        {
+          t->dropped.fetch_add(1, std::memory_order_relaxed);
+          enqueued = false;
+        }
       }
-      return true;
+      return enqueued;
     }
 
-    static void record_drop()
+    static void record_drop(std::string_view tag)
     {
-      if (auto* t = transport().get())
+      if (!is_configured())
       {
-        t->dropped.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+      for (const auto& t : worker()->transports)
+      {
+        if (t->accepts(tag))
+        {
+          t->dropped.fetch_add(1, std::memory_order_relaxed);
+        }
       }
     }
 
     static uint64_t dropped_count()
     {
-      return transport() ? transport()->dropped.load() : 0;
+      if (!is_configured())
+      {
+        return 0;
+      }
+      uint64_t total = 0;
+      for (const auto& t : worker()->transports)
+      {
+        total += t->dropped.load();
+      }
+      return total;
     }
 
     // Producers must stop enqueueing before shutdown begins.
     static void shutdown()
     {
-      if (transport())
+      if (is_configured())
       {
-        transport()->shutdown();
+        worker()->shutdown();
       }
     }
 

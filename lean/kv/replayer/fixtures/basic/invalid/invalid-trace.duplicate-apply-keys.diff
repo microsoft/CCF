@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -22 +22 @@
+-{"seq":22,"store":1,"term":0,"tx":1,"type":"apply","version":1,"writes":[{"key":"","map":"a","value":null},{"key":"00","map":"b","value":"22"}]}
++{"seq":22,"store":1,"term":0,"tx":1,"type":"apply","version":1,"writes":[{"key":"","map":"a","value":null},{"key":"","map":"a","value":null},{"key":"00","map":"b","value":"22"}]}

@@ -199,3 +199,29 @@ A sample proposal is:
             }
         ]
     }
+
+Renewing ML-DSA Service Certificate
+-----------------------------------
+
+.. note:: This proposal only applies to services with an ML-DSA service certificate (see :ref:`operations/certificates:Service Certificate`), and is rejected otherwise.
+
+Similarly, the ML-DSA service certificate can be renewed via the ``set_pq_service_certificate_validity`` proposal, which takes the same arguments.
+Its validity period is independent of the service certificate's.
+The proposal fails if the primary node cannot issue the ML-DSA certificate, for example when it is built without ML-DSA support.
+
+A sample proposal is:
+
+.. code-block:: bash
+
+    $ cat set_pq_service_certificate_validity.json
+    {
+        "actions": [
+            {
+                "name": "set_pq_service_certificate_validity",
+                "args": {
+                    "valid_from": "220101143018Z",
+                    "validity_period_days": 365
+                }
+            }
+        ]
+    }

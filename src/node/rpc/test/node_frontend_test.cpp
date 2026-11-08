@@ -7,6 +7,7 @@
 #include "ccf/node/node_configuration_interface.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "ds/internal_logger.h"
 #include "frontend_test_infra.h"
 #include "kv/null_encryptor.h"
@@ -127,7 +128,8 @@ TEST_CASE("Node configuration retains operator file paths")
            {"id_format", "did:key"}}}},
         {"constitution_files", {"not-loaded/first.js", "not-loaded/second.js"}},
         {"initial_service_certificate_validity_days", 7},
-        {"service_subject_name", "CN=Configured Service"}}},
+        {"service_subject_name", "CN=Configured Service"},
+        {"service_mldsa_parameter_set", "ML-DSA-87"}}},
       {"join",
        {{"target_rpc_address", "localhost:1234"},
         {"retry_timeout", "2s"},
@@ -139,7 +141,8 @@ TEST_CASE("Node configuration retains operator file paths")
         {"host_data_transparent_statement_path", "not-loaded/statement.cose"}}},
       {"recover",
        {{"previous_service_identity_file", "not-loaded/previous.pem"},
-        {"initial_service_certificate_validity_days", 13}}}}}};
+        {"initial_service_certificate_validity_days", 13},
+        {"service_mldsa_parameter_set", "ML-DSA-44"}}}}}};
 
   auto config = input.get<CCFConfig>();
   CHECK(config.node_certificate.id_format == IdentityIdFormat::DIDKey);
@@ -154,6 +157,9 @@ TEST_CASE("Node configuration retains operator file paths")
     MemberRecoveryRole::Owner);
   CHECK(config.command.start.initial_service_certificate_validity_days == 7);
   CHECK(config.command.start.service_subject_name == "CN=Configured Service");
+  CHECK(
+    config.command.start.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_87);
   CHECK(config.snapshots.tx_count == 42);
   CHECK(config.memory.max_msg_size.count_bytes() == 128 * 1024 * 1024);
   CHECK(config.tick_interval.count_ms() == 25);
@@ -196,6 +202,9 @@ TEST_CASE("Node configuration retains operator file paths")
     config.command.recover.previous_service_identity_file ==
     "not-loaded/previous.pem");
   CHECK(config.command.recover.initial_service_certificate_validity_days == 13);
+  CHECK(
+    config.command.recover.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_44);
 
   const auto defaults = json{
     {"network", CCFConfig{}.network},
@@ -207,6 +216,12 @@ TEST_CASE("Node configuration retains operator file paths")
   CHECK(defaults.command.join.fetch_recent_snapshot);
   CHECK(
     defaults.command.recover.initial_service_certificate_validity_days == 1);
+  CHECK(
+    defaults.command.start.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_65);
+  CHECK(
+    defaults.command.recover.service_mldsa_parameter_set ==
+    ccf::crypto::MLDSAParameterSet::ML_DSA_65);
 }
 
 TEST_CASE("Node configuration resolves ringbuffer-era limit aliases")
@@ -706,6 +721,7 @@ TEST_CASE("Add a node to an opening service")
     JoinNetworkNodeToNode::In join_input;
     join_input.id_format = id_format;
     join_input.public_encryption_key = node_public_encryption_key;
+    join_input.mldsa_supported = ccf::crypto::mldsa_supported();
     const auto response =
       frontend_process(frontend, join_input, "join", caller);
 
@@ -714,15 +730,42 @@ TEST_CASE("Add a node to an opening service")
   }
 
   InternalTablesAccess::create_service(
-    gen_tx, network.identity->cert, ccf::TxID{2, 1});
+    gen_tx, network.identity->cert, network.identity->pq_cert, ccf::TxID{2, 1});
   REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
+
+  INFO("A service with an ML-DSA identity only admits ML-DSA capable nodes");
+  REQUIRE(
+    network.identity->pq_cert.has_value() == ccf::crypto::mldsa_supported());
+  // Without ML-DSA the service has no such identity, and the main flow below
+  // shows that a joiner declaring no support is then accepted
+  if (ccf::crypto::mldsa_supported())
+  {
+    auto pk_der = node_kp->public_key_der();
+    const NodeId joiner_node_id = ccf::crypto::Sha256Hash(pk_der).hex_str();
+    // Nodes of this build without ML-DSA, and nodes that predate the field
+    const std::vector<std::optional<bool>> incapable = {false, std::nullopt};
+    for (const auto& declared : incapable)
+    {
+      JoinNetworkNodeToNode::In join_input;
+      join_input.public_encryption_key = node_public_encryption_key;
+      join_input.mldsa_supported = declared;
+      auto http_response =
+        frontend_process(frontend, join_input, "join", caller);
+      check_error(http_response, HTTP_STATUS_BAD_REQUEST);
+      check_error_message(http_response, "This service has an ML-DSA identity");
+      // Rejected before anything is recorded
+      auto check_tx = network.tables->create_tx();
+      CHECK_FALSE(check_tx.rw(network.nodes)->get(joiner_node_id).has_value());
+    }
+  }
 
   INFO("Add first node which should be trusted straight away");
   {
     JoinNetworkNodeToNode::In join_input;
     join_input.id_format = id_format;
     join_input.public_encryption_key = node_public_encryption_key;
+    join_input.mldsa_supported = ccf::crypto::mldsa_supported();
     // Join input does not include CSR (1.x)
     join_input.certificate_signing_request = std::nullopt;
 
@@ -799,6 +842,7 @@ TEST_CASE("Add a node to an opening service")
     JoinNetworkNodeToNode::In join_input;
     join_input.id_format = id_format;
     join_input.public_encryption_key = node_public_encryption_key;
+    join_input.mldsa_supported = ccf::crypto::mldsa_supported();
 
     const auto replacement =
       node_kp->self_sign("CN=Replacement", valid_from, valid_to);
@@ -828,6 +872,7 @@ TEST_CASE("Add a node to an opening service")
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
     join_input.public_encryption_key = node_public_encryption_key;
+    join_input.mldsa_supported = ccf::crypto::mldsa_supported();
 
     auto http_response =
       frontend_process(frontend, join_input, "join", new_caller);
@@ -974,7 +1019,7 @@ TEST_CASE("Add a node to an open service")
     up_to_ledger_secret_seqno, make_ledger_secret());
 
   InternalTablesAccess::create_service(
-    gen_tx, network.identity->cert, ccf::TxID{2, 1});
+    gen_tx, network.identity->cert, network.identity->pq_cert, ccf::TxID{2, 1});
   InternalTablesAccess::init_configuration(gen_tx, {1});
   InternalTablesAccess::activate_member(
     gen_tx,
@@ -996,6 +1041,7 @@ TEST_CASE("Add a node to an open service")
   JoinNetworkNodeToNode::In join_input;
   join_input.id_format = id_format;
   join_input.public_encryption_key = node_public_encryption_key;
+  join_input.mldsa_supported = ccf::crypto::mldsa_supported();
   join_input.certificate_signing_request = node_kp->create_csr("CN=Joiner");
 
   INFO("Add node once service is open");
@@ -1029,6 +1075,7 @@ TEST_CASE("Add a node to an open service")
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In other_join_input;
     other_join_input.public_encryption_key = node_public_encryption_key;
+    other_join_input.mldsa_supported = ccf::crypto::mldsa_supported();
 
     auto http_response =
       frontend_process(frontend, other_join_input, "join", new_caller);
@@ -1109,6 +1156,7 @@ TEST_CASE("Add a node to an open service")
     JoinNetworkNodeToNode::In expired_join_input;
     expired_join_input.public_encryption_key =
       ccf::crypto::make_ec_key_pair()->public_key_pem();
+    expired_join_input.mldsa_supported = ccf::crypto::mldsa_supported();
     expired_join_input.certificate_signing_request =
       expired_node_kp->create_csr("CN=Expired Joiner");
     expired_join_input.node_info_network.node_to_node_interface

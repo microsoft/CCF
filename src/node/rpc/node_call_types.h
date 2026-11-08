@@ -71,6 +71,7 @@ namespace ccf
       ccf::crypto::Pem node_endorsed_certificate;
       ccf::crypto::Pem public_key;
       ccf::crypto::Pem service_cert;
+      std::optional<ccf::crypto::Pem> pq_service_cert = std::nullopt;
       QuoteInfo quote_info;
       ccf::crypto::Pem public_encryption_key;
       pal::PlatformAttestationMeasurement measurement;
@@ -116,6 +117,9 @@ namespace ccf
       // Incremented by the joiner each time it retries a join request after
       // receiving a StartupSeqnoIsOld response.
       std::optional<uint32_t> join_fetch_count = std::nullopt;
+      // Whether the joiner can hold an ML-DSA service identity. Absent on
+      // nodes that predate the field, which cannot.
+      std::optional<bool> mldsa_supported = std::nullopt;
     };
 
     struct Out

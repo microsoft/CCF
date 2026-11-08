@@ -36,6 +36,44 @@ See :ref:`architecture/cryptography:Identity IDs` for upgrade prerequisites and 
 
 For migration from deprecated ringbuffer-era configuration, see :doc:`/build_apps/migration_7_x_to_8_x`.
 
+.. _observability_export:
+
+Observability Export
+--------------------
+
+To export consensus protocol traces (not ordinary console logs), add the experimental ``observability.fluentd`` array to your node configuration and restart the node.
+Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticated and unencrypted.
+
+.. code-block:: json
+
+    {
+      "observability": {
+        "fluentd": [
+          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag-prefix-allow-list": ["ccf"] },
+          { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking", "tag-prefix-allow-list": ["ccf.cft"] }
+        ]
+      }
+    }
+
+Set ``tag-prefix-allow-list`` per collector to a list of literal, case-sensitive prefixes; an event is selected if its tag starts with any listed prefix.
+``["ccf"]`` selects all CCF tags; ``["ccf.cft"]`` selects consensus traces.
+Omitting ``tag-prefix-allow-list`` defaults to ``[""]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
+Prefixes have no dot-boundary requirement and do not support wildcards or regular expressions.
+Matching multiple prefixes within one collector entry does not duplicate events; an event matching multiple collectors is sent to each.
+Excluded events do not count as dropped for that collector.
+Omit the array or leave it empty to disable export.
+
+Choose a ``delivery`` policy per collector:
+
+- ``buffered-best-effort`` (default): retain queued records while the collector is unavailable or cannot accept data.
+- ``unbuffered-non-blocking``: drop queued records when the collector is unavailable or cannot accept data.
+
+Optional ``queue_capacity`` on each array entry defaults to 4096 records per node thread.
+Full queues drop new records under either policy; larger queues use more memory.
+
+Both policies retain one in-flight record for retry, but delivery is not guaranteed and retries can produce duplicates.
+Shutdown attempts to drain all collectors for up to two seconds, then drops remaining records; blocked console output can delay shutdown.
+
 
 IPv6 Addresses
 --------------
