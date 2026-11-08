@@ -3,6 +3,7 @@ module
 public import Consensus.Model
 public import CCF.Execution
 
+import CCF.Lemma
 import Consensus.Proofs.Direct
 import Consensus.Proofs.SafetyInvariant
 import Consensus.Proofs.Witnesses
@@ -15,6 +16,8 @@ exhibiting a nontrivial execution relevant to that property.
 -/
 
 namespace Consensus.Properties
+
+open CCF (Finset)
 
 abbrev GlobalTrace (config : Finset Model.Node.NodeID) (nodes : List Model.Node.NodeID) :=
   CCF.Execution.Trace (Model.transitionSystem config nodes)

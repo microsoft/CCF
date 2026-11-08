@@ -220,7 +220,6 @@ Lean is pinned by ``lean/kv/lean-toolchain`` and is independent of normal CCF bu
 .. code-block:: bash
 
    cd lean/kv
-   lake exe cache get
    lake build --wfail
    cd ../..
    cmake -S . -B build-kv-trace -GNinja \

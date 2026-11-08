@@ -1,9 +1,8 @@
 module
 
 public import CCF.TransitionSystem
-public import Mathlib.Data.Seq.Defs
+public import CCF.Seq
 
-import Mathlib.Data.Seq.Basic
 import Std.Tactic.BVDecide.Normalize.Prop
 
 @[expose] public section
@@ -33,13 +32,13 @@ structure TraceImpl (system : TransitionSystem) where
   /-- The initial state. -/
   init : system.State
   /-- Each action is paired with the state it reaches. -/
-  steps : Stream'.Seq (system.Action × system.State)
+  steps : CCF.Seq (system.Action × system.State)
 
 /-- The initial state is allowed and each recorded action reaches its paired state. -/
 def TraceImpl.Valid {system : TransitionSystem} (trace : TraceImpl system) : Prop :=
   system.init trace.init
   /\ forall n before action,
-      (Stream'.Seq.cons trace.init (trace.steps.map Prod.snd)).get? n = some before
+      (CCF.Seq.cons trace.init (trace.steps.map Prod.snd)).get? n = some before
       -> (trace.steps.map Prod.fst).get? n = some action
       -> system.step before action = (trace.steps.map Prod.snd).get? n
 
@@ -50,13 +49,11 @@ abbrev Trace (system : TransitionSystem) :=
 namespace Trace
 
 /-- The visited states, initial state first. -/
-def states {system : TransitionSystem} (trace : Trace system)
-    : Stream'.Seq system.State :=
-  Stream'.Seq.cons trace.val.init (trace.val.steps.map Prod.snd)
+def states {system : TransitionSystem} (trace : Trace system) : CCF.Seq system.State :=
+  CCF.Seq.cons trace.val.init (trace.val.steps.map Prod.snd)
 
 /-- The actions recorded by the execution. -/
-def actions {system : TransitionSystem} (trace : Trace system)
-    : Stream'.Seq system.Action :=
+def actions {system : TransitionSystem} (trace : Trace system) : CCF.Seq system.Action :=
   trace.val.steps.map Prod.fst
 
 /-- The state at an index, or `none` beyond a finite trace. -/
@@ -74,7 +71,7 @@ def actionAt {system : TransitionSystem} (trace : Trace system) (n : Nat)
 /-- The first state exists and is initial. -/
 theorem valid_init {system : TransitionSystem} (trace : Trace system)
     : exists initial, trace.stateAt 0 = some initial /\ system.init initial :=
-  ⟨trace.val.init, Stream'.Seq.get?_cons_zero _ _, trace.property.1⟩
+  ⟨trace.val.init, CCF.Seq.get?_cons_zero _ _, trace.property.1⟩
 
 /-- Each recorded action executes the corresponding transition. -/
 theorem valid_step {system : TransitionSystem} (trace : Trace system)
@@ -102,13 +99,13 @@ theorem mem_states {system : TransitionSystem} {trace : Trace system}
 theorem mem_iff_exists_stateAt {system : TransitionSystem} {trace : Trace system}
     {state : system.State}
     : state ∈ trace <-> exists n, some state = trace.stateAt n :=
-  Stream'.Seq.mem_iff_exists_get?
+  CCF.Seq.mem_iff_exists_get?
 
 /-- A state found at an index belongs to the trace. -/
 theorem stateAt_mem {system : TransitionSystem} {trace : Trace system}
     {n : Nat} {state : system.State} (found : trace.stateAt n = some state)
     : state ∈ trace :=
-  Stream'.Seq.get?_mem found
+  CCF.Seq.get?_mem found
 
 /-- Adjacent states are connected by the action recorded at their shared step. -/
 theorem step {system : TransitionSystem} (trace : Trace system) (n : Nat)
@@ -159,12 +156,12 @@ theorem reachable_iff_trace {system : TransitionSystem} {state : system.State}
             steps[i.val].1 = some steps[i.val].2 by
       obtain ⟨initial, steps, initialized, last, enabled⟩ := finite
       have indexed (n : Nat)
-          : (Stream'.Seq.cons initial ((Stream'.Seq.ofList steps).map Prod.snd)).get? n
+          : (CCF.Seq.cons initial ((CCF.Seq.ofList steps).map Prod.snd)).get? n
               = (initial :: steps.map Prod.snd)[n]? := by
         cases n <;> simp
       refine ⟨⟨{
         init := initial
-        steps := Stream'.Seq.ofList steps
+        steps := CCF.Seq.ofList steps
       }, initialized, ?_⟩, ?_⟩
       · intro n before action first chosen
         change (steps[n]?).map Prod.fst = some action at chosen

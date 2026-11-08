@@ -1,8 +1,9 @@
 module
 
 public import Consensus.Model
-public import Mathlib.Tactic.SplitIfs
 
+import CCF.Lemma
+import CCF.Order
 import all Init.Control.State
 
 public import Consensus.Model.Node
@@ -10,6 +11,7 @@ public import CCF.Execution
 
 namespace Consensus.Proofs.Config
 
+open CCF (Finset)
 open Model.Node
 
 /-- The initial membership passed to the model, possibly empty. -/
@@ -20,6 +22,7 @@ end Consensus.Proofs.Config
 
 namespace Consensus.Proofs.Config
 
+open CCF (Finset)
 open Model.Node
 section Initial
 variable [config : InitialConfiguration]
@@ -28,7 +31,7 @@ private abbrev INITIAL_CONFIGURATION : Finset NodeID := config.configuration
 
 /-- The smallest initial member, which the model makes the bootstrap primary.
 Meaningful only for a nonempty initial membership. -/
-private abbrev INITIAL_PRIMARY : NodeID := INITIAL_CONFIGURATION.min.untopD 0
+private abbrev INITIAL_PRIMARY : NodeID := INITIAL_CONFIGURATION.min?.getD 0
 
 /-- The unsigned bootstrap configuration transaction of the initial primary. -/
 private abbrev GENESIS : Entry :=
@@ -42,6 +45,7 @@ end Consensus.Proofs.Config
 
 namespace Consensus.Proofs.Config
 
+open CCF (Finset)
 open Model.Node
 
 /-- Collect the reconfiguration entries of a log with their one-based indices. -/
@@ -968,20 +972,23 @@ end Consensus.Proofs.Safety.Ctx
 
 namespace Consensus.Proofs.Config
 
+open CCF (Finset)
 open Model.Node
 section Initial
 variable [config : InitialConfiguration]
 
 private theorem initial_primary_iff (nonempty : INITIAL_CONFIGURATION.Nonempty)
     {node : NodeID}
-    : INITIAL_CONFIGURATION.min = (node : WithTop NodeID) <-> node = INITIAL_PRIMARY := by
-  rw [INITIAL_PRIMARY, ← Finset.coe_min' nonempty, WithTop.untopD_coe, WithTop.coe_inj]
+    : INITIAL_CONFIGURATION.min? = some node <-> node = INITIAL_PRIMARY := by
+  obtain ⟨least, found⟩ := Option.isSome_iff_exists.mp (Finset.min?_isSome nonempty)
+  simp only [INITIAL_PRIMARY, found, Option.getD_some, Option.some.injEq]
   exact eq_comm
 
 private theorem INITIAL_PRIMARY_mem (nonempty : INITIAL_CONFIGURATION.Nonempty)
     : INITIAL_PRIMARY ∈ INITIAL_CONFIGURATION := by
-  rw [INITIAL_PRIMARY, ← Finset.coe_min' nonempty, WithTop.untopD_coe]
-  exact Finset.min'_mem _ _
+  obtain ⟨least, found⟩ := Option.isSome_iff_exists.mp (Finset.min?_isSome nonempty)
+  simp only [INITIAL_PRIMARY, found, Option.getD_some]
+  exact Finset.min?_mem found
 
 private theorem GENESIS_configured : GENESIS.content.metadata.configuration.isSome := by
   simp [EntryContent.metadata]
@@ -1043,7 +1050,7 @@ private theorem step_deliver
                   network := removeOne envelope before.network ++ outputs.outgoing
               } := by
   simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
-  simp [Model.Node.step, Option.bind_eq_some_iff] at stepped
+  simp [Model.Node.step, Option.bind_eq_some_iff, guard] at stepped
   obtain ⟨queued, state, found, next, outputs, ran, rfl⟩ := stepped
   exact ⟨queued, state, next, outputs, found, ran, by simp [replaceNode]⟩
 
@@ -1252,10 +1259,10 @@ private lemma maxCommittableIndexPositiveIsSignature
             exact Or.inr headValid
           · by_cases bestLeHead : best <= head
             · right
-              simpa [max_eq_right bestLeHead] using headValid
+              simpa [Nat.max_eq_right bestLeHead] using headValid
             · right
               have headLeBest : head <= best := Nat.le_of_lt (Nat.lt_of_not_le bestLeHead)
-              simpa [max_eq_left headLeBest] using bestIsValid
+              simpa [Nat.max_eq_left headLeBest] using bestIsValid
         · simp [headValid, bestValid]
   have resultValid :=
     foldValid (List.range (log.length + 1)) 0 (Or.inl rfl)
@@ -1288,14 +1295,14 @@ private lemma signatureIndex_le_maxCommittableIndex
     induction values with
     | nil =>
         intro best
-        exact le_rfl
+        exact Nat.le.refl
     | cons head tail inductionHypothesis =>
         intro best
-        apply le_trans (b := choose best head)
+        apply Nat.le_trans (m := choose best head)
         · simp only [choose]
           split
           · exact Nat.le_max_left _ _
-          · exact Nat.le_refl _
+          · exact Nat.le.refl
         · exact inductionHypothesis (choose best head)
   have foldContains :
       forall (values : List Nat) (best : Nat),
@@ -1314,7 +1321,7 @@ private lemma signatureIndex_le_maxCommittableIndex
               choose best index = max best index := by
             simp [choose, signature]
           rw [selected]
-          exact (le_max_right best index).trans (foldAboveStart tail (max best index))
+          exact (Nat.le_max_right best index).trans (foldAboveStart tail (max best index))
         · exact
             inductionHypothesis
               (choose best head) tailMember
@@ -1459,7 +1466,9 @@ private lemma NodeState.recordCommit_commitIndex (node : NodeID) (state : NodeSt
 private lemma maxCommittableIndexUpTo_mono {left right : List Entry}
     (isPrefix : left <+: right) (frontier : Nat)
     : maxCommittableIndexUpTo left frontier <= maxCommittableIndexUpTo right frontier :=
-  maxCommittableIndex_le_of_prefix (isPrefix.take frontier)
+  maxCommittableIndex_le_of_prefix
+    (List.prefix_take_iff.mpr
+      ⟨(List.take_prefix _ _).trans isPrefix, List.length_take_le _ _⟩)
 
 /-- The follower append loop changes only the log, commit and retirement
 fields, and may clear the role. -/
@@ -1498,8 +1507,8 @@ private lemma fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entr
         state.primaryKnown,
         by simp,
         Or.inl rfl,
-        le_rfl,
-        le_max_left _ _
+        Nat.le.refl,
+        Nat.le_max_left _ _
       ⟩
   | cons entry entries ih =>
       intro state
@@ -2009,6 +2018,7 @@ end Consensus.Proofs.Safety
 namespace Consensus.Proofs.Safety
 
 set_option linter.unusedSectionVars false
+open CCF (Finset)
 open Model.Node
 
 private theorem take_eq_of_prefix {α : Type} {small large : List α} {n : Nat}
@@ -2142,7 +2152,7 @@ private theorem acceptLog_eq {follower sender : List Entry}
     have senderOffset : sender.take (prev + offset) = sender.take prev ++ batch.take offset := by
       rw [List.take_add]
       congr 1
-      conv_rhs => rw [batchEq]
+      conv => rhs; rw [batchEq]
       rw [List.take_take, Nat.min_eq_left (Nat.le_of_lt offBatch)]
     rw [takeLength, Nat.add_sub_cancel_left, keptAgree, senderOffset,
       List.append_assoc, List.take_append_drop, ← senderTake]
@@ -2204,8 +2214,8 @@ private theorem acceptLog_eq {follower sender : List Entry}
         · have pos : 0 < follower.length := Nat.lt_of_le_of_lt (Nat.zero_le _) ahead
           have fs : follower.length <= sender.length :=
             Nat.le_of_lt (Nat.lt_of_lt_of_le (Nat.lt_of_not_le long) batchBound)
-          have := aligned follower.length pos le_rfl fs (by
-            rw [termAt_eq pos le_rfl, termAt_eq pos fs]
+          have := aligned follower.length pos Nat.le.refl fs (by
+            rw [termAt_eq pos Nat.le.refl, termAt_eq pos fs]
             have eq : prev + (follower.length - 1 - prev) = follower.length - 1 :=
               Nat.add_sub_of_le (Nat.le_sub_one_of_lt ahead)
             have lastLt : prev + (follower.length - 1 - prev) < follower.length := by
@@ -2216,7 +2226,7 @@ private theorem acceptLog_eq {follower sender : List Entry}
                 (Nat.lt_trans lastLt (Nat.lt_of_not_le long)))
               lastLt
             simpa only [eq] using this)
-          rwa [List.take_of_length_le le_rfl] at this
+          rwa [List.take_of_length_le Nat.le.refl] at this
       have differ : Not (follower.take (prev + batch.length)
           = sender.take (prev + batch.length)) := by
         intro same
@@ -2233,7 +2243,7 @@ private theorem acceptLog_eq {follower sender : List Entry}
         rw [senderTake, List.take_append, List.length_take, Nat.min_eq_left prevSender,
           List.take_of_length_le (Nat.le_trans (List.length_take_le _ _) prevBound)] at viaTake
         exact viaTake
-      nth_rewrite 1 [followerEq]
+      rw (occs := .pos [1]) [followerEq]
       rw [List.append_assoc, List.take_append_drop, senderTake]
 
 private theorem mem_history_filterMap {log : List Entry} {start : Nat}
@@ -2263,7 +2273,7 @@ private theorem configurationHistory_split (log : List Entry) (k : Nat)
         fun nodes => ({ index, nodes } : Configuration),
     ?_, ?_⟩
   · unfold configurationHistory
-    conv_lhs => rw [split]
+    conv => lhs; rw [split]
     rw [List.zipIdx_append, List.filterMap_append]
   · intro configuration member
     have := mem_history_filterMap member
@@ -2312,9 +2322,9 @@ private theorem length_filter_index_mono (configurations : List Configuration)
     : (configurations.filter fun configuration => configuration.index <= small).length
       <= (configurations.filter
             fun configuration => configuration.index <= large).length := by
-  apply List.Sublist.length_le
-  apply List.monotone_filter_right
-  intro configuration holds
+  simp only [← List.countP_eq_length_filter]
+  apply List.countP_mono_left
+  intro configuration _ holds
   simp at holds ⊢
   exact Nat.le_trans holds le
 
@@ -2397,7 +2407,7 @@ private theorem chosen_bound {configurations : List Configuration}
     · simp at positive
     · simp only [chosen, Nat.eq_zero_of_not_pos counted, Nat.zero_sub, List.getElem_cons_zero]
       rcases List.mem_cons.mp member with rfl | later
-      · exact le_rfl
+      · exact Nat.le.refl
       · exact ((List.pairwise_cons.mp sorted).1 other later).le
 
 /--
@@ -2419,7 +2429,8 @@ private theorem activeConfigurations_overlap {left right : List Entry}
   obtain ⟨leftRest, leftEq, leftLater⟩ := configurationHistory_split left k
   obtain ⟨rightRest, rightEq, rightLater⟩ := configurationHistory_split right k
   rw [agree] at leftEq
-  set common := configurationHistory (right.take k)
+  have sorted := configurationHistory_sorted (right.take k)
+  generalize configurationHistory (right.take k) = common at leftEq rightEq configured sorted ⊢
   have commonPos : 0 < common.length := List.length_pos_iff.mpr configured
   have count : forall {log : List Entry} {rest commit},
       configurationHistory log = common ++ rest
@@ -2449,19 +2460,18 @@ private theorem activeConfigurations_overlap {left right : List Entry}
   rw [count leftEq leftLater leftLe, count rightEq rightLater rightLe]
   have leftBound := length_filter_le common leftCommit
   have rightBound := length_filter_le common rightCommit
-  have sorted := configurationHistory_sorted (right.take k)
   have last : common.length - 1 < common.length := Nat.sub_one_lt (Nat.ne_of_gt commonPos)
   rcases Nat.le_total leftCommit rightCommit with ordered | ordered
   · have mono := length_filter_index_mono common ordered
     have chosenLt := Nat.lt_of_le_of_lt (Nat.sub_le_sub_right rightBound 1) last
     refine ⟨common[_ - 1]'chosenLt, inDrop chosenLt leftEq (Nat.sub_le_sub_right mono 1),
-      inDrop chosenLt rightEq le_rfl, ?_⟩
+      inDrop chosenLt rightEq Nat.le.refl, ?_⟩
     rcases chosen_bound sorted rightCommit commonPos with within | first
     · exact Or.inl (within.trans (Nat.le_max_right _ _))
     · exact Or.inr first
   · have mono := length_filter_index_mono common ordered
     have chosenLt := Nat.lt_of_le_of_lt (Nat.sub_le_sub_right leftBound 1) last
-    refine ⟨common[_ - 1]'chosenLt, inDrop chosenLt leftEq le_rfl,
+    refine ⟨common[_ - 1]'chosenLt, inDrop chosenLt leftEq Nat.le.refl,
       inDrop chosenLt rightEq (Nat.sub_le_sub_right mono 1), ?_⟩
     rcases chosen_bound sorted leftCommit commonPos with within | first
     · exact Or.inl (within.trans (Nat.le_max_left _ _))
@@ -2671,12 +2681,13 @@ private theorem CommitFrontier.advance {state : NodeState}
           state with
             log, commitIndex := max state.commitIndex (maxCommittableIndexUpTo log bound)
         } := by
-  refine ⟨max_le extends_.1 (maxCommittableIndexUpTo_le_length log bound), fun positive => ?_⟩
+  refine ⟨Nat.max_le.mpr ⟨extends_.1, maxCommittableIndexUpTo_le_length log bound⟩,
+    fun positive => ?_⟩
   simp only at positive ⊢
   rcases Nat.le_total state.commitIndex (maxCommittableIndexUpTo log bound) with le | le
-  · rw [max_eq_right le] at positive ⊢
+  · rw [Nat.max_eq_right le] at positive ⊢
     exact maxCommittableIndexUpToPositiveIsSignature positive
-  · rw [max_eq_left le] at positive ⊢
+  · rw [Nat.max_eq_left le] at positive ⊢
     exact extends_.2 positive
 
 private theorem foldl_select_max (P : Nat -> Prop) [DecidablePred P] (values : List Nat)
@@ -2695,9 +2706,9 @@ private theorem foldl_select_max (P : Nat -> Prop) [DecidablePred P] (values : L
         by_cases chosen : P head
         · rcases Nat.le_total init head with le | le
           · right
-            simp [chosen, max_eq_right le]
+            simp [chosen, Nat.max_eq_right le]
           · left
-            simp [chosen, max_eq_left le]
+            simp [chosen, Nat.max_eq_left le]
         · simp [chosen]
       · exact Or.inr holds
 
@@ -3031,7 +3042,7 @@ private theorem Extends.committedLog {before after : NodeState}
   List.prefix_take_iff.mpr ⟨extended.2, (List.length_take_le _ _).trans extended.1⟩
 
 private theorem Extends.refl (state : NodeState) : Extends state state :=
-  ⟨le_rfl, List.take_prefix _ _⟩
+  ⟨Nat.le.refl, List.take_prefix _ _⟩
 
 private theorem Extends.trans {first second third : NodeState}
     (left : Extends first second) (right : Extends second third)
@@ -3055,7 +3066,7 @@ private theorem Extends.of_log {before after : NodeState}
 
 private theorem Extends.append {state : NodeState} (entry : Entry)
     : Extends state { state with log := state.log ++ [entry] } :=
-  ⟨le_rfl, (List.take_prefix _ _).trans (List.prefix_append _ _)⟩
+  ⟨Nat.le.refl, (List.take_prefix _ _).trans (List.prefix_append _ _)⟩
 
 end Consensus.Proofs.Direct
 
@@ -3074,7 +3085,7 @@ private theorem Extends.fromLeader
   obtain ⟨retired, role, known, eq, -⟩ :=
     Ledger.handleAppendEntiresFromPrimary_eq self state request
   rw [eq]
-  exact ⟨le_max_left _ _, (List.take_prefix _ _).trans (List.prefix_append _ _)⟩
+  exact ⟨Nat.le_max_left _ _, (List.take_prefix _ _).trans (List.prefix_append _ _)⟩
 
 private theorem Extends.handleAppendEntriesRequest (caps : Caps) (source : NodeID)
     : Keeps (Extends state)
@@ -3109,7 +3120,7 @@ private theorem Extends.handleAppendEntriesRequest (caps : Caps) (source : NodeI
           primaryKnown := true, log := current.log.take (index - 1), isNewFollower := false
       } :=
       Extends.of_prefix (count := index - 1)
-        (Nat.le_trans within (Nat.le_sub_of_add_le this)) (List.prefix_refl _) le_rfl
+        (Nat.le_trans within (Nat.le_sub_of_add_le this)) (List.prefix_refl _) Nat.le.refl
     exact Keeps.seq' fun _ => Keeps.pure' ((stepped.trans truncated).trans Extends.fromLeader)
 
 end AppendEntries
@@ -3170,7 +3181,7 @@ private theorem Extends.becomePrimary (state : NodeState)
       } := by
     split
     · exact Extends.of_prefix (by unfold lastCommittableIndex; exact Nat.le_max_left _ _)
-        (List.prefix_refl _) le_rfl
+        (List.prefix_refl _) Nat.le.refl
     · exact Extends.of_log rfl rfl
   exact Keeps.bind' (Extends.advanced caps self _) fun _ kept =>
     Keeps.seq' fun _ => Keeps.pure' (promoted.trans kept)
@@ -3553,7 +3564,7 @@ private theorem becomePrimary_sends (candidate : NodeState)
     have sentEq : leader.sentIndex peer = leader.log.length := by
       rw [advance.sentIndex, advance.log]
       simp [primaryState]
-    refine ⟨rfl, other, _, rfl, rfl, ?_, rfl, ?_, le_rfl⟩ <;>
+    refine ⟨rfl, other, _, rfl, rfl, ?_, rfl, ?_, Nat.le.refl⟩ <;>
       simp [makeAppendEntriesRequest, sentEq, messageEntries]
   · intro e member
     rcases List.mem_append.mp (by simpa using member) with old | new
@@ -3744,7 +3755,7 @@ private theorem observe_bumping (before : NodeState) {message : Message}
     cases message <;>
       simp_all [Bumping, observeTerm, updateTerm, becomeAwareOfNewTerm, bumpedState]
   · refine Or.inr ⟨Nat.not_lt.mp bump, ?_⟩
-    cases message <;> simp_all [Bumping, observeTerm, updateTerm]
+    cases message <;> simp_all [Bumping, observeTerm, updateTerm, Nat.not_lt_of_le]
 
 end Consensus.Proofs.Safety
 
@@ -3788,7 +3799,7 @@ private theorem checkQuorum_summary (state : NodeState) (input : Input)
   refine Sends.bind' Sends.guard' fun _ sent ⟨⟨leader, _⟩, empty⟩ => Sends.pure' ?_
   subst empty
   refine ⟨
-    le_rfl,
+    Nat.le.refl,
     fun _ voted eq => eq,
     fun _ => Or.inl (by rw [leader]; simp),
     fun c => by simp at c,
@@ -3831,7 +3842,7 @@ private theorem sendEntries_summary (state : NodeState) (destination : NodeID)
     simp [eligiblePeers] at peer; exact peer.1
   refine ⟨
     rfl,
-    ⟨other, rfl, le.trans bound, rfl, ?_, le_rfl⟩,
+    ⟨other, rfl, le.trans bound, rfl, ?_, Nat.le.refl⟩,
     by simp [leader],
     Or.inl ⟨leader, rfl⟩
   ⟩
@@ -3853,7 +3864,7 @@ private theorem startElection_summary (state : NodeState)
       campaign_summary (fresh_campaign notNone rfl rfl rfl) result
   · refine Sends.bind' (broadcast_sends self _ _) fun _ sent requests => Sends.pure' ?_
     simp only [List.append_nil]
-    refine ⟨le_rfl, fun _ voted eq => eq, fun _ => Or.inl notNone, fun c => by simp at c,
+    refine ⟨Nat.le.refl, fun _ voted eq => eq, fun _ => Or.inl notNone, fun c => by simp at c,
       fun c => by simp at c, fun c => by simp at c, Kind.same rfl rfl, fun e member => ?_⟩
     obtain ⟨source, _, payload⟩ := requests e member
     refine ⟨source, ?_⟩
@@ -3877,7 +3888,7 @@ private theorem voteRequest_summary (before : NodeState) (source : NodeID)
         Event.receive source (Message.requestVoteRequest request)
           = (Event.receive source' message : Event)
         /\ Bumping message /\ message.term <= (bumpedState before request.term).currentTerm :=
-      ⟨source, _, rfl, trivial, le_refl _⟩
+      ⟨source, _, rfl, trivial, Nat.le.refl⟩
     split <;> rename_i granted <;> simp only [decide_eq_true_eq] at granted
     · refine bumped_summary bump (by simp [bumpedState]) (by simp [bumpedState]) active
         (Kind.same rfl rfl) fun e member => ?_
@@ -3898,7 +3909,7 @@ private theorem voteRequest_summary (before : NodeState) (source : NodeID)
         /\ Bumping message /\ message.term <= before.currentTerm :=
       ⟨source, _, rfl, trivial, le⟩
     split <;> rename_i granted <;> simp only [decide_eq_true_eq] at granted
-    · refine ⟨le_rfl, fun _ voted votedEq => ?_, fun _ => Or.inr (Or.inr active),
+    · refine ⟨Nat.le.refl, fun _ voted votedEq => ?_, fun _ => Or.inr (Or.inr active),
         fun candidate => ⟨candidate, rfl, rfl, Or.inr ⟨candidate, rfl, ?_,
           fun voter member => Or.inl member⟩⟩,
         fun leader => Or.inl ⟨leader, rfl⟩, fun _ _ _ _ => Or.inl rfl, Kind.same rfl rfl,
@@ -3933,7 +3944,7 @@ private theorem preVoteRequest_summary (before : NodeState) (source : NodeID)
     refine Sends.bind' (Sends.send _ _ _) fun _ sent eq => Sends.pure' ?_ <;>
     subst eq
   · refine bumped_summary bump (by simp [bumpedState]) (by simp [bumpedState])
-      ⟨source, _, rfl, trivial, le_refl _⟩ (Kind.same rfl rfl) fun e member => ?_
+      ⟨source, _, rfl, trivial, Nat.le.refl⟩ (Kind.same rfl rfl) fun e member => ?_
     simp only [List.mem_singleton, List.append_nil] at member
     subst member
     exact ⟨rfl, rfl⟩
@@ -4001,7 +4012,7 @@ private theorem voteResponse_summary (before : NodeState) (source : NodeID)
     with ⟨bump, eq⟩ | ⟨le, eq⟩ <;> rw [eq] <;> simp only [handleRequestVoteResponse]
   · refine Sends.ite' (fun won => absurd won.1 (by simp [bumpedState])) fun _ =>
       Sends.pure' (bumped_summary bump (by simp [bumpedState]) (by simp [bumpedState])
-        ⟨source, _, rfl, trivial, le_refl _⟩ (Kind.same rfl rfl) (by simp))
+        ⟨source, _, rfl, trivial, Nat.le.refl⟩ (Kind.same rfl rfl) (by simp))
   · refine Sends.ite' (fun won => ?_) fun _ =>
       Sends.pure' (quiet_summary rfl rfl rfl rfl rfl rfl rfl
         (fun empty => (empty rfl).elim) (by simp))
@@ -4033,7 +4044,7 @@ private theorem preVoteResponse_summary (before : NodeState) (source : NodeID)
     with ⟨bump, eq⟩ | ⟨le, eq⟩ <;> rw [eq] <;> simp only [handleRequestPreVoteResponse]
   · refine Sends.ite' (fun won => absurd won.1 (by simp [bumpedState])) fun _ =>
       Sends.pure' (bumped_summary bump (by simp [bumpedState]) (by simp [bumpedState])
-        ⟨source, _, rfl, trivial, le_refl _⟩ (Kind.same rfl rfl) (by simp))
+        ⟨source, _, rfl, trivial, Nat.le.refl⟩ (Kind.same rfl rfl) (by simp))
   · refine Sends.ite' (fun won => ?_) fun _ =>
       Sends.pure' (quiet_summary rfl rfl rfl rfl rfl rfl rfl
         (fun empty => (empty rfl).elim) (by simp))
@@ -4109,7 +4120,7 @@ private theorem appendEntriesResponse_summary (before : NodeState) (source : Nod
       by_cases same : peer = source
       · subst same
         simp only [Function.update_self]
-        rcases max_choice (before.matchIndex peer) response.lastLogIndex with eq | eq <;>
+        rcases CCF.max_choice (before.matchIndex peer) response.lastLogIndex with eq | eq <;>
           rw [eq]
         · exact Or.inl rfl
         · exact Or.inr ⟨response, rfl, success, term, rfl⟩
@@ -4206,8 +4217,10 @@ private theorem aeReply (self source : NodeID) (z : NodeState)
       (role : after.role = w.role \/ after.role = .none)
       (cand : after.role = .candidate -> after = w) =>
     (⟨term.trans wTerm, voted.trans wVoted, matchEq.trans wMatch,
-      by rcases role with role | role <;> rw [role] <;> [rcases wRole with r | r; skip] <;>
-        simp [*],
+      by
+        rcases role with role | role <;> rw [role]
+        · rcases wRole with r | r <;> simp [*]
+        · simp [*],
       fun c => (cand c).trans (wCand (by
         rcases role with role | role <;> rw [role] at c
         · exact c
@@ -4328,7 +4341,7 @@ private theorem appendEntriesRequest_summary (self : NodeID) (before : NodeState
   simp only [receive]
   rcases observe_bumping before (message := .appendEntriesRequest request) trivial
     with ⟨bump, eq⟩ | ⟨le, eq⟩ <;> rw [eq]
-  · refine Sends.mono (aeReply self source _ request (le_refl _)) fun after sent reply => ?_
+  · refine Sends.mono (aeReply self source _ request (Nat.le.refl)) fun after sent reply => ?_
     obtain ⟨kind, sends⟩ := aeReply_summary (before := before) (z := bumpedState before request.term) rfl rfl
       bump.le reply
     obtain ⟨term, _, _, role, _, _⟩ := reply
@@ -4336,9 +4349,9 @@ private theorem appendEntriesRequest_summary (self : NodeID) (before : NodeState
       rcases role with eq | eq | eq <;> rw [eq] <;> simp [bumpedState]
     exact bumped_summary (term ▸ bump) (by rcases follower with f | f <;> simp [f])
       (by rcases follower with f | f <;> simp [f])
-      ⟨source, _, rfl, trivial, term ▸ le_refl _⟩ kind sends
+      ⟨source, _, rfl, trivial, term ▸ Nat.le.refl⟩ kind sends
   · refine Sends.mono (aeReply self source _ request le) fun after sent reply => ?_
-    obtain ⟨kind, sends⟩ := aeReply_summary (before := before) rfl rfl le_rfl reply
+    obtain ⟨kind, sends⟩ := aeReply_summary (before := before) rfl rfl Nat.le.refl reply
     obtain ⟨term, voted, matchEq, role, cand, _⟩ := reply
     refine ⟨term.ge, fun _ voted' eq => voted ▸ eq,
       fun _ => Or.inr (Or.inr ⟨source, _, rfl, trivial, term ▸ le⟩), fun c => ?_,
@@ -4360,7 +4373,7 @@ private theorem BatchState.push {self : NodeID} {before state : NodeState}
   obtain ⟨⟨entries, sentIndex, rfl, terms⟩, beats⟩ := batch
   refine ⟨
     ⟨entries ++ [{ term := before.currentTerm, content }], sentIndex, by simp, ?_⟩,
-    fun e member => (beats e member).extend (List.prefix_append _ _) le_rfl
+    fun e member => (beats e member).extend (List.prefix_append _ _) Nat.le.refl
   ⟩
   intro entry member
   rcases List.mem_append.mp member with old | new
@@ -4391,9 +4404,9 @@ private theorem appendEntry_batch (self : NodeID) (before : NodeState)
       · refine Sends.bind' (Sends.send _ _ _) fun _ sent eq => Sends.pure' fun e member' => ?_
         simp only [eq, List.append_nil, List.mem_singleton] at member'
         subst member'
-        have added := (Finset.mem_sort _).mp member
+        have added := Finset.mem_sort.mp member
         have other : Not (peer = self) := (Finset.mem_erase.mp added).1
-        refine ⟨rfl, other, _, rfl, rfl, ?_, ?_, ?_, le_rfl⟩ <;>
+        refine ⟨rfl, other, _, rfl, rfl, ?_, ?_, ?_, Nat.le.refl⟩ <;>
           simp only [makeAppendEntriesRequest, ite_eq_left added, messageEntries] <;> simp
       · have batch : BatchState self before
             { before with
@@ -4425,7 +4438,7 @@ private theorem sendEntries_batch (self : NodeID) (before state : NodeState)
   · simp only [eq, List.mem_singleton] at new
     subst e
     have other : Not (destination = self) := (Finset.mem_erase.mp peer).1
-    exact ⟨rfl, other, _, rfl, rfl, le.trans bound, rfl, List.take_prefix _ _, le_rfl⟩
+    exact ⟨rfl, other, _, rfl, rfl, le.trans bound, rfl, List.take_prefix _ _, Nat.le.refl⟩
 
 private theorem appendBatch_summary (self : NodeID) (state : NodeState)
     (contents : List AppendEntryInput)
@@ -4634,7 +4647,7 @@ private theorem Seen.cons {current : Model.State} {rest : History}
 private theorem suffix_comparable {α : Type} {first second whole : List α}
     (left : first <:+ whole) (right : second <:+ whole)
     : first <:+ second \/ second <:+ first := by
-  rcases le_total first.length second.length with le | le
+  rcases Nat.le_total first.length second.length with le | le
   · exact Or.inl (List.suffix_of_suffix_length_le left right le)
   · exact Or.inr (List.suffix_of_suffix_length_le right left le)
 
@@ -4729,7 +4742,8 @@ private theorem inv_initial : Inv [initial] := by
   · intro node state now active
     rw [stateOf now] at active ⊢
     simp only [initialLocal] at active ⊢
-    split_ifs at active ⊢ <;> simp_all [BOOTSTRAP_TERM]
+    by_cases primary : node = INITIAL_PRIMARY <;> by_cases member : node ∈ INITIAL_CONFIGURATION
+      <;> simp_all [BOOTSTRAP_TERM]
   · intro node state earlier now seen
     rw [stateOf now, initial_seen initialized seen]
   · intro node state earlier candidate now seen voted
@@ -4751,7 +4765,8 @@ private theorem inv_initial : Inv [initial] := by
   · intro node state now candidate
     rw [stateOf now] at candidate
     simp only [initialLocal] at candidate
-    split_ifs at candidate
+    by_cases primary : node = INITIAL_PRIMARY <;> by_cases member : node ∈ INITIAL_CONFIGURATION
+      <;> simp [primary, member] at candidate
   · intro after before rest node term log commit suffix
     have := suffix.length_le
     simp at this
@@ -4911,7 +4926,7 @@ private theorem termAt_mono {log : List Entry}
     exact Nat.zero_le _
   rw [termAt_eq positive (le.trans bound), termAt_eq (Nat.lt_of_lt_of_le positive le) bound]
   rcases Nat.eq_or_lt_of_le le with rfl | lt
-  · exact le_rfl
+  · exact Nat.le.refl
   · exact List.pairwise_iff_getElem.mp sorted _ _ _ _
       (Nat.sub_lt_sub_right (Nat.succ_le_of_lt positive) lt)
 
@@ -4949,7 +4964,7 @@ private theorem take_signature {log : List Entry} {index : Nat}
     (signature : isSignatureAt log index = true)
     : isSignatureAt (log.take index) (log.take index).length = true := by
   rw [List.length_take, Nat.min_eq_left (signature_bound signature)]
-  exact isSignatureAt_take_of_le le_rfl signature
+  exact isSignatureAt_take_of_le Nat.le.refl signature
 
 private theorem Led.two_le {history : History} {node : NodeID} {term : Nat}
     (led : Led history node term)
@@ -5099,7 +5114,7 @@ private theorem Committed.signature {history : History} {term : Nat}
     _⟩ := committed.shape
   refine ⟨take_signature signature, ?_, led.two_le⟩
   rw [List.length_take, Nat.min_eq_left (signature_bound signature),
-    termAt_take le_rfl, termEq]
+    termAt_take Nat.le.refl, termEq]
 
 /-- A part committed in a term is in every later leader log. -/
 private theorem committed_in_canon {history : History} (complete : Completeness history)
@@ -5142,7 +5157,7 @@ private theorem committed_comparable {history : History}
       · exact comparable_of_prefix (List.take_prefix _ _) ((List.take_prefix _ _).trans sub)
     · exact comparable_of_prefix (committed_in_canon complete mono committed canon' lt)
         (List.take_prefix _ _)
-  rcases le_total first second with le | le
+  rcases Nat.le_total first second with le | le
   · exact inCanon leftCommitted rightCommitted le
   · exact (inCanon rightCommitted leftCommitted le).symm
 
@@ -5177,7 +5192,7 @@ private theorem Wins.facts {self : NodeID} {before' : NodeState} {event : Event}
     rw [← this]
     exact quorum
   rcases advance with rfl | ⟨log, term, voted, matchEq, _, _, lt, _, role⟩
-  · exact ⟨rfl, rfl, rfl, fun _ => rfl, Or.inl rfl, le_rfl⟩
+  · exact ⟨rfl, rfl, rfl, fun _ => rfl, Or.inl rfl, Nat.le.refl⟩
   · refine ⟨log, term, voted, fun peer => by rw [matchEq]; rfl, ?_, ?_⟩
     · rcases role with role | role
       · exact Or.inl role
@@ -5386,11 +5401,11 @@ private theorem vals_upToDate {state : NodeState} (term : Nat)
     : voteLogUpToDate state (vals term state.log state.commitIndex) := by
   have mono : maxCommittableTerm state.log
       <= termAt state.log (max state.commitIndex (maxCommittableIndex state.log)) :=
-    termAt_mono sorted (le_max_right _ _)
-      (max_le frontier (maxCommittableIndexBounded state.log))
+    termAt_mono sorted (Nat.le_max_right _ _)
+      (Nat.max_le.mpr ⟨frontier, maxCommittableIndexBounded state.log⟩)
   rcases Nat.lt_or_eq_of_le mono with lt | eq
   · exact Or.inl lt
-  · exact Or.inr ⟨eq.symm, le_max_right _ _⟩
+  · exact Or.inr ⟨eq.symm, Nat.le_max_right _ _⟩
 
 end Consensus.Proofs.Safety
 
@@ -5573,7 +5588,7 @@ private theorem term_mono : TermMono (after :: before :: rest) := by
   rcases c.now_after now with ⟨rfl, rfl⟩ | ⟨different, old⟩
   · rcases c.seen_after seen with seen | ⟨_, rfl⟩
     · exact (c.inv.term_mono c.actor c.pre earlier c.pre_now seen).trans c.term_le
-    · exact le_rfl
+    · exact Nat.le.refl
   · rcases c.seen_after seen with seen | ⟨same, _⟩
     · exact c.inv.term_mono node state earlier old seen
     · exact absurd same different
@@ -5690,7 +5705,7 @@ private theorem wins_elect (wins : Wins c.actor c.pre c.event c.post)
     · rw [candidateLog]
       exact take_prefix_take _ (by
         simp only [lastCommittableIndex, candidateLog]
-        exact le_max_right _ _)
+        exact Nat.le_max_right _ _)
     · rw [candidateLog]
       exact List.take_prefix _ _
   · intro voter mem
@@ -5864,9 +5879,9 @@ private theorem core {small large : History} (within : small <:+ large)
   have partLength : (state.log.take index).length = index := by
     rw [List.length_take, Nat.min_eq_left indexLe]
   have partSignature : isSignatureAt (state.log.take index) index = true :=
-    isSignatureAt_take_of_le le_rfl signature
+    isSignatureAt_take_of_le Nat.le.refl signature
   have partTerm : termAt (state.log.take index) index = term := by
-    rw [termAt_take le_rfl, termAtIndex]
+    rw [termAt_take Nat.le.refl, termAtIndex]
   have ackerTake : acker.log.take index = state.log.take index :=
     (take_of_prefix_length ackerLog partLength).symm
   have ackerTerm' : termAt acker.log index = term := by
@@ -5893,11 +5908,11 @@ private theorem core {small large : History} (within : small <:+ large)
     exact this
   -- The election's last committable position.
   simp only [voteLogUpToDate, vals] at upToDate
-  set j := max commit (maxCommittableIndex log) with jEq
+  generalize jEq : max commit (maxCommittableIndex log) = j at upToDate ⊢
   have two : 2 <= term := by
     have := leaderLed.two_le
     exact this
-  have jBound : j <= log.length := max_le frontier (maxCommittableIndexBounded log)
+  have jBound : j <= log.length := jEq ▸ Nat.max_le.mpr ⟨frontier, maxCommittableIndexBounded log⟩
   have termGe : term <= termAt log j :=
     upToDate.elim (fun gt => Nat.le_trans maxTermGe (Nat.le_of_lt gt))
       (fun eq => Nat.le_trans maxTermGe (Nat.le_of_eq eq.1.symm))
@@ -5936,8 +5951,8 @@ private theorem core {small large : History} (within : small <:+ large)
       have mono := termAt_mono partSorted short.le partLength.ge
       have atJ : termAt (state.log.take index) j = termAt log j := by
         rw [← termAt_of_prefix sub (Nat.le_of_lt (Nat.lt_of_lt_of_eq short partLength.symm)),
-          ← termAt_take (n := j) le_rfl, ← anchoredTake,
-          termAt_take le_rfl]
+          ← termAt_take (n := j) Nat.le.refl, ← anchoredTake,
+          termAt_take Nat.le.refl]
       rw [atJ, partTerm] at mono
       exact Nat.lt_irrefl _ (Nat.lt_of_lt_of_le above mono)
     · exact viaAnchor long (Nat.le_trans long anchoredLength)
@@ -5981,15 +5996,15 @@ private theorem agree_or_contained {α : Type} {state log : List α}
             /\ (state.take index <+: part \/ part <+: state.take index))
     : state.take index <+: log
       \/ exists k, state.take k = log.take k /\ base <= k /\ commit <= k := by
-  rcases le_or_gt commit base with le | lt
+  rcases CCF.le_or_gt commit base with le | lt
   · exact Or.inr ⟨base, take_of_prefix_length (low le)
-      (List.length_take_of_le (Nat.le_trans baseLe indexLe)), le_rfl, le⟩
+      (List.length_take_of_le (Nat.le_trans baseLe indexLe)), Nat.le.refl, le⟩
   · obtain ⟨part, inPart, comparable⟩ := high lt
     have commitLength : (log.take commit).length = commit := List.length_take_of_le frontier
     have partLong : commit <= part.length := commitLength ▸ inPart.length_le
     have indexLength : (state.take index).length = index := List.length_take_of_le indexLe
-    rcases le_or_gt commit index with le | short
-    · refine Or.inr ⟨commit, ?_, lt.le, le_rfl⟩
+    rcases CCF.le_or_gt commit index with le | short
+    · refine Or.inr ⟨commit, ?_, lt.le, Nat.le.refl⟩
       calc
         state.take commit = (state.take index).take commit := by
           rw [List.take_take, Nat.min_eq_left le]
@@ -6116,7 +6131,7 @@ private theorem new_old_unique {node other : NodeID} {term commit : Nat}
     quorum', granted'⟩ := elect'
   have agreement : exists k, log.take k = log'.take k /\ commit <= k /\ commit' <= k := by
     rcases Nat.le_total commit' commit with le | le
-    · refine ⟨commit, ?_, le_rfl, le⟩
+    · refine ⟨commit, ?_, Nat.le.refl, le⟩
       rcases c.elect_backed after before rest node term log commit (List.suffix_refl _) elect with
         zero | ⟨_, part, committed, below, inPart⟩
       · rw [zero, List.take_zero, List.take_zero]
@@ -6125,7 +6140,7 @@ private theorem new_old_unique {node other : NodeID} {term commit : Nat}
           (Nat.lt_of_le_of_lt below (Nat.sub_lt (Nat.lt_of_lt_of_le (Nat.zero_lt_succ 2) three)
             Nat.one_pos))
         exact take_of_prefix_length (inPart.trans this) (List.length_take_of_le frontier)
-    · refine ⟨commit', ?_, le, le_rfl⟩
+    · refine ⟨commit', ?_, le, Nat.le.refl⟩
       rcases c.inv.elect_backed a b r other term log' commit' suffix elect' with
         zero | ⟨_, part, committed, below, inPart⟩
       · rw [zero, List.take_zero, List.take_zero]
@@ -6268,13 +6283,13 @@ private theorem anchor : Anchor (after :: before :: rest) := by
         c.inv.anchor c.actor c.pre index c.pre_now positive within
       have same := take_eq_take_of_comparable comparable within bound
       have termSame : termAt c.post.log index = termAt c.pre.log index := by
-        rw [← termAt_take (n := index) le_rfl, ← same, termAt_take le_rfl]
+        rw [← termAt_take (n := index) Nat.le.refl, ← same, termAt_take Nat.le.refl]
       rw [termSame, ← same]
       exact ⟨log, canon.mono c.suffix_tail, length, take⟩
     rcases c.post_log with sub | ⟨entries, log, terms, leader, term, notCandidate⟩
         | ⟨earlier, source, sender, n, suffix, canon, _, log⟩
     · exact viaPre (Or.inr sub) (bound.trans sub.length_le)
-    · rcases le_or_gt index c.pre.log.length with within | above
+    · rcases CCF.le_or_gt index c.pre.log.length with within | above
       · exact viaPre (Or.inl (log ▸ List.prefix_append _ _)) within
       · have termEq : termAt c.post.log index = c.post.currentTerm := by
           rw [log] at bound ⊢
@@ -6291,7 +6306,7 @@ private theorem anchor : Anchor (after :: before :: rest) := by
       obtain ⟨_, _, rfl⟩ := canon.1.nonempty
       obtain ⟨anchored, anchoredCanon, length, take⟩ :=
         c.anchors _ suffix (List.cons_ne_nil _ _) source sender index canon.1 positive
-          (bound.trans (by simp))
+          (bound.trans (by simp [Nat.min_le_right]))
       refine ⟨anchored, ?_, length, ?_⟩
       · rw [termAt_take short]
         exact anchoredCanon.mono (suffix.trans c.suffix_tail)
@@ -6319,7 +6334,7 @@ private theorem new_in_elected {leader : NodeID} {state : NodeState}
   have partSignature := take_signature signature
   have two : 2 <= state.currentTerm := leaderLed.two_le
   intro later
-  induction later using Nat.strong_induction_on with
+  induction later using Nat.strongRecOn with
   | _ later ih =>
       intro node log commit elected lt
       obtain ⟨a, b, r, electSuffix, elect⟩ := elected
@@ -6383,7 +6398,7 @@ private theorem new_in_elected {leader : NodeID} {state : NodeState}
         have leaderCanon : Canon (after :: before :: rest) state.currentTerm state.log :=
           ⟨_, List.suffix_refl _, leader, state, ⟨leaderNow, rfl, leaderRole, leaderLed⟩,
             rfl⟩
-        rcases lt_trichotomy earlier state.currentTerm with lower | rfl | higher
+        rcases Nat.lt_trichotomy earlier state.currentTerm with lower | rfl | higher
         · obtain ⟨log'', commit'', elected''⟩ := leaderLed.elected
             (Nat.lt_of_le_of_lt (committed.signature).2.2 lower)
           have inLog := c.old_complete (committed.mono innerH) elected'' lower
@@ -6554,7 +6569,7 @@ private theorem advance_backed {middle : NodeState}
     · rw [zero] at step
       exact .fresh step
     · exact .chained step backing le within
-  exact Or.inr ⟨_, _, committed, le_rfl, List.prefix_refl _⟩
+  exact Or.inr ⟨_, _, committed, Nat.le.refl, List.prefix_refl _⟩
 
 private theorem pre_backed
     (agree : c.post.log.take c.pre.commitIndex = c.pre.log.take c.pre.commitIndex)
@@ -6581,7 +6596,7 @@ private theorem accept_backed {source : NodeID} {request : AppendEntriesRequest}
     c.accept_shape received accepted
   obtain ⟨requestTerm, _, commitLe, _, _, _, commitEq⟩ := accepted
   rw [commitEq]
-  rcases max_choice c.pre.commitIndex
+  rcases CCF.max_choice c.pre.commitIndex
       (maxCommittableIndexUpTo c.post.log
         (min request.primaryCommit (request.prevLogIndex + request.entries.length))) with
     choice | choice <;> rw [choice]
@@ -6662,7 +6677,7 @@ private theorem commit_backed : CommitBacked (after :: before :: rest) := by
           by_cases fromSource : voter = source
           · subst fromSource
             rw [Function.update_self] at positive ⊢
-            rcases max_choice (c.pre.matchIndex voter) response.lastLogIndex with
+            rcases CCF.max_choice (c.pre.matchIndex voter) response.lastLogIndex with
               choice | choice <;> rw [choice] at positive ⊢
             · obtain ⟨acker, seen, ackerTerm, _, sub⟩ := c.match_pre leader different positive
               exact ⟨acker, seen, ackerTerm, sub⟩
@@ -6725,7 +6740,7 @@ private theorem accept_persist {source : NodeID} {request : AppendEntriesRequest
     rw [← agree]
     exact take_eq_of_prefix inPre long.le
   by_cases inSender : part <+: sender.log
-  · rcases le_or_gt part.length n with short | long
+  · rcases CCF.le_or_gt part.length n with short | long
     · left
       have := take_prefix_take sender.log short
       rw [← List.prefix_iff_eq_take.mp inSender] at this
@@ -6737,7 +6752,7 @@ private theorem accept_persist {source : NodeID} {request : AppendEntriesRequest
       (termAt_le_of_mem (fun entry mem => c.inv.terms c.actor c.pre c.pre_now entry
         (inPre.subset mem)) _).trans c.term_le
     rcases Nat.lt_or_ge (termAt part part.length) c.post.currentTerm with lower | upper
-    · exact Or.inr ⟨c.post.currentTerm, sender.log, lower, le_rfl,
+    · exact Or.inr ⟨c.post.currentTerm, sender.log, lower, Nat.le.refl,
         senderCanon.mono c.suffix_tail, inSender⟩
     · exfalso
       obtain ⟨log, logCanon, length, take⟩ :=
@@ -6745,13 +6760,13 @@ private theorem accept_persist {source : NodeID} {request : AppendEntriesRequest
       have partEq : c.pre.log.take part.length = part :=
         (List.prefix_iff_eq_take.mp inPre).symm
       have termEq : termAt c.pre.log part.length = c.post.currentTerm := by
-        have := termAt_take (log := c.pre.log) (le_refl part.length)
+        have := termAt_take (log := c.pre.log) (Nat.le_refl part.length)
         rw [partEq] at this
         exact this.symm.trans (Nat.le_antisymm termLe upper)
       rw [termEq] at logCanon
       have partLog : part = log.take part.length := partEq.symm.trans take
       have comparable := canon_chain c.monos logCanon senderCanon
-      rcases le_or_gt part.length sender.log.length with fits | long
+      rcases CCF.le_or_gt part.length sender.log.length with fits | long
       · apply inSender
         rw [partLog, take_eq_take_of_comparable comparable length fits]
         exact List.take_prefix _ _
@@ -6798,7 +6813,7 @@ private theorem persist : Persist (after :: before :: rest) := by
       · have termEq : termAt (earlier.log.take index) (earlier.log.take index).length
             = termAt earlier.log index := by
           rw [List.length_take, Nat.min_eq_left (signature_bound signature),
-            termAt_take le_rfl]
+            termAt_take Nat.le.refl]
         rw [← termEq]
         exact c.persist_pre (take_signature signature) inPre
       · exact Or.inr ⟨later, log, lt, le.trans c.term_le, canon.mono c.suffix_tail, missing⟩
@@ -7076,6 +7091,7 @@ end Consensus.Proofs.Safety
 
 namespace Consensus.Proofs.Election
 
+open CCF (Finset)
 open Model.Node
 
 private theorem primary_eq_of_reachable [Config.InitialConfiguration]
@@ -7117,6 +7133,7 @@ end Consensus.Proofs.Election
 
 namespace Consensus.Proofs.CommittedLogs
 
+open CCF (Finset)
 open Model.Node
 open Consensus.Proofs.Config
 

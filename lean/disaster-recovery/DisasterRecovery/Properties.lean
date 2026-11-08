@@ -2,6 +2,7 @@ module
 
 public import DisasterRecovery.Properties.Utils
 
+import CCF.Lemma
 import DisasterRecovery.Proofs.Local
 import DisasterRecovery.Proofs.Safety
 import DisasterRecovery.Proofs.Witnesses

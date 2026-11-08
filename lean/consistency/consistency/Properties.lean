@@ -3,6 +3,7 @@ module
 public import consistency.Properties.History
 public import CCF.Execution
 
+import CCF.Lemma
 import consistency.Proofs.Invalidation
 import consistency.Proofs.Ordering
 import consistency.Proofs.Witnesses

@@ -5,6 +5,8 @@ module
 
 public import Kv.Properties.Invariants
 
+import CCF.Lemma
+
 /-!
 Non-vacuity witnesses for the claims in `Kv.Properties`, together with the executable model's
 read, publication and store claims. Trace claims are witnessed by prefixes and segments of one

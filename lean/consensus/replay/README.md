@@ -10,7 +10,6 @@ The Lean version is [pinned](../../lean-toolchain).
 From `lean/consensus`, build the validator and validate a saved trace:
 
 ```sh
-lake exe cache get
 lake build --wfail consensus-replay
 ./.lake/build/bin/consensus-replay path/to/trace.ndjson
 ```
@@ -38,7 +37,7 @@ Consensus runs in the same package matrix as common, consistency, disaster-recov
 Its package check retains separate library and executable kernel checks, import/architecture checking, formatting, linting, and positive/negative replay fixtures.
 
 The independent replay job waits only for native captures, not package validation.
-It installs the pinned Lean toolchain, restores Mathlib caches, builds `consensus-replay` directly, downloads the captures from the same workflow run, and validates every native trace.
+It installs the pinned Lean toolchain, builds `consensus-replay` directly, downloads the captures from the same workflow run, and validates every native trace.
 The executable is built and run on the same Ubuntu 26.04 runner; no executable artifact is uploaded or downloaded.
 Missing artifacts, empty trace selections, build failures, and replay failures fail the job explicitly.
 There is no runner held idle polling capture status.

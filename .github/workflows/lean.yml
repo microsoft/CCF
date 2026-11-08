@@ -240,12 +240,6 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           elan run --install "$(cat lean/lean-toolchain)" lean --version
 
-      - name: Restore Mathlib cache
-        working-directory: lean/consensus
-        run: |
-          set -euo pipefail
-          lake exe cache get
-
       - name: Build CCF consensus replay
         working-directory: lean/consensus
         run: |
@@ -362,12 +356,6 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           elan run --install "$(cat lean/lean-toolchain)" lean --version
 
-      - name: Restore Mathlib cache
-        working-directory: lean/kv
-        run: |
-          set -euo pipefail
-          lake exe cache get
-
       - name: Build KV replay
         working-directory: lean/kv
         run: |
@@ -420,12 +408,6 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           elan run --install "$(cat lean/lean-toolchain)" lean --version
-
-      - name: Restore Mathlib cache
-        working-directory: lean/consistency
-        run: |
-          set -euo pipefail
-          lake exe cache get
 
       - name: Build consistency replay
         working-directory: lean/consistency

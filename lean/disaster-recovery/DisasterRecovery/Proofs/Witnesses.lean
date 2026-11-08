@@ -2,7 +2,6 @@ module
 
 public import DisasterRecovery.Properties.Utils
 
-import Mathlib.Data.Seq.Basic
 import all Init.Control.State
 
 @[expose] public section
@@ -113,16 +112,16 @@ private def ofSteps {system : TransitionSystem} (initial : system.State)
     (valid : StepsFrom system initial steps)
     : Execution.Trace system :=
   ⟨
-    { init := initial, steps := Stream'.Seq.ofList steps },
+    { init := initial, steps := CCF.Seq.ofList steps },
     initialized,
     by
       intro n before action first chosen
-      simp only [Stream'.Seq.map_get?, Stream'.Seq.ofList_get?] at chosen ⊢
+      simp only [CCF.Seq.map_get?, CCF.Seq.ofList_get?] at chosen ⊢
       rw [← List.getElem?_map] at chosen ⊢
       refine stepsFrom_getElem? initial steps valid n before action ?_ chosen
       cases n <;>
-        simpa only [Stream'.Seq.get?_cons_zero, Stream'.Seq.get?_cons_succ,
-          Stream'.Seq.map_get?, Stream'.Seq.ofList_get?, List.getElem?_cons_zero,
+        simpa only [CCF.Seq.get?_cons_zero, CCF.Seq.get?_cons_succ,
+          CCF.Seq.map_get?, CCF.Seq.ofList_get?, List.getElem?_cons_zero,
           List.getElem?_cons_succ, List.getElem?_map] using first
   ⟩
 

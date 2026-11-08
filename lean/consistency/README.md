@@ -44,14 +44,13 @@ The primary consistency guarantee is expressed by `committed_rw_ordered_serializ
 Committed writes serialize in transaction-ID order, and that order respects request-to-initial-response intervals rather than waiting for committed-status notifications.
 Supporting proofs live under [`Proofs/`](consistency/Proofs); [`Witnesses.lean`](consistency/Proofs/Witnesses.lean) constructs the witness executions by replaying model actions and also holds the history-only proofs.
 The proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
-Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
+Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional facilities explicitly rather than relying on incidental reexports.
 
 ## Validation
 
 Install Lean through [elan](https://lean-lang.org/install/), then run from this package directory:
 
 ```sh
-lake exe cache get
 lake check --inadvisably-no-sandbox
 lake exe check-imports
 lake lint

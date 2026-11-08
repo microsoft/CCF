@@ -3,13 +3,13 @@ module
 public import Consensus.Model
 public import CCF.Execution
 
+import CCF.Lemma
+import CCF.Order
 import all Init.Control.State
-import all Init.Data.List.Sort.Basic
-import all Mathlib.Data.List.Sort
-meta import Lean.Elab.Tactic.Basic
-meta import Lean.Meta.Tactic.AuxLemma
 
-public import Mathlib.Tactic.SplitIfs
+public meta import Lean.Elab.Tactic.ElabTerm
+
+meta import Lean.Meta.Tactic.AuxLemma
 
 namespace Consensus.Proofs.Config
 end Consensus.Proofs.Config
@@ -103,7 +103,7 @@ public def lassoTrace {system : TransitionSystem} {start final : system.State}
     simp [lasso, Nat.not_lt.mpr le, stemRun]
   refine ⟨{
     init := lasso system start stem cycle 0
-    steps := Stream'.Seq.ofStream fun index =>
+    steps := CCF.Seq.ofStream fun index =>
       (lassoAction system start stem cycle nonempty index,
         lasso system start stem cycle (index + 1))
   }, ?_, ?_⟩
@@ -186,25 +186,6 @@ public def input (node : Nat) (input : Consensus.Model.Node.Input)
     : Consensus.Model.State -> Consensus.Model.Action :=
   fun _ => .local node input
 
-/-- `Finset.sort` by insertion sort, for any order accepted by `Finset.sort`. -/
-private def insertionSortedBy {α : Type} (s : Finset α) (r : α -> α -> Prop)
-    [DecidableRel r] [IsTrans α r] [Std.Antisymm r] [Std.Total r]
-    : List α :=
-  Quot.liftOn s.val (List.insertionSort r)
-    fun _ _ perm =>
-      ((List.perm_insertionSort r _).trans
-        (perm.trans (List.perm_insertionSort r _).symm)).eq_of_pairwise'
-        (List.pairwise_insertionSort r _) (List.pairwise_insertionSort r _)
-
-/-- `Finset.sort` itself, rather than each application of it, is insertion sort.
-The left side is closed, so `rw` replaces every sort in an unfolded run, including
-those under binders, without the congruence proofs `simp` builds for each one. -/
-private theorem sort_eq_insertionSortedBy {α : Type}
-    : @Finset.sort α = @insertionSortedBy α := by
-  funext s r _ _ _ _
-  obtain ⟨⟨list⟩, _⟩ := s
-  exact List.mergeSort_eq_insertionSort r list
-
 /-- `run` over a bare step function. Unlike `run`, its step argument is not a
 dependency of the other arguments' types, so tactics can rewrite inside it. -/
 private def runWith {S A : Type} (step : S -> A -> Option S) (start : S)
@@ -220,12 +201,11 @@ private theorem run_eq_runWith (system : TransitionSystem) (start : system.State
   | nil => rfl
   | cons choose rest ih => simp only [run, runWith, ih]
 
-/-- Unfold the model's step function down to its broadcasts and replace each
-`Finset.sort` with insertion sort, so that the kernel can evaluate the run.
-Each run becomes a `runWith` over a single copy of the step function, rather
-than one copy per step; `dsimp` unfolds it without building proof terms; and a
-single `rw` replaces every sort. -/
-macro "sort_by_insertion" : tactic =>
+/-- Unfold the model's step function down to its broadcasts, so that the kernel
+can evaluate the run. Each run becomes a `runWith` over a single copy of the
+step function, rather than one copy per step, and `dsimp` unfolds it without
+building proof terms. -/
+macro "unfold_run" : tactic =>
   `(tactic| (simp only [run_eq_runWith]; dsimp only [Consensus.Model.transitionSystem, MultiNodeTransitionSystem.lift,
     MultiNodeTransitionSystem.next, Consensus.Model.protocol, Consensus.Model.Node.step,
     Consensus.Model.Node.act, Consensus.Model.Node.receive,
@@ -239,7 +219,7 @@ macro "sort_by_insertion" : tactic =>
     Consensus.Model.Node.handleAppendEntriesResponse,
     Consensus.Model.Node.handleRequestVoteResponse,
     Consensus.Model.Node.handleRequestPreVoteResponse,
-    Consensus.Model.Node.handleProposeRequestVoteRequest]; rw [sort_eq_insertionSortedBy]))
+    Consensus.Model.Node.handleProposeRequestVoteRequest]))
 
 open Lean Elab Tactic Meta in
 /-- Close a closed goal `lhs = rhs` by asking only the kernel to check
@@ -482,7 +462,7 @@ section Election
 
 public theorem election_finished
     : (run electionSystem electionStart electionChoices).isSome := by
-  sort_by_insertion
+  unfold_run
   decide +kernel
 
 public theorem election_run
@@ -492,14 +472,14 @@ public theorem election_run
 public theorem election_cycle_finished
     : (run electionSystem electionFinal electionCycle).isSome := by
   unfold electionFinal
-  sort_by_insertion
+  unfold_run
   decide +kernel
 
 public theorem election_cycle_returns
     : (run electionSystem electionFinal electionCycle).getD electionStart
       = electionFinal := by
   unfold electionFinal
-  sort_by_insertion
+  unfold_run
   kernel_rfl
 
 public theorem election_cycle
@@ -508,7 +488,7 @@ public theorem election_cycle
 
 public theorem election_both_lead : bothLead electionFinal = true := by
   unfold electionFinal
-  sort_by_insertion
+  unfold_run
   decide +kernel
 
 end Election
@@ -522,7 +502,7 @@ open Consensus.Model (initialNodeState)
 section Commit
 
 public theorem commit_finished : (run commitSystem commitStart commitChoices).isSome := by
-  sort_by_insertion
+  unfold_run
   decide +kernel
 
 public theorem commit_run
@@ -532,13 +512,13 @@ public theorem commit_run
 public theorem commit_cycle_finished
     : (run commitSystem commitFinal commitCycle).isSome := by
   unfold commitFinal
-  sort_by_insertion
+  unfold_run
   decide +kernel
 
 public theorem commit_cycle_returns
     : (run commitSystem commitFinal commitCycle).getD commitStart = commitFinal := by
   unfold commitFinal
-  sort_by_insertion
+  unfold_run
   kernel_rfl
 
 public theorem commit_cycle
@@ -704,7 +684,7 @@ public lemma election_safety_witness
       (start_initial (by decide) (by decide))
       stemRun election_cycle
       (by simp [electionCycle])
-      le_rfl
+      Nat.le.refl
       (by rw [List.take_length]; exact stemRun),
     mem_of_nodeState leftFound,
     mem_of_nodeState rightFound,
@@ -735,7 +715,7 @@ public lemma committed_frontier_is_signature_witness
       (start_initial (by decide) (by decide))
       stemRun single_cycle
       (by simp [singleCycle])
-      le_rfl
+      Nat.le.refl
       (by rw [List.take_length]; exact stemRun),
     member_of_nodeState _,
     by decide

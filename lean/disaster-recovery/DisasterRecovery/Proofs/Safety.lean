@@ -2,11 +2,9 @@ module
 
 public import DisasterRecovery.Properties.Utils
 public import CCF.Execution
-public import Mathlib.Order.Basic
 public import DisasterRecovery.Model
-public import Mathlib.Data.Finset.Card
-public import Mathlib.Tactic.CasesM
 
+import CCF.Lemma
 import all Init.Control.State
 
 @[expose] public section
@@ -837,15 +835,15 @@ private lemma valid_path {system : TransitionSystem} {trace : Execution.Trace sy
           exact ⟨_, .cons step rest⟩
 
 /-- The later of two trace positions is also a trace position. -/
-private lemma max_isSome {trace : Stream'.Seq State} {first second : Nat}
+private lemma max_isSome {trace : CCF.Seq State} {first second : Nat}
     (firstIn : (trace.get? first).isSome) (secondIn : (trace.get? second).isSome)
     : (trace.get? (max first second)).isSome := by
-  rcases le_total first second with le | le
-  · rwa [max_eq_right le]
-  · rwa [max_eq_left le]
+  rcases Nat.le_total first second with le | le
+  · rwa [Nat.max_eq_right le]
+  · rwa [Nat.max_eq_left le]
 
 /-- Finitely many trace positions all lie at or before one trace position after `start`. -/
-private lemma exists_bound {α : Type} {trace : Stream'.Seq State} {P : α -> Nat -> Prop}
+private lemma exists_bound {α : Type} {trace : CCF.Seq State} {P : α -> Nat -> Prop}
     {start : Nat} (startIn : (trace.get? start).isSome) (items : List α)
     (indexed
       : forall item,
@@ -855,7 +853,7 @@ private lemma exists_bound {α : Type} {trace : Stream'.Seq State} {P : α -> Na
         /\ start <= bound
         /\ forall item, item ∈ items -> exists index, index <= bound /\ P item index := by
   induction items with
-  | nil => exact ⟨start, startIn, le_rfl, by simp⟩
+  | nil => exact ⟨start, startIn, Nat.le_refl _, by simp⟩
   | cons head tail ih =>
       obtain ⟨headIndex, headIn, headHolds⟩ := indexed head (by simp)
       obtain ⟨bound, boundIn, startLe, bounded⟩ :=
@@ -863,13 +861,13 @@ private lemma exists_bound {α : Type} {trace : Stream'.Seq State} {P : α -> Na
       refine ⟨
         max headIndex bound,
         max_isSome headIn boundIn,
-        startLe.trans (le_max_right _ _),
+        Nat.le_trans startLe (Nat.le_max_right _ _),
         fun item member => ?_
       ⟩
       rcases List.mem_cons.mp member with rfl | member
-      · exact ⟨headIndex, le_max_left _ _, headHolds⟩
+      · exact ⟨headIndex, Nat.le_max_left _ _, headHolds⟩
       · obtain ⟨index, le, holds⟩ := bounded item member
-        exact ⟨index, le.trans (le_max_right _ _), holds⟩
+        exact ⟨index, Nat.le_trans le (Nat.le_max_right _ _), holds⟩
 
 end DisasterRecovery.Proofs.Trace
 
@@ -2875,30 +2873,15 @@ private lemma quorum_lists_intersect
     (firstQuorum : expected.length / 2 + 1 <= first.length)
     (secondQuorum : expected.length / 2 + 1 <= second.length)
     : exists value, value ∈ first /\ value ∈ second := by
-  classical
-  by_contra noShared
-  push Not at noShared
-  have disjoint : Disjoint first.toFinset second.toFinset :=
-    Finset.disjoint_left.mpr (by
-      intro value firstMember secondMember
-      exact noShared value
-        (List.mem_toFinset.mp firstMember)
-        (List.mem_toFinset.mp secondMember))
-  have unionSubset :
-      first.toFinset ∪ second.toFinset ⊆ expected.toFinset := by
-    intro value membership
-    rw [Finset.mem_union] at membership
-    rw [List.mem_toFinset]
-    exact membership.elim
-      (fun member =>
-        firstSubset value (List.mem_toFinset.mp member))
-      (fun member =>
-        secondSubset value (List.mem_toFinset.mp member))
-  have unionCard := Finset.card_le_card unionSubset
-  rw [Finset.card_union_of_disjoint disjoint,
-    List.toFinset_card_of_nodup firstNodup,
-    List.toFinset_card_of_nodup secondNodup] at unionCard
-  have expectedCard := List.toFinset_card_le expected
+  apply Classical.byContradiction
+  intro noShared
+  have nodup : (first ++ second).Nodup :=
+    List.nodup_append.mpr ⟨firstNodup, secondNodup,
+      fun value firstMember _ secondMember same =>
+        noShared ⟨value, firstMember, same ▸ secondMember⟩⟩
+  have bound := nodup.length_le_of_subset (l₂ := expected) fun value member =>
+    (List.mem_append.mp member).elim (firstSubset value) (secondSubset value)
+  rw [List.length_append] at bound
   omega
 
 private lemma quorum_opener_unique
@@ -3008,9 +2991,10 @@ private lemma validStep_run {config : Model.Config}
               s.action).run
               {}
             = some (s.after, s.effects) := by
-  simpa [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
-    Option.bind_eq_some_iff, Option.map_eq_some_iff]
-    using valid
+  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
+    Option.bind_eq_some_iff, Option.map_eq_some_iff] at valid
+  obtain ⟨_, _, ⟨_, found, rfl, rfl⟩, stepped⟩ := valid
+  exact ⟨_, found, stepped⟩
 
 end DisasterRecovery.Proofs.Local
 
@@ -3555,18 +3539,15 @@ private lemma up_to_date_with_quorum_of_voters
     exact List.mem_of_find?_eq_some found
   let eligible := config.recovered.filter fun (_, voter) =>
     decide (Properties.LogUpToDate candidate voter)
-  have subset : voters.toFinset ⊆ (eligible.map Prod.fst).toFinset := by
+  have subset : voters ⊆ eligible.map Prod.fst := by
     intro voter member
-    obtain ⟨txid, recovered, earlier⟩ := fresh voter (List.mem_toFinset.mp member)
-    apply List.mem_toFinset.mpr
+    obtain ⟨txid, recovered, earlier⟩ := fresh voter member
     apply List.mem_map.mpr
     refine ⟨(voter, txid), List.mem_filter.mpr ⟨mem_of_recoveredTxID recovered, ?_⟩, rfl⟩
     exact decide_eq_true earlier
-  have count := Finset.card_le_card subset
-  rw [List.toFinset_card_of_nodup nodup] at count
-  have bound := List.toFinset_card_le (eligible.map Prod.fst)
-  rw [List.length_map] at bound
-  exact threshold.trans (count.trans bound)
+  have count := nodup.length_le_of_subset subset
+  rw [List.length_map] at count
+  exact Nat.le_trans threshold count
 
 end DisasterRecovery.Proofs.Committed
 
@@ -3614,7 +3595,7 @@ private lemma step_lifts (config : Model.Config)
     have member := List.mem_of_find?_eq_some selected
     have key : entry.1 = node := beq_iff_eq.mp
       (List.find?_some (p := fun entry : Location × NodeState => entry.1 == node) selected)
-    conv_rhs => rw [← List.map_id nodes]
+    conv => rhs; rw [← List.map_id nodes]
     apply List.map_congr_left
     intro other membership
     split
@@ -3778,7 +3759,7 @@ private theorem model_initial_lifts (config : Model.Config) (state : Model.State
       (state.nodes.map Prod.fst).map (fun node => (node, initialNode node)) =
         state.nodes := by
     rw [List.map_map]
-    conv_rhs => rw [← List.map_id state.nodes]
+    conv => rhs; rw [← List.map_id state.nodes]
     apply List.map_congr_left
     intro entry member
     have initialized := nodes entry member
@@ -4759,12 +4740,12 @@ lemma full_gossip_preserves_commit
   obtain ⟨voter, voted⟩ :=
     Observed.reachable_opening_has_vote openingReachable _ openingPresent opening
   obtain ⟨final, finalMember, evolves⟩ :=
-    trace_node_final linked (le_max_right _ _) openFound.symm present
+    trace_node_final linked (Nat.le_max_right _ _) openFound.symm present
   have invariant := reachable_quorum_invariant linked.reachable
   obtain ⟨envelope, sent, _, target, vote⟩ :=
     invariant.votesSent _ finalMember voter (evolves.votes voted)
   have complete :=
-    sent_vote_full_gossip linked (le_max_left _ _) gossipFound.symm full sent vote
+    sent_vote_full_gossip linked (Nat.le_max_left _ _) gossipFound.symm full sent vote
   obtain ⟨selected, txid, choice, maximum⟩ := invariant.sentVotesSelected envelope sent vote
   have wf := reachable_well_formed linked.reachable
   have selectedEq : selected = envelope.target :=
@@ -4879,12 +4860,8 @@ private lemma quorum_notification_final_votes {config : Model.Config}
   have nodup := (reachable_quorum_invariant openingReachable).votesNodup _ openingPresent
   have threshold := Observed.reachable_quorum_thresholds openingReachable _ openingPresent opened
   obtain ⟨final, finalMember, evolves⟩ := trace_node_final linked le inTrace present
-  have subset : current.votes.toFinset ⊆ final.votes.toFinset := by
-    intro voter member
-    exact List.mem_toFinset.mpr (evolves.votes (List.mem_toFinset.mp member))
-  have count := Finset.card_le_card subset
-  rw [List.toFinset_card_of_nodup nodup] at count
-  exact ⟨final, finalMember, threshold.trans (count.trans (List.toFinset_card_le _))⟩
+  have count := nodup.length_le_of_subset fun _ member => evolves.votes member
+  exact ⟨final, finalMember, Nat.le_trans threshold count⟩
 
 end DisasterRecovery.Proofs.Gossip
 
@@ -4906,9 +4883,9 @@ lemma quorum_opener_unique
     (Trace.max_isSome (Option.isSome_iff_exists.mpr ⟨_, firstFound⟩)
       (Option.isSome_iff_exists.mpr ⟨_, secondFound⟩))
   obtain ⟨firstState, firstMember, firstThreshold⟩ :=
-    Gossip.quorum_notification_final_votes linked (le_max_left _ _) first
+    Gossip.quorum_notification_final_votes linked (Nat.le_max_left _ _) first
   obtain ⟨secondState, secondMember, secondThreshold⟩ :=
-    Gossip.quorum_notification_final_votes linked (le_max_right _ _) second
+    Gossip.quorum_notification_final_votes linked (Nat.le_max_right _ _) second
   exact Observed.current_quorum_unique_of_thresholds linked.reachable
     (firstOpener, firstState) (secondOpener, secondState)
     firstMember secondMember firstThreshold secondThreshold

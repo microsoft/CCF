@@ -3,6 +3,11 @@ module  -- shake: keep-all --deprecated_module: ignore
 public import CCF.Architecture
 public import CCF.Capabilities
 public import CCF.Execution
+public import CCF.Finset
+public import CCF.Function
+public import CCF.Lemma
 public import CCF.MultiNodeTransitionSystem
+public import CCF.Order
 public import CCF.Parsec
+public import CCF.Seq
 public import CCF.TransitionSystem

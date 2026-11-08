@@ -10,6 +10,11 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Execution`                 | Finite runs and finite or infinite execution traces          |
 | `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
 | `CCF.Architecture`              | Checks of specification import layering                      |
+| `CCF.Seq`                       | Possibly infinite sequences (replaces Mathlib `Stream'.Seq`) |
+| `CCF.Finset`                    | Finite sets as strictly sorted lists (replaces `Finset`)     |
+| `CCF.Function`                  | Point updates of functions (replaces `Function.update`)      |
+| `CCF.Order`                     | `Nat` order dot notation and `@[refl]` tags for `rw`         |
+| `CCF.Lemma`                     | The `lemma` command, a synonym for `theorem`                 |
 
 `CCF.Execution.TraceImpl system` records an `init` state and a possibly infinite `steps` sequence pairing each action with its destination state.
 `CCF.Execution.Trace system` is the subtype whose `TraceImpl.Valid` proof establishes initialization and every recorded transition.
@@ -17,10 +22,11 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 
 ## Dependency imports
 
-Specification proofs import the Mathlib tactics they need rather than the `Mathlib.Tactic` umbrella.
-Their CCF declarations, theorem statements, exposed definitions, and required tactic support remain available, but importing a proof module or an assembled specification root does not promise to reexport unrelated Mathlib tactics or theory.
-`CCF.Execution` publicly imports `Mathlib.Data.Seq.Defs` and keeps `Mathlib.Data.Seq.Basic` private for its internal proofs.
-Consumers that need other Mathlib facilities should import their defining modules explicitly.
+The packages depend only on Lean core, leanfmt and (for the disaster-recovery and kv `lake lint` drivers) Batteries, not on Mathlib.
+The last five modules above are minimal replacements for the Mathlib facilities the specifications used.
+Specification proofs import only the modules they need.
+Their CCF declarations, theorem statements, exposed definitions, and required tactic support remain available, but importing a proof module or an assembled specification root does not promise to reexport unrelated tactics or theory.
+Consumers that need other facilities should import their defining modules explicitly.
 The documented property entrypoints remain the public proof APIs; see the [CCF consensus protocol](../consensus/README.md#proofs), [consistency](../consistency/README.md#properties), and [disaster recovery](../disaster-recovery/README.md#properties) packages.
 
 Selective imports do not reduce the checked CCF roots or omit tests.

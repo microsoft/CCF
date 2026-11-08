@@ -19,6 +19,7 @@ Reduction never executes or repairs model state.
 namespace Consensus.Replay.Reducer
 
 open Lean Model.Node
+open CCF (Finset)
 open CCF.Parsec (failure validated attempt many_ optional_)
 
 private structure ReductionState where
@@ -55,7 +56,7 @@ private def modelNode (event : Event) (name : String) : Reduction NodeID := do
 
 private def modelMembers (event : Event) (names : List String)
     : Reduction (Finset NodeID) := do
-  return (← names.mapM (modelNode event)).toFinset
+  return Finset.ofList (← names.mapM (modelNode event))
 
 private def appendInstruction (instr : Instruction) : Reduction Unit :=
   modify fun s => { s with instructions := s.instructions.push instr }

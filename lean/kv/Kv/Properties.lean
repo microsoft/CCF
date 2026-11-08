@@ -5,6 +5,7 @@ module
 
 public import Kv.Properties.Invariants
 
+import CCF.Lemma
 import Kv.Proofs.Reachable
 import Kv.Proofs.Replay
 import Kv.Proofs.Witnesses

@@ -2,6 +2,7 @@ module
 
 public import DisasterRecovery.Properties.Utils
 
+import CCF.Lemma
 import all Init.Control.State
 
 @[expose] public section
@@ -43,9 +44,10 @@ private lemma validStep_run {config : Model.Config}
               s.action).run
               {}
             = some (s.after, s.effects) := by
-  simpa [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
-    Option.bind_eq_some_iff, Option.map_eq_some_iff]
-    using valid
+  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
+    Option.bind_eq_some_iff, Option.map_eq_some_iff] at valid
+  obtain ⟨_, _, ⟨_, found, rfl, rfl⟩, stepped⟩ := valid
+  exact ⟨_, found, stepped⟩
 
 lemma gossip_freezes_after_choice
     : forall (config : Model.Config),
@@ -94,8 +96,7 @@ private lemma quorum_advance_opens (config : Config) (state : NodeState)
     simp [empty, voteQuorum] at quorum
   simp [advance, phase, quorum, nonempty]
   cases timeout <;>
-    simp [Capabilities.record, advanceTimeoutLane, advanceTimeoutState,
-      ]
+    simp [Capabilities.record, advanceTimeoutLane, advanceTimeoutState, and_assoc]
 
 lemma quorum_step_opens
     : forall (config : Model.Config),

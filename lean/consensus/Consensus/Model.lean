@@ -5,7 +5,6 @@ public import Consensus.Model.Node
 public import Consensus.Model.Messages
 public import Consensus.Model.NodeState
 public import CCF.MultiNodeTransitionSystem
-public import Mathlib.Data.Finset.Max
 
 @[expose] public section
 
@@ -34,7 +33,7 @@ def BOOTSTRAP_TERM : Nat := 2
 
 /-- The smallest initial member is primary and holds the unsigned configuration. -/
 def initialNodeState (initialConfiguration : Finset NodeID) (node : NodeID) : NodeState :=
-  let primary := initialConfiguration.min = (node : WithTop NodeID)
+  let primary := initialConfiguration.min? = some node
   {
     role :=
       if primary then
