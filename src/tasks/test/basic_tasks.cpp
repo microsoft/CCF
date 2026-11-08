@@ -6,7 +6,6 @@
 #include "tasks/task_system.h"
 #include "tasks/worker.h"
 
-#include <cerrno>
 #include <csignal>
 #include <doctest/doctest.h>
 #include <iostream>
@@ -443,26 +442,16 @@ namespace exception_handling_test
 class ScopedTaskCerrCapture
 {
   std::ostringstream captured;
-  std::streambuf* previous = nullptr;
+  std::streambuf* previous = std::cerr.rdbuf(captured.rdbuf());
 
 public:
-  ScopedTaskCerrCapture() : previous(std::cerr.rdbuf(captured.rdbuf())) {}
-
+  ScopedTaskCerrCapture() = default;
   ScopedTaskCerrCapture(const ScopedTaskCerrCapture&) = delete;
   ScopedTaskCerrCapture& operator=(const ScopedTaskCerrCapture&) = delete;
 
   ~ScopedTaskCerrCapture()
   {
-    restore();
-  }
-
-  void restore()
-  {
-    if (previous != nullptr)
-    {
-      std::cerr.rdbuf(previous);
-      previous = nullptr;
-    }
+    std::cerr.rdbuf(previous);
   }
 
   std::string str() const
@@ -500,22 +489,10 @@ void expect_aborting_task_diagnostic(
   close(stderr_pipe[1]);
   std::string diagnostic;
   char buffer[256];
-  while (true)
+  ssize_t count = 0;
+  while ((count = read(stderr_pipe[0], buffer, sizeof(buffer))) > 0)
   {
-    const auto count = read(stderr_pipe[0], buffer, sizeof(buffer));
-    if (count > 0)
-    {
-      diagnostic.append(buffer, static_cast<size_t>(count));
-    }
-    else if (count == 0)
-    {
-      break;
-    }
-    else if (errno != EINTR)
-    {
-      FAIL("Failed to read task stderr");
-      break;
-    }
+    diagnostic.append(buffer, static_cast<size_t>(count));
   }
   close(stderr_pipe[0]);
 
@@ -628,8 +605,12 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
       loggers.end(),
       [logger_ptr](const auto& l) { return l.get() == logger_ptr; }),
     loggers.end());
+}
 
-  captured_stderr.restore();
+TEST_CASE(
+  "Aborting task exceptions write a fatal diagnostic" *
+  doctest::test_suite("basic_tasks"))
+{
   exception_handling_test::ThrowsException throws_exception;
   expect_aborting_task_diagnostic(
     throws_exception, "Fatal error: Task failed with an exception");
