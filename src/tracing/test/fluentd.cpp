@@ -374,9 +374,9 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   excluded_endpoint.tag_prefix_allow_list = {"ccf.kv", "ccf.unused"};
   auto logger = std::make_unique<DropLogger>();
   auto* logs = logger.get();
-  ccf::logger::config::loggers().push_back(std::move(logger));
   ccf::logger::config::loggers().emplace_back(
     std::make_unique<ccf::tracing::FluentdLogger>());
+  ccf::logger::config::loggers().push_back(std::move(logger));
   Sink::configure(std::vector{endpoint, excluded_endpoint}, 2);
   Sink::bind_producer(0);
   CHECK_THROWS_AS(Sink::bind_producer(2), std::out_of_range);
