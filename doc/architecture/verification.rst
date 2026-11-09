@@ -7,7 +7,8 @@ Apart from the shared ``common`` package, each package contains an executable mo
 The models and the implementation are connected in two different ways, which provide different guarantees:
 
 * **Proofs** establish properties of the model for every execution the model allows.
-  The proofs are checked by Lean's kernel, which also rejects unfinished proofs and any axioms other than Lean's standard ``propext``, ``Classical.choice`` and ``Quot.sound``.
+  Lean's kernel checks proof terms but accepts proofs that depend on declared axioms.
+  The package CI ``lake check`` command also checks axiom dependencies, rejecting unfinished proofs and any axioms other than Lean's standard ``propext``, ``Classical.choice`` and ``Quot.sound``.
   Each safety theorem is accompanied by a witness lemma showing that its premises can be satisfied, so that no property holds vacuously.
 * **Trace validation** replays executions recorded from the C++ implementation, step by step, through the model's transition function.
   A successful replay shows that the model can explain that particular recorded execution.
@@ -94,13 +95,15 @@ From a package directory under ``lean/``, the common checks are:
 
     lake exe cache get
     lake build --wfail --fail-fast
+    lake check --inadvisably-no-sandbox
     lake exe check-imports
     lake lint
 
 To check formatting of all tracked Lean files, run ``scripts/lean-format-checks.sh`` from the repository root, optionally passing a package name.
 
-``lake check`` performs the kernel and axiom check.
-It runs without build sandboxing, so only run it on code you trust; the consensus package recommends running it only in CI.
+``lake check --inadvisably-no-sandbox`` performs the kernel and axiom checks.
+The flag disables build isolation so the package can use the shared ``common`` modules; only run this command on code you trust.
+The consensus package recommends running it only in CI.
 Each package README lists its complete validation commands, including how to build its replayer, replay its fixtures, and generate and replay traces from a local CCF build.
 For the KV model, see also :ref:`build_apps/kv/semantics:Reproducing a run`.
 
