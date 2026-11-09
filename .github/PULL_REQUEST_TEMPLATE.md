@@ -3,7 +3,6 @@ Keep the description concise enough for a reviewer to understand in under a minu
 Focus on what the PR changes and why the changes are needed.
 Omit validation sections and lists of tests or commands run.
 Limit testing discussion to recommendations for long-running or more comprehensive tests as CI gates.
-Explain non-applicability briefly.
 -->
 
 ## Motivation
