@@ -85,6 +85,8 @@ namespace ccf
       {
         ccf::ds::MutexGuard guard(callbacks_mutex);
 
+        const bool view_advanced =
+          !known_commit.has_value() || committed.view > known_commit->view;
         known_commit = committed;
         known_view_history = view_history;
 
@@ -122,6 +124,45 @@ namespace ccf
           }
 
           it = pending_callbacks.erase(it);
+        }
+
+        // A commit in a later view can invalidate transactions beyond the
+        // commit point, even if no further transactions are committed.
+        if (view_advanced)
+        {
+          while (it != pending_callbacks.end())
+          {
+            auto& callbacks = it->second;
+            for (auto cb = callbacks.begin(); cb != callbacks.end();)
+            {
+              const auto tx_id = cb->first;
+              const auto status = ccf::evaluate_tx_status(
+                tx_id.view,
+                tx_id.seqno,
+                view_history.view_at(tx_id.seqno),
+                committed.view,
+                committed.seqno);
+              if (status == ccf::TxStatus::Invalid)
+              {
+                ready.emplace_back(
+                  tx_id, ccf::FinalTxStatus::Invalid, std::move(cb->second));
+                cb = callbacks.erase(cb);
+              }
+              else
+              {
+                ++cb;
+              }
+            }
+
+            if (callbacks.empty())
+            {
+              it = pending_callbacks.erase(it);
+            }
+            else
+            {
+              ++it;
+            }
+          }
         }
       }
 

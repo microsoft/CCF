@@ -2960,6 +2960,89 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
+  "Commit callbacks above the commit point are invalidated by a later view" *
+  doctest::test_suite("single"))
+{
+  for (const bool observe_initial_commit : {false, true})
+  {
+    DOCTEST_CAPTURE(observe_initial_commit);
+    ccf::CommitCallbackSubsystem commit_callbacks;
+    aft::ViewHistory history;
+    history.update(1, 3);
+    if (observe_initial_commit)
+    {
+      commit_callbacks.on_commit({3, 22}, history);
+    }
+
+    std::vector<std::pair<ccf::TxID, ccf::FinalTxStatus>> results;
+    const auto record = [&results](ccf::TxID tx_id, ccf::FinalTxStatus status) {
+      results.emplace_back(tx_id, status);
+    };
+
+    const ccf::TxID lost_tx{3, 25};
+    const ccf::TxID lost_tx_shared_seqno{3, 30};
+    const ccf::TxID current_view_tx{4, 30};
+    const ccf::TxID future_view_tx{5, 30};
+    const ccf::TxID later_lost_tx{3, 35};
+    commit_callbacks.add_callback(lost_tx, record);
+    commit_callbacks.add_callback(lost_tx_shared_seqno, record);
+    commit_callbacks.add_callback(current_view_tx, record);
+    commit_callbacks.add_callback(future_view_tx, record);
+    commit_callbacks.add_callback(later_lost_tx, record);
+    DOCTEST_REQUIRE(results.empty());
+
+    history.update(23, 4);
+    commit_callbacks.on_commit({4, 23}, history);
+    std::vector<std::pair<ccf::TxID, ccf::FinalTxStatus>> expected_results{
+      {lost_tx, ccf::FinalTxStatus::Invalid},
+      {lost_tx_shared_seqno, ccf::FinalTxStatus::Invalid},
+      {later_lost_tx, ccf::FinalTxStatus::Invalid}};
+    DOCTEST_REQUIRE(results == expected_results);
+
+    commit_callbacks.on_commit({4, 24}, history);
+    DOCTEST_REQUIRE(results == expected_results);
+
+    commit_callbacks.on_commit({4, 30}, history);
+    expected_results.emplace_back(
+      current_view_tx, ccf::FinalTxStatus::Committed);
+    expected_results.emplace_back(future_view_tx, ccf::FinalTxStatus::Invalid);
+    DOCTEST_REQUIRE(results == expected_results);
+
+    commit_callbacks.on_commit({4, 35}, history);
+    DOCTEST_REQUIRE(results == expected_results);
+  }
+}
+
+DOCTEST_TEST_CASE(
+  "Uncommitted view changes do not invalidate commit callbacks" *
+  doctest::test_suite("single"))
+{
+  ccf::CommitCallbackSubsystem commit_callbacks;
+  aft::ViewHistory history;
+  history.update(1, 3);
+  commit_callbacks.on_commit({3, 22}, history);
+
+  std::vector<std::pair<ccf::TxID, ccf::FinalTxStatus>> results;
+  const ccf::TxID tx_id{3, 25};
+  commit_callbacks.add_callback(
+    tx_id, [&results](ccf::TxID id, ccf::FinalTxStatus status) {
+      results.emplace_back(id, status);
+    });
+
+  history.update(24, 4);
+  commit_callbacks.on_commit({3, 23}, history);
+  DOCTEST_REQUIRE(results.empty());
+
+  // The uncommitted view can be replaced by a leader retaining the transaction.
+  history.rollback(23);
+  history.update(26, 5);
+  commit_callbacks.on_commit({5, 26}, history);
+  DOCTEST_REQUIRE(results.size() == 1);
+  DOCTEST_REQUIRE(results[0].first == tx_id);
+  DOCTEST_REQUIRE(results[0].second == ccf::FinalTxStatus::Committed);
+}
+
+DOCTEST_TEST_CASE(
   "Rollback below commit_idx is ignored" * doctest::test_suite("single"))
 {
   ccf::NodeId node_id = ccf::kv::test::PrimaryNodeId;

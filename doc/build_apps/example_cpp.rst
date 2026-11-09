@@ -366,7 +366,10 @@ Deferring Response Until Commit
 
 By default, CCF sends the HTTP response as soon as a transaction is locally committed (assigned a :term:`Transaction ID`), without waiting for it to be globally committed by consensus. This means a successful response indicates the transaction has been `accepted` but not yet `durably replicated` across the network. Clients that need stronger guarantees — for example, to know a write is durable before proceeding — can poll the ``/commit`` endpoint or the transaction status API.
 
-CCF also supports deferring the HTTP response until the transaction reaches a terminal consensus state: either globally committed, or invalidated (e.g. due to a view change). This is controlled per-request from within the endpoint handler by calling ``set_consensus_committed_function()`` on the RPC context, passing a callback that will be invoked once the transaction's fate is known.
+CCF also supports deferring the HTTP response until the transaction reaches a terminal consensus state: either globally committed, or invalidated (e.g. due to a view change).
+This is controlled per-request from within the endpoint handler by calling ``set_consensus_committed_function()`` on the RPC context, passing a callback that will be invoked once the transaction's fate is known.
+Uncommitted transactions lost in an election are reported as invalid once the node observes a commit in a later view, even if that commit's sequence number is lower than the lost transaction's.
+A local rollback alone is not sufficient to establish invalidation.
 
 The simplest use is to unconditionally block:
 
