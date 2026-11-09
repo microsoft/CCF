@@ -41,7 +41,6 @@ Procedure
 .. mermaid::
 
     graph TB;
-        classDef NewNode fill:turquoise
         classDef Primary stroke-width:4px
 
         subgraph Service
@@ -56,9 +55,6 @@ Procedure
                 Node3((Node 3))
                 Node4((Node 4))
                 Node5((Node 5))
-                class Node3 NewNode
-                class Node4 NewNode
-                class Node5 NewNode
             end
         end
 
@@ -76,12 +72,9 @@ Procedure
 .. mermaid::
 
     graph TB;
-        classDef NewNode fill:Turquoise
-        classDef RetiredNode fill:LightGray
         classDef Primary stroke-width:4px
 
         Node0((Node 0))
-        class Node0 RetiredNode
 
         subgraph Service
             subgraph Old Nodes
@@ -94,9 +87,6 @@ Procedure
                 Node3((Node 3))
                 Node4((Node 4))
                 Node5((Node 5))
-                class Node3 NewNode
-                class Node4 NewNode
-                class Node5 NewNode
             end
         end
 
@@ -105,14 +95,10 @@ Procedure
 .. mermaid::
 
     graph TB;
-        classDef NewNode fill:Turquoise
-        classDef RetiredNode fill:LightGray
         classDef Primary stroke-width:4px
 
         Node0((Node 0))
         Node1((Node 1))
-        class Node0 RetiredNode
-        class Node1 RetiredNode
 
         subgraph Service
             subgraph Old Nodes
@@ -124,9 +110,6 @@ Procedure
                 Node4((Node 4))
                 class Node4 Primary
                 Node5((Node 5))
-                class Node3 NewNode
-                class Node4 NewNode
-                class Node5 NewNode
             end
         end
 
@@ -137,16 +120,11 @@ Procedure
 .. mermaid::
 
     graph TB;
-        classDef NewNode fill:Turquoise
-        classDef RetiredNode fill:LightGray
         classDef Primary stroke-width:4px
 
         Node0((Node 0))
         Node1((Node 1))
         Node2((Node 2))
-        class Node0 RetiredNode
-        class Node1 RetiredNode
-        class Node2 RetiredNode
 
 
         subgraph Service
@@ -155,9 +133,6 @@ Procedure
                 Node4((Node 4))
                 class Node4 Primary
                 Node5((Node 5))
-                class Node3 NewNode
-                class Node4 NewNode
-                class Node5 NewNode
             end
         end
 
@@ -166,7 +141,6 @@ Procedure
 .. mermaid::
 
     graph LR;
-        classDef NewNode fill:Turquoise
         classDef Primary stroke-width:4px
 
         subgraph Service
@@ -174,9 +148,6 @@ Procedure
             Node4((Node 4))
             class Node4 Primary
             Node5((Node 5))
-            class Node3 NewNode
-            class Node4 NewNode
-            class Node5 NewNode
         end
 
 5. If necessary, the constitution scripts and JavaScript/TypeScript application bundles should be updated via governance:

@@ -82,7 +82,7 @@ An ML-DSA service certificate, when the service has one, starts with the same in
     Service Open By Members + set_service_certificate_validity (and set_pq_service_certificate_validity) :milestone, 01-01/15:00, 0d
     Members must renew each cert before its expiry (set_service_certificate_validity and set_pq_service_certificate_validity)              :crit, 01-05/15:00, 1d
 
-    section Service <br> Certificate
+    section Service Certificate
     Initial Validity Period (24h default): done, 01-01/00:00, 1d
     Post Service Open Validity Period    : 01-01/15:00, 5d
 
