@@ -14,9 +14,16 @@
 #include <climits>
 #include <crypto/cbor_tags.h>
 #include <crypto/cose.h>
+#include <openssl/opensslv.h>
 #include <openssl/sha.h>
+#include <optional>
 #include <stdexcept>
 #include <tav/cbor.hpp>
+
+#if OPENSSL_VERSION_PREREQ(3, 5)
+#  include "crypto/openssl/mldsa.h"
+#  include "crypto/openssl/mldsa_public_key.h"
+#endif
 
 namespace
 {
@@ -59,10 +66,17 @@ namespace
     CurveID curve = CurveID::NONE;
     // RSA only
     size_t salt_length = 0;
+    // AKP only
+    std::optional<MLDSAParameterSet> parameter_set = std::nullopt;
   };
 
   AlgorithmParameters algorithm_parameters(int64_t alg)
   {
+    const auto parameter_set = ccf::cose::parameter_set_for_algorithm(alg);
+    if (parameter_set.has_value())
+    {
+      return {.kty = COSEKeyType::AKP, .parameter_set = parameter_set};
+    }
     switch (alg)
     {
       case ccf::cose::alg::ES256:
@@ -195,21 +209,27 @@ namespace
       }
       default:
       {
+#if OPENSSL_VERSION_PREREQ(3, 5)
+        // Dispatch ML-DSA keys by name rather than legacy id.
+        if (mldsa::find_parameter_set(key).has_value())
+        {
+          return COSEKey(
+            std::make_shared<MLDSAPublicKey_OpenSSL>(std::move(key)));
+        }
+#endif
         throw std::runtime_error("Unsupported COSE public key type");
       }
     }
   }
 
-  COSEKey cose_key_from_bytes(std::span<const uint8_t> encoded, bool pem)
+  COSEKey cose_key_from_pem_public_key(std::span<const uint8_t> pem)
   {
-    if (encoded.empty() || encoded.size() > INT_MAX)
+    if (pem.empty() || pem.size() > INT_MAX)
     {
       throw std::runtime_error("Invalid public key size");
     }
-    OpenSSL::Unique_BIO bio(encoded);
-    EVP_PKEY* parsed = pem ?
-      PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr) :
-      d2i_PUBKEY_bio(bio, nullptr);
+    OpenSSL::Unique_BIO bio(pem);
+    EVP_PKEY* parsed = PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
     if (parsed == nullptr)
     {
       throw std::runtime_error(
@@ -272,6 +292,27 @@ namespace ccf::crypto
     return cose_key_from_certificate(der, CertificateFormat::DER);
   }
 
+  COSEKey cose_key_from_der_public_key(std::span<const uint8_t> der)
+  {
+    if (der.empty() || der.size() > INT_MAX)
+    {
+      throw std::runtime_error("Invalid public key size");
+    }
+    const auto* cursor = der.data();
+    auto* parsed = d2i_PUBKEY(nullptr, &cursor, static_cast<long>(der.size()));
+    if (parsed == nullptr)
+    {
+      throw std::runtime_error(
+        fmt::format("Failed to parse public key: {}", OpenSSL::first_error()));
+    }
+    OpenSSL::Unique_PKEY key(parsed, EVP_PKEY_free);
+    if (cursor != der.data() + der.size())
+    {
+      throw std::runtime_error("Unexpected data after public key");
+    }
+    return cose_key_from_pkey(std::move(key));
+  }
+
   bool cose_algorithm_matches_key(int64_t alg, const COSEKey& key)
   {
     const auto parameters = algorithm_parameters(alg);
@@ -280,7 +321,16 @@ namespace ccf::crypto
       return false;
     }
     const auto ec_key = key.ec_public_key();
-    return ec_key == nullptr || parameters.curve == ec_key->get_curve_id();
+    if (ec_key != nullptr)
+    {
+      return parameters.curve == ec_key->get_curve_id();
+    }
+    const auto mldsa_key = key.mldsa_public_key();
+    if (mldsa_key != nullptr)
+    {
+      return parameters.parameter_set == mldsa_key->get_parameter_set();
+    }
+    return true;
   }
 
   std::unique_ptr<COSECertVerifier_OpenSSL> COSECertVerifier_OpenSSL::from_any(
@@ -308,12 +358,12 @@ namespace ccf::crypto
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_) :
-    COSEVerifier_OpenSSL(cose_key_from_bytes(public_key_.raw(), true))
+    COSEVerifier_OpenSSL(cose_key_from_pem_public_key(public_key_.raw()))
   {}
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(
     std::span<const uint8_t> public_key_der_) :
-    COSEVerifier_OpenSSL(cose_key_from_bytes(public_key_der_, false))
+    COSEVerifier_OpenSSL(cose_key_from_der_public_key(public_key_der_))
   {}
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const COSEKey& key) :
@@ -405,6 +455,11 @@ namespace ccf::crypto
       {
         verified =
           eddsa_key->verify(tbs.data(), tbs.size(), sig.data(), sig.size());
+      }
+      else if (const auto mldsa_key = verify_key.mldsa_public_key())
+      {
+        // Pure ML-DSA with an empty context (RFC 9964 Section 5)
+        verified = mldsa_key->verify(tbs, sig);
       }
       else
       {

@@ -30,6 +30,11 @@ assert_detail,0,retirement_phase,Completed
 assert_detail,0,leadership_state,Leader
 
 cleanup_nodes,2,0
+# Deliver the retirement write as the last entry in its AppendEntries batch.
+periodic_all,10
+dispatch_all
+assert_last_txid,1,2.7
+assert_last_txid,2,2.7
 emit_signature,2
 periodic_all,10
 dispatch_all

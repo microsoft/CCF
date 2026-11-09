@@ -5,7 +5,7 @@ This page describes how operators/members can upgrade a live CCF service to a ne
 
 Reasons for running the code upgrade procedure include:
 
-- Upgrading nodes to a new version of a C++ application or JavaScript runtime (i.e. ``libjs_generic.enclave.so.signed``).
+- Upgrading nodes to a new version of a C++ application or JavaScript runtime (i.e. the ``js_generic`` executable).
 - Upgrading nodes to a new version of CCF.
 
 .. tip::
@@ -33,10 +33,13 @@ Procedure
             Node2((Node 2))
         end
 
-1. First, operators/members should register the new code version corresponding to the new enclave measurement using platform specific proposal actions (see :ref:`governance/common_member_operations:Updating Code Version`).
+1. First, operators/members should register the new code version (on SNP, its attested measurement and/or host data) using platform specific proposal actions (see :ref:`governance/common_member_operations:Updating Code Version`).
 
 
-2. The set of new nodes running the enclave registered in the previous step should be added to the service (see :ref:`operations/start_network:Adding a New Node to the Network`) and trusted by members (see :ref:`governance/common_member_operations:Trusting a New Node`). Typically, the same number of nodes as were originally present should be added to the service. If the new nodes are trusted individually, this example service is then made of 6 nodes (``f = 2``). If using the atomic reconfiguration proposal described in the next step, the new nodes should be left pending until that proposal is submitted.
+2. The set of new nodes running the code version registered in the previous step should be added to the service (see :ref:`operations/start_network:Adding a New Node to the Network`) and trusted by members (see :ref:`governance/common_member_operations:Trusting a New Node`).
+   Typically, the same number of nodes as were originally present should be added to the service.
+   If the new nodes are trusted individually, this example service is then made of 6 nodes (``f = 2``).
+   If using the atomic reconfiguration proposal described in the next step, the new nodes should be left pending until that proposal is submitted.
 
 .. mermaid::
 

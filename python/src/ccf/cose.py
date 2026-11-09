@@ -9,7 +9,7 @@ import sys
 import warnings
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, TypedDict, cast
+from typing import Any, TypedDict
 
 import cbor2
 import cwt
@@ -121,11 +121,8 @@ def create_cose_sign1(
     phdr: dict[Any, Any] = {int(cwt.COSEHeaders.KID): cert_fingerprint(cert_pem)}
     additional_header = additional_protected_header or {}
     phdr.update(additional_header)
-    # cwt accepts ResolvedHeader, but encode_and_sign annotates only dict.
     encoded = cose_ctx.encode_and_sign(
-        payload,
-        cose_key,
-        protected=cast(dict[str | int, Any], cwt.utils.ResolvedHeader(phdr)),
+        payload, cose_key, protected=cwt.utils.ResolvedHeader(phdr)
     )
     if not isinstance(encoded, bytes):
         raise TypeError("Expected an encoded COSE Sign1 byte string")

@@ -59,6 +59,9 @@ Protocol-specific matching, diagnostics, and output emission belong in the consu
 Define a model as `system : TransitionSystem`, setting `State` and `Action` in the structure rather than supplying type parameters.
 Use `abbrev` for concrete systems so Lean can unfold their bundled types during typeclass inference.
 Generic helpers use `system.State` and `system.Action`, while `system.Reachable state` and `Execution.Run system start actions final` describe executions.
+`system.DeadlockFree` means that every reachable state has at least one action whose `step` returns `some nextState`.
+Enabled stutters count; disabled actions returning `none` do not.
+This does not require fair scheduling, eventual progress, or infinite traces: a finite trace may stop even when another action is enabled.
 Traces have type `Execution.Trace system`, with validity carried by the structure rather than a separate premise.
 Use `trace.stateAt n` and `trace.actionAt n` for optional indexed access, `state ∈ trace` for state membership, and `trace.states` and `trace.actions` to access the sequences directly.
 The sequences are derived from `init` and `steps`, so finite traces always have one more state than action.

@@ -3,6 +3,7 @@ module
 public import DisasterRecovery.Properties.Utils
 
 import DisasterRecovery.Proofs.Local
+import DisasterRecovery.Proofs.Deadlock
 import DisasterRecovery.Proofs.Safety
 import DisasterRecovery.Proofs.Witnesses
 
@@ -11,6 +12,20 @@ import DisasterRecovery.Proofs.Witnesses
 namespace DisasterRecovery.Properties
 
 open Model.Local
+
+/-- Every reachable recovery state has an enabled action. -/
+theorem deadlock_free
+    : forall (config : Model.Config) (state : Model.State),
+        (Model.transitionSystem config).Reachable state
+        -> exists action nextState,
+            (Model.transitionSystem config).step state action = some nextState := by
+  exact Proofs.Deadlock.deadlock_free
+
+/-- Witness: a valid recovery configuration has a reachable initial state. -/
+theorem deadlock_free_witness
+    : exists (config : Model.Config) (state : Model.State),
+        (Model.transitionSystem config).Reachable state := by
+  exact Proofs.Deadlock.deadlock_free_witness
 
 -- Global invariants for all valid traces and corresponding witness
 

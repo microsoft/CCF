@@ -1,4 +1,9 @@
-<!-- Keep answers brief. Explain non-applicability rather than leaving ambiguous blanks. -->
+<!--
+Keep the description concise enough for a reviewer to understand in under a minute.
+Focus on what the PR changes and why the changes are needed.
+Omit validation sections and lists of tests or commands run.
+Limit testing discussion to recommendations for long-running or more comprehensive tests as CI gates.
+-->
 
 ## Motivation
 
@@ -12,8 +17,8 @@
 ## Safety and compatibility
 
 <!--
-Describe security or consensus/KV risks, API/data-format changes, and impacts on
-mixed-version operation or recovery. Explain preserved guarantees or intentional
-changes. For non-runtime changes, briefly explain why there is no runtime impact.
+Describe security or consensus/KV risks, API/data-format changes, and impacts on mixed-version operation or recovery.
+Explain preserved guarantees or intentional changes.
+For non-runtime changes, describe the affected contributor workflow.
 Compatibility policy: https://microsoft.github.io/CCF/main/build_apps/release_policy.html
 -->

@@ -48,6 +48,10 @@ Architecture
 
         Explore the internal implementation of the TCP host layer.
 
+    .. grid-item-card:: :fas:`check-double` :doc:`verification`
+
+        Understand how CCF's protocols are formally modelled and validated against the implementation.
+
 .. toctree::
     :hidden:
     :maxdepth: 1
@@ -63,3 +67,4 @@ Architecture
     receipts
     tls_internals
     tcp_internals
+    verification
