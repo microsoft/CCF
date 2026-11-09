@@ -1,0 +1,18 @@
+name = "mathlib_subset"
+version = "0.1.0"
+defaultTargets = ["Mathlib", "Batteries"]
+
+# The options Mathlib and Batteries are built with that affect elaboration.
+[leanOptions]
+autoImplicit = false
+maxSynthPendingDepth = 3
+
+[[lean_lib]]
+name = "Mathlib"
+globs = ["Mathlib.+"]
+
+[[lean_lib]]
+name = "Batteries"
+globs = ["Batteries.+"]
+# Batteries keeps Lean's default.
+leanOptions = {autoImplicit = true}

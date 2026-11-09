@@ -1,0 +1,65 @@
+name: "Lean Mathlib Subset"
+
+on:
+  pull_request:
+    paths:
+      - "lean/lean-toolchain"
+      - "lean/mathlib-subset/**"
+      - "lean/mathlib-subset-check/**"
+      - ".github/workflows/lean-mathlib-subset.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+jobs:
+  check:
+    name: Check vendored Mathlib subset
+    runs-on: [gha-vmss-d16av7-ci-b]
+    container:
+      image: ubuntu:26.04
+      options: --user root
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Install container prerequisites
+        run: |
+          set -euo pipefail
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            ca-certificates git curl tar zstd build-essential libgmp-dev elan
+          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Lean
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          elan run --install "$(cat lean/lean-toolchain)" lean --version
+
+      - name: Build Mathlib subset
+        working-directory: lean/mathlib-subset
+        run: |
+          set -euo pipefail
+          lake build --wfail
+
+      - name: Fetch upstream Mathlib
+        working-directory: lean/mathlib-subset-check
+        run: |
+          set -euo pipefail
+          lake exe cache get
+
+      - name: Check subset against upstream Mathlib
+        working-directory: lean/mathlib-subset-check
+        run: |
+          set -euo pipefail
+          lake exe mathlib-subset-check ../mathlib-subset

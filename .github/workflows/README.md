@@ -172,13 +172,22 @@ The `KV trace captures` job builds the `CCF_KV_TRACING` unit tests on Azure Linu
 The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fixtures.
 The dedicated replay job builds `kv-replay` separately to validate the captured traces; no replay executables are transferred between jobs.
 
-After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
+After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file except the vendored Mathlib subset with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
 It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
 3rd party dependencies: Mathlib and leanfmt (pinned in the Lake package), and elan.
+
+# Lean Mathlib Subset
+
+Checks the declarations vendored in [`lean/mathlib-subset`](../../lean/mathlib-subset/README.md) against upstream Mathlib, using `lake exe mathlib-subset-check`.
+Fetching upstream Mathlib is slow, so it is triggered only on pull requests that change the subset, its checker, the Lean toolchain, or this workflow.
+It can also be run manually.
+
+File: `lean-mathlib-subset.yml`
+3rd party dependencies: Mathlib (pinned in the subset checker) and elan.
 
 # Vendored Dependency Verification
 

@@ -322,7 +322,15 @@ jobs:
           python3 - <<'PY'
           import pathlib
 
-          expected = {"consensus", "common", "consistency", "disaster-recovery", "kv"}
+          expected = {
+              "consensus",
+              "common",
+              "consistency",
+              "disaster-recovery",
+              "kv",
+              "mathlib-subset",
+              "mathlib-subset-check",
+          }
           actual = {config.parent.name for config in pathlib.Path("lean").glob("*/lakefile.toml")}
           if actual != expected:
               raise SystemExit(

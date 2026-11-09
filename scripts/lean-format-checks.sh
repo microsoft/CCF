@@ -36,7 +36,8 @@ for package in "${PACKAGES[@]}"; do
   fi
   # The disaster recovery package also checks Lean files outside lean/.
   if [ "$package" == "disaster-recovery" ]; then
-    PATHSPEC=("*.lean" ":(exclude)lean/consensus/*" ":(exclude)lean/consistency/*" ":(exclude)lean/kv/*")
+    # The vendored Mathlib subset keeps upstream formatting.
+    PATHSPEC=("*.lean" ":(exclude)lean/consensus/*" ":(exclude)lean/consistency/*" ":(exclude)lean/kv/*" ":(exclude)lean/mathlib-subset/*")
   else
     PATHSPEC=("lean/$package/*.lean")
   fi
