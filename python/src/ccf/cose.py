@@ -29,7 +29,6 @@ from cryptography.hazmat.primitives.serialization import (
 from cryptography.x509 import load_pem_x509_certificate
 
 from ccf.identity import (
-    IdentityIdFormat,
     did_key_from_public_key,
     identity_id_from_cert,
     public_key_from_did_key,
@@ -120,12 +119,11 @@ def create_cose_sign1(
     key_priv_pem: Pem,
     cert_pem: Pem | None = None,
     additional_protected_header: Mapping[Any, Any] | None = None,
-    id_format: IdentityIdFormat | str = IdentityIdFormat.SHA256,
     *,
     did_key: str | None = None,
 ) -> bytes:
     """Sign a request using its enrolled identity format for the protected kid."""
-    _, kid = _signing_identity(cert_pem, id_format, did_key)
+    _, kid = _signing_identity(cert_pem, did_key)
     if (
         did_key is not None
         and did_key_from_public_key(
@@ -156,7 +154,6 @@ def create_cose_sign1(
 
 def _signing_identity(
     cert_pem: Pem | None,
-    id_format: IdentityIdFormat | str,
     did_key: str | None,
 ) -> tuple[CertificatePublicKeyTypes, bytes]:
     """Resolve a legacy certificate or a certificate-free enrolled DID."""
@@ -168,7 +165,7 @@ def _signing_identity(
         raise ValueError("A signing certificate or did_key is required")
     return (
         load_pem_x509_certificate(cert_pem.encode("ascii")).public_key(),
-        identity_id_from_cert(cert_pem, id_format).encode("ascii"),
+        identity_id_from_cert(cert_pem).encode("ascii"),
     )
 
 
@@ -176,12 +173,11 @@ def create_cose_sign1_prepare(
     payload: bytes,
     cert_pem: Pem | None = None,
     additional_protected_header: Mapping[Any, Any] | None = None,
-    id_format: IdentityIdFormat | str = IdentityIdFormat.SHA256,
     *,
     did_key: str | None = None,
 ) -> PreparedCoseSign1:
     """Prepare external signing with the same identity format as the finish step."""
-    public_key, kid = _signing_identity(cert_pem, id_format, did_key)
+    public_key, kid = _signing_identity(cert_pem, did_key)
     alg = default_algorithm_for_key(public_key)
 
     protected_header: dict[str | int, Any] = {
@@ -216,12 +212,11 @@ def create_cose_sign1_finish(
     cert_pem: Pem | None = None,
     signature: str | bytes | None = None,
     additional_protected_header: Mapping[Any, Any] | None = None,
-    id_format: IdentityIdFormat | str = IdentityIdFormat.SHA256,
     *,
     did_key: str | None = None,
 ) -> bytes:
     """Assemble an externally signed request with its enrolled identity format."""
-    public_key, kid = _signing_identity(cert_pem, id_format, did_key)
+    public_key, kid = _signing_identity(cert_pem, did_key)
     alg = default_algorithm_for_key(public_key)
     if signature is None:
         raise ValueError("A signature is required")
@@ -262,7 +257,6 @@ def verify_cose_sign1_with_cert(
     cose_sign1: bytes,
     use_key: bool = True,
     payload: bytes | None = None,
-    id_format: IdentityIdFormat | str = IdentityIdFormat.SHA256,
 ) -> tuple[dict[str | int, Any], dict[str | int, Any], bytes]:
     """Verify COSE using a service key fingerprint or an enrolled identity ID."""
     cose_ctx = cwt.COSE.new()
@@ -272,7 +266,7 @@ def verify_cose_sign1_with_cert(
         kid=(
             key_fingerprint_from_cert(cert_pem)
             if use_key
-            else identity_id_from_cert(cert_pem, id_format).encode("utf-8")
+            else identity_id_from_cert(cert_pem).encode("utf-8")
         ),
     )
     return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
@@ -386,12 +380,6 @@ def _common_parser(description: str) -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
-        "--identity-id-format",
-        choices=[str(v) for v in IdentityIdFormat],
-        default=IdentityIdFormat.SHA256,
-        help="Enrolled identity ID format (default: sha256)",
-    )
-    parser.add_argument(
         "--content",
         help="Path to content file, or '-' for stdin",
         type=str,
@@ -485,7 +473,6 @@ def sign_cli():
         signing_key,
         signing_cert,
         protected_header,
-        args.identity_id_format,
         did_key=args.signing_did_key,
     )
     sys.stdout.buffer.write(cose_sign1)
@@ -520,7 +507,6 @@ def prepare_cli():
         content,
         signing_cert,
         protected_header,
-        args.identity_id_format,
         did_key=args.signing_did_key,
     )
     json.dump(digest, sys.stdout)
@@ -559,7 +545,6 @@ def finish_cli():
         signing_cert,
         signature,
         protected_header,
-        args.identity_id_format,
         did_key=args.signing_did_key,
     )
     sys.stdout.buffer.write(cose_sign1)

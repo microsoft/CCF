@@ -5,7 +5,6 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/entity_id.h"
-#include "ccf/identity_id_format.h"
 #include "ccf/service/blit_serialiser_pem.h"
 #include "ccf/service/map.h"
 #include "ccf/service/signed_req.h"
@@ -48,7 +47,6 @@ namespace ccf
     nlohmann::json member_data;
 
     std::optional<MemberRecoveryRole> recovery_role = std::nullopt;
-    IdentityIdFormat id_format = IdentityIdFormat::SHA256;
     std::optional<std::string> did_key = std::nullopt;
 
     NewMember() = default;
@@ -57,33 +55,25 @@ namespace ccf
       ccf::crypto::Pem cert_,
       const std::optional<ccf::crypto::Pem>& encryption_pub_key_ = std::nullopt,
       nlohmann::json member_data_ = {},
-      const std::optional<MemberRecoveryRole>& recovery_role_ = std::nullopt,
-      IdentityIdFormat id_format_ = IdentityIdFormat::SHA256) :
+      const std::optional<MemberRecoveryRole>& recovery_role_ = std::nullopt) :
       cert(std::move(cert_)),
       encryption_pub_key(encryption_pub_key_),
       member_data(std::move(member_data_)),
-      recovery_role(recovery_role_),
-      id_format(id_format_)
+      recovery_role(recovery_role_)
     {}
 
     bool operator==(const NewMember& rhs) const
     {
       return cert == rhs.cert && encryption_pub_key == rhs.encryption_pub_key &&
         member_data == rhs.member_data && recovery_role == rhs.recovery_role &&
-        id_format == rhs.id_format && did_key == rhs.did_key;
+        did_key == rhs.did_key;
     }
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember);
   DECLARE_JSON_REQUIRED_FIELDS(NewMember);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    NewMember,
-    cert,
-    encryption_pub_key,
-    member_data,
-    recovery_role,
-    id_format,
-    did_key);
+    NewMember, cert, encryption_pub_key, member_data, recovery_role, did_key);
 
   struct MemberDetails
   {

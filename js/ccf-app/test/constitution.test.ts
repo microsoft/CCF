@@ -77,7 +77,6 @@ for (const role of ["member", "user"]) {
         assert.fail("Legacy enrollment must not traverse certificates");
       });
       assert.equal(enroll({ cert }), id);
-      assert.equal(enroll({ cert, id_format: "sha256" }), id);
     });
 
     it("rejects legacy enrollment of an existing DID key", () => {
@@ -102,6 +101,7 @@ for (const role of ["member", "user"]) {
         { did_key: did, cert },
         { did_key: did, id_format: "did:key" },
         { cert, id_format: "did:key" },
+        { cert, id_format: "sha256" },
         { did_key: "did:key:zinvalid" },
         { did_key: did + "#fragment" },
       ]) {

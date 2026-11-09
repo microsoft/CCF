@@ -18,6 +18,7 @@ Derive the new ID from the identity public key:
 
 For migration, ``--cert identity_cert.pem`` can instead extract the public key from a legacy certificate locally.
 Only the resulting ``did:key`` string is sent in the new enrollment action.
+Use the explicit DID for signing and recovery; certificate-to-DID extraction is a local migration step, not an alternative enrollment or signing mode.
 Neither ``cert`` nor ``id_format`` is accepted alongside ``did_key``.
 The ID format is scoped to each role: the same public key may be enrolled as a member and a user, but cannot be enrolled in both formats at the same time within either role.
 Group the removal and DID enrollment in a single proposal, with the removal action first.

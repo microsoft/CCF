@@ -65,7 +65,6 @@ namespace ccf
       Certs* certs,
       Keys* keys,
       const ccf::crypto::Pem& cert,
-      IdentityIdFormat id_format,
       const std::optional<std::string>& did_key)
     {
       if (did_key.has_value())
@@ -87,7 +86,7 @@ namespace ccf
         });
         return *did_key;
       }
-      if (cert.empty() || id_format != IdentityIdFormat::SHA256)
+      if (cert.empty())
       {
         throw std::logic_error(
           "Enrollment requires a legacy cert or a certificate-free did_key");
@@ -247,7 +246,6 @@ namespace ccf
         member_certs,
         member_keys,
         member_pub_info.cert,
-        member_pub_info.id_format,
         member_pub_info.did_key);
 
       auto member = member_certs->get(id);
@@ -340,11 +338,7 @@ namespace ccf
       auto* user_keys = tx.rw<ccf::UserPublicKeys>(Tables::USER_PUBLIC_KEYS);
 
       UserId id = check_identity_enrollment(
-        user_certs,
-        user_keys,
-        new_user.cert,
-        new_user.id_format,
-        new_user.did_key);
+        user_certs, user_keys, new_user.cert, new_user.did_key);
 
       auto user_cert = user_certs->get(id);
       if (user_cert.has_value() || user_keys->has(id))

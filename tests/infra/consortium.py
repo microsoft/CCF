@@ -497,12 +497,16 @@ class Consortium:
         return os.path.join(self.common_dir, f"{user_id}_cert.pem")
 
     def add_user(self, remote_node, user_id, user_data=None, id_format="sha256"):
-        cert = slurp_file(self.user_cert_path(user_id))
+        cert = (
+            slurp_file(self.user_cert_path(user_id)) if id_format == "sha256" else None
+        )
         proposal, careful_vote = self.make_proposal(
             "set_user",
             cert=cert if id_format == "sha256" else None,
             did_key=(
-                infra.crypto.identity_id_from_cert(cert, "did:key")
+                infra.crypto.did_key_from_private_key(
+                    slurp_file(os.path.join(self.common_dir, f"{user_id}_privk.pem"))
+                )
                 if id_format == "did:key"
                 else None
             ),

@@ -942,6 +942,14 @@ def did_key_identities(args):
             for node in network.get_joined_nodes()
         )
         primary, _ = network.find_primary()
+        if initial_format == "did:key":
+            for initial_member in network.consortium.members:
+                assert initial_member.cert is None
+                assert not os.path.exists(
+                    os.path.join(
+                        network.common_dir, f"{initial_member.local_id}_cert.pem"
+                    )
+                )
 
         def assert_migration_rollback(migration, role, legacy_id, did_id):
             legacy_path = f"/gov/service/{role}s/{legacy_id}"
@@ -1084,6 +1092,35 @@ def did_key_identities(args):
             r = c.get(f"/gov/service/members/{quote(member.service_id, safe='')}")
             assert r.body.json()["status"] == "Active", r
 
+        fresh_member = network.consortium.generate_and_add_new_member(
+            primary,
+            args.participants_curve,
+            recovery_role=infra.member.RecoveryRole.NonParticipant,
+            id_format="did:key",
+        )
+        assert fresh_member.cert is None
+        assert not os.path.exists(
+            os.path.join(network.common_dir, f"{fresh_member.local_id}_cert.pem")
+        )
+        fresh_member.ack(primary)
+
+        fresh_user = network.create_user(
+            "key_only_user", args.participants_curve, id_format="did:key"
+        )
+        assert not os.path.exists(fresh_user.cert_path)
+        network.consortium.add_user(primary, fresh_user.local_id, id_format="did:key")
+        with primary.client(
+            cose_signing_identity=infra.clients.Identity(
+                fresh_user.key_path,
+                None,
+                "key-only user",
+                did_key=fresh_user.service_id,
+            )
+        ) as c:
+            r = c.post("/app/multi_auth", {"msg": "No certificate was generated"})
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert fresh_user.service_id in r.body.text(), r
+
         user = network.create_user("did_user", args.participants_curve)
         network.consortium.add_user(
             primary, user.local_id, user_data={"migrated": True}
@@ -1138,7 +1175,7 @@ def did_key_identities(args):
         with open(replacement_path, "w", encoding="ascii") as f:
             f.write(replacement)
         replacement_identity = infra.clients.Identity(
-            user.key_path, replacement_path, "replacement", "did:key"
+            user.key_path, replacement_path, "replacement"
         )
         with primary.client(replacement_identity) as c:
             r = c.get("/app/log/private?id=1")
@@ -1151,14 +1188,9 @@ def did_key_identities(args):
             assert r.status_code == http.HTTPStatus.OK, r
             assert r.body.text().startswith("User COSE Sign1"), r
             assert user.service_id in r.body.text(), r
-        wrong_key_identity = infra.clients.Identity(
-            network.users[0].key_path,
-            replacement_path,
-            "wrong signing key",
-            "did:key",
-        )
-        with primary.client(cose_signing_identity=wrong_key_identity) as c:
-            r = c.post("/app/log/private", {"id": 4, "msg": "Wrong key"})
+        with primary.client(cose_signing_identity=certificate_free_identity) as c:
+            c.client_impl._corrupt_signature = True
+            r = c.post("/app/log/private", {"id": 4, "msg": "Corrupted signature"})
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
             assert "Failed to validate COSE Sign1" in r.body.text(), r
 

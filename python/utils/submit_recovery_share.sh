@@ -28,7 +28,6 @@ node_rpc_address=$1
 shift
 
 api_version="2024-07-01"
-identity_id_format="sha256"
 identity_args=()
 while [ "$1" != "" ]; do
     case $1 in
@@ -50,9 +49,6 @@ while [ "$1" != "" ]; do
             ;;
         --api-version)
             api_version="$2"
-            ;;
-        --identity-id-format)
-            identity_id_format="$2"
             ;;
         *)
             break
@@ -88,15 +84,9 @@ fi
 if [ -n "$member_did_key" ]; then
     member_id="$member_did_key"
     identity_args=(--signing-did-key "$member_did_key")
-elif [ "$identity_id_format" = "sha256" ]; then
+else
     member_id=$(openssl x509 -in "$member_id_cert" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
     identity_args=(--signing-cert "$member_id_cert")
-elif [ "$identity_id_format" = "did:key" ]; then
-    member_id=$(python3 -m ccf.identity --cert "$member_id_cert" --id-format "$identity_id_format")
-    identity_args=(--signing-did-key "$member_id")
-else
-    echo "Error: Unsupported identity ID format: $identity_id_format" >&2
-    exit 1
 fi
 
 url_member_id="${member_id//:/%3A}"

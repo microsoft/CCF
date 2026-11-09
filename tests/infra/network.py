@@ -769,15 +769,22 @@ class Network:
                     member["memberId"]: member for member in r.body.json()["value"]
                 }
                 for f in os.listdir(self.common_dir):
-                    if re.search("member(.*)_cert.pem", f) is not None:
-                        local_id = f.split("_")[0]
-                        cert = slurp_file(os.path.join(self.common_dir, f))
+                    match = re.fullmatch(r"(member[^_]*)_privk\.pem", f)
+                    if match is not None:
+                        local_id = match.group(1)
+                        cert_path = os.path.join(
+                            self.common_dir, f"{local_id}_cert.pem"
+                        )
                         id_format = "sha256"
-                        service_id = infra.crypto.identity_id_from_cert(cert)
+                        service_id = (
+                            infra.crypto.identity_id_from_cert(slurp_file(cert_path))
+                            if os.path.isfile(cert_path)
+                            else None
+                        )
                         if service_id not in members:
                             id_format = "did:key"
-                            service_id = infra.crypto.identity_id_from_cert(
-                                cert, id_format
+                            service_id = infra.crypto.did_key_from_private_key(
+                                slurp_file(os.path.join(self.common_dir, f))
                             )
                         if service_id not in members:
                             raise ValueError(
@@ -1756,20 +1763,27 @@ class Network:
         self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True, id_format="sha256"):
+        identity_args = ["--public-key-only"] if id_format == "did:key" else []
         infra.proc.ccall(
             self.key_generator,
             "--name",
             local_user_id,
             "--curve",
             f"{curve.name}",
+            *identity_args,
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
 
         cert_path = os.path.join(self.common_dir, f"{local_user_id}_cert.pem")
-        with open(cert_path, encoding="utf-8") as c:
-            service_user_id = infra.crypto.identity_id_from_cert(c.read(), id_format)
         key_path = os.path.join(self.common_dir, f"{local_user_id}_privk.pem")
+        if id_format == "did:key":
+            service_user_id = infra.crypto.did_key_from_private_key(
+                slurp_file(key_path)
+            )
+        else:
+            with open(cert_path, encoding="utf-8") as c:
+                service_user_id = infra.crypto.identity_id_from_cert(c.read())
         new_user = UserInfo(local_user_id, service_user_id, cert_path, key_path)
         if record:
             self.users.append(new_user)

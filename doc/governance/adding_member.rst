@@ -56,7 +56,11 @@ The Python SDK can derive the DID locally:
 
 .. code-block:: bash
 
+    $ keygenerator.sh --name new_member --public-key-only --gen-enc-key
     $ python3 -m ccf.identity --public-key new_member_pubk.pem --id-format did:key
+
+``--public-key-only`` generates an identity key pair without creating a certificate.
+Omit ``--gen-enc-key`` for non-recovery members.
 
 For a DID member, percent-encode the ID's colons in governance URLs (``did%3Akey%3Az...``), leaving action suffixes such as ``:update`` and ``:ack`` unchanged.
 Pass ``--signing-did-key <canonical-did:key>`` instead of ``--signing-cert`` to every ``ccf_cose_sign1`` operation, including activation and recovery.

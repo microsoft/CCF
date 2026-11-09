@@ -109,8 +109,7 @@ namespace ccf
             read_startup_file(member.certificate_file, "member certificate")),
         public_encryption_key,
         member_data,
-        recovery_role,
-        member.id_format);
+        recovery_role);
       genesis.members.back().did_key = member.did_key;
     }
 

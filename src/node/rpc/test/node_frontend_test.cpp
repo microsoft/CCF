@@ -124,8 +124,7 @@ TEST_CASE("Node configuration retains operator file paths")
          {{{"certificate_file", "not-loaded/member.pem"},
            {"encryption_public_key_file", "not-loaded/member_enc.pem"},
            {"data_json_file", "not-loaded/member.json"},
-           {"recovery_role", MemberRecoveryRole::Owner},
-           {"id_format", "sha256"}}}},
+           {"recovery_role", MemberRecoveryRole::Owner}}}},
         {"constitution_files", {"not-loaded/first.js", "not-loaded/second.js"}},
         {"initial_service_certificate_validity_days", 7},
         {"service_subject_name", "CN=Configured Service"},
@@ -146,8 +145,6 @@ TEST_CASE("Node configuration retains operator file paths")
 
   auto config = input.get<CCFConfig>();
   CHECK(config.node_certificate.id_format == IdentityIdFormat::DIDKey);
-  CHECK(
-    config.command.start.members.front().id_format == IdentityIdFormat::SHA256);
   CHECK(config.command.type == StartType::Start);
   CHECK(
     config.command.start.members.front().certificate_file ==

@@ -45,6 +45,7 @@ Additional protected headers may be necessary, for example governance endpoints 
 A signing script (``ccf_cose_sign1``) is provided as part of the `ccf Python package <https://pypi.org/project/ccf/>`_. The output can be piped directly into curl, or any other HTTP client.
 
 For DID identities, pass ``--signing-did-key <canonical-did:key>`` instead of ``--signing-cert`` to ``ccf_cose_sign1``, ``ccf_cose_sign1_prepare``, and ``ccf_cose_sign1_finish``.
+The signing commands do not accept an identity-format selector: ``--signing-cert`` always identifies a legacy certificate enrollment, and ``--signing-did-key`` always identifies a certificate-free enrollment.
 Preparation and completion must select the same DID.
 The equivalent SDK functions accept ``did_key="<canonical-did:key>"`` with no certificate argument.
 The default remains ``sha256``; service receipt verification and its public-key fingerprint are unchanged.

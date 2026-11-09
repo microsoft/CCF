@@ -2,14 +2,60 @@
 # Licensed under the Apache 2.0 License.
 
 import hashlib
+from pathlib import Path
+import subprocess
 
 import ccf.identity
 import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    PublicFormat,
+    load_pem_private_key,
+    load_pem_public_key,
+)
 from test_cose_sign import make_self_signed_cert
+
+
+@pytest.mark.parametrize("curve", ["secp256r1", "secp384r1"])
+@pytest.mark.parametrize("public_key_only", [False, True])
+@pytest.mark.parametrize("encryption_key", [False, True])
+def test_keygenerator(tmp_path, curve, public_key_only, encryption_key):
+    script = Path(__file__).resolve().parents[1] / "utils" / "keygenerator.sh"
+    args = [str(script), "--name", "member0", "--curve", curve]
+    if public_key_only:
+        args += ["--public-key-only"]
+    if encryption_key:
+        args += ["--gen-enc-key"]
+    subprocess.run(args, cwd=tmp_path, check=True, capture_output=True)
+
+    identity_key = load_pem_private_key(
+        (tmp_path / "member0_privk.pem").read_bytes(), password=None
+    )
+    cert_path = tmp_path / "member0_cert.pem"
+    public_key_path = tmp_path / "member0_pubk.pem"
+    assert cert_path.exists() == (not public_key_only)
+    assert public_key_path.exists() == public_key_only
+    identity_public_key = (
+        load_pem_public_key(public_key_path.read_bytes())
+        if public_key_only
+        else x509.load_pem_x509_certificate(cert_path.read_bytes()).public_key()
+    )
+    assert ccf.identity.did_key_from_public_key(identity_public_key) == (
+        ccf.identity.did_key_from_public_key(identity_key.public_key())
+    )
+    enc_private_path = tmp_path / "member0_enc_privk.pem"
+    enc_public_path = tmp_path / "member0_enc_pubk.pem"
+    assert enc_private_path.exists() == encryption_key
+    assert enc_public_path.exists() == encryption_key
+    if encryption_key:
+        enc_private = load_pem_private_key(enc_private_path.read_bytes(), password=None)
+        enc_public = load_pem_public_key(enc_public_path.read_bytes())
+        assert isinstance(enc_private, rsa.RSAPrivateKey)
+        assert isinstance(enc_public, rsa.RSAPublicKey)
+        assert enc_private.public_key().public_numbers() == enc_public.public_numbers()
 
 
 @pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])

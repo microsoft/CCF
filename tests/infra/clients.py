@@ -175,7 +175,6 @@ class Identity:
     cert: str | None
     #: Identity description
     description: str
-    id_format: str = "sha256"
     did_key: str | None = None
 
 
@@ -546,13 +545,6 @@ class CurlClient:
                     )
                 else:
                     pre_cmd.extend(["--signing-cert", self.cose_signing_auth.cert])
-                if (
-                    self.cose_signing_auth.did_key is None
-                    and self.cose_signing_auth.id_format != "sha256"
-                ):
-                    pre_cmd.extend(
-                        ["--identity-id-format", self.cose_signing_auth.id_format]
-                    )
                 pre_cmd.extend(["--content", content_path.strip("@")])
                 headers["content-type"] = CONTENT_TYPE_COSE
 
@@ -808,11 +800,7 @@ class HttpxClient:
                 **(
                     {"did_key": self.cose_signing_auth.did_key}
                     if self.cose_signing_auth.did_key is not None
-                    else (
-                        {"id_format": self.cose_signing_auth.id_format}
-                        if self.cose_signing_auth.id_format != "sha256"
-                        else {}
-                    )
+                    else {}
                 ),
             )
             if self._corrupt_signature:

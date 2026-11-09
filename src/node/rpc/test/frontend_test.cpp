@@ -1158,8 +1158,7 @@ TEST_CASE(
     key->self_sign("CN=replacement", valid_from, valid_to);
   const auto did = ccf::crypto::compute_cert_id(cert, IdentityIdFormat::DIDKey);
   auto tx = network.tables->create_tx();
-  InternalTablesAccess::add_user(
-    tx, {{}, nullptr, IdentityIdFormat::SHA256, did});
+  InternalTablesAccess::add_user(tx, {{}, nullptr, did});
   NewMember member;
   member.did_key = did;
   InternalTablesAccess::add_member(tx, member);

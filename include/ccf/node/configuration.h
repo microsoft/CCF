@@ -9,6 +9,7 @@
 #include "ccf/ds/unit_strings.h"
 #include "ccf/entity_id.h"
 #include "ccf/fluentd_config.h"
+#include "ccf/identity_id_format.h"
 #include "ccf/node/start_type.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_config.h"
@@ -36,7 +37,6 @@ namespace ccf
     std::optional<std::string> encryption_public_key_file = std::nullopt;
     std::optional<std::string> data_json_file = std::nullopt;
     std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
-    IdentityIdFormat id_format = IdentityIdFormat::SHA256;
     std::optional<std::string> did_key = std::nullopt;
 
     bool operator==(const ParsedMemberInfo&) const = default;
@@ -465,7 +465,6 @@ namespace ccf
     encryption_public_key_file,
     data_json_file,
     recovery_role,
-    id_format,
     did_key);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::OutputFiles);

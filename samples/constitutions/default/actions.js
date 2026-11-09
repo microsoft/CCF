@@ -259,17 +259,18 @@ function checkEntityId(value, field) {
 }
 
 function checkIdentityEnrollment(args, tableName, previousActions = []) {
+  if (args.id_format !== undefined) {
+    throw new Error(
+      "Use cert for legacy enrollment or did_key without id_format",
+    );
+  }
   const isDid = args.did_key !== undefined;
   if (isDid) {
     checkType(args.did_key, "string", "did_key");
-    if (args.cert !== undefined || args.id_format !== undefined) {
-      throw new Error("did_key enrollment must not include cert or id_format");
+    if (args.cert !== undefined) {
+      throw new Error("did_key enrollment must not include cert");
     }
     ccf.publicKeyFromDidKey(args.did_key);
-  } else {
-    if (args.id_format !== undefined && args.id_format !== "sha256") {
-      throw new Error("Use did_key, without cert, for did:key enrollment");
-    }
   }
   const id = isDid ? args.did_key : ccf.pemToId(args.cert);
   // Validation sees pre-proposal state; application checks the actual tables.

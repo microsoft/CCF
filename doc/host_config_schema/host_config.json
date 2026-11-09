@@ -300,16 +300,10 @@
                           "type": "string",
                           "description": "Path to member x509 identity certificate (PEM)"
                         },
-                        "id_format": {
-                          "type": "string",
-                          "enum": ["sha256"],
-                          "default": "sha256",
-                          "description": "Legacy certificate identity format; use did_key without certificate_file for certificate-free enrollment"
-                        },
                         "did_key": {
                           "type": "string",
                           "pattern": "^did:key:z[1-9A-HJ-NP-Za-km-z]+$",
-                          "description": "Canonical member did:key containing its public key; mutually exclusive with certificate_file and id_format"
+                          "description": "Canonical member did:key containing its public key; mutually exclusive with certificate_file"
                         },
                         "encryption_public_key_file": {
                           "type": ["string", "null"],
@@ -332,12 +326,7 @@
                         },
                         {
                           "required": ["did_key"],
-                          "not": {
-                            "anyOf": [
-                              { "required": ["certificate_file"] },
-                              { "required": ["id_format"] }
-                            ]
-                          }
+                          "not": { "required": ["certificate_file"] }
                         }
                       ],
                       "additionalProperties": false

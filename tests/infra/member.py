@@ -245,9 +245,8 @@ class Member:
         self.gov_api_impl_inst = gov_api_impl()
 
         self.member_info = {}
-        self.member_info["certificate_file"] = f"{self.local_id}_cert.pem"
-        if id_format != "sha256":
-            self.member_info["id_format"] = id_format
+        if id_format == "sha256":
+            self.member_info["certificate_file"] = f"{self.local_id}_cert.pem"
         self.member_info["encryption_public_key_file"] = (
             f"{self.local_id}_enc_pubk.pem"
             if recovery_role != RecoveryRole.NonParticipant
@@ -268,6 +267,8 @@ class Member:
                 "--curve",
                 f"{curve.name}",
             ]
+            if id_format == "did:key":
+                key_generator_args += ["--public-key-only"]
 
             if recovery_role != RecoveryRole.NonParticipant:
                 key_generator_args += [
@@ -286,9 +287,10 @@ class Member:
             assert os.path.isfile(
                 os.path.join(self.common_dir, f"{self.local_id}_privk.pem")
             )
-            assert os.path.isfile(
-                os.path.join(self.common_dir, self.member_info["certificate_file"])
-            )
+            if id_format == "sha256":
+                assert os.path.isfile(
+                    os.path.join(self.common_dir, self.member_info["certificate_file"])
+                )
 
         if self.member_data is not None:
             with open(
@@ -298,20 +300,23 @@ class Member:
             ) as md:
                 json.dump(member_data, md)
 
-        with open(
-            os.path.join(self.common_dir, self.member_info["certificate_file"]),
-            encoding="utf-8",
-        ) as c:
-            self.cert = c.read()
-            self.service_id = infra.crypto.identity_id_from_cert(
-                self.cert, self.id_format
-            )
+        if self.id_format == "did:key":
+            self.cert = None
+            with open(
+                os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
+                encoding="ascii",
+            ) as key_file:
+                self.service_id = infra.crypto.did_key_from_private_key(key_file.read())
+            self.member_info["did_key"] = self.service_id
+        else:
+            with open(
+                os.path.join(self.common_dir, self.member_info["certificate_file"]),
+                encoding="utf-8",
+            ) as c:
+                self.cert = c.read()
+                self.service_id = infra.crypto.identity_id_from_cert(self.cert)
 
         LOG.info(f"Member {self.local_id} created: {self.service_id}")
-        if self.id_format == "did:key":
-            del self.member_info["certificate_file"]
-            self.member_info.pop("id_format", None)
-            self.member_info["did_key"] = self.service_id
 
     def auth(self, write=False):
         if self.authenticate_session == "COSE":
@@ -323,7 +328,6 @@ class Member:
                         os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
                         None,
                         self.local_id,
-                        self.id_format,
                         did_key=self.service_id,
                     ),
                 )
