@@ -3278,13 +3278,13 @@ TEST_CASE("ccf converters validate their arguments")
         ["non-boolean", () => ccf.enableMetricsLogging(1),
           TypeError, "First argument must be a boolean"],
       ]);
-      // log_execution_metrics defaults to true.
-      const wasOn = ccf.enableMetricsLogging(false);
-      if (wasOn !== true)
-        throw new Error("expected previous value true, got " + wasOn);
+      // log_execution_metrics defaults to false.
       const wasOff = ccf.enableMetricsLogging(true);
       if (wasOff !== false)
         throw new Error("expected previous value false, got " + wasOff);
+      const wasOn = ccf.enableMetricsLogging(false);
+      if (wasOn !== true)
+        throw new Error("expected previous value true, got " + wasOn);
     )JS");
   }
 

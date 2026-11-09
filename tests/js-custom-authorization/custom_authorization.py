@@ -1185,22 +1185,14 @@ def test_metrics_logging(network, args):
     network.trust_node(new_node, args)
 
     # Submit several requests
-    assertions = []
     with new_node.client() as c:
         c.get("/app/echo")
-        assertions.append({"Method": "GET", "Path": "/app/echo"})
         c.post("/app/echo")
-        assertions.append({"Method": "POST", "Path": "/app/echo"})
         c.get("/app/echo/hello")
-        assertions.append({"Method": "GET", "Path": "/app/echo/{foo}"})
         c.post("/app/echo/bar")
-        assertions.append({"Method": "POST", "Path": "/app/echo/{foo}"})
         c.get("/app/fibonacci/10")
-        assertions.append({"Method": "GET", "Path": "/app/fibonacci/{n}"})
         c.get("/app/fibonacci/20")
-        assertions.append({"Method": "GET", "Path": "/app/fibonacci/{n}"})
         c.get("/app/fibonacci/30")
-        assertions.append({"Method": "GET", "Path": "/app/fibonacci/{n}"})
 
     # Remove node
     network.retire_node(primary, new_node)
@@ -1212,17 +1204,7 @@ def test_metrics_logging(network, args):
     )
     out_path, _ = new_node.get_logs()
     with open(out_path, "r", encoding="utf-8") as output:
-        for line in output:
-            match = metrics_regex.match(line)
-            if match is not None:
-                expected_groups = assertions.pop(0)
-                for k, v in expected_groups.items():
-                    actual_match = match.group(k)
-                    assert actual_match == v
-                LOG.success(f"Found metrics logging line: {line}")
-                LOG.info(f"Parsed to: {match.groups()}")
-
-    assert len(assertions) == 0
+        assert not any(metrics_regex.match(line) for line in output)
 
     return network
 

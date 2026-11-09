@@ -64,7 +64,7 @@ namespace ccf::js::core
 
     const TxAccess access;
     InterruptData interrupt_data;
-    bool log_execution_metrics = true;
+    bool log_execution_metrics = false;
 
     Context(TxAccess acc);
 
