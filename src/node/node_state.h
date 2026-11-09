@@ -1001,7 +1001,8 @@ namespace ccf
         status,
         std::string(data.begin(), data.end()));
       LOG_FAIL_FMT("{}", error_msg);
-      runtime_control.report_fatal_error(error_msg);
+      runtime_control.report_fatal_error(fmt::format(
+        "Join request to {} returned HTTP status {}", target_address, status));
     }
 
     void handle_join_unexpected_status_unsafe(
@@ -1024,9 +1025,8 @@ namespace ccf
       else
       {
         LOG_FAIL_FMT(
-          "An error occurred while joining the network: {} {}{}",
+          "An error occurred while joining the network: HTTP status {}{}",
           status,
-          ccf::http_status_str(status),
           data.empty() ?
             "" :
             fmt::format("  '{}'", std::string(data.begin(), data.end())));
@@ -1144,7 +1144,8 @@ namespace ccf
             "node gracefully...",
             e.what());
           LOG_FAIL_FMT("{}", error_msg);
-          runtime_control.report_fatal_error(error_msg);
+          runtime_control.report_fatal_error(
+            "Failed to install startup snapshot");
           return;
         }
       }
