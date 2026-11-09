@@ -72,13 +72,16 @@ extensions = [
 
 autosectionlabel_prefix_document = True
 
-# Redirects for pages which have been merged into other pages, so that
+# Redirects for pages which have been merged into other pages or moved, so that
 # existing links to them keep working. Targets are relative to the source page.
 redirects = {
     "architecture/receipts": "../use_apps/verify_tx.html#write-receipts",
     "build_apps/auth/cert": "index.html#certificate-authentication",
     "build_apps/build_app": "example_cpp.html#building",
     "build_apps/example": "example_cpp.html",
+    "build_apps/fwd_to_redirect": "../releases/fwd_to_redirect.html",
+    "build_apps/migration_7_x_to_8_x": "../releases/migration_7_x_to_8_x.html",
+    "build_apps/release_policy": "../releases/release_policy.html",
     "operations/cli": "configuration.html#command-line-interface",
     "operations/network": "configuration.html#http-interfaces",
     "operations/run_setup": "../build_apps/install_bin.html",

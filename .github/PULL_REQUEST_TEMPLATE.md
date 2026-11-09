@@ -15,5 +15,5 @@
 Describe security or consensus/KV risks, API/data-format changes, and impacts on
 mixed-version operation or recovery. Explain preserved guarantees or intentional
 changes. For non-runtime changes, briefly explain why there is no runtime impact.
-Compatibility policy: https://microsoft.github.io/CCF/main/build_apps/release_policy.html
+Compatibility policy: https://microsoft.github.io/CCF/main/releases/release_policy.html
 -->

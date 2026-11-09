@@ -50,7 +50,7 @@ This is useful when running CCF in a container, where the configuration file may
 .. include:: generated_config.rst
 
 
-For migration from deprecated ringbuffer-era configuration, see :doc:`/build_apps/migration_7_x_to_8_x`.
+For migration from deprecated ringbuffer-era configuration, see :doc:`/releases/migration_7_x_to_8_x`.
 
 .. _observability_export:
 
