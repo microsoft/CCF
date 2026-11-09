@@ -7,5 +7,6 @@ sphinx-multiversion
 sphinx-copybutton
 sphinxcontrib.openapi
 sphinx-design
+sphinx-reredirects
 sphinx-inline-tabs
 furo

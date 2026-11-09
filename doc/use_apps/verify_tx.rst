@@ -48,6 +48,14 @@ Write Receipts
 
 Once a transaction has been committed, it is possible to get a cryptographic receipt over the entry produced in the ledger. That receipt can be verified offline.
 
+CCF implements `write` receipts, which are signed proofs associated with a transaction.
+They serve two main purposes:
+
+1. :ref:`Endorse <use_apps/verify_tx:Application Claims>` claims made by the application logic, ie. a signed statement of fact, verifiable offline and by third parties, equivalent to "this transaction produced this outcome at this position in the ledger".
+2. Together with a copy of the ledger, or other receipts, they can be used to :ref:`audit <audit/receipts:Receipts>` the service and hold the consortium to account.
+
+Internally, receipts are also used to establish the validity of ledger snapshots.
+
 To obtain a receipt, a user needs to call a :http:GET:`/app/receipt` for a particular :term:`Transaction ID`. Because fetching the information necessary to produce a receipt likely involves a round trip to the ledger, the endpoint is implemented as a historical query.
 This means that the request may return ``202 Accepted`` at first, with a suggested ``Retry-After`` header. A subsequent call will return the actual receipt, for example:
 
