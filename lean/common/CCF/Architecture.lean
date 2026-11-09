@@ -8,6 +8,15 @@ namespace CCF.Architecture
 
 open Lean
 
+/-- Check an import against the layers of the shared `CCF` modules: only the `CCF` entrypoint
+and other `CCF.Proofs` modules can import `CCF.Proofs`. -/
+def allowedCommonImport (owner dependency : Name) : Bool :=
+  let proofs := `CCF.Proofs
+  !(`CCF).isPrefixOf owner
+  || owner == `CCF
+  || proofs.isPrefixOf owner
+  || !proofs.isPrefixOf dependency
+
 /-- Check an import against the standard layers of the specification rooted at `root`. -/
 def allowedImport (root owner dependency : Name) : Bool :=
   let model := root ++ `Model
@@ -16,7 +25,7 @@ def allowedImport (root owner dependency : Name) : Bool :=
   if (`CCF).isPrefixOf owner then
     !root.isPrefixOf dependency
   else if !root.isPrefixOf dependency then
-    true
+    !(model.isPrefixOf owner && (`CCF.Proofs).isPrefixOf dependency)
   else if model.isPrefixOf owner then
     model.isPrefixOf dependency && (owner == model || dependency != model)
   else if owner == properties then
@@ -33,12 +42,14 @@ def allowedImport (root owner dependency : Name) : Bool :=
   else
     true
 
-/-- Reject forbidden imports in an environment, including private transitive imports. -/
+/-- Reject forbidden imports in an environment, including private transitive imports. The
+shared `CCF` root is checked only against the common layers. -/
 def checkImports (root : Name) (environment : Environment) : Except String Unit := do
   let header := environment.header
   for (owner, data) in header.moduleNames.zip header.moduleData do
     for dependency in data.imports do
-      unless allowedImport root owner dependency.module do
+      unless allowedCommonImport owner dependency.module
+              && (root == `CCF || allowedImport root owner dependency.module) do
         throw s!"Forbidden layer dependency: {owner} imports {dependency.module}"
 
 end CCF.Architecture

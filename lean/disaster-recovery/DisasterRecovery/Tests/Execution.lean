@@ -1,6 +1,6 @@
 module
 
-public import CCF.Execution
+public import CCF.Proofs.Execution
 
 @[expose] public section
 

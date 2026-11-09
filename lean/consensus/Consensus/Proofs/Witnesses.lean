@@ -1,7 +1,7 @@
 module
 
 public import Consensus.Model
-public import CCF.Execution
+public import CCF.Proofs.Execution
 
 import all Init.Control.State
 

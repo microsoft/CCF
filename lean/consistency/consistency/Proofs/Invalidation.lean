@@ -1,7 +1,7 @@
 module
 
 public import consistency.Properties.History
-public import CCF.Execution
+public import CCF.Proofs.Execution
 
 /-!
 Status separation and invalid-observation proofs.

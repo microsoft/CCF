@@ -1,7 +1,7 @@
 module
 
 public import DisasterRecovery.Properties.Utils
-public import CCF.Execution
+public import CCF.Proofs.Execution
 public import DisasterRecovery.Model
 
 import all Init.Control.State

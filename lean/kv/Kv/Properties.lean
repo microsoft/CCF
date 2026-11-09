@@ -4,6 +4,7 @@
 module
 
 public import Kv.Properties.Invariants
+public import CCF.Execution
 
 import Kv.Proofs.Reachable
 import Kv.Proofs.Replay

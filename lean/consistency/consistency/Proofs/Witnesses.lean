@@ -1,7 +1,7 @@
 module
 
 public import consistency.Properties.History
-public import CCF.Execution
+public import CCF.Proofs.Execution
 
 /-!
 Non-vacuity witnesses and the history-only safety proofs.

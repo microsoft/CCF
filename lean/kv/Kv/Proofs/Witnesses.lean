@@ -4,6 +4,7 @@
 module
 
 public import Kv.Properties.Invariants
+public import CCF.Execution
 
 /-!
 Non-vacuity witnesses for the claims in `Kv.Properties`, together with the executable model's

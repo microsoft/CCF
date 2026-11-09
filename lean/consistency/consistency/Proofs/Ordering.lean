@@ -1,7 +1,7 @@
 module
 
 public import consistency.Properties.History
-public import CCF.Execution
+public import CCF.Proofs.Execution
 
 /-!
 Ledger identity, commitment, serializability, ordering and real-time proofs.

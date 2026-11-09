@@ -4,7 +4,8 @@ public import Consensus.Model
 
 import all Init.Control.State
 
-public import CCF.Execution
+public import CCF.Proofs.Execution
+public import CCF.Proofs.Finset
 
 namespace Consensus.Proofs.Config
 

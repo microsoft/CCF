@@ -7,5 +7,7 @@ public import CCF.Finset
 public import CCF.Function
 public import CCF.MultiNodeTransitionSystem
 public import CCF.Parsec
+public import CCF.Proofs.Execution
+public import CCF.Proofs.Finset
 public import CCF.Seq
 public import CCF.TransitionSystem
