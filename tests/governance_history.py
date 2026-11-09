@@ -182,9 +182,8 @@ def check_signatures(ledger):
                 CCF_LEDGER_SHA256 = 2
                 assert phdr[VDS] == CCF_LEDGER_SHA256, phdr
 
-                CWT_CLAIMS = 15
                 IAT, ISS, SUB = 6, 1, 2
-                cwt_claims = phdr[CWT_CLAIMS]
+                cwt_claims = phdr[int(cwt.COSEHeaders.CWT_CLAIMS)]
                 for label in (IAT, ISS, SUB):
                     assert label in cwt_claims, (label, cwt_claims)
 
