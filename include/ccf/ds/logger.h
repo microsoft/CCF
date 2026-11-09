@@ -7,7 +7,6 @@
 #include "ccf/threading/thread_ids.h"
 
 #define FMT_HEADER_ONLY
-#include <atomic>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -185,14 +184,6 @@ namespace ccf::logger
   class config
   {
   public:
-    using TraceCallback = void (*)(const LogLine&);
-
-    static std::atomic<TraceCallback>& trace_callback()
-    {
-      static std::atomic<TraceCallback> callback = nullptr;
-      return callback;
-    }
-
     static std::vector<std::unique_ptr<AbstractLogger>>& loggers()
     {
       return get_loggers();
@@ -239,13 +230,6 @@ namespace ccf::logger
     bool operator==(LogLine& line)
     {
       line.finalize();
-
-      if (
-        const auto trace =
-          config::trace_callback().load(std::memory_order_acquire))
-      {
-        trace(line);
-      }
 
       for (auto const& logger : config::loggers())
       {

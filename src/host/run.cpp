@@ -695,6 +695,11 @@ namespace ccf
     {
       if (!check_config_only)
       {
+        if (!config.observability.fluentd.empty())
+        {
+          ccf::logger::config::loggers().emplace_back(
+            std::make_unique<ccf::tracing::FluentdLogger>());
+        }
         ccf::tracing::FluentdSink::configure(
           config.observability.fluentd, config.worker_threads + 3);
         ccf::tracing::FluentdSink::bind_producer(config.worker_threads + 2);
@@ -705,12 +710,6 @@ namespace ccf
       LOG_FATAL_FMT("{}. Exiting.", e.what());
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
-    if (ccf::tracing::FluentdSink::is_configured())
-    {
-      ccf::logger::config::trace_callback().store(
-        ccf::tracing::emit_log, std::memory_order_release);
-    }
-
     LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
 
     LOG_INFO_FMT(

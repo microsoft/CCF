@@ -375,9 +375,9 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   auto logger = std::make_unique<DropLogger>();
   auto* logs = logger.get();
   ccf::logger::config::loggers().push_back(std::move(logger));
+  ccf::logger::config::loggers().emplace_back(
+    std::make_unique<ccf::tracing::FluentdLogger>());
   Sink::configure(std::vector{endpoint, excluded_endpoint}, 2);
-  ccf::logger::config::trace_callback().store(
-    ccf::tracing::emit_log, std::memory_order_release);
   Sink::bind_producer(0);
   CHECK_THROWS_AS(Sink::bind_producer(2), std::out_of_range);
   const auto waiting = std::chrono::steady_clock::now();
@@ -512,7 +512,8 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     ccf::logger::LogLine line(level, "app", "file.cpp", 42);
     line << "message with \"quotes\", a newline\nand backslash\\";
     line.finalize();
-    ccf::tracing::emit_log(line);
+    ccf::tracing::FluentdLogger fluentd;
+    fluentd.write(line);
     const auto& buffer = ccf::tracing::event_buffer();
     const auto event = nlohmann::json::from_msgpack(buffer);
     CHECK(event[0] == "ccf.log");

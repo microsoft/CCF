@@ -53,6 +53,7 @@ Omit the array or leave it empty to disable export.
 
 All records passing the node's logger are exported under ``ccf.log``, regardless of the console format, including TRACE and DEBUG when enabled.
 Logging macros use the same producer path as traces: bound threads enqueue to their existing queue, while unbound threads use a shared queue protected by a mutex.
+Fluentd is registered alongside the console outputs in the existing logger registry.
 Console logging and Fluentd export are initialised together and remain active through startup and final host cleanup.
 The Forward record uses the trace envelope (``process_id``, sequence number ``h_ts``, and ``msg``).
 Its ``msg`` uses the JSON console schema, with string-valued fields: ``h_ts`` (UTC timestamp), ``thread_id``, ``level``, ``tag``, ``file``, ``number`` and ``msg`` (message text).
