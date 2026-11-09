@@ -30,7 +30,6 @@ namespace ccf
     std::weak_ptr<ccf::AbstractRPCResponder> rpcresponder;
     std::shared_ptr<ChannelProxy> n2n_channels;
     std::weak_ptr<ccf::RPCMap> rpc_map;
-    NodeId self;
 
     using ForwardedCommandId = ForwardedHeader_v2::ForwardedCommandId;
     ForwardedCommandId next_command_id = 0;
@@ -71,11 +70,6 @@ namespace ccf
       n2n_channels(std::move(n2n_channels)),
       rpc_map(std::move(rpc_map_))
     {}
-
-    void initialize(const NodeId& self_)
-    {
-      self = self_;
-    }
 
     bool forward_command(
       std::shared_ptr<ccf::RpcContextImpl> rpc_ctx,

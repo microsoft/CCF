@@ -29,9 +29,6 @@ namespace ccf::indexing
     std::shared_ptr<TransactionFetcher> transaction_fetcher;
     std::shared_ptr<ccf::AbstractCommitPoint> commit_point;
 
-    using PendingTx = std::pair<ccf::TxID, std::vector<uint8_t>>;
-    std::vector<PendingTx> uncommitted_entries;
-
     ccf::TxID committed = {};
 
     static bool tx_id_less(const ccf::TxID& a, const ccf::TxID& b)
@@ -41,11 +38,6 @@ namespace ccf::indexing
       // ccf::TxID directly). But it's fine for everywhere we use it here, since
       // we assume we only see a node's transitions in-order.
       return a.view < b.view || a.seqno < b.seqno;
-    }
-
-    static bool uncommitted_entries_cmp(const ccf::TxID& a, const PendingTx& b)
-    {
-      return tx_id_less(a, b.first);
     }
 
     void update_commit(const ccf::TxID& tx_id)
@@ -131,9 +123,8 @@ namespace ccf::indexing
           // Request a prefix of the missing entries. Cap the requested range,
           // so we don't overload the node with a huge historical request
           const auto first_requested = *min_requested;
-          auto additional = std::min(
-            MAX_REQUESTABLE - uncommitted_entries.size(),
-            committed.seqno - first_requested);
+          auto additional =
+            std::min(MAX_REQUESTABLE, committed.seqno - first_requested);
 
           SeqNoCollection seqnos;
           for (auto i = first_requested; i <= first_requested + additional; ++i)
