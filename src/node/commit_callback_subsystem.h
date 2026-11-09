@@ -133,7 +133,8 @@ namespace ccf
           while (it != pending_callbacks.end())
           {
             auto& callbacks = it->second;
-            for (auto cb = callbacks.begin(); cb != callbacks.end();)
+            auto remaining = callbacks.begin();
+            for (auto cb = callbacks.begin(); cb != callbacks.end(); ++cb)
             {
               const auto tx_id = cb->first;
               const auto status = ccf::evaluate_tx_status(
@@ -146,13 +147,17 @@ namespace ccf
               {
                 ready.emplace_back(
                   tx_id, ccf::FinalTxStatus::Invalid, std::move(cb->second));
-                cb = callbacks.erase(cb);
               }
               else
               {
-                ++cb;
+                if (remaining != cb)
+                {
+                  *remaining = std::move(*cb);
+                }
+                ++remaining;
               }
             }
+            callbacks.erase(remaining, callbacks.end());
 
             if (callbacks.empty())
             {

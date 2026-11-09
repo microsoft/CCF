@@ -3014,6 +3014,59 @@ DOCTEST_TEST_CASE(
 }
 
 DOCTEST_TEST_CASE(
+  "View changes handle many callbacks sharing a sequence number" *
+  doctest::test_suite("single"))
+{
+  for (const bool mixed_views : {false, true})
+  {
+    DOCTEST_CAPTURE(mixed_views);
+    ccf::CommitCallbackSubsystem commit_callbacks;
+    aft::ViewHistory history;
+    history.update(1, 3);
+    commit_callbacks.on_commit({3, 22}, history);
+
+    using Result = std::pair<size_t, ccf::FinalTxStatus>;
+    std::vector<Result> results;
+    std::vector<Result> expected_results;
+    std::vector<Result> expected_survivors;
+    constexpr size_t callback_count = 16384;
+    for (size_t i = 0; i < callback_count; ++i)
+    {
+      const ccf::View view = mixed_views ? 3 + ((i + 1) % 3) : 3;
+      commit_callbacks.add_callback(
+        {view, 30}, [&results, i](ccf::TxID, ccf::FinalTxStatus status) {
+          results.emplace_back(i, status);
+        });
+      if (view == 3)
+      {
+        expected_results.emplace_back(i, ccf::FinalTxStatus::Invalid);
+      }
+      else
+      {
+        expected_survivors.emplace_back(
+          i,
+          view == 4 ? ccf::FinalTxStatus::Committed :
+                      ccf::FinalTxStatus::Invalid);
+      }
+    }
+
+    history.update(23, 4);
+    commit_callbacks.on_commit({4, 23}, history);
+    DOCTEST_REQUIRE(results == expected_results);
+
+    expected_results.insert(
+      expected_results.end(),
+      expected_survivors.begin(),
+      expected_survivors.end());
+    commit_callbacks.on_commit({4, 30}, history);
+    DOCTEST_REQUIRE(results == expected_results);
+
+    commit_callbacks.on_commit({4, 31}, history);
+    DOCTEST_REQUIRE(results == expected_results);
+  }
+}
+
+DOCTEST_TEST_CASE(
   "Uncommitted view changes do not invalidate commit callbacks" *
   doctest::test_suite("single"))
 {
