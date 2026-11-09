@@ -169,7 +169,13 @@ def log_errors(
     try:
         with open(err_path, "r", errors="replace", encoding="utf-8") as lines:
             fatal_error_lines = [
-                line for line in lines if not line.startswith("[ perf record:")
+                line
+                for line in lines
+                if not line.startswith("[ perf record:")
+                and not (
+                    ignore_error_patterns is not None
+                    and any(pattern in line for pattern in ignore_error_patterns)
+                )
             ]
             if fatal_error_lines:
                 LOG.error(f"Contents of {err_path}:\n{''.join(fatal_error_lines)}")

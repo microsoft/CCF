@@ -94,10 +94,17 @@ def prepareEvents (records : Array Record)
         command := some record
       else
         let function ← string message "function"
-        let state ← field message "state"
-        let node ← string state "node_id"
+        let state ←
+          if function == "retired_committed_tx" then
+            pure Json.null
+          else
+            field message "state"
+        let node ←
+          string (if function == "retired_committed_tx" then message else state) "node_id"
         events := events.push { record, command, function, node, message, state }
         declared := node :: declared
+        if function == "retired_committed_tx" then
+          declared := (← string message "retired_node_id") :: declared
         if function == "add_configuration" then
           declared := (← configuration message) ++ declared
     catch error =>
