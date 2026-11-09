@@ -107,6 +107,7 @@ namespace ccf::logger
   public:
     void write(const LogLine& ll) override
     {
+      // Fetch time
       ::timespec host_ts{};
       if (::timespec_get(&host_ts, TIME_UTC) == 0)
       {
@@ -115,16 +116,21 @@ namespace ccf::logger
       std::tm host_tm{};
       ::gmtime_r(&host_ts.tv_sec, &host_tm);
 
-      emit(fmt::format(
-        "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"tag\":{}"
-        ",\"file\":{},\"number\":\"{}\",\"msg\":{}}}\n",
+      const auto escaped_msg = nlohmann::json(ll.msg).dump();
+
+      std::string s;
+      s = fmt::format(
+        "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"tag\":\"{}"
+        "\",\"file\":\"{}\",\"number\":\"{}\",\"msg\":{}}}\n",
         get_timestamp(host_tm, host_ts),
         ll.thread_id,
         to_string(ll.log_level),
-        nlohmann::json(ll.tag).dump(),
-        nlohmann::json(ll.file_name).dump(),
+        ll.tag,
+        ll.file_name,
         ll.line_number,
-        nlohmann::json(ll.msg).dump()));
+        escaped_msg);
+
+      emit(s);
     }
   };
 
