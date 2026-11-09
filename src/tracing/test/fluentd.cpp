@@ -44,6 +44,16 @@ namespace
   std::atomic<bool> wrong_thread = false;
   std::thread::id producer;
 
+  struct JsonCapture : ccf::logger::JsonConsoleLogger
+  {
+    std::string output;
+
+    void emit(const std::string& value) override
+    {
+      output = value;
+    }
+  };
+
   struct DropLogger : ccf::logger::AbstractLogger
   {
     std::atomic<size_t> reports = 0;
@@ -517,6 +527,13 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
       {"number", "42"},
       {"msg", "message with \"quotes\", a newline\nand backslash\\"}};
     CHECK(event[2]["msg"] == expected);
+    JsonCapture console;
+    console.write(line);
+    auto console_record = nlohmann::json::parse(console.output);
+    auto forwarded_record = event[2]["msg"];
+    console_record.erase("h_ts");
+    forwarded_record.erase("h_ts");
+    CHECK(console_record == forwarded_record);
     std::vector<uint8_t> actual(buffer.size());
     REQUIRE(
       recv(peer, actual.data(), actual.size(), MSG_WAITALL) ==
