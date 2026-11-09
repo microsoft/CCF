@@ -19,7 +19,7 @@ The public proof API is `DisasterRecovery.Properties`; its full theorem statemen
 
 Human review covers the model, the full theorem and lemma statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
 The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
-The proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
+Lake checks independent proof modules in parallel; the global witness constructions share the execution helpers in `Proofs/Evaluation.lean`.
 
 ## Model
 
@@ -58,8 +58,9 @@ See the [shared trace definitions](../common/README.md#transition-systems) for i
 The first property requires each voter to have received its own gossip; without this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by quorum.
 The second requires a state in which every node's gossip equals `config.recovered`, and it also covers failover openings.
 
-Each safety theorem has a corresponding `_witness` lemma asserting that some valid trace or step satisfies its premises.
-The full-gossip witness includes a failover opening.
+Each safety theorem has a corresponding `_witness` lemma asserting that, for every valid configuration, some valid trace or step satisfies its premises.
+`ValidConfig` restricts `Model.Config` to configurations satisfying the existing `Config.Valid` predicate without changing the model configuration type.
+The full-gossip witness includes a failover opening and requires at least two expected locations, since a single vote already forms a quorum in a single-location configuration.
 `Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
 
 Freshness is a necessary condition for election, not a definition of commitment in CCF.
