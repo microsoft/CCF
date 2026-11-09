@@ -12,7 +12,6 @@
 #include <string>
 #include <tuple>
 #include <unistd.h>
-#include <utility>
 #include <vector>
 
 namespace ccf::tracing
@@ -42,8 +41,10 @@ namespace ccf::tracing
     return id;
   }
 
-  template <typename Encode>
-  inline void emit_record(std::string_view tag, Encode&& encode)
+  // Alternating string keys and borrowed values form the envelope's msg map.
+  template <typename... Args>
+    requires msgpack::map_arguments<Args...>
+  inline void emit(std::string_view tag, const Args&... args)
   {
     if (!FluentdSink::accepts(tag))
     {
@@ -65,21 +66,6 @@ namespace ccf::tracing
       msgpack::write_str(buffer, "h_ts");
       msgpack::write_uint(buffer, sequence);
       msgpack::write_str(buffer, "msg");
-      std::forward<Encode>(encode)(buffer);
-      FluentdSink::enqueue(tag, buffer);
-    }
-    catch (const std::bad_alloc&)
-    {
-      FluentdSink::record_drop(tag);
-    }
-  }
-
-  // Alternating string keys and borrowed values form the envelope's msg map.
-  template <typename... Args>
-    requires msgpack::map_arguments<Args...>
-  inline void emit(std::string_view tag, const Args&... args)
-  {
-    emit_record(tag, [&](auto& buffer) {
       msgpack::write_map_header(buffer, sizeof...(Args) / 2);
       using msgpack::write_msgpack;
       const auto refs = std::tie(args...);
@@ -88,7 +74,12 @@ namespace ccf::tracing
           write_msgpack(buffer, std::get<2 * I + 1>(refs))),
          ...);
       }(std::make_index_sequence<sizeof...(Args) / 2>{});
-    });
+      FluentdSink::enqueue(tag, buffer);
+    }
+    catch (const std::bad_alloc&)
+    {
+      FluentdSink::record_drop(tag);
+    }
   }
 }
 

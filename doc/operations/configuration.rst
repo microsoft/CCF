@@ -56,6 +56,7 @@ Logging macros use the same producer path as traces: bound threads enqueue to th
 Console logging and Fluentd export are initialised together and remain active through startup and final host cleanup.
 The Forward record uses the trace envelope (``process_id``, sequence number ``h_ts``, and ``msg``).
 Its ``msg`` uses the JSON console schema, with string-valued fields: ``h_ts`` (UTC timestamp), ``thread_id``, ``level``, ``tag``, ``file``, ``number`` and ``msg`` (message text).
+Console JSON is rendered with a format string, while Fluentd fields are encoded directly to MessagePack; neither path constructs a JSON object.
 Console and Fluentd timestamps are sampled separately and need not match; record ordering can also differ.
 Runtime exporter drop diagnostics also follow this path.
 Messages emitted while logging or the exporter is being initialised or shut down may remain console-only, including the exporter's final shutdown summary.

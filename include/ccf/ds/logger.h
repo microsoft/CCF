@@ -102,31 +102,29 @@ namespace ccf::logger
     virtual void write(const LogLine& ll) = 0;
   };
 
-  inline nlohmann::json format_to_json(const LogLine& ll)
-  {
-    ::timespec host_ts{};
-    if (::timespec_get(&host_ts, TIME_UTC) == 0)
-    {
-      throw std::runtime_error("timespec_get failed");
-    }
-    std::tm host_tm{};
-    ::gmtime_r(&host_ts.tv_sec, &host_tm);
-    return {
-      {"h_ts", get_timestamp(host_tm, host_ts)},
-      {"thread_id", fmt::format("{}", ll.thread_id)},
-      {"level", to_string(ll.log_level)},
-      {"tag", ll.tag},
-      {"file", ll.file_name},
-      {"number", fmt::format("{}", ll.line_number)},
-      {"msg", ll.msg}};
-  }
-
   class JsonConsoleLogger : public AbstractLogger
   {
   public:
     void write(const LogLine& ll) override
     {
-      emit(format_to_json(ll).dump() + "\n");
+      ::timespec host_ts{};
+      if (::timespec_get(&host_ts, TIME_UTC) == 0)
+      {
+        throw std::runtime_error("timespec_get failed");
+      }
+      std::tm host_tm{};
+      ::gmtime_r(&host_ts.tv_sec, &host_tm);
+
+      emit(fmt::format(
+        "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"tag\":{}"
+        ",\"file\":{},\"number\":\"{}\",\"msg\":{}}}\n",
+        get_timestamp(host_tm, host_ts),
+        ll.thread_id,
+        to_string(ll.log_level),
+        nlohmann::json(ll.tag).dump(),
+        nlohmann::json(ll.file_name).dump(),
+        ll.line_number,
+        nlohmann::json(ll.msg).dump()));
     }
   };
 
