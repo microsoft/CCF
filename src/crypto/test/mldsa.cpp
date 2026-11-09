@@ -1214,4 +1214,87 @@ TEST_CASE("ML-DSA RFC 9881 example certificates and private keys")
   }
 }
 
+TEST_CASE("ML-DSA RFC 9964 example COSE_Keys and COSE_Sign1 messages")
+{
+  using namespace tav::cbor;
+  // Keys, thumbprints and signatures produced by another implementation
+  for (const auto& example : mldsa_test_vectors::RFC9964_EXAMPLES)
+  {
+    const auto& info = info_for(example.parameters);
+    SUBCASE(info.name)
+    {
+      const auto raw = ccf::ds::from_hex(std::string(example.raw_public_key));
+      const auto cose_key = ccf::ds::from_hex(std::string(example.cose_key));
+      const auto sign1 = ccf::ds::from_hex(std::string(example.sign1));
+      REQUIRE(raw.size() == info.public_key_size);
+
+      // {2: kid, 1: 7, 3: alg, -1: pub, -2: priv}
+      const auto example_key = nondet_parse(cose_key);
+      REQUIRE(example_key.size() == 5);
+      CHECK(example_key.map_at(make_signed(1)).as_signed() == 7);
+      CHECK(example_key.map_at(make_signed(3)).as_signed() == info.cose_alg);
+      CHECK(std::ranges::equal(
+        example_key.map_at(make_signed(-1)).as_bytes(), raw));
+      const auto kid = example_key.map_at(make_signed(2)).as_bytes();
+      REQUIRE(kid.size() == Sha256Hash::SIZE);
+      const auto seed = example_key.map_at(make_signed(-2)).as_bytes();
+      REQUIRE(seed.size() == 32);
+
+      const COSEKey key(make_mldsa_public_key_from_raw(raw, info.id));
+      CHECK(key.akp_parameters().value().alg == info.cose_alg);
+      CHECK(key.akp_parameters().value().pub == raw);
+      // kid is the RFC 9679 thumbprint (RFC 9964 Section 6)
+      CHECK(
+        key.thumbprint_sha256() ==
+        Sha256Hash::from_span(kid.first<Sha256Hash::SIZE>()));
+
+      // The encoded public key is the example without kid and priv. The
+      // example is encoded as a5, the kid item (02 5820 kid), the kty, alg
+      // and pub items in deterministic order (01 07, 03 38xx, 20 59xxxx pub),
+      // then the priv item (21 5820 seed), so those three items are copied
+      // from it.
+      const size_t kid_item_size = 1 + 2 + kid.size();
+      const size_t priv_item_size = 1 + 2 + seed.size();
+      const size_t kty_alg_pub_size = 2 + 3 + 4 + raw.size();
+      REQUIRE(
+        cose_key.size() ==
+        1 + kid_item_size + kty_alg_pub_size + priv_item_size);
+      CHECK(cose_key[0] == 0xa5);
+      CHECK(cose_key[1] == 0x02);
+      CHECK(cose_key[1 + kid_item_size] == 0x01);
+      CHECK(cose_key[cose_key.size() - priv_item_size] == 0x21);
+      std::vector<uint8_t> expected = {0xa3};
+      expected.insert(
+        expected.end(),
+        cose_key.begin() + 1 + kid_item_size,
+        cose_key.end() - priv_item_size);
+      CHECK(key.to_cbor(info.cose_alg) == expected);
+
+      const auto parsed = COSEKey::from_cbor(expected);
+      CHECK(parsed.alg() == info.cose_alg);
+      CHECK(parsed.akp_parameters().value().pub == raw);
+      CHECK(parsed.thumbprint_sha256() == key.thumbprint_sha256());
+      CHECK(parsed.to_cbor(info.cose_alg) == expected);
+      // The example carries the seed, so it is not accepted as a public key
+      CHECK_THROWS_WITH_AS(
+        (void)COSEKey::from_cbor(cose_key),
+        doctest::Contains("priv"),
+        std::invalid_argument);
+
+      // COSE_Sign1 with protected header {1: alg, 4: kid}, whose signature
+      // was made with the key over Sig_structure with an empty context
+      const auto verifier = make_cose_verifier_from_key(key);
+      std::span<uint8_t> payload;
+      CHECK(verifier->verify(sign1, payload));
+      CHECK(
+        std::string(payload.begin(), payload.end()) ==
+        "hello post quantum signatures");
+      auto tampered = sign1;
+      tampered[tampered.size() - 1] ^= 0x01;
+      CHECK_FALSE(verifier->verify(tampered, payload));
+      ERR_clear_error();
+    }
+  }
+}
+
 TEST_SUITE_END;
