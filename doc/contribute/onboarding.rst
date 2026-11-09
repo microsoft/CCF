@@ -30,8 +30,8 @@ To run a locally built copy of this application in a sandbox, see :doc:`/build_a
 
     Setting up Python environment...
     Python environment successfully setup
-    [11:44:33.376] Starting 1 CCF node...
     [11:44:33.376] Virtual mode enabled
+    [11:44:33.376] Starting 1 CCF node...
     [11:44:35.025] Started CCF network with the following nodes:
     [11:44:35.025]   Node [0] = https://127.0.0.1:8000
     [11:44:35.025] You can now issue business transactions to the samples/apps/logging/logging application
@@ -58,7 +58,7 @@ Simplified Data Flow Map
 
 This chart is a simplified illustration of the data flow in a running CCF service. Where possible, nodes and edges have been made links to the most relevant documentation page or file.
 
-Note that this diagram deliberately does not represent host-to-enclave communication.
+Note that this diagram deliberately does not represent the node's internal I/O layer (sockets and file access).
 
 .. mermaid::
 

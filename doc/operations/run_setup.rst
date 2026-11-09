@@ -21,3 +21,6 @@ The following command can be run to verify that CCF was installed successfully:
     $ /opt/ccf/bin/js_generic --version
     CCF host: ccf-<version>
     Platform: SNP
+
+.. note:: The platform is detected at runtime rather than selected at build or install time.
+    On machines without AMD SEV-SNP support, this reports ``Platform: Virtual``, the :doc:`Insecure Virtual </operations/platforms/virtual>` platform, which provides no security guarantees and is for development only.
