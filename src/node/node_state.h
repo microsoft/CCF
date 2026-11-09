@@ -1002,9 +1002,7 @@ namespace ccf
         std::string(data.begin(), data.end()));
       LOG_FAIL_FMT("{}", error_msg);
       runtime_control.report_fatal_error(fmt::format(
-        "Join request to {} returned HTTP status {}",
-        target_address,
-        status));
+        "Join request to {} returned HTTP status {}", target_address, status));
     }
 
     void handle_join_unexpected_status_unsafe(
