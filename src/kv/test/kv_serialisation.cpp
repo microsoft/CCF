@@ -74,6 +74,13 @@ TEST_CASE(
     REQUIRE_THROWS(reader.read_next<std::vector<uint8_t>>());
   }
 
+  SUBCASE("Span of more payload bytes than remain")
+  {
+    auto bytes = make_size_prefixed_bytes(2, 1);
+    ccf::kv::RawReader reader(bytes);
+    REQUIRE_THROWS(reader.read_next_span());
+  }
+
   SUBCASE("Impossible payload length")
   {
     auto bytes =

@@ -360,8 +360,8 @@ namespace ccf::kv
     virtual uint64_t deserialise_write_header() = 0;
     virtual std::tuple<SerialisedKey, SerialisedValue> deserialise_write() = 0;
     virtual std::vector<uint8_t> deserialise_raw() = 0;
-    // As deserialise_raw(), without copying. The returned span is valid for
-    // the lifetime of the deserialiser.
+    // As deserialise_raw(), without copying. The returned span is only valid
+    // while both the deserialiser and the data it was initialised with are.
     virtual std::span<const uint8_t> deserialise_raw_span() = 0;
     virtual std::vector<Version> deserialise_view_history() = 0;
     virtual uint64_t deserialise_remove_header() = 0;
@@ -672,8 +672,12 @@ namespace ccf::kv
         historical_hint);
     }
 
-    // Decrypts data in place, so that no second buffer of its size is needed.
-    // If this returns false, the contents of data are unspecified.
+    // Decrypts data in place, replacing the ciphertext with the plaintext.
+    // data must not overlap additional_data or serialised_header. If this
+    // returns false, data holds no unauthenticated plaintext, but its contents
+    // are otherwise unspecified. Implementations should override this to avoid
+    // a second buffer of data's size: this default decrypts into one, and
+    // copies the plaintext back.
     virtual bool decrypt_in_place(
       std::span<uint8_t> data,
       std::span<const uint8_t> additional_data,

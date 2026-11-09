@@ -482,6 +482,10 @@ namespace ccf::kv
       bool historical_hint,
       uint8_t* mutable_data)
     {
+      CCF_ASSERT_FMT(
+        mutable_data == nullptr || mutable_data == data,
+        "Entry deserialised in place must be in the given writable buffer");
+
       current_reader = &public_reader;
       const auto* data_ = data;
       auto size_ = size;
@@ -563,8 +567,10 @@ namespace ccf::kv
 
       if (mutable_data != nullptr)
       {
+        // The rest of the entry, writable
         const auto private_domain =
-          std::span<uint8_t>(mutable_data + (data_ - data), size_);
+          std::span<uint8_t>(mutable_data, size)
+            .subspan(static_cast<size_t>(data_ - data));
         if (!crypto_util->decrypt_in_place(
               private_domain, aad, gcm_hdr, version, term, historical_hint))
         {

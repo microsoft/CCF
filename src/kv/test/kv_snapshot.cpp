@@ -15,6 +15,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -1660,4 +1661,351 @@ TEST_CASE(
       deserialise_reusing(private_tampered, nullptr) ==
       ccf::kv::ApplyResult::FAIL);
   }
+
+  INFO("A private domain which fails to decrypt is not left as plaintext");
+  {
+    auto buffer = entry;
+    buffer.back() ^= 1;
+    ccf::kv::Store store;
+    store.set_encryptor(encryptor);
+    REQUIRE(
+      store.deserialise_snapshot_in_place(buffer, hooks) ==
+      ccf::kv::ApplyResult::FAIL);
+    const std::string_view private_map_name = "private_map";
+    REQUIRE(
+      std::search(
+        buffer.begin(),
+        buffer.end(),
+        private_map_name.begin(),
+        private_map_name.end()) == buffer.end());
+  }
+}
+
+static std::vector<uint8_t> serialise_current_snapshot(ccf::kv::Store& store)
+{
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot;
+  {
+    ccf::kv::ScopedStoreMapsLock maps_lock(&store);
+    snapshot = store.snapshot_unsafe_maps(store.current_version());
+  }
+  return store.serialise_snapshot(std::move(snapshot));
+}
+
+static void commit_writes(
+  ccf::kv::Store& store, const std::function<void(ccf::kv::Tx&)>& write)
+{
+  auto tx = store.create_tx();
+  write(tx);
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
+static ccf::kv::Store::SnapshotPublicMaps capture_public_maps(
+  const std::shared_ptr<ccf::kv::AbstractTxEncryptor>& encryptor,
+  const std::vector<uint8_t>& entry)
+{
+  ccf::kv::Store public_store;
+  public_store.set_encryptor(encryptor);
+  ccf::kv::ConsensusHookPtrs hooks;
+  std::optional<ccf::kv::Store::SnapshotPublicMaps> captured;
+  REQUIRE(
+    public_store.deserialise_public_snapshot_capturing(
+      entry.data(), entry.size(), hooks, nullptr, captured) ==
+    ccf::kv::ApplyResult::PASS);
+  REQUIRE(captured.has_value());
+  return std::move(captured.value());
+}
+
+TEST_CASE(
+  "Snapshot decrypted in place with the ledger secret for its version" *
+  doctest::test_suite("snapshot"))
+{
+  const auto first_secret = ccf::make_ledger_secret();
+  const auto second_secret = ccf::make_ledger_secret();
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init_from_map({{1, first_secret}});
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+  ccf::kv::ConsensusHookPtrs hooks;
+
+  MapTypes::StringString private_map("private_map");
+  commit_writes(store, [&](ccf::kv::Tx& tx) {
+    tx.rw(string_map)->put("public", "snapshotted");
+    tx.rw(private_map)->put("private", "snapshotted");
+  });
+  const auto version = store.current_version();
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot;
+  {
+    ccf::kv::ScopedStoreMapsLock maps_lock(&store);
+    snapshot = store.snapshot_unsafe_maps(version);
+  }
+
+  // The service is rekeyed, and encrypts a later transaction with the new
+  // ledger secret, before the snapshot is serialised
+  secrets->set_secret(version + 1, ccf::LedgerSecretPtr(second_secret));
+  commit_writes(store, [&](ccf::kv::Tx& tx) {
+    tx.rw(private_map)->put("private", "later");
+  });
+  const auto entry = store.serialise_snapshot(std::move(snapshot));
+
+  INFO("A node with both ledger secrets uses the one for the snapshot");
+  {
+    auto node_secrets = std::make_shared<ccf::LedgerSecrets>();
+    node_secrets->init_from_map(
+      {{1, first_secret}, {version + 1, second_secret}});
+    auto node_encryptor = std::make_shared<ccf::NodeEncryptor>(node_secrets);
+    const auto captured = capture_public_maps(node_encryptor, entry);
+
+    for (const auto* public_maps :
+         {static_cast<const ccf::kv::Store::SnapshotPublicMaps*>(nullptr),
+          &captured})
+    {
+      auto buffer = entry;
+      ccf::kv::Store node_store;
+      node_store.set_encryptor(node_encryptor);
+      REQUIRE(
+        node_store.deserialise_snapshot_in_place(
+          buffer, hooks, nullptr, public_maps) == ccf::kv::ApplyResult::PASS);
+      auto tx = node_store.create_read_only_tx();
+      REQUIRE(tx.ro(string_map)->get("public") == "snapshotted");
+      REQUIRE(tx.ro(private_map)->get("private") == "snapshotted");
+    }
+  }
+
+  INFO("A node without that ledger secret leaves the snapshot untouched");
+  {
+    auto node_secrets = std::make_shared<ccf::LedgerSecrets>();
+    node_secrets->init_from_map({{version + 1, second_secret}});
+    ccf::kv::Store node_store;
+    node_store.set_encryptor(
+      std::make_shared<ccf::NodeEncryptor>(node_secrets));
+    auto buffer = entry;
+    REQUIRE(
+      node_store.deserialise_snapshot_in_place(buffer, hooks) ==
+      ccf::kv::ApplyResult::FAIL);
+    REQUIRE(buffer == entry);
+  }
+}
+
+TEST_CASE(
+  "Captured public maps are bound to the snapshot and map versions" *
+  doctest::test_suite("snapshot"))
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  ccf::kv::ConsensusHookPtrs hooks;
+  MapTypes::StringString private_map("private_map");
+
+  auto deserialise_reusing =
+    [&](
+      const std::vector<uint8_t>& entry,
+      const ccf::kv::Store::SnapshotPublicMaps& captured) {
+      auto buffer = entry;
+      ccf::kv::Store store;
+      store.set_encryptor(encryptor);
+      return store.deserialise_snapshot_in_place(
+        buffer, hooks, nullptr, &captured);
+    };
+
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+  commit_writes(store, [&](ccf::kv::Tx& tx) {
+    tx.rw(string_map)->put("public", "value");
+    tx.rw(private_map)->put("private", "secret");
+  });
+  const auto first = serialise_current_snapshot(store);
+  commit_writes(store, [&](ccf::kv::Tx& tx) {
+    tx.rw(private_map)->put("private", "later");
+  });
+  const auto second = serialise_current_snapshot(store);
+  REQUIRE(
+    deserialise_reusing(first, capture_public_maps(encryptor, first)) ==
+    ccf::kv::ApplyResult::PASS);
+  REQUIRE(
+    deserialise_reusing(second, capture_public_maps(encryptor, second)) ==
+    ccf::kv::ApplyResult::PASS);
+
+  INFO("A later snapshot, with the same public maps, is rejected");
+  REQUIRE(
+    deserialise_reusing(second, capture_public_maps(encryptor, first)) ==
+    ccf::kv::ApplyResult::FAIL);
+
+  INFO("Or one with the same public state, written at another version");
+  ccf::kv::Store other_store;
+  other_store.set_encryptor(encryptor);
+  commit_writes(other_store, [&](ccf::kv::Tx& tx) {
+    tx.rw(string_map)->put("public", "value");
+    tx.rw(string_map)->put("removed", "value");
+    tx.rw(private_map)->put("private", "secret");
+  });
+  commit_writes(other_store, [&](ccf::kv::Tx& tx) {
+    tx.rw(string_map)->remove("removed");
+    tx.rw(private_map)->put("private", "later");
+  });
+  const auto rewritten = serialise_current_snapshot(other_store);
+  REQUIRE(
+    deserialise_reusing(rewritten, capture_public_maps(encryptor, rewritten)) ==
+    ccf::kv::ApplyResult::PASS);
+  REQUIRE(
+    deserialise_reusing(rewritten, capture_public_maps(encryptor, second)) ==
+    ccf::kv::ApplyResult::FAIL);
+}
+
+TEST_CASE(
+  "Snapshot with an empty private domain deserialised in place" *
+  doctest::test_suite("snapshot"))
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  ccf::kv::ConsensusHookPtrs hooks;
+
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+  commit_writes(store, [&](ccf::kv::Tx& tx) {
+    tx.rw(string_map)->put("public", "value");
+    tx.rw(num_map)->put(1, 2);
+  });
+  const auto entry = serialise_current_snapshot(store);
+  const auto captured = capture_public_maps(encryptor, entry);
+
+  for (const auto* public_maps :
+       {static_cast<const ccf::kv::Store::SnapshotPublicMaps*>(nullptr),
+        &captured})
+  {
+    auto buffer = entry;
+    ccf::kv::Store recovery_store;
+    recovery_store.set_encryptor(encryptor);
+    REQUIRE(
+      recovery_store.deserialise_snapshot_in_place(
+        buffer, hooks, nullptr, public_maps) == ccf::kv::ApplyResult::PASS);
+    auto tx = recovery_store.create_read_only_tx();
+    REQUIRE(tx.ro(string_map)->get("public") == "value");
+    REQUIRE(tx.ro(num_map)->get(1) == 2);
+  }
+
+  // The empty private domain's tag still authenticates the public domain
+  auto tampered = entry;
+  tampered
+    [ccf::kv::RawKvStoreSerialiser::public_domain_offset(encryptor) + 20] ^= 1;
+  ccf::kv::Store recovery_store;
+  recovery_store.set_encryptor(encryptor);
+  REQUIRE(
+    recovery_store.deserialise_snapshot_in_place(tampered, hooks) ==
+    ccf::kv::ApplyResult::FAIL);
+}
+
+// Implements only AbstractTxEncryptor's pure virtual members, so that its
+// default span decrypt() and decrypt_in_place() are used
+class VectorOnlyTxEncryptor : public ccf::kv::AbstractTxEncryptor
+{
+private:
+  std::shared_ptr<ccf::kv::AbstractTxEncryptor> inner;
+
+public:
+  explicit VectorOnlyTxEncryptor(
+    std::shared_ptr<ccf::kv::AbstractTxEncryptor> inner_) :
+    inner(std::move(inner_))
+  {}
+
+  bool encrypt(
+    const std::vector<uint8_t>& plain,
+    const std::vector<uint8_t>& additional_data,
+    std::vector<uint8_t>& serialised_header,
+    std::vector<uint8_t>& cipher,
+    const ccf::TxID& tx_id,
+    ccf::kv::EntryType entry_type = ccf::kv::EntryType::WriteSet,
+    bool historical_hint = false) override
+  {
+    return inner->encrypt(
+      plain,
+      additional_data,
+      serialised_header,
+      cipher,
+      tx_id,
+      entry_type,
+      historical_hint);
+  }
+
+  bool decrypt(
+    const std::vector<uint8_t>& cipher,
+    const std::vector<uint8_t>& additional_data,
+    const std::vector<uint8_t>& serialised_header,
+    std::vector<uint8_t>& plain,
+    ccf::kv::Version version,
+    ccf::kv::Term& term,
+    bool historical_hint = false) override
+  {
+    return inner->decrypt(
+      cipher,
+      additional_data,
+      serialised_header,
+      plain,
+      version,
+      term,
+      historical_hint);
+  }
+
+  void rollback(ccf::kv::Version version) override
+  {
+    inner->rollback(version);
+  }
+
+  size_t get_header_length() override
+  {
+    return inner->get_header_length();
+  }
+
+  uint64_t get_term(const uint8_t* data, size_t size) override
+  {
+    return inner->get_term(data, size);
+  }
+
+  ccf::crypto::HashBytes get_commit_nonce(
+    const ccf::TxID& tx_id, bool historical_hint = false) override
+  {
+    return inner->get_commit_nonce(tx_id, historical_hint);
+  }
+};
+
+TEST_CASE(
+  "Snapshot decrypted in place by the default implementation" *
+  doctest::test_suite("snapshot"))
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
+  auto default_encryptor = std::make_shared<VectorOnlyTxEncryptor>(encryptor);
+  ccf::kv::ConsensusHookPtrs hooks;
+  MapTypes::StringString private_map("private_map");
+
+  ccf::kv::Store store;
+  store.set_encryptor(encryptor);
+  commit_writes(store, [&](ccf::kv::Tx& tx) {
+    tx.rw(string_map)->put("public", "value");
+    tx.rw(private_map)->put("private", "secret");
+  });
+  const auto entry = serialise_current_snapshot(store);
+
+  auto buffer = entry;
+  ccf::kv::Store recovery_store;
+  recovery_store.set_encryptor(default_encryptor);
+  REQUIRE(
+    recovery_store.deserialise_snapshot_in_place(buffer, hooks) ==
+    ccf::kv::ApplyResult::PASS);
+  auto tx = recovery_store.create_read_only_tx();
+  REQUIRE(tx.ro(string_map)->get("public") == "value");
+  REQUIRE(tx.ro(private_map)->get("private") == "secret");
+
+  // If decryption fails, the snapshot is left untouched
+  auto tampered = entry;
+  tampered.back() ^= 1;
+  buffer = tampered;
+  ccf::kv::Store other_store;
+  other_store.set_encryptor(default_encryptor);
+  REQUIRE(
+    other_store.deserialise_snapshot_in_place(buffer, hooks) ==
+    ccf::kv::ApplyResult::FAIL);
+  REQUIRE(buffer == tampered);
 }

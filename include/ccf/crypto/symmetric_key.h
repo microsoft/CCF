@@ -109,16 +109,6 @@ namespace ccf::crypto
         std::span<const uint8_t> cipher,
         std::span<const uint8_t> aad,
         std::vector<uint8_t>& plain) = 0;
-
-      // plain must be exactly cipher.size() bytes. Input and output must not
-      // partially overlap; identical ciphertext and plaintext spans are valid.
-      // Clears plain if authentication fails.
-      virtual bool decrypt(
-        std::span<const uint8_t> iv,
-        const uint8_t tag[GCM_SIZE_TAG],
-        std::span<const uint8_t> cipher,
-        std::span<const uint8_t> aad,
-        std::span<uint8_t> plain);
     };
 
     KeyAesGcm() = default;
@@ -158,7 +148,7 @@ namespace ccf::crypto
 
     // plain must be exactly cipher.size() bytes. Input and output must not
     // partially overlap; identical ciphertext and plaintext spans are valid.
-    // Clears plain if authentication fails.
+    // Zeroes plain if authentication fails.
     virtual bool decrypt(
       std::span<const uint8_t> iv,
       const uint8_t tag[GCM_SIZE_TAG],

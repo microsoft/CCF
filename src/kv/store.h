@@ -701,11 +701,8 @@ namespace ccf::kv
                reuse_public_maps != nullptr) &&
               ccf::kv::get_security_domain(map_name) == SecurityDomain::PUBLIC)
             {
-              // As map->deserialise_snapshot_changes(), which this replaces
-              KV_TRACE(
-                trace::unsupported(map->get_store(), "map snapshot import"));
-              const auto map_version = d.deserialise_entry_version();
-              const auto serialised_state = d.deserialise_raw_span();
+              const auto [map_version, serialised_state] =
+                map->read_snapshot_entry(d);
               const ccf::crypto::Sha256Hash serialised_digest(
                 serialised_state.data(), serialised_state.size());
 

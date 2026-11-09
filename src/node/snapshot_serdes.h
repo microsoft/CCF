@@ -462,7 +462,10 @@ namespace ccf
     const ccf::kv::Store::SnapshotPublicMaps* public_maps = nullptr)
   {
     const auto segments = separate_segments(snapshot);
-    const auto size = segments.header_and_body.size();
+    // segments views snapshot, so this is the same range, writable
+    const auto header_and_body = std::span<uint8_t>(snapshot).subspan(
+      static_cast<size_t>(segments.header_and_body.data() - snapshot.data()),
+      segments.header_and_body.size());
 
     LOG_INFO_FMT(
       "Deserialising snapshot (size: {}, public only: false, in place, "
@@ -471,10 +474,7 @@ namespace ccf
       public_maps != nullptr);
 
     auto rc = store->deserialise_snapshot_in_place(
-      std::span<uint8_t>(snapshot.data(), size),
-      hooks,
-      view_history,
-      public_maps);
+      header_and_body, hooks, view_history, public_maps);
     if (rc != ccf::kv::ApplyResult::PASS)
     {
       throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));

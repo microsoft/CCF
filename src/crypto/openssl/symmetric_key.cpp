@@ -159,7 +159,7 @@ namespace ccf::crypto
     }
 
     // plain must be exactly cipher.size() bytes, and may be identical to
-    // cipher. Clears plain if authentication fails.
+    // cipher. Once the sizes are checked, plain is zeroed on any failure.
     bool decrypt_into(
       EVP_CIPHER_CTX* context,
       std::span<const uint8_t> iv,
@@ -248,25 +248,16 @@ namespace ccf::crypto
         return false;
       }
 
-      // Decrypt directly into the output, which may be as large as a
-      // snapshot, rather than into a temporary copy
-      plain.resize(cipher.size());
-      bool authenticated = false;
-      try
-      {
-        authenticated = decrypt_into(context, iv, tag, cipher, aad, plain);
-      }
-      catch (...)
-      {
-        plain.clear();
-        throw;
-      }
-      if (!authenticated)
+      // Decrypted into a separate buffer, which then replaces plain, so that
+      // cipher may alias plain
+      std::vector<uint8_t> plaintext(cipher.size());
+      if (!decrypt_into(context, iv, tag, cipher, aad, plaintext))
       {
         plain.clear();
         return false;
       }
 
+      plain = std::move(plaintext);
       return true;
     }
 
@@ -312,17 +303,6 @@ namespace ccf::crypto
         std::span<const uint8_t> cipher,
         std::span<const uint8_t> aad,
         std::vector<uint8_t>& plain) override
-      {
-        return decrypt_with_context(
-          decrypt_context, iv, tag, cipher, aad, plain);
-      }
-
-      bool decrypt(
-        std::span<const uint8_t> iv,
-        const uint8_t tag[GCM_SIZE_TAG],
-        std::span<const uint8_t> cipher,
-        std::span<const uint8_t> aad,
-        std::span<uint8_t> plain) override
       {
         return decrypt_with_context(
           decrypt_context, iv, tag, cipher, aad, plain);
