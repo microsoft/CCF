@@ -30,6 +30,7 @@ Observability Export
 
 To export logs and consensus protocol traces, add the experimental ``observability.fluentd`` array to your node configuration and restart the node.
 Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticated and unencrypted.
+Startup logs can contain configuration and environment values, so collectors must be trusted to receive those values.
 
 .. code-block:: json
 
@@ -51,19 +52,15 @@ Matching multiple prefixes within one collector entry does not duplicate events;
 Excluded events do not count as dropped for that collector.
 Omit the array or leave it empty to disable export.
 
-All records passing the node's logger are exported under ``ccf.log``, regardless of the console format, including TRACE and DEBUG when enabled.
-Logging macros use the same producer path as traces: bound threads enqueue to their existing queue, while unbound threads use a shared queue protected by a mutex.
-Fluentd is registered alongside the console outputs in the existing logger registry.
-Console logging and Fluentd export are initialised together and remain active through startup and final host cleanup.
+When selected by the allow-list, all records passing the node's logger are eligible for best-effort export under ``ccf.log``, regardless of console format.
+This includes enabled TRACE/DEBUG records and runtime exporter drop diagnostics, from startup through final host cleanup.
+Messages emitted while logging or the exporter is being initialised or shut down may remain console-only, including the exporter's final shutdown summary.
+Raw stdout writes and stderr are not captured.
+Configuration checks (``--check``) do not initialise the exporter.
+
 The Forward record uses the trace envelope (``process_id``, sequence number ``h_ts``, and ``msg``).
 Its ``msg`` uses the JSON console schema, with string-valued fields: ``h_ts`` (UTC timestamp), ``thread_id``, ``level``, ``tag``, ``file``, ``number`` and ``msg`` (message text).
-Console JSON is rendered with a format string, while Fluentd fields are encoded directly to MessagePack; neither path constructs a JSON object.
 Console and Fluentd timestamps are sampled separately and need not match; record ordering can also differ.
-Runtime exporter drop diagnostics also follow this path.
-Messages emitted while logging or the exporter is being initialised or shut down may remain console-only, including the exporter's final shutdown summary.
-Configuration checks (``--check``) do not initialise the exporter.
-Raw stdout writes and stderr are not captured.
-Startup logs can contain configuration and environment values, so use collectors trusted to receive those values.
 
 Choose a ``delivery`` policy per collector:
 
