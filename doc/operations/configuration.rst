@@ -45,7 +45,7 @@ Startup logs can contain configuration and environment values, so collectors mus
 
 Set ``tag-prefix-allow-list`` per collector to a list of literal, case-sensitive prefixes; an event is selected if its tag starts with any listed prefix.
 
-.. list-table:: Useful tag prefixes
+.. list-table:: Common tags
    :header-rows: 1
 
    * - Prefix
