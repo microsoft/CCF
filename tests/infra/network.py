@@ -572,6 +572,10 @@ class Network:
         )
         pq_cert = self.get_pq_service_certificate(primary)
         for i, node in enumerate(self.nodes):
+            # Each node's output file resolves within its own root directory
+            assert not os.path.isabs(
+                node.remote.pq_service_cert_file
+            ), node.remote.pq_service_cert_file
             if i == 0 and pq_cert is not None:
                 node.remote.get_pq_service_certificate_file(self.common_dir)
                 with open(self.pq_cert_path, encoding="utf-8") as f:
