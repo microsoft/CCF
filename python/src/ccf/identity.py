@@ -56,7 +56,7 @@ def did_key_from_public_key(
     # The supported multicodecs all have a two-byte, minimal varint.
     encoded = bytes([(codec & 0x7F) | 0x80, codec >> 7]) + raw
     value = int.from_bytes(encoded, "big")
-    digits = []
+    digits: list[str] = []
     while value:
         value, digit = divmod(value, 58)
         digits.append(_BASE58[digit])

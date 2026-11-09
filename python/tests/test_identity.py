@@ -2,8 +2,8 @@
 # Licensed under the Apache 2.0 License.
 
 import hashlib
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import ccf.identity
 import pytest
