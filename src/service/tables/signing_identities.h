@@ -85,7 +85,7 @@ namespace ccf
   inline void check_signing_identity_matches_service_cert(
     const std::optional<Identity>& published_identity,
     const std::optional<ServiceInfo>& service_info,
-    IdentityType identity_type = IdentityType::CLASSICAL)
+    IdentityType identity_type)
   {
     std::optional<ccf::crypto::Pem> cert;
     switch (identity_type)
@@ -146,7 +146,9 @@ namespace ccf
     auto* identities = tx.ro<SigningIdentities>(Tables::SIGNING_IDENTITIES);
     const auto service_info = tx.ro<Service>(Tables::SERVICE)->get();
     check_signing_identity_matches_service_cert(
-      identities->get(IdentityType::CLASSICAL), service_info);
+      identities->get(IdentityType::CLASSICAL),
+      service_info,
+      IdentityType::CLASSICAL);
     check_signing_identity_matches_service_cert(
       identities->get(IdentityType::PQ), service_info, IdentityType::PQ);
   }

@@ -68,7 +68,8 @@ namespace ccf
     check_signing_identity_matches_service_cert(
       tx.ro<SigningIdentities>(Tables::SIGNING_IDENTITIES)
         ->get(IdentityType::CLASSICAL),
-      tx.ro<Service>(Tables::SERVICE)->get());
+      tx.ro<Service>(Tables::SERVICE)->get(),
+      IdentityType::CLASSICAL);
     return endorsement.value();
   }
 
