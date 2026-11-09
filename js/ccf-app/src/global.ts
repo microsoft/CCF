@@ -742,7 +742,8 @@ export interface CCF {
   /**
    * Toggles whether common metrics (including the path, the response status,
    * and the execution time) should be logged when this execution completes.
-   * Disabled by default. Call `ccf.enableMetricsLogging(true)` to enable it.
+   * By default this is enabled. If the request pattern should not be visible
+   * to an operator, then this behaviour should be disabled.
    *
    * Returns the previous value, allowing a global default to be maintained.
    *
