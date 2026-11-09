@@ -3,7 +3,6 @@ module
 public import Consensus.Model
 public import CCF.Execution
 
-import CCF.Order
 import all Init.Control.State
 
 public meta import Lean.Elab.Tactic.ElabTerm

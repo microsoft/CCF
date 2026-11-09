@@ -6,7 +6,6 @@ public import CCF.Execution
 public import CCF.Finset
 public import CCF.Function
 public import CCF.MultiNodeTransitionSystem
-public import CCF.Order
 public import CCF.Parsec
 public import CCF.Seq
 public import CCF.TransitionSystem

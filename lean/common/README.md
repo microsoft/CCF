@@ -13,7 +13,6 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Seq`                       | Possibly infinite sequences (replaces Mathlib `Stream'.Seq`) |
 | `CCF.Finset`                    | Finite sets as strictly sorted lists (replaces `Finset`)     |
 | `CCF.Function`                  | Point updates of functions (replaces `Function.update`)      |
-| `CCF.Order`                     | `Nat` order dot notation and `@[refl]` tags for `rw`         |
 
 `CCF.Execution.TraceImpl system` records an `init` state and a possibly infinite `steps` sequence pairing each action with its destination state.
 `CCF.Execution.Trace system` is the subtype whose `TraceImpl.Valid` proof establishes initialization and every recorded transition.
@@ -22,7 +21,7 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 ## Dependency imports
 
 The packages depend only on Lean core, leanfmt and (for the disaster-recovery and kv `lake lint` drivers) Batteries, not on Mathlib.
-The last four modules above are minimal replacements for the Mathlib facilities the specifications used.
+The last three modules above are minimal replacements for the Mathlib facilities the specifications used that Lean core, Std and Batteries do not provide.
 Specification proofs import only the modules they need.
 Their CCF declarations, theorem statements, exposed definitions, and required tactic support remain available, but importing a proof module or an assembled specification root does not promise to reexport unrelated tactics or theory.
 Consumers that need other facilities should import their defining modules explicitly.

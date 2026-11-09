@@ -2,7 +2,6 @@ module
 
 public import Consensus.Model
 
-import CCF.Order
 import all Init.Control.State
 
 public import CCF.Execution
@@ -410,7 +409,7 @@ private theorem signatureIndex_le_maxCommittableIndex
               choose best index = max best index := by
             simp [choose, signature]
           rw [selected]
-          exact (Nat.le_max_right best index).trans (foldAboveStart tail (max best index))
+          exact Nat.le_trans (Nat.le_max_right best index) (foldAboveStart tail (max best index))
         · exact
             inductionHypothesis
               (choose best head) tailMember
@@ -812,7 +811,7 @@ private theorem CommitFrontier.extend {state : NodeState}
     (frontier : CommitFrontier state) {log : List Entry}
     (extends_ : state.log <+: log)
     : CommitFrontier { state with log } := by
-  refine ⟨frontier.1.trans extends_.length_le, fun positive => ?_⟩
+  refine ⟨Nat.le_trans frontier.1 extends_.length_le, fun positive => ?_⟩
   exact isSignatureAt_of_prefix extends_ (frontier.2 positive)
 
 private theorem CommitFrontier.keep {state : NodeState}
@@ -1206,7 +1205,7 @@ open Model.Node
 private theorem Extends.committedLog {before after : NodeState}
     (extended : Extends before after)
     : before.committedLog <+: after.committedLog :=
-  List.prefix_take_iff.mpr ⟨extended.2, (List.length_take_le _ _).trans extended.1⟩
+  List.prefix_take_iff.mpr ⟨extended.2, Nat.le_trans (List.length_take_le _ _) extended.1⟩
 
 private theorem Extends.refl (state : NodeState) : Extends state state :=
   ⟨Nat.le.refl, List.take_prefix _ _⟩
@@ -1214,7 +1213,7 @@ private theorem Extends.refl (state : NodeState) : Extends state state :=
 private theorem Extends.trans {first second third : NodeState}
     (left : Extends first second) (right : Extends second third)
     : Extends first third :=
-  ⟨left.1.trans right.1, left.committedLog.trans right.2⟩
+  ⟨Nat.le_trans left.1 right.1, left.committedLog.trans right.2⟩
 
 /-- Keeping the log below `count`, at or above the commit index, and committing no
 less extends the committed log. -/
@@ -1229,7 +1228,7 @@ private theorem Extends.of_prefix {before after : NodeState} {count : Nat}
 private theorem Extends.of_log {before after : NodeState}
     (logEq : after.log = before.log) (commitEq : after.commitIndex = before.commitIndex)
     : Extends before after :=
-  ⟨commitEq.ge, logEq ▸ List.take_prefix _ _⟩
+  ⟨Nat.le_of_eq commitEq.symm, logEq ▸ List.take_prefix _ _⟩
 
 private theorem Extends.append {state : NodeState} (entry : Entry)
     : Extends state { state with log := state.log ++ [entry] } :=
