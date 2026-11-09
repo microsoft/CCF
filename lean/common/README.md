@@ -85,7 +85,7 @@ The same rules apply to every specification namespace, including multi-component
 
 - `CCF` modules cannot import the specification.
 - Within `CCF`, only the `CCF` entrypoint and `CCF.Proofs` modules can import `CCF.Proofs`.
-- `Model` and its submodules cannot import `CCF.Proofs`, so models depend only on shared definitions.
+- `Model` and its submodules cannot import `CCF.Proofs` or the `CCF` entrypoint that reexports it, so models depend only on shared definitions.
 - `Model` and its submodules can import only model modules within the specification.
   Model submodules cannot import the assembled `Model` entrypoint.
 - The `Properties` entrypoint can import model modules, property helpers, and proofs.

@@ -25,7 +25,9 @@ def allowedImport (root owner dependency : Name) : Bool :=
   if (`CCF).isPrefixOf owner then
     !root.isPrefixOf dependency
   else if !root.isPrefixOf dependency then
-    !(model.isPrefixOf owner && (`CCF.Proofs).isPrefixOf dependency)
+    -- The `CCF` entrypoint reexports `CCF.Proofs`, so models must import definitions directly.
+    !(model.isPrefixOf owner
+      && ((`CCF.Proofs).isPrefixOf dependency || dependency == `CCF))
   else if model.isPrefixOf owner then
     model.isPrefixOf dependency && (owner == model || dependency != model)
   else if owner == properties then
