@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccf"
-version = "7.0.23"
+version = "7.0.24"
 authors = [
   { name="CCF Team", email="CCF-Sec@microsoft.com" },
 ]
@@ -22,6 +22,25 @@ dependencies = [
     "cwt >= 3.3.0, < 4",
     "packaging >= 25, < 27"
 ]
+
+[tool.pyright]
+include = ["src", "tests", "ledger_tutorial.py"]
+strict = [
+    "src/ccf/__init__.py",
+    "src/ccf/_versionifier.py",
+    "src/ccf/ledger.py",
+    "src/ccf/ledger_code.py",
+    "src/ccf/ledger_viz.py",
+    "src/ccf/merkletree.py",
+    "src/ccf/read_ledger.py",
+    "src/ccf/receipt.py",
+    "src/ccf/signatures.py",
+    "src/ccf/split_ledger.py",
+    "src/ccf/tx_id.py",
+    "src/ccf/verify_ledger_secrets_chain.py",
+]
+extraPaths = ["src"]
+pythonVersion = "3.12"
 
 [tool.setuptools]
 script-files = [

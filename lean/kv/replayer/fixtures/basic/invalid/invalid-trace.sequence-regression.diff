@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -2 +2 @@
+-{"name":"basic accepted history","seq":2,"type":"case_begin"}
++{"name":"basic accepted history","seq":1,"type":"case_begin"}

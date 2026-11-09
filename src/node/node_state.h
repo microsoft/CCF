@@ -23,7 +23,7 @@
 #include "ccf/service/tables/self_healing_open.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/tx.h"
-#include "consensus/aft/raft.h"
+#include "consensus/aft/cft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
 #include "ds/ccf_assert.h"
@@ -53,6 +53,7 @@
 #include "node/recovery_decision_protocol.h"
 #include "node/recovery_snapshot_ledger.h"
 #include "node/retired_nodes_cleanup.h"
+#include "node/retry_on_compacted_version_conflict.h"
 #include "node/rpc/abstract_rpc_sessions.h"
 #include "node/rpc/ledger_interface.h"
 #include "node/runtime_control.h"
@@ -94,7 +95,7 @@
 
 namespace ccf
 {
-  using RaftType = aft::Aft<::consensus::LedgerEnclave>;
+  using CftType = aft::Aft<::consensus::LedgerEnclave>;
 
   struct NodeCreateInfo
   {
@@ -314,9 +315,21 @@ namespace ccf
             return;
           }
 
-          auto tx = owner->network.tables->create_read_only_tx();
-          auto* nodes = tx.ro<ccf::Nodes>(Tables::NODES);
-          auto node_info = nodes->get(primary_id.value());
+          std::optional<ccf::NodeInfo> node_info;
+          if (!ccf::retry_on_compacted_version_conflict(
+                "BackupSnapshotFetch: Primary node lookup", [&] {
+                  auto tx = owner->network.tables->create_read_only_tx();
+                  node_info =
+                    tx.ro<ccf::Nodes>(Tables::NODES)->get(primary_id.value());
+                }))
+          {
+            LOG_FAIL_FMT(
+              "BackupSnapshotFetch: Could not read primary node {} from nodes "
+              "table after repeated compaction conflicts, skipping fetch",
+              primary_id.value());
+            return;
+          }
+
           if (!node_info.has_value())
           {
             LOG_INFO_FMT(
@@ -402,7 +415,32 @@ namespace ccf
             return;
           }
 
-          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+          try
+          {
+            files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT(
+              "BackupSnapshotFetch: Failed to write snapshot {}: {}",
+              dst_path.string(),
+              e.what());
+
+            // A partial file sits under the committed snapshot name, so it
+            // would be mistaken for a usable snapshot and never fetched again
+            std::error_code ec;
+            std::filesystem::remove(dst_path, ec);
+            if (ec)
+            {
+              LOG_FAIL_FMT(
+                "BackupSnapshotFetch: Failed to remove incomplete snapshot {}: "
+                "{}",
+                dst_path.string(),
+                ec.message());
+            }
+            return;
+          }
+
           LOG_INFO_FMT(
             "BackupSnapshotFetch: Wrote snapshot {} ({} bytes)",
             dst_path.string(),
@@ -1005,6 +1043,26 @@ namespace ccf
         throw std::logic_error("Expected network info in join response");
       }
 
+      // The primary rejects such joins, so this only guards against a primary
+      // that ignores the declared capability. The identity never goes away, so
+      // do not keep retrying the join.
+      if (
+        !ccf::crypto::mldsa_supported() &&
+        resp.network_info->identity.pq_cert.has_value())
+      {
+        if (join_periodic_task != nullptr)
+        {
+          join_periodic_task->cancel_task();
+          join_periodic_task = nullptr;
+        }
+        const std::string error_msg =
+          "This build has no ML-DSA support and cannot join a service with an "
+          "ML-DSA service identity. Shutting down node gracefully...";
+        LOG_FAIL_FMT("{}", error_msg);
+        runtime_control.report_fatal_error(error_msg);
+        return;
+      }
+
       network.identity =
         std::make_unique<ccf::NetworkIdentity>(resp.network_info->identity);
       network.ledger_secrets->init_from_map(
@@ -1600,6 +1658,24 @@ namespace ccf
         config.attestation.snp_endorsements_servers);
     }
 
+    // Start and Recover must create an ML-DSA service identity on builds that
+    // support it; joiners install the primary's.
+    void check_pq_service_identity() const
+    {
+      if (network.identity->pq_cert.has_value())
+      {
+        return;
+      }
+      if (ccf::crypto::mldsa_supported())
+      {
+        throw std::logic_error(
+          "ML-DSA is supported but no ML-DSA service identity was created");
+      }
+      LOG_INFO_FMT(
+        "This build has no ML-DSA support: service_mldsa_parameter_set is "
+        "ignored and no ML-DSA service identity is created");
+    }
+
     NodeCreateInfo create(StartType start_type_, const ccf::CCFConfig& config_)
     {
       std::lock_guard<ds::Mutex> guard(lock);
@@ -1653,8 +1729,10 @@ namespace ccf
           network.identity = std::make_unique<ccf::NetworkIdentity>(
             config.command.start.service_subject_name,
             curve_id,
+            config.command.start.service_mldsa_parameter_set,
             startup_time,
             config.command.start.initial_service_certificate_validity_days);
+          check_pq_service_identity();
 
           network.ledger_secrets->init();
 
@@ -1707,8 +1785,10 @@ namespace ccf
             ccf::crypto::make_verifier(previous_service_identity_cert)
               ->subject_der(),
             curve_id,
+            config.command.recover.service_mldsa_parameter_set,
             startup_time,
             config.command.recover.initial_service_certificate_validity_days);
+          check_pq_service_identity();
 
           initiate_quote_generation();
 
@@ -1770,6 +1850,7 @@ namespace ccf
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = startup_inputs.node_data;
       join_params.ledger_sign_mode = ccf::get_ledger_sign_mode();
+      join_params.mldsa_supported = ccf::crypto::mldsa_supported();
       if (config.sealing_recovery.has_value() && snp_tcb_version.has_value())
       {
         join_params.sealing_recovery_data = std::make_pair(
@@ -2288,6 +2369,8 @@ namespace ccf
           "Use a COSE-only binary to recover this ledger.");
       }
 
+      InternalTablesAccess::check_service_identity_supported(tx);
+
       history->set_service_signing_identity(
         network.identity->get_key_pair(), cs_cfg);
 
@@ -2469,7 +2552,7 @@ namespace ccf
       network.tables->swap_private_maps(*recovery_store);
       recovery_store.reset();
 
-      // Raft should deserialise all security domains when network is opened
+      // CCF should deserialise all security domains when the network is opened.
       consensus->enable_all_domains();
 
       // Snapshots are only generated after recovery is complete
@@ -3227,6 +3310,7 @@ namespace ccf
 
       create_params.public_key = node_sign_kp->public_key_pem();
       create_params.service_cert = network.identity->cert;
+      create_params.pq_service_cert = network.identity->pq_cert;
       create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.measurement = node_measurement;
@@ -3647,6 +3731,7 @@ namespace ccf
         w->cert.str());
 
       network.identity->set_certificate(w->cert);
+      network.identity->set_pq_certificate(w->pq_cert);
       if (w->status == ServiceStatus::OPEN)
       {
         recovered_service_opening = RecoveredServiceOpening::Committed;
@@ -3838,7 +3923,7 @@ namespace ccf
       auto retired_node_cleanup =
         std::make_shared<RetiredNodeCleanup>(node_client);
 
-      auto raft = std::make_shared<RaftType>(
+      auto cft = std::make_shared<CftType>(
         consensus_config,
         std::make_unique<aft::Adaptor<ccf::kv::Store>>(network.tables),
         std::make_unique<::consensus::LedgerEnclave>(ledger_subsystem),
@@ -3847,10 +3932,10 @@ namespace ccf
         [retired_node_cleanup]() { retired_node_cleanup->cleanup(); },
         commit_callbacks,
         public_only);
-      raft->register_periodic_tasks(
+      cft->register_periodic_tasks(
         ccf::tasks::get_main_job_board(),
         std::chrono::milliseconds(config.tick_interval));
-      consensus = std::move(raft);
+      consensus = std::move(cft);
 
       pending_node_cleanup = std::make_shared<PendingNodeCleanup>(
         node_client,

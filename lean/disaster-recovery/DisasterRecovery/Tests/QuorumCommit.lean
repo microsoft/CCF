@@ -1,11 +1,11 @@
 module
 
 import all Init.Control.State
-import all Init.Data.List.Sort.Basic
 
 public import DisasterRecovery.Properties
 public import DisasterRecovery.Tests.Initial
-public import Mathlib.Tactic
+
+import DisasterRecovery.Proofs.Evaluation
 
 @[expose] public section
 
@@ -13,6 +13,7 @@ namespace DisasterRecovery.Tests.QuorumCommit
 
 open CCF
 open Model.Local
+open Proofs.Evaluation
 
 private def high : TxID := { view := 1, seqno := 10 }
 private def low : TxID := { view := 1, seqno := 5 }
@@ -75,22 +76,19 @@ private def s10 :=
 
 private def s11 := snapshot (selected "A") (selected "B") openedC (aGossips ++ bGossips)
 
-private def trace : Properties.GlobalTrace :=
-  Stream'.Seq.ofList [initial, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11]
-
-private def actions : List Model.Action :=
+private def steps : List (Model.Action × Model.State) :=
   [
-    .local "C" .retry,
-    .deliver (gossip "C" "A" low),
-    .local "A" .timeout,
-    .local "A" .retry,
-    .deliver (gossip "C" "B" low),
-    .local "B" .timeout,
-    .local "B" .retry,
-    .deliver (gossip "C" "C" low),
-    .local "C" .timeout,
-    .deliver (vote "A"),
-    .deliver (vote "B")
+    (.local "C" .retry, s1),
+    (.deliver (gossip "C" "A" low), s2),
+    (.local "A" .timeout, s3),
+    (.local "A" .retry, s4),
+    (.deliver (gossip "C" "B" low), s5),
+    (.local "B" .timeout, s6),
+    (.local "B" .retry, s7),
+    (.deliver (gossip "C" "C" low), s8),
+    (.local "C" .timeout, s9),
+    (.deliver (vote "A"), s10),
+    (.deliver (vote "B"), s11)
   ]
 
 private theorem initialized : (Model.transitionSystem config).init initial := by
@@ -98,56 +96,40 @@ private theorem initialized : (Model.transitionSystem config).init initial := by
   · simp [initial, Tests.initial, config]
   · simp [initial, Tests.initial, config, Model.protocol]
 
-private theorem valid : trace.Valid (Model.transitionSystem config) := by
-  refine ⟨⟨initial, rfl, initialized⟩, ?_⟩
-  intro i before after first second
-  simp only [trace, Stream'.Seq.ofList_get?] at first second
-  have bound : i < 11 := by
-    have := (List.getElem?_eq_some_iff.mp second).1
-    simp only [List.length_cons, List.length_nil] at this
-    omega
-  refine ⟨actions[i]'(by simpa [actions] using bound), ?_⟩
-  interval_cases i <;> simp only [List.getElem?_cons_zero,
-    List.getElem?_cons_succ, Nat.reduceAdd, Option.some.injEq] at first second <;>
-    subst before <;> subst after
-  all_goals
-    dsimp only [Model.transitionSystem, MultiNodeTransitionSystem.lift]
-    simp [actions, MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
-      MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.receive, step, guard, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9,
-      s10, s11, aGossips, bGossips, gossip, vote, high, low]
-  all_goals cbv
+private def trace : Properties.GlobalTrace config :=
+  ofSteps initial steps initialized
+    (by
+      simp only [StepsFrom, steps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+        Model.protocol, step, insertGossip_eval, insertVote_eval, and_true]
+      and_intros <;> rfl)
 
 private theorem opened : ("C", openedC) ∈ s11.nodes := by
   simp [s11, snapshot]
 
 private theorem final_in_trace : s11 ∈ trace :=
-  Stream'.Seq.get?_mem (n := 11) rfl
+  Execution.Trace.stateAt_mem (n := 11) rfl
 
 private theorem stale : ¬ Properties.UpToDateWithQuorum config low := by
   unfold Properties.UpToDateWithQuorum
   decide
 
 example
-    : trace.Valid (Model.transitionSystem config)
-      /\ s11 ∈ trace
+    : s11 ∈ trace
       /\ ("C", openedC) ∈ s11.nodes
       /\ openedC.openKind = some .quorum
       /\ Model.recoveredTxID config "C" = some low
       /\ ¬ Properties.UpToDateWithQuorum config low :=
-  ⟨valid, final_in_trace, opened, rfl, rfl, stale⟩
+  ⟨final_in_trace, opened, rfl, rfl, stale⟩
 
 private theorem missing_own : ¬ Properties.ReceivedOwnGossip trace "A" := by
   rintro ⟨state, member, current, txid, present, gossipPresent⟩
-  obtain ⟨i, found⟩ := Stream'.Seq.mem_iff_exists_get?.mp member
-  replace member := List.mem_of_getElem? found.symm
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at member
-  rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-  all_goals
-    simp [initial, Tests.initial, config, snapshot, s1, s2, s3, s4, s5, s6, s7, s8, s9,
-      s10, s11, openedC, selected, heard, initialNode] at present
-    subst current
-    simp at gossipPresent
+  rw [trace, mem_ofSteps] at member
+  have absent
+      : forall snapshot, snapshot ∈ initial :: steps.map Prod.snd
+        -> forall entry, entry ∈ snapshot.nodes
+        -> forall gossip, gossip ∈ entry.2.gossips -> entry.1 = "A" -> gossip.1 ≠ "A" := by
+    decide +kernel
+  exact absent state member _ present _ gossipPresent rfl rfl
 
 example
     : ¬ (forall voter,

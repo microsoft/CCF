@@ -21,6 +21,7 @@ namespace ccf::crypto
     MLDSAPublicKey_OpenSSL() = default;
 
   public:
+    explicit MLDSAPublicKey_OpenSSL(EVP_PKEY* pk);
     explicit MLDSAPublicKey_OpenSSL(
       const Pem& pem, std::optional<MLDSAParameterSet> expected = std::nullopt);
     explicit MLDSAPublicKey_OpenSSL(

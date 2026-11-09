@@ -16,7 +16,9 @@ updates:
       interval: "weekly"
 
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       # Check for updates to GitHub Actions daily, but only surface them
       # after the cooldown below has elapsed.
@@ -27,6 +29,6 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      codeql:
+      github-actions:
         patterns:
-          - "github/codeql-action*"
+          - "*"

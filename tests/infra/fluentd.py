@@ -23,6 +23,7 @@ class Collector:
         self.records = 0
         self.bytes = 0
         self.processes = set()
+        self.tags = set()
         self.error = None
         self.stop = threading.Event()
         self.selector = selectors.DefaultSelector()
@@ -74,6 +75,7 @@ class Collector:
                             ):
                                 raise RuntimeError("Expected Fluentd EventTime")
                             self.records += 1
+                            self.tags.add(tag)
                             self.processes.add(record["process_id"])
                             if len(self.processes) > self.node_count:
                                 raise RuntimeError(
