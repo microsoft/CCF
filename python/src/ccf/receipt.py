@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import base64
+import struct
 from collections.abc import Mapping
 from hashlib import sha256
 from io import BytesIO
@@ -10,6 +11,7 @@ from typing import Any, cast
 
 import cwt
 import cwt.const
+from cbor2 import CBORDecodeError, CBORDecoder, CBORTag
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
 from cryptography.hazmat.primitives.asymmetric.types import CertificatePublicKeyTypes
@@ -32,134 +34,79 @@ from ccf.cose import (
     key_fingerprint_from_key,
 )
 
-# isort: split
-# Temporary cbor2 5.x workaround for strict "no duplicate keys" decoding.
-# python-cwt currently requires cbor2 < 6; once it supports cbor2 >= 6.1,
-# replace this shim with the public allow_duplicate_keys=False option,
-# retaining tag/type preservation and complete-input checks. Keep the private
-# imports here to make the workaround's dependency on cbor2 internals explicit.
-from cbor2._decoder import CBORDecoder, major_decoders
-from cbor2._types import CBORDecodeError, CBORTag, FrozenDict, break_marker
-
-# RFC 8949 Section 3: initial byte layout and major types.
-_CBOR_MAJOR_TYPE_SHIFT = 5
-_CBOR_ADDITIONAL_INFO_MASK = 0x1F
-_CBOR_MAJOR_MAP = 5
-_CBOR_MAJOR_TAG = 6
-_CBOR_MAJOR_SIMPLE_FLOAT = 7
-_CBOR_INDEFINITE_ARRAY = 0x9F
-_CBOR_BREAK = 0xFF
-_CBOR_SIMPLE_ONE_BYTE = 0xF8
-_CBOR_MIN_TWO_BYTE_SIMPLE = 32
-_CBOR_FLOAT_INITIAL_BYTES = {0xF9, 0xFA, 0xFB}
-# Fraction bits for half, single and double precision, by additional info.
-_CBOR_FLOAT_FRACTION_BITS = {25: 10, 26: 23, 27: 52}
-_CBOR_ADDITIONAL_INFO_UINT8 = 24
 _MAX_RECEIPT_CBOR_DEPTH = 400
+_FLOAT64_FRACTION_MASK = (1 << 52) - 1
+_NAN_KEY = object()
+
+# Tags that cbor2 6 converts to Python values by default. Receipt decoding
+# keeps them as CBORTag, so that, for example, a bignum cannot stand in for an
+# integer label or a self-described CBOR tag for a plain map.
+_CBOR2_SEMANTIC_TAGS = (
+    *range(6),
+    25,
+    28,
+    29,
+    30,
+    35,
+    36,
+    37,
+    52,
+    54,
+    100,
+    256,
+    258,
+    260,
+    261,
+    1004,
+    43000,
+    55799,
+)
+# cbor2 decodes the contents of other tags as immutable containers. Decoding
+# COSE_Sign1 like the tags above keeps its contents as a mutable array and map.
+_COSE_SIGN1_TAG = cwt.const.COSE_TYPE_TO_TAG[cwt.COSETypes.SIGN1]
 
 
-class _ReceiptDecoder(CBORDecoder):
-    """Keep CBOR types and reject duplicate keys before a map loses them.
+def _keep_tag(tag: int):
+    def decode(value: Any, _immutable: bool) -> CBORTag:
+        return CBORTag(tag, value)
 
-    cbor2 5.x's object_hook runs after duplicates have been overwritten.
-    Reuse its primitive decoders but handle maps and preserve tags rather
-    than applying semantic conversions.
-    """
+    return decode
 
-    def __init__(self, stream: BytesIO):
-        super().__init__(stream)
-        self._receipt_depth = 0
-        self._allow_break = False
-        self._nan_keys: dict[int, float] = {}
 
-    def decode(self, immutable: bool = False, unshared: bool = False) -> Any:
-        position = self.fp.tell()
-        initial = self.read(1)
-        self.fp.seek(position)
-        if not initial:
-            # Raises the decoder's premature end-of-stream error.
-            self.read(1)
-        head = initial[0]
-        if head == _CBOR_BREAK and not self._allow_break:
-            raise ValueError("Unexpected CBOR break")
-        if head == _CBOR_SIMPLE_ONE_BYTE:
-            value = self.fp.read(2)
-            self.fp.seek(position)
-            if len(value) == 2 and value[1] < _CBOR_MIN_TWO_BYTE_SIMPLE:
-                raise ValueError("Invalid two-byte CBOR simple value")
-        if self._receipt_depth >= _MAX_RECEIPT_CBOR_DEPTH:
-            raise ValueError("Receipt CBOR nesting is too deep")
-        self._receipt_depth += 1
-        previous_allow_break = self._allow_break
-        previous_immutable = self._immutable
-        previous_share_index = self._share_index
-        if immutable:
-            self._immutable = True
-        if unshared:
-            self._share_index = None
-        self._allow_break = head == _CBOR_INDEFINITE_ARRAY
-        major = head >> _CBOR_MAJOR_TYPE_SHIFT
-        additional = head & _CBOR_ADDITIONAL_INFO_MASK
-        try:
-            if major == _CBOR_MAJOR_MAP:
-                self.read(1)
-                return self._decode_map(additional)
-            if major == _CBOR_MAJOR_TAG:
-                self.read(1)
-                tag = self._decode_length(additional)
-                return CBORTag(tag, self.decode())
-            self.read(1)
+_KEEP_TAGS = {tag: _keep_tag(tag) for tag in (*_CBOR2_SEMANTIC_TAGS, _COSE_SIGN1_TAG)}
 
-            if self._immutable and head in _CBOR_FLOAT_INITIAL_BYTES:
-                position = self.fp.tell()
-                encoded = self.read(1 << (additional - _CBOR_ADDITIONAL_INFO_UINT8))
-                self.fp.seek(position)
-                value = major_decoders[_CBOR_MAJOR_SIMPLE_FLOAT](self, additional)
-                if isnan(value):
-                    # RFC 8949 compares NaN key significands, not Python's
-                    # always-false NaN equality. Intern equivalent keys,
-                    # including NaNs inside immutable container keys.
-                    fraction_bits = _CBOR_FLOAT_FRACTION_BITS[additional]
-                    significand = int.from_bytes(encoded, "big") & (
-                        (1 << fraction_bits) - 1
-                    )
-                    return self._nan_keys.setdefault(
-                        significand << (64 - fraction_bits), value
-                    )
-                return value
 
-            return major_decoders[major](self, additional)
-        finally:
-            self._allow_break = previous_allow_break
-            self._immutable = previous_immutable
-            if unshared:
-                self._share_index = previous_share_index
-            self._receipt_depth -= 1
+def _map_key_identity(key: Any) -> Any:
+    """Return a hashable identity for key that, unlike Python equality,
+    treats NaNs with the same significand as equal (RFC 8949 Section 5.6)."""
+    if type(key) is float and isnan(key):
+        # cbor2 widens half and single floats to double precision,
+        # preserving the significand's leading bits.
+        bits = struct.unpack(">Q", struct.pack(">d", key))[0]
+        return (_NAN_KEY, bits & _FLOAT64_FRACTION_MASK)
+    if type(key) is tuple:
+        return (
+            tuple,
+            tuple(_map_key_identity(item) for item in cast(tuple[Any, ...], key)),
+        )
+    if isinstance(key, Mapping):
+        items = cast(Mapping[Any, Any], key).items()
+        return (
+            Mapping,
+            frozenset((_map_key_identity(k), _map_key_identity(v)) for k, v in items),
+        )
+    if type(key) is CBORTag:
+        return (CBORTag, key.tag, _map_key_identity(key.value))
+    return key
 
-    def _decode(self, immutable: bool = False, unshared: bool = False) -> Any:
-        # Older cbor2 5.x primitive decoders recurse through _decode instead
-        # of decode. Both paths must apply the receipt-specific checks.
-        return self.decode(immutable=immutable, unshared=unshared)
 
-    def _decode_map(self, subtype: int) -> Mapping[Any, Any]:
-        length = self._decode_length(subtype, allow_indefinite=True)
-        result: dict[Any, Any] = {}
-        remaining = length
-        while remaining is None or remaining > 0:
-            self._allow_break = length is None
-            key = self.decode(immutable=True, unshared=True)
-            if key is break_marker:
-                break
-            self._allow_break = False
-            try:
-                if key in result:
-                    raise ValueError("Duplicate CBOR map key")
-                result[key] = self.decode(unshared=True)
-            except TypeError as exc:
-                raise ValueError("Invalid CBOR map key") from exc
-            if remaining is not None:
-                remaining -= 1
-        return FrozenDict(result) if self._immutable else result
+def _reject_nan_duplicate_keys(
+    value: Mapping[Any, Any], _immutable: bool
+) -> Mapping[Any, Any]:
+    """cbor2 rejects keys that compare equal; also reject equivalent NaNs."""
+    if len({_map_key_identity(key) for key in value}) != len(value):
+        raise ValueError("Duplicate map key")
+    return value
 
 
 def _decode_receipt_cbor(encoded: bytes) -> Any:
@@ -168,9 +115,16 @@ def _decode_receipt_cbor(encoded: bytes) -> Any:
         raise ValueError("Encoded receipt data must be bstr")
     stream = BytesIO(encoded)
     try:
-        result = _ReceiptDecoder(stream).decode()
-    except (CBORDecodeError, TypeError, RecursionError) as exc:
-        raise ValueError("Invalid receipt CBOR") from exc
+        result = CBORDecoder(
+            stream,
+            object_hook=_reject_nan_duplicate_keys,
+            semantic_decoders=_KEEP_TAGS,
+            max_depth=_MAX_RECEIPT_CBOR_DEPTH,
+            allow_duplicate_keys=False,
+        ).decode()
+    except CBORDecodeError as exc:
+        cause = f" ({exc.__cause__})" if exc.__cause__ else ""
+        raise ValueError(f"Invalid receipt CBOR: {exc}{cause}") from exc
     if stream.read(1):
         raise ValueError("Trailing data after receipt CBOR")
     return result

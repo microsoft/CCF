@@ -147,7 +147,7 @@ def test_rejects_duplicate_extension_container_keys(identity, first, second):
             ]
         ),
     )
-    with pytest.raises(ValueError, match="Duplicate CBOR map key"):
+    with pytest.raises(ValueError, match="Duplicate map key"):
         _verify(encoded, identity.public_key())
 
 
@@ -200,7 +200,7 @@ def test_nan_extension_key_equivalence(
     )
 
     if duplicate:
-        with pytest.raises(ValueError, match="Duplicate CBOR map key"):
+        with pytest.raises(ValueError, match="Duplicate map key"):
             _verify(encoded, identity.public_key())
     else:
         _verify(encoded, identity.public_key())
@@ -477,7 +477,7 @@ def test_rejects_duplicate_map_keys(identity, indefinite, alternate_encoding, lo
                 ]
             ),
         )
-    with pytest.raises(ValueError, match="Duplicate CBOR map key"):
+    with pytest.raises(ValueError, match="Duplicate map key"):
         _verify(encoded, identity.public_key())
 
 
@@ -606,7 +606,7 @@ def test_rejects_wrong_key_digest_and_signature(identity):
         lambda value: value.value,
         lambda value: cbor2.CBORTag(17, value.value),
         lambda value: cbor2.CBORTag(18, value.value[:3]),
-        lambda value: cbor2.CBORTag(18, value.value + [b""]),
+        lambda value: cbor2.CBORTag(18, [*value.value, b""]),
         lambda value: cbor2.CBORTag(18, None),
         lambda value: cbor2.CBORTag(18, {i: x for i, x in enumerate(value.value)}),
         lambda value: cbor2.CBORTag(18, [{}, *value.value[1:]]),
@@ -689,13 +689,13 @@ def test_rejects_integer_key_collisions(identity, collision):
             (b"\x02", b"\x80"),
         ]
     )
-    with pytest.raises(ValueError, match="Duplicate CBOR map key"):
+    with pytest.raises(ValueError, match="Duplicate map key"):
         _verify(_proof_receipt(identity, proof), identity.public_key())
 
 
-def test_duplicate_is_rejected_before_decoding_its_value(identity):
+def test_rejects_duplicate_key_without_value(identity):
     proof = b"\xa2\x01" + cbor2.dumps(LEAF) + b"\x18\x01"
-    with pytest.raises(ValueError, match="Duplicate CBOR map key"):
+    with pytest.raises(ValueError, match="Invalid receipt CBOR"):
         _verify(_proof_receipt(identity, proof), identity.public_key())
 
 
@@ -706,3 +706,39 @@ def test_valid_indefinite_maps_and_arrays(identity):
         [(cbor2.dumps(396), cbor2.dumps({-1: [proof]}))], indefinite=True
     )
     _verify(_signed(identity, unprotected_bytes=unprotected), identity.public_key())
+
+
+_TAG_PAYLOADS = [
+    0,
+    b"\x01",
+    b"\x01\x02\x03\x04",
+    bytes(16),
+    "a",
+    [1, 2],
+    [b"\x01\x02\x03\x04", 24],
+    {},
+]
+
+
+def _assert_tag_preserved(tag, in_map_key):
+    header = cbor2.dumps(cbor2.CBORTag(tag, None))[:-1]
+    for payload in _TAG_PAYLOADS:
+        encoded = header + cbor2.dumps(payload)
+        if in_map_key:
+            (value,) = ccf.receipt._decode_receipt_cbor(b"\xa1" + encoded + b"\x00")
+        else:
+            value = ccf.receipt._decode_receipt_cbor(encoded)
+        assert type(value) is cbor2.CBORTag, (tag, payload, value)
+        assert cbor2.dumps(value) == encoded, (tag, payload, value)
+
+
+def test_decoding_preserves_tags():
+    # Sweep tag numbers so that any semantic tag added to cbor2's default
+    # decoders is detected; receipt decoding must keep every tag as CBORTag.
+    for tag in [*range(1 << 16), 1668546817, 1668547090]:
+        _assert_tag_preserved(tag, in_map_key=False)
+
+
+@pytest.mark.parametrize("tag", ccf.receipt._CBOR2_SEMANTIC_TAGS)
+def test_decoding_preserves_tags_in_map_keys(tag):
+    _assert_tag_preserved(tag, in_map_key=True)
