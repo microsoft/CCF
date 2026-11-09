@@ -259,14 +259,16 @@ def test_service_signing_identities(network, args):
     identities = public_state["public:ccf.gov.service.signing_identities"]
     classical = json.loads(identities[bytes(8)])
     assert classical["kind"] == "COSE_KEY", classical
-    assert cbor2.loads(bytes(classical["value"]))[1] == 2, classical
+    assert (
+        cbor2.loads(base64.b64decode(classical["value"], validate=True))[1] == 2
+    ), classical
 
     pq_entry = identities.get((1).to_bytes(8, "little"))
     assert (pq_entry is not None) == (service_info.get("pq_cert") is not None)
     if pq_entry is not None:
         pq_identity = json.loads(pq_entry)
         assert pq_identity["kind"] == "COSE_KEY", pq_identity
-        key = cbor2.loads(bytes(pq_identity["value"]))
+        key = cbor2.loads(base64.b64decode(pq_identity["value"], validate=True))
         assert set(key) == {1, 3, -1}, key
         assert key[1] == 7, key
         public_key_sizes = {-48: 1312, -49: 1952, -50: 2592}

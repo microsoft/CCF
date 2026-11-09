@@ -1312,7 +1312,7 @@ TEST_CASE("NetworkIdentity never substitutes a classical key for PQ")
   REQUIRE(identity.get_pq_key_pair() == nullptr);
 
   identity.pq_priv_key = identity.priv_key;
-  REQUIRE_THROWS(identity.get_pq_key_pair());
+  REQUIRE_THROWS(static_cast<void>(identity.get_pq_key_pair()));
 }
 
 TEST_CASE(

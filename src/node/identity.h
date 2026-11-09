@@ -94,8 +94,8 @@ namespace ccf
 
     /// Re-issues the ML-DSA certificate with the service certificate's
     /// subject; nullopt without an ML-DSA key.
-    std::optional<ccf::crypto::Pem> renew_pq_certificate(
-      const std::string& valid_from, size_t validity_period_days)
+    [[nodiscard]] std::optional<ccf::crypto::Pem> renew_pq_certificate(
+      const std::string& valid_from, size_t validity_period_days) const
     {
       const auto key_pair = get_pq_key_pair();
       if (key_pair == nullptr)
@@ -126,7 +126,7 @@ namespace ccf
     }
 
     /// The ML-DSA service key, or nullptr for a classical-only service.
-    ccf::crypto::MLDSAKeyPairPtr get_pq_key_pair() const
+    [[nodiscard]] ccf::crypto::MLDSAKeyPairPtr get_pq_key_pair() const
     {
       if (!pq_priv_key.has_value())
       {
