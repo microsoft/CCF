@@ -44,7 +44,19 @@ Startup logs can contain configuration and environment values, so collectors mus
     }
 
 Set ``tag-prefix-allow-list`` per collector to a list of literal, case-sensitive prefixes; an event is selected if its tag starts with any listed prefix.
-``["ccf.log"]`` selects logs; ``["ccf.cft"]`` selects consensus traces; ``["ccf"]`` selects all CCF tags.
+
+.. list-table:: Useful tag prefixes
+   :header-rows: 1
+
+   * - Prefix
+     - Selected records
+   * - ``ccf.log``
+     - Node logger records (default).
+   * - ``ccf.cft``
+     - Consensus protocol traces.
+   * - ``ccf``
+     - All CCF records, including logs and consensus traces.
+
 Omitting ``tag-prefix-allow-list`` defaults to ``["ccf.log"]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
 Existing collectors that omit this field must set ``["ccf"]`` explicitly to keep receiving consensus traces as well as logs.
 Prefixes have no dot-boundary requirement and do not support wildcards or regular expressions.
