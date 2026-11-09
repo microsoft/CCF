@@ -20,13 +20,16 @@ Two terms carry a fixed meaning in this report. **Untrusted** means the party ma
    * - Party
      - Trust and what follows
    * - Approved application, CCF framework, and confidential-computing platform
-     - **Trusted.** Assumed sound. Code running inside the enclave can read private state, so flaws there are not prevented.
+     - **Trusted.** Assumed sound. Code running inside the node's AMD SEV-SNP protected utility VM (UVM) can read private state, so flaws there are not prevented.
    * - Governing consortium members
      - **Trusted collectively, not individually.** Members govern through signed proposals and the approval rules in the constitution. The constitution is service-instance-specific and therefore outside the scope of CCF's threat model. Individual members may act maliciously; the consortium is trusted as a whole to govern correctly.
    * - Service operator
      - **Trusted** to operate the service correctly.
    * - Host infrastructure, including hosts and the people who run them
-     - **Untrusted.** Assumed to see and modify anything outside the enclave, including ledger files, snapshots, node configuration, and network traffic. Malicious host behavior is in scope.
+     - **Untrusted.** Assumed to see and modify anything outside the protected UVM, including ledger files, snapshots, node configuration, and network traffic. Malicious host behavior is in scope.
+
+These assumptions apply to nodes running on :doc:`SEV-SNP </operations/platforms/snp>`, which is the only trust boundary considered in this report.
+The :doc:`Insecure Virtual </operations/platforms/virtual>` platform provides no TEE protection, so the host can read and modify all of a node's state; it is intended for development only and is out of scope.
 
 User interactions with the service are untrusted. Users can verify the service identity to check that they are communicating with the intended instance. They can also obtain and verify :doc:`cryptographic receipts </audit/receipts>` for committed transactions, providing evidence with which to hold the service accountable.
 

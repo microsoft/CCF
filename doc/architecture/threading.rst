@@ -41,7 +41,7 @@ Task Shutdown
 
 Task cancellation prevents future execution but does not release queued actions.
 Terminal shutdown additionally releases their resources, without executing application work.
-The node shuts down the main ``JobBoard`` after RPC transport teardown and after all enclave worker threads have joined, while task dependencies are still alive.
+The node shuts down the main ``JobBoard`` after RPC transport teardown and after all coordination and worker threads have joined, while task dependencies are still alive.
 Normal connection closure does not trigger this task shutdown or change the lifetime of already queued requests.
 
 Each ``OrderedTasks`` scheduler registers weakly with its ``JobBoard`` for its lifetime.

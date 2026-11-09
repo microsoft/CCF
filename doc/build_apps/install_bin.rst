@@ -28,6 +28,11 @@ The following commands can be run to verify that CCF was installed successfully:
     CCF host: ccf-<version>
     Platform: SNP
 
+.. note:: The platform is detected at runtime rather than selected at build or install time.
+    On machines without AMD SEV-SNP support, this reports ``Platform: Virtual``, the :doc:`Insecure Virtual </operations/platforms/virtual>` platform, which provides no security guarantees and is for development only.
+
+.. code-block:: bash
+
     $ /opt/ccf/bin/sandbox.sh
     No package/app specified. Defaulting to installed JS logging app
     Setting up Python environment...
