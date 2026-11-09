@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace ccf
 {
@@ -21,6 +22,7 @@ namespace ccf
     std::string port;
     size_t queue_capacity = 4096;
     Delivery delivery = Delivery::BUFFERED_BEST_EFFORT;
+    std::vector<std::string> tag_prefix_allow_list = {""};
 
     bool operator==(const FluentdConfig&) const = default;
   };

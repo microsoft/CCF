@@ -294,6 +294,9 @@
               }
             ]
           },
+          "pq_service_certificate": {
+            "$ref": "#/components/schemas/Pem"
+          },
           "primary_id": {
             "anyOf": [
               {
@@ -970,7 +973,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.9"
+    "version": "5.0.10"
   },
   "openapi": "3.0.0",
   "paths": {

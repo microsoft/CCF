@@ -512,6 +512,9 @@
           "creationTransactionId": {
             "$ref": "#/components/schemas/TransactionId"
           },
+          "pqCertificate": {
+            "$ref": "#/components/schemas/string"
+          },
           "previousServiceCreationTransactionId": {
             "$ref": "#/components/schemas/TransactionId"
           },
@@ -788,7 +791,7 @@
   "info": {
     "description": "The governance API implemented by this CCF build. This document describes the moving 'latest' API and does not guarantee that older document versions remain available.",
     "title": "CCF Governance",
-    "version": "5.0.0"
+    "version": "5.0.1"
   },
   "openapi": "3.0.0",
   "paths": {

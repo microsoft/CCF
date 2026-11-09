@@ -64,11 +64,11 @@ CCF wraps OpenSSL with helpers defined in `include/ccf/crypto/openssl/openssl_wr
 
 ### Check helpers
 
-| Helper                       | Success predicate  |
-| ---------------------------- | ------------------ |
-| `CHECK1(rc)`                 | `rc == 1`          |
-| `CHECKNULL(ptr)`             | `ptr != nullptr`   |
-| `CHECKPOSITIVE(val)`         | `val > 0`          |
+| Helper | Success predicate |
+| --- | --- |
+| `CHECK1(rc)` | `rc == 1` |
+| `CHECKNULL(ptr)` | `ptr != nullptr` |
+| `CHECKPOSITIVE(val)` | `val > 0` |
 | `CHECKEQUAL(expect, actual)` | `actual == expect` |
 
 Choose the predicate from the individual API contract. `CHECK1` rejects valid values above 1 for APIs allowing any positive success result. `CHECKPOSITIVE` is also correct for an API whose only success is 1 and whose failures are all non-positive; do not flag that equivalence as a bug. These helpers throw, and `CHECKNULL` validates rather than returns the pointer.
@@ -82,12 +82,12 @@ Choose the predicate from the individual API contract. `CHECK1` rejects valid va
 
 CCF wraps libcurl in `src/http_client/curl.h`.
 
-| Macro                                        | Applicable return contract      |
-| -------------------------------------------- | ------------------------------- |
-| `CHECK_CURL_EASY(fn, ...)`                   | `CURLcode`, success `CURLE_OK`  |
-| `CHECK_CURL_EASY_SETOPT(handle, opt, arg)`   | `curl_easy_setopt`              |
-| `CHECK_CURL_EASY_GETINFO(handle, info, arg)` | `curl_easy_getinfo`             |
-| `CHECK_CURL_MULTI(fn, ...)`                  | `CURLMcode`, success `CURLM_OK` |
+| Macro | Applicable return contract |
+| --- | --- |
+| `CHECK_CURL_EASY(fn, ...)` | `CURLcode`, success `CURLE_OK` |
+| `CHECK_CURL_EASY_SETOPT(handle, opt, arg)` | `curl_easy_setopt` |
+| `CHECK_CURL_EASY_GETINFO(handle, info, arg)` | `curl_easy_getinfo` |
+| `CHECK_CURL_MULTI(fn, ...)` | `CURLMcode`, success `CURLM_OK` |
 
 These macros throw; use explicit handling for recoverable transfer errors. They do not apply to pointer- or void-returning APIs. `curl_easy_init()` and `curl_multi_init()` need null checks, already provided by CCF's `UniqueCURL`/`UniqueCURLM` constructors. On `curl_slist_append()` failure, preserve ownership of the original list rather than overwriting its only pointer with null.
 

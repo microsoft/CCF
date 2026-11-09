@@ -4,6 +4,7 @@
 
 #include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/curve.h"
+#include "ccf/crypto/mldsa_parameter_set.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/entity_id.h"
@@ -291,6 +292,8 @@ namespace ccf
         ccf::ServiceConfiguration service_configuration;
         size_t initial_service_certificate_validity_days = 1;
         std::string service_subject_name = "CN=CCF Service";
+        ccf::crypto::MLDSAParameterSet service_mldsa_parameter_set =
+          ccf::crypto::MLDSAParameterSet::ML_DSA_65;
         ccf::COSESignaturesConfig cose_signatures;
 
         bool operator==(const Start&) const = default;
@@ -318,6 +321,8 @@ namespace ccf
       struct Recover
       {
         size_t initial_service_certificate_validity_days = 1;
+        ccf::crypto::MLDSAParameterSet service_mldsa_parameter_set =
+          ccf::crypto::MLDSAParameterSet::ML_DSA_65;
         std::string previous_service_identity_file;
         bool operator==(const Recover&) const = default;
       };
@@ -421,8 +426,14 @@ namespace ccf
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability::Fluentd);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability::Fluentd, host, port);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::Observability::Fluentd, queue_capacity, delivery);
+  DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
+    CCFConfig::Observability::Fluentd,
+    queue_capacity,
+    "queue_capacity",
+    delivery,
+    "delivery",
+    tag_prefix_allow_list,
+    "tag-prefix-allow-list");
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Observability);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Observability);
@@ -476,6 +487,7 @@ namespace ccf
     service_configuration,
     initial_service_certificate_validity_days,
     service_subject_name,
+    service_mldsa_parameter_set,
     cose_signatures);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Command::Join);
@@ -495,6 +507,7 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCFConfig::Command::Recover,
     initial_service_certificate_validity_days,
+    service_mldsa_parameter_set,
     previous_service_identity_file);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Command);
