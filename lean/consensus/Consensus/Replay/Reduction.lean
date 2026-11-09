@@ -172,8 +172,8 @@ private def ruleRecvAppendEntries : Reduction Unit := do
   optional_ (event head "become_follower")
   many_
     ((do
-      many_ (event head "retired_committed_tx")
-      event head "execute_append_entries_sync")
+      event head "execute_append_entries_sync"
+      many_ (event head "retired_committed_tx"))
       <|> (do
             event head "add_configuration"
             many_ (event head "send_append_entries"))
