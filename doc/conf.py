@@ -66,10 +66,23 @@ extensions = [
     "sphinx_design",
     "sphinx.ext.extlinks",
     "sphinx_inline_tabs",
+    "sphinx_reredirects",
     "rustdoc",
 ]
 
 autosectionlabel_prefix_document = True
+
+# Redirects for pages which have been merged into other pages, so that
+# existing links to them keep working. Targets are relative to the source page.
+redirects = {
+    "architecture/receipts": "../use_apps/verify_tx.html#write-receipts",
+    "build_apps/auth/cert": "index.html#certificate-authentication",
+    "build_apps/build_app": "example_cpp.html#building",
+    "build_apps/example": "example_cpp.html",
+    "operations/cli": "configuration.html#command-line-interface",
+    "operations/network": "configuration.html#http-interfaces",
+    "operations/run_setup": "../build_apps/install_bin.html",
+}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]

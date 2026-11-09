@@ -18,6 +18,35 @@ The configuration for each CCF node must be contained in a single JSON configura
 
         $ /opt/ccf/bin/js_generic --config /path/to/config/file --check
 
+Command-Line Interface
+^^^^^^^^^^^^^^^^^^^^^^
+
+Each CCF executable exposes the following command-line interface (CLI) options:
+
+.. code-block:: bash
+
+    $ /opt/ccf/bin/js_generic --help
+
+        Run a single CCF node, based on the given configuration file.
+        Some parameters are marked "(security critical)" - these must be passed on the CLI rather than within a configuration file, so that (on relevant platforms) their value is captured in an attestation even if the configuration file itself is unattested.
+
+        Usage: /opt/ccf/bin/js_generic [OPTIONS]
+
+        Options:
+        -h,--help                   Print this help message and exit
+        -c,--config TEXT REQUIRED   Path to JSON configuration file
+        --config-timeout TEXT       Configuration file read timeout, for example 5s or 1min
+        --check                     Verify configuration file and exit
+        -v,--version                Display CCF version and exit
+        --log-level ENUM:value in {debug->1,fail->3,fatal->4,info->2,trace->0} OR {1,3,4,2,0}
+                                    Logging level for the node (security critical)
+
+Note that the ``--log-level`` option is security critical.
+It must be passed on the command line rather than in a configuration file, so that its value is captured in an attestation even if the configuration file itself is not attested, for example because it is mounted from an external, un-attested, filesystem.
+
+The ``--config-timeout`` option specifies how long to wait for the configuration file to be available before giving up.
+This is useful when running CCF in a container, where the configuration file may not be immediately available.
+
 .. include:: generated_config.rst
 
 
@@ -103,6 +132,19 @@ When a node is identified by an IPv6 literal, the matching ``node_certificate.su
 
 .. note:: ``published_address`` defaults to ``bind_address`` when omitted, and is the address embedded in redirect URLs returned to clients. Brackets are added automatically where required, so a published IPv6 address appears in a redirect as ``https://[2001:db8::1]:12345/...``.
 
+
+HTTP Interfaces
+---------------
+
+All RPC interfaces for a given node (see :ref:`operations/configuration:``network.rpc_interfaces```) support HTTP/1.1.
+A specific RPC interface can also support HTTP/2 by setting the ``"app_protocol"`` configuration entry to ``"HTTP2"`` for that interface.
+
+.. warning:: HTTP/2 interfaces do not currently support client requests forwarding. Client requests that require forwarding to the primary node will return a `501 <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/501>`_  HTTP error.
+
+Operators can cap the size of client HTTP requests (body and header) for each RPC interface in the :ref:`operations/configuration:``network.rpc_interfaces.[name].http_configuration``` configuration section.
+These configuration entries are optional and have sensible default values.
+
+If a client HTTP request breaches any of these values, the client is returned a `413 <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/413>`_ or `431 <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/431>`_ HTTP error and the session is automatically closed by the CCF node.
 
 Operator Features
 -----------------
