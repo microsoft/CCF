@@ -31,6 +31,7 @@ import infra.node
 import infra.openapi
 import infra.path
 import infra.proc
+import infra.remote
 from infra.clients import CCFConnectionException, CCFIOException, flush_info
 from infra.consortium import slurp_file
 from infra.node import CCFVersion
@@ -571,12 +572,16 @@ class Network:
             timeout=args.ledger_recovery_timeout if recovery else 10
         )
         pq_cert = self.get_pq_service_certificate(primary)
-        for i, node in enumerate(self.nodes):
+        for node in self.nodes:
             # Each node's output file resolves within its own root directory
             assert not os.path.isabs(
                 node.remote.pq_service_cert_file
             ), node.remote.pq_service_cert_file
-            if i == 0 and pq_cert is not None:
+            if (
+                node.remote.start_type
+                in {infra.remote.StartType.start, infra.remote.StartType.recover}
+                and pq_cert is not None
+            ):
                 node.remote.get_pq_service_certificate_file(self.common_dir)
                 with open(self.pq_cert_path, encoding="utf-8") as f:
                     assert f.read() == pq_cert, "Startup ML-DSA certificate mismatch"
