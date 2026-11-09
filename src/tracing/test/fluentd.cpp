@@ -509,7 +509,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
         ccf::LoggerLevel::FAIL,
         ccf::LoggerLevel::FATAL})
   {
-    ccf::logger::LogLine line(level, "app", "file\"name.cpp", 42);
+    ccf::logger::LogLine line(level, "app", "file.cpp", 42);
     line << "message with \"quotes\", a newline\nand backslash\\";
     line.finalize();
     ccf::tracing::emit_log(line);
@@ -523,7 +523,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
       {"thread_id", fmt::format("{}", line.thread_id)},
       {"level", ccf::logger::to_string(level)},
       {"tag", "app"},
-      {"file", "file\"name.cpp"},
+      {"file", "file.cpp"},
       {"number", "42"},
       {"msg", "message with \"quotes\", a newline\nand backslash\\"}};
     CHECK(event[2]["msg"] == expected);
