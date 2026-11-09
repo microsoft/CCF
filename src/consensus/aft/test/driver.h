@@ -172,6 +172,11 @@ private:
       // necessary to emulate the global commit hook effectively.
       _nodes.at(node_id).kv->retired_committed_entries.emplace_back(
         idx, retired_committed.value());
+      for (const auto& [retired_node_id, _] : retired_committed.value())
+      {
+        aft::trace::retired_committed_tx(
+          node_id.value(), idx, retired_node_id.value());
+      }
 
       type = aft::ReplicatedDataType::retired_committed;
       auto c = nlohmann::json(retired_committed).dump();
