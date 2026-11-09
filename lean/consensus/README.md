@@ -31,7 +31,6 @@ There are no liveness properties or fairness assumptions.
 Install Lean via [elan](https://lean-lang.org/install/), then run from this directory:
 
 ```sh
-lake exe cache get
 lake build --wfail --fail-fast
 lake exe check-imports
 lake lint

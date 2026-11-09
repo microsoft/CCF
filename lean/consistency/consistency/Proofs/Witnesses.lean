@@ -289,12 +289,12 @@ private theorem causal_reachable {state : State}
       (tx : TxContent)
       : Causal (history ++ [Event.request kind tx]) := by
     apply causal_snoc history _ causal
-    simp only [reduceCtorEq, IsEmpty.forall_iff, implies_true]
+    simp only [reduceCtorEq, forall_false, implies_true]
   have causal_status (history : List Event) (causal : Causal history)
       (txid : TxID) (status : Status)
       : Causal (history ++ [Event.status txid status]) := by
     apply causal_snoc history _ causal
-    simp only [reduceCtorEq, IsEmpty.forall_iff, implies_true]
+    simp only [reduceCtorEq, forall_false, implies_true]
   have causal_response (history : List Event) (causal : Causal history)
       {requestIndex : Nat} {kind : TxType} {tx : TxContent} (observed : List TxContent)
       (txid : TxID) (found : at? history requestIndex = some (.request kind tx))
@@ -391,7 +391,7 @@ private theorem requests_reachable {state : State}
     constructor
     · intro index kind tx found
       rcases lookup_snoc found with ⟨_, old⟩ | ⟨rfl, rfl⟩
-      · exact lt_of_lt_of_le (invariant.1 _ _ _ old) monotonic
+      · exact Nat.lt_of_lt_of_le (invariant.1 _ _ _ old) monotonic
       · simp only [next_request_snoc, Nat.lt_add_one]
     · intro left right leftKind rightKind leftTx rightTx first second same
       rcases lookup_snoc first with ⟨_, oldLeft⟩ | ⟨lastLeft, newLeft⟩

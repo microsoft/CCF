@@ -202,12 +202,10 @@ Rejections remain diagnostic evidence and must not be hidden by reseeding state 
 Run the following commands from this directory:
 
 ```console
-lake exe cache get
 lake build --wfail --fail-fast
 lake exe check-imports
 lake build CCF
 lake lint
-lake exe runLinter --no-build CCF Kv replayer.Main
 lake check --inadvisably-no-sandbox
 ./replayer/check-fixtures.sh
 ```

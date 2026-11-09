@@ -81,12 +81,10 @@ Eventual-progress and fairness properties are out of scope.
 Run the following commands from this directory:
 
 ```console
-lake exe cache get
 lake build --wfail --fail-fast
 lake exe check-imports
 lake build CCF
 lake lint
-lake exe runLinter --no-build CCF DisasterRecovery replayer.Main
 ./replayer/check-fixtures.sh
 lake check --inadvisably-no-sandbox
 ```
@@ -103,7 +101,7 @@ Lean's internal-module and collection-variable naming conventions, and its debug
 The package also sets `autoImplicit = false`, requiring declaration headers to bind their parameters explicitly rather than silently introducing undeclared names.
 This applies to ordinary Lake builds as well as CI.
 
-The model, proofs, tests, and replayer use Lean's module system, as required by the Mathlib dependency.
+The model, proofs, tests, and replayer use Lean's module system, as required by the vendored Mathlib subset.
 The properties entrypoint publicly imports the model types and property helpers used by its statements, while its implementation imports remain private.
 Proof modules and the assembled root follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
 `@[expose] public section` keeps definitions used by cross-module proofs transparent; runtime-only helpers remain private.
@@ -111,8 +109,6 @@ Proof modules and the assembled root follow the shared [dependency import contra
 
 Proofs that evaluate upstream implementations use narrowly scoped `import all` directives to retain access to those definitions.
 
-`runLinter` uses Mathlib's declaration-lint driver, including the slow checks, over every module imported by `CCF.lean`, `DisasterRecovery.lean`, and `replayer.Main`.
-It lints our declarations rather than dependencies, and findings fail the command.
 The package's default targets are the complete library and the replayer executable.
 Canonical scenario and state-enumeration checks run with `#eval` when `Tests/CanonicalTests.lean` is built, and assertion failures fail the build.
 Their runner is namespaced, leaving the replayer as the only `main` entrypoint so both targets can be checked together.
@@ -130,12 +126,12 @@ Additional bundled checkers are not enabled.
 
 The [Lean workflow](../../.github/workflows/lean.yml) checks `consensus`, `common`, `consistency`, `disaster-recovery`, and `kv` in one matrix with fail-fast disabled, using the same [package workflow](../../.github/workflows/lean-package.yml).
 Each invocation has its own checkout and writable build directories, including `common/.lake`, because the packages reference `../common` without copying it.
-Mathlib cache setup precedes kernel and axiom checking, which precedes import/architecture checking, formatting, linting, and package-specific fixtures.
+Kernel and axiom checking precedes import/architecture checking, formatting, linting, and package-specific fixtures.
 Common receives its own kernel, import, and lint checks; the disaster-recovery formatting selector also covers common and tracked Lean files outside `lean/`.
 Recovery schema validation, positive/negative replay fixtures, and viewer dump generation run in the disaster-recovery job.
 
 Native CCF consensus and KV captures run independently of package checking.
-The [CCF consensus replay job](../consensus/replay/README.md#ci-captures-and-replay) and the KV replay job each wait only for their corresponding native captures, restore Mathlib caches, and build their own replay executable without depending on the package matrix.
+The [CCF consensus replay job](../consensus/replay/README.md#ci-captures-and-replay) and the KV replay job each wait only for their corresponding native captures and build their own replay executable without depending on the package matrix.
 The final check retains the name `Lean models and proofs` and requires all package checks, captures, and replay to succeed.
 Failed, cancelled, skipped, or missing prerequisites cannot yield a successful gate; a cancelled workflow may cancel the gate itself.
 The gate also rejects package inventory drift.
@@ -149,7 +145,7 @@ To update a tool dependency without changing the toolchain, run `lake update --k
 
 ## Formatting
 
-Install Lean via [elan](https://lean-lang.org/install/) and run `lake exe cache get` from this directory before the first formatting check.
+Install Lean via [elan](https://lean-lang.org/install/) before the first formatting check.
 From the repository root, check every tracked `.lean` file:
 
 ```console
@@ -164,5 +160,5 @@ scripts/lean-format-checks.sh -f
 
 The script builds the model's imported modules and runs the pinned leanfmt dependency.
 The Lean CI workflow runs the same check after the proof checks.
-Files outside `lean/` are included; untracked files and downloaded dependencies are excluded.
+Files outside `lean/` are included; untracked files, downloaded dependencies and the vendored Mathlib subset are excluded.
 Add new Lean files to Git before running the check.

@@ -568,7 +568,7 @@ private theorem snapshots_reachable {state : State}
       (found : at? branches branch = some ledger) (last : ledger.getLast? = some entry)
       (tx : TxContent)
       : Snapshot branches .ro tx (writes ledger) ⟨entry.view, ledger.length⟩ := by
-    have snapshot := snapshot_source branches anchored found (at_last last) .ro tx (by simp only [reduceCtorEq, IsEmpty.forall_iff])
+    have snapshot := snapshot_source branches anchored found (at_last last) .ro tx (by simp only [reduceCtorEq, forall_false])
     simpa only [List.take_length] using snapshot
   have step_snapshots (before after : State) (action : Action)
       (anchored : Anchored before.branches)
@@ -634,7 +634,8 @@ private theorem anchored_prefix (branches : List (List Entry))
   refine ⟨origin, originFound, ?_⟩
   have bound : seqno ≤ (ledger.take seqno).length := by
     simp only [List.length_take, Nat.min_eq_left (at_bounds atEntry).2, Std.le_refl]
-  simpa only [List.take_take, min_self] using (take_of_prefix isPrefix seqno bound).symm
+  simpa only [List.take_take, Nat.min_self]
+    using (take_of_prefix isPrefix seqno bound).symm
 
 private theorem frontier_bound (history : List Event) {txid : TxID}
     (member : txid ∈ statusIDs history .committed)
@@ -884,7 +885,7 @@ private theorem committed_views {state : State}
       refine ⟨
         ordered ledger (List.mem_of_getElem? found),
         by
-          simp only [List.pairwise_cons, List.not_mem_nil, IsEmpty.forall_iff, implies_true, List.Pairwise.nil, and_self],
+          simp only [List.pairwise_cons, List.not_mem_nil, forall_false, implies_true, List.Pairwise.nil, and_self],
         ?_
       ⟩
       intro left member right singleton
@@ -1011,7 +1012,7 @@ private theorem separated_snoc (history : List Event) (event : Event)
     · exact newInvalid invalid currentInvalid committed oldCommit sameView
   · rcases (status_ids_snoc _ _ _ _).mp invalidKnown with oldInvalid | currentInvalid
     · exact newCommit committed currentCommit invalid oldInvalid sameView
-    · simp_all only [Event.status.injEq, and_true, forall_eq', reduceCtorEq, and_false, IsEmpty.forall_iff, implies_true]
+    · simp_all only [Event.status.injEq, and_true, forall_eq', reduceCtorEq, and_false, forall_false, implies_true]
 
 private theorem separated_invalidate (state : State) (separated : Separated state.history)
     (anchored : Anchored state.branches) (current : Current state.branches state.history)
@@ -1039,7 +1040,7 @@ private theorem separated_invalidate (state : State) (separated : Separated stat
     have frontier := Nat.le_trans bound (frontier_bound state.history known)
     simp only [mayInvalidate, last_of_at latestFound, ge_iff_le, actual, invalidView, bne_self_eq_false, Bool.and_false, gt_iff_lt, Nat.not_lt.mpr frontier, decide_false, Bool.false_and, Bool.or_self]
   apply separated_snoc _ _ separated
-  · simp only [Event.status.injEq, reduceCtorEq, and_false, IsEmpty.forall_iff, implies_true]
+  · simp only [Event.status.injEq, reduceCtorEq, and_false, forall_false, implies_true]
   · intro _ same
     cases same
     intro committed known sameView
@@ -1064,7 +1065,7 @@ private theorem separated_reachable {state : State}
     · intro _ same
       cases same
       exact allowed
-    · simp only [Event.status.injEq, reduceCtorEq, and_false, IsEmpty.forall_iff, implies_true]
+    · simp only [Event.status.injEq, reduceCtorEq, and_false, forall_false, implies_true]
   have step_separated (before after : State) (action : Action)
       (separated : Separated before.history) (anchored : Anchored before.branches)
       (current : Current before.branches before.history)
@@ -1301,7 +1302,7 @@ private theorem unique_reachable {state : State}
       : UniqueWrites (appendEntry state branch ⟨branch, none⟩).branches := by
     obtain ⟨ledger, found⟩ := active_ledger state active
     apply unique_modify _ unique _ ledger _ found
-    simp only [reduceCtorEq, ne_eq, IsEmpty.forall_iff, implies_true]
+    simp only [reduceCtorEq, ne_eq, forall_false, implies_true]
   have elected_location (branches : List (List Entry)) {target : List Entry}
       (targetMember : target ∈ branches) (count : Nat) {ledger : List Entry}
       (member : ledger ∈ branches ++ [target.take count]) {seqno : Nat} {entry : Entry}
@@ -1389,7 +1390,7 @@ private theorem clean_snoc (branches : List (List Entry)) (history : List Event)
     · exact newInvalid invalid newInvalidated committed oldCommit
   · rcases (status_ids_snoc _ _ _ _).mp invalidKnown with oldInvalid | newInvalidated
     · exact newCommit committed newCommitted invalid oldInvalid
-    · simp_all only [Event.status.injEq, and_true, forall_eq', reduceCtorEq, and_false, IsEmpty.forall_iff, implies_true]
+    · simp_all only [Event.status.injEq, and_true, forall_eq', reduceCtorEq, and_false, forall_false, implies_true]
 
 private theorem origin_entry_in_branch (branches : List (List Entry))
     (anchored : Anchored branches) {branch : Nat} {ledger origin : List Entry}
@@ -1414,7 +1415,7 @@ private theorem clean_invalidate (state : State)
     (allowed : mayInvalidate state txid = true)
     : Clean state.branches (state.history ++ [Event.status txid .invalid]) := by
   apply clean_snoc _ _ _ clean
-  · simp only [Event.status.injEq, reduceCtorEq, and_false, IsEmpty.forall_iff, implies_true]
+  · simp only [Event.status.injEq, reduceCtorEq, and_false, forall_false, implies_true]
   · intro _ same
     cases same
     intro committed known origin originFound entry entryFound bound sameView
@@ -1483,7 +1484,7 @@ private theorem clean_reachable {state : State}
         endpointFound view originFound entryFound bound
       have denied := allowed invalid known bound
       simp only [actual, sameView, BEq.rfl, Bool.true_eq_false] at denied
-    · simp only [Event.status.injEq, reduceCtorEq, and_false, IsEmpty.forall_iff, implies_true]
+    · simp only [Event.status.injEq, reduceCtorEq, and_false, forall_false, implies_true]
   have step_clean (before after : State) (action : Action)
       (clean : Clean before.branches before.history) (anchored : Anchored before.branches)
       (current : Current before.branches before.history)

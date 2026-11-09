@@ -5,7 +5,6 @@ public import Consensus.Model.Messages
 public import Consensus.Model.NodeState
 public import CCF.Capabilities
 public import Mathlib.Data.Finset.Sort
-public import Mathlib.Order.Prod.Lex.Basic
 
 @[expose] public section
 
@@ -59,18 +58,22 @@ Approximates `all_other_nodes`; unlike CCF, peers lost on rollback are not retai
 def eligiblePeers (state : NodeState) (self : NodeID) : Finset NodeID :=
   (state.activeMembers ∪ state.retirementCompletedNodes).erase self
 
+/-- Lexicographic order on successor ranks. -/
+def rankBelow (a b : Nat × Nat × Nat) : Bool :=
+  decide (a.1 < b.1 \/ (a.1 = b.1 /\ Prod.lexLt a.2 b.2))
+
 /-- Maximize replication progress, latest active membership, then node ID. -/
 def findSuccessor (state : NodeState) (self : NodeID) : Option NodeID :=
   let configurations := state.activeConfigurations
   let rank node :=
-    toLex (state.matchIndex node, toLex (latestMembershipIndex configurations node, node))
+    (state.matchIndex node, latestMembershipIndex configurations node, node)
   let peers := (eligiblePeers state self).sort
   peers.foldl
     (fun best candidate =>
       match best with
       | none => some candidate
       | some selected =>
-          if rank selected < rank candidate then
+          if rankBelow (rank selected) (rank candidate) then
             some candidate
           else
             best)

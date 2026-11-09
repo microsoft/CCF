@@ -9,7 +9,7 @@ import all Mathlib.Data.List.Sort
 meta import Lean.Elab.Tactic.Basic
 meta import Lean.Meta.Tactic.AuxLemma
 
-public import Mathlib.Tactic.SplitIfs
+public meta import Lean.Elab.Tactic.ElabTerm
 
 namespace Consensus.Proofs.Config
 end Consensus.Proofs.Config
@@ -704,7 +704,7 @@ public lemma election_safety_witness
       (start_initial (by decide) (by decide))
       stemRun election_cycle
       (by simp [electionCycle])
-      le_rfl
+      Nat.le.refl
       (by rw [List.take_length]; exact stemRun),
     mem_of_nodeState leftFound,
     mem_of_nodeState rightFound,
@@ -735,7 +735,7 @@ public lemma committed_frontier_is_signature_witness
       (start_initial (by decide) (by decide))
       stemRun single_cycle
       (by simp [singleCycle])
-      le_rfl
+      Nat.le.refl
       (by rw [List.take_length]; exact stemRun),
     member_of_nodeState _,
     by decide

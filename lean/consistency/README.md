@@ -53,7 +53,6 @@ Proof modules follow the shared [dependency import contract](../common/README.md
 Install Lean through [elan](https://lean-lang.org/install/), then run from this package directory:
 
 ```sh
-lake exe cache get
 lake check --inadvisably-no-sandbox
 lake exe check-imports
 lake lint
