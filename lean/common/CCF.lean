@@ -5,7 +5,6 @@ public import CCF.Capabilities
 public import CCF.Execution
 public import CCF.Finset
 public import CCF.Function
-public import CCF.Lemma
 public import CCF.MultiNodeTransitionSystem
 public import CCF.Order
 public import CCF.Parsec

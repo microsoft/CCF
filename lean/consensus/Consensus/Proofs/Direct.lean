@@ -2,7 +2,6 @@ module
 
 public import Consensus.Model
 
-import CCF.Lemma
 import CCF.Order
 import all Init.Control.State
 
@@ -225,12 +224,12 @@ open Consensus.Proofs.Config
 open Consensus.Model.Node
 
 @[simp]
-private lemma EntryContent.isSignature_eq_true {content : EntryContent}
+private theorem EntryContent.isSignature_eq_true {content : EntryContent}
     : content.isSignature = true <-> content = .signature := by
   cases content <;> simp [EntryContent.isSignature]
 
 /-- A successful one-based lookup proves the index lies within the log. -/
-private lemma entryAtSomeIndexBound
+private theorem entryAtSomeIndexBound
     {log : List Entry}
     {index : Nat}
     {entry : Entry}
@@ -246,7 +245,7 @@ private lemma entryAtSomeIndexBound
     exact within
 
 /-- A successful lookup is unchanged when the log is extended at the end. -/
-private lemma entryAt_of_prefix
+private theorem entryAt_of_prefix
     {left right : List Entry}
     (isPrefix : left <+: right)
     {index : Nat}
@@ -266,7 +265,7 @@ private lemma entryAt_of_prefix
     exact found
 
 /-- A positive signature test identifies a concrete signature entry. -/
-private lemma isSignatureAtTrue
+private theorem isSignatureAtTrue
     {log : List Entry}
     {index : Nat}
     (signature : isSignatureAt log index = true)
@@ -281,7 +280,7 @@ private lemma isSignatureAtTrue
       simpa [isSignatureAt, found] using signature
 
 /-- The latest signature index lies within the log. -/
-private lemma maxCommittableIndexBounded (log : List Entry)
+private theorem maxCommittableIndexBounded (log : List Entry)
     : maxCommittableIndex log <= log.length := by
   unfold maxCommittableIndex
   let candidates := List.range (log.length + 1)
@@ -319,7 +318,7 @@ private lemma maxCommittableIndexBounded (log : List Entry)
   exact foldBounded candidates 0 allBounded (Nat.zero_le _)
 
 /-- A positive latest committable index points to a signature. -/
-private lemma maxCommittableIndexPositiveIsSignature
+private theorem maxCommittableIndexPositiveIsSignature
     {log : List Entry}
     (positive : 0 < maxCommittableIndex log)
     : isSignatureAt log (maxCommittableIndex log) = true := by
@@ -362,7 +361,7 @@ private lemma maxCommittableIndexPositiveIsSignature
   · exact resultValid
 
 /-- Every signature index is no later than the latest signature index. -/
-private lemma signatureIndex_le_maxCommittableIndex
+private theorem signatureIndex_le_maxCommittableIndex
     {log : List Entry}
     {index : Nat}
     (signature : isSignatureAt log index = true)
@@ -422,7 +421,7 @@ private lemma signatureIndex_le_maxCommittableIndex
       exact Nat.lt_succ_of_le indexBound)
 
 /-- Extending a log preserves every earlier signature lookup. -/
-private lemma isSignatureAt_of_prefix
+private theorem isSignatureAt_of_prefix
     {left right : List Entry}
     (isPrefix : left <+: right)
     {index : Nat}
@@ -433,7 +432,7 @@ private lemma isSignatureAt_of_prefix
   simp [isSignatureAt, extended, content]
 
 /-- Extending a log cannot move its latest signature backwards. -/
-private lemma maxCommittableIndex_le_of_prefix
+private theorem maxCommittableIndex_le_of_prefix
     {left right : List Entry}
     (isPrefix : left <+: right)
     : maxCommittableIndex left <= maxCommittableIndex right := by
@@ -448,7 +447,7 @@ private lemma maxCommittableIndex_le_of_prefix
           (maxCommittableIndexPositiveIsSignature positive))
 
 /-- Taking a log prefix leaves lookups inside that prefix unchanged. -/
-private lemma isSignatureAt_take_of_le
+private theorem isSignatureAt_take_of_le
     {log : List Entry}
     {index count : Nat}
     (within : index <= count)
@@ -469,7 +468,7 @@ private lemma isSignatureAt_take_of_le
   simp [isSignatureAt, taken, content]
 
 /-- The bounded committable frontier does not exceed the complete log. -/
-private lemma maxCommittableIndexUpTo_le_length (log : List Entry) (frontier : Nat)
+private theorem maxCommittableIndexUpTo_le_length (log : List Entry) (frontier : Nat)
     : maxCommittableIndexUpTo log frontier <= log.length := by
   unfold maxCommittableIndexUpTo
   have bounded :=
@@ -478,7 +477,7 @@ private lemma maxCommittableIndexUpTo_le_length (log : List Entry) (frontier : N
   exact Nat.le_trans bounded (Nat.min_le_right _ _)
 
 /-- A positive bounded committable frontier points to a signature in the log. -/
-private lemma maxCommittableIndexUpToPositiveIsSignature
+private theorem maxCommittableIndexUpToPositiveIsSignature
     {log : List Entry}
     {frontier : Nat}
     (positive : 0 < maxCommittableIndexUpTo log frontier)
@@ -491,7 +490,8 @@ private lemma maxCommittableIndexUpToPositiveIsSignature
 
 /-- Recording a commit changes the commit index and retirement latch, and may
 clear the role and primary knowledge. -/
-private lemma NodeState.recordCommit_eq (node : NodeID) (state : NodeState) (index : Nat)
+private theorem NodeState.recordCommit_eq (node : NodeID) (state : NodeState)
+    (index : Nat)
     : exists retiredCommittedIndex role primaryKnown,
         state.recordCommit node index
           = { state with commitIndex := index, retiredCommittedIndex, role, primaryKnown }
@@ -503,20 +503,21 @@ private lemma NodeState.recordCommit_eq (node : NodeID) (state : NodeState) (ind
   · exact ⟨_, _, _, rfl, Or.inl rfl⟩
 
 @[simp]
-private lemma NodeState.recordCommit_log (node : NodeID) (state : NodeState) (index : Nat)
+private theorem NodeState.recordCommit_log (node : NodeID) (state : NodeState)
+    (index : Nat)
     : (state.recordCommit node index).log = state.log := by
   obtain ⟨_, _, _, eq, _⟩ := NodeState.recordCommit_eq node state index
   rw [eq]
 
 @[simp]
-private lemma NodeState.recordCommit_commitIndex (node : NodeID) (state : NodeState)
+private theorem NodeState.recordCommit_commitIndex (node : NodeID) (state : NodeState)
     (index : Nat)
     : (state.recordCommit node index).commitIndex = index := by
   obtain ⟨_, _, _, eq, _⟩ := NodeState.recordCommit_eq node state index
   rw [eq]
 
 /-- Extending a log cannot move its bounded committable frontier backwards. -/
-private lemma maxCommittableIndexUpTo_mono {left right : List Entry}
+private theorem maxCommittableIndexUpTo_mono {left right : List Entry}
     (isPrefix : left <+: right) (frontier : Nat)
     : maxCommittableIndexUpTo left frontier <= maxCommittableIndexUpTo right frontier :=
   maxCommittableIndex_le_of_prefix
@@ -525,7 +526,7 @@ private lemma maxCommittableIndexUpTo_mono {left right : List Entry}
 
 /-- The follower append loop changes only the log, commit and retirement
 fields, and may clear the role. -/
-private lemma fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entry)
+private theorem fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entry)
     : forall (state : NodeState),
         exists commitIndex retiredCommittedIndex role primaryKnown,
           entries.foldl
@@ -597,7 +598,7 @@ private lemma fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entr
 Intermediate commits use prefixes of the final log, so the follower's final
 commit index is the bounded committable frontier of the extended log.
 -/
-private lemma handleAppendEntiresFromPrimary_eq (self : NodeID) (state : NodeState)
+private theorem handleAppendEntiresFromPrimary_eq (self : NodeID) (state : NodeState)
     (request : AppendEntriesRequest)
     : let log :=
         state.log ++ request.entries.drop (state.log.length - request.prevLogIndex)
@@ -644,7 +645,7 @@ private lemma handleAppendEntiresFromPrimary_eq (self : NodeID) (state : NodeSta
     · exact Or.inr none
 
 /-- A rollback point lies after the request's previous index. -/
-private lemma firstTermConflictIndex_ge {state : NodeState}
+private theorem firstTermConflictIndex_ge {state : NodeState}
     {request : AppendEntriesRequest} {index : Nat}
     (conflict : firstTermConflictIndex state request = some index)
     : request.prevLogIndex + 1 <= index := by

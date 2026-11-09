@@ -3,7 +3,6 @@ module
 public import Consensus.Model
 public import CCF.Execution
 
-import CCF.Lemma
 import CCF.Order
 import all Init.Control.State
 
@@ -587,7 +586,7 @@ open CCF CCF.Execution CCF.MultiNodeTransitionSystem
 open Consensus.Model.Node
 open Consensus.Model (initialNodeState)
 
-public lemma committed_logs_prefix_witness
+public theorem committed_logs_prefix_witness
     : exists (config : Finset NodeID),
     exists
     (nodes : List NodeID) (trace
@@ -624,7 +623,7 @@ public lemma committed_logs_prefix_witness
     by decide
   ⟩
 
-public lemma single_node_committed_log_monotonic_witness
+public theorem single_node_committed_log_monotonic_witness
     : exists (config : Finset NodeID) (nodes : List NodeID),
     exists (pre post : Model.State),
     exists (nodeId : NodeID) (nodePre nodePost : NodeState),
@@ -652,7 +651,7 @@ public lemma single_node_committed_log_monotonic_witness
     extend_committed.2
   ⟩
 
-public lemma election_safety_witness
+public theorem election_safety_witness
     : exists (config : Finset NodeID),
     exists
     (nodes : List NodeID) (trace
@@ -693,7 +692,7 @@ public lemma election_safety_witness
     by decide
   ⟩
 
-public lemma committed_frontier_is_signature_witness
+public theorem committed_frontier_is_signature_witness
     : exists (config : Finset NodeID),
     exists
     (nodes : List NodeID) (trace
