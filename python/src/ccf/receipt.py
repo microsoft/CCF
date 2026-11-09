@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import base64
-import struct
 from collections.abc import Mapping
 from hashlib import sha256
 from io import BytesIO
@@ -35,8 +34,6 @@ from ccf.cose import (
 )
 
 _MAX_RECEIPT_CBOR_DEPTH = 400
-_FLOAT64_FRACTION_MASK = (1 << 52) - 1
-_NAN_KEY = object()
 
 # Tags that cbor2 6 converts to Python values by default. Receipt decoding
 # keeps them as CBORTag, so that, for example, a bignum cannot stand in for an
@@ -76,36 +73,29 @@ def _keep_tag(tag: int):
 _KEEP_TAGS = {tag: _keep_tag(tag) for tag in (*_CBOR2_SEMANTIC_TAGS, _COSE_SIGN1_TAG)}
 
 
-def _map_key_identity(key: Any) -> Any:
-    """Return a hashable identity for key that, unlike Python equality,
-    treats NaNs with the same significand as equal (RFC 8949 Section 5.6)."""
-    if type(key) is float and isnan(key):
-        # cbor2 widens half and single floats to double precision,
-        # preserving the significand's leading bits.
-        bits = struct.unpack(">Q", struct.pack(">d", key))[0]
-        return (_NAN_KEY, bits & _FLOAT64_FRACTION_MASK)
-    if type(key) is tuple:
-        return (
-            tuple,
-            tuple(_map_key_identity(item) for item in cast(tuple[Any, ...], key)),
-        )
-    if isinstance(key, Mapping):
-        items = cast(Mapping[Any, Any], key).items()
-        return (
-            Mapping,
-            frozenset((_map_key_identity(k), _map_key_identity(v)) for k, v in items),
-        )
-    if type(key) is CBORTag:
-        return (CBORTag, key.tag, _map_key_identity(key.value))
-    return key
+def _contains_nan(value: Any) -> bool:
+    """Return whether value is, or contains, a NaN."""
+    if type(value) is float:
+        return isnan(value)
+    if type(value) is tuple:
+        return any(_contains_nan(item) for item in cast(tuple[Any, ...], value))
+    if isinstance(value, Mapping):
+        items = cast(Mapping[Any, Any], value).items()
+        return any(_contains_nan(k) or _contains_nan(v) for k, v in items)
+    if type(value) is CBORTag:
+        return _contains_nan(value.value)
+    return False
 
 
-def _reject_nan_duplicate_keys(
-    value: Mapping[Any, Any], _immutable: bool
-) -> Mapping[Any, Any]:
-    """cbor2 rejects keys that compare equal; also reject equivalent NaNs."""
-    if len({_map_key_identity(key) for key in value}) != len(value):
-        raise ValueError("Duplicate map key")
+def _reject_nan_keys(value: Mapping[Any, Any], _immutable: bool) -> Mapping[Any, Any]:
+    """Reject NaN map keys, which cbor2 does not compare as RFC 8949 requires.
+
+    NaNs never compare equal in Python, and cbor2 quiets signaling NaNs when
+    widening half and single precision floats, so the encoded significands
+    needed to detect duplicate NaN keys are unavailable.
+    """
+    if any(_contains_nan(key) for key in value):
+        raise ValueError("NaN map key")
     return value
 
 
@@ -117,7 +107,7 @@ def _decode_receipt_cbor(encoded: bytes) -> Any:
     try:
         result = CBORDecoder(
             stream,
-            object_hook=_reject_nan_duplicate_keys,
+            object_hook=_reject_nan_keys,
             semantic_decoders=_KEEP_TAGS,
             max_depth=_MAX_RECEIPT_CBOR_DEPTH,
             allow_duplicate_keys=False,

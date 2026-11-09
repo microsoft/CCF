@@ -17,7 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "cbor2 >= 6.1, < 7",
+    "cbor2 >= 6.1.5, < 7",
     "cryptography >= 46, < 51",
     "cwt >= 4.0.0, < 5",
     "packaging >= 25, < 27"
