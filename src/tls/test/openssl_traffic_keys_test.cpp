@@ -69,6 +69,33 @@ namespace
     return std::nullopt;
   }
 
+  // Number of 23-byte records (one plaintext byte under a 16-byte tag) which a
+  // socket with the harness's send buffer accepts before it would block.
+  // Measured rather than assumed, to avoid depending on kernel-specific AF_UNIX
+  // buffer accounting.
+  uint64_t small_record_capacity()
+  {
+    int sockets[2];
+    REQUIRE(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) == 0);
+    const int buffer = 4096;
+    REQUIRE(
+      setsockopt(sockets[0], SOL_SOCKET, SO_SNDBUF, &buffer, sizeof(buffer)) ==
+      0);
+    REQUIRE(fcntl(sockets[0], F_SETFL, O_NONBLOCK) == 0);
+    const std::array<uint8_t, 23> record{};
+    uint64_t records = 0;
+    while (::send(sockets[0], record.data(), record.size(), MSG_NOSIGNAL) > 0)
+    {
+      ++records;
+    }
+    const int error = errno;
+    details::close_socket(sockets[0]);
+    details::close_socket(sockets[1]);
+    REQUIRE(error == EAGAIN);
+    REQUIRE(records > 0);
+    return records;
+  }
+
   struct WriteGate
   {
     std::atomic<bool> block{true};
@@ -936,26 +963,8 @@ namespace
   TEST_CASE(
     "Traffic keys drain sockets when both local updates are write-blocked")
   {
-    // Measure the small-record capacity rather than assuming a kernel-specific
-    // AF_UNIX buffer overhead. One more record will be the pending KeyUpdate.
-    int sockets[2];
-    REQUIRE(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) == 0);
-    const int buffer = 4096;
-    REQUIRE(
-      setsockopt(sockets[0], SOL_SOCKET, SO_SNDBUF, &buffer, sizeof(buffer)) ==
-      0);
-    REQUIRE(fcntl(sockets[0], F_SETFL, O_NONBLOCK) == 0);
-    const std::array<uint8_t, 23> record{};
-    uint64_t records = 0;
-    while (::send(sockets[0], record.data(), record.size(), MSG_NOSIGNAL) > 0)
-    {
-      ++records;
-    }
-    const int error = errno;
-    details::close_socket(sockets[0]);
-    details::close_socket(sockets[1]);
-    REQUIRE(error == EAGAIN);
-    REQUIRE(records > 0);
+    // One more record than the socket holds will be the pending KeyUpdate.
+    const uint64_t records = small_record_capacity();
     auto admission = std::make_shared<InboundAdmission>(1);
     WriteGate server;
     WriteGate client;
@@ -1105,6 +1114,94 @@ namespace
     }
     CHECK(pair.events[0].updates[1] == 1);
     CHECK(pair.events[1].updates[0] == 1);
+  }
+
+  TEST_CASE("Traffic keys do not spin on a read retry blocked by a full socket")
+  {
+    // A peer's second KeyUpdate request makes SSL_read write the response to
+    // its first. With the socket genuinely full that write cannot complete
+    // until the peer reads, however much of the peer's own data is waiting.
+    const uint64_t records = small_record_capacity();
+    WriteGate gate;
+    gate.block = false;
+    gate.observe_socket_retries = true;
+    auto blocked = gate.blocked.get_future();
+    PairConfig config{.engine_peer = false, .gates = {&gate, nullptr}};
+    SUBCASE("Default RPC behavior")
+    {
+      config.budgets = {};
+    }
+    SUBCASE("Accepted policy")
+    {
+      config.budgets = {TrafficKeyPolicy{}.record_budget, 8};
+    }
+    EnginePair pair(config);
+    pair.start();
+    const uint8_t byte = 17;
+    // Waiting for each record's syscall prevents queued sends coalescing.
+    for (uint64_t index = 0; index < records; ++index)
+    {
+      pair.engines[0]->send(1, &byte, 1);
+      REQUIRE(pair.wait([&]() { return gate.socket_records > index; }));
+    }
+    for (size_t request = 0; request < 2; ++request)
+    {
+      REQUIRE(SSL_key_update(pair.peer.get(), SSL_KEY_UPDATE_REQUESTED) == 1);
+      REQUIRE(
+        pair.peer_io([&]() { return SSL_do_handshake(pair.peer.get()); }) == 1);
+    }
+    // No application output was queued: the blocked write belongs to SSL_read.
+    REQUIRE(blocked.wait_for(5s) == std::future_status::ready);
+    const std::vector<uint8_t> data(size_t{8} * 1024, 42);
+    REQUIRE(pair.peer_io([&]() {
+      return SSL_write(pair.peer.get(), data.data(), data.size());
+    }) == static_cast<int>(data.size()));
+    const auto polls = tls_test_poll_starts();
+    std::this_thread::sleep_for(100ms);
+    CHECK(tls_test_poll_starts() - polls <= 4);
+    // Once the peer reads, the response is written and its data is processed.
+    for (uint64_t index = 0; index < records; ++index)
+    {
+      uint8_t received = 0;
+      REQUIRE(pair.peer_io([&]() {
+        return SSL_read(pair.peer.get(), &received, 1);
+      }) == 1);
+    }
+    pair.expect(0, data);
+  }
+
+  TEST_CASE("Traffic keys process control records buffered beyond a read pass")
+  {
+    // A read pass makes one attempt plus a bounded number of retries, so a
+    // longer burst already held in the input buffer needs further passes which
+    // no socket event will request.
+    size_t burst = 9;
+    SUBCASE("At the per-pass limit") {}
+    SUBCASE("One beyond the per-pass limit")
+    {
+      burst = 10;
+    }
+    SUBCASE("Several passes")
+    {
+      burst = 40;
+    }
+    auto admission = std::make_shared<InboundAdmission>(1);
+    EnginePair pair({.engine_peer = false, .admission = admission});
+    pair.start();
+    // With reads held back, the whole burst reaches the engine in one batch.
+    admission->queued(1);
+    for (size_t update = 0; update < burst; ++update)
+    {
+      REQUIRE(
+        SSL_key_update(pair.peer.get(), SSL_KEY_UPDATE_NOT_REQUESTED) == 1);
+      REQUIRE(
+        pair.peer_io([&]() { return SSL_do_handshake(pair.peer.get()); }) == 1);
+    }
+    admission->consumed(1);
+    REQUIRE(pair.wait([&]() { return pair.events[0].updates[1] == burst; }));
+    CHECK(pair.closes[0] == 0);
+    REQUIRE(SSL_write(pair.peer.get(), "x", 1) == 1);
+    pair.expect(0, {'x'});
   }
 
   TEST_CASE("Traffic keys reject invalid internal budgets")

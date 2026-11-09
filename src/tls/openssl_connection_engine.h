@@ -239,14 +239,24 @@ namespace ccf::tls
       return inbound_admission != nullptr && inbound_admission->saturated();
     }
 
-    // The subset of a connection's pending events which may be acted on now.
     // Read interest is withheld while the node holds more unprocessed inbound
-    // data than it is willing to.
+    // data than it is willing to, and while a policy read is paused behind a
+    // pending write. It is also withheld while SSL_read is itself blocked on a
+    // write, such as the response to a peer-requested KeyUpdate: it cannot
+    // make progress however much input is waiting, so level-triggered
+    // readability would only spin until the socket becomes writable.
+    [[nodiscard]] static bool read_interest_withheld(
+      const Conn& connection, bool saturated)
+    {
+      return saturated || connection.read_paused || connection.read_wants_write;
+    }
+
+    // The subset of a connection's pending events which may be acted on now.
     [[nodiscard]] int actionable_events(const Conn& connection) const
     {
       const bool saturated = inbound_saturated();
       int events = connection.pending_events;
-      if (saturated || connection.read_paused)
+      if (read_interest_withheld(connection, saturated))
       {
         events &= ~UV_READABLE;
       }
@@ -348,7 +358,7 @@ namespace ccf::tls
         connection.want_write && !(saturated && connection.read_wants_write) ?
         UV_WRITABLE :
         0;
-      if (!saturated && !connection.read_paused)
+      if (!read_interest_withheld(connection, saturated))
       {
         events |= UV_READABLE;
       }
