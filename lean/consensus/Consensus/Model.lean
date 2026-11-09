@@ -70,7 +70,7 @@ def protocol (initialConfiguration : Finset NodeID)
   receive := .receive
   internal := .internal
 
-/-- The network of `nodes`, initialized from a nonempty membership configuration. -/
+/-- A nonempty network of `nodes`, initialized from a nonempty membership configuration. -/
 abbrev transitionSystem (initialConfiguration : Finset NodeID) (nodes : List NodeID)
     : TransitionSystem :=
   let system := MultiNodeTransitionSystem.lift (protocol initialConfiguration)
@@ -81,6 +81,7 @@ abbrev transitionSystem (initialConfiguration : Finset NodeID) (nodes : List Nod
           initialConfiguration.Nonempty
           /\ state.nodes.map Prod.fst = nodes
           /\ system.init state
+          /\ nodes ≠ []
   }
 
 end Consensus.Model

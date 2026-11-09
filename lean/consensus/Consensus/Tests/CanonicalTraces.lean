@@ -45,8 +45,8 @@ private def runTrace (name : String) (configuration : Finset NodeID)
     : IO Model.State := do
   let system := Model.transitionSystem configuration nodes
   let mut state := start
-  check (decide (configuration.Nonempty /\ nodes.Nodup))
-    s!"{name}: initial membership must be nonempty and node IDs unique"
+  check (decide (configuration.Nonempty /\ nodes.Nodup /\ nodes ≠ []))
+    s!"{name}: initial membership and node list must be nonempty, and node IDs unique"
   for (action, index) in actions.zipIdx do
     let description :=
       match action with

@@ -4,6 +4,7 @@ public import Consensus.Model
 public import CCF.Execution
 
 import Consensus.Proofs.Direct
+import Consensus.Proofs.Deadlock
 import Consensus.Proofs.SafetyInvariant
 import Consensus.Proofs.Witnesses
 
@@ -20,6 +21,20 @@ abbrev GlobalTrace (config : Finset Model.Node.NodeID) (nodes : List Model.Node.
   CCF.Execution.Trace (Model.transitionSystem config nodes)
 
 open Model.Node
+
+/-- Every reachable consensus state has an enabled action. -/
+theorem deadlock_free
+    : forall (config : Finset NodeID) (nodes : List NodeID) (state : Model.State),
+        (Model.transitionSystem config nodes).Reachable state
+        -> exists action nextState,
+            (Model.transitionSystem config nodes).step state action = some nextState := by
+  exact Proofs.Deadlock.deadlock_free
+
+/-- Witness: a singleton consensus network has a reachable initial state. -/
+lemma deadlock_free_witness
+    : exists (config : Finset NodeID) (nodes : List NodeID) (state : Model.State),
+        (Model.transitionSystem config nodes).Reachable state := by
+  exact Proofs.Deadlock.deadlock_free_witness
 
 /-- Any two committed logs in a valid trace are prefix-comparable: those of
 any two nodes, in any two states of the trace. -/

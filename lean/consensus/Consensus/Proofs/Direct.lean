@@ -669,7 +669,7 @@ private theorem NodeInvariant.reachable {P : NodeID -> NodeState -> Prop}
       (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes) with
   | initial initialized =>
       intro node local_ member
-      have initial : local_ = initialNodeState Config.INITIAL_CONFIGURATION node := initialized.2.2.2.2 (node, local_) member
+      have initial : local_ = initialNodeState Config.INITIAL_CONFIGURATION node := initialized.2.2.1.2.2 (node, local_) member
       subst initial
       exact invariant.initial node
   | @step before after action _ stepped ih =>
@@ -1078,6 +1078,7 @@ private theorem CommitFrontier.act {state : NodeState}
     (frontier : CommitFrontier state) (input : Input)
     : Keeps CommitFrontier (Model.Node.act caps self state input) := by
   cases input with
+  | tick => exact Keeps.pure' frontier
   | append entries =>
       unfold Model.Node.act Model.Node.appendBatch
       exact Keeps.seq' fun _ => Keeps.bind'
@@ -1369,6 +1370,7 @@ private theorem Extends.becomePreVoteCandidate (state : NodeState)
 private theorem Extends.act (state : NodeState) (input : Input)
     : Keeps (Extends state) (Model.Node.act caps self state input) := by
   cases input with
+  | tick => exact Keeps.pure' (Extends.refl _)
   | append entries =>
       unfold Model.Node.act Model.Node.appendBatch
       refine Keeps.seq' fun _ => ?_

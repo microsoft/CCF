@@ -19,12 +19,17 @@ It assumes familiarity with the [CCF consensus protocol documentation](../../doc
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
 Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
 Initialization takes a nonempty initial voting membership, whose smallest member starts as primary with the genesis configuration transaction.
-Actions are local inputs (including timeouts) or delivery of a queued message; no clock is modeled.
+The declared node list must also be nonempty.
+Actions are local inputs (including idle periodic callbacks and timeouts) or delivery of a queued message; no clock is modeled.
+`Input.tick` represents a periodic callback with no sends or protocol timeout and leaves the local state unchanged.
+Callbacks with protocol effects are represented by the existing send and timeout inputs.
 
 ## Scope
 
 Node join and snapshot installation are not modeled.
-There are no liveness properties or fairness assumptions.
+`deadlock_free` proves the [shared deadlock-freedom property](../common/README.md#transition-systems).
+Enabled idle callbacks count; this does not assert election progress, eventual commitment, or fairness.
+In particular, election eligibility still requires signed membership, so a pre-signature CheckQuorum step-down need not lead to another election.
 
 ## Validation
 

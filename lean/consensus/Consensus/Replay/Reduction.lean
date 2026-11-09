@@ -271,6 +271,8 @@ private def ruleTick : Reduction Unit := do
       emitAction source "tick-send" (.local head.node (.sendEntries destination last))
     if demoted.isSome then
       emitAction head "tick-check-quorum" (.local head.node (.timeout .checkQuorum))
+    else if sends.isEmpty then
+      emitAction head "tick-idle" (.local head.node .tick)
 
 private def ruleNomination : Reduction Unit := do
   let head ← peek

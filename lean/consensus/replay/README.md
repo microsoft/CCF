@@ -50,6 +50,8 @@ Every event must match a named rule; bootstrap selects the initial singleton mem
 Rules read action inputs from their matching events, and only top-level alternatives backtrack.
 Actions must be enabled by the model.
 After bootstrap, each rule emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
+An idle native `tick` emits `Input.tick` rather than only an observation.
+Ticks that send messages, start elections, or step down retain their existing effect actions.
 
 Delivery is strict FIFO per directed node pair, preserving multiplicity and delivering the queued **model payload**, not reconstructing unrecorded native bytes.
 
