@@ -1217,7 +1217,10 @@ def test_metrics_logging(network, args):
             if match is not None:
                 expected_groups = assertions.pop(0)
                 for k, v in expected_groups.items():
-                    assert match.group(k) == v
+                    actual_match = match.group(k)
+                    assert actual_match == v
+                LOG.success(f"Found metrics logging line: {line}")
+                LOG.info(f"Parsed to: {match.groups()}")
 
     assert len(assertions) == 0
 
