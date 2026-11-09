@@ -215,6 +215,8 @@ This diagram examines the traffic that crosses into and out of one node: user se
    * - :doc:`Node-to-node channels </architecture/node_to_node>`
      - Admitted nodes mutually authenticate service-endorsed identities. Authenticated Diffie-Hellman establishes per-direction AES-256-GCM keys for the custom TCP channel, and monotonic counters reject replayed messages.
    * - Client sessions
-     - HTTPS terminates inside the CCF node. Clients verify the TLS certificate against the expected service identity. CCF 7.0.14 offers hybrid ML-KEM key exchange, with classical key exchange available as a fallback.
+     - HTTPS terminates inside the CCF node.
+       Clients verify the TLS certificate against the expected service identity.
+       Since CCF 7.0.11, TLS handshakes prefer hybrid ML-KEM key exchange groups (``SecP384r1MLKEM1024``, ``SecP256r1MLKEM768``, ``X25519MLKEM768``) when the linked OpenSSL supports them, with the classical ``P-521``, ``P-384`` and ``P-256`` groups available as fallbacks.
    * - :doc:`Caller authentication </build_apps/auth/index>`
      - The application sets authentication requirements per endpoint, including whether a TLS client certificate is required. mTLS is not a CCF-wide requirement.

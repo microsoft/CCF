@@ -40,7 +40,8 @@ The new/recovered node may also need to have access to all ``.committed`` ledger
     C-->D
     end;
 
-The read-only ledger directory can be a shared mounted directory accessible to all nodes and specified via ``ledger.read_only_directories``. The legacy ``snapshots.read_only_directory`` option is deprecated; joining nodes fetch a recent snapshot by default.
+The read-only ledger directory can be a shared mounted directory accessible to all nodes and specified via ``ledger.read_only_directories``.
+The legacy ``snapshots.read_only_directory`` option is deprecated: joining nodes fetch a recent snapshot from the service by default (``command.join.fetch_recent_snapshot``), and backup nodes can be configured to fetch each new snapshot from the primary (``snapshots.backup_fetch.enabled``), see :ref:`operations/ledger_snapshot:Join or Recover From Snapshot` and :ref:`operations/ledger_snapshot:Backup Snapshot Fetching`.
 
 It is recommended to keep the most up-to-date copies of ``.committed`` ledger and snapshot files in backup storage (see :ref:`operations/data_persistence:Best Practices`). Operators must take care to avoid any race conditions in the copy process.
 
