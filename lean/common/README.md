@@ -27,8 +27,9 @@ Definition modules keep only the proofs their definitions carry, such as the sor
 
 ## Dependency imports
 
-The packages depend only on Lean core, leanfmt and (for the disaster-recovery and kv `lake lint` drivers) Batteries, not on Mathlib.
+The common and specification packages depend only on Lean core, leanfmt and (for the disaster-recovery and kv `lake lint` drivers) Batteries, not on Mathlib.
 `CCF.Seq`, `CCF.Finset`, and `CCF.Function` are minimal replacements for the Mathlib facilities the specifications used that Lean core, Std and Batteries do not provide.
+The [`mathlib-equivalence`](../mathlib-equivalence/README.md) package proves that they are equivalent to the Mathlib definitions they replace, and runs in CI only when those definitions change.
 Specification proofs import only the modules they need.
 Their CCF declarations, theorem statements, exposed definitions, and required tactic support remain available, but importing a proof module or an assembled specification root does not promise to reexport unrelated tactics or theory.
 Consumers that need other facilities should import their defining modules explicitly.

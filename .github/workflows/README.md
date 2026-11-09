@@ -173,12 +173,23 @@ The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fi
 The dedicated replay job builds `kv-replay` separately to validate the captured traces; no replay executables are transferred between jobs.
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
-The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
+The workflow runs on pull requests that change `lean/` (except `lean/mathlib-equivalence/`), any `.lean` file, the formatter script, or the workflow.
 It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
 3rd party dependencies: leanfmt and Batteries (pinned in the Lake packages), and elan.
+
+# Lean Mathlib equivalence
+
+Proves that the local replacements for Mathlib definitions in `lean/common` (`CCF.Seq`, `CCF.Finset` and `CCF.Function`) and the consensus successor ranking are equivalent to the Mathlib definitions they replaced.
+The proofs live in the separate `lean/mathlib-equivalence` package, which is the only Lean package that depends on Mathlib; the main Lean workflow does not schedule it.
+The job restores Mathlib's upstream build cache, runs `lake check --inadvisably-no-sandbox` to build the proofs and replay them through the kernel with only the standard axioms, and checks the package's formatting.
+It caches third-party dependency checkouts and build outputs like the main Lean package jobs.
+The workflow runs only on pull requests that change the replacement definitions, the equivalence package, the Lean toolchain, the formatter script, or the workflow, and can be run manually.
+
+File: `lean-mathlib-equivalence.yml`
+3rd party dependencies: Mathlib (pinned in the Lake package), leanfmt and elan.
 
 # Vendored Dependency Verification
 

@@ -20,6 +20,8 @@ on:
       - "CMakeLists.txt"
       - ".github/workflows/lean.yml"
       - ".github/workflows/lean-package.yml"
+      # Checked by lean-mathlib-equivalence.yml.
+      - "!lean/mathlib-equivalence/**"
   workflow_dispatch:
 
 concurrency:
@@ -317,7 +319,9 @@ jobs:
           import pathlib
 
           expected = {"consensus", "common", "consistency", "disaster-recovery", "kv"}
-          actual = {config.parent.name for config in pathlib.Path("lean").glob("*/lakefile.toml")}
+          # Checked by lean-mathlib-equivalence.yml.
+          separate = {"mathlib-equivalence"}
+          actual = {config.parent.name for config in pathlib.Path("lean").glob("*/lakefile.toml")} - separate
           if actual != expected:
               raise SystemExit(
                   f"::error::Lean package inventory changed: expected {sorted(expected)}, got {sorted(actual)}; "
