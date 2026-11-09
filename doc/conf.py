@@ -128,6 +128,8 @@ linkcheck_ignore = [
     r"(?:\.\./)*rust/ccf_app/.*",
     r"https://nghttp2.org/.*",
     r"https://www.w3.org/Protocols/rfc2616/.*",
+    # npm package pages reject automated clients with 403 Forbidden.
+    r"https://www.npmjs.com/package/.*",
 ]
 
 

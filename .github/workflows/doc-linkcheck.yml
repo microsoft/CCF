@@ -1,0 +1,53 @@
+name: "Doc Link Check"
+
+# Not triggered on pull requests: external sites can fail transiently, so
+# broken links are reported here without blocking merges.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  linkcheck:
+    name: Link Check
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-ci-dependencies
+        with:
+          python-requirements: doc/requirements.txt
+
+      # Link checking does not need the trace viewer, which requires Lean.
+      # Its links are excluded by linkcheck_ignore in doc/conf.py.
+      - name: Check links
+        run: |
+          set -x
+          python3 -m venv --without-pip env
+          source env/bin/activate
+          uv pip install -e ./python
+          uv pip install -r doc/requirements.txt
+          SKIP_TRACE_VIEWER=ON sphinx-build -b linkcheck doc build/linkcheck
+        shell: bash
+
+      - name: Upload link check report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linkcheck
+          path: build/linkcheck/output.*
+          if-no-files-found: ignore

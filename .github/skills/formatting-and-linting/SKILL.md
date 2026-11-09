@@ -35,6 +35,7 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | `prettier-checks.sh` | TS, JS, Markdown, YAML, JSON (excluding `.github/**/*.md` and `tests/sandbox/`) | prettier | `-f` |
 | `doc-newline-checks.sh` | Markdown and RST prose | Mid-sentence newline policy | `-f` |
 | `builtin-maps-checks.sh` | Built-in map names in `include/` or `src/`, and `doc/audit/builtin_maps.rst` | Every `public:ccf.gov.*` and `public:ccf.internal.*` map is documented | No |
+| `doc-terminology-checks.sh` | RST under `doc/` (excluding `doc/schemas/` and `doc/host_config_schema/`) | Outdated terms such as "enclave", with a narrow per-file allow-list in `doc-terminology-check.py` | No |
 | `cmake-format-checks.sh` | CMake files | gersemi | `-f` |
 | `release-notes-checks.sh` | `CHANGELOG.md` (also run prettier) | extract-release-notes.py | `-f` |
 | `shellcheck-checks.sh` | Shell scripts outside `3rdparty/` | shellcheck | No |
@@ -55,5 +56,9 @@ Run it with `./scripts/clang-tidier.py -p build`; use `--all` for a full scan an
 The Lean formatting check runs in `.github/workflows/lean.yml`, not `scripts/ci-checks.sh`.
 It requires elan and the package's Lean toolchain.
 See [Lean formatting setup](../../../lean/disaster-recovery/README.md#formatting).
+
+Documentation links are checked weekly by `.github/workflows/doc-linkcheck.yml`, not on pull requests.
+To check links locally, run `SKIP_TRACE_VIEWER=ON sphinx-build -b linkcheck doc build/linkcheck` with the documentation dependencies installed.
+Add intentionally unchecked links to `linkcheck_ignore` in `doc/conf.py`.
 
 The ASCII check includes Rust, but exempts Lean source files (`*.lean`) and excludes `3rdparty/`. Vendored third-party dependencies are exempt from the authoring policy; preserve their upstream contents. In checked files, existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.

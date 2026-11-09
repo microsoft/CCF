@@ -218,3 +218,13 @@ Builds and publishes documentation to GitHub Pages. Triggered on pushes to main,
 
 File: `doc.yml`
 3rd party dependencies: None
+
+# Documentation Link Check
+
+Runs the Sphinx `linkcheck` builder over the documentation and uploads its report.
+Triggered weekly, and manually.
+Not triggered on pull requests, so broken or temporarily unavailable external links do not block merges.
+Links excluded from checking are listed in `linkcheck_ignore` and `linkcheck_exclude_documents` in `doc/conf.py`.
+
+File: `doc-linkcheck.yml`
+3rd party dependencies: None

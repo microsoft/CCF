@@ -92,6 +92,10 @@ This keeps older releases' documentation dependencies compatible while sharing v
 HTML builds also build the :ref:`trace viewer <operations/recovery:Trace viewer>`, which needs ``lake``; ``SKIP_TRACE_VIEWER=ON`` skips it.
 See :ref:`architecture/verification:Running locally` for installing Lean and ``lake``.
 
+Links are checked weekly in CI, without blocking pull requests.
+To check them locally, run ``SKIP_TRACE_VIEWER=ON sphinx-build -b linkcheck doc build/linkcheck``.
+``scripts/doc-terminology-checks.sh``, part of ``scripts/ci-checks.sh``, rejects terms that no longer apply to CCF in documentation sources; ``scripts/doc-terminology-check.py`` lists the terms and allowed exceptions.
+
 Rust API documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
