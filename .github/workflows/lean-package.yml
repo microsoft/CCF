@@ -51,22 +51,33 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
 
+      - name: Check Lean setup helper
+        if: inputs.package == 'common'
+        run: python3 tests/lean_setup_test.py
+
       - name: Install Lean and check prerequisites
         run: |
           set -euo pipefail
           elan run --install "$(cat lean/lean-toolchain)" lean --version
 
+      - name: Identify required dependency modules
+        id: dependency-modules
+        run: |
+          set -euo pipefail
+          digest="$(bash scripts/lean-setup.sh --print-imports "$PACKAGE" | sha256sum)"
+          echo "hash=${digest%% *}" >> "$GITHUB_OUTPUT"
+
       - name: Restore dependency builds
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: lean/${{ inputs.package }}/.lake/packages
-          key: lean-deps-v2-vmss-ubuntu-26.04-${{ runner.arch }}-${{ inputs.package }}-${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-package.yml') }}
+          path: lean/.lake/packages
+          key: lean-deps-v3-vmss-ubuntu-26.04-${{ runner.arch }}-${{ inputs.package }}-${{ steps.dependency-modules.outputs.hash }}-${{ hashFiles('lean/lean-toolchain', 'lean/*/lake-manifest.json', 'lean/*/lakefile.toml', 'scripts/lean-setup.sh', '.github/workflows/lean-package.yml') }}
 
       - name: Restore Mathlib cache
         working-directory: lean/${{ inputs.package }}
         run: |
           set -euo pipefail
-          lake exe cache get
+          bash ../../scripts/lean-setup.sh
 
       - name: Build, kernel and axiom check
         working-directory: lean/${{ inputs.package }}

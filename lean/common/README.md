@@ -15,6 +15,22 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 `CCF.Execution.Trace system` is the subtype whose `TraceImpl.Valid` proof establishes initialization and every recorded transition.
 `reachable_iff_trace` shows that finite execution traces reach exactly the reachable states.
 
+## Dependency setup
+
+From any package directory, run `bash ../../scripts/lean-setup.sh` before the first build.
+From the repository root, an explicit package name is also accepted, for example `bash scripts/lean-setup.sh consensus`.
+The helper fetches the cache closure of the package's direct Mathlib imports and shared common imports, plus Batteries' lint-driver dependencies where needed.
+Pass `--print-imports` before the optional package name to print that module list without fetching or creating dependency directories; CI hashes it to invalidate selective dependency caches when imports change.
+
+All five packages share remote dependencies under `lean/.lake/packages`, while retaining separate package build outputs.
+The helper creates a package-local `.lake/packages` symlink because Mathlib's cache unpacker uses that path for non-Mathlib dependency archives.
+For an existing checkout, move the old package-local `.lake/packages` directory aside before running the helper; it will not overwrite or delete existing directories.
+Remove the old directory only after confirming the shared setup works.
+Keep dependency revisions consistent across packages, and run setup, builds, and dependency updates sequentially when they share this directory.
+
+Mathlib, existing lint drivers, kernel checks, and axiom checks are retained.
+Compilation caches do not avoid independent kernel checking.
+
 ## Dependency imports
 
 Specification proofs import the Mathlib tactics they need rather than the `Mathlib.Tactic` umbrella.

@@ -77,7 +77,7 @@ Liveness properties are out of scope.
 Run the following commands from this directory:
 
 ```console
-lake exe cache get
+bash ../../scripts/lean-setup.sh
 lake build --wfail --fail-fast
 lake exe check-imports
 lake build CCF
@@ -145,7 +145,7 @@ To update a tool dependency without changing the toolchain, run `lake update --k
 
 ## Formatting
 
-Install Lean via [elan](https://lean-lang.org/install/) and run `lake exe cache get` from this directory before the first formatting check.
+Install Lean via [elan](https://lean-lang.org/install/) and run `bash ../../scripts/lean-setup.sh` from this directory before the first formatting check.
 From the repository root, check every tracked `.lean` file:
 
 ```console

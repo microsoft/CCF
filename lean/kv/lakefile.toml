@@ -1,3 +1,4 @@
+packagesDir = "../.lake/packages"
 name = "kv"
 version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]

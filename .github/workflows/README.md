@@ -140,8 +140,12 @@ All five packages (consensus, common, consistency, disaster-recovery, and kv) ru
 Package checks use the `gha-vmss-d16av7-ci` pool and trace replays use `gha-vmss-d16av7-ci-b`, both in Ubuntu 26.04 containers.
 Native trace captures remain on `gha-vmss-d16av7-ci-c` with Azure Linux containers, and the lightweight final gate uses GitHub-hosted Ubuntu.
 Each matrix job caches its third-party dependency checkouts and build outputs, including Mathlib and (where used) leanfmt, using GitHub Actions caching.
-Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
-CCF package and common build outputs are not cached, and all verification steps still run, including Mathlib's upstream cache retrieval.
+Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, dependency manifests/configuration, required dependency modules, setup helper, or reusable workflow.
+The module list is hashed separately so proof-only edits can reuse dependency builds while changes to direct dependency imports populate a new cache.
+The cached dependency directory is `lean/.lake/packages`, shared by local packages within a checkout but not across independent CI jobs.
+CCF package and common build outputs are not cached, and all verification steps still run.
+`scripts/lean-setup.sh` fetches only the upstream cache closure needed by the package and common sources, plus the lint driver where needed, while retaining Mathlib.
+The common package job also runs the setup helper's regression tests without fetching Lean dependencies.
 CCF consensus, KV, and consistency trace captures run in parallel with package checks.
 Three independent trace-validation jobs each restore Mathlib caches, build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
 Consistency capture reuses the existing `consistency_trace_validation` e2e test, and its replay job also checks the consistency replay fixtures, including election and rollback traces.
@@ -173,7 +177,7 @@ The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fi
 The dedicated replay job builds `kv-replay` separately to validate the captured traces; no replay executables are transferred between jobs.
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
-The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
+The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter or setup scripts, setup regression tests, or the workflow.
 It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 

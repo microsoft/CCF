@@ -10,7 +10,7 @@ The Lean version is [pinned](../../lean-toolchain).
 From `lean/consensus`, build the validator and validate a saved trace:
 
 ```sh
-lake exe cache get
+bash ../../scripts/lean-setup.sh
 lake build --wfail consensus-replay
 ./.lake/build/bin/consensus-replay path/to/trace.ndjson
 ```

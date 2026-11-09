@@ -202,7 +202,7 @@ Rejections remain diagnostic evidence and must not be hidden by reseeding state 
 Run the following commands from this directory:
 
 ```console
-lake exe cache get
+bash ../../scripts/lean-setup.sh
 lake build --wfail --fail-fast
 lake exe check-imports
 lake build CCF

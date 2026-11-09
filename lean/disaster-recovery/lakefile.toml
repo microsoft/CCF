@@ -1,3 +1,4 @@
+packagesDir = "../.lake/packages"
 name = "disaster_recovery"
 version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]

@@ -1,3 +1,4 @@
+packagesDir = "../.lake/packages"
 name = "consensus"
 version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true", "-Dtrace.Kernel=true"]

@@ -6,6 +6,8 @@ on:
       - "lean/**"
       - "**/*.lean"
       - "scripts/lean-format-checks.sh"
+      - "scripts/lean-setup.sh"
+      - "tests/lean_setup_test.py"
       - "tests/cft_trace*.py"
       - "tests/cft_scenarios*.py"
       - "tests/cft_scenarios/**"
@@ -244,7 +246,7 @@ jobs:
         working-directory: lean/consensus
         run: |
           set -euo pipefail
-          lake exe cache get
+          bash ../../scripts/lean-setup.sh
 
       - name: Build CCF consensus replay
         working-directory: lean/consensus
@@ -366,7 +368,7 @@ jobs:
         working-directory: lean/kv
         run: |
           set -euo pipefail
-          lake exe cache get
+          bash ../../scripts/lean-setup.sh
 
       - name: Build KV replay
         working-directory: lean/kv
@@ -425,7 +427,7 @@ jobs:
         working-directory: lean/consistency
         run: |
           set -euo pipefail
-          lake exe cache get
+          bash ../../scripts/lean-setup.sh
 
       - name: Build consistency replay
         working-directory: lean/consistency
