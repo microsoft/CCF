@@ -1,8 +1,6 @@
 module
 
-public import CCF.Execution
-
-import Mathlib.Data.Seq.Basic
+public import CCF.Proofs.Execution
 
 @[expose] public section
 
@@ -32,13 +30,13 @@ example : Run counter 0 [true, false, true] 2 :=
 -- Stutters are recorded as enabled actions, not inserted implicitly.
 private def counting : Trace counter :=
   ⟨
-    { init := 0, steps := Stream'.Seq.ofList [(false, 0), (true, 1), (true, 2)] },
+    { init := 0, steps := CCF.Seq.ofList [(false, 0), (true, 1), (true, 2)] },
     rfl,
     by
       intro n before action first chosen
       rcases n with _ | _ | _ | n <;>
-        simp only [Stream'.Seq.get?_cons_zero, Stream'.Seq.get?_cons_succ,
-          Stream'.Seq.map_get?, Stream'.Seq.ofList_get?, List.getElem?_cons_zero,
+        simp only [CCF.Seq.get?_cons_zero, CCF.Seq.get?_cons_succ,
+          CCF.Seq.map_get?, CCF.Seq.ofList_get?, List.getElem?_cons_zero,
           List.getElem?_cons_succ, List.getElem?_nil, Option.map_some, Option.map_none,
           Option.some.injEq] at first chosen ⊢
       all_goals subst_vars
@@ -58,12 +56,12 @@ example : counting.actionAt 2 = some true := rfl
 example : counting.stateAt 4 = none := rfl
 example : counting.actionAt 3 = none := rfl
 example : 2 ∈ counting := Trace.stateAt_mem (n := 3) rfl
-example : 2 ∈ counting.states := Stream'.Seq.get?_mem (n := 3) rfl
-example : false ∈ counting.actions := Stream'.Seq.get?_mem (n := 0) rfl
+example : 2 ∈ counting.states := CCF.Seq.get?_mem (n := 3) rfl
+example : false ∈ counting.actions := CCF.Seq.get?_mem (n := 0) rfl
 
 private def initialOnly : Trace counter :=
   ⟨
-    { init := 0, steps := Stream'.Seq.nil },
+    { init := 0, steps := CCF.Seq.nil },
     rfl,
     by intro n before action _ chosen; simp at chosen
   ⟩
@@ -74,7 +72,7 @@ example : initialOnly.actionAt 0 = none := rfl
 
 private def infinite : Trace counter :=
   ⟨
-    { init := 0, steps := Stream'.Seq.ofStream (fun n => (true, n + 1)) },
+    { init := 0, steps := CCF.Seq.ofStream (fun n => (true, n + 1)) },
     rfl,
     by
       intro n before action first chosen
@@ -104,42 +102,40 @@ example
 
 -- A final state has no outgoing action, but each transition has one.
 example (trace : Trace counter)
-    (states : trace.states = Stream'.Seq.ofList [0, 1])
-    (actions : trace.actions = Stream'.Seq.ofList [])
+    (states : trace.states = CCF.Seq.ofList [0, 1])
+    (actions : trace.actions = CCF.Seq.ofList [])
     : False := by
   have domains := trace.valid_domains 0
   simp [states, actions] at domains
 
 example (trace : Trace counter)
-    (states : trace.states = Stream'.Seq.ofList [0])
-    (actions : trace.actions = Stream'.Seq.ofList [true])
+    (states : trace.states = CCF.Seq.ofList [0])
+    (actions : trace.actions = CCF.Seq.ofList [true])
     : False := by
   have domains := trace.valid_domains 0
   simp [states, actions] at domains
 
 -- An enabled action that reaches the wrong successor is not a recorded step.
 example (trace : Trace counter)
-    (states : trace.states = Stream'.Seq.ofList [0, 1])
-    (actions : trace.actions = Stream'.Seq.ofList [false])
+    (states : trace.states = CCF.Seq.ofList [0, 1])
+    (actions : trace.actions = CCF.Seq.ofList [false])
     : False := by
   have stepped := trace.valid_step 0 0 false (by simp [states]) (by simp [actions])
   simp [counter, states] at stepped
 
 -- An empty trace has no initial state.
-example (trace : Trace counter) (states : trace.states = Stream'.Seq.ofList [])
-    : False := by
+example (trace : Trace counter) (states : trace.states = CCF.Seq.ofList []) : False := by
   obtain ⟨_, first, _⟩ := trace.valid_init
   simp [states] at first
 
-example (trace : Trace counter) (states : trace.states = Stream'.Seq.ofList [1])
-    : False := by
+example (trace : Trace counter) (states : trace.states = CCF.Seq.ofList [1]) : False := by
   obtain ⟨initial, first, initialized⟩ := trace.valid_init
   simp [states] at first
   subst first
   simp at initialized
 
 -- Adjacent states must be related by an enabled action.
-example (trace : Trace counter) (states : trace.states = Stream'.Seq.ofList [0, 2])
+example (trace : Trace counter) (states : trace.states = CCF.Seq.ofList [0, 2])
     : False := by
   obtain ⟨action, step⟩ := trace.step 0 0 2 (by simp [Trace.stateAt, states])
     (by simp [Trace.stateAt, states])
@@ -155,7 +151,7 @@ example
               step := fun _ _ => none
             }
             : TransitionSystem))
-    (states : trace.states = Stream'.Seq.ofList [0, 0])
+    (states : trace.states = CCF.Seq.ofList [0, 0])
     : False := by
   obtain ⟨_, step⟩ := trace.step 0 0 0 (by simp [Trace.stateAt, states])
     (by simp [Trace.stateAt, states])

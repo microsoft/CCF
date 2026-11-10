@@ -10,17 +10,29 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Execution`                 | Finite runs and finite or infinite execution traces          |
 | `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
 | `CCF.Architecture`              | Checks of specification import layering                      |
+| `CCF.Seq`                       | Possibly infinite sequences (replaces Mathlib `Stream'.Seq`) |
+| `CCF.Finset`                    | Finite sets as strictly sorted lists (replaces `Finset`)     |
+| `CCF.Function`                  | Point updates of functions (replaces `Function.update`)      |
+| `CCF.Proofs.Execution`          | Theorems about runs, traces, and reachability                |
+| `CCF.Proofs.Finset`             | Lemmas about the `CCF.Finset` operations                     |
 
 `CCF.Execution.TraceImpl system` records an `init` state and a possibly infinite `steps` sequence pairing each action with its destination state.
 `CCF.Execution.Trace system` is the subtype whose `TraceImpl.Valid` proof establishes initialization and every recorded transition.
-`reachable_iff_trace` shows that finite execution traces reach exactly the reachable states.
+`reachable_iff_trace`, in `CCF.Proofs.Execution`, shows that finite execution traces reach exactly the reachable states.
+
+As in the specification packages, definitions and the theorems about them live in separate modules.
+Theorems go under `CCF.Proofs`, keeping their original names, so `CCF.Execution.reachable_iff_trace` is declared in `CCF.Proofs.Execution`.
+Definition modules keep only the proofs their definitions carry, such as the sortedness of `CCF.Finset` and the stability of `CCF.Seq`.
+`CCF.Seq` and `CCF.Function` keep their few `rfl` and `simp` lemmas alongside their definitions.
 
 ## Dependency imports
 
-Specification proofs import the Mathlib tactics they need rather than the `Mathlib.Tactic` umbrella.
-Their CCF declarations, theorem statements, exposed definitions, and required tactic support remain available, but importing a proof module or an assembled specification root does not promise to reexport unrelated Mathlib tactics or theory.
-`CCF.Execution` publicly imports `Mathlib.Data.Seq.Defs` and keeps `Mathlib.Data.Seq.Basic` private for its internal proofs.
-Consumers that need other Mathlib facilities should import their defining modules explicitly.
+The common and specification packages depend only on Lean core, leanfmt and (for the disaster-recovery and kv `lake lint` drivers) Batteries, not on Mathlib.
+`CCF.Seq`, `CCF.Finset`, and `CCF.Function` are minimal replacements for the Mathlib facilities the specifications used that Lean core, Std and Batteries do not provide.
+The [`mathlib-equivalence`](../mathlib-equivalence/README.md) package proves that they are equivalent to the Mathlib definitions they replace, and runs in CI only when those definitions change.
+Specification proofs import only the modules they need.
+Their CCF declarations, theorem statements, exposed definitions, and required tactic support remain available, but importing a proof module or an assembled specification root does not promise to reexport unrelated tactics or theory.
+Consumers that need other facilities should import their defining modules explicitly.
 The documented property entrypoints remain the public proof APIs; see the [CCF consensus protocol](../consensus/README.md#proofs), [consistency](../consistency/README.md#properties), and [disaster recovery](../disaster-recovery/README.md#properties) packages.
 
 Selective imports do not reduce the checked CCF roots or omit tests.
@@ -67,7 +79,7 @@ It fails if any source module is missing from the imported modules, without requ
 
 After `lake build`, run the same `lake exe check-imports` command to check architecture as well as import coverage.
 The shared command discovers the package's library roots from Lake and applies `CCF.Architecture` to each specification root.
-The `CCF` root contains shared infrastructure and is not treated as a specification.
+The `CCF` root contains shared infrastructure; it is not treated as a specification and is checked only against the common rules below.
 New specifications need no per-model architecture test, namespace configuration, or additional CI command.
 
 The checker examines direct import edges throughout each library root's transitive import closure, including private imports.
@@ -77,10 +89,12 @@ Architecture checks run in `lake exe check-imports`, not during `lake build`; CI
 The same rules apply to every specification namespace, including multi-component names:
 
 - `CCF` modules cannot import the specification.
+- Within `CCF`, only the `CCF` entrypoint and `CCF.Proofs` modules can import `CCF.Proofs`.
+- `Model` and its submodules cannot import `CCF.Proofs` or the `CCF` entrypoint that reexports it, so models depend only on shared definitions.
 - `Model` and its submodules can import only model modules within the specification.
   Model submodules cannot import the assembled `Model` entrypoint.
 - The `Properties` entrypoint can import model modules, property helpers, and proofs.
 - Property helpers can import model modules and other property helpers, but not proofs or the `Properties` entrypoint.
 - Proofs can import model modules, property helpers, and other proofs, but not the `Properties` entrypoint.
 - Other modules, such as tests and trace validation, are unrestricted.
-  Imports outside the specification namespace are unrestricted except for the common-to-specification restriction above.
+  Imports outside the specification namespace are unrestricted except for the `CCF` restrictions above.

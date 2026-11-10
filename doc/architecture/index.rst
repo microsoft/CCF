@@ -36,9 +36,9 @@ Architecture
 
         Use indexing to speed up historical queries.
 
-    .. grid-item-card:: :fas:`scroll` :doc:`receipts`
+    .. grid-item-card:: :fas:`scroll` :ref:`Receipts <use_apps/verify_tx:Write Receipts>`
 
-        Understand how receipts support ledger auditing.
+        Understand how receipts endorse application claims and support ledger auditing.
 
     .. grid-item-card:: :fas:`cogs` :doc:`tls_internals`
 
@@ -64,7 +64,6 @@ Architecture
     ledger
     node_to_node
     indexing
-    receipts
     tls_internals
     tcp_internals
     verification
