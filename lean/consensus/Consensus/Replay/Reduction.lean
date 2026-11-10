@@ -13,6 +13,8 @@ public section
 Rules peek action arguments, consume named events, and emit direct model actions.
 Explicit native boundaries distinguish related events from subsequent actions.
 After bootstrap, each rule observes its native group's starting snapshot before emitting actions.
+Rules consume input only through `consume`, which collects native sends; after each rule, replay
+checks them against the envelopes its actions queued.
 Reduction never executes or repairs model state.
 -/
 
@@ -26,6 +28,8 @@ private structure ReductionState where
   header : Header
   nextRequestId : ReqID := 1
   instructions : Array Instruction := #[]
+  /-- Native sends consumed by the current rule. -/
+  sends : Array NativeSend := #[]
 
 private abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
 
@@ -43,13 +47,36 @@ private def peek : Reduction Event := do
   let some event ← CCF.Parsec.peek | failure "unexpected end of input"
   return event
 
+/-- Consume the next event, collecting a send or the proposal a nomination implies. -/
+private def consume : Reduction Unit := do
+  let next ← CCF.Parsec.take
+  let packet ←
+    if next.function.startsWith "send_" then
+      some <$> readJson next next.message (field · "packet")
+    else if next.function == "step_down_and_nominate_successor" then
+      -- Native then sends an untraced proposal in its current view.
+      let term ← readJson next next.state (nat · "current_view")
+      pure
+        (some
+          (Json.mkObj [("msg", toJson "propose_request_vote"), ("term", toJson term)]))
+    else
+      pure none
+  if let some packet := packet then
+    let target ← readJson next next.message (string · "to_node_id")
+    modify
+      fun s =>
+        {
+          s with
+            sends := s.sends.push { target, packet, origin := next.origin next.function }
+        }
+
 private def event (source : Event) (name : String) : Reduction Unit := do
   let next ← peek
   unless next.function == name do
     failure s!"{next.record.location}: expected {name}, got {next.function}"
   liftExcept next do
     require (next.node == source.node) s!"expected event on node {source.node}"
-  discard CCF.Parsec.take
+  consume
 
 private def modelNode (event : Event) (name : String) : Reduction NodeID := do
   liftExcept event ((← get).header.nodeId name)
@@ -120,7 +147,7 @@ private def ruleAppend : Reduction Unit := do
       unless retirementSeqno == seqno do
         failure
           s!"{retirement.record.location}: expected seqno {seqno}, got {retirementSeqno}"
-      discard CCF.Parsec.take
+      consume
       return retirement
   -- Map hooks run before replication acceptance; rejected writes may have no matching replicate.
   if (← CCF.Parsec.peek).isNone then
@@ -341,9 +368,18 @@ private def ruleStep : Reduction Unit := do
   <|> attempt ruleNomination
   <|> attempt ruleDrop
 
+/-- Check the native sends a rule consumed against the envelopes its actions queued. -/
+private def emitObserveSends (event : Event) : Reduction Unit := do
+  let sends := (← get).sends
+  modify fun s => { s with sends := #[] }
+  appendInstruction (.observeSends sends (event.origin "sends"))
+
 private def ruleTrace : Reduction String := do
   let leader ← ruleBootstrap
-  many_ ruleStep
+  many_ do
+    let head ← peek
+    ruleStep
+    emitObserveSends head
   if let some event ← CCF.Parsec.peek then
     failure s!"{event.record.location}: ungrouped event {event.function}"
   return leader

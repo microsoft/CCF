@@ -12,7 +12,7 @@ namespace Consensus.Replay
 
 open Lean Model.Node
 open CCF (Finset)
-open CCF.MultiNodeTransitionSystem (nodeState)
+open CCF.MultiNodeTransitionSystem (nodeState removeOne)
 
 abbrev Envelope := Model.Envelope
 
@@ -60,15 +60,26 @@ def Step.name : Step → String
 
 structure ReplayState where
   state : Model.State
+  /-- Envelopes queued by actions since the last send observation. -/
+  queued : List Envelope := []
+
+/-- A traced native send, or the proposal a nomination implies. -/
+structure NativeSend where
+  target : String
+  packet : Json
+  origin : Origin
 
 /-- Direct model actions and boundary snapshots; there is no replay wire schema. -/
 inductive Instruction where
   | action (step : Step) (origin : Origin)
   | observeNodeState (node : String) (expected : Json) (origin : Origin)
+  /-- The envelopes queued since the last send observation must equal `sends`, as a multiset. -/
+  | observeSends (sends : Array NativeSend) (origin : Origin)
 
 def Instruction.origin : Instruction → Origin
   | .action _ origin
-  | .observeNodeState _ _ origin => origin
+  | .observeNodeState _ _ origin
+  | .observeSends _ origin => origin
 
 private def checkValue {α : Type} [ToJson α] (actual : α) (expected : Json)
     : Except String Unit := do
@@ -260,15 +271,37 @@ private def selectPacket (replay : ReplayState) (source destination : NodeID)
       s!"ambiguous delivery from '{source}' to '{destination}': matching packets differ in model payload"
   return envelope
 
+/-- Run one model action, recording the envelopes it queues. -/
+private def ReplayState.run (replay : ReplayState) (header : Header)
+    (action : Model.Action) (name : String)
+    : Except String ReplayState := do
+  let some state := Model.networkStep header.bootstrap replay.state action
+  | throw s!"disabled model action '{name}'"
+  -- A step appends the acting node's sends to the network left after any delivery.
+  let pending := replay.state.network.length - if action matches .deliver _ then 1 else 0
+  return { state, queued := replay.queued ++ state.network.drop pending }
+
 /-- Observations never change model state or repair a disabled action. -/
 def runInstruction (header : Header) (replay : ReplayState) (instruction : Instruction)
     : Except String ReplayState := do
-  let system :=
-    Model.transitionSystem header.bootstrap (List.range header.declared.length)
   match instruction with
   | .observeNodeState node expected _ =>
       observeState header node expected replay
       return replay
+  | .observeSends sends _ =>
+      let mut queued := replay.queued
+      for send in sends do
+        let context := s!"{send.origin.label}: send to '{send.target}'"
+        let target ← (header.nodeId send.target).mapError (s!"{context}: " ++ ·)
+        let some envelope := closest send.packet (queued.filter (·.target == target))
+        | throw s!"{context}: not queued by the model: {send.packet.compress}"
+        (checkPacket send.packet envelope.payload).mapError (s!"{context}: " ++ ·)
+        queued := removeOne envelope queued
+      if let some envelope := queued.head? then
+        let target := header.declared[envelope.target]?.getD (toString envelope.target)
+        throw
+          s!"model queued {(messageJson envelope.payload).compress} to '{target}' with no native send"
+      return { replay with queued := [] }
   | .action (step@(.local node input)) _ =>
       let node ← header.nodeId node
       match input with
@@ -287,16 +320,12 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
               unless destination < header.declared.length do
                 throw s!"undeclared model node {destination}"
       | _ => pure ()
-      let some state := system.step replay.state (.local node input)
-      | throw s!"disabled model action '{step.name}'"
-      return { replay with state }
+      replay.run header (.local node input) step.name
   | .action (.receive source destination packet) _ =>
       let source ← header.nodeId source
       let destination ← header.nodeId destination
       let envelope ← selectPacket replay source destination packet
-      let some state := system.step replay.state (.deliver envelope)
-      | throw "disabled model action 'receive'"
-      return { replay with state }
+      replay.run header (.deliver envelope) "receive"
   | .action (step@(.initAsBackup node index view)) _ =>
       let joiner ← header.nodeId node
       -- Committed prefixes in a reachable state are comparable, so any such node will do.
@@ -307,10 +336,7 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
             && (index == 0 || isSignatureAt state.log index)
             && termAt state.log index == view
       | throw s!"no node has a committed signature at {index} in term {view}"
-      let input := Input.initAsBackup (source.log.take index)
-      let some state := system.step replay.state (.local joiner input)
-      | throw s!"disabled model action '{step.name}'"
-      return { replay with state }
+      replay.run header (.local joiner (.initAsBackup (source.log.take index))) step.name
 
 structure Result where
   instructions : Nat
