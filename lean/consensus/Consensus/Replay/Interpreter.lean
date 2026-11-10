@@ -81,6 +81,16 @@ def Instruction.origin : Instruction → Origin
   | .observeNodeState _ _ origin
   | .observeSends _ origin => origin
 
+/--
+A head event and its follow-on events on the same node: one native lock hold, or an
+initialization with the snapshot hooks around it.
+-/
+structure Group where
+  node : String
+  /-- The head event's emission order within its process. -/
+  time : Nat
+  instructions : Array Instruction
+
 private def checkValue {α : Type} [ToJson α] (actual : α) (expected : Json)
     : Except String Unit := do
   let actual := toJson actual
@@ -253,13 +263,33 @@ private def closest (packet : Json) (envelopes : List Envelope) : Option Envelop
           ((messageJson envelope.payload).getObjVal? "msg").toOption
           == (packet.getObjVal? "msg").toOption
 
+private def pendingBetween (replay : ReplayState) (source destination : NodeID)
+    : List Envelope :=
+  replay.state.network.filter
+    fun envelope => envelope.source == source && envelope.target == destination
+
+/-- Why no queued envelope renders `packet`, diffing the closest in rendered order. -/
+private def missing (header : Header) (pending : List Envelope)
+    (source destination : NodeID) (packet : Json)
+    : String :=
+  let name (node : NodeID) := header.declared[node]?.getD (toString node)
+  let sorted :=
+    (pending.map fun envelope => ((messageJson envelope.payload).compress, envelope))
+    |>.mergeSort fun a b => a.1 ≤ b.1
+  let pending := sorted.map Prod.snd
+  match closest packet pending <|> pending.head? with
+  | none => s!"no pending packet from '{name source}' to '{name destination}'"
+  | some envelope =>
+      let queued := s!"queued from '{name source}': {sorted.map Prod.fst}"
+      match checkPacket packet envelope.payload with
+      | .error error => s!"{error}; {queued}"
+      | .ok _ => queued
+
 /-- Deliver any matching queued envelope; loss is non-delivery. -/
 private def selectPacket (replay : ReplayState) (source destination : NodeID)
     (packet : Json)
     : Except String Envelope := do
-  let pending :=
-    replay.state.network.filter
-      fun envelope => envelope.source == source && envelope.target == destination
+  let pending := pendingBetween replay source destination
   let some envelope := closest packet pending <|> pending.head?
   | throw s!"no pending packet from '{source}' to '{destination}'"
   checkPacket packet envelope.payload
@@ -270,6 +300,19 @@ private def selectPacket (replay : ReplayState) (source destination : NodeID)
     throw
       s!"ambiguous delivery from '{source}' to '{destination}': matching packets differ in model payload"
   return envelope
+
+/-- A node whose committed prefix has a signature at `index` in term `view`. -/
+private def initSource (replay : ReplayState) (index view : Nat)
+    : Except String NodeState := do
+  -- Committed prefixes in a reachable state are comparable, so any such node will do.
+  let some (_, source) :=
+    replay.state.nodes.find?
+      fun (_, state) =>
+        index <= state.commitIndex
+        && (index == 0 || isSignatureAt state.log index)
+        && termAt state.log index == view
+  | throw s!"no node has a committed signature at {index} in term {view}"
+  return source
 
 /-- Run one model action, recording the envelopes it queues. -/
 private def ReplayState.run (replay : ReplayState) (header : Header)
@@ -328,24 +371,59 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
       replay.run header (.deliver envelope) "receive"
   | .action (step@(.initAsBackup node index view)) _ =>
       let joiner ← header.nodeId node
-      -- Committed prefixes in a reachable state are comparable, so any such node will do.
-      let some (_, source) :=
-        replay.state.nodes.find?
-          fun (_, state) =>
-            index <= state.commitIndex
-            && (index == 0 || isSignatureAt state.log index)
-            && termAt state.log index == view
-      | throw s!"no node has a committed signature at {index} in term {view}"
+      let source ← initSource replay index view
       replay.run header (.local joiner (.initAsBackup (source.log.take index))) step.name
 
+/--
+Why a step must wait: a receive has no matching queued packet, or an initialization has no
+committed source. Both only become enabled as other nodes act. Other steps are local to a
+node changed only by its own groups, so a disabled one fails when its group runs.
+-/
+private def Step.waiting (header : Header) (replay : ReplayState)
+    : Step → Except String (Option String)
+  | .receive source destination packet => do
+      let source ← header.nodeId source
+      let destination ← header.nodeId destination
+      let pending := pendingBetween replay source destination
+      if pending.any fun envelope => (checkPacket packet envelope.payload).isOk then
+        return none
+      return some (missing header pending source destination packet)
+  | .initAsBackup _ index view =>
+      match initSource replay index view with
+      | .ok _ => return none
+      | .error reason => return some reason
+  | .local .. => pure none
+
+/-- Why a group must wait before its first action, located at that action. -/
+private def Group.waiting (header : Header) (replay : ReplayState) (group : Group)
+    : Except String (Option String) := do
+  let some (.action step origin) := group.instructions.find? (· matches .action ..)
+  | return none
+  let located := (s!"{origin.label}: " ++ ·)
+  return located <$> (← (step.waiting header replay).mapError located)
+
+/-- Run a group's instructions with no other group's actions between them. -/
+private def runGroup (header : Header) (replay : ReplayState) (group : Group)
+    : Except String ReplayState :=
+  group.instructions.foldlM
+    (fun replay instruction =>
+      (runInstruction header replay instruction).mapError
+        (s!"{instruction.origin.label}: " ++ ·))
+    replay
+
 structure Result where
-  instructions : Nat
+  groups : Nat
   actions : Nat
   observations : Nat
 deriving Repr, BEq
 
-def replay (header : Header) (instructions : Array Instruction)
-    : Except String Result := do
+/--
+Run each node's groups in order, picking the enabled next group with the earliest head `h_ts`,
+then node, only so that diagnostics are reproducible: counters of different processes are not
+comparable. A group's node changes only through its own groups, and other nodes only add
+packets it may receive, so the verdict does not depend on the pick.
+-/
+def replay (header : Header) (streams : Array (Array Group)) : Except String Result := do
   unless !header.declared.isEmpty
           && header.declared.all (!·.isEmpty)
           && header.declared.eraseDups == header.declared do
@@ -357,19 +435,31 @@ def replay (header : Header) (instructions : Array Instruction)
   for node in header.bootstrap.sort do
     unless node < header.declared.length do
       throw s!"undeclared model node {node}"
-  if instructions.isEmpty then throw "replay instructions must not be empty"
+  let total := streams.foldl (· + ·.size) 0
+  if total == 0 then throw "replay groups must not be empty"
   let mut state : ReplayState := { state := header.initial }
-  let mut actions := 0
-  for instruction in instructions, index in [:instructions.size] do
-    state ←
-      (runInstruction header state instruction).mapError
-        fun error =>
-          s!"instruction {index + 1} at {instruction.origin.label}: {error}"
-    if let .action .. := instruction then actions := actions + 1
-  return {
-    instructions := instructions.size,
-    actions,
-    observations := instructions.size - actions
-  }
+  let mut next := Array.replicate streams.size 0
+  for _ in [:total] do
+    let heads :=
+      (streams.zipIdx.filterMap
+        fun (groups, stream) => (·, stream) <$> groups[next[stream]!]?)
+      |>.qsort fun (a, i) (b, j) => a.time < b.time || (a.time == b.time && i < j)
+    let mut chosen := none
+    let mut blocked := #[]
+    for (group, stream) in heads do
+      match ← group.waiting header state with
+      | none =>
+          chosen := some (group, stream)
+          break
+      | some reason =>
+          blocked := blocked.push (stream, s!"node '{group.node}' waits at {reason}")
+    let waits := (blocked.qsort (·.1 < ·.1)).toList.map Prod.snd
+    let some (group, stream) := chosen
+    | throw s!"no enabled group:\n  {"\n  ".intercalate waits}"
+    state ← runGroup header state group
+    next := next.modify stream (· + 1)
+  let instructions := streams.flatMap (·.flatMap (·.instructions))
+  let actions := (instructions.filter (· matches .action ..)).size
+  return { groups := total, actions, observations := instructions.size - actions }
 
 end Consensus.Replay
