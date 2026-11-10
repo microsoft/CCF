@@ -59,6 +59,20 @@ namespace ccf::kv
       return true;
     }
 
+    bool decrypt(
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> additional_data,
+      std::span<const uint8_t> serialised_header,
+      std::vector<uint8_t>& plain,
+      Version version,
+      Term& term,
+      bool historical_hint = false) override
+    {
+      plain.assign(cipher.begin(), cipher.end());
+      term = 0;
+      return true;
+    }
+
     ccf::crypto::HashBytes get_commit_nonce(
       const TxID& tx_id, bool historical_hint = false) override
     {
