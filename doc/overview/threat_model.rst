@@ -20,13 +20,16 @@ Two terms carry a fixed meaning in this report. **Untrusted** means the party ma
    * - Party
      - Trust and what follows
    * - Approved application, CCF framework, and confidential-computing platform
-     - **Trusted.** Assumed sound. Code running inside the enclave can read private state, so flaws there are not prevented.
+     - **Trusted.** Assumed sound. Code running inside the node's AMD SEV-SNP protected utility VM (UVM) can read private state, so flaws there are not prevented.
    * - Governing consortium members
      - **Trusted collectively, not individually.** Members govern through signed proposals and the approval rules in the constitution. The constitution is service-instance-specific and therefore outside the scope of CCF's threat model. Individual members may act maliciously; the consortium is trusted as a whole to govern correctly.
    * - Service operator
      - **Trusted** to operate the service correctly.
    * - Host infrastructure, including hosts and the people who run them
-     - **Untrusted.** Assumed to see and modify anything outside the enclave, including ledger files, snapshots, node configuration, and network traffic. Malicious host behavior is in scope.
+     - **Untrusted.** Assumed to see and modify anything outside the protected UVM, including ledger files, snapshots, node configuration, and network traffic. Malicious host behavior is in scope.
+
+These assumptions apply to nodes running on :doc:`SEV-SNP </operations/platforms/snp>`, which is the only trust boundary considered in this report.
+The :doc:`Insecure Virtual </operations/platforms/virtual>` platform provides no TEE protection, so the host can read and modify all of a node's state; it is intended for development only and is out of scope.
 
 User interactions with the service are untrusted. Users can verify the service identity to check that they are communicating with the intended instance. They can also obtain and verify :doc:`cryptographic receipts </audit/receipts>` for committed transactions, providing evidence with which to hold the service accountable.
 
@@ -212,6 +215,8 @@ This diagram examines the traffic that crosses into and out of one node: user se
    * - :doc:`Node-to-node channels </architecture/node_to_node>`
      - Admitted nodes mutually authenticate service-endorsed identities. Authenticated Diffie-Hellman establishes per-direction AES-256-GCM keys for the custom TCP channel, and monotonic counters reject replayed messages.
    * - Client sessions
-     - HTTPS terminates inside the CCF node. Clients verify the TLS certificate against the expected service identity. CCF 7.0.14 offers hybrid ML-KEM key exchange, with classical key exchange available as a fallback.
+     - HTTPS terminates inside the CCF node.
+       Clients verify the TLS certificate against the expected service identity.
+       Since CCF 7.0.11, TLS handshakes prefer hybrid ML-KEM key exchange groups (``SecP384r1MLKEM1024``, ``SecP256r1MLKEM768``, ``X25519MLKEM768``) when the linked OpenSSL supports them, with the classical ``P-521``, ``P-384`` and ``P-256`` groups available as fallbacks.
    * - :doc:`Caller authentication </build_apps/auth/index>`
      - The application sets authentication requirements per endpoint, including whether a TLS client certificate is required. mTLS is not a CCF-wide requirement.

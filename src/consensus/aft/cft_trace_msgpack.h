@@ -189,6 +189,8 @@ namespace aft::trace
     to_node_id);
   DECLARE_TRACE_EVENT(
     replicate, cft_trace_tag, state, view, seqno, globally_committable);
+  DECLARE_TRACE_EVENT(
+    retired_committed_tx, cft_trace_tag, node_id, seqno, retired_node_id);
   DECLARE_TRACE_EVENT(batch_flush, cft_trace_tag, state);
   DECLARE_TRACE_EVENT(
     add_configuration, cft_trace_tag, state, configurations, idx, nodes, rid);

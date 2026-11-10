@@ -7,10 +7,10 @@ CCF releases are available on the `GitHub repository release page <https://githu
 
 .. code-block:: bash
 
-    # Set CCF_VERSION to the latest stable release
+    # Set CCF_VERSION to the latest release
     $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
     # Alternatively, set this manually, e.g.:
-    # export CCF_VERSION=7.0.0
+    # export CCF_VERSION=|ccf_version|
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_devel_${CCF_VERSION}_x86_64.rpm
     $ sudo tdnf install ./ccf_devel_${CCF_VERSION}_x86_64.rpm
 
@@ -21,3 +21,6 @@ The following command can be run to verify that CCF was installed successfully:
     $ /opt/ccf/bin/js_generic --version
     CCF host: ccf-<version>
     Platform: SNP
+
+.. note:: The platform is detected at runtime rather than selected at build or install time.
+    On machines without AMD SEV-SNP support, this reports ``Platform: Virtual``, the :doc:`Insecure Virtual </operations/platforms/virtual>` platform, which provides no security guarantees and is for development only.
