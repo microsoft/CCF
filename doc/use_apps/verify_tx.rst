@@ -155,5 +155,6 @@ The ``commit_evidence`` field in receipts fulfills two purposes:
 1. It exposes the full :term:`Transaction ID` in a format that is easy for a user to extract, and does not require parsing the ledger entry.
 2. Because it cannot be extracted from the ledger without access to the ledger secrets, it guarantees the transaction is committed.
 
-Entries are written out to the ledger as early as possible, to relieve memory pressure inside the enclave. If receipts could be produced from these entries regardless of their replication status, a malicious actor could emit them for transactions that have been tentatively run by a primary, appended to its local ledger, but since rolled back.
+Entries are written out to the ledger as early as possible, to relieve memory pressure on the node.
+If receipts could be produced from these entries regardless of their replication status, a malicious actor could emit them for transactions that have been tentatively run by a primary, appended to its local ledger, but since rolled back.
 By including a commitment to the digest of ``commit_evidence`` as a leaf component in the Merkle Tree, which is effectively a nonce derived from ledger secrets and TxID, we ensure that only receipts produced by nodes that can reveal this nonce are verifiable.

@@ -50,7 +50,7 @@ To add a new node to an existing opening network, other nodes should be started 
         Pending-- poll status -->Pending;
         Pending-- trusted -->PartOfNetwork;
 
-The joining node takes the certificate of the existing network to join via ``service_certificate_file`` configuration entry and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``join.target_rpc_address`` configuration entry.
+The joining node takes the certificate of the existing network to join via ``service_certificate_file`` configuration entry and initiates a TLS connection to the RPC interface of an existing node of the network as specified by ``join.target_rpc_address`` configuration entry.
 
 .. note:: The joining node verifies the target node's TLS certificate against the ``service_certificate_file`` (which is the only trust anchor used for this connection) and checks that it matches the ``join.target_rpc_address`` host. Operators must therefore ensure that the target node's certificate subject alternative names - derived from its RPC interface ``published_address`` values, or set explicitly via ``node_certificate.subject_alt_names`` - include the address used in ``join.target_rpc_address``.
 

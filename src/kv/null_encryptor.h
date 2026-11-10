@@ -38,7 +38,10 @@ namespace ccf::kv
       {
         throw std::logic_error("Incorrect null-encryptor output size");
       }
-      std::copy(plain.begin(), plain.end(), cipher.begin());
+      if (plain.data() != cipher.data())
+      {
+        std::copy(plain.begin(), plain.end(), cipher.begin());
+      }
       return true;
     }
 
