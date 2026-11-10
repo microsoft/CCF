@@ -131,6 +131,15 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Check CCF consensus trace fixture order independence
+        if: inputs.package == 'consensus'
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          python3 lean/consensus/replay/check-order.py \
+            lean/consensus/.lake/build/bin/consensus-replay \
+            lean/consensus/replay/fixtures/*/*.ndjson
+
       - name: Check recovery trace fixtures against their schema
         if: inputs.package == 'disaster-recovery'
         run: |
