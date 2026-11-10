@@ -8,7 +8,7 @@ For background on CCF itself, start with :ref:`overview/what_is_ccf:What is CCF?
 1. Set Up a Development Environment
 -----------------------------------
 
-CCF builds and runs on Linux, and is primarily developed and tested on Azure Linux 3.
+CCF builds and runs on Linux, and is primarily developed and tested on Azure Linux 3.0.
 The commands below assume that the latest CCF release is installed under ``/opt/ccf`` (see step 2).
 For a containerized CCF development environment, see :doc:`/contribute/build_setup`.
 
