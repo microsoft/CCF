@@ -1805,14 +1805,15 @@ TEST_CASE("Signing identity lookup prefers the table over the certificate")
       service_key);
   }
 
-  SUBCASE("Entries are returned as written, without matching the certificate")
+  SUBCASE("A mismatched entry is rejected")
   {
-    const ccf::Identity legacy_entry{
-      ccf::IdentityKind::X509_SPKI_DER, other_identity.key->public_key_der()};
-    signing_identities->put(ccf::IdentityType::CLASSICAL, legacy_entry);
-    REQUIRE(
-      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL) ==
-      legacy_entry);
+    signing_identities->put(
+      ccf::IdentityType::CLASSICAL,
+      {ccf::IdentityKind::X509_SPKI_DER, other_identity.key->public_key_der()});
+    REQUIRE_THROWS_WITH_AS(
+      ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL),
+      "Service signing identity does not match its service certificate",
+      std::logic_error);
   }
 
   SUBCASE("Entries do not require service information")

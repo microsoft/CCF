@@ -36,8 +36,8 @@ namespace ccf
     }
     catch (const std::logic_error& e)
     {
-      // The task running this read aborts the node on an escaping exception,
-      // so explain the failure first.
+      // Logged here in case the call site does not handle the exception
+      // properly: this is a broken invariant and must not be recovered from.
       LOG_FATAL_FMT(
         "The service signing identities in the ledger are inconsistent with "
         "the service certificates: {}. This version cannot serve such a "
@@ -61,30 +61,6 @@ namespace ccf
                            ->get(ccf::IdentityType::CLASSICAL);
 
     return result;
-  }
-
-  inline CoseEndorsement read_historical_service_endorsement(
-    ccf::kv::ReadOnlyTx& tx, SeqNo seqno)
-  {
-    auto endorsement = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
-                           ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-                         ->get(ccf::IdentityType::CLASSICAL);
-    if (!endorsement.has_value())
-    {
-      throw std::runtime_error(fmt::format(
-        "COSE endorsement entry for seqno {} is missing from its "
-        "historical state",
-        seqno));
-    }
-
-    // Historical stores contain only this transaction's writes, so unchanged
-    // PQ identities may be absent. Preserve the CLASSICAL-only read check.
-    check_signing_identity_matches_service_cert(
-      tx.ro<SigningIdentities>(Tables::SIGNING_IDENTITIES)
-        ->get(IdentityType::CLASSICAL),
-      tx.ro<Service>(Tables::SERVICE)->get(),
-      IdentityType::CLASSICAL);
-    return endorsement.value();
   }
 
   class NodeStateAccessor : public INodeStateAccessor
@@ -149,7 +125,19 @@ namespace ccf
           seq));
       }
       auto htx = state->store->create_read_only_tx();
-      return read_historical_service_endorsement(htx, seq);
+      auto endorsement =
+        htx
+          .template ro<ccf::PreviousServiceIdentityEndorsement>(
+            ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+          ->get(ccf::IdentityType::CLASSICAL);
+      if (!endorsement.has_value())
+      {
+        throw std::runtime_error(fmt::format(
+          "COSE endorsement entry for seqno {} is missing from its "
+          "historical state",
+          seq));
+      }
+      return endorsement;
     }
   };
 

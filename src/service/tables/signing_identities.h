@@ -163,29 +163,20 @@ namespace ccf
   inline std::optional<Identity> get_service_signing_identity(
     ccf::kv::ReadOnlyTx& tx, IdentityType identity_type)
   {
-    if (
-      identity_type != IdentityType::CLASSICAL &&
-      identity_type != IdentityType::PQ)
-    {
-      throw std::logic_error("Unknown service signing identity type");
-    }
-
-    auto signing_identity =
+    const auto signing_identity =
       tx.ro<SigningIdentities>(Tables::SIGNING_IDENTITIES)->get(identity_type);
-    if (identity_type == IdentityType::PQ)
-    {
-      check_signing_identity_matches_service_cert(
-        signing_identity,
-        tx.ro<Service>(Tables::SERVICE)->get(),
-        identity_type);
-      return signing_identity;
-    }
+    const auto service_info = tx.ro<Service>(Tables::SERVICE)->get();
+    check_signing_identity_matches_service_cert(
+      signing_identity, service_info, identity_type);
+
     if (signing_identity.has_value())
     {
       return signing_identity;
     }
-
-    const auto service_info = tx.ro<Service>(Tables::SERVICE)->get();
+    if (identity_type == IdentityType::PQ)
+    {
+      return std::nullopt;
+    }
     if (!service_info.has_value())
     {
       return std::nullopt;
