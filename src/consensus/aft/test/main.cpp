@@ -2999,6 +2999,13 @@ DOCTEST_TEST_CASE(
       {later_lost_tx, ccf::FinalTxStatus::Invalid}};
     DOCTEST_REQUIRE(results == expected_results);
 
+    // A lost transaction registered after the later view commits is
+    // invalidated immediately.
+    const ccf::TxID late_lost_tx{3, 32};
+    commit_callbacks.add_callback(late_lost_tx, record);
+    expected_results.emplace_back(late_lost_tx, ccf::FinalTxStatus::Invalid);
+    DOCTEST_REQUIRE(results == expected_results);
+
     commit_callbacks.on_commit({4, 24}, history);
     DOCTEST_REQUIRE(results == expected_results);
 
