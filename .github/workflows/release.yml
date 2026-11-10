@@ -69,26 +69,6 @@ jobs:
       image_digest: ${{ steps.digest.outputs.digest }}
       SOURCE_DATE_EPOCH: ${{ steps.set_epoch.outputs.SOURCE_DATE_EPOCH }}
     steps:
-      - name: Wipe runner temp directory
-        shell: bash
-        run: &wipe_runner_temp |
-          # Self-hosted VMSS runners are reused. Root-owned files left by earlier
-          # --user root container jobs survive the runner's own temp cleanup.
-          set -euo pipefail
-          shopt -s dotglob nullglob
-          : "${RUNNER_TEMP:?RUNNER_TEMP is not set}"
-          [ "$RUNNER_TEMP" != / ]
-          sudo=""
-          if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null; then
-            sudo=sudo
-          fi
-          for entry in "$RUNNER_TEMP"/* "$RUNNER_TEMP"/_github_home/*; do
-            case "$entry" in
-              "$RUNNER_TEMP"/_runner_file_commands | "$RUNNER_TEMP"/_github_workflow | "$RUNNER_TEMP"/_github_home) continue ;;
-            esac
-            $sudo rm -rf -- "$entry"
-          done
-
       - id: digest
         run: |
           set -ex
@@ -114,10 +94,6 @@ jobs:
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --sysctl net.ipv6.conf.all.disable_ipv6=0 --sysctl net.ipv6.conf.default.disable_ipv6=0 --sysctl net.ipv6.conf.lo.disable_ipv6=0"
 
     steps:
-      - name: Wipe runner temp directory
-        shell: bash
-        run: *wipe_runner_temp
-
       - name: "Set SOURCE_DATE_EPOCH"
         shell: bash
         run: |
@@ -136,6 +112,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - uses: ./.github/actions/wipe-runner-temp
 
       - name: "Install dependencies"
         shell: bash
@@ -320,10 +298,6 @@ jobs:
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
-      - name: Wipe runner temp directory
-        shell: bash
-        run: *wipe_runner_temp
-
       - name: "Checkout dependencies"
         shell: bash
         run: |
@@ -335,6 +309,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - uses: ./.github/actions/wipe-runner-temp
 
       - name: Download RPM
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -371,10 +347,6 @@ jobs:
       image: ${{ needs.image_digest.outputs.image_digest }}
       options: "--user root"
     steps:
-      - name: Wipe runner temp directory
-        shell: bash
-        run: *wipe_runner_temp
-
       - name: "Checkout dependencies"
         shell: bash
         run: |
@@ -385,6 +357,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - uses: ./.github/actions/wipe-runner-temp
+
       - name: Download Prebuilt Packages
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
