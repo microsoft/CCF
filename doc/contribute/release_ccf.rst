@@ -5,28 +5,42 @@ Prepare release notes
 ---------------------
 
 Normal PRs add change descriptions in ``.changes/`` instead of editing the changelog.
-In a release-preparation PR, install ``scripts/requirements.txt``, choose the version, and preview the collected notes:
+The release workflow collects these descriptions directly into the GitHub release notes, without a release-notes PR or an intermediary changelog update.
+To preview the notes locally, fetch the release tags and run the following command for a tagged release commit:
 
 .. code-block:: bash
 
-    python3 scripts/gather_changelog.py --version 7.0.25 --base-branch main
-    python3 scripts/gather_changelog.py --version 7.0.25 --base-branch main --write
+    python3 scripts/extract-release-notes.py --from-changes --target-version 7.0.25
 
-The default is to collect all change descriptions; pass explicit ``.changes/*.md`` paths to select a subset.
-Preview does not change files; ``--write`` prepends the release section and deletes only the selected change descriptions.
-Other change descriptions may remain for future releases.
-The collector uses the GitHub API to find each change description's adding commit on ``--base-branch`` and reads the trailing ``(#1234)`` reference from its squash-merge subject.
-Missing references stop collection before files are changed; use ``--pr receipt-validation.fixed.md=1234`` to override that change description's PR lookup at release time.
+The collector reads the files from the target tag, not from the working tree.
+It includes all descriptions present at that tag, in category and filename order, without comparing previous tags or trying to infer which descriptions have already been published.
+Edits to an existing description are included as they appear in the release commit.
+The collector reads each description's adding commit from local Git history and uses the trailing ``(#1234)`` reference from its squash-merge subject.
+Missing references stop collection; use ``--pr receipt-validation.fixed.md=1234`` to override that description's PR lookup when previewing locally.
+No GitHub API access or credentials are required to generate the notes.
+Relative inline Markdown links are expanded to the corresponding files at the release tag.
+During the transition, the changelog section matching the target release version is included alongside fragments, preserving its existing PR references.
+For example, ``7.0.24`` combines its changelog section with all change descriptions present at ``ccf-7.0.24``.
 
-Manually update ``project.version`` in ``python/pyproject.toml`` to match the first changelog version, converting prereleases such as ``8.0.0-dev10`` to ``8.0.0.dev10``.
-Review and commit the changelog, SDK version change, and selected change-description deletions together, then validate:
+Generation does not modify ``CHANGELOG.md``, SDK metadata, or change descriptions.
+Published descriptions must be removed manually before a subsequent release to avoid repeating their notes; automated cleanup is not yet implemented.
+The historical changelog remains available and can still be validated or extracted with the script's existing changelog mode:
 
 .. code-block:: bash
 
     scripts/release-notes-checks.sh
 
-After merging the release PR, tag the reviewed release commit using the existing release process.
-The collector does not assign versions, edit SDK metadata, commit, tag, or publish.
+Historical changelog validation does not require its first version to match the current SDK version.
+
+Before tagging any release, manually update ``project.version`` in ``python/pyproject.toml`` to match the intended release version and commit the bump.
+This is the only release-version field in source that requires a manual bump; native and npm package versions are derived from the release tag.
+Use Python version spelling for prereleases, for example ``8.0.0.dev10`` for ``ccf-8.0.0-dev10`` and ``8.0.0rc0`` for ``ccf-8.0.0-rc0``.
+Tag the reviewed commit containing the version bump using the existing release process.
+The OneBranch PyPI publisher checks the tag against SDK metadata before building the wheel, including prerelease normalization.
+GitHub release-note generation does not perform this check, so a forgotten bump can fail the later PyPI build after the GitHub release has already been published.
+
+The workflow generates a release-notes artifact, including on dry runs for a tagged commit, and uses it when creating the draft GitHub release.
+The collector does not assign versions, commit, tag, or publish.
 
 Patch an LTS release
 --------------------
@@ -35,22 +49,20 @@ CCF releases are cut from branches named ``release/N.x`` where ``N`` is the majo
 Patching a release, ie. issuing a ``N.0.x+1`` version when the current version is ``N.0.x`` involves the following steps:
 
 #. Apply commits to ``release/N.x``, and/or cherry-pick them from ``main``
-#. Prepare and merge a release-notes PR as described above.
 #. Tag the reviewed release commit as ``ccf-N.0.x+1``.
 
 Create an LTS release
 ---------------------
 
 #. Create a ``release/N.x`` branch from the head of ``main``
-#. Prepare and merge a release-notes PR for ``N.0.0-rc0``.
 #. Tag the reviewed release commit as ``ccf-N.0.0-rc0``.
 #. If necessary, apply patch process outline above with ``ccf-N.0.0-rc1`` etc
-#. When ready, prepare the release-notes PR for ``N.0.0`` and tag its reviewed commit as ``ccf-N.0.0``.
+#. When ready, tag the reviewed release commit as ``ccf-N.0.0``.
 
 Create a dev release
 ---------------------
 
-#. Prepare and merge a release-notes PR on ``main`` for ``N+1.0.0-devX+1``, where ``N`` is the latest LTS, and ``X`` the latest dev release.
+#. Review the changes on ``main`` for ``N+1.0.0-devX+1``, where ``N`` is the latest LTS, and ``X`` the latest dev release.
 #. Tag the reviewed release commit as ``ccf-N+1.0.0-devX+1``.
 
 Labelling LTS PRs
