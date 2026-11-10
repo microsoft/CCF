@@ -30,7 +30,23 @@ namespace ccf
 
     auto* service_info_handle = tx.ro<ccf::Service>(ccf::Tables::SERVICE);
     auto service_info = service_info_handle->get();
-    check_signing_identity_matches_service_cert(tx);
+    try
+    {
+      check_signing_identity_matches_service_cert(tx);
+    }
+    catch (const std::logic_error& e)
+    {
+      // The task running this read aborts the node on an escaping exception,
+      // so explain the failure first. An ML-DSA service certificate without
+      // its published signing identity comes from an unsupported build, see
+      // the ML-DSA Service Identity section of the 7.x to 8.x migration guide.
+      LOG_FATAL_FMT(
+        "The service signing identities in the ledger are inconsistent with "
+        "the service certificates: {}. This version cannot serve such a "
+        "ledger after a live update; recover it instead.",
+        e.what());
+      throw;
+    }
     // A node can advance to part-of-network before the service-opening tx has
     // been replicated. Until the service is OPEN, its create-txid (and the
     // endorsement written in the same tx) may be stale, so leave create_txid
