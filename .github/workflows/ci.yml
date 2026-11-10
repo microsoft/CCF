@@ -110,6 +110,8 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*/cft.ndjson
+            build/workspace/*_trace/*/manifest.json
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
@@ -178,6 +180,8 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*/cft.ndjson
+            build/workspace/*_trace/*/manifest.json
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
@@ -242,6 +246,8 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*/cft.ndjson
+            build/workspace/*_trace/*/manifest.json
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()
@@ -340,6 +346,8 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*/cft.ndjson
+            build/workspace/*_trace/*/manifest.json
             build/workspace/**/openapi_coverage.json
           if-no-files-found: ignore
         if: success() || failure()

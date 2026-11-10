@@ -125,6 +125,8 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*/cft.ndjson
+            build/workspace/*_trace/*/manifest.json
             build/workspace/*/locust_failures.csv
             build/workspace/**/openapi_coverage.json
             build/workspace/*/*_fluentd.json
@@ -206,6 +208,8 @@ jobs:
             build/workspace/*/*.ledger/*
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
+            build/workspace/*_trace/*/cft.ndjson
+            build/workspace/*_trace/*/manifest.json
             build/workspace/*/locust_failures.csv
             build/workspace/**/openapi_coverage.json
             build/workspace/*/*_fluentd.json
