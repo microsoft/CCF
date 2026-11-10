@@ -2357,9 +2357,10 @@ namespace aft
       }
     }
 
-    // If there exists some committable idx in the current term such that idx >
-    // commit_idx and a majority of nodes have replicated it, commit to that
-    // idx.
+    // Commit the highest committable idx in the current term which a majority
+    // of every active configuration at or before idx has replicated.
+    // Configurations appended after idx do not need to replicate it: any log
+    // containing such a configuration also contains idx.
     void update_commit()
     {
       if (state->leadership_state.load() != ccf::kv::LeadershipState::Leader)
@@ -2368,13 +2369,12 @@ namespace aft
           "update_commit() must only be called while this node is leader");
       }
 
-      std::optional<Index> new_agreement_index = std::nullopt;
-
-      // Obtain CFT watermarks
+      // For each active configuration, in order: its idx, and the highest idx
+      // which a majority of it has replicated
+      std::vector<std::pair<Index, Index>> agreement_indices;
+      agreement_indices.reserve(configurations.size());
       for (auto const& c : configurations)
       {
-        // The majority must be checked separately for each active
-        // configuration.
         std::vector<Index> match;
         match.reserve(c.nodes.size());
 
@@ -2391,52 +2391,65 @@ namespace aft
         }
 
         sort(match.begin(), match.end());
-        auto confirmed = match.at((match.size() - 1) / 2);
-
-        if (
-          !new_agreement_index.has_value() ||
-          confirmed < new_agreement_index.value())
-        {
-          new_agreement_index = confirmed;
-        }
-      }
-
-      if (new_agreement_index.has_value())
-      {
-        if (new_agreement_index.value() > state->last_idx)
+        const auto confirmed = match.at((match.size() - 1) / 2);
+        if (confirmed > state->last_idx)
         {
           throw std::logic_error(
             "Followers appear to have later match indices than leader");
         }
+        agreement_indices.emplace_back(c.idx, confirmed);
+      }
 
-        const auto new_commit_idx =
-          find_highest_possible_committable_index(new_agreement_index.value());
+      const auto has_quorum = [&](Index idx) {
+        bool found_configuration = false;
+        for (const auto& [configuration_idx, agreement_idx] : agreement_indices)
+        {
+          if (configuration_idx > idx)
+          {
+            break;
+          }
+          if (agreement_idx < idx)
+          {
+            return false;
+          }
+          found_configuration = true;
+        }
+        return found_configuration;
+      };
 
-        if (new_commit_idx.has_value())
+      // Terms do not decrease along the log, so if the highest committable idx
+      // with a quorum is not in the current term, no lower one is either
+      for (auto it = state->committable_indices.rbegin();
+           it != state->committable_indices.rend();
+           ++it)
+      {
+        const auto idx = *it;
+        if (!has_quorum(idx))
+        {
+          continue;
+        }
+
+        CFT_DEBUG_FMT(
+          "In update_commit, new_commit_idx: {}, last_idx: {}",
+          idx,
+          state->last_idx);
+
+        const auto term_of_new = get_term_internal(idx);
+        if (term_of_new == state->current_view)
+        {
+          commit(idx);
+        }
+        else
         {
           CFT_DEBUG_FMT(
-            "In update_commit, new_commit_idx: {}, "
-            "last_idx: {}",
-            new_commit_idx.value(),
-            state->last_idx);
-
-          const auto term_of_new = get_term_internal(new_commit_idx.value());
-          if (term_of_new == state->current_view)
-          {
-            commit(new_commit_idx.value());
-          }
-          else
-          {
-            CFT_DEBUG_FMT(
-              "Ack quorum at {} resulted in proposed commit index {}, which "
-              "is in term {}. Waiting for agreement on committable entry in "
-              "current term {} to update commit",
-              new_agreement_index.value(),
-              new_commit_idx.value(),
-              term_of_new,
-              state->current_view);
-          }
+            "Ack quorum resulted in proposed commit index {}, which is in "
+            "term {}. Waiting for agreement on committable entry in current "
+            "term {} to update commit",
+            idx,
+            term_of_new,
+            state->current_view);
         }
+        return;
       }
     }
 
