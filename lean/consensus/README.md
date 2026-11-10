@@ -13,8 +13,10 @@ It assumes familiarity with the [CCF consensus protocol documentation](../../doc
 | Protocol policy (one node's step)      | [`Model/Node.lean`](Consensus/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)     |
 | Initial states and network composition | [`Model.lean`](Consensus/Model.lean) (`initialNodeState`, `transitionSystem`)                                                  |
 | Safety theorems and witness lemmas     | [`Properties.lean`](Consensus/Properties.lean)                                                                                 |
+| Valid initial memberships              | [`Properties/Config.lean`](Consensus/Properties/Config.lean)                                                                   |
 | Supporting proofs and executions       | [`Proofs/`](Consensus/Proofs)                                                                                                  |
 | Action-trace tests                     | [`Tests/CanonicalTraces.lean`](Consensus/Tests/CanonicalTraces.lean)                                                           |
+| Witness regression checks              | [`Tests/Witnesses.lean`](Consensus/Tests/Witnesses.lean)                                                                       |
 
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
 Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
@@ -58,8 +60,15 @@ The shared `check-imports` command rejects modules missing from that import clos
 Import `Consensus.Properties` and use `Consensus.Properties.<name>` for these declarations.
 Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
 `Proofs/Direct.lean` establishes node-local commit invariants; `Proofs/SafetyInvariant.lean` establishes the cross-node history invariant, in the `Consensus.Proofs.Safety` namespace, used for election safety and committed-log comparability.
-`Proofs/Witnesses.lean` supplies concrete executions checked by the kernel.
-The proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
+`Proofs/Witnesses.lean` supplies executions checked by the kernel for every valid initial membership.
+`Properties.ValidConfig` filters initial memberships to the nonempty ones already required by model initialization; it does not change the model.
+All four witness lemmas explicitly quantify over these valid configurations.
+Each witness satisfies the preconditions of its corresponding theorem.
+The committed-log comparison witness additionally has nonempty committed logs, and the monotonic-step witness strictly extends a nonempty committed log.
+These requirements hold for every valid initial membership, including singletons; neither witness requires distinct nodes.
+No witness requires an additional membership-size assumption.
+Like its safety theorem, the monotonic-step witness concerns a successful step from a state with unique node IDs, without requiring that state to be reachable.
+The safety-invariant proof remains independent of the witness construction, allowing Lake to check them in parallel.
 
 To list the safety-invariant declarations used by the exported theorems, run `lake env lean scripts/invariant-dependencies.lean`.
 
