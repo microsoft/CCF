@@ -3,8 +3,6 @@ module
 public import DisasterRecovery.Properties.Utils
 
 import all Init.Control.State
-import Aesop
-import Mathlib.Tactic.Lemma
 
 @[expose] public section
 
@@ -67,7 +65,7 @@ private theorem advance_ready (config : Local.Config) (state : NodeState)
       | split at transition
   all_goals
     cases gossip : maximumGossip state.gossips <;> cases chosen : state.chosen <;>
-      simp_all [Ready, Capabilities.record] <;> aesop
+      simp_all [Ready, Capabilities.record] <;> grind
 
 private theorem advance_or_reject_ready (config : Local.Config)
     (state fallback : NodeState) (source : Location) (reason : String)
@@ -113,34 +111,34 @@ private theorem step_ready (config : Local.Config) (state : NodeState)
         simp [Local.step, phase, StateT.run, Option.bind_eq_some_iff,
           Option.map_eq_some_iff] at transition
       all_goals first
-        | solve | aesop
+        | solve | grind
         | cases chosen : state.chosen <;>
             simp_all [Option.bind_eq_some_iff, Option.map_eq_some_iff, Capabilities.record]
-            <;> aesop
+            <;> grind
   | receiveGossip sender txid validation =>
       cases validation <;> simp only [Local.step] at transition
       · split at transition
         · simp [rejected, Capabilities.record] at transition
-          aesop
+          grind
         · exact advance_or_reject_ready config _ state source _ (by simpa [Ready] using ready)
             ready after effects transition
       · simp [rejected, Capabilities.record] at transition
-        aesop
+        grind
   | receiveVote sender validation =>
       cases validation <;> simp only [Local.step] at transition
       · exact advance_or_reject_ready config _ state source _ (by simpa [Ready] using ready)
           ready after effects transition
       · simp [rejected, Capabilities.record] at transition
-        aesop
+        grind
   | receiveIAmOpen sender validation =>
       cases validation <;> simp only [Local.step] at transition
       · cases phase : state.phase <;> simp only [phase] at transition
         all_goals first
           | exact advance_or_reject_ready config _ state source _ (by simp [Ready])
               ready after effects transition
-          | simp [rejected, Capabilities.record] at transition; aesop
+          | simp [rejected, Capabilities.record] at transition; grind
       · simp [rejected, Capabilities.record] at transition
-        aesop
+        grind
 
 @[local simp]
 private theorem effect_lift {S A : Type} (a : Option A) (s : S)
@@ -336,7 +334,7 @@ theorem deadlock_free (config : Model.Config)
   rw [enabled]
   rfl
 
-lemma deadlock_free_witness
+theorem deadlock_free_witness
     : forall (config : Properties.ValidConfig),
         exists (state : Model.State), (transitionSystem config).Reachable state := by
   intro config

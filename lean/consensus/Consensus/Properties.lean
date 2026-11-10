@@ -16,6 +16,8 @@ exhibiting a nontrivial execution relevant to that property.
 
 namespace Consensus.Properties
 
+open CCF (Finset)
+
 abbrev GlobalTrace (config : Finset Model.Node.NodeID) (nodes : List Model.Node.NodeID) :=
   CCF.Execution.Trace (Model.transitionSystem config nodes)
 
@@ -38,7 +40,7 @@ theorem committed_logs_prefix
 
 /-- Witness: a valid trace has two states in which two distinct nodes have
 nonempty committed logs. -/
-lemma committed_logs_prefix_witness
+theorem committed_logs_prefix_witness
     : exists (config : Finset NodeID),
     exists (nodes : List NodeID) (trace : GlobalTrace config nodes),
     exists (stateA stateB : Model.State),
@@ -68,7 +70,7 @@ theorem single_node_committed_log_monotonic
 
 /-- Witness: a successful step from a state with unique node IDs strictly extends
 one node's nonempty committed log. -/
-lemma single_node_committed_log_monotonic_witness
+theorem single_node_committed_log_monotonic_witness
     : exists (config : Finset NodeID) (nodes : List NodeID),
     exists (pre post : Model.State),
     exists (nodeId : NodeID) (nodePre nodePost : NodeState),
@@ -97,7 +99,7 @@ theorem election_safety
   exact Proofs.Election.election_safety
 
 /-- Witness: a valid trace has a state in which two nodes are primaries. -/
-lemma election_safety_witness
+theorem election_safety_witness
     : exists (config : Finset NodeID),
     exists
     (nodes : List NodeID) (trace : GlobalTrace config nodes) (state : Model.State),
@@ -121,7 +123,7 @@ theorem committed_frontier_is_signature
   exact Proofs.Direct.committed_frontier_is_signature
 
 /-- Witness: a valid trace has a state with a positive commit index. -/
-lemma committed_frontier_is_signature_witness
+theorem committed_frontier_is_signature_witness
     : exists (config : Finset NodeID),
     exists
     (nodes : List NodeID) (trace : GlobalTrace config nodes) (state : Model.State),

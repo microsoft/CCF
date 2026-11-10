@@ -34,7 +34,6 @@ def main : IO Unit := do
             unless importedModules.contains sourceModule do
               throw
               <| IO.userError s!"Module is not imported by {library.name}: {sourceModule}"
-      unless root == `CCF do
-        IO.ofExcept <| CCF.Architecture.checkImports root environment
-        IO.println s!"Architecture checks passed: {root}"
+      IO.ofExcept <| CCF.Architecture.checkImports root environment
+      IO.println s!"Architecture checks passed: {root}"
     IO.println s!"Import coverage passed: {library.name}"
