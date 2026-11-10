@@ -122,6 +122,19 @@ open Model.Node
 section Steps
 variable [Config.InitialConfiguration]
 
+private theorem step_next
+    {nodes : List NodeID} {before after : Model.State} {action : Model.Action}
+    (stepped
+      : (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes).step before action
+        = some after)
+    : next (Model.protocol Config.INITIAL_CONFIGURATION) before action = some after := by
+  simp only [Model.transitionSystem, Model.networkStep] at stepped
+  split at stepped
+  · split at stepped
+    · exact stepped
+    · cases stepped
+  · exact stepped
+
 private theorem step_local
     {nodes : List NodeID} {before after : Model.State}
     {node : NodeID} {input : Model.Node.Input}
@@ -139,7 +152,8 @@ private theorem step_local
                 nodes := replaceNode before.nodes node next
                 network := before.network ++ outputs.outgoing
             } := by
-  simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
+  replace stepped := step_next stepped
+  simp only [next, Model.protocol] at stepped
   simp [Model.Node.step, Option.bind_eq_some_iff] at stepped
   obtain ⟨state, found, next, outputs, ran, rfl⟩ := stepped
   refine ⟨state, next, outputs, found, ?_, by simp [replaceNode]⟩
@@ -166,7 +180,8 @@ private theorem step_deliver
                   nodes := replaceNode before.nodes envelope.target next
                   network := removeOne envelope before.network ++ outputs.outgoing
               } := by
-  simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
+  replace stepped := step_next stepped
+  simp only [next, Model.protocol] at stepped
   simp [Model.Node.step, Option.bind_eq_some_iff, guard] at stepped
   obtain ⟨queued, state, found, next, outputs, ran, rfl⟩ := stepped
   exact ⟨queued, state, next, outputs, found, ran, by simp [replaceNode]⟩
@@ -746,6 +761,15 @@ private theorem trivial' (m : Effect Node Message Notification α)
     : Keeps (fun _ => True) m :=
   fun _ _ _ _ => True.intro
 
+private theorem guard' {c : Prop} [Decidable c]
+    : Keeps (Node := Node) (Message := Message) (Notification := Notification)
+        (fun _ => c) (guard c) := by
+  intro outputs _ after ran
+  by_cases holds : c
+  · exact holds
+  · simp [guard, holds] at ran
+    cases ran
+
 private theorem bind' {Q : α -> Prop} {P : β -> Prop}
     {m : Effect Node Message Notification α} {f : α -> Effect Node Message Notification β}
     (first : Keeps Q m) (rest : forall value, Q value -> Keeps P (f value))
@@ -1110,6 +1134,15 @@ private theorem CommitFrontier.act {state : NodeState}
           exact Keeps.seq' fun _ => Keeps.pure' (frontier.of_log rfl rfl)
   | nominateSuccessor =>
       exact (Keeps.nominateSuccessor caps self state).mono fun _ same => same ▸ frontier
+  | initAsBackup entries =>
+      unfold Model.Node.act Model.Node.initAsBackup
+      refine Keeps.bind' Keeps.guard'
+        fun _ ⟨_, signed⟩ =>
+          Keeps.pure' ⟨by simp [becomeAwareOfNewTerm], fun positive => ?_⟩
+      rcases signed with empty | signature
+      · subst empty
+        simp [becomeAwareOfNewTerm] at positive
+      · simpa [becomeAwareOfNewTerm] using signature
 
 private theorem CommitFrontier.receive {state : NodeState}
     (frontier : CommitFrontier state) (source : NodeID) (message : Message)
@@ -1404,6 +1437,13 @@ private theorem Extends.act (state : NodeState) (input : Input)
   | nominateSuccessor =>
       exact (Keeps.nominateSuccessor caps self state).mono fun _ same =>
         same ▸ Extends.of_log rfl rfl
+  | initAsBackup entries =>
+      unfold Model.Node.act Model.Node.initAsBackup
+      refine Keeps.bind' Keeps.guard' fun _ ⟨⟨_, _, empty, zero⟩, _⟩ => Keeps.pure' ?_
+      exact ⟨
+        by simp [becomeAwareOfNewTerm, zero],
+        by simp [NodeState.committedLog, empty]
+      ⟩
 
 private theorem Extends.receive (state : NodeState) (source : NodeID) (message : Message)
     : Keeps (Extends state) (Model.Node.receive caps self source state message) := by
