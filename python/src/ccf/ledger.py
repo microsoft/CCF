@@ -1361,7 +1361,16 @@ class Ledger:
         self._filenames = []
         self._verification_level = verification_level
 
-        ledger_files: list[str] = []
+        # Chunk name, without committed or recovery suffix, to its path
+        ledger_files: dict[str, str] = {}
+
+        def chunk_rank(path: str) -> int:
+            """Prefer committed copies of a chunk, then complete ones."""
+            if path.endswith(RECOVERY_FILE_SUFFIX):
+                return 0
+            if path.endswith(COMMITTED_FILE_SUFFIX):
+                return 2
+            return 1
 
         def try_add_chunk(path: str) -> None:
             sanitised_path = path
@@ -1382,12 +1391,15 @@ class Ledger:
             if committed_only and not sanitised_path.endswith(COMMITTED_FILE_SUFFIX):
                 return
 
-            # The same ledger file may appear multiple times in different directories
-            # so ignore duplicates
-            if os.path.isfile(path) and not any(
-                os.path.basename(path) in f for f in ledger_files
-            ):
-                ledger_files.append(path)
+            # The same ledger chunk may appear in several directories, and be
+            # committed in some of them before others, so keep a single copy
+            # of each chunk, regardless of the order of paths
+            if not os.path.isfile(path):
+                return
+            name = os.path.basename(sanitised_path).removesuffix(COMMITTED_FILE_SUFFIX)
+            existing = ledger_files.get(name)
+            if existing is None or chunk_rank(path) > chunk_rank(existing):
+                ledger_files[name] = path
 
         for p in paths:
             if os.path.isdir(p):
@@ -1402,7 +1414,7 @@ class Ledger:
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
         filenames = sorted(
-            ledger_files,
+            ledger_files.values(),
             key=lambda x: range_from_filename(x)[0],
         )
 

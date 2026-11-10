@@ -713,3 +713,38 @@ def test_fixture_service_parses(service: str, level: ccf.ledger.VerificationLeve
     for path in glob.glob(os.path.join(TESTDATA_DIR, service, "snapshots", "*")):
         with ccf.ledger.Snapshot(path) as snapshot:
             assert len(snapshot.get_public_domain().get_tables()) > 0
+
+
+def write_complete_chunk(directory: str, name: str, entries: list[bytes]) -> str:
+    """Write a chunk with an offsets table, as the node does on completion."""
+    body = b"".join(entries)
+    positions = []
+    position = ccf.ledger.LEDGER_HEADER_SIZE
+    for e in entries:
+        positions.append(position)
+        position += len(e)
+    table_offset = ccf.ledger.LEDGER_HEADER_SIZE + len(body)
+    path = os.path.join(directory, name)
+    with open(path, "wb") as f:
+        f.write(table_offset.to_bytes(ccf.ledger.LEDGER_HEADER_SIZE, "little"))
+        f.write(body)
+        f.write(b"".join(p.to_bytes(4, "little") for p in positions))
+    return path
+
+
+@pytest.mark.parametrize("committed_first", [True, False])
+def test_chunk_committed_in_one_directory_only(tmp_path, committed_first: bool):
+    entries = [entry(1, {b"a": b"1"})]
+    committed = tmp_path / "committed"
+    uncommitted = tmp_path / "uncommitted"
+    committed.mkdir()
+    uncommitted.mkdir()
+    write_complete_chunk(str(committed), "ledger_1-1.committed", entries)
+    write_complete_chunk(str(uncommitted), "ledger_1-1", entries)
+    paths = [str(committed), str(uncommitted)]
+    if not committed_first:
+        paths.reverse()
+    ledger = ccf.ledger.Ledger(paths, committed_only=False)
+    assert [chunk.filename() for chunk in ledger] == [
+        str(committed / "ledger_1-1.committed")
+    ]
