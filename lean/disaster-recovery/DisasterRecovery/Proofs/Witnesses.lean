@@ -1,6 +1,7 @@
 module
 
 public import DisasterRecovery.Properties.Utils
+public import CCF.Proofs.Execution
 
 import all Init.Control.State
 
@@ -11,7 +12,7 @@ namespace DisasterRecovery.Proofs.Witnesses
 open CCF
 open Model.Local
 
-private lemma exists_recovered (config : Properties.ValidConfig)
+private theorem exists_recovered (config : Properties.ValidConfig)
     : exists node txid, Model.recoveredTxID config node = some txid := by
   cases recovered : config.val.recovered with
   | nil =>
@@ -21,7 +22,7 @@ private lemma exists_recovered (config : Properties.ValidConfig)
       obtain ⟨node, txid⟩ := entry
       exact ⟨node, txid, by simp [Model.recoveredTxID, recovered]⟩
 
-lemma gossip_freezes_after_choice_witness
+theorem gossip_freezes_after_choice_witness
     : forall (config : Properties.ValidConfig),
         exists localStep : Properties.LocalStep,
         exists (source : Location) (txid : TxID),
@@ -40,7 +41,7 @@ lemma gossip_freezes_after_choice_witness
   simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, recovered,
     step, before, rejected, Capabilities.record]
 
-lemma rejected_gossip_stutters_witness
+theorem rejected_gossip_stutters_witness
     : forall (config : Properties.ValidConfig),
         exists localStep : Properties.LocalStep,
         exists (source : Location) (txid : TxID),
@@ -58,7 +59,7 @@ lemma rejected_gossip_stutters_witness
   simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, recovered,
     step, rejected, Capabilities.record]
 
-lemma quorum_advance_opens_witness
+theorem quorum_advance_opens_witness
     : forall (config : Properties.ValidConfig),
         exists localStep : Properties.LocalStep,
           (Model.protocol config).ValidStep localStep
@@ -96,7 +97,7 @@ lemma quorum_advance_opens_witness
     step, advance, before, validTimeout, advanceTimeoutLane, advanceTimeoutState,
     Capabilities.record]
 
-lemma aligned_opening_timeout_completes_witness
+theorem aligned_opening_timeout_completes_witness
     : forall (config : Properties.ValidConfig),
         exists localStep : Properties.LocalStep,
           (Model.protocol config).ValidStep localStep

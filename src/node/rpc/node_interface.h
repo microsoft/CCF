@@ -52,7 +52,6 @@ namespace ccf
         network_identity_subsystem) = 0;
     virtual ccf::kv::Version get_startup_snapshot_seqno() = 0;
     virtual SessionMetrics get_session_metrics() = 0;
-    virtual size_t get_jwt_attempts() = 0;
     virtual ccf::crypto::Pem get_self_signed_certificate() = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
     virtual RecoveryDecisionProtocolSubsystem&

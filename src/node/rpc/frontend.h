@@ -50,10 +50,6 @@ namespace ccf
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
     std::atomic<ccf::kv::TxHistory*> history{nullptr};
 
-    size_t sig_tx_interval = 5000;
-    std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
-    std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
-
     std::shared_ptr<NodeConfigurationInterface> node_configuration_subsystem =
       nullptr;
 
@@ -1139,14 +1135,6 @@ namespace ccf
       endpoints(handlers_),
       node_context(node_context_)
     {}
-
-    void set_sig_intervals(
-      size_t sig_tx_interval_, size_t sig_ms_interval_) override
-    {
-      sig_tx_interval = sig_tx_interval_;
-      sig_ms_interval = std::chrono::milliseconds(sig_ms_interval_);
-      ms_to_sig = sig_ms_interval;
-    }
 
     void set_cmd_forwarder(
       std::shared_ptr<AbstractForwarder> cmd_forwarder_) override

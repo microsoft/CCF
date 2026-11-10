@@ -12,7 +12,7 @@ CCF Documentation
 
         Write application logic against the CCF key-value store in C++, JavaScript/TypeScript or Rust (experimental).
 
-        |cpp| :doc:`C++ <build_apps/example>` \| |ts| :doc:`TypeScript <build_apps/js_app_ts>` \| |rust| :doc:`Rust <build_apps/example_rust>`
+        |cpp| :doc:`C++ <build_apps/example_cpp>` \| |ts| :doc:`TypeScript <build_apps/js_app_ts>` \| |rust| :doc:`Rust <build_apps/example_rust>`
 
     .. grid-item-card:: :fas:`user` :doc:`use_apps/index`
 
