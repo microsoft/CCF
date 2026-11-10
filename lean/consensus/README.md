@@ -16,7 +16,6 @@ It assumes familiarity with the [CCF consensus protocol documentation](../../doc
 | Valid initial memberships              | [`Properties/Config.lean`](Consensus/Properties/Config.lean)                                                                   |
 | Supporting proofs and executions       | [`Proofs/`](Consensus/Proofs)                                                                                                  |
 | Action-trace tests                     | [`Tests/CanonicalTraces.lean`](Consensus/Tests/CanonicalTraces.lean)                                                           |
-| Witness regression checks              | [`Tests/Witnesses.lean`](Consensus/Tests/Witnesses.lean)                                                                       |
 
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
 Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
