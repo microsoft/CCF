@@ -55,7 +55,7 @@ See the [shared trace definitions](../common/README.md#transition-systems) for i
 
 `deadlock_free` proves the [shared deadlock-freedom property](../common/README.md#transition-systems) for every recovery configuration.
 Enabled stutters after completion count, so this does not assert eventual recovery or fairness.
-The corresponding witness supplies a valid singleton recovery configuration.
+The corresponding witness supplies a reachable initial state for every valid recovery configuration.
 
 `quorum_open_preserves_commit` and `full_gossip_preserves_commit` conclude that the opener satisfies the CCF consensus protocol's vote freshness check against a strict majority of the recovered ledgers.
 `LogUpToDate` is that check, comparing view and then sequence number, as in `recv_request_vote` in `src/consensus/aft/cft.h`.

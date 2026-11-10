@@ -9,6 +9,14 @@ namespace DisasterRecovery.Tests.Witnesses
 open Model.Local
 
 example (config : Properties.ValidConfig)
+    : exists (state : Model.State) (action : Model.Action) (nextState : Model.State),
+        (Model.transitionSystem config).Reachable state
+        /\ (Model.transitionSystem config).step state action = some nextState := by
+  obtain ⟨state, reachable⟩ := Properties.deadlock_free_witness config
+  obtain ⟨action, nextState, enabled⟩ := Properties.deadlock_free config state reachable
+  exact ⟨state, action, nextState, reachable, enabled⟩
+
+example (config : Properties.ValidConfig)
     : exists (trace : Properties.GlobalTrace config) (step : Nat) (opener : Location),
         Properties.Trace.NotificationAt config trace step opener (.opening .quorum)
         /\ opener = opener := by

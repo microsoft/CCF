@@ -19,10 +19,11 @@ theorem deadlock_free
     : forall (config : Model.Config), (Model.transitionSystem config).DeadlockFree := by
   exact Proofs.Deadlock.deadlock_free
 
-/-- Witness: a valid recovery configuration has a reachable initial state. -/
+/-- Witness: every valid recovery configuration has a reachable initial state. -/
 lemma deadlock_free_witness
-    : exists (config : Model.Config) (state : Model.State),
-        (Model.transitionSystem config).Reachable state := by
+    : forall (config : ValidConfig),
+        exists (state : Model.State),
+          (Model.transitionSystem config).Reachable state := by
   exact Proofs.Deadlock.deadlock_free_witness
 
 -- Global invariants for all valid traces and corresponding witness
