@@ -221,6 +221,11 @@ namespace ccf
               latest_peer_snapshot->snapshot_name,
               e.what());
 
+            // The peer's latest snapshot is unusable and fetching it again
+            // would not change that, so later join requests are judged
+            // against the peer's startup seqno instead
+            std::lock_guard<ds::Mutex> guard(owner->lock);
+            owner->join_fetch_count += 1;
             return;
           }
 
@@ -625,25 +630,6 @@ namespace ccf
         *startup_inputs.previous_service_identity);
       verify_snapshot_seqno(
         segments, network.tables->get_encryptor(), snapshot_seqno);
-
-      if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
-      {
-        try
-        {
-          verify_snapshot(segments, target_identity.raw());
-          LOG_INFO_FMT(
-            "Recovery snapshot at {} is directly signed by the configured "
-            "previous service identity",
-            snapshot_seqno);
-          return;
-        }
-        catch (const std::exception& e)
-        {
-          throw std::logic_error(fmt::format(
-            "old-style snapshot receipt cannot use an endorsement chain: {}",
-            e.what()));
-        }
-      }
 
       const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
 

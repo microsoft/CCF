@@ -49,6 +49,11 @@ from cryptography.hazmat.backends import default_backend
 from infra import snp
 from loguru import logger as LOG
 
+# Snapshots written by releases before 7.0 carry JSON receipts, which
+# ccf.ledger.Snapshot rejects. These remain in testdata for the recovery and
+# LTS compatibility tests, which replay the ledger of those services.
+LEGACY_RECEIPT_SNAPSHOT_SERVICES = {"eol_service", "expired_service", "sgx_service"}
+
 
 @reqs.description("Move committed ledger files to read-only directory")
 def test_save_committed_ledger_files(network, args):
@@ -850,6 +855,22 @@ def test_nulled_snapshot(network, args):
             raise AssertionError("Expected corrupt snapshot to be skipped in node logs")
 
 
+def snapshot_with_json_receipt():
+    """
+    Snapshot bytes which pass separate_segments() (valid header with non-zero
+    body size and non-empty receipt area) but fail verify_snapshot() because
+    the receipt is a JSON receipt, as written by releases before 7.0, and only
+    COSE receipts are accepted.
+    """
+    # SerialisedEntryHeader is 8 bytes: version(1) + flags(1) + size(48-bit LE)
+    body_size = 16
+    header = bytes([1, 0]) + body_size.to_bytes(6, "little")
+    assert len(header) == 8
+    body = b"\x00" * body_size
+    receipt = b'{"signature": "", "proof": [], "leaf_components": {}}'
+    return header + body + receipt
+
+
 def test_corrupt_snapshot_handling(network, args):
     """
     Test that corrupt snapshots in writable and read-only directories are
@@ -861,16 +882,7 @@ def test_corrupt_snapshot_handling(network, args):
       about failure to mark the snapshot as ignored is emitted.
     """
 
-    # Craft corrupt snapshot data that passes separate_segments() (valid header
-    # with non-zero body size and non-empty receipt area) but fails
-    # verify_snapshot() because the receipt is not valid JSON.
-    # SerialisedEntryHeader is 8 bytes: version(1) + flags(1) + size(48-bit LE)
-    body_size = 16
-    header = bytes([1, 0]) + body_size.to_bytes(6, "little")
-    assert len(header) == 8
-    body = b"\x00" * body_size
-    receipt = b"this is not valid json!!"
-    corrupt_data = header + body + receipt
+    corrupt_data = snapshot_with_json_receipt()
 
     # Use the newest snapshot for the writable dir so it is tried first
     # (snapshots are iterated in descending seqno order).
@@ -1033,6 +1045,43 @@ def test_corrupt_snapshot_handling(network, args):
         assert new_node2.check_log_for_error_message(
             "Unable to mark snapshot as ignored"
         ), "Expected 'Unable to mark snapshot as ignored' in node logs"
+
+    return network
+
+
+def test_join_fetching_legacy_snapshot(network, args):
+    """
+    The primary's newest committed snapshot carries a JSON receipt, as written
+    by releases before 7.0. A joiner is told to fetch it, cannot verify it, and
+    is then admitted to join by replaying the ledger instead.
+    """
+    primary, _ = network.find_primary()
+    primary_snapshots_dir = os.path.join(
+        primary.remote.remote.root, primary.remote.snapshots_dir_name
+    )
+    latest_seqno, _ = ccf.ledger.snapshot_index_from_filename(
+        find_latest_committed_snapshot_name(network)
+    )
+    # Named after a seqno beyond the primary's newest snapshot, so that it is
+    # the snapshot joiners are asked to fetch
+    legacy_snapshot_name = (
+        f"snapshot_{latest_seqno + 1000}_{latest_seqno + 1001}.committed"
+    )
+    legacy_snapshot_path = os.path.join(primary_snapshots_dir, legacy_snapshot_name)
+    with open(legacy_snapshot_path, "wb") as f:
+        f.write(snapshot_with_json_receipt())
+
+    try:
+        LOG.info("Join a node, which fetches and rejects the legacy snapshot")
+        new_node = network.create_node()
+        network.join_node(new_node, args.package, args, from_snapshot=False)
+        new_node.stop()
+
+        assert new_node.check_log_for_error_message(
+            f"Error while verifying fetched snapshot {legacy_snapshot_name}"
+        ), f"Expected {legacy_snapshot_name} to be fetched and rejected in node logs"
+    finally:
+        os.remove(legacy_snapshot_path)
 
     return network
 
@@ -1970,6 +2019,7 @@ def run_file_operations(args):
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
                 test_corrupt_snapshot_handling(network, args)
+                test_join_fetching_legacy_snapshot(network, args)
 
                 # Ensure that the network is still live
                 primary, _ = network.find_primary()
@@ -3711,8 +3761,22 @@ def run_read_ledger_on_testdata(args):
         )
         for snapshot_file in os.scandir(snapshot_path):
             if snapshot_file.is_file() and snapshot_file.name.endswith(".committed"):
-                snapshot_path = os.path.join(snapshot_path, snapshot_file.name)
-                LOG.info(f"Reading and validating snapshot {snapshot_path}")
+                if testdata_dir.name in LEGACY_RECEIPT_SNAPSHOT_SERVICES:
+                    LOG.info(
+                        f"Checking legacy snapshot {snapshot_file.path} is rejected"
+                    )
+                    try:
+                        ccf.ledger.Snapshot(snapshot_file.path)
+                    except ccf.ledger.InvalidSnapshotException as e:
+                        assert "expected a COSE_Sign1 receipt" in str(e), e
+                        LOG.info(f"Legacy snapshot rejected: {e}")
+                    else:
+                        raise AssertionError(
+                            f"Legacy snapshot {snapshot_file.path} was accepted"
+                        )
+                    continue
+
+                LOG.info(f"Reading and validating snapshot {snapshot_file.path}")
                 with ccf.ledger.Snapshot(snapshot_file.path) as snapshot:
                     tables = snapshot.get_public_domain().get_tables()
                     LOG.info(

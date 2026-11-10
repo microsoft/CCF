@@ -3,7 +3,11 @@
 
 #include "node/snapshotter.h"
 
+#include "ccf/ds/x509_time_fmt.h"
+#include "crypto/certs.h"
+#include "crypto/cose.h"
 #include "crypto/openssl/hash.h"
+#include "crypto/public_key.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
 #include "kv/null_encryptor.h"
@@ -1508,6 +1512,109 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
         hooks,
         &view_history) == ccf::kv::ApplyResult::PASS);
   }
+}
+
+TEST_CASE("Snapshot receipt")
+{
+  ccf::logger::config::default_init();
+
+  using namespace std::literals;
+  const auto valid_from =
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  const auto valid_to =
+    ccf::crypto::compute_cert_valid_to_string(valid_from, 365);
+  auto service_kp = ccf::crypto::make_ec_key_pair();
+  const auto service_cert =
+    service_kp->self_sign("CN=Snapshot service", valid_from, valid_to);
+
+  // verify_snapshot() checks the snapshot body against the claims digest of
+  // the receipt leaf without deserialising it, so any bytes serve here
+  const std::vector<uint8_t> snapshot_body(64, 0x42);
+  const auto claims_digest =
+    ccf::crypto::Sha256Hash(snapshot_body.data(), snapshot_body.size());
+  const ccf::crypto::Sha256Hash write_set_digest(
+    std::string("snapshot evidence write set"));
+  const std::string commit_evidence = "ce:2.6:0123456789abcdef";
+
+  // A signed tree whose leaf at evidence_seqno is the snapshot evidence
+  // transaction
+  constexpr ccf::kv::Version evidence_seqno = 6;
+  ccf::MerkleTreeHistory tree;
+  for (ccf::kv::Version seqno = 1; seqno <= evidence_seqno + 2; ++seqno)
+  {
+    if (seqno == evidence_seqno)
+    {
+      tree.append(ccf::crypto::Sha256Hash(
+        write_set_digest,
+        ccf::crypto::Sha256Hash(commit_evidence),
+        claims_digest));
+    }
+    else
+    {
+      tree.append(ccf::crypto::Sha256Hash(fmt::format("tx {}", seqno)));
+    }
+  }
+  const auto root = tree.get_root();
+  const std::vector<uint8_t> root_bytes(root.h.begin(), root.h.end());
+  ccf::CoseSignatureMap cose_sigs;
+  cose_sigs[ccf::IdentityType::CLASSICAL] = ccf::cose::sign_ledger(
+    *service_kp,
+    ccf::crypto::kid_from_key(service_kp->public_key_der()),
+    0,
+    "issuer",
+    "subject",
+    ccf::TxID{2, tree.end_index() + 1}.to_str(),
+    root_bytes);
+
+  INFO("The receipt carries the signature and the proof of the evidence");
+  const auto receipt = ccf::build_and_serialise_receipt(
+    cose_sigs,
+    ccf::IdentityType::CLASSICAL,
+    tree.serialise(),
+    evidence_seqno,
+    write_set_digest,
+    commit_evidence,
+    claims_digest);
+  const auto decoded = ccf::cose::decode_ccf_receipt(receipt, true);
+  REQUIRE(decoded.merkle_root == root_bytes);
+  REQUIRE(
+    decoded.claims_digest ==
+    std::vector<uint8_t>(claims_digest.h.begin(), claims_digest.h.end()));
+
+  INFO("The receipt verifies under the signing service identity");
+  const ccf::SnapshotSegments segments{snapshot_body, receipt};
+  REQUIRE_NOTHROW(ccf::verify_snapshot(segments));
+  REQUIRE_NOTHROW(ccf::verify_snapshot(segments, service_cert.raw()));
+
+  INFO("The receipt is rejected under another service identity");
+  const auto other_cert = ccf::crypto::make_ec_key_pair()->self_sign(
+    "CN=Other service", valid_from, valid_to);
+  REQUIRE_THROWS(ccf::verify_snapshot(segments, other_cert.raw()));
+
+  INFO("The receipt is rejected for another snapshot body");
+  auto other_body = snapshot_body;
+  other_body.front() ^= 1;
+  REQUIRE_THROWS(
+    ccf::verify_snapshot(ccf::SnapshotSegments{other_body, receipt}));
+
+  INFO("Only COSE receipts are accepted");
+  const std::string json_receipt = R"({"signature":"","proof":[]})";
+  const std::span<const uint8_t> json_receipt_bytes(
+    reinterpret_cast<const uint8_t*>(json_receipt.data()), json_receipt.size());
+  REQUIRE_THROWS(ccf::verify_snapshot(
+    ccf::SnapshotSegments{snapshot_body, json_receipt_bytes}));
+  REQUIRE_THROWS(
+    ccf::verify_snapshot(ccf::SnapshotSegments{snapshot_body, {}}));
+
+  INFO("The receipt requires a signature of the requested identity type");
+  REQUIRE_THROWS(ccf::build_and_serialise_receipt(
+    cose_sigs,
+    ccf::IdentityType::PQ,
+    tree.serialise(),
+    evidence_seqno,
+    write_set_digest,
+    commit_evidence,
+    claims_digest));
 }
 
 int main(int argc, char** argv)

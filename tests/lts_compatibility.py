@@ -848,7 +848,11 @@ def run_ledger_compatibility_since_first(
                 ccf.ledger.Ledger(
                     committed_ledger_dirs, contiguous_suffix=True
                 ).get_latest_public_state()
-                if snapshots_dir:
+                # Snapshots written before 7.0 carry JSON receipts, which
+                # ccf.ledger.Snapshot rejects
+                if snapshots_dir and not infra.node.CCFVersion(
+                    version
+                ) < infra.node.CCFVersion("ccf-7.0.0"):
                     for s in os.listdir(snapshots_dir):
                         with ccf.ledger.Snapshot(
                             os.path.join(snapshots_dir, s)

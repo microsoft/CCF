@@ -261,6 +261,7 @@ The legacy behaviour without ``fetch_recent_snapshot`` relies on a shared read-o
     Use ``command.join.fetch_recent_snapshot`` (enabled by default) to have joining nodes fetch a recent snapshot from the service, and ``snapshots.backup_fetch.enabled`` to have backup nodes keep a copy of recent snapshots in their own ``snapshots.directory`` (see :ref:`operations/ledger_snapshot:Backup Snapshot Fetching`).
 
 In particular, there is a hard lower bound on the age of the snapshot that a joining node can start from. It must be at least as recent as the snapshot that the primary node started from, otherwise the primary will return a ``StartupSeqnoIsOld`` error to the joining node.
+A fetched snapshot which fails validation is discarded, and the later join requests of that node are held to this lower bound only, so that it joins by replaying the ledger when the service cannot provide a usable snapshot.
 
 The following flowchart summarises the join procedure when ``command.join.fetch_recent_snapshot`` is enabled:
 
@@ -290,6 +291,7 @@ The following flowchart summarises the join procedure when ``command.join.fetch_
         fetch.response{"Response type?"}
         fetch.send("{peer_address} GET /snapshot?since={startup_seqno}")
         fetch.fetch("{peer_address} GET /snapshot/{snapshot_name}")
+        fetch.verify{"Validate snapshot"}
     
         recovery.process("Complete recovery")
         recovery.public("Deserialise snapshot public state")
@@ -325,11 +327,13 @@ The following flowchart summarises the join procedure when ``command.join.fetch_
                 fetch.begin --> fetch.send
                 fetch.send -->|Response received| fetch.response
                 fetch.response -->|2xx Success| fetch.fetch
-                fetch.fetch --> fetch.apply
+                fetch.fetch --> fetch.verify
+                fetch.verify -->|Valid| fetch.apply
                 fetch.response -->|30x Redirect| fetch.redirect
                 fetch.redirect --> fetch.send
             end
             fetch.apply --> join.timeout
+            fetch.verify -->|Invalid| join.timeout
             fetch.send -.-> join.timeout
             fetch.response -->|Other error| join.timeout
     

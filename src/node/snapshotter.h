@@ -352,11 +352,12 @@ namespace ccf
     {
       auto serialised_receipt = build_and_serialise_receipt(
         cose_sigs,
+        IdentityType::CLASSICAL,
         tree,
         evidence_idx,
         serialised->write_set_digest,
         serialised->commit_evidence,
-        std::move(serialised->snapshot_digest));
+        serialised->snapshot_digest);
 
       // The snapshot bytes and receipt are written out to a single snapshot
       // file. This runs on a task thread (see PersistSnapshotAction).

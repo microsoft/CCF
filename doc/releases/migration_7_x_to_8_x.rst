@@ -41,6 +41,16 @@ Removal of the entire ``memory`` section is planned for 8.0. Migrate to the new 
 This increases the effective read budget by 2048 bytes compared with previous releases at the same configured size.
 ``ledger.max_transaction_size`` must not exceed this budget. The independent node-to-node limit includes message headers but excludes the 4-byte length prefix.
 
+Snapshot Receipts
+-----------------
+
+Snapshots carry a COSE receipt of their evidence transaction since 7.0, and 8.x nodes accept only those receipts.
+Snapshots written by 6.x and earlier releases carry a JSON receipt, which 8.x nodes reject like any snapshot that fails verification (see :ref:`operations/ledger_snapshot:Join or Recover From Snapshot`): a joining node marks the file as ignored in its ``snapshots.directory`` and moves on to an older snapshot or fetches one from the service, and a recovering node moves on to an older snapshot or to the ledger.
+A service whose newest snapshot predates 7.0 therefore recovers from its ledger on 8.x.
+An 8.x node joining a service whose newest snapshot predates 7.0 fetches and rejects that snapshot, then asks to join from the sequence number its target node started from and replays the ledger from there.
+Create a snapshot on the service beforehand (:http:POST:`/node/snapshot:create`) so that new nodes join from a snapshot.
+``ccf.ledger.Snapshot`` and ``read_ledger.py --snapshot`` in the 8.x Python package reject these snapshots as well.
+
 ML-DSA Service Identity
 -----------------------
 

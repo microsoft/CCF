@@ -22,6 +22,9 @@ import pytest
 
 TABLE = "public:test"
 TESTDATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests", "testdata")
+# Snapshots written by releases before 7.0 carry JSON receipts, which
+# ccf.ledger.Snapshot rejects
+LEGACY_RECEIPT_SNAPSHOT_SERVICES = {"eol_service", "expired_service", "sgx_service"}
 
 
 def length_prefixed(data: bytes) -> bytes:
@@ -711,6 +714,13 @@ def test_fixture_service_parses(service: str, level: ccf.ledger.VerificationLeve
     )
 
     for path in glob.glob(os.path.join(TESTDATA_DIR, service, "snapshots", "*")):
+        if service in LEGACY_RECEIPT_SNAPSHOT_SERVICES:
+            with pytest.raises(
+                ccf.ledger.InvalidSnapshotException,
+                match="expected a COSE_Sign1 receipt",
+            ):
+                ccf.ledger.Snapshot(path)
+            continue
         with ccf.ledger.Snapshot(path) as snapshot:
             assert len(snapshot.get_public_domain().get_tables()) > 0
 
@@ -1023,7 +1033,7 @@ class TestSnapshotFileName:
             tmp_path / "x.committed", "snapshot_1_2.committed", b"bad receipt"
         )
         with pytest.raises(
-            ccf.ledger.InvalidSnapshotException, match="unrecognised format"
+            ccf.ledger.InvalidSnapshotException, match="expected a COSE_Sign1 receipt"
         ):
             ccf.ledger.Snapshot(path)
 
