@@ -197,11 +197,6 @@ namespace ccf::http_client
       return *this;
     }
 
-    [[nodiscard]] CURLM* release()
-    {
-      return p.release();
-    }
-
     operator CURLM*() const
     {
       return p.get();

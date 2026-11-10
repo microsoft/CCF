@@ -28,7 +28,6 @@
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "service/tables/config.h"
-#include "service/tables/endpoints.h"
 
 #include <charconv>
 #include <exception>
