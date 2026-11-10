@@ -457,6 +457,37 @@ def config_inited(app, config):
             app.add_role(f"typedoc-{kind}", typedoc_role)
 
 
+VERSION_SUBSTITUTIONS = {}
+
+
+def read_ccf_version(root_dir: pathlib.Path):
+    # Read the CCF release version of the documented sources from the Python
+    # SDK version, which is bumped with each release. This is read relative to
+    # the source directory so that each sphinx-multiversion build uses the
+    # version of its own branch.
+    pyproject_path = root_dir / "python" / "pyproject.toml"
+    if pyproject_path.is_file():
+        match = re.search(
+            r'^version\s*=\s*"([^"]+)"', pyproject_path.read_text(), re.MULTILINE
+        )
+        if match:
+            return match.group(1)
+    return None
+
+
+def make_version_substitutions(ccf_version: str):
+    return {
+        "|ccf_version|": ccf_version,
+        "|ccf_major_version|": ccf_version.split(".")[0],
+    }
+
+
+def substitute_versions(app, docname, source):
+    # Unlike rst_prolog substitutions, this also applies inside code blocks.
+    for token, value in VERSION_SUBSTITUTIONS.items():
+        source[0] = source[0].replace(token, value)
+
+
 def setup(app):
     if not os.environ.get("SKIP_JS"):
         app.connect("config-inited", config_inited)
@@ -469,6 +500,15 @@ def setup(app):
     # import ccf python package to generate docs for this version
     python_path = os.path.abspath(doc_dir / "../python")
     sys.path.insert(0, python_path)
+
+    # |ccf_version| and |ccf_major_version| tokens in documentation sources
+    ccf_version = read_ccf_version(root_dir)
+    if ccf_version is None:
+        raise RuntimeError(
+            f"Could not read CCF version from {root_dir / 'python' / 'pyproject.toml'}"
+        )
+    VERSION_SUBSTITUTIONS.update(make_version_substitutions(ccf_version))
+    app.connect("source-read", substitute_versions)
 
     # doxygen
     breathe_projects["CCF"] = str(doc_dir / breathe_projects["CCF"])

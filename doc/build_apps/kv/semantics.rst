@@ -3,6 +3,7 @@ KV Implementation Model
 
 The Lean project in ``lean/kv`` gives an executable model of KV observations and a checker for traces from the C++ KV unit tests.
 It complements the :doc:`kv_how_to` and :doc:`api`: it makes the observed implementation semantics, their assumptions, and differences from documentation explicit.
+See :doc:`/architecture/verification` for an overview of CCF's other Lean models and how traces are validated in CI.
 
 The model covers one node, with arbitrarily many finite maps, keys, values, and transaction attempts.
 Transactions may span several maps.

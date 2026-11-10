@@ -90,7 +90,7 @@ Support calendar
      - End of Support Date
    * - 6.0
      - March 28, 2025
-     - August 21, 2026
+     - August 21, 2026 (ended, no longer supported)
    * - 7.0
      - April 21, 2026
      - TBD

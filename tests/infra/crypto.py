@@ -522,7 +522,7 @@ def create_signed_statement(
         1: -7,  # alg: ES256
         3: "application/octet-stream",  # content_type
         33: [leaf_der, ca_der],  # x5chain
-        15: cwt_claims,
+        int(cwt.COSEHeaders.CWT_CLAIMS): cwt_claims,
     }
 
     leaf_key_pem = leaf_key.private_bytes(

@@ -7,7 +7,6 @@
 #include "uv/proxy.h"
 
 #include <functional>
-#include <iostream>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
@@ -76,7 +75,7 @@ namespace asynchost
         if (!fatal_error.has_value())
         {
           fatal_error = message;
-          std::cerr << message << std::endl << std::flush;
+          ccf::logger::write_fatal_diagnostic(message);
         }
       }
 

@@ -7,10 +7,10 @@ CCF releases are available on the `GitHub repository release page <https://githu
 
 .. code-block:: bash
 
-    # Set CCF_VERSION to the latest stable release
+    # Set CCF_VERSION to the latest release
     $ export CCF_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
     # Alternatively, set this manually, e.g.:
-    # export CCF_VERSION=7.0.0
+    # export CCF_VERSION=|ccf_version|
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_devel_${CCF_VERSION}_x86_64.rpm
     $ sudo tdnf install ./ccf_devel_${CCF_VERSION}_x86_64.rpm
 

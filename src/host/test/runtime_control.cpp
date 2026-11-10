@@ -9,6 +9,32 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <csignal>
 #include <doctest/doctest.h>
+#include <iostream>
+#include <sstream>
+
+namespace
+{
+  class ScopedCerrCapture
+  {
+    std::ostringstream captured;
+    std::streambuf* previous = std::cerr.rdbuf(captured.rdbuf());
+
+  public:
+    ScopedCerrCapture() = default;
+    ScopedCerrCapture(const ScopedCerrCapture&) = delete;
+    ScopedCerrCapture& operator=(const ScopedCerrCapture&) = delete;
+
+    ~ScopedCerrCapture()
+    {
+      std::cerr.rdbuf(previous);
+    }
+
+    std::string str() const
+    {
+      return captured.str();
+    }
+  };
+}
 
 TEST_CASE("Runtime control" * doctest::test_suite("runtime_control"))
 {
@@ -22,24 +48,30 @@ TEST_CASE("Runtime control" * doctest::test_suite("runtime_control"))
 
     SUBCASE("`request_restart()` requests enclave shutdown")
     {
+      const ScopedCerrCapture stderr_output;
       runtime_control->request_restart();
       REQUIRE(enclave_stop_request_count == 1);
       REQUIRE_NOTHROW(runtime_control->throw_if_fatal_error());
+      CHECK(stderr_output.str().empty());
     }
 
     SUBCASE("`report_stopped()` stops the host loop")
     {
+      const ScopedCerrCapture stderr_output;
       runtime_control->report_stopped();
       uv_run(uv_default_loop(), UV_RUN_NOWAIT);
       REQUIRE(enclave_stop_request_count == 0);
       REQUIRE_NOTHROW(runtime_control->throw_if_fatal_error());
+      CHECK(stderr_output.str().empty());
     }
 
     SUBCASE(
       "`report_fatal_error()` requests enclave shutdown and preserves the "
       "error")
     {
+      const ScopedCerrCapture stderr_output;
       runtime_control->report_fatal_error("join failed");
+      CHECK(stderr_output.str() == "Fatal error: join failed\n");
       runtime_control->report_stopped();
       uv_run(uv_default_loop(), UV_RUN_NOWAIT);
       REQUIRE(enclave_stop_request_count == 1);

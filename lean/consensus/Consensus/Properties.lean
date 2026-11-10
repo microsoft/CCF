@@ -24,10 +24,8 @@ open Model.Node
 
 /-- Every reachable consensus state has an enabled action. -/
 theorem deadlock_free
-    : forall (config : Finset NodeID) (nodes : List NodeID) (state : Model.State),
-        (Model.transitionSystem config nodes).Reachable state
-        -> exists action nextState,
-            (Model.transitionSystem config nodes).step state action = some nextState := by
+    : forall (config : Finset NodeID) (nodes : List NodeID),
+        (Model.transitionSystem config nodes).DeadlockFree := by
   exact Proofs.Deadlock.deadlock_free
 
 /-- Witness: a singleton consensus network has a reachable initial state. -/
