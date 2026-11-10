@@ -34,6 +34,7 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | `python-types-checks.sh` | Python SDK, tutorial, and SDK tests under `python/` | Pyright | No |
 | `prettier-checks.sh` | TS, JS, Markdown, YAML, JSON (excluding `.github/**/*.md` and `tests/sandbox/`) | prettier | `-f` |
 | `doc-newline-checks.sh` | Markdown and RST prose | Mid-sentence newline policy | `-f` |
+| `builtin-maps-checks.sh` | Built-in map names in `include/` or `src/`, and `doc/audit/builtin_maps.rst` | Every `public:ccf.gov.*` and `public:ccf.internal.*` map is documented | No |
 | `cmake-format-checks.sh` | CMake files | gersemi | `-f` |
 | `release-notes-checks.sh` | `CHANGELOG.md` (also run prettier) | extract-release-notes.py | `-f` |
 | `shellcheck-checks.sh` | Shell scripts outside `3rdparty/` | shellcheck | No |

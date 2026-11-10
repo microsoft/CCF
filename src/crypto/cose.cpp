@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/ecdsa.h"
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "crypto/cbor_tags.h"
 #include "crypto/cose.h"
 
@@ -50,25 +51,77 @@ namespace ccf::cose
 
   namespace
   {
+    std::vector<uint8_t> non_empty(std::vector<uint8_t> signature)
+    {
+      if (signature.empty())
+      {
+        throw std::runtime_error("COSE signing returned an empty signature");
+      }
+      return signature;
+    }
+
+    // Signers take the Sig_structure and return the COSE-encoded signature.
+    auto ecdsa_signer(const crypto::ECKeyPair& key, crypto::MDType md)
+    {
+      return [&key, md](std::span<const uint8_t> tbs) {
+        return crypto::ecdsa_sig_der_to_p1363(
+          non_empty(key.sign(tbs, md)), key.get_curve_id());
+      };
+    }
+
+    auto mldsa_signer(const crypto::MLDSAKeyPair& key)
+    {
+      return [&key](std::span<const uint8_t> tbs) {
+        return non_empty(key.sign(tbs));
+      };
+    }
+
+    template <typename Signer>
     std::vector<uint8_t> sign1(
-      const crypto::ECKeyPair& key,
-      crypto::MDType md,
+      const Signer& sign,
       const tav::cbor::Value& protected_header,
       std::span<const uint8_t> payload,
       bool detached)
     {
       const auto protected_bytes = protected_header.det_serialize();
-      const auto tbs = make_cose_sign1_tbs(protected_bytes, payload);
-      const auto der_signature = key.sign(tbs, md);
-      if (der_signature.empty())
-      {
-        throw std::runtime_error("COSE signing returned an empty signature");
-      }
       const auto signature =
-        crypto::ecdsa_sig_der_to_p1363(der_signature, key.get_curve_id());
-
+        sign(make_cose_sign1_tbs(protected_bytes, payload));
       return make_cose_sign1_envelope(
         protected_bytes, payload, signature, detached);
+    }
+
+    tav::cbor::Value ledger_protected_header(
+      int64_t alg,
+      std::string_view kid,
+      int64_t iat,
+      std::string_view issuer,
+      std::string_view subject,
+      std::string_view txid)
+    {
+      using namespace tav::cbor;
+      std::vector<MapItem> cwt_entries;
+      cwt_entries.emplace_back(
+        make_signed(cwt::header::iana::IAT), make_signed(iat));
+      cwt_entries.emplace_back(
+        make_signed(cwt::header::iana::ISS), make_string(issuer));
+      cwt_entries.emplace_back(
+        make_signed(cwt::header::iana::SUB), make_string(subject));
+      std::vector<MapItem> ccf_entries;
+      ccf_entries.emplace_back(
+        make_string(header::custom::TX_ID), make_string(txid));
+      std::vector<MapItem> phdr;
+      phdr.emplace_back(make_signed(header::iana::ALG), make_signed(alg));
+      phdr.emplace_back(
+        make_signed(header::iana::KID),
+        make_bytes({reinterpret_cast<const uint8_t*>(kid.data()), kid.size()}));
+      phdr.emplace_back(
+        make_signed(header::iana::VDS), make_signed(value::CCF_LEDGER_SHA256));
+      phdr.emplace_back(
+        make_signed(header::iana::CWT_CLAIMS),
+        make_map(std::move(cwt_entries)));
+      phdr.emplace_back(
+        make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
+      return make_map(std::move(phdr));
     }
   }
 
@@ -98,6 +151,53 @@ namespace ccf::cose
     }
   }
 
+  int64_t algorithm_for_parameter_set(crypto::MLDSAParameterSet parameter_set)
+  {
+    switch (parameter_set)
+    {
+      case crypto::MLDSAParameterSet::ML_DSA_44:
+      {
+        return alg::ML_DSA_44;
+      }
+      case crypto::MLDSAParameterSet::ML_DSA_65:
+      {
+        return alg::ML_DSA_65;
+      }
+      case crypto::MLDSAParameterSet::ML_DSA_87:
+      {
+        return alg::ML_DSA_87;
+      }
+      default:
+      {
+        throw std::runtime_error("Unsupported COSE ML-DSA parameter set");
+      }
+    }
+  }
+
+  std::optional<crypto::MLDSAParameterSet> parameter_set_for_algorithm(
+    int64_t alg)
+  {
+    switch (alg)
+    {
+      case alg::ML_DSA_44:
+      {
+        return crypto::MLDSAParameterSet::ML_DSA_44;
+      }
+      case alg::ML_DSA_65:
+      {
+        return crypto::MLDSAParameterSet::ML_DSA_65;
+      }
+      case alg::ML_DSA_87:
+      {
+        return crypto::MLDSAParameterSet::ML_DSA_87;
+      }
+      default:
+      {
+        return std::nullopt;
+      }
+    }
+  }
+
   std::vector<uint8_t> sign_ledger(
     const crypto::ECKeyPair& key,
     std::string_view kid,
@@ -107,31 +207,29 @@ namespace ccf::cose
     std::string_view txid,
     std::span<const uint8_t> payload)
   {
-    using namespace tav::cbor;
     const auto algorithm = algorithm_for_curve(key.get_curve_id());
-    std::vector<MapItem> cwt_entries;
-    cwt_entries.emplace_back(
-      make_signed(cwt::header::iana::IAT), make_signed(iat));
-    cwt_entries.emplace_back(
-      make_signed(cwt::header::iana::ISS), make_string(issuer));
-    cwt_entries.emplace_back(
-      make_signed(cwt::header::iana::SUB), make_string(subject));
-    std::vector<MapItem> ccf_entries;
-    ccf_entries.emplace_back(
-      make_string(header::custom::TX_ID), make_string(txid));
-    std::vector<MapItem> phdr;
-    phdr.emplace_back(
-      make_signed(header::iana::ALG), make_signed(algorithm.alg));
-    phdr.emplace_back(
-      make_signed(header::iana::KID),
-      make_bytes({reinterpret_cast<const uint8_t*>(kid.data()), kid.size()}));
-    phdr.emplace_back(
-      make_signed(header::iana::VDS), make_signed(value::CCF_LEDGER_SHA256));
-    phdr.emplace_back(
-      make_signed(header::iana::CWT_CLAIMS), make_map(std::move(cwt_entries)));
-    phdr.emplace_back(
-      make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
-    return sign1(key, algorithm.md, make_map(std::move(phdr)), payload, true);
+    return sign1(
+      ecdsa_signer(key, algorithm.md),
+      ledger_protected_header(algorithm.alg, kid, iat, issuer, subject, txid),
+      payload,
+      true);
+  }
+
+  std::vector<uint8_t> sign_ledger(
+    const crypto::MLDSAKeyPair& key,
+    std::string_view kid,
+    int64_t iat,
+    std::string_view issuer,
+    std::string_view subject,
+    std::string_view txid,
+    std::span<const uint8_t> payload)
+  {
+    const auto alg = algorithm_for_parameter_set(key.get_parameter_set());
+    return sign1(
+      mldsa_signer(key),
+      ledger_protected_header(alg, kid, iat, issuer, subject, txid),
+      payload,
+      true);
   }
 
   std::vector<uint8_t> sign_endorsement(
@@ -168,7 +266,11 @@ namespace ccf::cose
       make_signed(header::iana::CWT_CLAIMS), make_map(std::move(cwt_entries)));
     phdr.emplace_back(
       make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
-    return sign1(key, algorithm.md, make_map(std::move(phdr)), payload, false);
+    return sign1(
+      ecdsa_signer(key, algorithm.md),
+      make_map(std::move(phdr)),
+      payload,
+      false);
   }
 }
 

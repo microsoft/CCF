@@ -53,6 +53,10 @@ See the [shared trace definitions](../common/README.md#transition-systems) for i
 
 `quorum_opener_unique` states that all `opening quorum` notifications in a trace originate from one node.
 
+`deadlock_free` proves the [shared deadlock-freedom property](../common/README.md#transition-systems) for every recovery configuration.
+Enabled stutters after completion count, so this does not assert eventual recovery or fairness.
+The corresponding witness supplies a valid singleton recovery configuration.
+
 `quorum_open_preserves_commit` and `full_gossip_preserves_commit` conclude that the opener satisfies the CCF consensus protocol's vote freshness check against a strict majority of the recovered ledgers.
 `LogUpToDate` is that check, comparing view and then sequence number, as in `recv_request_vote` in `src/consensus/aft/cft.h`.
 The first property requires each voter to have received its own gossip; without this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by quorum.
@@ -65,7 +69,7 @@ The full-gossip witness includes a failover opening.
 Freshness is a necessary condition for election, not a definition of commitment in CCF.
 `update_commit` additionally requires a current-term signature replicated on a majority, and the [consensus safety properties](../consensus/Consensus/Properties.lean) are stated on committed log prefixes.
 The model stores only the last signed TxID of each ledger, so this package does not prove committed-prefix preservation.
-Liveness properties are out of scope.
+Eventual-progress and fairness properties are out of scope.
 
 ## Trace validation
 

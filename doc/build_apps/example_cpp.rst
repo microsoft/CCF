@@ -215,10 +215,10 @@ When this historical query comes in, rather than fetching every transaction - to
 If the response format is known, the index could even pre-construct the response itself.
 
 In CCF, this is achieved by implementing an indexing :cpp:type:`ccf::indexing::Strategy`.
-This is constructed on each node, in-enclave, by processing every committed transaction in-order in the implementation of :cpp:func:`ccf::indexing::Strategy::handle_committed_transaction`.
+This is constructed on each node, inside its TEE, by processing every committed transaction in-order in the implementation of :cpp:func:`ccf::indexing::Strategy::handle_committed_transaction`.
 The strategy can then return its aggregated results to the calling endpoint in whatever format is appropriate.
 A :cpp:type:`ccf::indexing::Strategy` may offload partial results to disk to avoid infinite memory growth, via the automatically encrypted LFS (Large File Storage) system.
-Since the indexing system and all the strategies it manages exist entirely within the enclave, this has the same trust guarantees as any other in-enclave code - users can trust that the results are accurate and complete, and the query may process private data.
+Since the indexing system and all the strategies it manages run entirely inside the node's TEE, this has the same trust guarantees as any other code running in the node - users can trust that the results are accurate and complete, and the query may process private data.
 
 An example :cpp:type:`ccf::indexing::Strategy` is included in the logging app, to accelerate historical range queries.
 This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` records writes to keys in public tables and offloads completed non-empty buckets to authenticated disk storage.

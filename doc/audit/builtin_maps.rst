@@ -229,6 +229,17 @@ The minimum trusted TCB version for new nodes allowed to join the network (:doc:
     :project: CCF
     :members:
 
+``nodes.node_join_policy``
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Code update policy: JavaScript module, exporting ``apply()``, which evaluates the transparent statements presented by joining nodes whose host data is not explicitly trusted.
+See :ref:`operations/code_upgrade:Code Update Policy` for details.
+It is set with the ``set_node_join_policy`` governance action, and removed with the ``remove_node_join_policy`` governance action.
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value** JavaScript module, represented as a string.
+
 ``service.info``
 ~~~~~~~~~~~~~~~~
 
@@ -473,6 +484,57 @@ The window size is set to 100 by default, but can be overridden by setting `rece
 
 **Value** Proposal ID as a string.
 
+``recovery_decision_protocol.nodes``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Location name: A string which is unique to the location of a particular node within a network.
+
+**Value** 
+
+.. doxygenstruct:: ccf::recovery_decision_protocol::NodeInfo
+   :project: CCF
+   :members:
+
+``recovery_decision_protocol.gossip``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Location name of the source of the gossip message.
+
+**Value** The TxID of the last recovered signed transaction known by the source node.
+
+``recovery_decision_protocol.chosen_node``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Value** The location name of the chosen node. This will either be the node this node voted for, or the node that it has received an `IAmOpen` message from.
+
+``recovery_decision_protocol.votes``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Location name of the node which has voted for this node to be opened.
+
+``recovery_decision_protocol.sm_state``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Value** State machine state of the recovery decision protocol.
+
+.. doxygenenum:: ccf::recovery_decision_protocol::StateMachine
+   :project: CCF
+
+``recovery_decision_protocol.timeout_sm_state``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Value** Timeout state machine state of the recovery decision protocol. Ticks based on `failover_timeout` and advances `recovery_decision_protocol.sm_state` if it falls behind.
+
+See :cpp:enum:`ccf::recovery_decision_protocol::StateMachine` above.
+
+``recovery_decision_protocol.open_kind``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Value** The kind of recovery that was performed, either `Quorum`-based which guarantees that there is at most one recovered service using this path, or `Failover`-based which could allow multiple services to recover.
+
+.. doxygenenum:: ccf::recovery_decision_protocol::OpenKinds
+   :project: CCF
+
 ``public:ccf.internal.``
 ------------------------
 
@@ -620,55 +682,4 @@ Mapping from sealing recovery names to node IDs for nodes that support local sea
 **Value** The mechanism by which the ledger secret was recovered.
 
 .. doxygenenum:: ccf::RecoveryType
-   :project: CCF
-
-``recovery_decision_protocol.nodes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Key** Location name: A string which is unique to the location of a particular node within a network.
-
-**Value** 
-
-.. doxygenstruct:: ccf::recovery_decision_protocol::NodeInfo
-   :project: CCF
-   :members:
-
-``recovery_decision_protocol.gossip``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Key** Location name of the source of the gossip message.
-
-**Value** The TxID of the last recovered signed transaction known by the source node.
-
-``recovery_decision_protocol.chosen_node``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** The location name of the chosen node. This will either be the node this node voted for, or the node that it has received an `IAmOpen` message from.
-
-``recovery_decision_protocol.votes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Key** Location name of the node which has voted for this node to be opened.
-
-``recovery_decision_protocol.sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** State machine state of the recovery decision protocol.
-
-.. doxygenenum:: ccf::recovery_decision_protocol::StateMachine
-   :project: CCF
-
-``recovery_decision_protocol.timeout_sm_state``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** Timeout state machine state of the recovery decision protocol. Ticks based on `failover_timeout` and advances `recovery_decision_protocol.sm_state` if it falls behind.
-
-See :cpp:enum:`ccf::recovery_decision_protocol::StateMachine` above.
-
-``recovery_decision_protocol.open_kind``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Value** The kind of recovery that was performed, either `Quorum`-based which guarantees that there is at most one recovered service using this path, or `Failover`-based which could allow multiple services to recover.
-
-.. doxygenenum:: ccf::recovery_decision_protocol::OpenKinds
    :project: CCF

@@ -3,14 +3,17 @@ What is CCF?
 
 The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly-available, and performant applications that focus on multi-party compute and data.
 
-Leveraging the power of trusted execution environments (:term:`TEE`, or enclave), decentralised systems concepts, and cryptography, CCF enables enterprise-ready multiparty systems.
+Leveraging the power of trusted execution environments (:term:`TEE`), decentralised systems concepts, and cryptography, CCF enables enterprise-ready multiparty systems.
 
 CCF is based on web technologies: clients interact with CCF applications over HTTPS.
 
 Core Concepts
 -------------
 
-The following diagram shows a basic CCF network made of 3 nodes. All nodes run the same application inside an enclave. The effects of user (business) and member (governance) transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
+The following diagram shows a basic CCF network made of 3 nodes.
+All nodes run the same application inside a :term:`TEE`.
+The effects of user (business) and member (governance) transactions are eventually committed to a replicated encrypted ledger.
+A consortium of members is in charge of governing the network.
 
 .. image:: ../img/ccf_overview.svg
     :alt: A three-node CCF network processing governance and business transactions
@@ -29,7 +32,8 @@ Application
 
 Each node runs the same application, written in JavaScript or C++. An application is a collection of endpoints that clients invoke with HTTP requests over :term:`TLS`.
 
-Each endpoint can mutate or read the in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by at least a majority of nodes before being committed.
+Each endpoint can mutate or read the Key-Value Store, which is held in each node's TEE-protected memory and replicated across all nodes in the network.
+Changes to the Key-Value Store must be agreed by at least a majority of nodes before being committed.
 
 The Key-Value Store is a collection of maps (associating a key to a value) that are defined by the application. These maps can be private (encrypted in the ledger) or public (integrity-protected and visible by anyone that has access to the ledger).
 

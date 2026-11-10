@@ -3,6 +3,7 @@ module
 public import consistency.Properties.History
 public import CCF.Execution
 
+import consistency.Proofs.Deadlock
 import consistency.Proofs.Invalidation
 import consistency.Proofs.Ordering
 import consistency.Proofs.Witnesses
@@ -22,6 +23,18 @@ namespace consistency.Properties
 open Model
 
 abbrev GlobalTrace := CCF.Execution.Trace transitionSystem
+
+/-- Every reachable state has an enabled action. -/
+theorem deadlock_free
+    : forall (state : State),
+        transitionSystem.Reachable state
+        -> exists action nextState,
+            transitionSystem.step state action = some nextState := by
+  exact Proofs.deadlock_free
+
+/-- Witness: the initial state is reachable. -/
+lemma deadlock_free_witness : exists state, transitionSystem.Reachable state := by
+  exact Proofs.deadlock_free_witness
 
 /-- Adjacent TxID-ordered committed responses strictly extend.
 The later observation ends with its own write; intervening ledger writes need not

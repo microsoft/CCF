@@ -31,6 +31,14 @@
 using namespace ccf;
 using namespace std;
 
+TEST_CASE("Unknown client HTTP status codes remain usable in diagnostics")
+{
+  const auto status = static_cast<ccf::http_status>(471);
+
+  CHECK(ccf::is_http_status_client_error(status));
+  CHECK(fmt::format("HTTP status {}", status) == "HTTP status 471");
+}
+
 template <typename Registry>
 class TSimpleFrontend : public RpcFrontend
 {

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/nonstd.h"
+#include "ds/internal_logger.h"
 
 #include <cerrno>
 #include <cstddef>
@@ -101,7 +102,8 @@ namespace files
       {
         return {};
       }
-      std::cerr << "Could not open file " << file << std::endl;
+      ccf::logger::write_fatal_diagnostic(
+        fmt::format("Could not open file {}", file));
       exit(-1); // NOLINT(concurrency-mt-unsafe)
     }
 
@@ -113,7 +115,8 @@ namespace files
 
     if (!optional && !f)
     {
-      std::cerr << "Could not read file " << file << std::endl;
+      ccf::logger::write_fatal_diagnostic(
+        fmt::format("Could not read file {}", file));
       exit(-1); // NOLINT(concurrency-mt-unsafe)
     }
     return data;

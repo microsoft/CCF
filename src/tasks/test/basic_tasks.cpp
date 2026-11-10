@@ -6,10 +6,15 @@
 #include "tasks/task_system.h"
 #include "tasks/worker.h"
 
+#include <csignal>
 #include <doctest/doctest.h>
 #include <iostream>
 #include <numeric>
+#include <sstream>
+#include <sys/resource.h>
+#include <sys/wait.h>
 #include <thread>
+#include <unistd.h>
 
 #define FMT_HEADER_ONLY
 #include <fmt/chrono.h>
@@ -434,8 +439,74 @@ namespace exception_handling_test
   };
 }
 
+class ScopedTaskCerrCapture
+{
+  std::ostringstream captured;
+  std::streambuf* previous = std::cerr.rdbuf(captured.rdbuf());
+
+public:
+  ScopedTaskCerrCapture() = default;
+  ScopedTaskCerrCapture(const ScopedTaskCerrCapture&) = delete;
+  ScopedTaskCerrCapture& operator=(const ScopedTaskCerrCapture&) = delete;
+
+  ~ScopedTaskCerrCapture()
+  {
+    std::cerr.rdbuf(previous);
+  }
+
+  std::string str() const
+  {
+    return captured.str();
+  }
+};
+
+void expect_aborting_task_diagnostic(
+  ccf::tasks::BaseTask& task, const std::string& expected_diagnostic)
+{
+  int stderr_pipe[2];
+  REQUIRE(pipe(stderr_pipe) == 0);
+
+  const auto child = fork();
+  REQUIRE(child >= 0);
+  if (child == 0)
+  {
+    close(stderr_pipe[0]);
+    if (dup2(stderr_pipe[1], STDERR_FILENO) == -1)
+    {
+      _exit(EXIT_FAILURE);
+    }
+    close(stderr_pipe[1]);
+
+    const rlimit no_core_dump{0, 0};
+    if (setrlimit(RLIMIT_CORE, &no_core_dump) != 0)
+    {
+      _exit(EXIT_FAILURE);
+    }
+    ccf::tasks::try_do_task(task);
+    _exit(EXIT_SUCCESS);
+  }
+
+  close(stderr_pipe[1]);
+  std::string diagnostic;
+  char buffer[256];
+  ssize_t count = 0;
+  while ((count = read(stderr_pipe[0], buffer, sizeof(buffer))) > 0)
+  {
+    diagnostic.append(buffer, static_cast<size_t>(count));
+  }
+  close(stderr_pipe[0]);
+
+  int status = 0;
+  REQUIRE(waitpid(child, &status, 0) == child);
+  REQUIRE(WIFSIGNALED(status));
+  CHECK(WTERMSIG(status) == SIGABRT);
+  CHECK(diagnostic.contains(expected_diagnostic));
+}
+
 TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
 {
+  ScopedTaskCerrCapture captured_stderr;
+
   // Custom logger that captures log messages for assertion
   struct CapturingLogger : public ccf::logger::AbstractLogger
   {
@@ -508,6 +579,7 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
   // With CCF_TASK_EXCEPTION_NO_ABORT, the worker loop continues after
   // exceptions, so the success task should have run
   REQUIRE(success_task_ran.load());
+  CHECK(captured_stderr.str().empty());
 
   // Verify that fatal messages were logged for both exception types
   REQUIRE(logger_ptr->contains(
@@ -533,4 +605,16 @@ TEST_CASE("Exception handling" * doctest::test_suite("basic_tasks"))
       loggers.end(),
       [logger_ptr](const auto& l) { return l.get() == logger_ptr; }),
     loggers.end());
+}
+
+TEST_CASE(
+  "Aborting task exceptions write a fatal diagnostic" *
+  doctest::test_suite("basic_tasks"))
+{
+  exception_handling_test::ThrowsException throws_exception;
+  expect_aborting_task_diagnostic(
+    throws_exception, "Fatal error: Task failed with an exception");
+  exception_handling_test::ThrowsUnknown throws_unknown;
+  expect_aborting_task_diagnostic(
+    throws_unknown, "Fatal error: Task failed with an unknown exception");
 }
