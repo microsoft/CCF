@@ -301,16 +301,11 @@ private def ruleNomination : Reduction Unit := do
   if nominated.isSome then
     emitAction head "nomination" (.local head.node .nominateSuccessor)
 
+/-- Dropped packets stay queued in the model network, never delivered. -/
 private def ruleDrop : Reduction Unit := do
   let head ← peek
-  let destination ← readJson head head.message (string · "to_node_id")
-  let sender ← readJson head head.message (string · "from_node_id")
-  liftExcept head (require (sender == head.node) "drop sender mismatch")
   -- consume
   event head "drop_pending_to"
-  -- emit
-  emitObserve head "drop"
-  emitAction head "drop" (.drop head.node destination)
 
 /--
 Snapshot installation runs ledger hooks outside the consensus lock, so bare ticks

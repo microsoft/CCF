@@ -67,5 +67,5 @@ To list the safety-invariant declarations used by the exported theorems, run `la
 ## Trace replay
 
 The [trace replayer](replay/README.md) checks finite driver observations against direct model transitions, independently of proofs.
-It uses strict FIFO selection per directed node pair, preserves packet multiplicity, and never repairs model state.
+It delivers any matching queued packet, treats undelivered packets as lost, and never repairs model state.
 The current native Fluentd capture path and replay's assurance limits are documented there.

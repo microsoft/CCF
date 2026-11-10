@@ -12,7 +12,7 @@ namespace Consensus.Replay
 
 open Lean Model.Node
 open CCF (Finset)
-open CCF.MultiNodeTransitionSystem (nodeState removeOne)
+open CCF.MultiNodeTransitionSystem (nodeState)
 
 abbrev Envelope := Model.Envelope
 
@@ -47,7 +47,6 @@ def Header.initial (header : Header) : Model.State :=
 inductive Step where
   | local (node : String) (input : Input)
   | receive (source destination : String) (packet : Json)
-  | drop (source destination : String)
   /-- Initialize from a node's committed prefix ending at `index` in term `view`. -/
   | initAsBackup (node : String) (index view : Nat)
 
@@ -58,11 +57,9 @@ def Step.name : Step → String
   | .local _ .nominateSuccessor => "nominateSuccessor"
   | .local _ (.initAsBackup _) | .initAsBackup .. => "initAsBackup"
   | .receive .. => "receive"
-  | .drop .. => "drop"
 
 structure ReplayState where
   state : Model.State
-  dropped : List Envelope := []
 
 /-- Direct model actions and boundary snapshots; there is no replay wire schema. -/
 inductive Instruction where
@@ -72,15 +69,6 @@ inductive Instruction where
 def Instruction.origin : Instruction → Origin
   | .action _ origin
   | .observeNodeState _ _ origin => origin
-
-/--
-Dropped copies remain undelivered model envelopes, excluded with multiplicity.
--/
-def ReplayState.pending (replay : ReplayState) (source destination : NodeID)
-    : List Envelope :=
-  (replay.dropped.foldl (fun network envelope => removeOne envelope network)
-    replay.state.network).filter
-    fun envelope => envelope.source == source && envelope.target == destination
 
 private def checkValue {α : Type} [ToJson α] (actual : α) (expected : Json)
     : Except String Unit := do
@@ -235,13 +223,41 @@ def messageJson (message : Model.Node.Message) : Json :=
     | .proposeRequestVoteRequest _ => [("msg", toJson "propose_request_vote")]
   Json.mkObj (("term", toJson message.term) :: fields)
 
-private def selectPacket (state : ReplayState) (source destination : NodeID)
+/-- A native packet matches when it has exactly the fields the model renders, with equal values. -/
+private def checkPacket (packet : Json) (message : Model.Node.Message)
+    : Except String Unit := do
+  let actual := messageJson message
+  checkFields (fun key => (actual.getObjVal? key).toOption.map checkValue) packet
+  let missing :=
+    (← actual.getObj?).toList.map Prod.fst
+    |>.filter fun key => !(packet.getObjVal? key).isOk
+  unless missing.isEmpty do
+    throw s!"packet lacks fields {missing}"
+
+/-- The first matching envelope, else the first with the same `msg`, to diagnose a mismatch. -/
+private def closest (packet : Json) (envelopes : List Envelope) : Option Envelope :=
+  envelopes.find? (fun envelope => (checkPacket packet envelope.payload).isOk)
+  <|> envelopes.find?
+        fun envelope =>
+          ((messageJson envelope.payload).getObjVal? "msg").toOption
+          == (packet.getObjVal? "msg").toOption
+
+/-- Deliver any matching queued envelope; loss is non-delivery. -/
+private def selectPacket (replay : ReplayState) (source destination : NodeID)
     (packet : Json)
     : Except String Envelope := do
-  let some envelope := (state.pending source destination).head?
+  let pending :=
+    replay.state.network.filter
+      fun envelope => envelope.source == source && envelope.target == destination
+  let some envelope := closest packet pending <|> pending.head?
   | throw s!"no pending packet from '{source}' to '{destination}'"
-  let actual := messageJson envelope.payload
-  checkFields (fun key => (actual.getObjVal? key).toOption.map checkValue) packet
+  checkPacket packet envelope.payload
+  unless pending.all
+          fun other =>
+            !(checkPacket packet other.payload).isOk
+            || other.payload == envelope.payload do
+    throw
+      s!"ambiguous delivery from '{source}' to '{destination}': matching packets differ in model payload"
   return envelope
 
 /-- Observations never change model state or repair a disabled action. -/
@@ -281,12 +297,6 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
       let some state := system.step replay.state (.deliver envelope)
       | throw "disabled model action 'receive'"
       return { replay with state }
-  | .action (.drop source destination) _ =>
-      let source ← header.nodeId source
-      let destination ← header.nodeId destination
-      let some envelope := (replay.pending source destination).head?
-      | throw s!"no pending packet from '{source}' to '{destination}'"
-      return { replay with dropped := replay.dropped ++ [envelope] }
   | .action (step@(.initAsBackup node index view)) _ =>
       let joiner ← header.nodeId node
       -- Committed prefixes in a reachable state are comparable, so any such node will do.
