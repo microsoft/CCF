@@ -708,6 +708,7 @@ namespace ccf
     catch (const std::logic_error& e)
     {
       LOG_FATAL_FMT("{}. Exiting.", e.what());
+      ccf::logger::write_fatal_diagnostic(e.what());
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
     LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
