@@ -37,9 +37,7 @@ namespace ccf
     catch (const std::logic_error& e)
     {
       // The task running this read aborts the node on an escaping exception,
-      // so explain the failure first. An ML-DSA service certificate without
-      // its published signing identity comes from an unsupported build, see
-      // the ML-DSA Service Identity section of the 7.x to 8.x migration guide.
+      // so explain the failure first.
       LOG_FATAL_FMT(
         "The service signing identities in the ledger are inconsistent with "
         "the service certificates: {}. This version cannot serve such a "
