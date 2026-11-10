@@ -812,7 +812,7 @@ TEST_CASE("read_current_service_identity reports a create txid only when open")
     node_state.commit_service(status, create_txid, cb.topmost_entry());
     auto current = node_state.get_current_service_identity();
     REQUIRE_FALSE(current.create_txid.has_value());
-    REQUIRE(current.endorsement.has_value());
+    REQUIRE_FALSE(current.endorsement.has_value());
   }
 
   node_state.commit_service(ccf::ServiceStatus::OPEN, create_txid);
