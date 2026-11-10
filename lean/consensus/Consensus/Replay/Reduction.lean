@@ -11,6 +11,9 @@ public section
 
 /-!
 Rules peek action arguments, consume named events, and emit direct model actions.
+Each node's events reduce independently into groups, one per native lock hold.
+A receive or `init_as_backup` must be its group's first action, since replay decides from that
+action whether the group waits.
 Explicit native boundaries distinguish related events from subsequent actions.
 After bootstrap, each rule observes its native group's starting snapshot before emitting actions.
 Each rule that may send checks the native sends among its events against the envelopes its
@@ -26,8 +29,12 @@ open CCF.Parsec (failure validated attempt many_ optional_)
 
 private structure ReductionState where
   header : Header
-  nextRequestId : ReqID := 1
+  nextRequestId : ReqID
+  /-- Instructions emitted by the current group. -/
   instructions : Array Instruction := #[]
+  groups : Array Group := #[]
+  /-- The last consumed event, to locate a group cut short by the end of its node's events. -/
+  last : Option Event := none
 
 private abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
 
@@ -41,8 +48,13 @@ private def readJson {α : Type} (event : Event) (value : Json)
     : Reduction α :=
   liftExcept event (decode value)
 
-private def peek : Reduction Event := do
-  let some event ← CCF.Parsec.peek | failure "unexpected end of input"
+private def peek (expected := "another event") : Reduction Event := do
+  let some event ← CCF.Parsec.peek
+  | match (← get).last with
+    | some last =>
+        failure
+          s!"{last.record.location}: expected {expected}, got end of node '{last.node}' events"
+    | none => failure "unexpected end of input"
   return event
 
 /-- The cursor position, from which `extractSends` finds the events a rule consumed. -/
@@ -76,12 +88,13 @@ private def extractSends (start : Nat) : Reduction (List NativeSend) := do
           return { target, packet, origin := event.origin event.function }
 
 private def event (source : Event) (name : String) : Reduction Unit := do
-  let next ← peek
+  let next ← peek name
   unless next.function == name do
     failure s!"{next.record.location}: expected {name}, got {next.function}"
   liftExcept next do
     require (next.node == source.node) s!"expected event on node {source.node}"
   discard CCF.Parsec.take
+  modify fun s => { s with last := some next }
 
 private def modelNode (event : Event) (name : String) : Reduction NodeID := do
   liftExcept event ((← get).header.nodeId name)
@@ -406,33 +419,63 @@ private def ruleStep : Reduction Unit := do
   <|> attempt ruleNomination
   <|> attempt ruleDrop
 
-private def ruleTrace : Reduction String := do
-  let leader ← ruleBootstrap
-  many_ ruleStep
+/-- Collect the instructions a rule emits into one group; a drop emits none. -/
+private def group (rule : Reduction Unit) : Reduction Unit := do
+  let head ← peek
+  rule
+  let instructions := (← get).instructions
+  unless instructions.isEmpty do
+    modify
+      fun s =>
+        {
+          s with
+            instructions := #[]
+            groups := s.groups.push { node := head.node, time := head.time, instructions }
+        }
+
+/-- One node's events: bootstrap, if this node starts the network, then groups. -/
+private def ruleNode : Reduction (Option String) := do
+  let leader ← CCF.Parsec.optionalRule (attempt ruleBootstrap)
+  many_ (group ruleStep)
   if let some event ← CCF.Parsec.peek then
     failure s!"{event.record.location}: ungrouped event {event.function}"
   return leader
 
-/-- Consume every event exactly once; an ungrouped event is never a stutter. -/
-def reduce (events : Array Event) (header : Header)
-    : Except String (String × Array Instruction) := do
-  let (leader, state) ← CCF.Parsec.run events (ruleTrace.run { header })
-  return (leader, state.instructions)
+/--
+Consume every event exactly once; an ungrouped event is never a stutter.
+Request IDs continue across nodes, so they are unique in the trace.
+-/
+def reduce (streams : Array (Array Event)) (header : Header)
+    : Except String (String × Array (Array Group)) := do
+  let mut bootstrap := none
+  let mut groups := #[]
+  let mut nextRequestId := 1
+  for events in streams do
+    let (leader, state) ← CCF.Parsec.run events (ruleNode.run { header, nextRequestId })
+    if let some leader := leader then
+      if let some other := bootstrap then
+        throw s!"nodes '{other}' and '{leader}' both bootstrap the network"
+      bootstrap := some leader
+    groups := groups.push state.groups
+    nextRequestId := state.nextRequestId
+  let some leader := bootstrap | throw "no node bootstraps the network"
+  return (leader, groups)
 
 end Consensus.Replay.Reducer
 
 namespace Consensus.Replay
 
-/-- Prepared initialization and instructions for direct model replay. -/
+/-- Prepared initialization and each node's groups for direct model replay. -/
 structure Reduced where
   header : Header
-  instructions : Array Instruction
+  streams : Array (Array Group)
 
-/-- Prepare replay identities and reduce the associated event stream. -/
-def reduce (events : Array Event) (declared : List String) : Except String Reduced := do
+/-- Prepare replay identities and reduce each node's events. -/
+def reduce (streams : Array (Array Event)) (declared : List String)
+    : Except String Reduced := do
   let header : Header := { bootstrap := ∅, declared }
-  let (leader, instructions) ← Reducer.reduce events header
+  let (leader, streams) ← Reducer.reduce streams header
   let header := { header with bootstrap := {← header.nodeId leader} }
-  return { header, instructions }
+  return { header, streams }
 
 end Consensus.Replay

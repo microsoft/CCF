@@ -15,9 +15,9 @@ def main (args : List String) : IO UInt32 := do
     | [path] =>
         let records ← readLog path
         let result := do
-          let (events, declared) ← prepareEvents (← records)
-          let reduced ← reduce events declared
-          replay reduced.header reduced.instructions
+          let (streams, declared) ← prepareEvents (← records)
+          let reduced ← reduce streams declared
+          replay reduced.header reduced.streams
         match result with
         | .error error => IO.eprintln s!"{path}: {error}"; return 1
         | .ok result =>
@@ -25,7 +25,7 @@ def main (args : List String) : IO UInt32 := do
               Json.mkObj
                 [
                   ("status", toJson "ok"),
-                  ("instructions", toJson result.instructions),
+                  ("groups", toJson result.groups),
                   ("actions", toJson result.actions),
                   ("observations", toJson result.observations)
                 ]

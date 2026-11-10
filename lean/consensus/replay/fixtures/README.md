@@ -6,6 +6,7 @@ The [valid control](valid/replication.ndjson) continues through follower catch-u
 Its snapshot installation hooks directly follow the leader's `replicate` batch and include a bare tick, both of which replay must accept.
 The [rejected replicate](valid/rejected-replicate.ndjson) control is a `replicate` call that CCF rejected at its first entry, so it traces no `replicate_entry` and appends nothing.
 The [bootstrap](valid/bootstrap.ndjson) control starts like a real node: bare ticks before genesis, then a flush of the genesis entry.
+The [interleaved](valid/interleaved.ndjson) control records the replication history with the joiner's events among the leader's: its initialization inside the leader's signature batch, before the leader commits, its receives before their sends, and a whole receive group, including its own `add_configuration`, between the leader's `add_configuration` and its send.
 
 | Fixture                                                                 | Expected failure                                        |
 | ----------------------------------------------------------------------- | ------------------------------------------------------- |
