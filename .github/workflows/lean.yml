@@ -63,6 +63,8 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           cmake -S . -B "$RUNNER_TEMP/cft-build" -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
           cmake --build "$RUNNER_TEMP/cft-build" --target cft_driver --parallel "$(( ($(nproc) + 1) >> 1 ))"
+          # RUNNER_TEMP persists between jobs on these runners; drop captures from earlier runs.
+          rm -rf "$RUNNER_TEMP/cft-build/consensus/raw"
           uv run --no-project --with msgpack \
             ctest --test-dir "$RUNNER_TEMP/cft-build" -VV -R "^cft_scenario_test$" --no-tests=error
 
@@ -116,6 +118,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 tests/kv_trace_validation_test.py
+          # RUNNER_TEMP persists between jobs on these runners; drop captures from earlier runs.
+          rm -rf "$RUNNER_TEMP/ccf-kv-build/kv-traces"
           python3 tests/kv_trace_validation.py \
             --binary "$RUNNER_TEMP/ccf-kv-build/kv_test" --capture-only \
             --output "$RUNNER_TEMP/ccf-kv-build/kv-traces" --seeds 8 --timeout 900
@@ -252,6 +256,10 @@ jobs:
           set -euo pipefail
           lake build --wfail consensus-replay
 
+      # RUNNER_TEMP persists between jobs on these runners; drop traces from earlier runs.
+      - name: Clear stale CCF consensus traces
+        run: rm -rf "$RUNNER_TEMP/cft-scenario-traces"
+
       - name: Download CCF consensus traces
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -374,6 +382,10 @@ jobs:
           set -euo pipefail
           lake build --wfail kv-replay
 
+      # RUNNER_TEMP persists between jobs on these runners; drop traces from earlier runs.
+      - name: Clear stale KV traces
+        run: rm -rf "$RUNNER_TEMP/kv-traces"
+
       - name: Download KV traces
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -432,6 +444,10 @@ jobs:
         run: |
           set -euo pipefail
           lake build --wfail consistency-replay
+
+      # RUNNER_TEMP persists between jobs on these runners; drop traces from earlier runs.
+      - name: Clear stale consistency traces
+        run: rm -rf "$RUNNER_TEMP/consistency-traces"
 
       - name: Download consistency traces
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
