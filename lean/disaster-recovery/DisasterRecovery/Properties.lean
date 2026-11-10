@@ -15,10 +15,7 @@ open Model.Local
 
 /-- Every reachable recovery state has an enabled action. -/
 theorem deadlock_free
-    : forall (config : Model.Config) (state : Model.State),
-        (Model.transitionSystem config).Reachable state
-        -> exists action nextState,
-            (Model.transitionSystem config).step state action = some nextState := by
+    : forall (config : Model.Config), (Model.transitionSystem config).DeadlockFree := by
   exact Proofs.Deadlock.deadlock_free
 
 /-- Witness: a valid recovery configuration has a reachable initial state. -/

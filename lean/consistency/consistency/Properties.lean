@@ -25,11 +25,7 @@ open Model
 abbrev GlobalTrace := CCF.Execution.Trace transitionSystem
 
 /-- Every reachable state has an enabled action. -/
-theorem deadlock_free
-    : forall (state : State),
-        transitionSystem.Reachable state
-        -> exists action nextState,
-            transitionSystem.step state action = some nextState := by
+theorem deadlock_free : transitionSystem.DeadlockFree := by
   exact Proofs.deadlock_free
 
 /-- Witness: the initial state is reachable. -/
