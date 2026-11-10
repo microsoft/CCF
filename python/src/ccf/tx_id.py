@@ -22,11 +22,12 @@ class TxID:
 
     @staticmethod
     def parse(s: str | None) -> tuple[int, int] | tuple[None, None]:
-        """Return the view and sequence number, or (None, None) for invalid input."""
-        try:
-            if s is not None:
-                view_s, seqno_s = s.split(".")
-                return int(view_s), int(seqno_s)
-        except (AttributeError, ValueError):
-            pass
+        """Return the view and sequence number, or (None, None) for invalid input.
+
+        Valid input is two ASCII decimal integers separated by a single dot.
+        """
+        if s is not None:
+            parts = s.split(".")
+            if len(parts) == 2 and all(p.isascii() and p.isdigit() for p in parts):
+                return int(parts[0]), int(parts[1])
         return None, None

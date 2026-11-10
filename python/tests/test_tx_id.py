@@ -7,7 +7,26 @@ import pytest
 from ccf.tx_id import TxID
 
 
-@pytest.mark.parametrize("value", ["", "invalid", "1", "1.2.3", "view.2", "1.seqno"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "invalid",
+        "1",
+        "1.2.3",
+        "view.2",
+        "1.seqno",
+        "-1.2",
+        "1.-2",
+        "+1.2",
+        " 1.2",
+        "1.2 ",
+        "1_0.2",
+        "\u0661.\u0662",
+        ".2",
+        "1.",
+    ],
+)
 def test_invalid_transaction_id(value: str):
     assert TxID.parse(value) == (None, None)
     txid = TxID.from_str(value)

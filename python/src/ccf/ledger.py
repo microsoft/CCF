@@ -173,7 +173,17 @@ def unpack_array(buf: bytes, fmt: str) -> list[Any]:
     return ret
 
 
+def _is_seqno(value: str) -> bool:
+    return value.isascii() and value.isdigit()
+
+
 def range_from_filename(filename: str) -> tuple[int, int | None]:
+    """Return the start and optional end seqno encoded in a ledger file name.
+
+    Raises:
+        ValueError: If the name is not a ledger chunk name with ASCII decimal
+            seqnos and an end no earlier than its start.
+    """
     basename = os.path.basename(filename)
     is_recovery = basename.endswith(RECOVERY_FILE_SUFFIX)
     basename = basename.removesuffix(RECOVERY_FILE_SUFFIX)
@@ -184,21 +194,28 @@ def range_from_filename(filename: str) -> tuple[int, int | None]:
             is_recovery
             or not range_str.startswith("ledger_")
             or len(elements) != 2
-            or not all(element.isascii() and element.isdigit() for element in elements)
+            or not all(_is_seqno(element) for element in elements)
             or int(elements[0]) == 0
             or int(elements[1]) < int(elements[0])
         ):
             raise ValueError(f"Could not read seqno range from ledger file {filename}")
         return (int(elements[0]), int(elements[1]))
 
-    basename = basename.removesuffix(COMMITTED_FILE_SUFFIX)
-    elements = basename.replace("ledger_", "").split("-")
-    if len(elements) == 2:
-        return (int(elements[0]), int(elements[1]))
-    elif len(elements) == 1:
-        return (int(elements[0]), None)
-    else:
+    range_str = basename.removesuffix(COMMITTED_FILE_SUFFIX)
+    elements = range_str.removeprefix("ledger_").split("-")
+    if (
+        not range_str.startswith("ledger_")
+        or len(elements) not in (1, 2)
+        or not all(_is_seqno(element) for element in elements)
+    ):
         raise ValueError(f"Could not read seqno range from ledger file {filename}")
+    start = int(elements[0])
+    if len(elements) == 1:
+        return (start, None)
+    end = int(elements[1])
+    if end < start:
+        raise ValueError(f"Could not read seqno range from ledger file {filename}")
+    return (start, end)
 
 
 def get_range_from_file(ledger_file_path: str) -> tuple[int, int | None]:
@@ -248,16 +265,21 @@ def get_range_from_file(ledger_file_path: str) -> tuple[int, int | None]:
 
 
 def snapshot_index_from_filename(filename: str) -> tuple[int, int]:
-    elements = (
-        os.path.basename(filename)
-        .replace(COMMITTED_FILE_SUFFIX, "")
-        .replace("snapshot_", "")
-        .split("_")
-    )
-    if len(elements) == 2:
-        return (int(elements[0]), int(elements[1]))
-    else:
+    """Return the seqno and evidence seqno encoded in a snapshot file name.
+
+    Raises:
+        ValueError: If the name is not a snapshot name with two ASCII decimal
+            indices.
+    """
+    basename = os.path.basename(filename).removesuffix(COMMITTED_FILE_SUFFIX)
+    elements = basename.removeprefix("snapshot_").split("_")
+    if (
+        not basename.startswith("snapshot_")
+        or len(elements) != 2
+        or not all(_is_seqno(element) for element in elements)
+    ):
         raise ValueError(f"Could not read snapshot index from file name {filename}")
+    return (int(elements[0]), int(elements[1]))
 
 
 class GcmHeader:
