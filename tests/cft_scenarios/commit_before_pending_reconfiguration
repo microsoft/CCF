@@ -1,0 +1,41 @@
+# A signature appended before a pending reconfiguration needs a majority of the
+# configurations active at that signature, not of the later configuration
+start_node,0
+replicate,2,$
+assert_commit_idx,0,2
+
+# Initial configuration [0, 1, 2], all nodes in sync
+trust_nodes,2,1,2
+replicate,2,$
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+assert_state_sync
+
+# 2 becomes unavailable
+disconnect_node,2
+
+# Signature at 6, then reconfiguration [0, 1, 2] -> [0, 1, 2, 3] at 7, signed at 8
+replicate,2,hello
+replicate,2,$
+trust_node,2,3
+replicate,2,$
+assert_config,0,7,0,1,2,3
+
+# 3 is unavailable as well, so only 0 and 1 can acknowledge
+disconnect_node,3
+
+periodic_one,0,10
+dispatch_one,0
+dispatch_one,1
+assert_last_txid,1,2.8
+
+# 0 and 1 are a majority of [0, 1, 2], the only configuration at or before 6,
+# so 6 is committable. 8 also needs a majority of [0, 1, 2, 3].
+periodic_one,0,10
+dispatch_one,0
+dispatch_one,1
