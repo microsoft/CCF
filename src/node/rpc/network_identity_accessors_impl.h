@@ -27,9 +27,23 @@ namespace ccf
     ccf::kv::ReadOnlyTx& tx)
   {
     CurrentServiceIdentity result;
+    result.endorsement = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
+                             ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+                           ->get(ccf::IdentityType::CLASSICAL);
 
-    auto* service_info_handle = tx.ro<ccf::Service>(ccf::Tables::SERVICE);
-    auto service_info = service_info_handle->get();
+    // A node can advance to part-of-network before the service-opening tx has
+    // been replicated. Until the service is OPEN, its create-txid (and the
+    // endorsement written in the same tx) may be stale, so leave create_txid
+    // unset and let the caller retry.
+    const auto service_info = tx.ro<ccf::Service>(ccf::Tables::SERVICE)->get();
+    const bool service_open = service_info.has_value() &&
+      service_info->current_service_create_txid.has_value() &&
+      service_info->status == ServiceStatus::OPEN;
+    if (!service_open)
+    {
+      return result;
+    }
+
     try
     {
       check_signing_identity_matches_service_cert(tx);
@@ -45,21 +59,8 @@ namespace ccf
         e.what());
       throw;
     }
-    // A node can advance to part-of-network before the service-opening tx has
-    // been replicated. Until the service is OPEN, its create-txid (and the
-    // endorsement written in the same tx) may be stale, so leave create_txid
-    // unset and let the caller retry.
-    if (
-      service_info && service_info->current_service_create_txid.has_value() &&
-      service_info->status == ServiceStatus::OPEN)
-    {
-      result.create_txid = service_info->current_service_create_txid;
-    }
 
-    result.endorsement = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
-                             ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-                           ->get(ccf::IdentityType::CLASSICAL);
-
+    result.create_txid = service_info->current_service_create_txid;
     return result;
   }
 

@@ -163,7 +163,7 @@ namespace ccf
   inline std::optional<Identity> get_service_signing_identity(
     ccf::kv::ReadOnlyTx& tx, IdentityType identity_type)
   {
-    const auto signing_identity =
+    auto signing_identity =
       tx.ro<SigningIdentities>(Tables::SIGNING_IDENTITIES)->get(identity_type);
     const auto service_info = tx.ro<Service>(Tables::SERVICE)->get();
     check_signing_identity_matches_service_cert(

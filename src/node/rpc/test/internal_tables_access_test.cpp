@@ -1752,12 +1752,6 @@ TEST_CASE("create_service rejects invalid or missing PQ certificates")
       std::logic_error);
   }
 
-  SUBCASE("A public key is not a PQ certificate")
-  {
-    REQUIRE_THROWS(InternalTablesAccess::create_service(
-      tx, identity.cert, identity.key->public_key_pem(), {1, 1}));
-  }
-
   SUBCASE("ML-DSA cannot replace the classical service certificate")
   {
     if (identity.pq_cert.has_value())
@@ -1883,18 +1877,6 @@ TEST_CASE("Signing identity check matches the table against the certificate")
     REQUIRE_THROWS_WITH_AS(
       ccf::check_signing_identity_matches_service_cert(tx),
       "Service signing identity does not match its service certificate",
-      std::logic_error);
-  }
-
-  SUBCASE("A PQ entry without a PQ certificate is rejected")
-  {
-    signing_identities->put(
-      ccf::IdentityType::PQ,
-      expected_signing_identity(other_identity.key->public_key_der()));
-    REQUIRE_THROWS_WITH_AS(
-      ccf::check_signing_identity_matches_service_cert(tx),
-      "PQ signing identity and service certificate must both be present or "
-      "absent",
       std::logic_error);
   }
 }

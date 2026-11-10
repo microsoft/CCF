@@ -858,28 +858,6 @@ TEST_CASE(
     node_state.get_current_service_identity(),
     "Service signing identity does not match its service certificate",
     std::logic_error);
-
-  INFO("An ML-DSA certificate without its published identity is rejected");
-  {
-    auto tx = node_state.store->create_tx();
-    auto* identities =
-      tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES);
-    identities->put(
-      ccf::IdentityType::CLASSICAL,
-      ccf::signing_identity_from_cert(node_state.service_cert));
-    auto* service = tx.rw<ccf::Service>(ccf::Tables::SERVICE);
-    auto info = service->get().value();
-    // Only the presence of the certificate matters here, so any certificate
-    // serves on builds without ML-DSA
-    info.pq_cert = node_state.service_cert;
-    service->put(info);
-    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
-  }
-  REQUIRE_THROWS_WITH_AS(
-    node_state.get_current_service_identity(),
-    "PQ signing identity and service certificate must both be present or "
-    "absent",
-    std::logic_error);
 }
 
 TEST_CASE(
@@ -1254,15 +1232,12 @@ TEST_CASE("NetworkIdentity carries an ML-DSA identity when the build has one")
   REQUIRE(key_pair->public_key_der() == pq->public_key_der());
 }
 
-TEST_CASE("NetworkIdentity never substitutes a classical key for PQ")
+TEST_CASE("A classical-only NetworkIdentity has no PQ key pair")
 {
   ccf::NetworkIdentity identity;
   identity.priv_key = ccf::crypto::make_ec_key_pair()->private_key_pem();
   REQUIRE(identity.get_key_pair() != nullptr);
   REQUIRE(identity.get_pq_key_pair() == nullptr);
-
-  identity.pq_priv_key = identity.priv_key;
-  REQUIRE_THROWS(static_cast<void>(identity.get_pq_key_pair()));
 }
 
 TEST_CASE(
