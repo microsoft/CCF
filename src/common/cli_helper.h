@@ -100,50 +100,6 @@ namespace cli
     return std::make_pair(hostname, port);
   }
 
-  static bool parse_address(
-    const std::string& addr,
-    ParsedAddress& parsed,
-    const std::string& option_name,
-    const std::string& default_port = "0")
-  {
-    try
-    {
-      validate_address(addr, default_port);
-    }
-    catch (const std::exception& e)
-    {
-      throw CLI::ValidationError(option_name, e.what());
-    }
-
-    parsed = addr;
-
-    return true;
-  }
-
-  static CLI::Option* add_address_option(
-    CLI::App& app,
-    ParsedAddress& parsed,
-    const std::string& option_name,
-    const std::string& option_desc,
-    const std::string& default_port = "0")
-  {
-    CLI::callback_t fun = [&parsed, option_name, default_port](
-                            CLI::results_t results) {
-      if (results.size() != 1)
-      {
-        throw CLI::ValidationError(option_name, "Address could not be parsed");
-      }
-
-      auto addr = results[0];
-      return parse_address(addr, parsed, option_name, default_port);
-    };
-
-    auto* option = app.add_option(option_name, fun, option_desc, true);
-    option->type_name("HOST:PORT");
-
-    return option;
-  }
-
   static const std::string IP_ADDRESS_PREFIX("iPAddress:");
   static const std::string DNS_NAME_PREFIX("dNSName:");
 
