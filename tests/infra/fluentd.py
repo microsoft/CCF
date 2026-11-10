@@ -139,10 +139,12 @@ class Recorder:
 
     def run(self):
         try:
-            while not self.stop.is_set() or (
-                len(self.selector.get_map()) > 1 and time.monotonic() < self.deadline
-            ):
-                for key, _ in self.selector.select(timeout=0.1):
+            while True:
+                # Only an idle select that starts after stop shows that no
+                # connection or data is still queued.
+                stopping = self.stop.is_set()
+                events = self.selector.select(timeout=0.1)
+                for key, _ in events:
                     if key.fileobj is self.listener:
                         peer, _ = self.listener.accept()
                         peer.setblocking(False)
@@ -163,6 +165,11 @@ class Recorder:
                     key.data.eof = data == b""
                     self.selector.unregister(key.fileobj)
                     key.fileobj.close()
+                if stopping and (
+                    (not events and len(self.selector.get_map()) == 1)
+                    or time.monotonic() >= self.deadline
+                ):
+                    break
         except Exception as error:  # Reported by the capture, not raised.
             self.error = error
 
