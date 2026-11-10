@@ -45,6 +45,7 @@ CHECKS=(
   "C/C++ format:cpp-format-checks.sh"
   "TypeScript, JavaScript, Markdown, TypeSpec, YAML and JSON format:prettier-checks.sh"
   "Documentation newlines:doc-newline-checks.sh"
+  "Built-in maps documentation:builtin-maps-checks.sh"
   "OpenAPI:openapi-checks.sh"
   "Copyright notice headers:copyright-checks.sh"
   "CMake format:cmake-format-checks.sh"

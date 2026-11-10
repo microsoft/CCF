@@ -289,3 +289,9 @@ Supposing we have a cluster of nodes which currently do not support PreVote, we 
 
 To enable PreVote safely, we must first migrate the cluster to support PreVote messages, and then enable PreVote.
 During the migration to enable PreVote, the pre-vote candidates will be less likely to be elected leader, as the other followers may preempt the pre-vote candidate and become candidates themselves.
+
+Formal and trace validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The CCF consensus protocol is modelled in Lean, with machine-checked safety proofs, and traces of the C++ implementation are replayed against the model in CI.
+See :doc:`/architecture/verification` for details.
