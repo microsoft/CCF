@@ -713,3 +713,45 @@ def test_fixture_service_parses(service: str, level: ccf.ledger.VerificationLeve
     for path in glob.glob(os.path.join(TESTDATA_DIR, service, "snapshots", "*")):
         with ccf.ledger.Snapshot(path) as snapshot:
             assert len(snapshot.get_public_domain().get_tables()) > 0
+
+
+def test_visualiser_has_a_tile_per_transaction():
+    key = ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+
+    def service_status(seqno: int, status: str, cert: str):
+        info = json.dumps({"status": status, "cert": cert}).encode()
+        return governance_transaction(
+            seqno,
+            table_write_set(ccf.ledger.SERVICE_INFO_TABLE_NAME, {key: info}, []),
+        )
+
+    transactions = [
+        service_status(1, "Opening", "a"),
+        service_status(2, "Open", "a"),
+        service_status(3, "Recovering", "b"),
+        service_status(4, "WaitingForRecoveryShares", "b"),
+        service_status(5, "Open", "b"),
+        # Open under an identity whose creation is not in the ledger
+        service_status(6, "Open", "c"),
+    ]
+
+    class Recorder:
+        def __init__(self) -> None:
+            self.tiles: list[tuple[str, int]] = []
+
+        def entry(self, category: str, view: int, seqno: int) -> None:
+            self.tiles.append((category, seqno))
+
+        def flush(self) -> None:
+            pass
+
+    recorder = Recorder()
+    ccf.ledger_viz.visualise([transactions], recorder)
+    assert recorder.tiles == [
+        ("New Service", 1),
+        ("Service Open", 2),
+        ("Recovering Service", 3),
+        ("Governance", 4),
+        ("Service Open", 5),
+        ("Governance", 6),
+    ]
