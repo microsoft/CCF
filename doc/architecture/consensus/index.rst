@@ -83,7 +83,7 @@ For a live service, reconfiguration is materialised in two separate transactions
   - Any transaction that contains at least one write to :ref:`audit/builtin_maps:``nodes.info``` setting a node's retired_committed to ``TRUE`` is a *retirement committed transaction*.
 
 In contrast to normal transactions, reconfiguration transactions will only commit when the necessary quorum of acknowledgements is reached in **both** the previous and the new configuration it defines.
-Transactions before a pending reconfiguration transaction do not need acknowledgements from the new configuration: they commit once their signature has a quorum in each active configuration defined at or before it.
+Transactions before an uncommitted reconfiguration transaction do not need acknowledgements from the new configuration it defines: they commit once their signature has a quorum in each active configuration defined at or before that signature.
 
 Disaster recovery is an exception to this retirement sequence.
 Replaying the public ledger reconstructs the previous service's trusted-node configuration in the new consensus instance.
