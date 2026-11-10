@@ -1,11 +1,8 @@
 module
 
 public import DisasterRecovery.Properties.Utils
-public import CCF.Execution
-public import Mathlib.Order.Basic
+public import CCF.Proofs.Execution
 public import DisasterRecovery.Model
-public import Mathlib.Data.Finset.Card
-public import Mathlib.Tactic.CasesM
 
 import all Init.Control.State
 
@@ -27,7 +24,7 @@ private inductive Path (system : TransitionSystem)
     (rest : Path system middle tail after)
     : Path system before (middle :: tail) after
 
-private lemma Path.reachable {system : TransitionSystem} {before tail after}
+private theorem Path.reachable {system : TransitionSystem} {before tail after}
     (path : Path system before tail after) (reachable : system.Reachable before)
     : system.Reachable after := by
   induction path with
@@ -804,7 +801,7 @@ namespace DisasterRecovery.Proofs.Trace
 open CCF
 variable {State : Type}
 
-private lemma Path.run {system : TransitionSystem} {before tail after}
+private theorem Path.run {system : TransitionSystem} {before tail after}
     (path : Path system before tail after)
     : exists actions, Execution.Run system before actions after := by
   induction path with
@@ -814,7 +811,7 @@ private lemma Path.run {system : TransitionSystem} {before tail after}
       exact ⟨_, .cons step rest⟩
 
 /-- Enabled steps connect a state of a valid trace to every later state of the trace. -/
-private lemma valid_path {system : TransitionSystem} {trace : Execution.Trace system}
+private theorem valid_path {system : TransitionSystem} {trace : Execution.Trace system}
     (start count : Nat) {before after : system.State}
     (first : trace.stateAt start = some before)
     (last : trace.stateAt (start + count) = some after)
@@ -837,15 +834,15 @@ private lemma valid_path {system : TransitionSystem} {trace : Execution.Trace sy
           exact ⟨_, .cons step rest⟩
 
 /-- The later of two trace positions is also a trace position. -/
-private lemma max_isSome {trace : Stream'.Seq State} {first second : Nat}
+private theorem max_isSome {trace : CCF.Seq State} {first second : Nat}
     (firstIn : (trace.get? first).isSome) (secondIn : (trace.get? second).isSome)
     : (trace.get? (max first second)).isSome := by
-  rcases le_total first second with le | le
-  · rwa [max_eq_right le]
-  · rwa [max_eq_left le]
+  rcases Nat.le_total first second with le | le
+  · rwa [Nat.max_eq_right le]
+  · rwa [Nat.max_eq_left le]
 
 /-- Finitely many trace positions all lie at or before one trace position after `start`. -/
-private lemma exists_bound {α : Type} {trace : Stream'.Seq State} {P : α -> Nat -> Prop}
+private theorem exists_bound {α : Type} {trace : CCF.Seq State} {P : α -> Nat -> Prop}
     {start : Nat} (startIn : (trace.get? start).isSome) (items : List α)
     (indexed
       : forall item,
@@ -855,7 +852,7 @@ private lemma exists_bound {α : Type} {trace : Stream'.Seq State} {P : α -> Na
         /\ start <= bound
         /\ forall item, item ∈ items -> exists index, index <= bound /\ P item index := by
   induction items with
-  | nil => exact ⟨start, startIn, le_rfl, by simp⟩
+  | nil => exact ⟨start, startIn, Nat.le_refl _, by simp⟩
   | cons head tail ih =>
       obtain ⟨headIndex, headIn, headHolds⟩ := indexed head (by simp)
       obtain ⟨bound, boundIn, startLe, bounded⟩ :=
@@ -863,13 +860,13 @@ private lemma exists_bound {α : Type} {trace : Stream'.Seq State} {P : α -> Na
       refine ⟨
         max headIndex bound,
         max_isSome headIn boundIn,
-        startLe.trans (le_max_right _ _),
+        Nat.le_trans startLe (Nat.le_max_right _ _),
         fun item member => ?_
       ⟩
       rcases List.mem_cons.mp member with rfl | member
-      · exact ⟨headIndex, le_max_left _ _, headHolds⟩
+      · exact ⟨headIndex, Nat.le_max_left _ _, headHolds⟩
       · obtain ⟨index, le, holds⟩ := bounded item member
-        exact ⟨index, le.trans (le_max_right _ _), holds⟩
+        exact ⟨index, Nat.le_trans le (Nat.le_max_right _ _), holds⟩
 
 end DisasterRecovery.Proofs.Trace
 
@@ -879,7 +876,7 @@ open Execution
 open Execution.Local hiding Config
 open Execution.Global Predicates
 
-private lemma recovered_configured
+private theorem recovered_configured
     {config : Config}
     {node : Location}
     (keys : config.recovered.map Prod.fst = config.protocol.expectedLocations)
@@ -894,7 +891,7 @@ private lemma recovered_configured
   rw [←keys, ←key]
   exact List.mem_map_of_mem member
 
-private lemma retryMessages_source
+private theorem retryMessages_source
     {config : Config}
     {source : Location}
     {sourceState : NodeState}
@@ -923,7 +920,7 @@ private lemma retryMessages_source
   rcases created with ⟨effect, _, produced⟩
   exact messageForEffect_source produced
 
-private lemma retryMessages_valid
+private theorem retryMessages_valid
     (config : Config)
     (source : Location)
     (sourceState : NodeState)
@@ -939,7 +936,7 @@ private lemma retryMessages_valid
   · rw [sourceEq, stateEq]
     exact created
 
-private lemma valid_envelope_effect
+private theorem valid_envelope_effect
     {config : Config}
     {envelope : Envelope}
     (valid : envelope.Valid config)
@@ -951,7 +948,7 @@ private lemma valid_envelope_effect
   rw [retryMessages, List.mem_filterMap] at created
   exact created
 
-private lemma valid_gossip_uses_recovered_txid
+private theorem valid_gossip_uses_recovered_txid
     {config : Config}
     {envelope : Envelope}
     {txid : TxID}
@@ -973,7 +970,7 @@ private lemma valid_gossip_uses_recovered_txid
       cases gossip
   | opening _ | restart _ | completed | rejected _ => cases created
 
-private lemma advance_location {config : Execution.Local.Config} {state : NodeState}
+private theorem advance_location {config : Execution.Local.Config} {state : NodeState}
     {timeout : Bool} {output : StepOutput}
     (advanced : advance config state timeout = some output)
     : output.state.location = state.location := by
@@ -1001,7 +998,7 @@ private lemma advance_location {config : Execution.Local.Config} {state : NodeSt
   · cases advanced
     exact lane_location _ timeout
 
-private lemma step_preserves_location
+private theorem step_preserves_location
     (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event)
@@ -1044,7 +1041,7 @@ private lemma step_preserves_location
       cases stepped
       rfl
 
-private lemma nodeState_location
+private theorem nodeState_location
     {state : State}
     {node : Location}
     {foundState : NodeState}
@@ -1062,7 +1059,7 @@ private lemma nodeState_location
   have keyEq : entry.1 = node := beq_iff_eq.mp condition
   rw [←stateEq, locations entry membership, keyEq]
 
-private lemma initial_well_formed
+private theorem initial_well_formed
     (config : Config)
     (nodes : List Location)
     (valid : config.Valid)
@@ -1080,7 +1077,7 @@ private lemma initial_well_formed
   · constructor <;> simp [Execution.Global.initial]
 
 @[simp]
-private lemma recordEffects_system
+private theorem recordEffects_system
     (node : Location)
     (nodeState : NodeState)
     (effects : List Effect)
@@ -1097,7 +1094,7 @@ private lemma recordEffects_system
       cases effect <;> rfl
 
 @[simp]
-private lemma recordEffects_network
+private theorem recordEffects_network
     (node : Location)
     (nodeState : NodeState)
     (effects : List Effect)
@@ -1114,7 +1111,7 @@ private lemma recordEffects_network
       cases effect <;> rfl
 
 @[simp]
-private lemma recordEffects_sent
+private theorem recordEffects_sent
     (node : Location)
     (nodeState : NodeState)
     (effects : List Effect)
@@ -1130,7 +1127,7 @@ private lemma recordEffects_sent
       rw [ih]
       cases effect <;> rfl
 
-private lemma reachable_config_valid
+private theorem reachable_config_valid
     {config : Config}
     {state : State}
     (reachable : Reachable config state)
@@ -1142,7 +1139,7 @@ private lemma reachable_config_valid
       exact valid
   | step _ _ valid => exact valid
 
-private lemma recordEffects_preserves_histories_configured
+private theorem recordEffects_preserves_histories_configured
     {config : Config}
     {node : Location}
     {nodeState : NodeState}
@@ -1186,7 +1183,7 @@ private lemma recordEffects_preserves_histories_configured
       apply ih
       exact recordEffect_preserves_histories_configured wellFormed nodeConfigured
 
-private lemma replaceNode_keys
+private theorem replaceNode_keys
     (target : Location)
     (nextState : NodeState)
     (nodes : List (Prod Location NodeState))
@@ -1207,7 +1204,7 @@ private lemma replaceNode_keys
         simp only [List.cons.injEq, true_and]
         simpa [replaceNode] using ih
 
-private lemma systemStep_node_keys_eq
+private theorem systemStep_node_keys_eq
     {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
@@ -1222,7 +1219,7 @@ private lemma systemStep_node_keys_eq
   exact replaceNode_keys target
     (step config node event).state before.nodes
 
-private lemma systemStep_preserves_node_locations
+private theorem systemStep_preserves_node_locations
     {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
@@ -1263,7 +1260,7 @@ private lemma systemStep_preserves_node_locations
             (p := fun entry : Prod Location NodeState =>
               entry.1 == target) found)
 
-private lemma retry_cases
+private theorem retry_cases
     {config : Config}
     {before after : State}
     {source : Location}
@@ -1283,7 +1280,7 @@ private lemma retry_cases
   obtain ⟨recovered, sourceState, found, _, rfl⟩ := transition
   exact ⟨recovered, sourceState, found, rfl⟩
 
-private lemma deliver_cases
+private theorem deliver_cases
     {config : Config}
     {before after : State}
     {envelope : Envelope}
@@ -1302,7 +1299,7 @@ private lemma deliver_cases
   obtain ⟨pending, recovered, ⟨system, output⟩, stepped, rfl⟩ := transition
   exact ⟨pending, recovered, system, output, stepped, rfl⟩
 
-private lemma timeout_cases
+private theorem timeout_cases
     {config : Config}
     {before after : State}
     {target : Location}
@@ -1319,7 +1316,7 @@ private lemma timeout_cases
   obtain ⟨recovered, ⟨system, output⟩, stepped, accepted, rfl⟩ := transition
   exact ⟨recovered, system, output, stepped, accepted, rfl⟩
 
-private lemma retry_system_eq
+private theorem retry_system_eq
     {config : Config}
     {before after : State}
     {source : Location}
@@ -1328,7 +1325,7 @@ private lemma retry_system_eq
   obtain ⟨_, sourceState, _, rfl⟩ := retry_cases transition
   rfl
 
-private lemma deliver_preserves_well_formed
+private theorem deliver_preserves_well_formed
     {config : Config}
     {before after : State}
     {envelope : Envelope}
@@ -1377,7 +1374,7 @@ private lemma deliver_preserves_well_formed
     · exact recovered_configured wellFormed.recoveredKeys
         (Option.isSome_iff_ne_none.mp targetRecovered)
 
-private lemma timeout_preserves_well_formed
+private theorem timeout_preserves_well_formed
     {config : Config}
     {before after : State}
     {target : Location}
@@ -1414,7 +1411,7 @@ private lemma timeout_preserves_well_formed
     · exact recovered_configured wellFormed.recoveredKeys
         (Option.isSome_iff_ne_none.mp targetRecovered)
 
-private lemma reachable_well_formed
+private theorem reachable_well_formed
     {config : Config}
     {state : State}
     (reachable : Reachable config state)
@@ -1491,31 +1488,31 @@ open DisasterRecovery.Proofs.Invariants
 attribute [local simp] Execution.Local.transitionSystem rejectionReason guard failure
 
 @[local simp]
-private lemma lane_phase (state : NodeState) (timeout : Bool)
+private theorem lane_phase (state : NodeState) (timeout : Bool)
     : (advanceTimeoutLane state timeout).phase = state.phase := by
   cases timeout <;> rfl
 
 @[local simp]
-private lemma lane_votes (state : NodeState) (timeout : Bool)
+private theorem lane_votes (state : NodeState) (timeout : Bool)
     : (advanceTimeoutLane state timeout).votes = state.votes := by
   cases timeout <;> rfl
 
 @[local simp]
-private lemma lane_gossips (state : NodeState) (timeout : Bool)
+private theorem lane_gossips (state : NodeState) (timeout : Bool)
     : (advanceTimeoutLane state timeout).gossips = state.gossips := by
   cases timeout <;> rfl
 
 @[local simp]
-private lemma lane_chosen (state : NodeState) (timeout : Bool)
+private theorem lane_chosen (state : NodeState) (timeout : Bool)
     : (advanceTimeoutLane state timeout).chosen = state.chosen := by
   cases timeout <;> rfl
 
 @[local simp]
-private lemma lane_openKind (state : NodeState) (timeout : Bool)
+private theorem lane_openKind (state : NodeState) (timeout : Bool)
     : (advanceTimeoutLane state timeout).openKind = state.openKind := by
   cases timeout <;> rfl
 
-private lemma eq_of_key_eq
+private theorem eq_of_key_eq
     {α : Type}
     {nodes : List (Prod Location α)}
     (nodup : (nodes.map Prod.fst).Nodup)
@@ -1544,7 +1541,7 @@ private lemma eq_of_key_eq
           exact ⟨first, firstTail, keyEq⟩
         · exact ih tailNodup firstTail secondTail keyEq
 
-private lemma AdvanceSpec.lane {config : Execution.Local.Config} {input : NodeState}
+private theorem AdvanceSpec.lane {config : Execution.Local.Config} {input : NodeState}
     {timeout : Bool} {out : StepOutput}
     (stateEq : out.state = advanceTimeoutLane input timeout)
     (effectsEq : out.effects = [])
@@ -1556,7 +1553,7 @@ private lemma AdvanceSpec.lane {config : Execution.Local.Config} {input : NodeSt
   opening := by simp [effectsEq]
 
 /-- Characterizes every successful phase advance once, so callers avoid re-unfolding it. -/
-private lemma advance_spec {config : Execution.Local.Config} {input : NodeState}
+private theorem advance_spec {config : Execution.Local.Config} {input : NodeState}
     {timeout : Bool} {out : StepOutput}
     (advanced : advance config input timeout = some out)
     : AdvanceSpec config input out := by
@@ -1618,7 +1615,7 @@ private lemma advance_spec {config : Execution.Local.Config} {input : NodeState}
     exact AdvanceSpec.lane rfl rfl
 
 /-- Characterizes every local step once; the per-field step lemmas below follow from it. -/
-private lemma step_spec (config : Execution.Local.Config) (state : NodeState)
+private theorem step_spec (config : Execution.Local.Config) (state : NodeState)
     (event : Event)
     : StepSpec config state event (step config state event) := by
   have advance_getD_spec
@@ -1673,7 +1670,7 @@ private lemma step_spec (config : Execution.Local.Config) (state : NodeState)
       split <;> try split
       all_goals simp
 
-private lemma retry_sendVote_state
+private theorem retry_sendVote_state
     {config : Execution.Local.Config} {state : NodeState} {target : Location}
     (member : .sendVote target ∈ (step config state .retry).effects)
     : state.phase = .voting /\ state.chosen = some target := by
@@ -1681,7 +1678,7 @@ private lemma retry_sendVote_state
   cases phase : state.phase <;> simp [phase] at member
   cases chosen : state.chosen <;> simp_all
 
-private lemma retry_vote_state
+private theorem retry_vote_state
     {config : Config}
     {envelope : Envelope}
     (valid : envelope.Valid config)
@@ -1708,7 +1705,7 @@ private lemma retry_vote_state
   | completed => cases created
   | rejected reason => cases created
 
-private lemma opening_effect_state
+private theorem opening_effect_state
     (config : Execution.Local.Config)
     (state : NodeState)
     (event : Event)
@@ -1721,7 +1718,7 @@ private lemma opening_effect_state
   · obtain ⟨phase, openKind, _⟩ := (advance_spec advanced).opening kind opening
     exact ⟨phase, openKind⟩
 
-private lemma sentVote_mono
+private theorem sentVote_mono
     {before after : State}
     {voter target : Location}
     (sent : forall envelope, envelope ∈ before.sent -> envelope ∈ after.sent)
@@ -1731,7 +1728,7 @@ private lemma sentVote_mono
     ⟨envelope, membership, source, destination, payload⟩
   exact ⟨envelope, sent envelope membership, source, destination, payload⟩
 
-private lemma opening_valid_of_sent_eq
+private theorem opening_valid_of_sent_eq
     {config : Config}
     {before after : State}
     {opening : Opening}
@@ -1753,7 +1750,7 @@ private lemma opening_valid_of_sent_eq
       exact sent
     · exact votesSent voter membership
 
-private lemma recordEffects_preserves_openings_valid
+private theorem recordEffects_preserves_openings_valid
     {config : Config}
     {node : Location}
     {nodeState : NodeState}
@@ -1828,7 +1825,7 @@ private lemma recordEffects_preserves_openings_valid
           (by cases effect <;> rfl)
         exact newValid kind (by simp [membership])
 
-private lemma systemStep_preserves_votes_nodup
+private theorem systemStep_preserves_votes_nodup
     {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
@@ -1873,7 +1870,7 @@ private lemma systemStep_preserves_votes_nodup
     exact nodup (key, node) (List.mem_of_find?_eq_some found)
   · exact nodup previous previousMember
 
-private lemma systemStep_preserves_voting_selections
+private theorem systemStep_preserves_voting_selections
     {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
@@ -1925,7 +1922,7 @@ private lemma systemStep_preserves_voting_selections
     exact valid previous previousMember
       (by simpa [notTarget] using voting)
 
-private lemma systemStep_output_location
+private theorem systemStep_output_location
     {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
@@ -1950,7 +1947,7 @@ private lemma systemStep_output_location
             fun entry : Prod Location NodeState =>
               entry.1 == target) found)
 
-private lemma systemStep_output_mem
+private theorem systemStep_output_mem
     {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
@@ -1970,7 +1967,7 @@ private lemma systemStep_output_mem
           entry.1 == target) found)
   simp [keyEq, outputEq]
 
-private lemma systemStep_opening_effect_state
+private theorem systemStep_opening_effect_state
     {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
@@ -1986,7 +1983,7 @@ private lemma systemStep_opening_effect_state
   rw [←outputEq] at opening ⊢
   exact opening_effect_state config node event kind opening
 
-private lemma systemStep_quorum_effect_has_threshold
+private theorem systemStep_quorum_effect_has_threshold
     {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
@@ -2012,7 +2009,7 @@ private lemma systemStep_quorum_effect_has_threshold
   rw [←outputEq] at opening ⊢
   exact quorum_effect_has_threshold config node event opening
 
-private lemma systemStep_preserves_node_votes_sent
+private theorem systemStep_preserves_node_votes_sent
     {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
@@ -2104,7 +2101,7 @@ private lemma systemStep_preserves_node_votes_sent
         exact previousMember)
       voter (by simpa [notTarget] using vote)
 
-private lemma systemStep_preserves_vote_stability
+private theorem systemStep_preserves_vote_stability
     {config : Execution.Local.Config}
     {before after : SystemState}
     {target : Location}
@@ -2180,7 +2177,7 @@ private lemma systemStep_preserves_vote_stability
       (by simpa [notTarget] using sourceEq)
 
 /-- Inverts a successful retry transition. -/
-private lemma next_retry_inv
+private theorem next_retry_inv
     {config : Config} {before after : State} {source : Location}
     (transition : next config before (.retry source) = some after)
     : exists sourceState,
@@ -2196,7 +2193,7 @@ private lemma next_retry_inv
   exact ⟨sourceState, found, stateEq⟩
 
 /-- Inverts a successful delivery transition. -/
-private lemma next_deliver_inv
+private theorem next_deliver_inv
     {config : Config} {before after : State} {envelope : Envelope}
     (transition : next config before (.deliver envelope) = some after)
     : exists system output,
@@ -2211,7 +2208,7 @@ private lemma next_deliver_inv
   exact ⟨system, output, inNetwork, stepped, stateEq⟩
 
 /-- Inverts a successful timeout transition. -/
-private lemma next_timeout_inv
+private theorem next_timeout_inv
     {config : Config} {before after : State} {target : Location}
     (transition : next config before (.timeout target) = some after)
     : exists system output,
@@ -2222,7 +2219,7 @@ private lemma next_timeout_inv
   rcases transition with ⟨_, system, output, stepped, _, stateEq⟩
   exact ⟨system, output, stepped, stateEq⟩
 
-private lemma next_preserves_node_votes_nodup
+private theorem next_preserves_node_votes_nodup
     {config : Config}
     {before after : State}
     {action : Action}
@@ -2247,7 +2244,7 @@ private lemma next_preserves_node_votes_nodup
       exact systemStep_preserves_votes_nodup nodup systemStep
         entry membership
 
-private lemma deliver_preserves_node_votes_sent
+private theorem deliver_preserves_node_votes_sent
     {config : Config}
     {before after : State}
     {envelope : Envelope}
@@ -2303,7 +2300,7 @@ private lemma deliver_preserves_node_votes_sent
     rfl votesSent carry introducedVote systemStep
     entry membership voter vote
 
-private lemma timeout_preserves_node_votes_sent
+private theorem timeout_preserves_node_votes_sent
     {config : Config}
     {before after : State}
     {target : Location}
@@ -2340,7 +2337,7 @@ private lemma timeout_preserves_node_votes_sent
     rfl votesSent carry introducedVote systemStep
     entry membership voter vote
 
-private lemma deliver_preserves_openings_valid
+private theorem deliver_preserves_openings_valid
     {config : Config}
     {before after : State}
     {envelope : Envelope}
@@ -2392,7 +2389,7 @@ private lemma deliver_preserves_openings_valid
           voter vote
       simpa [SentVote, delivered] using sent
 
-private lemma timeout_preserves_openings_valid
+private theorem timeout_preserves_openings_valid
     {config : Config}
     {before after : State}
     {target : Location}
@@ -2439,7 +2436,7 @@ private lemma timeout_preserves_openings_valid
           voter vote
       simpa [SentVote, timedOut] using sent
 
-private lemma deliver_preserves_sent_votes_functional
+private theorem deliver_preserves_sent_votes_functional
     {config : Config}
     {before after : State}
     {envelope : Envelope}
@@ -2454,7 +2451,7 @@ private lemma deliver_preserves_sent_votes_functional
   · simpa [SentVote] using firstVote
   · simpa [SentVote] using secondVote
 
-private lemma timeout_preserves_sent_votes_functional
+private theorem timeout_preserves_sent_votes_functional
     {config : Config}
     {before after : State}
     {target : Location}
@@ -2468,7 +2465,7 @@ private lemma timeout_preserves_sent_votes_functional
   · simpa [SentVote] using firstVote
   · simpa [SentVote] using secondVote
 
-private lemma reachable_quorum_invariant
+private theorem reachable_quorum_invariant
     {config : Config}
     {state : State}
     (reachable : Reachable config state)
@@ -2865,7 +2862,7 @@ private lemma reachable_quorum_invariant
       exact next_preserves_quorum_invariant
         (reachable_well_formed reachable) invariant transition
 
-private lemma quorum_lists_intersect
+private theorem quorum_lists_intersect
     {α : Type}
     (expected first second : List α)
     (firstNodup : first.Nodup)
@@ -2875,33 +2872,18 @@ private lemma quorum_lists_intersect
     (firstQuorum : expected.length / 2 + 1 <= first.length)
     (secondQuorum : expected.length / 2 + 1 <= second.length)
     : exists value, value ∈ first /\ value ∈ second := by
-  classical
-  by_contra noShared
-  push Not at noShared
-  have disjoint : Disjoint first.toFinset second.toFinset :=
-    Finset.disjoint_left.mpr (by
-      intro value firstMember secondMember
-      exact noShared value
-        (List.mem_toFinset.mp firstMember)
-        (List.mem_toFinset.mp secondMember))
-  have unionSubset :
-      first.toFinset ∪ second.toFinset ⊆ expected.toFinset := by
-    intro value membership
-    rw [Finset.mem_union] at membership
-    rw [List.mem_toFinset]
-    exact membership.elim
-      (fun member =>
-        firstSubset value (List.mem_toFinset.mp member))
-      (fun member =>
-        secondSubset value (List.mem_toFinset.mp member))
-  have unionCard := Finset.card_le_card unionSubset
-  rw [Finset.card_union_of_disjoint disjoint,
-    List.toFinset_card_of_nodup firstNodup,
-    List.toFinset_card_of_nodup secondNodup] at unionCard
-  have expectedCard := List.toFinset_card_le expected
+  apply Classical.byContradiction
+  intro noShared
+  have nodup : (first ++ second).Nodup :=
+    List.nodup_append.mpr ⟨firstNodup, secondNodup,
+      fun value firstMember _ secondMember same =>
+        noShared ⟨value, firstMember, same ▸ secondMember⟩⟩
+  have bound := nodup.length_le_of_subset (l₂ := expected) fun value member =>
+    (List.mem_append.mp member).elim (firstSubset value) (secondSubset value)
+  rw [List.length_append] at bound
   omega
 
-private lemma quorum_opener_unique
+private theorem quorum_opener_unique
     {config : Config}
     {state : State}
     {first second : Location}
@@ -2961,28 +2943,28 @@ open CCF
 open Model.Local
 
 @[simp]
-private lemma effect_pure {S A : Type} (a : A) (s : S)
+private theorem effect_pure {S A : Type} (a : A) (s : S)
     : (pure a : StateT S Option A) s = some (a, s) :=
   rfl
 
 @[simp]
-private lemma effect_bind {S A B : Type} (a : StateT S Option A)
+private theorem effect_bind {S A B : Type} (a : StateT S Option A)
     (f : A -> StateT S Option B) (s : S)
     : (a >>= f) s = (a s).bind (fun (a, s) => f a s) :=
   rfl
 
 @[simp]
-private lemma effect_modify {S : Type} (f : S -> S) (s : S)
+private theorem effect_modify {S : Type} (f : S -> S) (s : S)
     : (modify f : StateT S Option Unit) s = some ((), f s) :=
   rfl
 
 @[simp]
-private lemma effect_lift {S A : Type} (a : Option A) (s : S)
+private theorem effect_lift {S A : Type} (a : Option A) (s : S)
     : (liftM a : StateT S Option A) s = a.map (fun a => (a, s)) := by
   cases a <;> rfl
 
 @[simp]
-private lemma effect_failure {S A : Type} (s : S)
+private theorem effect_failure {S A : Type} (s : S)
     : (failure : StateT S Option A) s = none := by
   have effect_failure_internal {S A : Type} (s : S)
       : (failure : StateT S Option A) s = none :=
@@ -2990,7 +2972,7 @@ private lemma effect_failure {S A : Type} (s : S)
   exact effect_failure_internal s
 
 @[simp]
-private lemma effect_alternative {S A : Type} (a b : StateT S Option A) (s : S)
+private theorem effect_alternative {S A : Type} (a b : StateT S Option A) (s : S)
     : (a <|> b) s = (a s <|> b s) := by
   have effect_orElse_internal {S A : Type} (a : StateT S Option A)
       (b : Unit -> StateT S Option A) (s : S)
@@ -2998,7 +2980,7 @@ private lemma effect_alternative {S A : Type} (a b : StateT S Option A) (s : S)
     rfl
   exact effect_orElse_internal a (fun _ => b) s
 
-private lemma validStep_run {config : Model.Config}
+private theorem validStep_run {config : Model.Config}
     {s
       : MultiNodeTransitionSystem.LocalStep Location NodeState Event Message Notification}
     (valid : (Model.protocol config).ValidStep s)
@@ -3008,9 +2990,10 @@ private lemma validStep_run {config : Model.Config}
               s.action).run
               {}
             = some (s.after, s.effects) := by
-  simpa [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
-    Option.bind_eq_some_iff, Option.map_eq_some_iff]
-    using valid
+  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
+    Option.bind_eq_some_iff, Option.map_eq_some_iff] at valid
+  obtain ⟨_, _, ⟨_, found, rfl, rfl⟩, stepped⟩ := valid
+  exact ⟨_, found, stepped⟩
 
 end DisasterRecovery.Proofs.Local
 
@@ -3022,13 +3005,13 @@ open Execution.Local (messages)
 open DisasterRecovery.Proofs.Local
 attribute [local simp] StateT.run
 
-private lemma messages_cons (source : Location) (recovered : TxID)
+private theorem messages_cons (source : Location) (recovered : TxID)
     (effect : Execution.Local.Effect) (effects : List Execution.Local.Effect)
     : messages source recovered (effect :: effects)
       = messages source recovered [effect] ++ messages source recovered effects := by
   cases effect <;> rfl
 
-private lemma messages_map (source : Location) (recovered : TxID)
+private theorem messages_map (source : Location) (recovered : TxID)
     (send : Location -> Execution.Local.Effect) (message : Message)
     (sends
       : forall target,
@@ -3042,7 +3025,7 @@ private lemma messages_map (source : Location) (recovered : TxID)
   | cons head tail ih => rw [List.map_cons, messages_cons, sends, ih]; rfl
 
 /-- The executable and instrumented phase advances agree, case by case, by computation. -/
-private lemma advance_run (config : Config) (source : Location) (recovered : TxID)
+private theorem advance_run (config : Config) (source : Location) (recovered : TxID)
     (state : NodeState) (timeout : Bool)
     : advance (Capabilities.record source) config state timeout {}
       = (Execution.Local.advance config state timeout).map (toRun source recovered) := by
@@ -3063,7 +3046,7 @@ private lemma advance_run (config : Config) (source : Location) (recovered : TxI
   all_goals rfl
 
 /-- Every instrumented advance is accepted and emits only notifications. -/
-private lemma advance_output (config : Config) (state : NodeState) (timeout : Bool)
+private theorem advance_output (config : Config) (state : NodeState) (timeout : Bool)
     (output : Execution.Local.StepOutput)
     (h : Execution.Local.advance config state timeout = some output)
     (source : Location) (recovered : TxID)
@@ -3090,7 +3073,7 @@ private lemma advance_output (config : Config) (state : NodeState) (timeout : Bo
   all_goals exact ⟨rfl, rfl⟩
 
 /-- Receive events never disable the executable step; they match the instrumented step. -/
-private lemma receive_run (config : Config) (source : Location) (recovered : TxID)
+private theorem receive_run (config : Config) (source : Location) (recovered : TxID)
     (state : NodeState) (event : Event) (notRetry : event ≠ .retry)
     (notTimeout : event ≠ .timeout)
     : (step (Capabilities.record source) config recovered state event).run {}
@@ -3132,13 +3115,13 @@ private lemma receive_run (config : Config) (source : Location) (recovered : TxI
           rfl
       · rfl
 
-private lemma timeout_run (config : Config) (source : Location) (recovered : TxID)
+private theorem timeout_run (config : Config) (source : Location) (recovered : TxID)
     (state : NodeState)
     : (step (Capabilities.record source) config recovered state .timeout).run {}
       = (Execution.Local.advance config state true).map (toRun source recovered) :=
   advance_run config source recovered state true
 
-private lemma retry_recorded (config : Config) (source : Location) (recovered : TxID)
+private theorem retry_recorded (config : Config) (source : Location) (recovered : TxID)
     (state : NodeState)
     : (step (Capabilities.record source) config recovered state .retry).run {}
       = (do
@@ -3216,7 +3199,7 @@ private lemma retry_recorded (config : Config) (source : Location) (recovered : 
     split <;> rfl
   all_goals exact effect_failure (A := NodeState) _
 
-private lemma step_erases (config : Config) (recovered : TxID) (state : NodeState)
+private theorem step_erases (config : Config) (recovered : TxID) (state : NodeState)
     (event : Event) {source : Location} (output : Result)
     (h
       : ((step (Capabilities.record source) config recovered state event).run {}).map
@@ -3262,7 +3245,7 @@ private lemma step_erases (config : Config) (recovered : TxID) (state : NodeStat
     all_goals nofun
 
 /-- Erasing snapshots can merge envelopes. Select before removing, using projected equality. -/
-private lemma first_matching_envelope
+private theorem first_matching_envelope
     (envelopes : List Execution.Global.Envelope) (envelope : Model.Envelope)
     (present : envelope ∈ envelopes.map eraseEnvelope)
     : exists decorated,
@@ -3292,7 +3275,7 @@ private lemma first_matching_envelope
             different, removed]
         · simp [first, selected]
 
-private lemma transition_messages_empty (config : Config) (state : NodeState)
+private theorem transition_messages_empty (config : Config) (state : NodeState)
     (event : Event) (source : Location) (recovered : TxID)
     (notRetry : event ≠ .retry)
     : messages source recovered (Execution.Local.step config state event).effects
@@ -3337,7 +3320,7 @@ private lemma transition_messages_empty (config : Config) (state : NodeState)
           rfl
       · rfl
 
-private lemma retry_messages_erases (config : Model.Config) (source : Location)
+private theorem retry_messages_erases (config : Model.Config) (source : Location)
     (state : NodeState) (recovered : TxID)
     (found : Model.recoveredTxID config source = some recovered)
     : (Execution.Global.retryMessages config source state).map eraseEnvelope
@@ -3356,7 +3339,7 @@ private lemma retry_messages_erases (config : Model.Config) (source : Location)
         rfl
       all_goals rfl
 
-private lemma local_step_run (config : Config) (source : Location) (recovered : TxID)
+private theorem local_step_run (config : Config) (source : Location) (recovered : TxID)
     (state : NodeState) (event : Event)
     : (step (Capabilities.record source) config recovered state event).run {}
       = (do
@@ -3389,7 +3372,7 @@ private lemma local_step_run (config : Config) (source : Location) (recovered : 
     · rfl
     all_goals nofun
 
-private lemma scheduled_step_some (config : Model.Config) (before after : Model.State)
+private theorem scheduled_step_some (config : Model.Config) (before after : Model.State)
     (node : Location) (event : Event)
     (h
       : (do
@@ -3457,7 +3440,7 @@ private lemma scheduled_step_some (config : Model.Config) (before after : Model.
     exact ⟨nofun, rfl⟩
 
 @[simp]
-private lemma erase_recordEffects (node : Location) (state : NodeState)
+private theorem erase_recordEffects (node : Location) (state : NodeState)
     (effects : List Execution.Local.Effect) (before : Execution.Global.State)
     : erase (Execution.Global.recordEffects node state effects before)
       = erase before := by
@@ -3472,7 +3455,7 @@ open Execution.Local hiding Config
 open Execution.Global Predicates
 open DisasterRecovery.Proofs.Invariants DisasterRecovery.Proofs.Quorum
 
-private lemma maximumGossip_mem
+private theorem maximumGossip_mem
     {gossips : List (Prod Location TxID)}
     {selected : Prod Location TxID}
     (maximum : maximumGossip gossips = some selected)
@@ -3505,7 +3488,7 @@ private lemma maximumGossip_mem
       rw [←maximum]
       exact foldl_selectMaximum_mem head tail
 
-private lemma recoveredTxID_of_mem
+private theorem recoveredTxID_of_mem
     {config : Config}
     {location : Location}
     {txid : TxID}
@@ -3533,7 +3516,7 @@ private lemma recoveredTxID_of_mem
         eq_of_key_eq keysNodup foundMember membership foundLocation
       simp [same]
 
-private lemma up_to_date_with_quorum_of_voters
+private theorem up_to_date_with_quorum_of_voters
     {config : Config} {candidate : TxID} {voters : List Location}
     (nodup : voters.Nodup)
     (threshold : voteQuorum config.protocol <= voters.length)
@@ -3555,18 +3538,15 @@ private lemma up_to_date_with_quorum_of_voters
     exact List.mem_of_find?_eq_some found
   let eligible := config.recovered.filter fun (_, voter) =>
     decide (Properties.LogUpToDate candidate voter)
-  have subset : voters.toFinset ⊆ (eligible.map Prod.fst).toFinset := by
+  have subset : voters ⊆ eligible.map Prod.fst := by
     intro voter member
-    obtain ⟨txid, recovered, earlier⟩ := fresh voter (List.mem_toFinset.mp member)
-    apply List.mem_toFinset.mpr
+    obtain ⟨txid, recovered, earlier⟩ := fresh voter member
     apply List.mem_map.mpr
     refine ⟨(voter, txid), List.mem_filter.mpr ⟨mem_of_recoveredTxID recovered, ?_⟩, rfl⟩
     exact decide_eq_true earlier
-  have count := Finset.card_le_card subset
-  rw [List.toFinset_card_of_nodup nodup] at count
-  have bound := List.toFinset_card_le (eligible.map Prod.fst)
-  rw [List.length_map] at bound
-  exact threshold.trans (count.trans bound)
+  have count := nodup.length_le_of_subset subset
+  rw [List.length_map] at count
+  exact Nat.le_trans threshold count
 
 end DisasterRecovery.Proofs.Committed
 
@@ -3578,7 +3558,7 @@ open Execution.Local (messages)
 open DisasterRecovery.Proofs.Local
 attribute [local simp] StateT.run
 
-private lemma step_lifts (config : Model.Config)
+private theorem step_lifts (config : Model.Config)
     (before : Execution.Global.State) (action : Model.Action) (after : Model.State)
     (nodup : (before.system.nodes.map Prod.fst).Nodup)
     (h : (Model.transitionSystem config).step (erase before) action = some after)
@@ -3614,7 +3594,7 @@ private lemma step_lifts (config : Model.Config)
     have member := List.mem_of_find?_eq_some selected
     have key : entry.1 = node := beq_iff_eq.mp
       (List.find?_some (p := fun entry : Location × NodeState => entry.1 == node) selected)
-    conv_rhs => rw [← List.map_id nodes]
+    conv => rhs; rw [← List.map_id nodes]
     apply List.map_congr_left
     intro other membership
     split
@@ -3778,7 +3758,7 @@ private theorem model_initial_lifts (config : Model.Config) (state : Model.State
       (state.nodes.map Prod.fst).map (fun node => (node, initialNode node)) =
         state.nodes := by
     rw [List.map_map]
-    conv_rhs => rw [← List.map_id state.nodes]
+    conv => rhs; rw [← List.map_id state.nodes]
     apply List.map_congr_left
     intro entry member
     have initialized := nodes entry member
@@ -3891,10 +3871,10 @@ open Execution.Local hiding Config
 open Execution.Global Predicates
 open DisasterRecovery.Proofs.Invariants DisasterRecovery.Proofs.Quorum
 
-private lemma prefix_refl (txid : TxID) : TxID.EarlierThan txid txid := by
+private theorem prefix_refl (txid : TxID) : TxID.EarlierThan txid txid := by
   simp [TxID.EarlierThan]
 
-private lemma prefix_of_score_false
+private theorem prefix_of_score_false
     (leftName rightName : Location)
     (left right : TxID)
     (score : txScoreGreater leftName left rightName right = false)
@@ -3903,7 +3883,7 @@ private lemma prefix_of_score_false
   simp [TxID.EarlierThan]
   omega
 
-private lemma maximumGossip_upper_bound
+private theorem maximumGossip_upper_bound
     {gossips : List (Prod Location TxID)}
     {selected member : Prod Location TxID}
     (maximum : maximumGossip gossips = some selected)
@@ -3985,10 +3965,10 @@ open Execution.Local hiding Config
 open Execution.Global
 open Invariants Quorum
 
-private lemma evolves_refl (state : NodeState) : Evolves state state :=
+private theorem evolves_refl (state : NodeState) : Evolves state state :=
   ⟨fun _ h => h, fun _ h => h, fun h => ⟨h, rfl⟩⟩
 
-private lemma advance_frame {config : Execution.Local.Config} {state : NodeState}
+private theorem advance_frame {config : Execution.Local.Config} {state : NodeState}
     {timeout : Bool} {output : StepOutput}
     (advanced : advance config state timeout = some output)
     : Frame state output.state := by
@@ -4017,7 +3997,7 @@ private lemma advance_frame {config : Execution.Local.Config} {state : NodeState
   · cases advanced
     exact frame_lane timeout ⟨rfl, rfl, id⟩
 
-private lemma step_genuine (config : Config) (state : NodeState) (event : Event)
+private theorem step_genuine (config : Config) (state : NodeState) (event : Event)
     (prior : state.gossips ⊆ config.recovered) (incoming : EventGenuine config event)
     : (step config.protocol state event).state.gossips ⊆ config.recovered := by
   have insertGossip_genuine {config : Config} {state : NodeState} {source : Location}
@@ -4078,7 +4058,7 @@ private lemma step_genuine (config : Config) (state : NodeState) (event : Event)
       cases stepped
       exact prior
 
-private lemma next_genuine {config : Config} {before after : State} {action : Action}
+private theorem next_genuine {config : Config} {before after : State} {action : Action}
     (wf : Predicates.WellFormed config before)
     (prior : Genuine config before.system.nodes)
     (transition : next config before action = some after)
@@ -4132,7 +4112,7 @@ private lemma next_genuine {config : Config} {before after : State} {action : Ac
       simpa only [recordEffects_system]
         using systemStep_genuine prior (by trivial) updated
 
-private lemma step_evolves (config : Execution.Local.Config) (state : NodeState)
+private theorem step_evolves (config : Execution.Local.Config) (state : NodeState)
     (event : Event)
     : Evolves state (step config state event).state := by
   have insertGossip_extends (source : Location) (txid : TxID)
@@ -4207,7 +4187,7 @@ private lemma step_evolves (config : Execution.Local.Config) (state : NodeState)
       cases stepped
       exact evolves_refl state
 
-private lemma systemStep_evolves {config : Execution.Local.Config}
+private theorem systemStep_evolves {config : Execution.Local.Config}
     {before after : SystemState} {target : Location} {event : Event} {output : StepOutput}
     (nodup : (before.nodes.map Prod.fst).Nodup)
     (transition : systemStep config before target event = some (after, output))
@@ -4229,7 +4209,7 @@ private lemma systemStep_evolves {config : Execution.Local.Config}
   · refine ⟨current, ?_, evolves_refl current⟩
     exact List.mem_map.mpr ⟨(node, current), member, by simp [same]⟩
 
-private lemma next_evolves {config : Config} {before after : State} {action : Action}
+private theorem next_evolves {config : Config} {before after : State} {action : Action}
     (wf : Predicates.WellFormed config before)
     (transition : next config before action = some after) {node : Location}
     {current : NodeState} (member : (node, current) ∈ before.system.nodes)
@@ -4252,7 +4232,7 @@ private lemma next_evolves {config : Config} {before after : State} {action : Ac
       obtain ⟨_, ⟨system, output⟩, updated, _, rfl⟩ := transition
       simpa only [recordEffects_system] using systemStep_evolves wf.nodeKeysNodup updated member
 
-private lemma trace_node_final {config : Model.Config}
+private theorem trace_node_final {config : Model.Config}
     {trace : Properties.GlobalTrace config} {bound : Nat} {ghost : State}
     (linked : History.Correspondence config trace bound ghost) {i : Nat}
     {state : Model.State} (le : i <= bound) (found : trace.stateAt i = some state)
@@ -4295,7 +4275,7 @@ private lemma trace_node_final {config : Model.Config}
   obtain ⟨suffix, run⟩ := linked.suffix i state le found
   exact steps_evolve run (trace.reachable (CCF.Execution.Trace.stateAt_mem found)) present
 
-private lemma next_frozen {config : Config} {before after : State} {action : Action}
+private theorem next_frozen {config : Config} {before after : State} {action : Action}
     (wf : Predicates.WellFormed config before)
     (prior : FrozenVotes before)
     (transition : next config before action = some after)
@@ -4347,7 +4327,7 @@ private lemma next_frozen {config : Config} {before after : State} {action : Act
       obtain ⟨_, ⟨system, output⟩, _, _, rfl⟩ := transition
       simpa only [FrozenVotes, recordEffects_sent] using carry
 
-private lemma reachable_gossip_invariant {config : Config} {state : State}
+private theorem reachable_gossip_invariant {config : Config} {state : State}
     (reachable : Reachable config state)
     : Genuine config state.system.nodes /\ FrozenVotes state := by
   induction reachable
@@ -4372,7 +4352,7 @@ open Execution.Local
 open Execution.Global hiding Config
 open Predicates
 
-private lemma advance_threshold {config : Config} {state : NodeState} {timeout : Bool}
+private theorem advance_threshold {config : Config} {state : NodeState} {timeout : Bool}
     {output : StepOutput} (advanced : advance config state timeout = some output)
     (threshold : Threshold config state)
     : Threshold config output.state := by
@@ -4412,7 +4392,7 @@ private lemma advance_threshold {config : Config} {state : NodeState} {timeout :
   · cases advanced
     exact lane_threshold timeout threshold
 
-private lemma step_preserves_opening_threshold (config : Config) (state : NodeState)
+private theorem step_preserves_opening_threshold (config : Config) (state : NodeState)
     (event : Event)
     (threshold
       : forall kind,
@@ -4464,7 +4444,7 @@ private lemma step_preserves_opening_threshold (config : Config) (state : NodeSt
       cases stepped
       exact threshold
 
-private lemma systemStep_preserves_opening_thresholds
+private theorem systemStep_preserves_opening_thresholds
     (config : Model.Config) (before after : SystemState)
     (target : Location) (event : Event) (output : StepOutput)
     (threshold
@@ -4495,7 +4475,7 @@ private lemma systemStep_preserves_opening_thresholds
   · subst entry
     exact threshold previous member
 
-private lemma next_preserves_opening_thresholds (config : Model.Config)
+private theorem next_preserves_opening_thresholds (config : Model.Config)
     (before after : State) (action : Action) (threshold : OpeningThresholds config before)
     (trans : next config before action = some after)
     : OpeningThresholds config after := by
@@ -4519,7 +4499,7 @@ private lemma next_preserves_opening_thresholds (config : Model.Config)
       exact systemStep_preserves_opening_thresholds config before.system system
         target .timeout output threshold systemStep entry member
 
-private lemma reachable_opening_thresholds {config : Model.Config} {state : State}
+private theorem reachable_opening_thresholds {config : Model.Config} {state : State}
     (reachable : Reachable config state)
     : OpeningThresholds config state := by
   induction reachable
@@ -4530,7 +4510,7 @@ private lemma reachable_opening_thresholds {config : Model.Config} {state : Stat
   | step _ trans ih =>
       exact next_preserves_opening_thresholds config _ _ _ ih trans
 
-private lemma reachable_quorum_thresholds {config : Model.Config} {state : State}
+private theorem reachable_quorum_thresholds {config : Model.Config} {state : State}
     (reachable : Reachable config state)
     (entry : Location × NodeState) (member : entry ∈ state.system.nodes)
     (quorum : entry.2.openKind = some .quorum)
@@ -4546,7 +4526,7 @@ open Execution.Local hiding Config
 open Execution.Global
 open Invariants Quorum
 
-lemma quorum_open_preserves_commit
+theorem quorum_open_preserves_commit
     : forall (config : Model.Config) (trace : Properties.GlobalTrace config)
               (openedState : Model.State),
       forall (opener : Model.Local.Location) (openerState : Model.Local.NodeState),
@@ -4644,7 +4624,7 @@ open Execution.Local
 open Execution.Global hiding Config
 open Predicates
 
-private lemma reachable_opening_has_vote {config : Model.Config} {state : State}
+private theorem reachable_opening_has_vote {config : Model.Config} {state : State}
     (reachable : Reachable config state)
     (entry : Location × NodeState) (member : entry ∈ state.system.nodes)
     (opened : entry.2.openKind.isSome = true)
@@ -4666,7 +4646,7 @@ open Execution.Local hiding Config
 open Execution.Global Predicates
 open DisasterRecovery.Proofs.Invariants DisasterRecovery.Proofs.Quorum
 
-private lemma up_to_date_with_quorum_of_all
+private theorem up_to_date_with_quorum_of_all
     {config : Config} {candidate : TxID}
     (valid : config.Valid)
     (fresh : forall entry, entry ∈ config.recovered -> TxID.EarlierThan entry.2 candidate)
@@ -4694,7 +4674,7 @@ open Execution.Local hiding Config
 open Execution.Global
 open Invariants Quorum
 
-lemma full_gossip_preserves_commit
+theorem full_gossip_preserves_commit
     : forall (config : Model.Config) (trace : Properties.GlobalTrace config)
               (gossipedState openedState : Model.State),
       forall (opener : Model.Local.Location) (openerState : Model.Local.NodeState),
@@ -4759,12 +4739,12 @@ lemma full_gossip_preserves_commit
   obtain ⟨voter, voted⟩ :=
     Observed.reachable_opening_has_vote openingReachable _ openingPresent opening
   obtain ⟨final, finalMember, evolves⟩ :=
-    trace_node_final linked (le_max_right _ _) openFound.symm present
+    trace_node_final linked (Nat.le_max_right _ _) openFound.symm present
   have invariant := reachable_quorum_invariant linked.reachable
   obtain ⟨envelope, sent, _, target, vote⟩ :=
     invariant.votesSent _ finalMember voter (evolves.votes voted)
   have complete :=
-    sent_vote_full_gossip linked (le_max_left _ _) gossipFound.symm full sent vote
+    sent_vote_full_gossip linked (Nat.le_max_left _ _) gossipFound.symm full sent vote
   obtain ⟨selected, txid, choice, maximum⟩ := invariant.sentVotesSelected envelope sent vote
   have wf := reachable_well_formed linked.reachable
   have selectedEq : selected = envelope.target :=
@@ -4785,7 +4765,7 @@ open Execution.Local
 open Execution.Global hiding Config
 open Predicates
 
-private lemma notification_opening_state {config : Model.Config}
+private theorem notification_opening_state {config : Model.Config}
     {trace : Properties.GlobalTrace config} {index : Nat} {node : Location}
     {kind : OpenKind}
     (notification
@@ -4825,10 +4805,9 @@ private lemma notification_opening_state {config : Model.Config}
   rw [← same]
   exact List.mem_of_find?_eq_some found
 
-private lemma current_quorum_unique_of_thresholds {config : Model.Config} {state : State}
-    (reachable : Reachable config state)
-    (first second : Location × NodeState)
-    (firstMember : first ∈ state.system.nodes)
+private theorem current_quorum_unique_of_thresholds {config : Model.Config}
+    {state : State} (reachable : Reachable config state)
+    (first second : Location × NodeState) (firstMember : first ∈ state.system.nodes)
     (secondMember : second ∈ state.system.nodes)
     (firstQuorum : voteQuorum config.protocol <= first.2.votes.length)
     (secondQuorum : voteQuorum config.protocol <= second.2.votes.length)
@@ -4861,7 +4840,7 @@ open Execution.Local hiding Config
 open Execution.Global
 open Invariants Quorum
 
-private lemma quorum_notification_final_votes {config : Model.Config}
+private theorem quorum_notification_final_votes {config : Model.Config}
     {trace : Properties.GlobalTrace config} {bound : Nat} {ghost : State}
     (linked : History.Correspondence config trace bound ghost) {index : Nat}
     (le : index + 1 <= bound) {node : Location}
@@ -4879,18 +4858,14 @@ private lemma quorum_notification_final_votes {config : Model.Config}
   have nodup := (reachable_quorum_invariant openingReachable).votesNodup _ openingPresent
   have threshold := Observed.reachable_quorum_thresholds openingReachable _ openingPresent opened
   obtain ⟨final, finalMember, evolves⟩ := trace_node_final linked le inTrace present
-  have subset : current.votes.toFinset ⊆ final.votes.toFinset := by
-    intro voter member
-    exact List.mem_toFinset.mpr (evolves.votes (List.mem_toFinset.mp member))
-  have count := Finset.card_le_card subset
-  rw [List.toFinset_card_of_nodup nodup] at count
-  exact ⟨final, finalMember, threshold.trans (count.trans (List.toFinset_card_le _))⟩
+  have count := nodup.length_le_of_subset fun _ member => evolves.votes member
+  exact ⟨final, finalMember, Nat.le_trans threshold count⟩
 
 end DisasterRecovery.Proofs.Gossip
 
 namespace DisasterRecovery.Proofs.Model
 
-lemma quorum_opener_unique
+theorem quorum_opener_unique
     : forall (config : Model.Config) (trace : Properties.GlobalTrace config),
       forall (firstStep secondStep : Nat)
               (firstOpener secondOpener : Model.Local.Location),
@@ -4906,9 +4881,9 @@ lemma quorum_opener_unique
     (Trace.max_isSome (Option.isSome_iff_exists.mpr ⟨_, firstFound⟩)
       (Option.isSome_iff_exists.mpr ⟨_, secondFound⟩))
   obtain ⟨firstState, firstMember, firstThreshold⟩ :=
-    Gossip.quorum_notification_final_votes linked (le_max_left _ _) first
+    Gossip.quorum_notification_final_votes linked (Nat.le_max_left _ _) first
   obtain ⟨secondState, secondMember, secondThreshold⟩ :=
-    Gossip.quorum_notification_final_votes linked (le_max_right _ _) second
+    Gossip.quorum_notification_final_votes linked (Nat.le_max_right _ _) second
   exact Observed.current_quorum_unique_of_thresholds linked.reachable
     (firstOpener, firstState) (secondOpener, secondState)
     firstMember secondMember firstThreshold secondThreshold

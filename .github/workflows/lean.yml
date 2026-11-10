@@ -20,6 +20,8 @@ on:
       - "CMakeLists.txt"
       - ".github/workflows/lean.yml"
       - ".github/workflows/lean-package.yml"
+      # Checked by lean-mathlib-equivalence.yml.
+      - "!lean/mathlib-equivalence/**"
   workflow_dispatch:
 
 concurrency:
@@ -272,12 +274,6 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           elan run --install "$(cat lean/lean-toolchain)" lean --version
 
-      - name: Restore Mathlib cache
-        working-directory: lean/consensus
-        run: |
-          set -euo pipefail
-          lake exe cache get
-
       - name: Build CCF consensus replay
         working-directory: lean/consensus
         run: |
@@ -355,7 +351,9 @@ jobs:
           import pathlib
 
           expected = {"consensus", "common", "consistency", "disaster-recovery", "kv"}
-          actual = {config.parent.name for config in pathlib.Path("lean").glob("*/lakefile.toml")}
+          # Checked by lean-mathlib-equivalence.yml.
+          separate = {"mathlib-equivalence"}
+          actual = {config.parent.name for config in pathlib.Path("lean").glob("*/lakefile.toml")} - separate
           if actual != expected:
               raise SystemExit(
                   f"::error::Lean package inventory changed: expected {sorted(expected)}, got {sorted(actual)}; "
@@ -397,12 +395,6 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           elan run --install "$(cat lean/lean-toolchain)" lean --version
-
-      - name: Restore Mathlib cache
-        working-directory: lean/kv
-        run: |
-          set -euo pipefail
-          lake exe cache get
 
       - name: Build KV replay
         working-directory: lean/kv
@@ -460,12 +452,6 @@ jobs:
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           elan run --install "$(cat lean/lean-toolchain)" lean --version
-
-      - name: Restore Mathlib cache
-        working-directory: lean/consistency
-        run: |
-          set -euo pipefail
-          lake exe cache get
 
       - name: Build consistency replay
         working-directory: lean/consistency

@@ -11,6 +11,7 @@ public section
 namespace Consensus.Replay
 
 open Lean Model.Node
+open CCF (Finset)
 open CCF.MultiNodeTransitionSystem (nodeState removeOne)
 
 abbrev Envelope := Model.Envelope

@@ -10,6 +10,7 @@ namespace Consensus.Tests.CanonicalTraces
 
 open Consensus Consensus.Model.Node
 open Consensus.Model (initialNodeState BOOTSTRAP_TERM)
+open CCF (Finset)
 open CCF.MultiNodeTransitionSystem (nodeState)
 
 private inductive Action where

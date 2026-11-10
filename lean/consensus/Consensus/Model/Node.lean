@@ -4,8 +4,7 @@ public import Consensus.Model.ClusterConfig
 public import Consensus.Model.Messages
 public import Consensus.Model.NodeState
 public import CCF.Capabilities
-public import Mathlib.Data.Finset.Sort
-public import Mathlib.Order.Prod.Lex.Basic
+public import CCF.Function
 
 @[expose] public section
 
@@ -22,7 +21,7 @@ disabled: the step has no effect and a received message stays in flight.
 
 namespace Consensus.Model.Node
 
-open CCF (Capabilities Effect)
+open CCF (Capabilities Effect Finset)
 
 abbrev Caps := Capabilities NodeID Message Notification
 
@@ -59,18 +58,22 @@ Approximates `all_other_nodes`; unlike CCF, peers lost on rollback are not retai
 def eligiblePeers (state : NodeState) (self : NodeID) : Finset NodeID :=
   (state.activeMembers ∪ state.retirementCompletedNodes).erase self
 
+/-- Lexicographic order on successor ranks. -/
+def rankBelow (a b : Nat × Nat × Nat) : Bool :=
+  decide (a.1 < b.1 \/ (a.1 = b.1 /\ Prod.lexLt a.2 b.2))
+
 /-- Maximize replication progress, latest active membership, then node ID. -/
 def findSuccessor (state : NodeState) (self : NodeID) : Option NodeID :=
   let configurations := state.activeConfigurations
   let rank node :=
-    toLex (state.matchIndex node, toLex (latestMembershipIndex configurations node, node))
+    (state.matchIndex node, latestMembershipIndex configurations node, node)
   let peers := (eligiblePeers state self).sort
   peers.foldl
     (fun best candidate =>
       match best with
       | none => some candidate
       | some selected =>
-          if rank selected < rank candidate then
+          if rankBelow (rank selected) (rank candidate) then
             some candidate
           else
             best)
@@ -187,7 +190,10 @@ def sendEntries (caps : Caps) (self : NodeID)
   caps.send
     (.appendEntriesRequest (makeAppendEntriesRequest state destination endIndex))
     destination
-  return { state with sentIndex := Function.update state.sentIndex destination endIndex }
+  return {
+    state with
+      sentIndex := CCF.Function.update state.sentIndex destination endIndex
+  }
 
 /-! ## Appending entries -/
 
@@ -365,7 +371,7 @@ def handleAppendEntriesResponse
         {
           state with
             matchIndex :=
-              Function.update state.matchIndex source
+              CCF.Function.update state.matchIndex source
                 (max (state.matchIndex source) response.lastLogIndex)
         }
       advanceCommit caps state self
@@ -378,7 +384,7 @@ def handleAppendEntriesResponse
     return {
       state with
         sentIndex :=
-          Function.update state.sentIndex source
+          CCF.Function.update state.sentIndex source
             (max (min retryIndex (state.sentIndex source)) (state.matchIndex source))
     }
 
