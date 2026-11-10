@@ -375,26 +375,25 @@ namespace ccf
         throw std::logic_error("An ML-DSA service certificate is required");
       }
 
-      const auto signing_identity = signing_identity_from_cert(service_cert);
-      if (
-        cose_key_from_identity(signing_identity).kty() !=
-        ccf::crypto::COSEKeyType::EC2)
+      const auto service_key = ccf::crypto::COSEKey::from_der_cert(
+        ccf::crypto::cert_pem_to_der(service_cert));
+      if (service_key.kty() != ccf::crypto::COSEKeyType::EC2)
       {
         throw std::logic_error(
           "Classical service signing key must be an EC key");
       }
+      const auto signing_identity = signing_identity_from_key(service_key);
       std::optional<Identity> pq_signing_identity;
       if (pq_service_cert.has_value())
       {
-        pq_signing_identity =
-          signing_identity_from_cert(pq_service_cert.value());
-        if (
-          cose_key_from_identity(pq_signing_identity.value()).kty() !=
-          ccf::crypto::COSEKeyType::AKP)
+        const auto pq_service_key = ccf::crypto::COSEKey::from_der_cert(
+          ccf::crypto::cert_pem_to_der(pq_service_cert.value()));
+        if (pq_service_key.kty() != ccf::crypto::COSEKeyType::AKP)
         {
           throw std::logic_error(
             "PQ service signing key must be an ML-DSA key");
         }
+        pq_signing_identity = signing_identity_from_key(pq_service_key);
       }
 
       size_t recovery_count = 0;

@@ -31,6 +31,9 @@ using namespace ccf;
 
 namespace
 {
+  // Parameter set shared by make_pq_cert and expected_pq_signing_identity
+  constexpr auto PQ_PARAMETER_SET = ccf::crypto::MLDSAParameterSet::ML_DSA_65;
+
   // ML-DSA service certificate, or nullopt as sent by a node whose build has
   // no ML-DSA
   std::optional<ccf::crypto::Pem> make_pq_cert(
@@ -42,8 +45,7 @@ namespace
     {
       return std::nullopt;
     }
-    return ccf::crypto::make_mldsa_key_pair(
-             ccf::crypto::MLDSAParameterSet::ML_DSA_65)
+    return ccf::crypto::make_mldsa_key_pair(PQ_PARAMETER_SET)
       ->self_sign(subject_name, valid_from, valid_to);
   }
 
@@ -86,7 +88,7 @@ namespace
       ccf::IdentityKind::COSE_KEY,
       ccf::crypto::COSEKey::from_der_public_key(
         ccf::crypto::make_verifier(cert.value())->public_key_der())
-        .to_cbor(-49 /* ML-DSA-65 */)};
+        .to_cbor(ccf::cose::algorithm_for_parameter_set(PQ_PARAMETER_SET))};
   }
 
   class TestConsensus : public ccf::kv::ConfigurableConsensus
@@ -2040,5 +2042,34 @@ TEST_CASE("PQ signing identity reads require the matching ML-DSA COSE_Key")
     REQUIRE_THROWS_AS(
       ccf::check_signing_identity_matches_service_cert(tx),
       std::invalid_argument);
+  }
+}
+
+TEST_CASE("PQ signing identity encoding is checked before parsing")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  auto tx = store.create_tx();
+  // The encoding check precedes any parsing, so the PQ certificate only needs
+  // to be present and this test does not need ML-DSA support
+  tx.rw<ccf::Service>(Tables::SERVICE)
+    ->put(ServiceInfo{.cert = identity.cert, .pq_cert = identity.cert});
+  auto* signing_identities =
+    tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
+
+  // Unparseable on every build: a parser error would be std::invalid_argument
+  for (const auto kind :
+       {IdentityKind::X509_SPKI_DER, IdentityKind::X509_CERT_DER})
+  {
+    signing_identities->put(IdentityType::PQ, Identity{kind, {0xff}});
+    REQUIRE_THROWS_WITH_AS(
+      ccf::get_service_signing_identity(tx, IdentityType::PQ),
+      "PQ signing identity must be an ML-DSA COSE_Key",
+      std::logic_error);
+    REQUIRE_THROWS_WITH_AS(
+      ccf::check_signing_identity_matches_service_cert(tx),
+      "PQ signing identity must be an ML-DSA COSE_Key",
+      std::logic_error);
   }
 }

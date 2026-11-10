@@ -115,6 +115,13 @@ namespace ccf
         {
           return;
         }
+        // Reject the encoding before parsing, so a non-COSE entry fails with
+        // this error rather than a parser error on builds without ML-DSA.
+        if (published_identity->kind != IdentityKind::COSE_KEY)
+        {
+          throw std::logic_error(
+            "PQ signing identity must be an ML-DSA COSE_Key");
+        }
         break;
       }
       default:
@@ -126,8 +133,7 @@ namespace ccf
     const auto key = cose_key_from_identity(published_identity.value());
     if (
       identity_type == IdentityType::PQ &&
-      (published_identity->kind != IdentityKind::COSE_KEY ||
-       key.kty() != ccf::crypto::COSEKeyType::AKP))
+      key.kty() != ccf::crypto::COSEKeyType::AKP)
     {
       throw std::logic_error("PQ signing identity must be an ML-DSA COSE_Key");
     }

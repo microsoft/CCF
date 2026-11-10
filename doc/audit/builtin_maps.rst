@@ -279,7 +279,8 @@ The keys and certificates are published in the same transaction when a service i
 Certificate renewal preserves the public keys and does not rewrite this table.
 Classical-only services remain supported, but creation or recovery cannot discard an existing PQ identity, and builds with ML-DSA require a PQ certificate.
 A service created before this table existed has no ``CLASSICAL`` entry until its next recovery, including after a live update of its nodes.
-Live updates are supported only between classical-only releases, or from a classical-only service to nodes with ML-DSA support; a PQ identity is only ever introduced by a recovery, which publishes both entries, and a service holding one cannot move to nodes without ML-DSA support.
+A classical-only service can be live-updated to nodes with or without ML-DSA support, but a service holding a PQ identity can only be live-updated to nodes with ML-DSA support.
+A PQ identity is only ever introduced by a recovery, which publishes both entries; a live update never adds one.
 A pre-release service whose ``service.info.pq_cert`` was written without a ``PQ`` entry must therefore be recovered rather than live-updated.
 Existing ``CLASSICAL`` entries retain their encoding, including legacy DER certificates or public keys.
 Only ``CLASSICAL`` therefore falls back to the key of ``service.info.cert`` when its entry is absent.
