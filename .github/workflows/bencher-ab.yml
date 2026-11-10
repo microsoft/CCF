@@ -28,6 +28,26 @@ jobs:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
     steps:
+      - name: Wipe runner temp directory
+        shell: bash
+        run: |
+          # Self-hosted VMSS runners are reused. Root-owned files left by earlier
+          # --user root container jobs survive the runner's own temp cleanup.
+          set -euo pipefail
+          shopt -s dotglob nullglob
+          : "${RUNNER_TEMP:?RUNNER_TEMP is not set}"
+          [ "$RUNNER_TEMP" != / ]
+          sudo=""
+          if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null; then
+            sudo=sudo
+          fi
+          for entry in "$RUNNER_TEMP"/* "$RUNNER_TEMP"/_github_home/*; do
+            case "$entry" in
+              "$RUNNER_TEMP"/_runner_file_commands | "$RUNNER_TEMP"/_github_workflow | "$RUNNER_TEMP"/_github_home) continue ;;
+            esac
+            $sudo rm -rf -- "$entry"
+          done
+
       - name: Setup container dependencies
         run: |
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY

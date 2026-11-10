@@ -2,6 +2,10 @@ Documents the various GitHub Actions workflows, the role they fulfill and 3rd pa
 
 All jobs run on 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
 
+Self-hosted runner VMs are reused across jobs.
+The runner empties `$RUNNER_TEMP` before each job, but it cannot delete root-owned files left by `--user root` container jobs, so they leak into later jobs, including those of other pull requests.
+Every job on a self-hosted pool therefore starts with a "Wipe runner temp directory" step that deletes everything in `$RUNNER_TEMP` and `$RUNNER_TEMP/_github_home`, except the entries the runner creates for the current job.
+
 # Shared actions
 
 ## Azure Linux CI dependencies
