@@ -34,6 +34,7 @@ The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `
 ## Replay contract
 
 Every protocol event must match a named rule; bootstrap selects the initial singleton membership.
+Bootstrap accepts bare ticks before genesis, which native code runs asynchronously after the first node becomes leader, and a flush of the genesis entry.
 Rules group related protocol events and read action inputs from those events; only top-level alternatives backtrack.
 Actions must be enabled by the model.
 After bootstrap, each rule emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
