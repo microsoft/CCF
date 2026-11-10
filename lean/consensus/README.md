@@ -55,18 +55,11 @@ The shared `check-imports` command rejects modules missing from that import clos
 
 ## Proofs
 
-`Properties.lean` contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
+[`Properties.lean`](Consensus/Properties.lean) contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
 Import `Consensus.Properties` and use `Consensus.Properties.<name>` for these declarations.
 Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
 `Proofs/Direct.lean` establishes node-local commit invariants; `Proofs/SafetyInvariant.lean` establishes the cross-node history invariant, in the `Consensus.Proofs.Safety` namespace, used for election safety and committed-log comparability.
-`Proofs/Witnesses.lean` supplies executions checked by the kernel for every valid initial membership.
-`Properties.ValidConfig` filters initial memberships to the nonempty ones already required by model initialization; it does not change the model.
-All four witness lemmas explicitly quantify over these valid configurations.
-Each witness satisfies the preconditions of its corresponding theorem.
-The committed-log comparison witness additionally has nonempty committed logs, and the monotonic-step witness strictly extends a nonempty committed log.
-These requirements hold for every valid initial membership, including singletons; neither witness requires distinct nodes.
-No witness requires an additional membership-size assumption.
-Like its safety theorem, the monotonic-step witness concerns a successful step from a state with unique node IDs, without requiring that state to be reachable.
+[`Proofs/Witnesses.lean`](Consensus/Proofs/Witnesses.lean) supplies the checked witness implementations, using shared execution-construction helpers in [`Proofs/GenericWitnesses.lean`](Consensus/Proofs/GenericWitnesses.lean).
 The safety-invariant proof remains independent of the witness construction, allowing Lake to check them in parallel.
 
 To list the safety-invariant declarations used by the exported theorems, run `lake env lean scripts/invariant-dependencies.lean`.
