@@ -57,34 +57,59 @@ For migration from deprecated ringbuffer-era configuration, see :doc:`/build_app
 Observability Export
 --------------------
 
-To export consensus protocol traces (not ordinary console logs), add the experimental ``observability.fluentd`` array to your node configuration and restart the node.
+To export logs and consensus protocol traces, add the experimental ``observability.fluentd`` array to your node configuration and restart the node.
 Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticated and unencrypted.
+Startup logs can contain configuration and environment values, so collectors must be trusted to receive those values.
 
 .. code-block:: json
 
     {
       "observability": {
         "fluentd": [
-          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag-prefix-allow-list": ["ccf"] },
+          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag-prefix-allow-list": ["ccf.log"] },
           { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking", "tag-prefix-allow-list": ["ccf.cft"] }
         ]
       }
     }
 
 Set ``tag-prefix-allow-list`` per collector to a list of literal, case-sensitive prefixes; an event is selected if its tag starts with any listed prefix.
-``["ccf"]`` selects all CCF tags; ``["ccf.cft"]`` selects consensus traces.
-Omitting ``tag-prefix-allow-list`` defaults to ``[""]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
+
+.. list-table:: Common tags
+   :header-rows: 1
+
+   * - Prefix
+     - Selected records
+   * - ``ccf.log``
+     - Node logger records (default).
+   * - ``ccf.cft``
+     - Consensus protocol traces.
+   * - ``ccf``
+     - All CCF records, including logs and consensus traces.
+
+Omitting ``tag-prefix-allow-list`` defaults to ``["ccf.log"]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
+Existing collectors that omit this field must set ``["ccf"]`` explicitly to keep receiving consensus traces as well as logs.
 Prefixes have no dot-boundary requirement and do not support wildcards or regular expressions.
 Matching multiple prefixes within one collector entry does not duplicate events; an event matching multiple collectors is sent to each.
 Excluded events do not count as dropped for that collector.
 Omit the array or leave it empty to disable export.
+
+When selected by the allow-list, all records passing the node's logger are eligible for best-effort export under ``ccf.log``, regardless of console format.
+This includes enabled TRACE/DEBUG records and runtime exporter drop diagnostics, from startup through final host cleanup.
+Messages emitted while logging or the exporter is being initialised or shut down may remain console-only, including the exporter's final shutdown summary.
+Raw stdout writes and stderr are not captured.
+Configuration checks (``--check``) do not initialise the exporter.
+
+The Forward record uses the trace envelope (``process_id``, sequence number ``h_ts``, and ``msg``).
+Its ``msg`` uses the JSON console schema, with string-valued fields: ``h_ts`` (UTC timestamp), ``thread_id``, ``level``, ``tag``, ``file``, ``number`` and ``msg`` (message text).
+Console and Fluentd timestamps are sampled separately and need not match; record ordering can also differ.
 
 Choose a ``delivery`` policy per collector:
 
 - ``buffered-best-effort`` (default): retain queued records while the collector is unavailable or cannot accept data.
 - ``unbuffered-non-blocking``: drop queued records when the collector is unavailable or cannot accept data.
 
-Optional ``queue_capacity`` on each array entry defaults to 4096 records per node thread.
+Optional ``queue_capacity`` on each array entry defaults to 4096 records per producer thread, shared by that thread's logs and traces.
+Unbound producers share one additional queue of the same capacity.
 Full queues drop new records under either policy; larger queues use more memory.
 
 Both policies retain one in-flight record for retry, but delivery is not guaranteed and retries can produce duplicates.

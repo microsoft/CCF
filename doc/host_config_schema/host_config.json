@@ -44,9 +44,9 @@
                 "items": {
                   "type": "string"
                 },
-                "default": [""],
-                "description": "Export events whose tags start with any listed literal, case-sensitive prefix. Omitted or a list containing the empty string selects every tag; an empty list selects none. No dot-boundary requirement, wildcards or regular expressions. See :ref:`observability_export` for examples and delivery behaviour",
-                "examples": [["ccf"], ["ccf.cft"]]
+                "default": ["ccf.log"],
+                "description": "Export events whose tags start with any listed literal, case-sensitive prefix. Omitting this field selects ccf.log. A list containing the empty string selects every tag; an empty list selects none. No dot-boundary requirement, wildcards or regular expressions. See :ref:`observability_export` for examples and delivery behaviour",
+                "examples": [["ccf.log"], ["ccf"], ["ccf.cft"]]
               }
             },
             "required": ["host", "port"]
