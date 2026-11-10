@@ -61,6 +61,7 @@ Native code does not trace the `propose_request_vote` send that follows `step_do
 - [`ReplayMain.lean`](ReplayMain.lean): single-trace validation CLI.
 - [`ReplayDelivery.lean`](../Consensus/Tests/ReplayDelivery.lean): delivery selection among equal rendered packets.
 - [`ReplayStreams.lean`](../Consensus/Tests/ReplayStreams.lean): rejection of repeated `h_ts` and of a node traced by two processes, waiting receives and atomic groups.
+- [`check-order.py`](check-order.py): verdicts unchanged by shuffling records or by moving each node into its own process.
 - [`cft_scenarios_runner.py`](../../../tests/cft_scenarios_runner.py): existing native scenario runner and capture generation.
 
 See [failure fixtures](fixtures/README.md) for examples and expected diagnostics.
