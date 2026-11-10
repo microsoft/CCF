@@ -45,22 +45,17 @@ jobs:
 
   release_notes:
     name: Release Notes
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run || startsWith(github.ref, 'refs/tags/ccf-') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 1
-      - name: "Check Release Notes"
-        run: |
-          set -ex
-          scripts/extract-release-notes.py --target-git-version
-        shell: bash
+          fetch-depth: 0
       - name: "Produce Release Notes"
         run: |
           set -ex
           set -o pipefail
-          ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
+          ./scripts/extract-release-notes.py --from-changes --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
       - name: "Upload Release Notes"
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

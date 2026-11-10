@@ -6,6 +6,7 @@ import DisasterRecovery.Proofs.Local
 import DisasterRecovery.Proofs.Deadlock
 import DisasterRecovery.Proofs.Safety
 import DisasterRecovery.Proofs.Witnesses
+import DisasterRecovery.Proofs.GlobalWitnesses
 
 @[expose] public section
 
@@ -15,16 +16,14 @@ open Model.Local
 
 /-- Every reachable recovery state has an enabled action. -/
 theorem deadlock_free
-    : forall (config : Model.Config) (state : Model.State),
-        (Model.transitionSystem config).Reachable state
-        -> exists action nextState,
-            (Model.transitionSystem config).step state action = some nextState := by
+    : forall (config : Model.Config), (Model.transitionSystem config).DeadlockFree := by
   exact Proofs.Deadlock.deadlock_free
 
-/-- Witness: a valid recovery configuration has a reachable initial state. -/
+/-- Witness: every valid recovery configuration has a reachable initial state. -/
 theorem deadlock_free_witness
-    : exists (config : Model.Config) (state : Model.State),
-        (Model.transitionSystem config).Reachable state := by
+    : forall (config : ValidConfig),
+        exists (state : Model.State),
+          (Model.transitionSystem config).Reachable state := by
   exact Proofs.Deadlock.deadlock_free_witness
 
 -- Global invariants for all valid traces and corresponding witness
@@ -39,12 +38,14 @@ theorem quorum_opener_unique
         -> firstOpener = secondOpener := by
   exact Proofs.Model.quorum_opener_unique
 
-/-- Witness: a valid trace exists with a step emitting `opening quorum`. -/
+/-- Witness: for every valid configuration, a valid trace exists with a step emitting
+`opening quorum`. -/
 theorem quorum_opener_unique_witness
-    : exists (config : Model.Config) (trace : GlobalTrace config),
-    exists (step : Nat) (opener : Location),
-      Trace.NotificationAt config trace step opener (.opening .quorum) := by
-  exact Proofs.Witnesses.quorum_opener_unique_witness
+    : forall (config : ValidConfig),
+        exists (trace : GlobalTrace config),
+        exists (step : Nat) (opener : Location),
+          Trace.NotificationAt config trace step opener (.opening .quorum) := by
+  exact Proofs.GlobalWitnesses.quorum_opener_unique_witness
 
 /-- A quorum opener whose voters received their own gossip is up to date with a
 quorum of recovered ledgers. -/
@@ -61,17 +62,18 @@ theorem quorum_open_preserves_commit
             /\ UpToDateWithQuorum config openerTxID := by
   exact Proofs.Gossip.quorum_open_preserves_commit
 
-/-- Witness: a valid trace and a state in it with a node with `openKind = quorum` whose
-voters all satisfy `ReceivedOwnGossip` exist. -/
+/-- Witness: for every valid configuration, a valid trace and a state in it with a node with
+`openKind = quorum` whose voters all satisfy `ReceivedOwnGossip` exist. -/
 theorem quorum_open_preserves_commit_witness
-    : exists
-    (config : Model.Config) (trace : GlobalTrace config) (openedState : Model.State),
-    exists (opener : Location) (openerState : NodeState),
-      openedState ∈ trace
-      /\ (opener, openerState) ∈ openedState.nodes
-      /\ openerState.openKind = some .quorum
-      /\ (forall voter, voter ∈ openerState.votes -> ReceivedOwnGossip trace voter) := by
-  exact Proofs.Witnesses.quorum_open_preserves_commit_witness
+    : forall (config : ValidConfig),
+        exists (trace : GlobalTrace config) (openedState : Model.State),
+        exists (opener : Location) (openerState : NodeState),
+          openedState ∈ trace
+          /\ (opener, openerState) ∈ openedState.nodes
+          /\ openerState.openKind = some .quorum
+          /\ (forall voter,
+                voter ∈ openerState.votes -> ReceivedOwnGossip trace voter) := by
+  exact Proofs.GlobalWitnesses.quorum_open_preserves_commit_witness
 
 /-- If every configured location has full gossip somewhere in a valid trace, every opener,
 including failover openers, is up to date with a quorum of recovered ledgers. -/
@@ -93,21 +95,24 @@ theorem full_gossip_preserves_commit
             /\ UpToDateWithQuorum config openerTxID := by
   exact Proofs.Gossip.full_gossip_preserves_commit
 
-/-- Witness: a valid trace with a full-gossip state and a state in it with a node with
-`openKind = failover` exist. -/
+/-- Witness: for every valid configuration with at least two locations, a valid trace with a
+full-gossip state and a state in it with a node with `openKind = failover` exist. -/
 theorem full_gossip_preserves_commit_witness
-    : exists (config : Model.Config) (trace : GlobalTrace config),
-    exists (gossipedState openedState : Model.State),
-    exists (opener : Location) (openerState : NodeState),
-      gossipedState ∈ trace
-      /\ (forall node nodeState,
-            node ∈ config.protocol.expectedLocations
-            -> (node, nodeState) ∈ gossipedState.nodes
-            -> forall gossip, gossip ∈ nodeState.gossips <-> gossip ∈ config.recovered)
-      /\ openedState ∈ trace
-      /\ (opener, openerState) ∈ openedState.nodes
-      /\ openerState.openKind = some .failover := by
-  exact Proofs.Witnesses.full_gossip_preserves_commit_witness
+    : forall (config : ValidConfig),
+        2 <= config.val.protocol.expectedLocations.length
+        -> exists (trace : GlobalTrace config),
+        exists (gossipedState openedState : Model.State),
+        exists (opener : Location) (openerState : NodeState),
+          gossipedState ∈ trace
+          /\ (forall node nodeState,
+                node ∈ config.val.protocol.expectedLocations
+                -> (node, nodeState) ∈ gossipedState.nodes
+                -> forall gossip,
+                    gossip ∈ nodeState.gossips <-> gossip ∈ config.val.recovered)
+          /\ openedState ∈ trace
+          /\ (opener, openerState) ∈ openedState.nodes
+          /\ openerState.openKind = some .failover := by
+  exact Proofs.GlobalWitnesses.full_gossip_preserves_commit_witness
 
 -- Local invariants of the step function: they hold for every node state,
 -- not only reachable ones.
@@ -125,14 +130,15 @@ theorem gossip_freezes_after_choice
             /\ .rejected "gossip-frozen" ∈ localStep.effects.notifications := by
   exact Proofs.Local.gossip_freezes_after_choice
 
-/-- Witness: a valid step exists that receives accepted gossip when `chosen` is set. -/
+/-- Witness: for every valid configuration, a valid step exists that receives accepted gossip
+when `chosen` is set. -/
 theorem gossip_freezes_after_choice_witness
-    : exists (config : Model.Config),
-    exists localStep : LocalStep,
-    exists (source : Location) (txid : TxID),
-      (Model.protocol config).ValidStep localStep
-      /\ localStep.action = .receiveGossip source txid .accepted
-      /\ localStep.before.chosen.isSome = true := by
+    : forall (config : ValidConfig),
+        exists localStep : LocalStep,
+        exists (source : Location) (txid : TxID),
+          (Model.protocol config).ValidStep localStep
+          /\ localStep.action = .receiveGossip source txid .accepted
+          /\ localStep.before.chosen.isSome = true := by
   exact Proofs.Witnesses.gossip_freezes_after_choice_witness
 
 /-- A valid step receiving rejected gossip leaves the state unchanged and notifies
@@ -147,13 +153,13 @@ theorem rejected_gossip_stutters
             /\ .rejected "quote-or-certificate" ∈ localStep.effects.notifications := by
   exact Proofs.Local.rejected_gossip_stutters
 
-/-- Witness: a valid step exists that receives rejected gossip. -/
+/-- Witness: for every valid configuration, a valid step exists that receives rejected gossip. -/
 theorem rejected_gossip_stutters_witness
-    : exists (config : Model.Config),
-    exists localStep : LocalStep,
-    exists (source : Location) (txid : TxID),
-      (Model.protocol config).ValidStep localStep
-      /\ localStep.action = .receiveGossip source txid .rejected := by
+    : forall (config : ValidConfig),
+        exists localStep : LocalStep,
+        exists (source : Location) (txid : TxID),
+          (Model.protocol config).ValidStep localStep
+          /\ localStep.action = .receiveGossip source txid .rejected := by
   exact Proofs.Witnesses.rejected_gossip_stutters_witness
 
 /-- A valid timeout or accepted-vote step from `voting` with at least `voteQuorum`
@@ -171,16 +177,16 @@ theorem quorum_advance_opens
             /\ .opening .quorum ∈ localStep.effects.notifications := by
   exact Proofs.Local.quorum_step_opens
 
-/-- Witness: a valid timeout or accepted-vote step exists from `voting` with at
-least `voteQuorum` votes. -/
+/-- Witness: for every valid configuration, a valid timeout or accepted-vote step exists from
+`voting` with at least `voteQuorum` votes. -/
 theorem quorum_advance_opens_witness
-    : exists (config : Model.Config),
-    exists localStep : LocalStep,
-      (Model.protocol config).ValidStep localStep
-      /\ (localStep.action = .timeout
-          \/ exists source, localStep.action = .receiveVote source .accepted)
-      /\ localStep.before.phase = .voting
-      /\ localStep.before.votes.length >= voteQuorum config.protocol := by
+    : forall (config : ValidConfig),
+        exists localStep : LocalStep,
+          (Model.protocol config).ValidStep localStep
+          /\ (localStep.action = .timeout
+              \/ exists source, localStep.action = .receiveVote source .accepted)
+          /\ localStep.before.phase = .voting
+          /\ localStep.before.votes.length >= voteQuorum config.val.protocol := by
   exact Proofs.Witnesses.quorum_advance_opens_witness
 
 /-- A valid timeout step with `phase` and `timeoutState` both `opening` only sets
@@ -196,15 +202,15 @@ theorem aligned_opening_timeout_completes
             /\ .completed ∈ localStep.effects.notifications := by
   exact Proofs.Local.aligned_opening_timeout_completes
 
-/-- Witness: a valid timeout step exists with `phase` and `timeoutState` both
-`opening`. -/
+/-- Witness: for every valid configuration, a valid timeout step exists with `phase` and
+`timeoutState` both `opening`. -/
 theorem aligned_opening_timeout_completes_witness
-    : exists (config : Model.Config),
-    exists localStep : LocalStep,
-      (Model.protocol config).ValidStep localStep
-      /\ localStep.action = .timeout
-      /\ localStep.before.phase = .opening
-      /\ localStep.before.timeoutState = .opening := by
+    : forall (config : ValidConfig),
+        exists localStep : LocalStep,
+          (Model.protocol config).ValidStep localStep
+          /\ localStep.action = .timeout
+          /\ localStep.before.phase = .opening
+          /\ localStep.before.timeoutState = .opening := by
   exact Proofs.Witnesses.aligned_opening_timeout_completes_witness
 
 end DisasterRecovery.Properties

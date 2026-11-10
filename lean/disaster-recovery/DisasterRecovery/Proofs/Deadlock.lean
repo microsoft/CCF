@@ -1,6 +1,6 @@
 module
 
-public import DisasterRecovery.Model
+public import DisasterRecovery.Properties.Utils
 
 import all Init.Control.State
 
@@ -335,14 +335,17 @@ theorem deadlock_free (config : Model.Config)
   rfl
 
 theorem deadlock_free_witness
-    : exists (config : Model.Config) (state : Model.State),
-        (transitionSystem config).Reachable state := by
+    : forall (config : Properties.ValidConfig),
+        exists (state : Model.State), (transitionSystem config).Reachable state := by
+  intro config
   refine ⟨{
-    protocol := { instanceId := "recovery", expectedLocations := ["a"] }
-    recovered := [("a", { view := 1, seqno := 1 })]
-  }, { nodes := [("a", initialNode "a")] }, .initial ?_⟩
-  simp [transitionSystem, MultiNodeTransitionSystem.lift, protocol, Model.Config.Valid,
-    Local.Config.isValid]
-  decide
+    nodes := config.val.protocol.expectedLocations.map fun node => (node, initialNode node)
+  }, .initial ?_⟩
+  refine ⟨config.property, ?_, ?_, rfl, ?_⟩
+  · simp [Function.comp_def]
+  · simpa [Function.comp_def] using config.property.2.1
+  · intro entry member
+    obtain ⟨node, _, rfl⟩ := List.mem_map.mp member
+    rfl
 
 end DisasterRecovery.Proofs.Deadlock

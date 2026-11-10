@@ -648,7 +648,7 @@ TEST_CASE("Pending-node cleanup uses renewed client certificates")
   frontend->open();
   auto rpc_map = std::make_shared<ccf::RPCMap>();
   rpc_map->register_frontend<ccf::ActorsType::nodes>(frontend);
-  HTTPNodeClient client(rpc_map, self_kp, [&]() { return node_cert; });
+  HTTPNodeClient client(rpc_map, [&]() { return node_cert; });
 
   ::http::Request request(
     "/node/network/nodes/remove_expired_pending", HTTP_POST);

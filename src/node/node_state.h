@@ -1288,7 +1288,6 @@ namespace ccf
 
       for (auto& [actor, fe] : rpc_map->frontends())
       {
-        fe->set_sig_intervals(sig_tx_interval, sig_ms_interval);
         fe->set_cmd_forwarder(cmd_forwarder);
         fe->start_periodic_tick(job_board_, tick_interval_);
       }
@@ -2059,12 +2058,6 @@ namespace ccf
       }
     }
 
-    void initiate_join()
-    {
-      std::lock_guard<ds::Mutex> guard(lock);
-      initiate_join_unsafe();
-    }
-
     void start_join_timer()
     {
       // The initial attempt runs under NodeState::lock held by the caller
@@ -2112,11 +2105,6 @@ namespace ccf
           jwt_key_auto_refresh->schedule_once();
           return {nullptr};
         });
-    }
-
-    size_t get_jwt_attempts() override
-    {
-      return jwt_key_auto_refresh->get_attempts();
     }
 
     //
@@ -3842,11 +3830,6 @@ namespace ccf
         self, network.identity->cert, node_sign_kp, endorsed_node_certificate_);
     }
 
-    void setup_cmd_forwarder()
-    {
-      cmd_forwarder->initialize(self);
-    }
-
     void setup_history()
     {
       if (history)
@@ -3881,15 +3864,13 @@ namespace ccf
         std::nullopt)
     {
       setup_n2n_channels(endorsed_node_certificate_);
-      setup_cmd_forwarder();
 
       auto shared_state = std::make_shared<aft::State>(self);
 
-      auto node_client =
-        std::make_shared<HTTPNodeClient>(rpc_map, node_sign_kp, [this]() {
-          std::lock_guard<ds::Mutex> guard(node_certificates_lock);
-          return endorsed_node_cert.value_or(self_signed_node_cert);
-        });
+      auto node_client = std::make_shared<HTTPNodeClient>(rpc_map, [this]() {
+        std::lock_guard<ds::Mutex> guard(node_certificates_lock);
+        return endorsed_node_cert.value_or(self_signed_node_cert);
+      });
 
       auto retired_node_cleanup =
         std::make_shared<RetiredNodeCleanup>(node_client);

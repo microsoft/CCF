@@ -286,7 +286,7 @@ namespace asynchost
         {
           // The connection attempt is still in progress: queue the write and
           // deliver it if/when the connection succeeds.
-          pending_writes.emplace_back(req, len, sockaddr{}, free_write);
+          pending_writes.emplace_back(req, len, free_write);
           break;
         }
 

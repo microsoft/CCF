@@ -22,6 +22,8 @@ Triggered on every commit on `main`, twice daily on week days, and manually, but
 
 Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
 
+The Basic JS workload disables JavaScript execution metrics logging in its deployed benchmark bundle; other applications retain the enabled default.
+
 The `FluentD` benchmark reuses Basic Blocking with one node and 20 ms signatures, exporting traces to a lightweight local decoding collector.
 Its throughput, latency, and node memory are charted alongside the other benchmarks, which run without trace export.
 Received-event counts, exporter drops, and drop rate are logged and saved as `*_fluentd.json` in the network's common directory under `workspace`, then uploaded for validation, not charted.
