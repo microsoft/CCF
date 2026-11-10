@@ -1612,7 +1612,7 @@ private theorem NodeInvariant.reachable {P : NodeID -> NodeState -> Prop}
       (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes) with
   | initial initialized =>
       intro node local_ member
-      have initial : local_ = initialNodeState Config.INITIAL_CONFIGURATION node := initialized.2.2.1.2.2 (node, local_) member
+      have initial : local_ = initialNodeState Config.INITIAL_CONFIGURATION node := initialized.2.2.2.2 (node, local_) member
       subst initial
       exact invariant.initial node
   | @step before after action _ stepped ih =>
@@ -1644,7 +1644,7 @@ private theorem keys_nodup {nodes : List NodeID} {state : Model.State}
   induction reachable
     using @TransitionSystem.Reachable.rec
       (Model.transitionSystem Config.INITIAL_CONFIGURATION nodes) with
-  | initial initialized => exact initialized.2.2.1.1
+  | initial initialized => exact initialized.2.2.1
   | @step before after action _ stepped ih =>
       cases action with
       | «local» actor input =>
@@ -2921,7 +2921,6 @@ private theorem CommitFrontier.act {state : NodeState}
     (frontier : CommitFrontier state) (input : Input)
     : Keeps CommitFrontier (Model.Node.act caps self state input) := by
   cases input with
-  | tick => exact Keeps.pure' frontier
   | append entries =>
       unfold Model.Node.act Model.Node.appendBatch
       exact Keeps.seq' fun _ => Keeps.bind'
@@ -3199,7 +3198,6 @@ private theorem Extends.becomePreVoteCandidate (state : NodeState)
 private theorem Extends.act (state : NodeState) (input : Input)
     : Keeps (Extends state) (Model.Node.act caps self state input) := by
   cases input with
-  | tick => exact Keeps.pure' (Extends.refl _)
   | append entries =>
       unfold Model.Node.act Model.Node.appendBatch
       refine Keeps.seq' fun _ => ?_
@@ -4492,10 +4490,6 @@ private theorem summary (self : NodeID) (before : NodeState) (event : Event)
   cases event with
   | internal input =>
       cases input with
-      | tick =>
-          exact Sends.pure'
-            (quiet_summary rfl rfl rfl rfl rfl rfl rfl (fun empty => (empty rfl).elim)
-              (by simp))
       | append contents => exact appendBatch_summary self before contents
       | sendEntries destination endIndex =>
           exact sendEntries_summary self before destination endIndex
@@ -4681,7 +4675,7 @@ private theorem initial_state {node : NodeID} {state : NodeState}
     (member : (node, state) ∈ initial.nodes)
     : state = initialLocal node := by
   rw [← initialNodeState_eq initialized.1]
-  exact initialized.2.2.1.2.2 _ member
+  exact initialized.2.2.2.2 _ member
 
 private theorem initial_seen {node : NodeID} {state : NodeState}
     (seen : Seen [initial] node state)
@@ -4801,9 +4795,9 @@ private theorem inv_initial : Inv [initial] := by
     rw [stateOf now] at positive
     simp [initialLocal] at positive
   · intro envelope pending
-    simp [Pending, initialized.2.2.1.2.1] at pending
+    simp [Pending, initialized.2.2.2.1] at pending
   · intro envelope pending
-    simp [Pending, initialized.2.2.1.2.1] at pending
+    simp [Pending, initialized.2.2.2.1] at pending
   · intro node state now
     rw [stateOf now]
     by_cases isLeader : node = INITIAL_PRIMARY

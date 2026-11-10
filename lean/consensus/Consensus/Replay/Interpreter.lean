@@ -49,7 +49,6 @@ inductive Step where
   | drop (source destination : String)
 
 def Step.name : Step → String
-  | .local _ .tick => "tick"
   | .local _ (.append _) => "append"
   | .local _ (.sendEntries ..) => "sendEntries"
   | .local _ (.timeout _) => "timeout"

@@ -32,7 +32,11 @@ abbrev Action :=
 /-- The term of the initial primary, matching CCF's forced-primary startup. -/
 def BOOTSTRAP_TERM : Nat := 2
 
-/-- The smallest initial member is primary and holds the unsigned configuration. -/
+/--
+Production starts with one voting node. The model also permits multi-node initial
+configurations, which the consensus testing infrastructure can construct.
+The smallest initial member is primary and holds the unsigned configuration.
+-/
 def initialNodeState (initialConfiguration : Finset NodeID) (node : NodeID) : NodeState :=
   let primary := initialConfiguration.min = (node : WithTop NodeID)
   {
@@ -70,7 +74,7 @@ def protocol (initialConfiguration : Finset NodeID)
   receive := .receive
   internal := .internal
 
-/-- A nonempty network of `nodes`, initialized from a nonempty membership configuration. -/
+/-- The network of `nodes`, initialized from a nonempty membership configuration. -/
 abbrev transitionSystem (initialConfiguration : Finset NodeID) (nodes : List NodeID)
     : TransitionSystem :=
   let system := MultiNodeTransitionSystem.lift (protocol initialConfiguration)
@@ -81,7 +85,6 @@ abbrev transitionSystem (initialConfiguration : Finset NodeID) (nodes : List Nod
           initialConfiguration.Nonempty
           /\ state.nodes.map Prod.fst = nodes
           /\ system.init state
-          /\ nodes ≠ []
   }
 
 end Consensus.Model

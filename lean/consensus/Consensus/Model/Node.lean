@@ -40,8 +40,6 @@ structure AppendEntryInput where
 deriving DecidableEq
 
 inductive Input where
-  /-- A periodic callback that neither sends messages nor fires a protocol timeout. -/
-  | tick
   | append (entries : List AppendEntryInput)
   /-- Starts at the peer's send frontier -/
   | sendEntries (destination : NodeID) (endIndex : Nat)
@@ -598,7 +596,6 @@ def receive (caps : Caps) (self source : NodeID) (state : NodeState) (message : 
         handleProposeRequestVoteRequest caps state self term
 
 def act (caps : Caps) (self : NodeID) (state : NodeState) : Input -> NodeEffect NodeState
-  | .tick => pure state
   | .append entries => appendBatch caps self state entries
   | .sendEntries destination endIndex =>
       sendEntries caps self state destination endIndex

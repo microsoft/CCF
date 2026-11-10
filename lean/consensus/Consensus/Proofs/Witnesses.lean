@@ -441,14 +441,15 @@ open Consensus.Model.Node
 open Consensus.Model (initialNodeState)
 
 public theorem start_initial {configuration : Finset Nat} {nodes : List Nat}
-    (nonempty : configuration.Nonempty) (distinct : nodes.Nodup) (populated : nodes ≠ [])
+    (nonempty : configuration.Nonempty) (distinct : nodes.Nodup)
     : (Consensus.Model.transitionSystem configuration nodes).init
         (start configuration nodes) := by
   refine ⟨
     nonempty,
     by simp [start, Function.comp_def],
-    ⟨by simpa [start, Function.comp_def], rfl, ?_⟩,
-    populated
+    by simpa [start, Function.comp_def],
+    rfl,
+    ?_
   ⟩
   intro entry member
   obtain ⟨node, _, rfl⟩ := List.mem_map.mp member
@@ -624,7 +625,7 @@ public lemma committed_logs_prefix_witness
   exact ⟨
     {0, 1},
     [0, 1],
-    lassoTrace (start_initial (by decide) (by decide) (by decide)) stemRun commit_cycle
+    lassoTrace (start_initial (by decide) (by decide)) stemRun commit_cycle
       (by simp [commitCycle]),
     commitPrimaryCommitted,
     commitFollowerCommitted,
@@ -632,9 +633,9 @@ public lemma committed_logs_prefix_witness
     1,
     (nodeState commitPrimaryCommitted 0).get commit_primary_present,
     (nodeState commitFollowerCommitted 1).get commit_follower_present,
-    lasso_mem (start_initial (by decide) (by decide) (by decide)) stemRun commit_cycle
+    lasso_mem (start_initial (by decide) (by decide)) stemRun commit_cycle
       (by simp [commitCycle]) (by decide) (eq_some_getD commit_primary_committed _),
-    lasso_mem (start_initial (by decide) (by decide) (by decide)) stemRun commit_cycle
+    lasso_mem (start_initial (by decide) (by decide)) stemRun commit_cycle
       (by simp [commitCycle]) (by decide) (eq_some_getD commit_follower_committed _),
     member_of_nodeState _,
     member_of_nodeState _,
@@ -692,7 +693,7 @@ public lemma election_safety_witness
   exact ⟨
     {0, 1, 2},
     [0, 1, 2],
-    lassoTrace (start_initial (by decide) (by decide) (by decide)) stemRun election_cycle
+    lassoTrace (start_initial (by decide) (by decide)) stemRun election_cycle
       (by simp [electionCycle]),
     electionFinal,
     0,
@@ -700,7 +701,7 @@ public lemma election_safety_witness
     leftState,
     rightState,
     lasso_mem
-      (start_initial (by decide) (by decide) (by decide))
+      (start_initial (by decide) (by decide))
       stemRun election_cycle
       (by simp [electionCycle])
       le_rfl
@@ -725,13 +726,13 @@ public lemma committed_frontier_is_signature_witness
   exact ⟨
     {0},
     [0],
-    lassoTrace (start_initial (by decide) (by decide) (by decide)) stemRun single_cycle
+    lassoTrace (start_initial (by decide) (by decide)) stemRun single_cycle
       (by simp [singleCycle]),
     singleFinal,
     0,
     (nodeState singleFinal 0).get single_final_present,
     lasso_mem
-      (start_initial (by decide) (by decide) (by decide))
+      (start_initial (by decide) (by decide))
       stemRun single_cycle
       (by simp [singleCycle])
       le_rfl

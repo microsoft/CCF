@@ -19,17 +19,16 @@ It assumes familiarity with the [CCF consensus protocol documentation](../../doc
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
 Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
 Initialization takes a nonempty initial voting membership, whose smallest member starts as primary with the genesis configuration transaction.
-The declared node list must also be nonempty.
-Actions are local inputs (including idle periodic callbacks and timeouts) or delivery of a queued message; no clock is modeled.
-`Input.tick` represents a periodic callback with no sends or protocol timeout and leaves the local state unchanged.
-Callbacks with protocol effects are represented by the existing send and timeout inputs.
+Production starts with singleton voting membership; the model also accepts multi-node initial configurations supported by the consensus testing infrastructure.
+Actions are local inputs (including timeouts) or delivery of a queued message; no clock is modeled.
 
 ## Scope
 
 Node join and snapshot installation are not modeled.
-`deadlock_free` proves the [shared deadlock-freedom property](../common/README.md#transition-systems).
-Enabled idle callbacks count; this does not assert election progress, eventual commitment, or fairness.
-In particular, election eligibility still requires signed membership, so a pre-signature CheckQuorum step-down need not lead to another election.
+`initial_deadlock_free` proves that an initialized state with singleton voting membership has an enabled action, provided its voting node belongs to the declared node list.
+It does not establish the [shared deadlock-freedom property](../common/README.md#transition-systems) for all reachable states.
+An unsigned membership expansion followed by CheckQuorum can still leave a singleton-start execution with no enabled action after queued messages are drained.
+There are no fairness assumptions or guarantees of eventual election or commitment.
 
 ## Validation
 
