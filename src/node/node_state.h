@@ -1001,7 +1001,8 @@ namespace ccf
         status,
         std::string(data.begin(), data.end()));
       LOG_FAIL_FMT("{}", error_msg);
-      runtime_control.report_fatal_error(error_msg);
+      runtime_control.report_fatal_error(fmt::format(
+        "Join request to {} returned HTTP status {}", target_address, status));
     }
 
     void handle_join_unexpected_status_unsafe(
@@ -1024,9 +1025,8 @@ namespace ccf
       else
       {
         LOG_FAIL_FMT(
-          "An error occurred while joining the network: {} {}{}",
+          "An error occurred while joining the network: HTTP status {}{}",
           status,
-          ccf::http_status_str(status),
           data.empty() ?
             "" :
             fmt::format("  '{}'", std::string(data.begin(), data.end())));
@@ -1144,7 +1144,8 @@ namespace ccf
             "node gracefully...",
             e.what());
           LOG_FAIL_FMT("{}", error_msg);
-          runtime_control.report_fatal_error(error_msg);
+          runtime_control.report_fatal_error(
+            "Failed to install startup snapshot");
           return;
         }
       }
@@ -1287,7 +1288,6 @@ namespace ccf
 
       for (auto& [actor, fe] : rpc_map->frontends())
       {
-        fe->set_sig_intervals(sig_tx_interval, sig_ms_interval);
         fe->set_cmd_forwarder(cmd_forwarder);
         fe->start_periodic_tick(job_board_, tick_interval_);
       }
@@ -2058,12 +2058,6 @@ namespace ccf
       }
     }
 
-    void initiate_join()
-    {
-      std::lock_guard<ds::Mutex> guard(lock);
-      initiate_join_unsafe();
-    }
-
     void start_join_timer()
     {
       // The initial attempt runs under NodeState::lock held by the caller
@@ -2111,11 +2105,6 @@ namespace ccf
           jwt_key_auto_refresh->schedule_once();
           return {nullptr};
         });
-    }
-
-    size_t get_jwt_attempts() override
-    {
-      return jwt_key_auto_refresh->get_attempts();
     }
 
     //
@@ -3841,11 +3830,6 @@ namespace ccf
         self, network.identity->cert, node_sign_kp, endorsed_node_certificate_);
     }
 
-    void setup_cmd_forwarder()
-    {
-      cmd_forwarder->initialize(self);
-    }
-
     void setup_history()
     {
       if (history)
@@ -3880,15 +3864,13 @@ namespace ccf
         std::nullopt)
     {
       setup_n2n_channels(endorsed_node_certificate_);
-      setup_cmd_forwarder();
 
       auto shared_state = std::make_shared<aft::State>(self);
 
-      auto node_client =
-        std::make_shared<HTTPNodeClient>(rpc_map, node_sign_kp, [this]() {
-          std::lock_guard<ds::Mutex> guard(node_certificates_lock);
-          return endorsed_node_cert.value_or(self_signed_node_cert);
-        });
+      auto node_client = std::make_shared<HTTPNodeClient>(rpc_map, [this]() {
+        std::lock_guard<ds::Mutex> guard(node_certificates_lock);
+        return endorsed_node_cert.value_or(self_signed_node_cert);
+      });
 
       auto retired_node_cleanup =
         std::make_shared<RetiredNodeCleanup>(node_client);
@@ -3926,8 +3908,16 @@ namespace ccf
       network.tables->set_map_hook(
         network.nodes.get_name(),
         Nodes::wrap_map_hook(
-          [](ccf::kv::Version version, const Nodes::Write& w)
+          [source = self](ccf::kv::Version version, const Nodes::Write& w)
             -> ccf::kv::ConsensusHookPtr {
+            for (const auto& [node_id, ni] : w)
+            {
+              if (ni.has_value() && ni->retired_committed)
+              {
+                aft::trace::retired_committed_tx(
+                  source.value(), version, node_id.value());
+              }
+            }
             return std::make_unique<ConfigurationChangeHook>(version, w);
           }));
 

@@ -90,6 +90,7 @@ Each version is built from its own sources and configuration in a separate Pytho
 This keeps older releases' documentation dependencies compatible while sharing version-selector metadata across all builds.
 
 HTML builds also build the :ref:`trace viewer <operations/recovery:Trace viewer>`, which needs ``lake``; ``SKIP_TRACE_VIEWER=ON`` skips it.
+See :ref:`architecture/verification:Running locally` for installing Lean and ``lake``.
 
 Rust API documentation
 ~~~~~~~~~~~~~~~~~~~~~~

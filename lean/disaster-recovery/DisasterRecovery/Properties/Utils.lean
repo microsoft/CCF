@@ -7,6 +7,9 @@ public import CCF.Execution
 
 namespace DisasterRecovery.Properties
 
+/-- Recovery configurations satisfying the model's validity predicate. -/
+abbrev ValidConfig := { config : Model.Config // config.Valid }
+
 /-- A finite or infinite network execution used to state global recovery properties. -/
 abbrev GlobalTrace (config : Model.Config) :=
   CCF.Execution.Trace (Model.transitionSystem config)

@@ -8,6 +8,7 @@
 #include "ds/internal_logger.h"
 #include "tracing/spsc_queue.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <charconv>
@@ -20,6 +21,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
@@ -99,6 +101,7 @@ namespace ccf::tracing
         }
       };
 
+      const std::vector<std::string> tag_prefix_allow_list;
       sockaddr_storage address = {};
       socklen_t address_size = 0;
       Endpoint::Delivery delivery;
@@ -118,6 +121,7 @@ namespace ccf::tracing
       bool finished CCF_GUARDED_BY(mutex) = false;
 
       Transport(const Endpoint& endpoint, size_t producers) :
+        tag_prefix_allow_list(endpoint.tag_prefix_allow_list),
         delivery(endpoint.delivery),
         reader(queues)
       {
@@ -141,6 +145,14 @@ namespace ccf::tracing
         {
           queues.push_back(std::make_unique<SPSCQueue>(size));
         }
+      }
+
+      [[nodiscard]] bool accepts(std::string_view tag) const
+      {
+        return std::any_of(
+          tag_prefix_allow_list.begin(),
+          tag_prefix_allow_list.end(),
+          [tag](const auto& prefix) { return tag.starts_with(prefix); });
       }
 
       [[nodiscard]] bool expired() const CCF_REQUIRES(mutex)
@@ -481,6 +493,22 @@ namespace ccf::tracing
       return worker() != nullptr;
     }
 
+    static bool accepts(std::string_view tag)
+    {
+      if (!is_configured())
+      {
+        return false;
+      }
+      for (const auto& t : worker()->transports)
+      {
+        if (t->accepts(tag))
+        {
+          return true;
+        }
+      }
+      return false;
+    }
+
     // Startup only: a connection observed here does not guarantee delivery.
     static bool wait_for_connection(std::chrono::milliseconds timeout)
     {
@@ -523,7 +551,7 @@ namespace ccf::tracing
     }
 
     // False may mean partial acceptance: other sinks still receive the record.
-    static bool enqueue(std::span<const uint8_t> bytes)
+    static bool enqueue(std::string_view tag, std::span<const uint8_t> bytes)
     {
       if (!is_configured())
       {
@@ -533,6 +561,10 @@ namespace ccf::tracing
       const auto slot = bound_slot();
       for (const auto& t : worker()->transports)
       {
+        if (!t->accepts(tag))
+        {
+          continue;
+        }
         if (
           slot >= t->queues.size() ||
           t->stopping.load(std::memory_order_relaxed) ||
@@ -545,7 +577,7 @@ namespace ccf::tracing
       return enqueued;
     }
 
-    static void record_drop()
+    static void record_drop(std::string_view tag)
     {
       if (!is_configured())
       {
@@ -553,7 +585,10 @@ namespace ccf::tracing
       }
       for (const auto& t : worker()->transports)
       {
-        t->dropped.fetch_add(1, std::memory_order_relaxed);
+        if (t->accepts(tag))
+        {
+          t->dropped.fetch_add(1, std::memory_order_relaxed);
+        }
       }
     }
 

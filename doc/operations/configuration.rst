@@ -36,14 +36,18 @@ Use trusted Fluentd ``in_forward`` TCP listeners: connections are unauthenticate
     {
       "observability": {
         "fluentd": [
-          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort" },
-          { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking" }
+          { "host": "127.0.0.1", "port": "24224", "delivery": "buffered-best-effort", "tag-prefix-allow-list": ["ccf"] },
+          { "host": "127.0.0.1", "port": "24225", "delivery": "unbuffered-non-blocking", "tag-prefix-allow-list": ["ccf.cft"] }
         ]
       }
     }
 
-Each collector receives the same traces.
-For a single collector, use one array entry; to migrate an existing single-object configuration, wrap it in an array.
+Set ``tag-prefix-allow-list`` per collector to a list of literal, case-sensitive prefixes; an event is selected if its tag starts with any listed prefix.
+``["ccf"]`` selects all CCF tags; ``["ccf.cft"]`` selects consensus traces.
+Omitting ``tag-prefix-allow-list`` defaults to ``[""]``; an empty string anywhere in the list selects every tag, while ``[]`` selects none.
+Prefixes have no dot-boundary requirement and do not support wildcards or regular expressions.
+Matching multiple prefixes within one collector entry does not duplicate events; an event matching multiple collectors is sent to each.
+Excluded events do not count as dropped for that collector.
 Omit the array or leave it empty to disable export.
 
 Choose a ``delivery`` policy per collector:

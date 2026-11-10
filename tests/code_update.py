@@ -514,6 +514,9 @@ def test_start_node_with_mismatched_host_data(network, args):
             )
     except (TimeoutError, RuntimeError):
         LOG.info("As expected, node with invalid security policy failed to startup")
+        network.ignore_error_pattern_on_shutdown(
+            "Fatal error: Node startup failed; see stdout logs for details"
+        )
     else:
         raise AssertionError("Node startup unexpectedly succeeded")
 
@@ -599,6 +602,16 @@ def register_signed_statement(node, signed_statement):
         return transparent_statement
 
 
+def check_join_failure_diagnostic(join_error):
+    """Check that a rejected joiner reported a fatal stderr diagnostic that
+    does not include the join response body."""
+    _, err_path = join_error.node.get_logs()
+    with open(err_path, "r", encoding="utf-8") as f:
+        err = f.read()
+    assert "Fatal error: Join request to" in err, err
+    assert "host data is not authorised" not in err, err
+
+
 def assert_node_join_fails(network, args):
     """Create a node and assert that joining the network raises HostDataNotFound."""
     new_node = network.create_node()
@@ -609,6 +622,7 @@ def assert_node_join_fails(network, args):
         assert (
             "host data is not authorised" in e.error_line
         ), f"Expected 'host data is not authorised' in error, got: {e.error_line}"
+        check_join_failure_diagnostic(e)
     else:
         raise AssertionError("Node join unexpectedly succeeded")
 
@@ -800,8 +814,9 @@ def test_add_node_with_untrusted_host_data(network, args):
     new_node = network.create_node()
     try:
         network.join_node(new_node, args.package, args, timeout=3, from_snapshot=False)
-    except infra.network.HostDataNotFound:
+    except infra.network.HostDataNotFound as e:
         LOG.info("As expected, node with untrusted host data failed to join")
+        check_join_failure_diagnostic(e)
     else:
         raise AssertionError("Node join unexpectedly succeeded")
 

@@ -1,7 +1,8 @@
 Node-to-Node Channels
 =====================
 
-CCF nodes communicate over channels which terminate in each node’s enclave. Channels are used for two purposes:
+CCF nodes communicate over authenticated channels whose cryptographic endpoints are inside each node's TEE.
+Channels are used for two purposes:
 
 - Sending integrity-protected consensus headers for ledger replication from the primary to backup nodes, or from a candidate node to other replicas during an election.
 - Forwarding encrypted client requests from backups to the primary node for execution.
@@ -11,7 +12,9 @@ CCF nodes communicate over channels which terminate in each node’s enclave. Ch
     - The ledger entries to be replicated between nodes are encrypted with the ledger key (AES GCM) and we want to avoid having to encrypt them again once per backup.
     - Headers sent between nodes only contain consensus information that is not confidential and does not need to be encrypted.
 
-Each channel has a corresponding TCP socket opened on the node's untrusted host. Outgoing channels (i.e. those initiated by the local node) are responsible for the lifetime of a client connection on the host, while incoming channels are created when a peer first contact the local node on its well-known node-to-node interface.
+Each channel has a corresponding TCP socket, managed by the node's I/O layer (see :doc:`tcp_internals`).
+The network and host infrastructure are untrusted, so channels rely on their own cryptographic protection rather than on the transport.
+Outgoing channels (i.e. those initiated by the local node) are responsible for the lifetime of an outgoing TCP connection, while incoming channels are created when a peer first contacts the local node on its well-known node-to-node interface.
 
 
 Channel Establishment Protocol

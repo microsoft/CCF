@@ -9,7 +9,6 @@ The following diagram demonstrates how the integrity of the ledger can be verifi
 
 .. image:: ../img/merkle_single_signature.svg
   :alt: Merkle tree with a signature transaction at sequence number 6
-  :width: 1000
   :align: center
 
 Auditors of the CCF ledger can reconstruct the Merkle Tree by walking through the ledger, hashing the transactions recorded in the ledger and appending them to a fresh Merkle Tree. On every signature transaction, the reconstituted root can be compared to the one recorded in the signature transaction. The signature can be verified using the public signing key of the primary node at the time (also recorded in the ledger -- see ``public:ccf.gov.nodes.info`` map). If the signature and root match, the integrity of the ledger so far is guaranteed.
@@ -20,7 +19,6 @@ To reduce the memory footprint of the Merkle Tree as more transactions are recor
 
 .. image:: ../img/merkle_compact.svg
   :alt: Merkle tree compacted after sequence number 6
-  :width: 1000
   :align: center
 
 .. note:: In practice, CCF keeps track of a larger historical Merkle Tree in memory so that receipts of recent transactions can be issued efficiently, without having to fetch signature transactions from the ledger.
@@ -29,7 +27,6 @@ The compacted Merkle Tree (containing leaves and intermediate nodes to issue rec
 
 .. image:: ../img/merkle_two_signatures.svg
   :alt: Compacted Merkle tree included in a second signature transaction
-  :width: 1000
   :align: center
 
 Serialised Merkle Tree Format

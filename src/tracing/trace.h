@@ -46,7 +46,7 @@ namespace ccf::tracing
     requires msgpack::map_arguments<Args...>
   inline void emit(std::string_view tag, const Args&... args)
   {
-    if (!FluentdSink::is_configured())
+    if (!FluentdSink::accepts(tag))
     {
       return;
     }
@@ -74,11 +74,11 @@ namespace ccf::tracing
           write_msgpack(buffer, std::get<2 * I + 1>(refs))),
          ...);
       }(std::make_index_sequence<sizeof...(Args) / 2>{});
-      FluentdSink::enqueue(buffer);
+      FluentdSink::enqueue(tag, buffer);
     }
     catch (const std::bad_alloc&)
     {
-      FluentdSink::record_drop();
+      FluentdSink::record_drop(tag);
     }
   }
 }
