@@ -1060,11 +1060,11 @@ TEST_CASE("Historical endorsements accept transaction-local service records")
   ccf::kv::Store historical_store;
   historical_store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
   auto tx = historical_store.create_tx();
-  tx.rw<ccf::Service>(ccf::Tables::SERVICE)
-    ->put(ccf::ServiceInfo{
-      .cert = identity.cert,
-      .pq_cert = identity.pq_cert,
-      .status = ccf::ServiceStatus::OPEN});
+  auto* service = tx.rw<ccf::Service>(ccf::Tables::SERVICE);
+  service->put(ccf::ServiceInfo{
+    .cert = identity.cert,
+    .pq_cert = identity.pq_cert,
+    .status = ccf::ServiceStatus::OPEN});
   auto endorsement = make_self_endorsement(2, 1);
   endorsement.endorsing_key =
     ccf::crypto::make_verifier(identity.cert)->public_key_der();
@@ -1085,10 +1085,11 @@ TEST_CASE("Historical endorsements accept transaction-local service records")
 
   SUBCASE("A mismatched CLASSICAL identity written here is rejected")
   {
-    identities->put(
-      ccf::IdentityType::CLASSICAL,
-      {ccf::IdentityKind::X509_SPKI_DER,
-       ccf::crypto::make_ec_key_pair()->public_key_der()});
+    const auto other_public_key_der =
+      ccf::crypto::make_ec_key_pair()->public_key_der();
+    const ccf::Identity other_identity{
+      ccf::IdentityKind::X509_SPKI_DER, other_public_key_der};
+    identities->put(ccf::IdentityType::CLASSICAL, other_identity);
     REQUIRE_THROWS_WITH_AS(
       ccf::read_historical_service_endorsement(tx, 10),
       "Service signing identity does not match its service certificate",

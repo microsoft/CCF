@@ -267,23 +267,10 @@ Service identity and status.
 ``service.signing_identities``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Public keys for verifying service COSE signatures.
-New entries are published as ``COSE_KEY`` values holding the public key of the corresponding service certificate in ``service.info``.
-``CLASSICAL`` holds the EC public key of ``service.info.cert``, with its curve's signing algorithm.
-A service with an ML-DSA identity also publishes ``PQ``, an RFC 9964 AKP key (``kty = 7``) with the parameter set's algorithm (``-48``, ``-49`` or ``-50``) and FIPS 204 public key.
-The ``PQ`` entry is present exactly when ``service.info.pq_cert`` is present, and must hold that certificate's public key.
-Current-state identity reads reject an incomplete or mismatched PQ pair; there is no PQ certificate or CLASSICAL fallback.
-This invariant applies to reconstructed KV state; a historical transaction only includes the entries written by that transaction.
-
-The keys and certificates are published in the same transaction when a service is created or recovered.
-Certificate renewal preserves the public keys and does not rewrite this table.
-Classical-only services remain supported, but creation or recovery cannot discard an existing PQ identity, and builds with ML-DSA require a PQ certificate.
-A service created before this table existed has no ``CLASSICAL`` entry until its next recovery, including after a live update of its nodes.
-A classical-only service can be live-updated to nodes with or without ML-DSA support, but a service holding a PQ identity can only be live-updated to nodes with ML-DSA support.
-A PQ identity is only ever introduced by a recovery, which publishes both entries; a live update never adds one.
-A pre-release service whose ``service.info.pq_cert`` was written without a ``PQ`` entry must therefore be recovered rather than live-updated.
-Existing ``CLASSICAL`` entries retain their encoding, including legacy DER certificates or public keys.
-Only ``CLASSICAL`` therefore falls back to the key of ``service.info.cert`` when its entry is absent.
+Public keys for verifying service COSE signatures, published as ``COSE_KEY`` values in the same transaction as the certificates in ``service.info`` when a service is created or recovered.
+``CLASSICAL`` holds the EC public key of ``service.info.cert``; ``PQ`` holds the ML-DSA public key of ``service.info.pq_cert`` as an RFC 9964 AKP key, and is present exactly when that certificate is.
+A service created before this table existed has no ``CLASSICAL`` entry until its next recovery, so ``CLASSICAL`` falls back to the key of ``service.info.cert``, and older entries may hold DER certificates or public keys.
+``PQ`` never falls back: an incomplete or mismatched pair is rejected, a PQ identity is only introduced by a recovery, and a service holding one only accepts nodes with ML-DSA support.
 
 **Key** Identity type as a little-endian 64-bit unsigned integer.
 

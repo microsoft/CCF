@@ -252,45 +252,49 @@ def test_tables_doc(network, args):
 
 @reqs.description("Check service signing identities are published with certificates")
 def test_service_signing_identities(network, args):
+    # COSE_Key labels (RFC 9052) and the AKP public key parameter (RFC 9964)
+    KTY, ALG, PUB = 1, 3, -1
+    KTY_EC2, KTY_AKP = 2, 7
+    public_key_sizes = {-48: 1312, -49: 1952, -50: 2592}
+    algorithm_oids = {
+        -48: "2.16.840.1.101.3.4.3.17",
+        -49: "2.16.840.1.101.3.4.3.18",
+        -50: "2.16.840.1.101.3.4.3.19",
+    }
+
+    def cose_key(identity):
+        assert identity["kind"] == "COSE_KEY", identity
+        return cbor2.loads(base64.b64decode(identity["value"], validate=True))
+
     primary, _ = network.find_primary()
     target_seqno = network.create_and_wait_for_ledger_chunk(primary)
     public_state, _ = primary.get_public_state_from_api(target_seqno)
     service_info = json.loads(public_state["public:ccf.gov.service.info"][bytes(8)])
     identities = public_state["public:ccf.gov.service.signing_identities"]
-    classical = json.loads(identities[bytes(8)])
-    assert classical["kind"] == "COSE_KEY", classical
-    assert (
-        cbor2.loads(base64.b64decode(classical["value"], validate=True))[1] == 2
-    ), classical
+    classical_key = cose_key(json.loads(identities[bytes(8)]))
+    assert classical_key[KTY] == KTY_EC2, classical_key
 
     pq_entry = identities.get((1).to_bytes(8, "little"))
-    assert (pq_entry is not None) == (service_info.get("pq_cert") is not None)
+    pq_cert = service_info.get("pq_cert")
+    assert (pq_entry is not None) == (pq_cert is not None)
     if pq_entry is not None:
-        pq_identity = json.loads(pq_entry)
-        assert pq_identity["kind"] == "COSE_KEY", pq_identity
-        key = cbor2.loads(base64.b64decode(pq_identity["value"], validate=True))
-        assert set(key) == {1, 3, -1}, key
-        assert key[1] == 7, key
-        public_key_sizes = {-48: 1312, -49: 1952, -50: 2592}
-        assert key[3] in public_key_sizes, key
-        assert isinstance(key[-1], bytes), key
-        assert len(key[-1]) == public_key_sizes[key[3]], key
-        assert service_info["pq_cert"] == network.get_pq_service_certificate()
-        cert, trailing = decode_der(
-            infra.crypto.cert_pem_to_der(service_info["pq_cert"])
-        )
+        key = cose_key(json.loads(pq_entry))
+        assert set(key) == {KTY, ALG, PUB}, key
+        assert key[KTY] == KTY_AKP, key
+        assert key[ALG] in public_key_sizes, key
+        assert isinstance(key[PUB], bytes), key
+        assert len(key[PUB]) == public_key_sizes[key[ALG]], key
+        assert pq_cert == network.get_pq_service_certificate()
+        cert, trailing = decode_der(infra.crypto.cert_pem_to_der(pq_cert))
         assert not trailing
         # CCF issues v3 certificates; SPKI is the seventh TBSCertificate field.
         tbs_cert = cert[0]
         assert int(tbs_cert[0]) == 2
         spki = tbs_cert[6]
-        algorithm_oids = {
-            -48: "2.16.840.1.101.3.4.3.17",
-            -49: "2.16.840.1.101.3.4.3.18",
-            -50: "2.16.840.1.101.3.4.3.19",
-        }
-        assert str(spki[0][0]) == algorithm_oids[key[3]], spki
-        assert key[-1] == spki[1].asOctets()
+        spki_algorithm_oid = str(spki[0][0])
+        spki_public_key = spki[1].asOctets()
+        assert spki_algorithm_oid == algorithm_oids[key[ALG]], spki
+        assert key[PUB] == spki_public_key
     return network
 
 

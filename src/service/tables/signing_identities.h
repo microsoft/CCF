@@ -81,7 +81,8 @@ namespace ccf
         {IdentityKind::X509_SPKI_DER, public_key_der}));
   }
 
-  // CLASSICAL permits legacy records; PQ requires both records or neither.
+  // CLASSICAL permits a certificate without an entry, as in ledgers written
+  // before this table existed. PQ holds both or neither.
   inline void check_signing_identity_matches_service_cert(
     const std::optional<Identity>& published_identity,
     const std::optional<ServiceInfo>& service_info,
@@ -131,9 +132,7 @@ namespace ccf
     }
 
     const auto key = cose_key_from_identity(published_identity.value());
-    if (
-      identity_type == IdentityType::PQ &&
-      key.kty() != ccf::crypto::COSEKeyType::AKP)
+    if (identity_type == IdentityType::PQ && key.mldsa_public_key() == nullptr)
     {
       throw std::logic_error("PQ signing identity must be an ML-DSA COSE_Key");
     }
@@ -159,7 +158,8 @@ namespace ccf
       identities->get(IdentityType::PQ), service_info, IdentityType::PQ);
   }
 
-  // CLASSICAL keeps its legacy certificate fallback. PQ never falls back.
+  // CLASSICAL falls back to the service certificate when its entry is absent,
+  // as in ledgers written before this table existed. PQ never falls back.
   inline std::optional<Identity> get_service_signing_identity(
     ccf::kv::ReadOnlyTx& tx, IdentityType identity_type)
   {

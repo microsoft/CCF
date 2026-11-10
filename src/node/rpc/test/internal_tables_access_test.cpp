@@ -31,7 +31,7 @@ using namespace ccf;
 
 namespace
 {
-  // Parameter set shared by make_pq_cert and expected_pq_signing_identity
+  // ML-DSA parameter set of the test PQ certificates
   constexpr auto PQ_PARAMETER_SET = ccf::crypto::MLDSAParameterSet::ML_DSA_65;
 
   // ML-DSA service certificate, or nullopt as sent by a node whose build has
@@ -71,10 +71,9 @@ namespace
   ccf::Identity expected_signing_identity(
     const std::vector<uint8_t>& public_key_der)
   {
-    return {
-      ccf::IdentityKind::COSE_KEY,
-      ccf::crypto::COSEKey(ccf::crypto::make_ec_public_key(public_key_der))
-        .to_cbor(ccf::cose::alg::ES384)};
+    const auto public_key = ccf::crypto::make_ec_public_key(public_key_der);
+    const ccf::crypto::COSEKey key(public_key);
+    return {ccf::IdentityKind::COSE_KEY, key.to_cbor(ccf::cose::alg::ES384)};
   }
 
   std::optional<ccf::Identity> expected_pq_signing_identity(
@@ -84,11 +83,35 @@ namespace
     {
       return std::nullopt;
     }
-    return ccf::Identity{
-      ccf::IdentityKind::COSE_KEY,
-      ccf::crypto::COSEKey::from_der_public_key(
-        ccf::crypto::make_verifier(cert.value())->public_key_der())
-        .to_cbor(ccf::cose::algorithm_for_parameter_set(PQ_PARAMETER_SET))};
+    const auto public_key_der =
+      ccf::crypto::make_verifier(cert.value())->public_key_der();
+    const auto key = ccf::crypto::COSEKey::from_der_public_key(public_key_der);
+    const auto alg = ccf::cose::algorithm_for_parameter_set(PQ_PARAMETER_SET);
+    return ccf::Identity{ccf::IdentityKind::COSE_KEY, key.to_cbor(alg)};
+  }
+
+  // Every encoding of the key decodes to its published identity, and a
+  // trailing byte is rejected rather than ignored
+  void require_encodings_round_trip(
+    const ccf::Identity& identity,
+    const std::vector<uint8_t>& spki,
+    const ccf::crypto::Pem& cert)
+  {
+    const ccf::Identity spki_identity{IdentityKind::X509_SPKI_DER, spki};
+    const ccf::Identity cert_identity{
+      IdentityKind::X509_CERT_DER, ccf::crypto::cert_pem_to_der(cert)};
+    for (const auto& encoded : {spki_identity, cert_identity, identity})
+    {
+      const auto key = ccf::cose_key_from_identity(encoded);
+      REQUIRE(ccf::signing_identity_from_key(key) == identity);
+    }
+
+    auto trailing_spki = spki;
+    trailing_spki.push_back(0);
+    const ccf::Identity trailing_identity{
+      IdentityKind::X509_SPKI_DER, trailing_spki};
+    REQUIRE_THROWS_AS(
+      ccf::cose_key_from_identity(trailing_identity), std::invalid_argument);
   }
 
   class TestConsensus : public ccf::kv::ConfigurableConsensus
@@ -1497,23 +1520,7 @@ TEST_CASE("Service signing identities round-trip EC keys in every encoding")
     REQUIRE(cose_key.kty() == ccf::crypto::COSEKeyType::EC2);
     REQUIRE(cose_key.alg() == ccf::cose::algorithm_for_curve(curve).alg);
     REQUIRE(ccf::is_same_key(identity, spki));
-
-    for (const auto& encoded :
-         {Identity{IdentityKind::X509_SPKI_DER, spki},
-          Identity{
-            IdentityKind::X509_CERT_DER, ccf::crypto::cert_pem_to_der(cert)},
-          identity})
-    {
-      REQUIRE(
-        ccf::signing_identity_from_key(ccf::cose_key_from_identity(encoded)) ==
-        identity);
-    }
-
-    auto trailing_spki = spki;
-    trailing_spki.push_back(0);
-    REQUIRE_THROWS_AS(
-      ccf::cose_key_from_identity({IdentityKind::X509_SPKI_DER, trailing_spki}),
-      std::invalid_argument);
+    require_encodings_round_trip(identity, spki, cert);
   }
 }
 
@@ -1524,10 +1531,12 @@ TEST_CASE("Service signing identities round-trip every ML-DSA parameter set")
     return;
   }
 
-  for (const auto& [parameter_set, alg] :
-       {std::pair{ccf::crypto::MLDSAParameterSet::ML_DSA_44, -48},
-        std::pair{ccf::crypto::MLDSAParameterSet::ML_DSA_65, -49},
-        std::pair{ccf::crypto::MLDSAParameterSet::ML_DSA_87, -50}})
+  using ccf::crypto::MLDSAParameterSet;
+  const std::vector<std::pair<MLDSAParameterSet, int64_t>> parameter_sets{
+    {MLDSAParameterSet::ML_DSA_44, ccf::cose::alg::ML_DSA_44},
+    {MLDSAParameterSet::ML_DSA_65, ccf::cose::alg::ML_DSA_65},
+    {MLDSAParameterSet::ML_DSA_87, ccf::cose::alg::ML_DSA_87}};
+  for (const auto& [parameter_set, alg] : parameter_sets)
   {
     CAPTURE(parameter_set);
     const auto key = ccf::crypto::make_mldsa_key_pair(parameter_set);
@@ -1541,32 +1550,18 @@ TEST_CASE("Service signing identities round-trip every ML-DSA parameter set")
     REQUIRE(cose_key.alg() == alg);
     REQUIRE(cose_key.akp_parameters()->pub == key->public_key_raw());
     REQUIRE(ccf::is_same_key(identity, spki));
-
-    for (const auto& encoded :
-         {Identity{IdentityKind::X509_SPKI_DER, spki},
-          Identity{
-            IdentityKind::X509_CERT_DER, ccf::crypto::cert_pem_to_der(cert)},
-          identity})
-    {
-      REQUIRE(
-        ccf::signing_identity_from_key(ccf::cose_key_from_identity(encoded)) ==
-        identity);
-    }
-
-    auto trailing_spki = spki;
-    trailing_spki.push_back(0);
-    REQUIRE_THROWS_AS(
-      ccf::cose_key_from_identity({IdentityKind::X509_SPKI_DER, trailing_spki}),
-      std::invalid_argument);
+    require_encodings_round_trip(identity, spki, cert);
   }
 }
 
 TEST_CASE("Service signing identities reject RSA and EdDSA keys")
 {
-  for (const auto& key :
-       {ccf::crypto::COSEKey(ccf::crypto::make_rsa_key_pair()),
-        ccf::crypto::COSEKey(ccf::crypto::make_eddsa_public_key(
-          ccf::crypto::make_eddsa_key_pair()->public_key_pem()))})
+  const ccf::crypto::COSEKey rsa_key(ccf::crypto::make_rsa_key_pair());
+  const auto eddsa_public_key_pem =
+    ccf::crypto::make_eddsa_key_pair()->public_key_pem();
+  const ccf::crypto::COSEKey eddsa_key(
+    ccf::crypto::make_eddsa_public_key(eddsa_public_key_pem));
+  for (const auto& key : {rsa_key, eddsa_key})
   {
     REQUIRE_THROWS_WITH_AS(
       ccf::signing_identity_from_key(key),
@@ -1603,7 +1598,8 @@ TEST_CASE("create_service publishes the service signing identities")
   {
     auto tx = kv_store.create_read_only_tx();
     auto* handle = tx.ro<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
-    REQUIRE(handle->size() == (pq_cert.has_value() ? 2 : 1));
+    const size_t expected_entries = pq_cert.has_value() ? 2 : 1;
+    REQUIRE(handle->size() == expected_entries);
     REQUIRE(handle->get(ccf::IdentityType::CLASSICAL) == expected_identity);
     REQUIRE(handle->get(ccf::IdentityType::PQ) == expected_pq_identity);
     REQUIRE(
@@ -1660,7 +1656,8 @@ TEST_CASE("create_service publishes the service signing identities")
   {
     auto tx = kv_store.create_read_only_tx();
     auto* handle = tx.ro<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
-    REQUIRE(handle->size() == (recovered_pq_cert.has_value() ? 2 : 1));
+    const size_t expected_entries = recovered_pq_cert.has_value() ? 2 : 1;
+    REQUIRE(handle->size() == expected_entries);
     REQUIRE(handle->get(ccf::IdentityType::CLASSICAL) == recovered_identity);
     REQUIRE(handle->get(ccf::IdentityType::PQ) == recovered_pq_identity);
     REQUIRE(recovered_identity != expected_identity);
@@ -1680,13 +1677,12 @@ TEST_CASE("create_service publishes the service signing identities")
     REQUIRE(service->cert == recovered_cert);
     REQUIRE(service->pq_cert == recovered_pq_cert);
     REQUIRE(service->status == ccf::ServiceStatus::RECOVERING);
-    REQUIRE(
-      tx.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
-        ->get() == service_cert);
-    REQUIRE(
-      tx.ro<ccf::PreviousServiceLastSignedRoot>(
-          Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT)
-        ->get() == tree.get_root());
+    auto* previous_identity =
+      tx.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY);
+    REQUIRE(previous_identity->get() == service_cert);
+    auto* previous_root = tx.ro<ccf::PreviousServiceLastSignedRoot>(
+      Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT);
+    REQUIRE(previous_root->get() == tree.get_root());
   }
 }
 
@@ -1741,7 +1737,9 @@ TEST_CASE("create_service rejects invalid or missing PQ certificates")
         tx, identity.cert, std::nullopt, {3, 10}, nullptr, true),
       "An ML-DSA service certificate is required",
       std::logic_error);
-    REQUIRE(nlohmann::json(service->get().value()) == nlohmann::json(previous));
+    const auto unchanged = service->get();
+    REQUIRE(unchanged.has_value());
+    REQUIRE(nlohmann::json(unchanged.value()) == nlohmann::json(previous));
     service->clear();
   }
 
@@ -1774,12 +1772,12 @@ TEST_CASE("create_service rejects invalid or missing PQ certificates")
 
   REQUIRE_FALSE(service->has());
   REQUIRE(signing_identities->size() == 0);
-  REQUIRE_FALSE(
-    tx.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY)
-      ->has());
-  REQUIRE_FALSE(tx.ro<ccf::PreviousServiceLastSignedRoot>(
-                    Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT)
-                  ->has());
+  auto* previous_identity =
+    tx.ro<ccf::PreviousServiceIdentity>(Tables::PREVIOUS_SERVICE_IDENTITY);
+  REQUIRE_FALSE(previous_identity->has());
+  auto* previous_root = tx.ro<ccf::PreviousServiceLastSignedRoot>(
+    Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT);
+  REQUIRE_FALSE(previous_root->has());
   REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 }
 
@@ -1927,9 +1925,10 @@ TEST_CASE("PQ signing identity reads never fall back to another source")
 
   SUBCASE("A PQ certificate without a published key is rejected")
   {
-    service->put(ServiceInfo{
-      .cert = identity.cert,
-      .pq_cert = identity.pq_cert.value_or(identity.cert)});
+    // Only the presence of the certificate matters here, so any certificate
+    // serves on builds without ML-DSA
+    const auto pq_cert = identity.pq_cert.value_or(identity.cert);
+    service->put(ServiceInfo{.cert = identity.cert, .pq_cert = pq_cert});
   }
 
   SUBCASE("A PQ entry without a PQ certificate is rejected")
@@ -1988,8 +1987,9 @@ TEST_CASE("PQ signing identity reads require the matching ML-DSA COSE_Key")
   SUBCASE("A different ML-DSA public key is rejected")
   {
     const TestIdentity other;
-    signing_identities->put(
-      IdentityType::PQ, expected_pq_signing_identity(other.pq_cert).value());
+    const auto other_pq_identity = expected_pq_signing_identity(other.pq_cert);
+    REQUIRE(other_pq_identity.has_value());
+    signing_identities->put(IdentityType::PQ, other_pq_identity.value());
     REQUIRE_THROWS_WITH_AS(
       ccf::get_service_signing_identity(tx, IdentityType::PQ),
       "Service signing identity does not match its service certificate",
@@ -2013,14 +2013,13 @@ TEST_CASE("PQ signing identity reads require the matching ML-DSA COSE_Key")
 
   SUBCASE("PQ entries require COSE_Key encoding even for the same key")
   {
-    for (const auto& entry :
-         {Identity{
-            IdentityKind::X509_SPKI_DER,
-            ccf::crypto::make_verifier(identity.pq_cert.value())
-              ->public_key_der()},
-          Identity{
-            IdentityKind::X509_CERT_DER,
-            ccf::crypto::cert_pem_to_der(identity.pq_cert.value())}})
+    const auto& pq_cert = identity.pq_cert.value();
+    const auto pq_public_key_der =
+      ccf::crypto::make_verifier(pq_cert)->public_key_der();
+    const Identity spki_entry{IdentityKind::X509_SPKI_DER, pq_public_key_der};
+    const Identity cert_entry{
+      IdentityKind::X509_CERT_DER, ccf::crypto::cert_pem_to_der(pq_cert)};
+    for (const auto& entry : {spki_entry, cert_entry})
     {
       signing_identities->put(IdentityType::PQ, entry);
       REQUIRE_THROWS_WITH_AS(
