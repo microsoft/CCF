@@ -25,10 +25,30 @@ Actions are local inputs (including timeouts) or delivery of a queued message; n
 ## Scope
 
 Node join and snapshot installation are not modeled.
-`initial_deadlock_free` proves that an initialized state with singleton voting membership has an enabled action, provided its voting node belongs to the declared node list.
-It does not establish the [shared deadlock-freedom property](../common/README.md#transition-systems) for all reachable states.
-An unsigned membership expansion followed by CheckQuorum can still leave a singleton-start execution with no enabled action after queued messages are drained.
+`deadlock_free` states the [shared deadlock-freedom property](../common/README.md#transition-systems) for every reachable state, assuming singleton initial voting membership and that the voting node belongs to the declared node list.
+Its proof is deliberately unfinished (`sorry`): the singleton-start assumption alone does not make the claim true.
+`deadlock_free_witness` only shows that the initialization assumptions can be satisfied; it does not prove the claim.
+Warning-as-error builds and kernel axiom checks reject this unfinished proof.
 There are no fairness assumptions or guarantees of eventual election or commitment.
+
+### Singleton-start counterexample
+
+Start with voting membership `{0}` and declared nodes `[0, 1]`.
+Node 0 is primary with the unsigned genesis configuration transaction, and node 1 has not joined.
+The model permits the following four transitions:
+
+1. Node 0 appends an unsigned transaction changing membership to `{0, 1}`.
+   The append sends a heartbeat to node 1 before adding the transaction.
+2. Node 0 executes its CheckQuorum timeout and becomes a follower.
+   This action is enabled once there is another active member; the model has no clock.
+3. Deliver the heartbeat to node 1.
+   It becomes a follower in term 2 and rejects the heartbeat because its empty log lacks the preceding genesis entry, queuing a negative acknowledgement.
+4. Deliver the acknowledgement to node 0, which ignores it because it is no longer primary.
+
+The network queue is now empty, both nodes are followers, and neither has a signature covering a configuration that permits it to start an election.
+All primary-only inputs are disabled, election timeouts are disabled, and no message can be delivered.
+Thus an action is enabled initially, but a later reachable state has none: restricting initialization to a singleton does not constrain subsequent unsigned reconfiguration.
+This is a counterexample in the Lean model, not a reproduction against a running C++ service.
 
 ## Validation
 

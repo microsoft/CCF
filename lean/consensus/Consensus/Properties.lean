@@ -22,22 +22,20 @@ abbrev GlobalTrace (config : Finset Model.Node.NodeID) (nodes : List Model.Node.
 
 open Model.Node
 
-/-- An initialized singleton voting configuration has an enabled action when its
-voting node is declared. This does not cover later reachable states. -/
-theorem initial_deadlock_free
-    : forall (node : NodeID) (nodes : List NodeID) (state : Model.State),
-        node ∈ nodes
-        -> (Model.transitionSystem {node} nodes).init state
-        -> exists action nextState,
-            (Model.transitionSystem {node} nodes).step state action = some nextState := by
-  exact Proofs.Deadlock.initial_deadlock_free
+/-- Claim that every reachable state has an enabled action after singleton
+initialization with a declared voter. Unproved: unsigned reconfiguration permits
+a reachable deadlock. -/
+theorem deadlock_free
+    : forall (node : NodeID) (nodes : List NodeID),
+        node ∈ nodes -> (Model.transitionSystem {node} nodes).DeadlockFree := by
+  exact Proofs.Deadlock.deadlock_free
 
 /-- Witness: a singleton voting configuration has an initial state containing its
 voting node. -/
-lemma initial_deadlock_free_witness
+lemma deadlock_free_witness
     : exists (node : NodeID) (nodes : List NodeID) (state : Model.State),
         node ∈ nodes /\ (Model.transitionSystem {node} nodes).init state := by
-  exact Proofs.Deadlock.initial_deadlock_free_witness
+  exact Proofs.Deadlock.deadlock_free_witness
 
 /-- Any two committed logs in a valid trace are prefix-comparable: those of
 any two nodes, in any two states of the trace. -/
