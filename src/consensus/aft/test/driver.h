@@ -188,7 +188,9 @@ private:
     cft->replicate(ccf::kv::BatchVector{{idx, d, committable, hooks}}, term);
   }
 
-  void add_node(ccf::NodeId node_id)
+  // A joining node starts as a follower with an empty ledger, like a real
+  // node joining without a snapshot.
+  void add_node(ccf::NodeId node_id, bool joining = true)
   {
     auto kv = std::make_shared<Store>(node_id);
     const ccf::consensus::Configuration settings{{"10ms"}, {"100ms"}};
@@ -203,6 +205,10 @@ private:
       [cft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
         cft->set_retired_committed(idx, node_ids);
       });
+    if (joining)
+    {
+      cft->init_as_backup(0, 0, {});
+    }
     cft->start_ticking();
 
     if (_nodes.find(node_id) != _nodes.end())
@@ -224,7 +230,7 @@ public:
     ccf::kv::Configuration::Nodes configuration;
     for (auto const& n : node_ids)
     {
-      add_node(n);
+      add_node(n, false);
       configuration.try_emplace(n);
     }
 
@@ -250,7 +256,7 @@ public:
       throw std::logic_error("Start node already exists");
     }
     ccf::kv::Configuration::Nodes configuration;
-    add_node(start_node_id);
+    add_node(start_node_id, false);
     configuration.try_emplace(start_node_id);
     _nodes.at(start_node_id).cft->force_become_primary();
     _replicate("2", {}, lineno, false, configuration);
