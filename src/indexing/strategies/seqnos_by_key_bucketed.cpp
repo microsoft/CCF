@@ -44,39 +44,21 @@ namespace ccf::indexing::strategies
 
     using BucketKey = std::pair<ccf::ByteVector, Range>;
     using PageKey = std::pair<ccf::ByteVector, size_t>;
-    using CachedBucket = std::shared_ptr<const SeqNoCollection>;
-    LRU<BucketKey, CachedBucket> old_results CCF_GUARDED_BY(results_access);
-    LRU<PageKey, DirectoryPage> directory_pages CCF_GUARDED_BY(results_access);
+    using BucketValue = std::pair<FetchResultPtr, SeqNoCollection>;
+    LRU<BucketKey, BucketValue> old_results CCF_GUARDED_BY(results_access);
+    using PageValue = std::pair<FetchResultPtr, DirectoryPage>;
+    LRU<PageKey, PageValue> directory_pages CCF_GUARDED_BY(results_access);
 
-    struct BucketRequest
+    struct DirectorySearch
     {
-      ccf::SeqNo start;
-      FetchResultPtr pending;
-      bool required;
-      CachedBucket seqnos = nullptr;
-    };
-
-    struct Query
-    {
-      enum class Phase : uint8_t
-      {
-        Direct,
-        Seek,
-        Scan,
-        Complete,
-      };
-      Phase phase = Phase::Direct;
-      SeqNoCollection current;
-      std::vector<BucketRequest> buckets;
-      size_t page_count = 0;
       size_t low = 0;
       size_t high = 0;
-      FetchResultPtr page_pending;
     };
 
-    using QueryKey = std::pair<ccf::ByteVector, Range>;
-    // Pending reads and search bounds survive eviction from either file cache.
-    LRU<QueryKey, Query> queries CCF_GUARDED_BY(results_access);
+    // Only metadata search bounds survive retries. Data reads and parsed
+    // buckets live exclusively in old_results, as in the original strategy.
+    LRU<BucketKey, DirectorySearch> directory_searches
+      CCF_GUARDED_BY(results_access);
 
     bool rebuild_requested CCF_GUARDED_BY(results_access) = false;
 
@@ -96,7 +78,7 @@ namespace ccf::indexing::strategies
       max_buckets(max_buckets_),
       old_results(max_buckets_),
       directory_pages(max_buckets_),
-      queries(max_buckets_),
+      directory_searches(max_buckets_),
       name(std::move(name_)),
       lfs_access(lfs_access_),
       current_txid_lock(current_txid_lock_),
@@ -204,34 +186,26 @@ namespace ccf::indexing::strategies
       rebuild_requested = true;
     }
 
-    const DirectoryPage* load_page(const PageKey& key, Query& query)
+    const DirectoryPage* load_page(
+      const PageKey& key, ccf::SeqNo last_paged_bucket)
       CCF_REQUIRES(results_access)
     {
-      const auto page_name = get_page_name(key);
-      if (query.page_pending != nullptr && query.page_pending->key != page_name)
+      auto cached = directory_pages.find(key);
+      if (cached == directory_pages.end())
       {
-        LOG_FAIL_FMT(
-          "Pending directory fetch {} does not match {}",
-          query.page_pending->key,
-          page_name);
-        rebuild();
+        directory_pages.insert(
+          key, {lfs_access->fetch(get_page_name(key)), {}});
         return nullptr;
       }
 
-      auto cached = directory_pages.find(key);
-      if (cached != directory_pages.end())
+      directory_pages.promote(cached);
+      auto& [fetch, contents] = cached->second;
+      if (fetch == nullptr)
       {
-        directory_pages.promote(cached);
-        query.page_pending = nullptr;
-        return &cached->second;
+        return &contents;
       }
 
-      if (query.page_pending == nullptr)
-      {
-        query.page_pending = lfs_access->fetch(page_name);
-      }
-
-      const auto status = query.page_pending->fetch_result.load();
+      const auto status = fetch->fetch_result.load();
       if (status == FetchResult::FetchResultType::Fetching)
       {
         return nullptr;
@@ -240,11 +214,12 @@ namespace ccf::indexing::strategies
       std::optional<DirectoryPage> page;
       if (status == FetchResult::FetchResultType::Loaded)
       {
-        page = deserialise(query.page_pending->contents, DIRECTORY_PAGE_SIZE);
+        page = deserialise(fetch->contents, DIRECTORY_PAGE_SIZE);
       }
 
       if (
         !page.has_value() || page->size() != DIRECTORY_PAGE_SIZE ||
+        page->back() > last_paged_bucket ||
         std::any_of(page->begin(), page->end(), [&](auto start) {
           return start % seqnos_per_bucket != 0;
         }))
@@ -255,159 +230,118 @@ namespace ccf::indexing::strategies
         return nullptr;
       }
 
-      query.page_pending = nullptr;
-      return &directory_pages.insert(key, std::move(*page))->second;
+      contents = std::move(*page);
+      fetch = nullptr;
+      return &contents;
     }
 
-    bool fetch_buckets(const ccf::ByteVector& serialised_key, Query& query)
+    std::optional<bool> directory_contains(
+      const BucketKey& key, size_t page_count, ccf::SeqNo last_paged_bucket)
       CCF_REQUIRES(results_access)
     {
-      bool pending = false;
-      bool need_directory = false;
-      for (auto& request : query.buckets)
+      auto it = directory_searches.find(key);
+      if (it == directory_searches.end())
       {
-        if (request.pending != nullptr)
-        {
-          const auto status = request.pending->fetch_result.load();
-          if (status == FetchResult::FetchResultType::Fetching)
-          {
-            pending = true;
-            continue;
-          }
-
-          if (status == FetchResult::FetchResultType::Loaded)
-          {
-            auto seqnos =
-              deserialise(request.pending->contents, seqnos_per_bucket);
-            const auto range = get_range_for(request.start);
-            if (
-              seqnos.has_value() && seqnos->front() >= range.first &&
-              seqnos->back() < range.second)
-            {
-              auto collection = std::make_shared<SeqNoCollection>();
-              for (auto seqno : *seqnos)
-              {
-                collection->insert(seqno);
-              }
-
-              request.seqnos = collection;
-              old_results.insert(
-                {serialised_key, range}, std::move(collection));
-            }
-          }
-
-          request.pending = nullptr;
-        }
-
-        if (request.seqnos == nullptr)
-        {
-          if (request.required)
-          {
-            LOG_FAIL_FMT(
-              "Required bucket unavailable: {}",
-              get_blob_name({serialised_key, get_range_for(request.start)}));
-            rebuild();
-            return false;
-          }
-
-          need_directory = true;
-        }
+        it = directory_searches.insert(key, {0, page_count});
       }
+      directory_searches.promote(it);
+      auto& search = it->second;
+      const auto start = key.second.first;
 
-      if (pending)
+      // Page ordinals are dense and bounded by a trusted count. Every page
+      // consulted is required; an unavailable page cannot prove a gap.
+      while (search.low < search.high)
       {
-        return false;
-      }
-
-      query.phase =
-        need_directory ? Query::Phase::Seek : Query::Phase::Complete;
-      return true;
-    }
-
-    bool lookup_directory(
-      const ccf::ByteVector& serialised_key,
-      Query& query,
-      const Range& from_range,
-      const Range& to_range) CCF_REQUIRES(results_access)
-    {
-      // Page ordinals are dense and bounded by a trusted count. Unlike data
-      // bucket existence, their ordered contents support binary search. Every
-      // page consulted here is required; an unavailable page cannot prove a
-      // gap.
-      while (query.phase == Query::Phase::Seek && query.low < query.high)
-      {
-        const auto mid = query.low + (query.high - query.low) / 2;
-        const auto* page = load_page({serialised_key, mid}, query);
+        const auto mid = search.low + (search.high - search.low) / 2;
+        const auto* page = load_page({key.first, mid}, last_paged_bucket);
         if (page == nullptr)
         {
-          return false;
+          return std::nullopt;
         }
 
-        if (page->back() < from_range.first)
+        if (start > page->back())
         {
-          query.low = mid + 1;
+          search.low = mid + 1;
+        }
+        else if (start < page->front())
+        {
+          search.high = mid;
         }
         else
         {
-          query.high = mid;
+          const auto found =
+            std::binary_search(page->begin(), page->end(), start);
+          directory_searches.erase(it);
+          return found;
         }
       }
 
-      if (query.phase == Query::Phase::Seek)
+      directory_searches.erase(it);
+      return false;
+    }
+
+    const SeqNoCollection* get_bucket(
+      const BucketKey& key, const CurrentResult& head, bool required)
+      CCF_REQUIRES(results_access)
+    {
+      auto it = old_results.find(key);
+      if (it == old_results.end())
       {
-        query.phase = Query::Phase::Scan;
+        old_results.insert(key, {lfs_access->fetch(get_blob_name(key)), {}});
+        return nullptr;
       }
 
-      while (query.phase == Query::Phase::Scan && query.low < query.page_count)
+      old_results.promote(it);
+      auto& [fetch, seqnos] = it->second;
+      if (fetch == nullptr)
       {
-        const auto* page = load_page({serialised_key, query.low}, query);
-        if (page == nullptr)
+        return &seqnos;
+      }
+
+      const auto status = fetch->fetch_result.load();
+      if (status == FetchResult::FetchResultType::Fetching)
+      {
+        return nullptr;
+      }
+
+      if (status == FetchResult::FetchResultType::Loaded)
+      {
+        const auto parsed = deserialise(fetch->contents, seqnos_per_bucket);
+        if (
+          parsed.has_value() && parsed->front() >= key.second.first &&
+          parsed->back() < key.second.second)
         {
-          return false;
-        }
-
-        for (auto start : *page)
-        {
-          if (start < from_range.first || start > to_range.first)
+          for (auto seqno : *parsed)
           {
-            continue;
+            seqnos.insert(seqno);
           }
-
-          const auto request = std::lower_bound(
-            query.buckets.begin(),
-            query.buckets.end(),
-            start,
-            [](const auto& entry, auto bucket_start) {
-              return entry.start < bucket_start;
-            });
-          if (request == query.buckets.end() || request->start != start)
-          {
-            LOG_FAIL_FMT(
-              "Directory requires unrequested bucket: {}",
-              get_blob_name({serialised_key, get_range_for(start)}));
-            rebuild();
-            return false;
-          }
-
-          if (request->seqnos == nullptr)
-          {
-            LOG_FAIL_FMT(
-              "Directory requires unavailable bucket: {}",
-              get_blob_name({serialised_key, get_range_for(start)}));
-            rebuild();
-            return false;
-          }
-        }
-
-        ++query.low;
-        if (page->back() >= to_range.first)
-        {
-          break;
+          fetch = nullptr;
+          return &seqnos;
         }
       }
 
-      query.phase = Query::Phase::Complete;
-      return true;
+      if (!required && head.last_paged_bucket.has_value())
+      {
+        const auto present =
+          directory_contains(key, head.page_count, *head.last_paged_bucket);
+        if (!present.has_value())
+        {
+          return nullptr;
+        }
+        required = *present;
+      }
+
+      if (required)
+      {
+        LOG_FAIL_FMT("Required bucket unavailable: {}", get_blob_name(key));
+        rebuild();
+        return nullptr;
+      }
+
+      // Only an authenticated directory search can turn a failed speculative
+      // fetch into a cached empty bucket.
+      fetch = nullptr;
+      return &seqnos;
     }
 
     std::optional<SeqNoCollection> get_write_txs_impl(
@@ -449,9 +383,17 @@ namespace ccf::indexing::strategies
           max_requestable_range()));
       }
 
-      const auto from_range = get_range_for(from);
-      const auto to_range = get_range_for(to);
-      auto append = [&](SeqNoCollection& result, const auto& seqnos) {
+      const auto head_it = current_results.find(serialised_key);
+      if (
+        head_it == current_results.end() ||
+        head_it->second.range.second <= from)
+      {
+        return SeqNoCollection{};
+      }
+
+      const auto& head = head_it->second;
+      SeqNoCollection result;
+      auto append = [&](const SeqNoCollection& seqnos) {
         for (auto seqno : seqnos)
         {
           if (seqno >= from && seqno <= to)
@@ -461,91 +403,51 @@ namespace ccf::indexing::strategies
         }
       };
 
-      const QueryKey query_key{serialised_key, {from, to}};
-      auto query_it = queries.find(query_key);
-      if (query_it == queries.end())
+      bool complete = true;
+      const auto last = std::min(to, head.range.first);
+      for (auto range = get_range_for(from); range.first <= last;
+           range = get_range_for(range.second))
       {
-        const auto head_it = current_results.find(serialised_key);
+        if (range == head.range)
+        {
+          if (complete)
+          {
+            append(head.seqnos);
+          }
+          break;
+        }
+
+        const auto required = std::binary_search(
+          head.directory.begin(), head.directory.end(), range.first);
         if (
-          head_it == current_results.end() ||
-          head_it->second.range.second <= from)
+          !required &&
+          (!head.last_paged_bucket.has_value() ||
+           range.first > *head.last_paged_bucket))
         {
-          return SeqNoCollection{};
+          old_results.insert({serialised_key, range}, {nullptr, {}});
+          continue;
         }
 
-        const auto& head = head_it->second;
-        Query query;
-        append(query.current, head.seqnos);
-        query.page_count = head.page_count;
-        query.high = head.page_count;
-        auto request = [&](ccf::SeqNo start, bool required) CCF_REQUIRES(
-                         results_access) {
-          const BucketKey key{serialised_key, get_range_for(start)};
-          auto cached = old_results.find(key);
-          if (cached != old_results.end())
-          {
-            old_results.promote(cached);
-            query.buckets.push_back({start, nullptr, required, cached->second});
-          }
-          else
-          {
-            query.buckets.push_back(
-              {start, lfs_access->fetch(get_blob_name(key)), required});
-          }
-        };
-
-        // All speculative reads are confined to the requested range. The
-        // trusted unfinished directory proves gaps after the last sealed page.
-        if (head.last_paged_bucket.has_value())
+        const auto* seqnos =
+          get_bucket({serialised_key, range}, head, required);
+        if (rebuild_requested)
         {
-          const auto end = std::min(to_range.first, *head.last_paged_bucket);
-          for (auto start = from_range.first; start <= end;
-               start += seqnos_per_bucket)
-          {
-            request(start, false);
-          }
+          return std::nullopt;
         }
-
-        for (auto start : head.directory)
+        if (seqnos == nullptr)
         {
-          if (start >= from_range.first && start <= to_range.first)
-          {
-            request(start, true);
-          }
+          complete = false;
         }
-
-        query_it = queries.insert(query_key, std::move(query));
+        else if (complete)
+        {
+          append(*seqnos);
+        }
       }
 
-      queries.promote(query_it);
-      auto& query = query_it->second;
-
-      if (
-        query.phase == Query::Phase::Direct &&
-        !fetch_buckets(serialised_key, query))
+      if (!complete)
       {
         return std::nullopt;
       }
-
-      if (!lookup_directory(serialised_key, query, from_range, to_range))
-      {
-        return std::nullopt;
-      }
-
-      // ContiguousSet is vector-backed. Assemble in bucket order only after
-      // all reads and gap proofs complete, avoiding quadratic front inserts
-      // when newer buckets were cached before older reads finished.
-      SeqNoCollection result;
-      for (const auto& request : query.buckets)
-      {
-        if (request.seqnos != nullptr)
-        {
-          append(result, *request.seqnos);
-        }
-      }
-
-      append(result, query.current);
-      queries.erase(query_it);
       return result;
     }
 
@@ -566,7 +468,7 @@ namespace ccf::indexing::strategies
       current_txid = {};
       impl->old_results.clear();
       impl->directory_pages.clear();
-      impl->queries.clear();
+      impl->directory_searches.clear();
       impl->current_results.clear();
       impl->rebuild_requested = false;
     }
@@ -619,7 +521,7 @@ namespace ccf::indexing::strategies
       j["current_results_size"] = impl->current_results.size();
       j["directory_page_size"] = Impl::DIRECTORY_PAGE_SIZE;
       j["directory_pages_current_size"] = impl->directory_pages.size();
-      j["queries_current_size"] = impl->queries.size();
+      j["directory_searches_current_size"] = impl->directory_searches.size();
     }
     return j;
   }

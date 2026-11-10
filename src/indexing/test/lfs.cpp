@@ -1155,7 +1155,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "Sparse bucket completed queries release cursors" *
+  "Sparse bucket repeated ranges reuse bucket cache" *
   doctest::test_suite("lfs"))
 {
   ccf::tasks::JobBoard board;
@@ -1177,7 +1177,7 @@ TEST_CASE(
       index.get_write_txs_in_range("fragmented", from, from + width);
     if (!result.has_value())
     {
-      CHECK(index.describe()["queries_current_size"] == 1);
+      CHECK(index.describe()["directory_searches_current_size"] == 0);
       REQUIRE(flush_lfs(board) > 0);
       result = index.get_write_txs_in_range("fragmented", from, from + width);
     }
@@ -1188,14 +1188,16 @@ TEST_CASE(
       expected.insert(seqno);
     }
     REQUIRE(check_seqnos(expected, result));
-    CHECK(index.describe()["queries_current_size"] == 0);
+    CHECK(index.describe()["directory_searches_current_size"] == 0);
+    CHECK(index.describe()["old_results_current_size"] <= cache_slots);
 
-    // Repeating a completed request rebuilds its response from bounded bucket
-    // caches, without retaining any completed per-range payload.
+    // Identical and overlapping ranges reuse the same bounded bucket cache.
+    const auto fetches = lfs->fetches.size();
     REQUIRE(check_seqnos(
       expected,
       index.get_write_txs_in_range("fragmented", from, from + width)));
-    CHECK(index.describe()["queries_current_size"] == 0);
+    CHECK(lfs->fetches.size() == fetches);
+    CHECK(index.describe()["directory_searches_current_size"] == 0);
   }
 }
 
@@ -1237,6 +1239,10 @@ TEST_CASE("Sparse bucket paged directory costs" * doctest::test_suite("lfs"))
     CHECK(lfs->data_fetches.size() == 1);
     CHECK(lfs->page_fetches.size() == search_reads);
     CHECK(index.describe()["directory_pages_current_size"] == 1);
+    CHECK(index.describe()["directory_searches_current_size"] == 0);
+    const auto fetches = lfs->fetches.size();
+    REQUIRE(check_seqnos({}, index.get_write_txs_in_range("sparse", 10, 10)));
+    CHECK(lfs->fetches.size() == fetches);
     // Both the data read count and the retry count are independent of the
     // ledger gaps. Only logarithmically many small metadata pages were read.
   }
@@ -1279,6 +1285,47 @@ TEST_CASE("Sparse bucket directory boundaries" * doctest::test_suite("lfs"))
   REQUIRE(check_seqnos({}, get(base + 5130, base + 5139)));
   REQUIRE(check_seqnos({base + 5121}, get(base + 5121, base + 5121)));
   REQUIRE(check_seqnos({}, get(base + 10250, base + 10259)));
+}
+
+TEST_CASE(
+  "Sparse bucket overlapping directory searches" * doctest::test_suite("lfs"))
+{
+  ccf::tasks::JobBoard board;
+  auto lfs = std::make_shared<CountingLFS>(board);
+  ccf::AbstractNodeContext context;
+  context.install_subsystem(lfs);
+  SparseBucketTestIndex index(map_a, context, 10, 4);
+  for (size_t bucket = 0; bucket <= 8 * 256; ++bucket)
+  {
+    index.write(bucket * 20 + 1, "key");
+  }
+
+  // Neither request owns a snapshot of buckets or partial results. The
+  // shared caches must let both ranges finish, including their common gap.
+  auto first = index.get_write_txs_in_range("key", 5091, 5121);
+  auto second = index.get_write_txs_in_range("key", 5101, 5129);
+  REQUIRE_FALSE(first.has_value());
+  REQUIRE_FALSE(second.has_value());
+  CHECK(index.describe()["old_results_current_size"] == 4);
+  index.write(50'001, "key");
+  for (size_t retry = 0;
+       (!first.has_value() || !second.has_value()) && retry < 8;
+       ++retry)
+  {
+    REQUIRE(flush_lfs(board) > 0);
+    first = index.get_write_txs_in_range("key", 5091, 5121);
+    second = index.get_write_txs_in_range("key", 5101, 5129);
+  }
+  REQUIRE(check_seqnos({5101, 5121}, first));
+  REQUIRE(check_seqnos({5101, 5121}, second));
+  CHECK(lfs->data_fetches.size() == 4);
+  CHECK(index.describe()["directory_searches_current_size"] == 0);
+  const auto fetches = lfs->fetches.size();
+  REQUIRE(check_seqnos(
+    {5101, 5121}, index.get_write_txs_in_range("key", 5091, 5121)));
+  REQUIRE(check_seqnos(
+    {5101, 5121}, index.get_write_txs_in_range("key", 5101, 5129)));
+  CHECK(lfs->fetches.size() == fetches);
 }
 
 TEST_CASE(
