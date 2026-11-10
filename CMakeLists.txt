@@ -1571,7 +1571,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/forwarding.py
     BUCKET bucket_c
     BUILD_DEPENDS logging
-    ADDITIONAL_ARGS --package samples/apps/logging/logging
+    ADDITIONAL_ARGS --package samples/apps/logging/logging --capture-cft-trace
   )
 
   add_e2e_test(

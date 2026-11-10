@@ -1,12 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Local Fluentd-compatible TCP collector for benchmarks."""
+"""Local Fluentd-compatible TCP collectors for tests and benchmarks."""
 
+import collections
+import io
+import json
 import selectors
 import socket
 import threading
 import time
+from dataclasses import dataclass, field
 
 import msgpack
 
@@ -100,3 +104,112 @@ class Collector:
         self.selector.close()
         if self.error:
             raise self.error
+
+
+@dataclass
+class Connection:
+    data: bytearray = field(default_factory=bytearray)
+    eof: bool = False
+
+
+class Recorder:
+    """Retain each connection's raw Forward stream until closed.
+
+    Unlike Collector, any number of nodes may connect, and the listener runs on
+    a daemon thread so that a recorder which is never closed cannot keep the
+    test process alive.
+    """
+
+    def __init__(self):
+        self.connections = []
+        self.error = None
+        self.closed = False
+        self.deadline = None
+        self.stop = threading.Event()
+        self.selector = selectors.DefaultSelector()
+        self.listener = socket.create_server(("127.0.0.1", 0))
+        self.listener.setblocking(False)
+        self.selector.register(self.listener, selectors.EVENT_READ)
+        self.endpoint = {
+            "host": "127.0.0.1",
+            "port": str(self.listener.getsockname()[1]),
+        }
+        self.thread = threading.Thread(target=self.run, daemon=True)
+        self.thread.start()
+
+    def run(self):
+        try:
+            while not self.stop.is_set() or (
+                len(self.selector.get_map()) > 1 and time.monotonic() < self.deadline
+            ):
+                for key, _ in self.selector.select(timeout=0.1):
+                    if key.fileobj is self.listener:
+                        peer, _ = self.listener.accept()
+                        peer.setblocking(False)
+                        self.connections.append(Connection())
+                        self.selector.register(
+                            peer, selectors.EVENT_READ, self.connections[-1]
+                        )
+                        continue
+                    try:
+                        data = key.fileobj.recv(65536)
+                    except BlockingIOError:
+                        continue
+                    except OSError:
+                        data = None
+                    if data:
+                        key.data.data += data
+                        continue
+                    key.data.eof = data == b""
+                    self.selector.unregister(key.fileobj)
+                    key.fileobj.close()
+        except Exception as error:  # Reported by the capture, not raised.
+            self.error = error
+
+    def close(self, timeout=5):
+        """Wait up to timeout seconds for every connection to reach EOF, then
+        stop listening. Idempotent; returns the recorded connections."""
+        if not self.closed:
+            self.closed = True
+            self.deadline = time.monotonic() + timeout
+            self.stop.set()
+            self.thread.join(timeout + 1)
+            if self.thread.is_alive():
+                self.error = self.error or RuntimeError("Recorder did not stop")
+            for key in list(self.selector.get_map().values()):
+                key.fileobj.close()
+            self.selector.close()
+        return self.connections
+
+
+def write_cft_trace(connections, path):
+    """Decode recorded ccf.cft events into one NDJSON file of {process_id,
+    h_ts, msg} records, in connection order.
+
+    Returns the record count per process ID, and any reasons the recorded
+    streams may be incomplete.
+    """
+    counts = collections.Counter()
+    problems = []
+    with open(path, "w", encoding="utf-8") as output:
+        for i, connection in enumerate(connections):
+            if not connection.eof:
+                problems.append(f"Connection {i} did not reach EOF")
+            unpacker = msgpack.Unpacker(io.BytesIO(connection.data), raw=False)
+            decoded = 0
+            try:
+                for tag, _, record in unpacker:
+                    if tag != "ccf.cft" or set(record) != {"process_id", "h_ts", "msg"}:
+                        raise ValueError(f"Unexpected {tag} event: {sorted(record)}")
+                    output.write(json.dumps(record, allow_nan=False) + "\n")
+                    counts[record["process_id"]] += 1
+                    decoded = unpacker.tell()
+            except Exception as error:
+                problems.append(f"Connection {i} is malformed: {error}")
+            else:
+                if decoded != len(connection.data):
+                    problems.append(
+                        f"Connection {i} ends with "
+                        f"{len(connection.data) - decoded} undecoded bytes"
+                    )
+    return counts, problems
