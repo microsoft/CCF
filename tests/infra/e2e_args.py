@@ -454,8 +454,9 @@ def cli_args(
     )
     parser.add_argument(
         "--capture-cft-trace",
-        help="Record each network's ccf.cft trace events, with a completeness "
-        "manifest, under <label>_trace/ in the workspace",
+        help="Record each network's ccf.cft trace events in "
+        "<workspace>/<label>_trace/<n>/cft.ndjson, with a completeness verdict "
+        "in manifest.json",
         action="store_true",
     )
     parser.add_argument(
