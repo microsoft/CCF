@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <future>
 #include <mutex>
+#include <netinet/in.h>
 #include <optional>
 #include <poll.h>
 #include <string>
@@ -96,6 +97,34 @@ namespace
     return records;
   }
 
+  bool writable(int fd)
+  {
+    pollfd poller{.fd = fd, .events = POLLOUT, .revents = 0};
+    return ::poll(&poller, 1, 0) != 0;
+  }
+
+  // Connected loopback TCP sockets with the kernel's default buffer sizes.
+  std::array<int, 2> loopback_tcp_pair()
+  {
+    const int listener = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    REQUIRE(listener >= 0);
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    socklen_t size = sizeof(address);
+    auto* generic = reinterpret_cast<sockaddr*>(&address);
+    REQUIRE(::bind(listener, generic, size) == 0);
+    REQUIRE(::listen(listener, 1) == 0);
+    REQUIRE(::getsockname(listener, generic, &size) == 0);
+    const int client = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    REQUIRE(client >= 0);
+    REQUIRE(::connect(client, generic, size) == 0);
+    const int server = ::accept4(listener, nullptr, nullptr, SOCK_CLOEXEC);
+    REQUIRE(server >= 0);
+    details::close_socket(listener);
+    return {server, client};
+  }
+
   struct WriteGate
   {
     std::atomic<bool> block{true};
@@ -105,6 +134,9 @@ namespace
     bool observe_socket_retries = false;
     std::shared_ptr<InboundAdmission> pause_reads_on_admission;
     std::atomic<uint64_t> socket_records{0};
+    // KeyUpdate writes begun while the socket did not poll writable.
+    std::atomic<uint64_t> unwritable_updates{0};
+    std::atomic<uint64_t> socket_reads{0};
     std::function<void()> notify;
     std::function<void()> on_write;
 
@@ -136,6 +168,16 @@ namespace
           {
             BIO_set_retry_read(bio);
             return -1;
+          }
+          if (gate.observe_socket_retries && operation == BIO_CB_READ)
+          {
+            ++gate.socket_reads;
+          }
+          if (
+            gate.observe_socket_retries && operation == BIO_CB_WRITE &&
+            size == 27 && !writable(static_cast<int>(BIO_get_fd(bio, nullptr))))
+          {
+            ++gate.unwritable_updates;
           }
           if (
             gate.observe_socket_retries &&
@@ -243,6 +285,8 @@ namespace
     bool charge_admission = false;
     std::function<void(size_t)> on_data = nullptr;
     const char* server_ciphersuites = nullptr;
+    // Use loopback TCP with default-sized kernel buffers, not send_buffer.
+    bool loopback_tcp = false;
   };
 
   struct EnginePair : public AsyncTest
@@ -256,6 +300,7 @@ namespace
     std::array<std::shared_ptr<SSL_CTX>, 2> contexts;
     std::array<std::shared_ptr<OpenSSLConnectionEngine>, 2> engines;
     std::array<SSL*, 2> connections{};
+    std::array<int, 2> sockets{-1, -1};
     int peer_fd = -1;
     std::unique_ptr<SSL, decltype(&SSL_free)> peer{nullptr, SSL_free};
 
@@ -271,8 +316,16 @@ namespace
           SSL_CTX_set_ciphersuites(
             contexts[0].get(), config.server_ciphersuites) == 1);
       }
-      int sockets[2];
-      REQUIRE(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) == 0);
+      if (config.loopback_tcp)
+      {
+        sockets = loopback_tcp_pair();
+      }
+      else
+      {
+        REQUIRE(
+          socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets.data()) ==
+          0);
+      }
       for (size_t side = 0; side < 2; ++side)
       {
         REQUIRE(contexts[side] != nullptr);
@@ -296,13 +349,16 @@ namespace
           SSL_set_msg_callback_arg(peer.get(), &events[side]);
           continue;
         }
-        REQUIRE(
-          setsockopt(
-            sockets[side],
-            SOL_SOCKET,
-            SO_SNDBUF,
-            &config.send_buffer,
-            sizeof(config.send_buffer)) == 0);
+        if (!config.loopback_tcp)
+        {
+          REQUIRE(
+            setsockopt(
+              sockets[side],
+              SOL_SOCKET,
+              SO_SNDBUF,
+              &config.send_buffer,
+              sizeof(config.send_buffer)) == 0);
+        }
         if (config.budgets[side])
         {
           REQUIRE(
@@ -961,9 +1017,10 @@ namespace
   }
 
   TEST_CASE(
-    "Traffic keys drain sockets when both local updates are write-blocked")
+    "Traffic keys keep reading while both local updates await full sockets")
   {
-    // One more record than the socket holds will be the pending KeyUpdate.
+    // One more record than the socket holds makes the update due while the
+    // socket is full in both directions.
     const uint64_t records = small_record_capacity();
     auto admission = std::make_shared<InboundAdmission>(1);
     WriteGate server;
@@ -972,8 +1029,6 @@ namespace
     server.observe_socket_retries = client.observe_socket_retries = true;
     server.pause_reads_on_admission = client.pause_reads_on_admission =
       admission;
-    auto server_blocked = server.blocked.get_future();
-    auto client_blocked = client.blocked.get_future();
     EnginePair pair(
       {.budgets = {records + 1, records + 1},
        .gates = {&server, &client},
@@ -996,8 +1051,13 @@ namespace
         }));
       }
     }
-    REQUIRE(server_blocked.wait_for(5s) == std::future_status::ready);
-    REQUIRE(client_blocked.wait_for(5s) == std::future_status::ready);
+    std::this_thread::sleep_for(50ms);
+    // An update begun now would stop each side reading what blocks the other.
+    for (auto* gate : {&server, &client})
+    {
+      CHECK(gate->unwritable_updates == 0);
+      CHECK(!gate->notified);
+    }
     {
       std::lock_guard lock(pair.mutex);
       CHECK(pair.received[0].empty());
@@ -1007,6 +1067,135 @@ namespace
     const std::vector<uint8_t> expected(records + 1, byte);
     pair.expect(0, expected);
     pair.expect(1, expected);
+    CHECK(pair.events[0].updates[0] == 1);
+    CHECK(pair.events[1].updates[1] == 1);
+  }
+
+  TEST_CASE("Traffic keys start updates only on writable loopback TCP sockets")
+  {
+    // With default-sized TCP buffers, a full socket polls writable again only
+    // after its peer drains far more than the 64 KiB input prefetch. Updates
+    // begun on such sockets in both directions would wait on each other.
+    auto admission = std::make_shared<InboundAdmission>(1);
+    WriteGate server;
+    WriteGate client;
+    server.block = client.block = false;
+    server.observe_socket_retries = client.observe_socket_retries = true;
+    server.pause_reads_on_admission = client.pause_reads_on_admission =
+      admission;
+    EnginePair pair(
+      {.gates = {&server, &client},
+       .admission = admission,
+       .shared_admission = true,
+       .loopback_tcp = true});
+    pair.start();
+    admission->queued(1);
+    std::vector<uint8_t> chunk(size_t{16} * RECORD_SIZE);
+    for (size_t index = 0; index < chunk.size(); ++index)
+    {
+      chunk[index] = static_cast<uint8_t>(index);
+    }
+    std::vector<uint8_t> expected;
+    const auto deadline = std::chrono::steady_clock::now() + 5s;
+    // Neither side reads, so both send queues fill while updates fall due.
+    do
+    {
+      REQUIRE(std::chrono::steady_clock::now() < deadline);
+      for (auto& engine : pair.engines)
+      {
+        engine->send(1, chunk.data(), chunk.size());
+      }
+      expected.insert(expected.end(), chunk.begin(), chunk.end());
+      std::this_thread::sleep_for(20ms);
+    } while (writable(pair.sockets[0]) || writable(pair.sockets[1]));
+    // Each further send prompts a write attempt without a writable event,
+    // which could otherwise carry queued records on to a full socket. Sizes
+    // stay clear of the five bytes which encrypt to a KeyUpdate's length.
+    const size_t prompt_size = 16;
+    for (size_t prompt = 0; prompt < 64; ++prompt)
+    {
+      for (auto& engine : pair.engines)
+      {
+        engine->send(1, chunk.data(), prompt_size);
+      }
+      expected.insert(
+        expected.end(), chunk.begin(), chunk.begin() + prompt_size);
+      std::this_thread::sleep_for(1ms);
+    }
+    {
+      std::lock_guard lock(pair.mutex);
+      CHECK(pair.received[0].empty());
+      CHECK(pair.received[1].empty());
+    }
+    admission->consumed(1);
+    pair.expect(0, expected);
+    pair.expect(1, expected);
+    CHECK(server.unwritable_updates == 0);
+    CHECK(client.unwritable_updates == 0);
+    for (size_t side = 0; side < 2; ++side)
+    {
+      for (auto& updates : pair.events[side].updates)
+      {
+        CHECK(updates >= 1);
+      }
+    }
+  }
+
+  TEST_CASE(
+    "Traffic keys do not spin on a partial record while an update awaits a "
+    "full socket")
+  {
+    const uint64_t records = small_record_capacity();
+    WriteGate gate;
+    gate.block = false;
+    gate.observe_socket_retries = true;
+    EnginePair pair(
+      {.engine_peer = false,
+       .budgets = {records + 1, 8},
+       .gates = {&gate, nullptr}});
+    pair.start();
+    const uint8_t byte = 17;
+    // Waiting for each record's syscall prevents queued sends coalescing.
+    for (uint64_t index = 0; index < records; ++index)
+    {
+      pair.engines[0]->send(1, &byte, 1);
+      REQUIRE(pair.wait([&]() { return gate.socket_records > index; }));
+    }
+    // The peer has read nothing, so this record's update awaits the socket.
+    pair.engines[0]->send(1, &byte, 1);
+    BIO* socket = SSL_get_wbio(pair.peer.get());
+    REQUIRE(BIO_up_ref(socket) == 1);
+    SSL_set0_wbio(pair.peer.get(), BIO_new(BIO_s_mem()));
+    const std::vector<uint8_t> data(1000, 42);
+    REQUIRE(
+      SSL_write(pair.peer.get(), data.data(), data.size()) ==
+      static_cast<int>(data.size()));
+    char* record = nullptr;
+    const long size = BIO_get_mem_data(SSL_get_wbio(pair.peer.get()), &record);
+    REQUIRE(size > 1);
+    const long half = size / 2;
+    REQUIRE(::send(pair.peer_fd, record, half, MSG_NOSIGNAL) == half);
+    std::this_thread::sleep_for(50ms);
+    // OpenSSL now holds input which only the rest of the record can complete.
+    const uint64_t reads = gate.socket_reads;
+    std::this_thread::sleep_for(100ms);
+    CHECK(gate.socket_reads - reads <= 4);
+    CHECK(gate.unwritable_updates == 0);
+    REQUIRE(
+      ::send(pair.peer_fd, record + half, size - half, MSG_NOSIGNAL) ==
+      size - half);
+    SSL_set0_wbio(pair.peer.get(), socket);
+    pair.expect(0, data);
+    // Once the peer reads, the update and its record follow.
+    for (uint64_t index = 0; index <= records; ++index)
+    {
+      uint8_t received = 0;
+      REQUIRE(pair.peer_io([&]() {
+        return SSL_read(pair.peer.get(), &received, 1);
+      }) == 1);
+      CHECK(received == byte);
+    }
+    CHECK(pair.events[1].peer_updates == 1);
   }
 
   TEST_CASE("Traffic keys pause read retries while inbound admission is full")

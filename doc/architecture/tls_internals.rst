@@ -109,8 +109,10 @@ OpenSSL may defer a requested response until the next application write, as perm
 The existing ordered workers and readable/writable polling handle I/O retries, without a separate update-driving state machine.
 Policy reads yield after control records, allowing a pending write to finish before processing further peer updates that could require another write.
 For every TLS connection, read interest is also withheld while an ``SSL_read`` is blocked writing a response such as a peer-requested KeyUpdate, because that read cannot progress until the socket is writable and level-triggered readability would only spin.
+A write which would begin with a KeyUpdate is started only once the socket polls writable, because OpenSSL cannot read application data until a started update has been written.
+Reads continue while such a write waits, so two peers whose updates fall due on full sockets drain each other regardless of kernel buffer sizes.
 An OpenSSL input-buffer BIO holds at most 64 KiB of ciphertext per opted-in connection.
-When both peers' updates are write-blocked, the worker can fill that buffer without processing TLS, freeing socket space without violating the pending-write retry contract.
+Should the writes of started updates nevertheless block on both peers, the worker can fill that buffer without processing TLS, freeing socket space without violating the pending-write retry contract.
 Application reads still obey inbound admission, buffered input is scheduled without requiring a new socket event, and outgoing ciphertext is written directly to the socket.
 When output is queued, a read pass drains the current ciphertext batch without refilling it from the socket, then gives the write a turn.
 This keeps a continuously active sender from indefinitely delaying responses while retaining receive space for a later blocked KeyUpdate.

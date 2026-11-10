@@ -32,6 +32,7 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <optional>
+#include <poll.h>
 #include <stdexcept>
 #include <string>
 #include <sys/socket.h>
@@ -583,10 +584,33 @@ namespace ccf::tls
         has_buffered_ciphertext(connection);
     }
 
+    // An SSL_write which begins with a KeyUpdate must be retried once started,
+    // and SSL_read makes no progress until that record is written. Two peers
+    // in that state may each need the other to drain far more than the bounded
+    // input prefetch before a default-sized TCP socket polls writable again.
+    // Leave such a write unstarted until the socket reports writable, so that
+    // reads continue to release the peer rather than yielding to output which
+    // cannot yet take its turn.
+    static bool update_awaits_socket(const Conn& connection)
+    {
+      if (
+        !connection.traffic_keys || connection.write_retry_length != 0 ||
+        connection.read_wants_write || SSL_in_init(connection.ssl) != 0 ||
+        (!connection.traffic_keys->update_due() &&
+         SSL_get_key_update_type(connection.ssl) == SSL_KEY_UPDATE_NONE))
+      {
+        return false;
+      }
+      pollfd poller{.fd = connection.fd, .events = POLLOUT, .revents = 0};
+      // Errors and hang-ups are left for the write itself to report.
+      return ::poll(&poller, 1, 0) == 0;
+    }
+
     static bool should_yield_to_output(const Conn& connection)
     {
       return connection.traffic_keys && connection.write_retry_length == 0 &&
-        has_queued_output(connection) && !has_buffered_ciphertext(connection);
+        has_queued_output(connection) && !has_buffered_ciphertext(connection) &&
+        !update_awaits_socket(connection);
     }
 
     // Drain the current input batch without allowing its socket BIO to refill
@@ -647,7 +671,8 @@ namespace ccf::tls
     {
       const bool drain_input_batch = connection.traffic_keys &&
         connection.write_retry_length == 0 && !connection.read_wants_write &&
-        has_queued_output(connection) && has_buffered_ciphertext(connection);
+        has_queued_output(connection) && has_buffered_ciphertext(connection) &&
+        !update_awaits_socket(connection);
       if (drain_input_batch)
       {
         ScopedSocketReadPause pause(BIO_next(SSL_get_rbio(connection.ssl)));
@@ -843,6 +868,11 @@ namespace ccf::tls
       }
       if (connection.read_wants_write)
       {
+        return true;
+      }
+      if (has_queued_output(connection) && update_awaits_socket(connection))
+      {
+        connection.want_write = true;
         return true;
       }
       if (
