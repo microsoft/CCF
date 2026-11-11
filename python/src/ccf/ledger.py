@@ -1361,16 +1361,16 @@ class Ledger:
         self._filenames = []
         self._verification_level = verification_level
 
-        # Chunk name, without committed or recovery suffix, to its path
-        ledger_files: dict[str, str] = {}
+        # Chunk start sequence number to its preferred path
+        ledger_files: dict[int, str] = {}
 
         def chunk_rank(path: str) -> int:
             """Prefer committed copies of a chunk, then complete ones."""
-            if path.endswith(RECOVERY_FILE_SUFFIX):
-                return 0
             if path.endswith(COMMITTED_FILE_SUFFIX):
                 return 2
-            return 1
+            if not path.endswith(RECOVERY_FILE_SUFFIX):
+                return 1
+            return 0
 
         def try_add_chunk(path: str) -> None:
             sanitised_path = path
@@ -1396,10 +1396,10 @@ class Ledger:
             # of each chunk, regardless of the order of paths
             if not os.path.isfile(path):
                 return
-            name = os.path.basename(sanitised_path).removesuffix(COMMITTED_FILE_SUFFIX)
-            existing = ledger_files.get(name)
+            chunk_start, _ = range_from_filename(sanitised_path)
+            existing = ledger_files.get(chunk_start)
             if existing is None or chunk_rank(path) > chunk_rank(existing):
-                ledger_files[name] = path
+                ledger_files[chunk_start] = path
 
         for p in paths:
             if os.path.isdir(p):

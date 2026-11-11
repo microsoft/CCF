@@ -748,3 +748,21 @@ def test_chunk_committed_in_one_directory_only(tmp_path, committed_first: bool):
     assert [chunk.filename() for chunk in ledger] == [
         str(committed / "ledger_1-1.committed")
     ]
+
+
+@pytest.mark.parametrize("committed_first", [True, False])
+def test_open_chunk_replaced_by_committed_chunk(tmp_path, committed_first: bool):
+    entries = [entry(1, {b"a": b"1"})]
+    committed = tmp_path / "committed"
+    uncommitted = tmp_path / "uncommitted"
+    committed.mkdir()
+    uncommitted.mkdir()
+    write_complete_chunk(str(committed), "ledger_1-1.committed", entries)
+    write_chunk(str(uncommitted), "ledger_1", entries)
+    paths = [str(committed), str(uncommitted)]
+    if not committed_first:
+        paths.reverse()
+    ledger = ccf.ledger.Ledger(paths, committed_only=False)
+    assert [chunk.filename() for chunk in ledger] == [
+        str(committed / "ledger_1-1.committed")
+    ]
