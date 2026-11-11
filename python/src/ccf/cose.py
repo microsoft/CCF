@@ -154,8 +154,7 @@ def create_cose_sign1_prepare(
     """Prepare a digest and algorithm identifier for an external signer.
 
     The digest is computed with the hash function of the signing algorithm
-    implied by the certificate's public key, not with the hash function the
-    certificate's issuer used to sign it.
+    implied by the certificate's public key.
     """
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     alg = default_algorithm_for_key(cert.public_key())
