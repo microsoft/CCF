@@ -127,8 +127,11 @@ It is unset by default, leaving RPC behavior unchanged, and is not an operator c
 A send which would take a connection beyond its bound closes that connection without flushing and discards its queued output.
 A peer which stops reading therefore holds at most the bound, rather than an amount set by how much its owner goes on sending.
 The bound must be at least as large as the largest burst an owner sends before the engine can write, including any single message.
-Output sent while a client connection is still being established counts towards the same bound.
+The bound is enforced as each send is made, on whichever thread makes it, rather than when the loop later processes that send.
+A client connection is charged from the moment ``connect()`` returns its id, so output sent while it is still being established counts towards the same bound, and that charge carries over when the connection is adopted.
+Output sent to an id which is neither being established nor adopted, such as a connection which has closed or one still inside ``OnAccept``, is discarded as it is sent rather than held until the loop can drop it.
 Workers report what they wrote as each pass completes, so the count may briefly overstate, but never understates, what a connection holds.
+A send made just after earlier output was written can therefore still be counted alongside it, so the bound needs headroom over what an owner expects to have outstanding.
 
 Certificates
 ~~~~~~~~~~~~

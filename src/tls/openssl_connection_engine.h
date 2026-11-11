@@ -93,7 +93,10 @@ namespace ccf::tls
       // Internal bound, in bytes, on the output accepted for one connection
       // and not yet written. A send which would exceed it closes that
       // connection without flushing, so a peer which stops reading holds at
-      // most this much. Unset leaves queued output unbounded.
+      // most this much. It is enforced as send() is called, so output is
+      // accepted only for an id which has been adopted or which its owner is
+      // establishing (see begin_establishing); output for any other id is
+      // discarded there. Unset leaves queued output unbounded.
       std::optional<size_t> max_queued_output = std::nullopt;
       // Owner callbacks run on the loop and remain valid until stop returns.
       std::function<void()> on_wake = {};
@@ -112,7 +115,8 @@ namespace ccf::tls
     };
 
     // adopt() consumes fd and poll even on failure. A non-null poll must be
-    // initialized on this engine's loop and have no active worker.
+    // initialized on this engine's loop and have no active worker. Any
+    // pending_commands must have been accepted by send() for this id.
     struct Socket
     {
       ::tcp::ConnID id = 0;
@@ -290,9 +294,11 @@ namespace ccf::tls
       bool exceeded = false;
     };
 
-    // Output accepted for each adopted connection and not yet written, kept
-    // only when max_queued_output is set. Workers report what they wrote on
-    // completing a pass, so this never understates what a connection holds.
+    // Output accepted and not yet written, for each connection which has been
+    // adopted or is being established, kept only when max_queued_output is
+    // set. It is charged as send() accepts it, wherever it is then held, and
+    // workers report what they wrote on completing a pass, so this never
+    // understates what a connection holds.
     std::unordered_map<::tcp::ConnID, QueuedOutput> queued_output
       CCF_GUARDED_BY(out_mutex);
 
@@ -313,13 +319,14 @@ namespace ccf::tls
       const auto it = queued_output.find(id);
       if (it == queued_output.end())
       {
-        // Not adopted. The owner bounds output for a connection it is still
-        // establishing, and the loop drops output for one already closed.
-        return OutputAdmission::Accept;
+        // Neither adopted nor being established, so nothing could deliver
+        // this. Holding it until the loop found that out would be unbounded.
+        return OutputAdmission::Discard;
       }
       auto& queued = it->second;
       if (queued.exceeded)
       {
+        // Already being closed for exceeding its bound.
         return OutputAdmission::Discard;
       }
       if (size > *max_queued_output - queued.bytes)
@@ -1306,10 +1313,6 @@ namespace ccf::tls
         conn->close_requested = true;
         if (item.abort)
         {
-          LOG_INFO_FMT(
-            "Connection {}: closing with more than {} bytes of output queued",
-            item.id,
-            max_queued_output.value_or(0));
           conn->force_close = true;
         }
         if (conn->cancel_establishment())
@@ -1691,6 +1694,30 @@ namespace ccf::tls
       wake();
     }
 
+    // Thread-safe. With max_queued_output set, lets send() accept output for
+    // an id which its owner is establishing and has yet to pass to adopt().
+    // That output is charged to the id from then on, including once adopted.
+    // An owner which gives up on the id instead must abandon_establishing()
+    // it; adopt() does so itself on failure. No effect without the bound.
+    void begin_establishing(::tcp::ConnID id) CCF_EXCLUDES(out_mutex)
+    {
+      if (max_queued_output)
+      {
+        ccf::ds::MutexGuard guard(out_mutex);
+        queued_output.try_emplace(id);
+      }
+    }
+
+    // Thread-safe. Stops accepting output for an id which will not be adopted.
+    void abandon_establishing(::tcp::ConnID id) CCF_EXCLUDES(out_mutex)
+    {
+      if (max_queued_output)
+      {
+        ccf::ds::MutexGuard guard(out_mutex);
+        queued_output.erase(id);
+      }
+    }
+
     // Loop-thread only. Successful handoff owns all future socket I/O and
     // close notification. On failure the caller releases its admission/id.
     bool adopt(Socket socket)
@@ -1705,11 +1732,7 @@ namespace ccf::tls
       conn->pending_commands = std::move(socket.pending_commands);
       conn->poll = socket.poll;
       const auto fail = [&]() {
-        if (max_queued_output)
-        {
-          ccf::ds::MutexGuard guard(out_mutex);
-          queued_output.erase(conn->id);
-        }
+        abandon_establishing(conn->id);
         details::close_handle(conn->poll);
         details::close_socket(conn->fd);
         return false;
@@ -1720,35 +1743,9 @@ namespace ccf::tls
           "Connection {}: traffic-key policy requires TLS", conn->id);
         return fail();
       }
-      if (max_queued_output)
-      {
-        // Charge everything already sent to this connection: output its owner
-        // held while establishing it, and sends still crossing to the loop.
-        size_t queued = 0;
-        for (const auto& command : conn->pending_commands)
-        {
-          queued += command.data.size();
-        }
-        ccf::ds::MutexGuard guard(out_mutex);
-        for (const auto& item : pending_out)
-        {
-          if (item.id == conn->id)
-          {
-            queued += item.data.size();
-          }
-        }
-        if (queued > *max_queued_output)
-        {
-          LOG_INFO_FMT(
-            "Connection {}: closing with more than {} bytes of output queued",
-            conn->id,
-            *max_queued_output);
-          details::close_handle(conn->poll);
-          details::close_socket(conn->fd);
-          return false;
-        }
-        queued_output[conn->id] = {.bytes = queued};
-      }
+      // An id which was being established keeps what it has been charged:
+      // that output is still held, in pending_commands or on its way here.
+      begin_establishing(conn->id);
       if (conn->poll != nullptr)
       {
         (void)uv_poll_stop(conn->poll);
@@ -1993,6 +1990,7 @@ namespace ccf::tls
     void send(::tcp::ConnID conn_id, std::vector<uint8_t>&& data)
       CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
+      bool exceeded = false;
       {
         ccf::ds::MutexGuard g(out_mutex);
         switch (admit_output(conn_id, data.size()))
@@ -2004,16 +2002,23 @@ namespace ccf::tls
           }
           case OutputAdmission::Exceeded:
           {
+            exceeded = true;
             pending_out.push_back(
               {.id = conn_id, .data = {}, .close = true, .abort = true});
             break;
           }
           case OutputAdmission::Discard:
           {
-            // Already being closed for exceeding its bound.
             return;
           }
         }
+      }
+      if (exceeded)
+      {
+        LOG_INFO_FMT(
+          "Connection {}: closing with more than {} bytes of output queued",
+          conn_id,
+          max_queued_output.value_or(0));
       }
       wake();
     }
