@@ -87,6 +87,28 @@ def run(args):
                 text in output
                 for text in ("Fluentd", "Trace queue capacity", "queue_capacity")
             ), output
+        for endpoint, diagnostic in (
+            ({"host": "127.0.0.1", "port": "0"}, "Invalid Fluentd host or TCP port"),
+            (
+                {"host": "::not-an-ip::", "port": "24224"},
+                "Cannot resolve Fluentd host",
+            ),
+        ):
+            baseline["observability"] = {"fluentd": [endpoint]}
+            invalid_path.write_text(json.dumps(baseline), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    str(pathlib.Path(args.binary_dir) / args.package),
+                    "--config",
+                    str(invalid_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            assert result.returncode == 105, result.stdout + result.stderr
+            assert diagnostic in result.stderr, result.stderr
         for workers, valid in ((65533, True), (65534, False), (2**64 - 1, False)):
             baseline["worker_threads"] = workers
             invalid_path.write_text(json.dumps(baseline), encoding="utf-8")
