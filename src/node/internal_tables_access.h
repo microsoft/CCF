@@ -362,13 +362,48 @@ namespace ccf
       bool recovering = false)
     {
       auto* service = tx.rw<ccf::Service>(Tables::SERVICE);
+      const auto prev_service_info = service->get();
+      auto* signing_identities =
+        tx.rw<SigningIdentities>(Tables::SIGNING_IDENTITIES);
+
+      const auto service_key = ccf::crypto::COSEKey::from_der_cert(
+        ccf::crypto::cert_pem_to_der(service_cert));
+      if (service_key.ec_public_key() == nullptr)
+      {
+        throw std::logic_error(
+          "Classical service signing key must be an EC key");
+      }
+      const auto signing_identity = signing_identity_from_key(service_key);
+
+      // Builds with ML-DSA always hold a PQ identity, and a service which has
+      // one never loses it
+      const bool prev_service_has_pq_cert =
+        prev_service_info.has_value() && prev_service_info->pq_cert.has_value();
+      const bool pq_identity_required = ccf::crypto::mldsa_supported() ||
+        signing_identities->has(IdentityType::PQ) || prev_service_has_pq_cert;
+      if (pq_identity_required && !pq_service_cert.has_value())
+      {
+        throw std::logic_error("An ML-DSA service certificate is required");
+      }
+
+      std::optional<Identity> pq_signing_identity;
+      if (pq_service_cert.has_value())
+      {
+        const auto pq_service_key = ccf::crypto::COSEKey::from_der_cert(
+          ccf::crypto::cert_pem_to_der(pq_service_cert.value()));
+        if (pq_service_key.mldsa_public_key() == nullptr)
+        {
+          throw std::logic_error(
+            "PQ service signing key must be an ML-DSA key");
+        }
+        pq_signing_identity = signing_identity_from_key(pq_service_key);
+      }
 
       size_t recovery_count = 0;
       std::optional<ccf::kv::Version> prev_service_created_at = std::nullopt;
 
       if (service->has())
       {
-        const auto prev_service_info = service->get();
         if (!prev_service_info.has_value())
         {
           throw std::logic_error("Failed to get previous service info");
@@ -411,10 +446,12 @@ namespace ccf
         recovery_count = prev_service_info->recovery_count.value_or(0) + 1;
       }
 
-      // Publish CLASSICAL from the service key; preserve other identity types.
-      const auto signing_identity = signing_identity_from_cert(service_cert);
-      tx.wo<SigningIdentities>(Tables::SIGNING_IDENTITIES)
-        ->put(IdentityType::CLASSICAL, signing_identity);
+      // Publish the keys atomically with their service certificates.
+      signing_identities->put(IdentityType::CLASSICAL, signing_identity);
+      if (pq_signing_identity.has_value())
+      {
+        signing_identities->put(IdentityType::PQ, pq_signing_identity.value());
+      }
 
       const ServiceInfo service_info{
         .cert = service_cert,

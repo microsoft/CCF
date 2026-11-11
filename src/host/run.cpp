@@ -197,7 +197,8 @@ namespace ccf
   void write_certificates_to_disk(
     const ccf::CCFConfig& config,
     const std::vector<uint8_t>& node_cert,
-    const std::vector<uint8_t>& service_cert)
+    const std::vector<uint8_t>& service_cert,
+    const std::vector<uint8_t>& pq_service_cert)
   {
     // Write the node and service certs to disk.
     files::dump(node_cert, config.output_files.node_certificate_file);
@@ -213,6 +214,14 @@ namespace ccf
       LOG_INFO_FMT(
         "Output service certificate to {}",
         config.command.service_certificate_file);
+      if (!pq_service_cert.empty())
+      {
+        files::dump(
+          pq_service_cert, config.command.pq_service_certificate_file);
+        LOG_INFO_FMT(
+          "Output ML-DSA service certificate to {}",
+          config.command.pq_service_certificate_file);
+      }
     }
   }
 
@@ -525,7 +534,10 @@ namespace ccf
           startup.rpc_addresses, config.output_files.rpc_addresses_file);
       }
       write_certificates_to_disk(
-        config, startup.node_cert, startup.service_cert);
+        config,
+        startup.node_cert,
+        startup.service_cert,
+        startup.pq_service_cert);
     }
     catch (const std::exception& e)
     {
@@ -708,6 +720,7 @@ namespace ccf
     catch (const std::logic_error& e)
     {
       LOG_FATAL_FMT("{}. Exiting.", e.what());
+      ccf::logger::write_fatal_diagnostic(e.what());
       return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
     LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);

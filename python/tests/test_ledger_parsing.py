@@ -755,3 +755,21 @@ def test_visualiser_has_a_tile_per_transaction():
         ("Service Open", 5),
         ("Governance", 6),
     ]
+
+
+def test_read_ledger_does_not_modify_rules(tmp_path):
+    write_chunk(str(tmp_path), "ledger_1", [entry(1, {b"a": b"1"})])
+    rule: ccf.read_ledger.FormatRule = {
+        "key": ccf.read_ledger.fmt_raw,
+        "value": ccf.read_ledger.fmt_raw,
+    }
+    rules: ccf.read_ledger.TablesFormatRules = [("^public:test$", rule)]
+    for _ in range(2):
+        assert ccf.read_ledger.run(
+            [str(tmp_path)],
+            ccf.read_ledger.PrintMode.Contents,
+            uncommitted=True,
+            verification_level=ccf.ledger.VerificationLevel.NONE,
+            tables_format_rules=rules,
+        )
+    assert rules == [("^public:test$", rule)]
