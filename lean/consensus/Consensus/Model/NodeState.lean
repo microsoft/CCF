@@ -1,7 +1,6 @@
 module
 
-public import Mathlib.Data.Finset.Card
-public import Mathlib.Data.Finset.Lattice.Fold
+public import CCF.Finset
 
 @[expose] public section
 
@@ -13,6 +12,8 @@ Signatures make their prefixes committable. Behaviour is in `Node.lean`.
 -/
 
 namespace Consensus.Model.Node
+
+open CCF (Finset)
 
 /-- A node's identifier. -/
 abbrev NodeID := Nat

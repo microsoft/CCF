@@ -1509,6 +1509,157 @@ TEST_CASE("AES-GCM caller-owned ciphertext")
   REQUIRE(decrypted.empty());
 }
 
+// Implements only KeyAesGcm's pure virtual members, so that its default
+// decryption into caller-owned memory is used
+class VectorOnlyKeyAesGcm : public KeyAesGcm
+{
+private:
+  std::unique_ptr<KeyAesGcm> inner;
+
+public:
+  explicit VectorOnlyKeyAesGcm(std::unique_ptr<KeyAesGcm> inner_) :
+    inner(std::move(inner_))
+  {}
+
+  void encrypt(
+    std::span<const uint8_t> iv,
+    std::span<const uint8_t> plain,
+    std::span<const uint8_t> aad,
+    std::vector<uint8_t>& cipher,
+    uint8_t tag[GCM_SIZE_TAG]) const override
+  {
+    inner->encrypt(iv, plain, aad, cipher, tag);
+  }
+
+  bool decrypt(
+    std::span<const uint8_t> iv,
+    const uint8_t tag[GCM_SIZE_TAG],
+    std::span<const uint8_t> cipher,
+    std::span<const uint8_t> aad,
+    std::vector<uint8_t>& plain) const override
+  {
+    return inner->decrypt(iv, tag, cipher, aad, plain);
+  }
+
+  [[nodiscard]] size_t key_size() const override
+  {
+    return inner->key_size();
+  }
+};
+
+static bool is_zero(std::span<const uint8_t> data)
+{
+  return std::all_of(
+    data.begin(), data.end(), [](uint8_t byte) { return byte == 0; });
+}
+
+static void check_caller_owned_plaintext(const KeyAesGcm& key)
+{
+  const std::vector<uint8_t> iv(12, 0);
+  const std::vector<uint8_t> plain(31, 0x24);
+  const std::vector<uint8_t> aad(7, 0x42);
+  std::vector<uint8_t> cipher;
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  key.encrypt(iv, plain, aad, cipher, tag);
+  std::array<uint8_t, GCM_SIZE_TAG> bad_tag = {};
+  std::copy(std::begin(tag), std::end(tag), bad_tag.begin());
+  bad_tag.front() ^= 1;
+
+  std::array<uint8_t, 33> storage = {};
+  storage.front() = 0xAA;
+  storage.back() = 0xBB;
+  auto output = std::span<uint8_t>(storage).subspan(1, plain.size());
+  REQUIRE(key.decrypt(iv, tag, cipher, aad, output));
+  REQUIRE(std::equal(output.begin(), output.end(), plain.begin()));
+
+  // No unauthenticated plaintext is left in the output
+  REQUIRE_FALSE(key.decrypt(iv, bad_tag.data(), cipher, aad, output));
+  REQUIRE(is_zero(output));
+  REQUIRE(storage.front() == 0xAA);
+  REQUIRE(storage.back() == 0xBB);
+
+  REQUIRE_THROWS_AS(
+    key.decrypt(iv, tag, cipher, aad, output.first(output.size() - 1)),
+    std::logic_error);
+
+  auto in_place_cipher = cipher;
+  REQUIRE(key.decrypt(
+    iv,
+    tag,
+    std::span<const uint8_t>(in_place_cipher),
+    aad,
+    std::span<uint8_t>(in_place_cipher)));
+  REQUIRE(in_place_cipher == plain);
+
+  in_place_cipher = cipher;
+  REQUIRE_FALSE(key.decrypt(
+    iv,
+    bad_tag.data(),
+    std::span<const uint8_t>(in_place_cipher),
+    aad,
+    std::span<uint8_t>(in_place_cipher)));
+  REQUIRE(is_zero(in_place_cipher));
+
+  // An empty ciphertext only authenticates the AAD
+  std::vector<uint8_t> empty_cipher;
+  uint8_t empty_tag[GCM_SIZE_TAG] = {};
+  key.encrypt(iv, {}, aad, empty_cipher, empty_tag);
+  REQUIRE(key.decrypt(iv, empty_tag, {}, aad, std::span<uint8_t>()));
+  auto bad_aad = aad;
+  bad_aad.front() ^= 1;
+  REQUIRE_FALSE(key.decrypt(iv, empty_tag, {}, bad_aad, std::span<uint8_t>()));
+}
+
+TEST_CASE("AES-GCM caller-owned plaintext")
+{
+  SUBCASE("OpenSSL implementation")
+  {
+    auto key = make_key_aes_gcm(get_raw_key());
+    check_caller_owned_plaintext(*key);
+
+    // Nor if decryption fails with an exception, here an invalid IV length
+    const std::vector<uint8_t> iv(12, 0);
+    const std::vector<uint8_t> plain(31, 0x24);
+    std::vector<uint8_t> cipher;
+    uint8_t tag[GCM_SIZE_TAG] = {};
+    key->encrypt(iv, plain, {}, cipher, tag);
+    std::vector<uint8_t> output(cipher.size(), 0xCC);
+    REQUIRE_THROWS(
+      key->decrypt({}, tag, cipher, {}, std::span<uint8_t>(output)));
+    REQUIRE(is_zero(output));
+  }
+
+  SUBCASE("Default implementation")
+  {
+    const VectorOnlyKeyAesGcm key(make_key_aes_gcm(get_raw_key()));
+    check_caller_owned_plaintext(key);
+  }
+}
+
+TEST_CASE("AES-GCM decryption replaces plain, which cipher may alias")
+{
+  auto key = make_key_aes_gcm(get_raw_key());
+  const std::vector<uint8_t> iv(12, 0);
+  const auto plain = get_entropy()->random(100);
+  const std::vector<uint8_t> aad(7, 0x42);
+  std::vector<uint8_t> cipher;
+  uint8_t tag[GCM_SIZE_TAG] = {};
+  key->encrypt(iv, plain, aad, cipher, tag);
+
+  auto vector_in_place = cipher;
+  REQUIRE(key->decrypt(
+    iv, tag, std::span<const uint8_t>(vector_in_place), aad, vector_in_place));
+  REQUIRE(vector_in_place == plain);
+
+  // As for a ciphertext preceded by its header in the same buffer
+  constexpr size_t header_size = 5;
+  std::vector<uint8_t> entry(header_size, 0xAA);
+  entry.insert(entry.end(), cipher.begin(), cipher.end());
+  REQUIRE(key->decrypt(
+    iv, tag, std::span<const uint8_t>(entry).subspan(header_size), aad, entry));
+  REQUIRE(entry == plain);
+}
+
 static void check_gcm_updates(
   size_t plain_size,
   size_t aad_size,

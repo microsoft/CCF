@@ -20,7 +20,7 @@ theorem deadlock_free
   exact Proofs.Deadlock.deadlock_free
 
 /-- Witness: every valid recovery configuration has a reachable initial state. -/
-lemma deadlock_free_witness
+theorem deadlock_free_witness
     : forall (config : ValidConfig),
         exists (state : Model.State),
           (Model.transitionSystem config).Reachable state := by
@@ -40,7 +40,7 @@ theorem quorum_opener_unique
 
 /-- Witness: for every valid configuration, a valid trace exists with a step emitting
 `opening quorum`. -/
-lemma quorum_opener_unique_witness
+theorem quorum_opener_unique_witness
     : forall (config : ValidConfig),
         exists (trace : GlobalTrace config),
         exists (step : Nat) (opener : Location),
@@ -64,7 +64,7 @@ theorem quorum_open_preserves_commit
 
 /-- Witness: for every valid configuration, a valid trace and a state in it with a node with
 `openKind = quorum` whose voters all satisfy `ReceivedOwnGossip` exist. -/
-lemma quorum_open_preserves_commit_witness
+theorem quorum_open_preserves_commit_witness
     : forall (config : ValidConfig),
         exists (trace : GlobalTrace config) (openedState : Model.State),
         exists (opener : Location) (openerState : NodeState),
@@ -97,7 +97,7 @@ theorem full_gossip_preserves_commit
 
 /-- Witness: for every valid configuration with at least two locations, a valid trace with a
 full-gossip state and a state in it with a node with `openKind = failover` exist. -/
-lemma full_gossip_preserves_commit_witness
+theorem full_gossip_preserves_commit_witness
     : forall (config : ValidConfig),
         2 <= config.val.protocol.expectedLocations.length
         -> exists (trace : GlobalTrace config),
@@ -132,7 +132,7 @@ theorem gossip_freezes_after_choice
 
 /-- Witness: for every valid configuration, a valid step exists that receives accepted gossip
 when `chosen` is set. -/
-lemma gossip_freezes_after_choice_witness
+theorem gossip_freezes_after_choice_witness
     : forall (config : ValidConfig),
         exists localStep : LocalStep,
         exists (source : Location) (txid : TxID),
@@ -154,7 +154,7 @@ theorem rejected_gossip_stutters
   exact Proofs.Local.rejected_gossip_stutters
 
 /-- Witness: for every valid configuration, a valid step exists that receives rejected gossip. -/
-lemma rejected_gossip_stutters_witness
+theorem rejected_gossip_stutters_witness
     : forall (config : ValidConfig),
         exists localStep : LocalStep,
         exists (source : Location) (txid : TxID),
@@ -179,7 +179,7 @@ theorem quorum_advance_opens
 
 /-- Witness: for every valid configuration, a valid timeout or accepted-vote step exists from
 `voting` with at least `voteQuorum` votes. -/
-lemma quorum_advance_opens_witness
+theorem quorum_advance_opens_witness
     : forall (config : ValidConfig),
         exists localStep : LocalStep,
           (Model.protocol config).ValidStep localStep
@@ -204,7 +204,7 @@ theorem aligned_opening_timeout_completes
 
 /-- Witness: for every valid configuration, a valid timeout step exists with `phase` and
 `timeoutState` both `opening`. -/
-lemma aligned_opening_timeout_completes_witness
+theorem aligned_opening_timeout_completes_witness
     : forall (config : ValidConfig),
         exists localStep : LocalStep,
           (Model.protocol config).ValidStep localStep

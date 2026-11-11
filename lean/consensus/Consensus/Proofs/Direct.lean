@@ -1,14 +1,15 @@
 module
 
 public import Consensus.Model
-public import Mathlib.Tactic.SplitIfs
 
 import all Init.Control.State
 
-public import CCF.Execution
+public import CCF.Proofs.Execution
+public import CCF.Proofs.Finset
 
 namespace Consensus.Proofs.Config
 
+open CCF (Finset)
 open Model.Node
 
 /-- The initial membership passed to the model, possibly empty. -/
@@ -19,6 +20,7 @@ end Consensus.Proofs.Config
 
 namespace Consensus.Proofs.Config
 
+open CCF (Finset)
 open Model.Node
 section Initial
 variable [config : InitialConfiguration]
@@ -165,7 +167,7 @@ private theorem step_deliver
                   network := removeOne envelope before.network ++ outputs.outgoing
               } := by
   simp only [Model.transitionSystem, lift, next, Model.protocol] at stepped
-  simp [Model.Node.step, Option.bind_eq_some_iff] at stepped
+  simp [Model.Node.step, Option.bind_eq_some_iff, guard] at stepped
   obtain ⟨queued, state, found, next, outputs, ran, rfl⟩ := stepped
   exact ⟨queued, state, next, outputs, found, ran, by simp [replaceNode]⟩
 
@@ -222,12 +224,12 @@ open Consensus.Proofs.Config
 open Consensus.Model.Node
 
 @[simp]
-private lemma EntryContent.isSignature_eq_true {content : EntryContent}
+private theorem EntryContent.isSignature_eq_true {content : EntryContent}
     : content.isSignature = true <-> content = .signature := by
   cases content <;> simp [EntryContent.isSignature]
 
 /-- A successful one-based lookup proves the index lies within the log. -/
-private lemma entryAtSomeIndexBound
+private theorem entryAtSomeIndexBound
     {log : List Entry}
     {index : Nat}
     {entry : Entry}
@@ -243,7 +245,7 @@ private lemma entryAtSomeIndexBound
     exact within
 
 /-- A successful lookup is unchanged when the log is extended at the end. -/
-private lemma entryAt_of_prefix
+private theorem entryAt_of_prefix
     {left right : List Entry}
     (isPrefix : left <+: right)
     {index : Nat}
@@ -263,7 +265,7 @@ private lemma entryAt_of_prefix
     exact found
 
 /-- A positive signature test identifies a concrete signature entry. -/
-private lemma isSignatureAtTrue
+private theorem isSignatureAtTrue
     {log : List Entry}
     {index : Nat}
     (signature : isSignatureAt log index = true)
@@ -278,7 +280,7 @@ private lemma isSignatureAtTrue
       simpa [isSignatureAt, found] using signature
 
 /-- The latest signature index lies within the log. -/
-private lemma maxCommittableIndexBounded (log : List Entry)
+private theorem maxCommittableIndexBounded (log : List Entry)
     : maxCommittableIndex log <= log.length := by
   unfold maxCommittableIndex
   let candidates := List.range (log.length + 1)
@@ -316,7 +318,7 @@ private lemma maxCommittableIndexBounded (log : List Entry)
   exact foldBounded candidates 0 allBounded (Nat.zero_le _)
 
 /-- A positive latest committable index points to a signature. -/
-private lemma maxCommittableIndexPositiveIsSignature
+private theorem maxCommittableIndexPositiveIsSignature
     {log : List Entry}
     (positive : 0 < maxCommittableIndex log)
     : isSignatureAt log (maxCommittableIndex log) = true := by
@@ -346,10 +348,10 @@ private lemma maxCommittableIndexPositiveIsSignature
             exact Or.inr headValid
           · by_cases bestLeHead : best <= head
             · right
-              simpa [max_eq_right bestLeHead] using headValid
+              simpa [Nat.max_eq_right bestLeHead] using headValid
             · right
               have headLeBest : head <= best := Nat.le_of_lt (Nat.lt_of_not_le bestLeHead)
-              simpa [max_eq_left headLeBest] using bestIsValid
+              simpa [Nat.max_eq_left headLeBest] using bestIsValid
         · simp [headValid, bestValid]
   have resultValid :=
     foldValid (List.range (log.length + 1)) 0 (Or.inl rfl)
@@ -359,7 +361,7 @@ private lemma maxCommittableIndexPositiveIsSignature
   · exact resultValid
 
 /-- Every signature index is no later than the latest signature index. -/
-private lemma signatureIndex_le_maxCommittableIndex
+private theorem signatureIndex_le_maxCommittableIndex
     {log : List Entry}
     {index : Nat}
     (signature : isSignatureAt log index = true)
@@ -382,14 +384,14 @@ private lemma signatureIndex_le_maxCommittableIndex
     induction values with
     | nil =>
         intro best
-        exact le_rfl
+        exact Nat.le.refl
     | cons head tail inductionHypothesis =>
         intro best
-        apply le_trans (b := choose best head)
+        apply Nat.le_trans (m := choose best head)
         · simp only [choose]
           split
           · exact Nat.le_max_left _ _
-          · exact Nat.le_refl _
+          · exact Nat.le.refl
         · exact inductionHypothesis (choose best head)
   have foldContains :
       forall (values : List Nat) (best : Nat),
@@ -408,7 +410,7 @@ private lemma signatureIndex_le_maxCommittableIndex
               choose best index = max best index := by
             simp [choose, signature]
           rw [selected]
-          exact (le_max_right best index).trans (foldAboveStart tail (max best index))
+          exact Nat.le_trans (Nat.le_max_right best index) (foldAboveStart tail (max best index))
         · exact
             inductionHypothesis
               (choose best head) tailMember
@@ -419,7 +421,7 @@ private lemma signatureIndex_le_maxCommittableIndex
       exact Nat.lt_succ_of_le indexBound)
 
 /-- Extending a log preserves every earlier signature lookup. -/
-private lemma isSignatureAt_of_prefix
+private theorem isSignatureAt_of_prefix
     {left right : List Entry}
     (isPrefix : left <+: right)
     {index : Nat}
@@ -430,7 +432,7 @@ private lemma isSignatureAt_of_prefix
   simp [isSignatureAt, extended, content]
 
 /-- Extending a log cannot move its latest signature backwards. -/
-private lemma maxCommittableIndex_le_of_prefix
+private theorem maxCommittableIndex_le_of_prefix
     {left right : List Entry}
     (isPrefix : left <+: right)
     : maxCommittableIndex left <= maxCommittableIndex right := by
@@ -445,7 +447,7 @@ private lemma maxCommittableIndex_le_of_prefix
           (maxCommittableIndexPositiveIsSignature positive))
 
 /-- Taking a log prefix leaves lookups inside that prefix unchanged. -/
-private lemma isSignatureAt_take_of_le
+private theorem isSignatureAt_take_of_le
     {log : List Entry}
     {index count : Nat}
     (within : index <= count)
@@ -466,7 +468,7 @@ private lemma isSignatureAt_take_of_le
   simp [isSignatureAt, taken, content]
 
 /-- The bounded committable frontier does not exceed the complete log. -/
-private lemma maxCommittableIndexUpTo_le_length (log : List Entry) (frontier : Nat)
+private theorem maxCommittableIndexUpTo_le_length (log : List Entry) (frontier : Nat)
     : maxCommittableIndexUpTo log frontier <= log.length := by
   unfold maxCommittableIndexUpTo
   have bounded :=
@@ -475,7 +477,7 @@ private lemma maxCommittableIndexUpTo_le_length (log : List Entry) (frontier : N
   exact Nat.le_trans bounded (Nat.min_le_right _ _)
 
 /-- A positive bounded committable frontier points to a signature in the log. -/
-private lemma maxCommittableIndexUpToPositiveIsSignature
+private theorem maxCommittableIndexUpToPositiveIsSignature
     {log : List Entry}
     {frontier : Nat}
     (positive : 0 < maxCommittableIndexUpTo log frontier)
@@ -488,7 +490,8 @@ private lemma maxCommittableIndexUpToPositiveIsSignature
 
 /-- Recording a commit changes the commit index and retirement latch, and may
 clear the role and primary knowledge. -/
-private lemma NodeState.recordCommit_eq (node : NodeID) (state : NodeState) (index : Nat)
+private theorem NodeState.recordCommit_eq (node : NodeID) (state : NodeState)
+    (index : Nat)
     : exists retiredCommittedIndex role primaryKnown,
         state.recordCommit node index
           = { state with commitIndex := index, retiredCommittedIndex, role, primaryKnown }
@@ -500,27 +503,30 @@ private lemma NodeState.recordCommit_eq (node : NodeID) (state : NodeState) (ind
   · exact ⟨_, _, _, rfl, Or.inl rfl⟩
 
 @[simp]
-private lemma NodeState.recordCommit_log (node : NodeID) (state : NodeState) (index : Nat)
+private theorem NodeState.recordCommit_log (node : NodeID) (state : NodeState)
+    (index : Nat)
     : (state.recordCommit node index).log = state.log := by
   obtain ⟨_, _, _, eq, _⟩ := NodeState.recordCommit_eq node state index
   rw [eq]
 
 @[simp]
-private lemma NodeState.recordCommit_commitIndex (node : NodeID) (state : NodeState)
+private theorem NodeState.recordCommit_commitIndex (node : NodeID) (state : NodeState)
     (index : Nat)
     : (state.recordCommit node index).commitIndex = index := by
   obtain ⟨_, _, _, eq, _⟩ := NodeState.recordCommit_eq node state index
   rw [eq]
 
 /-- Extending a log cannot move its bounded committable frontier backwards. -/
-private lemma maxCommittableIndexUpTo_mono {left right : List Entry}
+private theorem maxCommittableIndexUpTo_mono {left right : List Entry}
     (isPrefix : left <+: right) (frontier : Nat)
     : maxCommittableIndexUpTo left frontier <= maxCommittableIndexUpTo right frontier :=
-  maxCommittableIndex_le_of_prefix (isPrefix.take frontier)
+  maxCommittableIndex_le_of_prefix
+    (List.prefix_take_iff.mpr
+      ⟨(List.take_prefix _ _).trans isPrefix, List.length_take_le _ _⟩)
 
 /-- The follower append loop changes only the log, commit and retirement
 fields, and may clear the role. -/
-private lemma fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entry)
+private theorem fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entry)
     : forall (state : NodeState),
         exists commitIndex retiredCommittedIndex role primaryKnown,
           entries.foldl
@@ -555,8 +561,8 @@ private lemma fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entr
         state.primaryKnown,
         by simp,
         Or.inl rfl,
-        le_rfl,
-        le_max_left _ _
+        Nat.le.refl,
+        Nat.le_max_left _ _
       ⟩
   | cons entry entries ih =>
       intro state
@@ -592,7 +598,7 @@ private lemma fromLeader_loop (self : NodeID) (limit : Nat) (entries : List Entr
 Intermediate commits use prefixes of the final log, so the follower's final
 commit index is the bounded committable frontier of the extended log.
 -/
-private lemma handleAppendEntiresFromPrimary_eq (self : NodeID) (state : NodeState)
+private theorem handleAppendEntiresFromPrimary_eq (self : NodeID) (state : NodeState)
     (request : AppendEntriesRequest)
     : let log :=
         state.log ++ request.entries.drop (state.log.length - request.prevLogIndex)
@@ -639,7 +645,7 @@ private lemma handleAppendEntiresFromPrimary_eq (self : NodeID) (state : NodeSta
     · exact Or.inr none
 
 /-- A rollback point lies after the request's previous index. -/
-private lemma firstTermConflictIndex_ge {state : NodeState}
+private theorem firstTermConflictIndex_ge {state : NodeState}
     {request : AppendEntriesRequest} {index : Nat}
     (conflict : firstTermConflictIndex state request = some index)
     : request.prevLogIndex + 1 <= index := by
@@ -806,7 +812,7 @@ private theorem CommitFrontier.extend {state : NodeState}
     (frontier : CommitFrontier state) {log : List Entry}
     (extends_ : state.log <+: log)
     : CommitFrontier { state with log } := by
-  refine ⟨frontier.1.trans extends_.length_le, fun positive => ?_⟩
+  refine ⟨Nat.le_trans frontier.1 extends_.length_le, fun positive => ?_⟩
   exact isSignatureAt_of_prefix extends_ (frontier.2 positive)
 
 private theorem CommitFrontier.keep {state : NodeState}
@@ -828,12 +834,13 @@ private theorem CommitFrontier.advance {state : NodeState}
           state with
             log, commitIndex := max state.commitIndex (maxCommittableIndexUpTo log bound)
         } := by
-  refine ⟨max_le extends_.1 (maxCommittableIndexUpTo_le_length log bound), fun positive => ?_⟩
+  refine ⟨Nat.max_le.mpr ⟨extends_.1, maxCommittableIndexUpTo_le_length log bound⟩,
+    fun positive => ?_⟩
   simp only at positive ⊢
   rcases Nat.le_total state.commitIndex (maxCommittableIndexUpTo log bound) with le | le
-  · rw [max_eq_right le] at positive ⊢
+  · rw [Nat.max_eq_right le] at positive ⊢
     exact maxCommittableIndexUpToPositiveIsSignature positive
-  · rw [max_eq_left le] at positive ⊢
+  · rw [Nat.max_eq_left le] at positive ⊢
     exact extends_.2 positive
 
 private theorem foldl_select_max (P : Nat -> Prop) [DecidablePred P] (values : List Nat)
@@ -852,9 +859,9 @@ private theorem foldl_select_max (P : Nat -> Prop) [DecidablePred P] (values : L
         by_cases chosen : P head
         · rcases Nat.le_total init head with le | le
           · right
-            simp [chosen, max_eq_right le]
+            simp [chosen, Nat.max_eq_right le]
           · left
-            simp [chosen, max_eq_left le]
+            simp [chosen, Nat.max_eq_left le]
         · simp [chosen]
       · exact Or.inr holds
 
@@ -1199,15 +1206,15 @@ open Model.Node
 private theorem Extends.committedLog {before after : NodeState}
     (extended : Extends before after)
     : before.committedLog <+: after.committedLog :=
-  List.prefix_take_iff.mpr ⟨extended.2, (List.length_take_le _ _).trans extended.1⟩
+  List.prefix_take_iff.mpr ⟨extended.2, Nat.le_trans (List.length_take_le _ _) extended.1⟩
 
 private theorem Extends.refl (state : NodeState) : Extends state state :=
-  ⟨le_rfl, List.take_prefix _ _⟩
+  ⟨Nat.le.refl, List.take_prefix _ _⟩
 
 private theorem Extends.trans {first second third : NodeState}
     (left : Extends first second) (right : Extends second third)
     : Extends first third :=
-  ⟨left.1.trans right.1, left.committedLog.trans right.2⟩
+  ⟨Nat.le_trans left.1 right.1, left.committedLog.trans right.2⟩
 
 /-- Keeping the log below `count`, at or above the commit index, and committing no
 less extends the committed log. -/
@@ -1222,11 +1229,11 @@ private theorem Extends.of_prefix {before after : NodeState} {count : Nat}
 private theorem Extends.of_log {before after : NodeState}
     (logEq : after.log = before.log) (commitEq : after.commitIndex = before.commitIndex)
     : Extends before after :=
-  ⟨commitEq.ge, logEq ▸ List.take_prefix _ _⟩
+  ⟨Nat.le_of_eq commitEq.symm, logEq ▸ List.take_prefix _ _⟩
 
 private theorem Extends.append {state : NodeState} (entry : Entry)
     : Extends state { state with log := state.log ++ [entry] } :=
-  ⟨le_rfl, (List.take_prefix _ _).trans (List.prefix_append _ _)⟩
+  ⟨Nat.le.refl, (List.take_prefix _ _).trans (List.prefix_append _ _)⟩
 
 end Consensus.Proofs.Direct
 
@@ -1245,7 +1252,7 @@ private theorem Extends.fromLeader
   obtain ⟨retired, role, known, eq, -⟩ :=
     Ledger.handleAppendEntiresFromPrimary_eq self state request
   rw [eq]
-  exact ⟨le_max_left _ _, (List.take_prefix _ _).trans (List.prefix_append _ _)⟩
+  exact ⟨Nat.le_max_left _ _, (List.take_prefix _ _).trans (List.prefix_append _ _)⟩
 
 private theorem Extends.handleAppendEntriesRequest (caps : Caps) (source : NodeID)
     : Keeps (Extends state)
@@ -1280,7 +1287,7 @@ private theorem Extends.handleAppendEntriesRequest (caps : Caps) (source : NodeI
           primaryKnown := true, log := current.log.take (index - 1), isNewFollower := false
       } :=
       Extends.of_prefix (count := index - 1)
-        (Nat.le_trans within (Nat.le_sub_of_add_le this)) (List.prefix_refl _) le_rfl
+        (Nat.le_trans within (Nat.le_sub_of_add_le this)) (List.prefix_refl _) Nat.le.refl
     exact Keeps.seq' fun _ => Keeps.pure' ((stepped.trans truncated).trans Extends.fromLeader)
 
 end AppendEntries
@@ -1341,7 +1348,7 @@ private theorem Extends.becomePrimary (state : NodeState)
       } := by
     split
     · exact Extends.of_prefix (by unfold lastCommittableIndex; exact Nat.le_max_left _ _)
-        (List.prefix_refl _) le_rfl
+        (List.prefix_refl _) Nat.le.refl
     · exact Extends.of_log rfl rfl
   exact Keeps.bind' (Extends.advanced caps self _) fun _ kept =>
     Keeps.seq' fun _ => Keeps.pure' (promoted.trans kept)

@@ -84,6 +84,8 @@ The :ccf_repo:`Lean workflow <.github/workflows/lean.yml>` runs on pull requests
 
 The disaster recovery traces are replayed by the SNP Genoa job in the main CI workflow instead, since that is where the recovery scenarios run.
 
+A separate ``Lean Mathlib equivalence`` workflow proves that the replacements for Mathlib definitions in ``lean/common`` are equivalent to the Mathlib originals, and runs only when those definitions change; see :ccf_repo:`lean/mathlib-equivalence/README.md`.
+
 Running locally
 ---------------
 
@@ -93,7 +95,6 @@ From a package directory under ``lean/``, the common checks are:
 
 .. code-block:: bash
 
-    lake exe cache get
     lake build --wfail --fail-fast
     lake check --inadvisably-no-sandbox
     lake exe check-imports

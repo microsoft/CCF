@@ -12,28 +12,28 @@ open CCF
 open Model.Local
 
 @[local simp]
-private lemma effect_bind {S A B : Type} (a : StateT S Option A)
+private theorem effect_bind {S A B : Type} (a : StateT S Option A)
     (f : A -> StateT S Option B) (s : S)
     : (a >>= f) s = (a s).bind (fun (a, s) => f a s) :=
   rfl
 
 @[local simp]
-private lemma effect_lift {S A : Type} (a : Option A) (s : S)
+private theorem effect_lift {S A : Type} (a : Option A) (s : S)
     : (liftM a : StateT S Option A) s = a.map (fun a => (a, s)) := by
   cases a <;> rfl
 
-private lemma effect_orElse_internal {S A : Type} (a : StateT S Option A)
+private theorem effect_orElse_internal {S A : Type} (a : StateT S Option A)
     (b : Unit -> StateT S Option A) (s : S)
     : (StateT.orElse a b) s = (a s <|> b () s) :=
   rfl
 
 @[local simp]
-private lemma effect_orElse {S A : Type} (a : StateT S Option A)
+private theorem effect_orElse {S A : Type} (a : StateT S Option A)
     (b : Unit -> StateT S Option A) (s : S)
     : (StateT.orElse a b) s = (a s <|> b () s) :=
   effect_orElse_internal a b s
 
-private lemma validStep_run {config : Model.Config}
+private theorem validStep_run {config : Model.Config}
     {s
       : MultiNodeTransitionSystem.LocalStep Location NodeState Event Message Notification}
     (valid : (Model.protocol config).ValidStep s)
@@ -43,11 +43,12 @@ private lemma validStep_run {config : Model.Config}
               s.action).run
               {}
             = some (s.after, s.effects) := by
-  simpa [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
-    Option.bind_eq_some_iff, Option.map_eq_some_iff]
-    using valid
+  simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, StateT.run,
+    Option.bind_eq_some_iff, Option.map_eq_some_iff] at valid
+  obtain ⟨_, _, ⟨_, found, rfl, rfl⟩, stepped⟩ := valid
+  exact ⟨_, found, stepped⟩
 
-lemma gossip_freezes_after_choice
+theorem gossip_freezes_after_choice
     : forall (config : Model.Config),
       forall localStep : Properties.LocalStep,
       forall (source : Model.Local.Location) (txid : Model.Local.TxID),
@@ -65,7 +66,7 @@ lemma gossip_freezes_after_choice
   obtain ⟨states, effects⟩ := run
   exact ⟨states.symm, by rw [← effects]; simp⟩
 
-lemma rejected_gossip_stutters
+theorem rejected_gossip_stutters
     : forall (config : Model.Config),
       forall localStep : Properties.LocalStep,
       forall (source : Model.Local.Location) (txid : Model.Local.TxID),
@@ -80,7 +81,7 @@ lemma rejected_gossip_stutters
   obtain ⟨states, effects⟩ := run
   exact ⟨states.symm, by rw [← effects]; simp⟩
 
-private lemma quorum_advance_opens (config : Config) (state : NodeState)
+private theorem quorum_advance_opens (config : Config) (state : NodeState)
     (source : Location) (timeout : Bool) (phase : state.phase = .voting)
     (quorum : state.votes.length >= voteQuorum config)
     : exists next effects,
@@ -94,10 +95,9 @@ private lemma quorum_advance_opens (config : Config) (state : NodeState)
     simp [empty, voteQuorum] at quorum
   simp [advance, phase, quorum, nonempty]
   cases timeout <;>
-    simp [Capabilities.record, advanceTimeoutLane, advanceTimeoutState,
-      ]
+    simp [Capabilities.record, advanceTimeoutLane, advanceTimeoutState, and_assoc]
 
-lemma quorum_step_opens
+theorem quorum_step_opens
     : forall (config : Model.Config),
       forall localStep : Properties.LocalStep,
         ((Model.protocol config).ValidStep localStep
@@ -136,7 +136,7 @@ lemma quorum_step_opens
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj run)
     exact ⟨opening, kind, notification⟩
 
-lemma aligned_opening_timeout_completes
+theorem aligned_opening_timeout_completes
     : forall (config : Model.Config),
       forall localStep : Properties.LocalStep,
         ((Model.protocol config).ValidStep localStep
