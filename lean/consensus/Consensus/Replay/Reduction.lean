@@ -139,35 +139,19 @@ private def readAppendContent (head : Event) (config : Option Event)
 
 private def ruleAppend : Reduction Unit := do
   let head ← peek
-  unless head.function == "retired_committed_tx" || head.function == "replicate" do
-    failure
-      s!"{head.record.location}: expected retired_committed_tx or replicate, got {head.function}"
   let seqno ← readJson head head.message (nat · "seqno")
-  let nodeId := head.node
   -- consume
   let start ← position
+  event head "replicate"
   let retirements ←
     CCF.Parsec.many do
       let retirement ← peek
-      unless retirement.function == "retired_committed_tx" && retirement.node == nodeId do
-        failure
-          s!"{retirement.record.location}: expected retired_committed_tx on node {nodeId}, got {retirement.function} on node {retirement.node}"
-      let retirementSeqno ← readJson retirement retirement.message (nat · "seqno")
-      unless retirementSeqno == seqno do
-        failure
-          s!"{retirement.record.location}: expected seqno {seqno}, got {retirementSeqno}"
-      discard CCF.Parsec.take
+      event head "retired_committed_tx"
+      liftExcept retirement do
+        let retirementSeqno ← nat retirement.message "seqno"
+        require (retirementSeqno == seqno)
+          s!"expected seqno {seqno}, got {retirementSeqno}"
       return retirement
-  -- Map hooks run before replication acceptance; rejected writes may have no matching replicate.
-  if (← CCF.Parsec.peek).isNone then
-    return
-  let head ← peek
-  unless head.function == "replicate" && head.node == nodeId do
-    return
-  let replicateSeqno ← readJson head head.message (nat · "seqno")
-  unless replicateSeqno == seqno do
-    return
-  event head "replicate"
   let config ←
     CCF.Parsec.optionalRule do
       let config ← peek

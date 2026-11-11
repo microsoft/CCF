@@ -3955,16 +3955,8 @@ namespace ccf
       network.tables->set_map_hook(
         network.nodes.get_name(),
         Nodes::wrap_map_hook(
-          [source = self](ccf::kv::Version version, const Nodes::Write& w)
+          [](ccf::kv::Version version, const Nodes::Write& w)
             -> ccf::kv::ConsensusHookPtr {
-            for (const auto& [node_id, ni] : w)
-            {
-              if (ni.has_value() && ni->retired_committed)
-              {
-                aft::trace::retired_committed_tx(
-                  source.value(), version, node_id.value());
-              }
-            }
             return std::make_unique<ConfigurationChangeHook>(version, w);
           }));
 

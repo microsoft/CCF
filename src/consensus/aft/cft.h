@@ -311,6 +311,16 @@ namespace aft
         state->retirement_phase == ccf::kv::RetirementPhase::RetiredCommitted;
     }
 
+    void trace_retired_committed_tx(
+      ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
+    {
+      for (const auto& node_id : node_ids)
+      {
+        trace::retired_committed_tx(
+          state->node_id.value(), seqno, node_id.value());
+      }
+    }
+
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
