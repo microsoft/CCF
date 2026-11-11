@@ -4,12 +4,6 @@ All jobs run on 1ES hosted pools targeted by pool name only, for example `runs-o
 
 # Shared actions
 
-## Wipe runner temp directory
-
-Self-hosted runner VMs are reused across jobs, and files can survive in `$RUNNER_TEMP` from one job to the next, including jobs of other pull requests.
-Every self-hosted job that checks out the repository therefore runs the local composite action in `.github/actions/wipe-runner-temp/action.yml` directly after `actions/checkout`.
-It deletes everything in `$RUNNER_TEMP` and `$RUNNER_TEMP/_github_home`, except the entries the runner creates for the current job and the `git-credentials-*.config` files that `actions/checkout` writes there.
-
 ## Azure Linux CI dependencies
 
 The local composite action in `.github/actions/install-ci-dependencies/action.yml` installs Azure Linux 3 and 4 CI dependencies and caches downloaded RPM and npm packages. Cache keys separate runner architectures, hash the relevant dependency inputs, and include the date of the most recent Sunday at midnight UTC. The RPM key also separates package managers, while the npm key separates jobs so each job can save the packages it downloads. The weekly date makes GitHub Actions create refreshed immutable caches each week.

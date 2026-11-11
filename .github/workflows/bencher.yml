@@ -33,8 +33,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ./.github/actions/wipe-runner-temp
-
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
 
@@ -152,8 +150,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-
-      - uses: ./.github/actions/wipe-runner-temp
 
       - name: "Machine info"
         shell: bash

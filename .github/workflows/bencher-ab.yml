@@ -37,8 +37,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ./.github/actions/wipe-runner-temp
-
       - name: Install dependencies
         uses: ./.github/actions/install-ci-dependencies
 
