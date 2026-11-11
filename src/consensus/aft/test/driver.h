@@ -114,6 +114,17 @@ private:
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
 
+  // Entries buffered between start_batch and replicate_batch, which passes
+  // them to their primary in a single replicate() call. They must share a
+  // primary and term.
+  struct PendingBatch
+  {
+    std::optional<std::pair<aft::Term, ccf::NodeId>> primary;
+    ccf::kv::BatchVector entries;
+  };
+
+  std::optional<PendingBatch> pending_batch;
+
   void _replicate(
     const std::string& term_s,
     std::vector<uint8_t> data,
@@ -134,8 +145,18 @@ private:
       return;
     }
     const auto& [term, node_id] = *opt;
+    if (
+      pending_batch.has_value() && pending_batch->primary.has_value() &&
+      pending_batch->primary != *opt)
+    {
+      throw std::runtime_error(fmt::format(
+        "Batched entry on line {} has a different primary or term than the "
+        "rest of the batch",
+        lineno));
+    }
     auto& cft = _nodes.at(node_id).cft;
-    const auto idx = cft->get_last_idx() + 1;
+    const auto idx = cft->get_last_idx() + 1 +
+      (pending_batch.has_value() ? pending_batch->entries.size() : 0);
     CFT_DRIVER_PRINT(
       "{}->>{}: replicate {}.{} = {} [{}]",
       node_id,
@@ -182,6 +203,12 @@ private:
 
     auto s = nlohmann::json(aft::ReplicatedData{type, data}).dump();
     auto d = std::make_shared<std::vector<uint8_t>>(s.begin(), s.end());
+    if (pending_batch.has_value())
+    {
+      pending_batch->primary = *opt;
+      pending_batch->entries.emplace_back(idx, d, committable, hooks);
+      return;
+    }
     cft->replicate(ccf::kv::BatchVector{{idx, d, committable, hooks}}, term);
   }
 
@@ -975,6 +1002,31 @@ public:
     _replicate(term_s, sig, lineno, true);
   }
 
+  void start_batch(const size_t lineno)
+  {
+    if (pending_batch.has_value())
+    {
+      throw std::runtime_error(
+        fmt::format("Batch already started before line {}", lineno));
+    }
+    pending_batch.emplace();
+  }
+
+  void replicate_batch(const size_t lineno)
+  {
+    if (!pending_batch.has_value() || !pending_batch->primary.has_value())
+    {
+      throw std::runtime_error(
+        fmt::format("No batched entries to replicate on line {}", lineno));
+    }
+    const auto [term, node_id] = pending_batch->primary.value();
+    const auto entries = std::move(pending_batch->entries);
+    pending_batch.reset();
+    CFT_DRIVER_PRINT(
+      "Note over {}: replicate batch of {} entries", node_id, entries.size());
+    _nodes.at(node_id).cft->replicate(entries, term);
+  }
+
   void disconnect(ccf::NodeId left, ccf::NodeId right)
   {
     bool noop = true;
@@ -1165,6 +1217,12 @@ public:
 
   void loop_until_sync(const size_t lineno)
   {
+    if (pending_batch.has_value())
+    {
+      throw std::runtime_error(
+        fmt::format("Batch started but not replicated before line {}", lineno));
+    }
+
     std::pair<aft::Term, ccf::NodeId> term_primary;
     {
       // Find primary in highest term

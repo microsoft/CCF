@@ -272,6 +272,18 @@ int main(int argc, char** argv)
         driver->emit_signature(items[1], lineno);
         break;
       }
+      case shash("start_batch"):
+      {
+        assert(items.size() == 1);
+        driver->start_batch(lineno);
+        break;
+      }
+      case shash("replicate_batch"):
+      {
+        assert(items.size() == 1);
+        driver->replicate_batch(lineno);
+        break;
+      }
       case shash("disconnect"):
       {
         assert(items.size() == 3);
