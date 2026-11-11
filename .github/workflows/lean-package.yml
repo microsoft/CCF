@@ -14,10 +14,7 @@ permissions:
 jobs:
   check:
     name: Check ${{ inputs.package }}
-    runs-on: [gha-vmss-d16av7-ci]
-    container:
-      image: ubuntu:26.04
-      options: --user root
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     defaults:
       run:
@@ -26,14 +23,11 @@ jobs:
       PACKAGE: ${{ inputs.package }}
 
     steps:
-      - name: Install container prerequisites
+      - name: Install prerequisites
         run: |
           set -euo pipefail
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            ca-certificates git curl tar zstd build-essential libgmp-dev \
-            elan python3-jsonschema jq
-          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y elan python3-jsonschema
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -48,7 +42,6 @@ jobs:
               ;;
           esac
           test -f "lean/$PACKAGE/lakefile.toml"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
 
       - name: Install Lean and check prerequisites
@@ -60,7 +53,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: lean/${{ inputs.package }}/.lake/packages
-          key: lean-deps-v2-vmss-ubuntu-26.04-${{ runner.arch }}-${{ inputs.package }}-${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-package.yml') }}
+          key: lean-deps-v3-ubuntu-26.04-${{ runner.arch }}-${{ inputs.package }}-${{ hashFiles('lean/lean-toolchain', format('lean/{0}/lake-manifest.json', inputs.package), format('lean/{0}/lakefile.toml', inputs.package), 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-package.yml') }}
 
       - name: Build, kernel and axiom check
         working-directory: lean/${{ inputs.package }}

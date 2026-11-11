@@ -49,6 +49,7 @@ Wrap a speculative rule in `attempt` to restore both input and application state
 Attempts retain the farthest consumed-pattern diagnostic separately from the cursor and application state.
 If the parse ultimately fails before that position, `run` reports that diagnostic rather than a later generic mismatch; successful parses ignore discarded-branch diagnostics.
 Every repeated rule must consume input when it succeeds.
+`many` and `many_` keep only the current repetition's restore point, so neither their stack depth nor the number of application states they retain grows with the stream.
 `failure` and `validated` report parser or application-validation errors.
 Run a parser with `CCF.Parsec.run events (parser.run initialState)`; include `CCF.Parsec.eof` when trailing events must be rejected.
 Protocol-specific matching, diagnostics, and output emission belong in the consuming package.
