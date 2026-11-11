@@ -1,7 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import re
 from dataclasses import dataclass
+
+_TXID = re.compile(r"(?P<view>\d+)\.(?P<seqno>\d+)", re.ASCII)
 
 
 @dataclass(order=True)
@@ -26,12 +29,11 @@ class TxID:
 
         Valid input is two ASCII decimal integers separated by a single dot.
         """
-        if s is not None:
-            parts = s.split(".")
-            if len(parts) == 2 and all(p.isascii() and p.isdigit() for p in parts):
-                try:
-                    return int(parts[0]), int(parts[1])
-                except ValueError:
-                    # Exceeds the interpreter's integer string conversion limit
-                    pass
+        match = _TXID.fullmatch(s) if isinstance(s, str) else None
+        if match is not None:
+            try:
+                return int(match["view"]), int(match["seqno"])
+            except ValueError:
+                # Exceeds the interpreter's integer string conversion limit
+                pass
         return None, None

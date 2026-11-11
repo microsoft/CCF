@@ -3,6 +3,8 @@
 
 """Tests for transaction ID parsing and its invalid-input sentinel."""
 
+from typing import Any
+
 import pytest
 from ccf.tx_id import TxID
 
@@ -37,6 +39,12 @@ def test_invalid_transaction_id(value: str):
 
 def test_missing_transaction_id():
     assert TxID.parse(None) == (None, None)
+
+
+@pytest.mark.parametrize("value", [42, b"1.2", {}])
+def test_non_string_transaction_id(value: Any):
+    """Decoded headers may carry non-string values; these are invalid IDs."""
+    assert TxID.parse(value) == (None, None)
 
 
 def test_valid_transaction_id():
