@@ -29,5 +29,9 @@ class TxID:
         if s is not None:
             parts = s.split(".")
             if len(parts) == 2 and all(p.isascii() and p.isdigit() for p in parts):
-                return int(parts[0]), int(parts[1])
+                try:
+                    return int(parts[0]), int(parts[1])
+                except ValueError:
+                    # Exceeds the interpreter's integer string conversion limit
+                    pass
         return None, None

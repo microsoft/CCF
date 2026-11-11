@@ -25,6 +25,7 @@ from ccf.tx_id import TxID
         "\u0661.\u0662",
         ".2",
         "1.",
+        "1." + "9" * 4301,
     ],
 )
 def test_invalid_transaction_id(value: str):
