@@ -3,6 +3,7 @@ Explain the intent of this PR: why it should be merged and why it matters.
 A reviewer should understand it in under a minute.
 Do not restate the diff, list tests/commands run, or describe what is unchanged.
 Link related issues/designs. Use Closes #<issue> only when fully resolving an issue.
+If additional elements seem useful but are not essential, you can create a <details> block to allow the reader to expand it.
 -->
 
 <!--
