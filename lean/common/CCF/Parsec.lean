@@ -87,18 +87,27 @@ def satisfy (predicate : Event → Bool) (message : String)
     failure message
   take message
 
+/-- Fold repetitions of a rule until it fails without consuming input, restoring the state from before that attempt.
+Failure after consumption is fatal.
+Parsers built from Std's and this module's primitives never return a position before their starting one, so no later failure can backtrack into a successful repetition.
+Each success therefore drops its restore point and recurses in tail position, like `Std.Internal.Parsec.manyCore`. -/
+private partial def foldMany {β : Type} (parser : ParserT Event State α)
+    (step : β → α → β) (acc : β)
+    : ParserT Event State β :=
+  fun state input =>
+    Std.Internal.Parsec.tryCatch (parser.run state)
+      (fun (value, next) => foldMany parser step (step acc value) next)
+      (fun () => pure (acc, state)) input
+
 /-- Repeat a consuming rule, threading application state and retaining committed failures.
 The rule must consume input whenever it succeeds. -/
-partial def many (parser : ParserT Event State α) : ParserT Event State (List α) :=
-  (do
-    let first ← parser
-    return first :: (← many parser))
-  <|> pure []
+def many (parser : ParserT Event State α) : ParserT Event State (List α) :=
+  Array.toList <$> foldMany parser Array.push #[]
 
 /-- Repeat a consuming rule without collecting results.
 The rule must consume input whenever it succeeds. -/
-partial def many_ (parser : ParserT Event State Unit) : ParserT Event State Unit :=
-  (parser *> many_ parser) <|> pure ()
+def many_ (parser : ParserT Event State Unit) : ParserT Event State Unit :=
+  foldMany parser (fun () () => ()) ()
 
 /-- Optionally parse a rule; failure after consumption remains fatal. -/
 def optionalRule (parser : ParserT Event State α) : ParserT Event State (Option α) :=

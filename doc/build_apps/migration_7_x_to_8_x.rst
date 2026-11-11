@@ -45,10 +45,12 @@ ML-DSA Service Identity
 -----------------------
 
 A service started or recovered by a node built with ML-DSA support (OpenSSL 3.5 or newer, the Azure Linux 4 builds of 8.x) gets an ML-DSA service identity in addition to its classical one: an ML-DSA service certificate, stored as ``pq_cert`` in ``public:ccf.gov.service.info`` and returned by :http:GET:`/node/network`, with the parameter set chosen by ``command.start.service_mldsa_parameter_set`` or ``command.recover.service_mldsa_parameter_set`` (default ``ML-DSA-65``).
+Its public key is published in the same transaction as the ``PQ`` entry of :ref:`audit/builtin_maps:``service.signing_identities```.
 Nodes that join a service never create one.
 
 - A live code upgrade does not create it. Joining nodes only receive the identity the service already has, so a 7.x service upgraded to 8.x nodes keeps its classical identity only.
 - Starting a new service or recovering an existing one on such a node always creates it. Recovery of a classical-only ledger is the way to give an existing service an ML-DSA identity.
+- 7.x runs on Azure Linux 3 with OpenSSL 3.3 and never creates an ML-DSA identity; Azure Linux 4 with OpenSSL 3.5 is 8.x only, and running 7.x on OpenSSL 3.5 is unsupported.
 - Once a service has an ML-DSA identity, every node must be able to hold it.
   Join requests from nodes built without ML-DSA support, including all 7.x nodes, are rejected with ``400 Bad Request`` before the node is recorded, and an 8.x node built without ML-DSA support aborts the recovery of a ledger whose service has one at the end of the public ledger.
   Rolling such a service back to 7.x nodes is therefore impossible by joining and unsupported by disaster recovery: 7.x nodes recover the ledger, and the recovered service silently loses its ML-DSA identity.
