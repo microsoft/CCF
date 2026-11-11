@@ -1064,13 +1064,20 @@ namespace ccf
         return;
       }
 
-      network.identity =
+      // Import the service keys before updating any node state, so a
+      // response with an unreadable key leaves the join retryable.
+      auto identity =
         std::make_unique<ccf::NetworkIdentity>(resp.network_info->identity);
+      auto service_kp = identity->get_key_pair();
+      auto pq_service_kp = identity->get_pq_key_pair();
+
+      network.identity = std::move(identity);
       network.ledger_secrets->init_from_map(
         std::move(resp.network_info->ledger_secrets));
 
       history->set_service_signing_identity(
-        network.identity->get_key_pair(),
+        service_kp,
+        pq_service_kp,
         resp.network_info->cose_signatures_config.value_or(
           ccf::COSESignaturesConfig{}));
 
@@ -1739,6 +1746,7 @@ namespace ccf
 
           history->set_service_signing_identity(
             network.identity->get_key_pair(),
+            network.identity->get_pq_key_pair(),
             config.command.start.cose_signatures);
 
           setup_consensus(false);
@@ -2368,7 +2376,9 @@ namespace ccf
       InternalTablesAccess::check_service_identity_supported(tx);
 
       history->set_service_signing_identity(
-        network.identity->get_key_pair(), cs_cfg);
+        network.identity->get_key_pair(),
+        network.identity->get_pq_key_pair(),
+        cs_cfg);
 
       auto* h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h != nullptr)
