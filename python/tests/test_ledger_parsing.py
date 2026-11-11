@@ -769,9 +769,7 @@ def test_open_chunk_replaced_by_committed_chunk(tmp_path, committed_first: bool)
 
 
 @pytest.mark.parametrize("committed_first", [True, False])
-def test_conflicting_committed_chunk_ranges_rejected(
-    tmp_path, committed_first: bool
-):
+def test_conflicting_committed_chunk_ranges_rejected(tmp_path, committed_first: bool):
     committed = tmp_path / "committed"
     conflicting = tmp_path / "conflicting"
     committed.mkdir()
@@ -823,10 +821,26 @@ def test_committed_recovery_chunk_preferred_over_open_copy(
     if not committed_first:
         paths.reverse()
 
-    ledger = ccf.ledger.Ledger(
-        paths, committed_only=False, read_recovery_files=True
-    )
+    ledger = ccf.ledger.Ledger(paths, committed_only=False, read_recovery_files=True)
     assert [chunk.filename() for chunk in ledger] == [
         str(committed / "ledger_1-5.committed.recovery"),
         str(following / "ledger_6-6.committed.recovery"),
     ]
+
+
+def test_read_ledger_does_not_modify_rules(tmp_path):
+    write_chunk(str(tmp_path), "ledger_1", [entry(1, {b"a": b"1"})])
+    rule: ccf.read_ledger.FormatRule = {
+        "key": ccf.read_ledger.fmt_raw,
+        "value": ccf.read_ledger.fmt_raw,
+    }
+    rules: ccf.read_ledger.TablesFormatRules = [("^public:test$", rule)]
+    for _ in range(2):
+        assert ccf.read_ledger.run(
+            [str(tmp_path)],
+            ccf.read_ledger.PrintMode.Contents,
+            uncommitted=True,
+            verification_level=ccf.ledger.VerificationLevel.NONE,
+            tables_format_rules=rules,
+        )
+    assert rules == [("^public:test$", rule)]

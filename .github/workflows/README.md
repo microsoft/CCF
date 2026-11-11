@@ -1,6 +1,7 @@
 Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
-All jobs run on 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
+Jobs that build or run CCF use 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
+Lightweight jobs that do not, such as the Lean package checks and trace replays, use GitHub-hosted runners.
 
 # Shared actions
 
@@ -139,8 +140,8 @@ File: `codeql-analysis.yml`
 
 Runs Lean verification for the repository, with each package checked in an isolated reusable-workflow job.
 All five packages (consensus, common, consistency, disaster-recovery, and kv) run in one matrix.
-Package checks use the `gha-vmss-d16av7-ci` pool and trace replays use `gha-vmss-d16av7-ci-b`, both in Ubuntu 26.04 containers.
-Native trace captures remain on `gha-vmss-d16av7-ci-c` with Azure Linux containers, and the lightweight final gate uses GitHub-hosted Ubuntu.
+Package checks and trace replays run directly on GitHub-hosted Ubuntu 26.04 runners, as does the lightweight final gate.
+Native trace captures build CCF, so they remain on `gha-vmss-d16av7-ci-c` with Azure Linux containers.
 Each matrix job caches its third-party dependency checkouts and build outputs, leanfmt and (for disaster-recovery and kv) Batteries, using GitHub Actions caching.
 Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
 CCF package and common build outputs are not cached, and all verification steps still run.
@@ -186,7 +187,7 @@ File: `lean.yml`
 
 Proves that the local replacements for Mathlib definitions in `lean/common` (`CCF.Seq`, `CCF.Finset` and `CCF.Function`) and the consensus successor ranking are equivalent to the Mathlib definitions they replaced.
 The proofs live in the separate `lean/mathlib-equivalence` package, which is the only Lean package that depends on Mathlib; the main Lean workflow does not schedule it.
-The job restores Mathlib's upstream build cache, runs `lake check --inadvisably-no-sandbox` to build the proofs and replay them through the kernel with only the standard axioms, and checks the package's formatting.
+The job runs on a GitHub-hosted Ubuntu 26.04 runner, restores Mathlib's upstream build cache, runs `lake check --inadvisably-no-sandbox` to build the proofs and replay them through the kernel with only the standard axioms, and checks the package's formatting.
 It caches third-party dependency checkouts and build outputs like the main Lean package jobs.
 The workflow runs only on pull requests that change the replacement definitions, the equivalence package, the Lean toolchain, the formatter script, or the workflow, and can be run manually.
 
