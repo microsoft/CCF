@@ -5,6 +5,7 @@ import base64
 import http
 import json
 
+import cbor2
 import ccf.ledger
 import ccf.read_ledger
 import ccf.signatures
@@ -18,6 +19,7 @@ from ccf.cose import cert_fingerprint
 from ccf.tx_id import TxID
 from infra.proposal import ProposalState
 from loguru import logger as LOG
+from pyasn1.codec.der.decoder import decode as decode_der
 
 
 def check_operations(ledger, operations, expect_detached_proposals=True):
@@ -248,6 +250,54 @@ def test_tables_doc(network, args):
     return network
 
 
+@reqs.description("Check service signing identities are published with certificates")
+def test_service_signing_identities(network, args):
+    # COSE_Key labels (RFC 9052) and the AKP public key parameter (RFC 9964)
+    KTY, ALG, PUB = 1, 3, -1
+    KTY_EC2, KTY_AKP = 2, 7
+    public_key_sizes = {-48: 1312, -49: 1952, -50: 2592}
+    algorithm_oids = {
+        -48: "2.16.840.1.101.3.4.3.17",
+        -49: "2.16.840.1.101.3.4.3.18",
+        -50: "2.16.840.1.101.3.4.3.19",
+    }
+
+    def cose_key(identity):
+        assert identity["kind"] == "COSE_KEY", identity
+        return cbor2.loads(base64.b64decode(identity["value"], validate=True))
+
+    primary, _ = network.find_primary()
+    target_seqno = network.create_and_wait_for_ledger_chunk(primary)
+    public_state, _ = primary.get_public_state_from_api(target_seqno)
+    service_info = json.loads(public_state["public:ccf.gov.service.info"][bytes(8)])
+    identities = public_state["public:ccf.gov.service.signing_identities"]
+    classical_key = cose_key(json.loads(identities[bytes(8)]))
+    assert classical_key[KTY] == KTY_EC2, classical_key
+
+    pq_entry = identities.get((1).to_bytes(8, "little"))
+    pq_cert = service_info.get("pq_cert")
+    assert (pq_entry is not None) == (pq_cert is not None)
+    if pq_entry is not None:
+        key = cose_key(json.loads(pq_entry))
+        assert set(key) == {KTY, ALG, PUB}, key
+        assert key[KTY] == KTY_AKP, key
+        assert key[ALG] in public_key_sizes, key
+        assert isinstance(key[PUB], bytes), key
+        assert len(key[PUB]) == public_key_sizes[key[ALG]], key
+        assert pq_cert == network.get_pq_service_certificate()
+        cert, trailing = decode_der(infra.crypto.cert_pem_to_der(pq_cert))
+        assert not trailing
+        # CCF issues v3 certificates; SPKI is the seventh TBSCertificate field.
+        tbs_cert = cert[0]
+        assert int(tbs_cert[0]) == 2
+        spki = tbs_cert[6]
+        spki_algorithm_oid = str(spki[0][0])
+        spki_public_key = spki[1].asOctets()
+        assert spki_algorithm_oid == algorithm_oids[key[ALG]], spki
+        assert key[PUB] == spki_public_key
+    return network
+
+
 @reqs.description("Test that all nodes' API-readable ledger chunks can be read")
 def test_ledger_is_readable(network, args):
     primary, backups = network.find_nodes()
@@ -367,3 +417,4 @@ def run(args):
         test_ledger_is_readable(network, args)
         test_read_ledger_utility(network, args)
         test_tables_doc(network, args)
+        test_service_signing_identities(network, args)

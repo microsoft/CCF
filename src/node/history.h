@@ -646,8 +646,20 @@ namespace ccf
         cose_sig.has_value() && cose_sig_version.has_value() &&
         cose_sig_version.value() == version)
       {
-        const auto service_signing_identity =
-          ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL);
+        std::optional<ccf::Identity> service_signing_identity;
+        try
+        {
+          service_signing_identity =
+            ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "Cannot determine the service signing identity to verify the "
+            "signature: {}",
+            e.what());
+          return false;
+        }
         if (!service_signing_identity.has_value())
         {
           LOG_FAIL_FMT(
