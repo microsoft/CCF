@@ -2,7 +2,8 @@ Formal Verification and Trace Validation
 ========================================
 
 CCF's formal models are written in `Lean <https://lean-lang.org/>`__ and live under :ccf_repo:`lean/ <lean>`.
-Apart from the shared ``common`` package, each package contains an executable model of part of CCF, safety properties stated as theorems about that model, machine-checked proofs of those properties, and a replayer that checks traces recorded from the C++ implementation against the model.
+Apart from the shared ``common`` package, each package contains an executable model of part of CCF, safety properties stated as theorems about that model, and machine-checked proofs of those properties.
+Each of them except ``tls`` also contains a replayer that checks traces recorded from the C++ implementation against the model.
 
 The models and the implementation are connected in two different ways, which provide different guarantees:
 
@@ -18,7 +19,8 @@ The models and the implementation are connected in two different ways, which pro
 
    A theorem about a model is not a theorem about the C++ implementation.
    Trace validation checks only the executions that were recorded, and relies on the instrumentation recording them completely and accurately.
-   None of the models cover liveness.
+   None of the models prove liveness over infinite executions.
+   The ``tls`` model proves only that progress is enabled and that its worker passes terminate.
 
 Lean packages
 -------------
@@ -52,6 +54,12 @@ Lean packages
        Proved properties include serializability of normal observations and preservation of the committed prefix across rollback.
        See :doc:`/build_apps/kv/semantics` for the full contract and its proof and trust boundaries.
      - ``kv-replay`` replays traces recorded by the instrumented C++ KV unit tests, including a seeded concurrent fuzzer.
+   * - :ccf_repo:`tls <lean/tls/README.md>`
+     - One connection of the :doc:`TLS connection engine </architecture/tls_internals>` (:ccf_repo:`src/tls/openssl_connection_engine.h`) with the opt-in traffic-key policy and queued output bound, against a modelled OpenSSL and kernel socket.
+       Proved properties include that no key protects more records than its budget, that the engine performs no operation the modelled OpenSSL forbids, that per-connection buffers are bounded, that two engines deliver in order, and, under stated kernel assumptions, that two open engines have an enabled pass while data is in transit to an end which admits input.
+       Records and worker passes are atomic, and the handshake and graceful close are not modelled.
+     - None.
+       Nothing checks the C++ engine against this model.
 
 The README of each package lists the precise theorem statements, the scope of the model, and what a successful replay does and does not show.
 

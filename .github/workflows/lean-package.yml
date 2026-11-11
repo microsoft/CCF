@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$PACKAGE" in
-            consensus|common|consistency|disaster-recovery|kv) ;;
+            consensus|common|consistency|disaster-recovery|kv|tls) ;;
             *)
               echo "::error::Unsupported Lean package: $PACKAGE"
               exit 1

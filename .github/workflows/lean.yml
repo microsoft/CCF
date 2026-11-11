@@ -14,6 +14,7 @@ on:
       - "include/ccf/kv/**"
       - "include/ccf/tx.h"
       - "tests/kv_trace_validation*.py"
+      - "src/tls/**"
       - "tests/consistency_trace_validation.py"
       - "tests/tvc.py"
       - "samples/apps/basic_tv/**"
@@ -206,7 +207,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [consensus, common, consistency, disaster-recovery, kv]
+        package: [consensus, common, consistency, disaster-recovery, kv, tls]
     uses: ./.github/workflows/lean-package.yml
     with:
       package: ${{ matrix.package }}
@@ -318,7 +319,7 @@ jobs:
           python3 - <<'PY'
           import pathlib
 
-          expected = {"consensus", "common", "consistency", "disaster-recovery", "kv"}
+          expected = {"consensus", "common", "consistency", "disaster-recovery", "kv", "tls"}
           # Checked by lean-mathlib-equivalence.yml.
           separate = {"mathlib-equivalence"}
           actual = {config.parent.name for config in pathlib.Path("lean").glob("*/lakefile.toml")} - separate

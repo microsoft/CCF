@@ -23,10 +23,10 @@ if ! command -v lake >/dev/null 2>&1; then
   exit 1
 fi
 
-declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [consensus]=Consensus [consistency]=consistency [kv]=Kv [mathlib-equivalence]=MathlibEquivalence)
+declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [consensus]=Consensus [consistency]=consistency [kv]=Kv [tls]=Tls [mathlib-equivalence]=MathlibEquivalence)
 PACKAGES=("$@")
 if [ ${#PACKAGES[@]} -eq 0 ]; then
-  PACKAGES=(disaster-recovery consensus consistency kv)
+  PACKAGES=(disaster-recovery consensus consistency kv tls)
 fi
 
 for package in "${PACKAGES[@]}"; do
@@ -37,7 +37,7 @@ for package in "${PACKAGES[@]}"; do
   fi
   # The disaster recovery package also checks Lean files outside lean/.
   if [ "$package" == "disaster-recovery" ]; then
-    PATHSPEC=("*.lean" ":(exclude)lean/consensus/*" ":(exclude)lean/consistency/*" ":(exclude)lean/kv/*" ":(exclude)lean/mathlib-equivalence/*")
+    PATHSPEC=("*.lean" ":(exclude)lean/consensus/*" ":(exclude)lean/consistency/*" ":(exclude)lean/kv/*" ":(exclude)lean/tls/*" ":(exclude)lean/mathlib-equivalence/*")
   else
     PATHSPEC=("lean/$package/*.lean")
   fi
