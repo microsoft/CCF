@@ -766,3 +766,67 @@ def test_open_chunk_replaced_by_committed_chunk(tmp_path, committed_first: bool)
     assert [chunk.filename() for chunk in ledger] == [
         str(committed / "ledger_1-1.committed")
     ]
+
+
+@pytest.mark.parametrize("committed_first", [True, False])
+def test_conflicting_committed_chunk_ranges_rejected(
+    tmp_path, committed_first: bool
+):
+    committed = tmp_path / "committed"
+    conflicting = tmp_path / "conflicting"
+    committed.mkdir()
+    conflicting.mkdir()
+    write_complete_chunk(
+        str(committed),
+        "ledger_1-5.committed",
+        [entry(seqno, {b"a": b"1"}) for seqno in range(1, 6)],
+    )
+    write_complete_chunk(
+        str(conflicting),
+        "ledger_1-10.committed",
+        [entry(seqno, {b"a": b"1"}) for seqno in range(1, 11)],
+    )
+    paths = [str(committed), str(conflicting)]
+    if not committed_first:
+        paths.reverse()
+
+    with pytest.raises(ValueError, match="Conflicting ledger chunk ranges"):
+        ccf.ledger.Ledger(paths)
+
+
+@pytest.mark.parametrize("committed_first", [True, False])
+def test_committed_recovery_chunk_preferred_over_open_copy(
+    tmp_path, committed_first: bool
+):
+    committed = tmp_path / "committed"
+    open_copy = tmp_path / "open"
+    following = tmp_path / "following"
+    committed.mkdir()
+    open_copy.mkdir()
+    following.mkdir()
+    write_complete_chunk(
+        str(committed),
+        "ledger_1-5.committed.recovery",
+        [entry(seqno, {b"a": b"1"}) for seqno in range(1, 6)],
+    )
+    write_chunk(
+        str(open_copy),
+        "ledger_1.recovery",
+        [entry(seqno, {b"a": b"1"}) for seqno in range(1, 6)],
+    )
+    write_complete_chunk(
+        str(following),
+        "ledger_6-6.committed.recovery",
+        [entry(6, {b"a": b"1"})],
+    )
+    paths = [str(committed), str(open_copy), str(following)]
+    if not committed_first:
+        paths.reverse()
+
+    ledger = ccf.ledger.Ledger(
+        paths, committed_only=False, read_recovery_files=True
+    )
+    assert [chunk.filename() for chunk in ledger] == [
+        str(committed / "ledger_1-5.committed.recovery"),
+        str(following / "ledger_6-6.committed.recovery"),
+    ]

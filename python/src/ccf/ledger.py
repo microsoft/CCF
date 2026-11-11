@@ -1364,13 +1364,15 @@ class Ledger:
         # Chunk start sequence number to its preferred path
         ledger_files: dict[int, str] = {}
 
-        def chunk_rank(path: str) -> int:
-            """Prefer committed copies of a chunk, then complete ones."""
-            if path.endswith(COMMITTED_FILE_SUFFIX):
+        def chunk_rank(path: str, sanitised_path: str) -> int:
+            """Prefer committed copies, then non-recovery copies."""
+            if sanitised_path.endswith(COMMITTED_FILE_SUFFIX):
                 return 2
             if not path.endswith(RECOVERY_FILE_SUFFIX):
                 return 1
             return 0
+
+        known_chunk_ends: dict[int, tuple[int, str]] = {}
 
         def try_add_chunk(path: str) -> None:
             sanitised_path = path
@@ -1396,9 +1398,21 @@ class Ledger:
             # of each chunk, regardless of the order of paths
             if not os.path.isfile(path):
                 return
-            chunk_start, _ = range_from_filename(sanitised_path)
+            chunk_start, chunk_end = range_from_filename(sanitised_path)
+            if chunk_end is not None:
+                existing_range = known_chunk_ends.get(chunk_start)
+                if existing_range is not None and existing_range[0] != chunk_end:
+                    raise ValueError(
+                        f"Conflicting ledger chunk ranges for start sequence number {chunk_start}: "
+                        f"{existing_range[1]} ends at {existing_range[0]}, "
+                        f"but {path} ends at {chunk_end}"
+                    )
+                known_chunk_ends[chunk_start] = (chunk_end, path)
+
             existing = ledger_files.get(chunk_start)
-            if existing is None or chunk_rank(path) > chunk_rank(existing):
+            if existing is None or chunk_rank(path, sanitised_path) > chunk_rank(
+                existing, existing.removesuffix(RECOVERY_FILE_SUFFIX)
+            ):
                 ledger_files[chunk_start] = path
 
         for p in paths:
