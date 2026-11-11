@@ -31,6 +31,7 @@ import infra.node
 import infra.openapi
 import infra.path
 import infra.proc
+import infra.remote
 from infra.clients import CCFConnectionException, CCFIOException, flush_info
 from infra.consortium import slurp_file
 from infra.node import CCFVersion
@@ -570,6 +571,27 @@ class Network:
         primary, _ = self.find_primary(
             timeout=args.ledger_recovery_timeout if recovery else 10
         )
+        pq_cert = self.get_pq_service_certificate(primary)
+        for node in self.nodes:
+            # Each node's output file resolves within its own root directory
+            assert not os.path.isabs(
+                node.remote.pq_service_cert_file
+            ), node.remote.pq_service_cert_file
+            if (
+                node.remote.start_type
+                in {infra.remote.StartType.start, infra.remote.StartType.recover}
+                and pq_cert is not None
+            ):
+                node.remote.get_pq_service_certificate_file(self.common_dir)
+                with open(self.pq_cert_path, encoding="utf-8") as f:
+                    assert f.read() == pq_cert, "Startup ML-DSA certificate mismatch"
+            else:
+                pq_cert_path = os.path.join(
+                    node.remote.remote.root, node.remote.pq_service_cert_file
+                )
+                assert not os.path.exists(
+                    pq_cert_path
+                ), f"Unexpected ML-DSA certificate output: {pq_cert_path}"
         return primary
 
     def _setup_common_folder(self, constitution):
@@ -2450,6 +2472,13 @@ class Network:
         return os.path.join(self.common_dir, "service_cert.pem")
 
     @functools.cached_property
+    def pq_cert_path(self):
+        return os.path.join(
+            self.common_dir,
+            os.path.basename(self.nodes[0].remote.pq_service_cert_file),
+        )
+
+    @functools.cached_property
     def cert(self):
         with open(self.cert_path, encoding="utf-8") as c:
             service_cert = load_pem_x509_certificate(
@@ -2539,9 +2568,9 @@ class Network:
             current_ident = r.body.json()["service_certificate"]
         return current_ident
 
-    def get_pq_service_certificate(self):
+    def get_pq_service_certificate(self, node=None):
         # None when the service has no ML-DSA identity
-        n = self.find_random_node()
+        n = node if node is not None else self.find_random_node()
         with n.client() as c:
             r = c.get("/node/network")
             assert r.status_code == 200, r

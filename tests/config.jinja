@@ -25,6 +25,9 @@
   "command": {
     "type": "{{ start_type }}",
     "service_certificate_file": "{{ service_cert_file }}",
+    {% if pq_service_cert_file is defined %}
+    "pq_service_certificate_file": {{ pq_service_cert_file|tojson }},
+    {% endif %}
     "start":
     {
       "members": {{ members_info|tojson }},

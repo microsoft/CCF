@@ -373,6 +373,11 @@ def measure(
         raise ValueError("CCF_BENCHMARK_FLUENTD must be 0 or 1")
     if args.observability is not None:
         raise ValueError("Benchmark collector cannot override --observability")
+    if args.log_level in ("fail", "fatal"):
+        raise ValueError(
+            "Benchmark requires --log-level info, debug or trace to read "
+            "the Fluentd exporter shutdown summary"
+        )
 
     with infra.fluentd.Collector(len(args.nodes)) as collector:
         args = copy.deepcopy(args)
