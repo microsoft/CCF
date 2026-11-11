@@ -126,9 +126,11 @@ def sslWrite (config : Config) (env : Env) (payload : Payload) (ssl : Ssl)
 KeyUpdate is queued: meeting a post-handshake message would then start the queued KeyUpdate
 inside the pending write, which OpenSSL fails fatally.
 
-An unflushed KeyUpdate goes first, and a queued one is sent before another post-handshake
-message is processed. A record beyond the receive budget fails without yielding plaintext.
-The record which OpenSSL holds while it sends a response is left at the head of the input.
+An unflushed KeyUpdate goes first. A record is counted when it is decrypted, and a record
+beyond the receive budget fails without yielding plaintext. A queued KeyUpdate is sent before
+another post-handshake message is processed, and `SSL_read` returns once it is sent: the
+record which carried that message is held, counted, at the head of the input until the next
+`SSL_read` processes it.
 -/
 def sslRead (config : Config) (env : Env) (ssl : Ssl) (socket : Socket)
     : ReadResult × Ssl × Socket :=
@@ -142,7 +144,7 @@ def sslRead (config : Config) (env : Env) (ssl : Ssl) (socket : Socket)
     match ssl.input with
     | [] => (if env.peerClosed then .failed else .wantRead false, ssl, socket)
     | record :: rest =>
-        let received := ssl.received + 1
+        let received := if ssl.held then ssl.received else ssl.received + 1
         if config.recordBudget < received then
           (.failed, { ssl with received }, socket)
         else
@@ -154,17 +156,29 @@ def sslRead (config : Config) (env : Env) (ssl : Ssl) (socket : Socket)
                 socket
               )
           | .keyUpdate requested =>
-              if ssl.updateQueued ∧ ssl.pending.isApp then
-                (.failed, ssl, socket)
-              else
-                let (ssl, socket) := flushUpdate config ssl.startUpdate socket
-                if ssl.pending = .update then
-                  (.wantWrite, ssl, socket)
+              if ssl.updateQueued then
+                if ssl.pending.isApp then
+                  (.failed, ssl, socket)
                 else
+                  let (ssl, socket) :=
+                    flushUpdate config { ssl.startUpdate with received, held := true }
+                      socket
                   (
-                    .wantRead true,
-                    { ssl with input := rest, received := 0, updateQueued := requested },
+                    if ssl.pending = .update then .wantWrite else .wantRead true,
+                    ssl,
                     socket
                   )
+              else
+                (
+                  .wantRead true,
+                  {
+                    ssl with
+                      input := rest
+                      received := 0
+                      held := false
+                      updateQueued := requested
+                  },
+                  socket
+                )
 
 end Tls.Model

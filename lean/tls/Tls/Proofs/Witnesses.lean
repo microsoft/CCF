@@ -5,6 +5,7 @@ module
 
 public import Tls.Proofs.Execution
 public import Tls.Properties.Progress
+public import Tls.Properties.Stages
 public import Tls.Properties.Streams
 
 @[expose] public section
@@ -317,6 +318,61 @@ theorem quiescent_delivered_witness
     by decide +kernel,
     by decide +kernel,
     fun actor => by cases actor <;> decide +kernel,
+    by decide +kernel
+  ⟩
+
+/-- Nothing is saturated, and the peer is open. -/
+def open_ : Env :=
+  { saturated := false, peerClosed := false }
+
+/-- A fresh connection whose owner has sent one record. -/
+def oneQueued : Io :=
+  { conn := { output := [1], queued := 1, dirty := true }, socket := {} }
+
+theorem atomic_pass_interleaved_witness
+    : ∃ (config : Config) (env : Env) (io next : Io), pass config env io = some next := by
+  have enabled : (pass tight open_ oneQueued).isSome = true := by decide +kernel
+  obtain ⟨next, passed⟩ := Option.isSome_iff_exists.mp enabled
+  exact ⟨tight, open_, oneQueued, next, passed⟩
+
+/-- A socket on which the peer has sent one application record. -/
+def oneArrived : Socket :=
+  { inbound := [.app 7] }
+
+/-- A connection which has read that record in a pass. -/
+def afterOneRead : Conn :=
+  (interleavedPass tight (.atomic tight open_) true
+    { conn := .initial, socket := oneArrived }).conn
+
+theorem replayed_connections_safe_witness
+    : ∃ (config : Config) (conn : Conn),
+        config.Engine ∧ Replayable config conn ∧ conn.ssl.received = 1 :=
+  ⟨
+    tight,
+    afterOneRead,
+    tight_engine,
+    .pass (.atomic tight open_) true oneArrived .initial rfl,
+    by decide +kernel
+  ⟩
+
+theorem replayed_plaintext_within_budget_witness
+    : ∃ (config : Config) (conn : Conn) (interleaving : Interleaving) (readable : Bool)
+        (socket : Socket) (delivery : Delivery),
+        config.Engine
+        ∧ Replayable config conn
+        ∧ conn.alive = true
+        ∧ delivery
+          ∈ (interleavedPass config interleaving readable { conn, socket }).delivered :=
+  ⟨
+    tight,
+    .initial,
+    .atomic tight open_,
+    true,
+    oneArrived,
+    { payload := 7, keyRecord := 1 },
+    tight_engine,
+    .initial,
+    rfl,
     by decide +kernel
   ⟩
 

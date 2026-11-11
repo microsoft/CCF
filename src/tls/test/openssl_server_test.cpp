@@ -4225,6 +4225,68 @@ TEST_CASE("Inbound budget is released when a connection closes unreported")
   loop.thread.join();
 }
 
+#ifdef CCF_TLS_TRACING
+namespace
+{
+  // Starts and ends trace capture with the test run, and labels each test
+  // case in the trace so that a replay failure can be attributed to one.
+  class TLSTraceListener : public doctest::IReporter
+  {
+    static void label(const char* type, const char* name)
+    {
+      ccf::tls::trace::event(
+        type, ",\"name\":" + ccf::tls::trace::quoted(name));
+    }
+
+  public:
+    explicit TLSTraceListener(const doctest::ContextOptions& /*options*/) {}
+
+    void report_query(const doctest::QueryData& /*data*/) override {}
+
+    void test_run_start() override
+    {
+      ccf::tls::trace::start();
+    }
+
+    void test_run_end(const doctest::TestRunStats& /*stats*/) override
+    {
+      ccf::tls::trace::finish();
+    }
+
+    void test_case_start(const doctest::TestCaseData& data) override
+    {
+      label("case", data.m_name);
+    }
+
+    void test_case_reenter(const doctest::TestCaseData& data) override
+    {
+      label("case", data.m_name);
+    }
+
+    void test_case_end(const doctest::CurrentTestCaseStats& /*stats*/) override
+    {}
+
+    void test_case_exception(const doctest::TestCaseException& /*e*/) override
+    {}
+
+    void subcase_start(const doctest::SubcaseSignature& signature) override
+    {
+      label("subcase", signature.m_name.c_str());
+    }
+
+    void subcase_end() override {}
+
+    void log_assert(const doctest::AssertData& /*data*/) override {}
+
+    void log_message(const doctest::MessageData& /*data*/) override {}
+
+    void test_case_skipped(const doctest::TestCaseData& /*data*/) override {}
+  };
+
+  DOCTEST_REGISTER_LISTENER("tls_trace", 1, TLSTraceListener);
+}
+#endif
+
 int main(int argc, char** argv)
 {
   ccf::tasks::set_task_threads(4);

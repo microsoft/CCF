@@ -14,8 +14,12 @@ public import Tls.Proofs.Pair
 public import Tls.Proofs.Pass
 public import Tls.Proofs.Quiet
 public import Tls.Proofs.Settled
+public import Tls.Proofs.Stages
 public import Tls.Proofs.Witnesses
 public import Tls.Properties
 public import Tls.Properties.Progress
+public import Tls.Properties.Stages
 public import Tls.Properties.Streams
 public import Tls.Tests.Scenarios
+public import Tls.TraceValidation
+public import Tls.TraceValidation.Records

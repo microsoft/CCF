@@ -5,6 +5,7 @@ module
 
 public import Tls.Proofs.Node
 public import Tls.Proofs.Pair
+public import Tls.Proofs.Stages
 
 @[expose] public section
 
@@ -177,5 +178,43 @@ theorem quiescent_delivered (config : Config) (start final : Pair.State)
       rightAlive
       admitting
       stuck
+
+theorem atomic_pass_interleaved (config : Config) (env : Env) (io next : Io)
+    (passed : pass config env io = some next)
+    : next = interleavedPass config (.atomic config env) (readableEvent env io) io :=
+  pass_interleaved config env io next passed
+
+theorem replayed_connections_safe (config : Config) (conn : Conn) (engine : config.Engine)
+    (reached : Replayable config conn)
+    : conn.ssl.sent ≤ config.recordBudget
+      ∧ (conn.alive = true → conn.ssl.received ≤ config.recordBudget)
+      ∧ conn.ssl.misused = false
+      ∧ conn.ssl.input.length ≤ config.inputBuffer
+      ∧ ∀ bound, config.maxQueuedOutput = some bound → conn.output.length ≤ bound :=
+  have coherent := replayable_coherent config engine conn reached
+  ⟨
+    coherent.sent,
+    coherent.received,
+    coherent.notMisused,
+    coherent.input,
+    fun bound configured => Nat.le_trans coherent.queued (coherent.bound bound configured)
+  ⟩
+
+theorem replayed_plaintext_within_budget (config : Config) (conn : Conn)
+    (interleaving : Interleaving) (readable : Bool) (socket : Socket)
+    (engine : config.Engine) (reached : Replayable config conn)
+    (alive : conn.alive = true)
+    : ∀ delivery ∈
+        (interleavedPass config interleaving readable { conn, socket }).delivered,
+        delivery.keyRecord ≤ config.recordBudget :=
+  (interleavedPass_local
+    config
+    interleaving
+    readable
+    { conn, socket }
+    engine
+    (replayable_coherent config engine conn reached)
+    alive
+    (fun _ absent => by simp at absent)).2
 
 end Tls.Proofs.Claims

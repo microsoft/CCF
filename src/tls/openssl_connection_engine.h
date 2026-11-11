@@ -147,6 +147,9 @@ namespace ccf::tls
       std::shared_ptr<SSL_CTX> tls_context;
       SSL* ssl = nullptr;
       std::optional<TrafficKeys> traffic_keys;
+#ifdef CCF_TLS_TRACING
+      trace::Pass trace_pass;
+#endif
       size_t write_retry_length = 0;
       // Output written since the last completed pass.
       size_t written = 0;
@@ -522,6 +525,7 @@ namespace ccf::tls
             "Connection {}: rejected after TLS handshake", connection.id);
           return false;
         }
+        TLS_TRACE(trace_pass_begin(connection, true, true));
         return do_read(connection, more_to_read) && do_write(connection);
       }
 
@@ -690,6 +694,7 @@ namespace ccf::tls
         ERR_clear_error();
         if (SSL_key_update(connection.ssl, SSL_KEY_UPDATE_NOT_REQUESTED) != 1)
         {
+          TLS_TRACE(trace_note(connection, 'u', 0));
           LOG_DEBUG_FMT(
             "Connection {}: scheduling KeyUpdate failed: {}",
             connection.id,
@@ -740,6 +745,7 @@ namespace ccf::tls
         {
           pending_retries = 0;
           total_read += static_cast<size_t>(n);
+          TLS_TRACE(trace_note(connection, 'd', static_cast<size_t>(n)));
           if (on_data)
           {
             on_data(
@@ -798,6 +804,7 @@ namespace ccf::tls
         }
         // SSL_ERROR_ZERO_RETURN (clean close), an unclean EOF from the peer
         // (no close_notify), or a fatal error - in all cases close.
+        TLS_TRACE(trace_failure(connection, 'e', e));
         LOG_DEBUG_FMT(
           "Connection {}: read failed: {}", connection.id, ssl_error_string(e));
         return false;
@@ -885,6 +892,7 @@ namespace ccf::tls
           connection.write_retry_length = 0;
           connection.out_off += static_cast<size_t>(n);
           connection.written += static_cast<size_t>(n);
+          TLS_TRACE(trace_note(connection, 's', static_cast<size_t>(n)));
           if (connection.traffic_keys && has_queued_output(connection))
           {
             // One record per pass. No write is pending, so the sent prefix
@@ -911,6 +919,7 @@ namespace ccf::tls
         }
         // Usually just the peer having gone away mid-response, so again a
         // level which a client cannot use to flood the log.
+        TLS_TRACE(trace_failure(connection, 'f', e));
         LOG_DEBUG_FMT(
           "Connection {}: write failed: {}",
           connection.id,
@@ -933,6 +942,113 @@ namespace ccf::tls
         (SSL_in_init(connection.ssl) != 0 ||
          SSL_get_key_update_type(connection.ssl) != SSL_KEY_UPDATE_NONE);
     }
+
+#ifdef CCF_TLS_TRACING
+    // One id for each engine of the process, whose connection ids overlap.
+    const uint64_t trace_engine = trace::next_engine.fetch_add(1);
+
+    // The hooks below record a pass of an established connection which has a
+    // traffic-key policy, for replay by lean/tls. They only read its state.
+    static void trace_note(Conn& connection, char operation, size_t size)
+    {
+      if (connection.traffic_keys)
+      {
+        connection.traffic_keys->trace_note(
+          std::string(1, operation) + std::to_string(size));
+      }
+    }
+
+    // A failed read ('e') or write ('f'), with the reason OpenSSL queued for
+    // a protocol error: it reports a peer which vanished as one.
+    static void trace_failure(Conn& connection, char operation, int error)
+    {
+      trace_note(connection, operation, static_cast<size_t>(error));
+      if (error == SSL_ERROR_SSL)
+      {
+        trace_note(
+          connection,
+          'x',
+          static_cast<size_t>(ERR_GET_REASON(ERR_peek_error())));
+      }
+    }
+
+    static void trace_pass_begin(Conn& connection, bool first, bool readable)
+    {
+      if (!connection.traffic_keys || connection.ssl == nullptr)
+      {
+        return;
+      }
+      auto& pass = connection.trace_pass;
+      pass.traced = true;
+      pass.first = first;
+      pass.readable = readable;
+      pass.pending_input = has_pending_input(connection);
+      pass.queued = connection.outbuf.size() - connection.out_off;
+    }
+
+    [[nodiscard]] std::string trace_identity(const Conn& connection) const
+    {
+      return fmt::format(
+        ",\"engine\":{},\"conn\":{}", trace_engine, connection.id);
+    }
+
+    void trace_pass_end(Conn& connection, bool driven_alive, bool alive) const
+    {
+      auto& pass = connection.trace_pass;
+      if (!pass.traced || !connection.traffic_keys || connection.ssl == nullptr)
+      {
+        return;
+      }
+      const auto& keys = *connection.traffic_keys;
+      std::string operations;
+      for (const auto& operation : connection.traffic_keys->trace_take())
+      {
+        operations +=
+          fmt::format("{}\"{}\"", operations.empty() ? "" : ",", operation);
+      }
+      trace::event(
+        "pass",
+        fmt::format(
+          "{},\"first\":{},\"budget\":{},\"readable\":{},"
+          "\"pending_before\":{},\"queued_before\":{},\"ops\":[{}],"
+          "\"alive\":{},\"closed\":{},\"sent\":{},\"received\":{},"
+          "\"exceeded\":{},\"in_init\":{},\"update_queued\":{},"
+          "\"retry\":{},\"want_write\":{},\"read_wants_write\":{},"
+          "\"queued\":{},\"pending\":{}",
+          trace_identity(connection),
+          pass.first,
+          keys.trace_limit(),
+          pass.readable,
+          pass.pending_input,
+          pass.queued,
+          operations,
+          driven_alive,
+          !alive,
+          keys.trace_sent(),
+          keys.trace_received(),
+          keys.failed(),
+          SSL_in_init(connection.ssl) != 0,
+          SSL_get_key_update_type(connection.ssl) != SSL_KEY_UPDATE_NONE,
+          connection.write_retry_length,
+          connection.want_write,
+          connection.read_wants_write,
+          connection.outbuf.size() - connection.out_off,
+          has_pending_input(connection)));
+      if (!alive)
+      {
+        pass.traced = false;
+      }
+    }
+
+    void trace_abort(Conn& connection) const
+    {
+      if (connection.trace_pass.traced)
+      {
+        trace::event("abort", trace_identity(connection));
+        connection.trace_pass.traced = false;
+      }
+    }
+#endif
 
     bool drive_ready(Conn& connection, int events, bool& more_to_read)
     {
@@ -959,6 +1075,7 @@ namespace ccf::tls
               BIO_buffer_peek(SSL_get_rbio(connection.ssl), &byte, 1) <= 0 &&
               !BIO_should_retry(SSL_get_rbio(connection.ssl)))
             {
+              TLS_TRACE(trace_note(connection, 'p', 0));
               LOG_DEBUG_FMT(
                 "Connection {}: ciphertext input ended during a write retry",
                 connection.id);
@@ -1025,6 +1142,7 @@ namespace ccf::tls
         input.force_close ||
         conn->establishment.load() == Conn::Establishment::Cancelled)
       {
+        TLS_TRACE(trace_abort(*conn));
         if (conn->ssl != nullptr)
         {
           ERR_clear_error();
@@ -1139,8 +1257,13 @@ namespace ccf::tls
       }
       else
       {
+        TLS_TRACE(trace_pass_begin(
+          *conn, false, (input.events & (UV_READABLE | UV_DISCONNECT)) != 0));
         alive = drive_ready(*conn, input.events, more_to_read);
       }
+#ifdef CCF_TLS_TRACING
+      const bool driven_alive = alive;
+#endif
 
       if (
         alive && conn->close_after_flush &&
@@ -1153,6 +1276,7 @@ namespace ccf::tls
         // Shutdown and idle expiry do not wait for buffered output to drain.
         alive = false;
       }
+      TLS_TRACE(trace_pass_end(*conn, driven_alive, alive));
       if (!alive && conn->ssl != nullptr)
       {
         ERR_clear_error();

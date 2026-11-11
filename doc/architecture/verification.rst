@@ -2,8 +2,7 @@ Formal Verification and Trace Validation
 ========================================
 
 CCF's formal models are written in `Lean <https://lean-lang.org/>`__ and live under :ccf_repo:`lean/ <lean>`.
-Apart from the shared ``common`` package, each package contains an executable model of part of CCF, safety properties stated as theorems about that model, and machine-checked proofs of those properties.
-Each of them except ``tls`` also contains a replayer that checks traces recorded from the C++ implementation against the model.
+Apart from the shared ``common`` package, each package contains an executable model of part of CCF, safety properties stated as theorems about that model, machine-checked proofs of those properties, and a replayer that checks traces recorded from the C++ implementation against the model.
 
 The models and the implementation are connected in two different ways, which provide different guarantees:
 
@@ -57,9 +56,9 @@ Lean packages
    * - :ccf_repo:`tls <lean/tls/README.md>`
      - One connection of the :doc:`TLS connection engine </architecture/tls_internals>` (:ccf_repo:`src/tls/openssl_connection_engine.h`) with the opt-in traffic-key policy and queued output bound, against a modelled OpenSSL and kernel socket.
        Proved properties include that no key protects more records than its budget, that the engine performs no operation the modelled OpenSSL forbids, that per-connection buffers are bounded, that two engines deliver in order, and, under stated kernel assumptions, that two open engines have an enabled pass while data is in transit to an end which admits input.
-       Records and worker passes are atomic, and the handshake and graceful close are not modelled.
-     - None.
-       Nothing checks the C++ engine against this model.
+       Records are atomic, and the handshake and graceful close are not modelled.
+     - ``tls-replay`` replays traces of worker passes recorded by the instrumented C++ engine unit tests, one connection at a time.
+       It checks the engine's reading and writing rules and the OpenSSL behaviour they rely on, and does not check when passes are scheduled, so it does not support the progress properties.
 
 The README of each package lists the precise theorem statements, the scope of the model, and what a successful replay does and does not show.
 
@@ -72,6 +71,9 @@ Each replayer consumes traces produced by existing C++ tests:
   The driver exports consensus events as Fluentd records with the ``ccf.cft`` tag, which the runner collects and writes as NDJSON traces to ``consensus/raw/`` in the build directory.
 * **KV**: building with ``-DCCF_KV_TRACING=ON`` enables test-only trace capture in ``kv_test``.
   :ccf_repo:`tests/kv_trace_validation.py` captures the purpose-built ``KV trace *`` test cases and a seeded concurrent fuzzer, then checks every trace with ``kv-replay`` unless ``--capture-only`` is passed.
+  Tracing is disabled in normal builds.
+* **TLS**: building with ``-DCCF_TLS_TRACING=ON`` enables test-only trace capture in ``openssl_server_test``, which records each worker pass over a connection with a traffic-key policy.
+  :ccf_repo:`tests/tls_trace_validation.py` runs the test several times, requires the traces to reach the states the model is about, then checks every trace with ``tls-replay`` unless ``--capture-only`` is passed.
   Tracing is disabled in normal builds.
 * **Consistency**: the ``consistency_trace_validation`` e2e test (:ccf_repo:`tests/consistency_trace_validation.py`) starts a three-node network running the :ccf_repo:`basic_tv <samples/apps/basic_tv/>` JavaScript application, and runs :ccf_repo:`tests/tvc.py` against it to record client requests, responses and transaction statuses to ``consistency/trace.ndjson``.
   The test suspends the primary to cause an election during the recording.

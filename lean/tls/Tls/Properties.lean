@@ -4,6 +4,7 @@
 module
 
 public import Tls.Properties.Progress
+public import Tls.Properties.Stages
 public import Tls.Properties.Streams
 public import CCF.Execution
 
@@ -303,5 +304,68 @@ theorem quiescent_delivered_witness
         ∧ (∀ actor, (pair config).step final (.pass actor) = none)
         ∧ acceptedAlong config .left start actions = [1, 2, 3] := by
   exact Proofs.Witnesses.quiescent_delivered_witness
+
+/-! ## Passes which are not atomic
+
+Trace validation replays the engine with `interleavedPass`, in which the peer and the kernel
+act between the stages of a pass. These theorems relate that to the model above.
+-/
+
+/-- An atomic pass is an interleaved pass in which nothing else acts. -/
+theorem atomic_pass_interleaved
+    : ∀ (config : Config) (env : Env) (io next : Io),
+        pass config env io = some next
+        → next
+          = interleavedPass config (.atomic config env) (readableEvent env io) io := by
+  exact Proofs.Claims.atomic_pass_interleaved
+
+/-- Witness: a pass is enabled. -/
+theorem atomic_pass_interleaved_witness
+    : ∃ (config : Config) (env : Env) (io next : Io), pass config env io = some next := by
+  exact Proofs.Witnesses.atomic_pass_interleaved_witness
+
+/-- The key budgets, the OpenSSL contract and the memory bounds hold of every connection
+reached by interleaved passes, against any peer and owner. -/
+theorem replayed_connections_safe
+    : ∀ (config : Config) (conn : Conn),
+        config.Engine
+        → Replayable config conn
+        → conn.ssl.sent ≤ config.recordBudget
+          ∧ (conn.alive = true → conn.ssl.received ≤ config.recordBudget)
+          ∧ conn.ssl.misused = false
+          ∧ conn.ssl.input.length ≤ config.inputBuffer
+          ∧ ∀ bound,
+              config.maxQueuedOutput = some bound → conn.output.length ≤ bound := by
+  exact Proofs.Claims.replayed_connections_safe
+
+/-- Witness: an interleaved pass reaches a connection which has read a record. -/
+theorem replayed_connections_safe_witness
+    : ∃ (config : Config) (conn : Conn),
+        config.Engine ∧ Replayable config conn ∧ conn.ssl.received = 1 := by
+  exact Proofs.Witnesses.replayed_connections_safe_witness
+
+/-- No interleaved pass delivers plaintext from a record beyond the receive budget. -/
+theorem replayed_plaintext_within_budget
+    : ∀ (config : Config) (conn : Conn) (interleaving : Interleaving) (readable : Bool)
+        (socket : Socket),
+        config.Engine
+        → Replayable config conn
+        → conn.alive = true
+        → ∀ delivery ∈
+            (interleavedPass config interleaving readable { conn, socket }).delivered,
+            delivery.keyRecord ≤ config.recordBudget := by
+  exact Proofs.Claims.replayed_plaintext_within_budget
+
+/-- Witness: an interleaved pass delivers plaintext. -/
+theorem replayed_plaintext_within_budget_witness
+    : ∃ (config : Config) (conn : Conn) (interleaving : Interleaving) (readable : Bool)
+        (socket : Socket) (delivery : Delivery),
+        config.Engine
+        ∧ Replayable config conn
+        ∧ conn.alive = true
+        ∧ delivery
+          ∈ (interleavedPass config interleaving readable
+              { conn, socket }).delivered := by
+  exact Proofs.Witnesses.replayed_plaintext_within_budget_witness
 
 end Tls.Properties

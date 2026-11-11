@@ -15,6 +15,7 @@ on:
       - "include/ccf/tx.h"
       - "tests/kv_trace_validation*.py"
       - "src/tls/**"
+      - "tests/tls_trace_validation.py"
       - "tests/consistency_trace_validation.py"
       - "tests/tvc.py"
       - "samples/apps/basic_tv/**"
@@ -149,6 +150,71 @@ jobs:
           retention-days: 1
           overwrite: true
 
+  tls_traces:
+    name: TLS trace captures
+    runs-on: [gha-vmss-d16av7-ci-c]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout dependencies
+        run: |
+          set -euo pipefail
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        uses: ./.github/actions/install-ci-dependencies
+        with:
+          cache-python-packages: "false"
+
+      - name: Build instrumented TLS unit tests
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          cmake -S . -B "$RUNNER_TEMP/ccf-tls-build" -GNinja \
+            -DCMAKE_BUILD_TYPE=Debug -DCCF_TLS_TRACING=ON
+          cmake --build "$RUNNER_TEMP/ccf-tls-build" --target openssl_server_test --parallel "$(( ($(nproc) + 1) >> 1 ))"
+
+      - name: Generate TLS captures
+        run: |
+          set -euo pipefail
+          # RUNNER_TEMP can persist between jobs on reused self-hosted runners; drop files from earlier runs.
+          rm -rf "$RUNNER_TEMP/ccf-tls-build/tls-traces"
+          python3 tests/tls_trace_validation.py \
+            --binary "$RUNNER_TEMP/ccf-tls-build/openssl_server_test" --capture-only \
+            --output "$RUNNER_TEMP/ccf-tls-build/tls-traces" --runs 5 --timeout 900
+
+      - name: Upload TLS traces
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tls-traces
+          path: ${{ runner.temp }}/ccf-tls-build/tls-traces/*/trace.ndjson
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+      - name: Upload TLS diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tls-trace-diagnostics
+          path: ${{ runner.temp }}/ccf-tls-build/tls-traces/
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
   consistency_traces:
     name: Consistency trace captures
     runs-on: [gha-vmss-d16av7-ci-c]
@@ -277,6 +343,8 @@ jobs:
         cft_replay,
         kv_traces,
         kv_replay,
+        tls_traces,
+        tls_replay,
         consistency_traces,
         consistency_replay,
       ]
@@ -303,6 +371,8 @@ jobs:
               "cft_replay",
               "kv_traces",
               "kv_replay",
+              "tls_traces",
+              "tls_replay",
               "consistency_traces",
               "consistency_replay",
           }
@@ -380,6 +450,57 @@ jobs:
           for trace in "$RUNNER_TEMP"/kv-traces/*/trace.ndjson; do
             echo "::group::Validate $trace"
             lean/kv/.lake/build/bin/kv-replay "$trace"
+            echo "::endgroup::"
+          done
+
+  tls_replay:
+    name: Replay TLS traces
+    needs: [tls_traces]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Install prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y elan
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Lean
+        run: |
+          set -euo pipefail
+          elan run --install "$(cat lean/lean-toolchain)" lean --version
+
+      - name: Build TLS replay
+        working-directory: lean/tls
+        run: |
+          set -euo pipefail
+          lake build --wfail tls-replay
+
+      # RUNNER_TEMP can persist between jobs on reused self-hosted runners; drop files from earlier runs.
+      - name: Clear stale TLS traces
+        run: rm -rf "$RUNNER_TEMP/tls-traces"
+
+      - name: Download TLS traces
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tls-traces
+          path: ${{ runner.temp }}/tls-traces
+
+      - name: Validate TLS traces
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          for trace in "$RUNNER_TEMP"/tls-traces/*/trace.ndjson; do
+            echo "::group::Validate $trace"
+            lean/tls/.lake/build/bin/tls-replay "$trace"
             echo "::endgroup::"
           done
 

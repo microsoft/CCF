@@ -97,14 +97,58 @@ theorem sslRead_pair (config : Config) (env : Env) (ssl : Ssl) (socket : Socket)
           → (sslRead config env ssl socket).2.1.input.length
               + 2 * (sslRead config env ssl socket).2.2.inbound.length
             < ssl.input.length + 2 * socket.inbound.length) := by
-  have split := List.take_append_drop config.inputBuffer socket.inbound
-  have taken := List.length_take_le config.inputBuffer socket.inbound
-  cases pending : ssl.pending
-  <;> by_cases accepted : accepts config socket = true
-  <;> by_cases empty : ssl.input = []
-  <;> simp [sslRead, flushUpdate, refill, Ssl.startUpdate, Pending.isApp, *] at notInit unrequested ⊢
-  <;> (repeat' split)
-  <;> simp_all
-  <;> grind [→ take_cons_split]
+  obtain ⟨input, inbound, filled, -, joined, kept, fetched⟩ := refill_spec config ssl socket
+  have measure
+    : input.length + 2 * inbound.length ≤ ssl.input.length + 2 * socket.inbound.length := by
+    by_cases empty : ssl.input = []
+    · obtain ⟨rfl, rfl⟩ := fetched empty
+      simp only [empty, List.length_take, List.length_drop, List.length_nil]
+      omega
+    · obtain ⟨rfl, rfl⟩ := kept empty
+      exact Nat.le_refl _
+  have drained : input = [] → ssl.input = [] ∧ socket.inbound = [] := by
+    intro none
+    by_cases empty : ssl.input = []
+    · refine ⟨empty, ?_⟩
+      have taken := (fetched empty).1
+      rw [none] at taken
+      rcases List.take_eq_nil_iff.mp taken.symm with zero | gone
+      · omega
+      · exact gone
+    · exact absurd ((kept empty).1.symm.trans none) empty
+  have absent : .keyUpdate true ∉ input ++ inbound := by
+    rw [joined]
+    exact unrequested
+  clear joined kept fetched unrequested buffer
+  simp only [sslRead, flushUpdate, notQueued, notInit, filled, Bool.false_eq_true, false_and,
+    ite_false]
+  clear filled
+  cases input with
+  | nil =>
+      obtain ⟨noInput, noInbound⟩ := drained rfl
+      clear drained
+      cases closed : env.peerClosed <;> simp [noInput, noInbound] at measure absent ⊢
+      <;> grind
+  | cons record rest =>
+      clear drained
+      simp only [List.length_cons] at measure
+      cases record with
+      | app payload =>
+          by_cases held : ssl.held = true
+          <;> by_cases within : config.recordBudget < ssl.received + 1
+          <;> by_cases same : config.recordBudget < ssl.received
+          <;> simp [held, within, same] at absent ⊢
+          <;> grind
+      | keyUpdate requested =>
+          have unasked : requested = false := by
+            cases requested
+            · rfl
+            · simp at absent
+          subst unasked
+          by_cases held : ssl.held = true
+          <;> by_cases within : config.recordBudget < ssl.received + 1
+          <;> by_cases same : config.recordBudget < ssl.received
+          <;> simp [held, within, same] at absent ⊢
+          <;> grind
 
 end Tls.Proofs

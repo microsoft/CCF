@@ -2,9 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "tls/trace.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <openssl/ssl.h>
+#ifdef CCF_TLS_TRACING
+#  include <string>
+#  include <utility>
+#  include <vector>
+#endif
 
 namespace ccf::tls
 {
@@ -24,6 +31,10 @@ namespace ccf::tls
     bool exceeded = false;
     bool active = false;
     uint64_t limit;
+#ifdef CCF_TLS_TRACING
+    // Record callbacks and engine operations since trace_take(), in order.
+    std::vector<std::string> trace_operations;
+#endif
 
   public:
     explicit TrafficKeys(const TrafficKeyPolicy& policy) :
@@ -52,6 +63,9 @@ namespace ccf::tls
       const auto* bytes = static_cast<const uint8_t*>(buffer);
       if (type == SSL3_RT_INNER_CONTENT_TYPE)
       {
+        TLS_TRACE(self.trace_note(
+          (writing != 0 ? "w" : "r") +
+          std::to_string(size > 0 ? unsigned{bytes[0]} : 0U)));
         // Unlike message callbacks, this event occurs once per encrypted
         // record, including handshake/alert records and empty application
         // records. Output is observed at construction, not BIO retry.
@@ -71,6 +85,8 @@ namespace ccf::tls
         }
         if (size == 5 && bytes[0] == SSL3_MT_KEY_UPDATE)
         {
+          TLS_TRACE(self.trace_note(
+            (writing != 0 ? "wk" : "rk") + std::to_string(unsigned{bytes[4]})));
           // KeyUpdate itself uses the OLD key. OpenSSL reports the complete
           // message before installing the new key; a failed operation must
           // therefore still close the connection, never deliver plaintext.
@@ -101,5 +117,32 @@ namespace ccf::tls
       // Leave one record under the old sending key for KeyUpdate itself.
       return sent >= limit - 1;
     }
+
+#ifdef CCF_TLS_TRACING
+    void trace_note(std::string operation)
+    {
+      trace_operations.push_back(std::move(operation));
+    }
+
+    [[nodiscard]] std::vector<std::string> trace_take()
+    {
+      return std::exchange(trace_operations, {});
+    }
+
+    [[nodiscard]] uint64_t trace_sent() const
+    {
+      return sent;
+    }
+
+    [[nodiscard]] uint64_t trace_received() const
+    {
+      return received;
+    }
+
+    [[nodiscard]] uint64_t trace_limit() const
+    {
+      return limit;
+    }
+#endif
   };
 }

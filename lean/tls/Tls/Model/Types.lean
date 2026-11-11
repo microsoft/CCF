@@ -81,6 +81,11 @@ structure Ssl where
   updateQueued : Bool := false
   /-- Ciphertext in the input-buffer BIO: read from the socket but not processed. -/
   input : List Record := []
+  /--
+  OpenSSL holds the record at the head of `input`: it has decrypted and counted it, and has
+  not yet processed the KeyUpdate message it carries.
+  -/
+  held : Bool := false
   /-- Set by an operation which OpenSSL's contract forbids; never cleared. -/
   misused : Bool := false
 deriving DecidableEq, Repr

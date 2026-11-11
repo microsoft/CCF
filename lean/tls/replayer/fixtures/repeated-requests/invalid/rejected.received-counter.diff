@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -5 +5 @@
+-{"seq":5,"type":"pass","engine":1,"conn":1,"first":false,"budget":8,"readable":true,"pending_before":true,"queued_before":0,"ops":["r22","w22","wk0","rk1","r22","w22","wk0","rk1","r22","w22","wk0","rk1","r22","w22","wk0","rk1","r22","w22","wk0"],"alive":true,"closed":false,"sent":0,"received":1,"exceeded":false,"in_init":false,"update_queued":false,"retry":0,"want_write":false,"read_wants_write":false,"queued":0,"pending":true}
++{"seq":5,"type":"pass","engine":1,"conn":1,"first":false,"budget":8,"readable":true,"pending_before":true,"queued_before":0,"ops":["r22","w22","wk0","rk1","r22","w22","wk0","rk1","r22","w22","wk0","rk1","r22","w22","wk0","rk1","r22","w22","wk0"],"alive":true,"closed":false,"sent":0,"received":0,"exceeded":false,"in_init":false,"update_queued":false,"retry":0,"want_write":false,"read_wants_write":false,"queued":0,"pending":true}

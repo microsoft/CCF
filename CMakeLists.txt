@@ -320,6 +320,23 @@ add_ccf_static_library(
   LINK_LIBS ccfcrypto quickjs ccf_pal
 )
 
+option(
+  CCF_TLS_TRACING
+  "Enable test-only TLS connection engine trace capture"
+  OFF
+)
+set(
+  CCF_TLS_TRACE_CHECKER
+  ""
+  CACHE FILEPATH
+  "Existing Lean TLS trace checker executable"
+)
+if(CCF_TLS_TRACING)
+  # Tracing changes the layout of internal TLS types, so every target in the
+  # build must agree on it.
+  add_compile_definitions(CCF_TLS_TRACING)
+endif()
+
 # CCF kv lib
 option(CCF_KV_TRACING "Enable test-only KV semantic trace capture" OFF)
 set(
@@ -859,6 +876,19 @@ if(BUILD_TESTS)
         "LINKER:--wrap=SSL_do_handshake"
         "LINKER:--wrap=_Znwm"
     )
+    if(CCF_TLS_TRACING AND CCF_TLS_TRACE_CHECKER)
+      add_test(
+        NAME tls_trace_validation
+        COMMAND
+          python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/tls_trace_validation.py
+          --binary $<TARGET_FILE:openssl_server_test> --checker
+          ${CCF_TLS_TRACE_CHECKER} --output
+          ${CMAKE_CURRENT_BINARY_DIR}/tls-traces
+      )
+      # The Lean checker is built outside CMake and passed in by path.
+      add_test_target(tls_trace_validation openssl_server_test)
+      add_test_label(tls_trace_validation tls_trace)
+    endif()
     add_unit_test(
       node_connections_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/node_connections.cpp

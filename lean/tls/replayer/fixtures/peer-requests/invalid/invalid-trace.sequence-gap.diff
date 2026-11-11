@@ -1,0 +1,4 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -3 +2,0 @@
+-{"seq":3,"type":"subcase","name":"No pending write"}

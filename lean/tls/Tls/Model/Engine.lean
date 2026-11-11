@@ -120,35 +120,49 @@ def prefetch (config : Config) (env : Env) (io : Io) : Io :=
   else
     doWrite config env io
 
+/-- The first stage of `drive_ready`: retry a pending write. -/
+def retryStage (config : Config) (env : Env) (io : Io) : Io :=
+  if io.conn.writeRetry then doWrite config env io else io
+
+/-- The second stage of `drive_ready`: behind a write which forbids reads, fill the input
+buffer and try that write again. -/
+def prefetchStage (config : Config) (env : Env) (readable : Bool) (io : Io) : Io :=
+  if io.conn.alive
+      && readBlockedByWrite io.conn
+      && !env.saturated
+      && readable
+      && !hasInput io.conn then
+    prefetch config env io
+  else
+    io
+
+/-- The third stage of `drive_ready`: read. The second component is `more_to_read`. -/
+def readStage (config : Config) (env : Env) (readable : Bool) (io : Io) : Io × Bool :=
+  if readable || io.conn.readWantsWrite || hasInput io.conn then
+    doRead config env config.readsPerPass io
+  else
+    (io, false)
+
+/-- The last stage of `drive_ready`: write, unless reading closed the connection. -/
+def writeStage (config : Config) (env : Env) (read : Io × Bool) : Io × Bool :=
+  if read.1.conn.alive then
+    (
+      doWrite config env read.1,
+      read.2
+      || (!(doWrite config env read.1).conn.readWantsWrite
+          && !readBlockedByWrite (doWrite config env read.1).conn
+          && hasInput (doWrite config env read.1).conn)
+    )
+  else
+    (read.1, false)
+
 /-- `drive_ready`: retry a pending write, read unless that write forbids it, then write. -/
 def driveReady (config : Config) (env : Env) (readable : Bool) (io : Io) : Io × Bool :=
-  let io := if io.conn.writeRetry then doWrite config env io else io
-  let io :=
-    if io.conn.alive
-        && readBlockedByWrite io.conn
-        && !env.saturated
-        && readable
-        && !hasInput io.conn then
-      prefetch config env io
-    else
-      io
+  let io := prefetchStage config env readable (retryStage config env io)
   if !io.conn.alive || readBlockedByWrite io.conn then
     (io, false)
   else
-    let (io, more) :=
-      if readable || io.conn.readWantsWrite || hasInput io.conn then
-        doRead config env config.readsPerPass io
-      else
-        (io, false)
-    if io.conn.alive then
-      let io := doWrite config env io
-      (
-        io,
-        more
-        || (!io.conn.readWantsWrite && !readBlockedByWrite io.conn && hasInput io.conn)
-      )
-    else
-      (io, false)
+    writeStage config env (readStage config env readable io)
 
 /-- `read_interest_withheld`. -/
 def readInterestWithheld (env : Env) (conn : Conn) : Bool :=

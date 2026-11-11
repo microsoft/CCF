@@ -152,6 +152,7 @@ theorem doWrite_local (config : Config) (env : Env) (io : Io) (engine : config.E
                 io.conn.ssl.pending,
                 updateQueued,
                 io.conn.ssl.input,
+                io.conn.ssl.held,
                 misused
               ⟩
               io.socket
@@ -173,6 +174,7 @@ theorem doWrite_local (config : Config) (env : Env) (io : Io) (engine : config.E
                 io.conn.ssl.pending,
                 updateQueued,
                 io.conn.ssl.input,
+                io.conn.ssl.held,
                 misused
               ⟩
               io.socket

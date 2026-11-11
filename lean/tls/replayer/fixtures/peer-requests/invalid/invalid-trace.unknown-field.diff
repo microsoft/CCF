@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -5 +5 @@
+-{"seq":5,"type":"pass","engine":1,"conn":1,"first":false,"budget":8,"readable":true,"pending_before":false,"queued_before":0,"ops":["r22","rk1"],"alive":true,"closed":false,"sent":0,"received":0,"exceeded":false,"in_init":false,"update_queued":true,"retry":0,"want_write":false,"read_wants_write":false,"queued":0,"pending":false}
++{"seq":5,"type":"pass","engine":1,"conn":1,"first":false,"extra":1,"budget":8,"readable":true,"pending_before":false,"queued_before":0,"ops":["r22","rk1"],"alive":true,"closed":false,"sent":0,"received":0,"exceeded":false,"in_init":false,"update_queued":true,"retry":0,"want_write":false,"read_wants_write":false,"queued":0,"pending":false}

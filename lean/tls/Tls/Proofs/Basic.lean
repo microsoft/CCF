@@ -9,7 +9,7 @@ public import Tls.Model
 
 /-!
 Facts about the model's definitions which the invariant proofs share: the shape of the results
-of `scheduleTrafficKeys` and `refill`, and `driveReady` as a composition of stages.
+of `scheduleTrafficKeys` and `refill`, and `driveReady` unfolded into its stages.
 -/
 
 namespace Tls.Proofs
@@ -79,41 +79,6 @@ theorem refill_spec (config : Config) (ssl : Ssl) (socket : Socket)
     simp only [refill, empty, ite_true, List.take_append_drop, List.nil_append, true_and]
     refine ⟨fun _ => List.length_take_le _ _, ?_, ?_⟩ <;> simp
   · exact ⟨ssl.input, socket.inbound, by simp [refill, empty]⟩
-
-/-- The first stage of `driveReady`: retry a pending write. -/
-def retryStage (config : Config) (env : Env) (io : Io) : Io :=
-  if io.conn.writeRetry then doWrite config env io else io
-
-/-- The second stage of `driveReady`: prefetch input behind a write which blocks reads. -/
-def prefetchStage (config : Config) (env : Env) (readable : Bool) (io : Io) : Io :=
-  if io.conn.alive
-      && readBlockedByWrite io.conn
-      && !env.saturated
-      && readable
-      && !hasInput io.conn then
-    prefetch config env io
-  else
-    io
-
-/-- The read of the last stage of `driveReady`. -/
-def readStage (config : Config) (env : Env) (readable : Bool) (io : Io) : Io × Bool :=
-  if readable || io.conn.readWantsWrite || hasInput io.conn then
-    doRead config env config.readsPerPass io
-  else
-    (io, false)
-
-/-- The write of the last stage of `driveReady`. -/
-def writeStage (config : Config) (env : Env) (read : Io × Bool) : Io × Bool :=
-  if read.1.conn.alive then
-    (
-      doWrite config env read.1,
-      read.2
-      || (!(doWrite config env read.1).conn.readWantsWrite
-          && !readBlockedByWrite (doWrite config env read.1).conn
-          && hasInput (doWrite config env read.1).conn)
-    )
-  else
-    (read.1, false)
 
 theorem driveReady_stages (config : Config) (env : Env) (readable : Bool) (io : Io)
     : driveReady config env readable io

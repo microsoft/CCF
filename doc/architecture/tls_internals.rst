@@ -133,6 +133,13 @@ Output sent to an id which is neither being established nor adopted, such as a c
 Workers report what they wrote as each pass completes, so the count may briefly overstate, but never understates, what a connection holds.
 A send made just after earlier output was written can therefore still be counted alongside it, so the bound needs headroom over what an owner expects to have outstanding.
 
+Trace capture
+~~~~~~~~~~~~~
+
+A build configured with ``-DCCF_TLS_TRACING=ON`` compiles test-only hooks into the engine, which record each worker pass over an established connection that has a traffic-key policy.
+:ccf_repo:`tests/tls_trace_validation.py` replays those records through the Lean model of the engine; see :doc:`/architecture/verification`.
+The hooks only read connection state, and are absent from normal builds.
+
 Certificates
 ~~~~~~~~~~~~
 

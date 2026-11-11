@@ -159,6 +159,20 @@ jobs:
           set -euo pipefail
           ./replayer/check-fixtures.sh
 
+      - name: Build TLS replay
+        if: inputs.package == 'tls'
+        working-directory: lean/tls
+        run: |
+          set -euo pipefail
+          lake build --wfail tls-replay
+
+      - name: Check TLS replay fixtures
+        if: inputs.package == 'tls'
+        working-directory: lean/tls
+        run: |
+          set -euo pipefail
+          ./replayer/check-fixtures.sh
+
       - name: Build consistency replay
         if: inputs.package == 'consistency'
         working-directory: lean/consistency

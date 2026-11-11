@@ -83,6 +83,7 @@ theorem doWrite_pair (config : Config) (env : Env) (io : Io) (kernel : config.Ke
                 io.conn.ssl.pending,
                 updateQueued,
                 io.conn.ssl.input,
+                io.conn.ssl.held,
                 misused
               ⟩
               io.socket
@@ -102,6 +103,7 @@ theorem doWrite_pair (config : Config) (env : Env) (io : Io) (kernel : config.Ke
                 io.conn.ssl.pending,
                 updateQueued,
                 io.conn.ssl.input,
+                io.conn.ssl.held,
                 misused
               ⟩
               io.socket

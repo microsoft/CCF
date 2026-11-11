@@ -3,8 +3,11 @@ version = "0.1.0"
 moreLeanArgs = ["-DwarningAsError=true"]
 builtinLint = true
 lintDriver = "batteries/runLinter"
-lintDriverArgs = ["--no-build", "CCF", "Tls"]
-defaultTargets = ["Tls"]
+lintDriverArgs = ["--no-build", "CCF", "Tls", "replayer.Main"]
+defaultTargets = [
+  "Tls",
+  "tls-replay",
+]
 
 [leanOptions]
 autoImplicit = false
@@ -32,3 +35,7 @@ rev = "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef" # v0.4.5
 
 [[lean_lib]]
 name = "Tls"
+
+[[lean_exe]]
+name = "tls-replay"
+root = "replayer.Main"

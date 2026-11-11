@@ -1,0 +1,4 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -27 +26,0 @@
+-{"seq":27,"type":"trace_end","events":26}

@@ -122,6 +122,7 @@ theorem doWrite_flow (config : Config) (env : Env) (io : Io) (head : Head io.con
                 io.conn.ssl.pending,
                 updateQueued,
                 io.conn.ssl.input,
+                io.conn.ssl.held,
                 misused
               ⟩
               io.socket
@@ -141,6 +142,7 @@ theorem doWrite_flow (config : Config) (env : Env) (io : Io) (head : Head io.con
                 io.conn.ssl.pending,
                 updateQueued,
                 io.conn.ssl.input,
+                io.conn.ssl.held,
                 misused
               ⟩
               io.socket

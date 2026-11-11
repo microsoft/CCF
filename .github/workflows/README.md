@@ -145,8 +145,8 @@ Native trace captures build CCF, so they remain on `gha-vmss-d16av7-ci-c` with A
 Each matrix job caches its third-party dependency checkouts and build outputs, leanfmt and (for disaster-recovery, kv and tls) Batteries, using GitHub Actions caching.
 Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
 CCF package and common build outputs are not cached, and all verification steps still run.
-CCF consensus, KV, and consistency trace captures run in parallel with package checks.
-Three independent trace-validation jobs each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
+CCF consensus, KV, TLS, and consistency trace captures run in parallel with package checks.
+Four independent trace-validation jobs each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
 Consistency capture reuses the existing `consistency_trace_validation` e2e test, and its replay job also checks the consistency replay fixtures, including election and rollback traces.
 A final summary job requires every package and trace job to succeed.
 
@@ -175,10 +175,13 @@ The `KV trace captures` job builds the `CCF_KV_TRACING` unit tests on Azure Linu
 The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fixtures.
 The dedicated replay job builds `kv-replay` separately to validate the captured traces; no replay executables are transferred between jobs.
 
+The `TLS trace captures` job builds the `CCF_TLS_TRACING` connection engine unit tests on Azure Linux 3 and captures their traces with `tests/tls_trace_validation.py --capture-only`, which runs them five times because the engine's worker passes depend on timing.
+The TLS package job checks `lean/tls/replayer/check-fixtures.sh` against the TLS fixtures, and the dedicated replay job builds `tls-replay` separately to validate the captured traces.
+
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/` (except `lean/mathlib-equivalence/`), any `.lean` file, the formatter script, or the workflow.
 It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
-It runs on changes to `src/tls/` as well, which the TLS connection engine model describes; that model has no trace validation, so those runs recheck the model and do not compare it with the changed sources.
+It runs on changes to `src/tls/` and the TLS trace runner as well, whose traces are checked against the TLS connection engine model.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
