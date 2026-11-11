@@ -175,7 +175,7 @@ The `KV trace captures` job builds the `CCF_KV_TRACING` unit tests on Azure Linu
 The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fixtures.
 The dedicated replay job builds `kv-replay` separately to validate the captured traces; no replay executables are transferred between jobs.
 
-The `TLS trace captures` job builds the `CCF_TLS_TRACING` connection engine unit tests on Azure Linux 3 and captures their traces with `tests/tls_trace_validation.py --capture-only`, which runs them five times because the engine's worker passes depend on timing.
+The `TLS trace captures` job builds the `CCF_TLS_TRACING` connection engine unit tests on Azure Linux 3 and captures traces with `tests/tls_trace_validation.py --capture-only`, which runs the test cases that establish traffic-key policy connections five times because the engine's worker passes depend on timing.
 The TLS package job checks `lean/tls/replayer/check-fixtures.sh` against the TLS fixtures, and the dedicated replay job builds `tls-replay` separately to validate the captured traces.
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.

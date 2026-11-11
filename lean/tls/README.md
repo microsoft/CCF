@@ -207,7 +207,7 @@ These are the same checks as the [disaster-recovery validation](../disaster-reco
 A build configured with `-DCCF_TLS_TRACING=ON` compiles hooks into `src/tls/openssl_connection_engine.h` and `src/tls/traffic_keys.h`.
 While the `openssl_server_test` unit test runs with `CCF_TLS_TRACE_FILE` set to an absolute path, they write one NDJSON record for each worker pass over an established connection which has a traffic-key policy.
 The hooks only read connection state, and without the option they compile to nothing, as `CCF_KV_TRACING` does for the KV store.
-`tests/tls_trace_validation.py` runs the test several times, because the engine's passes depend on timing, and fails unless the traces between them reach the states the model is about, such as an unflushed KeyUpdate, a response owed behind a pending write, and a record beyond the receive budget.
+`tests/tls_trace_validation.py` runs the test cases which establish such connections several times, because the engine's passes depend on timing, and fails unless the traces between them reach the states the model is about, such as an unflushed KeyUpdate, a response owed behind a pending write, and a record beyond the receive budget.
 
 A `pass` record carries what the pass was dispatched with (`readable`, `pending_before`, `queued_before`), the connection state when it ended, and `ops`, an ordered list of what OpenSSL and the engine did:
 

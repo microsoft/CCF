@@ -73,7 +73,7 @@ Each replayer consumes traces produced by existing C++ tests:
   :ccf_repo:`tests/kv_trace_validation.py` captures the purpose-built ``KV trace *`` test cases and a seeded concurrent fuzzer, then checks every trace with ``kv-replay`` unless ``--capture-only`` is passed.
   Tracing is disabled in normal builds.
 * **TLS**: building with ``-DCCF_TLS_TRACING=ON`` enables test-only trace capture in ``openssl_server_test``, which records each worker pass over a connection with a traffic-key policy.
-  :ccf_repo:`tests/tls_trace_validation.py` runs the test several times, requires the traces to reach the states the model is about, then checks every trace with ``tls-replay`` unless ``--capture-only`` is passed.
+  :ccf_repo:`tests/tls_trace_validation.py` runs the test cases which establish such connections several times, requires the traces to reach the states the model is about, then checks every trace with ``tls-replay`` unless ``--capture-only`` is passed.
   Tracing is disabled in normal builds.
 * **Consistency**: the ``consistency_trace_validation`` e2e test (:ccf_repo:`tests/consistency_trace_validation.py`) starts a three-node network running the :ccf_repo:`basic_tv <samples/apps/basic_tv/>` JavaScript application, and runs :ccf_repo:`tests/tvc.py` against it to record client requests, responses and transaction statuses to ``consistency/trace.ndjson``.
   The test suspends the primary to cause an election during the recording.

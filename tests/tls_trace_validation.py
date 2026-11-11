@@ -10,6 +10,16 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from xml.etree import ElementTree
+
+# The test cases which establish connections with a traffic-key policy. Only
+# these are run, so that an unrelated test which the capture environment cannot
+# support, such as one which binds IPv6 loopback, does not fail the capture.
+TRACED_CASES = [
+    "Traffic keys*",
+    "A connection exceeding its queued output bound is closed alone",
+    "Client and server owners propagate the opt-in traffic-key policy",
+]
 
 # What the captured passes must include between them, so that a change to the
 # tests cannot silently stop the traces from reaching the states the model is
@@ -45,6 +55,25 @@ def execute(command, directory, prefix, timeout, env=None):
             stderr=stderr,
             timeout=timeout,
         )
+
+
+def check_case_list(binary):
+    # A renamed or removed case would otherwise silently drop out of the traces.
+    for pattern in TRACED_CASES:
+        listing = subprocess.run(
+            [
+                str(binary),
+                "--list-test-cases",
+                f"--test-case={pattern}",
+                "--case-sensitive=true",
+                "--reporters=xml",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        if not list(ElementTree.fromstring(listing).iter("TestCase")):
+            raise RuntimeError(f"no test case of {binary.name} matches '{pattern}'")
 
 
 def coverage(trace):
@@ -101,7 +130,12 @@ def capture(binary, directory, timeout):
     directory.mkdir(parents=True, exist_ok=True)
     trace = directory / "trace.ndjson"
     env = dict(os.environ, CCF_TLS_TRACE_FILE=str(trace.resolve()))
-    result = execute([str(binary)], directory, "capture", timeout, env)
+    command = [
+        str(binary),
+        f"--test-case={','.join(TRACED_CASES)}",
+        "--case-sensitive=true",
+    ]
+    result = execute(command, directory, "capture", timeout, env)
     if result.returncode != 0:
         raise RuntimeError(
             f"{binary.name} failed with exit code {result.returncode}; see {directory}"
@@ -137,6 +171,7 @@ def main():
     if args.runs < 1:
         parser.error("--runs must be at least 1")
 
+    check_case_list(args.binary)
     # The engine's passes depend on timing, so each run yields a different trace.
     traces = [
         capture(args.binary, args.output / f"run-{run}", args.timeout)
@@ -155,6 +190,10 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (RuntimeError, subprocess.TimeoutExpired) as error:
+    except (
+        RuntimeError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         sys.exit(1)
