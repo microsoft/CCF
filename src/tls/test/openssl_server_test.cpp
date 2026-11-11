@@ -26,6 +26,7 @@
 #include <csignal>
 #include <deque>
 #include <doctest/doctest.h>
+#include <fcntl.h>
 #include <future>
 #include <mutex>
 #include <netdb.h>
@@ -2737,6 +2738,20 @@ TEST_CASE("A connection exceeding its queued output bound is closed alone")
   CHECK(close_count == 2);
 }
 
+namespace
+{
+  // Whether a send was accepted. An accepted send takes its buffer, leaving
+  // the caller's vector empty; a refused one leaves it untouched.
+  template <typename Sender>
+  bool send_accepted(Sender& sender, ::tcp::ConnID id, size_t size)
+  {
+    std::vector<uint8_t> data(size, static_cast<uint8_t>(id));
+    sender.send(id, std::move(data));
+    // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
+    return data.empty();
+  }
+}
+
 TEST_CASE("Output queued for a connection being established is bounded")
 {
   constexpr size_t bound = 4096;
@@ -2748,24 +2763,112 @@ TEST_CASE("Output queued for a connection being established is bounded")
     std::lock_guard<std::mutex> guard(pair.mutex);
     closed.push_back(id);
   };
-  const auto sockets_before = socket_calls.load();
-  const auto within = pair.client->connect(pair.config()).value();
-  const auto beyond = pair.client->connect(pair.config()).value();
-  pair.client->send(within, std::vector<uint8_t>(bound, 1));
-  pair.client->send(beyond, std::vector<uint8_t>(bound, 2));
-  pair.client->send(beyond, std::vector<uint8_t>(1, 2));
-  pair.loop.start();
+  // Establishment is not what is being timed here.
+  auto config = pair.config();
+  config.per_phase_timeout = std::chrono::seconds(5);
+  const auto within = pair.client->connect(config).value();
+  const auto beyond = pair.client->connect(config).value();
+  const auto cancelled = pair.client->connect(config).value();
 
+  // The loop is not running, so nothing has been established and nothing can
+  // be processed. The bound must already hold as each send is made.
+  constexpr size_t part = bound / 4;
+  CHECK(send_accepted(*pair.client, within, part));
+  CHECK(send_accepted(*pair.client, within, part));
+  CHECK(send_accepted(*pair.client, cancelled, 1));
+  pair.client->close_connection(cancelled);
+  CHECK(send_accepted(*pair.client, beyond, bound));
+  for (size_t burst = 0; burst < 8; ++burst)
+  {
+    CHECK_FALSE(send_accepted(*pair.client, beyond, bound));
+    CHECK_FALSE(send_accepted(*pair.client, beyond, 1));
+  }
+  // An id which this client never returned holds nothing either.
+  CHECK_FALSE(send_accepted(*pair.client, beyond + 1000, 1));
+
+  pair.loop.start();
   REQUIRE(pair.wait([&]() {
-    return closed.size() == 1 && pair.accepted_data.size() == bound;
+    return closed.size() == 2 && pair.accepted_data.size() == 2 * part;
   }));
+  {
+    std::lock_guard<std::mutex> guard(pair.mutex);
+    CHECK(
+      std::set<::tcp::ConnID>(closed.begin(), closed.end()) ==
+      std::set<::tcp::ConnID>{beyond, cancelled});
+    CHECK(pair.server_handshakes == 1);
+  }
+  // An attempt which has ended is no longer charged, so nothing more is
+  // accepted for it, however little it had been sent.
+  CHECK_FALSE(send_accepted(*pair.client, cancelled, 1));
+  CHECK_FALSE(send_accepted(*pair.client, beyond, 1));
+
+  // The connection it became is charged only for what remains unwritten, so
+  // it goes on to carry more than the bound in total. Each send waits for the
+  // one before to arrive, and so for all but that one to have been reported
+  // as written: with these sizes the charge never passes three quarters of
+  // the bound, whenever the engine happens to report.
+  size_t total = 2 * part;
+  while (total < 2 * bound)
+  {
+    CHECK(send_accepted(*pair.client, within, part));
+    total += part;
+    REQUIRE(pair.wait([&]() { return pair.accepted_data.size() == total; }));
+  }
   std::lock_guard<std::mutex> guard(pair.mutex);
-  CHECK(closed == std::vector<::tcp::ConnID>{beyond});
-  CHECK(pair.accepted_data == std::vector<uint8_t>(bound, 1));
-  CHECK(pair.server_handshakes == 1);
-  // The attempt is abandoned as soon as its output exceeds the bound, rather
-  // than holding that output until a socket has been connected.
-  CHECK(socket_calls == sockets_before + 1);
+  CHECK(
+    pair.accepted_data ==
+    std::vector<uint8_t>(total, static_cast<uint8_t>(within)));
+  CHECK(closed.size() == 2);
+}
+
+TEST_CASE("Queued output is charged from establishment through adoption")
+{
+  constexpr size_t bound = 4096;
+  uv_loop_t loop{};
+  REQUIRE(uv_loop_init(&loop) == 0);
+  size_t closes = 0;
+  auto engine = std::make_shared<OpenSSLConnectionEngine>(
+    OpenSSLConnectionEngine::Config{.loop = &loop, .max_queued_output = bound},
+    OpenSSLConnectionEngine::OnData{},
+    [&](::tcp::ConnID) { ++closes; });
+  engine->start();
+
+  constexpr ::tcp::ConnID unknown = 1;
+  constexpr ::tcp::ConnID abandoned = 2;
+  constexpr ::tcp::ConnID adopted = 3;
+  constexpr ::tcp::ConnID direct = 4;
+
+  // Nothing is held for an id which is not being established.
+  CHECK_FALSE(send_accepted(*engine, unknown, 1));
+
+  engine->begin_establishing(abandoned);
+  CHECK(send_accepted(*engine, abandoned, 1));
+  engine->abandon_establishing(abandoned);
+  CHECK_FALSE(send_accepted(*engine, abandoned, 1));
+
+  int sockets[2];
+  REQUIRE(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) == 0);
+  REQUIRE(fcntl(sockets[0], F_SETFL, O_NONBLOCK) == 0);
+  REQUIRE(fcntl(sockets[1], F_SETFL, O_NONBLOCK) == 0);
+
+  // Nothing runs the loop, so nothing is written: adoption alone must not
+  // release what the id was charged while it was being established.
+  engine->begin_establishing(adopted);
+  CHECK(send_accepted(*engine, adopted, bound - 1));
+  REQUIRE(engine->adopt({.id = adopted, .fd = sockets[0]}));
+  CHECK(send_accepted(*engine, adopted, 1));
+  CHECK_FALSE(send_accepted(*engine, adopted, 1));
+
+  // An owner which adopts without establishing is charged from adoption.
+  CHECK_FALSE(send_accepted(*engine, direct, 1));
+  REQUIRE(engine->adopt({.id = direct, .fd = sockets[1]}));
+  CHECK(send_accepted(*engine, direct, bound));
+  CHECK_FALSE(send_accepted(*engine, direct, 1));
+
+  engine->stop(OpenSSLConnectionEngine::LoopState::NotRunning);
+  uv_run(&loop, UV_RUN_DEFAULT);
+  CHECK(uv_loop_close(&loop) == 0);
+  CHECK(closes == 2);
 }
 
 TEST_CASE("An unusable queued output bound is rejected")

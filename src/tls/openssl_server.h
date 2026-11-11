@@ -30,6 +30,9 @@ namespace ccf::tls
     // If this returns a value, OnClose is guaranteed to be invoked exactly
     // once for that connection id. Admission control can therefore reserve a
     // resource here and release it in OnClose.
+    //
+    // The connection is adopted only after this returns. With
+    // Config::max_queued_output set, output sent to it from here is discarded.
     using OnAccept = std::function<std::optional<bool>(::tcp::ConnID conn_id)>;
 
     // Everything about a server which is not a callback. Aggregate-initialised

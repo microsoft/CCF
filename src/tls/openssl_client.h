@@ -32,7 +32,8 @@ namespace ccf::tls
       OnHandshake on_handshake = {};
       std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt;
       // See OpenSSLConnectionEngine::Config::max_queued_output. Output sent
-      // while a connection is being established counts towards it too.
+      // while a connection is being established counts towards it too, from
+      // the moment connect() returns its id.
       std::optional<size_t> max_queued_output = std::nullopt;
     };
 
@@ -79,7 +80,6 @@ namespace ccf::tls
       uv_getaddrinfo_t* resolver = nullptr;
       std::chrono::steady_clock::time_point deadline;
       std::vector<OpenSSLConnectionEngine::OutItem> pending_commands;
-      size_t queued_output = 0;
     };
 
     // libuv owns completion, even after cancellation or client destruction.
@@ -94,7 +94,6 @@ namespace ccf::tls
     std::shared_ptr<OpenSSLConnectionEngine> engine;
     uv_loop_t* loop;
     OnClose on_close;
-    std::optional<size_t> max_queued_output;
     ccf::ds::Mutex pending_mutex;
     std::vector<std::pair<::tcp::ConnID, ConnectConfig>> pending_connects
       CCF_GUARDED_BY(pending_mutex);
@@ -170,6 +169,14 @@ namespace ccf::tls
       }
       discard_candidate(dial);
       dials.erase(it);
+      abandon(id);
+    }
+
+    // Reports an id which will never be adopted, having first stopped the
+    // engine accepting output for it.
+    void abandon(::tcp::ConnID id)
+    {
+      engine->abandon_establishing(id);
       if (on_close)
       {
         on_close(id);
@@ -463,10 +470,7 @@ namespace ccf::tls
       {
         if (!start_connect_timer())
         {
-          if (on_close)
-          {
-            on_close(id);
-          }
+          abandon(id);
           continue;
         }
         auto dial = std::make_unique<Dial>();
@@ -491,10 +495,7 @@ namespace ccf::tls
       }
       for (const auto& [id, config] : abandoned)
       {
-        if (on_close)
-        {
-          on_close(id);
-        }
+        abandon(id);
       }
       if (connect_timer != nullptr)
       {
@@ -516,20 +517,7 @@ namespace ccf::tls
       }
       else
       {
-        auto& dial = *it->second;
-        if (
-          max_queued_output &&
-          data.size() > *max_queued_output - dial.queued_output)
-        {
-          LOG_INFO_FMT(
-            "Connection {}: closing with more than {} bytes of output queued",
-            id,
-            *max_queued_output);
-          cancel_dial(id);
-          return;
-        }
-        dial.queued_output += data.size();
-        dial.pending_commands.push_back({id, std::move(data), false});
+        it->second->pending_commands.push_back({id, std::move(data), false});
       }
     }
 
@@ -537,8 +525,7 @@ namespace ccf::tls
     // hold weak_from_this(), which is empty unless a shared_ptr owns this.
     OpenSSLClient(Config config, OnData on_data_, OnClose on_close_) :
       loop(config.loop),
-      on_close(std::move(on_close_)),
-      max_queued_output(config.max_queued_output)
+      on_close(std::move(on_close_))
     {
       OpenSSLConnectionEngine::Config engine_config{
         .loop = loop,
@@ -606,12 +593,16 @@ namespace ccf::tls
       }
       require_peer_verification(config.tls_context.get());
       const auto id = engine->allocate_id();
+      // Before the attempt is published: the loop may abandon it at once, and
+      // output may be sent to the id as soon as it has been returned.
+      engine->begin_establishing(id);
       const bool submitted = engine->try_submit([&]() {
         ccf::ds::MutexGuard guard(pending_mutex);
         pending_connects.emplace_back(id, std::move(config));
       });
       if (!submitted)
       {
+        engine->abandon_establishing(id);
         return std::nullopt;
       }
       return id;
