@@ -737,6 +737,10 @@ namespace aft
         }
       }
 
+      // Ends this call's entry events, before any commit below, so that trace
+      // replay can append the entries to the model as one batch
+      trace::replicate_batch_end(*state);
+
       // Try to advance commit at once if there are no other nodes.
       if (other_nodes_in_active_configs().size() == 0)
       {

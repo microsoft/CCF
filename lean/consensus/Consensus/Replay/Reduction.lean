@@ -108,6 +108,7 @@ private def ruleBootstrap : Reduction String := do
   event head "become_leader"
   event head "replicate"
   event head "add_configuration"
+  event head "replicate_batch_end"
   return head.node
 
 private def readAppendContent (head : Event) (config : Option Event)
@@ -137,11 +138,10 @@ private def readAppendContent (head : Event) (config : Option Event)
   modify fun s => { s with nextRequestId := request + 1 }
   return .transaction request { configuration, retirementConfirmations }
 
-private def ruleAppend : Reduction Unit := do
-  let head ← peek
+/-- One entry of a batch: its replicate event, retirements, configuration and flush. -/
+private def readAppendEntry (head : Event) : Reduction AppendEntryInput := do
   let seqno ← readJson head head.message (nat · "seqno")
   -- consume
-  let start ← position
   event head "replicate"
   let retirements ←
     CCF.Parsec.many do
@@ -169,14 +169,31 @@ private def ruleAppend : Reduction Unit := do
           modelNode next (← readJson next next.message (string · "to_node_id"))
         let last ← readJson next packet (nat · "idx")
         return (destination, last)
+  let content ← readAppendContent head config retirements
+  return { content, flushes := flushes.getD [] }
+
+/--
+The entries of one native `replicate` call, up to its `replicate_batch_end`, are
+appended to the model as one batch, which checks commit once at the end, as CCF does.
+-/
+private def ruleAppend : Reduction Unit := do
+  let head ← peek
+  -- consume
+  let start ← position
+  let first ← readAppendEntry head
+  let rest ←
+    CCF.Parsec.many do
+      let next ← peek
+      unless next.function == "replicate" && next.node == head.node do
+        failure s!"{next.record.location}: not an entry of the batch"
+      readAppendEntry next
+  event head "replicate_batch_end"
   optional_ do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
-  let content ← readAppendContent head config retirements
   -- emit
   emitObserve head "append"
-  emitAction head "append"
-    (.local head.node (.append [{ content, flushes := flushes.getD [] }]))
+  emitAction head "append" (.local head.node (.append (first :: rest)))
   emitObserveSends head (← extractSends start)
 
 private def readReceive (head : Event) (families : List String) : Reduction Step := do

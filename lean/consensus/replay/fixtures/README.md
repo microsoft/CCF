@@ -3,7 +3,7 @@
 The [Lean workflow](../../../../.github/workflows/lean.yml) runs the synthetic fixtures through the real replay executable.
 Replication failures follow a two-node history with a committed signature, membership expansion, a further signature, a joiner initializing from a snapshot at the committed signature, a heartbeat and log replication.
 The [valid control](valid/replication.ndjson) continues through follower catch-up, acknowledgement and commit.
-Its snapshot installation hooks directly follow the leader's `replicate` and include a bare tick, both of which replay must accept.
+Its snapshot installation hooks directly follow the leader's `replicate` batch and include a bare tick, both of which replay must accept.
 
 | Fixture                                                                 | Expected failure                                     |
 | ----------------------------------------------------------------------- | ---------------------------------------------------- |
