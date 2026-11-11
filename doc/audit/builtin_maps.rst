@@ -267,10 +267,10 @@ Service identity and status.
 ``service.signing_identities``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Public keys for verifying service COSE signatures.
-Each key is the public key of the service certificate in ``service.info``.
-The table is only written when a service is created or recovered, so a service created before it existed has no entry until its next recovery, including after a live update of its nodes.
-For ``CLASSICAL``, an empty table therefore falls back to the key of ``service.info.cert``.
+Public keys for verifying service COSE signatures, published as ``COSE_KEY`` values in the same transaction as the certificates in ``service.info`` when a service is created or recovered.
+``CLASSICAL`` holds the EC public key of ``service.info.cert``; ``PQ`` holds the ML-DSA public key of ``service.info.pq_cert`` as an RFC 9964 AKP key, and is present exactly when that certificate is.
+A service created before this table existed has no ``CLASSICAL`` entry until its next recovery, so ``CLASSICAL`` falls back to the key of ``service.info.cert``, and older entries may hold DER certificates or public keys.
+``PQ`` never falls back: an incomplete or mismatched pair is rejected, a PQ identity is only introduced by a recovery, and a service holding one only accepts nodes with ML-DSA support.
 
 **Key** Identity type as a little-endian 64-bit unsigned integer.
 

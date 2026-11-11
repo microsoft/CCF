@@ -218,10 +218,7 @@ jobs:
   cft_replay:
     name: Replay native CCF consensus traces
     needs: [cft_traces]
-    runs-on: [gha-vmss-d16av7-ci-b]
-    container:
-      image: ubuntu:26.04
-      options: --user root
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -230,20 +227,17 @@ jobs:
         shell: bash
 
     steps:
-      - name: Install container prerequisites
+      - name: Install prerequisites
         run: |
           set -euo pipefail
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            ca-certificates git curl tar zstd build-essential libgmp-dev elan
-          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y elan
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Lean
         run: |
           set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           elan run --install "$(cat lean/lean-toolchain)" lean --version
 
       - name: Build CCF consensus replay
@@ -340,10 +334,7 @@ jobs:
   kv_replay:
     name: Replay KV traces
     needs: [kv_traces]
-    runs-on: [gha-vmss-d16av7-ci-b]
-    container:
-      image: ubuntu:26.04
-      options: --user root
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -352,20 +343,17 @@ jobs:
         shell: bash
 
     steps:
-      - name: Install container prerequisites
+      - name: Install prerequisites
         run: |
           set -euo pipefail
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            ca-certificates git curl tar zstd build-essential libgmp-dev elan
-          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y elan
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Lean
         run: |
           set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           elan run --install "$(cat lean/lean-toolchain)" lean --version
 
       - name: Build KV replay
@@ -397,10 +385,7 @@ jobs:
   consistency_replay:
     name: Replay consistency traces
     needs: [consistency_traces]
-    runs-on: [gha-vmss-d16av7-ci-b]
-    container:
-      image: ubuntu:26.04
-      options: --user root
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -409,20 +394,17 @@ jobs:
         shell: bash
 
     steps:
-      - name: Install container prerequisites
+      - name: Install prerequisites
         run: |
           set -euo pipefail
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            ca-certificates git curl tar zstd build-essential libgmp-dev elan
-          echo "ELAN_HOME=$RUNNER_TEMP/elan" >> "$GITHUB_ENV"
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y elan
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Lean
         run: |
           set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           elan run --install "$(cat lean/lean-toolchain)" lean --version
 
       - name: Build consistency replay
