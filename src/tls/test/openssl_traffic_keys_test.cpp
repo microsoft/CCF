@@ -19,6 +19,7 @@
 #include <thread>
 
 [[nodiscard]] size_t tls_test_poll_starts();
+size_t tls_test_track_allocations(bool enabled);
 
 namespace
 {
@@ -137,6 +138,7 @@ namespace
     // KeyUpdate writes begun while the socket did not poll writable.
     std::atomic<uint64_t> unwritable_updates{0};
     std::atomic<uint64_t> socket_reads{0};
+    std::atomic<uint64_t> socket_bytes{0};
     std::function<void()> notify;
     std::function<void()> on_write;
 
@@ -154,7 +156,8 @@ namespace
           int /*number*/,
           long /*argument*/,
           int result,
-          size_t* /*processed*/) -> long {
+          // NOLINTNEXTLINE(readability-non-const-parameter): OpenSSL's type.
+          size_t* processed) -> long {
           auto& gate = *reinterpret_cast<WriteGate*>(BIO_get_callback_arg(bio));
           if (operation == BIO_CB_WRITE && gate.on_write)
           {
@@ -172,6 +175,13 @@ namespace
           if (gate.observe_socket_retries && operation == BIO_CB_READ)
           {
             ++gate.socket_reads;
+          }
+          if (
+            gate.observe_socket_retries &&
+            operation == (BIO_CB_WRITE | BIO_CB_RETURN) && result > 0 &&
+            processed != nullptr)
+          {
+            gate.socket_bytes += *processed;
           }
           if (
             gate.observe_socket_retries && operation == BIO_CB_WRITE &&
@@ -287,6 +297,8 @@ namespace
     const char* server_ciphersuites = nullptr;
     // Use loopback TCP with default-sized kernel buffers, not send_buffer.
     bool loopback_tcp = false;
+    // Count received bytes without also keeping them.
+    bool retain_received = true;
   };
 
   struct EnginePair : public AsyncTest
@@ -294,6 +306,7 @@ namespace
     uv_loop_t loop{};
     UVLoopRunner runner;
     std::array<std::vector<uint8_t>, 2> received;
+    std::array<std::atomic<size_t>, 2> received_bytes{};
     std::array<size_t, 2> handshakes{};
     std::array<size_t, 2> closes{};
     std::array<KeyEvents, 2> events;
@@ -395,6 +408,7 @@ namespace
            side,
            admission,
            charge = config.charge_admission,
+           retain = config.retain_received,
            on_data = config.on_data](
             ::tcp::ConnID,
             std::vector<uint8_t> data,
@@ -402,8 +416,12 @@ namespace
             bool) {
             {
               std::lock_guard lock(mutex);
-              received[side].insert(
-                received[side].end(), data.begin(), data.end());
+              received_bytes[side] += data.size();
+              if (retain)
+              {
+                received[side].insert(
+                  received[side].end(), data.begin(), data.end());
+              }
               if (charge && admission)
               {
                 admission->queued(data.size());
@@ -1096,18 +1114,27 @@ namespace
       chunk[index] = static_cast<uint8_t>(index);
     }
     std::vector<uint8_t> expected;
-    const auto deadline = std::chrono::steady_clock::now() + 5s;
+    const auto deadline = std::chrono::steady_clock::now() + 10s;
+    const auto full = [&]() {
+      return !writable(pair.sockets[0]) && !writable(pair.sockets[1]);
+    };
     // Neither side reads, so both send queues fill while updates fall due.
-    do
+    // Queue more only once it has been written, however slowly that happens.
+    while (!full())
     {
-      REQUIRE(std::chrono::steady_clock::now() < deadline);
       for (auto& engine : pair.engines)
       {
         engine->send(1, chunk.data(), chunk.size());
       }
       expected.insert(expected.end(), chunk.begin(), chunk.end());
-      std::this_thread::sleep_for(20ms);
-    } while (writable(pair.sockets[0]) || writable(pair.sockets[1]));
+      while (!full() &&
+             (server.socket_bytes < expected.size() ||
+              client.socket_bytes < expected.size()))
+      {
+        REQUIRE(std::chrono::steady_clock::now() < deadline);
+        std::this_thread::sleep_for(1ms);
+      }
+    }
     // Each further send prompts a write attempt without a writable event,
     // which could otherwise carry queued records on to a full socket. Sizes
     // stay clear of the five bytes which encrypt to a KeyUpdate's length.
@@ -1198,6 +1225,54 @@ namespace
     CHECK(pair.events[1].peer_updates == 1);
   }
 
+  TEST_CASE("Traffic keys release sent output while more remains queued")
+  {
+    // A sender with a standing backlog, whose reader keeps up, neither blocks
+    // nor fully flushes. What it holds must follow the backlog, not the total.
+    const size_t window = size_t{64} * RECORD_SIZE;
+    const size_t total = 12 * window;
+    const std::vector<uint8_t> chunk(window, 42);
+    EnginePair* connection = nullptr;
+    std::atomic<size_t> sent{0};
+    const uint64_t budget = TrafficKeyPolicy{}.record_budget;
+    EnginePair pair(
+      {.budgets = {budget, budget},
+       .send_buffer = 1024 * 1024,
+       .on_data =
+         [&](size_t side) {
+           if (side != 0)
+           {
+             return;
+           }
+           // Keep one window outstanding beyond what has arrived.
+           const size_t goal =
+             std::min(total, connection->received_bytes[0] + window);
+           size_t queued = sent.load();
+           while (queued < goal)
+           {
+             const size_t size = std::min(chunk.size(), goal - queued);
+             connection->engines[1]->send(1, chunk.data(), size);
+             queued += size;
+           }
+           sent = queued;
+         },
+       .retain_received = false});
+    connection = &pair;
+    pair.start();
+    tls_test_track_allocations(true);
+    sent = window;
+    pair.engines[1]->send(1, chunk.data(), chunk.size());
+    // Sanitizers instrument each byte the engine copies, so allow them time.
+    bool complete = false;
+    for (size_t attempt = 0; attempt < 24 && !complete; ++attempt)
+    {
+      complete = pair.wait([&]() { return pair.received_bytes[0] == total; });
+    }
+    const size_t largest = tls_test_track_allocations(false);
+    REQUIRE(complete);
+    CHECK(largest <= 6 * window);
+  }
+
   TEST_CASE("Traffic keys pause read retries while inbound admission is full")
   {
     PairConfig config{.engine_peer = false};
@@ -1249,7 +1324,7 @@ namespace
     pair.expect_peer_update(2);
   }
 
-  TEST_CASE("Traffic keys drain old input before starting another KeyUpdate")
+  TEST_CASE("Traffic keys keep writing while admission holds buffered input")
   {
     auto server_admission = std::make_shared<InboundAdmission>(1);
     auto client_admission = std::make_shared<InboundAdmission>(1);
@@ -1291,9 +1366,18 @@ namespace
     {
       engine->send(1, &byte, 1);
     }
-    std::this_thread::sleep_for(50ms);
-    CHECK(server.socket_records == 2);
-    CHECK(client.socket_records == 2);
+    // Output, here a KeyUpdate and the record after it, does not wait for the
+    // node to admit the input which its connection has already buffered.
+    REQUIRE(pair.wait([&]() {
+      return server.socket_records == 3 && client.socket_records == 3;
+    }));
+    CHECK(pair.events[0].updates[0] == 1);
+    CHECK(pair.events[1].updates[1] == 1);
+    {
+      std::lock_guard lock(pair.mutex);
+      CHECK(pair.received[0].size() == 1);
+      CHECK(pair.received[1].size() == 1);
+    }
     for (size_t size = 2; size <= 3; ++size)
     {
       server_admission->consumed(1);

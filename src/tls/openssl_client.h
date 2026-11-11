@@ -31,6 +31,9 @@ namespace ccf::tls
       // the connection. See OpenSSLConnectionEngine::OnHandshake.
       OnHandshake on_handshake = {};
       std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt;
+      // See OpenSSLConnectionEngine::Config::max_queued_output. Output sent
+      // while a connection is being established counts towards it too.
+      std::optional<size_t> max_queued_output = std::nullopt;
     };
 
     struct ConnectConfig
@@ -76,6 +79,7 @@ namespace ccf::tls
       uv_getaddrinfo_t* resolver = nullptr;
       std::chrono::steady_clock::time_point deadline;
       std::vector<OpenSSLConnectionEngine::OutItem> pending_commands;
+      size_t queued_output = 0;
     };
 
     // libuv owns completion, even after cancellation or client destruction.
@@ -90,6 +94,7 @@ namespace ccf::tls
     std::shared_ptr<OpenSSLConnectionEngine> engine;
     uv_loop_t* loop;
     OnClose on_close;
+    std::optional<size_t> max_queued_output;
     ccf::ds::Mutex pending_mutex;
     std::vector<std::pair<::tcp::ConnID, ConnectConfig>> pending_connects
       CCF_GUARDED_BY(pending_mutex);
@@ -511,7 +516,20 @@ namespace ccf::tls
       }
       else
       {
-        it->second->pending_commands.push_back({id, std::move(data), false});
+        auto& dial = *it->second;
+        if (
+          max_queued_output &&
+          data.size() > *max_queued_output - dial.queued_output)
+        {
+          LOG_INFO_FMT(
+            "Connection {}: closing with more than {} bytes of output queued",
+            id,
+            *max_queued_output);
+          cancel_dial(id);
+          return;
+        }
+        dial.queued_output += data.size();
+        dial.pending_commands.push_back({id, std::move(data), false});
       }
     }
 
@@ -519,7 +537,8 @@ namespace ccf::tls
     // hold weak_from_this(), which is empty unless a shared_ptr owns this.
     OpenSSLClient(Config config, OnData on_data_, OnClose on_close_) :
       loop(config.loop),
-      on_close(std::move(on_close_))
+      on_close(std::move(on_close_)),
+      max_queued_output(config.max_queued_output)
     {
       OpenSSLConnectionEngine::Config engine_config{
         .loop = loop,
@@ -528,6 +547,7 @@ namespace ccf::tls
         .inbound_admission = std::move(config.inbound_admission),
         .on_handshake = std::move(config.on_handshake),
         .traffic_key_policy = config.traffic_key_policy,
+        .max_queued_output = config.max_queued_output,
         .on_wake = [this]() { start_connects(); },
         .on_stop = [this]() { stop_connects(); },
         .on_unconnected =

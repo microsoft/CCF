@@ -217,6 +217,35 @@ extern "C" int __wrap_uv_getaddrinfo(
     hints);
 }
 
+namespace
+{
+  std::atomic<bool> track_allocations = false;
+  std::atomic<size_t> largest_allocation = 0;
+}
+
+extern "C" void* __real__Znwm(size_t);
+
+extern "C" void* __wrap__Znwm(size_t size)
+{
+  if (track_allocations.load(std::memory_order_relaxed))
+  {
+    size_t largest = largest_allocation.load(std::memory_order_relaxed);
+    while (size > largest &&
+           !largest_allocation.compare_exchange_weak(largest, size))
+    {
+    }
+  }
+  return __real__Znwm(size);
+}
+
+// Starts or stops recording the largest single allocation made through
+// operator new, returning the largest recorded so far.
+size_t tls_test_track_allocations(bool enabled)
+{
+  track_allocations = enabled;
+  return largest_allocation.exchange(0);
+}
+
 extern "C" int __real_uv_poll_start(uv_poll_t*, int, uv_poll_cb);
 
 extern "C" int __wrap_uv_poll_start(
@@ -707,7 +736,8 @@ namespace
 
     EnginePair(
       std::optional<std::chrono::milliseconds> server_timeout = std::nullopt,
-      std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt)
+      std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt,
+      std::optional<size_t> max_queued_output = std::nullopt)
     {
       auto [cert, key] = make_server_cert();
       client_ctx = make_client_context(cert);
@@ -716,6 +746,7 @@ namespace
         .host = "127.0.0.1", .cert_pem = cert, .key_pem = key};
       config.tcp_user_timeout = server_timeout;
       config.traffic_key_policy = traffic_key_policy;
+      config.max_queued_output = max_queued_output;
       config.on_handshake = [this](::tcp::ConnID id, SSL* ssl, bool outgoing) {
         std::lock_guard<std::mutex> guard(mutex);
         CHECK_FALSE(outgoing);
@@ -770,6 +801,7 @@ namespace
         });
       OpenSSLClient::Config client_config;
       client_config.traffic_key_policy = traffic_key_policy;
+      client_config.max_queued_output = max_queued_output;
       client_config.on_handshake =
         [this](::tcp::ConnID id, SSL* ssl, bool outgoing) {
           std::lock_guard<std::mutex> guard(mutex);
@@ -2509,6 +2541,240 @@ TEST_CASE("Idle expiry closes connections with blocked output")
   REQUIRE(expired);
   REQUIRE(close_count == 1);
   REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
+}
+
+namespace
+{
+  // Blocking client which may decline to read what the server sends it.
+  struct OutputPeer
+  {
+    int fd = -1;
+    bool plaintext;
+    ccf::crypto::OpenSSL::Unique_SSL_CTX context{TLS_client_method()};
+    ccf::crypto::OpenSSL::Unique_SSL ssl{context};
+
+    OutputPeer(uint16_t port, bool plaintext_, bool small_receive_buffer) :
+      fd(::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0)),
+      plaintext(plaintext_)
+    {
+      REQUIRE(fd >= 0);
+      if (small_receive_buffer)
+      {
+        const int size = 4096;
+        REQUIRE(
+          setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size)) == 0);
+      }
+      sockaddr_in addr{};
+      addr.sin_family = AF_INET;
+      addr.sin_port = htons(port);
+      REQUIRE(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+      REQUIRE(
+        ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+      if (!plaintext)
+      {
+        REQUIRE(SSL_set_fd(ssl, fd) == 1);
+        REQUIRE(SSL_connect(ssl) == 1);
+      }
+    }
+
+    ~OutputPeer()
+    {
+      ::close(fd);
+    }
+
+    void request(uint8_t byte)
+    {
+      REQUIRE(
+        (plaintext ? ::send(fd, &byte, 1, MSG_NOSIGNAL) :
+                     SSL_write(ssl, &byte, 1)) == 1);
+    }
+
+    // Reads until `wanted` bytes have arrived or the connection ends.
+    size_t read(size_t wanted)
+    {
+      std::vector<uint8_t> buffer(64 * 1024);
+      size_t total = 0;
+      while (total < wanted)
+      {
+        const auto size = std::min(buffer.size(), wanted - total);
+        const auto count = plaintext ?
+          ::recv(fd, buffer.data(), size, 0) :
+          SSL_read(ssl, buffer.data(), static_cast<int>(size));
+        if (count <= 0)
+        {
+          break;
+        }
+        total += static_cast<size_t>(count);
+      }
+      return total;
+    }
+  };
+}
+
+TEST_CASE("A connection exceeding its queued output bound is closed alone")
+{
+  bool plaintext = false;
+  std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt;
+  SUBCASE("TLS") {}
+  SUBCASE("Plaintext")
+  {
+    plaintext = true;
+  }
+  SUBCASE("TLS with the traffic-key policy")
+  {
+    traffic_key_policy = TrafficKeyPolicy{};
+  }
+
+  constexpr size_t bound = 1024 * 1024;
+  constexpr size_t reply = bound / 4;
+  constexpr size_t flood = 64;
+  auto [cert, key] = make_server_cert();
+  std::mutex mutex;
+  std::condition_variable closed_cv;
+  size_t close_count = 0;
+  std::shared_ptr<OpenSSLServer> server;
+  server = std::make_shared<OpenSSLServer>(
+    OpenSSLServer::Config{
+      .host = "127.0.0.1",
+      .cert_pem = cert,
+      .key_pem = key,
+      .plaintext = plaintext,
+      .traffic_key_policy = traffic_key_policy,
+      .max_queued_output = bound},
+    [&](
+      ::tcp::ConnID id,
+      std::vector<uint8_t> data,
+      const std::vector<uint8_t>&,
+      bool) {
+      for (const uint8_t request : data)
+      {
+        switch (request)
+        {
+          case 'r':
+          {
+            server->send(id, std::vector<uint8_t>(reply, request));
+            break;
+          }
+          case 'e':
+          {
+            server->send(id, std::vector<uint8_t>(bound, request));
+            break;
+          }
+          case 'o':
+          {
+            server->send(id, std::vector<uint8_t>(bound + 1, request));
+            break;
+          }
+          case 'f':
+          {
+            for (size_t i = 0; i < flood; ++i)
+            {
+              server->send(id, std::vector<uint8_t>(reply, request));
+            }
+            break;
+          }
+          default:
+          {
+            break;
+          }
+        }
+      }
+    },
+    [&](::tcp::ConnID) {
+      std::lock_guard<std::mutex> guard(mutex);
+      ++close_count;
+      closed_cv.notify_all();
+    });
+  UVLoopRunner loop;
+  server->start();
+  loop.start();
+
+  struct StopOnExit
+  {
+    std::shared_ptr<OpenSSLServer> server;
+
+    ~StopOnExit()
+    {
+      server->stop(OpenSSLServer::LoopState::Running);
+    }
+  } stop_on_exit{server};
+
+  const auto closed = [&](size_t count) {
+    std::unique_lock<std::mutex> lock(mutex);
+    return closed_cv.wait_for(
+      lock, std::chrono::seconds(10), [&]() { return close_count >= count; });
+  };
+
+  // Output which the peer keeps reading is released, however much is sent in
+  // total, and a send of exactly the bound is accepted.
+  OutputPeer steady(server->port(), plaintext, false);
+  for (size_t round = 0; round < 2 * bound / reply; ++round)
+  {
+    steady.request('r');
+    REQUIRE(steady.read(reply) == reply);
+  }
+  steady.request('e');
+  REQUIRE(steady.read(bound) == bound);
+
+  {
+    // A peer which stops reading has its output queue up to the bound.
+    OutputPeer stalled(server->port(), plaintext, true);
+    stalled.request('f');
+    REQUIRE(closed(1));
+    CHECK(stalled.read(flood * reply) < flood * reply);
+  }
+  {
+    // A single send larger than the bound can never be accepted.
+    OutputPeer oversized(server->port(), plaintext, false);
+    oversized.request('o');
+    REQUIRE(closed(2));
+    CHECK(oversized.read(bound + 1) == 0);
+  }
+
+  steady.request('r');
+  CHECK(steady.read(reply) == reply);
+  std::lock_guard<std::mutex> guard(mutex);
+  CHECK(close_count == 2);
+}
+
+TEST_CASE("Output queued for a connection being established is bounded")
+{
+  constexpr size_t bound = 4096;
+  // Outlives the pair, whose shutdown still reports closes.
+  std::vector<::tcp::ConnID> closed;
+  EnginePair pair(std::nullopt, std::nullopt, bound);
+  pair.reply = false;
+  pair.on_client_close = [&](::tcp::ConnID id) {
+    std::lock_guard<std::mutex> guard(pair.mutex);
+    closed.push_back(id);
+  };
+  const auto sockets_before = socket_calls.load();
+  const auto within = pair.client->connect(pair.config()).value();
+  const auto beyond = pair.client->connect(pair.config()).value();
+  pair.client->send(within, std::vector<uint8_t>(bound, 1));
+  pair.client->send(beyond, std::vector<uint8_t>(bound, 2));
+  pair.client->send(beyond, std::vector<uint8_t>(1, 2));
+  pair.loop.start();
+
+  REQUIRE(pair.wait([&]() {
+    return closed.size() == 1 && pair.accepted_data.size() == bound;
+  }));
+  std::lock_guard<std::mutex> guard(pair.mutex);
+  CHECK(closed == std::vector<::tcp::ConnID>{beyond});
+  CHECK(pair.accepted_data == std::vector<uint8_t>(bound, 1));
+  CHECK(pair.server_handshakes == 1);
+  // The attempt is abandoned as soon as its output exceeds the bound, rather
+  // than holding that output until a socket has been connected.
+  CHECK(socket_calls == sockets_before + 1);
+}
+
+TEST_CASE("An unusable queued output bound is rejected")
+{
+  CHECK_THROWS_AS(
+    std::make_shared<OpenSSLConnectionEngine>(
+      OpenSSLConnectionEngine::Config{.max_queued_output = 0},
+      OpenSSLConnectionEngine::OnData{}),
+    std::invalid_argument);
 }
 
 TEST_CASE("TCP connections use the legacy latency and keepalive options")

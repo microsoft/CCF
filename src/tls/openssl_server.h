@@ -84,6 +84,8 @@ namespace ccf::tls
       // connection. See OpenSSLConnectionEngine::OnHandshake.
       OnHandshake on_handshake = {};
       std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt;
+      // See OpenSSLConnectionEngine::Config::max_queued_output.
+      std::optional<size_t> max_queued_output = std::nullopt;
       // Linux TCP_USER_TIMEOUT, independent of application inactivity.
       // Unset preserves the operating system's defaults for RPC.
       std::optional<std::chrono::milliseconds> tcp_user_timeout = std::nullopt;
@@ -507,6 +509,7 @@ namespace ccf::tls
         .inbound_admission = std::move(config.inbound_admission),
         .on_handshake = std::move(config.on_handshake),
         .traffic_key_policy = config.traffic_key_policy,
+        .max_queued_output = config.max_queued_output,
         .on_wake = [this]() { apply_certs(); },
         .on_stop = [this]() { stop_listener(); }};
       engine = std::make_shared<OpenSSLConnectionEngine>(
