@@ -5,6 +5,7 @@
 #include "ccf/claims_digest.h"
 #include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/hash_bytes.h"
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
@@ -430,8 +431,10 @@ namespace ccf::kv
     // on-demand signatures via try_emit_signature(), which are suppressed
     // until then.
     virtual void start_signature_emit_timer() = 0;
+    // pq_keypair is nullptr for a service without an ML-DSA identity.
     virtual void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> keypair,
+      ccf::crypto::MLDSAKeyPairPtr pq_keypair,
       const COSESignaturesConfig& cose_signatures) = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
   };
