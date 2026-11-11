@@ -71,11 +71,14 @@ Every theorem is about the engine running against this modelled OpenSSL.
   The peer and the kernel do not act during a pass, and space freed by one end is visible to the other immediately.
   Passes of the two ends of a `pair` therefore interleave but never overlap.
 - Poll readiness is observed as it is, with no delay and no stale events.
-- Connections start established.
+- Connections start established, with nothing queued.
   The handshake, the `on_handshake` hook and establishment cancellation are not modelled.
+  Nor is output sent while a client connection is being established, which the engine charges to the same bound from `begin_establishing` and keeps charged once the connection is adopted.
 - The cross-thread output queue, the loop's pending commands and the output buffer are one list, `Conn.output`.
   The queued output count is decremented as each record is written, where the engine reports it as the pass completes.
+  The engine's count can therefore be higher than the model's, and the engine can close a connection on a send which the model accepts.
 - A send beyond the queued output bound closes the connection at once, where the engine closes it on its next pass and discards sends made in between.
+  A send to a closed connection is disabled in the model, where the engine discards it.
 - One allowance, `readsPerPass`, stands for both the per-pass byte cap and the bounded further attempts for control messages.
 - A read which sends an owed KeyUpdate response also consumes the message which prompted it, where the engine's read loop expects OpenSSL to return between the two.
 - Memory is counted in records: the input buffer and the queued output.
@@ -88,6 +91,9 @@ Every theorem is about the engine running against this modelled OpenSSL.
   The model has only closes which do not flush: shutdown, idle expiry, a failed read or write, and the queued output bound.
 - The `close_notify` alert sent on close.
   It is a record under the sending key which the model does not count.
+  A reading of `SSL_shutdown` and `ssl3_send_alert` in OpenSSL 3.3 and 3.5, made for the engine change and not tested, found that no alert is written while the connection is in init or a write is pending.
+  In every other state the invariant `Coherent.reserve` in `Tls/Proofs/Local.lean` leaves one record under the sending key.
+  Together these indicate that `close_notify` stays within the budget, but no theorem states it.
 - TCP resets, and loss of data which a closed end had not read.
 - Idle timeouts, handshake deadlines, engine start and stop, and the threading of the loop and its workers.
 
