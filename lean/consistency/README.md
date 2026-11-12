@@ -69,7 +69,7 @@ The unsandboxed check executes build-time code, which must be trusted.
 It replays requests, write executions, responses, and final statuses through `Model.step`, checking request IDs and response transaction IDs.
 Missing views and non-application ledger entries are backfilled before write executions and reads.
 Backfilling uses guarded model elections and appends; it cannot roll back a known committed prefix.
-Elections discard suffixes starting at any write reported invalid anywhere in the trace, since such reports can follow the election, before filling gaps in the new view.
+Elections discard known-invalid suffixes before filling gaps in the new view.
 This is a deterministic reconstruction for these captures, not a complete search for all possible model executions.
 The capture contains no application read values, so this does not validate the model's append-and-read application observations.
 An unfinished final request is allowed, but empty traces, malformed records, and disabled transitions fail with a line-numbered diagnostic and nonzero exit code.
@@ -85,13 +85,19 @@ lake build --wfail consistency-replay
 .lake/build/bin/consistency-replay ../../build/consistency/trace.ndjson
 ```
 
-[`tests/partitions_test.py`](../../tests/partitions_test.py) also records traces when `CCF_CONSISTENCY_TRACE=1` is set, using [`tests/infra/consistency_trace.py`](../../tests/infra/consistency_trace.py).
-Its `basic` and `isolate-reconnect` groups each write a trace named after the test, such as `basic_partitions_consistency_trace.ndjson`, in their network's common directory, and replay it when `CCF_LEAN_CONSISTENCY_REPLAYER` names the replayer:
+`consistency-replay` also consumes the `ccf.cft` consensus trace events that nodes [export](../../doc/operations/configuration.rst), in records with a `msg` field ordered by timestamp.
+It uses `become_leader`, `send_request_vote`, `replicate` and `commit`, and skips other events.
+Elections are then observed, not reconstructed: a new leader's view starts from the ledger prefix that it reported when requesting votes.
+Every ledger entry is replayed as a write, which a node's `commit` reports committed.
+A `tx_status` record adds a status given to a client, which nodes do not trace; only `Invalid` is replayed.
+
+[`tests/partitions_test.py`](../../tests/partitions_test.py) records and replays such a trace for each of its networks when `CCF_LEAN_CONSISTENCY_REPLAYER` names the replayer, using [`tests/infra/consistency_trace.py`](../../tests/infra/consistency_trace.py).
+Each trace is written to the test workspace, named after its group, such as `basic_partitions_consistency_trace.ndjson`:
 
 ```sh
-(cd build && CR_FILTER="basic|isolate-reconnect" CCF_CONSISTENCY_TRACE=1 CCF_LEAN_CONSISTENCY_REPLAYER="$PWD/../lean/consistency/.lake/build/bin/consistency-replay" ./tests.sh -VV -C partitions -R '^partitions$' --no-tests=error)
+(cd build && CCF_LEAN_CONSISTENCY_REPLAYER="$PWD/../lean/consistency/.lake/build/bin/consistency-replay" ./tests.sh -VV -C partitions -R '^partitions$' --no-tests=error)
 ```
 
 The [Lean workflow](../../.github/workflows/lean.yml) captures and replays the `tvc.py` trace in separate jobs, following the KV and CCF consensus setup, and also checks the [replay fixtures](replayer/fixtures/README.md), including election and rollback traces.
-The partitions tests in the [CI workflow](../../.github/workflows/ci.yml) record and replay their traces.
+The partitions tests in the [CI workflow](../../.github/workflows/ci.yml) record and replay their consensus traces.
 The replay fixtures check that the replayer accepts valid traces and rejects invalid ones.

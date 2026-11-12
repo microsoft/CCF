@@ -13,8 +13,8 @@ Every [valid](valid) fixture must be accepted, and every [invalid](invalid) fixt
 | [Non-contiguous view election](valid/election_non_contiguous_view.ndjson) | Election skips intermediate views                              |
 | [Rollback at the same sequence number](valid/rollback_same_seqno.ndjson)  | Election replaces an invalid write                             |
 | [Rollback of two transactions](valid/rollback_two_transactions.ndjson)    | Election replaces an invalid suffix and commits a new write    |
-| [Invalid after election](valid/invalid-after-election.ndjson)             | Lost write reported invalid after a later view commits         |
-| [Partitions capture](valid/partitions-isolate-reconnect.ndjson)           | Isolate-and-reconnect capture from `partitions_test.py`        |
+| [Consensus election](valid/consensus-election.ndjson)                     | Consensus trace: election drops a write reported invalid       |
+| [Consensus election from older view](valid/consensus-older-view.ndjson)   | Consensus trace: leader's ledger predates the last view        |
 
 | Invalid fixture                                                   | Expected failure                                   |
 | ----------------------------------------------------------------- | -------------------------------------------------- |
@@ -35,7 +35,10 @@ Every [valid](valid) fixture must be accepted, and every [invalid](invalid) fixt
 | [Rollback below commit](invalid/rollback-below-commit.ndjson)     | New view would roll back a committed write         |
 | [Status without response](invalid/status-without-response.ndjson) | Status for a transaction ID never returned         |
 | [Status mismatch](invalid/status-mismatch.ndjson)                 | Status field disagrees with the action             |
-| [Lost write committed](invalid/lost-write-committed.ndjson)       | Write replaced in a later view reported committed  |
+| [Consensus dropped commit](invalid/consensus-drops-commit.ndjson) | Consensus trace: election drops a committed entry  |
+| [Consensus stale commit](invalid/consensus-stale-commit.ndjson)   | Consensus trace: old leader commits a lost write   |
+| [Consensus invalid](invalid/consensus-invalid-committed.ndjson)   | Consensus trace: committed write reported invalid  |
+| [Consensus two leaders](invalid/consensus-two-leaders.ndjson)     | Consensus trace: second leader in the same view    |
 
 From `lean/consistency`, inspect a failure directly (exit status 1 is expected):
 

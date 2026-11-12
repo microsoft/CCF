@@ -1,84 +1,85 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-"""Record client observations in the tests/tvc.py consistency trace format.
+"""Check consensus protocol traces against the lean/consistency model.
 
-Tests call the methods below explicitly on responses they already hold, and
-captures are replayed by lean/consistency (consistency-replay).
+Nodes export their ccf.cft trace events to a local collector. Tests add only
+what nodes cannot observe: transaction statuses reported to clients. The joint
+trace is replayed by consistency-replay.
 """
 
 import contextlib
 import json
 import os
+import struct
 import subprocess
+import threading
+import time
 
 from loguru import logger as LOG
 
-# Written by infra.checker.check_can_progress. Its value is irrelevant: the
-# format carries no values.
-READ_PATH = "/app/log/public?id=3&scope=check_can_progress"
+import infra.fluentd
+
+# The consensus events that the consistency replayer uses.
+FUNCTIONS = ("become_leader", "send_request_vote", "replicate", "commit")
+
+# Upper bound on the nodes started by one test.
+MAX_NODES = 64
+
+# The trace recorded by the current thread, if any: record key to
+# (nanoseconds since the epoch, per-process sequence number, record).
+_recording = threading.local()
 
 
-class ConsistencyTrace:
-    def __init__(self, path):
-        self.path = path
-        # Closed in close()
-        self._file = open(path, "w", encoding="ascii")  # noqa: SIM115
-        self._next_tx = 0
-
-    def _emit(self, action, type_, **fields):
-        self._file.write(json.dumps({"action": action, "type": type_, **fields}) + "\n")
-
-    def _request(self, kind):
-        tx = self._next_tx
-        self._next_tx += 1
-        self._emit(f"{kind}TxRequestAction", f"{kind}TxRequest", tx=tx)
-        return tx
-
-    def write(self, r):
-        tx = self._request("Rw")
-        tx_id = [r.view, r.seqno]
-        self._emit("RwTxExecuteAction", "RwTxExecute", tx=tx, tx_id=tx_id)
-        self._emit("RwTxResponseAction", "RwTxResponse", tx=tx, tx_id=tx_id)
-
-    def status(self, r, status):
-        self._emit(
-            f"Status{status.value}ResponseAction",
-            "TxStatusReceived",
-            tx_id=[r.view, r.seqno],
-            status=f"{status.value}Status",
-        )
-
-    def primary_read(self, network, nodes):
-        """Read on the primary, recorded only if that node was leader in the
-        same view before and after the read, and the read is at that view."""
-        primary, _ = network.find_primary(nodes=nodes)
-        with primary.client("user0") as c:
-            before = c.get("/node/consensus").body.json()["details"]
-            r = c.get(READ_PATH)
-            after = c.get("/node/consensus").body.json()["details"]
-        view = before["current_view"]
-        if (
-            r.status_code != 200
-            or r.view != view
-            or any(
-                d["leadership_state"] != "Leader" or d["current_view"] != view
-                for d in (before, after)
-            )
-        ):
-            LOG.info(f"Not recording read: {r}, {before}, {after}")
-            return
-        tx = self._request("Ro")
-        self._emit("RoTxResponseAction", "RoTxResponse", tx=tx, tx_id=[r.view, r.seqno])
-
-    def close(self):
-        self._file.close()
+def tx_status(r):
+    """Record the transaction status that r, a /node/tx response, gave a client."""
+    events = getattr(_recording, "events", None)
+    if events is not None:
+        body = r.body.json()
+        view, seqno = body["transaction_id"].split(".")
+        msg = {
+            "function": "tx_status",
+            "view": int(view),
+            "seqno": int(seqno),
+            "status": body["status"],
+        }
+        events[("client", len(events))] = (time.time_ns(), 0, {"msg": msg})
 
 
-def replay(path):
-    """Replay a trace with the Lean consistency replayer, if one is configured."""
+@contextlib.contextmanager
+def recording(args):
+    """Trace the nodes started with args, then replay the trace.
+
+    Does nothing unless CCF_LEAN_CONSISTENCY_REPLAYER names the replayer. The
+    body must stop its nodes. The trace is not replayed if the body raises.
+    """
     replayer = os.getenv("CCF_LEAN_CONSISTENCY_REPLAYER")
     if not replayer:
+        yield
         return
+    events = {}
+
+    def node_event(tag, timestamp, record):
+        if tag == "ccf.cft" and record["msg"]["function"] in FUNCTIONS:
+            seconds, nanos = struct.unpack(">II", timestamp.data)
+            # Keyed by origin, as delivery retries can duplicate records.
+            events[(record["process_id"], record["h_ts"])] = (
+                seconds * 10**9 + nanos,
+                record["h_ts"],
+                record,
+            )
+
+    path = os.path.join(args.workspace, f"{args.label}_consistency_trace.ndjson")
+    try:
+        with infra.fluentd.Collector(MAX_NODES, node_event) as collector:
+            endpoint = {**collector.endpoint, "tag-prefix-allow-list": ["ccf.cft"]}
+            args.observability = {"fluentd": [endpoint]}
+            _recording.events = events
+            yield
+    finally:
+        _recording.events = None
+        with open(path, "w", encoding="ascii") as f:
+            for ts, _, record in sorted(events.values(), key=lambda e: e[:2]):
+                f.write(json.dumps({"ts": ts, **record}) + "\n")
     result = subprocess.run(
         [replayer, path], capture_output=True, text=True, check=False
     )
@@ -86,22 +87,3 @@ def replay(path):
         result.returncode == 0
     ), f"Lean consistency replay failed:\n{result.stdout}{result.stderr}"
     LOG.info(result.stdout.strip())
-
-
-@contextlib.contextmanager
-def recording(network, name, enabled):
-    """Yield a trace named after its source, in network.common_dir, if enabled.
-    Otherwise yield None.
-
-    The trace is replayed on exit, unless the body raised."""
-    if not enabled:
-        yield None
-        return
-    trace = ConsistencyTrace(
-        os.path.join(network.common_dir, f"{name}_consistency_trace.ndjson")
-    )
-    try:
-        yield trace
-    finally:
-        trace.close()
-    replay(trace.path)

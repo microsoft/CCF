@@ -1,0 +1,12 @@
+{"msg":{"function":"become_leader","state":{"node_id":"n0","current_view":2,"last_idx":0}}}
+{"msg":{"function":"replicate","state":{"node_id":"n0"},"view":2,"seqno":1}}
+{"msg":{"function":"replicate","state":{"node_id":"n0"},"view":2,"seqno":2}}
+{"msg":{"function":"commit","state":{"node_id":"n0","current_view":2},"idx":2}}
+{"msg":{"function":"commit","state":{"node_id":"n1","current_view":2},"idx":2}}
+{"msg":{"function":"replicate","state":{"node_id":"n0"},"view":2,"seqno":3}}
+{"msg":{"function":"send_request_vote","state":{"node_id":"n1"},"packet":{"term":3,"last_committable_idx":2,"term_of_last_committable_idx":2}}}
+{"msg":{"function":"become_leader","state":{"node_id":"n1","current_view":3,"last_idx":2}}}
+{"msg":{"function":"replicate","state":{"node_id":"n1"},"view":3,"seqno":3}}
+{"msg":{"function":"commit","state":{"node_id":"n1","current_view":3},"idx":3}}
+{"msg":{"function":"commit","state":{"node_id":"n0","current_view":3},"idx":3}}
+{"msg":{"function":"tx_status","view":2,"seqno":3,"status":"Invalid"}}

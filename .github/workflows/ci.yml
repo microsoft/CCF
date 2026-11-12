@@ -244,7 +244,6 @@ jobs:
         run: |
           set -ex
           cd build
-          export CCF_CONSISTENCY_TRACE=1
           export CCF_LEAN_CONSISTENCY_REPLAYER="$GITHUB_WORKSPACE/lean/consistency/.lake/build/bin/consistency-replay"
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
 
@@ -260,7 +259,7 @@ jobs:
             build/workspace/*/*.ledger.*/*
             build/workspace/*/stack_trace
             build/workspace/**/openapi_coverage.json
-            build/workspace/*/*_consistency_trace.ndjson
+            build/workspace/*_consistency_trace.ndjson
           if-no-files-found: ignore
         if: success() || failure()
 

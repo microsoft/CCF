@@ -43,10 +43,6 @@ UNCOMMITTABLE_MESSAGE_REPEAT = 1024
 # guaranteed to roll over into new (uncommitted) ledger chunks quickly.
 UNCOMMITTABLE_TEST_LEDGER_CHUNK_BYTES = "16KB"
 
-# Opt-in recording of client observations for lean/consistency trace
-# validation. When unset, no trace is created and tests behave as before.
-CONSISTENCY_TRACE = os.environ.get("CCF_CONSISTENCY_TRACE") == "1"
-
 
 @reqs.description("Invalid partitions are not allowed")
 def test_invalid_partitions(network, args):
@@ -216,7 +212,7 @@ def test_isolate_primary_from_one_backup(network, args):
 
 
 @reqs.description("Isolate and reconnect primary")
-def test_isolate_and_reconnect_primary(network, args, trace=None, **kwargs):
+def test_isolate_and_reconnect_primary(network, args, **kwargs):
     primary, backups = network.find_nodes()
 
     with primary.client() as c:
@@ -224,15 +220,9 @@ def test_isolate_and_reconnect_primary(network, args, trace=None, **kwargs):
 
     with network.partitioner.partition(backups):
         lost_tx_resp = check_does_not_progress(primary)
-        if trace:
-            trace.write(lost_tx_resp)
 
         new_primary, _ = network.wait_for_new_primary(primary, nodes=backups)
         new_tx_resp = check_can_progress(new_primary)
-        if trace:
-            trace.write(new_tx_resp)
-            trace.status(new_tx_resp, TxStatus.Committed)
-            trace.primary_read(network, nodes=backups)
 
         # CheckQuorum: the primary node should automatically step
         # down if it has not heard back from a majority of backups.
@@ -266,13 +256,12 @@ def test_isolate_and_reconnect_primary(network, args, trace=None, **kwargs):
         r = c.get(f"/node/tx?transaction_id={lost_tx_resp.view}.{lost_tx_resp.seqno}")
         status = TxStatus(r.body.json()["status"])
         assert status == TxStatus.Invalid, r
-        if trace:
-            trace.status(lost_tx_resp, TxStatus.Invalid)
+        infra.consistency_trace.tx_status(r)
 
 
 @reqs.description("New joiner helps liveness")
 @reqs.exactly_n_nodes(3)
-def test_new_joiner_helps_liveness(network, args, trace=None):
+def test_new_joiner_helps_liveness(network, args):
     primary, backups = network.find_nodes()
 
     # Issue some transactions, so there is a ledger history that a new node must receive
@@ -301,11 +290,7 @@ def test_new_joiner_helps_liveness(network, args, trace=None):
 
         # Trust the new node, and wait for commit of this (but don't ask the new node itself, which doesn't know this yet)
         network.trust_node(new_node, args, no_wait=True)
-        r = check_can_progress(primary)
-        if trace:
-            trace.write(r)
-            trace.status(r, TxStatus.Committed)
-            trace.primary_read(network, nodes=[primary, *backups])
+        check_can_progress(primary)
 
         # Partition the primary, temporarily creating a minority service that cannot make progress
         minority_partition = backups[len(backups) // 2 :] + new_joiner_partition
@@ -327,11 +312,7 @@ def test_new_joiner_helps_liveness(network, args, trace=None):
 
         # Confirm that the new node catches up, and progress can be made in this majority partition
         network.wait_for_new_primary(primary, minority_partition)
-        r = check_can_progress(new_node)
-        if trace:
-            trace.write(r)
-            trace.status(r, TxStatus.Committed)
-            trace.primary_read(network, nodes=minority_partition)
+        check_can_progress(new_node)
 
         # Explicitly drop rules before continuing
         minority_rules.drop()
@@ -478,6 +459,7 @@ def test_rolled_back_node_certificate(network, args):
             f"{renewal.completed_view}.{renewal.completed_seqno}"
         )
         assert TxStatus(r.body.json()["status"]) == TxStatus.Invalid, r
+        infra.consistency_trace.tx_status(r)
 
     LOG.info("Confirm the re-elected node can use the rolled-back certificate")
     force_become_primary(network, args, renewed_node)
@@ -1471,7 +1453,7 @@ def partitioned_network(args):
     Every Partitioner owns a private iptables chain whose rules only match its
     own nodes' addresses and ports, so co-existing groups do not interfere.
     """
-    with infra.network.network(
+    with infra.consistency_trace.recording(args), infra.network.network(
         args.nodes,
         args.binary_dir,
         args.debug_nodes,
@@ -1484,13 +1466,11 @@ def partitioned_network(args):
 
 
 def run_basic_partitions(args):
-    with partitioned_network(args) as network, infra.consistency_trace.recording(
-        network, args.label, CONSISTENCY_TRACE
-    ) as trace:
+    with partitioned_network(args) as network:
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
-        test_new_joiner_helps_liveness(network, args, trace)
+        test_new_joiner_helps_liveness(network, args)
 
 
 def run_certificate_partitions(args):
@@ -1500,11 +1480,9 @@ def run_certificate_partitions(args):
 
 
 def run_isolate_and_reconnect(args):
-    with partitioned_network(args) as network, infra.consistency_trace.recording(
-        network, args.label, CONSISTENCY_TRACE
-    ) as trace:
+    with partitioned_network(args) as network:
         for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, trace, iteration=n)
+            test_isolate_and_reconnect_primary(network, args, iteration=n)
 
 
 def run_reconfiguration_partitions(args):
