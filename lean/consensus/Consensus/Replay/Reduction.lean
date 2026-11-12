@@ -13,8 +13,8 @@ public section
 Rules peek action arguments, consume named events, and emit direct model actions.
 Explicit native boundaries distinguish related events from subsequent actions.
 After bootstrap, each rule observes its native group's starting snapshot before emitting actions.
-Rules consume input only through `consume`, which collects native sends; after each rule, replay
-checks them against the envelopes its actions queued.
+Each rule returns the native sends it consumed; after the rule, replay checks them against the
+envelopes its actions queued.
 Reduction never executes or repairs model state.
 -/
 
@@ -28,8 +28,6 @@ private structure ReductionState where
   header : Header
   nextRequestId : ReqID := 1
   instructions : Array Instruction := #[]
-  /-- Native sends consumed by the current rule. -/
-  sends : Array NativeSend := #[]
 
 private abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
 
@@ -47,36 +45,49 @@ private def peek : Reduction Event := do
   let some event ← CCF.Parsec.peek | failure "unexpected end of input"
   return event
 
-/-- Consume the next event, collecting a send or the proposal a nomination implies. -/
-private def consume : Reduction Unit := do
-  let next ← CCF.Parsec.take
-  let packet ←
-    if next.function.startsWith "send_" then
-      some <$> readJson next next.message (field · "packet")
-    else if next.function == "step_down_and_nominate_successor" then
-      -- Native then sends an untraced proposal in its current view.
-      let term ← readJson next next.state (nat · "current_view")
-      pure
-        (some
-          (Json.mkObj [("msg", toJson "propose_request_vote"), ("term", toJson term)]))
-    else
-      pure none
-  if let some packet := packet then
-    let target ← readJson next next.message (string · "to_node_id")
-    modify
-      fun s =>
-        {
-          s with
-            sends := s.sends.push { target, packet, origin := next.origin next.function }
-        }
-
 private def event (source : Event) (name : String) : Reduction Unit := do
   let next ← peek
   unless next.function == name do
     failure s!"{next.record.location}: expected {name}, got {next.function}"
   liftExcept next do
     require (next.node == source.node) s!"expected event on node {source.node}"
-  consume
+  discard CCF.Parsec.take
+
+/-- Consume a send event, or a nomination with the proposal it implies. -/
+private def send (source : Event) (name : String) : Reduction NativeSend := do
+  let next ← peek
+  event source name
+  let target ← readJson next next.message (string · "to_node_id")
+  let packet ←
+    if name == "step_down_and_nominate_successor" then
+      -- Native then sends an untraced proposal in its current view.
+      let term ← readJson next next.state (nat · "current_view")
+      pure (Json.mkObj [("msg", toJson "propose_request_vote"), ("term", toJson term)])
+    else
+      readJson next next.message (field · "packet")
+  return { target, packet, origin := next.origin name }
+
+/-- Optionally parse a rule, yielding no sends if it is absent. -/
+private def optionalSends (rule : Reduction (List NativeSend))
+    : Reduction (List NativeSend) :=
+  (·.getD []) <$> CCF.Parsec.optionalRule rule
+
+/-- A commit and the nomination that may follow it. -/
+private def commit (source : Event) : Reduction (List NativeSend) := do
+  event source "commit"
+  (·.toList) <$> CCF.Parsec.optionalRule (send source "step_down_and_nominate_successor")
+
+/-- A new primary's commit and nomination, then its heartbeats. -/
+private def becomeLeader (source : Event) : Reduction (List NativeSend) := do
+  event source "become_leader"
+  let committed ← optionalSends (commit source)
+  return committed ++ (← CCF.Parsec.many (send source "send_append_entries"))
+
+/-- A candidate's promotion, if any, then its vote requests. -/
+private def becomeCandidate (source : Event) : Reduction (List NativeSend) := do
+  event source "become_candidate"
+  let leader ← optionalSends (becomeLeader source)
+  return leader ++ (← CCF.Parsec.many (send source "send_request_vote"))
 
 private def modelNode (event : Event) (name : String) : Reduction NodeID := do
   liftExcept event ((← get).header.nodeId name)
@@ -129,7 +140,7 @@ private def readAppendContent (head : Event) (config : Option Event)
   modify fun s => { s with nextRequestId := request + 1 }
   return .transaction request { configuration, retirementConfirmations }
 
-private def ruleAppend : Reduction Unit := do
+private def ruleAppend : Reduction (List NativeSend) := do
   let head ← peek
   unless head.function == "retired_committed_tx" || head.function == "replicate" do
     failure
@@ -147,43 +158,39 @@ private def ruleAppend : Reduction Unit := do
       unless retirementSeqno == seqno do
         failure
           s!"{retirement.record.location}: expected seqno {seqno}, got {retirementSeqno}"
-      consume
+      discard CCF.Parsec.take
       return retirement
   -- Map hooks run before replication acceptance; rejected writes may have no matching replicate.
   if (← CCF.Parsec.peek).isNone then
-    return
+    return []
   let head ← peek
   unless head.function == "replicate" && head.node == nodeId do
-    return
+    return []
   let replicateSeqno ← readJson head head.message (nat · "seqno")
   unless replicateSeqno == seqno do
-    return
+    return []
   event head "replicate"
   let config ←
     CCF.Parsec.optionalRule do
       let config ← peek
       event head "add_configuration"
-      many_ (event head "send_append_entries")
-      return config
+      return (config, ← CCF.Parsec.many (send head "send_append_entries"))
   let flushes ←
     CCF.Parsec.optionalRule do
       event head "batch_flush"
       CCF.Parsec.many do
         let next ← peek
-        event head "send_append_entries"
-        let packet ← readJson next next.message (field · "packet")
-        let destination ←
-          modelNode next (← readJson next next.message (string · "to_node_id"))
-        let last ← readJson next packet (nat · "idx")
-        return (destination, last)
-  optional_ do
-    event head "commit"
-    optional_ (event head "step_down_and_nominate_successor")
-  let content ← readAppendContent head config retirements
+        let sent ← send head "send_append_entries"
+        let destination ← modelNode next sent.target
+        let last ← readJson next sent.packet (nat · "idx")
+        return ((destination, last), sent)
+  let committed ← optionalSends (commit head)
+  let content ← readAppendContent head (config.map Prod.fst) retirements
   -- emit
   emitObserve head "append"
   emitAction head "append"
-    (.local head.node (.append [{ content, flushes := flushes.getD [] }]))
+    (.local head.node (.append [{ content, flushes := (flushes.getD []).map Prod.fst }]))
+  return ((config.map Prod.snd).getD []) ++ (flushes.getD []).map Prod.snd ++ committed
 
 private def readReceive (head : Event) (families : List String) : Reduction Step := do
   let sender ← readJson head head.message (string · "from_node_id")
@@ -192,153 +199,132 @@ private def readReceive (head : Event) (families : List String) : Reduction Step
   liftExcept head (require (families.contains family) "receive function/packet mismatch")
   return .receive sender head.node packet
 
-private def ruleRecvAppendEntries : Reduction Unit := do
+private def ruleRecvAppendEntries : Reduction (List NativeSend) := do
   let head ← peek
   let action ← readReceive head ["append_entries"]
   -- consume
   event head "recv_append_entries"
   optional_ (event head "become_follower")
-  many_
-    ((do
-      event head "execute_append_entries_sync"
-      many_ (event head "retired_committed_tx"))
-      <|> (do
-            event head "add_configuration"
-            many_ (event head "send_append_entries"))
-      <|> (do
-            event head "commit"
-            optional_ (event head "step_down_and_nominate_successor")))
-  optional_ (event head "send_append_entries_response")
+  let sends ←
+    CCF.Parsec.many
+      ((do
+        event head "execute_append_entries_sync"
+        many_ (event head "retired_committed_tx")
+        return [])
+        <|> (do
+              event head "add_configuration"
+              CCF.Parsec.many (send head "send_append_entries"))
+        <|> commit head)
+  let response ← CCF.Parsec.optionalRule (send head "send_append_entries_response")
   -- emit
   emitObserve head "recv-append-entries"
   emitAction head "recv-append-entries" action
+  return sends.flatten ++ response.toList
 
-private def ruleRecvAppendEntriesResponse : Reduction Unit := do
+private def ruleRecvAppendEntriesResponse : Reduction (List NativeSend) := do
   let head ← peek
   let action ← readReceive head ["append_entries_response"]
   -- consume
   event head "recv_append_entries_response"
   optional_ (event head "become_follower")
-  optional_ do
-    event head "commit"
-    optional_ (event head "step_down_and_nominate_successor")
+  let sends ← optionalSends (commit head)
   -- emit
   emitObserve head "recv-append-entries-response"
   emitAction head "recv-append-entries-response" action
+  return sends
 
-private def ruleRecvRequestVote : Reduction Unit := do
+private def ruleRecvRequestVote : Reduction (List NativeSend) := do
   let head ← peek
   let action ← readReceive head ["request_vote", "request_pre_vote"]
   -- consume
   event head "recv_request_vote"
   optional_ (event head "become_follower")
-  optional_ (event head "send_request_vote_response")
+  let response ← CCF.Parsec.optionalRule (send head "send_request_vote_response")
   -- emit
   emitObserve head "recv-request-vote"
   emitAction head "recv-request-vote" action
+  return response.toList
 
-private def ruleRecvProposeRequestVote : Reduction Unit := do
+private def ruleRecvProposeRequestVote : Reduction (List NativeSend) := do
   let head ← peek
   let action ← readReceive head ["propose_request_vote"]
   -- consume
   event head "recv_propose_request_vote"
-  optional_ do
-    event head "become_candidate"
-    optional_ do
-      event head "become_leader"
-      optional_ do
-        event head "commit"
-        optional_ (event head "step_down_and_nominate_successor")
-      many_ (event head "send_append_entries")
-    many_ (event head "send_request_vote")
+  let sends ← optionalSends (becomeCandidate head)
   -- emit
   emitObserve head "recv-propose-request-vote"
   emitAction head "recv-propose-request-vote" action
+  return sends
 
-private def ruleRecvRequestVoteResponse : Reduction Unit := do
+private def ruleRecvRequestVoteResponse : Reduction (List NativeSend) := do
   let head ← peek
   let action ← readReceive head ["request_vote_response", "request_pre_vote_response"]
   -- consume
   event head "recv_request_vote_response"
-  optional_
-    (event head "become_follower"
-      <|> (do
-            event head "become_candidate"
-            optional_ do
-              event head "become_leader"
-              optional_ do
-                event head "commit"
-                optional_ (event head "step_down_and_nominate_successor")
-              many_ (event head "send_append_entries")
-            many_ (event head "send_request_vote"))
-      <|> (do
-            event head "become_leader"
-            optional_ do
-              event head "commit"
-              optional_ (event head "step_down_and_nominate_successor")
-            many_ (event head "send_append_entries")))
+  let sends ←
+    optionalSends
+      ((do
+        event head "become_follower"
+        return [])
+        <|> becomeCandidate head
+        <|> becomeLeader head)
   -- emit
   emitObserve head "recv-request-vote-response"
   emitAction head "recv-request-vote-response" action
+  return sends
 
-private def ruleTick : Reduction Unit := do
+private def ruleTick : Reduction (List NativeSend) := do
   let head ← peek
   -- consume
   event head "tick"
   let election ← CCF.Parsec.optionalRule (event head "become_pre_vote_candidate")
   if election.isSome then
-    optional_ do
-      event head "become_candidate"
-      optional_ do
-        event head "become_leader"
-        optional_ do
-          event head "commit"
-          optional_ (event head "step_down_and_nominate_successor")
-        many_ (event head "send_append_entries")
-      many_ (event head "send_request_vote")
-    many_ (event head "send_request_vote")
+    let candidate ← optionalSends (becomeCandidate head)
+    let preVotes ← CCF.Parsec.many (send head "send_request_vote")
     -- emit
     emitObserve head "tick-election"
     emitAction head "tick-election" (.local head.node (.timeout .election))
+    return candidate ++ preVotes
   else
     let sends ←
       CCF.Parsec.many do
         let next ← peek
-        event head "send_append_entries"
-        let packet ← readJson next next.message (field · "packet")
-        let destination ←
-          modelNode next (← readJson next next.message (string · "to_node_id"))
-        let last ← readJson next packet (nat · "idx")
-        return (next, destination, last)
+        let sent ← send head "send_append_entries"
+        let destination ← modelNode next sent.target
+        let last ← readJson next sent.packet (nat · "idx")
+        return (next, destination, last, sent)
     let demoted ← CCF.Parsec.optionalRule (event head "become_follower")
     -- emit
     emitObserve head "tick"
-    for (source, destination, last) in sends do
+    for (source, destination, last, _) in sends do
       emitAction source "tick-send" (.local head.node (.sendEntries destination last))
     if demoted.isSome then
       emitAction head "tick-check-quorum" (.local head.node (.timeout .checkQuorum))
+    return sends.map fun (_, _, _, sent) => sent
 
-private def ruleNomination : Reduction Unit := do
+private def ruleNomination : Reduction (List NativeSend) := do
   let head ← peek
   -- consume
   event head "nomination"
-  let nominated ← CCF.Parsec.optionalRule (event head "step_down_and_nominate_successor")
+  let nominated ← CCF.Parsec.optionalRule (send head "step_down_and_nominate_successor")
   -- emit
   emitObserve head "nomination"
   if nominated.isSome then
     emitAction head "nomination" (.local head.node .nominateSuccessor)
+  return nominated.toList
 
 /-- Dropped packets stay queued in the model network, never delivered. -/
-private def ruleDrop : Reduction Unit := do
+private def ruleDrop : Reduction (List NativeSend) := do
   let head ← peek
   -- consume
   event head "drop_pending_to"
+  return []
 
 /--
 Snapshot installation runs ledger hooks outside the consensus lock, so bare ticks
 may interleave with their events.
 -/
-private def ruleInitAsBackup : Reduction Unit := do
+private def ruleInitAsBackup : Reduction (List NativeSend) := do
   let head ← peek
   let hooks := ["add_configuration", "retired_committed_tx"]
   unless hooks.contains head.function || head.function == "init_as_backup" do
@@ -353,8 +339,9 @@ private def ruleInitAsBackup : Reduction Unit := do
   -- emit
   emitObserve init "init-as-backup"
   emitAction init "init-as-backup" (.initAsBackup head.node index view)
+  return []
 
-private def ruleStep : Reduction Unit := do
+private def ruleStep : Reduction (List NativeSend) := do
   -- Recv rules
   attempt ruleRecvAppendEntries
   <|> attempt ruleRecvAppendEntriesResponse
@@ -369,17 +356,14 @@ private def ruleStep : Reduction Unit := do
   <|> attempt ruleDrop
 
 /-- Check the native sends a rule consumed against the envelopes its actions queued. -/
-private def emitObserveSends (event : Event) : Reduction Unit := do
-  let sends := (← get).sends
-  modify fun s => { s with sends := #[] }
+private def emitObserveSends (event : Event) (sends : List NativeSend) : Reduction Unit :=
   appendInstruction (.observeSends sends (event.origin "sends"))
 
 private def ruleTrace : Reduction String := do
   let leader ← ruleBootstrap
   many_ do
     let head ← peek
-    ruleStep
-    emitObserveSends head
+    emitObserveSends head (← ruleStep)
   if let some event ← CCF.Parsec.peek then
     failure s!"{event.record.location}: ungrouped event {event.function}"
   return leader

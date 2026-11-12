@@ -74,7 +74,7 @@ inductive Instruction where
   | action (step : Step) (origin : Origin)
   | observeNodeState (node : String) (expected : Json) (origin : Origin)
   /-- The envelopes queued since the last send observation must equal `sends`, as a multiset. -/
-  | observeSends (sends : Array NativeSend) (origin : Origin)
+  | observeSends (sends : List NativeSend) (origin : Origin)
 
 def Instruction.origin : Instruction → Origin
   | .action _ origin
