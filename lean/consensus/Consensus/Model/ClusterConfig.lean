@@ -12,6 +12,8 @@ Ledger-derived membership history and retirement queries.
 
 namespace Consensus.Model.Node
 
+open CCF (Finset)
+
 inductive MembershipState where
   /-- No membership removal observed; includes nodes that have never joined. -/
   | noRetirementObserved

@@ -17,6 +17,8 @@ exhibiting satisfaction of that theorem's preconditions.
 
 namespace Consensus.Properties
 
+open CCF (Finset)
+
 abbrev GlobalTrace (config : Finset Model.Node.NodeID) (nodes : List Model.Node.NodeID) :=
   CCF.Execution.Trace (Model.transitionSystem config nodes)
 
@@ -39,7 +41,7 @@ theorem committed_logs_prefix
 
 /-- Witness: every valid initial membership admits a trace and node states
 satisfying the committed-log theorem's preconditions with nonempty committed logs. -/
-lemma committed_logs_prefix_witness
+theorem committed_logs_prefix_witness
     : forall (config : ValidConfig),
         exists (nodes : List NodeID) (trace : GlobalTrace config nodes),
         exists (stateA stateB : Model.State),
@@ -68,7 +70,7 @@ theorem single_node_committed_log_monotonic
 
 /-- Witness: every valid initial membership admits a successful step from a
 state with unique node IDs that strictly extends a node's nonempty committed log. -/
-lemma single_node_committed_log_monotonic_witness
+theorem single_node_committed_log_monotonic_witness
     : forall (config : ValidConfig),
         exists (nodes : List NodeID),
         exists (pre post : Model.State),
@@ -99,7 +101,7 @@ theorem election_safety
 
 /-- Witness: every valid initial membership admits a trace and primary states
 satisfying the election-safety theorem's preconditions. -/
-lemma election_safety_witness
+theorem election_safety_witness
     : forall (config : ValidConfig),
         exists
         (nodes : List NodeID) (trace : GlobalTrace config nodes) (state : Model.State),
@@ -124,7 +126,7 @@ theorem committed_frontier_is_signature
 
 /-- Witness: every valid initial membership admits a valid trace with a positive
 commit index. -/
-lemma committed_frontier_is_signature_witness
+theorem committed_frontier_is_signature_witness
     : forall (config : ValidConfig),
         exists
         (nodes : List NodeID) (trace : GlobalTrace config nodes) (state : Model.State),

@@ -3,6 +3,9 @@ module
 public import Consensus.Model
 public import Consensus.Properties.Config
 public import CCF.Execution
+public import CCF.Proofs.Execution
+public import CCF.Proofs.Finset
+public import CCF.Function
 
 import all Init.Control.State
 
@@ -22,7 +25,43 @@ open Model.Node
 
 abbrev Config := Properties.ValidConfig
 
-def ids (config : Config) : List NodeID := config.val.sort (· <= ·)
+@[local simp]
+private theorem empty_union (peers : Finset NodeID) : ∅ ∪ peers = peers := by
+  apply Finset.ext
+  intro node
+  simp
+
+@[local simp]
+private theorem union_empty (peers : Finset NodeID) : peers ∪ ∅ = peers := by
+  apply Finset.ext
+  intro node
+  simp
+
+@[local simp]
+private theorem sdiff_self (peers : Finset NodeID) : peers \ peers = ∅ := by
+  apply Finset.ext
+  intro node
+  simp
+
+@[local simp]
+private theorem sdiff_empty (peers : Finset NodeID) : peers \ ∅ = peers := by
+  apply Finset.ext
+  intro node
+  simp
+
+@[local simp]
+private theorem inter_repeat (peers members : Finset NodeID)
+    : peers ∩ members ∩ members = peers ∩ members := by
+  apply Finset.ext
+  intro node
+  simp
+
+@[local simp]
+private theorem not_nonempty_empty : Not (∅ : Finset NodeID).Nonempty := by
+  rintro ⟨node, member⟩
+  exact Finset.notMem_empty node member
+
+def ids (config : Config) : List NodeID := config.val.sort
 
 def table (config : Config) (states : NodeID -> NodeState) :=
   (ids config).map fun node => (node, states node)
@@ -32,7 +71,7 @@ def At (config : Config) (states : NodeID -> NodeState) : Prop :=
     (Model.transitionSystem config (ids config)).Reachable
       { nodes := table config states, network }
 
-lemma lookup_table (config : Config) (states : NodeID -> NodeState) (node : NodeID)
+theorem lookup_table (config : Config) (states : NodeID -> NodeState) (node : NodeID)
     (member : node ∈ config.val) (network : List Model.Envelope)
     : nodeState { nodes := table config states, network } node = some (states node) := by
   simp only [nodeState, table, List.find?_map]
@@ -48,33 +87,40 @@ lemma lookup_table (config : Config) (states : NodeID -> NodeState) (node : Node
             ih (present.resolve_left (Ne.symm same))]
   simp [Function.comp_def, find_eq (ids config) (by simpa [ids] using member)]
 
-lemma table_member (config : Config) (states : NodeID -> NodeState) (node : NodeID)
+theorem table_member (config : Config) (states : NodeID -> NodeState) (node : NodeID)
     (member : node ∈ config.val)
     : (node, states node) ∈ table config states := by
   exact List.mem_map.mpr ⟨node, by simpa [ids] using member, rfl⟩
 
-lemma at_initial (config : Config) : At config (Model.initialNodeState config) := by
+theorem at_initial (config : Config) : At config (Model.initialNodeState config) := by
   refine ⟨[], .initial ⟨config.property, ?_, ?_, rfl, ?_⟩⟩
   · simp [table, Function.comp_def]
-  · simp [table, ids, Function.comp_def]
+  · simpa [table, ids, Finset.sort, Function.comp_def]
+      using Finset.nodup_of_sorted config.val.sorted
   · intro entry member
     obtain ⟨node, _, rfl⟩ := List.mem_map.mp member
     rfl
 
 @[local simp]
-lemma effect_bind {S A B : Type} (a : StateT S Option A)
+theorem effect_bind {S A B : Type} (a : StateT S Option A)
     (f : A -> StateT S Option B) (s : S)
     : (a >>= f) s = (a s).bind (fun (a, s) => f a s) :=
   rfl
 
 @[local simp]
-lemma effect_lift {S A : Type} (a : Option A) (s : S)
+theorem effect_lift {S A : Type} (a : Option A) (s : S)
     : (liftM a : StateT S Option A) s = a.map (fun a => (a, s)) := by
   cases a <;> rfl
 
-lemma local_next (config : Config) (states : NodeID -> NodeState)
+@[local simp]
+theorem effect_guard_true {S : Type} (s : S)
+    : (guard True : StateT S Option Unit) s = some ((), s) :=
+  rfl
+
+theorem local_next (config : Config) (states : NodeID -> NodeState)
     (network : List Model.Envelope) (node : NodeID) (member : node ∈ config.val)
     (input : Input) (after : NodeState) (outputs : Outputs NodeID Message Notification)
+    (ordinary : forall entries, input ≠ .initAsBackup entries)
     (run
       : (step (Capabilities.record node) node (states node) (.internal input)).run {}
         = some (after, outputs))
@@ -85,14 +131,19 @@ lemma local_next (config : Config) (states : NodeID -> NodeState)
             nodes := table config (Function.update states node after)
             network := network ++ outputs.outgoing
           } := by
-  simp [MultiNodeTransitionSystem.next, Model.protocol,
+  have unguarded : Model.networkStep config { nodes := table config states, network }
+      (.local node input) =
+      MultiNodeTransitionSystem.next (Model.protocol config)
+        { nodes := table config states, network } (.local node input) := by
+    cases input <;> simp_all [Model.networkStep]
+  simp [unguarded, MultiNodeTransitionSystem.next, Model.protocol,
     lookup_table config states node member, run]
   simp only [table, List.map_map]
   apply List.map_congr_left
   intro a _
   by_cases same : a = node <;> simp [same, Function.update]
 
-lemma delivery_next (config : Config) (states : NodeID -> NodeState)
+theorem delivery_next (config : Config) (states : NodeID -> NodeState)
     (network : List Model.Envelope) (envelope : Model.Envelope)
     (member : envelope.target ∈ config.val) (queued : envelope ∈ network)
     (after : NodeState) (outputs : Outputs NodeID Message Notification)
@@ -108,22 +159,24 @@ lemma delivery_next (config : Config) (states : NodeID -> NodeState)
             nodes := table config (Function.update states envelope.target after)
             network := removeOne envelope network ++ outputs.outgoing
           } := by
-  simp [MultiNodeTransitionSystem.next, Model.protocol, queued,
+  simp [Model.networkStep, MultiNodeTransitionSystem.next, Model.protocol, queued, guard,
     lookup_table config states envelope.target member, run]
   simp only [table, List.map_map]
   apply List.map_congr_left
   intro a _
   by_cases same : a = envelope.target <;> simp [same, Function.update]
 
-lemma at_local {config : Config} {states : NodeID -> NodeState}
+theorem at_local {config : Config} {states : NodeID -> NodeState}
     (reachable : At config states) (node : NodeID) (member : node ∈ config.val)
     (input : Input) (after : NodeState) (outputs : Outputs NodeID Message Notification)
+    (ordinary : forall entries, input ≠ .initAsBackup entries)
     (run
       : (step (Capabilities.record node) node (states node) (.internal input)).run {}
         = some (after, outputs))
     : At config (Function.update states node after) := by
   obtain ⟨network, reachable⟩ := reachable
-  exact ⟨_, .step reachable (local_next config states network node member input after outputs run)⟩
+  exact ⟨_, .step reachable
+    (local_next config states network node member input after outputs ordinary run)⟩
 
 def bootstrapLog (config : Config) : List Entry :=
   [
@@ -165,29 +218,29 @@ def follower (config : Config) (commit : Nat) : NodeState :=
     votesGranted := ∅
   }
 
-lemma bootstrap_active (config : Config) (commit : Nat)
+theorem bootstrap_active (config : Config) (commit : Nat)
     : activeConfigurations (bootstrapLog config) commit
       = [{ index := 1, nodes := config.val }] := by
   by_cases h : 1 <= commit <;>
     simp [activeConfigurations, configurationHistory, bootstrapLog, EntryContent.metadata, h]
 
-lemma bootstrap_members (config : Config) (commit : Nat)
+theorem bootstrap_members (config : Config) (commit : Nat)
     : configurationMembers (activeConfigurations (bootstrapLog config) commit)
       = config.val := by
   simp [bootstrap_active, configurationMembers]
 
-lemma bootstrap_frontier (config : Config)
+theorem bootstrap_frontier (config : Config)
     : maxCommittableIndex (bootstrapLog config) = 2 := by
   simp [maxCommittableIndex, bootstrapLog, List.range_succ, isSignatureAt, entryAt?,
     EntryContent.isSignature]
 
-lemma bootstrap_retired (config : Config) (node : NodeID) (state : NodeState)
+theorem bootstrap_retired (config : Config) (node : NodeID) (state : NodeState)
     (log : state.log = bootstrapLog config)
     : Not (state.isRetiredCommitted node) := by
   simp [NodeState.isRetiredCommitted, NodeState.retirement, retirementIndexInLog,
     configurationHistory, log, bootstrapLog, EntryContent.metadata]
 
-lemma bootstrap_completed (config : Config) (state : NodeState)
+theorem bootstrap_completed (config : Config) (state : NodeState)
     (log : state.log = bootstrapLog config)
     : state.retirementCompletedNodes = ∅ := by
   unfold NodeState.retirementCompletedNodes NodeState.committedLog
@@ -205,13 +258,13 @@ lemma bootstrap_completed (config : Config) (state : NodeState)
           simp [bootstrapLog, configurationHistory, configurationMembers,
             latestConfigurationMembers, retiredCommittedNodes, EntryContent.metadata]
 
-lemma bootstrap_peers (config : Config) (state : NodeState) (self : NodeID)
+theorem bootstrap_peers (config : Config) (state : NodeState) (self : NodeID)
     (log : state.log = bootstrapLog config)
     : eligiblePeers state self = config.val.erase self := by
   simp [eligiblePeers, NodeState.activeMembers, NodeState.activeConfigurations, log,
     bootstrap_members, bootstrap_completed config state log]
 
-lemma bootstrap_record (config : Config) (state : NodeState) (node commit : Nat)
+theorem bootstrap_record (config : Config) (state : NodeState) (node commit : Nat)
     (log : state.log = bootstrapLog config) (retired : state.retiredCommittedIndex = none)
     : state.recordCommit node commit = { state with commitIndex := commit } := by
   unfold NodeState.recordCommit
@@ -231,34 +284,45 @@ lemma bootstrap_record (config : Config) (state : NodeState) (node commit : Nat)
   simp [NodeState.isRetiredCommitted, NodeState.retirement, retirementIndexInLog,
     configurationHistory, bootstrapLog, EntryContent.metadata]
 
-lemma full_commit (config : Config) (primary : NodeID) (member : primary ∈ config.val)
+theorem full_commit (config : Config) (primary : NodeID) (member : primary ∈ config.val)
     : committed config primary (config.val.erase primary) = 2 := by
-  have positive := Finset.card_pos.mpr config.property
-  simp [committed, Finset.insert_erase member, show config.val.card < config.val.card * 2 by omega]
+  have positive : 0 < config.val.card := by
+    obtain ⟨node, present⟩ := config.property
+    exact List.length_pos_iff.mpr (List.ne_nil_of_mem present)
+  have restored : insert primary (config.val.erase primary) ∩ config.val = config.val := by
+    apply Finset.ext
+    intro node
+    by_cases same : node = primary <;> simp [same, member]
+  simp [committed, restored, show config.val.card < config.val.card * 2 by omega]
 
-lemma committed_values (config : Config) (primary : NodeID) (peers : Finset NodeID)
+theorem committed_values (config : Config) (primary : NodeID) (peers : Finset NodeID)
     : committed config primary peers = 0 \/ committed config primary peers = 2 := by
   unfold committed
   split <;> simp
 
-lemma committed_mono (config : Config) (primary : NodeID) {before after : Finset NodeID}
+theorem committed_mono (config : Config) (primary : NodeID) {before after : Finset NodeID}
     (subset : before ⊆ after)
     : committed config primary before <= committed config primary after := by
   have support : insert primary before ∩ config.val ⊆ insert primary after ∩ config.val :=
-    Finset.inter_subset_inter (Finset.insert_subset_insert _ subset) (Finset.Subset.refl _)
+    fun _ member => by
+      obtain ⟨present, inConfig⟩ := Finset.mem_inter.mp member
+      exact Finset.mem_inter.mpr ⟨(Finset.mem_insert.mp present).elim
+        (fun same => Finset.mem_insert.mpr (.inl same))
+        (fun old => Finset.mem_insert.mpr (.inr (subset old))), inConfig⟩
   have cards := Finset.card_le_card support
   unfold committed
-  split_ifs <;> omega
+  split <;> split <;> omega
 
-lemma replicated (config : Config) (primary : NodeID) (peers : Finset NodeID)
+theorem replicated (config : Config) (primary : NodeID) (peers : Finset NodeID)
     : config.val.filter
         (fun node => node = primary \/ (if node ∈ peers then 2 else 0) >= 2)
       = insert primary peers ∩ config.val := by
-  ext node
+  apply Finset.ext
+  intro node
   by_cases member : node ∈ peers <;> simp [member]
-  tauto
+  exact and_comm
 
-lemma bootstrap_highest (config : Config) (primary : NodeID) (peers : Finset NodeID)
+theorem bootstrap_highest (config : Config) (primary : NodeID) (peers : Finset NodeID)
     (state : NodeState) (log : state.log = bootstrapLog config)
     (term : state.currentTerm = Model.BOOTSTRAP_TERM)
     (matched : state.matchIndex = fun node => if node ∈ peers then 2 else 0)
@@ -268,13 +332,17 @@ lemma bootstrap_highest (config : Config) (primary : NodeID) (peers : Finset Nod
           2
         else
           0 := by
+  have empty_union : ∅ ∪ config.val = config.val := by
+    apply Finset.ext
+    intro node
+    simp
   simp only [highestCommittableIndex, NodeState.activeMembers, NodeState.activeConfigurations,
     log, bootstrap_active, configurationMembers, List.foldl_cons, List.foldl_nil,
-    Finset.empty_union, matched]
+    empty_union, matched]
   simp [bootstrapLog, List.range_succ, isSignatureAt, entryAt?, EntryContent.isSignature,
     termAt, term, Model.BOOTSTRAP_TERM, hasQuorum, hasConfigurationMajority, replicated]
 
-lemma advance_bootstrap (config : Config) (primary : NodeID) (peers : Finset NodeID)
+theorem advance_bootstrap (config : Config) (primary : NodeID) (peers : Finset NodeID)
     (state : NodeState) (log : state.log = bootstrapLog config)
     (term : state.currentTerm = Model.BOOTSTRAP_TERM)
     (matched : state.matchIndex = fun node => if node ∈ peers then 2 else 0)
@@ -287,7 +355,7 @@ lemma advance_bootstrap (config : Config) (primary : NodeID) (peers : Finset Nod
   obtain zero | two := values
   · rw [zero]
     unfold committed at bounded ⊢
-    split_ifs <;>
+    split <;>
       simp_all [bootstrap_record config state primary, bootstrap_retired config primary]
     cases state
     simp_all
@@ -300,16 +368,16 @@ lemma advance_bootstrap (config : Config) (primary : NodeID) (peers : Finset Nod
     cases state
     simp_all
 
-def primary (config : Config) : NodeID := config.val.min' config.property
+def primary (config : Config) : NodeID :=
+  config.val.min?.get (Finset.min?_isSome config.property)
 
-lemma primary_mem (config : Config) : primary config ∈ config.val :=
-  Finset.min'_mem _ _
+theorem primary_mem (config : Config) : primary config ∈ config.val :=
+  Finset.min?_mem (Option.some_get (Finset.min?_isSome config.property)).symm
 
-lemma primary_min (config : Config)
-    : config.val.min = (primary config : WithTop NodeID) :=
-  (Finset.coe_min' config.property).symm
+theorem primary_min (config : Config) : config.val.min? = some (primary config) :=
+  (Option.some_get (Finset.min?_isSome config.property)).symm
 
-lemma initial_primary (config : Config)
+theorem initial_primary (config : Config)
     : Model.initialNodeState config (primary config)
       = {
         role := .primary
@@ -329,7 +397,7 @@ lemma initial_primary (config : Config)
       } := by
   simp [Model.initialNodeState, primary_min, primary_mem]
 
-lemma initial_follower (config : Config) (node : NodeID) (member : node ∈ config.val)
+theorem initial_follower (config : Config) (node : NodeID) (member : node ∈ config.val)
     (different : node ≠ primary config)
     : Model.initialNodeState config node
       = {
@@ -346,7 +414,7 @@ lemma initial_follower (config : Config) (node : NodeID) (member : node ∈ conf
       } := by
   simp [Model.initialNodeState, primary_min, member, Ne.symm different]
 
-lemma sign_bootstrap (config : Config)
+theorem sign_bootstrap (config : Config)
     : (step (Capabilities.record (primary config)) (primary config)
         (Model.initialNodeState config (primary config))
         (.internal (.append [{ content := .signature }]))).run
@@ -364,12 +432,13 @@ lemma sign_bootstrap (config : Config)
     configurationHistory]
     using advanced
 
-lemma at_signed (config : Config)
+theorem at_signed (config : Config)
     : At config
         (Function.update (Model.initialNodeState config) (primary config)
           (leader config (primary config) ∅)) :=
   at_local (at_initial config) (primary config) (primary_mem config)
-    (.append [{ content := .signature }]) _ {} (sign_bootstrap config)
+    (.append [{ content := .signature }]) _ {} (by intro entries; exact Input.noConfusion)
+    (sign_bootstrap config)
 
 def replicationRequest (config : Config) (primary : NodeID) (peers : Finset NodeID)
     (target : NodeID)
@@ -401,7 +470,7 @@ def replicationResponse (source target : NodeID) : Model.Envelope :=
         }
   }
 
-lemma send_bootstrap (config : Config) (primary target : NodeID) (peers : Finset NodeID)
+theorem send_bootstrap (config : Config) (primary target : NodeID) (peers : Finset NodeID)
     (member : target ∈ config.val) (different : target ≠ primary) (fresh : target ∉ peers)
     : (step (Capabilities.record primary) primary (leader config primary peers)
         (.internal (.sendEntries target 2))).run
@@ -423,8 +492,9 @@ lemma send_bootstrap (config : Config) (primary target : NodeID) (peers : Finset
     Capabilities.record, StateT.run, replicationRequest]
   rfl
 
-lemma receive_bootstrap (config : Config) (target : NodeID) (member : target ∈ config.val)
-    (different : target ≠ primary config) (peers : Finset NodeID)
+theorem receive_bootstrap (config : Config) (target : NodeID)
+    (member : target ∈ config.val) (different : target ≠ primary config)
+    (peers : Finset NodeID)
     : (step (Capabilities.record target) target (Model.initialNodeState config target)
         (.receive (primary config)
           (replicationRequest config (primary config) peers target).payload)).run
@@ -444,13 +514,13 @@ lemma receive_bootstrap (config : Config) (target : NodeID) (member : target ∈
       retirementIndexInLog, firstLogIndexAfter, configurationHistory, EntryContent.metadata,
       Capabilities.record, StateT.run, follower, replicationResponse, h] <;> rfl
 
-lemma update_indicator (peers : Finset NodeID) (target : NodeID)
+theorem update_indicator (peers : Finset NodeID) (target : NodeID)
     : Function.update (fun node => if node ∈ peers then 2 else 0) target 2
       = fun node => if node ∈ insert target peers then 2 else 0 := by
   funext node
   by_cases same : node = target <;> simp [same, Function.update]
 
-lemma acknowledge_bootstrap (config : Config) (primary target : NodeID)
+theorem acknowledge_bootstrap (config : Config) (primary target : NodeID)
     (peers : Finset NodeID) (member : target ∈ config.val) (different : target ≠ primary)
     : (step (Capabilities.record primary) primary
         {
@@ -464,18 +534,19 @@ lemma acknowledge_bootstrap (config : Config) (primary target : NodeID)
     commitIndex := committed config primary peers }
   have advanced := advance_bootstrap config primary (insert target peers) state rfl rfl rfl rfl
     (committed_values config primary peers)
-    (committed_mono config primary (Finset.subset_insert target peers))
+    (committed_mono config primary
+      (fun _ member => Finset.mem_insert.mpr (.inr member)))
   have eligible := bootstrap_peers config
     { (leader config primary peers) with
       sentIndex := Function.update (leader config primary peers).sentIndex target 2 } primary rfl
   simp only [step, receive, eligible]
   have maxed : max (if target ∈ peers then 2 else 0) 2 = 2 := by
-    split_ifs <;> decide
+    split <;> decide
   simpa [replicationResponse, different, member, observeTerm, updateTerm,
     handleAppendEntriesResponse, leader, maxed, update_indicator, state, StateT.run]
     using advanced
 
-lemma at_replicate {config : Config} {states : NodeID -> NodeState}
+theorem at_replicate {config : Config} {states : NodeID -> NodeState}
     (reachable : At config states) (peers : Finset NodeID) (target : NodeID)
     (member : target ∈ config.val) (different : target ≠ primary config)
     (fresh : target ∉ peers)
@@ -495,6 +566,7 @@ lemma at_replicate {config : Config} {states : NodeID -> NodeState}
   let second := Function.update first target (follower config (committed config (primary config) peers))
   have sentStep := local_next config states network (primary config) (primary_mem config)
     (.sendEntries target 2) sent { outgoing := [request] }
+    (by intro entries; exact Input.noConfusion)
     (by simpa [leading] using send_bootstrap config (primary config) target peers member different fresh)
   have requestStep := delivery_next config first (network ++ [request]) request member
     (by simp) _ { outgoing := [response] }
@@ -526,7 +598,30 @@ lemma at_replicate {config : Config} {states : NodeID -> NodeState}
   rw [same] at reached
   exact ⟨_, reached⟩
 
-lemma replicate_set (config : Config) (targets : Finset NodeID)
+private theorem finset_induction {motive : Finset NodeID -> Prop}
+    (empty : motive ∅)
+    (extend
+      : forall node peers, node ∉ peers -> motive peers -> motive (insert node peers))
+    (peers : Finset NodeID)
+    : motive peers := by
+  obtain ⟨members, sorted⟩ := peers
+  induction members with
+  | nil => exact empty
+  | cons node members ih =>
+      let rest : Finset NodeID := ⟨members, (List.pairwise_cons.mp sorted).2⟩
+      have fresh : node ∉ rest := by
+        intro present
+        exact Nat.lt_irrefl node ((List.pairwise_cons.mp sorted).1 node present)
+      have same : insert node rest = ⟨node :: members, sorted⟩ := by
+        apply Finset.ext
+        intro other
+        change other ∈ insert node rest <-> other ∈ node :: members
+        simp only [Finset.mem_insert, List.mem_cons]
+        rfl
+      rw [← same]
+      exact extend node rest fresh (ih _)
+
+theorem replicate_set (config : Config) (targets : Finset NodeID)
     (subset : targets ⊆ config.val.erase (primary config))
     : exists states : NodeID -> NodeState,
         At config states
@@ -538,17 +633,17 @@ lemma replicate_set (config : Config) (targets : Finset NodeID)
         /\ (forall node,
               node ∉ insert (primary config) targets
               -> states node = Model.initialNodeState config node) := by
-  induction targets using Finset.induction_on with
+  induction targets using finset_induction with
   | empty =>
       refine ⟨_, at_signed config, ?_, ?_, ?_⟩
       · simp
       · simp
       · intro node absent
         exact Function.update_of_ne (by simpa using absent) _ _
-  | @insert target targets fresh ih =>
-      have member := Finset.mem_erase.mp (subset (Finset.mem_insert_self target targets))
+  | @extend target targets fresh ih =>
+      have member := Finset.mem_erase.mp (subset (Finset.mem_insert.mpr (.inl rfl)))
       have smaller : targets ⊆ config.val.erase (primary config) :=
-        fun node hn => subset (Finset.mem_insert_of_mem hn)
+        fun _ hn => subset (Finset.mem_insert.mpr (.inr hn))
       obtain ⟨states, reachable, leading, copied, untouched⟩ := ih smaller
       let next := Function.update
         (Function.update states target (follower config (committed config (primary config) targets)))
@@ -584,21 +679,27 @@ lemma replicate_set (config : Config) (targets : Finset NodeID)
           simpa [Finset.mem_insert, different, other] using absent
         simpa [next, Function.update, different, other] using untouched node old
 
-lemma primary_nominates (node : NodeID) (state : NodeState)
+theorem primary_nominates (node : NodeID) (state : NodeState)
     (leading : state.role = .primary)
     : exists outputs,
         (step (Capabilities.record node) node state (.internal .nominateSuccessor)).run {}
         = some (state, outputs) := by
   cases successor : findSuccessor state node with
   | none =>
-      exact ⟨{}, by simp [step, act, nominateSuccessor, leading, successor]⟩
+      exact ⟨
+        {},
+        by
+          simp [step, act, nominateSuccessor, leading, successor, StateT.run]
+          rfl
+      ⟩
   | some target =>
       refine ⟨{ outgoing := [
         { source := node, target, payload := .proposeRequestVoteRequest state.currentTerm }
       ] }, ?_⟩
-      simp [step, act, nominateSuccessor, leading, successor, Capabilities.record]
+      simp [step, act, nominateSuccessor, leading, successor, Capabilities.record, StateT.run]
+      rfl
 
-lemma reachable_trace_of_tail {system : TransitionSystem} {state : system.State}
+theorem reachable_trace_of_tail {system : TransitionSystem} {state : system.State}
     (reachable : system.Reachable state) (states : Nat -> system.State)
     (actions : Nat -> system.Action) (first : states 0 = state)
     (enabled : forall n, system.step (states n) (actions n) = some (states (n + 1)))
@@ -608,7 +709,7 @@ lemma reachable_trace_of_tail {system : TransitionSystem} {state : system.State}
   | initial initialized =>
       let trace : Execution.Trace system := ⟨{
         init := states 0
-        steps := Stream'.Seq.ofStream fun n => (actions n, states (n + 1))
+        steps := CCF.Seq.ofStream fun n => (actions n, states (n + 1))
       }, by
         refine ⟨first.symm ▸ initialized, ?_⟩
         intro n before action located chosen
@@ -635,7 +736,7 @@ lemma reachable_trace_of_tail {system : TransitionSystem} {state : system.State}
       exact ih extended choices rfl valid (index + 1)
 
 /-- Continue forever by nominating successors, leaving their packets undelivered. -/
-lemma at_trace {config : Config} {states : NodeID -> NodeState}
+theorem at_trace {config : Config} {states : NodeID -> NodeState}
     (reachable : At config states) (node : NodeID) (member : node ∈ config.val)
     (leading : (states node).role = .primary)
     : exists (trace
@@ -656,7 +757,8 @@ lemma at_trace {config : Config} {states : NodeID -> NodeState}
     simpa [continuation, List.range_succ, List.append_assoc]
       using local_next config states
         (network ++ (List.range n).flatMap (fun _ => outputs.outgoing)) node member
-        .nominateSuccessor (states node) outputs run
+        .nominateSuccessor (states node) outputs
+        (by intro entries; exact Input.noConfusion) run
   obtain ⟨trace, present⟩ := reachable_trace_of_tail reachable continuation
     (fun _ => .local node .nominateSuccessor) (by simp [continuation]) enabled 0
   exact ⟨trace, network, by simpa [continuation] using present⟩

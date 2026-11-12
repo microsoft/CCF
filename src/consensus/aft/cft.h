@@ -466,6 +466,8 @@ namespace aft
       // before it has received any append entries.
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
+      trace::init_as_backup(*state, index, term);
+
       state->last_idx = index;
       state->commit_idx = index;
 

@@ -1,6 +1,7 @@
 Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
-All jobs run on 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
+Jobs that build or run CCF use 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
+Lightweight jobs that do not, such as the Lean package checks and trace replays, use GitHub-hosted runners.
 
 # Shared actions
 
@@ -139,13 +140,13 @@ File: `codeql-analysis.yml`
 
 Runs Lean verification for the repository, with each package checked in an isolated reusable-workflow job.
 All five packages (consensus, common, consistency, disaster-recovery, and kv) run in one matrix.
-Package checks use the `gha-vmss-d16av7-ci` pool and trace replays use `gha-vmss-d16av7-ci-b`, both in Ubuntu 26.04 containers.
-Native trace captures remain on `gha-vmss-d16av7-ci-c` with Azure Linux containers, and the lightweight final gate uses GitHub-hosted Ubuntu.
-Each matrix job caches its third-party dependency checkouts and build outputs, including Mathlib and (where used) leanfmt, using GitHub Actions caching.
+Package checks and trace replays run directly on GitHub-hosted Ubuntu 26.04 runners, as does the lightweight final gate.
+Native trace captures build CCF, so they remain on `gha-vmss-d16av7-ci-c` with Azure Linux containers.
+Each matrix job caches its third-party dependency checkouts and build outputs, leanfmt and (for disaster-recovery and kv) Batteries, using GitHub Actions caching.
 Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
-CCF package and common build outputs are not cached, and all verification steps still run, including Mathlib's upstream cache retrieval.
+CCF package and common build outputs are not cached, and all verification steps still run.
 CCF consensus, KV, and consistency trace captures run in parallel with package checks.
-Three independent trace-validation jobs each restore Mathlib caches, build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
+Three independent trace-validation jobs each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
 Consistency capture reuses the existing `consistency_trace_validation` e2e test, and its replay job also checks the consistency replay fixtures, including election and rollback traces.
 A final summary job requires every package and trace job to succeed.
 
@@ -175,12 +176,23 @@ The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fi
 The dedicated replay job builds `kv-replay` separately to validate the captured traces; no replay executables are transferred between jobs.
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
-The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
+The workflow runs on pull requests that change `lean/` (except `lean/mathlib-equivalence/`), any `.lean` file, the formatter script, or the workflow.
 It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
-3rd party dependencies: Mathlib and leanfmt (pinned in the Lake package), and elan.
+3rd party dependencies: leanfmt and Batteries (pinned in the Lake packages), and elan.
+
+# Lean Mathlib equivalence
+
+Proves that the local replacements for Mathlib definitions in `lean/common` (`CCF.Seq`, `CCF.Finset` and `CCF.Function`) and the consensus successor ranking are equivalent to the Mathlib definitions they replaced.
+The proofs live in the separate `lean/mathlib-equivalence` package, which is the only Lean package that depends on Mathlib; the main Lean workflow does not schedule it.
+The job runs on a GitHub-hosted Ubuntu 26.04 runner, restores Mathlib's upstream build cache, runs `lake check --inadvisably-no-sandbox` to build the proofs and replay them through the kernel with only the standard axioms, and checks the package's formatting.
+It caches third-party dependency checkouts and build outputs like the main Lean package jobs.
+The workflow runs only on pull requests that change the replacement definitions, the equivalence package, the Lean toolchain, the formatter script, or the workflow, and can be run manually.
+
+File: `lean-mathlib-equivalence.yml`
+3rd party dependencies: Mathlib (pinned in the Lake package), leanfmt and elan.
 
 # Vendored Dependency Verification
 

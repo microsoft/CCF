@@ -10,7 +10,7 @@ open CCF.Execution
 open Consensus.Model.Node
 open GenericWitnesses
 
-private lemma committed_trace (config : Consensus.Properties.ValidConfig)
+private theorem committed_trace (config : Consensus.Properties.ValidConfig)
     : exists (trace : Trace (Model.transitionSystem config (ids config))) (state
                                                                             : Model.State) (node
                                                                                             : NodeID) (nodeState
@@ -20,7 +20,7 @@ private lemma committed_trace (config : Consensus.Properties.ValidConfig)
         /\ 0 < nodeState.commitIndex
         /\ nodeState.committedLog ≠ [] := by
   obtain ⟨states, reachable, leading, _, _⟩ :=
-    replicate_set config (config.val.erase (primary config)) (Finset.Subset.refl _)
+    replicate_set config (config.val.erase (primary config)) (CCF.Finset.Subset.refl _)
   obtain ⟨trace, network, present⟩ := at_trace reachable
     (primary config) (primary_mem config) (by rw [leading]; rfl)
   refine ⟨trace, { nodes := table config states, network },
@@ -46,15 +46,15 @@ private def extensionAction : Model.Action :=
 private def extensionPost : Model.State :=
   ((Model.transitionSystem {0} [0]).step extensionPre extensionAction).getD extensionPre
 
-private lemma extension_pre_present
+private theorem extension_pre_present
     : (CCF.MultiNodeTransitionSystem.nodeState extensionPre 0).isSome := by
   decide +kernel
 
-private lemma extension_post_present
+private theorem extension_post_present
     : (CCF.MultiNodeTransitionSystem.nodeState extensionPost 0).isSome := by
   decide +kernel
 
-private lemma nodeState_member {state : Model.State} {node : NodeID} {value : NodeState}
+private theorem nodeState_member {state : Model.State} {node : NodeID} {value : NodeState}
     (found : CCF.MultiNodeTransitionSystem.nodeState state node = some value)
     : (node, value) ∈ state.nodes := by
   simp only [CCF.MultiNodeTransitionSystem.nodeState, Option.map_eq_some_iff] at found
@@ -65,7 +65,7 @@ private lemma nodeState_member {state : Model.State} {node : NodeID} {value : No
   subst keyEq
   exact List.mem_of_find?_eq_some located
 
-public lemma committed_logs_prefix_witness
+public theorem committed_logs_prefix_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists
         (nodes : List NodeID) (trace : Trace (Model.transitionSystem config nodes)),
@@ -83,7 +83,7 @@ public lemma committed_logs_prefix_witness
   exact ⟨ids config, trace, state, state, node, node, nodeState, nodeState,
     present, present, member, member, committed, committed⟩
 
-public lemma single_node_committed_log_monotonic_witness
+public theorem single_node_committed_log_monotonic_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists (nodes : List NodeID),
         exists (pre post : Model.State),
@@ -96,7 +96,7 @@ public lemma single_node_committed_log_monotonic_witness
           /\ nodePre.committedLog ≠ []
           /\ nodePre.committedLog.length < nodePost.committedLog.length := by
   intro config
-  -- Initial membership affects initialization, not the step relation.
+  -- Initial membership affects initialization, not this append step.
   refine ⟨[0], extensionPre, extensionPost, 0,
     (CCF.MultiNodeTransitionSystem.nodeState extensionPre 0).get extension_pre_present,
     (CCF.MultiNodeTransitionSystem.nodeState extensionPost 0).get extension_post_present,
@@ -113,7 +113,7 @@ public lemma single_node_committed_log_monotonic_witness
   · decide +kernel
   · decide +kernel
 
-public lemma election_safety_witness
+public theorem election_safety_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists
         (nodes : List NodeID) (trace
@@ -151,7 +151,7 @@ public lemma election_safety_witness
     rfl
   ⟩
 
-public lemma committed_frontier_is_signature_witness
+public theorem committed_frontier_is_signature_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists
         (nodes : List NodeID) (trace

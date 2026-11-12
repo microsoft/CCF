@@ -7,6 +7,6 @@ public import Consensus.Model
 namespace Consensus.Properties
 
 /-- Initial memberships admitted by the model's initialization predicate. -/
-abbrev ValidConfig := { config : Finset Model.Node.NodeID // config.Nonempty }
+abbrev ValidConfig := { config : CCF.Finset Model.Node.NodeID // config.Nonempty }
 
 end Consensus.Properties
