@@ -11,7 +11,7 @@ import DisasterRecovery.Proofs.Evaluation
 
 namespace DisasterRecovery.Tests.Trace
 
-open CCF
+open CCF CCF.Execution
 open Model.Local
 open Properties.Trace
 open Proofs.Evaluation

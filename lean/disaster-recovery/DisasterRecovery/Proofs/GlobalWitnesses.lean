@@ -17,7 +17,7 @@ broadcast their recovered ledger. All nodes therefore obtain the same collection
 and choice before any votes are delivered.
 -/
 
-open CCF Model.Local
+open CCF CCF.Execution Model.Local
 open Evaluation
 
 private abbrev table (config : Properties.ValidConfig) (states : Location → NodeState) :=
@@ -857,23 +857,6 @@ theorem full_gossip_preserves_commit_witness
     rw [gossips]
     exact (collect_perm config.val.recovered (recovered_distinct config)).mem_iff
   · exact List.mem_map.mpr ⟨winner, winnerMember, by simp [states]⟩
-
-private theorem steps_snoc {system : TransitionSystem} (start before after : system.State)
-    (steps : List (system.Action × system.State)) (action : system.Action)
-    (valid : StepsFrom system start steps)
-    (last : (start :: steps.map Prod.snd)[steps.length]? = some before)
-    (enabled : system.step before action = some after)
-    : StepsFrom system start (steps ++ [(action, after)]) := by
-  induction steps generalizing start with
-  | nil =>
-      simp only [List.map_nil, List.length_nil, List.getElem?_cons_zero,
-        Option.some.injEq] at last
-      subst start
-      exact ⟨enabled, trivial⟩
-  | cons pair rest ih =>
-      obtain ⟨first, valid⟩ := valid
-      refine ⟨first, ih pair.2 valid ?_⟩
-      simpa using last
 
 private theorem snoc_before {α β : Type} (start before after : β)
     (steps : List (α × β)) (action : α)

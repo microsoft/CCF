@@ -1,6 +1,7 @@
 module
 
 public import CCF.TransitionSystem
+public import CCF.TransactionID
 
 @[expose] public section
 
@@ -12,10 +13,7 @@ a read-only transaction just reads that list. -/
 abbrev TxContent := Nat
 
 /-- Ledger positions use one-based views and sequence numbers; zero is a sentinel. -/
-structure TxID where
-  view : Nat
-  seqno : Nat
-deriving DecidableEq, Repr
+abbrev TxID := CCF.TransactionID
 
 /-- Only final status observations are modeled.
 Unknown and pending statuses are omitted to reduce the state space. -/

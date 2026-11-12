@@ -11,7 +11,7 @@ import DisasterRecovery.Proofs.Evaluation
 
 namespace DisasterRecovery.Tests.QuorumCommit
 
-open CCF
+open CCF CCF.Execution
 open Model.Local
 open Proofs.Evaluation
 

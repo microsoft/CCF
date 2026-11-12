@@ -1,6 +1,7 @@
 module
 
 public import CCF.Capabilities
+public import CCF.TransactionID
 
 @[expose] public section
 
@@ -12,12 +13,7 @@ open CCF (Capabilities)
 abbrev Location := String
 
 /-- The view and sequence number of a recovered ledger's last signed transaction. -/
-structure TxID where
-  /-- The transaction's Consensus view. -/
-  view : Nat
-  /-- The transaction's sequence number. -/
-  seqno : Nat
-deriving Repr, BEq, ReflBEq, LawfulBEq, Hashable, Inhabited, DecidableEq
+abbrev TxID := CCF.TransactionID
 
 /-- The phases of the recovery decision protocol and its timeout lane. -/
 inductive Phase where

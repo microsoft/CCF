@@ -5,6 +5,7 @@ public import Consensus.Model.Messages
 public import Consensus.Model.NodeState
 public import CCF.Capabilities
 public import CCF.Function
+public import CCF.TransactionID
 
 @[expose] public section
 
@@ -392,9 +393,9 @@ def handleAppendEntriesResponse
 /-! ## Handling elections -/
 
 abbrev voteLogUpToDate (state : NodeState) (request : RequestVoteRequest) : Prop :=
-  request.lastCommittableTerm > maxCommittableTerm state.log
-  \/ (request.lastCommittableTerm = maxCommittableTerm state.log
-      /\ request.lastCommittableIndex >= maxCommittableIndex state.log)
+  CCF.TransactionID.le
+    { view := maxCommittableTerm state.log, seqno := maxCommittableIndex state.log }
+    { view := request.lastCommittableTerm, seqno := request.lastCommittableIndex }
 
 def handleRequestVoteRequest
     (caps : Caps)

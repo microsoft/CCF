@@ -19,6 +19,10 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 `CCF.Execution.TraceImpl system` records an `init` state and a possibly infinite `steps` sequence pairing each action with its destination state.
 `CCF.Execution.Trace system` is the subtype whose `TraceImpl.Valid` proof establishes initialization and every recorded transition.
 `reachable_iff_trace`, in `CCF.Proofs.Execution`, shows that finite execution traces reach exactly the reachable states.
+`CCF.Execution.ofSteps` constructs finite traces from recorded action/state pairs satisfying `StepsFrom`.
+`CCF.Execution.run` evaluates state-dependent action choices, and `lassoTrace` constructs an infinite trace from a completed stem and a nonempty cycle returning to its starting state.
+Their indexing, membership, and step-extension theorems are in `CCF.Proofs.Execution`.
+`CCF.TransactionID` shares the view/sequence-number representation and its strict (`lt`) and non-strict (`le`) lexicographic ordering across models.
 
 As in the specification packages, definitions and the theorems about them live in separate modules.
 Theorems go under `CCF.Proofs`, keeping their original names, so `CCF.Execution.reachable_iff_trace` is declared in `CCF.Proofs.Execution`.

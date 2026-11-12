@@ -143,4 +143,83 @@ theorem reachable_iff_trace {system : TransitionSystem} {state : system.State}
   · rintro ⟨trace, member⟩
     exact trace.reachable member
 
+/-- The states of a finite recorded trace, indexed from its initial state. -/
+theorem ofSteps_stateAt {system : TransitionSystem} {initial : system.State}
+    {steps : List (system.Action × system.State)} {initialized : system.init initial}
+    {valid : StepsFrom system initial steps} (n : Nat)
+    : (ofSteps initial steps initialized valid).stateAt n
+      = (initial :: steps.map Prod.snd)[n]? := by
+  cases n <;>
+    simp only [ofSteps, Trace.stateAt, Trace.states,
+      CCF.Seq.get?_cons_zero, CCF.Seq.get?_cons_succ, CCF.Seq.map_get?,
+      CCF.Seq.ofList_get?, List.getElem?_cons_zero, List.getElem?_cons_succ,
+      List.getElem?_map]
+
+/-- The actions of a finite recorded trace. -/
+theorem ofSteps_actionAt {system : TransitionSystem} {initial : system.State}
+    {steps : List (system.Action × system.State)} {initialized : system.init initial}
+    {valid : StepsFrom system initial steps} (n : Nat)
+    : (ofSteps initial steps initialized valid).actionAt n
+      = (steps.map Prod.fst)[n]? := by
+  simp only [ofSteps, Trace.actionAt, Trace.actions,
+    CCF.Seq.map_get?, CCF.Seq.ofList_get?, List.getElem?_map]
+
+/-- Membership in a finite recorded trace is membership in its list of states. -/
+theorem mem_ofSteps {system : TransitionSystem} {initial : system.State}
+    {steps : List (system.Action × system.State)} {initialized : system.init initial}
+    {valid : StepsFrom system initial steps} {state : system.State}
+    : state ∈ ofSteps initial steps initialized valid
+      <-> state ∈ initial :: steps.map Prod.snd := by
+  rw [Trace.mem_iff_exists_stateAt]
+  simp only [ofSteps_stateAt]
+  constructor
+  · rintro ⟨n, found⟩
+    exact List.mem_of_getElem? found.symm
+  · intro member
+    obtain ⟨n, bound, rfl⟩ := List.getElem_of_mem member
+    exact ⟨n, (List.getElem?_eq_getElem bound).symm⟩
+
+/-- Append an enabled transition at the end of a valid list of recorded steps. -/
+theorem steps_snoc {system : TransitionSystem} (start before after : system.State)
+    (steps : List (system.Action × system.State)) (action : system.Action)
+    (valid : StepsFrom system start steps)
+    (last : (start :: steps.map Prod.snd)[steps.length]? = some before)
+    (enabled : system.step before action = some after)
+    : StepsFrom system start (steps ++ [(action, after)]) := by
+  induction steps generalizing start with
+  | nil =>
+      simp only [List.map_nil, List.length_nil, List.getElem?_cons_zero,
+        Option.some.injEq] at last
+      subst start
+      exact ⟨enabled, trivial⟩
+  | cons pair rest ih =>
+      obtain ⟨first, valid⟩ := valid
+      refine ⟨first, ih pair.2 valid ?_⟩
+      simpa using last
+
+/-- Every state reached along the stem belongs to the resulting lasso trace. -/
+theorem lasso_mem {system : TransitionSystem} {start final state : system.State}
+    {stem cycle : List (system.State -> system.Action)}
+    (initialized : system.init start)
+    (stemRun : run system start stem = some final)
+    (cycleRun : run system final cycle = some final) (nonempty : cycle ≠ []) {index : Nat}
+    (bounded : index <= stem.length)
+    (reached : run system start (stem.take index) = some state)
+    : state ∈ lassoTrace initialized stemRun cycleRun nonempty := by
+  apply Trace.stateAt_mem (n := index)
+  have position
+      : (lassoTrace initialized stemRun cycleRun nonempty).stateAt index
+          = some (lasso system start stem cycle index) := by
+    cases index <;> rfl
+  rw [position, Option.some.injEq]
+  by_cases inStem : index < stem.length
+  · simp only [lasso, ite_eq_left inStem, reached, Option.getD_some]
+  · have last : index = stem.length := by omega
+    subst last
+    rw [List.take_length, stemRun] at reached
+    simp only [Option.some.injEq] at reached
+    subst reached
+    simp only [lasso, Nat.lt_irrefl, ite_false, stemRun, Option.getD_some,
+      Nat.sub_self, Nat.zero_mod, List.take_zero, run]
+
 end CCF.Execution

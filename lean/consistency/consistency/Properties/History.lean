@@ -62,7 +62,7 @@ def committedRequests (history : List Event) (kind : TxType)
 
 /-- Lexicographic order on view, then sequence number. -/
 def txIDStrictlyLessThan (left right : TxID) : Prop :=
-  left.view < right.view ∨ (left.view = right.view ∧ left.seqno < right.seqno)
+  CCF.TransactionID.lt left right
 
 instance (left right : TxID) : Decidable (txIDStrictlyLessThan left right) :=
   inferInstanceAs
