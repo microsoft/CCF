@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Added
 
+- Added the optional `ccf::indexing::strategies::SeqnosByKey_Paged` public-table indexing strategy, with asynchronous paged queries and bounded page caching. See [Paged B+ tree indexes](doc/architecture/indexing.rst#paged-b-tree-indexes) for the retry contract and limitations.
 - `ccf::crypto::MLDSAKeyPair` can now issue X.509 certificates and PKCS#10 certificate signing requests signed with pure ML-DSA (`create_csr()`, `sign_csr()`, `self_sign()`), and `ccf::crypto::make_verifier()` accepts ML-DSA certificates, verifying their signatures with `MDType::NONE`. The ML-DSA headers are now included on every build; with OpenSSL older than 3.5, `make_mldsa_key_pair()` and `make_mldsa_public_key()` throw `std::runtime_error` (#8629).
 
 ### Changed

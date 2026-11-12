@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
+#include "ccf/indexing/strategies/seqnos_by_key_paged.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/test/common.h"
 #include "tasks/job_board.h"
@@ -106,6 +107,134 @@ static std::vector<ActionDesc> create_actions(
                        return false;
                      }});
   return actions;
+}
+
+TEST_CASE(
+  "Ordered LFS batch completion and reclamation" * doctest::test_suite("lfs"))
+{
+  ccf::tasks::JobBoard board;
+  ccf::indexing::EnclaveLFSAccess lfs(board);
+  using namespace ccf::indexing;
+  lfs.store("old", {1});
+  auto first = lfs.fetch("old");
+  auto batch = lfs.apply_batch({{"new", {2, 3}}}, {"old"});
+  auto removed = lfs.fetch("old");
+  auto added = lfs.fetch("new");
+  CHECK(batch->load() == LFSBatchStatus::Pending);
+  flush_lfs(board);
+  CHECK(batch->load() == LFSBatchStatus::Complete);
+  CHECK(first->contents == LFSContents{1});
+  // The pending old fetch is coalesced by LFS. A fresh fetch observes removal.
+  removed.reset();
+  first.reset();
+  removed = lfs.fetch("old");
+  flush_lfs(board);
+  CHECK(removed->fetch_result == FetchResult::FetchResultType::NotFound);
+  CHECK(added->contents == LFSContents{2, 3});
+
+  const auto path = std::filesystem::path(".index") /
+    EnclaveLFSAccess::obfuscate_key("blocked");
+  REQUIRE(std::filesystem::create_directory(path));
+  auto failed = lfs.apply_batch({{"blocked", {4}}}, {"new"});
+  flush_lfs(board);
+  CHECK(failed->load() == LFSBatchStatus::Failed);
+  // A failed write must not start reclamation.
+  CHECK(std::filesystem::is_regular_file(
+    std::filesystem::path(".index") / EnclaveLFSAccess::obfuscate_key("new")));
+}
+
+TEST_CASE("LFS per-fetch allocation bound" * doctest::test_suite("lfs"))
+{
+  ccf::tasks::JobBoard board;
+  ccf::indexing::EnclaveLFSAccess lfs(board);
+  lfs.store("large", ccf::indexing::LFSContents(10000, 42));
+  auto limited = lfs.fetch("large", 512);
+  auto full = lfs.fetch("large");
+  REQUIRE(limited != full);
+  flush_lfs(board);
+  CHECK(
+    limited->fetch_result ==
+    ccf::indexing::FetchResult::FetchResultType::Corrupt);
+  CHECK(limited->contents.empty());
+  CHECK(
+    full->fetch_result == ccf::indexing::FetchResult::FetchResultType::Loaded);
+  CHECK(full->contents.size() == 10000);
+  auto exact = lfs.fetch("large", 10000);
+  flush_lfs(board);
+  CHECK(
+    exact->fetch_result == ccf::indexing::FetchResult::FetchResultType::Loaded);
+}
+
+TEST_CASE("LFS abandoned batch reports failure" * doctest::test_suite("lfs"))
+{
+  ccf::tasks::JobBoard board;
+  ccf::indexing::EnclaveLFSAccess lfs(board);
+  auto result = lfs.apply_batch({{"abandoned", {1}}}, {});
+  board.shutdown();
+  CHECK(result->load() == ccf::indexing::LFSBatchStatus::Failed);
+}
+
+TEST_CASE(
+  "Paged tree with encrypted ordered LFS" * doctest::test_suite("paged"))
+{
+  using namespace ccf::indexing;
+  ccf::tasks::JobBoard board;
+  auto lfs = std::make_shared<EnclaveLFSAccess>(board);
+  ccf::AbstractNodeContext context;
+  context.install_subsystem(lfs);
+  strategies::SeqnosByKey_Paged<decltype(map_a)> index(map_a, context, 512, 0);
+  for (ccf::SeqNo i = 1; i <= 80; ++i)
+  {
+    auto store = std::make_shared<ccf::kv::Store>();
+    store->initialise_term(1);
+    store->set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+    auto tx = store->create_tx();
+    tx.rw(map_a)->put("hot", "v");
+    tx.rw(map_a)->put(std::to_string(i), "v");
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+    index.handle_committed_transaction({1, i}, store);
+    for (size_t retry = 0;
+         retry < 1000 && index.get_indexed_watermark().seqno < i;
+         ++retry)
+    {
+      flush_lfs(board);
+      index.tick();
+    }
+    REQUIRE(index.get_indexed_watermark().seqno == i);
+  }
+  index.flush();
+  for (size_t retry = 0; retry < 1000; ++retry)
+  {
+    auto state = index.describe();
+    if (state["dirty_pages"] == 0 && state["pending_write_batch"] == false)
+      break;
+    flush_lfs(board);
+    index.tick();
+  }
+  REQUIRE(index.describe()["dirty_pages"] == 0);
+  size_t files = 0;
+  size_t bytes = 0;
+  for (const auto& file : std::filesystem::directory_iterator(".index"))
+  {
+    ++files;
+    bytes += file.file_size();
+  }
+  auto d = index.describe();
+  CHECK(files == d["live_pages"].get<size_t>());
+  const auto overhead = sizeof(size_t) +
+    EnclaveLFSAccess::obfuscate_key("any").size() +
+    ccf::crypto::StandardGcmHeader::serialised_size();
+  CHECK(bytes == d["live_page_bytes"].get<size_t>() + overhead * files);
+  std::optional<ccf::SeqNoCollection> result;
+  for (size_t retry = 0; retry < 1000 && !result; ++retry)
+  {
+    result = index.get_write_txs_in_range("hot", 1, 80);
+    flush_lfs(board);
+    index.tick();
+  }
+  REQUIRE(result);
+  CHECK(result->size() == 80);
+  CHECK(*result->begin() == 1);
 }
 
 TEST_CASE("Basic cache" * doctest::test_suite("lfs"))

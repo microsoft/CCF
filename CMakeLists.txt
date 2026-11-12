@@ -376,6 +376,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
     ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_paged.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
     ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
     ${CCF_DIR}/src/node/historical_queries_adapter.cpp
@@ -1038,8 +1039,23 @@ if(BUILD_TESTS)
       indexing_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/indexing.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/paged.cpp
     )
     target_link_libraries(indexing_test PRIVATE ccf_endpoints ccf_kv ccf_tasks)
+
+    add_test_bin(indexing_compare src/indexing/test/compare.cpp)
+    target_link_libraries(
+      indexing_compare
+      PRIVATE ccf_endpoints ccf_kv ccf_tasks -pthread
+    )
+    add_test(
+      NAME indexing_compare
+      COMMAND
+        indexing_compare --entries 128 --queries 2 --repetitions 1 --bucket-size
+        16 --bucket-cache 4 --cache-bytes 512 --page-bytes 512 --output
+        indexing_compare_smoke.json
+    )
+    add_test_label(indexing_compare unit)
 
     add_unit_test(
       snapshot_test

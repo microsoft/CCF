@@ -183,13 +183,13 @@ namespace ccf::indexing
       LFSEncryptedContents contents;
     };
 
-    BlobReadResult read_blob(const LFSKey& obfuscated)
+    BlobReadResult read_blob(const LFSKey& obfuscated, size_t max_file_size)
     {
       const auto target_path = root_dir / obfuscated;
       std::error_code ec;
       if (!std::filesystem::is_regular_file(target_path, ec))
       {
-        if (ec)
+        if (ec && ec != std::errc::no_such_file_or_directory)
         {
           LOG_FAIL_FMT(
             "Failed to inspect LFS file {}: {}",
@@ -235,11 +235,11 @@ namespace ccf::indexing
       // largest blob this instance has written. Any store of a larger blob
       // publishes its size before its write is queued, so a fetch ordered
       // after that store always accepts the resulting file.
-      const auto max_size = max_stored_size.load();
+      const auto max_size = std::min(max_stored_size.load(), max_file_size);
       if (static_cast<std::uintmax_t>(file_size) > max_size)
       {
         LOG_FAIL_FMT(
-          "LFS file {} is {} bytes, larger than any stored blob ({} bytes)",
+          "LFS file {} is {} bytes, exceeding the read bound ({} bytes)",
           target_path.string(),
           file_size,
           max_size);
@@ -346,11 +346,77 @@ namespace ccf::indexing
         }));
     }
 
-    FetchResultPtr fetch(const LFSKey& key) override
+    LFSBatchResult apply_batch(
+      LFSWrites&& writes, std::vector<LFSKey>&& removals) override
+    {
+      auto result =
+        std::make_shared<std::atomic<LFSBatchStatus>>(LFSBatchStatus::Pending);
+
+      struct BatchAction : ccf::tasks::BasicTaskAction
+      {
+        LFSBatchResult completion;
+
+        BatchAction(Fn fn, LFSBatchResult completion_) :
+          BasicTaskAction(std::move(fn), "LFS batch"),
+          completion(std::move(completion_))
+        {}
+
+        void on_shutdown() noexcept override
+        {
+          BasicTaskAction::on_shutdown();
+          *completion = LFSBatchStatus::Failed;
+        }
+      };
+
+      LFSWrites encrypted;
+      for (auto& [key, contents] : writes)
+      {
+        auto obfuscated = obfuscate_key(key);
+        auto blob = encrypt(obfuscated, std::move(contents));
+        update_max_stored_size(blob.size());
+        encrypted.emplace_back(std::move(obfuscated), std::move(blob));
+      }
+      tasks->add_action(std::make_shared<BatchAction>(
+        [this,
+         result,
+         encrypted = std::move(encrypted),
+         removals = std::move(removals)]() {
+          try
+          {
+            for (const auto& [key, blob] : encrypted)
+            {
+              write_blob(key, blob);
+            }
+            for (const auto& key : removals)
+            {
+              std::filesystem::remove(root_dir / obfuscate_key(key));
+            }
+            *result = LFSBatchStatus::Complete;
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT("LFS batch failed: {}", e.what());
+            *result = LFSBatchStatus::Failed;
+          }
+        },
+        result));
+      return result;
+    }
+
+    FetchResultPtr fetch(
+      const LFSKey& key,
+      size_t max_bytes = std::numeric_limits<size_t>::max()) override
     {
       const auto obfuscated = obfuscate_key(key);
+      const auto pending_key = obfuscated + ":" + std::to_string(max_bytes);
+      const auto overhead = sizeof(size_t) + obfuscated.size() +
+        ccf::crypto::StandardGcmHeader::serialised_size();
+      const auto max_file_size =
+        max_bytes > std::numeric_limits<size_t>::max() - overhead ?
+        std::numeric_limits<size_t>::max() :
+        max_bytes + overhead;
       std::lock_guard<ccf::ds::Mutex> guard(pending_access);
-      auto it = pending.find(obfuscated);
+      auto it = pending.find(pending_key);
 
       FetchResultPtr result;
 
@@ -378,7 +444,7 @@ namespace ccf::indexing
       else
       {
         result = std::make_shared<FetchResult>();
-        pending.emplace(obfuscated, result);
+        pending.emplace(pending_key, result);
       }
 
       result->fetch_result = FetchResult::FetchResultType::Fetching;
@@ -386,9 +452,9 @@ namespace ccf::indexing
 
       // Read and decrypt the file from disk asynchronously, updating the
       // result's state when complete.
-      tasks->add_action(
-        ccf::tasks::make_basic_action([this, obfuscated, result]() {
-          auto read_result = read_blob(obfuscated);
+      tasks->add_action(ccf::tasks::make_basic_action(
+        [this, obfuscated, pending_key, max_file_size, result]() {
+          auto read_result = read_blob(obfuscated, max_file_size);
           if (read_result.status == BlobReadResult::Status::NotFound)
           {
             LOG_TRACE_FMT(
@@ -423,7 +489,7 @@ namespace ccf::indexing
           // Drop the pending entry, unless a newer fetch has already replaced
           // it with a different result.
           std::lock_guard<ccf::ds::Mutex> guard(pending_access);
-          auto it = pending.find(obfuscated);
+          auto it = pending.find(pending_key);
           if (it != pending.end() && it->second.lock() == result)
           {
             pending.erase(it);
