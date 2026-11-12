@@ -9,10 +9,15 @@
 #include <cstdint>
 #include <ctime>
 #include <doctest/doctest.h>
+#include <fmt/compile.h>
+#include <fmt/std.h>
 #include <iostream>
+#include <limits>
 #include <memory>
+#include <new>
 #include <optional>
 #include <sstream>
+#include <system_error>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -185,10 +190,14 @@ TEST_CASE("Application log formatting preserves text and JSON messages")
     ccf::LoggerLevel::INFO,
     std::optional{7});
   CCF_APP_INFO("escaped={{}}\n{}\0{}", "before", "after");
+  CCF_APP_INFO("pointer={}", fmt::to_string(nullptr));
+  CCF_APP_INFO("compiled={}", fmt::format(FMT_COMPILE("{}!"), nullptr));
 
   const std::vector<std::string> expected = {
     "value=1.25 hex=00017fff enum=2 optional=optional(7)",
-    "escaped={}\nbefore\0after"s};
+    "escaped={}\nbefore\0after"s,
+    "pointer=0x0",
+    "compiled=0x0!"};
   REQUIRE(text_logs.size() == expected.size());
   REQUIRE(json_logs.size() == expected.size());
   for (size_t i = 0; i < expected.size(); ++i)
@@ -196,6 +205,23 @@ TEST_CASE("Application log formatting preserves text and JSON messages")
     CHECK(text_logs[i].ends_with(expected[i] + "\n"));
     CHECK(nlohmann::json::parse(json_logs[i]).at("msg") == expected[i]);
   }
+}
+
+TEST_CASE("Formatting buffers reject overflowing allocation sizes")
+{
+  fmt::basic_memory_buffer<char32_t> buffer;
+  const auto size = std::numeric_limits<size_t>::max() / sizeof(char32_t) + 2;
+  CHECK_THROWS_AS(buffer.reserve(size), std::bad_alloc);
+}
+
+TEST_CASE("Error-code formatting rejects truncated alignment specifiers")
+{
+  const char format[] = {'{', ':', '>'};
+  auto error = std::error_code(42, std::generic_category());
+  CHECK_THROWS_AS(
+    fmt::vformat(
+      fmt::string_view(format, sizeof(format)), fmt::make_format_args(error)),
+    fmt::format_error);
 }
 
 TEST_CASE("Time-bound logger duration formatting")
