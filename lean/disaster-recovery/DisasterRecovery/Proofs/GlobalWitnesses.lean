@@ -2,7 +2,7 @@ module
 
 public import DisasterRecovery.Proofs.Evaluation
 
-import CCF.Function
+import CCF.Proofs.Function
 import all Init.Control.State
 
 @[expose] public section

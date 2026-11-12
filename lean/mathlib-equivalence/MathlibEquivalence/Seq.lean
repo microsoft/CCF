@@ -1,6 +1,6 @@
 module
 
-public import CCF.Seq
+public import CCF.Proofs.Seq
 public import Mathlib.Data.Seq.Basic
 public import Mathlib.Logic.Equiv.Defs
 

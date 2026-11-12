@@ -1,5 +1,7 @@
 module
 
+import CCF.Proofs.Function
+
 public import Consensus.Model
 
 import all Init.Control.State

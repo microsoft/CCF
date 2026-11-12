@@ -19,6 +19,10 @@ theorem length_eq_of_nodup_of_mem_iff {α : Type} {l₁ l₂ : List α} (nodup�
 
 variable {α : Type} [LT α]
 
+/-- The sets share no element. -/
+def Disjoint (s t : Finset α) : Prop :=
+  forall ⦃a⦄, a ∈ s -> a ∉ t
+
 section Sorted
 
 variable [StrictTotalOrder α]

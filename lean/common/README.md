@@ -13,21 +13,25 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Seq`                       | Possibly infinite sequences (replaces Mathlib `Stream'.Seq`) |
 | `CCF.Finset`                    | Finite sets as strictly sorted lists (replaces `Finset`)     |
 | `CCF.Function`                  | Point updates of functions (replaces `Function.update`)      |
-| `CCF.Proofs.Execution`          | Theorems about runs, traces, and reachability                |
+| `CCF.Proofs.Execution`          | Execution constructors and theorems about runs and traces    |
 | `CCF.Proofs.Finset`             | Lemmas about the `CCF.Finset` operations                     |
+| `CCF.Proofs.Function`           | Lemmas about point updates                                   |
+| `CCF.Proofs.Seq`                | Lemmas about sequence access and membership                  |
 
 `CCF.Execution.TraceImpl system` records an `init` state and a possibly infinite `steps` sequence pairing each action with its destination state.
 `CCF.Execution.Trace system` is the subtype whose `TraceImpl.Valid` proof establishes initialization and every recorded transition.
 `reachable_iff_trace`, in `CCF.Proofs.Execution`, shows that finite execution traces reach exactly the reachable states.
+Proof-only constructors in `CCF.Proofs.Execution` build concrete executions for witnesses and regression checks.
 `CCF.Execution.ofSteps` constructs finite traces from recorded action/state pairs satisfying `StepsFrom`.
 `CCF.Execution.run` evaluates state-dependent action choices, and `lassoTrace` constructs an infinite trace from a completed stem and a nonempty cycle returning to its starting state.
-Their indexing, membership, and step-extension theorems are in `CCF.Proofs.Execution`.
+Their indexing, membership, and step-extension theorems are in the same proof module.
 `CCF.TxID` shares the view/sequence-number representation and its strict (`lt`) and non-strict (`le`) lexicographic ordering across models.
 
 As in the specification packages, definitions and the theorems about them live in separate modules.
 Theorems go under `CCF.Proofs`, keeping their original names, so `CCF.Execution.reachable_iff_trace` is declared in `CCF.Proofs.Execution`.
 Definition modules keep only the proofs their definitions carry, such as the sortedness of `CCF.Finset` and the stability of `CCF.Seq`.
-`CCF.Seq` and `CCF.Function` keep their few `rfl` and `simp` lemmas alongside their definitions.
+Sequence and function lemmas live in `CCF.Proofs.Seq` and `CCF.Proofs.Function`, including their `rfl` and `simp` lemmas.
+The proof-only `CCF.Finset.Disjoint` predicate lives in `CCF.Proofs.Finset`.
 
 ## Dependency imports
 
