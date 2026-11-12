@@ -28,7 +28,7 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | --- | --- | --- | --- |
 | `cpp-format-checks.sh` | C/C++ in `include/`, `src/`, `samples/` | clang-format | `-f` |
 | `clang-tidier.py -p build` | First-party C++ compile commands and their headers | clang-query: braces for non-empty case bodies | No |
-| `lean-format-checks.sh` | All tracked Lean files | leanfmt | `-f` |
+| `lean-format-checks.sh` | Tracked Lean files, excluding the Aeneas-generated Shamir model | leanfmt | `-f` |
 | `python-format-checks.sh` | Python in `tests/`, `python/`, `scripts/` | black | `-f` |
 | `python-lint-checks.sh` | Python in `python/`, `tests/` | ruff | `-f` |
 | `python-types-checks.sh` | Python SDK, tutorial, and SDK tests under `python/` | Pyright | No |
@@ -53,6 +53,7 @@ It needs the compilation database, generated headers, and Clang's extra tools (1
 Run it with `./scripts/clang-tidier.py -p build`; use `--all` for a full scan and `--help` for selection and parallelism options.
 
 The Lean formatting check runs in `.github/workflows/lean.yml`, not `scripts/ci-checks.sh`.
+The `mathlib-equivalence` and `shamir` packages are only checked when named, by `lean-mathlib-equivalence.yml` and `lean-shamir.yml`.
 It requires elan and the package's Lean toolchain.
 See [Lean formatting setup](../../../lean/disaster-recovery/README.md#formatting).
 

@@ -23,6 +23,8 @@ on:
       - ".github/actions/install-lean/**"
       # Checked by lean-mathlib-equivalence.yml.
       - "!lean/mathlib-equivalence/**"
+      # Checked by lean-shamir.yml.
+      - "!lean/shamir/**"
   workflow_dispatch:
 
 concurrency:
