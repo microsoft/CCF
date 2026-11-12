@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/cert_id.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -59,6 +60,50 @@ namespace ccf
   class InternalTablesAccess
   {
   private:
+    template <typename Certs, typename Keys>
+    static std::string check_identity_enrollment(
+      Certs* certs,
+      Keys* keys,
+      const ccf::crypto::Pem& cert,
+      const std::optional<std::string>& did_key)
+    {
+      if (did_key.has_value())
+      {
+        if (!cert.empty())
+        {
+          throw std::logic_error("did_key enrollment must not include cert");
+        }
+        const auto der = ccf::crypto::public_key_der_from_did_key(*did_key);
+        certs->foreach([&](const auto& id, const auto& existing_cert) {
+          if (ccf::crypto::cert_has_public_key(
+                ccf::crypto::make_verifier(existing_cert)->cert_der(), der))
+          {
+            throw std::logic_error(fmt::format(
+              "Public key is already enrolled under a different ID format: {}",
+              id));
+          }
+          return true;
+        });
+        return *did_key;
+      }
+      if (cert.empty())
+      {
+        throw std::logic_error(
+          "Enrollment requires a legacy cert or a certificate-free did_key");
+      }
+      const auto certificate = ccf::crypto::make_verifier(cert)->cert_der();
+      keys->foreach([&](const auto& id, const auto& key) {
+        if (ccf::crypto::cert_has_public_key(certificate, key))
+        {
+          throw std::logic_error(fmt::format(
+            "Public key is already enrolled under a different ID format: {}",
+            id));
+        }
+        return true;
+      });
+      return ccf::crypto::compute_cert_id(cert);
+    }
+
     static void remove_nodes(ccf::kv::Tx& tx, const std::set<NodeId>& node_ids)
     {
       auto* nodes = tx.rw<ccf::Nodes>(Tables::NODES);
@@ -193,14 +238,18 @@ namespace ccf
       ccf::kv::Tx& tx, const NewMember& member_pub_info)
     {
       auto* member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
+      auto* member_keys =
+        tx.rw<ccf::MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS);
       auto* member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
 
-      auto member_cert_der =
-        ccf::crypto::make_verifier(member_pub_info.cert)->cert_der();
-      auto id = ccf::crypto::Sha256Hash(member_cert_der).hex_str();
+      MemberId id = check_identity_enrollment(
+        member_certs,
+        member_keys,
+        member_pub_info.cert,
+        member_pub_info.did_key);
 
       auto member = member_certs->get(id);
-      if (member.has_value())
+      if (member.has_value() || member_keys->has(id))
       {
         // No effect if member already exists
         return id;
@@ -217,7 +266,7 @@ namespace ccf
               "Member {} cannot be added as recovery_role has a value set but "
               "no "
               "encryption public key is specified",
-              id));
+              id.value()));
           }
         }
         else
@@ -230,13 +279,22 @@ namespace ccf
               "Recovery member {} cannot be added as with recovery role value "
               "of "
               "{}",
-              id,
+              id.value(),
               member_recovery_role));
           }
         }
       }
 
-      member_certs->put(id, member_pub_info.cert);
+      if (member_pub_info.did_key.has_value())
+      {
+        member_keys->put(
+          id,
+          ccf::crypto::public_key_der_from_did_key(*member_pub_info.did_key));
+      }
+      else
+      {
+        member_certs->put(id, member_pub_info.cert);
+      }
       member_info->put(
         id,
         {MemberStatus::ACCEPTED,
@@ -277,19 +335,27 @@ namespace ccf
     static UserId add_user(ccf::kv::Tx& tx, const NewUser& new_user)
     {
       auto* user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
+      auto* user_keys = tx.rw<ccf::UserPublicKeys>(Tables::USER_PUBLIC_KEYS);
 
-      auto user_cert_der =
-        ccf::crypto::make_verifier(new_user.cert)->cert_der();
-      auto id = ccf::crypto::Sha256Hash(user_cert_der).hex_str();
+      UserId id = check_identity_enrollment(
+        user_certs, user_keys, new_user.cert, new_user.did_key);
 
       auto user_cert = user_certs->get(id);
-      if (user_cert.has_value())
+      if (user_cert.has_value() || user_keys->has(id))
       {
         throw std::logic_error(
-          fmt::format("Certificate already exists for user {}", id));
+          fmt::format("Certificate already exists for user {}", id.value()));
       }
 
-      user_certs->put(id, new_user.cert);
+      if (new_user.did_key.has_value())
+      {
+        user_keys->put(
+          id, ccf::crypto::public_key_der_from_did_key(*new_user.did_key));
+      }
+      else
+      {
+        user_certs->put(id, new_user.cert);
+      }
 
       if (new_user.user_data != nullptr)
       {
@@ -298,7 +364,7 @@ namespace ccf
         if (ui.has_value())
         {
           throw std::logic_error(
-            fmt::format("User data already exists for user {}", id));
+            fmt::format("User data already exists for user {}", id.value()));
         }
 
         user_info->put(id, {new_user.user_data});
@@ -314,6 +380,7 @@ namespace ccf
       auto* user_info = tx.rw<ccf::UserInfo>(Tables::USER_INFO);
 
       user_certs->remove(user_id);
+      tx.rw<ccf::UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->remove(user_id);
       user_info->remove(user_id);
     }
 

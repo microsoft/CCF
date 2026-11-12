@@ -4,6 +4,7 @@
 
 #include "ccf/cose_signatures_config.h"
 #include "ccf/ds/json_schema.h"
+#include "ccf/identity_id_format.h"
 #include "ccf/node/ledger_sign_mode.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/service/local_sealing.h"
@@ -101,6 +102,7 @@ namespace ccf
   {
     struct In
     {
+      IdentityIdFormat id_format = IdentityIdFormat::SHA256;
       NodeInfoNetwork node_info_network;
       QuoteInfo quote_info;
       ccf::crypto::Pem public_encryption_key;

@@ -281,7 +281,10 @@ namespace ccf::js::extensions
       JS_CHECK_OR_THROW(caller.set("policy", ctx.new_string(policy_name)));
       JS_CHECK_OR_THROW(caller.set("id", ctx.new_string(id)));
       JS_CHECK_OR_THROW(caller.set("data", ctx.parse_json(data)));
-      JS_CHECK_OR_THROW(caller.set("cert", ctx.new_string(cert.str())));
+      if (!cert.empty())
+      {
+        JS_CHECK_OR_THROW(caller.set("cert", ctx.new_string(cert.str())));
+      }
 
       return caller;
     }

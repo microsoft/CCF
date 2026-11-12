@@ -101,9 +101,19 @@ class OpenAPIValidator:
         return json.dumps(body).encode()
 
     @staticmethod
-    def _path_matches(template, path):
-        pattern = re.sub(r"\\{[^}]+\\}", "[^/]+", re.escape(template))
-        return re.fullmatch(pattern, path) is not None
+    def _path_parameters(template, path):
+        pattern = re.sub(
+            r"\\{([^}]+)\\}",
+            lambda match: f"(?P<{match.group(1)}>[^/]+)",
+            re.escape(template),
+        )
+        match = re.fullmatch(pattern, path)
+        if match is None:
+            return None
+        return {
+            name: urllib.parse.unquote(value)
+            for name, value in match.groupdict().items()
+        }
 
     def _operation(self, prefix, method, path):
         method = method.lower()
@@ -113,8 +123,9 @@ class OpenAPIValidator:
 
         matches = []
         for template, operation_method in self._operations[prefix]:
-            if operation_method.lower() == method and self._path_matches(
-                template, path
+            if (
+                operation_method.lower() == method
+                and self._path_parameters(template, path) is not None
             ):
                 matches.append((prefix, template, method))
         if len(matches) > 1:
@@ -165,14 +176,8 @@ class OpenAPIValidator:
             "parameters", []
         )
         query = urllib.parse.parse_qs(parsed.query)
-        path_values = re.fullmatch(
-            re.sub(
-                r"\\{([^}]+)\\}",
-                lambda match: f"(?P<{match.group(1)}>[^/]+)",
-                re.escape(operation[1]),
-            ),
-            parsed.path,
-        ).groupdict()
+        path_values = self._path_parameters(operation[1], parsed.path)
+        assert path_values is not None
         headers = {key.lower(): value for key, value in request.headers.items()}
 
         for unresolved_parameter in parameters:
@@ -296,7 +301,11 @@ class OpenAPIValidator:
             host_url=host_url,
             path=parsed.path,
             method=request.http_verb.lower(),
-            parameters=RequestParameters(query=query, header=request_headers),
+            parameters=RequestParameters(
+                query=query,
+                header=request_headers,
+                path=self._path_parameters(operation[1], parsed.path),
+            ),
             # Preserve required-body semantics when the client-generated COSE
             # envelope is not available to this validation layer.
             body=(

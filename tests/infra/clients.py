@@ -166,15 +166,16 @@ class Request:
 @dataclass
 class Identity:
     """
-    Identity (as private key and corresponding certificate) for a :py:class:`infra.clients.CCFClient` client.
+    Private key with a legacy certificate or enrolled DID for a :py:class:`infra.clients.CCFClient` client.
     """
 
     #: Path to file containing private key
     key: str
     #: Path to file containing PEM certificate
-    cert: str
+    cert: str | None
     #: Identity description
     description: str
+    did_key: str | None = None
 
 
 class FakeSocket:
@@ -375,16 +376,17 @@ def cose_protected_headers_api_v1(request_path, created_at=None):
     phdr = {"ccf.gov.msg.created_at": created_at or get_clock().moment()}
 
     hex_id = "([a-f0-9]+)"
+    member_id = "([^/]+)"
     opt_query = r"(\?.*)?"
 
     if match := re.match(
-        f"^/gov/members/state-digests/{hex_id}:update{opt_query}$",
+        f"^/gov/members/state-digests/{member_id}:update{opt_query}$",
         request_path,
     ):
         phdr["ccf.gov.msg.type"] = "state_digest"
 
     elif match := re.match(
-        f"^/gov/members/state-digests/{hex_id}:ack{opt_query}$",
+        f"^/gov/members/state-digests/{member_id}:ack{opt_query}$",
         request_path,
     ):
         phdr["ccf.gov.msg.type"] = "ack"
@@ -396,7 +398,7 @@ def cose_protected_headers_api_v1(request_path, created_at=None):
         phdr["ccf.gov.msg.type"] = "proposal"
 
     elif match := re.match(
-        f"^/gov/members/proposals/{hex_id}/ballots/{hex_id}:submit{opt_query}$",
+        f"^/gov/members/proposals/{hex_id}/ballots/{member_id}:submit{opt_query}$",
         request_path,
     ):
         pid = match.groups()[0]
@@ -537,7 +539,12 @@ class CurlClient:
                         ["--ccf-gov-msg-proposal_id", phdr["ccf.gov.msg.proposal_id"]]
                     )
                 pre_cmd.extend(["--signing-key", self.cose_signing_auth.key])
-                pre_cmd.extend(["--signing-cert", self.cose_signing_auth.cert])
+                if self.cose_signing_auth.did_key is not None:
+                    pre_cmd.extend(
+                        ["--signing-did-key", self.cose_signing_auth.did_key]
+                    )
+                else:
+                    pre_cmd.extend(["--signing-cert", self.cose_signing_auth.cert])
                 pre_cmd.extend(["--content", content_path.strip("@")])
                 headers["content-type"] = CONTENT_TYPE_COSE
 
@@ -669,7 +676,9 @@ class HttpxClient:
             kwargs.pop("protocol")
         self.session = httpx.Client(verify=context, **kwargs)
         sig_auth = signing_auth or cose_signing_auth
-        if sig_auth:
+        if sig_auth and sig_auth.did_key is not None:
+            self.key_id = sig_auth.did_key
+        elif sig_auth:
             with open(sig_auth.cert, encoding="utf-8") as cert_file:
                 self.key_id = (
                     x509.load_pem_x509_certificate(
@@ -768,8 +777,10 @@ class HttpxClient:
         if self.cose_signing_auth is not None and request.http_verb != "GET":
             with open(self.cose_signing_auth.key, encoding="utf-8") as key_file:
                 key = key_file.read()
-            with open(self.cose_signing_auth.cert, encoding="utf-8") as cert_file:
-                cert = cert_file.read()
+            cert = None
+            if self.cose_signing_auth.did_key is None:
+                with open(self.cose_signing_auth.cert, encoding="utf-8") as cert_file:
+                    cert = cert_file.read()
             phdr = self.cose_header_builder(request.path, self.created_at_override)
             phdr.update(cose_header_parameters_override or {})
             if "ccf.gov.msg.created_at" in phdr and not isinstance(
@@ -782,7 +793,15 @@ class HttpxClient:
                     phdr["ccf.gov.msg.created_at"].timestamp()
                 )
             request_body = ccf.cose.create_cose_sign1(
-                request_body or b"", key, cert, phdr
+                request_body or b"",
+                key,
+                cert,
+                phdr,
+                **(
+                    {"did_key": self.cose_signing_auth.did_key}
+                    if self.cose_signing_auth.did_key is not None
+                    else {}
+                ),
             )
             if self._corrupt_signature:
                 corrupt_byte_idx = random.randint(-32, -1)

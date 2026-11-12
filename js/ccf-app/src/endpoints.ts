@@ -128,7 +128,10 @@ export interface AnyCertAuthnIdentity extends CertAuthnIdentityCommon {
   policy: "any_cert";
 }
 
-interface UserMemberAuthnIdentityCommon extends CertAuthnIdentityCommon {
+interface UserMemberAuthnIdentityCommon extends AuthnIdentityCommon {
+  /** Legacy enrollment certificate; absent for certificate-free DID identities. */
+  cert?: string;
+
   /**
    * User/member ID.
    */

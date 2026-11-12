@@ -91,9 +91,12 @@ namespace ccf
           for (auto& parameter : path_item["parameters"])
           {
             const auto& name = parameter["name"];
-            if (
-              name == "memberId" || name == "nodeId" || name == "proposalId" ||
-              name == "userId")
+            if (name == "memberId" || name == "nodeId" || name == "userId")
+            {
+              fill_json_schema(
+                parameter["schema"], static_cast<const MemberId*>(nullptr));
+            }
+            else if (name == "proposalId")
             {
               parameter["schema"]["pattern"] = "^[a-f0-9]{64}$";
             }

@@ -3,6 +3,7 @@
 
 #include "ccf/endpoints/authentication/cose_auth.h"
 
+#include "ccf/crypto/cert_id.h"
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/crypto/ec_public_key.h"
 #include "ccf/http_consts.h"
@@ -261,10 +262,20 @@ namespace ccf
     MemberCerts members_certs_table(Tables::MEMBER_CERTS);
     auto* member_certs = tx.ro(members_certs_table);
     auto member_cert = member_certs->get(phdr.kid);
-    if (member_cert.has_value())
+    auto member_key =
+      tx.ro<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->get(phdr.kid);
+    if (member_cert.has_value() || member_key.has_value())
     {
-      auto verifier =
-        ccf::crypto::make_cose_verifier_from_pem_cert(member_cert.value());
+      if (
+        member_key.has_value() &&
+        crypto::did_key_from_public_key_der(*member_key) != phdr.kid)
+      {
+        error_reason = "Enrolled did:key does not match its public key";
+        return nullptr;
+      }
+      auto verifier = member_key.has_value() ?
+        ccf::crypto::make_cose_verifier_from_key(*member_key) :
+        ccf::crypto::make_cose_verifier_from_pem_cert(*member_cert);
 
       if (!verifier->verify_decomposed(
             decomposed.phdr_bytes,
@@ -308,7 +319,7 @@ namespace ccf
         body,
         decomposed.sig,
         phdr.kid,
-        member_cert.value(),
+        member_cert.value_or(ccf::crypto::Pem{}),
         phdr);
     }
     error_reason = fmt::format("Signer is not a known member");
@@ -405,10 +416,20 @@ namespace ccf
     UserCerts users_certs_table(Tables::USER_CERTS);
     auto* user_certs = tx.ro(users_certs_table);
     auto user_cert = user_certs->get(phdr.kid);
-    if (user_cert.has_value())
+    auto user_key =
+      tx.ro<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->get(phdr.kid);
+    if (user_cert.has_value() || user_key.has_value())
     {
-      auto verifier =
-        ccf::crypto::make_cose_verifier_from_pem_cert(user_cert.value());
+      if (
+        user_key.has_value() &&
+        crypto::did_key_from_public_key_der(*user_key) != phdr.kid)
+      {
+        error_reason = "Enrolled did:key does not match its public key";
+        return nullptr;
+      }
+      auto verifier = user_key.has_value() ?
+        ccf::crypto::make_cose_verifier_from_key(*user_key) :
+        ccf::crypto::make_cose_verifier_from_pem_cert(*user_cert);
 
       if (!verifier->verify_decomposed(
             decomposed.phdr_bytes,
@@ -431,7 +452,7 @@ namespace ccf
         body,
         decomposed.sig,
         phdr.kid,
-        user_cert.value(),
+        user_cert.value_or(ccf::crypto::Pem{}),
         phdr);
     }
     error_reason = fmt::format("Signer is not a known user");

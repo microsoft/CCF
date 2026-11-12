@@ -240,6 +240,12 @@ function checkNone(args) {
 
 function checkEntityId(value, field) {
   checkType(value, "string", field);
+  if (value.startsWith("did:key:")) {
+    if (!ccf.isValidEntityId(value)) {
+      throw new Error(`${field} must be a supported canonical did:key`);
+    }
+    return;
+  }
   // This should be the hex-encoding of a SHA256 digest. This is 32 bytes long, so
   // produces 64 hex characters.
   const digestLength = 64;
@@ -250,6 +256,85 @@ function checkEntityId(value, field) {
   if (!re.test(value)) {
     throw new Error(`${field} contains non-hexadecimal character`);
   }
+}
+
+function checkIdentityEnrollment(args, tableName, previousActions = []) {
+  if (args.id_format !== undefined) {
+    throw new Error(
+      "Use cert for legacy enrollment or did_key without id_format",
+    );
+  }
+  const isDid = args.did_key !== undefined;
+  if (isDid) {
+    checkType(args.did_key, "string", "did_key");
+    if (args.cert !== undefined) {
+      throw new Error("did_key enrollment must not include cert");
+    }
+    ccf.publicKeyFromDidKey(args.did_key);
+  }
+  const id = isDid ? args.did_key : ccf.pemToId(args.cert);
+  // Validation sees pre-proposal state; application checks the actual tables.
+  const role = tableName === "public:ccf.gov.members.certs" ? "member" : "user";
+  const removedIds = new Set(
+    previousActions
+      .filter((action) => action.name === `remove_${role}`)
+      .map((action) => action.args?.[`${role}_id`]),
+  );
+  if (!isDid) {
+    if (typeof ccf.certificatesHaveSamePublicKey !== "function") {
+      return id;
+    }
+    let did;
+    try {
+      did = ccf.pemToId(args.cert, "did:key");
+    } catch (e) {
+      // Keys outside the did:key profile cannot have a DID enrollment.
+      const reason = e.message.replace(/^Failed to parse PEM: /, "");
+      if (
+        reason === "Unsupported did:key EC curve" ||
+        reason === "Unsupported did:key public key type" ||
+        reason === "did:key RSA keys must be between 2048 and 16384 bits"
+      ) {
+        return id;
+      }
+      throw e;
+    }
+    if (
+      ccf.kv[tableName.replace(".certs", ".public_keys")].has(
+        ccf.strToBuf(did),
+      ) &&
+      !removedIds.has(did)
+    ) {
+      throw new Error(
+        `Public key is already enrolled under a different ID format: ${did}`,
+      );
+    }
+    return id;
+  }
+  ccf.kv[tableName].forEach((cert, key) => {
+    const existingId = ccf.bufToStr(key);
+    let matches = false;
+    if (!existingId.startsWith("did:key:") && !removedIds.has(existingId)) {
+      try {
+        matches = ccf.pemToId(ccf.bufToStr(cert), "did:key") === id;
+      } catch (e) {
+        const reason = e.message.replace(/^Failed to parse PEM: /, "");
+        if (
+          reason !== "Unsupported did:key EC curve" &&
+          reason !== "Unsupported did:key public key type" &&
+          reason !== "did:key RSA keys must be between 2048 and 16384 bits"
+        ) {
+          throw e;
+        }
+      }
+    }
+    if (matches) {
+      throw new Error(
+        `Public key is already enrolled under a different ID format: ${existingId}`,
+      );
+    }
+  });
+  return id;
 }
 
 function getSingletonKvKey() {
@@ -663,8 +748,10 @@ const actions = new Map([
   [
     "set_member",
     new Action(
-      function (args) {
-        checkX509CertBundle(args.cert, "cert");
+      function (args, previousActions = []) {
+        if (args.did_key === undefined) {
+          checkX509CertBundle(args.cert, "cert");
+        }
         checkType(args.member_data, "object?", "member_data");
         const recovery_role = args.recovery_role;
         if (recovery_role !== undefined) {
@@ -694,26 +781,43 @@ const actions = new Map([
           );
         }
 
-        checkRecoveryMemberChange(
-          ccf.strToBuf(ccf.pemToId(args.cert)),
-          args.encryption_pub_key !== null &&
-            args.encryption_pub_key !== undefined,
+        const memberId = checkIdentityEnrollment(
+          args,
+          "public:ccf.gov.members.certs",
+          previousActions,
         );
-      },
-
-      function (args) {
-        const memberId = ccf.pemToId(args.cert);
         const rawMemberId = ccf.strToBuf(memberId);
         checkRecoveryMemberChange(
           rawMemberId,
           args.encryption_pub_key !== null &&
             args.encryption_pub_key !== undefined,
         );
+      },
 
-        ccf.kv["public:ccf.gov.members.certs"].set(
-          rawMemberId,
-          ccf.strToBuf(args.cert),
+      function (args) {
+        const memberId = checkIdentityEnrollment(
+          args,
+          "public:ccf.gov.members.certs",
         );
+        const rawMemberId = ccf.strToBuf(memberId);
+
+        checkRecoveryMemberChange(
+          rawMemberId,
+          args.encryption_pub_key !== null &&
+            args.encryption_pub_key !== undefined,
+        );
+
+        if (args.did_key !== undefined) {
+          ccf.kv["public:ccf.gov.members.public_keys"].set(
+            rawMemberId,
+            ccf.publicKeyFromDidKey(args.did_key),
+          );
+        } else {
+          ccf.kv["public:ccf.gov.members.certs"].set(
+            rawMemberId,
+            ccf.strToBuf(args.cert),
+          );
+        }
 
         if (args.encryption_pub_key == null) {
           ccf.kv["public:ccf.gov.members.encryption_public_keys"].delete(
@@ -789,6 +893,7 @@ const actions = new Map([
           rawMemberId,
         );
         ccf.kv["public:ccf.gov.members.certs"].delete(rawMemberId);
+        ccf.kv["public:ccf.gov.members.public_keys"].delete(rawMemberId);
         ccf.kv["public:ccf.gov.members.acks"].delete(rawMemberId);
         ccf.kv["public:ccf.gov.history"].delete(rawMemberId);
 
@@ -825,18 +930,35 @@ const actions = new Map([
   [
     "set_user",
     new Action(
-      function (args) {
-        checkX509CertBundle(args.cert, "cert");
+      function (args, previousActions = []) {
+        if (args.did_key === undefined) {
+          checkX509CertBundle(args.cert, "cert");
+        }
         checkType(args.user_data, "object?", "user_data");
+        checkIdentityEnrollment(
+          args,
+          "public:ccf.gov.users.certs",
+          previousActions,
+        );
       },
       function (args) {
-        let userId = ccf.pemToId(args.cert);
+        let userId = checkIdentityEnrollment(
+          args,
+          "public:ccf.gov.users.certs",
+        );
         let rawUserId = ccf.strToBuf(userId);
 
-        ccf.kv["public:ccf.gov.users.certs"].set(
-          rawUserId,
-          ccf.strToBuf(args.cert),
-        );
+        if (args.did_key !== undefined) {
+          ccf.kv["public:ccf.gov.users.public_keys"].set(
+            rawUserId,
+            ccf.publicKeyFromDidKey(args.did_key),
+          );
+        } else {
+          ccf.kv["public:ccf.gov.users.certs"].set(
+            rawUserId,
+            ccf.strToBuf(args.cert),
+          );
+        }
 
         if (args.user_data !== null && args.user_data !== undefined) {
           let userInfo = {};
@@ -860,6 +982,7 @@ const actions = new Map([
       function (args) {
         const user_id = ccf.strToBuf(args.user_id);
         ccf.kv["public:ccf.gov.users.certs"].delete(user_id);
+        ccf.kv["public:ccf.gov.users.public_keys"].delete(user_id);
         ccf.kv["public:ccf.gov.users.info"].delete(user_id);
       },
     ),

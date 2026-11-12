@@ -9,6 +9,7 @@
 #include "ccf/ds/unit_strings.h"
 #include "ccf/entity_id.h"
 #include "ccf/fluentd_config.h"
+#include "ccf/identity_id_format.h"
 #include "ccf/node/start_type.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_config.h"
@@ -36,6 +37,7 @@ namespace ccf
     std::optional<std::string> encryption_public_key_file = std::nullopt;
     std::optional<std::string> data_json_file = std::nullopt;
     std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
+    std::optional<std::string> did_key = std::nullopt;
 
     bool operator==(const ParsedMemberInfo&) const = default;
   };
@@ -92,6 +94,7 @@ namespace ccf
       std::string subject_name = "CN=CCF Node";
       std::vector<std::string> subject_alt_names;
       ccf::crypto::CurveID curve_id = ccf::crypto::CurveID::SECP384R1;
+      IdentityIdFormat id_format = IdentityIdFormat::SHA256;
       size_t initial_validity_days = 1;
 
       bool operator==(const NodeCertificateInfo&) const = default;
@@ -345,6 +348,7 @@ namespace ccf
     subject_name,
     subject_alt_names,
     curve_id,
+    id_format,
     initial_validity_days);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Ledger);
@@ -455,12 +459,14 @@ namespace ccf
     LogFormat, {{LogFormat::TEXT, "Text"}, {LogFormat::JSON, "Json"}});
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ParsedMemberInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(ParsedMemberInfo, certificate_file);
+  DECLARE_JSON_REQUIRED_FIELDS(ParsedMemberInfo);
   DECLARE_JSON_OPTIONAL_FIELDS(
     ParsedMemberInfo,
+    certificate_file,
     encryption_public_key_file,
     data_json_file,
-    recovery_role);
+    recovery_role,
+    did_key);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::OutputFiles);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::OutputFiles);

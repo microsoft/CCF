@@ -305,6 +305,11 @@
                           "type": "string",
                           "description": "Path to member x509 identity certificate (PEM)"
                         },
+                        "did_key": {
+                          "type": "string",
+                          "pattern": "^did:key:z[1-9A-HJ-NP-Za-km-z]+$",
+                          "description": "Canonical member did:key containing its public key; mutually exclusive with certificate_file"
+                        },
                         "encryption_public_key_file": {
                           "type": ["string", "null"],
                           "description": "Path to member encryption public key (PEM)"
@@ -319,10 +324,19 @@
                           "description": "Whether the member acts as a recovery participant and gets assigned a share that can contribute towards a recovery threshold or as an owner and gets assigned a full recovery key"
                         }
                       },
-                      "required": ["certificate_file"],
+                      "oneOf": [
+                        {
+                          "required": ["certificate_file"],
+                          "not": { "required": ["did_key"] }
+                        },
+                        {
+                          "required": ["did_key"],
+                          "not": { "required": ["certificate_file"] }
+                        }
+                      ],
                       "additionalProperties": false
                     },
-                    "description": "List of initial consortium members files, including identity certificates, public encryption keys and member data files"
+                    "description": "List of initial consortium members, enrolled with a certificate_file or a certificate-free did_key, plus optional recovery keys and member data"
                   },
                   "service_configuration": {
                     "type": "object",
@@ -467,6 +481,12 @@
     "node_certificate": {
       "type": "object",
       "properties": {
+        "id_format": {
+          "type": "string",
+          "enum": ["sha256", "did:key"],
+          "default": "sha256",
+          "description": "Canonical node ID format; did:key embeds the node public key without changing attestation hashes"
+        },
         "subject_name": {
           "type": "string",
           "default": "CN=CCF Node",

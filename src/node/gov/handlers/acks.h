@@ -40,7 +40,7 @@ namespace ccf::gov::endpoints
           std::string error;
           std::string member_id_str;
           if (!ccf::endpoints::get_path_param(
-                ctx.rpc_ctx->get_request_path_params(),
+                ctx.rpc_ctx->get_decoded_request_path_params(),
                 "memberId",
                 member_id_str,
                 error))
@@ -88,7 +88,7 @@ namespace ccf::gov::endpoints
           std::string error;
           std::string member_id_str;
           if (!ccf::endpoints::get_path_param(
-                ctx.rpc_ctx->get_request_path_params(),
+                ctx.rpc_ctx->get_decoded_request_path_params(),
                 "memberId",
                 member_id_str,
                 error))
@@ -170,7 +170,7 @@ namespace ccf::gov::endpoints
           std::string error;
           std::string member_id_str;
           if (!ccf::endpoints::get_path_param(
-                ctx.rpc_ctx->get_request_path_params(),
+                ctx.rpc_ctx->get_decoded_request_path_params(),
                 "memberId",
                 member_id_str,
                 error))

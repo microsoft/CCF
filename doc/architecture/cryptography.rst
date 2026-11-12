@@ -106,6 +106,43 @@ Each node also has an encryption public-key (``Node Encryption Public Key``) use
         NodeEncryptedLedgerSecrets -- recorded in ccf.internal.encrypted_ledger_secrets --> Ledger
 
 
+Identity IDs
+------------
+
+Node, member, and user IDs default to the existing ``sha256`` format.
+Member and user IDs are the hexadecimal SHA-256 fingerprint of the DER certificate.
+Node IDs are the hexadecimal SHA-256 fingerprint of the DER SubjectPublicKeyInfo public key.
+
+New identities can instead opt in to a canonical `did:key <https://w3c-ccg.github.io/did-key-spec/>`_ ID.
+This embeds a multicodec-tagged public key using base58btc, rather than hashing it.
+CCF supports compressed P-256, P-384, and P-521 keys and PKCS#1 RSA public keys between 2048 and 16384 bits.
+Existing authentication and signing algorithm restrictions still apply.
+Only bare, canonical IDs are accepted; DID URLs with fragments, queries, or paths are not identity IDs.
+When inserting an ID into an HTTP path, percent-encode its colons as ``%3A`` rather than encoding the endpoint's literal action suffix.
+The stored ID and COSE ``kid`` remain the unencoded canonical DID.
+
+The selected ID is the key stored in the role's governance tables and returned by APIs, not an alias.
+Members and users enroll directly with ``did_key``, without a certificate, and authenticate COSE requests using the embedded public key.
+Re-enrolling an existing DID member or user with ``set_member`` or ``set_user`` replaces its recovery keys and data according to the existing action semantics, so a re-enrolled member must ack again before it is active.
+Changing the public key changes the DID.
+DID authorization has no certificate validity period: governance explicitly grants and revokes access.
+Legacy TLS client-authenticated endpoints can also recognize a transport certificate carrying the enrolled key, but DID enrollment does not store or require that certificate.
+Removing the enrolled identity revokes its access to that role.
+The DID itself is not an authorization grant: the identity must still be enrolled and satisfy the endpoint's authentication policy.
+
+IDs already stored in the ledger are not changed or backfilled.
+The same public key cannot be enrolled under both ID formats within one role, although existing legacy-only enrollments and key reuse across roles remain supported.
+Moving an existing identity to the DID format requires controlled removal and re-enrollment, respecting member activation, recovery, and node-retirement requirements.
+There is no automatic transfer of metadata, governance state, or recovery shares.
+Recovery from an existing common directory discovers each member's enrolled ID format and recovery role from the recovered governance state.
+See :doc:`/governance/migrating_identity_ids` for the user and member migration procedure.
+
+Upgrade every node before opting in to DID identities.
+Upgraded services can mix legacy and DID IDs, but older binaries are not supported in a DID-enabled service.
+This option does not change SHA-256 ledger hashes, proposal IDs, receipt formats, attestation bindings, or cryptographic signature algorithms.
+
+See :doc:`/operations/configuration` for node and genesis member configuration, :doc:`/governance/adding_member` and :doc:`/governance/open_network` for enrollment, and :doc:`/use_apps/issue_commands` for COSE signing.
+
 Algorithms and Curves
 ---------------------
 

@@ -259,8 +259,8 @@
         "type": "object"
       },
       "MemberId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
+        "maxLength": 3000,
+        "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
         "type": "string"
       },
       "MemberId_array": {
@@ -362,8 +362,8 @@
         "type": "object"
       },
       "NodeId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
+        "maxLength": 3000,
+        "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
         "type": "string"
       },
       "NodeStatus": {
@@ -665,14 +665,13 @@
         },
         "required": [
           "userId",
-          "certificate",
           "userData"
         ],
         "type": "object"
       },
       "UserId": {
-        "format": "hex",
-        "pattern": "^[a-f0-9]{64}$",
+        "maxLength": 3000,
+        "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
         "type": "string"
       },
       "User_array": {
@@ -1050,7 +1049,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1082,7 +1082,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1266,7 +1267,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1289,7 +1291,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1338,7 +1341,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1530,7 +1534,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1553,7 +1558,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -1937,7 +1943,8 @@
           "name": "memberId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -2018,7 +2025,8 @@
           "name": "nodeId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },
@@ -2180,7 +2188,8 @@
           "name": "userId",
           "required": true,
           "schema": {
-            "pattern": "^[a-f0-9]{64}$",
+            "maxLength": 3000,
+            "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
             "type": "string"
           }
         },

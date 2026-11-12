@@ -213,6 +213,102 @@ TEST_CASE("Adding a member does not populate an ACK")
     tx.ro<ccf::MemberAcks>(Tables::MEMBER_ACKS)->get(member_id).has_value());
 }
 
+TEST_CASE(
+  "DID identity enrollment preserves canonical IDs and rejects ambiguity")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  const auto replacement = identity.key->self_sign(
+    "CN=replacement", "20200101000000Z", "20201231235959Z");
+  const auto did =
+    ccf::crypto::compute_cert_id(identity.cert, IdentityIdFormat::DIDKey);
+  REQUIRE(did.starts_with("did:key:z"));
+  REQUIRE(
+    ccf::crypto::compute_cert_id(replacement, IdentityIdFormat::DIDKey) == did);
+  auto tx = store.create_tx();
+
+  SUBCASE("Member DID then legacy")
+  {
+    NewMember member;
+    member.did_key = did;
+    REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
+    REQUIRE(InternalTablesAccess::activate_member(tx, did));
+    REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
+    REQUIRE(
+      tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(did)->status ==
+      MemberStatus::ACTIVE);
+    REQUIRE_FALSE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(did));
+    member.did_key = std::nullopt;
+    member.cert = replacement;
+    CHECK_THROWS_AS(
+      InternalTablesAccess::add_member(tx, member), std::logic_error);
+  }
+  SUBCASE("Member legacy then DID")
+  {
+    InternalTablesAccess::add_member(tx, {identity.cert});
+    NewMember member;
+    member.did_key = did;
+    CHECK_THROWS_AS(
+      InternalTablesAccess::add_member(tx, member), std::logic_error);
+  }
+  SUBCASE("User DID then legacy")
+  {
+    REQUIRE(
+      InternalTablesAccess::add_user(tx, {{}, nullptr, did}).value() == did);
+    CHECK_THROWS_AS(
+      InternalTablesAccess::add_user(tx, {replacement}), std::logic_error);
+    REQUIRE_FALSE(tx.ro<UserCerts>(Tables::USER_CERTS)->has(did));
+    InternalTablesAccess::remove_user(tx, did);
+    CHECK_NOTHROW(InternalTablesAccess::add_user(tx, {replacement}));
+  }
+  SUBCASE("User legacy then DID")
+  {
+    InternalTablesAccess::add_user(tx, {identity.cert});
+    CHECK_THROWS_AS(
+      InternalTablesAccess::add_user(tx, {{}, nullptr, did}), std::logic_error);
+  }
+  CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+}
+
+TEST_CASE("DID enrollment rejects certificates and malformed keys")
+{
+  ccf::kv::Store store;
+  auto tx = store.create_tx();
+  const auto key = ccf::crypto::make_ec_key_pair();
+  const auto did =
+    ccf::crypto::did_key_from_public_key_der(key->public_key_der());
+  NewMember member;
+  member.did_key = did;
+  member.cert = key->self_sign("CN=test", "20200101000000Z", "20201231235959Z");
+  CHECK_THROWS_AS(
+    InternalTablesAccess::add_member(tx, member), std::logic_error);
+  member.cert = {};
+  member.did_key = did + "#fragment";
+  CHECK_THROWS(InternalTablesAccess::add_member(tx, member));
+  CHECK_FALSE(tx.ro<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->has(did));
+  CHECK_FALSE(tx.ro<MemberInfo>(Tables::MEMBER_INFO)->has(did));
+}
+
+TEST_CASE("Enrollment inputs serialize certificates or DIDs without a format")
+{
+  const TestIdentity identity;
+  nlohmann::json member = NewMember{identity.cert};
+  CHECK_FALSE(member.contains("id_format"));
+  CHECK(member.get<NewMember>().cert == identity.cert);
+  const auto did =
+    ccf::crypto::did_key_from_public_key_der(identity.key->public_key_der());
+  const nlohmann::json input = {{"did_key", did}};
+  const auto did_member = input.get<NewMember>();
+  const auto did_user = input.get<NewUser>();
+  CHECK(did_member.cert.empty());
+  CHECK(did_member.did_key == did);
+  CHECK(did_user.cert.empty());
+  CHECK(did_user.did_key == did);
+  CHECK_FALSE(nlohmann::json(did_member).contains("id_format"));
+  CHECK_FALSE(nlohmann::json(did_user).contains("id_format"));
+}
+
 TEST_CASE("Member admission and activation preserve recovery roles")
 {
   ccf::kv::Store store;

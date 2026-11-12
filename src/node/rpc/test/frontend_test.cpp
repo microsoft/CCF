@@ -5,9 +5,11 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/crypto/ecdsa.h"
 #include "ccf/ds/locking.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
+#include "crypto/cose.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/internal_logger.h"
@@ -978,6 +980,122 @@ TEST_CASE("process with caller")
   }
 }
 
+TEST_CASE("DID COSE authentication needs no certificate")
+{
+  using namespace tav::cbor;
+  using tav::cbor::make_signed;
+  for (const auto member : {false, true})
+  {
+    CAPTURE(member);
+    ccf::kv::Store store;
+    auto tx = store.create_tx();
+    const auto key =
+      ccf::crypto::make_ec_key_pair(ccf::crypto::CurveID::SECP384R1);
+    const auto did =
+      ccf::crypto::did_key_from_public_key_der(key->public_key_der());
+    if (member)
+    {
+      NewMember enrollment;
+      enrollment.did_key = did;
+      REQUIRE(InternalTablesAccess::add_member(tx, enrollment) == did);
+      REQUIRE_FALSE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(did));
+    }
+    else
+    {
+      NewUser enrollment;
+      enrollment.did_key = did;
+      REQUIRE(InternalTablesAccess::add_user(tx, enrollment) == did);
+      REQUIRE_FALSE(tx.ro<UserCerts>(Tables::USER_CERTS)->has(did));
+    }
+
+    const std::vector<uint8_t> payload = {'t', 'e', 's', 't'};
+    const std::vector<uint8_t> kid(did.begin(), did.end());
+    std::vector<std::pair<Value, Value>> headers;
+    headers.emplace_back(
+      make_signed(ccf::cose::header::iana::ALG), make_signed(-35));
+    headers.emplace_back(
+      make_signed(ccf::cose::header::iana::KID), make_bytes(kid));
+    headers.emplace_back(make_string("ccf.gov.msg.created_at"), make_signed(1));
+    const auto phdr = make_map(std::move(headers)).det_serialize();
+    const auto tbs = ccf::cose::make_cose_sign1_tbs(phdr, payload);
+    const auto signature =
+      ccf::crypto::ecdsa_sig_der_to_p1363(key->sign(tbs), key->get_curve_id());
+    const auto envelope =
+      ccf::cose::make_cose_sign1_envelope(phdr, payload, signature, false);
+    auto request = create_simple_request();
+    request.set_header(
+      ccf::http::headers::CONTENT_TYPE,
+      ccf::http::headervalues::contenttype::COSE);
+    request.set_body(&envelope);
+    auto ctx =
+      ccf::make_rpc_context(anonymous_session, request.build_request());
+    std::unique_ptr<AuthnPolicy> policy;
+    if (member)
+    {
+      policy = std::make_unique<MemberCOSESign1AuthnPolicy>();
+    }
+    else
+    {
+      policy = std::make_unique<UserCOSESign1AuthnPolicy>();
+    }
+    std::string error;
+    auto caller = policy->authenticate(tx, ctx, error);
+    REQUIRE(caller != nullptr);
+    if (member)
+    {
+      const auto* identity =
+        dynamic_cast<MemberCOSESign1AuthnIdentity*>(caller.get());
+      REQUIRE(identity != nullptr);
+      CHECK(identity->member_id == did);
+      CHECK(identity->member_cert.empty());
+      ActiveMemberCOSESign1AuthnPolicy active_policy;
+      CHECK(active_policy.authenticate(tx, ctx, error) == nullptr);
+      CHECK(error == "Signer is not an ACTIVE member");
+    }
+    else
+    {
+      const auto* identity =
+        dynamic_cast<UserCOSESign1AuthnIdentity*>(caller.get());
+      REQUIRE(identity != nullptr);
+      CHECK(identity->user_id == did);
+      CHECK(identity->user_cert.empty());
+    }
+
+    auto corrupted = envelope;
+    corrupted.back() ^= 1;
+    request.set_body(&corrupted);
+    auto corrupt_ctx =
+      ccf::make_rpc_context(anonymous_session, request.build_request());
+    CHECK(policy->authenticate(tx, corrupt_ctx, error) == nullptr);
+    CHECK(error == "Failed to validate COSE Sign1");
+
+    const auto wrong_key = ccf::crypto::make_ec_key_pair()->public_key_der();
+    if (member)
+    {
+      tx.rw<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->put(did, wrong_key);
+    }
+    else
+    {
+      tx.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->put(did, wrong_key);
+    }
+    CHECK(policy->authenticate(tx, ctx, error) == nullptr);
+    CHECK(error == "Enrolled did:key does not match its public key");
+
+    if (member)
+    {
+      tx.rw<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->remove(did);
+    }
+    else
+    {
+      tx.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->remove(did);
+    }
+    CHECK(policy->authenticate(tx, ctx, error) == nullptr);
+    CHECK(
+      error ==
+      (member ? "Signer is not a known member" : "Signer is not a known user"));
+  }
+}
+
 TEST_CASE("No certs table")
 {
   NetworkState network;
@@ -1033,6 +1151,81 @@ TEST_CASE("Member caller")
     const auto serialized_response = rpc_ctx->serialise_response();
     auto response = parse_response(serialized_response);
     CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
+  }
+}
+
+TEST_CASE(
+  "DID certificate authentication binds authorization to an enrolled key")
+{
+  NetworkState network;
+  prepare_callers(network);
+  TestJsonWrappedEndpointFunction frontend(*network.tables);
+  const auto key = ccf::crypto::make_ec_key_pair();
+  const auto cert = key->self_sign("CN=original", valid_from, valid_to);
+  const auto replacement =
+    key->self_sign("CN=replacement", valid_from, valid_to);
+  const auto did = ccf::crypto::compute_cert_id(cert, IdentityIdFormat::DIDKey);
+  auto tx = network.tables->create_tx();
+  InternalTablesAccess::add_user(tx, {{}, nullptr, did});
+  NewMember member;
+  member.did_key = did;
+  InternalTablesAccess::add_member(tx, member);
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+
+  const auto session = make_shared<ccf::SessionContext>(
+    ccf::InvalidSessionId, ccf::crypto::make_verifier(replacement)->cert_der());
+  const auto request = create_simple_request("/get_caller").build_request();
+  const auto call = [&]() {
+    auto ctx = ccf::make_rpc_context(session, request);
+    frontend.process(ctx);
+    return parse_response(ctx->serialise_response());
+  };
+
+  auto response = call();
+  REQUIRE(response.status == HTTP_STATUS_OK);
+  CHECK(parse_response_body(response.body).get<std::string>() == did);
+
+  SUBCASE("Removal revokes an existing TLS session")
+  {
+    auto removal = network.tables->create_tx();
+    InternalTablesAccess::remove_user(removal, did);
+    REQUIRE(removal.commit() == ccf::kv::CommitResult::SUCCESS);
+    CHECK(call().status == HTTP_STATUS_UNAUTHORIZED);
+  }
+  SUBCASE("Stored public keys must remain bound to the DID")
+  {
+    auto update = network.tables->create_tx();
+    update.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)
+      ->put(
+        did,
+        ccf::crypto::public_key_der_from_cert(
+          ccf::crypto::make_verifier(invalid_caller)->cert_der()));
+    REQUIRE(update.commit() == ccf::kv::CommitResult::SUCCESS);
+    CHECK(call().status == HTTP_STATUS_UNAUTHORIZED);
+  }
+  SUBCASE("DID authorization is independent of transport certificate validity")
+  {
+    const auto expired =
+      key->self_sign("CN=expired", "20200101000000Z", "20201231235959Z");
+    auto ctx = ccf::make_rpc_context(
+      make_shared<ccf::SessionContext>(
+        ccf::InvalidSessionId, ccf::crypto::make_verifier(expired)->cert_der()),
+      request);
+    frontend.process(ctx);
+    CHECK(parse_response(ctx->serialise_response()).status == HTTP_STATUS_OK);
+  }
+  SUBCASE("Member authentication accepts a replacement certificate")
+  {
+    MemberCertAuthnPolicy policy;
+    std::string error_reason;
+    auto read = network.tables->create_read_only_tx();
+    auto ctx = ccf::make_rpc_context(session, request);
+    auto identity = policy.authenticate(read, ctx, error_reason);
+    const auto* authenticated =
+      dynamic_cast<MemberCertAuthnIdentity*>(identity.get());
+    REQUIRE(authenticated != nullptr);
+    CHECK(authenticated->member_id.value() == did);
+    CHECK(error_reason.empty());
   }
 }
 

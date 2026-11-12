@@ -98,6 +98,12 @@ The user is successfully added once the proposal has received enough votes under
 
 The user can then make user RPCs.
 
+The ``set_user`` action accepts ``"did_key": "<canonical-did:key>"`` instead of ``cert`` to enroll a certificate-free user.
+Do not include ``cert`` or ``id_format`` with ``did_key``.
+Legacy enrollment using ``cert`` retains the certificate-fingerprint ID.
+Use the canonical returned ID in later ``set_user_data`` and ``remove_user`` proposals.
+See :ref:`architecture/cryptography:Identity IDs` for certificate replacement semantics and :doc:`migrating_identity_ids` for the migration procedure.
+
 User Data
 ---------
 

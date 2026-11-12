@@ -23,9 +23,16 @@ from cryptography.hazmat.primitives.asymmetric.types import CertificatePublicKey
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
     PublicFormat,
+    load_pem_private_key,
     load_pem_public_key,
 )
 from cryptography.x509 import load_pem_x509_certificate
+
+from ccf.identity import (
+    did_key_from_public_key,
+    identity_id_from_cert,
+    public_key_from_did_key,
+)
 
 Pem = str
 
@@ -110,15 +117,28 @@ def key_fingerprint_from_key(key_pem: Pem) -> str:
 def create_cose_sign1(
     payload: bytes,
     key_priv_pem: Pem,
-    cert_pem: Pem,
+    cert_pem: Pem | None = None,
     additional_protected_header: Mapping[Any, Any] | None = None,
+    *,
+    did_key: str | None = None,
 ) -> bytes:
-    """Sign a payload with the supplied PEM private key and certificate."""
+    """Sign a request using its enrolled identity format for the protected kid."""
+    _, kid = _signing_identity(cert_pem, did_key)
+    if (
+        did_key is not None
+        and did_key_from_public_key(
+            load_pem_private_key(
+                key_priv_pem.encode("ascii"), password=None
+            ).public_key()
+        )
+        != did_key
+    ):
+        raise ValueError("Signing key does not match did_key")
     cose_ctx = cwt.COSE.new(alg_auto_inclusion=True, deterministic_header=True)
-    cose_key = cwt.COSEKey.from_pem(key_priv_pem, kid=cert_fingerprint(cert_pem))
+    cose_key = cwt.COSEKey.from_pem(key_priv_pem, kid=kid)
     # kid is passed explicitly in the protected header, because kid_auto_inclusion
     # sets the kid in the unprotected header
-    phdr: dict[Any, Any] = {int(cwt.COSEHeaders.KID): cert_fingerprint(cert_pem)}
+    phdr: dict[Any, Any] = {int(cwt.COSEHeaders.KID): kid}
     additional_header = additional_protected_header or {}
     phdr.update(additional_header)
     encoded = cose_ctx.encode_and_sign(
@@ -129,15 +149,33 @@ def create_cose_sign1(
     return encoded
 
 
+def _signing_identity(
+    cert_pem: Pem | None,
+    did_key: str | None,
+) -> tuple[CertificatePublicKeyTypes, bytes]:
+    """Resolve a legacy certificate or a certificate-free enrolled DID."""
+    if did_key is not None:
+        if cert_pem is not None:
+            raise ValueError("did_key must not be combined with cert_pem")
+        return public_key_from_did_key(did_key), did_key.encode("ascii")
+    if cert_pem is None:
+        raise ValueError("A signing certificate or did_key is required")
+    return (
+        load_pem_x509_certificate(cert_pem.encode("ascii")).public_key(),
+        identity_id_from_cert(cert_pem).encode("ascii"),
+    )
+
+
 def create_cose_sign1_prepare(
     payload: bytes,
-    cert_pem: Pem,
+    cert_pem: Pem | None = None,
     additional_protected_header: Mapping[Any, Any] | None = None,
+    *,
+    did_key: str | None = None,
 ) -> PreparedCoseSign1:
-    """Prepare a digest and algorithm identifier for an external signer."""
-    cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
-    alg = default_algorithm_for_key(cert.public_key())
-    kid = cert_fingerprint(cert_pem)
+    """Prepare external signing with the same identity format as the finish step."""
+    public_key, kid = _signing_identity(cert_pem, did_key)
+    alg = default_algorithm_for_key(public_key)
 
     protected_header: dict[str | int, Any] = {
         int(cwt.COSEHeaders.ALG): alg,
@@ -148,8 +186,19 @@ def create_cose_sign1_prepare(
     phdr_encoded = cbor2.dumps(protected_header)
     tbs = cbor2.dumps(["Signature1", phdr_encoded, b"", payload])
 
-    assert cert.signature_hash_algorithm
-    digester = hashes.Hash(cert.signature_hash_algorithm)
+    if cert_pem is not None:
+        digest_algorithm = load_pem_x509_certificate(
+            cert_pem.encode("ascii")
+        ).signature_hash_algorithm
+        assert digest_algorithm
+    else:
+        digest_algorithms: dict[int, hashes.HashAlgorithm] = {
+            cwt.enums.COSEAlgs.ES256: hashes.SHA256(),
+            cwt.enums.COSEAlgs.ES384: hashes.SHA384(),
+            cwt.enums.COSEAlgs.ES512: hashes.SHA512(),
+        }
+        digest_algorithm = digest_algorithms[alg]
+    digester = hashes.Hash(digest_algorithm)
     digester.update(tbs)
     digest = digester.finalize()
     return {"alg": alg, "value": base64.b64encode(digest).decode()}
@@ -157,14 +206,17 @@ def create_cose_sign1_prepare(
 
 def create_cose_sign1_finish(
     payload: bytes,
-    cert_pem: Pem,
-    signature: str | bytes,
+    cert_pem: Pem | None = None,
+    signature: str | bytes | None = None,
     additional_protected_header: Mapping[Any, Any] | None = None,
+    *,
+    did_key: str | None = None,
 ) -> bytes:
-    """Finish a COSE Sign1 message using a base64url-encoded signature."""
-    cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
-    alg = default_algorithm_for_key(cert.public_key())
-    kid = cert_fingerprint(cert_pem)
+    """Assemble an externally signed request with its enrolled identity format."""
+    public_key, kid = _signing_identity(cert_pem, did_key)
+    alg = default_algorithm_for_key(public_key)
+    if signature is None:
+        raise ValueError("A signature is required")
 
     protected_header: dict[str | int, Any] = {
         int(cwt.COSEHeaders.ALG): alg,
@@ -183,13 +235,27 @@ def create_cose_sign1_finish(
     return cbor2.dumps(msg)
 
 
+def verify_cose_sign1_with_did_key(
+    did_key: str,
+    cose_sign1: bytes,
+    payload: bytes | None = None,
+) -> tuple[dict[str | int, Any], dict[str | int, Any], bytes]:
+    """Verify a COSE Sign1 message using its enrolled DID, without a certificate."""
+    key = public_key_from_did_key(did_key)
+    pem = key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+    cose_key = cwt.COSEKey.from_pem(pem, kid=did_key.encode("ascii"))
+    return cwt.COSE.new().decode_with_headers(
+        cose_sign1, cose_key, detached_payload=payload
+    )
+
+
 def verify_cose_sign1_with_cert(
     certificate: bytes,
     cose_sign1: bytes,
     use_key: bool = True,
     payload: bytes | None = None,
 ) -> tuple[dict[str | int, Any], dict[str | int, Any], bytes]:
-    """Verify a COSE Sign1 message and return its headers and payload."""
+    """Verify COSE using a service key fingerprint or an enrolled identity ID."""
     cose_ctx = cwt.COSE.new()
     cert_pem = certificate.decode()
     cose_key = cwt.COSEKey.from_pem(
@@ -197,7 +263,7 @@ def verify_cose_sign1_with_cert(
         kid=(
             key_fingerprint_from_cert(cert_pem)
             if use_key
-            else cert_fingerprint(cert_pem)
+            else identity_id_from_cert(cert_pem).encode("utf-8")
         ),
     )
     return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
@@ -316,12 +382,13 @@ def _common_parser(description: str) -> argparse.ArgumentParser:
         type=str,
         required=True,
     )
-    parser.add_argument(
+    identity = parser.add_mutually_exclusive_group(required=True)
+    identity.add_argument(
         "--signing-cert",
-        help="Path to signing key, PEM-encoded",
+        help="Path to legacy signing certificate, PEM-encoded",
         type=str,
-        required=True,
     )
+    identity.add_argument("--signing-did-key", help="Enrolled canonical did:key")
     parser.add_argument(
         "--ccf-gov-msg-type",
         help="ccf.gov.msg.type protected header",
@@ -386,8 +453,10 @@ def sign_cli():
     with open(args.signing_key, "r", encoding="utf-8") as signing_key_:
         signing_key = signing_key_.read()
 
-    with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
-        signing_cert = signing_cert_.read()
+    signing_cert = None
+    if args.signing_cert:
+        with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
+            signing_cert = signing_cert_.read()
 
     protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
@@ -396,7 +465,13 @@ def sign_cli():
     created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
     protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())
 
-    cose_sign1 = create_cose_sign1(content, signing_key, signing_cert, protected_header)
+    cose_sign1 = create_cose_sign1(
+        content,
+        signing_key,
+        signing_cert,
+        protected_header,
+        did_key=args.signing_did_key,
+    )
     sys.stdout.buffer.write(cose_sign1)
 
 
@@ -413,8 +488,10 @@ def prepare_cli():
     ) as content_:
         content = content_.read()
 
-    with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
-        signing_cert = signing_cert_.read()
+    signing_cert = None
+    if args.signing_cert:
+        with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
+            signing_cert = signing_cert_.read()
 
     protected_header = {"ccf.gov.msg.type": args.ccf_gov_msg_type}
     if args.ccf_gov_msg_proposal_id:
@@ -423,7 +500,12 @@ def prepare_cli():
     created_at = datetime.fromisoformat(args.ccf_gov_msg_created_at)
     protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())
 
-    digest = create_cose_sign1_prepare(content, signing_cert, protected_header)
+    digest = create_cose_sign1_prepare(
+        content,
+        signing_cert,
+        protected_header,
+        did_key=args.signing_did_key,
+    )
     json.dump(digest, sys.stdout)
 
 
@@ -440,8 +522,10 @@ def finish_cli():
     ) as content_:
         content = content_.read()
 
-    with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
-        signing_cert = signing_cert_.read()
+    signing_cert = None
+    if args.signing_cert:
+        with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
+            signing_cert = signing_cert_.read()
 
     with open(args.signature, "r", encoding="utf-8") as signature_:
         signature = json.load(signature_)["value"]
@@ -454,6 +538,10 @@ def finish_cli():
     protected_header["ccf.gov.msg.created_at"] = int(created_at.timestamp())
 
     cose_sign1 = create_cose_sign1_finish(
-        content, signing_cert, signature, protected_header
+        content,
+        signing_cert,
+        signature,
+        protected_header,
+        did_key=args.signing_did_key,
     )
     sys.stdout.buffer.write(cose_sign1)
