@@ -56,19 +56,24 @@ private def extractSends (start : Nat) : Reduction (List NativeSend) := do
     liftM (m := CCF.Parsec.Parser Event)
       ((fun input => .success input (input.events.extract start input.position))
         : CCF.Parsec.Parser Event (Array Event))
-  events.toList.filterMapM fun event => do
-    let packet ←
-      if event.function.startsWith "send_" then
-        some <$> readJson event event.message (field · "packet")
-      else if event.function == "step_down_and_nominate_successor" then
-        -- Native then sends an untraced proposal in its current view.
-        let term ← readJson event event.state (nat · "current_view")
-        pure (some (Json.mkObj [("msg", toJson "propose_request_vote"), ("term", toJson term)]))
-      else
-        pure none
-    packet.mapM fun packet => do
-      let target ← readJson event event.message (string · "to_node_id")
-      return { target, packet, origin := event.origin event.function }
+  events.toList.filterMapM
+    fun event => do
+      let packet ←
+        if event.function.startsWith "send_" then
+          some <$> readJson event event.message (field · "packet")
+        else if event.function == "step_down_and_nominate_successor" then
+          -- Native then sends an untraced proposal in its current view.
+          let term ← readJson event event.state (nat · "current_view")
+          pure
+            (some
+              (Json.mkObj
+                [("msg", toJson "propose_request_vote"), ("term", toJson term)]))
+        else
+          pure none
+      packet.mapM
+        fun packet => do
+          let target ← readJson event event.message (string · "to_node_id")
+          return { target, packet, origin := event.origin event.function }
 
 private def event (source : Event) (name : String) : Reduction Unit := do
   let next ← peek
