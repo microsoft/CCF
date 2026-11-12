@@ -1542,7 +1542,7 @@ theorem committed_rw_ordered_serializable
     have sameSeq : left.seqno = right.seqno :=
       Nat.le_antisymm (Nat.le_of_not_lt (fun lt => ordered (Or.inr ⟨sameView.symm, lt⟩)))
         notLater
-    exact different (congr (congrArg CCF.TransactionID.mk sameView) sameSeq)
+    exact different (congr (congrArg CCF.TxID.mk sameView) sameSeq)
   have through_entry {α : Type} {xs : List α} {index : Nat} {value : α}
       (found : at? xs index = some value)
       : xs.take index = xs.take (index - 1) ++ [value] := by

@@ -1,7 +1,7 @@
 module
 
 public import CCF.Capabilities
-public import CCF.TransactionID
+public import CCF.TxID
 
 @[expose] public section
 
@@ -12,8 +12,7 @@ open CCF (Capabilities)
 /-- A node's configured recovery location. -/
 abbrev Location := String
 
-/-- The view and sequence number of a recovered ledger's last signed transaction. -/
-abbrev TxID := CCF.TransactionID
+export CCF (TxID)
 
 /-- The phases of the recovery decision protocol and its timeout lane. -/
 inductive Phase where

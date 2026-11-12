@@ -11,4 +11,4 @@ public import CCF.Proofs.Execution
 public import CCF.Proofs.Finset
 public import CCF.Seq
 public import CCF.TransitionSystem
-public import CCF.TransactionID
+public import CCF.TxID

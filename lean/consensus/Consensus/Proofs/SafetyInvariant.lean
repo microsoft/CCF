@@ -6165,7 +6165,7 @@ private theorem doomed_absurd {term commit : Nat} {log : List Entry}
     exact termAt_mono (grantInv.sorted voter granting grantingMem)
       (signatureIndex_le_maxCommittableIndex signed) (maxCommittableIndexBounded _)
   have requestTerm := lowTerm (max commit (maxCommittableIndex log))
-  simp only [voteLogUpToDate, CCF.TransactionID.le, vals] at upToDate
+  simp only [voteLogUpToDate, CCF.TxID.le, vals] at upToDate
   omega
 
 /-- The actor's committed prefix is committed no later than `bound`, or a later
@@ -6417,7 +6417,7 @@ private theorem core {small large : History} (within : small <:+ large)
     rw [termAt_of_prefix inGranting (Nat.le_of_eq partLength.symm), partTerm] at this
     exact this
   -- The election's last committable position.
-  simp only [voteLogUpToDate, CCF.TransactionID.le, vals] at upToDate
+  simp only [voteLogUpToDate, CCF.TxID.le, vals] at upToDate
   generalize jEq : max commit (maxCommittableIndex log) = j at upToDate ⊢
   have two : 2 <= term := by
     have := leaderLed.two_le
