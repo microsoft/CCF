@@ -29,33 +29,7 @@ Like CCF's `init_as_backup`, a fresh node may initialize once as a follower: wit
 Crashes are not modeled, so a committed prefix keeps its history, and a valid snapshot, fetched from another node or read from a local file, is such a prefix ([`Model.networkStep`](Consensus/Model.lean)).
 The join protocol is not modeled: a configuration may add any node, and a fresh node may instead follow from its first AppendEntries.
 Node identities are never reused, so a configuration may not name a node removed by an earlier configuration in the same log.
-`deadlock_free_after_bootstrap` proves the [shared deadlock-freedom property](../common/README.md#transition-systems) for every state reachable once bootstrapping completes, for any initial configuration.
-Bootstrapping completes ([`Bootstrapped`](Consensus/Properties/Bootstrap.lean)) when some node commits a signature; a singleton bootstrap node commits its first signature as soon as it emits it.
-`deadlock_free_after_bootstrap_witness` shows that every valid initial configuration reaches such a state.
 There are no fairness assumptions or guarantees of eventual election or commitment.
-
-The proof takes the longest committed log prefix and its latest configuration.
-A member of that configuration acknowledged the prefix, so its log still contains it and the signature that ends it.
-That member cannot have been retired, because a retirement confirmation in the prefix would name a node removed before that configuration, so it is primary or may start an election.
-
-### Counterexamples
-
-Both assumptions are needed.
-Before bootstrapping completes, start with voting membership `{0}` and declared nodes `[0, 1]`:
-
-1. Node 0 appends an unsigned transaction changing membership to `{0, 1}`.
-   The append sends a heartbeat to node 1 before adding the transaction.
-2. Node 0 executes its CheckQuorum timeout and becomes a follower.
-   This action is enabled once there is another active member; the model has no clock.
-3. Deliver the heartbeat to node 1.
-   It becomes a follower in term 2 and rejects the heartbeat because its empty log lacks the preceding genesis entry, queuing a negative acknowledgement.
-4. Deliver the acknowledgement to node 0, which ignores it because it is no longer primary.
-
-The network queue is now empty, both nodes are followers, and neither has a signature covering a configuration that permits it to start an election.
-The C++ consensus implementation can stall in the same way if CheckQuorum fires before the first signature.
-
-Without the identity guard, a primary may re-add a removed node together with a confirmation of that node's retirement, then retire itself.
-Its nominated successor is the re-added node, which is retired-committed and cannot campaign, so no node can act.
 
 ## Validation
 
