@@ -2357,8 +2357,10 @@ namespace aft
       }
     }
 
-    // Commit the highest committable idx in the current term which a majority
-    // of every active configuration at or before idx has replicated.
+    // Commit the highest idx reachable by committing current-term signatures
+    // in turn. Each needs a majority of every configuration still active at or
+    // before it. Committing one retires the configurations before the last one
+    // at or before it, so a later idx may then need fewer acknowledgements.
     // Configurations appended after idx do not need to replicate it: any log
     // containing such a configuration also contains idx.
     void update_commit()
@@ -2369,14 +2371,44 @@ namespace aft
           "update_commit() must only be called while this node is leader");
       }
 
+      std::optional<Index> new_commit_idx = std::nullopt;
+      auto first = configurations.cbegin();
+      while (true)
+      {
+        const auto idx = highest_committable_idx(first);
+        if (
+          !idx.has_value() ||
+          (new_commit_idx.has_value() && idx.value() <= new_commit_idx.value()))
+        {
+          break;
+        }
+        new_commit_idx = idx;
+        while (std::next(first) != configurations.cend() &&
+               std::next(first)->idx <= idx.value())
+        {
+          ++first;
+        }
+      }
+
+      if (new_commit_idx.has_value())
+      {
+        commit(new_commit_idx.value());
+      }
+    }
+
+    // The highest committable idx in the current term which a majority of every
+    // configuration from first onwards, at or before idx, has replicated
+    std::optional<Index> highest_committable_idx(
+      std::list<Configuration>::const_iterator first)
+    {
       // Configuration c applies to the idxs from c.idx up to the next
       // configuration's idx. Such an idx has a quorum if it is at most the
       // lowest majority watermark of c and every earlier configuration, so the
-      // idxs with a quorum are those from the first configuration's idx up to
+      // idxs with a quorum are those from first's idx up to
       // new_agreement_index.
       std::optional<Index> new_agreement_index = std::nullopt;
       auto lowest_confirmed = std::numeric_limits<Index>::max();
-      for (auto c = configurations.begin(); c != configurations.end(); ++c)
+      for (auto c = first; c != configurations.cend(); ++c)
       {
         std::vector<Index> match;
         match.reserve(c->nodes.size());
@@ -2402,52 +2434,51 @@ namespace aft
           break;
         }
         const auto next = std::next(c);
-        new_agreement_index = next == configurations.end() ?
+        new_agreement_index = next == configurations.cend() ?
           lowest_confirmed :
           std::min(lowest_confirmed, next->idx - 1);
       }
 
-      if (new_agreement_index.has_value())
+      if (!new_agreement_index.has_value())
       {
-        if (new_agreement_index.value() > state->last_idx)
-        {
-          throw std::logic_error(
-            "Followers appear to have later match indices than leader");
-        }
-
-        const auto new_commit_idx =
-          find_highest_possible_committable_index(new_agreement_index.value());
-
-        if (
-          new_commit_idx.has_value() &&
-          new_commit_idx.value() >= configurations.front().idx)
-        {
-          CFT_DEBUG_FMT(
-            "In update_commit, new_commit_idx: {}, "
-            "last_idx: {}",
-            new_commit_idx.value(),
-            state->last_idx);
-
-          // Terms do not decrease along the log, so if the highest committable
-          // idx with a quorum is not in the current term, no lower one is
-          const auto term_of_new = get_term_internal(new_commit_idx.value());
-          if (term_of_new == state->current_view)
-          {
-            commit(new_commit_idx.value());
-          }
-          else
-          {
-            CFT_DEBUG_FMT(
-              "Ack quorum at {} resulted in proposed commit index {}, which "
-              "is in term {}. Waiting for agreement on committable entry in "
-              "current term {} to update commit",
-              new_agreement_index.value(),
-              new_commit_idx.value(),
-              term_of_new,
-              state->current_view);
-          }
-        }
+        return std::nullopt;
       }
+
+      if (new_agreement_index.value() > state->last_idx)
+      {
+        throw std::logic_error(
+          "Followers appear to have later match indices than leader");
+      }
+
+      const auto new_commit_idx =
+        find_highest_possible_committable_index(new_agreement_index.value());
+      if (!new_commit_idx.has_value() || new_commit_idx.value() < first->idx)
+      {
+        return std::nullopt;
+      }
+
+      CFT_DEBUG_FMT(
+        "In update_commit, new_commit_idx: {}, last_idx: {}",
+        new_commit_idx.value(),
+        state->last_idx);
+
+      // Terms do not decrease along the log, so if the highest committable idx
+      // with a quorum is not in the current term, no lower one is
+      const auto term_of_new = get_term_internal(new_commit_idx.value());
+      if (term_of_new != state->current_view)
+      {
+        CFT_DEBUG_FMT(
+          "Ack quorum at {} resulted in proposed commit index {}, which is in "
+          "term {}. Waiting for agreement on committable entry in current "
+          "term {} to update commit",
+          new_agreement_index.value(),
+          new_commit_idx.value(),
+          term_of_new,
+          state->current_view);
+        return std::nullopt;
+      }
+
+      return new_commit_idx;
     }
 
     // Commits at the highest committable index which is not greater than the
