@@ -715,6 +715,93 @@ def test_fixture_service_parses(service: str, level: ccf.ledger.VerificationLeve
             assert len(snapshot.get_public_domain().get_tables()) > 0
 
 
+def test_visualiser_has_a_tile_per_transaction():
+    key = ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+
+    def service_status(seqno: int, status: str, cert: str):
+        info = json.dumps({"status": status, "cert": cert}).encode()
+        return governance_transaction(
+            seqno,
+            table_write_set(ccf.ledger.SERVICE_INFO_TABLE_NAME, {key: info}, []),
+        )
+
+    transactions = [
+        service_status(1, "Opening", "a"),
+        service_status(2, "Open", "a"),
+        service_status(3, "Recovering", "b"),
+        service_status(4, "WaitingForRecoveryShares", "b"),
+        service_status(5, "Open", "b"),
+        # Open under an identity whose creation is not in the ledger
+        service_status(6, "Open", "c"),
+    ]
+
+    class Recorder:
+        def __init__(self) -> None:
+            self.tiles: list[tuple[str, int]] = []
+
+        def entry(self, category: str, view: int, seqno: int) -> None:
+            self.tiles.append((category, seqno))
+
+        def flush(self) -> None:
+            pass
+
+    recorder = Recorder()
+    ccf.ledger_viz.visualise([transactions], recorder)
+    assert recorder.tiles == [
+        ("New Service", 1),
+        ("Service Open", 2),
+        ("Recovering Service", 3),
+        ("Governance", 4),
+        ("Service Open", 5),
+        ("Governance", 6),
+    ]
+
+
+class TestSnapshotMapFraming:
+    @pytest.mark.parametrize("map_size_delta", [-8, -1, 1])
+    def test_snapshot_entries_must_fill_map(self, map_size_delta: int):
+        domain = snapshot_domain({b"key": (1, b"value")})
+        # Shrink or grow the declared map size, following the map version
+        offset = len(snapshot_prefix()) + len(length_prefixed(TABLE.encode())) + 8
+        (map_size,) = struct.unpack("<Q", domain[offset : offset + 8])
+        domain = (
+            domain[:offset]
+            + struct.pack("<Q", map_size + map_size_delta)
+            + domain[offset + 8 :]
+        )
+        with pytest.raises(ValueError):
+            ccf.ledger.PublicDomain(domain)
+
+
+class TestOffsetsCoverChunk:
+    first = entry(1, {b"a": b"1"})
+
+    def chunk(self, tmp_path, body: bytes, positions: list[int]):
+        path = tmp_path / "ledger_1-1.committed"
+        table_offset = ccf.ledger.LEDGER_HEADER_SIZE + len(body)
+        path.write_bytes(
+            table_offset.to_bytes(ccf.ledger.LEDGER_HEADER_SIZE, "little")
+            + body
+            + b"".join(p.to_bytes(4, "little") for p in positions)
+        )
+        return ccf.ledger.LedgerChunk(str(path), ccf.ledger.VerificationLevel.OFFSETS)
+
+    def test_contiguous_entries(self, tmp_path):
+        assert len(self.chunk(tmp_path, self.first, [8])) == 1
+
+    def test_bytes_before_first_entry_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="does not immediately follow"):
+            self.chunk(tmp_path, b"junk" + self.first, [12])
+
+    def test_bytes_after_last_entry_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="unaccounted bytes"):
+            self.chunk(tmp_path, self.first + b"junk", [8])
+
+    def test_bytes_without_entries_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="No offsets"):
+            self.chunk(tmp_path, self.first, [])
+
+
 class TestSnapshotFileName:
     @staticmethod
     def write_snapshot(directory, name: str, receipt: bytes = b"") -> str:

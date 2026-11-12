@@ -210,6 +210,11 @@ namespace ccf::kv
     [[nodiscard]] virtual Configuration::Nodes get_latest_configuration_unsafe()
       const = 0;
     virtual ConsensusDetails get_details() = 0;
+    // Trace that the transaction at seqno sets retired_committed on node_ids.
+    // Must not change consensus state: set_retired_committed does that once
+    // the transaction is globally committed.
+    virtual void trace_retired_committed_tx(
+      ccf::SeqNo seqno, const std::vector<NodeId>& node_ids) = 0;
   };
 
   using BatchVector = std::vector<std::tuple<
