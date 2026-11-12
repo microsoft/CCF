@@ -85,11 +85,12 @@ lake build --wfail consistency-replay
 ```
 
 [`tests/partitions_test.py`](../../tests/partitions_test.py) also records traces when `CCF_CONSISTENCY_TRACE=1` is set, using [`tests/infra/consistency_trace.py`](../../tests/infra/consistency_trace.py).
-Its `basic` and `isolate-reconnect` groups each write `consistency_trace.ndjson` in their network's common directory:
+Its `basic` and `isolate-reconnect` groups each write `consistency_trace.ndjson` in their network's common directory, and replay it when `CCF_LEAN_CONSISTENCY_REPLAYER` names the replayer:
 
 ```sh
-(cd build && CR_FILTER="basic|isolate-reconnect" CCF_CONSISTENCY_TRACE=1 ./tests.sh -VV -C partitions -R '^partitions$' --no-tests=error)
+(cd build && CR_FILTER="basic|isolate-reconnect" CCF_CONSISTENCY_TRACE=1 CCF_LEAN_CONSISTENCY_REPLAYER="$PWD/../lean/consistency/.lake/build/bin/consistency-replay" ./tests.sh -VV -C partitions -R '^partitions$' --no-tests=error)
 ```
 
-The [Lean workflow](../../.github/workflows/lean.yml) captures and replays both kinds of trace in separate jobs, following the KV and CCF consensus setup, and also checks the [replay fixtures](replayer/fixtures/README.md), including election and rollback traces.
+The [Lean workflow](../../.github/workflows/lean.yml) captures and replays the `tvc.py` trace in separate jobs, following the KV and CCF consensus setup, and also checks the [replay fixtures](replayer/fixtures/README.md), including election and rollback traces.
+The partitions tests in the [CI workflow](../../.github/workflows/ci.yml) record and replay their traces.
 The replay fixtures check that the replayer accepts valid traces and rejects invalid ones.

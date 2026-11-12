@@ -9,6 +9,7 @@ captures are replayed by lean/consistency (consistency-replay).
 import contextlib
 import json
 import os
+import subprocess
 
 from loguru import logger as LOG
 
@@ -19,6 +20,7 @@ READ_PATH = "/app/log/public?id=3&scope=check_can_progress"
 
 class ConsistencyTrace:
     def __init__(self, path):
+        self.path = path
         # Closed in close()
         self._file = open(path, "w", encoding="ascii")  # noqa: SIM115
         self._next_tx = 0
@@ -72,9 +74,25 @@ class ConsistencyTrace:
         self._file.close()
 
 
+def replay(path):
+    """Replay a trace with the Lean consistency replayer, if one is configured."""
+    replayer = os.getenv("CCF_LEAN_CONSISTENCY_REPLAYER")
+    if not replayer:
+        return
+    result = subprocess.run(
+        [replayer, path], capture_output=True, text=True, check=False
+    )
+    assert (
+        result.returncode == 0
+    ), f"Lean consistency replay failed:\n{result.stdout}{result.stderr}"
+    LOG.info(result.stdout.strip())
+
+
 @contextlib.contextmanager
 def recording(network, enabled):
-    """Yield a trace in network.common_dir if enabled, otherwise None."""
+    """Yield a trace in network.common_dir if enabled, otherwise None.
+
+    The trace is replayed on exit, unless the body raised."""
     if not enabled:
         yield None
         return
@@ -85,3 +103,4 @@ def recording(network, enabled):
         yield trace
     finally:
         trace.close()
+    replay(trace.path)
