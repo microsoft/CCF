@@ -1,5 +1,6 @@
-/- Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache 2.0 License. -/
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+
 module
 
 public import Shamir.Proofs.Inverse
@@ -9,13 +10,16 @@ public import Shamir.Proofs.Inverse
 open Aeneas Aeneas.Std Result
 open scoped BigOperators
 
-namespace CCF.Shamir
+open Shamir.Model Shamir.Properties
+
+namespace Shamir.Proofs
 
 private theorem productFrom_step (s : Slice ccf_shamir.Share) (i j : Nat)
     (f : Nat → F) (hj : j < s.val.length)
     : productFrom s i j f = (if j = i then 1 else f j) * productFrom s i (j + 1) f := by
   exact Finset.prod_eq_prod_Ico_succ_bot hj _
 
+/-- The inner loop accumulates the numerator and denominator of one Lagrange weight. -/
 @[step]
 theorem products_spec (s : Slice ccf_shamir.Share) (i : Usize)
     (n d : U64) (j : Usize)
@@ -141,6 +145,7 @@ private theorem lagrange_loop_spec (s : Slice ccf_shamir.Share) (w : Slice U64)
 termination_by s.val.length - i.val
 decreasing_by scalar_decr_tac
 
+/-- On distinct coordinates, every workspace entry is the canonical Lagrange weight at zero. -/
 @[step]
 theorem lagrange_spec (s : Slice ccf_shamir.Share) (w : Slice U64)
     (hne : s.val ≠ []) (hs : Distinct s) (hw : w.val.length = s.val.length)
@@ -162,4 +167,4 @@ theorem lagrange_spec (s : Slice ccf_shamir.Share) (w : Slice U64)
   intro k hk
   exact hready.2 k (by simpa only [hready.1] using hk) hk
 
-end CCF.Shamir
+end Shamir.Proofs

@@ -1,5 +1,6 @@
-/- Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache 2.0 License. -/
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+
 module
 
 public import Shamir.Proofs.Evaluation
@@ -8,7 +9,9 @@ public import Shamir.Proofs.Evaluation
 
 open Aeneas Aeneas.Std Result
 
-namespace CCF.Shamir
+open Shamir.Model Shamir.Properties
+
+namespace Shamir.Proofs
 
 /-- The share at index `k` holds the polynomial value at coordinate `k + 1` in `limb`. -/
 def FilledLimb (c : Slice U64) (limb : Nat) (s : Slice ccf_shamir.Share) (k : Nat)
@@ -134,14 +137,14 @@ private theorem share_limb_loop_spec (c : Slice U64) (limb : Usize)
         unfold OtherLimbsUnchanged at hother ⊢
         intro m hm
         rw [hother m hm, hs2 k hk hki]
-  · have heq : i.val = s.val.length := by omega
-    simp only [WP.spec_ok]
+  · simp only [WP.spec_ok]
     refine ⟨rfl, rfl, fun k _ => rfl, ?_⟩
     intro k hik hk
     omega
 termination_by s.val.length - i.val
 decreasing_by scalar_decr_tac
 
+/-- On valid arguments, every share receives its coordinate and polynomial value in `limb`. -/
 @[step]
 theorem share_limb_spec (c : Slice U64) (limb : Usize) (s : Slice ccf_shamir.Share)
     (hl : limb.val < 10) (hne : s.val ≠ []) (hlen : s.val.length < prime)
@@ -187,4 +190,4 @@ theorem share_limb_spec (c : Slice U64) (limb : Usize) (s : Slice ccf_shamir.Sha
         intro k hk
         exact hpost k (Nat.zero_le k) hk
 
-end CCF.Shamir
+end Shamir.Proofs

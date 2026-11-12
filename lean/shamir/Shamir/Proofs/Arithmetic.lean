@@ -1,16 +1,20 @@
-/- Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache 2.0 License. -/
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+
 module
 
-public import Shamir.Model
+public import Shamir.Proofs.Definitions
 public import Mathlib.Tactic.Linarith
 
 @[expose] public section
 
 open Aeneas Aeneas.Std Result
 
-namespace CCF.Shamir
+open Shamir.Model Shamir.Properties
 
+namespace Shamir.Proofs
+
+/-- Widening a 32-bit value to 64 bits preserves it. -/
 @[step]
 theorem widen_spec (x : U32)
     : lift (core.convert.num.FromU64U32.from x) ⦃y => y.val = x.val⦄ := by
@@ -36,6 +40,7 @@ private theorem reduction_bounds (n : Nat) (hn : n < 18446744073709551616)
   dsimp [prime]
   omega
 
+/-- The branch-free reduction returns the canonical remainder of any 64-bit value. -/
 @[step]
 theorem reduce_spec (x : U64) : ccf_shamir.reduce x ⦃y => y.val = x.val % prime⦄ := by
   have h := reduction_bounds x.val x.lt_succ_max
@@ -49,7 +54,7 @@ theorem reduce_spec (x : U64) : ccf_shamir.reduce x ⦃y => y.val = x.val % prim
             2147483648) * prime := by
     conv_lhs => rw [h.2.2.2.2.2.2.2.2]
     simp [Nat.add_mod, Nat.mod_eq_of_lt h.2.2.2.2.2.2.2.1]
-  rcases h with ⟨h0, h1, h2, h3, h4, h5, h6, h7, h8⟩
+  rcases h with ⟨h0, h1, h2, h3, h4, h5, h6, _, h8⟩
   clear h8
   simp only [prime] at *
   unfold ccf_shamir.reduce
@@ -83,6 +88,7 @@ theorem reduce_spec (x : U64) : ccf_shamir.reduce x ⦃y => y.val = x.val % prim
   simp [ccf_shamir.PRIME] at *
   scalar_tac
 
+/-- Multiplying canonical values cannot overflow and is field multiplication. -/
 @[step]
 theorem mul_spec (x y : U64) (hx : x.val < prime) (hy : y.val < prime)
     : ccf_shamir.mul x y ⦃z => z.val < prime ∧ field z = field x * field y⦄ := by
@@ -94,6 +100,7 @@ theorem mul_spec (x y : U64) (hx : x.val < prime) (hy : y.val < prime)
   · exact Nat.mod_lt _ (by decide)
   · simp
 
+/-- Adding canonical values cannot overflow and is field addition. -/
 @[step]
 theorem add_spec (x y : U64) (hx : x.val < prime) (hy : y.val < prime)
     : ccf_shamir.add x y ⦃z => z.val < prime ∧ field z = field x + field y⦄ := by
@@ -105,6 +112,7 @@ theorem add_spec (x y : U64) (hx : x.val < prime) (hy : y.val < prime)
   · exact Nat.mod_lt _ (by decide)
   · simp
 
+/-- Subtracting canonical values cannot underflow and is field subtraction. -/
 @[step]
 theorem sub_spec (x y : U64) (hx : x.val < prime) (hy : y.val < prime)
     : ccf_shamir.sub x y ⦃z => z.val < prime ∧ field z = field x - field y⦄ := by
@@ -128,4 +136,4 @@ theorem sub_spec (x y : U64) (hx : x.val < prime) (hy : y.val < prime)
       omega)]
     simp [hv, ccf_shamir.PRIME, prime]
 
-end CCF.Shamir
+end Shamir.Proofs

@@ -1,5 +1,6 @@
-/- Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache 2.0 License. -/
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+
 module
 
 public import Shamir.Proofs.Arithmetic
@@ -8,7 +9,9 @@ public import Shamir.Proofs.Arithmetic
 
 open Aeneas Aeneas.Std Result
 
-namespace CCF.Shamir
+open Shamir.Model Shamir.Properties
+
+namespace Shamir.Proofs
 
 private theorem bit_zero (n : U64) : (n &&& 1#u64).val = n.val % 2 := by
   change (n.bv &&& (1 : BitVec 64)).toNat = n.bv.toNat % 2
@@ -17,6 +20,7 @@ private theorem bit_zero (n : U64) : (n &&& 1#u64).val = n.val % 2 := by
   rw [hone]
   rw [Nat.and_comm, Nat.one_and_eq_mod_two]
 
+/-- Square-and-multiply computes the power given by the remaining exponent bits. -/
 @[step]
 theorem inverse_loop_spec (x n y : U64) (hx : x.val < prime) (hy : y.val < prime)
     : ccf_shamir.inverse_loop x n y
@@ -53,6 +57,7 @@ theorem inverse_loop_spec (x n y : U64) (hx : x.val < prime) (hy : y.val < prime
 termination_by n.val
 decreasing_by all_goals omega
 
+/-- Raising a nonzero canonical value to `prime - 2` is field inversion. -/
 @[step]
 theorem inverse_spec (x : U64) (hx : x.val < prime) (hne : field x ≠ 0)
     : ccf_shamir.inverse x ⦃z => z.val < prime ∧ field z = (field x)⁻¹ ⦄ := by
@@ -75,4 +80,4 @@ theorem inverse_spec (x : U64) (hx : x.val < prime) (hne : field x ≠ 0)
   rw [hf1, one_mul, heq] at hzf
   exact hzf
 
-end CCF.Shamir
+end Shamir.Proofs
