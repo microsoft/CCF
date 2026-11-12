@@ -54,6 +54,7 @@ Operations compatibility
 - Open-ended ledger backward compatibility: a ledger produced by version ``N.0.x``` can be read by all versions ```> N.0.x```.
 - Forward compatibility of the ledger across patches: a ledger produced by version ``N.0.x`` can be read by all ``N.0.*`` patches in the same major release.
 - Snapshots are compatible across incremental major releases (going from ``N.0.x`` to ``N+1.0.x``).
+  Snapshots written by 6.x are accepted by 7.0 releases up to 7.0.24, see :ref:`operations/ledger_snapshot:Snapshot Generation`.
 
 .. tip::
 

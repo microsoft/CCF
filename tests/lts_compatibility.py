@@ -41,6 +41,16 @@ FINAL_RELEASE_TAG = re.compile(r"^ccf-(\d+)\.0\.(\d+)$")
 # hardcoded in CCF.
 DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
 
+# Releases before 7.0 write snapshots with JSON receipts, which later releases
+# reject
+FIRST_RELEASE_WITH_COSE_SNAPSHOT_RECEIPTS = "ccf-7.0.0"
+
+
+def writes_cose_snapshot_receipts(version):
+    return not infra.node.CCFVersion(version) < infra.node.CCFVersion(
+        FIRST_RELEASE_WITH_COSE_SNAPSHOT_RECEIPTS
+    )
+
 
 def validate_compatibility_report(report, branch):
     # A development branch can still point at a final release tag, but discovery
@@ -78,9 +88,16 @@ def validate_compatibility_report(report, branch):
     if data_compatibility is not None:
         ledger_versions = data_compatibility["with previous ledger"]
         snapshot_versions = data_compatibility["with previous snapshots"]
+        # The snapshot pass covers the releases whose snapshots later steps
+        # start from
+        expected_snapshot_versions = [
+            version
+            for version in ledger_versions
+            if writes_cose_snapshot_receipts(version)
+        ]
         assert (
-            ledger_versions == snapshot_versions
-        ), "Ledger and snapshot compatibility covered different releases"
+            snapshot_versions == expected_snapshot_versions
+        ), f"Ledger and snapshot compatibility covered different releases: expected snapshots of {expected_snapshot_versions}, got {snapshot_versions}"
         expected_versions = set()
         if previous_lts is not None:
             expected_versions.add(previous_lts)
@@ -653,6 +670,10 @@ def run_ledger_compatibility_since_first(
     The supplied release selection is shared between the ledger and snapshot passes.
     Snapshots are used if `use_snapshot` is True. Otherwise, the entire historical
     ledger is used.
+
+    Returns the releases whose data later steps recovered from: every release for
+    the ledger pass, and the releases which write COSE snapshot receipts for the
+    snapshot pass.
     """
 
     LOG.info("Use snapshot: {}", use_snapshot)
@@ -678,7 +699,8 @@ def run_ledger_compatibility_since_first(
                     lts_release,
                     platform=infra.platform_detection.get_platform(),
                 )
-                lts_versions.append(version)
+                if not use_snapshot or writes_cose_snapshot_receipts(version):
+                    lts_versions.append(version)
                 set_js_args(args, install_path)
             else:
                 version = args.ccf_version
@@ -704,6 +726,12 @@ def run_ledger_compatibility_since_first(
                     "ccf-4.0.0-rc1"
                 ):
                     kwargs["reconfiguration_type"] = "OneTransaction"
+
+                # The nodes of this step start from the eol snapshots, or from
+                # the snapshots handed over by the previous step
+                started_from_snapshots = use_snapshot and (
+                    idx == 0 or snapshots_dir is not None
+                )
 
                 if idx == 0:
                     LOG.info(
@@ -828,9 +856,7 @@ def run_ledger_compatibility_since_first(
                 # Snapshots written by releases before 7.0 carry JSON receipts,
                 # which later releases reject. Operators remove them before
                 # upgrading, so the next step recovers from the ledger alone.
-                if use_snapshot and not infra.node.CCFVersion(
-                    version
-                ) < infra.node.CCFVersion("ccf-7.0.0"):
+                if use_snapshot and writes_cose_snapshot_receipts(version):
                     snapshots_dir = network.get_committed_snapshots(primary)
                 else:
                     snapshots_dir = None
@@ -838,7 +864,7 @@ def run_ledger_compatibility_since_first(
                 network.save_service_identity(args)
 
                 # Ledger file chunking changed from 1.x to 2.x and if it does not join from a snapshot the eol ledger files will be re-chunked differently on the joining node
-                check_file_invariants = use_snapshot
+                check_file_invariants = started_from_snapshots
 
                 LOG.info(
                     f"Stopping network recovering from version {previous_version} to {version}"

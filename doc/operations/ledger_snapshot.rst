@@ -223,7 +223,9 @@ To guarantee that the identity of the primary node that generated the snapshot c
 A COSE receipt of that signature is appended to the snapshot file, and is verified before a node joins or recovers from the snapshot.
 Snapshots written by 6.x and earlier releases carry a JSON receipt instead; these releases are out of support and nodes reject their snapshots, as do ``ccf.ledger.Snapshot`` and ``read_ledger.py --snapshot`` in the Python package.
 
-.. warning:: Before upgrading a service from 6.x, or recovering a 6.x ledger, make sure the service has a snapshot written by 7.0 or later, and remove the older snapshots from every ``snapshots.directory`` and from the snapshot backups (see :ref:`operations/ledger_snapshot:Join or Recover From Snapshot`).
+.. warning:: A service running 6.x reaches this release through a 7.0 release up to 7.0.24, which accepts JSON receipts and writes COSE receipts.
+    Upgrade the service to that release, or recover the 6.x ledger with it, and make sure it has written a snapshot, requesting one with :http:POST:`/node/snapshot:create` if needed.
+    Then remove the older snapshots from every ``snapshots.directory`` and from the snapshot backups before upgrading further (see :ref:`operations/ledger_snapshot:Join or Recover From Snapshot`).
 
 Committed snapshot files are named ``snapshot_<seqno>_<evidence_seqno>.committed``, with ``<seqno>`` the sequence number of the state of the key-value store at which they were generated and ``<evidence_seqno>`` the sequence number at which the snapshot evidence was recorded.
 
