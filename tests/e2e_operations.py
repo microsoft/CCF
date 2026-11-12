@@ -882,7 +882,16 @@ def test_corrupt_snapshot_handling(network, args):
       about failure to mark the snapshot as ignored is emitted.
     """
 
-    corrupt_data = snapshot_with_json_receipt()
+    # Craft corrupt snapshot data that passes separate_segments() (valid header
+    # with non-zero body size and non-empty receipt area) but fails
+    # verify_snapshot() because the receipt is not a COSE_Sign1 message.
+    # SerialisedEntryHeader is 8 bytes: version(1) + flags(1) + size(48-bit LE)
+    body_size = 16
+    header = bytes([1, 0]) + body_size.to_bytes(6, "little")
+    assert len(header) == 8
+    body = b"\x00" * body_size
+    receipt = b"this is not a valid receipt!!"
+    corrupt_data = header + body + receipt
 
     # Use the newest snapshot for the writable dir so it is tried first
     # (snapshots are iterated in descending seqno order).
@@ -1049,39 +1058,65 @@ def test_corrupt_snapshot_handling(network, args):
     return network
 
 
-def test_join_fetching_legacy_snapshot(network, args):
+def test_json_receipt_snapshot_handling(network, args):
     """
-    The primary's newest committed snapshot carries a JSON receipt, as written
-    by releases before 7.0. A joiner is told to fetch it, cannot verify it, and
-    is then admitted to join by replaying the ledger instead.
+    Snapshots written by releases before 7.0 carry a JSON receipt, and only
+    COSE receipts are accepted:
+    - A joiner skips such a snapshot found in its own snapshots directory.
+    - A joiner told to fetch such a snapshot from the primary rejects it, and
+      is then admitted to join by replaying the ledger instead.
     """
+    legacy_snapshot_name = find_latest_committed_snapshot_name(network)
+
+    LOG.info("Join a node, skipping the local JSON receipt snapshot")
+    with tempfile.TemporaryDirectory() as snapshots_dir:
+        with open(os.path.join(snapshots_dir, legacy_snapshot_name), "wb") as f:
+            f.write(snapshot_with_json_receipt())
+
+        new_node = network.create_node()
+        network.join_node(
+            new_node,
+            args.package,
+            args,
+            snapshots_dir=snapshots_dir,
+            # Don't try to fetch a snapshot, look at the local files
+            fetch_recent_snapshot=False,
+            from_snapshot=True,
+        )
+        new_node.stop()
+
+        assert new_node.check_log_for_error_message(
+            f"Error while verifying {new_node.remote.snapshots_dir_name}/{legacy_snapshot_name}: Parse COSE CBOR"
+        ), f"Expected {legacy_snapshot_name} to fail COSE receipt parsing in node logs"
+        assert new_node.check_log_for_error_message(
+            "Ignoring corrupt snapshot"
+        ), "Expected the JSON receipt snapshot to be skipped in node logs"
+
+    LOG.info("Join a node, which fetches and rejects the JSON receipt snapshot")
     primary, _ = network.find_primary()
     primary_snapshots_dir = os.path.join(
         primary.remote.remote.root, primary.remote.snapshots_dir_name
     )
-    latest_seqno, _ = ccf.ledger.snapshot_index_from_filename(
-        find_latest_committed_snapshot_name(network)
-    )
+    latest_seqno, _ = ccf.ledger.snapshot_index_from_filename(legacy_snapshot_name)
     # Named after a seqno beyond the primary's newest snapshot, so that it is
     # the snapshot joiners are asked to fetch
-    legacy_snapshot_name = (
+    fetched_snapshot_name = (
         f"snapshot_{latest_seqno + 1000}_{latest_seqno + 1001}.committed"
     )
-    legacy_snapshot_path = os.path.join(primary_snapshots_dir, legacy_snapshot_name)
-    with open(legacy_snapshot_path, "wb") as f:
+    fetched_snapshot_path = os.path.join(primary_snapshots_dir, fetched_snapshot_name)
+    with open(fetched_snapshot_path, "wb") as f:
         f.write(snapshot_with_json_receipt())
 
     try:
-        LOG.info("Join a node, which fetches and rejects the legacy snapshot")
         new_node = network.create_node()
         network.join_node(new_node, args.package, args, from_snapshot=False)
         new_node.stop()
 
         assert new_node.check_log_for_error_message(
-            f"Error while verifying fetched snapshot {legacy_snapshot_name}"
-        ), f"Expected {legacy_snapshot_name} to be fetched and rejected in node logs"
+            f"Error while verifying fetched snapshot {fetched_snapshot_name}: Parse COSE CBOR"
+        ), f"Expected {fetched_snapshot_name} to be fetched and rejected in node logs"
     finally:
-        os.remove(legacy_snapshot_path)
+        os.remove(fetched_snapshot_path)
 
     return network
 
@@ -2019,7 +2054,7 @@ def run_file_operations(args):
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
                 test_corrupt_snapshot_handling(network, args)
-                test_join_fetching_legacy_snapshot(network, args)
+                test_json_receipt_snapshot_handling(network, args)
 
                 # Ensure that the network is still live
                 primary, _ = network.find_primary()
