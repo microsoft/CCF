@@ -717,7 +717,7 @@ def test_fixture_service_parses(service: str, level: ccf.ledger.VerificationLeve
         if service in LEGACY_RECEIPT_SNAPSHOT_SERVICES:
             with pytest.raises(
                 ccf.ledger.InvalidSnapshotException,
-                match="expected a COSE_Sign1 receipt",
+                match="Snapshot has a JSON receipt",
             ):
                 ccf.ledger.Snapshot(path)
             continue

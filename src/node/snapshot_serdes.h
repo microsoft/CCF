@@ -228,6 +228,27 @@ namespace ccf
   static auto decode_and_verify_cose_snapshot_receipt(
     const SnapshotSegments& segments)
   {
+    if (segments.receipt.empty())
+    {
+      throw std::logic_error("Empty snapshot receipt");
+    }
+
+    constexpr uint8_t ENCODED_COSE_SIGN1_TAG = 0xD2;
+    const auto first_byte = segments.receipt[0];
+    if (first_byte == '{')
+    {
+      throw std::logic_error(
+        "Snapshot has a JSON receipt, as written by releases before 7.0, "
+        "which is not supported: only COSE receipts are accepted");
+    }
+    if (first_byte != ENCODED_COSE_SIGN1_TAG)
+    {
+      throw std::logic_error(fmt::format(
+        "Invalid snapshot receipt: expected a COSE_Sign1 receipt (first byte: "
+        "0x{:02X})",
+        first_byte));
+    }
+
     auto receipt = ccf::cose::decode_ccf_receipt(
       {segments.receipt.begin(), segments.receipt.end()},
       /* recompute_root */ true);

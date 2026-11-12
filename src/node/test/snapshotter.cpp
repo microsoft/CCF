@@ -1601,10 +1601,22 @@ TEST_CASE("Snapshot receipt")
   const std::string json_receipt = R"({"signature":"","proof":[]})";
   const std::span<const uint8_t> json_receipt_bytes(
     reinterpret_cast<const uint8_t*>(json_receipt.data()), json_receipt.size());
-  REQUIRE_THROWS(ccf::verify_snapshot(
-    ccf::SnapshotSegments{snapshot_body, json_receipt_bytes}));
-  REQUIRE_THROWS(
-    ccf::verify_snapshot(ccf::SnapshotSegments{snapshot_body, {}}));
+  REQUIRE_THROWS_WITH_AS(
+    ccf::verify_snapshot(
+      ccf::SnapshotSegments{snapshot_body, json_receipt_bytes}),
+    "Snapshot has a JSON receipt, as written by releases before 7.0, which "
+    "is not supported: only COSE receipts are accepted",
+    std::logic_error);
+  const std::vector<uint8_t> garbage_receipt(16, 0x42);
+  REQUIRE_THROWS_WITH_AS(
+    ccf::verify_snapshot(ccf::SnapshotSegments{snapshot_body, garbage_receipt}),
+    "Invalid snapshot receipt: expected a COSE_Sign1 receipt (first byte: "
+    "0x42)",
+    std::logic_error);
+  REQUIRE_THROWS_WITH_AS(
+    ccf::verify_snapshot(ccf::SnapshotSegments{snapshot_body, {}}),
+    "Empty snapshot receipt",
+    std::logic_error);
 
   INFO("The receipt requires a signature of the requested identity type");
   REQUIRE_THROWS(ccf::build_and_serialise_receipt(

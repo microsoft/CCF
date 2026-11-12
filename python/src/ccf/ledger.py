@@ -1124,6 +1124,10 @@ class Snapshot(Entry):
             raise InvalidSnapshotException("Empty snapshot receipt")
 
         first_byte = receipt_bytes[0]
+        if first_byte == ord("{"):
+            raise InvalidSnapshotException(
+                "Snapshot has a JSON receipt, as written by releases before 7.0, which is not supported: only COSE receipts are accepted"
+            )
         if first_byte != ENCODED_COSE_SIGN1_TAG:
             raise InvalidSnapshotException(
                 f"Invalid snapshot receipt: expected a COSE_Sign1 receipt (first byte: 0x{first_byte:02X})"

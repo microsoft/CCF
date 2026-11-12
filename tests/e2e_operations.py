@@ -1067,6 +1067,7 @@ def test_json_receipt_snapshot_handling(network, args):
       is then admitted to join by replaying the ledger instead.
     """
     legacy_snapshot_name = find_latest_committed_snapshot_name(network)
+    json_receipt_error = "Snapshot has a JSON receipt"
 
     LOG.info("Join a node, skipping the local JSON receipt snapshot")
     with tempfile.TemporaryDirectory() as snapshots_dir:
@@ -1079,18 +1080,14 @@ def test_json_receipt_snapshot_handling(network, args):
             args.package,
             args,
             snapshots_dir=snapshots_dir,
-            # Don't try to fetch a snapshot, look at the local files
             fetch_recent_snapshot=False,
             from_snapshot=True,
         )
         new_node.stop()
 
         assert new_node.check_log_for_error_message(
-            f"Error while verifying {new_node.remote.snapshots_dir_name}/{legacy_snapshot_name}: Parse COSE CBOR"
-        ), f"Expected {legacy_snapshot_name} to fail COSE receipt parsing in node logs"
-        assert new_node.check_log_for_error_message(
-            "Ignoring corrupt snapshot"
-        ), "Expected the JSON receipt snapshot to be skipped in node logs"
+            f"Error while verifying {new_node.remote.snapshots_dir_name}/{legacy_snapshot_name}: {json_receipt_error}"
+        ), f"Expected {legacy_snapshot_name} to be rejected as a JSON receipt snapshot in node logs"
 
     LOG.info("Join a node, which fetches and rejects the JSON receipt snapshot")
     primary, _ = network.find_primary()
@@ -1113,8 +1110,8 @@ def test_json_receipt_snapshot_handling(network, args):
         new_node.stop()
 
         assert new_node.check_log_for_error_message(
-            f"Error while verifying fetched snapshot {fetched_snapshot_name}: Parse COSE CBOR"
-        ), f"Expected {fetched_snapshot_name} to be fetched and rejected in node logs"
+            f"Error while verifying fetched snapshot {fetched_snapshot_name}: {json_receipt_error}"
+        ), f"Expected {fetched_snapshot_name} to be fetched and rejected as a JSON receipt snapshot in node logs"
     finally:
         os.remove(fetched_snapshot_path)
 
@@ -3803,7 +3800,7 @@ def run_read_ledger_on_testdata(args):
                     try:
                         ccf.ledger.Snapshot(snapshot_file.path)
                     except ccf.ledger.InvalidSnapshotException as e:
-                        assert "expected a COSE_Sign1 receipt" in str(e), e
+                        assert "Snapshot has a JSON receipt" in str(e), e
                         LOG.info(f"Legacy snapshot rejected: {e}")
                     else:
                         raise AssertionError(
