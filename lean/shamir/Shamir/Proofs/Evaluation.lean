@@ -1,5 +1,6 @@
-/- Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache 2.0 License. -/
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+
 module
 
 public import Shamir.Proofs.Arithmetic
@@ -8,8 +9,11 @@ public import Shamir.Proofs.Arithmetic
 
 open Aeneas Aeneas.Std Result
 
-namespace CCF.Shamir
+open Shamir.Model Shamir.Properties
 
+namespace Shamir.Proofs
+
+/-- Horner evaluation maintains the value of the coefficients already consumed. -/
 @[step]
 theorem evaluate_loop_spec (c : Slice U64) (x y : U64) (i : Usize)
     (hi : i.val ≤ c.val.length)
@@ -56,6 +60,7 @@ theorem evaluate_loop_spec (c : Slice U64) (x y : U64) (i : Usize)
 termination_by i.val
 decreasing_by scalar_decr_tac
 
+/-- Evaluation of canonical coefficients returns the canonical polynomial value. -/
 @[step]
 theorem evaluate_spec (c : Slice U64) (x : U32)
     (hne : c.val ≠ [])
@@ -78,4 +83,4 @@ theorem evaluate_spec (c : Slice U64) (x : U32)
   refine ⟨z, hr, hz, ?_⟩
   simpa [field, hw, hv] using hzf
 
-end CCF.Shamir
+end Shamir.Proofs

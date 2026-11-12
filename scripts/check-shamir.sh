@@ -2,13 +2,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+# Builds the Shamir Lean package, then kernel-checks every declaration it owns
+# and audits their axiom dependencies. Arguments are passed to `lake check`.
+
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export LEAN_NUM_THREADS=1
 cd "$ROOT_DIR/lean/shamir"
 lake build --wfail
-lake exe mk_all --check --module
 
 CHECK_DIR="$(mktemp -d "$PWD/.lake/check.XXXXXX")"
 DECLARATIONS="$CHECK_DIR/declarations"

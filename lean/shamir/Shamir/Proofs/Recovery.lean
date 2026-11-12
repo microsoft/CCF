@@ -1,5 +1,6 @@
-/- Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache 2.0 License. -/
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+
 module
 
 public import Shamir.Proofs.Interpolation
@@ -9,7 +10,9 @@ public import Shamir.Proofs.Interpolation
 open Aeneas Aeneas.Std Result
 open scoped BigOperators
 
-namespace CCF.Shamir
+open Shamir.Model Shamir.Properties
+
+namespace Shamir.Proofs
 
 @[step]
 private theorem recover_limb_loop_spec (s : Slice ccf_shamir.Share)
@@ -75,11 +78,14 @@ private theorem recover_limbs_loop_spec (s : Slice ccf_shamir.Share) (w : Slice 
     (hsecret
       : ∀ k,
           k < limb.val
-          → (hk : k < secret.val.length) → (secret.val[k].val : F) = recoveredLimb s k)
+          → (hk : k < secret.val.length)
+            → secret.val[k].val < prime ∧ (secret.val[k].val : F) = recoveredLimb s k)
     : ccf_shamir.recover_loop0 s w secret limb
       ⦃out
       =>
-        ∀ k, (hk : k < out.val.length) → (out.val[k].val : F) = recoveredLimb s k⦄ := by
+        ∀ k,
+          (hk : k < out.val.length)
+          → out.val[k].val < prime ∧ (out.val[k].val : F) = recoveredLimb s k⦄ := by
   unfold ccf_shamir.recover_loop0
   simp [ccf_shamir.LIMBS]
   split
@@ -90,13 +96,14 @@ private theorem recover_limbs_loop_spec (s : Slice ccf_shamir.Share) (w : Slice 
     step as ⟨l1, hl1⟩
     have hnextval : next.val = secret.val.set limb.val v := by simp [hnext]
     have hnew : ∀ k, k < l1.val → (hk : k < next.val.length) →
-        (next.val[k].val : F) = recoveredLimb s k := by
+        next.val[k].val < prime ∧ (next.val[k].val : F) = recoveredLimb s k := by
       intro k hk hkn
       by_cases heq : k = limb.val
       · subst k
         simp only [hnextval, List.getElem_set_self]
         have hf0 : field (0#u64) = 0 := rfl
         rw [hf0, zero_add, ← Finset.range_eq_Ico] at hyf
+        refine ⟨by rw [hv]; exact hy, ?_⟩
         simpa only [recoveredLimb, hv, field] using hyf
       · have hkl : k < limb.val := by omega
         have hold := hsecret k hkl (by simpa using hkn)
@@ -110,6 +117,7 @@ private theorem recover_limbs_loop_spec (s : Slice ccf_shamir.Share) (w : Slice 
 termination_by 10 - limb.val
 decreasing_by scalar_decr_tac
 
+/-- On distinct coordinates, recovery writes the canonical interpolated value of every limb. -/
 @[step]
 theorem recover_spec (s : Slice ccf_shamir.Share) (w : Slice U64)
     (secret : Array U32 10#usize) (hne : s.val ≠ []) (hs : Distinct s)
@@ -118,7 +126,9 @@ theorem recover_spec (s : Slice ccf_shamir.Share) (w : Slice U64)
       ⦃r _w' out
       =>
         r = core.result.Result.Ok ()
-          ∧ ∀ k, (hk : k < out.val.length) → (out.val[k].val : F) = recoveredLimb s k
+          ∧ ∀ k,
+              (hk : k < out.val.length)
+              → out.val[k].val < prime ∧ (out.val[k].val : F) = recoveredLimb s k
         ⦄ := by
   unfold ccf_shamir.recover
   step as ⟨r, w1, hr, hwl, hw1⟩
@@ -128,7 +138,7 @@ theorem recover_spec (s : Slice ccf_shamir.Share) (w : Slice U64)
   exact hout k (by simpa using hk)
 
 /-- A recovery that reports an error, for any inputs, leaves the caller's secret untouched. -/
-theorem Proofs.recover_error_preserves_secret (s : Slice ccf_shamir.Share) (w : Slice U64)
+theorem recovery_error_preserves_secret (s : Slice ccf_shamir.Share) (w : Slice U64)
     (secret : Array U32 10#usize) (r : core.result.Result Unit ccf_shamir.Error)
     (w' : Slice U64) (secret' : Array U32 10#usize)
     (h : ccf_shamir.recover s w secret = ok (r, w', secret'))
@@ -155,4 +165,4 @@ theorem Proofs.recover_error_preserves_secret (s : Slice ccf_shamir.Share) (w : 
   | vis i k => simp [hl] at h
   | div => simp [hl] at h
 
-end CCF.Shamir
+end Shamir.Proofs

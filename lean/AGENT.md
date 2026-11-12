@@ -4,6 +4,11 @@ We use agents to generate models and proofs that those models are correct.
 We use trace validation to align the models with the implementation.
 Formally, if B(X) is the set of behaviours permitted by X, then B(implementation) \subseteq B(Model) \subseteq B(Properties).
 
+The [Shamir package](shamir/README.md) is the one exception to trace validation.
+Its model is extracted from the production Rust core by Aeneas, and CI checks that the committed `Generated` library is reproduced exactly, so B(implementation) \subseteq B(Model) rests on the extraction instead.
+Do not add `TraceValidation` modules to it, and do not edit or reformat its generated model by hand.
+The rest of this specification applies to it unchanged.
+
 The aim of this spec is to standardise the models to make human review easier.
 To be clear being able to save 1 line of human readable code at the cost of 1000 machine generated and verified lines is a win.
 

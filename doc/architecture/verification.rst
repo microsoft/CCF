@@ -3,6 +3,7 @@ Formal Verification and Trace Validation
 
 CCF's formal models are written in `Lean <https://lean-lang.org/>`__ and live under :ccf_repo:`lean/ <lean>`.
 Apart from the shared ``common`` package, each package contains an executable model of part of CCF, safety properties stated as theorems about that model, machine-checked proofs of those properties, and a replayer that checks traces recorded from the C++ implementation against the model.
+The ``shamir`` package instead extracts its model directly from Rust source, and has no replayer.
 
 The models and the implementation are connected in two different ways, which provide different guarantees:
 
@@ -53,6 +54,13 @@ Lean packages
        See :doc:`/build_apps/kv/semantics` for the full contract and its proof and trust boundaries.
      - ``kv-replay`` replays traces recorded by the instrumented C++ KV unit tests, including a seeded concurrent fuzzer.
 
+   * - :ccf_repo:`shamir <lean/shamir/README.md>`
+     - The experimental Rust implementation of recovery share secret sharing (:ccf_repo:`src/rust/shamir/`), selected by the ``USE_RUST_SHAMIR`` :ref:`build switch <contribute/build_ccf:Build Switches>`.
+       Proved properties include that share generation and recovery refine CSLib's Shamir scheme, that recovery returns the shared secret, and that neither can panic on any input.
+       The default C++ implementation is not covered.
+     - Not applicable.
+       The model is not handwritten: `Aeneas <https://github.com/AeneasVerif/aeneas>`__ extracts it from the Rust source, and CI checks that the committed model is reproduced exactly.
+
 The README of each package lists the precise theorem statements, the scope of the model, and what a successful replay does and does not show.
 
 Trace sources
@@ -83,6 +91,9 @@ The :ccf_repo:`Lean workflow <.github/workflows/lean.yml>` runs on pull requests
 * A final ``Lean models and proofs`` job succeeds only if all of the above succeed.
 
 The disaster recovery traces are replayed by the SNP Genoa job in the main CI workflow instead, since that is where the recovery scenarios run.
+
+A separate :ccf_repo:`Lean Shamir workflow <.github/workflows/lean-shamir.yml>` reproduces the extraction of the ``shamir`` model, runs the Rust C ABI tests under Miri, and runs the same kernel, axiom, import, formatting and lint checks on the package.
+It runs only when the Rust core, the model or the proofs change, since the package depends on Aeneas, CSLib and Mathlib.
 
 A separate ``Lean Mathlib equivalence`` workflow proves that the replacements for Mathlib definitions in ``lean/common`` are equivalent to the Mathlib originals, and runs only when those definitions change; see :ccf_repo:`lean/mathlib-equivalence/README.md`.
 

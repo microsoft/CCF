@@ -1,10 +1,10 @@
-/- Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache 2.0 License. -/
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+
 module
 
 public import Shamir.Proofs.Recovery
 public import Shamir.Proofs.Sharing
-public import Shamir.Properties.Encoding
 
 @[expose] public section
 
@@ -12,7 +12,9 @@ open Aeneas Aeneas.Std Result
 open Cslib.Crypto.Protocols.SecretSharing.Shamir
 open scoped BigOperators
 
-namespace CCF.Shamir
+open Shamir.Model Shamir.Properties
+
+namespace Shamir.Proofs
 
 private theorem constant_C (a : F) : Polynomial.constantCoeff (Polynomial.C a) = a := by
   simp
@@ -47,6 +49,7 @@ private theorem basis_weight (s : Slice ccf_shamir.Share)
   rw [div_eq_mul_inv, ← neg_sub (point s i.val) (point s j.val), inv_neg]
   ring
 
+/-- The interpolated limb is CSLib's reconstruction from the same coordinates and values. -/
 theorem recoveredLimb_eq_cslib (s : Slice ccf_shamir.Share) (limb : Nat)
     : recoveredLimb s limb
       = Cslib.Crypto.Protocols.SecretSharing.Shamir.Polynomial.reconstruct
@@ -60,7 +63,7 @@ theorem recoveredLimb_eq_cslib (s : Slice ccf_shamir.Share) (limb : Nat)
   unfold recoveredLimb
   rw [Fin.sum_univ_eq_sum_range (fun k => limbValue s limb k * weight s k) s.val.length]
   apply Finset.sum_congr rfl
-  intro i hi
+  intro i _
   ring
 
 private theorem polynomialPrefix_eq_cslib
@@ -95,28 +98,27 @@ private theorem polynomialPrefix_eq_cslib
   rw [← hc j hj']
   rfl
 
-namespace Proofs
-
-theorem sharing_refinement :
-    ∀ (Party : Type) [Fintype Party] (params : Params F Party)
-      (coeffs : Randomness params) (secret : F) (c : Slice U64)
-      (_ : Properties.EncodesPolynomial params coeffs secret c)
-      (limb : Usize) (_ : limb.val < 10)
-      (s : Slice ccf_shamir.Share) (_ : s.val ≠ []) (_ : s.val.length < prime)
-      (_ : c.val.length ≤ s.val.length),
-      ccf_shamir.share_limb c limb s
-      ⦃r s'
-      =>
-        r = core.result.Result.Ok ()
-          ∧ s'.val.length = s.val.length
-          ∧ ∀ k,
-              k < s.val.length
-              → s'.val[k]!.x.val = k + 1
-                ∧ s'.val[k]!.y.val[limb.val]!.val < prime
-                ∧ (∀ i : Party,
-                    point s' k = params.point i
-                    → limbValue s' limb.val k = share params coeffs secret i)
-                ∧ ∀ m, m ≠ limb.val → s'.val[k]!.y.val[m]! = s.val[k]!.y.val[m]!⦄ := by
+/-- Implementation of `Shamir.Properties.sharing_refines_cslib`. -/
+theorem sharing_refines_cslib
+    : ∀ (Party : Type) [Fintype Party] (params : Params F Party)
+        (coeffs : Randomness params) (secret : F) (c : Slice U64)
+        (_ : EncodesPolynomial params coeffs secret c)
+        (limb : Usize) (_ : limb.val < 10)
+        (s : Slice ccf_shamir.Share) (_ : s.val ≠ []) (_ : s.val.length < prime)
+        (_ : c.val.length ≤ s.val.length),
+        ccf_shamir.share_limb c limb s
+        ⦃r s'
+        =>
+          r = core.result.Result.Ok ()
+            ∧ s'.val.length = s.val.length
+            ∧ ∀ k,
+                k < s.val.length
+                → s'.val[k]!.x.val = k + 1
+                  ∧ s'.val[k]!.y.val[limb.val]!.val < prime
+                  ∧ (∀ i : Party,
+                      point s' k = params.point i
+                      → limbValue s' limb.val k = share params coeffs secret i)
+                  ∧ ∀ m, m ≠ limb.val → s'.val[k]!.y.val[m]! = s.val[k]!.y.val[m]!⦄ := by
   intro Party _ params coeffs secret c hc limb hl s hne hlen hct
   have hcne : c.val ≠ [] := by
     intro heq
@@ -135,29 +137,30 @@ theorem sharing_refinement :
   rw [hyf, polynomialPrefix_eq_cslib params coeffs secret c hc.1 hc.2.2, hi]
   rfl
 
-theorem recovery_refinement :
-    ∀ (s : Slice ccf_shamir.Share) (w : Slice U64) (secret : Array U32 10#usize)
-      (_ : s.val ≠ []) (_ : Distinct s) (_ : w.val.length = s.val.length),
-      ccf_shamir.recover s w secret
-      ⦃r _w' out
-      =>
-        r = core.result.Result.Ok ()
-          ∧ ∀ k,
-              (hk : k < out.val.length)
-              → (out.val[k].val : F)
-                = Cslib.Crypto.Protocols.SecretSharing.Shamir.Polynomial.reconstruct
-                    (fun i : Fin s.val.length => point s i.val)
-                    (fun i => limbValue s k i.val)⦄ := by
+/-- Implementation of `Shamir.Properties.recovery_refines_cslib`. -/
+theorem recovery_refines_cslib
+    : ∀ (s : Slice ccf_shamir.Share) (w : Slice U64) (secret : Array U32 10#usize)
+        (_ : s.val ≠ []) (_ : Distinct s) (_ : w.val.length = s.val.length),
+        ccf_shamir.recover s w secret
+        ⦃r _w' out
+        =>
+          r = core.result.Result.Ok ()
+            ∧ ∀ k,
+                (hk : k < out.val.length)
+                → out.val[k].val < prime
+                  ∧ (out.val[k].val : F)
+                    = Cslib.Crypto.Protocols.SecretSharing.Shamir.Polynomial.reconstruct
+                        (fun i : Fin s.val.length => point s i.val)
+                        (fun i => limbValue s k i.val)⦄ := by
   intro s w secret hne hs hw
   step with recover_spec as ⟨r, w', out, hr, hout⟩
   refine ⟨hr, ?_⟩
   intro k hk
-  rw [hout k hk, recoveredLimb_eq_cslib]
+  obtain ⟨hbound, hvalue⟩ := hout k hk
+  exact ⟨hbound, by rw [hvalue, recoveredLimb_eq_cslib]⟩
 
-end Proofs
-
-theorem recoveredLimb_eq_secret (s : Slice ccf_shamir.Share) (limb : Nat)
-    (secret : F) (tail : Polynomial F) (hs : Distinct s)
+private theorem recoveredLimb_eq_secret (s : Slice ccf_shamir.Share) (limb : Nat)
+    (secret : F) (tail : _root_.Polynomial F) (hs : Distinct s)
     (hdeg : (Polynomial.sharingPolynomial secret tail).degree < s.val.length)
     (hvalues
       : ∀ i : Fin s.val.length,
@@ -172,4 +175,38 @@ theorem recoveredLimb_eq_secret (s : Slice ccf_shamir.Share) (limb : Nat)
   simp_rw [hvalues]
   exact Polynomial.reconstruct_sharingPolynomial_eq_secret hinj (by simpa using hdeg)
 
-end CCF.Shamir
+/-- Implementation of `Shamir.Properties.recovery_returns_secret`. -/
+theorem recovery_returns_secret
+    : ∀ (s : Slice ccf_shamir.Share) (w : Slice U64) (initial : Array U32 10#usize)
+        (secret : Fin 10 → F) (tail : Fin 10 → _root_.Polynomial F)
+        (_ : s.val ≠ []) (_ : Distinct s) (_ : w.val.length = s.val.length)
+        (_
+          : ∀ limb,
+              (Polynomial.sharingPolynomial (secret limb) (tail limb)).degree
+              < s.val.length)
+        (_
+          : ∀ (limb : Fin 10) i,
+              i < s.val.length
+              → limbValue s limb.val i
+                = (Polynomial.sharingPolynomial (secret limb) (tail limb)).eval
+                    (point s i)),
+        ccf_shamir.recover s w initial
+        ⦃r _w' out
+        =>
+          r = core.result.Result.Ok ()
+            ∧ ∀ limb : Fin 10,
+                out.val[limb.val]!.val < prime
+                ∧ (out.val[limb.val]!.val : F) = secret limb⦄ := by
+  intro s w initial secret tail hne hs hw hdeg hvalues
+  step with recover_spec as ⟨r, w', out, hr, hout⟩
+  refine ⟨hr, ?_⟩
+  intro limb
+  have hlen : limb.val < out.val.length := by simp
+  obtain ⟨hbound, hvalue⟩ := hout limb.val hlen
+  rw [getElem!_pos out.val limb.val hlen]
+  refine ⟨hbound, ?_⟩
+  rw [hvalue]
+  exact recoveredLimb_eq_secret s limb.val (secret limb) (tail limb) hs (hdeg limb)
+    (fun i => hvalues limb i.val i.isLt)
+
+end Shamir.Proofs
