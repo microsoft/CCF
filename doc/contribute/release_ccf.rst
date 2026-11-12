@@ -13,18 +13,27 @@ To preview the notes locally, fetch the release tags and run the following comma
     python3 scripts/extract-release-notes.py --from-changes --target-version 7.0.25
 
 The collector reads the files from the target tag, not from the working tree.
-It includes all descriptions present at that tag, in category and filename order, without comparing previous tags or trying to infer which descriptions have already been published.
+It selects descriptions whose adding commits belong to ``previous_tag..release_tag``, in category and filename order.
+By default, the predecessor is the nearest ancestor ``ccf-*`` tag found by ``git describe`` starting at the release commit's parent.
+Dev, RC, and stable tags all count: successive dev and RC releases are incremental, and the first stable release normally includes only changes since the last RC.
+Use ``--previous-tag ccf-7.0.23`` to choose a different ancestor explicitly, for example to include the full RC cycle in stable notes.
+The same range is used for ``--describe-path-changes``.
+Fetch complete local history and release tags before collecting; the first release without an ancestor tag requires an explicit starting commit via ``--previous-tag``.
+Range boundaries follow the current local tags, so moving a tag can change selection.
 Edits to an existing description are included as they appear in the release commit.
+Retained published descriptions are not repeated, and edits after release do not assign an old description to a new release.
+Write a new, uniquely named fragment for a subsequent change; do not rename or reuse a published fragment's filename.
 The collector reads each description's adding commit from local Git history and uses the trailing ``(#1234)`` reference from its squash-merge subject.
 Missing references stop collection; use ``--pr receipt-validation.fixed.md=1234`` to override that description's PR lookup when previewing locally.
 No GitHub API access or credentials are required to generate the notes.
 Relative inline Markdown links are expanded to the corresponding files at the release tag.
 During the transition, the changelog section matching the target release version is included alongside fragments, preserving its existing PR references.
-For example, ``7.0.24`` combines its changelog section with all change descriptions present at ``ccf-7.0.24``.
+For example, ``7.0.24`` combines its changelog section with descriptions added in ``ccf-7.0.23..ccf-7.0.24``.
 
 Generation does not modify ``CHANGELOG.md``, SDK metadata, or change descriptions.
-Published descriptions must be removed manually before a subsequent release to avoid repeating their notes; automated cleanup is not yet implemented.
-The historical changelog remains available and can still be validated or extracted with the script's existing changelog mode:
+Cleanup is optional and is not required between releases.
+GitHub Releases are authoritative; ``CHANGELOG.md`` is a searchable archive which may lag multiple releases.
+The archive can still be validated or extracted with the script's existing changelog mode:
 
 .. code-block:: bash
 
@@ -41,6 +50,28 @@ GitHub release-note generation does not perform this check, so a forgotten bump 
 
 The workflow generates a release-notes artifact, including on dry runs for a tagged commit, and uses it when creating the draft GitHub release.
 The collector does not assign versions, commit, tag, or publish.
+
+Consolidate released descriptions (optional)
+--------------------------------------------
+
+On the branch containing the releases, with clean consolidation inputs, supply explicit ranges oldest first:
+
+.. code-block:: bash
+
+    python3 scripts/consolidate-release-notes.py ccf-7.0.23..ccf-7.0.24 ccf-7.0.24..ccf-7.0.25
+
+Use the same boundaries and any PR overrides used when generating the release notes.
+``--pr FILENAME=NUMBER`` is supported for a single range.
+The script uses the collector's selection and formatting, reading historical descriptions and any matching changelog section at each release tag, without fetching GitHub release bodies.
+Unlike GitHub release notes, the archive retains relative Markdown links to match the existing changelog style.
+It creates or replaces one archive section per version, preserving mixed-source transition notes without duplicating sections.
+Rerunning committed consolidation with the same ranges is safe.
+It then deletes only selected fragments whose working-tree contents still exactly match their released contents; unreleased fragments remain untouched.
+All ranges and cleanup candidates are checked before writing.
+If a selected fragment has post-release edits, consolidation stops without modifying files.
+Preserve those edits in a new fragment and restore the old fragment's released contents before retrying.
+Review and commit the archive update and deletions together.
+No consolidation PR is required between releases.
 
 Patch an LTS release
 --------------------
