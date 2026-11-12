@@ -178,6 +178,11 @@ def visualise(
                             and service_info["status"] == "Open"
                         ):
                             liner.entry("Service Open", view, seqno)
+                        else:
+                            # Every transaction has a tile, including other
+                            # service status changes such as
+                            # WaitingForRecoveryShares
+                            liner.entry("Governance", view, seqno)
                     else:
                         liner.entry("User Public", view, seqno)
             else:
