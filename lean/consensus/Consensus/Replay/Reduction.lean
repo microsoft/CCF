@@ -47,9 +47,9 @@ private def event (source : Event) (name : String) : Reduction Unit := do
   let next ← peek
   unless next.function == name do
     failure s!"{next.record.location}: expected {name}, got {next.function}"
-  discard CCF.Parsec.take
   liftExcept next do
     require (next.node == source.node) s!"expected event on node {source.node}"
+  discard CCF.Parsec.take
 
 private def modelNode (event : Event) (name : String) : Reduction NodeID := do
   liftExcept event ((← get).header.nodeId name)
@@ -312,6 +312,26 @@ private def ruleDrop : Reduction Unit := do
   emitObserve head "drop"
   emitAction head "drop" (.drop head.node destination)
 
+/--
+Snapshot installation runs ledger hooks outside the consensus lock, so bare ticks
+may interleave with their events.
+-/
+private def ruleInitAsBackup : Reduction Unit := do
+  let head ← peek
+  let hooks := ["add_configuration", "retired_committed_tx"]
+  unless hooks.contains head.function || head.function == "init_as_backup" do
+    failure s!"{head.record.location}: expected init_as_backup, got {head.function}"
+  -- consume
+  many_ (hooks.foldr (fun name rest => event head name <|> rest) (event head "tick"))
+  let init ← peek
+  event head "init_as_backup"
+  event head "become_follower"
+  let index ← readJson init init.message (nat · "seqno")
+  let view ← readJson init init.message (nat · "view")
+  -- emit
+  emitObserve init "init-as-backup"
+  emitAction init "init-as-backup" (.initAsBackup head.node index view)
+
 private def ruleStep : Reduction Unit := do
   -- Recv rules
   attempt ruleRecvAppendEntries
@@ -320,6 +340,7 @@ private def ruleStep : Reduction Unit := do
   <|> attempt ruleRecvProposeRequestVote
   <|> attempt ruleRecvRequestVoteResponse
   -- Async rules
+  <|> attempt ruleInitAsBackup
   <|> attempt ruleAppend
   <|> attempt ruleTick
   <|> attempt ruleNomination

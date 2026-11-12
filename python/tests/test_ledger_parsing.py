@@ -757,6 +757,40 @@ def test_visualiser_has_a_tile_per_transaction():
     ]
 
 
+class TestSnapshotFileName:
+    @staticmethod
+    def write_snapshot(directory, name: str, receipt: bytes = b"") -> str:
+        directory.mkdir(exist_ok=True)
+        path = directory / name
+        path.write_bytes(
+            entry(1, {}, domain=snapshot_domain({b"k": (1, b"v")})) + receipt
+        )
+        return str(path)
+
+    def test_directory_name_does_not_commit_snapshot(self, tmp_path):
+        path = self.write_snapshot(tmp_path / "x.committed", "snapshot_1_2")
+        with ccf.ledger.Snapshot(path) as snapshot:
+            assert not snapshot.is_committed()
+
+    def test_directory_name_does_not_skip_receipt_verification(self, tmp_path):
+        # A committed 1.x snapshot name has a suffix after ".committed", and
+        # has no receipt to verify. A directory name must not be mistaken for
+        # such a suffix.
+        path = self.write_snapshot(
+            tmp_path / "x.committed", "snapshot_1_2.committed", b"bad receipt"
+        )
+        with pytest.raises(
+            ccf.ledger.InvalidSnapshotException, match="unrecognised format"
+        ):
+            ccf.ledger.Snapshot(path)
+
+    def test_1_x_snapshot_name(self, tmp_path):
+        path = self.write_snapshot(tmp_path / "x", "snapshot_1_2.committed_3")
+        with ccf.ledger.Snapshot(path) as snapshot:
+            assert snapshot.is_committed()
+            assert snapshot.is_snapshot_file_1_x()
+
+
 def test_read_ledger_does_not_modify_rules(tmp_path):
     write_chunk(str(tmp_path), "ledger_1", [entry(1, {b"a": b"1"})])
     rule: ccf.read_ledger.FormatRule = {

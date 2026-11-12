@@ -31,9 +31,13 @@ Pem = str
 
 
 class PreparedCoseSign1(TypedDict):
-    """Algorithm and base64-encoded digest to send to an external signer."""
+    """Algorithm and base64-encoded digest to send to an external signer.
 
-    alg: int
+    The algorithm is a JSON Web Algorithm name, such as ``"ES384"``, as
+    expected by the Azure Key Vault sign operation.
+    """
+
+    alg: str
     value: str
 
 
@@ -65,6 +69,19 @@ CCF_PROOF_PATH_LABEL = 2
 CCF_CONSISTENCY_PROOF_ANCHOR_LABEL = 1
 CCF_CONSISTENCY_PROOF_PATH_LABEL = 2
 CCF_MAX_COMMIT_EVIDENCE_SIZE = 1024
+
+# Digest algorithm and JSON Web Algorithm name for each supported COSE
+# signature algorithm (RFC 9053, section 2.1).
+_COSE_ALG_HASHES: dict[int, type[hashes.HashAlgorithm]] = {
+    cwt.enums.COSEAlgs.ES256: hashes.SHA256,
+    cwt.enums.COSEAlgs.ES384: hashes.SHA384,
+    cwt.enums.COSEAlgs.ES512: hashes.SHA512,
+}
+_COSE_ALG_NAMES: dict[int, str] = {
+    cwt.enums.COSEAlgs.ES256: "ES256",
+    cwt.enums.COSEAlgs.ES384: "ES384",
+    cwt.enums.COSEAlgs.ES512: "ES512",
+}
 
 
 def default_algorithm_for_key(key: CertificatePublicKeyTypes) -> int:
@@ -134,7 +151,11 @@ def create_cose_sign1_prepare(
     cert_pem: Pem,
     additional_protected_header: Mapping[Any, Any] | None = None,
 ) -> PreparedCoseSign1:
-    """Prepare a digest and algorithm identifier for an external signer."""
+    """Prepare a digest and algorithm identifier for an external signer.
+
+    The digest is computed with the hash function of the signing algorithm
+    implied by the certificate's public key.
+    """
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"))
     alg = default_algorithm_for_key(cert.public_key())
     kid = cert_fingerprint(cert_pem)
@@ -148,11 +169,10 @@ def create_cose_sign1_prepare(
     phdr_encoded = cbor2.dumps(protected_header)
     tbs = cbor2.dumps(["Signature1", phdr_encoded, b"", payload])
 
-    assert cert.signature_hash_algorithm
-    digester = hashes.Hash(cert.signature_hash_algorithm)
+    digester = hashes.Hash(_COSE_ALG_HASHES[alg]())
     digester.update(tbs)
     digest = digester.finalize()
-    return {"alg": alg, "value": base64.b64encode(digest).decode()}
+    return {"alg": _COSE_ALG_NAMES[alg], "value": base64.b64encode(digest).decode()}
 
 
 def create_cose_sign1_finish(
