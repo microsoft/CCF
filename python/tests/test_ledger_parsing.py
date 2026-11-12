@@ -828,6 +828,91 @@ def test_committed_recovery_chunk_preferred_over_open_copy(
     ]
 
 
+@pytest.mark.parametrize("suffix", ["", ".recovery"])
+@pytest.mark.parametrize("complete_first", [True, False])
+def test_complete_chunk_preferred_over_open_copy(
+    tmp_path, complete_first: bool, suffix: str
+):
+    complete = tmp_path / "complete"
+    open_copy = tmp_path / "open"
+    complete.mkdir()
+    open_copy.mkdir()
+    write_complete_chunk(
+        str(complete),
+        f"ledger_1-5{suffix}",
+        [entry(seqno, {b"a": b"1"}) for seqno in range(1, 6)],
+    )
+    write_chunk(
+        str(open_copy),
+        f"ledger_1{suffix}",
+        [entry(seqno, {b"a": b"1"}) for seqno in range(1, 4)],
+    )
+    write_chunk(str(open_copy), f"ledger_6{suffix}", [entry(6, {b"a": b"1"})])
+    paths = [str(complete), str(open_copy)]
+    if not complete_first:
+        paths.reverse()
+
+    ledger = ccf.ledger.Ledger(
+        paths, committed_only=False, read_recovery_files=bool(suffix)
+    )
+    assert [chunk.filename() for chunk in ledger] == [
+        str(complete / f"ledger_1-5{suffix}"),
+        str(open_copy / f"ledger_6{suffix}"),
+    ]
+
+
+def write_conflicting_committed_chunks(tmp_path, following_start: int) -> list[str]:
+    short = tmp_path / "short"
+    long = tmp_path / "long"
+    following = tmp_path / "following"
+    for d in (short, long, following):
+        d.mkdir()
+    write_complete_chunk(
+        str(short),
+        "ledger_1-5.committed",
+        [entry(seqno, {b"a": b"1"}) for seqno in range(1, 6)],
+    )
+    write_complete_chunk(
+        str(long),
+        "ledger_1-10.committed",
+        [entry(seqno, {b"a": b"1"}) for seqno in range(1, 11)],
+    )
+    write_complete_chunk(
+        str(following),
+        f"ledger_{following_start}-{following_start}.committed",
+        [entry(following_start, {b"a": b"1"})],
+    )
+    return [str(short), str(long), str(following)]
+
+
+@pytest.mark.parametrize("short_first", [True, False])
+def test_conflict_outside_contiguous_suffix_ignored(tmp_path, short_first: bool):
+    paths = write_conflicting_committed_chunks(tmp_path, 20)
+    if not short_first:
+        paths.reverse()
+
+    with pytest.raises(ValueError, match="Conflicting ledger chunk ranges"):
+        ccf.ledger.Ledger(paths)
+
+    ledger = ccf.ledger.Ledger(paths, contiguous_suffix=True)
+    assert [chunk.filename() for chunk in ledger] == [
+        str(tmp_path / "following" / "ledger_20-20.committed")
+    ]
+
+
+@pytest.mark.parametrize("following_start", [6, 11])
+@pytest.mark.parametrize("short_first", [True, False])
+def test_conflict_inside_contiguous_suffix_rejected(
+    tmp_path, short_first: bool, following_start: int
+):
+    paths = write_conflicting_committed_chunks(tmp_path, following_start)
+    if not short_first:
+        paths.reverse()
+
+    with pytest.raises(ValueError, match="Conflicting ledger chunk ranges"):
+        ccf.ledger.Ledger(paths, contiguous_suffix=True)
+
+
 class TestSnapshotMapFraming:
     @pytest.mark.parametrize("map_size_delta", [-8, -1, 1])
     def test_snapshot_entries_must_fill_map(self, map_size_delta: int):

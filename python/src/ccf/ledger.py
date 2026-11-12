@@ -1408,15 +1408,31 @@ class Ledger:
         # Chunk start sequence number to its preferred path
         ledger_files: dict[int, str] = {}
 
-        def chunk_rank(path: str, sanitised_path: str) -> int:
-            """Prefer committed copies, then non-recovery copies."""
-            if sanitised_path.endswith(COMMITTED_FILE_SUFFIX):
-                return 2
-            if not path.endswith(RECOVERY_FILE_SUFFIX):
-                return 1
-            return 0
+        def chunk_rank(path: str) -> tuple[bool, bool, bool]:
+            """Prefer committed copies, then non-recovery copies, then copies
+            with a known end, which contain at least as many entries as an
+            open copy of the same chunk."""
+            sanitised_path = path.removesuffix(RECOVERY_FILE_SUFFIX)
+            return (
+                sanitised_path.endswith(COMMITTED_FILE_SUFFIX),
+                not path.endswith(RECOVERY_FILE_SUFFIX),
+                range_from_filename(sanitised_path)[1] is not None,
+            )
 
-        known_chunk_ends: dict[int, tuple[int, str]] = {}
+        # Chunk start sequence number to each known end, and a path ending there
+        known_chunk_ends: dict[int, dict[int, str]] = {}
+
+        def conflicting_chunk_ranges(chunk_start: int) -> ValueError | None:
+            ends = known_chunk_ends.get(chunk_start, {})
+            if len(ends) < 2:
+                return None
+            descriptions = ", ".join(
+                f"{path} ends at {end}" for end, path in sorted(ends.items())
+            )
+            return ValueError(
+                f"Conflicting ledger chunk ranges for start sequence number {chunk_start}: "
+                f"{descriptions}"
+            )
 
         def try_add_chunk(path: str) -> None:
             sanitised_path = path
@@ -1444,19 +1460,10 @@ class Ledger:
                 return
             chunk_start, chunk_end = range_from_filename(sanitised_path)
             if chunk_end is not None:
-                existing_range = known_chunk_ends.get(chunk_start)
-                if existing_range is not None and existing_range[0] != chunk_end:
-                    raise ValueError(
-                        f"Conflicting ledger chunk ranges for start sequence number {chunk_start}: "
-                        f"{existing_range[1]} ends at {existing_range[0]}, "
-                        f"but {path} ends at {chunk_end}"
-                    )
-                known_chunk_ends[chunk_start] = (chunk_end, path)
+                known_chunk_ends.setdefault(chunk_start, {}).setdefault(chunk_end, path)
 
             existing = ledger_files.get(chunk_start)
-            if existing is None or chunk_rank(path, sanitised_path) > chunk_rank(
-                existing, existing.removesuffix(RECOVERY_FILE_SUFFIX)
-            ):
+            if existing is None or chunk_rank(path) > chunk_rank(existing):
                 ledger_files[chunk_start] = path
 
         for p in paths:
@@ -1468,6 +1475,13 @@ class Ledger:
                 try_add_chunk(p)
             else:
                 raise ValueError(f"{p} is not a ledger directory or ledger chunk")
+
+        # Conflicting ranges are only rejected once known to be part of the
+        # contiguous suffix, as older chunks may be discarded
+        if not contiguous_suffix:
+            for chunk_start in sorted(known_chunk_ends):
+                if (error := conflicting_chunk_ranges(chunk_start)) is not None:
+                    raise error
 
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
@@ -1491,11 +1505,20 @@ class Ledger:
 
                 if file_newer is None:
                     continue
+                range_newer = range_from_filename(file_newer)
+                if (error := conflicting_chunk_ranges(range_newer[0])) is not None:
+                    raise error
                 suffix.append(file_newer)
                 if file_older is None:
                     continue
-                range_newer = range_from_filename(file_newer)
                 range_older = range_from_filename(file_older)
+                # Whichever conflicting copy was selected, reject the conflict
+                # if any of them would extend the suffix
+                if any(
+                    end + 1 == range_newer[0]
+                    for end in known_chunk_ends.get(range_older[0], {})
+                ) and (error := conflicting_chunk_ranges(range_older[0])):
+                    raise error
                 # old_X ~> new_A_B =>  unknown where old_X ends
                 if range_older[1] is None:
                     if not contiguous_suffix:
