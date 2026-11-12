@@ -13,6 +13,56 @@
 #include <nlohmann/json.hpp>
 #include <vector>
 
+TEST_CASE("JSON Schema address and hostname formats")
+{
+  struct FormatCase
+  {
+    std::string format;
+    std::vector<std::string> valid;
+    std::vector<std::string> invalid;
+  };
+
+  const std::vector<FormatCase> cases = {
+    {"ipv6",
+     {"::", "::1", "2001:db8::1", "::ffff:192.0.2.1", "1:2:3:4:5:6:7:8"},
+     {"",
+      "2001:db8::1::2",
+      "1:2:3:4:5:6:7::8",
+      "::ffff:256.0.2.1",
+      std::string("::1") + '\0' + "suffix"}},
+    {"hostname",
+     {"localhost",
+      "example.com",
+      "node-1.example",
+      std::string(63, 'a') + ".com"},
+     {"",
+      "-node.example",
+      "node-.example",
+      "node..example",
+      std::string(64, 'a') + ".com",
+      std::string("example.com") + '\0' + "suffix"}},
+    {"ipv4",
+     {"0.0.0.0", "192.0.2.1", "255.255.255.255"},
+     {"", "256.0.2.1", "192.0.2", "192.0.2.1.1"}}};
+
+  for (const auto& test_case : cases)
+  {
+    INFO(test_case.format);
+    const nlohmann::json schema = {
+      {"type", "string"}, {"format", test_case.format}};
+    for (const auto& value : test_case.valid)
+    {
+      INFO(value);
+      CHECK_FALSE(json::validate_json(value, schema).has_value());
+    }
+    for (const auto& value : test_case.invalid)
+    {
+      INFO(value);
+      CHECK(json::validate_json(value, schema).has_value());
+    }
+  }
+}
+
 TEST_CASE("host configuration unsigned integer bounds")
 {
   using Json = nlohmann::json;
