@@ -556,6 +556,7 @@ class CCFRemote:
         self.start_type = start_type
         self.local_node_id = local_node_id
         self.pem = f"{local_node_id}.pem"
+        self.pq_service_cert_file = "pq_service_cert.pem"
         self.node_address_file = f"{local_node_id}.node_address"
         self.rpc_addresses_file = f"{local_node_id}.rpc_addresses"
 
@@ -674,6 +675,9 @@ class CCFRemote:
             self.pem = config.get("node_certificate_file", "nodecert.pem")
             self.node_address_file = config.get("node_address_file")
             self.rpc_addresses_file = config.get("rpc_addresses_file")
+            self.pq_service_cert_file = config.get("command", {}).get(
+                "pq_service_certificate_file", self.pq_service_cert_file
+            )
 
         elif major_version is None or major_version > 1:
             loader = FileSystemLoader(binary_dir)
@@ -752,6 +756,9 @@ class CCFRemote:
                 # Parse and re-emit output to produce consistently formatted (indented) JSON.
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
+                self.pq_service_cert_file = j["command"].get(
+                    "pq_service_certificate_file", self.pq_service_cert_file
+                )
 
                 if "memory" in j and "max_read_size" not in j.get("ledger", {}):
                     from infra.e2e_args import _convert_size_string_to_bytes
@@ -887,6 +894,9 @@ class CCFRemote:
             self.remote.get(self.rpc_addresses_file, dst_path, timeout=timeout)
         if self.start_type in {StartType.start, StartType.recover}:
             self.remote.get("service_cert.pem", dst_path, timeout=timeout)
+
+    def get_pq_service_certificate_file(self, dst_path, timeout=FILE_TIMEOUT_S):
+        self.remote.get(self.pq_service_cert_file, dst_path, timeout=timeout)
 
     def debug_node_cmd(self):
         return self.remote.debug_node_cmd()

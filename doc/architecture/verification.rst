@@ -36,7 +36,7 @@ Lean packages
    * - :ccf_repo:`consensus <lean/consensus/README.md>`
      - The :doc:`CCF consensus protocol </architecture/consensus/index>`, as implemented in :ccf_repo:`src/consensus/aft/cft.h`.
        Proved properties include election safety (no two primaries in the same term), prefix-comparability of committed logs, and that every positive commit index points to a signature entry.
-       Node join and snapshot installation are not modelled.
+       A joining node may initialize from another node's committed ledger prefix, as when installing a snapshot; the join protocol is not modelled.
      - :ccf_repo:`consensus-replay <lean/consensus/replay/README.md>` replays traces of the consensus scenarios run by the native ``cft_driver``.
    * - :ccf_repo:`consistency <lean/consistency/README.md>`
      - CCF's externally visible consistency semantics, including :ref:`transaction status <use_apps/verify_tx:Checking for Commit>`, for a simple append-and-read application with forwarded reads, elections and invalidation.

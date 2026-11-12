@@ -69,6 +69,26 @@ def protocol (initialConfiguration : Finset NodeID)
   receive := .receive
   internal := .internal
 
+/--
+Whether some node has `entries` as a committed ledger prefix; a fresh joiner has
+committed only the empty prefix. Crashes are not modeled, so the prefix keeps its history.
+-/
+def committedPrefixOf (state : State) (entries : List Entry) : Bool :=
+  state.nodes.any
+    fun (_, other) =>
+      entries.length <= other.commitIndex && other.log.take entries.length == entries
+
+/-- A network step; a node initializes only from a committed prefix. -/
+def networkStep (initialConfiguration : Finset NodeID) (state : State) (action : Action)
+    : Option State :=
+  match action with
+  | .local _ (.initAsBackup entries) =>
+      if committedPrefixOf state entries then
+        MultiNodeTransitionSystem.next (protocol initialConfiguration) state action
+      else
+        none
+  | _ => MultiNodeTransitionSystem.next (protocol initialConfiguration) state action
+
 /-- The network of `nodes`, initialized from a nonempty membership configuration. -/
 abbrev transitionSystem (initialConfiguration : Finset NodeID) (nodes : List NodeID)
     : TransitionSystem :=
@@ -80,6 +100,7 @@ abbrev transitionSystem (initialConfiguration : Finset NodeID) (nodes : List Nod
           initialConfiguration.Nonempty
           /\ state.nodes.map Prod.fst = nodes
           /\ system.init state
+      step := networkStep initialConfiguration
   }
 
 end Consensus.Model

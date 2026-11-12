@@ -3,6 +3,7 @@
 
 import json
 import os
+import re
 import struct
 import warnings
 from collections.abc import Iterator
@@ -173,32 +174,50 @@ def unpack_array(buf: bytes, fmt: str) -> list[Any]:
     return ret
 
 
-def range_from_filename(filename: str) -> tuple[int, int | None]:
-    basename = os.path.basename(filename)
-    is_recovery = basename.endswith(RECOVERY_FILE_SUFFIX)
-    basename = basename.removesuffix(RECOVERY_FILE_SUFFIX)
-    if basename.endswith(COMMITTED_PREFIX_FILE_SUFFIX):
-        range_str = basename.removesuffix(COMMITTED_PREFIX_FILE_SUFFIX)
-        elements = range_str.removeprefix("ledger_").split("-")
-        if (
-            is_recovery
-            or not range_str.startswith("ledger_")
-            or len(elements) != 2
-            or not all(element.isascii() and element.isdigit() for element in elements)
-            or int(elements[0]) == 0
-            or int(elements[1]) < int(elements[0])
-        ):
-            raise ValueError(f"Could not read seqno range from ledger file {filename}")
-        return (int(elements[0]), int(elements[1]))
+# Ledger chunk names: ledger_<start>[-<end>][.committed|.committed_prefix][.recovery]
+_LEDGER_CHUNK_NAME = re.compile(
+    r"ledger_(?P<start>\d+)(?:-(?P<end>\d+))?"
+    rf"(?P<suffix>{re.escape(COMMITTED_FILE_SUFFIX)}|{re.escape(COMMITTED_PREFIX_FILE_SUFFIX)})?"
+    rf"(?P<recovery>{re.escape(RECOVERY_FILE_SUFFIX)})?",
+    re.ASCII,
+)
 
-    basename = basename.removesuffix(COMMITTED_FILE_SUFFIX)
-    elements = basename.replace("ledger_", "").split("-")
-    if len(elements) == 2:
-        return (int(elements[0]), int(elements[1]))
-    elif len(elements) == 1:
-        return (int(elements[0]), None)
-    else:
+# Snapshot names: snapshot_<seqno>_<evidence_seqno>[.committed]
+_SNAPSHOT_NAME = re.compile(
+    rf"snapshot_(?P<seqno>\d+)_(?P<evidence_seqno>\d+)(?:{re.escape(COMMITTED_FILE_SUFFIX)})?",
+    re.ASCII,
+)
+
+
+def _parse_ledger_range(basename: str) -> tuple[int, int | None] | None:
+    match = _LEDGER_CHUNK_NAME.fullmatch(basename)
+    if match is None:
+        return None
+    start = int(match["start"])
+    end = None if match["end"] is None else int(match["end"])
+    if end is not None and end < start:
+        return None
+    if match["suffix"] == COMMITTED_PREFIX_FILE_SUFFIX and (
+        start == 0 or end is None or match["recovery"] is not None
+    ):
+        return None
+    return (start, end)
+
+
+def range_from_filename(filename: str) -> tuple[int, int | None]:
+    """Return the start and optional end seqno encoded in a ledger file name.
+
+    Committed prefixes must also have a start of at least 1, an end, and no
+    recovery suffix.
+
+    Raises:
+        ValueError: If the name is not a ledger chunk name, or its end
+            precedes its start.
+    """
+    seqno_range = _parse_ledger_range(os.path.basename(filename))
+    if seqno_range is None:
         raise ValueError(f"Could not read seqno range from ledger file {filename}")
+    return seqno_range
 
 
 def get_range_from_file(ledger_file_path: str) -> tuple[int, int | None]:
@@ -248,16 +267,15 @@ def get_range_from_file(ledger_file_path: str) -> tuple[int, int | None]:
 
 
 def snapshot_index_from_filename(filename: str) -> tuple[int, int]:
-    elements = (
-        os.path.basename(filename)
-        .replace(COMMITTED_FILE_SUFFIX, "")
-        .replace("snapshot_", "")
-        .split("_")
-    )
-    if len(elements) == 2:
-        return (int(elements[0]), int(elements[1]))
-    else:
+    """Return the seqno and evidence seqno encoded in a snapshot file name.
+
+    Raises:
+        ValueError: If the name is not a snapshot name.
+    """
+    match = _SNAPSHOT_NAME.fullmatch(os.path.basename(filename))
+    if match is None:
         raise ValueError(f"Could not read snapshot index from file name {filename}")
+    return (int(match["seqno"]), int(match["evidence_seqno"]))
 
 
 class GcmHeader:
@@ -1086,13 +1104,15 @@ class Snapshot(Entry):
             self._verify_snapshot_receipt(receipt_bytes, receipt_pos, snapshot_digest)
 
     def is_committed(self):
-        return COMMITTED_FILE_SUFFIX in self._filename
+        # Only the file name, not the directories containing it, is relevant
+        return COMMITTED_FILE_SUFFIX in os.path.basename(self._filename)
 
     def is_snapshot_file_1_x(self):
         # Kept here for compatibility
         if not self.is_committed():
             raise ValueError(f"Snapshot file {self._filename} is not yet committed")
-        return len(self._filename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
+        basename = os.path.basename(self._filename)
+        return len(basename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
 
     def get_len(self) -> int:
         return self._file_size
