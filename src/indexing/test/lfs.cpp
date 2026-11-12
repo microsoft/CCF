@@ -1346,8 +1346,43 @@ TEST_CASE(
   index.write(5121, "key");
   REQUIRE(lfs->page_stores.size() == 1);
   flush_lfs(board);
-  REQUIRE(check_seqnos({1, 21}, index.get_write_txs_in_range("key", 1, 21)));
-  CHECK(lfs->page_fetches.empty());
+  auto result = index.get_write_txs_in_range("key", 1, 21);
+  for (size_t retry = 0; !result.has_value() && retry < 2; ++retry)
+  {
+    REQUIRE(flush_lfs(board) > 0);
+    result = index.get_write_txs_in_range("key", 1, 21);
+  }
+  REQUIRE(check_seqnos({1, 21}, result));
+  CHECK(lfs->page_fetches.size() == 1);
+}
+
+TEST_CASE(
+  "Sparse bucket in-memory gaps preserve cached data" *
+  doctest::test_suite("lfs"))
+{
+  ccf::tasks::JobBoard board;
+  auto lfs = std::make_shared<CountingLFS>(board);
+  ccf::AbstractNodeContext context;
+  context.install_subsystem(lfs);
+  SparseBucketTestIndex index(map_a, context, 10, 4);
+  for (auto seqno : {1, 11, 21, 1000})
+  {
+    index.write(seqno, "key");
+  }
+
+  REQUIRE_FALSE(index.get_write_txs_in_range("key", 0, 29).has_value());
+  REQUIRE(flush_lfs(board) > 0);
+  REQUIRE(
+    check_seqnos({1, 11, 21}, index.get_write_txs_in_range("key", 0, 29)));
+  const auto fetches = lfs->fetches.size();
+  for (size_t repeat = 0; repeat < 2; ++repeat)
+  {
+    REQUIRE(check_seqnos({}, index.get_write_txs_in_range("key", 500, 530)));
+    REQUIRE(
+      check_seqnos({1, 11, 21}, index.get_write_txs_in_range("key", 0, 29)));
+    CHECK(lfs->fetches.size() == fetches);
+    CHECK(index.describe()["old_results_current_size"] == 3);
+  }
 }
 
 TEST_CASE("Sparse bucket required directory pages" * doctest::test_suite("lfs"))

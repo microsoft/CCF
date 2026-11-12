@@ -320,8 +320,17 @@ namespace ccf::indexing::strategies
         }
       }
 
-      if (!required && head.last_paged_bucket.has_value())
+      if (!required)
       {
+        if (!head.last_paged_bucket.has_value())
+        {
+          LOG_FAIL_FMT(
+            "Cannot prove absence of bucket without a sealed directory: {}",
+            get_blob_name(key));
+          rebuild();
+          return nullptr;
+        }
+
         const auto present =
           directory_contains(key, head.page_count, *head.last_paged_bucket);
         if (!present.has_value())
@@ -424,7 +433,6 @@ namespace ccf::indexing::strategies
           (!head.last_paged_bucket.has_value() ||
            range.first > *head.last_paged_bucket))
         {
-          old_results.insert({serialised_key, range}, {nullptr, {}});
           continue;
         }
 
