@@ -23,8 +23,14 @@ private def run : IO Unit := do
       (`TraceValidation.Adapter, `Properties, false),
       (`TraceValidation.Adapter, `Properties.Programs, false),
       (`TraceValidation.Adapter, `Proofs.Correspondence, false),
-      (`Properties, `TraceValidation, true),
-      (`Properties.Programs, `TraceValidation.Adapter, true),
+      (`Properties, `TraceValidation, false),
+      (`Properties.Programs, `TraceValidation.Adapter, false),
+      (`Properties, `Correspondence, false),
+      (`Properties.Programs, `Correspondence.Programs, false),
+      (`Correspondence, `Proofs.Correspondence, true),
+      (`Correspondence.Programs, `TraceValidation.Adapter, true),
+      (`Correspondence.Programs, `Proofs.Correspondence, false),
+      (`Proofs.Correspondence, `Correspondence.Programs, true),
       (`Proofs.Correspondence, `TraceValidation.Adapter, true),
       (`Properties.Programs, `Proofs.Correspondence, false),
       (`Proofs.Correspondence, `Properties, false),
@@ -32,6 +38,22 @@ private def run : IO Unit := do
       (`Model, `Model.Types, true)
     ]
   for root in [`Kv, `Example.Nested] do
+    let owner := root ++ `Properties
+    let proof := root ++ `Proofs.Safety
+    let core := root ++ `Model.Types
+    let allowed := [(owner, [proof]), (proof, [core]), (core, [])]
+    unless CCF.Architecture.safetyImportClosure root owner allowed do
+      throw (IO.userError "semantic proof import closure was rejected")
+    for forbidden
+        in [root ++ `TraceValidation.Adapter, root ++ `Correspondence.Programs] do
+      let hidden := [(owner, [proof]), (proof, [core]), (core, [forbidden])]
+      if CCF.Architecture.safetyImportClosure root owner hidden then
+        throw (IO.userError "trace dependency hidden behind a proof was admitted")
+      let bridge := `Other.Proofs.Bridge
+      let external := [(owner, [bridge]), (bridge, [forbidden])]
+      if CCF.Architecture.safetyImportClosure root owner external then
+        throw
+          (IO.userError "trace dependency hidden behind an external module was admitted")
     for (owner, dependency, expected) in edges do
       unless CCF.Architecture.allowedImport root (root ++ owner) (root ++ dependency)
               == expected do

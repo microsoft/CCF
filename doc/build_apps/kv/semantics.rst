@@ -159,32 +159,31 @@ The :ccf_repo:`proof catalogue <lean/kv/README.md>` records their precise scope 
 
    * - Main declaration
      - Established scope
-   * - ``semantic_reachable_store_invariants``, ``semantic_reachable_store_data_invariants``
+   * - ``reachable_store_invariants``, ``reachable_store_data_invariants``
      - Every live store in every semantic-reachable state has complete publication history, a matching head, a bounded global cut, unique data keys, and bounded previous-write versions.
-   * - ``semantic_transaction_snapshot_serial``, ``semantic_transaction_application_serial``
+   * - ``transaction_snapshot_serial``, ``transaction_application_serial``
      - Every semantic-reachable attempt's normal program reproduces its writes on pinned data and, when OCC permits application, on the application head.
-   * - ``semantic_executable_branch_serializability``
+   * - ``executable_branch_serializability``
      - Application-order branches of programs drawn from arbitrary semantic-reachable states serialize through the actual semantic application primitive, allowing compaction interleavings.
-   * - ``replay_segment_serializability``
-     - An accepted typed trace segment for a live store has a serial witness obtained from its actual application events and pre-event transactions.
-       The segment excludes creation, destruction, or rollback of that store; operations on other stores may interleave.
-   * - ``reachable_store_invariants``
-     - Every live store in a trace-reachable state inherits the semantic store-history and global-cut guarantees.
-   * - ``replay_snapshot_fixed``
+   * - ``execution_segment_serializability``
+     - An actual semantic execution for a live store has a serial witness obtained from its actual application inputs and pre-application transactions.
+       The segment excludes creation, destruction, or successful rollback of that store; rejected rollback and operations on other stores may interleave.
+   * - ``execution_snapshot_fixed``
      - The read-version metadata comes from the initial capture and remains fixed during the attempt.
        Later lazy acquisitions after rollback can select different surviving local frames; this is not a store-wide mixed-view snapshot theorem.
-   * - ``capture_replay_preserves_map``
+   * - ``capture_execution_preserves_map``
      - An acquired map's local and global views remain fixed, including for other keys, aliases, compaction, and rollback.
        This is not cross-map global consistency.
    * - ``step_global_read_from_captured_map``
-     - Accepted global reads originate in that map's captured irrevocable view, with the explicit empty-placeholder case for a map absent at the local cut.
+     - Computed semantic global reads originate in that map's captured irrevocable view, with the explicit empty-placeholder case for a map absent at the local cut.
    * - ``durable_cut_survives_rollback``
      - Legal rollback preserves observations from the irrevocable prefix.
 
 Serializability is derived from dependency validation, not from an assumption that an accepted transaction is already serializable.
 Model states carry no proofs.
 Snapshot-program and store-history invariants are proved initially and preserved by every successful semantic action, covering arbitrary semantic-reachable states without trace preconditions.
-The original typed-replay statements and witnesses are preserved, deriving the corresponding guarantees through trace-to-model reachability.
+Every canonical safety statement in ``Kv/Properties.lean`` concerns model state, outputs, or executions of ``Kv.Model.transitionSystem``, with no trace reachability premise.
+Its property helpers and proof import chains are independent of trace validation and correspondence.
 These invariants are not extra sequential-oracle acceptance checks.
 
 ``Kv.Model.transitionSystem`` has semantic ``State`` and ``Action`` types independent of records, test cases, schemas, sequence numbers, and reported read values.
@@ -193,9 +192,9 @@ Semantic store creation supplies an explicit initial term, while schema-driven i
 ``Kv.TraceValidation.transitionSystem`` validates recorded lifecycles, iteration IDs, run-unique identities, observation reports, and stream completeness.
 The adapter checks trace guards, executes each event's translated semantic inputs exactly once, compares the computed outputs with the reported observations, and installs the returned semantic state as authoritative.
 Only schema/lifecycle metadata, sequence/count bookkeeping, and frozen callback-entry bookkeeping are updated separately; the adapter does not independently compute a semantic candidate state.
-``step_projects``, ``replay_projects``, and ``reachable_projects`` prove correspondence with actual semantic executions, allowing trace-only records to stutter.
-``step_reports`` proves that accepted reports match the actual semantic outputs.
-``semantic_apply_atomic`` states complete multi-map publication directly over semantic execution without trace assumptions.
+The separate ``Kv/Correspondence.lean`` entrypoint exposes ``step_projects``, ``replay_projects``, and ``reachable_projects``, proving correspondence with actual semantic executions and allowing trace-only records to stutter.
+Its ``step_reports`` theorem proves that accepted reports match the actual semantic outputs.
+``application_atomic`` in the safety entrypoint states complete multi-map publication directly over semantic execution without trace assumptions.
 
 Each claim in ``Kv/Properties.lean`` is a proved theorem, followed by a witness theorem showing that its premises can hold or, for a claim without premises, that its conclusion has an effect.
 The Lake build treats warnings as errors, and the shared ``lake exe check-imports`` verifies that the library import root covers every module and respects the layering.

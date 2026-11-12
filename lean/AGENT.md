@@ -43,7 +43,10 @@ Do not duplicate KV or protocol transitions in the adapter or leave trace-specif
 
 Keep the semantic transition system and the trace replay system explicitly named and separate.
 Prove that accepted replay steps or executions project to the semantic model, allowing trace-only bookkeeping steps to stutter.
-State semantic safety claims over actual model executions, and identify replay-specific assumptions explicitly in trace-to-property claims.
+State every public safety claim in `Properties.lean` over semantic model state, actions, outputs, or executions of `Model.transitionSystem`.
+Do not use trace-adapter reachability as a premise for a model safety property, or keep duplicate adapter-scoped versions alongside semantic versions in that entrypoint.
+Expose replay projection, reported-result agreement, and other trace/model correspondence claims in a separate correspondence entrypoint.
+The safety entrypoint and the helpers needed to understand it must not depend on trace validation or correspondence declarations.
 Moving a checker to a different directory or adding an unused semantic transition system does not establish this separation.
 
 ## Dependency direction
@@ -53,9 +56,9 @@ Moving a checker to a different directory or adding an unused semantic transitio
   Shared infrastructure must not depend on a particular protocol.
 - Let `TraceValidation.lean` and `TraceValidation/` depend on the model and shared definitions, not property helpers, theorem entrypoints, or proof implementations.
   Trace/model correspondence proofs belong under `Proofs/`.
-- Property helpers in `Properties/` should depend on the model, shared definitions, and other property helpers.
-  Helpers for replay-specific claims may also depend on trace validation, but semantic-only helpers should not.
+- Property helpers in `Properties/` should depend only on the model, shared definitions, and other property helpers.
   They may not import `Properties.lean` or `Proofs/`.
+  Keep helpers for trace/model correspondence separate from semantic property helpers.
 - Let `Proofs/` depend on model definitions, property helpers, and other supporting proofs, but not `Properties.lean`.
   `Properties.lean` publicly imports the types and helpers needed to understand its statements and privately imports proof implementations.
 

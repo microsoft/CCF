@@ -12,7 +12,8 @@ namespace Kv.Proofs.Segment
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Properties Kv.Proofs.Capture Kv.Proofs.Correspondence
+open Kv.Correspondence Kv.TraceValidation Kv.Properties Kv.Proofs.Capture
+  Kv.Proofs.Correspondence
 open Kv.Proofs.SemanticHelpers
 
 private def Applications (w : Model.State) (sid : Nat) : Model.Action → List Model.Tx

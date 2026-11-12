@@ -11,7 +11,8 @@ namespace Kv.Proofs.Trace
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Properties Kv.Proofs.Capture Kv.Proofs.Correspondence
+open Kv.Correspondence Kv.TraceValidation Kv.Properties Kv.Proofs.Capture
+  Kv.Proofs.Correspondence
 
 private theorem step_iff_transition (w next : World) (r : Record)
     : transitionSystem.step w r = some next ↔ step w r = .ok next := by
@@ -134,7 +135,8 @@ namespace Kv.Proofs.Properties
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Properties Kv.Proofs.Capture Kv.Proofs.Correspondence
+open Kv.Correspondence Kv.TraceValidation Kv.Properties Kv.Proofs.Capture
+  Kv.Proofs.Correspondence
 
 /-- Trace-reachable transaction snapshot seriality inherits arbitrary semantic reachability. -/
 theorem transaction_snapshot_serial

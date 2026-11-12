@@ -8,19 +8,20 @@ This profile follows the implementation's **per-map globally committed views**.
 
 ## Contents
 
-| Purpose                                                     | Location                          |
-| ----------------------------------------------------------- | --------------------------------- |
-| Proved theorems and their witnesses                         | `Kv/Properties.lean`              |
-| State, observations, and dependencies                       | `Kv/Model/Types.lean`             |
-| Semantic inputs, computed outputs, and transitions          | `Kv/Model/Transitions.lean`       |
-| Transition-system assembly and shared execution definitions | `Kv/Model.lean`, `../common/CCF/` |
-| Sequential reference, trace projections, and invariants     | `Kv/Properties/`                  |
-| Proof implementations                                       | `Kv/Proofs/`                      |
-| Replay self-tests                                           | `Kv/Tests/`                       |
-| Valid and invalid trace fixtures                            | `replayer/fixtures/`              |
-| Replay of recorded C++ traces                               | `Kv/TraceValidation.lean`         |
-| Strict decoding, lifecycle validation, and semantic adapter | `Kv/TraceValidation/`             |
-| Replayer executable                                         | `replayer/`                       |
+| Purpose                                                     | Location                                       |
+| ----------------------------------------------------------- | ---------------------------------------------- |
+| Proved theorems and their witnesses                         | `Kv/Properties.lean`                           |
+| State, observations, and dependencies                       | `Kv/Model/Types.lean`                          |
+| Semantic inputs, computed outputs, and transitions          | `Kv/Model/Transitions.lean`                    |
+| Transition-system assembly and shared execution definitions | `Kv/Model.lean`, `../common/CCF/`              |
+| Semantic sequential reference and execution predicates      | `Kv/Properties/`                               |
+| Trace/model correspondence and replay-only helpers          | `Kv/Correspondence.lean`, `Kv/Correspondence/` |
+| Proof implementations                                       | `Kv/Proofs/`                                   |
+| Replay self-tests                                           | `Kv/Tests/`                                    |
+| Valid and invalid trace fixtures                            | `replayer/fixtures/`                           |
+| Replay of recorded C++ traces                               | `Kv/TraceValidation.lean`                      |
+| Strict decoding, lifecycle validation, and semantic adapter | `Kv/TraceValidation/`                          |
+| Replayer executable                                         | `replayer/`                                    |
 
 Human review covers the model, the full theorem statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
 The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
@@ -81,45 +82,40 @@ The normal-view reconstruction function `normalRun` and the per-step head-effect
 
 `Kv/Properties.lean` states each claim as a proved theorem in `Kv.Properties`, whose one-line proof refers to an implementation in `Kv/Proofs/`.
 No `sorry`, custom axioms, unsafe declarations, or external solver are used; `lake check` accepts only Lean's standard `propext`, `Quot.sound` and `Classical.choice`.
-The `semantic_reachable_store_invariants`, `semantic_reachable_store_data_invariants`, `semantic_transaction_snapshot_serial`, and `semantic_transaction_application_serial` claims quantify over arbitrary `Model.transitionSystem.Reachable` states.
-`semantic_executable_branch_serializability` proves application-order seriality for programs drawn from such states, using the shared semantic application primitive and allowing compaction interleavings.
-Replay claims that depend on state invariants retain `TraceValidation.transitionSystem.Reachable`; `Proofs/Reachable.lean` derives their guarantees from semantic reachability through `reachable_projects`.
-The original full replay statements and their witnesses are retained over this explicitly named adapter system.
-`semantic_apply_atomic` states publication directly over `Model.execute`, with no trace assumptions.
+The `reachable_store_invariants`, `reachable_store_data_invariants`, `transaction_snapshot_serial`, and `transaction_application_serial` claims quantify over arbitrary `Model.transitionSystem.Reachable` states.
+`executable_branch_serializability` proves application-order seriality for programs drawn from such states, using the shared semantic application primitive and allowing compaction interleavings.
+All safety statements concern semantic state, computed outputs, or executions of `Model.transitionSystem`, without trace reachability premises.
+Neither the entrypoint, its property helpers, nor its transitive proof imports depend on trace validation or correspondence.
+The separate `Kv/Correspondence.lean` entrypoint exposes `step_projects`, `step_reports`, `replay_projects`, and `reachable_projects` in `Kv.Correspondence`.
+`application_atomic` states publication directly over `Model.execute`, with no trace assumptions.
 Generic finite-map, dependency, and sequential reference helpers in `Properties/Semantics.lean` depend only on the semantic model.
-Replay projections and decorated-attempt programs remain in the other property-helper modules.
+Semantic segment projections are defined in `Properties/Executions.lean`; replay projections and decorated-attempt programs live outside `Properties/`, under `Correspondence/`.
 
 Each claim is followed by a `_witness` lemma, so no claim is vacuous.
-For a claim with premises, the witness asserts that some concrete state, trace or program satisfies them.
+For a claim with premises, the witness asserts that some concrete semantic state, execution or program satisfies them.
 The five claims without premises (`read_your_write`, `read_your_deletion`, `previous_ignores_pending`, `publish_lookup` and `apply_atomic`) cannot be vacuous; their witnesses instead show that the conclusion has an effect: a staged write or removal changes the read, a key can have both a committed version and a staged write, one write set can leave, remove and write addresses, and one applied write set can span two maps.
-`Kv/Proofs/Witnesses.lean` proves these witnesses, mostly from prefixes and segments of one accepted trace that the kernel evaluates with `decide +kernel`.
+`Kv/Proofs/CoreWitnesses.lean` proves the capture, retention, global-observation and segment witnesses from actual model-action prefixes and executions, without trace metadata.
 The semantic-execution, semantic-reachability, and correspondence witnesses are adjacent to their implementations in `Proofs/Semantics.lean`, `Proofs/SemanticInvariant.lean`, and `Proofs/Correspondence.lean`.
 
 | Theorems                                                                                                                | Established scope                                                                                                                                                                 |
 | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `semantic_reachable_store_invariants`, `semantic_reachable_store_data_invariants`                                       | Every live store in every semantic-reachable state has complete publication history, a matching head, a bounded global cut, unique data keys, and bounded previous-write versions |
-| `semantic_transaction_snapshot_serial`, `semantic_transaction_application_serial`                                       | Every semantic-reachable attempt's normal log reproduces its writes on pinned data, and on the application head when OCC permits publication                                      |
-| `semantic_executable_branch_serializability`                                                                            | Application-order branches of arbitrary semantic-reachable programs serialize through the actual semantic application primitive, with compaction interleavings                    |
-| `semantic_apply_atomic`                                                                                                 | Actual `Model.execute` publication computes the complete staged write set, next version, term, and store effect without trace assumptions                                         |
-| `step_projects`, `replay_projects`, `reachable_projects`                                                                | Accepted records, translated replay inputs, and trace-reachable projections execute or are reachable in `Model.transitionSystem`; bookkeeping may stutter                         |
-| `step_reports`                                                                                                          | Accepted reports agree with the output of the authoritative semantic execution                                                                                                    |
+| `reachable_store_invariants`, `reachable_store_data_invariants`                                                         | Every live store in every semantic-reachable state has complete publication history, a matching head, a bounded global cut, unique data keys, and bounded previous-write versions |
+| `transaction_snapshot_serial`, `transaction_application_serial`                                                         | Every semantic-reachable attempt's normal log reproduces its writes on pinned data, and on the application head when OCC permits publication                                      |
+| `executable_branch_serializability`                                                                                     | Application-order branches of arbitrary semantic-reachable programs serialize through the actual semantic application primitive, with compaction interleavings                    |
+| `application_atomic`                                                                                                    | Actual `Model.execute` publication computes the complete staged write set, next version, term, and store effect without trace assumptions                                         |
 | `read_your_write`, `read_your_deletion`, `absent_read`, `staged_noninterference`, `previous_ignores_pending`            | Point-read and overlay semantics                                                                                                                                                  |
 | `publish_lookup`, `publication_noninterference`, `publish_unique`, `apply_atomic`                                       | Entire finite multi-map publication and unrelated-key preservation                                                                                                                |
-| `transaction_snapshot_serial`                                                                                           | Every live attempt's normal log runs serially on its pinned local data, including read-only completions                                                                           |
-| `transaction_application_serial`                                                                                        | The same executable application primitive used by replay has an independent sequential transaction witness                                                                        |
-| `executable_branch_serializability`                                                                                     | Every finite branch of executable applications, with compaction interleavings, admits application order as a serial witness, including locally applied `no_replicate` attempts    |
-| `replay_segment_serializability`                                                                                        | Actual successful replay projects to a selected live store's application-order serial witness; the attempts come from pre-event `txOf`                                            |
-| `reachable_store_invariants`, `reachable_store_data_invariants`                                                         | Starting from empty World, live stores have complete publication histories, matching heads, bounded global cuts, unique data keys and bounded previous-write versions             |
-| `step_capture_metadata`, `step_capture_cut_values`, `capture_replay_preserves_metadata`, `replay_snapshot_fixed`        | Current snapshot and commit term capture/preservation; initial global metadata must match the store at capture but is not stored                                                  |
+| `execution_segment_serializability`                                                                                     | Actual semantic execution projects to a selected live store's application-order serial witness; the attempts come from pre-application `Model.lookupTx`                           |
+| `step_capture_metadata`, `step_capture_cut_values`, `capture_execution_preserves_metadata`, `execution_snapshot_fixed`  | Current snapshot and commit term capture/preservation; initial global metadata must match the store at capture but is not stored                                                  |
 | `step_map_capture`, `captureGlobal_committed`, `captureGlobal_placeholder`                                              | Actual map acquisitions derive the current committed map revision, or an explicit empty placeholder for a map absent at R                                                         |
-| `replay_map_global_fixed`, `replay_map_local_fixed`, `capture_replay_preserves_map`                                     | A map's pinned local and global views remain unchanged through a live attempt, across all keys, aliases, compaction and rollback                                                  |
+| `execution_map_global_fixed`, `execution_map_local_fixed`, `capture_execution_preserves_map`                            | A map's pinned local and global views remain unchanged through a live attempt, across all keys, aliases, compaction and rollback                                                  |
 | `step_global_read_from_captured_map`, `step_global_has_from_captured_map`                                               | Actual global observations use that map's frozen frame, ignore pending writes, and have committed-prefix or explicit empty-placeholder provenance                                 |
 | `compact_above_head_noop`                                                                                               | Above-head compaction leaves the store unchanged                                                                                                                                  |
 | `rollback_keeps_prefix`, `rollback_discards_suffix`, `durable_cut_survives_rollback`                                    | Durable-prefix frames and contents survive; suffix frames disappear                                                                                                               |
 | `stale_term_cannot_apply`, `discarded_handle_cannot_apply`, `discarded_birth_cannot_apply`, `compacted_map_unavailable` | Stale-term/removed-lineage rejection, including recreated empty maps, and retained-base gating for existing maps                                                                  |
 | `absent_map_available`, `absent_placeholder_has_no_values`                                                              | Truly absent map cuts permit empty placeholders independently of retention; this path cannot expose old map values                                                                |
 
-The sequential reference (`serialStep`, `serialRun`, `serialTransactions`) has no dependency validation and is not consulted by the checker.
+The semantic sequential reference (`serialStep`, `serialRun`, `semanticSerialTransactions`) has no dependency validation and is not consulted by the checker.
 Serializability is derived from the OCC check.
 It applies to **normal** observations on a local branch, not a single global serial read view combining normal and historical reads, and not one permanent serial order across rollback.
 Per-map global observations need not agree with either the current snapshot or each other across maps.
@@ -135,9 +131,10 @@ Conversely, every local application belongs to its application-order witness eve
 A pre-application `no_replicate` contributes no application.
 Only an explicit rollback changes the local branch; a failed replication reply does not erase an application.
 
-`replay_segment_serializability` assumes a reachable starting world, a successful typed replay, a selected store live at the segment's start, and no `store_create`, `store_end` or `rollback` for that selected store within the segment.
-It does **not** assume `AppliedBranch` or a sequential result.
-`projectApplications` runs the same steps and extracts only that store's actual `apply` attempts via pre-event `txOf`.
+`execution_segment_serializability` assumes a reachable semantic starting state, a `Model.transitionSystem` execution, a selected live store, and `SegmentInputs` excluding creation, destruction, or successful rollback of that store.
+It does **not** assume `SemanticAppliedBranch` or a sequential result.
+`applicationInputs` executes the same semantic steps and extracts only that store's actual application attempts via pre-application `Model.lookupTx`.
+Rejected rollback of the selected store is permitted because it does not change the branch.
 Compaction, initial-term establishment, read-only/failed returns and all other-store operations stutter on the selected head data/version.
 Other stores may even roll back or end within the segment.
 Selected-store rollback partitions branches; the durable-prefix theorems cover that boundary.
@@ -146,8 +143,8 @@ Snapshot preservation requires no creation/end of the selected attempt during it
 `Proofs/AdapterRetention.lean` lifts it through accepted trace replay using correspondence, including callback and scope records that stutter.
 
 The semantic guarantees are proved for actual `Model.execute` transitions and arbitrary reachable semantic runs, without trace preconditions or a sequential acceptance oracle.
-The preserved adapter guarantees cover successful typed `step` and `replay` results, not the JSON parser.
-The trace-to-property theorems cover normal-view serial projection, history safety, frozen read metadata, and per-map local/global provenance and immutability.
+The separate correspondence guarantees cover successful typed trace `step` and `replay` results, not the JSON parser.
+The canonical model theorems cover normal-view serial projection, history safety, frozen read metadata, and per-map local/global provenance and immutability.
 They do not establish cross-map snapshot consistency for the mixed lazy-acquisition rollback schedule described above.
 They do not prove that arbitrary C++ executions refine this model or that the instrumentation is complete; iteration protocol and acquisition-availability checks are not claimed as independently verified C++ algorithms.
 

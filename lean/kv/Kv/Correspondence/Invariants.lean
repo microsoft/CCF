@@ -3,13 +3,13 @@
 
 module
 
-public import Kv.Properties.Programs
+public import Kv.Correspondence.Programs
 
 @[expose] public section
 
 /-! Human-reviewed trace projections, segment assumptions, and store invariants. -/
 
-namespace Kv.Properties
+namespace Kv.Correspondence
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
@@ -39,4 +39,4 @@ def AttemptEvent (tid : Nat) : Event → Prop
   | .txCreate _ id | .txEnd _ id => id ≠ tid
   | _ => True
 
-end Kv.Properties
+end Kv.Correspondence

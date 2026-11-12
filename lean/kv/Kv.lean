@@ -15,8 +15,8 @@ public import Kv.Proofs.Retention
 public import Kv.Proofs.AdapterRetention
 public import Kv.Proofs.Segment
 public import Kv.Properties
-public import Kv.Properties.Invariants
-public import Kv.Properties.Programs
+public import Kv.Correspondence.Invariants
+public import Kv.Correspondence.Programs
 public import Kv.Properties.Semantics
 public import Kv.Tests.Replay
 public import Kv.Tests.Semantics
@@ -26,3 +26,9 @@ public import Kv.TraceValidation.Types
 public import Kv.TraceValidation.Adapter
 public import Kv.TraceValidation.Transitions
 public import Kv.TraceValidation.System
+public import Kv.Correspondence
+public import Kv.Properties.Executions
+public import Kv.Proofs.Core
+public import Kv.Proofs.CoreWitnesses
+public import Kv.Proofs.Safety
+public import Kv.Proofs.ModelExecution

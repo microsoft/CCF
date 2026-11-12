@@ -3,10 +3,10 @@
 
 module
 
-meta import Kv.Properties.Invariants
+meta import Kv.Correspondence.Invariants
 meta import Kv.TraceValidation
 
-public import Kv.Properties.Invariants
+public import Kv.Correspondence.Invariants
 public import Kv.TraceValidation
 
 public section
@@ -20,7 +20,7 @@ rejected, invalid and unsupported traces are fixtures under `replayer/fixtures/`
 
 namespace Kv.Tests.Replay
 
-open Lean Kv.Properties Kv.TraceValidation
+open Lean Kv.Properties Kv.Correspondence Kv.TraceValidation
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
 

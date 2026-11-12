@@ -4,19 +4,15 @@
 module
 
 public import Kv.Proofs.SemanticHelpers
+public import Kv.Properties.Executions
 public import CCF.Execution
 
 @[expose] public section
 
 namespace Kv.Proofs.Retention
 
-open Kv.Model
+open Kv.Model Kv.Properties
 open Kv.Proofs.SemanticHelpers
-
-/-- Semantic actions in a segment cannot destroy or recreate the selected attempt. -/
-def AttemptAction (tid : Nat) : Action → Prop
-  | .txCreate _ actual | .txEnd _ actual => actual ≠ tid
-  | _ => True
 
 /-- Captured metadata and each already acquired local/global view remain fixed. -/
 structure Kept (before after : Model.Tx) : Prop where

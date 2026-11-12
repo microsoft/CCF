@@ -12,7 +12,8 @@ namespace Kv.Proofs.AdapterRetention
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Properties Kv.Proofs.Correspondence Kv.Proofs.Retention
+open Kv.Correspondence Kv.TraceValidation Kv.Properties Kv.Proofs.Correspondence
+  Kv.Proofs.Retention
 
 private theorem translated_attempt (w : World) (tid : Nat) (event : Event)
     (segment : AttemptEvent tid event)

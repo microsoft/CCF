@@ -4,7 +4,7 @@
 module
 
 public import Kv.Proofs.Correspondence
-public import Kv.Properties.Invariants
+public import Kv.Correspondence.Invariants
 public import Kv.Proofs.SemanticHelpers
 
 @[expose] public section
@@ -13,7 +13,7 @@ namespace Kv.Proofs.Capture
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Properties Kv.Proofs.Correspondence
+open Kv.Correspondence Kv.TraceValidation Kv.Properties Kv.Proofs.Correspondence
 open Kv.Proofs.SemanticHelpers
 
 /-- A successful diagnostic bind exposes its successful input and continuation. -/

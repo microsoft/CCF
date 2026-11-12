@@ -3,7 +3,7 @@
 
 module
 
-public import Kv.Properties.Invariants
+public import Kv.Correspondence.Invariants
 public import CCF.Execution
 public import Kv.Proofs.Capture
 
@@ -41,7 +41,7 @@ namespace Kv.Proofs.Execution
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation
+open Kv.Correspondence Kv.TraceValidation
 
 private theorem step_iff_transition (w next : World) (r : Record)
     : transitionSystem.step w r = some next ↔ step w r = .ok next := by
@@ -54,7 +54,7 @@ namespace Kv.Proofs.Invariants
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Properties
+open Kv.Correspondence Kv.TraceValidation Kv.Properties
 
 /-- Store histories are contiguous, headed by the current frame, and contain the global cut. -/
 private structure StoreInvariant (s : Store) : Prop where
@@ -71,7 +71,7 @@ namespace Kv.Proofs.Invariants
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Properties
+open Kv.Correspondence Kv.TraceValidation Kv.Properties
 variable {M K V : Type}
 
 private theorem find_set_same [DecidableEq K] (xs : Assoc K V) (k : K) (v : V)
@@ -157,7 +157,7 @@ namespace Kv.Proofs.Model
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Proofs.Invariants Kv.Properties
+open Kv.Correspondence Kv.TraceValidation Kv.Proofs.Invariants Kv.Properties
 section Generic
 variable {M K V : Type} [DecidableEq M] [DecidableEq K]
 
@@ -253,7 +253,7 @@ namespace Kv.Proofs.Model
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Proofs.Invariants Kv.Properties
+open Kv.Correspondence Kv.TraceValidation Kv.Proofs.Invariants Kv.Properties
 
 theorem apply_atomic (s : Store) (writes : Pending)
     : (advance s writes).head.data = publish s.head.data (s.head.version + 1) writes :=
@@ -340,7 +340,8 @@ namespace Kv.Proofs.Trace
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Proofs.Invariants Kv.Properties Kv.Proofs.Model
+open Kv.Correspondence Kv.TraceValidation Kv.Proofs.Invariants Kv.Properties
+  Kv.Proofs.Model
 
 theorem captureGlobal_placeholder (s : Store) (snap : Snapshot) (map : String)
     (absent : find (captureLocal s snap map).births map = none)
@@ -396,7 +397,7 @@ namespace Kv.Proofs.Properties
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Properties
+open Kv.Correspondence Kv.TraceValidation Kv.Properties
 
 theorem discarded_handle_cannot_apply
     : ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
@@ -422,7 +423,7 @@ namespace Kv.Proofs.Witnesses
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation Kv.Properties Kv.Proofs.Invariants
+open Kv.Correspondence Kv.TraceValidation Kv.Properties Kv.Proofs.Invariants
 
 private instance (sid : Nat) : DecidablePred (SegmentEvent sid) :=
   fun e => by

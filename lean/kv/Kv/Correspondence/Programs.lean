@@ -8,11 +8,11 @@ public import Kv.TraceValidation.System
 
 @[expose] public section
 
-namespace Kv.Properties
+namespace Kv.Correspondence
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation
+open Kv.TraceValidation Kv.Properties
 
 /-- A branch of actual executable applications, including no_replicate ones.
 The programs are each attempt's operation log, not final-state observations. -/
@@ -37,4 +37,4 @@ def serialTransactions (db : Data) (version : Nat) : List Tx → Option Data
         fun writes =>
           serialTransactions (publish db (version + 1) writes) (version + 1) ts
 
-end Kv.Properties
+end Kv.Correspondence
