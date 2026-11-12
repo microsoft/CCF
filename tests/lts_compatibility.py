@@ -665,6 +665,8 @@ def run_ledger_compatibility_since_first(
     committed_ledger_dirs = None
     snapshots_dir = None
     previous_version = None
+    # Seqno of the newest snapshot written by a pre-7.0 step
+    newest_legacy_snapshot_seqno = 0
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
@@ -848,16 +850,30 @@ def run_ledger_compatibility_since_first(
                 ccf.ledger.Ledger(
                     committed_ledger_dirs, contiguous_suffix=True
                 ).get_latest_public_state()
-                # Snapshots written before 7.0 carry JSON receipts, which
-                # ccf.ledger.Snapshot rejects
-                if snapshots_dir and not infra.node.CCFVersion(
-                    version
-                ) < infra.node.CCFVersion("ccf-7.0.0"):
-                    for s in os.listdir(snapshots_dir):
-                        with ccf.ledger.Snapshot(
-                            os.path.join(snapshots_dir, s)
-                        ) as snapshot:
-                            snapshot.get_public_domain()
+                if snapshots_dir:
+                    # The directory also holds the snapshots this step was
+                    # recovered from. Those written before 7.0 carry JSON
+                    # receipts, which ccf.ledger.Snapshot rejects, so a step
+                    # running a pre-7.0 version only records its newest
+                    # snapshot, and later steps parse the snapshots above it.
+                    snapshot_seqnos = {
+                        s: ccf.ledger.snapshot_index_from_filename(s)[0]
+                        for s in os.listdir(snapshots_dir)
+                    }
+                    if infra.node.CCFVersion(version) < infra.node.CCFVersion(
+                        "ccf-7.0.0"
+                    ):
+                        newest_legacy_snapshot_seqno = max(
+                            snapshot_seqnos.values(), default=0
+                        )
+                    else:
+                        for s, snapshot_seqno in snapshot_seqnos.items():
+                            if snapshot_seqno <= newest_legacy_snapshot_seqno:
+                                continue
+                            with ccf.ledger.Snapshot(
+                                os.path.join(snapshots_dir, s)
+                            ) as snapshot:
+                                snapshot.get_public_domain()
 
                 previous_version = version
 

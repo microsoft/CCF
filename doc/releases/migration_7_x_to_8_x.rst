@@ -47,8 +47,9 @@ Snapshot Receipts
 Snapshots carry a COSE receipt of their evidence transaction since 7.0, and 8.x nodes accept only those receipts.
 Snapshots written by 6.x and earlier releases carry a JSON receipt, which 8.x nodes reject like any snapshot that fails verification (see :ref:`operations/ledger_snapshot:Join or Recover From Snapshot`): a joining node marks the file as ignored in its ``snapshots.directory`` and moves on to an older snapshot or fetches one from the service, and a recovering node moves on to an older snapshot or to the ledger.
 A service whose newest snapshot predates 7.0 therefore recovers from its ledger on 8.x.
-An 8.x node joining a service whose newest snapshot predates 7.0 fetches and rejects that snapshot, then asks to join from the sequence number its target node started from and replays the ledger from there.
-Create a snapshot on the service beforehand (:http:POST:`/node/snapshot:create`) so that new nodes join from a snapshot.
+An 8.x node joining a service whose newest snapshot predates 7.0 fetches and rejects that snapshot; its later join requests are then held to the sequence number its target node started from, so it is admitted and replays the ledger when the target itself started from the ledger, or from a snapshot no newer than the joiner's own.
+When the target started from a newer snapshot, the joiner keeps fetching and rejecting until the service has a usable snapshot.
+Create a snapshot on the service before adding 8.x nodes (:http:POST:`/node/snapshot:create`), so that they join from a snapshot with a COSE receipt.
 ``ccf.ledger.Snapshot`` and ``read_ledger.py --snapshot`` in the 8.x Python package reject these snapshots as well.
 
 ML-DSA Service Identity

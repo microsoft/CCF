@@ -261,7 +261,7 @@ The legacy behaviour without ``fetch_recent_snapshot`` relies on a shared read-o
     Use ``command.join.fetch_recent_snapshot`` (enabled by default) to have joining nodes fetch a recent snapshot from the service, and ``snapshots.backup_fetch.enabled`` to have backup nodes keep a copy of recent snapshots in their own ``snapshots.directory`` (see :ref:`operations/ledger_snapshot:Backup Snapshot Fetching`).
 
 In particular, there is a hard lower bound on the age of the snapshot that a joining node can start from. It must be at least as recent as the snapshot that the primary node started from, otherwise the primary will return a ``StartupSeqnoIsOld`` error to the joining node.
-A fetched snapshot which fails validation is discarded, and the later join requests of that node are held to this lower bound only, so that it joins by replaying the ledger when the service cannot provide a usable snapshot.
+A fetched snapshot which fails validation is discarded, and the later join requests of that node are held to this lower bound only, so that it joins by replaying the ledger when its own startup sequence number satisfies the bound and the service cannot provide a usable snapshot.
 
 The following flowchart summarises the join procedure when ``command.join.fetch_recent_snapshot`` is enabled:
 
