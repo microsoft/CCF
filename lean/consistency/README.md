@@ -85,7 +85,7 @@ lake build --wfail consistency-replay
 ```
 
 [`tests/partitions_test.py`](../../tests/partitions_test.py) also records traces when `CCF_CONSISTENCY_TRACE=1` is set, using [`tests/infra/consistency_trace.py`](../../tests/infra/consistency_trace.py).
-Its `basic` and `isolate-reconnect` groups each write `consistency_trace.ndjson` in their network's common directory, and replay it when `CCF_LEAN_CONSISTENCY_REPLAYER` names the replayer:
+Its `basic` and `isolate-reconnect` groups each write a trace named after the test, such as `basic_partitions_consistency_trace.ndjson`, in their network's common directory, and replay it when `CCF_LEAN_CONSISTENCY_REPLAYER` names the replayer:
 
 ```sh
 (cd build && CR_FILTER="basic|isolate-reconnect" CCF_CONSISTENCY_TRACE=1 CCF_LEAN_CONSISTENCY_REPLAYER="$PWD/../lean/consistency/.lake/build/bin/consistency-replay" ./tests.sh -VV -C partitions -R '^partitions$' --no-tests=error)

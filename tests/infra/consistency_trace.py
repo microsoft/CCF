@@ -89,15 +89,16 @@ def replay(path):
 
 
 @contextlib.contextmanager
-def recording(network, enabled):
-    """Yield a trace in network.common_dir if enabled, otherwise None.
+def recording(network, name, enabled):
+    """Yield a trace named after its source, in network.common_dir, if enabled.
+    Otherwise yield None.
 
     The trace is replayed on exit, unless the body raised."""
     if not enabled:
         yield None
         return
     trace = ConsistencyTrace(
-        os.path.join(network.common_dir, "consistency_trace.ndjson")
+        os.path.join(network.common_dir, f"{name}_consistency_trace.ndjson")
     )
     try:
         yield trace

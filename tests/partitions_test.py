@@ -1485,7 +1485,7 @@ def partitioned_network(args):
 
 def run_basic_partitions(args):
     with partitioned_network(args) as network, infra.consistency_trace.recording(
-        network, CONSISTENCY_TRACE
+        network, args.label, CONSISTENCY_TRACE
     ) as trace:
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)
@@ -1501,7 +1501,7 @@ def run_certificate_partitions(args):
 
 def run_isolate_and_reconnect(args):
     with partitioned_network(args) as network, infra.consistency_trace.recording(
-        network, CONSISTENCY_TRACE
+        network, args.label, CONSISTENCY_TRACE
     ) as trace:
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, trace, iteration=n)
