@@ -13,6 +13,7 @@ It assumes familiarity with the [CCF consensus protocol documentation](../../doc
 | Protocol policy (one node's step)      | [`Model/Node.lean`](Consensus/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)     |
 | Initial states and network composition | [`Model.lean`](Consensus/Model.lean) (`initialNodeState`, `transitionSystem`)                                                  |
 | Safety theorems and witness lemmas     | [`Properties.lean`](Consensus/Properties.lean)                                                                                 |
+| Valid initial memberships              | [`Properties/Config.lean`](Consensus/Properties/Config.lean)                                                                   |
 | Supporting proofs and executions       | [`Proofs/`](Consensus/Proofs)                                                                                                  |
 | Action-trace tests                     | [`Tests/CanonicalTraces.lean`](Consensus/Tests/CanonicalTraces.lean)                                                           |
 
@@ -55,17 +56,17 @@ The shared `check-imports` command rejects modules missing from that import clos
 
 ## Proofs
 
-`Properties.lean` contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
+[`Properties.lean`](Consensus/Properties.lean) contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
 Import `Consensus.Properties` and use `Consensus.Properties.<name>` for these declarations.
 Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional facilities explicitly rather than relying on incidental reexports.
 `Proofs/Direct.lean` establishes node-local commit invariants; `Proofs/SafetyInvariant.lean` establishes the cross-node history invariant, in the `Consensus.Proofs.Safety` namespace, used for election safety and committed-log comparability.
-`Proofs/Witnesses.lean` supplies concrete executions checked by the kernel.
-The proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
+[`Proofs/Witnesses.lean`](Consensus/Proofs/Witnesses.lean) supplies the checked witness implementations, using shared execution-construction helpers in [`Proofs/GenericWitnesses.lean`](Consensus/Proofs/GenericWitnesses.lean).
+The safety-invariant proof remains independent of the witness construction, allowing Lake to check them in parallel.
 
 To list the safety-invariant declarations used by the exported theorems, run `lake env lean scripts/invariant-dependencies.lean`.
 
 ## Trace replay
 
 The [trace replayer](replay/README.md) checks finite driver observations against direct model transitions, independently of proofs.
-It uses strict FIFO selection per directed node pair, preserves packet multiplicity, and never repairs model state.
+It checks each native send against the model, delivers any matching queued packet, treats undelivered packets as lost, and never repairs model state.
 The current native Fluentd capture path and replay's assurance limits are documented there.
