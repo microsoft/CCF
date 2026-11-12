@@ -1,183 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "ccf/crypto/base64.h"
 #include "ccf/ds/json_schema.h"
+#include "ccf/json/declarations.h"
+#include "ccf/json/primitives.h"
 
 #define FMT_HEADER_ONLY
 #include <cstdint>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <sstream>
-
-namespace ccf
-{
-  /** Represents a field within a JSON object. Tuples of these can be used in
-   * schema generation.
-   */
-  template <typename T>
-  struct JsonField
-  {
-    using Target = T;
-    char const* name;
-  };
-
-  class JsonParseError : public std::invalid_argument
-  {
-  public:
-    std::vector<std::string> pointer_elements;
-
-    using std::invalid_argument::invalid_argument;
-
-    JsonParseError(const JsonParseError& other) noexcept = default;
-
-    [[nodiscard]] std::string pointer() const
-    {
-      return fmt::format(
-        "#/{}",
-        fmt::join(pointer_elements.crbegin(), pointer_elements.crend(), "/"));
-    }
-
-    [[nodiscard]] std::string describe() const
-    {
-      return fmt::format("At {}: {}", pointer(), what());
-    }
-  };
-
-  inline constexpr size_t MAX_JSON_NESTING_DEPTH = 64;
-
-  class JsonTooDeep : public ccf::JsonParseError
-  {
-  public:
-    explicit JsonTooDeep(size_t max_depth) :
-      ccf::JsonParseError(fmt::format(
-        "JSON object/array nesting exceeds maximum depth of {}", max_depth))
-    {}
-  };
-
-  inline nlohmann::json::parser_callback_t make_depth_limit_callback(
-    size_t max_depth)
-  {
-    return [max_depth](
-             int depth,
-             nlohmann::json::parse_event_t event,
-             nlohmann::json& /*parsed*/) {
-      using E = nlohmann::json::parse_event_t;
-      if (
-        (event == E::object_start || event == E::array_start) &&
-        static_cast<size_t>(depth) >= max_depth)
-      {
-        throw JsonTooDeep{max_depth};
-      }
-      return true;
-    };
-  }
-
-  // Depth-bounded alternative to nlohmann::json::parse, for inputs whose
-  // depth has not been validated upstream. max_depth defaults to
-  // MAX_JSON_NESTING_DEPTH but can be overridden at the call site for
-  // applications with stricter or more permissive requirements.
-  template <typename Bytes>
-  nlohmann::json parse_json_safe(
-    Bytes&& bytes, size_t max_depth = MAX_JSON_NESTING_DEPTH)
-  {
-    return nlohmann::json::parse(
-      std::forward<Bytes>(bytes), make_depth_limit_callback(max_depth));
-  }
-
-  template <typename Iter>
-  nlohmann::json parse_json_safe(
-    Iter first, Iter last, size_t max_depth = MAX_JSON_NESTING_DEPTH)
-  {
-    return nlohmann::json::parse(
-      first, last, make_depth_limit_callback(max_depth));
-  }
-}
-
-// NOLINTBEGIN(cert-dcl58-cpp)
-namespace std
-{
-  template <typename T>
-  inline void to_json(nlohmann::json& j, const std::optional<T>& t)
-  {
-    if (t.has_value())
-    {
-      j = t.value();
-    }
-  }
-
-  template <typename T>
-  inline void from_json(const nlohmann::json& j, std::optional<T>& t)
-  {
-    if (!j.is_null())
-    {
-      t = j.get<T>();
-    }
-  }
-
-  template <typename T>
-  inline void to_json(nlohmann::json& j, const std::vector<T>& t)
-  {
-    if constexpr (std::is_same_v<T, uint8_t>)
-    {
-      j = ccf::crypto::b64_from_raw(t);
-    }
-    else
-    {
-      j = nlohmann::json::array();
-      for (const auto& e : t)
-      {
-        j.push_back(e);
-      }
-    }
-  }
-
-  template <typename T>
-  inline void from_json(const nlohmann::json& j, std::vector<T>& t)
-  {
-    if constexpr (std::is_same_v<T, uint8_t>)
-    {
-      if (j.is_string())
-      {
-        try
-        {
-          t = ccf::crypto::raw_from_b64(j.get<std::string>());
-          return;
-        }
-        catch (const std::exception& e)
-        {
-          throw ccf::JsonParseError(fmt::format(
-            "Vector of bytes object \"{}\" is not valid base64", j.dump()));
-        }
-      }
-    }
-
-    // Fall-through. So we can convert _from_ [1,2,3] to
-    // std::vector<uint8_t>, but would prefer (and will produce in to_json) a
-    // base64 string
-
-    if (!j.is_array())
-    {
-      throw ccf::JsonParseError(
-        fmt::format("Vector object \"{}\" is not an array", j.dump()));
-    }
-
-    for (size_t i = 0; i < j.size(); ++i)
-    {
-      try
-      {
-        t.push_back(j.at(i).template get<T>());
-      }
-      catch (ccf::JsonParseError& jpe)
-      {
-        jpe.pointer_elements.push_back(std::to_string(i));
-        throw;
-      }
-    }
-  }
-}
-
-// NOLINTEND(cert-dcl58-cpp)
 
 // FOREACH macro machinery for counting args
 
@@ -254,7 +86,8 @@ namespace std
     2, \
     1, \
     0)
-#define _FOR_JSON_COUNT_NN(...) _FOR_JSON_COUNT_NN_WITH_0(DUMMY, ##__VA_ARGS__)
+#define _FOR_JSON_COUNT_NN(...) \
+  _FOR_JSON_COUNT_NN_WITH_0(DUMMY __VA_OPT__(, ) __VA_ARGS__)
 
 #define _FOR_JSON_0(POP_N) _FOR_JSON_0_##POP_N
 #define _FOR_JSON_1(POP_N) _FOR_JSON_1_##POP_N
@@ -693,8 +526,12 @@ namespace std
   void to_json_optional_fields(nlohmann::json& j, const TYPE& t); \
   void from_json_required_fields(const nlohmann::json& j, TYPE& t); \
   void from_json_optional_fields(const nlohmann::json& j, TYPE& t); \
-  void fill_json_schema_required_fields(nlohmann::json& j, const TYPE*); \
-  void fill_json_schema_optional_fields(nlohmann::json& j, const TYPE*); \
+  template <typename U> \
+    requires std::is_same_v<U, TYPE> \
+  void fill_json_schema_required_fields(nlohmann::json& j, const U*); \
+  template <typename U> \
+    requires std::is_same_v<U, TYPE> \
+  void fill_json_schema_optional_fields(nlohmann::json& j, const U*); \
   template <typename T> \
   void add_schema_components_required_fields( \
     T& doc, nlohmann::json& j, const TYPE*); \
@@ -713,10 +550,11 @@ namespace std
     from_json_required_fields(j, t); \
     POST_FROM_JSON; \
   } \
+  template <typename U = TYPE> \
   inline void fill_json_schema(nlohmann::json& j, const TYPE* t) \
   { \
     PRE_FILL_SCHEMA; \
-    fill_json_schema_required_fields(j, t); \
+    fill_json_schema_required_fields<U>(j, t); \
     POST_FILL_SCHEMA; \
   } \
   inline std::string schema_name(const TYPE*) \
@@ -732,9 +570,104 @@ namespace std
   } \
   REQUIRES_SEMICOLON_TERMINATION
 
-#define DECLARE_JSON_TYPE(TYPE) DECLARE_JSON_TYPE_IMPL(TYPE, , , , , , , , )
+namespace ccf::json::detail
+{
+  // Bitfields and manually serialized bases retain their legacy DOM contract.
+  // Only pointer-addressable declarations participate in native reflection.
+  template <typename T, bool Optional, typename... Bases>
+  concept LegacyReflectable = (Declared<Bases> && ...) &&
+    requires { ccf_json_required_fields(static_cast<const T*>(nullptr)); } &&
+    (!Optional ||
+     requires { ccf_json_optional_fields(static_cast<const T*>(nullptr)); });
 
+  template <typename T, bool Optional, typename... Bases>
+  constexpr auto legacy_declaration(std::string_view name)
+  {
+    const auto optional = [] {
+      if constexpr (Optional)
+      {
+        return ccf_json_optional_fields(static_cast<const T*>(nullptr));
+      }
+      else
+      {
+        return std::tuple{};
+      }
+    }();
+    return declare<T>(
+      name,
+      std::tuple_cat(
+        ccf_json_declaration(static_cast<const Bases*>(nullptr)).fields...,
+        ccf_json_required_fields(static_cast<const T*>(nullptr)),
+        optional));
+  }
+
+  template <typename T, size_t N>
+  constexpr auto legacy_enum_declaration(
+    std::string_view name,
+    const std::array<std::pair<T, std::string_view>, N>& entries)
+  {
+    return declare_enum<T>(name, entries);
+  }
+}
+
+#define CCF_JSON_LEGACY_TYPE(TYPE, OPTIONAL, ...) \
+  template <typename U> \
+    requires std::is_same_v<U, TYPE> && \
+    ccf::json::detail:: \
+      LegacyReflectable<U, OPTIONAL __VA_OPT__(, ) __VA_ARGS__> \
+  inline constexpr auto ccf_json_declaration(const U*) \
+  { \
+    return ccf::json::detail:: \
+      legacy_declaration<U, OPTIONAL __VA_OPT__(, ) __VA_ARGS__>(#TYPE); \
+  }
+
+#define CCF_JSON_ADDRESSABLE_FOR_JSON_NEXT(TYPE, FIELD) &TYPE::FIELD;
+#define CCF_JSON_ADDRESSABLE_FOR_JSON_FINAL(TYPE, FIELD) &TYPE::FIELD;
+#define CCF_JSON_ADDRESSABLE_NAMED_FOR_JSON_NEXT(TYPE, FIELD, NAME) \
+  &TYPE::FIELD;
+#define CCF_JSON_ADDRESSABLE_NAMED_FOR_JSON_FINAL(TYPE, FIELD, NAME) \
+  &TYPE::FIELD;
+
+#define CCF_JSON_REQUIRED_NAMED_FOR_JSON_NEXT(TYPE, FIELD, NAME) \
+  ccf::json::detail:: \
+    Field<&TYPE::FIELD, ccf::json::detail::Presence::Required>{NAME},
+#define CCF_JSON_REQUIRED_NAMED_FOR_JSON_FINAL(TYPE, FIELD, NAME) \
+  ccf::json::detail:: \
+    Field<&TYPE::FIELD, ccf::json::detail::Presence::Required> \
+  { \
+    NAME \
+  }
+#define CCF_JSON_OPTIONAL_NAMED_FOR_JSON_NEXT(TYPE, FIELD, NAME) \
+  ccf::json::detail:: \
+    Field<&TYPE::FIELD, ccf::json::detail::Presence::Optional, TYPE>{NAME},
+#define CCF_JSON_OPTIONAL_NAMED_FOR_JSON_FINAL(TYPE, FIELD, NAME) \
+  ccf::json::detail:: \
+    Field<&TYPE::FIELD, ccf::json::detail::Presence::Optional, TYPE> \
+  { \
+    NAME \
+  }
+#define CCF_JSON_LEGACY_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
+  CCF_JSON_OPTIONAL_NAMED_FOR_JSON_NEXT(TYPE, FIELD, #FIELD)
+#define CCF_JSON_LEGACY_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
+  CCF_JSON_OPTIONAL_NAMED_FOR_JSON_FINAL(TYPE, FIELD, #FIELD)
+
+#define DECLARE_JSON_TYPE(TYPE) \
+  CCF_JSON_LEGACY_TYPE(TYPE, false) \
+  DECLARE_JSON_TYPE_IMPL(TYPE, , , , , , , , )
+#define DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TYPE) \
+  CCF_JSON_LEGACY_TYPE(TYPE, true) \
+  DECLARE_JSON_TYPE_IMPL( \
+    TYPE, \
+    , \
+    to_json_optional_fields(j, t), \
+    , \
+    from_json_optional_fields(j, t), \
+    , \
+    fill_json_schema_optional_fields(j, t), \
+    , \
+    add_schema_components_optional_fields(doc, j, t))
 #define DECLARE_JSON_TYPE_WITH_BASE(TYPE, BASE) \
+  CCF_JSON_LEGACY_TYPE(TYPE, false, BASE) \
   DECLARE_JSON_TYPE_IMPL( \
     TYPE, \
     to_json(j, static_cast<const BASE&>(t)), \
@@ -744,8 +677,8 @@ namespace std
     fill_json_schema(j, static_cast<const BASE*>(t)), \
     , \
     add_schema_components(doc, j, static_cast<const BASE*>(t)), )
-
 #define DECLARE_JSON_TYPE_WITH_2BASES(TYPE, BASE1, BASE2) \
+  CCF_JSON_LEGACY_TYPE(TYPE, false, BASE1, BASE2) \
   DECLARE_JSON_TYPE_IMPL( \
     TYPE, to_json(j, static_cast<const BASE1&>(t)); \
     to_json(j, static_cast<const BASE2&>(t)), \
@@ -758,20 +691,8 @@ namespace std
     , \
     add_schema_components(doc, j, static_cast<const BASE1*>(t)); \
     add_schema_components(doc, j, static_cast<const BASE2*>(t)), )
-
-#define DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TYPE) \
-  DECLARE_JSON_TYPE_IMPL( \
-    TYPE, \
-    , \
-    to_json_optional_fields(j, t), \
-    , \
-    from_json_optional_fields(j, t), \
-    , \
-    fill_json_schema_optional_fields(j, t), \
-    , \
-    add_schema_components_optional_fields(doc, j, t))
-
 #define DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(TYPE, BASE) \
+  CCF_JSON_LEGACY_TYPE(TYPE, true, BASE) \
   DECLARE_JSON_TYPE_IMPL( \
     TYPE, \
     to_json(j, static_cast<const BASE&>(t)), \
@@ -784,6 +705,17 @@ namespace std
     add_schema_components_optional_fields(doc, j, t))
 
 #define DECLARE_JSON_REQUIRED_FIELDS(TYPE, ...) \
+  template <typename U> \
+    requires std::is_same_v<U, TYPE> && requires { \
+      sizeof(U); \
+      __VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)( \
+        CCF_JSON_ADDRESSABLE, U, __VA_ARGS__)) \
+    } \
+  inline constexpr auto ccf_json_required_fields(const U*) \
+  { \
+    using T [[maybe_unused]] = U; \
+    return CCF_JSON_REQUIRED(__VA_ARGS__); \
+  } \
   NESTED_PRAGMA("clang diagnostic push") \
   NESTED_PRAGMA( \
     "clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\"") \
@@ -805,12 +737,14 @@ namespace std
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
+  template <typename U> \
+    requires std::is_same_v<U, TYPE> \
   inline void fill_json_schema_required_fields( \
-    nlohmann::json& j, [[maybe_unused]] const TYPE*) \
+    nlohmann::json& j, [[maybe_unused]] const U*) \
   { \
     j["type"] = "object"; \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
-    (POP1)(FILL_SCHEMA_REQUIRED, TYPE, ##__VA_ARGS__) \
+    (POP1)(FILL_SCHEMA_REQUIRED, U, ##__VA_ARGS__) \
   } \
   template <typename T> \
   void add_schema_components_required_fields( \
@@ -824,6 +758,18 @@ namespace std
   REQUIRES_SEMICOLON_TERMINATION
 
 #define DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(TYPE, ...) \
+  template <typename U> \
+    requires std::is_same_v<U, TYPE> && requires { \
+      sizeof(U); \
+      __VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)(POP2)( \
+        CCF_JSON_ADDRESSABLE_NAMED, U, __VA_ARGS__)) \
+    } \
+  inline constexpr auto ccf_json_required_fields(const U*) \
+  { \
+    using T [[maybe_unused]] = U; \
+    return std::tuple{__VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)(POP2)( \
+      CCF_JSON_REQUIRED_NAMED, U, __VA_ARGS__))}; \
+  } \
   inline void to_json_required_fields(nlohmann::json& j, const TYPE& t) \
   { \
     if (!j.is_object()) \
@@ -842,11 +788,13 @@ namespace std
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(READ_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
   } \
-  inline void fill_json_schema_required_fields(nlohmann::json& j, const TYPE*) \
+  template <typename U> \
+    requires std::is_same_v<U, TYPE> \
+  inline void fill_json_schema_required_fields(nlohmann::json& j, const U*) \
   { \
     j["type"] = "object"; \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
-    (POP2)(FILL_SCHEMA_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
+    (POP2)(FILL_SCHEMA_REQUIRED_WITH_RENAMES, U, ##__VA_ARGS__) \
   } \
   template <typename T> \
   void add_schema_components_required_fields( \
@@ -859,6 +807,18 @@ namespace std
   REQUIRES_SEMICOLON_TERMINATION
 
 #define DECLARE_JSON_OPTIONAL_FIELDS(TYPE, ...) \
+  template <typename U> \
+    requires std::is_same_v<U, TYPE> && requires { \
+      sizeof(U); \
+      __VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)( \
+        CCF_JSON_ADDRESSABLE, U, __VA_ARGS__)) \
+    } \
+  inline constexpr auto ccf_json_optional_fields(const U*) \
+  { \
+    using T [[maybe_unused]] = U; \
+    return std::tuple{__VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)( \
+      CCF_JSON_LEGACY_OPTIONAL, U, __VA_ARGS__))}; \
+  } \
   inline void to_json_optional_fields(nlohmann::json& j, const TYPE& t) \
   { \
     const TYPE t_default{}; \
@@ -868,10 +828,12 @@ namespace std
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_OPTIONAL, TYPE, ##__VA_ARGS__) \
   } \
-  inline void fill_json_schema_optional_fields(nlohmann::json& j, const TYPE*) \
+  template <typename U> \
+    requires std::is_same_v<U, TYPE> \
+  inline void fill_json_schema_optional_fields(nlohmann::json& j, const U*) \
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
-    (POP1)(FILL_SCHEMA_OPTIONAL, TYPE, ##__VA_ARGS__) \
+    (POP1)(FILL_SCHEMA_OPTIONAL, U, ##__VA_ARGS__) \
   } \
   template <typename T> \
   void add_schema_components_optional_fields( \
@@ -883,6 +845,18 @@ namespace std
   REQUIRES_SEMICOLON_TERMINATION
 
 #define DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(TYPE, ...) \
+  template <typename U> \
+    requires std::is_same_v<U, TYPE> && requires { \
+      sizeof(U); \
+      __VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)(POP2)( \
+        CCF_JSON_ADDRESSABLE_NAMED, U, __VA_ARGS__)) \
+    } \
+  inline constexpr auto ccf_json_optional_fields(const U*) \
+  { \
+    using T [[maybe_unused]] = U; \
+    return std::tuple{__VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)(POP2)( \
+      CCF_JSON_OPTIONAL_NAMED, U, __VA_ARGS__))}; \
+  } \
   inline void to_json_optional_fields(nlohmann::json& j, const TYPE& t) \
   { \
     const TYPE t_default{}; \
@@ -894,11 +868,13 @@ namespace std
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(READ_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
   } \
+  template <typename U> \
+    requires std::is_same_v<U, TYPE> \
   inline void fill_json_schema_optional_fields( \
-    nlohmann::json& j, [[maybe_unused]] const TYPE*) \
+    nlohmann::json& j, [[maybe_unused]] const U*) \
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
-    (POP2)(FILL_SCHEMA_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
+    (POP2)(FILL_SCHEMA_OPTIONAL_WITH_RENAMES, U, ##__VA_ARGS__) \
   } \
   template <typename T> \
   void add_schema_components_optional_fields( \
@@ -909,61 +885,13 @@ namespace std
   } \
   REQUIRES_SEMICOLON_TERMINATION
 
-// Enum conversion, based on NLOHMANN_JSON_SERIALIZE_ENUM, but less permissive
-// (throws on unknown JSON values)
 #define DECLARE_JSON_ENUM(TYPE, ...) \
-  template <typename BasicJsonType> \
-  inline void to_json(BasicJsonType& j, const TYPE& e) \
+  inline constexpr auto ccf_json_declaration(const TYPE*) \
   { \
-    static_assert(std::is_enum_v<TYPE>, #TYPE " must be an enum!"); \
-    static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
-    auto it = std::find_if( \
-      std::begin(m), \
-      std::end(m), \
-      [e](const std::pair<TYPE, BasicJsonType>& ej_pair) -> bool { \
-        return ej_pair.first == e; \
-      }); \
-    if (it == std::end(m)) \
-    { \
-      throw ccf::JsonParseError(fmt::format( \
-        "Value {} in enum " #TYPE " has no specified JSON conversion", \
-        (size_t)e)); \
-    } \
-    j = it->second; \
+    return ccf::json::detail::legacy_enum_declaration( \
+      #TYPE, std::to_array<std::pair<TYPE, std::string_view>>(__VA_ARGS__)); \
   } \
-  template <typename BasicJsonType> \
-  inline void from_json(const BasicJsonType& j, TYPE& e) \
-  { \
-    static_assert(std::is_enum_v<TYPE>, #TYPE " must be an enum!"); \
-    static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
-    auto it = std::find_if( \
-      std::begin(m), \
-      std::end(m), \
-      [&j](const std::pair<TYPE, BasicJsonType>& ej_pair) -> bool { \
-        return ej_pair.second == j; \
-      }); \
-    if (it == std::end(m)) \
-    { \
-      throw ccf::JsonParseError( \
-        fmt::format("{} is not convertible to " #TYPE, j.dump())); \
-    } \
-    e = it->first; \
-  } \
-  inline std::string schema_name(const TYPE*) \
-  { \
-    return #TYPE; \
-  } \
-  inline void fill_enum_schema(nlohmann::json& j, const TYPE*) \
-  { \
-    static const std::pair<TYPE, nlohmann::json> m[] = __VA_ARGS__; \
-    auto enums = nlohmann::json::array(); \
-    for (const auto& p : m) \
-    { \
-      enums.push_back(p.second); \
-    } \
-    j["enum"] = enums; \
-    j["type"] = "string"; \
-  } \
-  REQUIRES_SEMICOLON_TERMINATION
+  CCF_JSON_ENUM_CONVERSIONS(TYPE) \
+  static_assert(true, "Semicolon required")
 
 #pragma clang diagnostic pop

@@ -127,6 +127,38 @@ Instead of taking and returning `nlohmann::json` objects directly, the endpoint 
 
 This produces validation error messages with a low performance overhead, and ensures the schema and parsing logic stay in sync, but is only suitable for simple schema - an object with some required and some optional fields, each of a supported type.
 
+Typed JSON serialization
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Include ``ccf/json.h`` to serialize a declared type directly to JSON text without constructing a ``nlohmann::json`` DOM::
+
+  const auto bytes = ccf::json::write(record);
+  auto decoded = ccf::json::read<Record>(bytes);
+
+For Clang 18 with libstdc++ 13, the integration header enables the library's existing ``std::expected`` declarations using a version-gated workaround.
+It restores the compiler feature macro immediately after loading ``<expected>``, without global compiler flags, alternate library implementations, or changes to Glaze.
+Include ``ccf/json.h`` before using Glaze directly on this toolchain.
+
+The existing ``DECLARE_JSON_*`` declarations and ``nlohmann::json`` conversions remain supported.
+Both declaration styles share field metadata, while their DOM and direct serialization paths are independent.
+``CCF_JSON_REQUIRED`` requires a key and always writes it, ``CCF_JSON_OPTIONAL`` preserves the existing default-value omission policy, and ``CCF_JSON_ALLOW_MISSING`` accepts missing input but always writes the value.
+``CCF_JSON_BASE`` and ``CCF_JSON_NAMED`` add inheritance and wire-name customization to the same declaration.
+
+Return ``ccf::make_success(value)`` from a JSON-adapted handler; supported typed values automatically use direct serialization while retaining the adapter's status and content-negotiation behavior.
+Explicit ``nlohmann::json`` values and braced JSON initializers continue to use the DOM overloads.
+The response variant includes a serialized-JSON alternative, so applications must be rebuilt with the updated CCF headers and libraries.
+Request parsing still uses the existing depth-bounded parser.
+The low-level direct reader is intended for trusted input; do not substitute it at an untrusted request boundary without validating its resource limits and parsing semantics.
+
+Generated endpoint documents use OpenAPI 3.1 and JSON Schema 2020-12.
+Additional descriptions and constraints can be declared with ``glz::json_schema<T>``.
+Primitive field schemas are inline; named nonprimitive definitions are shared in the document's ``components/schemas`` rather than repeated in component-local ``$defs``.
+Ordinary enums use ``enum``; enums with per-value annotations retain ``oneOf`` so that metadata is not lost.
+Generated record schemas omit permissive ``additionalProperties`` defaults and synthesized titles; explicit schema annotations and map-value constraints are retained.
+Schema constraints describe the contract; they do not automatically add application validation to the reader.
+Custom ADL schema hooks must describe their fields inline or register their referenced components through ``add_schema_components``; generated schemas no longer rely on unrelated endpoints to supply those dependencies.
+Existing frozen governance API documents retain their versioned contracts.
+
 Authentication
 ~~~~~~~~~~~~~~
 

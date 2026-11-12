@@ -1448,7 +1448,7 @@ namespace ccf
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       args.rpc_ctx->set_response_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-      args.rpc_ctx->set_response_body(nlohmann::json(nm).dump());
+      args.rpc_ctx->set_response_body(ccf::json::write(nm));
     }
 
     auto js_metrics(
@@ -1843,7 +1843,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "5.0.9";
+      openapi_info.document_version = "5.0.10";
     }
 
     void init_handlers() override

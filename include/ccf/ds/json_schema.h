@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/nonstd.h"
+#include "ccf/json/metadata.h"
 
 #include <algorithm>
 #include <optional>
@@ -12,12 +13,18 @@
 #include <set>
 #include <unordered_set>
 
+namespace ccf::json::detail
+{
+  template <typename T>
+  nlohmann::json standalone_schema();
+}
+
 namespace ccf::ds::json
 {
   struct JsonSchema
   {
     static constexpr auto hyperschema =
-      "http://json-schema.org/draft-07/schema#";
+      "https://json-schema.org/draft/2020-12/schema";
 
     nlohmann::json schema;
   };
@@ -47,9 +54,6 @@ namespace ccf::ds::json
   void fill_schema(nlohmann::json& schema);
 
   template <typename T>
-  void fill_json_schema(nlohmann::json& j, const T* t);
-
-  template <typename T>
   nlohmann::json schema_element()
   {
     auto element = nlohmann::json::object();
@@ -70,23 +74,18 @@ namespace ccf::ds::json
    * std::optional<T>. Such fields are always serialised, but may hold a JSON
    * null when the C++ value is std::nullopt (for instance, a consensus's
    * primary_id while no primary is currently known). The produced schema
-   * therefore describes the inner type T, additionally marked as nullable.
+   * therefore describes the inner type T or null.
    */
   template <typename T>
   inline nlohmann::json required_schema_element()
   {
     if constexpr (ccf::nonstd::is_specialization<T, std::optional>::value)
     {
-      auto element = schema_element<typename T::value_type>();
-      element["nullable"] = true;
-      const auto enum_it = element.find("enum");
-      if (
-        enum_it != element.end() &&
-        std::find(enum_it->begin(), enum_it->end(), nullptr) == enum_it->end())
-      {
-        enum_it->push_back(nullptr);
-      }
-      return element;
+      return nlohmann::json{
+        {"anyOf",
+         nlohmann::json::array(
+           {schema_element<typename T::value_type>(),
+            nlohmann::json{{"type", "null"}}})}};
     }
     else
     {
@@ -96,6 +95,11 @@ namespace ccf::ds::json
 
   namespace adl
   {
+    template <typename T>
+    concept HasSchema = requires(nlohmann::json& schema, const T* tag) {
+      fill_json_schema(schema, tag);
+    };
+
 #pragma clang diagnostic push
 #if defined(__clang__) && __clang_major__ >= 11
 #  pragma clang diagnostic ignored "-Wuninitialized-const-reference"
@@ -230,7 +234,16 @@ namespace ccf::ds::json
   template <typename T>
   inline void fill_schema(nlohmann::json& schema)
   {
-    if constexpr (ccf::nonstd::is_specialization<T, std::optional>::value)
+    if constexpr (ccf::json::detail::Declared<T>)
+    {
+      auto native = ccf::json::detail::standalone_schema<T>();
+      if (schema.contains("title"))
+      {
+        native["title"] = schema["title"];
+      }
+      schema = std::move(native);
+    }
+    else if constexpr (ccf::nonstd::is_specialization<T, std::optional>::value)
     {
       fill_schema<typename T::value_type>(schema);
     }
@@ -275,7 +288,10 @@ namespace ccf::ds::json
           auto sub_items = nlohmann::json::array();
           sub_items.push_back(schema_element<typename T::key_type>());
           sub_items.push_back(schema_element<typename T::mapped_type>());
-          items["items"] = sub_items;
+          items["prefixItems"] = sub_items;
+          items["items"] = false;
+          items["minItems"] = 2;
+          items["maxItems"] = 2;
         }
         schema["items"] = items;
       }
@@ -286,7 +302,10 @@ namespace ccf::ds::json
       auto items = nlohmann::json::array();
       items.push_back(schema_element<typename T::first_type>());
       items.push_back(schema_element<typename T::second_type>());
-      schema["items"] = items;
+      schema["prefixItems"] = items;
+      schema["items"] = false;
+      schema["minItems"] = 2;
+      schema["maxItems"] = 2;
     }
     else if constexpr (std::is_same_v<T, std::string>)
     {
@@ -314,9 +333,18 @@ namespace ccf::ds::json
     {
       schema["type"] = "object";
     }
-    else
+    else if constexpr (std::is_enum_v<T> || adl::HasSchema<T>)
     {
       adl::fill_schema<T>(schema);
+    }
+    else
+    {
+      auto native = ccf::json::detail::standalone_schema<T>();
+      if (schema.contains("title"))
+      {
+        native["title"] = schema["title"];
+      }
+      schema = std::move(native);
     }
   }
 

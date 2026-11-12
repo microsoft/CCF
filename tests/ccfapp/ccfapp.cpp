@@ -3,11 +3,13 @@
 
 #include "ccf/app_interface.h"
 #include "ccf/js/common_context.h"
+#include "ccf/json.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/version.h"
 
 #include <didx509cpp/didx509cpp.h>
 #include <iostream>
+#include <string>
 #include <tav/cbor.hpp>
 #include <tav/snp.h>
 #include <tav/utils.h>
@@ -15,6 +17,13 @@
 
 using namespace std;
 using namespace nlohmann;
+
+struct JsonRecord
+{
+  std::string value;
+};
+
+CCF_JSON_TYPE(JsonRecord, CCF_JSON_REQUIRED(value));
 
 namespace ccf
 {
@@ -28,6 +37,18 @@ namespace ccf
 int main()
 {
   std::cout << "I'm a CCF test app " << ccf::ccf_version << std::endl;
+
+  const JsonRecord record{"installed"};
+  const auto json_bytes = ccf::json::write(record);
+  if (
+    ccf::json::read<JsonRecord>(json_bytes).value != record.value ||
+    ccf::json::schema<JsonRecord>().at("required") !=
+      nlohmann::json::array({"value"}))
+  {
+    std::cerr << "Unexpected installed JSON serialization or schema"
+              << std::endl;
+    return 1;
+  }
 
   // Third-party headers installed for applications must be usable
   namespace cbor = tav::cbor;

@@ -15,6 +15,10 @@ User-defined types can be used for both the key and value types of a :cpp:type:`
     :start-after: SNIPPET_START: CustomClass definition
     :end-before: SNIPPET_END: CustomClass definition
 
+The default KV serializer continues to use the existing DOM encoding, including its member ordering.
+The direct ``ccf::json`` API does not change persisted table encodings automatically.
+In particular, changing the byte representation of a key changes its identity in the store, even if the decoded JSON values are equivalent.
+
 Custom serialisers can also be defined. The serialiser itself must be a type implementing ``to_serialised`` and ``from_serialised`` functions for the target type:
 
 .. literalinclude:: ../../../src/kv/test/kv_serialisation.cpp

@@ -695,6 +695,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      json_serialization_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_serialization.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_expected_compat.cpp
+    )
+
+    add_unit_test(
       public_header_helpers_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/public_header_helpers.cpp
     )
@@ -1093,6 +1099,12 @@ if(BUILD_TESTS)
     target_link_libraries(endpoint_registry_test PRIVATE ccf_endpoints)
 
     add_unit_test(
+      json_handler_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/json_handler.cpp
+    )
+    target_link_libraries(json_handler_test PRIVATE ccf_endpoints)
+
+    add_unit_test(
       jwt_auth_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/test_jwt_auth.cpp
     )
@@ -1220,6 +1232,10 @@ if(BUILD_TESTS)
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
+    add_picobench(
+      json_serialization_bench
+      SRCS src/ds/test/json_serialization_bench.cpp
+    )
     add_picobench(msgpack_bench SRCS src/msgpack/test/msgpack_bench.cpp)
     add_picobench(ledger_bench SRCS src/host/test/ledger_bench.cpp)
     add_picobench(crypto_bench SRCS src/crypto/test/bench.cpp LINK_LIBS)

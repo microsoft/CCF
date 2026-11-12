@@ -16,7 +16,7 @@
       "BasicJoinPolicy": {
         "properties": {
           "measurements": {
-            "$ref": "#/components/schemas/string_array"
+            "$ref": "#/components/schemas/std__vector_std__string_"
           }
         },
         "required": [
@@ -43,13 +43,12 @@
         "type": "object"
       },
       "Cose": {
-        "format": "binary",
-        "type": "string"
+        "format": "binary"
       },
       "EncryptedRecoveryShare": {
         "properties": {
           "encryptedShare": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "memberId": {
             "$ref": "#/components/schemas/MemberId"
@@ -64,10 +63,13 @@
       "Failure": {
         "properties": {
           "reason": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "trace": {
-            "$ref": "#/components/schemas/string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -81,7 +83,7 @@
             "$ref": "#/components/schemas/TransactionId"
           },
           "view_history": {
-            "$ref": "#/components/schemas/TransactionId_array"
+            "$ref": "#/components/schemas/std__vector_ccf__TxID_"
           }
         },
         "required": [
@@ -109,9 +111,7 @@
       },
       "JavascriptApp": {
         "properties": {
-          "endpoints": {
-            "$ref": "#/components/schemas/json"
-          }
+          "endpoints": {}
         },
         "required": [
           "endpoints"
@@ -127,7 +127,7 @@
       "JavascriptModule": {
         "properties": {
           "moduleName": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           }
         },
         "required": [
@@ -135,16 +135,10 @@
         ],
         "type": "object"
       },
-      "JavascriptModule_array": {
-        "items": {
-          "$ref": "#/components/schemas/JavascriptModule"
-        },
-        "type": "array"
-      },
       "JavascriptModules": {
         "properties": {
           "value": {
-            "$ref": "#/components/schemas/JavascriptModule_array"
+            "$ref": "#/components/schemas/std__vector_JavascriptModule_"
           }
         },
         "required": [
@@ -173,14 +167,12 @@
       },
       "Jwk": {
         "properties": {
-          "constraint": {
-            "$ref": "#/components/schemas/json"
-          },
+          "constraint": {},
           "issuer": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "publicKey": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           }
         },
         "required": [
@@ -193,13 +185,13 @@
       "JwkInfo": {
         "properties": {
           "caCertBundles": {
-            "$ref": "#/components/schemas/string_to_string"
+            "$ref": "#/components/schemas/std__map_std__string_std__string_"
           },
           "issuers": {
-            "$ref": "#/components/schemas/string_to_JwtIssuer"
+            "$ref": "#/components/schemas/std__map_std__string_JwtIssuer_"
           },
           "keys": {
-            "$ref": "#/components/schemas/string_to_Jwk_array"
+            "$ref": "#/components/schemas/std__map_std__string_std__vector_Jwk__"
           }
         },
         "required": [
@@ -209,19 +201,16 @@
         ],
         "type": "object"
       },
-      "Jwk_array": {
-        "items": {
-          "$ref": "#/components/schemas/Jwk"
-        },
-        "type": "array"
-      },
       "JwtIssuer": {
         "properties": {
           "autoRefresh": {
-            "$ref": "#/components/schemas/boolean"
+            "type": "boolean"
           },
           "caCertBundleName": {
-            "$ref": "#/components/schemas/string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -232,16 +221,20 @@
       "Member": {
         "properties": {
           "certificate": {
-            "$ref": "#/components/schemas/string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
-          "memberData": {
-            "$ref": "#/components/schemas/json"
-          },
+          "memberData": {},
           "memberId": {
             "$ref": "#/components/schemas/MemberId"
           },
           "publicEncryptionKey": {
-            "$ref": "#/components/schemas/string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "recoveryRole": {
             "$ref": "#/components/schemas/MemberRecoveryRole"
@@ -263,21 +256,29 @@
         "pattern": "^[a-f0-9]{64}$",
         "type": "string"
       },
-      "MemberId_array": {
-        "items": {
-          "$ref": "#/components/schemas/MemberId"
-        },
-        "type": "array"
-      },
       "MemberId_to_Failure": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/Failure"
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "trace": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "reason"
+          ],
+          "type": "object"
         },
         "type": "object"
       },
       "MemberId_to_boolean": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/boolean"
+          "type": "boolean"
         },
         "type": "object"
       },
@@ -296,16 +297,10 @@
         ],
         "type": "string"
       },
-      "Member_array": {
-        "items": {
-          "$ref": "#/components/schemas/Member"
-        },
-        "type": "array"
-      },
       "Members": {
         "properties": {
           "value": {
-            "$ref": "#/components/schemas/Member_array"
+            "$ref": "#/components/schemas/std__vector_Member_"
           }
         },
         "required": [
@@ -316,10 +311,13 @@
       "NetworkInterface": {
         "properties": {
           "protocol": {
-            "$ref": "#/components/schemas/string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "publishedAddress": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           }
         },
         "required": [
@@ -330,22 +328,21 @@
       "Node": {
         "properties": {
           "certificate": {
-            "$ref": "#/components/schemas/string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
-          "nodeData": {
-            "$ref": "#/components/schemas/json"
-          },
+          "nodeData": {},
           "nodeId": {
             "$ref": "#/components/schemas/NodeId"
           },
-          "quoteInfo": {
-            "$ref": "#/components/schemas/json"
-          },
+          "quoteInfo": {},
           "retiredCommitted": {
-            "$ref": "#/components/schemas/boolean"
+            "type": "boolean"
           },
           "rpcInterfaces": {
-            "$ref": "#/components/schemas/string_to_NetworkInterface"
+            "$ref": "#/components/schemas/std__map_std__string_NetworkInterface_"
           },
           "status": {
             "$ref": "#/components/schemas/NodeStatus"
@@ -374,16 +371,10 @@
         ],
         "type": "string"
       },
-      "Node_array": {
-        "items": {
-          "$ref": "#/components/schemas/Node"
-        },
-        "type": "array"
-      },
       "Nodes": {
         "properties": {
           "value": {
-            "$ref": "#/components/schemas/Node_array"
+            "$ref": "#/components/schemas/std__vector_Node_"
           }
         },
         "required": [
@@ -394,19 +385,35 @@
       "Proposal": {
         "properties": {
           "ballotCount": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "ballotSubmitters": {
-            "$ref": "#/components/schemas/MemberId_array"
+            "$ref": "#/components/schemas/std__vector_ccf__EntityId_ccf__MemberIdFormatter__"
           },
           "failure": {
-            "$ref": "#/components/schemas/Failure"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Failure"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "finalVotes": {
-            "$ref": "#/components/schemas/MemberId_to_boolean"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemberId_to_boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "proposalId": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "proposalState": {
             "$ref": "#/components/schemas/ProposalState"
@@ -415,7 +422,14 @@
             "$ref": "#/components/schemas/MemberId"
           },
           "voteFailures": {
-            "$ref": "#/components/schemas/MemberId_to_Failure"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemberId_to_Failure"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -430,7 +444,7 @@
       "ProposalList": {
         "properties": {
           "value": {
-            "$ref": "#/components/schemas/Proposal_array"
+            "$ref": "#/components/schemas/std__vector_Proposal_"
           }
         },
         "required": [
@@ -449,25 +463,23 @@
         ],
         "type": "string"
       },
-      "Proposal_array": {
-        "items": {
-          "$ref": "#/components/schemas/Proposal"
-        },
-        "type": "array"
-      },
       "RecoveryResponse": {
         "properties": {
           "fullKeySubmitted": {
-            "$ref": "#/components/schemas/boolean"
+            "type": "boolean"
           },
           "message": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "recoveryThreshold": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "submittedCount": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -481,16 +493,24 @@
       "ServiceConfiguration": {
         "properties": {
           "maximumNodeCertificateValidityDays": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "maximumServiceCertificateValidityDays": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "recentCoseProposalsWindowSize": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "recoveryThreshold": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -504,23 +524,44 @@
       "ServiceInfo": {
         "properties": {
           "certificate": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "configuration": {
-            "$ref": "#/components/schemas/ServiceConfiguration"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServiceConfiguration"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "creationTransactionId": {
-            "$ref": "#/components/schemas/TransactionId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransactionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "previousServiceCreationTransactionId": {
-            "$ref": "#/components/schemas/TransactionId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransactionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "recoveryCount": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
-          "serviceData": {
-            "$ref": "#/components/schemas/json"
-          },
+          "serviceData": {},
           "status": {
             "$ref": "#/components/schemas/ServiceStatus"
           }
@@ -545,16 +586,16 @@
       "SnpJoinPolicy": {
         "properties": {
           "hostData": {
-            "$ref": "#/components/schemas/string_to_string"
+            "$ref": "#/components/schemas/std__map_std__string_std__string_"
           },
           "measurements": {
-            "$ref": "#/components/schemas/string_array"
+            "$ref": "#/components/schemas/std__vector_std__string_"
           },
           "tcbVersions": {
-            "$ref": "#/components/schemas/string_to_TcbVersionPolicy"
+            "$ref": "#/components/schemas/std__map_std__string_TcbVersionPolicy_"
           },
           "uvmEndorsements": {
-            "$ref": "#/components/schemas/string_to_string_to_UVMEndorsementsData"
+            "$ref": "#/components/schemas/std__map_std__string_std__map_std__string_UVMEndorsementsData__"
           }
         },
         "required": [
@@ -571,7 +612,7 @@
             "$ref": "#/components/schemas/MemberId"
           },
           "stateDigest": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           }
         },
         "required": [
@@ -583,22 +624,70 @@
       "TcbVersionPolicy": {
         "properties": {
           "boot_loader": {
-            "$ref": "#/components/schemas/uint32"
+            "anyOf": [
+              {
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "fmc": {
-            "$ref": "#/components/schemas/uint32"
+            "anyOf": [
+              {
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "hexstring": {
-            "$ref": "#/components/schemas/string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "microcode": {
-            "$ref": "#/components/schemas/uint32"
+            "anyOf": [
+              {
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "snp": {
-            "$ref": "#/components/schemas/uint32"
+            "anyOf": [
+              {
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "tee": {
-            "$ref": "#/components/schemas/uint32"
+            "anyOf": [
+              {
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object"
@@ -622,12 +711,6 @@
         "pattern": "^[0-9]+\\.[0-9]+$",
         "type": "string"
       },
-      "TransactionId_array": {
-        "items": {
-          "$ref": "#/components/schemas/TransactionId"
-        },
-        "type": "array"
-      },
       "TxStatus": {
         "enum": [
           "Unknown",
@@ -640,7 +723,7 @@
       "UVMEndorsementsData": {
         "properties": {
           "svn": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           }
         },
         "required": [
@@ -651,11 +734,9 @@
       "User": {
         "properties": {
           "certificate": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
-          "userData": {
-            "$ref": "#/components/schemas/json"
-          },
+          "userData": {},
           "userId": {
             "$ref": "#/components/schemas/UserId"
           }
@@ -672,16 +753,10 @@
         "pattern": "^[a-f0-9]{64}$",
         "type": "string"
       },
-      "User_array": {
-        "items": {
-          "$ref": "#/components/schemas/User"
-        },
-        "type": "array"
-      },
       "Users": {
         "properties": {
           "value": {
-            "$ref": "#/components/schemas/User_array"
+            "$ref": "#/components/schemas/std__vector_User_"
           }
         },
         "required": [
@@ -692,10 +767,10 @@
       "VirtualJoinPolicy": {
         "properties": {
           "hostData": {
-            "$ref": "#/components/schemas/string_array"
+            "$ref": "#/components/schemas/std__vector_std__string_"
           },
           "measurements": {
-            "$ref": "#/components/schemas/string_array"
+            "$ref": "#/components/schemas/std__vector_std__string_"
           }
         },
         "required": [
@@ -707,62 +782,101 @@
       "boolean": {
         "type": "boolean"
       },
-      "json": {},
-      "string": {
-        "type": "string"
-      },
-      "string_array": {
-        "items": {
-          "$ref": "#/components/schemas/string"
-        },
-        "type": "array"
-      },
-      "string_to_Jwk_array": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/Jwk_array"
-        },
-        "type": "object"
-      },
-      "string_to_JwtIssuer": {
+      "std__map_std__string_JwtIssuer_": {
         "additionalProperties": {
           "$ref": "#/components/schemas/JwtIssuer"
         },
         "type": "object"
       },
-      "string_to_NetworkInterface": {
+      "std__map_std__string_NetworkInterface_": {
         "additionalProperties": {
           "$ref": "#/components/schemas/NetworkInterface"
         },
         "type": "object"
       },
-      "string_to_TcbVersionPolicy": {
+      "std__map_std__string_TcbVersionPolicy_": {
         "additionalProperties": {
           "$ref": "#/components/schemas/TcbVersionPolicy"
         },
         "type": "object"
       },
-      "string_to_UVMEndorsementsData": {
+      "std__map_std__string_UVMEndorsementsData_": {
         "additionalProperties": {
           "$ref": "#/components/schemas/UVMEndorsementsData"
         },
         "type": "object"
       },
-      "string_to_string": {
+      "std__map_std__string_std__map_std__string_UVMEndorsementsData__": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/string"
+          "$ref": "#/components/schemas/std__map_std__string_UVMEndorsementsData_"
         },
         "type": "object"
       },
-      "string_to_string_to_UVMEndorsementsData": {
+      "std__map_std__string_std__string_": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/string_to_UVMEndorsementsData"
+          "type": "string"
         },
         "type": "object"
       },
-      "uint32": {
-        "maximum": 4294967295,
-        "minimum": 0,
-        "type": "integer"
+      "std__map_std__string_std__vector_Jwk__": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/std__vector_Jwk_"
+        },
+        "type": "object"
+      },
+      "std__vector_JavascriptModule_": {
+        "items": {
+          "$ref": "#/components/schemas/JavascriptModule"
+        },
+        "type": "array"
+      },
+      "std__vector_Jwk_": {
+        "items": {
+          "$ref": "#/components/schemas/Jwk"
+        },
+        "type": "array"
+      },
+      "std__vector_Member_": {
+        "items": {
+          "$ref": "#/components/schemas/Member"
+        },
+        "type": "array"
+      },
+      "std__vector_Node_": {
+        "items": {
+          "$ref": "#/components/schemas/Node"
+        },
+        "type": "array"
+      },
+      "std__vector_Proposal_": {
+        "items": {
+          "$ref": "#/components/schemas/Proposal"
+        },
+        "type": "array"
+      },
+      "std__vector_User_": {
+        "items": {
+          "$ref": "#/components/schemas/User"
+        },
+        "type": "array"
+      },
+      "std__vector_ccf__EntityId_ccf__MemberIdFormatter__": {
+        "items": {
+          "$ref": "#/components/schemas/MemberId"
+        },
+        "type": "array"
+      },
+      "std__vector_ccf__TxID_": {
+        "items": {
+          "$ref": "#/components/schemas/TransactionId"
+        },
+        "type": "array"
+      },
+      "std__vector_std__string_": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
       },
       "uint64": {
         "maximum": 18446744073709551615,
@@ -788,9 +902,10 @@
   "info": {
     "description": "The governance API implemented by this CCF build. This document describes the moving 'latest' API and does not guarantee that older document versions remain available.",
     "title": "CCF Governance",
-    "version": "5.0.0"
+    "version": "5.0.1"
   },
-  "openapi": "3.0.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "openapi": "3.1.0",
   "paths": {
     "/gov/api": {
       "get": {
@@ -799,9 +914,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
+                "schema": {}
               }
             },
             "description": "Default response description"
@@ -971,9 +1084,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
+                "schema": {}
               }
             },
             "description": "Default response description"
@@ -1402,9 +1513,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
+                "schema": {}
               }
             },
             "description": "Default response description"
@@ -1413,7 +1522,7 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "type": "string"
                 }
               }
             },
@@ -1470,7 +1579,7 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "type": "string"
                 }
               }
             },

@@ -33,7 +33,7 @@ auto node_id = 0;
 
 TResponse frontend_process(
   NodeRpcFrontend& frontend,
-  const json& json_params,
+  const nlohmann::json& json_params,
   const std::string& path,
   const ccf::crypto::Pem& caller,
   llhttp_method method = HTTP_POST)
@@ -105,7 +105,7 @@ void require_ledger_secrets_equal(
 
 TEST_CASE("Node configuration retains operator file paths")
 {
-  const json input = {
+  const nlohmann::json input = {
     {"network", CCFConfig{}.network},
     {"node_data_json_file", "not-loaded/node.json"},
     {"service_data_json_file", "not-loaded/service.json"},
@@ -151,7 +151,7 @@ TEST_CASE("Node configuration retains operator file paths")
   CHECK(config.memory.max_msg_size.count_bytes() == 128 * 1024 * 1024);
   CHECK(config.tick_interval.count_ms() == 25);
 
-  const json runtime_node_data = {{"name", "runtime node data"}};
+  const nlohmann::json runtime_node_data = {{"name", "runtime node data"}};
   const NodeConfigurationState state{config, runtime_node_data, {}, false};
   CHECK(state.node_data == runtime_node_data);
   CHECK(state.node_config.node_data_json_file == "not-loaded/node.json");
@@ -161,13 +161,13 @@ TEST_CASE("Node configuration retains operator file paths")
        {StartType::Start, StartType::Join, StartType::Recover})
   {
     config.command.type = type;
-    const auto encoded = json(config);
+    const auto encoded = nlohmann::json(config);
     const auto decoded = encoded.get<CCFConfig>();
     CHECK(decoded.command.type == type);
     CHECK(decoded.command.start == config.command.start);
     CHECK(decoded.command.join == config.command.join);
     CHECK(decoded.command.recover == config.command.recover);
-    CHECK(json(decoded) == encoded);
+    CHECK(nlohmann::json(decoded) == encoded);
     CHECK_FALSE(encoded.contains("startup_host_time"));
     CHECK_FALSE(encoded.contains("start"));
     CHECK_FALSE(encoded.contains("node_data"));
@@ -190,7 +190,7 @@ TEST_CASE("Node configuration retains operator file paths")
     "not-loaded/previous.pem");
   CHECK(config.command.recover.initial_service_certificate_validity_days == 13);
 
-  const auto defaults = json{
+  const auto defaults = nlohmann::json{
     {"network", CCFConfig{}.network},
     {"command",
      {{"type", "Join"}}}}.get<CCFConfig>();
@@ -203,10 +203,10 @@ TEST_CASE("Node configuration retains operator file paths")
 
 TEST_CASE("Node configuration resolves ringbuffer-era limit aliases")
 {
-  const json base = {
+  const nlohmann::json base = {
     {"network", CCFConfig{}.network}, {"command", {{"type", "Join"}}}};
   const auto check_limits = [&](
-                              const json& settings,
+                              const nlohmann::json& settings,
                               size_t read_size,
                               size_t pending_bytes,
                               size_t frame_size) {
@@ -219,16 +219,16 @@ TEST_CASE("Node configuration resolves ringbuffer-era limit aliases")
       CHECK(parsed.get_node_to_node_max_message_size() == frame_size);
     };
     check(config);
-    const auto encoded = json(config);
+    const auto encoded = nlohmann::json(config);
     const auto decoded = encoded.get<CCFConfig>();
     check(decoded);
-    CHECK(json(decoded) == encoded);
+    CHECK(nlohmann::json(decoded) == encoded);
     CHECK(decoded.ledger == config.ledger);
     CHECK(decoded.node_to_node == config.node_to_node);
   };
 
   constexpr size_t mb = 1024 * 1024;
-  check_limits(json::object(), 64 * mb, 16 * mb, 64 * mb);
+  check_limits(nlohmann::json::object(), 64 * mb, 16 * mb, 64 * mb);
   check_limits(
     {{"memory",
       {{"circuit_size", "3MB"},
@@ -272,12 +272,13 @@ TEST_CASE("Genesis request retains resolved data on the wire")
   genesis.constitution = "export function validate() { return true; }";
   genesis.service_configuration.recovery_threshold = 1;
 
-  const json encoded = genesis;
+  const nlohmann::json encoded = genesis;
   CHECK(encoded.size() == 3);
-  CHECK(encoded["members"] == json(genesis.members));
+  CHECK(encoded["members"] == nlohmann::json(genesis.members));
   CHECK(encoded["constitution"] == genesis.constitution);
   CHECK(
-    encoded["service_configuration"] == json(genesis.service_configuration));
+    encoded["service_configuration"] ==
+    nlohmann::json(genesis.service_configuration));
   CHECK(encoded.get<CreateNetworkNodeToNode::GenesisInfo>() == genesis);
 }
 
@@ -377,7 +378,8 @@ TEST_CASE("Startup inputs are read from files")
   REQUIRE(genesis.members.size() == 2);
   CHECK(genesis.members[0].cert == member_cert);
   CHECK(genesis.members[0].encryption_pub_key == encryption_key);
-  CHECK(genesis.members[0].member_data == json{{"is_operator", true}});
+  CHECK(
+    genesis.members[0].member_data == nlohmann::json{{"is_operator", true}});
   CHECK(genesis.members[0].recovery_role == MemberRecoveryRole::Owner);
   CHECK(genesis.members[1].cert == member_cert);
   CHECK_FALSE(genesis.members[1].encryption_pub_key.has_value());
@@ -459,8 +461,8 @@ TEST_CASE("Startup inputs are resolved by start type")
   {
     INFO("Start reads node data, service data and genesis inputs");
     const auto inputs = resolve(config, StartType::Start);
-    CHECK(inputs.node_data == json{{"node", 1}});
-    CHECK(inputs.service_data == json{{"service", 2}});
+    CHECK(inputs.node_data == nlohmann::json{{"node", 1}});
+    CHECK(inputs.service_data == nlohmann::json{{"service", 2}});
     REQUIRE(inputs.genesis_info.has_value());
     CHECK(inputs.genesis_info->members.size() == 1);
     CHECK(inputs.genesis_info->constitution == "constitution");
@@ -471,8 +473,8 @@ TEST_CASE("Startup inputs are resolved by start type")
   {
     INFO("Recover reads node data, service data and the previous identity");
     const auto inputs = resolve(config, StartType::Recover);
-    CHECK(inputs.node_data == json{{"node", 1}});
-    CHECK(inputs.service_data == json{{"service", 2}});
+    CHECK(inputs.node_data == nlohmann::json{{"node", 1}});
+    CHECK(inputs.service_data == nlohmann::json{{"service", 2}});
     CHECK_FALSE(inputs.genesis_info.has_value());
     CHECK(inputs.join_service_cert.empty());
     CHECK(inputs.previous_service_identity == bytes("previous identity"));
@@ -485,7 +487,7 @@ TEST_CASE("Startup inputs are resolved by start type")
     join_config.command.start.constitution_files = {missing_file};
     join_config.command.recover.previous_service_identity_file = missing_file;
     const auto inputs = resolve(join_config, StartType::Join);
-    CHECK(inputs.node_data == json{{"node", 1}});
+    CHECK(inputs.node_data == nlohmann::json{{"node", 1}});
     CHECK(inputs.service_data.is_null());
     CHECK_FALSE(inputs.genesis_info.has_value());
     CHECK(inputs.join_service_cert == bytes("service certificate"));
@@ -814,7 +816,11 @@ TEST_CASE("JWT refresh metrics are thread-safe")
   }
 
   const auto response = frontend_process(
-    frontend, json(), "jwt_keys/refresh/metrics", member_cert, HTTP_GET);
+    frontend,
+    nlohmann::json(),
+    "jwt_keys/refresh/metrics",
+    member_cert,
+    HTTP_GET);
   REQUIRE(response.status == HTTP_STATUS_OK);
 
   const auto metrics = parse_response_body<JWTRefreshMetrics>(response);
@@ -1410,7 +1416,7 @@ TEST_CASE("File range responses reject invalid and empty ranges before reading")
       CHECK_FALSE(headers.contains(ccf::http::headers::CONTENT_RANGE));
       if (verb == HTTP_GET)
       {
-        const auto body = json::parse(response->get_response_body());
+        const auto body = nlohmann::json::parse(response->get_response_body());
         CHECK(body["error"]["code"] == ccf::errors::InvalidHeaderValue);
         CHECK(body["error"]["message"] == test.error);
       }
@@ -1443,7 +1449,7 @@ TEST_CASE(
     CHECK_FALSE(headers.contains(ccf::http::headers::REPR_DIGEST));
     if (verb == HTTP_GET)
     {
-      const auto body = json::parse(response->get_response_body());
+      const auto body = nlohmann::json::parse(response->get_response_body());
       CHECK(body["error"]["code"] == ccf::errors::EmptyFile);
       CHECK(body["error"]["message"] == "Found empty file");
     }
@@ -1545,8 +1551,8 @@ TEST_CASE(
               ccf::http::headers::ETAG) == etag);
           if (verb == HTTP_GET)
           {
-            const auto error =
-              json::parse(invalid_response->get_response_body())["error"];
+            const auto error = nlohmann::json::parse(
+              invalid_response->get_response_body())["error"];
             CHECK(error["code"] == ccf::errors::InvalidHeaderValue);
             CHECK(error["message"] == "Invalid If-Match header");
           }

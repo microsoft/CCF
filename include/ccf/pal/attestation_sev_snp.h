@@ -350,6 +350,19 @@ pRb21iI1NlNCfOGUPIhVpWECAwEAAQ==
     return "TcbVersionRaw";
   }
 
+  inline std::string schema_name([[maybe_unused]] const TcbVersionRaw* tag)
+  {
+    return "TcbVersionRaw";
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const TcbVersionRaw* tag)
+  {
+    schema["type"] = "string";
+    schema["pattern"] =
+      fmt::format("^[a-f0-9]{{{}}}$", snp_tcb_version_size * 2);
+  }
+
   struct Signature
   {
     uint8_t r[72];

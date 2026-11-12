@@ -110,7 +110,7 @@ namespace ccf::kv
     schema["required"].push_back("address");
     schema["properties"] = nlohmann::json::object();
     schema["properties"]["address"] = nlohmann::json::object();
-    schema["properties"]["address"]["$ref"] = "#/components/schemas/string";
+    schema["properties"]["address"]["type"] = "string";
   }
 
   enum class LeadershipState : uint8_t

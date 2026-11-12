@@ -3,6 +3,7 @@
 #include "host/json_schema.h"
 
 #include "ccf/ds/json.h"
+#include "ccf/json.h"
 #include "ccf/node/configuration.h"
 #include "host/config_schema.h"
 
@@ -10,8 +11,89 @@
 #include <algorithm>
 #include <doctest/doctest.h>
 #include <limits>
+#include <map>
 #include <nlohmann/json.hpp>
+#include <optional>
+#include <string_view>
+#include <variant>
 #include <vector>
+
+namespace schema_samples
+{
+  struct Item
+  {
+    int32_t id;
+    std::string name;
+    std::optional<int32_t> number;
+  };
+
+  CCF_JSON_TYPE(Item, CCF_JSON_REQUIRED(id, name, number));
+
+  struct Envelope
+  {
+    Item entry;
+  };
+
+  DECLARE_JSON_TYPE(Envelope);
+  DECLARE_JSON_REQUIRED_FIELDS(Envelope, entry);
+}
+
+template <>
+struct glz::json_schema<schema_samples::Item>
+{
+  glz::schema id{
+    .description = "Record identifier",
+    .minimum = int64_t{1},
+    .maximum = int64_t{10}};
+  glz::schema name{
+    .minLength = uint64_t{1}, .maxLength = uint64_t{8}, .pattern = "^[A-Z]+$"};
+};
+
+TEST_CASE("Rich schemas remain precise when embedded in CCF containers")
+{
+  using Json = nlohmann::json;
+  using schema_samples::Item;
+  const auto item_schema = ccf::ds::json::build_schema<Item>();
+  const auto array_schema = ccf::ds::json::build_schema<std::vector<Item>>();
+  const auto map_schema =
+    ccf::ds::json::build_schema<std::map<std::string, Item>>();
+  const auto envelope_schema =
+    ccf::ds::json::build_schema<schema_samples::Envelope>();
+  CHECK(
+    ccf::json::schema<Item>().at("properties").at("id").at("description") ==
+    "Record identifier");
+
+  for (const auto& [wire, valid] :
+       std::vector<std::pair<std::string_view, bool>>{
+         {R"({"id":1,"name":"A","number":null})", true},
+         {R"({"id":10,"name":"ABCDEFGH","number":7})", true},
+         {R"({"id":2,"name":"AB"})", false},
+         {R"({"id":"2","name":"AB","number":null})", false},
+         {R"({"id":0,"name":"AB","number":null})", false},
+         {R"({"id":11,"name":"AB","number":null})", false},
+         {R"({"id":2,"name":"","number":null})", false},
+         {R"({"id":2,"name":"ABCDEFGHI","number":null})", false},
+         {R"({"id":2,"name":"lower","number":null})", false}})
+  {
+    INFO(wire);
+    const auto value = Json::parse(wire);
+    CHECK(json::validate_json(value, item_schema).has_value() != valid);
+    CHECK(
+      json::validate_json(Json::array({value}), array_schema).has_value() !=
+      valid);
+    const Json nested = {{"entry", value}};
+    CHECK(json::validate_json(nested, map_schema).has_value() != valid);
+    CHECK(json::validate_json(nested, envelope_schema).has_value() != valid);
+  }
+}
+
+TEST_CASE("Generated variants permit overlapping numeric alternatives")
+{
+  const auto schema = ccf::json::schema<std::variant<int32_t, double>>();
+  CHECK_FALSE(json::validate_json(1, schema).has_value());
+  CHECK_FALSE(json::validate_json(1.5, schema).has_value());
+  CHECK(json::validate_json("wrong type", schema).has_value());
+}
 
 TEST_CASE("host configuration unsigned integer bounds")
 {
@@ -377,7 +459,7 @@ TEST_CASE("schema generation")
 // inner (non-optional) type.
 struct RequiredOptional
 {
-  std::optional<size_t> maybe_present = std::nullopt;
+  std::optional<int32_t> maybe_present = std::nullopt;
 };
 
 DECLARE_JSON_TYPE(RequiredOptional);
@@ -393,24 +475,23 @@ TEST_CASE("schema generation for required optional field")
   REQUIRE(required_it->size() == 1);
   REQUIRE((*required_it)[0] == "maybe_present");
 
-  const auto& property = schema.at("properties").at("maybe_present");
-  REQUIRE(property.at("type") == "integer");
-  REQUIRE(property.at("nullable") == true);
-
   // A JSON null is accepted for this required-but-nullable field
   auto j = nlohmann::json::object();
   j["maybe_present"] = nullptr;
   const RequiredOptional parsed = j;
   REQUIRE(!parsed.maybe_present.has_value());
+  REQUIRE_FALSE(json::validate_json(j, schema).has_value());
 
   // As is a concrete value
   j["maybe_present"] = 7;
   const RequiredOptional parsed_value = j;
   REQUIRE(parsed_value.maybe_present == 7);
+  REQUIRE_FALSE(json::validate_json(j, schema).has_value());
 
   // But the field must still be present
   auto j_missing = nlohmann::json::object();
   REQUIRE_THROWS_AS(j_missing.get<RequiredOptional>(), ccf::JsonParseError);
+  REQUIRE(json::validate_json(j_missing, schema).has_value());
 }
 
 TEST_CASE_TEMPLATE("schema types, integer", T, size_t, ssize_t)
@@ -422,10 +503,11 @@ TEST_CASE_TEMPLATE("schema types, integer", T, size_t, ssize_t)
   REQUIRE(schema["items"].is_object());
 
   REQUIRE(schema["items"]["type"] == "array");
-  REQUIRE(schema["items"]["items"].is_array());
-  REQUIRE(schema["items"]["items"].size() == 2);
-  REQUIRE(schema["items"]["items"][0]["type"] == "integer");
-  REQUIRE(schema["items"]["items"][1]["type"] == "string");
+  REQUIRE(schema["items"]["prefixItems"].size() == 2);
+  REQUIRE(schema["items"]["minItems"] == 2);
+  REQUIRE(schema["items"]["maxItems"] == 2);
+  REQUIRE(schema["items"]["prefixItems"][0]["type"] == "integer");
+  REQUIRE(schema["items"]["prefixItems"][1]["type"] == "string");
 }
 
 TEST_CASE_TEMPLATE("schema types, floating point", T, float, double)
@@ -437,10 +519,11 @@ TEST_CASE_TEMPLATE("schema types, floating point", T, float, double)
   REQUIRE(schema["items"].is_object());
 
   REQUIRE(schema["items"]["type"] == "array");
-  REQUIRE(schema["items"]["items"].is_array());
-  REQUIRE(schema["items"]["items"].size() == 2);
-  REQUIRE(schema["items"]["items"][0]["type"] == "integer");
-  REQUIRE(schema["items"]["items"][1]["type"] == "number");
+  REQUIRE(schema["items"]["prefixItems"].size() == 2);
+  REQUIRE(schema["items"]["minItems"] == 2);
+  REQUIRE(schema["items"]["maxItems"] == 2);
+  REQUIRE(schema["items"]["prefixItems"][0]["type"] == "integer");
+  REQUIRE(schema["items"]["prefixItems"][1]["type"] == "number");
 }
 
 namespace custom
@@ -656,19 +739,27 @@ TEST_CASE("enum")
 
     const auto schema = ccf::ds::json::build_schema<EnumStruct>("EnumStruct");
 
-    const nlohmann::json expected{"one", "two", "three"};
-    REQUIRE(schema["properties"]["se"]["enum"] == expected);
+    for (const auto* label : {"one", "two", "three"})
+    {
+      REQUIRE_FALSE(
+        json::validate_json(nlohmann::json{{"se", label}}, schema).has_value());
+    }
+    REQUIRE(json::validate_json(nlohmann::json{{"se", "unknown"}}, schema)
+              .has_value());
   }
 
   {
     INFO("Required optional enum schema generation");
     const auto schema =
       ccf::ds::json::build_schema<RequiredOptionalEnum>("RequiredOptionalEnum");
-    const auto& property = schema["properties"]["maybe_enum"];
-
-    REQUIRE(property["nullable"] == true);
-    const nlohmann::json expected{"one", "two", "three", nullptr};
-    REQUIRE(property["enum"] == expected);
+    for (const auto& value :
+         nlohmann::json::array({"one", "two", "three", nullptr}))
+    {
+      REQUIRE_FALSE(
+        json::validate_json(nlohmann::json{{"maybe_enum", value}}, schema)
+          .has_value());
+    }
+    REQUIRE(json::validate_json(nlohmann::json::object(), schema).has_value());
   }
 
   {

@@ -22,7 +22,7 @@
             "$ref": "#/components/schemas/QuoteFormat"
           },
           "measurement": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "node_id": {
             "$ref": "#/components/schemas/NodeId"
@@ -31,7 +31,14 @@
             "$ref": "#/components/schemas/base64string"
           },
           "uvm_endorsements": {
-            "$ref": "#/components/schemas/base64string"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/base64string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -41,12 +48,6 @@
           "format"
         ],
         "type": "object"
-      },
-      "Attestation_array": {
-        "items": {
-          "$ref": "#/components/schemas/Attestation"
-        },
-        "type": "array"
       },
       "Authority": {
         "enum": [
@@ -58,8 +59,7 @@
         "type": "string"
       },
       "Binary": {
-        "format": "binary",
-        "type": "string"
+        "format": "binary"
       },
       "CCFError": {
         "properties": {
@@ -82,13 +82,17 @@
       "Configuration": {
         "properties": {
           "idx": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "nodes": {
             "$ref": "#/components/schemas/NodeId_to_Configuration__NodeInfo"
           },
           "rid": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -97,23 +101,6 @@
           "rid"
         ],
         "type": "object"
-      },
-      "Configuration__NodeInfo": {
-        "properties": {
-          "address": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "address"
-        ],
-        "type": "object"
-      },
-      "Configuration_array": {
-        "items": {
-          "$ref": "#/components/schemas/Configuration"
-        },
-        "type": "array"
       },
       "ConsensusConfigDetails": {
         "properties": {
@@ -132,16 +119,32 @@
             "$ref": "#/components/schemas/NodeId_to_ConsensusDetails__Ack"
           },
           "configs": {
-            "$ref": "#/components/schemas/Configuration_array"
+            "$ref": "#/components/schemas/std__vector_Configuration_"
           },
           "current_view": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "leadership_state": {
-            "$ref": "#/components/schemas/LeadershipState"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LeadershipState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "learners": {
-            "$ref": "#/components/schemas/NodeId_to_uint64"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NodeId_to_uint64"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "membership_state": {
             "$ref": "#/components/schemas/MembershipState"
@@ -152,22 +155,32 @@
                 "$ref": "#/components/schemas/NodeId"
               },
               {
-                "enum": [
-                  null
-                ],
-                "nullable": true,
-                "type": "object"
+                "type": "null"
               }
             ]
           },
           "reconfiguration_type": {
-            "$ref": "#/components/schemas/ReconfigurationType"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReconfigurationType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "retirement_phase": {
-            "$ref": "#/components/schemas/RetirementPhase"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RetirementPhase"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "ticking": {
-            "$ref": "#/components/schemas/boolean"
+            "type": "boolean"
           }
         },
         "required": [
@@ -180,25 +193,10 @@
         ],
         "type": "object"
       },
-      "ConsensusDetails__Ack": {
-        "properties": {
-          "last_received_ms": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "seqno": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "seqno",
-          "last_received_ms"
-        ],
-        "type": "object"
-      },
       "ConsensusNodeConfig": {
         "properties": {
           "address": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           }
         },
         "required": [
@@ -214,8 +212,7 @@
         "type": "string"
       },
       "Cose": {
-        "format": "binary",
-        "type": "string"
+        "format": "binary"
       },
       "Endorsement": {
         "properties": {
@@ -231,7 +228,7 @@
       "GetAttestations__Out": {
         "properties": {
           "attestations": {
-            "$ref": "#/components/schemas/Attestation_array"
+            "$ref": "#/components/schemas/std__vector_Attestation_"
           }
         },
         "required": [
@@ -245,7 +242,7 @@
             "$ref": "#/components/schemas/TransactionId"
           },
           "view_history": {
-            "$ref": "#/components/schemas/TransactionId_array"
+            "$ref": "#/components/schemas/std__vector_ccf__TxID_"
           }
         },
         "required": [
@@ -256,7 +253,9 @@
       "GetHistoricalCacheInfo__Out": {
         "properties": {
           "estimated_size": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -272,25 +271,19 @@
                 "$ref": "#/components/schemas/TransactionId"
               },
               {
-                "enum": [
-                  null
-                ],
-                "nullable": true,
-                "type": "object"
+                "type": "null"
               }
             ]
           },
           "current_view": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/uint64"
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
               },
               {
-                "enum": [
-                  null
-                ],
-                "nullable": true,
-                "type": "object"
+                "type": "null"
               }
             ]
           },
@@ -300,23 +293,19 @@
                 "$ref": "#/components/schemas/NodeId"
               },
               {
-                "enum": [
-                  null
-                ],
-                "nullable": true,
-                "type": "object"
+                "type": "null"
               }
             ]
           },
           "recovery_count": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "service_certificate": {
             "$ref": "#/components/schemas/Pem"
           },
-          "service_data": {
-            "$ref": "#/components/schemas/json"
-          },
+          "service_data": {},
           "service_status": {
             "$ref": "#/components/schemas/ServiceStatus"
           }
@@ -335,19 +324,19 @@
       "GetNode__NodeInfo": {
         "properties": {
           "last_written": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
-          "node_data": {
-            "$ref": "#/components/schemas/json"
-          },
+          "node_data": {},
           "node_id": {
             "$ref": "#/components/schemas/NodeId"
           },
           "primary": {
-            "$ref": "#/components/schemas/boolean"
+            "type": "boolean"
           },
           "rpc_interfaces": {
-            "$ref": "#/components/schemas/string_to_NodeInfoNetwork_v2__NetInterface"
+            "$ref": "#/components/schemas/std__map_std__string_NodeInfoNetwork_v2__NetInterface_"
           },
           "status": {
             "$ref": "#/components/schemas/NodeStatus"
@@ -363,16 +352,10 @@
         ],
         "type": "object"
       },
-      "GetNode__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNode__NodeInfo"
-        },
-        "type": "array"
-      },
       "GetNodes__Out": {
         "properties": {
           "nodes": {
-            "$ref": "#/components/schemas/GetNode__NodeInfo_array"
+            "$ref": "#/components/schemas/std__vector_GetNode__NodeInfo_"
           }
         },
         "required": [
@@ -383,7 +366,7 @@
       "GetQuotes__Out": {
         "properties": {
           "quotes": {
-            "$ref": "#/components/schemas/Quote_array"
+            "$ref": "#/components/schemas/std__vector_Quote_"
           }
         },
         "required": [
@@ -405,25 +388,47 @@
       "GetState__Out": {
         "properties": {
           "last_recovered_seqno": {
-            "$ref": "#/components/schemas/uint64"
+            "anyOf": [
+              {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "last_signed_seqno": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "node_id": {
             "$ref": "#/components/schemas/NodeId"
           },
           "recovery_target_seqno": {
-            "$ref": "#/components/schemas/uint64"
+            "anyOf": [
+              {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "startup_seqno": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "state": {
             "$ref": "#/components/schemas/ccf__NodeStartupState"
           },
           "stop_notice": {
-            "$ref": "#/components/schemas/boolean"
+            "type": "boolean"
           }
         },
         "required": [
@@ -453,13 +458,13 @@
       "GetVersion__Out": {
         "properties": {
           "ccf_version": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "quickjs_version": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "unsafe": {
-            "$ref": "#/components/schemas/boolean"
+            "type": "boolean"
           }
         },
         "required": [
@@ -472,13 +477,19 @@
       "JWTRefreshMetrics": {
         "properties": {
           "attempts": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "failures": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "successes": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -491,22 +502,32 @@
       "JavaScriptMetrics": {
         "properties": {
           "bytecode_size": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "bytecode_used": {
-            "$ref": "#/components/schemas/boolean"
+            "type": "boolean"
           },
           "max_cached_interpreters": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "max_execution_time": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "max_heap_size": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "max_stack_size": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -543,59 +564,143 @@
       },
       "NodeId_to_Configuration__NodeInfo": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/Configuration__NodeInfo"
+          "properties": {
+            "address": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "address"
+          ],
+          "type": "object"
         },
         "type": "object"
       },
       "NodeId_to_ConsensusDetails__Ack": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/ConsensusDetails__Ack"
+          "properties": {
+            "last_received_ms": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "seqno": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "seqno",
+            "last_received_ms"
+          ],
+          "type": "object"
         },
         "type": "object"
       },
       "NodeId_to_uint64": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/uint64"
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": "integer"
         },
         "type": "object"
       },
       "NodeInfoNetwork_v2__NetInterface": {
         "properties": {
           "accepted_endpoints": {
-            "$ref": "#/components/schemas/string_array"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/std__vector_std__string_"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "app_protocol": {
-            "$ref": "#/components/schemas/string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "bind_address": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "enabled_operator_features": {
-            "$ref": "#/components/schemas/OperatorFeature_set"
+            "$ref": "#/components/schemas/std__set_ccf__endpoints__OperatorFeature_"
           },
           "endorsement": {
-            "$ref": "#/components/schemas/Endorsement"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Endorsement"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "forwarding_timeout_ms": {
-            "$ref": "#/components/schemas/uint64"
+            "anyOf": [
+              {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "http_configuration": {
-            "$ref": "#/components/schemas/ParserConfiguration"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParserConfiguration"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "max_open_sessions_hard": {
-            "$ref": "#/components/schemas/uint64"
+            "anyOf": [
+              {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "max_open_sessions_soft": {
-            "$ref": "#/components/schemas/uint64"
+            "anyOf": [
+              {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "protocol": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "published_address": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "redirections": {
-            "$ref": "#/components/schemas/NodeInfoNetwork_v2__NetInterface__Redirections"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NodeInfoNetwork_v2__NetInterface__Redirections"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -641,34 +746,81 @@
         ],
         "type": "string"
       },
-      "OperatorFeature_set": {
-        "items": {
-          "$ref": "#/components/schemas/OperatorFeature"
-        },
-        "type": "array"
-      },
       "ParserConfiguration": {
         "properties": {
           "initial_window_size": {
-            "$ref": "#/components/schemas/SizeString"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SizeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "max_body_size": {
-            "$ref": "#/components/schemas/SizeString"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SizeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "max_concurrent_streams_count": {
-            "$ref": "#/components/schemas/uint64"
+            "anyOf": [
+              {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "max_frame_size": {
-            "$ref": "#/components/schemas/SizeString"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SizeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "max_header_size": {
-            "$ref": "#/components/schemas/SizeString"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SizeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "max_headers_count": {
-            "$ref": "#/components/schemas/uint32"
+            "anyOf": [
+              {
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "max_request_target_size": {
-            "$ref": "#/components/schemas/SizeString"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SizeString"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object"
@@ -685,7 +837,7 @@
             "$ref": "#/components/schemas/QuoteFormat"
           },
           "measurement": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "node_id": {
             "$ref": "#/components/schemas/NodeId"
@@ -694,7 +846,14 @@
             "$ref": "#/components/schemas/base64string"
           },
           "uvm_endorsements": {
-            "$ref": "#/components/schemas/base64string"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/base64string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -712,12 +871,6 @@
           "AMD_SEV_SNP_v1"
         ],
         "type": "string"
-      },
-      "Quote_array": {
-        "items": {
-          "$ref": "#/components/schemas/Quote"
-        },
-        "type": "array"
       },
       "ReconfigurationType": {
         "enum": [
@@ -738,9 +891,7 @@
           "kind": {
             "$ref": "#/components/schemas/RedirectionResolutionKind"
           },
-          "target": {
-            "$ref": "#/components/schemas/json"
-          }
+          "target": {}
         },
         "required": [
           "kind"
@@ -773,19 +924,55 @@
             "$ref": "#/components/schemas/ConsensusType"
           },
           "maximum_node_certificate_validity_days": {
-            "$ref": "#/components/schemas/uint64"
+            "anyOf": [
+              {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "maximum_service_certificate_validity_days": {
-            "$ref": "#/components/schemas/uint64"
+            "anyOf": [
+              {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "recent_cose_proposals_window_size": {
-            "$ref": "#/components/schemas/uint64"
+            "anyOf": [
+              {
+                "maximum": 18446744073709551615,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "reconfiguration_type": {
-            "$ref": "#/components/schemas/ReconfigurationType"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReconfigurationType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "recovery_threshold": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -805,13 +992,17 @@
       "SessionMetrics": {
         "properties": {
           "active": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "interfaces": {
-            "$ref": "#/components/schemas/string_to_SessionMetrics__PerInterface"
+            "$ref": "#/components/schemas/std__map_std__string_SessionMetrics__PerInterface_"
           },
           "peak": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -824,16 +1015,24 @@
       "SessionMetrics__Errors": {
         "properties": {
           "parsing": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "request_header_too_large": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "request_payload_too_large": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "request_target_too_long": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -847,19 +1046,27 @@
       "SessionMetrics__PerInterface": {
         "properties": {
           "active": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "errors": {
             "$ref": "#/components/schemas/SessionMetrics__Errors"
           },
           "hard_cap": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "peak": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "soft_cap": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -878,12 +1085,6 @@
       "TransactionId": {
         "pattern": "^[0-9]+\\.[0-9]+$",
         "type": "string"
-      },
-      "TransactionId_array": {
-        "items": {
-          "$ref": "#/components/schemas/TransactionId"
-        },
-        "type": "array"
       },
       "TxStatus": {
         "enum": [
@@ -913,38 +1114,68 @@
         ],
         "type": "string"
       },
-      "json": {},
-      "string": {
-        "type": "string"
+      "std__map_std__string_NodeInfoNetwork_v2__NetInterface_": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/NodeInfoNetwork_v2__NetInterface"
+        },
+        "type": "object"
       },
-      "string_array": {
+      "std__map_std__string_SessionMetrics__PerInterface_": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/SessionMetrics__PerInterface"
+        },
+        "type": "object"
+      },
+      "std__set_ccf__endpoints__OperatorFeature_": {
         "items": {
-          "$ref": "#/components/schemas/string"
+          "$ref": "#/components/schemas/OperatorFeature"
         },
         "type": "array"
+      },
+      "std__vector_Attestation_": {
+        "items": {
+          "$ref": "#/components/schemas/Attestation"
+        },
+        "type": "array"
+      },
+      "std__vector_Configuration_": {
+        "items": {
+          "$ref": "#/components/schemas/Configuration"
+        },
+        "type": "array"
+      },
+      "std__vector_GetNode__NodeInfo_": {
+        "items": {
+          "$ref": "#/components/schemas/GetNode__NodeInfo"
+        },
+        "type": "array"
+      },
+      "std__vector_Quote_": {
+        "items": {
+          "$ref": "#/components/schemas/Quote"
+        },
+        "type": "array"
+      },
+      "std__vector_ccf__TxID_": {
+        "items": {
+          "$ref": "#/components/schemas/TransactionId"
+        },
+        "type": "array"
+      },
+      "std__vector_std__string_": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "string": {
+        "type": "string"
       },
       "string_to_ConsensusNodeConfig": {
         "additionalProperties": {
           "$ref": "#/components/schemas/ConsensusNodeConfig"
         },
         "type": "object"
-      },
-      "string_to_NodeInfoNetwork_v2__NetInterface": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/NodeInfoNetwork_v2__NetInterface"
-        },
-        "type": "object"
-      },
-      "string_to_SessionMetrics__PerInterface": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/SessionMetrics__PerInterface"
-        },
-        "type": "object"
-      },
-      "uint32": {
-        "maximum": 4294967295,
-        "minimum": 0,
-        "type": "integer"
       },
       "uint64": {
         "maximum": 18446744073709551615,
@@ -970,9 +1201,10 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.9"
+    "version": "5.0.10"
   },
-  "openapi": "3.0.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "openapi": "3.1.0",
   "paths": {
     "/node/api": {
       "get": {
@@ -981,9 +1213,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
+                "schema": {}
               }
             },
             "description": "Default response description"
@@ -1179,9 +1409,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
+                "schema": {}
               }
             },
             "description": "Default response description"
@@ -1624,7 +1852,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -1825,9 +2053,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
+                "schema": {}
               }
             },
             "description": "Default response description"
@@ -1836,7 +2062,7 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "type": "string"
                 }
               }
             },
@@ -1881,7 +2107,7 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "type": "string"
                 }
               }
             },

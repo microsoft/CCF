@@ -32,8 +32,7 @@
         "type": "object"
       },
       "Cose": {
-        "format": "binary",
-        "type": "string"
+        "format": "binary"
       },
       "GetCommit__Out": {
         "properties": {
@@ -41,7 +40,7 @@
             "$ref": "#/components/schemas/TransactionId"
           },
           "view_history": {
-            "$ref": "#/components/schemas/TransactionId_array"
+            "$ref": "#/components/schemas/std__vector_ccf__TxID_"
           }
         },
         "required": [
@@ -69,14 +68,10 @@
           "endorsements": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/base64string_array"
+                "$ref": "#/components/schemas/std__vector_std__vector_uint8_t__"
               },
               {
-                "enum": [
-                  null
-                ],
-                "nullable": true,
-                "type": "object"
+                "type": "null"
               }
             ]
           }
@@ -100,13 +95,17 @@
       "LoggingGetHistoricalRange__Entry": {
         "properties": {
           "id": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "msg": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "seqno": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -116,19 +115,16 @@
         ],
         "type": "object"
       },
-      "LoggingGetHistoricalRange__Entry_array": {
-        "items": {
-          "$ref": "#/components/schemas/LoggingGetHistoricalRange__Entry"
-        },
-        "type": "array"
-      },
       "LoggingGetHistoricalRange__Out": {
         "properties": {
           "@nextLink": {
-            "$ref": "#/components/schemas/string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "entries": {
-            "$ref": "#/components/schemas/LoggingGetHistoricalRange__Entry_array"
+            "$ref": "#/components/schemas/std__vector_LoggingGetHistoricalRange__Entry_"
           }
         },
         "required": [
@@ -139,11 +135,9 @@
       "LoggingGetReceipt__Out": {
         "properties": {
           "msg": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
-          "receipt": {
-            "$ref": "#/components/schemas/json"
-          }
+          "receipt": {}
         },
         "required": [
           "msg",
@@ -154,7 +148,7 @@
       "LoggingGet__Out": {
         "properties": {
           "msg": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           }
         },
         "required": [
@@ -165,10 +159,10 @@
       "LoggingPut__Out": {
         "properties": {
           "success": {
-            "$ref": "#/components/schemas/boolean"
+            "type": "boolean"
           },
           "tx_id": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           }
         },
         "required": [
@@ -180,13 +174,15 @@
       "LoggingRecord__In": {
         "properties": {
           "id": {
-            "$ref": "#/components/schemas/uint64"
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
           },
           "msg": {
-            "$ref": "#/components/schemas/string"
+            "type": "string"
           },
           "record_claim": {
-            "$ref": "#/components/schemas/boolean"
+            "type": "boolean"
           }
         },
         "required": [
@@ -198,12 +194,6 @@
       "TransactionId": {
         "pattern": "^[0-9]+\\.[0-9]+$",
         "type": "string"
-      },
-      "TransactionId_array": {
-        "items": {
-          "$ref": "#/components/schemas/TransactionId"
-        },
-        "type": "array"
       },
       "TxStatus": {
         "enum": [
@@ -218,16 +208,27 @@
         "format": "base64",
         "type": "string"
       },
-      "base64string_array": {
+      "boolean": {
+        "type": "boolean"
+      },
+      "std__vector_LoggingGetHistoricalRange__Entry_": {
+        "items": {
+          "$ref": "#/components/schemas/LoggingGetHistoricalRange__Entry"
+        },
+        "type": "array"
+      },
+      "std__vector_ccf__TxID_": {
+        "items": {
+          "$ref": "#/components/schemas/TransactionId"
+        },
+        "type": "array"
+      },
+      "std__vector_std__vector_uint8_t__": {
         "items": {
           "$ref": "#/components/schemas/base64string"
         },
         "type": "array"
       },
-      "boolean": {
-        "type": "boolean"
-      },
-      "json": {},
       "string": {
         "type": "string"
       },
@@ -272,9 +273,10 @@
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "2.8.6"
+    "version": "2.8.7"
   },
-  "openapi": "3.0.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "openapi": "3.1.0",
   "paths": {
     "/app/api": {
       "get": {
@@ -283,9 +285,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
+                "schema": {}
               }
             },
             "description": "Default response description"
@@ -374,9 +374,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
+                "schema": {}
               }
             },
             "description": "Default response description"
@@ -447,7 +445,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -502,7 +500,7 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "type": "string"
                 }
               }
             },
@@ -540,7 +538,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -618,7 +616,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -659,7 +657,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -682,7 +680,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -723,7 +721,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -853,7 +851,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/uint64"
+                  "maximum": 18446744073709551615,
+                  "minimum": 0,
+                  "type": "integer"
                 }
               }
             },
@@ -942,9 +942,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
+                "schema": {}
               }
             },
             "description": "Default response description"
@@ -1100,7 +1098,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -1141,7 +1139,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -1224,7 +1222,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -1302,7 +1300,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -1333,7 +1331,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/boolean"
+                  "type": "boolean"
                 }
               }
             },
@@ -1483,7 +1481,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/uint64"
+                  "maximum": 18446744073709551615,
+                  "minimum": 0,
+                  "type": "integer"
                 }
               }
             },
@@ -1644,7 +1644,7 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "type": "string"
                 }
               }
             },
@@ -1699,7 +1699,7 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "type": "string"
                 }
               }
             },
@@ -1741,9 +1741,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
+                "schema": {}
               }
             },
             "description": "Default response description"
@@ -1752,7 +1750,7 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "type": "string"
                 }
               }
             },
@@ -1797,7 +1795,7 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "type": "string"
                 }
               }
             },

@@ -17,6 +17,34 @@ namespace ccf
 {
   namespace jsonhandler
   {
+    namespace
+    {
+      void check_accepts_json(const std::shared_ptr<ccf::RpcContext>& ctx)
+      {
+        const auto accept = ctx->get_request_header(http::headers::ACCEPT);
+        if (!accept.has_value())
+        {
+          return;
+        }
+        const auto options = ccf::http::parse_accept_header(accept.value());
+        for (const auto& option : options)
+        {
+          if (option.matches(http::headervalues::contenttype::JSON))
+          {
+            return;
+          }
+        }
+        throw RpcException(
+          HTTP_STATUS_NOT_ACCEPTABLE,
+          ccf::errors::UnsupportedContentType,
+          fmt::format(
+            "No supported content type in accept header: {}\nOnly {} "
+            "is currently supported",
+            accept.value(),
+            http::headervalues::contenttype::JSON));
+      }
+    }
+
     nlohmann::json get_json_params(const std::shared_ptr<ccf::RpcContext>& ctx)
     {
       nlohmann::json params = nullptr;
@@ -62,37 +90,26 @@ namespace ccf
             }
             else
             {
-              const auto accept_it =
-                ctx->get_request_header(http::headers::ACCEPT);
-              if (accept_it.has_value())
-              {
-                const auto accept_options =
-                  ccf::http::parse_accept_header(accept_it.value());
-                bool matched = false;
-                for (const auto& option : accept_options)
-                {
-                  if (option.matches(http::headervalues::contenttype::JSON))
-                  {
-                    matched = true;
-                    break;
-                  }
-                }
-
-                if (!matched)
-                {
-                  throw RpcException(
-                    HTTP_STATUS_NOT_ACCEPTABLE,
-                    ccf::errors::UnsupportedContentType,
-                    fmt::format(
-                      "No supported content type in accept header: {}\nOnly {} "
-                      "is currently supported",
-                      accept_it.value(),
-                      http::headervalues::contenttype::JSON));
-                }
-              }
+              check_accepts_json(ctx);
 
               ctx->set_response_json(
                 std::forward<decltype(response)>(response), HTTP_STATUS_OK);
+            }
+          }
+          else if constexpr (std::is_same_v<T, SerialisedJson>)
+          {
+            if (response.body == "null")
+            {
+              ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+            }
+            else
+            {
+              check_accepts_json(ctx);
+              ctx->set_response_status(HTTP_STATUS_OK);
+              ctx->set_response_body(std::move(response.body));
+              ctx->set_response_header(
+                http::headers::CONTENT_TYPE,
+                http::headervalues::contenttype::JSON);
             }
           }
           else

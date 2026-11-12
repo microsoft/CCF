@@ -179,6 +179,18 @@ namespace aft
     state.store(j.get<ccf::kv::LeadershipState>());
   }
 
+  inline std::string schema_name(
+    [[maybe_unused]] const AtomicLeadershipState* tag)
+  {
+    return ccf::ds::json::schema_name<ccf::kv::LeadershipState>();
+  }
+
+  inline void fill_json_schema(
+    nlohmann::json& schema, [[maybe_unused]] const AtomicLeadershipState* tag)
+  {
+    ccf::ds::json::fill_schema<ccf::kv::LeadershipState>(schema);
+  }
+
   struct State
   {
     State(ccf::NodeId node_id_, bool pre_vote_enabled_ = true) :

@@ -77,7 +77,9 @@ void check_error_message(const TResponse& r, const std::string& msg)
 }
 
 std::vector<uint8_t> create_request(
-  const json& params, const string& method_name, llhttp_method verb = HTTP_POST)
+  const nlohmann::json& params,
+  const string& method_name,
+  llhttp_method verb = HTTP_POST)
 {
   ::http::Request r(fmt::format("/gov/{}", method_name), verb);
   const auto body = params.is_null() ? std::string() : params.dump();

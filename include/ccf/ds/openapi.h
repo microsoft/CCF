@@ -39,7 +39,7 @@ namespace ccf::ds::openapi
   inline void fill_json_schema(
     nlohmann::json& schema, [[maybe_unused]] const Cose* cose)
   {
-    schema["type"] = "string";
+    // The media type describes a raw body, not a JSON string instance.
     schema["format"] = "binary";
   }
 
@@ -51,7 +51,6 @@ namespace ccf::ds::openapi
   inline void fill_json_schema(
     nlohmann::json& schema, [[maybe_unused]] const Binary* binary)
   {
-    schema["type"] = "string";
     schema["format"] = "binary";
   }
 
@@ -109,7 +108,8 @@ namespace ccf::ds::openapi
     const std::string_view& document_version)
   {
     return nlohmann::json{
-      {"openapi", "3.0.0"},
+      {"openapi", "3.1.0"},
+      {"jsonSchemaDialect", "https://json-schema.org/draft/2020-12/schema"},
       {"info",
        {{"title", title},
         {"description", description},
@@ -375,7 +375,8 @@ namespace ccf::ds::openapi
             sub_items.push_back(
               add_schema_component<typename T::mapped_type>());
 
-            items["items"]["oneOf"] = sub_items;
+            items["prefixItems"] = sub_items;
+            items["items"] = false;
             items["minItems"] = 2;
             items["maxItems"] = 2;
           }
@@ -390,7 +391,10 @@ namespace ccf::ds::openapi
         auto items = nlohmann::json::array();
         items.push_back(add_schema_component<typename T::first_type>());
         items.push_back(add_schema_component<typename T::second_type>());
-        schema["items"] = items;
+        schema["prefixItems"] = items;
+        schema["items"] = false;
+        schema["minItems"] = 2;
+        schema["maxItems"] = 2;
         return add_schema_to_components(
           document, ccf::ds::json::schema_name<T>(), schema);
       }
@@ -400,8 +404,7 @@ namespace ccf::ds::openapi
         std::is_same<T, ccf::ds::json::JsonSchema>::value)
       {
         ccf::ds::json::fill_schema<T>(schema);
-        return add_schema_to_components(
-          document, ccf::ds::json::schema_name<T>(), schema);
+        return schema;
       }
       else
       {
@@ -422,7 +425,18 @@ namespace ccf::ds::openapi
 #endif
           // Use argument-dependent-lookup to call correct functions
           T* t = nullptr;
-          if constexpr (std::is_enum<T>::value)
+          if constexpr (ccf::json::detail::Declared<T>)
+          {
+            ccf::json::detail::SchemaDocument generated;
+            j = ccf::json::detail::component_schema<T>(name, &generated);
+            for (const auto& [key, definition] :
+                 generated.document["components"]["schemas"].items())
+            {
+              [[maybe_unused]] const auto reference =
+                add_schema_to_components(document, key, definition);
+            }
+          }
+          else if constexpr (std::is_enum<T>::value)
           {
             fill_enum_schema(j, t);
           }
@@ -444,11 +458,6 @@ namespace ccf::ds::openapi
      * consensus's primary_id while no primary is currently known). The
      * produced schema therefore describes the inner type T, additionally
      * allowing a null value.
-     *
-     * OpenAPI 3.0 does not support "type": "null", and "nullable" only
-     * affects a "type" defined in the same schema object. The second "anyOf"
-     * branch therefore describes only null, while the first retains all
-     * constraints from the inner schema.
      */
     template <typename T>
     nlohmann::json add_required_schema_component()
@@ -457,12 +466,8 @@ namespace ccf::ds::openapi
       {
         auto inner = add_schema_component<typename T::value_type>();
         auto schema = nlohmann::json::object();
-        schema["anyOf"] = nlohmann::json::array(
-          {inner,
-           nlohmann::json{
-             {"type", "object"},
-             {"nullable", true},
-             {"enum", nlohmann::json::array({nullptr})}}});
+        schema["anyOf"] =
+          nlohmann::json::array({inner, nlohmann::json{{"type", "null"}}});
         return schema;
       }
       else

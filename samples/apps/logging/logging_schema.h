@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "ccf/ds/json.h"
+#include "ccf/json.h"
 #include "ccf/receipt.h"
 
 namespace loggingapp
@@ -55,20 +55,14 @@ namespace loggingapp
     };
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LoggingRecord::In);
-  DECLARE_JSON_REQUIRED_FIELDS(LoggingRecord::In, id, msg);
-  DECLARE_JSON_OPTIONAL_FIELDS(LoggingRecord::In, record_claim);
-
-  DECLARE_JSON_TYPE(LoggingGet::Out);
-  DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::Out, msg);
-
-  DECLARE_JSON_TYPE(LoggingPut::Out);
-  DECLARE_JSON_REQUIRED_FIELDS(LoggingPut::Out, success, tx_id);
-
-  DECLARE_JSON_TYPE(LoggingGetReceipt::In);
-  DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::In, id);
-  DECLARE_JSON_TYPE(LoggingGetReceipt::Out);
-  DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::Out, msg, receipt);
+  CCF_JSON_TYPE(
+    LoggingRecord::In,
+    CCF_JSON_REQUIRED(id, msg),
+    CCF_JSON_OPTIONAL(record_claim));
+  CCF_JSON_TYPE(LoggingGet::Out, CCF_JSON_REQUIRED(msg));
+  CCF_JSON_TYPE(LoggingPut::Out, CCF_JSON_REQUIRED(success, tx_id));
+  CCF_JSON_TYPE(LoggingGetReceipt::In, CCF_JSON_REQUIRED(id));
+  CCF_JSON_TYPE(LoggingGetReceipt::Out, CCF_JSON_REQUIRED(msg, receipt));
 
   // SNIPPET_END: macro_validation_macros
 
@@ -90,14 +84,12 @@ namespace loggingapp
     };
   };
 
-  DECLARE_JSON_TYPE(LoggingGetHistoricalRange::Entry);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    LoggingGetHistoricalRange::Entry, seqno, id, msg);
-
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LoggingGetHistoricalRange::Out);
-  DECLARE_JSON_REQUIRED_FIELDS(LoggingGetHistoricalRange::Out, entries);
-  DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
-    LoggingGetHistoricalRange::Out, next_link, "@nextLink");
+  CCF_JSON_TYPE(
+    LoggingGetHistoricalRange::Entry, CCF_JSON_REQUIRED(seqno, id, msg));
+  CCF_JSON_TYPE(
+    LoggingGetHistoricalRange::Out,
+    CCF_JSON_REQUIRED(entries),
+    CCF_JSON_NAMED(Optional, next_link, "@nextLink"));
 
   struct LoggingGetCoseEndorsements
   {

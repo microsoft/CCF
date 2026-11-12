@@ -652,7 +652,7 @@ namespace ccf
     }
     auto schema_json = nlohmann::json::parse(host::host_config_schema);
 
-    auto schema_error_msg = json::validate_json(config_json, schema_json);
+    auto schema_error_msg = ::json::validate_json(config_json, schema_json);
     if (schema_error_msg.has_value())
     {
       throw std::logic_error(fmt::format(

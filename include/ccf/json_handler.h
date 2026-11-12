@@ -3,8 +3,12 @@
 #pragma once
 
 #include "ccf/endpoint_registry.h"
+#include "ccf/json.h"
 
+#include <concepts>
 #include <llhttp/llhttp.h>
+#include <string>
+#include <type_traits>
 #include <variant>
 
 namespace ccf
@@ -55,16 +59,23 @@ namespace ccf
     struct AlreadyPopulatedResponse
     {};
 
+    struct SerialisedJson
+    {
+      std::string body;
+    };
+
     using JsonAdapterResponse = std::variant<
       ErrorDetails,
       RedirectDetails,
       AlreadyPopulatedResponse,
-      nlohmann::json>;
+      nlohmann::json,
+      SerialisedJson>;
 
     nlohmann::json get_json_params(const std::shared_ptr<ccf::RpcContext>& ctx);
 
     void set_response(
       JsonAdapterResponse&& res, std::shared_ptr<ccf::RpcContext>& ctx);
+
   }
 
   jsonhandler::JsonAdapterResponse make_success();
@@ -72,6 +83,18 @@ namespace ccf
     nlohmann::json&& result_payload);
   jsonhandler::JsonAdapterResponse make_success(
     const nlohmann::json& result_payload);
+
+  /** Serialise a typed response directly, without constructing a JSON DOM.
+   * Request parsing and the adapter's status/content negotiation are unchanged.
+   */
+  template <typename T>
+    requires(
+      !std::same_as<std::remove_cvref_t<T>, nlohmann::json> &&
+      glz::write_supported<T, glz::JSON>)
+  jsonhandler::JsonAdapterResponse make_success(const T& result)
+  {
+    return jsonhandler::SerialisedJson{ccf::json::write(result)};
+  }
 
   jsonhandler::JsonAdapterResponse make_error(
     ccf::http_status status, const std::string& code, const std::string& msg);

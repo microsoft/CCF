@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - `ccf::crypto::Verifier::remaining_seconds()` now returns the whole validity period before that period starts, and `remaining_percentage()` always returns a fraction between 0.0 and 1.0, including for a certificate whose validity period ends before it starts (#8626).
 
+### Added
+
+- C++ applications can use `ccf::json` and `CCF_JSON_*` declarations for direct typed JSON serialization, selected automatically by `ccf::make_success(value)`, while retaining the existing JSON macros and DOM conversions.
+  Generated API documents use OpenAPI 3.1; see [the C++ application guide](doc/build_apps/example_cpp.rst#typed-json-serialization).
+
 ## [7.0.22]
 
 [7.0.22]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.22

@@ -200,6 +200,8 @@ namespace ccf
       decltype(ProofReceipt::Components::write_set_digest)>();
     helper.template add_schema_component<
       decltype(ProofReceipt::Components::claims_digest)>();
+    helper.template add_schema_component<
+      decltype(ProofReceipt::Components::commit_evidence)>();
 
     fill_json_schema(schema, comp);
   }

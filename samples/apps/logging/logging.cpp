@@ -657,7 +657,7 @@ namespace loggingapp
 
       out->tx_id = tx_id.to_str();
 
-      ctx.rpc_ctx->set_response_body(nlohmann::json(*out).dump());
+      ctx.rpc_ctx->set_response_body(ccf::json::write(*out));
     }
 
     static ccf::jsonhandler::JsonAdapterResponse handle_record_v2(
@@ -2217,7 +2217,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.6";
+      openapi_info.document_version = "2.8.7";
     };
 
     void init_handlers() override
