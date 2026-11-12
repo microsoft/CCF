@@ -117,6 +117,11 @@ EC2 (P-256, P-384 or P-521), OKP (Ed25519), RSA and AKP (ML-DSA, RFC 9964) publi
 .. doxygenfunction:: ccf::crypto::make_cose_verifier_from_key(const COSEKey&)
   :project: CCF
 
+An application that has already parsed a certificate with OpenSSL, for example to validate its chain, can take its key without parsing the certificate again.
+
+.. doxygenfunction:: ccf::crypto::OpenSSL::cose_key_from_x509
+  :project: CCF
+
 
 Key Wrapping
 ------------
