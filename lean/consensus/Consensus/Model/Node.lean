@@ -94,26 +94,27 @@ abbrev canStartElection (state : NodeState) (self : NodeID) : Prop :=
   /\ Not (state.isRetiredCommitted self)
 
 /--
-The highest current-term signature above the primary's commit index which a
-majority of every active configuration at or before that signature has reached,
-or zero when there is none.
+The primary's commit index after trying each current-term signature above it in turn.
+A signature commits if a majority of every configuration active at the commit index
+reached so far, at or before that signature, has reached it; committing it retires the
+configurations its own configuration supersedes for the signatures after it.
 -/
 def highestCommittableIndex (state : NodeState) (self : NodeID) : Nat :=
   let replicatedBy index :=
     state.activeMembers.filter fun node => node = self \/ state.matchIndex node >= index
   (List.range (state.log.length + 1)).foldl
-    (fun highest index =>
-      if index > state.commitIndex
+    (fun commitIndex index =>
+      if index > commitIndex
           /\ isSignatureAt state.log index = true
           /\ termAt state.log index = state.currentTerm
           /\ hasQuorum
-              (state.activeConfigurations.filter
+              ((activeConfigurations state.log commitIndex).filter
                 fun configuration => configuration.index <= index)
               (replicatedBy index) then
-        max highest index
+        index
       else
-        highest)
-    0
+        commitIndex)
+    state.commitIndex
 
 /--
 Record a chosen commit index, latching the original transaction index once this

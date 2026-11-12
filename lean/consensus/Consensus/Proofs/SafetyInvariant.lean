@@ -699,7 +699,10 @@ private def CommitStep (history : History) (leader : NodeID) (state : NodeState)
               /\ acker.currentTerm = term
               /\ state.log.take index <+: acker.log
 
-/-- Prefixes committed by a leader, each backed by earlier commits. -/
+/--
+Prefixes committed by a leader, each backed by earlier commits, possibly made by the
+same step, as one commit can pass several configurations.
+-/
 private inductive Committed : History -> Nat -> List Entry -> Prop where
   | fresh {current : Model.State} {rest : History} {leader : NodeID}
     {state : NodeState} {term index : Nat}
@@ -709,7 +712,7 @@ private inductive Committed : History -> Nat -> List Entry -> Prop where
     {state : NodeState} {term base index earlier : Nat}
     {part : List Entry}
     (step : CommitStep (current :: rest) leader state term base index)
-    (backing : Committed rest earlier part) (le : earlier <= term)
+    (backing : Committed (current :: rest) earlier part) (le : earlier <= term)
     (within : state.log.take base <+: part)
     : Committed (current :: rest) term (state.log.take index)
   | past {current : Model.State} {rest : History} {term : Nat}
@@ -2782,45 +2785,35 @@ private theorem CommitFrontier.advance {state : NodeState}
   · rw [Nat.max_eq_left le] at positive ⊢
     exact extends_.2 positive
 
-private theorem foldl_select_max (P : Nat -> Prop) [DecidablePred P] (values : List Nat)
-    (init : Nat)
-    : values.foldl (fun best index => if P index then max best index else best) init
-        = init
-      \/ P
-          (values.foldl (fun best index => if P index then max best index else best)
-            init) := by
+/-- A fold that only moves its accumulator to elements satisfying `P` keeps any
+property those moves keep. -/
+private theorem foldl_select_step (P : Nat -> Nat -> Prop) [forall a b, Decidable (P a b)]
+    (Q : Nat -> Prop) (values : List Nat) (init : Nat) (start : Q init)
+    (step : forall acc value, value ∈ values -> Q acc -> P acc value -> Q value)
+    : Q (values.foldl (fun acc value => if P acc value then value else acc) init) := by
   induction values generalizing init with
-  | nil => exact Or.inl rfl
+  | nil => exact start
   | cons head tail ih =>
       simp only [List.foldl_cons]
-      rcases ih (if P head then max init head else init) with same | holds
-      · rw [same]
-        by_cases chosen : P head
-        · rcases Nat.le_total init head with le | le
-          · right
-            simp [chosen, Nat.max_eq_right le]
-          · left
-            simp [chosen, Nat.max_eq_left le]
-        · simp [chosen]
-      · exact Or.inr holds
-
-private theorem foldl_select_max_pos (P : Nat -> Prop) [DecidablePred P]
-    (values : List Nat)
-    (positive
-      : 0 < values.foldl (fun best index => if P index then max best index else best) 0)
-    : P
-        (values.foldl (fun best index => if P index then max best index else best)
-          0) := by
-  rcases foldl_select_max P values 0 with zero | holds
-  · rw [zero] at positive
-    exact absurd positive (Nat.lt_irrefl 0)
-  · exact holds
+      refine ih _ ?_ fun acc value mem => step acc value (List.mem_cons_of_mem _ mem)
+      split
+      · exact step init head (List.mem_cons.mpr (Or.inl rfl)) start ‹_›
+      · exact start
 
 private theorem highestCommittableIndex_signature (state : NodeState) (self : NodeID)
-    (positive : 0 < highestCommittableIndex state self)
+    (ahead : state.commitIndex < highestCommittableIndex state self)
     : isSignatureAt state.log (highestCommittableIndex state self) = true := by
-  unfold highestCommittableIndex at positive ⊢
-  exact (foldl_select_max_pos _ _ positive).2.1
+  have holds
+      : highestCommittableIndex state self = state.commitIndex
+        \/ isSignatureAt state.log (highestCommittableIndex state self) = true := by
+    dsimp only [highestCommittableIndex]
+    exact foldl_select_step _
+      (fun index => index = state.commitIndex \/ isSignatureAt state.log index = true) _ _
+      (Or.inl rfl) fun _ _ _ _ selected => Or.inr selected.2.1
+  rcases holds with same | signature
+  · rw [same] at ahead
+    exact absurd ahead (Nat.lt_irrefl _)
+  · exact signature
 
 private theorem signature_le_length {log : List Entry} {index : Nat}
     (signature : isSignatureAt log index = true)
@@ -2918,8 +2911,7 @@ private theorem CommitFrontier.advanced {state : NodeState} (self : NodeID)
     : Keeps CommitFrontier (Model.Node.advanceCommit caps state self) := by
   unfold Model.Node.advanceCommit
   refine Keeps.ite' (fun _ => Keeps.pure' frontier) fun ahead => ?_
-  have signature := highestCommittableIndex_signature state self
-    (Nat.lt_of_le_of_lt (Nat.zero_le _) (Nat.lt_of_not_le ahead))
+  have signature := highestCommittableIndex_signature state self (Nat.lt_of_not_le ahead)
   have advanced : CommitFrontier
       (state.recordCommit self (highestCommittableIndex state self)) :=
     ⟨by simpa using signature_le_length signature, fun _ => by simpa using signature⟩
@@ -3502,23 +3494,6 @@ set_option linter.unusedSectionVars false
 open Consensus.Proofs.Config Consensus.Proofs.Ledger
 open CCF
 open Model.Node
-
-private theorem highestCommittableIndex_spec (state : NodeState) (self : NodeID)
-    (ahead : state.commitIndex < highestCommittableIndex state self)
-    : let index := highestCommittableIndex state self
-      index <= state.log.length
-      /\ isSignatureAt state.log index = true
-      /\ termAt state.log index = state.currentTerm
-      /\ hasQuorum
-          (state.activeConfigurations.filter
-            fun configuration => configuration.index <= index)
-          ((state.activeMembers).filter
-            fun node => node = self \/ state.matchIndex node >= index) := by
-  intro index
-  have holds := Direct.foldl_select_max_pos _ _ (Nat.lt_of_le_of_lt (Nat.zero_le _) ahead)
-  refine ⟨?_, holds.2.1, holds.2.2.1, holds.2.2.2⟩
-  obtain ⟨entry, found, _⟩ := Ledger.isSignatureAtTrue holds.2.1
-  exact Ledger.entryAtSomeIndexBound found
 
 private theorem AEFrom.extend {self : NodeID} {term commit commit' : Nat}
     {log log' : List Entry} {envelope : Model.Envelope}
@@ -5280,7 +5255,7 @@ private theorem Committed.shape {history : History} {term : Nat}
         /\ part = state.log.take index
         /\ (base = 0
             \/ exists earlier part',
-                Committed rest earlier part'
+                Committed (current :: rest) earlier part'
                 /\ earlier <= term
                 /\ state.log.take base <+: part') := by
   induction committed with
@@ -5388,10 +5363,7 @@ private theorem backing_split {history : History} {log : List Entry}
         rw [lengthEq, List.take_take, Nat.min_eq_left commitIndex] at eq
         rw [eq]
         exact take_prefix_take _ (Nat.le_of_lt (Nat.lt_of_not_le baseLe))
-      rcases ih (short.trans inBacking) with backed
-          | ⟨c', p', l', s', t', b', i', suffix, rest'⟩
-      · exact Or.inl (backed.mono (List.suffix_cons _ _))
-      · exact Or.inr ⟨c', p', l', s', t', b', i', suffix.trans (List.suffix_cons _ _), rest'⟩
+      exact ih (short.trans inBacking)
   | @past current rest term part old ih =>
       intro within
       rcases ih within with backed | ⟨c', p', l', s', t', b', i', suffix, rest'⟩
@@ -6614,8 +6586,7 @@ private theorem old_in_new {node : NodeID} {later commit : Nat} {log : List Entr
         fun _ => by rw [List.take_zero]; exact List.nil_prefix
   | chained step backing le within ih =>
       exact c.old_step_in_new elect suffix step (Committed.chained step backing le within)
-        lt fun _ => within.trans (ih ((List.suffix_cons _ _).trans suffix)
-          (Nat.lt_of_le_of_lt le lt))
+        lt fun _ => within.trans (ih suffix (Nat.lt_of_le_of_lt le lt))
   | past _ ih => exact ih ((List.suffix_cons _ _).trans suffix) lt
 
 /-- A part committed before the step is in every later elected log. -/
@@ -6836,7 +6807,10 @@ private theorem new_in_elected {leader : NodeID} {state : NodeState}
     (backing
       : base = 0
         \/ exists earlier part,
-            Committed (before :: rest) earlier part
+            (forall node later log commit,
+              Elected (after :: before :: rest) node later log commit
+              -> earlier < later
+              -> part <+: log)
             /\ earlier <= term
             /\ state.log.take base <+: part)
     : forall later node log commit,
@@ -6890,10 +6864,10 @@ private theorem new_in_elected {leader : NodeID} {state : NodeState}
             · exact notCandidate isCandidate
       have low : commit <= base -> state.log.take base <+: log := by
         intro _
-        rcases backing with zero | ⟨_, part, committed, below, inPart⟩
+        rcases backing with zero | ⟨_, part, complete, below, inPart⟩
         · rw [zero, List.take_zero]
           exact List.nil_prefix
-        · exact inPart.trans (c.old_complete committed
+        · exact inPart.trans (complete node later log commit
             ⟨a, b, r, electSuffix, elect⟩ (Nat.lt_of_le_of_lt below lt))
       have high
           : base < commit
@@ -6939,15 +6913,22 @@ private theorem new_in_elected {leader : NodeID} {state : NodeState}
           (c.anchors.suffix innerH) ((c.all Inv.terms).suffix innerH) lt agree baseLe'
           commitLe clean
 
+/-- A chained part is complete once its backing is, even when the step made both. -/
 private theorem completeness : Completeness (after :: before :: rest) := by
-  intro term part node later log commit committed elected lt
-  cases committed with
+  intro term part node later log commit committed
+  generalize history : after :: before :: rest = current at committed
+  induction committed generalizing node later log commit with
   | fresh step =>
-      exact c.new_in_elected step (Or.inl rfl) later node log commit elected lt
-  | chained step backing le within =>
-      exact c.new_in_elected step (Or.inr ⟨_, _, backing, le, within⟩) later node log commit
-        elected lt
-  | past old => exact c.old_complete old elected lt
+      cases history
+      exact c.new_in_elected step (Or.inl rfl) later node log commit
+  | chained step backing le within ih =>
+      cases history
+      exact c.new_in_elected step
+        (Or.inr ⟨_, _, fun node later log commit => ih node later log commit rfl, le, within⟩)
+        later node log commit
+  | past old =>
+      cases history
+      exact fun elected lt => c.old_complete old elected lt
 
 end Consensus.Proofs.Safety.Ctx
 
@@ -7017,7 +6998,10 @@ private theorem acked_pre (leader : c.pre.role = .primary) {voter : NodeID} {ind
   rw [take_eq_of_prefix inLog bound]
   exact sub
 
-/-- An advanced commit index is a commit step backed by the earlier one. -/
+/--
+An advanced commit index ends a chain of commit steps, each backed by the one
+before it and the first by the earlier commit index.
+-/
 private theorem advance_backed {middle : NodeState}
     (advance : Advance c.actor middle c.post)
     (old : Backed (before :: rest) c.post.log middle.commitIndex c.post.currentTerm)
@@ -7033,24 +7017,9 @@ private theorem advance_backed {middle : NodeState}
               /\ c.post.log.take (middle.matchIndex voter) <+: acker.log)
     : Backed (after :: before :: rest) c.post.log c.post.commitIndex
         c.post.currentTerm := by
-  rcases advance with same | ⟨log, term, _, _, _, _, lt, eq, postRole⟩
+  rcases advance with same | ⟨log, term, _, _, _, _, _, eq, postRole⟩
   · subst same
     exact old.mono c.suffix_tail
-  have ahead : middle.commitIndex < highestCommittableIndex middle c.actor :=
-    eq ▸ lt
-  obtain ⟨bound, signature, termEq, quorum⟩ := highestCommittableIndex_spec middle c.actor ahead
-  obtain ⟨voters, quorum, members⟩
-      : exists voters,
-          hasQuorum
-            (middle.activeConfigurations.filter
-              fun configuration =>
-                configuration.index <= highestCommittableIndex middle c.actor)
-            voters
-          /\ forall voter, voter ∈ voters
-              -> voter = c.actor
-                  \/ middle.matchIndex voter >= highestCommittableIndex middle
-                      c.actor :=
-    ⟨_, quorum, fun _ mem => (Finset.mem_filter.mp mem).2⟩
   have notCandidate : Not (c.post.role = .candidate) := by
     rcases postRole with postRole | postRole <;> rw [postRole]
     · rw [role]
@@ -7058,15 +7027,31 @@ private theorem advance_backed {middle : NodeState}
       cases h
     · intro h
       cases h
+  rw [eq]
+  dsimp only [highestCommittableIndex]
+  refine Direct.foldl_select_step _
+    (fun commit => Backed (after :: before :: rest) c.post.log commit c.post.currentTerm)
+    _ _ (old.mono c.suffix_tail) fun commit index member backed selected => ?_
+  obtain ⟨above, signature, termEq, quorum⟩ := selected
+  have bound : index <= middle.log.length := Nat.lt_succ_iff.mp (List.mem_range.mp member)
+  obtain ⟨voters, quorum, members⟩
+      : exists voters,
+          hasQuorum
+            ((activeConfigurations middle.log commit).filter
+              fun configuration => configuration.index <= index)
+            voters
+          /\ forall voter, voter ∈ voters
+              -> voter = c.actor \/ middle.matchIndex voter >= index :=
+    ⟨_, quorum, fun _ mem => (Finset.mem_filter.mp mem).2⟩
   have step : CommitStep (after :: before :: rest) c.actor c.post c.post.currentTerm
-      middle.commitIndex c.post.commitIndex := by
-    refine ⟨⟨c.post_now, rfl, notCandidate, led⟩, Nat.le_of_lt lt, ?_, ?_, ?_, voters, ?_, ?_⟩
-    · rw [log, eq]
+      commit index := by
+    refine ⟨⟨c.post_now, rfl, notCandidate, led⟩, Nat.le_of_lt above, ?_, ?_, ?_, voters, ?_, ?_⟩
+    · rw [log]
       exact bound
-    · rw [log, eq]
+    · rw [log]
       exact signature
-    · rw [log, eq, termEq, term]
-    · rw [log, eq]
+    · rw [log, termEq, term]
+    · rw [log]
       exact quorum
     · intro voter mem
       by_cases self : voter = c.actor
@@ -7074,13 +7059,11 @@ private theorem advance_backed {middle : NodeState}
         exact ⟨c.post, c.post_seen, rfl, List.take_prefix _ _⟩
       · have ge := (members voter mem).resolve_left self
         obtain ⟨acker, seen, ackerTerm, sub⟩ :=
-          acks voter self (Nat.lt_of_le_of_lt (Nat.zero_le _) (Nat.lt_of_lt_of_le ahead ge))
-        exact ⟨acker, seen, ackerTerm,
-          (take_prefix_take _ (Nat.le_trans (Nat.le_of_eq eq) ge)).trans sub⟩
+          acks voter self (Nat.lt_of_le_of_lt (Nat.zero_le _) (Nat.lt_of_lt_of_le above ge))
+        exact ⟨acker, seen, ackerTerm, (take_prefix_take _ ge).trans sub⟩
   have committed
-      : Committed (after :: before :: rest) c.post.currentTerm
-          (c.post.log.take c.post.commitIndex) := by
-    rcases old with zero | ⟨earlier, part, backing, le, within⟩
+      : Committed (after :: before :: rest) c.post.currentTerm (c.post.log.take index) := by
+    rcases backed with zero | ⟨earlier, part, backing, le, within⟩
     · rw [zero] at step
       exact .fresh step
     · exact .chained step backing le within
