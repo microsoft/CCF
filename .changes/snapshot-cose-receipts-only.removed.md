@@ -1,2 +1,2 @@
-Nodes and `ccf.ledger.Snapshot` accept only COSE snapshot receipts, so snapshots written by releases before 7.0 are rejected when joining or recovering.
-A node which rejects the snapshot fetched from its join target joins by replaying the ledger when the target started from the ledger or from a snapshot no newer than the joiner's own; see [Snapshot Receipts](doc/build_apps/migration_7_x_to_8_x.rst#snapshot-receipts).
+Nodes and `ccf.ledger.Snapshot` accept only COSE snapshot receipts, so snapshots written by 6.x and earlier releases, which are out of support, are rejected when joining or recovering.
+A node which rejects the snapshot fetched from its join target joins by replaying the ledger when the target started from the ledger or from a snapshot no newer than the joiner's own; see [Snapshot Generation](doc/operations/ledger_snapshot.rst#snapshot-generation).

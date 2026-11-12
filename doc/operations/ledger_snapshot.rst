@@ -220,6 +220,8 @@ Time-based snapshotting can also be enabled with ``snapshots.time_interval``. Wh
 .. warning:: Setting ``snapshots.min_tx_count`` lower than ``2`` while ``snapshots.time_interval`` is greater than ``0s`` can lead to repeated time-based snapshots even when there are no new application writes. This is because the snapshot itself generates two transactions.
 
 To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the :ref:`audit/builtin_maps:``snapshot_evidence``` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operations/configuration:``ledger_signatures```).
+A COSE receipt of that signature is appended to the snapshot file, and is verified before a node joins or recovers from the snapshot.
+Snapshots written by 6.x and earlier releases carry a JSON receipt instead; these releases are out of support and nodes reject their snapshots as they would any snapshot that fails verification (see :ref:`operations/ledger_snapshot:Join or Recover From Snapshot`), as do ``ccf.ledger.Snapshot`` and ``read_ledger.py --snapshot`` in the Python package.
 
 Committed snapshot files are named ``snapshot_<seqno>_<evidence_seqno>.committed``, with ``<seqno>`` the sequence number of the state of the key-value store at which they were generated and ``<evidence_seqno>`` the sequence number at which the snapshot evidence was recorded.
 
@@ -262,6 +264,11 @@ The legacy behaviour without ``fetch_recent_snapshot`` relies on a shared read-o
 
 In particular, there is a hard lower bound on the age of the snapshot that a joining node can start from. It must be at least as recent as the snapshot that the primary node started from, otherwise the primary will return a ``StartupSeqnoIsOld`` error to the joining node.
 A fetched snapshot which fails validation is discarded, and the later join requests of that node are held to this lower bound only, so that it joins by replaying the ledger when its own startup sequence number satisfies the bound and the service cannot provide a usable snapshot.
+
+.. note:: A service whose newest committed snapshot was written by a 6.x or earlier release cannot provide a usable snapshot (see :ref:`operations/ledger_snapshot:Snapshot Generation`).
+    Joining nodes then replay the ledger when the primary itself started from the ledger, and otherwise keep requesting the snapshot until a newer one exists.
+    Create a snapshot with :http:POST:`/node/snapshot:create` before adding nodes to such a service.
+    Recovering such a service moves on to an older snapshot or to the ledger, as for any snapshot that fails validation.
 
 The following flowchart summarises the join procedure when ``command.join.fetch_recent_snapshot`` is enabled:
 
