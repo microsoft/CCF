@@ -8,25 +8,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 [7.0.24]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.24
 
-### Added
-
-- `ccf::crypto::MLDSAKeyPair` can now issue X.509 certificates and PKCS#10 certificate signing requests signed with pure ML-DSA (`create_csr()`, `sign_csr()`, `self_sign()`), and `ccf::crypto::make_verifier()` accepts ML-DSA certificates, verifying their signatures with `MDType::NONE`. The ML-DSA headers are now included on every build; with OpenSSL older than 3.5, `make_mldsa_key_pair()` and `make_mldsa_public_key()` throw `std::runtime_error` (#8629).
-- Nodes built with OpenSSL 3.5 or newer give the services they start or recover an ML-DSA service certificate (`pq_service_certificate` in `GET /node/network`, `pqCertificate` in `GET /gov/service/info`), selected by `service_mldsa_parameter_set` and renewed by the `set_pq_service_certificate_validity` proposal. Such services only accept nodes with ML-DSA support; see the [7.x to 8.x migration guide](doc/releases/migration_7_x_to_8_x.rst) (#8632).
-
-### Changed
-
-- CCF-owned fatal termination paths now all emit flushed diagnostics to stderr, while recoverable logs and fatal-severity-only entries remain on stdout. See [Logging](doc/build_apps/logging.rst) (#8690).
-- CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag (#8657).
-- `observability.fluentd` now accepts an array of independent sinks, and configurable delivery behaviour.
-  See [Observability Export](doc/operations/configuration.rst#observability-export) for more details (#8666).
-
 ### Fixed
 
-- `ccf::indexing::strategies::SeqnosByKey_Bucketed` queries remain unavailable while a rebuild is pending after a missing or corrupt index file is detected, including when indexing advances concurrently. See [Indexing](doc/architecture/indexing.rst) for rebuild behaviour (#8684).
-- Python ledger verification now uses less memory on large ledgers; see [Python Library](doc/audit/python_library.rst) (#8665).
-- `ccf.receipt.verify_cose` now rejects receipts that do not conform to the [CCF Profile for COSE Receipts, draft -06](https://www.ietf.org/archive/id/draft-ietf-scitt-receipts-ccf-profile-06.html), including malformed CBOR or proofs and proofs that do not all recompute the signed root, and `ccf::cose::edit::set_unprotected_header` now preserves all bytes outside the unprotected header. See [COSE Receipt Verification](doc/use_apps/verify_tx.rst#cose-receipt-verification) for details, including migration from the deprecated `ccf.cose.verify_receipt` (#8646).
-- Nodes no longer abort when a compaction races a transaction run outside of an endpoint, such as the primary's snapshot evidence transaction, a backup's lookup of the primary before fetching a snapshot, JWT key auto-refresh, or the network identity fetch; the operation is retried and otherwise skipped until its next scheduled run. A backup also no longer aborts if a fetched snapshot cannot be written to disk (#8652).
-- The `ccf.merkletree.MerkleTree` Python class now computes each root in time proportional to the leaves added since the previous root, so `ccf.ledger.LedgerValidator` no longer slows down as ledgers grow (#8660).
 - Hardened `ccf::crypto` OpenSSL call sites taking `int` lengths against inputs larger than 2 GiB, and Base64 encoding and decoding no longer use stack buffers proportional to the input size. `ccf::crypto::OpenSSL::Unique_BIO(const void*, int)` now takes a `size_t` and throws `std::invalid_argument` rather than accepting a negative length (#8645).
 
 ## [7.0.23]
@@ -97,7 +80,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 - `ccf::endpoints::EndpointRegistry::tick()` overrides now run on task-system worker threads rather than the enclave main thread. Ticks for the same registry do not overlap, but may run concurrently with endpoint execution and ticks for other registries (#8445).
 - Ledger writes and reads of uncommitted ledger entries no longer travel over the host-enclave ringbuffer. The number of ledger entries the host has accepted but not yet written to disk was previously bounded by the ringbuffer filling up and stalling the enclave. It is now bounded by a backpressure threshold instead: a node returns `503` `TooManyPendingTransactions` for application and governance requests while the bytes of pending ledger appends are at or above `memory.circuit_size` (16MB by default), and drops incoming `AppendEntries` replication messages, including heartbeats, until the backlog clears. `/node` endpoints are exempt. Threshold crossings are logged. See the Backpressure section of the Resource Usage operations documentation (#8405).
 - The `503` `TooManyPendingTransactions` check for `consensus.max_uncommitted_tx_count` now applies on backups as well as the primary, so a backup whose uncommitted transaction count reaches the limit rejects requests, including reads, rather than serving or forwarding them. Setting `consensus.max_uncommitted_tx_count` to `0` disables only this count-based check, not the ledger write backpressure above (#8405).
-- First-party node configuration tools now enable redirects by default; manually configured interfaces without `redirections` retain legacy forwarding. JavaScript bundles can omit `forwarding_required`, inferring `always` for `to_primary` and `never` for `none` or `to_backup`, while explicit legacy policies remain supported. Request forwarding remains deprecated and will be removed in CCF 8.0. See [Migrating from forwarding to redirection](https://microsoft.github.io/CCF/main/releases/fwd_to_redirect.html) (#8538).
+- First-party node configuration tools now enable redirects by default; manually configured interfaces without `redirections` retain legacy forwarding. JavaScript bundles can omit `forwarding_required`, inferring `always` for `to_primary` and `never` for `none` or `to_backup`, while explicit legacy policies remain supported. Request forwarding remains deprecated and will be removed in CCF 8.0. See [Migrating from forwarding to redirection](https://microsoft.github.io/CCF/main/build_apps/fwd_to_redirect.html) (#8538).
 - Setting a C++ endpoint's `redirection_strategy` now also infers its legacy `forwarding_required` policy (`Always` for `ToPrimary`, `Never` for `None` and `ToBackup`), unless a policy was set earlier through `set_forwarding_required()`. The `Sometimes` policy assigned by `make_read_only_endpoint()` and `make_command_endpoint()` is not explicit, so endpoints which chain `set_redirection_strategy(ToBackup)` now report `never` in their OpenAPI `x-ccf-forwarding` metadata, as the logging sample's `/log/private/backup` and `/log/public/backup` endpoints do. On interfaces still using forwarding, such endpoints are always executed locally, rather than being forwarded on sessions which previously forwarded a request (#8538).
 
 ### Deprecated
@@ -3194,7 +3177,7 @@ Key-Value Store
 
 The Confidential Consortium Framework CCF is an open-source framework for building a new category of secure, highly available, and performant applications that focus on multi-party compute and data.
 
-This is the first long term support release for CCF. The 1.0 branch will only receive security and critical bug fixes, please see our [release policy](https://microsoft.github.io/CCF/main/releases/release_policy.html) for more detail.
+This is the first long term support release for CCF. The 1.0 branch will only receive security and critical bug fixes, please see our [release policy](https://microsoft.github.io/CCF/main/build_apps/release_policy.html) for more detail.
 
 Active development will continue on the `main` branch, and regular development snapshots including new features will continue to be published.
 

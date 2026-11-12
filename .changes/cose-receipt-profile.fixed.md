@@ -1,0 +1,2 @@
+`ccf.receipt.verify_cose` now rejects receipts that do not conform to the [CCF Profile for COSE Receipts, draft -06](https://www.ietf.org/archive/id/draft-ietf-scitt-receipts-ccf-profile-06.html), including malformed CBOR or proofs and proofs that do not all recompute the signed root.
+`ccf::cose::edit::set_unprotected_header` now preserves all bytes outside the unprotected header; see [COSE Receipt Verification](doc/use_apps/verify_tx.rst#cose-receipt-verification) for details and migration from the deprecated `ccf.cose.verify_receipt`.
