@@ -175,7 +175,7 @@ example
   Properties.quorum_advance_opens config quorumTimeout ⟨rfl, Or.inl rfl, rfl, by decide⟩
 
 example (candidate : Properties.GlobalTrace config)
-    (states : candidate.states = Stream'.Seq.ofList [ready, voteSent])
+    (states : candidate.states = CCF.Seq.ofList [ready, voteSent])
     : False := by
   obtain ⟨start, first, _, _, _, _, nodes⟩ := candidate.valid_init
   have same : start = ready := by simpa [states] using first.symm

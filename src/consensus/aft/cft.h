@@ -152,7 +152,6 @@ namespace aft
     // Ordered so that iteration, including successor selection in
     // find_successor(), is deterministic.
     std::map<ccf::NodeId, NodeState> all_other_nodes;
-    std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
 
     // Called on the primary to remove retired nodes from the store
     std::function<void()> retired_node_cleanup;
@@ -466,6 +465,8 @@ namespace aft
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
+
+      trace::init_as_backup(*state, index, term);
 
       state->last_idx = index;
       state->commit_idx = index;
@@ -2640,11 +2641,6 @@ namespace aft
       {
         create_and_remove_node_state();
       }
-    }
-
-    nlohmann::json get_state_representation() const
-    {
-      return *state;
     }
 
     const State& get_state_for_trace() const

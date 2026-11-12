@@ -41,9 +41,6 @@ namespace asynchost
     /// To be implemented by servers with connections
     virtual void on_accept(ConnType& /*unused*/) {}
 
-    /// To be implemented by all servers (after registration)
-    virtual void on_start(int64_t /*unused*/) {}
-
     /// Generic loggers for common reactions
     virtual void on_listening(
       const std::string& host, const std::string& service)

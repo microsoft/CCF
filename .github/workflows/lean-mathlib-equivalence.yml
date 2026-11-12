@@ -1,0 +1,70 @@
+name: "Lean Mathlib equivalence"
+
+# Proves that the local replacements for Mathlib definitions are equivalent to
+# Mathlib's, so this only runs when those definitions or the proofs change.
+on:
+  pull_request:
+    paths:
+      - "lean/common/CCF/Finset.lean"
+      - "lean/common/CCF/Function.lean"
+      - "lean/common/CCF/Seq.lean"
+      - "lean/consensus/Consensus/Model/Node.lean"
+      - "lean/mathlib-equivalence/**"
+      - "lean/lean-toolchain"
+      - "scripts/lean-format-checks.sh"
+      - ".github/workflows/lean-mathlib-equivalence.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  equivalence:
+    name: Prove equivalence with Mathlib
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Install prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y elan
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Lean
+        run: |
+          set -euo pipefail
+          echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+          elan run --install "$(cat lean/lean-toolchain)" lean --version
+
+      - name: Restore dependency builds
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: lean/mathlib-equivalence/.lake/packages
+          key: lean-deps-v3-ubuntu-26.04-${{ runner.arch }}-mathlib-equivalence-${{ hashFiles('lean/lean-toolchain', 'lean/mathlib-equivalence/lake-manifest.json', 'lean/mathlib-equivalence/lakefile.toml', 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', 'lean/consensus/lake-manifest.json', 'lean/consensus/lakefile.toml', '.github/workflows/lean-mathlib-equivalence.yml') }}
+
+      - name: Restore Mathlib cache
+        working-directory: lean/mathlib-equivalence
+        run: |
+          set -euo pipefail
+          lake exe cache get
+
+      - name: Build, kernel and axiom check
+        working-directory: lean/mathlib-equivalence
+        run: |
+          set -euo pipefail
+          lake check --inadvisably-no-sandbox
+
+      - name: Check formatting
+        run: |
+          set -euo pipefail
+          ./scripts/lean-format-checks.sh mathlib-equivalence

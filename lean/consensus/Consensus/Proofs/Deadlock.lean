@@ -3,9 +3,7 @@ module
 public import Consensus.Model
 
 import all Consensus.Proofs.SafetyInvariant
-import Mathlib.Algebra.Order.BigOperators.Group.List
-import Mathlib.Algebra.Order.Group.Nat
-import Mathlib.Tactic.Lemma
+import CCF.Proofs.Finset
 
 /-!
 Deadlock freedom after bootstrapping: once a signature has been committed,
@@ -131,10 +129,12 @@ namespace Consensus.Proofs.Deadlock
 open CCF CCF.MultiNodeTransitionSystem
 open Model.Node
 
-/-- A local input that the node's step accepts is an enabled global action. -/
+/-- A local input other than initialization that the node's step accepts is an
+enabled global action. -/
 private theorem enabled_of_total {config : Finset NodeID} {nodes : List NodeID}
     {state : Model.State} {node : NodeID} {local_ : NodeState} {input : Input}
     (distinct : (state.nodes.map Prod.fst).Nodup) (member : (node, local_) ∈ state.nodes)
+    (notInit : forall entries, Not (input = .initAsBackup entries))
     (total
       : Total.Total
           (Model.Node.step (Capabilities.record node) node local_ (.internal input)))
@@ -147,8 +147,16 @@ private theorem enabled_of_total {config : Finset NodeID} {nodes : List NodeID}
   }, ?_⟩
   let _ : Config.InitialConfiguration := ⟨config⟩
   have found := Direct.nodeState_of_mem distinct member
-  simp only [Model.transitionSystem, lift, next, Model.protocol]
-  simp [found, ran]
+  have global : Model.networkStep config state (.local node input)
+      = next (Model.protocol config) state (.local node input) := by
+    unfold Model.networkStep
+    split
+    · rename_i entries eq
+      cases eq
+      exact (notInit entries rfl).elim
+    · rfl
+  simp only [Model.transitionSystem, global]
+  simp [next, Model.protocol, found, ran]
 
 /-- A primary can always nominate a successor; an eligible node can campaign. -/
 private theorem enabled_of_member {config : Finset NodeID} {nodes : List NodeID}
@@ -158,9 +166,9 @@ private theorem enabled_of_member {config : Finset NodeID} {nodes : List NodeID}
     : exists action nextState,
         (Model.transitionSystem config nodes).step state action = some nextState := by
   rcases acts with primary | eligible
-  · exact enabled_of_total distinct member (input := .nominateSuccessor)
+  · exact enabled_of_total distinct member (input := .nominateSuccessor) (by simp)
       (Total.nominateSuccessor node local_ primary)
-  · exact enabled_of_total distinct member (input := .timeout .election)
+  · exact enabled_of_total distinct member (input := .timeout .election) (by simp)
       (Total.startElection node local_ eligible)
 
 end Consensus.Proofs.Deadlock
@@ -240,7 +248,7 @@ private theorem Rel.refl (state : NodeState) : Rel self state state :=
     Extends.refl _,
     fun _ => rfl,
     fun some => Or.inl some,
-    fun none => Or.inl ⟨none, le_rfl⟩
+    fun none => Or.inl ⟨none, (Nat.le_refl _)⟩
   ⟩
 
 private theorem Rel.trans {first second third : NodeState}
@@ -258,7 +266,7 @@ private theorem Rel.trans {first second third : NodeState}
     · exact Or.inr confirmed
   · rcases roleRight none with ⟨middleNone, le⟩ | some
     · rcases roleLeft middleNone with ⟨firstNone, le'⟩ | middleSome
-      · exact Or.inl ⟨firstNone, le.trans le'⟩
+      · exact Or.inl ⟨firstNone, Nat.le_trans le le'⟩
       · exact Or.inr (keepRight middleSome ▸ middleSome)
     · exact Or.inr some
 
@@ -284,7 +292,7 @@ private theorem Rel.same {before after : NodeState} (logEq : after.log = before.
     : Rel self before after :=
   Rel.of_fields (Extends.of_log logEq commitEq) latch
     fun none =>
-      ⟨roleEq ▸ none, termEq.le⟩
+      ⟨roleEq ▸ none, Nat.le_of_eq termEq⟩
 
 /-- A step whose resulting role is not `none`. -/
 private theorem Rel.active {before after : NodeState} (logEq : after.log = before.log)
@@ -354,7 +362,7 @@ private theorem Rel.recordCommit (state : NodeState) {index : Nat}
       exact ⟨extended, fun some => latchKeep some, fun some => latchSet some,
         fun _ => Or.inr (latch_of_retired retiring.2)⟩
   · exact ⟨extended, fun some => latchKeep some, fun some => latchSet some,
-      fun none => Or.inl ⟨none, le_rfl⟩⟩
+      fun none => Or.inl ⟨none, (Nat.le_refl _)⟩⟩
 
 end Consensus.Proofs.Deadlock.Local
 
@@ -386,7 +394,7 @@ private theorem Rel.appendEntry (state : NodeState) (content : EntryContent)
     first
     | exact Keeps.pure' (Rel.of_fields
         ((Extends.append _).trans (Extends.of_log rfl rfl)) rfl
-        fun none => ⟨none, le_rfl⟩)
+        fun none => ⟨none, (Nat.le_refl _)⟩)
     | refine Keeps.ite' (fun _ => ?_) fun _ => ?_
     | refine Keeps.seq' fun _ => ?_
     | split
@@ -410,7 +418,7 @@ private theorem Rel.becomePrimary (state : NodeState)
     refine Rel.of_fields ?_ rfl fun none => nomatch none
     split
     · exact Extends.of_prefix (by unfold lastCommittableIndex; exact Nat.le_max_left _ _)
-        (List.prefix_refl _) le_rfl
+        (List.prefix_refl _) (Nat.le_refl _)
     · exact Extends.of_log rfl rfl
   exact Keeps.bind' (Rel.advanced caps self _) fun _ kept =>
     Keeps.seq' fun _ => Keeps.pure' (promoted.trans kept)
@@ -472,6 +480,12 @@ private theorem Rel.act (state : NodeState) (input : Input)
   | nominateSuccessor =>
       exact (Direct.Keeps.nominateSuccessor caps self state).mono fun _ same =>
         same ▸ Rel.refl _
+  | initAsBackup entries =>
+      unfold Model.Node.act Model.Node.initAsBackup
+      refine Keeps.bind' Keeps.guard' fun _ ⟨fresh, _⟩ => Keeps.pure' ?_
+      refine Rel.of_fields ⟨?_, ?_⟩ rfl (by simp [becomeAwareOfNewTerm])
+      · simp [becomeAwareOfNewTerm, fresh.2.2.2]
+      · simp [NodeState.committedLog, fresh.2.2.2]
 
 /-- The follower append loop, which may record commits after signatures. -/
 private theorem Rel.fromLeaderLoop (limit : Nat) (entries : List Entry)
@@ -492,7 +506,7 @@ private theorem Rel.fromLeaderLoop (limit : Nat) (entries : List Entry)
       intro state
       simp only [List.foldl_cons]
       have appended : Rel self state { state with log := state.log ++ [entry] } :=
-        Rel.of_fields (Extends.append _) rfl fun none => ⟨none, le_rfl⟩
+        Rel.of_fields (Extends.append _) rfl fun none => ⟨none, (Nat.le_refl _)⟩
       refine Rel.trans ?_ (ih _)
       split
       · exact appended.trans (Rel.recordCommit _ (Nat.le_max_left _ _))
@@ -540,8 +554,8 @@ private theorem Rel.handleAppendEntriesRequest (source : NodeID) (state : NodeSt
       } :=
       Rel.of_fields
         (Extends.of_prefix (count := index - 1)
-          (Nat.le_trans within (Nat.le_sub_of_add_le this)) (List.prefix_refl _) le_rfl)
-        rfl fun none => ⟨none, le_rfl⟩
+          (Nat.le_trans within (Nat.le_sub_of_add_le this)) (List.prefix_refl _) (Nat.le_refl _))
+        rfl fun none => ⟨none, (Nat.le_refl _)⟩
     exact Keeps.seq' fun _ =>
       Keeps.pure' ((stepped.trans truncated).trans (Rel.fromLeader self _ _))
 
@@ -660,7 +674,7 @@ open Model.Node
 private def EntryOK (front : List Entry) (entry : Entry) : Prop :=
   (forall nodes,
     entry.content.metadata.configuration = some nodes
-    -> Disjoint nodes (removedNodes front))
+    -> Finset.Disjoint nodes (removedNodes front))
   /\ entry.content.metadata.retirementConfirmations ⊆ removedNodes front
 
 /-- Every entry of the log is `EntryOK` for the entries before it. -/
@@ -748,7 +762,7 @@ private theorem removedNodes_grow {log : List Entry} {entry : Entry}
       have absent : node ∉ nodes := fun present =>
         Finset.disjoint_left.mp disjoint present removed
       simp only [removedNodes, Finset.mem_sdiff] at removed
-      exact Finset.mem_sdiff.mpr ⟨Finset.mem_union_left _ removed.1, absent⟩
+      exact Finset.mem_sdiff.mpr ⟨Finset.mem_union.mpr (Or.inl removed.1), absent⟩
 
 private theorem removedNodes_take_mono {log : List Entry} (ok : LogOK log)
     : forall {small large : Nat},
@@ -758,11 +772,12 @@ private theorem removedNodes_take_mono {log : List Entry} (ok : LogOK log)
   induction le with
   | refl => exact Finset.Subset.refl _
   | @step large _ ih =>
-      refine ih.trans ?_
+      refine Finset.Subset.trans ih ?_
       rcases Nat.lt_or_ge large log.length with inLog | beyond
-      · rw [← List.take_concat_get' log large inLog]
+      · rw [List.take_succ_eq_append_getElem inLog]
         exact removedNodes_grow (ok large inLog)
       · rw [List.take_of_length_le beyond, List.take_of_length_le (by omega)]
+        exact Finset.Subset.refl _
 
 /-- Under `LogOK`, a node removed by a prefix stays removed. -/
 private theorem removedNodes_prefix {small large : List Entry} (ok : LogOK large)
@@ -808,14 +823,13 @@ private theorem entryOK_of {state : NodeState} (ok : LogOK state.log) {term : Na
     (configured
       : forall nodes,
           content.metadata.configuration = some nodes
-          -> Disjoint nodes (removedNodes state.log))
+          -> Finset.Disjoint nodes (removedNodes state.log))
     : EntryOK state.log { term, content } := by
   refine ⟨configured, ?_⟩
   by_cases nonempty : content.metadata.retirementConfirmations.Nonempty
-  · exact (confirmations nonempty).trans
-      (Finset.sdiff_subset.trans (retirementCompleted_removed ok))
-  · rw [Finset.not_nonempty_iff_eq_empty.mp nonempty]
-    exact Finset.empty_subset _
+  · refine Finset.Subset.trans (confirmations nonempty) fun node member => ?_
+    exact retirementCompleted_removed ok (Finset.mem_sdiff.mp member).1
+  · exact Finset.subset_iff.mpr fun node member => (nonempty ⟨node, member⟩).elim
 
 private theorem appendEntry_ok (caps : Caps) (self : NodeID) (state : NodeState)
     (content : EntryContent) (ok : LogOK state.log)
@@ -893,6 +907,7 @@ private theorem Shrinks.becomePreVoteCandidate (state : NodeState)
     fun _ => Keeps.seq' fun _ => Keeps.pure' (shrinks_refl _)
 
 private theorem act_ok (state : NodeState) (input : Input) (ok : LogOK state.log)
+    (notInit : forall entries, Not (input = .initAsBackup entries))
     : Keeps (fun after : NodeState => LogOK after.log)
         (Model.Node.act caps self state input) := by
   have viaShrinks : forall {m : NodeEffect NodeState}, Keeps (Shrinks state) m
@@ -927,6 +942,7 @@ private theorem act_ok (state : NodeState) (input : Input) (ok : LogOK state.log
           exact Keeps.seq' fun _ => Keeps.pure' ok
   | nominateSuccessor =>
       exact (Direct.Keeps.nominateSuccessor caps self state).mono fun _ same => same ▸ ok
+  | initAsBackup entries => exact (notInit entries rfl).elim
 
 /-- Accepting AppendEntries leaves the follower in the request's term. -/
 private theorem handleAppendEntriesRequest_term (source : NodeID) (state : NodeState)
@@ -971,7 +987,7 @@ private theorem updateTerm_ge (state : NodeState) (term : Nat)
     : term <= (updateTerm state term).currentTerm := by
   unfold updateTerm becomeAwareOfNewTerm
   split
-  · exact le_rfl
+  · exact (Nat.le_refl _)
   · exact Nat.le_of_not_lt ‹_›
 
 /-- Only accepting AppendEntries may produce a log that is not `LogOK`. -/
@@ -979,13 +995,21 @@ private theorem step_ok (state : NodeState) (event : Event) (ok : LogOK state.lo
     : Keeps
         (fun after : NodeState =>
           LogOK after.log
-          \/ exists source request,
-              event = .receive source (.appendEntriesRequest request)
-              /\ after.currentTerm = request.term)
+          \/ (exists source request,
+                event = .receive source (.appendEntriesRequest request)
+                /\ after.currentTerm = request.term)
+          \/ exists entries,
+              event = .internal (.initAsBackup entries) /\ after.log = entries)
         (Model.Node.step caps self state event) := by
   cases event with
   | internal input =>
-      exact (act_ok caps self state input ok).mono fun _ kept => Or.inl kept
+      by_cases init : exists entries, input = .initAsBackup entries
+      · obtain ⟨entries, rfl⟩ := init
+        unfold Model.Node.step Model.Node.act Model.Node.initAsBackup
+        exact Keeps.bind' Keeps.guard' fun _ _ =>
+          Keeps.pure' (Or.inr (Or.inr ⟨entries, rfl, by simp [becomeAwareOfNewTerm]⟩))
+      · exact (act_ok caps self state input ok fun entries eq => init ⟨entries, eq⟩).mono
+          fun _ kept => Or.inl kept
   | receive source message =>
       unfold Model.Node.step Model.Node.receive
       refine Keeps.ite' (fun _ => Keeps.pure' (Or.inl ok)) fun _ => ?_
@@ -996,10 +1020,13 @@ private theorem step_ok (state : NodeState) (event : Event) (ok : LogOK state.lo
           Keeps (Shrinks (observeTerm state message)) m
           -> Keeps (fun after : NodeState =>
                 LogOK after.log
-                \/ exists source' request,
+                \/ (exists source' request,
                     Event.receive source message
                       = .receive source' (.appendEntriesRequest request)
-                    /\ after.currentTerm = request.term) m :=
+                    /\ after.currentTerm = request.term)
+                \/ exists entries,
+                    Event.receive source message = .internal (.initAsBackup entries)
+                    /\ after.log = entries) m :=
         fun kept => kept.mono fun _ shrunk => Or.inl (ok.prefix (observedLog ▸ shrunk))
       cases message with
       | appendEntriesRequest request =>
@@ -1009,7 +1036,7 @@ private theorem step_ok (state : NodeState) (event : Event) (ok : LogOK state.lo
             fun _ result => ?_
           rcases result with logEq | termEq
           · exact Or.inl (logEq.trans observedLog ▸ ok)
-          · exact Or.inr ⟨source, request, rfl, termEq⟩
+          · exact Or.inr (Or.inl ⟨source, request, rfl, termEq⟩)
       | appendEntriesResponse response =>
           refine viaShrinks ?_
           unfold Model.Node.handleAppendEntriesResponse
@@ -1068,9 +1095,18 @@ private theorem initial_logs_ok {nodes : List NodeID} {initial : Model.State}
   · intro n bound
     simp only [List.length_singleton, Nat.lt_one_iff] at bound
     subst bound
-    refine ⟨fun nodes _ => ?_, ?_⟩
-    · simp [removedNodes, configurationHistory, configurationMembers]
-    · simp [Config.GENESIS, EntryContent.metadata]
+    have none : forall node, node ∉ removedNodes ([] : List Entry) :=
+      fun node removed =>
+        Finset.notMem_empty node
+          (by
+            simpa [removedNodes, configurationHistory, configurationMembers]
+              using (Finset.mem_sdiff.mp removed).1)
+    refine ⟨
+      fun nodes _ => Finset.disjoint_left.mpr fun node _ removed => none node removed,
+      Finset.subset_iff.mpr fun node removed => ?_
+    ⟩
+    simp only [List.getElem_cons_zero, Config.GENESIS, EntryContent.metadata] at removed
+    exact (Finset.notMem_empty node removed).elim
   · exact LogOK.nil
 
 end Consensus.Proofs.Deadlock.Logs
@@ -1093,7 +1129,7 @@ private theorem pre_ok (ih : Everywhere LeaderLogsOK (before :: rest)) {node : N
   · rw [List.length_eq_zero_iff.mp empty]
     exact LogOK.nil
   obtain ⟨log, ⟨earlier, suffix, leader, leaderState, canonNow, rfl⟩, _, eq⟩ :=
-    c.inv.anchor node state state.log.length now positive le_rfl
+    c.inv.anchor node state state.log.length now positive (Nat.le_refl _)
   have nonempty : Not (earlier = []) := by
     rintro rfl
     exact canonNow.1
@@ -1108,7 +1144,7 @@ private theorem leader_logs (ih : Everywhere LeaderLogsOK (before :: rest))
   rcases c.now_after now with ⟨rfl, rfl⟩ | ⟨different, old⟩
   · have preOk := Logs.Ctx.pre_ok c ih c.pre_now
     rcases step_ok (Capabilities.record c.actor) c.actor c.pre c.event preOk _ _ _ c.tr.ran with
-      ok | ⟨source, request, received, termEq'⟩
+      ok | ⟨source, request, received, termEq'⟩ | ⟨entries, initialized, logEq⟩
     · exact ok
     · exfalso
       obtain ⟨envelope, ok, sourceEq, targetEq, payload⟩ := c.received_ok received
@@ -1120,6 +1156,14 @@ private theorem leader_logs (ih : Everywhere LeaderLogsOK (before :: rest))
         exact led
       have same := c.election_safety _ _ _ ledSender ledActor
       exact aeok.1 (targetEq.trans same.symm)
+    · -- A joining node copies a committed prefix of another node's log.
+      have available := c.tr.available entries initialized
+      simp only [Model.committedPrefixOf, List.any_eq_true, Bool.and_eq_true,
+        decide_eq_true_eq, beq_iff_eq] at available
+      obtain ⟨⟨other, otherState⟩, member, _, prefixEq⟩ := available
+      have otherOk := Logs.Ctx.pre_ok c ih member
+      rw [logEq, ← prefixEq]
+      exact otherOk.take _
   · exact ih _ (List.suffix_refl _) (List.cons_ne_nil _ _) node state term
       ⟨old, termEq, role, c.led_other different led⟩
 
@@ -1154,6 +1198,7 @@ end Consensus.Proofs.Deadlock.Logs
 
 namespace Consensus.Proofs.Deadlock.Configs
 
+open CCF (Finset)
 open Model.Node
 
 private theorem mem_configurationHistory {log : List Entry}
@@ -1236,11 +1281,12 @@ private theorem le_getLast {history : List Configuration}
     (nonempty : history ≠ []) {configuration : Configuration}
     (member : configuration ∈ history)
     : configuration.index <= (history.getLast nonempty).index := by
-  have split := List.dropLast_append_getLast nonempty
+  have split := List.dropLast_concat_getLast nonempty
   rw [← split] at sorted member
   rcases List.mem_append.mp member with early | last
   · exact Nat.le_of_lt ((List.pairwise_append.mp sorted).2.2 _ early _ (List.mem_singleton_self _))
   · rw [List.mem_singleton.mp last]
+    exact Nat.le_refl _
 
 private theorem latest_eq {history : List Configuration} (nonempty : history ≠ [])
     : latestConfigurationMembers history = (history.getLast nonempty).nodes := by
@@ -1352,6 +1398,38 @@ private theorem exec_keys {nodes : List NodeID} {history : History}
             simpa [Concrete.replaceNode_keys] using keys
       · exact ih older
 
+private theorem le_sum_of_mem {values : List Nat} {value : Nat} (member : value ∈ values)
+    : value <= values.sum := by
+  induction values with
+  | nil => simp at member
+  | cons head tail ih =>
+      rw [List.sum_cons]
+      rcases List.mem_cons.mp member with rfl | later
+      · exact Nat.le_add_right _ _
+      · exact Nat.le_trans (ih later) (Nat.le_add_left _ _)
+
+/-- A bounded, satisfiable predicate on naturals has a greatest solution. -/
+private theorem exists_greatest {P : Nat -> Prop} {bound : Nat}
+    (bounded : forall n, P n -> n <= bound) {n : Nat} (holds : P n)
+    : exists greatest, P greatest /\ forall m, P m -> m <= greatest := by
+  induction bound generalizing n with
+  | zero =>
+      have := bounded n holds
+      refine ⟨0, Nat.le_zero.mp this ▸ holds, fun m held => bounded m held⟩
+  | succ bound ih =>
+      by_cases top : P (bound + 1)
+      · exact ⟨bound + 1, top, bounded⟩
+      · refine ih (fun m held => ?_) holds
+        have := bounded m held
+        rcases Nat.lt_or_eq_of_le this with lt | rfl
+        · omega
+        · exact (top held).elim
+
+private theorem nonempty_of_card_pos {nodes : Finset NodeID} (positive : 0 < nodes.card)
+    : nodes.Nonempty := by
+  obtain ⟨node, member⟩ := List.exists_mem_of_length_pos positive
+  exact ⟨node, Finset.mem_def.mpr member⟩
+
 /-- Bound on every log length in a history. -/
 private def logBound (history : History) : Nat :=
   (history.flatMap fun state => state.nodes.map fun entry => entry.2.log.length).sum
@@ -1361,7 +1439,7 @@ private theorem committed_length_le {history : History} {term : Nat} {part : Lis
     : part.length <= logBound history := by
   obtain ⟨current, rest, leader, state, _, index, suffix, ⟨⟨now, _⟩, _⟩, rfl, _⟩ :=
     committed.shape
-  refine (List.length_take_le' _ _).trans (List.le_sum_of_mem ?_)
+  refine Nat.le_trans (List.length_take_le' _ _) (le_sum_of_mem ?_)
   exact List.mem_flatMap.mpr ⟨current, suffix.subset List.mem_cons_self,
     List.mem_map.mpr ⟨(leader, state), now, rfl⟩⟩
 
@@ -1373,22 +1451,22 @@ private theorem longest_committed {history : History} (inv : Inv history)
         Committed history term' longest
         /\ part.length <= longest.length
         /\ forall term'' other, Committed history term'' other -> other <+: longest := by
-  classical
-  let holds := fun n => exists term' other, Committed history term' other /\ other.length = n
-  have bound := committed_length_le committed
-  obtain ⟨term', longest, longestCommitted, lengthEq⟩ :=
-    Nat.findGreatest_spec (P := holds) bound ⟨term, part, committed, rfl⟩
+  obtain ⟨length, ⟨term', longest, longestCommitted, lengthEq⟩, greatest⟩ :=
+    exists_greatest (P := fun n => exists term' other,
+        Committed history term' other /\ other.length = n)
+      (fun _ ⟨_, _, other, lengthEq⟩ => lengthEq ▸ committed_length_le other)
+      ⟨term, part, committed, rfl⟩
   refine ⟨term', longest, longestCommitted, ?_, fun term'' other otherCommitted => ?_⟩
   · rw [lengthEq]
-    exact Nat.le_findGreatest bound ⟨term, part, committed, rfl⟩
+    exact greatest _ ⟨term, part, committed, rfl⟩
   · rcases Safety.committed_comparable inv.completeness monos otherCommitted
         longestCommitted with sub | sub
     · exact sub
     · have le : other.length <= longest.length := by
         rw [lengthEq]
-        exact Nat.le_findGreatest (committed_length_le otherCommitted)
-          ⟨term'', other, otherCommitted, rfl⟩
+        exact greatest _ ⟨term'', other, otherCommitted, rfl⟩
       rw [sub.eq_of_length (Nat.le_antisymm sub.length_le le)]
+      exact List.prefix_refl _
 
 /-- The latest configuration of a log prefix, if it is the latest one at or below `bound`. -/
 private theorem active_of_latest {log part : List Entry} (sub : part <+: log)
@@ -1400,7 +1478,7 @@ private theorem active_of_latest {log part : List Entry} (sub : part <+: log)
   refine mem_drop_of_latest (history_sorted log)
     (history_of_prefix sub (List.getLast_mem nonempty)) fun other otherMem otherLe => ?_
   exact le_getLast (history_sorted part) nonempty
-    (history_to_prefix sub otherMem (otherLe.trans within))
+    (history_to_prefix sub otherMem (Nat.le_trans otherLe within))
 
 end Consensus.Proofs.Deadlock.Witness
 
@@ -1436,7 +1514,8 @@ private theorem witness {nodes : List NodeID} {current : Model.State} {rest : Hi
   obtain ⟨front, back, split⟩ := List.append_of_mem earlierMem
   have suffix₀ : earlier :: back <:+ current :: rest := ⟨front, split.symm⟩
   have inv₀ : Inv (earlier :: back) := good _ suffix₀ (List.cons_ne_nil _ _)
-  rcases inv₀.commit_backed node₀ local₀ member₀ with zero | ⟨term₀, part₀, committed₀, _, within₀⟩
+  obtain ⟨_, backed₀⟩ := (inv₀.commit_backed node₀ local₀ member₀).1
+  rcases backed₀ with zero | ⟨term₀, part₀, committed₀, _, within₀⟩
   · omega
   have frontier₀ : local₀.commitIndex <= local₀.log.length :=
     Safety.Seen.commit_le (exec.suffix suffix₀ (List.cons_ne_nil _ _))
@@ -1457,7 +1536,7 @@ private theorem witness {nodes : List NodeID} {current : Model.State} {rest : Hi
   have partPrefix : part <+: leaderState.log := partEq ▸ List.take_prefix _ _
   have partSignature : isSignatureAt part idx = true := by
     rw [partEq]
-    exact Ledger.isSignatureAt_take_of_le le_rfl signature
+    exact Ledger.isSignatureAt_take_of_le (Nat.le_refl _) signature
   -- The part's latest configuration is among those whose quorum acknowledged it.
   obtain ⟨some, someMem⟩ := List.exists_mem_of_ne_nil _ quorum.1
   have someActive := (List.mem_filter.mp someMem).1
@@ -1478,7 +1557,7 @@ private theorem witness {nodes : List NodeID} {current : Model.State} {rest : Hi
   simp only [decide_eq_true_eq, hasConfigurationMajority] at majority
   obtain ⟨voter, voterMem⟩ : (voters ∩ ((configurationHistory part).getLast
       historyNonempty).nodes).Nonempty :=
-    Finset.card_pos.mp (by omega)
+    nonempty_of_card_pos (by omega)
   obtain ⟨inVoters, inLatest⟩ := Finset.mem_inter.mp voterMem
   obtain ⟨acker, seen, ackerTerm, ackerLog⟩ := acks voter inVoters
   rw [← partEq] at ackerLog
@@ -1503,15 +1582,15 @@ private theorem witness {nodes : List NodeID} {current : Model.State} {rest : Hi
     · rwa [ackerTake] at kept
     · exfalso
       have ackerTermAt : termAt acker.log idx = term := by
-        rw [← Safety.termAt_take (le_refl idx), ackerTake, ← lenEq]
+        rw [← Safety.termAt_take (Nat.le_refl idx), ackerTake, ← lenEq]
         exact committed.signature.2.1
       rw [ackerTake] at missing
       rw [ackerTermAt] at lt
       exact missing (Safety.committed_in_canon inv.completeness monos committed canon lt)
   -- Its committed log lies within the longest committed part.
   have committedInPart : voterState.committedLog <+: part := by
-    rcases inv.commit_backed key voterState voterMember with
-      zero | ⟨_, other, otherCommitted, _, within⟩
+    obtain ⟨_, backed⟩ := (inv.commit_backed key voterState voterMember).1
+    rcases backed with zero | ⟨_, other, otherCommitted, _, within⟩
     · simp [NodeState.committedLog, zero]
     · exact within.trans (longest _ _ otherCommitted)
   have frontier : voterState.commitIndex <= voterState.log.length :=
@@ -1523,8 +1602,9 @@ private theorem witness {nodes : List NodeID} {current : Model.State} {rest : Hi
   have loc := Direct.NodeInvariant.reachable Local.loc_invariant exec.reachable key voterState
     voterMember
   have notRemoved : key ∉ removedNodes part := by
-    simp only [removedNodes, latest_eq historyNonempty, Finset.mem_sdiff, not_and, not_not]
-    exact fun _ => inLatest
+    intro removed
+    simp only [removedNodes, latest_eq historyNonempty] at removed
+    exact (Finset.mem_sdiff.mp removed).2 inLatest
   have latchNone : voterState.retiredCommittedIndex = none := by
     cases latch : voterState.retiredCommittedIndex with
     | none => rfl
@@ -1539,7 +1619,7 @@ private theorem witness {nodes : List NodeID} {current : Model.State} {rest : Hi
   have two : 2 <= voterState.currentTerm := by
     have := inv.term_mono key voterState acker voterMember seenNow
     rw [ackerTerm] at this
-    exact committed.signature.2.2.trans this
+    exact Nat.le_trans committed.signature.2.2 this
   have active : Not (voterState.role = .none) := by
     intro none
     rcases loc.2 none with some | young
@@ -1558,7 +1638,7 @@ private theorem witness {nodes : List NodeID} {current : Model.State} {rest : Hi
     have signed : idx <= maxCommittableIndex voterState.log :=
       Ledger.signatureIndex_le_maxCommittableIndex
         (Ledger.isSignatureAt_of_prefix partInVoter partSignature)
-    simpa using latestLe.trans signed
+    simpa using Nat.le_trans latestLe signed
   · have := Local.latch_of_retired retired
     simp [latchNone] at this
 

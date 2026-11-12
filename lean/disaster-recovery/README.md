@@ -19,7 +19,7 @@ The public proof API is `DisasterRecovery.Properties`; its full theorem statemen
 
 Human review covers the model, the full theorem and lemma statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
 The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
-The proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
+Lake checks independent proof modules in parallel; the global witness constructions share the execution helpers in `Proofs/Evaluation.lean`.
 
 ## Model
 
@@ -55,15 +55,16 @@ See the [shared trace definitions](../common/README.md#transition-systems) for i
 
 `deadlock_free` proves the [shared deadlock-freedom property](../common/README.md#transition-systems) for every recovery configuration.
 Enabled stutters after completion count, so this does not assert eventual recovery or fairness.
-The corresponding witness supplies a valid singleton recovery configuration.
+The corresponding witness supplies a reachable initial state for every valid recovery configuration.
 
 `quorum_open_preserves_commit` and `full_gossip_preserves_commit` conclude that the opener satisfies the CCF consensus protocol's vote freshness check against a strict majority of the recovered ledgers.
 `LogUpToDate` is that check, comparing view and then sequence number, as in `recv_request_vote` in `src/consensus/aft/cft.h`.
 The first property requires each voter to have received its own gossip; without this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by quorum.
 The second requires a state in which every node's gossip equals `config.recovered`, and it also covers failover openings.
 
-Each safety theorem has a corresponding `_witness` lemma asserting that some valid trace or step satisfies its premises.
-The full-gossip witness includes a failover opening.
+Each safety theorem has a corresponding `_witness` lemma asserting that, for every valid configuration, some valid trace or step satisfies its premises.
+`ValidConfig` restricts `Model.Config` to configurations satisfying the existing `Config.Valid` predicate without changing the model configuration type.
+The full-gossip witness includes a failover opening and requires at least two expected locations, since a single vote already forms a quorum in a single-location configuration.
 `Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
 
 Freshness is a necessary condition for election, not a definition of commitment in CCF.
@@ -81,7 +82,6 @@ Eventual-progress and fairness properties are out of scope.
 Run the following commands from this directory:
 
 ```console
-lake exe cache get
 lake build --wfail --fail-fast
 lake exe check-imports
 lake build CCF
@@ -103,15 +103,15 @@ Lean's internal-module and collection-variable naming conventions, and its debug
 The package also sets `autoImplicit = false`, requiring declaration headers to bind their parameters explicitly rather than silently introducing undeclared names.
 This applies to ordinary Lake builds as well as CI.
 
-The model, proofs, tests, and replayer use Lean's module system, as required by the Mathlib dependency.
+The model, proofs, tests, and replayer use Lean's module system.
 The properties entrypoint publicly imports the model types and property helpers used by its statements, while its implementation imports remain private.
-Proof modules and the assembled root follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
+Proof modules and the assembled root follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional facilities explicitly rather than relying on incidental reexports.
 `@[expose] public section` keeps definitions used by cross-module proofs transparent; runtime-only helpers remain private.
 `mk_all --module` generates the corresponding package-level import root.
 
 Proofs that evaluate upstream implementations use narrowly scoped `import all` directives to retain access to those definitions.
 
-`runLinter` uses Mathlib's declaration-lint driver, including the slow checks, over every module imported by `CCF.lean`, `DisasterRecovery.lean`, and `replayer.Main`.
+`runLinter` uses Batteries' declaration-lint driver, including the slow checks, over every module imported by `CCF.lean`, `DisasterRecovery.lean`, and `replayer.Main`.
 It lints our declarations rather than dependencies, and findings fail the command.
 The package's default targets are the complete library and the replayer executable.
 Canonical scenario and state-enumeration checks run with `#eval` when `Tests/CanonicalTests.lean` is built, and assertion failures fail the build.
@@ -130,12 +130,12 @@ Additional bundled checkers are not enabled.
 
 The [Lean workflow](../../.github/workflows/lean.yml) checks `consensus`, `common`, `consistency`, `disaster-recovery`, and `kv` in one matrix with fail-fast disabled, using the same [package workflow](../../.github/workflows/lean-package.yml).
 Each invocation has its own checkout and writable build directories, including `common/.lake`, because the packages reference `../common` without copying it.
-Mathlib cache setup precedes kernel and axiom checking, which precedes import/architecture checking, formatting, linting, and package-specific fixtures.
+Kernel and axiom checking precedes import/architecture checking, formatting, linting, and package-specific fixtures.
 Common receives its own kernel, import, and lint checks; the disaster-recovery formatting selector also covers common and tracked Lean files outside `lean/`.
 Recovery schema validation, positive/negative replay fixtures, and viewer dump generation run in the disaster-recovery job.
 
 Native CCF consensus and KV captures run independently of package checking.
-The [CCF consensus replay job](../consensus/replay/README.md#ci-captures-and-replay) and the KV replay job each wait only for their corresponding native captures, restore Mathlib caches, and build their own replay executable without depending on the package matrix.
+The [CCF consensus replay job](../consensus/replay/README.md#ci-captures-and-replay) and the KV replay job each wait only for their corresponding native captures and build their own replay executable without depending on the package matrix.
 The final check retains the name `Lean models and proofs` and requires all package checks, captures, and replay to succeed.
 Failed, cancelled, skipped, or missing prerequisites cannot yield a successful gate; a cancelled workflow may cancel the gate itself.
 The gate also rejects package inventory drift.
@@ -149,7 +149,7 @@ To update a tool dependency without changing the toolchain, run `lake update --k
 
 ## Formatting
 
-Install Lean via [elan](https://lean-lang.org/install/) and run `lake exe cache get` from this directory before the first formatting check.
+Install Lean via [elan](https://lean-lang.org/install/) before the first formatting check.
 From the repository root, check every tracked `.lean` file:
 
 ```console
