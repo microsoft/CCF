@@ -15,9 +15,11 @@ Its snapshot installation hooks directly follow the leader's `replicate` and inc
 | [Missing packet](invalid/missing-packet.ndjson)                         | No queued model packet to receive                    |
 | [Packet mismatch](invalid/packet-mismatch.ndjson)                       | Received index differs from the queued model payload |
 | [Retirement on signature](invalid/retirement-signature.ndjson)          | Retirement follows a signature `replicate`           |
+| [Retirement seqno mismatch](invalid/retirement-seqno-mismatch.ndjson)   | Retirement seqno differs from its `replicate`        |
+| [Retirement node mismatch](invalid/retirement-node-mismatch.ndjson)     | Retirement follows another node's `replicate`        |
+| [Retirement non-adjacent](invalid/retirement-nonadjacent.ndjson)        | An event separates `replicate` and its retirement    |
+| [Orphan retirement](invalid/retirement-orphan.ndjson)                   | Retirement without a `replicate`                     |
 | [Uncommitted snapshot](invalid/uncommitted-snapshot.ndjson)             | Joiner initializes at an uncommitted signature       |
-
-Retirements must directly follow their `replicate`, so the former valid controls, where a retirement precedes a `replicate` with a [different seqno](invalid/retirement-seqno-mismatch.ndjson), on a [different node](invalid/retirement-node-mismatch.ndjson), an [unrelated event](invalid/retirement-nonadjacent.ndjson), or [end of input](invalid/retirement-orphan.ndjson), are now invalid.
 
 From `lean/consensus`, inspect a failure directly (exit status 1 is expected):
 

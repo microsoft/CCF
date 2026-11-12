@@ -353,6 +353,9 @@ private def ruleInitAsBackup : Reduction Unit := do
     failure s!"{head.record.location}: expected init_as_backup, got {head.function}"
   -- consume
   many_ (hooks.foldr (fun name rest => event head name <|> rest) (event head "tick"))
+  unless (← CCF.Parsec.peek).any (·.function == "init_as_backup") do
+    liftExcept head
+      (throw "not grouped with replicate, execute_append_entries_sync or init_as_backup")
   let init ← peek
   event head "init_as_backup"
   event head "become_follower"
