@@ -16,19 +16,22 @@ TEST_CASE("LRU erase" * doctest::test_suite("lru"))
   lru.insert(2, std::make_shared<size_t>(2));
   lru.insert(3, std::make_shared<size_t>(3));
 
-  lru.erase(lru.find(1));
+  lru.erase(1);
   CHECK(weak.expired());
   CHECK(lru.size() == 2);
   CHECK_FALSE(lru.contains(1));
   CHECK(lru.find(1) == lru.end());
+  lru.erase(1);
+  CHECK(lru.size() == 2);
 
   lru.insert(4, std::make_shared<size_t>(4));
   CHECK(lru.contains(2));
   lru.insert(5, std::make_shared<size_t>(5));
   CHECK_FALSE(lru.contains(2));
-  lru.erase(lru.find(5));
-  lru.erase(lru.find(3));
-  lru.erase(lru.find(4));
+  lru.erase(5);
+  lru.erase(3);
+  lru.erase(4);
+  lru.erase(4);
   CHECK(lru.size() == 0);
   CHECK(lru.begin() == lru.end());
 }

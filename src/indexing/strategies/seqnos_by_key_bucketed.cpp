@@ -271,12 +271,12 @@ namespace ccf::indexing::strategies
         {
           const auto found =
             std::binary_search(page->begin(), page->end(), start);
-          directory_searches.erase(it);
+          directory_searches.erase(key);
           return found;
         }
       }
 
-      directory_searches.erase(it);
+      directory_searches.erase(key);
       return false;
     }
 
