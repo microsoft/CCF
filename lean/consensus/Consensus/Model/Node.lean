@@ -210,7 +210,10 @@ def appendEntry (caps : Caps) (self : NodeID) (state : NodeState) (content : Ent
     | some nodes => do
         let previousConfiguration :=
           latestConfigurationMembers (configurationHistory state.log)
-        guard (nodes.Nonempty /\ Not (nodes = previousConfiguration))
+        guard
+          (nodes.Nonempty
+            /\ Not (nodes = previousConfiguration)
+            /\ Disjoint nodes (removedNodes state.log))
         let addedPeers := (nodes \ eligiblePeers state self).erase self
         let state : NodeState :=
           {

@@ -25,17 +25,20 @@ Actions are local inputs (including timeouts) or delivery of a queued message; n
 ## Scope
 
 Node join and snapshot installation are not modeled.
-`deadlock_free` states the [shared deadlock-freedom property](../common/README.md#transition-systems) for every reachable state, assuming singleton initial voting membership and that the voting node belongs to the declared node list.
-Its proof is deliberately unfinished (`sorry`): the singleton-start assumption alone does not make the claim true.
-`deadlock_free_witness` only shows that the initialization assumptions can be satisfied; it does not prove the claim.
-Warning-as-error builds and kernel axiom checks reject this unfinished proof.
+Node identities are never reused: a configuration may not name a node removed by an earlier configuration in the same log.
+`deadlock_free_after_bootstrap` proves the [shared deadlock-freedom property](../common/README.md#transition-systems) for every state reachable once bootstrapping completes, for any initial configuration.
+Bootstrapping completes when some node commits a signature; a singleton bootstrap node commits its first signature as soon as it emits it.
+`deadlock_free_after_bootstrap_witness` shows that a single node reaches such a state.
 There are no fairness assumptions or guarantees of eventual election or commitment.
 
-### Singleton-start counterexample
+The proof takes the longest committed log prefix and its latest configuration.
+A member of that configuration acknowledged the prefix, so its log still contains it and the signature that ends it.
+That member cannot have been retired, because a retirement confirmation in the prefix would name a node removed before that configuration, so it is primary or may start an election.
 
-Start with voting membership `{0}` and declared nodes `[0, 1]`.
-Node 0 is primary with the unsigned genesis configuration transaction, and node 1 has not joined.
-The model permits the following four transitions:
+### Counterexamples
+
+Both assumptions are needed.
+Before bootstrapping completes, start with voting membership `{0}` and declared nodes `[0, 1]`:
 
 1. Node 0 appends an unsigned transaction changing membership to `{0, 1}`.
    The append sends a heartbeat to node 1 before adding the transaction.
@@ -46,9 +49,10 @@ The model permits the following four transitions:
 4. Deliver the acknowledgement to node 0, which ignores it because it is no longer primary.
 
 The network queue is now empty, both nodes are followers, and neither has a signature covering a configuration that permits it to start an election.
-All primary-only inputs are disabled, election timeouts are disabled, and no message can be delivered.
-Thus an action is enabled initially, but a later reachable state has none: restricting initialization to a singleton does not constrain subsequent unsigned reconfiguration.
-This is a counterexample in the Lean model, not a reproduction against a running C++ service.
+The C++ consensus implementation can stall in the same way if CheckQuorum fires before the first signature.
+
+Without the identity guard, a primary may re-add a removed node together with a confirmation of that node's retirement, then retire itself.
+Its nominated successor is the re-added node, which is retired-committed and cannot campaign, so no node can act.
 
 ## Validation
 
@@ -83,7 +87,8 @@ Import `Consensus.Properties` and use `Consensus.Properties.<name>` for these de
 Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional Mathlib facilities explicitly rather than relying on incidental reexports.
 `Proofs/Direct.lean` establishes node-local commit invariants; `Proofs/SafetyInvariant.lean` establishes the cross-node history invariant, in the `Consensus.Proofs.Safety` namespace, used for election safety and committed-log comparability.
 `Proofs/Witnesses.lean` supplies concrete executions checked by the kernel.
-The proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
+`Proofs/Deadlock.lean` proves deadlock freedom after bootstrapping on top of the cross-node history invariant, so it imports `Proofs/SafetyInvariant.lean` with `import all`.
+The other proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
 
 To list the safety-invariant declarations used by the exported theorems, run `lake env lean scripts/invariant-dependencies.lean`.
 

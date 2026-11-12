@@ -22,20 +22,28 @@ abbrev GlobalTrace (config : Finset Model.Node.NodeID) (nodes : List Model.Node.
 
 open Model.Node
 
-/-- Claim that every reachable state has an enabled action after singleton
-initialization with a declared voter. Unproved: unsigned reconfiguration permits
-a reachable deadlock. -/
-theorem deadlock_free
-    : forall (node : NodeID) (nodes : List NodeID),
-        node ∈ nodes -> (Model.transitionSystem {node} nodes).DeadlockFree := by
-  exact Proofs.Deadlock.deadlock_free
+/-- Once bootstrapping completes, which takes a node committing a signature, every
+reachable state has an enabled action. -/
+theorem deadlock_free_after_bootstrap
+    : forall (config : Finset NodeID) (nodes : List NodeID),
+        ({
+              Model.transitionSystem config nodes with
+                init :=
+                  fun state =>
+                    (Model.transitionSystem config nodes).Reachable state
+                    /\ exists (node : NodeID) (local_ : NodeState),
+                        (node, local_) ∈ state.nodes /\ 0 < local_.commitIndex
+            }
+          : CCF.TransitionSystem).DeadlockFree := by
+  exact Proofs.Deadlock.deadlock_free_after_bootstrap
 
-/-- Witness: a singleton voting configuration has an initial state containing its
-voting node. -/
-lemma deadlock_free_witness
-    : exists (node : NodeID) (nodes : List NodeID) (state : Model.State),
-        node ∈ nodes /\ (Model.transitionSystem {node} nodes).init state := by
-  exact Proofs.Deadlock.deadlock_free_witness
+/-- Witness: a single node commits its bootstrap signature. -/
+lemma deadlock_free_after_bootstrap_witness
+    : exists (config : Finset NodeID) (nodes : List NodeID) (state : Model.State),
+        (Model.transitionSystem config nodes).Reachable state
+        /\ exists (node : NodeID) (local_ : NodeState),
+            (node, local_) ∈ state.nodes /\ 0 < local_.commitIndex := by
+  exact Proofs.Witnesses.deadlock_free_after_bootstrap_witness
 
 /-- Any two committed logs in a valid trace are prefix-comparable: those of
 any two nodes, in any two states of the trace. -/

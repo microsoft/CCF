@@ -713,6 +713,32 @@ public lemma election_safety_witness
     by decide
   ⟩
 
+/-- A single node commits its bootstrap signature, completing bootstrapping. -/
+public lemma deadlock_free_after_bootstrap_witness
+    : exists (config : Finset NodeID) (nodes : List NodeID) (state : Model.State),
+        (Model.transitionSystem config nodes).Reachable state
+        /\ exists (node : NodeID) (local_ : NodeState),
+            (node, local_) ∈ state.nodes /\ 0 < local_.commitIndex := by
+  have stemRun := single_run
+  let trace := lassoTrace (start_initial (by decide) (by decide)) stemRun single_cycle
+    (by simp [singleCycle])
+  refine ⟨
+    {0},
+    [0],
+    singleFinal,
+    trace.reachable ?_,
+    0,
+    (nodeState singleFinal 0).get single_final_present,
+    member_of_nodeState _,
+    by decide
+  ⟩
+  exact lasso_mem
+    (start_initial (by decide) (by decide))
+    stemRun single_cycle
+    (by simp [singleCycle])
+    le_rfl
+    (by rw [List.take_length]; exact stemRun)
+
 public lemma committed_frontier_is_signature_witness
     : exists (config : Finset NodeID),
     exists

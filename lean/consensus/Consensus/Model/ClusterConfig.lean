@@ -49,6 +49,14 @@ def configurationMembers (configurations : List Configuration) : Finset NodeID :
 def latestConfigurationMembers (configurations : List Configuration) : Finset NodeID :=
   configurations.getLast?.map Configuration.nodes |>.getD ∅
 
+/--
+Nodes named by an earlier configuration in the log but absent from its latest one.
+CCF never reuses a node identity, so such a node may not rejoin.
+-/
+def removedNodes (log : List Entry) : Finset NodeID :=
+  let history := configurationHistory log
+  configurationMembers history \ latestConfigurationMembers history
+
 def latestMembershipIndex (configurations : List Configuration) (node : NodeID) : Nat :=
   configurations.foldl
     (fun highest configuration =>
