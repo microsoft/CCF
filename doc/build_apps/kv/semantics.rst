@@ -3,6 +3,7 @@ KV Implementation Model
 
 The Lean project in ``lean/kv`` gives an executable model of KV observations and a checker for traces from the C++ KV unit tests.
 It complements the :doc:`kv_how_to` and :doc:`api`: it makes the observed implementation semantics, their assumptions, and differences from documentation explicit.
+See :doc:`/architecture/verification` for an overview of CCF's other Lean models and how traces are validated in CI.
 
 The model covers one node, with arbitrarily many finite maps, keys, values, and transaction attempts.
 Transactions may span several maps.
@@ -220,7 +221,6 @@ Lean is pinned by ``lean/kv/lean-toolchain`` and is independent of normal CCF bu
 .. code-block:: bash
 
    cd lean/kv
-   lake exe cache get
    lake build --wfail
    cd ../..
    cmake -S . -B build-kv-trace -GNinja \
@@ -246,7 +246,7 @@ The checker streams records and stops at the first diagnostic; accepted model hi
 The ``Lean`` workflow builds the instrumented tests and captures traces in one job, uploading the traces and, even if capture fails, the diagnostics.
 A separate job builds and checks the model and its valid and invalid trace fixtures in parallel, then replays the captured traces.
 Selected tests can exercise explicitly unsupported mechanisms, which remain non-passing outcomes.
-These single-node KV tests do not require an enclave or a multi-node network.
+These single-node KV tests do not require a TEE or a multi-node network.
 
 Seeded concurrent campaigns
 ---------------------------

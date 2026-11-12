@@ -2657,8 +2657,12 @@ def run_service_subject_name_check(args):
         pdb=args.pdb,
     ) as network:
         network.start_and_open(
-            args, service_subject_name="CN=https://this.test.service,O=CCF User"
+            args,
+            service_subject_name="CN=https://this.test.service,O=CCF User",
+            pq_service_cert_file="custom_pq_service_cert.pem",
         )
+        assert os.path.basename(network.pq_cert_path) == "custom_pq_service_cert.pem"
+        assert "pq_service_cert.pem" not in network.nodes[0].remote.remote.list_files()
         subject = service_subject(network)
         assert subject == expected_subject, subject
 
@@ -3132,6 +3136,9 @@ def run_empty_ledger_dir_check(args):
                 network.start(args, ledger_dir=tmp_dir)
             except Exception as start_error:
                 LOG.debug(f"Ignoring expected network start failure: {start_error}")
+                network.ignore_error_pattern_on_shutdown(
+                    "On start, ledger directory should not exist or be empty"
+                )
 
             # Check that the node has failed with the expected error message
             if not primary.check_log_for_error_message(

@@ -1,7 +1,7 @@
 module
 
 public import consistency.Properties.History
-public import CCF.Execution
+public import CCF.Proofs.Execution
 
 /-!
 Ledger identity, commitment, serializability, ordering and real-time proofs.
@@ -348,7 +348,7 @@ private theorem requests_reachable {state : State}
     constructor
     · intro index kind tx found
       rcases lookup_snoc found with ⟨_, old⟩ | ⟨rfl, rfl⟩
-      · exact lt_of_lt_of_le (invariant.1 _ _ _ old) monotonic
+      · exact Nat.lt_of_lt_of_le (invariant.1 _ _ _ old) monotonic
       · simp only [next_request_snoc, Nat.lt_add_one]
     · intro left right leftKind rightKind leftTx rightTx first second same
       rcases lookup_snoc first with ⟨_, oldLeft⟩ | ⟨lastLeft, newLeft⟩
@@ -844,7 +844,7 @@ private theorem snapshots_reachable {state : State}
       (found : at? branches branch = some ledger) (last : ledger.getLast? = some entry)
       (tx : TxContent)
       : Snapshot branches .ro tx (writes ledger) ⟨entry.view, ledger.length⟩ := by
-    have snapshot := snapshot_source branches anchored found (at_last last) .ro tx (by simp only [reduceCtorEq, IsEmpty.forall_iff])
+    have snapshot := snapshot_source branches anchored found (at_last last) .ro tx (by simp only [reduceCtorEq, forall_false])
     simpa only [List.take_length] using snapshot
   have step_snapshots (before after : State) (action : Action)
       (anchored : Anchored before.branches)
@@ -946,7 +946,8 @@ private theorem anchored_prefix (branches : List (List Entry))
   refine ⟨origin, originFound, ?_⟩
   have bound : seqno ≤ (ledger.take seqno).length := by
     simp only [List.length_take, Nat.min_eq_left (at_bounds atEntry).2, Std.le_refl]
-  simpa only [List.take_take, min_self] using (take_of_prefix isPrefix seqno bound).symm
+  simpa only [List.take_take, Nat.min_self]
+    using (take_of_prefix isPrefix seqno bound).symm
 
 private theorem frontier_bound (history : List Event) {txid : TxID}
     (member : txid ∈ statusIDs history .committed)
@@ -1267,7 +1268,7 @@ private theorem committed_views {state : State}
       refine ⟨
         ordered ledger (List.mem_of_getElem? found),
         by
-          simp only [List.pairwise_cons, List.not_mem_nil, IsEmpty.forall_iff, implies_true, List.Pairwise.nil, and_self],
+          simp only [List.pairwise_cons, List.not_mem_nil, forall_false, implies_true, List.Pairwise.nil, and_self],
         ?_
       ⟩
       intro left member right singleton
@@ -1541,7 +1542,7 @@ theorem committed_rw_ordered_serializable
     have sameSeq : left.seqno = right.seqno :=
       Nat.le_antisymm (Nat.le_of_not_lt (fun lt => ordered (Or.inr ⟨sameView.symm, lt⟩)))
         notLater
-    exact different (congrArg₂ TxID.mk sameView sameSeq)
+    exact different (congr (congrArg TxID.mk sameView) sameSeq)
   have through_entry {α : Type} {xs : List α} {index : Nat} {value : α}
       (found : at? xs index = some value)
       : xs.take index = xs.take (index - 1) ++ [value] := by

@@ -267,13 +267,13 @@ The following diagram illustrates the key hierarchy and encryption relationships
 
         subgraph KG["Key Generation"]
             subgraph Sealing Key
-                SK["Sealing Key<br/>(HKDF)"]
-                Label["Label: <br/>CCF AMD Local Sealing Key"]
+                SK["Sealing Key (HKDF)"]
+                Label["Label: CCF AMD Local Sealing Key"]
                 DK -->|ikm| SK
                 Label -->|info| SK
             end
             
-            RSA["Recovery Key<br/>(RSA Key Pair)"]
+            RSA["Recovery Key (RSA Key Pair)"]
             PubKey["Public Key"]
             PrivKey["Private Key"]
             RSA --> PubKey
@@ -284,7 +284,7 @@ The following diagram illustrates the key hierarchy and encryption relationships
         end
 
         subgraph Sealed["Store: nodes.sealed_recovery_keys"]
-            SPK["Sealed Private Key<br/>(AES-GCM encrypted)"]
+            SPK["Sealed Private Key (AES-GCM encrypted)"]
             SK -->|key| SPK
             PrivKey --> SPK
 
@@ -294,11 +294,11 @@ The following diagram illustrates the key hierarchy and encryption relationships
 
 
         subgraph Shares["Store: internal.sealed_shares table"]
-            WLS["Wrapped Ledger Secret<br/>(AES-GCM encrypted)"]
+            WLS["Wrapped Ledger Secret (AES-GCM encrypted)"]
             LSWK -->|key| WLS
             LS --> WLS
 
-            EWK["Encrypted Wrapping Key<br/>(per-node, RSA-OAEP encrypted)"]
+            EWK["Encrypted Wrapping Key (per-node, RSA-OAEP encrypted)"]
             StoredPubKey -->|key| EWK
             LSWK --> EWK
         end

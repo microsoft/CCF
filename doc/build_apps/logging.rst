@@ -1,7 +1,14 @@
 Logging
 =======
 
-.. note:: The experimental :doc:`Rust SDK <rust_api>` does not expose this logging API. Output from Rust's ``print!`` and ``eprint!`` macros is visible to the host, so it must not contain confidential data.
+CCF-generated log records are written to stdout at every severity, including ``fail`` and ``fatal``.
+The ``fatal`` severity label alone does not mean that the node will terminate or that the message will be written to stderr.
+CCF writes a flushed diagnostic to stderr when a fatal path terminates the node or process; recoverable errors and ordinary log records remain on stdout.
+
+This contract covers diagnostics produced by CCF itself.
+Applications and dependencies may write directly to stderr, and runtime-generated diagnostics such as assertion failures, uncaught C++ exceptions, or Rust panic hooks may also appear there.
+Those outputs are outside CCF's guarantee and must not contain confidential data.
+The experimental :doc:`Rust SDK <rust_api>` does not expose the CCF logging API, so output from Rust's ``print!`` and ``eprint!`` macros is visible to the host and must not contain confidential data.
 
 To add your own lines to the node's output you should use the ``CCF_APP_*`` macros defined in ``ccf/ds/logger.h``:
 

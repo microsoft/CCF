@@ -18,7 +18,6 @@ output_dir=${BUILD_SOURCESDIRECTORY:-$PWD}/out
 mkdir -p "$output_dir"
 
 python3 -c 'import sys; sys.exit("CCF requires Python 3.12 or newer") if sys.version_info < (3, 12) else None'
-./scripts/extract-release-notes.py --target-git-version >/dev/null
 
 uv_install_dir=/tmp/ccf-uv
 export PATH="$uv_install_dir:$PATH"
@@ -26,8 +25,8 @@ bash scripts/install_uv.sh "$uv_install_dir"
 uv=$(command -v uv)
 
 package_version=$(
-    python3 -c \
-        'import tomllib; print(tomllib.load(open("python/pyproject.toml", "rb"))["project"]["version"])'
+    "$uv" run --no-project --with packaging \
+        python scripts/validate_python_version.py "$BUILD_SOURCEBRANCH"
 )
 
 rm -rf python/dist

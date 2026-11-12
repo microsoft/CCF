@@ -1,42 +1,37 @@
 module
 
 public import Consensus.Model
-public import Consensus.Proofs.Concrete
-public import CCF.Execution
+public import CCF.Proofs.Execution
 
 import all Init.Control.State
-import all Init.Data.List.Sort.Basic
-import all Mathlib.Data.List.Sort
-meta import Lean.Elab.Tactic.Basic
+
+public meta import Lean.Elab.Tactic.ElabTerm
+
 meta import Lean.Meta.Tactic.AuxLemma
 
-@[expose] public section
+namespace Consensus.Proofs.Config
+end Consensus.Proofs.Config
 
-/-!
-Concrete executions satisfying the premises of each property. Each trace runs a
-finite stem of enabled actions and then repeats a nonempty cycle of enabled
-actions that returns to the stem's final state, so it is a genuine infinite
-execution without stuttering. The kernel evaluates every step.
--/
+namespace Consensus.Proofs.Concrete
+end Consensus.Proofs.Concrete
 
 namespace Consensus.Proofs.Witnesses
 
 open CCF CCF.Execution CCF.MultiNodeTransitionSystem
 open Consensus.Model.Node
 open Consensus.Model (initialNodeState)
-
 section Runs
 
 /-- The final state of choosing each action from the current state, when every
 chosen action is enabled. -/
-def run (system : TransitionSystem) (start : system.State)
+public def run (system : TransitionSystem) (start : system.State)
     : List (system.State -> system.Action) -> Option system.State
   | [] => some start
   | choose :: rest =>
       (system.step start (choose start)).bind fun next => run system next rest
 
 /-- Each prefix of a finished run finishes, and its next choice is enabled. -/
-theorem run_take_step {system : TransitionSystem} {start final : system.State}
+public theorem run_take_step {system : TransitionSystem} {start final : system.State}
     {choices : List (system.State -> system.Action)}
     (finished : run system start choices = some final) {index : Nat}
     (bounded : index < choices.length)
@@ -68,7 +63,7 @@ theorem run_take_step {system : TransitionSystem} {start final : system.State}
 The states of running `stem` from `start` and then repeating `cycle` forever.
 The default `start` is never used when the runs finish.
 -/
-def lasso (system : TransitionSystem) (start : system.State)
+public def lasso (system : TransitionSystem) (start : system.State)
     (stem cycle : List (system.State -> system.Action)) (index : Nat)
     : system.State :=
   if index < stem.length then
@@ -79,7 +74,7 @@ def lasso (system : TransitionSystem) (start : system.State)
       start
 
 /-- The action chosen at each position of a lasso. -/
-def lassoAction (system : TransitionSystem) (start : system.State)
+public def lassoAction (system : TransitionSystem) (start : system.State)
     (stem cycle : List (system.State -> system.Action)) (nonempty : cycle ≠ [])
     (index : Nat)
     : system.Action :=
@@ -92,7 +87,7 @@ def lassoAction (system : TransitionSystem) (start : system.State)
 
 /-- A finished stem followed by a nonempty cycle back to its final state records
 the chosen action at every step of a valid infinite trace. -/
-def lassoTrace {system : TransitionSystem} {start final : system.State}
+public def lassoTrace {system : TransitionSystem} {start final : system.State}
     {stem cycle : List (system.State -> system.Action)} (initialized : system.init start)
     (stemRun : run system start stem = some final)
     (cycleRun : run system final cycle = some final) (nonempty : cycle ≠ [])
@@ -106,7 +101,7 @@ def lassoTrace {system : TransitionSystem} {start final : system.State}
     simp [lasso, Nat.not_lt.mpr le, stemRun]
   refine ⟨{
     init := lasso system start stem cycle 0
-    steps := Stream'.Seq.ofStream fun index =>
+    steps := CCF.Seq.ofStream fun index =>
       (lassoAction system start stem cycle nonempty index,
         lasso system start stem cycle (index + 1))
   }, ?_, ?_⟩
@@ -157,8 +152,235 @@ def lassoTrace {system : TransitionSystem} {start final : system.State}
       subst second
       exact enabled
 
+end Runs
+end Consensus.Proofs.Witnesses
+
+namespace Consensus.Proofs.Witnesses
+
+open CCF CCF.Execution CCF.MultiNodeTransitionSystem
+open Consensus.Model.Node
+open Consensus.Model (initialNodeState)
+
+/-- Every listed node in its initial state for `configuration`, with an empty network. -/
+public def start (configuration : Finset Nat) (nodes : List Nat)
+    : Consensus.Model.State :=
+  { nodes := nodes.map fun node => (node, initialNodeState configuration node) }
+
+/-- Deliver the oldest envelope in the network. -/
+public def deliverOldest (state : Consensus.Model.State) : Consensus.Model.Action :=
+  match state.network with
+  | envelope :: _ => .deliver envelope
+  | [] => .local 0 (.timeout .election)
+
+public def deliverFrom (source target : Nat) (state : Consensus.Model.State)
+    : Consensus.Model.Action :=
+  match state.network.find?
+          (fun envelope => envelope.source == source && envelope.target == target) with
+  | some envelope => .deliver envelope
+  | none => deliverOldest state
+
+/-- Take `input` at `node` regardless of the current state. -/
+public def input (node : Nat) (input : Consensus.Model.Node.Input)
+    : Consensus.Model.State -> Consensus.Model.Action :=
+  fun _ => .local node input
+
+/-- `run` over a bare step function. Unlike `run`, its step argument is not a
+dependency of the other arguments' types, so tactics can rewrite inside it. -/
+private def runWith {S A : Type} (step : S -> A -> Option S) (start : S)
+    : List (S -> A) -> Option S
+  | [] => some start
+  | choose :: rest => (step start (choose start)).bind fun next => runWith step next rest
+
+private theorem run_eq_runWith (system : TransitionSystem) (start : system.State)
+    (choices : List (system.State -> system.Action))
+    : run system start choices
+      = runWith (fun state action => system.step state action) start choices := by
+  induction choices generalizing start with
+  | nil => rfl
+  | cons choose rest ih => simp only [run, runWith, ih]
+
+/-- Unfold the model's step function down to its broadcasts, so that the kernel
+can evaluate the run. Each run becomes a `runWith` over a single copy of the
+step function, rather than one copy per step, and `dsimp` unfolds it without
+building proof terms. -/
+macro "unfold_run" : tactic =>
+  `(tactic| (simp only [run_eq_runWith]; dsimp only [Consensus.Model.transitionSystem, MultiNodeTransitionSystem.lift,
+    MultiNodeTransitionSystem.next, Consensus.Model.protocol, Consensus.Model.Node.step,
+    Consensus.Model.Node.act, Consensus.Model.Node.receive,
+    Consensus.Model.Node.startElection, Consensus.Model.Node.becomePreVoteCandidate,
+    Consensus.Model.Node.becomeCandidate, Consensus.Model.Node.electIfQuorum,
+    Consensus.Model.Node.becomePrimary, Consensus.Model.Node.broadcastToOthers,
+    Consensus.Model.Node.advanceCommit, Consensus.Model.Node.nominateSuccessor,
+    Consensus.Model.Node.findSuccessor, Consensus.Model.Node.appendBatch,
+    Consensus.Model.Node.appendEntry,
+    Consensus.Model.Node.handleAppendEntriesRequest,
+    Consensus.Model.Node.handleAppendEntriesResponse,
+    Consensus.Model.Node.handleRequestVoteResponse,
+    Consensus.Model.Node.handleRequestPreVoteResponse,
+    Consensus.Model.Node.handleProposeRequestVoteRequest]))
+
+open Lean Elab Tactic Meta in
+/-- Close a closed goal `lhs = rhs` by asking only the kernel to check
+`Eq.refl lhs`. Concrete states hold functions, so their equality is not
+decidable, and the elaborator's definitional unfolding is far slower than the
+kernel's on these runs. -/
+elab "kernel_rfl" : tactic => closeMainGoalUsing `kernel_rfl fun target _ => do
+  let some (type, lhs, _) := target.consumeMData.eq? | throwError "kernel_rfl: not an equality"
+  let level <- getLevel type
+  let name <- withOptions (Elab.async.set · false) do
+    mkAuxLemma [] target (mkApp2 (mkConst ``Eq.refl [level]) type lhs)
+  return mkConst name
+
+end Consensus.Proofs.Witnesses
+
+namespace Consensus.Proofs.Witnesses
+
+open CCF CCF.Execution CCF.MultiNodeTransitionSystem
+open Consensus.Model.Node
+open Consensus.Model (initialNodeState)
+section Election
+
+public abbrev electionSystem := Consensus.Model.transitionSystem {0, 1, 2} [0, 1, 2]
+
+public def electionStart := start {0, 1, 2} [0, 1, 2]
+
+/-- Node 0 replicates its signed configuration to node 1. Node 1 then wins
+pre-vote and term 3 with node 2's votes while node 0 still leads term 2. -/
+public def electionChoices : List (Consensus.Model.State -> Consensus.Model.Action) :=
+  [
+    input 0 (.append [{ content := .signature }]),
+    input 0 (.sendEntries 1 2),
+    deliverFrom 0 1,
+    input 1 (.timeout .election),
+    deliverFrom 1 2,
+    deliverFrom 2 1,
+    deliverFrom 1 2,
+    deliverFrom 2 1
+  ]
+
+/-- Node 0 keeps nominating node 2, which ignores the stale-term proposal. -/
+public def electionCycle : List (Consensus.Model.State -> Consensus.Model.Action) :=
+  [input 0 .nominateSuccessor, deliverFrom 0 2]
+
+public def electionFinal : Consensus.Model.State :=
+  (run electionSystem electionStart electionChoices).getD electionStart
+
+/-- Nodes 0 and 1 are both present and both lead. -/
+public def bothLead (state : Consensus.Model.State) : Bool :=
+  ((nodeState state 0).any fun local_ => decide (local_.role = .primary))
+  && ((nodeState state 1).any fun local_ => decide (local_.role = .primary))
+
+end Election
+end Consensus.Proofs.Witnesses
+
+namespace Consensus.Proofs.Witnesses
+
+open CCF CCF.Execution CCF.MultiNodeTransitionSystem
+open Consensus.Model.Node
+open Consensus.Model (initialNodeState)
+section Commit
+
+public abbrev commitSystem := Consensus.Model.transitionSystem {0, 1} [0, 1]
+
+public def commitStart := start {0, 1} [0, 1]
+
+/--
+Node 0 signs the bootstrap configuration and commits it with node 1 (after four
+steps), then tells node 1 (after six). Node 0 then signs an unreplicated
+transaction, so node 1's log is behind and its pre-vote requests are refused.
+-/
+public def commitChoices : List (Consensus.Model.State -> Consensus.Model.Action) :=
+  [
+    input 0 (.append [{ content := .signature }]),
+    input 0 (.sendEntries 1 2),
+    deliverOldest,
+    deliverOldest,
+    input 0 (.sendEntries 1 2),
+    deliverOldest,
+    input 0 (.append [{ content := .transaction 1 {} }, { content := .signature }]),
+    input 1 (.timeout .election),
+    deliverFrom 1 0,
+    deliverFrom 0 1
+  ]
+
+/-- Node 1 keeps asking for pre-votes and node 0 keeps refusing. -/
+public def commitCycle : List (Consensus.Model.State -> Consensus.Model.Action) :=
+  [input 1 (.timeout .election), deliverFrom 1 0, deliverFrom 0 1]
+
+public def commitFinal : Consensus.Model.State :=
+  (run commitSystem commitStart commitChoices).getD commitStart
+
+/-- The state after node 0 advances its commit index, before node 1 learns it. -/
+public def commitPrimaryCommitted : Consensus.Model.State :=
+  (run commitSystem commitStart (commitChoices.take 4)).getD commitStart
+
+/-- The state after node 1 learns the commit index. -/
+public def commitFollowerCommitted : Consensus.Model.State :=
+  (run commitSystem commitStart (commitChoices.take 6)).getD commitStart
+
+end Commit
+end Consensus.Proofs.Witnesses
+
+namespace Consensus.Proofs.Witnesses
+
+open CCF CCF.Execution CCF.MultiNodeTransitionSystem
+open Consensus.Model.Node
+open Consensus.Model (initialNodeState)
+section Single
+
+public abbrev singleSystem := Consensus.Model.transitionSystem {0} [0]
+
+public def singleStart := start {0} [0]
+
+/-- A single initial primary signs and so commits its bootstrap configuration. -/
+public def singleChoices : List (Consensus.Model.State -> Consensus.Model.Action) :=
+  [input 0 (.append [{ content := .signature }])]
+
+/-- With no peers, nominating a successor sends nothing and changes nothing. -/
+public def singleCycle : List (Consensus.Model.State -> Consensus.Model.Action) :=
+  [input 0 .nominateSuccessor]
+
+public def singleFinal : Consensus.Model.State :=
+  (run singleSystem singleStart singleChoices).getD singleStart
+
+/-- After committing the bootstrap signature, the primary commits a further
+transaction and signature in one batch. -/
+public def extendAction : Consensus.Model.Action :=
+  .local 0 (.append [{ content := .transaction 1 {} }, { content := .signature }])
+
+public def extendFinal : Consensus.Model.State :=
+  (singleSystem.step singleFinal extendAction).getD singleFinal
+
+end Single
+end Consensus.Proofs.Witnesses
+
+namespace Consensus.Proofs.Concrete
+
+set_option linter.unusedSectionVars false
+open Consensus.Proofs.Config
+open CCF CCF.MultiNodeTransitionSystem
+open Model.Node
+
+private theorem mem_of_nodeState {concrete : Model.State} {node : NodeID}
+    {state : NodeState} (found : nodeState concrete node = some state)
+    : (node, state) ∈ concrete.nodes := by
+  simp only [nodeState, Option.map_eq_some_iff] at found
+  obtain ⟨⟨key, value⟩, located, rfl⟩ := found
+  have same : key = node := by simpa using List.find?_some located
+  subst same
+  exact List.mem_of_find?_eq_some located
+
+end Consensus.Proofs.Concrete
+
+namespace Consensus.Proofs.Witnesses
+
+open CCF CCF.Execution CCF.MultiNodeTransitionSystem
+open Consensus.Model.Node
+open Consensus.Model (initialNodeState)
+section Runs
+
 /-- Every state reached by a prefix of the stem occurs in the lasso. -/
-theorem lasso_mem {system : TransitionSystem} {start final state : system.State}
+public theorem lasso_mem {system : TransitionSystem} {start final state : system.State}
     {stem cycle : List (system.State -> system.Action)}
     (initialized : system.init start)
     (stemRun : run system start stem = some final)
@@ -182,17 +404,21 @@ theorem lasso_mem {system : TransitionSystem} {start final state : system.State}
     simp [lasso, stemRun, run]
 
 /-- A present option is `some` of its value with any default. -/
-theorem eq_some_getD {α : Type} {value : Option α} (present : value.isSome) (default : α)
+public theorem eq_some_getD {α : Type} {value : Option α} (present : value.isSome)
+    (default : α)
     : value = some (value.getD default) := by
   cases value <;> simp_all
 
 end Runs
+end Consensus.Proofs.Witnesses
 
-/-- Every listed node in its initial state for `configuration`, with an empty network. -/
-def start (configuration : Finset Nat) (nodes : List Nat) : Consensus.Model.State :=
-  { nodes := nodes.map fun node => (node, initialNodeState configuration node) }
+namespace Consensus.Proofs.Witnesses
 
-theorem start_initial {configuration : Finset Nat} {nodes : List Nat}
+open CCF CCF.Execution CCF.MultiNodeTransitionSystem
+open Consensus.Model.Node
+open Consensus.Model (initialNodeState)
+
+public theorem start_initial {configuration : Finset Nat} {nodes : List Nat}
     (nonempty : configuration.Nonempty) (distinct : nodes.Nodup)
     : (Consensus.Model.transitionSystem configuration nodes).init
         (start configuration nodes) := by
@@ -207,25 +433,7 @@ theorem start_initial {configuration : Finset Nat} {nodes : List Nat}
   obtain ⟨node, _, rfl⟩ := List.mem_map.mp member
   rfl
 
-/-- Deliver the oldest envelope in the network. -/
-def deliverOldest (state : Consensus.Model.State) : Consensus.Model.Action :=
-  match state.network with
-  | envelope :: _ => .deliver envelope
-  | [] => .local 0 (.timeout .election)
-
-def deliverFrom (source target : Nat) (state : Consensus.Model.State)
-    : Consensus.Model.Action :=
-  match state.network.find?
-          (fun envelope => envelope.source == source && envelope.target == target) with
-  | some envelope => .deliver envelope
-  | none => deliverOldest state
-
-/-- Take `input` at `node` regardless of the current state. -/
-def input (node : Nat) (input : Consensus.Model.Node.Input)
-    : Consensus.Model.State -> Consensus.Model.Action :=
-  fun _ => .local node input
-
-theorem mem_of_nodeState {state : Consensus.Model.State} {node : Nat}
+public theorem mem_of_nodeState {state : Consensus.Model.State} {node : Nat}
     {value : NodeState} (found : nodeState state node = some value)
     : (node, value) ∈ state.nodes := by
   simp only [nodeState, Option.map_eq_some_iff] at found
@@ -236,290 +444,148 @@ theorem mem_of_nodeState {state : Consensus.Model.State} {node : Nat}
   subst keyEq
   exact List.mem_of_find?_eq_some located
 
-theorem member_of_nodeState {state : Consensus.Model.State} {node : Nat}
+public theorem member_of_nodeState {state : Consensus.Model.State} {node : Nat}
     (present : (nodeState state node).isSome)
     : (node, (nodeState state node).get present) ∈ state.nodes :=
   mem_of_nodeState (Option.some_get present).symm
 
-/-- `Finset.sort` computed by insertion sort. The kernel cannot evaluate the
-well-founded `List.mergeSort` behind `Finset.sort`, but it can evaluate this. -/
-def insertionSorted {α : Type} [LinearOrder α] (s : Finset α) : List α :=
-  Quot.liftOn s.val (List.insertionSort (· ≤ ·))
-    fun _ _ perm =>
-      ((List.perm_insertionSort _ _).trans
-        (perm.trans (List.perm_insertionSort _ _).symm)).eq_of_pairwise'
-        (List.pairwise_insertionSort _ _) (List.pairwise_insertionSort _ _)
+end Consensus.Proofs.Witnesses
 
-theorem sort_eq_insertionSorted {α : Type} [LinearOrder α] (s : Finset α)
-    : s.sort = insertionSorted s := by
-  obtain ⟨⟨list⟩, _⟩ := s
-  exact List.mergeSort_eq_insertionSort _ list
+namespace Consensus.Proofs.Witnesses
 
-/-- `Finset.sort` by insertion sort, for any order accepted by `Finset.sort`. -/
-private def insertionSortedBy {α : Type} (s : Finset α) (r : α -> α -> Prop)
-    [DecidableRel r] [IsTrans α r] [Std.Antisymm r] [Std.Total r]
-    : List α :=
-  Quot.liftOn s.val (List.insertionSort r)
-    fun _ _ perm =>
-      ((List.perm_insertionSort r _).trans
-        (perm.trans (List.perm_insertionSort r _).symm)).eq_of_pairwise'
-        (List.pairwise_insertionSort r _) (List.pairwise_insertionSort r _)
-
-/-- `Finset.sort` itself, rather than each application of it, is insertion sort.
-The left side is closed, so `rw` replaces every sort in an unfolded run, including
-those under binders, without the congruence proofs `simp` builds for each one. -/
-private theorem sort_eq_insertionSortedBy {α : Type}
-    : @Finset.sort α = @insertionSortedBy α := by
-  funext s r _ _ _ _
-  obtain ⟨⟨list⟩, _⟩ := s
-  exact List.mergeSort_eq_insertionSort r list
-
-/-- `run` over a bare step function. Unlike `run`, its step argument is not a
-dependency of the other arguments' types, so tactics can rewrite inside it. -/
-private def runWith {S A : Type} (step : S -> A -> Option S) (start : S)
-    : List (S -> A) -> Option S
-  | [] => some start
-  | choose :: rest => (step start (choose start)).bind fun next => runWith step next rest
-
-private theorem run_eq_runWith (system : TransitionSystem) (start : system.State)
-    (choices : List (system.State -> system.Action))
-    : run system start choices
-      = runWith (fun state action => system.step state action) start choices := by
-  induction choices generalizing start with
-  | nil => rfl
-  | cons choose rest ih => simp only [run, runWith, ih]
-
-/-- Unfold the model's step function down to its broadcasts and replace each
-`Finset.sort` with insertion sort, so that the kernel can evaluate the run.
-Each run becomes a `runWith` over a single copy of the step function, rather
-than one copy per step; `dsimp` unfolds it without building proof terms; and a
-single `rw` replaces every sort. -/
-macro "sort_by_insertion" : tactic =>
-  `(tactic| (simp only [run_eq_runWith]; dsimp only [Consensus.Model.transitionSystem, MultiNodeTransitionSystem.lift,
-    MultiNodeTransitionSystem.next, Consensus.Model.protocol, Consensus.Model.Node.step,
-    Consensus.Model.Node.act, Consensus.Model.Node.receive,
-    Consensus.Model.Node.startElection, Consensus.Model.Node.becomePreVoteCandidate,
-    Consensus.Model.Node.becomeCandidate, Consensus.Model.Node.electIfQuorum,
-    Consensus.Model.Node.becomePrimary, Consensus.Model.Node.broadcastToOthers,
-    Consensus.Model.Node.advanceCommit, Consensus.Model.Node.nominateSuccessor,
-    Consensus.Model.Node.findSuccessor, Consensus.Model.Node.appendBatch,
-    Consensus.Model.Node.appendEntry,
-    Consensus.Model.Node.handleAppendEntriesRequest,
-    Consensus.Model.Node.handleAppendEntriesResponse,
-    Consensus.Model.Node.handleRequestVoteResponse,
-    Consensus.Model.Node.handleRequestPreVoteResponse,
-    Consensus.Model.Node.handleProposeRequestVoteRequest]; rw [sort_eq_insertionSortedBy]))
-
-open Lean Elab Tactic Meta in
-/-- Close a closed goal `lhs = rhs` by asking only the kernel to check
-`Eq.refl lhs`. Concrete states hold functions, so their equality is not
-decidable, and the elaborator's definitional unfolding is far slower than the
-kernel's on these runs. -/
-elab "kernel_rfl" : tactic => closeMainGoalUsing `kernel_rfl fun target _ => do
-  let some (type, lhs, _) := target.consumeMData.eq? | throwError "kernel_rfl: not an equality"
-  let level <- getLevel type
-  let name <- withOptions (Elab.async.set · false) do
-    mkAuxLemma [] target (mkApp2 (mkConst ``Eq.refl [level]) type lhs)
-  return mkConst name
-
+open CCF CCF.Execution CCF.MultiNodeTransitionSystem
+open Consensus.Model.Node
+open Consensus.Model (initialNodeState)
 section Election
 
-abbrev electionSystem := Consensus.Model.transitionSystem {0, 1, 2} [0, 1, 2]
-
-def electionStart := start {0, 1, 2} [0, 1, 2]
-
-/-- Node 0 replicates its signed configuration to node 1. Node 1 then wins
-pre-vote and term 3 with node 2's votes while node 0 still leads term 2. -/
-def electionChoices : List (Consensus.Model.State -> Consensus.Model.Action) :=
-  [
-    input 0 (.append [{ content := .signature }]),
-    input 0 (.sendEntries 1 2),
-    deliverFrom 0 1,
-    input 1 (.timeout .election),
-    deliverFrom 1 2,
-    deliverFrom 2 1,
-    deliverFrom 1 2,
-    deliverFrom 2 1
-  ]
-
-/-- Node 0 keeps nominating node 2, which ignores the stale-term proposal. -/
-def electionCycle : List (Consensus.Model.State -> Consensus.Model.Action) :=
-  [input 0 .nominateSuccessor, deliverFrom 0 2]
-
-theorem election_finished
+public theorem election_finished
     : (run electionSystem electionStart electionChoices).isSome := by
-  sort_by_insertion
+  unfold_run
   decide +kernel
 
-def electionFinal : Consensus.Model.State :=
-  (run electionSystem electionStart electionChoices).getD electionStart
-
-theorem election_run
+public theorem election_run
     : run electionSystem electionStart electionChoices = some electionFinal :=
   eq_some_getD election_finished _
 
-theorem election_cycle_finished
+public theorem election_cycle_finished
     : (run electionSystem electionFinal electionCycle).isSome := by
   unfold electionFinal
-  sort_by_insertion
+  unfold_run
   decide +kernel
 
-theorem election_cycle_returns
+public theorem election_cycle_returns
     : (run electionSystem electionFinal electionCycle).getD electionStart
       = electionFinal := by
   unfold electionFinal
-  sort_by_insertion
+  unfold_run
   kernel_rfl
 
-theorem election_cycle
+public theorem election_cycle
     : run electionSystem electionFinal electionCycle = some electionFinal := by
   rw [eq_some_getD election_cycle_finished electionStart, election_cycle_returns]
 
-/-- Nodes 0 and 1 are both present and both lead. -/
-def bothLead (state : Consensus.Model.State) : Bool :=
-  ((nodeState state 0).any fun local_ => decide (local_.role = .primary))
-  && ((nodeState state 1).any fun local_ => decide (local_.role = .primary))
-
-theorem election_both_lead : bothLead electionFinal = true := by
+public theorem election_both_lead : bothLead electionFinal = true := by
   unfold electionFinal
-  sort_by_insertion
+  unfold_run
   decide +kernel
 
 end Election
+end Consensus.Proofs.Witnesses
 
+namespace Consensus.Proofs.Witnesses
+
+open CCF CCF.Execution CCF.MultiNodeTransitionSystem
+open Consensus.Model.Node
+open Consensus.Model (initialNodeState)
 section Commit
 
-abbrev commitSystem := Consensus.Model.transitionSystem {0, 1} [0, 1]
-
-def commitStart := start {0, 1} [0, 1]
-
-/--
-Node 0 signs the bootstrap configuration and commits it with node 1 (after four
-steps), then tells node 1 (after six). Node 0 then signs an unreplicated
-transaction, so node 1's log is behind and its pre-vote requests are refused.
--/
-def commitChoices : List (Consensus.Model.State -> Consensus.Model.Action) :=
-  [
-    input 0 (.append [{ content := .signature }]),
-    input 0 (.sendEntries 1 2),
-    deliverOldest,
-    deliverOldest,
-    input 0 (.sendEntries 1 2),
-    deliverOldest,
-    input 0 (.append [{ content := .transaction 1 {} }, { content := .signature }]),
-    input 1 (.timeout .election),
-    deliverFrom 1 0,
-    deliverFrom 0 1
-  ]
-
-/-- Node 1 keeps asking for pre-votes and node 0 keeps refusing. -/
-def commitCycle : List (Consensus.Model.State -> Consensus.Model.Action) :=
-  [input 1 (.timeout .election), deliverFrom 1 0, deliverFrom 0 1]
-
-theorem commit_finished : (run commitSystem commitStart commitChoices).isSome := by
-  sort_by_insertion
+public theorem commit_finished : (run commitSystem commitStart commitChoices).isSome := by
+  unfold_run
   decide +kernel
 
-def commitFinal : Consensus.Model.State :=
-  (run commitSystem commitStart commitChoices).getD commitStart
-
-theorem commit_run : run commitSystem commitStart commitChoices = some commitFinal :=
+public theorem commit_run
+    : run commitSystem commitStart commitChoices = some commitFinal :=
   eq_some_getD commit_finished _
 
-theorem commit_cycle_finished : (run commitSystem commitFinal commitCycle).isSome := by
+public theorem commit_cycle_finished
+    : (run commitSystem commitFinal commitCycle).isSome := by
   unfold commitFinal
-  sort_by_insertion
+  unfold_run
   decide +kernel
 
-theorem commit_cycle_returns
+public theorem commit_cycle_returns
     : (run commitSystem commitFinal commitCycle).getD commitStart = commitFinal := by
   unfold commitFinal
-  sort_by_insertion
+  unfold_run
   kernel_rfl
 
-theorem commit_cycle : run commitSystem commitFinal commitCycle = some commitFinal := by
+public theorem commit_cycle
+    : run commitSystem commitFinal commitCycle = some commitFinal := by
   rw [eq_some_getD commit_cycle_finished commitStart, commit_cycle_returns]
 
-theorem commit_primary_committed
+public theorem commit_primary_committed
     : (run commitSystem commitStart (commitChoices.take 4)).isSome := by
   decide
 
-/-- The state after node 0 advances its commit index, before node 1 learns it. -/
-def commitPrimaryCommitted : Consensus.Model.State :=
-  (run commitSystem commitStart (commitChoices.take 4)).getD commitStart
+public theorem commit_primary_present : (nodeState commitPrimaryCommitted 0).isSome := by
+  decide
 
-theorem commit_primary_present : (nodeState commitPrimaryCommitted 0).isSome := by decide
-
-theorem commit_follower_committed
+public theorem commit_follower_committed
     : (run commitSystem commitStart (commitChoices.take 6)).isSome := by
   decide
 
-/-- The state after node 1 learns the commit index. -/
-def commitFollowerCommitted : Consensus.Model.State :=
-  (run commitSystem commitStart (commitChoices.take 6)).getD commitStart
-
-theorem commit_follower_present : (nodeState commitFollowerCommitted 1).isSome := by
+public theorem commit_follower_present
+    : (nodeState commitFollowerCommitted 1).isSome := by
   decide
 
 end Commit
+end Consensus.Proofs.Witnesses
 
+namespace Consensus.Proofs.Witnesses
+
+open CCF CCF.Execution CCF.MultiNodeTransitionSystem
+open Consensus.Model.Node
+open Consensus.Model (initialNodeState)
 section Single
 
--- Every sort in this one-node system is of an empty set of peers, which the
--- kernel evaluates directly, so these runs need no `sort_by_insertion`.
-
-abbrev singleSystem := Consensus.Model.transitionSystem {0} [0]
-
-def singleStart := start {0} [0]
-
-/-- A single initial primary signs and so commits its bootstrap configuration. -/
-def singleChoices : List (Consensus.Model.State -> Consensus.Model.Action) :=
-  [input 0 (.append [{ content := .signature }])]
-
-/-- With no peers, nominating a successor sends nothing and changes nothing. -/
-def singleCycle : List (Consensus.Model.State -> Consensus.Model.Action) :=
-  [input 0 .nominateSuccessor]
-
-theorem single_finished : (run singleSystem singleStart singleChoices).isSome := by
+public theorem single_finished : (run singleSystem singleStart singleChoices).isSome := by
   decide
 
-def singleFinal : Consensus.Model.State :=
-  (run singleSystem singleStart singleChoices).getD singleStart
-
-theorem single_run : run singleSystem singleStart singleChoices = some singleFinal :=
+public theorem single_run
+    : run singleSystem singleStart singleChoices = some singleFinal :=
   eq_some_getD single_finished _
 
-theorem single_cycle : run singleSystem singleFinal singleCycle = some singleFinal := by
+public theorem single_cycle
+    : run singleSystem singleFinal singleCycle = some singleFinal := by
   kernel_rfl
 
-theorem single_final_present : (nodeState singleFinal 0).isSome := by decide
+public theorem single_final_present : (nodeState singleFinal 0).isSome := by decide
 
-/-- After committing the bootstrap signature, the primary commits a further
-transaction and signature in one batch. -/
-def extendAction : Consensus.Model.Action :=
-  .local 0 (.append [{ content := .transaction 1 {} }, { content := .signature }])
-
-theorem single_final_distinct : (singleFinal.nodes.map Prod.fst).Nodup := by
+public theorem single_final_distinct : (singleFinal.nodes.map Prod.fst).Nodup := by
   decide +kernel
 
-theorem extend_enabled : (singleSystem.step singleFinal extendAction).isSome := by
+public theorem extend_enabled : (singleSystem.step singleFinal extendAction).isSome := by
   decide +kernel
 
-def extendFinal : Consensus.Model.State :=
-  (singleSystem.step singleFinal extendAction).getD singleFinal
-
-theorem extend_final_present : (nodeState extendFinal 0).isSome := by
+public theorem extend_final_present : (nodeState extendFinal 0).isSome := by
   decide +kernel
 
-theorem extend_committed
+public theorem extend_committed
     : ((nodeState singleFinal 0).get single_final_present).committedLog ≠ []
       /\ ((nodeState singleFinal 0).get single_final_present).committedLog.length
           < ((nodeState extendFinal 0).get extend_final_present).committedLog.length := by
   decide +kernel
 
 end Single
+end Consensus.Proofs.Witnesses
 
-lemma committed_logs_prefix_witness
+namespace Consensus.Proofs.Witnesses
+
+open CCF CCF.Execution CCF.MultiNodeTransitionSystem
+open Consensus.Model.Node
+open Consensus.Model (initialNodeState)
+
+public theorem committed_logs_prefix_witness
     : exists (config : Finset NodeID),
     exists
     (nodes : List NodeID) (trace
@@ -556,7 +622,7 @@ lemma committed_logs_prefix_witness
     by decide
   ⟩
 
-lemma single_node_committed_log_monotonic_witness
+public theorem single_node_committed_log_monotonic_witness
     : exists (config : Finset NodeID) (nodes : List NodeID),
     exists (pre post : Model.State),
     exists (nodeId : NodeID) (nodePre nodePost : NodeState),
@@ -584,7 +650,7 @@ lemma single_node_committed_log_monotonic_witness
     extend_committed.2
   ⟩
 
-lemma election_safety_witness
+public theorem election_safety_witness
     : exists (config : Finset NodeID),
     exists
     (nodes : List NodeID) (trace
@@ -616,7 +682,7 @@ lemma election_safety_witness
       (start_initial (by decide) (by decide))
       stemRun election_cycle
       (by simp [electionCycle])
-      le_rfl
+      Nat.le.refl
       (by rw [List.take_length]; exact stemRun),
     mem_of_nodeState leftFound,
     mem_of_nodeState rightFound,
@@ -625,7 +691,7 @@ lemma election_safety_witness
     by decide
   ⟩
 
-lemma committed_frontier_is_signature_witness
+public theorem committed_frontier_is_signature_witness
     : exists (config : Finset NodeID),
     exists
     (nodes : List NodeID) (trace
@@ -647,7 +713,7 @@ lemma committed_frontier_is_signature_witness
       (start_initial (by decide) (by decide))
       stemRun single_cycle
       (by simp [singleCycle])
-      le_rfl
+      Nat.le.refl
       (by rw [List.take_length]; exact stemRun),
     member_of_nodeState _,
     by decide

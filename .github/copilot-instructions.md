@@ -6,6 +6,8 @@ CCF (Confidential Consortium Framework) is a replicated state machine for confid
 
 - Answer questions and planning requests without editing files unless requested.
 - Inspect the worktree before editing. Preserve existing user changes; ask before overwriting conflicting edits.
+- Use concise, descriptive, hyphen-separated branch names that summarize the change, such as `docs-pr-description-guidance`, while preserving required prefixes and established repository conventions.
+  Replace automatically generated names when the environment supports choosing or renaming the branch.
 - Limit edits to the requested task and necessary tests/documentation. Do not fix unrelated failures, reformat unrelated files, or expand into adjacent refactors.
 - Use only ASCII characters in first-party code you add or modify for commit, including comments, docstrings, and string literals, and in first-party agent instruction files. Vendored third-party dependencies under `3rdparty/` are exempt; preserve their upstream contents rather than rewriting them to satisfy this policy. Lean source files (`*.lean`) are also exempt and may use Unicode. Elsewhere, use ASCII escape sequences when Unicode test data or runtime output is needed; preserve its meaning. Existing grandfathered Unicode lines may remain unchanged, but must not be expanded.
 - When a PR resolves an issue, include `Closes #123` with the actual issue number in its description. Use a non-closing reference for partial work.
@@ -27,7 +29,8 @@ CCF (Confidential Consortium Framework) is a replicated state machine for confid
 - Before formatting or linting, load the [formatting-and-linting skill](/.github/skills/formatting-and-linting/SKILL.md).
 - In Markdown and reStructuredText prose, do not manually wrap prose to a fixed column width or insert line breaks within a sentence.
   When editing an existing paragraph, put each sentence in that paragraph on its own line.
-- For user-facing API or behaviour changes, update existing documentation and follow the [changelog instructions](/.github/instructions/changelog.instructions.md). Link to existing documentation rather than duplicating it.
+- For user-facing API or behaviour changes, update existing documentation and add a change description following the [change-description instructions](/.github/instructions/changelog.instructions.md).
+  Link to existing documentation rather than duplicating it.
 
 ## Validation
 

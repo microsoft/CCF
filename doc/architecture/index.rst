@@ -1,82 +1,56 @@
 Architecture
 ============
 
-.. panels::
+.. grid:: 1 2 2 2
+    :gutter: 3
 
-    :fa:`project-diagram` :doc:`consensus/index`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`project-diagram` :doc:`consensus/index`
 
-    CCF makes use of a consensus protocol to replicate transactions.
+        Understand how CCF replicates transactions using consensus.
 
-    ---
+    .. grid-item-card:: :fas:`key` :doc:`cryptography`
 
-    :fa:`key` :doc:`cryptography`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Explore CCF cryptographic techniques and primitives.
 
-    CCF leverages a number of cryptographic techniques and primitives.
+    .. grid-item-card:: :fas:`map` :doc:`request_flow`
 
-    ---
+        Follow a request through CCF.
 
-    :fa:`map` :doc:`request_flow`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`random` :doc:`threading`
 
-    Flow of a single request's execution through CCF.
+        Understand the CCF threading model.
 
-    ---
+    .. grid-item-card:: :fas:`snowflake` :doc:`merkle_tree`
 
-    :fa:`random` :doc:`threading`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Understand how Merkle trees protect transaction integrity.
 
-    CCF threading model.
+    .. grid-item-card:: :fas:`book` :doc:`ledger`
 
-    ---
+        Understand ledger persistence for recovery and auditing.
 
-    :fa:`snowflake` :doc:`merkle_tree`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`paper-plane` :doc:`node_to_node`
 
-    Transaction integrity guarantees stem from the use of a Merkle Tree data structure over their history.
+        Understand the node-to-node channel protocol used for consensus and forwarding.
 
-    ---
+    .. grid-item-card:: :fas:`address-book` :doc:`indexing`
 
-    :fa:`book` :doc:`ledger`
-    ^^^^^^^^^^^^^^^^^^^^^^^^
+        Use indexing to speed up historical queries.
 
-    Transactions are persisted to a ledger for recovery and audit purposes.
+    .. grid-item-card:: :fas:`scroll` :ref:`Receipts <use_apps/verify_tx:Write Receipts>`
 
-    ---
+        Understand how receipts endorse application claims and support ledger auditing.
 
-    :fa:`paper-plane` :doc:`node_to_node`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    .. grid-item-card:: :fas:`cogs` :doc:`tls_internals`
 
-    Node to node channel protocol used for consensus and forwarding.
+        Explore the internal implementation of TLS communication.
 
-    ---
+    .. grid-item-card:: :fas:`cogs` :doc:`tcp_internals`
 
-    :fa:`address-book` :doc:`indexing`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        Explore the internal implementation of the TCP host layer.
 
-    Indexing system used to speed up historical queries.
+    .. grid-item-card:: :fas:`check-double` :doc:`verification`
 
-    ---
-
-    :fa:`scroll` :doc:`receipts`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Receipts can be used with the ledger for audit purposes.
-
-    ---
-
-    :fa:`gears` :doc:`tls_internals`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Internal implementation of TLS communication.
-
-    ---
-
-    :fa:`gears` :doc:`tcp_internals`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Internal implementation of the TCP host layer.
+        Understand how CCF's protocols are formally modelled and validated against the implementation.
 
 .. toctree::
     :hidden:
@@ -90,6 +64,6 @@ Architecture
     ledger
     node_to_node
     indexing
-    receipts
     tls_internals
     tcp_internals
+    verification

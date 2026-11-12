@@ -14,15 +14,17 @@ import msgpack
 class Collector:
     """Decode Forward messages without retaining events or writing them to disk."""
 
-    def __init__(self, node_count=2):
+    def __init__(self, node_count=2, record_callback=None):
         if node_count < 1:
             raise ValueError("The collector requires at least one node")
         self.node_count = node_count
+        self.record_callback = record_callback
 
     def __enter__(self):
         self.records = 0
         self.bytes = 0
         self.processes = set()
+        self.tags = set()
         self.error = None
         self.stop = threading.Event()
         self.selector = selectors.DefaultSelector()
@@ -74,7 +76,10 @@ class Collector:
                             ):
                                 raise RuntimeError("Expected Fluentd EventTime")
                             self.records += 1
+                            self.tags.add(tag)
                             self.processes.add(record["process_id"])
+                            if self.record_callback is not None:
+                                self.record_callback(tag, timestamp, record)
                             if len(self.processes) > self.node_count:
                                 raise RuntimeError(
                                     f"Expected at most {self.node_count} process IDs"

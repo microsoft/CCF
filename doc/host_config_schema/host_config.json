@@ -12,7 +12,7 @@
         "fluentd": {
           "type": "array",
           "default": [],
-          "description": "Experimental CCF consensus protocol trace export to Fluentd ``in_forward`` TCP listeners. All sinks receive the same events; console logging is unchanged. Omitted or empty disables export. Use only trusted collectors on a trusted network: TCP is unauthenticated and unencrypted. See :ref:`observability_export` for configuration and delivery limitations",
+          "description": "Experimental CCF consensus protocol trace export to Fluentd ``in_forward`` TCP listeners. Use ``tag-prefix-allow-list`` to select events per collector. Omitted or empty disables export. Use only trusted collectors on a trusted network: TCP is unauthenticated and unencrypted. See :ref:`observability_export` for configuration and delivery limitations",
           "items": {
             "type": "object",
             "properties": {
@@ -38,6 +38,15 @@
                 "enum": ["buffered-best-effort", "unbuffered-non-blocking"],
                 "default": "buffered-best-effort",
                 "description": "``buffered-best-effort`` retains queued records while the collector cannot accept data; ``unbuffered-non-blocking`` drops queued records on backpressure or disconnection. See :ref:`observability_export` for delivery details and limitations"
+              },
+              "tag-prefix-allow-list": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["ccf.log"],
+                "description": "Export events whose tags start with any listed literal, case-sensitive prefix. Omitting this field selects ccf.log. A list containing the empty string selects every tag; an empty list selects none. No dot-boundary requirement, wildcards or regular expressions. See :ref:`observability_export` for examples and delivery behaviour",
+                "examples": [["ccf.log"], ["ccf"], ["ccf.cft"]]
               }
             },
             "required": ["host", "port"]
@@ -228,6 +237,11 @@
           "type": "string",
           "default": "service_cert.pem",
           "description": "For ``Start`` and ``Recover`` nodes, path to which service certificate will be written to on startup. For ``Join`` nodes, path to the certificate of the existing service to join"
+        },
+        "pq_service_certificate_file": {
+          "type": "string",
+          "default": "pq_service_cert.pem",
+          "description": "For ``Start`` and ``Recover`` nodes with an ML-DSA service identity, path to which the ML-DSA service certificate will be written on startup. Ignored for ``Join`` nodes and nodes without an ML-DSA service identity"
         }
       },
       "allOf": [
@@ -261,6 +275,12 @@
                     "type": "string",
                     "default": "CN=CCF Service",
                     "description": "Subject name to include in service certificate. Can only be set once on service start."
+                  },
+                  "service_mldsa_parameter_set": {
+                    "type": "string",
+                    "enum": ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"],
+                    "default": "ML-DSA-65",
+                    "description": "ML-DSA parameter set of the ML-DSA service certificate. Ignored on nodes built without ML-DSA support."
                   },
                   "cose_signatures": {
                     "type": "object",
@@ -422,6 +442,12 @@
                     "default": 1,
                     "description": "Initial validity period (days) for service certificate",
                     "minimum": 1
+                  },
+                  "service_mldsa_parameter_set": {
+                    "type": "string",
+                    "enum": ["ML-DSA-44", "ML-DSA-65", "ML-DSA-87"],
+                    "default": "ML-DSA-65",
+                    "description": "ML-DSA parameter set of the ML-DSA service certificate. Ignored on nodes built without ML-DSA support."
                   },
                   "previous_service_identity_file": {
                     "type": "string",

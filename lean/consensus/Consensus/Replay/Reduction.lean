@@ -11,7 +11,7 @@ public section
 
 /-!
 Rules peek action arguments, consume named events, and emit direct model actions.
-Explicit native boundaries distinguish callbacks from subsequent actions.
+Explicit native boundaries distinguish related events from subsequent actions.
 After bootstrap, each rule observes its native group's starting snapshot before emitting actions.
 Reduction never executes or repairs model state.
 -/
@@ -19,6 +19,7 @@ Reduction never executes or repairs model state.
 namespace Consensus.Replay.Reducer
 
 open Lean Model.Node
+open CCF (Finset)
 open CCF.Parsec (failure validated attempt many_ optional_)
 
 private structure ReductionState where
@@ -55,7 +56,7 @@ private def modelNode (event : Event) (name : String) : Reduction NodeID := do
 
 private def modelMembers (event : Event) (names : List String)
     : Reduction (Finset NodeID) := do
-  return (← names.mapM (modelNode event)).toFinset
+  return Finset.ofList (← names.mapM (modelNode event))
 
 private def appendInstruction (instr : Instruction) : Reduction Unit :=
   modify fun s => { s with instructions := s.instructions.push instr }
@@ -74,45 +75,62 @@ private def ruleBootstrap : Reduction String := do
   event head "add_configuration"
   return head.node
 
-/-
-This is a hack required as we model retirement confirmations in the ledger and so we need
-to figure out which entries confirm retirement, without directly examining the entries.
-We currently rely on the configuration and signature to infer retirement confirmation.
--/
 private def readAppendContent (head : Event) (config : Option Event)
+    (retirements : List Event)
     : Reduction EntryContent := do
   let signature ← readJson head head.message (boolean · "globally_committable")
+  if signature then
+    liftExcept head (require retirements.isEmpty "retirement metadata on signature")
+    if let some config := config then
+      liftExcept config (throw "configuration write pair mismatch")
+    return .signature
   let configuration ←
     match config with
     | some config => do
         liftExcept config do
           require
-            (!signature && (← nat config.message "idx") == (← nat head.message "seqno"))
+            ((← nat config.message "idx") == (← nat head.message "seqno"))
             "configuration write pair mismatch"
         some <$> modelMembers config (← readJson config config.message configuration)
     | none => pure none
-  if signature then
-    return .signature
-  else
-    let some command := head.command
-    | failure s!"{head.record.location}: non-signature append needs command provenance"
-    let command ←
-      readJson head command.value (fun value => field value "msg" >>= (string · "cmd"))
-    let metadata ←
-      if command.startsWith "cleanup_nodes," then do
-        liftExcept head
-          (require configuration.isNone "cleanup_nodes with configuration metadata")
-        let nodes ← modelMembers head (command.splitOn "," |>.drop 2)
-        pure { retirementConfirmations := nodes : TransactionMetadata }
-      else
-        pure { configuration : TransactionMetadata }
-    let request := (← get).nextRequestId
-    modify fun s => { s with nextRequestId := request + 1 }
-    return .transaction request metadata
+  let retiredNodes ←
+    retirements.mapM
+      fun retirement =>
+        readJson retirement retirement.message (string · "retired_node_id")
+  let retirementConfirmations ← modelMembers head retiredNodes
+  let request := (← get).nextRequestId
+  modify fun s => { s with nextRequestId := request + 1 }
+  return .transaction request { configuration, retirementConfirmations }
 
 private def ruleAppend : Reduction Unit := do
   let head ← peek
+  unless head.function == "retired_committed_tx" || head.function == "replicate" do
+    failure
+      s!"{head.record.location}: expected retired_committed_tx or replicate, got {head.function}"
+  let seqno ← readJson head head.message (nat · "seqno")
+  let nodeId := head.node
   -- consume
+  let retirements ←
+    CCF.Parsec.many do
+      let retirement ← peek
+      unless retirement.function == "retired_committed_tx" && retirement.node == nodeId do
+        failure
+          s!"{retirement.record.location}: expected retired_committed_tx on node {nodeId}, got {retirement.function} on node {retirement.node}"
+      let retirementSeqno ← readJson retirement retirement.message (nat · "seqno")
+      unless retirementSeqno == seqno do
+        failure
+          s!"{retirement.record.location}: expected seqno {seqno}, got {retirementSeqno}"
+      discard CCF.Parsec.take
+      return retirement
+  -- Map hooks run before replication acceptance; rejected writes may have no matching replicate.
+  if (← CCF.Parsec.peek).isNone then
+    return
+  let head ← peek
+  unless head.function == "replicate" && head.node == nodeId do
+    return
+  let replicateSeqno ← readJson head head.message (nat · "seqno")
+  unless replicateSeqno == seqno do
+    return
   event head "replicate"
   let config ←
     CCF.Parsec.optionalRule do
@@ -134,12 +152,11 @@ private def ruleAppend : Reduction Unit := do
   optional_ do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
+  let content ← readAppendContent head config retirements
   -- emit
   emitObserve head "append"
   emitAction head "append"
-    (.local head.node
-      (.append
-        [{ content := (← readAppendContent head config), flushes := flushes.getD [] }]))
+    (.local head.node (.append [{ content, flushes := flushes.getD [] }]))
 
 private def readReceive (head : Event) (families : List String) : Reduction Step := do
   let sender ← readJson head head.message (string · "from_node_id")
@@ -155,7 +172,9 @@ private def ruleRecvAppendEntries : Reduction Unit := do
   event head "recv_append_entries"
   optional_ (event head "become_follower")
   many_
-    (event head "execute_append_entries_sync"
+    ((do
+      event head "execute_append_entries_sync"
+      many_ (event head "retired_committed_tx"))
       <|> (do
             event head "add_configuration"
             many_ (event head "send_append_entries"))

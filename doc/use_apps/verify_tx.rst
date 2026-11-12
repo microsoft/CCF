@@ -48,6 +48,14 @@ Write Receipts
 
 Once a transaction has been committed, it is possible to get a cryptographic receipt over the entry produced in the ledger. That receipt can be verified offline.
 
+CCF implements `write` receipts, which are signed proofs associated with a transaction.
+They serve two main purposes:
+
+1. :ref:`Endorse <use_apps/verify_tx:Application Claims>` claims made by the application logic, i.e., a signed statement of fact, verifiable offline and by third parties, equivalent to "this transaction produced this outcome at this position in the ledger".
+2. Together with a copy of the ledger, or other receipts, they can be used to :ref:`audit <audit/receipts:Receipts>` the service and hold the consortium to account.
+
+Internally, receipts are also used to establish the validity of ledger snapshots.
+
 To obtain a receipt, a user needs to call a :http:GET:`/app/receipt` for a particular :term:`Transaction ID`. Because fetching the information necessary to produce a receipt likely involves a round trip to the ledger, the endpoint is implemented as a historical query.
 This means that the request may return ``202 Accepted`` at first, with a suggested ``Retry-After`` header. A subsequent call will return the actual receipt, for example:
 
@@ -155,5 +163,6 @@ The ``commit_evidence`` field in receipts fulfills two purposes:
 1. It exposes the full :term:`Transaction ID` in a format that is easy for a user to extract, and does not require parsing the ledger entry.
 2. Because it cannot be extracted from the ledger without access to the ledger secrets, it guarantees the transaction is committed.
 
-Entries are written out to the ledger as early as possible, to relieve memory pressure inside the enclave. If receipts could be produced from these entries regardless of their replication status, a malicious actor could emit them for transactions that have been tentatively run by a primary, appended to its local ledger, but since rolled back.
+Entries are written out to the ledger as early as possible, to relieve memory pressure on the node.
+If receipts could be produced from these entries regardless of their replication status, a malicious actor could emit them for transactions that have been tentatively run by a primary, appended to its local ledger, but since rolled back.
 By including a commitment to the digest of ``commit_evidence`` as a leaf component in the Merkle Tree, which is effectively a nonce derived from ledger secrets and TxID, we ensure that only receipts produced by nodes that can reveal this nonce are verifiable.

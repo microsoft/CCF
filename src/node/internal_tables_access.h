@@ -18,6 +18,7 @@
 #include "ccf/tx.h"
 #include "consensus/aft/cft_types.h"
 #include "crypto/cose.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
 #include "pal/uvm_endorsements.h"
@@ -355,18 +356,54 @@ namespace ccf
     static void create_service(
       ccf::kv::Tx& tx,
       const ccf::crypto::Pem& service_cert,
+      const std::optional<ccf::crypto::Pem>& pq_service_cert,
       ccf::TxID create_txid,
       nlohmann::json service_data = nullptr,
       bool recovering = false)
     {
       auto* service = tx.rw<ccf::Service>(Tables::SERVICE);
+      const auto prev_service_info = service->get();
+      auto* signing_identities =
+        tx.rw<SigningIdentities>(Tables::SIGNING_IDENTITIES);
+
+      const auto service_key = ccf::crypto::COSEKey::from_der_cert(
+        ccf::crypto::cert_pem_to_der(service_cert));
+      if (service_key.ec_public_key() == nullptr)
+      {
+        throw std::logic_error(
+          "Classical service signing key must be an EC key");
+      }
+      const auto signing_identity = signing_identity_from_key(service_key);
+
+      // Builds with ML-DSA always hold a PQ identity, and a service which has
+      // one never loses it
+      const bool prev_service_has_pq_cert =
+        prev_service_info.has_value() && prev_service_info->pq_cert.has_value();
+      const bool pq_identity_required = ccf::crypto::mldsa_supported() ||
+        signing_identities->has(IdentityType::PQ) || prev_service_has_pq_cert;
+      if (pq_identity_required && !pq_service_cert.has_value())
+      {
+        throw std::logic_error("An ML-DSA service certificate is required");
+      }
+
+      std::optional<Identity> pq_signing_identity;
+      if (pq_service_cert.has_value())
+      {
+        const auto pq_service_key = ccf::crypto::COSEKey::from_der_cert(
+          ccf::crypto::cert_pem_to_der(pq_service_cert.value()));
+        if (pq_service_key.mldsa_public_key() == nullptr)
+        {
+          throw std::logic_error(
+            "PQ service signing key must be an ML-DSA key");
+        }
+        pq_signing_identity = signing_identity_from_key(pq_service_key);
+      }
 
       size_t recovery_count = 0;
       std::optional<ccf::kv::Version> prev_service_created_at = std::nullopt;
 
       if (service->has())
       {
-        const auto prev_service_info = service->get();
         if (!prev_service_info.has_value())
         {
           throw std::logic_error("Failed to get previous service info");
@@ -409,18 +446,22 @@ namespace ccf
         recovery_count = prev_service_info->recovery_count.value_or(0) + 1;
       }
 
-      // Publish CLASSICAL from the service key; preserve other identity types.
-      const auto signing_identity = signing_identity_from_cert(service_cert);
-      tx.wo<SigningIdentities>(Tables::SIGNING_IDENTITIES)
-        ->put(IdentityType::CLASSICAL, signing_identity);
+      // Publish the keys atomically with their service certificates.
+      signing_identities->put(IdentityType::CLASSICAL, signing_identity);
+      if (pq_signing_identity.has_value())
+      {
+        signing_identities->put(IdentityType::PQ, pq_signing_identity.value());
+      }
 
       const ServiceInfo service_info{
-        service_cert,
-        recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
-        prev_service_created_at,
-        recovery_count,
-        service_data,
-        create_txid};
+        .cert = service_cert,
+        .pq_cert = pq_service_cert,
+        .status =
+          recovering ? ServiceStatus::RECOVERING : ServiceStatus::OPENING,
+        .previous_service_identity_version = prev_service_created_at,
+        .recovery_count = recovery_count,
+        .service_data = service_data,
+        .current_service_create_txid = create_txid};
       service->put(service_info);
     }
 
@@ -645,6 +686,25 @@ namespace ccf
       return service_status.has_value() &&
         (service_status.value() == ServiceStatus::RECOVERING ||
          service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES);
+    }
+
+    /// Prevents a downgrade: recovering a ledger whose service has an ML-DSA
+    /// identity on a build without ML-DSA would silently drop that identity.
+    /// @throws std::logic_error in that case
+    static void check_service_identity_supported(ccf::kv::ReadOnlyTx& tx)
+    {
+      if (ccf::crypto::mldsa_supported())
+      {
+        return;
+      }
+      const auto active_service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
+      if (active_service.has_value() && active_service->pq_cert.has_value())
+      {
+        throw std::logic_error(
+          "Cannot recover a ledger whose service has an ML-DSA identity with "
+          "a build without ML-DSA support. Use a build with OpenSSL 3.5 or "
+          "newer to recover this ledger.");
+      }
     }
 
     static void trust_node(

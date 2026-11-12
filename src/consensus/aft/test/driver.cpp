@@ -38,6 +38,7 @@ int main(int argc, char** argv)
   if (argc >= 4)
   {
     ccf::tracing::FluentdSink::Endpoint endpoint{argv[2], argv[3]};
+    endpoint.tag_prefix_allow_list = {"ccf.cft"};
     ccf::tracing::FluentdSink::configure(endpoint);
     ccf::tracing::FluentdSink::bind_producer(0);
     if (!ccf::tracing::FluentdSink::wait_for_connection(

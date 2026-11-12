@@ -1,16 +1,11 @@
 breathe
-sphinx
+# sphinx-multiversion 0.2.4 uses the pre-Sphinx 9 configuration API.
+sphinx>=7.4,<9
 sphinx-autobuild
-sphinxcontrib-mermaid
+sphinx-pele==0.1.0
 sphinx-multiversion
 sphinx-copybutton
 sphinxcontrib.openapi
-sphinx-panels
+sphinx-design
 sphinx-inline-tabs
 furo
-# docutils 0.17.0 causes "AttributeError: module 
-# 'docutils.nodes' has no attribute 'meta'" error when building doc
-docutils==0.18.*
-# Required-by: sphinxcontrib-openapi
-# cannot import name 'error_string' from 'docutils.io'
-sphinx-mdinclude==0.5.4
