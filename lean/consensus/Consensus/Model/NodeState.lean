@@ -83,6 +83,10 @@ namespace NodeState
 def committedLog (state : NodeState) : List Entry :=
   state.log.take state.commitIndex
 
+/-- Like a CCF node before `init_as_backup`. -/
+abbrev isFresh (state : NodeState) : Prop :=
+  state.role = .none /\ state.currentTerm = 0 /\ state.log = [] /\ state.commitIndex = 0
+
 end NodeState
 
 def entryAt? (log : List Entry) (index : Nat) : Option Entry :=

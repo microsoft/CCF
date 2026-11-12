@@ -1,6 +1,7 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+This is a searchable archive which may lag multiple releases.
+The authoritative release notes are on [GitHub Releases](https://github.com/microsoft/CCF/releases).
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
@@ -8,9 +9,40 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 [7.0.24]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.24
 
+### Added
+
+- `ccf::crypto::MLDSAKeyPair` can now issue X.509 certificates and PKCS#10 certificate signing requests signed with pure ML-DSA (`create_csr()`, `sign_csr()`, `self_sign()`), and `ccf::crypto::make_verifier()` accepts ML-DSA certificates, verifying their signatures with `MDType::NONE`. The ML-DSA headers are now included on every build; with OpenSSL older than 3.5, `make_mldsa_key_pair()` and `make_mldsa_public_key()` throw `std::runtime_error` (#8629).
+- Nodes built with OpenSSL 3.5 or newer give the services they start or recover an ML-DSA service certificate (`pq_service_certificate` in `GET /node/network`, `pqCertificate` in `GET /gov/service/info`), selected by `service_mldsa_parameter_set` and renewed by the `set_pq_service_certificate_validity` proposal. Such services only accept nodes with ML-DSA support; see the [7.x to 8.x migration guide](doc/build_apps/migration_7_x_to_8_x.rst) (#8632).
+- `ccf::crypto::COSEKey` and COSE verifiers support ML-DSA public keys (RFC 9964 AKP keys) and verify ML-DSA `COSE_Sign1` signatures; see [COSE Keys](doc/build_apps/crypto.rst#cose-keys).
+  `make_cose_verifier_from_key()` now rejects DER keys followed by trailing data. (#8634)
+- Node logger records can now be exported to Fluentd under `ccf.log`, using the JSON console schema.
+  Collectors now default to `["ccf.log"]`; set `["ccf"]` explicitly to retain consensus traces, as described in [observability export](doc/operations/configuration.rst#observability-export). (#8698)
+- Fluentd sinks support literal tag-prefix filtering through [`observability.fluentd[].tag-prefix-allow-list`](doc/operations/configuration.rst#observability-export). (#8668)
+- On Start and Recover, nodes with an ML-DSA service identity write their [certificate](doc/operations/certificates.rst) to `command.pq_service_certificate_file` (default `pq_service_cert.pem`). (#8694)
+
+### Changed
+
+- CCF-owned fatal termination paths now all emit flushed diagnostics to stderr, while recoverable logs and fatal-severity-only entries remain on stdout. See [Logging](doc/build_apps/logging.rst) (#8690).
+- CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag (#8657).
+- `observability.fluentd` now accepts an array of independent sinks, and configurable delivery behaviour.
+  See [Observability Export](doc/operations/configuration.rst#observability-export) for more details (#8666).
+- Contributors now add isolated change descriptions instead of editing the shared changelog or assigning a release version.
+  The release workflow generates GitHub release notes directly from these files and resolves PR references automatically; see the [release procedure](doc/contribute/release_ccf.rst). (#8685)
+
 ### Fixed
 
+- `ccf::indexing::strategies::SeqnosByKey_Bucketed` queries remain unavailable while a rebuild is pending after a missing or corrupt index file is detected, including when indexing advances concurrently. See [Indexing](doc/architecture/indexing.rst) for rebuild behaviour (#8684).
+- Python ledger verification now uses less memory on large ledgers; see [Python Library](doc/audit/python_library.rst) (#8665).
+- `ccf.receipt.verify_cose` now rejects receipts that do not conform to the [CCF Profile for COSE Receipts, draft -06](https://www.ietf.org/archive/id/draft-ietf-scitt-receipts-ccf-profile-06.html), including malformed CBOR or proofs and proofs that do not all recompute the signed root, and `ccf::cose::edit::set_unprotected_header` now preserves all bytes outside the unprotected header. See [COSE Receipt Verification](doc/use_apps/verify_tx.rst#cose-receipt-verification) for details, including migration from the deprecated `ccf.cose.verify_receipt` (#8646).
+- Nodes no longer abort when a compaction races a transaction run outside of an endpoint, such as the primary's snapshot evidence transaction, a backup's lookup of the primary before fetching a snapshot, JWT key auto-refresh, or the network identity fetch; the operation is retried and otherwise skipped until its next scheduled run. A backup also no longer aborts if a fetched snapshot cannot be written to disk (#8652).
+- The `ccf.merkletree.MerkleTree` Python class now computes each root in time proportional to the leaves added since the previous root, so `ccf.ledger.LedgerValidator` no longer slows down as ledgers grow (#8660).
 - Hardened `ccf::crypto` OpenSSL call sites taking `int` lengths against inputs larger than 2 GiB, and Base64 encoding and decoding no longer use stack buffers proportional to the input size. `ccf::crypto::OpenSSL::Unique_BIO(const void*, int)` now takes a `size_t` and throws `std::invalid_argument` rather than accepting a negative length (#8645).
+- Fluentd exporter startup failures now emit a fatal diagnostic to stderr as well as the configured logger output. (#8737)
+
+### Dependencies
+
+- The Python `ccf` package now requires `cwt` 4.0.0 or later and `cbor2` 6.1.5 or later.
+  `ccf.receipt.verify_cose` now rejects receipts with NaN CBOR map keys, and its errors for malformed receipt CBOR include the underlying `cbor2` decoding error, such as `Duplicate map key`. (#8711)
 
 ## [7.0.23]
 

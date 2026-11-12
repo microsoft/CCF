@@ -1,0 +1,1 @@
+`ccf::crypto::OpenSSL::cose_key_from_x509()`, in the new public header `ccf/crypto/openssl/cose_key.h`, makes a `ccf::crypto::COSEKey` from a certificate that is already parsed, without parsing it again as `COSEKey::from_der_cert()` does; see [COSE Keys](doc/build_apps/crypto.rst#cose-keys).
