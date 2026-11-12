@@ -17,6 +17,8 @@ Its snapshot installation hooks directly follow the leader's `replicate` and inc
 | [Retirement on signature](invalid/retirement-signature.ndjson)          | Retirement follows a signature `replicate`           |
 | [Uncommitted snapshot](invalid/uncommitted-snapshot.ndjson)             | Joiner initializes at an uncommitted signature       |
 
+Retirements must directly follow their `replicate`, so the former valid controls, where a retirement precedes a `replicate` with a [different seqno](invalid/retirement-seqno-mismatch.ndjson), on a [different node](invalid/retirement-node-mismatch.ndjson), an [unrelated event](invalid/retirement-nonadjacent.ndjson), or [end of input](invalid/retirement-orphan.ndjson), are now invalid.
+
 From `lean/consensus`, inspect a failure directly (exit status 1 is expected):
 
 ```sh
