@@ -1,11 +1,17 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-option(USE_RUST_SHAMIR "Use the Rust Shamir secret-sharing backend" ON)
+# Experimental: the default remains the C++ backend until the Rust backend has
+# been reviewed further. Both backends use the same share serialization.
+option(
+  USE_RUST_SHAMIR
+  "EXPERIMENTAL: use the Rust Shamir secret-sharing backend instead of the default C++ backend"
+  OFF
+)
 if(USE_RUST_SHAMIR)
   set(CCF_SHAMIR_SOURCE ${CCF_DIR}/src/crypto/sharing_rust.cpp)
   set(CCF_SHAMIR_REFERENCE_SOURCE ${CCF_DIR}/src/crypto/sharing.cpp)
-  message(STATUS "Shamir secret-sharing backend: Rust")
+  message(STATUS "Shamir secret-sharing backend: Rust (experimental)")
 else()
   set(CCF_SHAMIR_SOURCE ${CCF_DIR}/src/crypto/sharing.cpp)
   set(CCF_SHAMIR_REFERENCE_SOURCE ${CCF_DIR}/src/crypto/sharing_rust.cpp)

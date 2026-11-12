@@ -41,9 +41,9 @@ The most common build switches include:
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
 * **CCF_STACKTRACE_BACKEND**: ``AUTO`` (default), ``STD``, or ``LIBBACKTRACE``. Selects the task exception stacktrace implementation.
-* **USE_RUST_SHAMIR**: Boolean. Selects the Rust secret-sharing backend (default ``ON``); set ``-DUSE_RUST_SHAMIR=OFF`` to use the retained C++ implementation.
-  Both backends use the same share serialization and recover each other's shares.
-  This option does not remove CCF's Rust toolchain requirement, since attestation still uses Rust.
+* **USE_RUST_SHAMIR**: Boolean. Experimental. Selects the Rust recovery share secret-sharing backend instead of the C++ implementation. Default to OFF.
+  Both backends use the same share serialization and recover each other's shares; see :ccf_repo:`lean/shamir/README.md` for the scope of the Rust backend's proofs.
+  It is pending further review and is not yet recommended for production use.
 
 Task Stacktraces
 ~~~~~~~~~~~~~~~~
