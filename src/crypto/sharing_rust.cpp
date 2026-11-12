@@ -5,7 +5,9 @@
 #include "sharing_ffi.h"
 
 #include <algorithm>
+#include <new>
 #include <stdexcept>
+#include <vector>
 
 namespace ccf::crypto::sharing
 {

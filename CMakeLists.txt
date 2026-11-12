@@ -960,6 +960,8 @@ if(BUILD_TESTS)
       PRIVATE $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-Wno-vla-cxx-extension>
     )
     add_san(sharing_reference)
+    # Keeps the Rust adapter linted while the C++ backend is the default.
+    add_tidy(sharing_reference)
     enable_coverage(sharing_reference)
     target_link_libraries(sharing_test PRIVATE sharing_reference)
 
