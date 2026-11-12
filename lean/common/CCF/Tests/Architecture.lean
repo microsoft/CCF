@@ -19,7 +19,8 @@ private def run : IO Unit := do
       (`TraceValidation, `Model, true),
       (`TraceValidation.Adapter, `Model.Transitions, true),
       (`TraceValidation, `TraceValidation.Records, true),
-      (`TraceValidation.Adapter, `TraceValidation, false),
+      (`TraceValidation.Adapter, `TraceValidation, true),
+      (`TraceValidation.Records, `TraceValidation, true),
       (`TraceValidation.Adapter, `Properties, false),
       (`TraceValidation.Adapter, `Properties.Programs, false),
       (`TraceValidation.Adapter, `Proofs.Correspondence, false),
@@ -37,7 +38,7 @@ private def run : IO Unit := do
       (`Model.Types, `Model, false),
       (`Model, `Model.Types, true)
     ]
-  for root in [`Kv, `Example.Nested] do
+  for root in [`Kv, `DisasterRecovery, `Example.Nested] do
     let owner := root ++ `Properties
     let proof := root ++ `Proofs.Safety
     let core := root ++ `Model.Types

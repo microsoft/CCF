@@ -33,9 +33,7 @@ def allowedImport (root owner dependency : Name) : Bool :=
   else if model.isPrefixOf owner then
     model.isPrefixOf dependency && (owner == model || dependency != model)
   else if validation.isPrefixOf owner then
-    model.isPrefixOf dependency
-    || (validation.isPrefixOf dependency
-        && (owner == validation || dependency != validation))
+    model.isPrefixOf dependency || validation.isPrefixOf dependency
   else if owner == properties then
     model.isPrefixOf dependency
     || properties.isPrefixOf dependency

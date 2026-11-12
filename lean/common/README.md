@@ -95,7 +95,8 @@ The same rules apply to every specification namespace, including multi-component
 - `Model` and its submodules can import only model modules within the specification.
   Model submodules cannot import the assembled `Model` entrypoint.
 - Trace validation can import model modules and other trace-validation modules, but not property helpers or proofs.
-  Trace-validation submodules cannot import their assembled entrypoint or shared proof infrastructure.
+  This includes a trace-validation entrypoint that defines reusable replay types, as in disaster recovery.
+  Trace-validation modules cannot import shared proof infrastructure.
 - The `Properties` safety entrypoint can import model modules, property helpers, and model-only proofs.
 - Property helpers can import model modules and other property helpers, but not proofs, trace validation, correspondence, or the `Properties` entrypoint.
 - The separate `Correspondence` entrypoint can import trace validation, semantic definitions, correspondence helpers, and proofs.
