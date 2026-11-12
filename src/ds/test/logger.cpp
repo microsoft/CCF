@@ -9,8 +9,10 @@
 #include <cstdint>
 #include <ctime>
 #include <doctest/doctest.h>
+#include <iostream>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -94,7 +96,55 @@ public:
   }
 };
 
-#ifndef CCF_RAFT_TRACING
+class ScopedCerrCapture
+{
+  std::ostringstream captured;
+  std::streambuf* previous = std::cerr.rdbuf(captured.rdbuf());
+
+public:
+  ScopedCerrCapture() = default;
+  ScopedCerrCapture(const ScopedCerrCapture&) = delete;
+  ScopedCerrCapture& operator=(const ScopedCerrCapture&) = delete;
+
+  ~ScopedCerrCapture()
+  {
+    std::cerr.rdbuf(previous);
+  }
+
+  std::string str() const
+  {
+    return captured.str();
+  }
+};
+
+class ScopedCoutCapture
+{
+  std::ostringstream captured;
+  std::streambuf* previous = std::cout.rdbuf(captured.rdbuf());
+
+public:
+  ScopedCoutCapture() = default;
+  ScopedCoutCapture(const ScopedCoutCapture&) = delete;
+  ScopedCoutCapture& operator=(const ScopedCoutCapture&) = delete;
+
+  ~ScopedCoutCapture()
+  {
+    std::cout.rdbuf(previous);
+  }
+
+  void clear()
+  {
+    captured.str("");
+    captured.clear();
+  }
+
+  std::string str() const
+  {
+    return captured.str();
+  }
+};
+
+#ifndef CCF_CFT_TRACING
 TEST_CASE("Logger timestamp retains microsecond precision")
 {
   std::tm tm{};
@@ -255,6 +305,38 @@ TEST_CASE("Framework logging macros")
   }
 
   ccf::logger::config::loggers().clear();
+}
+
+TEST_CASE("Only explicit fatal diagnostics write to stderr")
+{
+  const ScopedLoggerConfig restore_config;
+  ccf::logger::config::level() = ccf::LoggerLevel::TRACE;
+  ScopedCoutCapture captured_out;
+  ScopedCerrCapture captured_err;
+
+  const auto check_console_logger = [&](auto logger) {
+    auto& loggers = ccf::logger::config::loggers();
+    loggers.clear();
+    loggers.emplace_back(std::move(logger));
+    captured_out.clear();
+
+    LOG_INFO_FMT("Recoverable information");
+    LOG_FAIL_FMT("Recoverable failure");
+    LOG_FATAL_FMT("Fatal severity label without termination");
+
+    CHECK(captured_err.str().empty());
+    const auto output = captured_out.str();
+    CHECK(output.contains("Recoverable information"));
+    CHECK(output.contains("Recoverable failure"));
+    CHECK(output.contains("Fatal severity label without termination"));
+  };
+
+  check_console_logger(std::make_unique<ccf::logger::TextConsoleLogger>());
+  check_console_logger(std::make_unique<ccf::logger::JsonConsoleLogger>());
+  captured_out.clear();
+  ccf::logger::write_fatal_diagnostic("Node terminated");
+  CHECK(captured_out.str().empty());
+  CHECK(captured_err.str() == "Fatal error: Node terminated\n");
 }
 
 TEST_CASE("Application logging macros")

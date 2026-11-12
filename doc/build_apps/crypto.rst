@@ -81,6 +81,9 @@ Private keys are exported in plaintext, so callers are responsible for protectin
 .. doxygenfunction:: ccf::crypto::make_mldsa_public_key(const Pem&, MLDSAParameterSet)
   :project: CCF
 
+.. doxygenfunction:: ccf::crypto::make_mldsa_public_key_from_raw
+  :project: CCF
+
 Symmetric Keys
 --------------------
 
@@ -102,7 +105,7 @@ Verification of signatures is supported via the :cpp:class:`Verifier` class.
 COSE Keys
 ---------
 
-EC2 (P-256, P-384 or P-521), OKP (Ed25519) and RSA public keys can be held as COSE_Keys (RFC 9052), which are parsed, validated and encoded by :cpp:class:`ccf::crypto::COSEKey`, and verify COSE_Sign1 signatures through a verifier made by :cpp:func:`ccf::crypto::make_cose_verifier_from_key`.
+EC2 (P-256, P-384 or P-521), OKP (Ed25519), RSA and AKP (ML-DSA, RFC 9964) public keys can be held as COSE_Keys (RFC 9052), which are parsed, validated and encoded by :cpp:class:`ccf::crypto::COSEKey`, and verify COSE_Sign1 signatures through a verifier made by :cpp:func:`ccf::crypto::make_cose_verifier_from_key`.
 
 .. doxygenclass:: ccf::crypto::COSEKey
   :project: CCF
@@ -112,6 +115,11 @@ EC2 (P-256, P-384 or P-521), OKP (Ed25519) and RSA public keys can be held as CO
   :project: CCF
 
 .. doxygenfunction:: ccf::crypto::make_cose_verifier_from_key(const COSEKey&)
+  :project: CCF
+
+An application that has already parsed a certificate with OpenSSL, for example to validate its chain, can take its key without parsing the certificate again.
+
+.. doxygenfunction:: ccf::crypto::OpenSSL::cose_key_from_x509
   :project: CCF
 
 

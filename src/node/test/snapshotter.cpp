@@ -1268,6 +1268,61 @@ TEST_CASE("Rollback before snapshot is committed")
   }
 }
 
+TEST_CASE("Failed snapshot evidence commits do not block later snapshots")
+{
+  ccf::NetworkState network;
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto failing_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *node_kp);
+  network.tables->set_history(history);
+  const ccf::View term = 2;
+  network.tables->initialise_term(term);
+  network.tables->set_consensus(consensus);
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
+
+  ScopedSnapshotDir snapshot_dir;
+
+  size_t snapshot_tx_interval = 10;
+  auto snapshotter = std::make_shared<ccf::Snapshotter>(
+    snapshot_dir.path.string(), network.tables, snapshot_tx_interval);
+
+  INFO("Evidence commits fail for more than the maximum pending snapshots");
+  {
+    // Matches Snapshotter::max_pending_snapshots_count
+    constexpr size_t max_pending_snapshots_count = 5;
+    for (size_t i = 0; i < max_pending_snapshots_count; ++i)
+    {
+      issue_transactions(network, snapshot_tx_interval);
+      const auto snapshot_idx = network.tables->current_version();
+      REQUIRE(record_signature(history, snapshotter, snapshot_idx));
+      snapshotter->commit(snapshot_idx, true);
+
+      network.tables->set_consensus(failing_consensus);
+      run_one_task();
+      network.tables->set_consensus(consensus);
+
+      // Discard the evidence tx which failed to replicate, so that the store
+      // can replicate again
+      network.tables->rollback({term, snapshot_idx}, term);
+      REQUIRE_THROWS_AS(
+        read_latest_snapshot_evidence(network.tables), std::logic_error);
+    }
+  }
+
+  INFO("A later snapshot is still generated");
+  {
+    issue_transactions(network, snapshot_tx_interval);
+    const auto snapshot_idx = network.tables->current_version();
+    REQUIRE(record_signature(history, snapshotter, snapshot_idx));
+    snapshotter->commit(snapshot_idx, true);
+    run_one_task();
+    REQUIRE(read_latest_snapshot_evidence(network.tables) == snapshot_idx);
+  }
+}
+
 TEST_CASE("Snapshot status updates preserve future queued snapshot")
 {
   ccf::logger::config::default_init();

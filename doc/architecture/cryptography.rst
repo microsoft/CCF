@@ -19,7 +19,7 @@ A CCF service/network has:
 Node
 ~~~~
 
-Each CCF node is identified by a public-key certificate (``Node Identity Certificate``) endorsed by an attestation report (``Node Enclave Attestation + Collaterals``). This certificate is used to authenticate the node when it joins the network, and to periodically sign entries (``Ledger Signatures``) committed by the node to the ledger during its time as primary.
+Each CCF node is identified by a public-key certificate (``Node Identity Certificate``) endorsed by an attestation report (``Node Attestation + Endorsements``). This certificate is used to authenticate the node when it joins the network, and to periodically sign entries (``Ledger Signatures``) committed by the node to the ledger during its time as primary.
 
 Each node also has an encryption public-key (``Node Encryption Public Key``) used to share ledger secrets between the primary and backups nodes during a :ref:`live ledger rekey <governance/common_member_operations:Updating Recovery Threshold>`.
 
@@ -41,29 +41,31 @@ Each node-to-node pair establishes a symmetric key using an authenticated Diffie
 Summary Diagrams
 ----------------
 
-.. note:: The ":fa:`key`" symbol indicates that the key never leaves the enclave memory, or in the case of the ``Service Identity Private Key`` and ``Ledger Secret`` is only shared between nodes over authenticated TLS.
+.. note:: A thick border indicates that the key never leaves the TEE-protected memory of the node, or in the case of the ``Service Identity Private Key`` and ``Ledger Secret`` is only shared between nodes over authenticated TLS.
 
 Identity Keys and Certificates
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following diagram describes the relationships between identity keys of the service/network and nodes. The shared :term:`Service Identity` (``Service Identity Certificate``) is the root of trust for the service and is assumed to be trusted by users who can connect to the service over TLS as well as verify the integrity of :ref:`transaction receipts <audit/receipts:Receipts>`.
 
-The primary node periodically signs the root of the Merkle Tree of all transactions (``Ledger Signature``) using its ``Node Identity Private Key`` and records it in the ledger. All public certificates and attestation reports (``Node Enclave Attestation + Collaterals``) are also recorded in the ledger for audit.
+The primary node periodically signs the root of the Merkle Tree of all transactions (``Ledger Signature``) using its ``Node Identity Private Key`` and records it in the ledger. All public certificates and attestation reports (``Node Attestation + Endorsements``) are also recorded in the ledger for audit.
 
 .. mermaid::
 
     flowchart TB
-        ServiceCert[fa:fa-scroll Service Identity Certificate] --contains--> ServicePubk[Service Identity Public Key]
-        ServicePubk -.- ServicePrivk[fa:fa-key Service Identity Private Key]
-        NodePubk[Node Identity Public Key] -.- NodePrivk[fa:fa-key Node Identity Private Key]
-        ServiceCert -- recorded in <br> ccf.gov.service.info --> Ledger[(fa:fa-book Ledger)]
-        NodeCert[fa:fa-scroll Node Identity Certificate] -- recorded in <br> ccf.gov.nodes.endorsed_certificates --> Ledger
+        classDef ProtectedKey stroke-width:3px
+        ServiceCert[Service Identity Certificate] --contains--> ServicePubk[Service Identity Public Key]
+        ServicePubk -.- ServicePrivk[Service Identity Private Key]
+        NodePubk[Node Identity Public Key] -.- NodePrivk[Node Identity Private Key]
+        class ServicePrivk,NodePrivk ProtectedKey
+        ServiceCert -- recorded in ccf.gov.service.info --> Ledger[(Ledger)]
+        NodeCert[Node Identity Certificate] -- recorded in ccf.gov.nodes.endorsed_certificates --> Ledger
         ServicePrivk -- signs --> NodeCert
-        NodePrivk -- signs --> Signature[fa:fa-file-signature Ledger Signatures <br> over Merkle Tree root]
-        Signature -- recorded in <br> ccf.internal.signatures --> Ledger
-        Attestation[fa:fa-microchip Node Enclave Attestation <br> + Collaterals] -- contains hash of --> NodePubk
+        NodePrivk -- signs --> Signature[Ledger Signatures over Merkle Tree root]
+        Signature -- recorded in ccf.internal.signatures --> Ledger
+        Attestation[Node Attestation + Endorsements] -- contains hash of --> NodePubk
         NodeCert -- contains --> NodePubk
-        Attestation -- recorded in <br> ccf.gov.nodes.info --> Ledger
+        Attestation -- recorded in ccf.gov.nodes.info --> Ledger
 
 
 Ledger Secrets
@@ -80,27 +82,28 @@ Each node also has an encryption public-key (``Node Encryption Public Key``) use
 .. mermaid::
 
     flowchart TB
-        WrappingKey -- split into --> RecoveryShares{{fa:fa-helicopter k-of-n <br> Recovery Shares}}
-        MemberPublicKeys{{fa:fa-users Members Encryption <br> Public Keys}} --key--> F[/encrypts/]
-        RecoveryShares --in--> F[/encrypts/] --> EncryptedRecoveryShares{{fa:fa-lock Encrypted k-of-n <br> Recovery Shares}}
-        EncryptedRecoveryShares -- recorded in <br> ccf.internal.recovery_shares --> Ledger
+        classDef ProtectedKey stroke-width:3px
+        WrappingKey -- split into --> RecoveryShares{{k-of-n Recovery Shares}}
+        MemberPublicKeys{{Members Encryption Public Keys}} --key--> F[/encrypts/]
+        RecoveryShares --in--> F[/encrypts/] --> EncryptedRecoveryShares{{Encrypted k-of-n Recovery Shares}}
+        EncryptedRecoveryShares -- recorded in ccf.internal.recovery_shares --> Ledger
 
-        WrappingKey[fa:fa-key Ledger Secret <br> Wrapping Key] --key--> N[/encrypts/]
-        LedgerSecret --in--> N[/encrypts/] --> EncryptedLedgerSecret[fa:fa-lock Encrypted <br> Ledger Secret]
-        EncryptedLedgerSecret -- recorded in ccf.internal --> Ledger[(fa:fa-book Ledger)]
+        WrappingKey[Ledger Secret Wrapping Key] --key--> N[/encrypts/]
+        LedgerSecret --in--> N[/encrypts/] --> EncryptedLedgerSecret[Encrypted Ledger Secret]
+        EncryptedLedgerSecret -- recorded in ccf.internal --> Ledger[(Ledger)]
 
-        PreviousLedgerSecret[fa:fa-key Previous <br> Ledger Secret] --in--> H[/encrypts/] --> EncryptedPreviousLedgerSecret[fa:fa-lock Encrypted Previous <br> Ledger Secret]
+        PreviousLedgerSecret[Previous Ledger Secret] --in--> H[/encrypts/] --> EncryptedPreviousLedgerSecret[Encrypted Previous Ledger Secret]
         LedgerSecret --key--> H[/encrypts/]
-        EncryptedPreviousLedgerSecret -- recorded in <br> ccf.internal.<br>historical_encrypted_ledger_secret --> Ledger
+        EncryptedPreviousLedgerSecret -- recorded in ccf.internal.historical_encrypted_ledger_secret --> Ledger
 
-        LedgerSecret[fa:fa-key Ledger <br> Secret] -- "encrypts <br> (AES-GCM)" --> Transactions[fa:fa-lock All CCF Transactions]
-        style LedgerSecret stroke:black,stroke-width:3px
+        LedgerSecret[Ledger Secret] -- "encrypts (AES-GCM)" --> Transactions[All CCF Transactions]
+        class WrappingKey,LedgerSecret,PreviousLedgerSecret ProtectedKey
         Transactions -- recorded in --> Ledger
 
-        LedgerSecret --in--> K[/encrypts/] --> NodeEncryptedLedgerSecrets{{fa:fa-lock Node Encrypted Ledger Secrets}}
-        NodeEncryptionPublicKeys{{Node Encryption <br> Public Keys}} --key--> K[/encrypt/]
-        NodeEncryptedLedgerSecrets{{fa:fa-lock Node Encrypted <br> Ledger Secrets}}
-        NodeEncryptedLedgerSecrets -- recorded in <br> ccf.internal.<br>encrypted_ledger_secrets --> Ledger
+        LedgerSecret --in--> K[/encrypts/] --> NodeEncryptedLedgerSecrets{{Node Encrypted Ledger Secrets}}
+        NodeEncryptionPublicKeys{{Node Encryption Public Keys}} --key--> K[/encrypt/]
+        NodeEncryptedLedgerSecrets{{Node Encrypted Ledger Secrets}}
+        NodeEncryptedLedgerSecrets -- recorded in ccf.internal.encrypted_ledger_secrets --> Ledger
 
 
 Algorithms and Curves

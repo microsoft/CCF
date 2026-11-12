@@ -1,5 +1,47 @@
-Example app (C++)
-=================
+C++ Application
+===============
+
+The repository contains a C++ implementation of a simple example application for logging, located in the :ccf_repo:`samples/apps/logging/` folder.
+It is meant to serve as a template for building more useful applications and to showcase core features.
+This page walks through that sample, and describes how to build and package a C++ application.
+
+Logging Sample Overview
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The logging application stores log messages, identified by an integer ``id``, in two key-value maps: a private ``records`` map, whose contents are encrypted on the ledger, and a public ``public:records`` map, whose contents are written to the ledger in the clear.
+
+The core of the application is made up of the following endpoints:
+
+- :http:POST:`/app/log/private` and :http:POST:`/app/log/public`, which write a private or public log message with a given ``id``, for example:
+
+  .. code-block:: json
+
+      {
+          "id": 42,
+          "msg": "A sample private log message"
+      }
+
+  Private messages are encrypted on the ledger, and are only readable by nodes on the network.
+  Public messages are not encrypted, and are readable by anyone with access to the ledger.
+
+- :http:GET:`/app/log/private` and :http:GET:`/app/log/public`, which retrieve the log message with the ``id`` given as a query parameter (for example ``/app/log/private?id=42``), as written by a previous ``POST`` call.
+
+- :http:DELETE:`/app/log/private` and :http:DELETE:`/app/log/public`, which remove the log message with the ``id`` given as a query parameter.
+
+- :http:GET:`/app/log/private/count` and :http:GET:`/app/log/public/count`, which return the number of messages currently stored in each map.
+
+Most of these endpoints also accept an optional ``scope`` query parameter, which stores and reads messages in a separate map (for example ``records-<scope>``) instead of the default one.
+
+The application also contains further endpoints which demonstrate other CCF features, such as historical queries, receipts, indexing, custom authentication policies, and COSE signed statements.
+These are described in the sections below, and the full API is listed in :doc:`example_rpc_api`.
+
+.. toctree::
+   :hidden:
+
+   example_rpc_api
+
+Application Interface
+~~~~~~~~~~~~~~~~~~~~~
 
 A C++ application exposes itself to CCF by implementing:
 
@@ -247,10 +289,10 @@ When this historical query comes in, rather than fetching every transaction - to
 If the response format is known, the index could even pre-construct the response itself.
 
 In CCF, this is achieved by implementing an indexing :cpp:type:`ccf::indexing::Strategy`.
-This is constructed on each node, in-enclave, by processing every committed transaction in-order in the implementation of :cpp:func:`ccf::indexing::Strategy::handle_committed_transaction`.
+This is constructed on each node, inside its TEE, by processing every committed transaction in-order in the implementation of :cpp:func:`ccf::indexing::Strategy::handle_committed_transaction`.
 The strategy can then return its aggregated results to the calling endpoint in whatever format is appropriate.
 A :cpp:type:`ccf::indexing::Strategy` may offload partial results to disk to avoid infinite memory growth, via the automatically encrypted LFS (Large File Storage) system.
-Since the indexing system and all the strategies it manages exist entirely within the enclave, this has the same trust guarantees as any other in-enclave code - users can trust that the results are accurate and complete, and the query may process private data.
+Since the indexing system and all the strategies it manages run entirely inside the node's TEE, this has the same trust guarantees as any other code running in the node - users can trust that the results are accurate and complete, and the query may process private data.
 
 An example :cpp:type:`ccf::indexing::Strategy` is included in the logging app, to accelerate historical range queries.
 This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` stores the list of seqnos where every key is written to, offloading completed ranges to disk to cap the total memory usage.
@@ -262,7 +304,7 @@ In the endpoint handler, rather than requesting every transaction in the request
     :end-before: SNIPPET_END: indexing_strategy_use
     :dedent:
 
-See the sample app for full details of how this strategy is installed and used.
+See the sample app for full details of how this strategy is installed and used, and :doc:`/architecture/indexing` for a description of the indexing system and the built-in strategies.
 
 Receipts
 ~~~~~~~~
@@ -398,7 +440,10 @@ Deferring Response Until Commit
 
 By default, CCF sends the HTTP response as soon as a transaction is locally committed (assigned a :term:`Transaction ID`), without waiting for it to be globally committed by consensus. This means a successful response indicates the transaction has been `accepted` but not yet `durably replicated` across the network. Clients that need stronger guarantees — for example, to know a write is durable before proceeding — can poll the ``/commit`` endpoint or the transaction status API.
 
-CCF also supports deferring the HTTP response until the transaction reaches a terminal consensus state: either globally committed, or invalidated (e.g. due to a view change). This is controlled per-request from within the endpoint handler by calling ``set_consensus_committed_function()`` on the RPC context, passing a callback that will be invoked once the transaction's fate is known.
+CCF also supports deferring the HTTP response until the transaction reaches a terminal consensus state: either globally committed, or invalidated (e.g. due to a view change).
+This is controlled per-request from within the endpoint handler by calling ``set_consensus_committed_function()`` on the RPC context, passing a callback that will be invoked once the transaction's fate is known.
+Uncommitted transactions lost in an election are reported as invalid once the node observes a commit in a later view, even if that commit's sequence number is lower than the lost transaction's.
+A local rollback alone is not sufficient to establish invalidation.
 
 The simplest use is to unconditionally block:
 
@@ -425,3 +470,29 @@ The callback receives a ``CommittedTxInfo`` struct containing the ``TxID``, ``Fi
     This feature is currently supported on HTTP/1.1 connections only. HTTP/2 sessions send responses immediately regardless of whether a consensus-committed callback is set.
 
     Read-only endpoints may also use this mechanism to confirm that their response reflects committed state. However, attempting to construct a receipt for a read-only transaction will fail with a ``500 Internal Server Error``, since read-only transactions do not produce the write set digest or commit evidence required for receipt construction.
+
+Building
+~~~~~~~~
+
+.. note:: Before building a CCF application, make sure that CCF is installed (see :doc:`/build_apps/install_bin`).
+
+Native applications are built into executables using the ``add_ccf_app`` function provided by CCF's ``cmake/ccf_app.cmake``; Rust applications use ``add_ccf_rust_app``, described in :doc:`example_rust`.
+
+For example, for the ``js_generic`` JavaScript application:
+
+.. literalinclude:: ../../CMakeLists.txt
+    :language: cmake
+    :start-after: SNIPPET_START: JS generic application
+    :end-before: SNIPPET_END: JS generic application
+
+A minimal standalone project which builds a C++ application against an installed CCF package is available in :ccf_repo:`tests/ccfapp/CMakeLists.txt`.
+The `ccf-app-template <https://github.com/microsoft/ccf-app-template>`__ repository also contains a C++ sample app in its `cpp/ <https://github.com/microsoft/ccf-app-template/tree/main/cpp>`__ directory, with instructions to `build <https://github.com/microsoft/ccf-app-template#build-c-app>`__ and `run <https://github.com/microsoft/ccf-app-template#run-c-app>`__ it.
+
+The resulting executable can be run in a local sandbox as described in :doc:`run_app`.
+Unlike JavaScript applications, deploying a new version of a C++ application requires a :doc:`code upgrade </operations/code_upgrade>` of the nodes running it.
+
+Packaging
+~~~~~~~~~
+
+To create distributable packages for your CCF application, create a ``cpack.cmake`` file that includes CCF's packaging configuration and add it to your ``CMakeLists.txt``.
+See :ccf_repo:`tests/ccfapp/CMakeLists.txt` and :ccf_repo:`tests/ccfapp/cpack.cmake` for a complete working example.

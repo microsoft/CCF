@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#define VERBOSE_RAFT_LOGGING
+#define VERBOSE_CFT_LOGGING
 
 #include "driver.h"
 
@@ -29,8 +29,8 @@ int main(int argc, char** argv)
       "port");
   }
 
-  // Log all raft steps to stdout (python wrapper raft_scenario_runner.py
-  // filters them).
+  // Log all CFT steps to stdout; cft_scenarios_runner.py
+  // filters them.
   ccf::logger::config::add_text_console_logger();
   ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
 
@@ -38,6 +38,7 @@ int main(int argc, char** argv)
   if (argc >= 4)
   {
     ccf::tracing::FluentdSink::Endpoint endpoint{argv[2], argv[3]};
+    endpoint.tag_prefix_allow_list = {"ccf.cft"};
     ccf::tracing::FluentdSink::configure(endpoint);
     ccf::tracing::FluentdSink::bind_producer(0);
     if (!ccf::tracing::FluentdSink::wait_for_connection(
@@ -47,7 +48,7 @@ int main(int argc, char** argv)
       return 1;
     }
   }
-  auto driver = make_shared<RaftDriver>();
+  auto driver = make_shared<CftDriver>();
 
   const std::string filename = argv[1];
 
@@ -83,33 +84,13 @@ int main(int argc, char** argv)
     }
     if (!line.empty())
     {
-      ccf::tracing::emit(aft::trace::raft_trace_tag, "cmd", line);
+      ccf::tracing::emit(aft::trace::cft_trace_tag, "cmd", line);
     }
     // Steps which don't alter state don't need to recheck invariants
     bool skip_invariants = false;
 
     switch (shash(in))
     {
-      case shash("pre_vote_enabled"):
-      {
-        assert(items.size() == 2);
-        if (items[1] == "true")
-        {
-          driver->set_pre_vote_enabled(true);
-        }
-        else if (items[1] == "false")
-        {
-          driver->set_pre_vote_enabled(false);
-        }
-        else
-        {
-          throw std::runtime_error(fmt::format(
-            "pre_vote_enabled value must be true or false on line "
-            "{}",
-            lineno));
-        }
-        break;
-      }
       case shash("start_node"):
       {
         assert(items.size() == 2);
@@ -433,7 +414,7 @@ int main(int argc, char** argv)
   const auto dropped = ccf::tracing::FluentdSink::dropped_count();
   if (dropped != 0)
   {
-    LOG_FAIL_FMT("Raft trace exporter dropped {} events", dropped);
+    LOG_FAIL_FMT("cft trace exporter dropped {} events", dropped);
     return 1;
   }
   return 0;

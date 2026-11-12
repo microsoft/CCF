@@ -287,6 +287,16 @@
               }
             ]
           },
+          "pq_service_certificate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "primary_id": {
             "anyOf": [
               {

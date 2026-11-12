@@ -1824,7 +1824,11 @@ def run(args, ipv6=False):
         txs=txs,
         ipv6=ipv6,
     ) as network:
-        network.start_and_open(args)
+        # Multi-RDN subject, which each recovery must copy from the previous identity
+        network.start_and_open(
+            args, service_subject_name="CN=https://this.test.service,O=CCF User"
+        )
+        service_subject = network.cert.subject.public_bytes()
         primary, _ = network.find_primary()
 
         if ipv6:
@@ -1883,6 +1887,10 @@ def run(args, ipv6=False):
 
             for node in network.get_joined_nodes():
                 node.verify_certificate_validity_period()
+
+            assert (
+                network.cert.subject.public_bytes() == service_subject
+            ), network.cert.subject
 
             check_snapshots(args, network)
             ref_msg = get_and_verify_historical_receipt(network, ref_msg)

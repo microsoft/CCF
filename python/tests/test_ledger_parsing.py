@@ -7,9 +7,17 @@ import base64
 import glob
 import json
 import os
+import re
+import runpy
 import struct
+from unittest.mock import patch
 
 import ccf.ledger
+import ccf.ledger_viz
+import ccf.merkletree
+import ccf.read_ledger
+import ccf.signatures
+import ccf.split_ledger
 import pytest
 
 TABLE = "public:test"
@@ -201,66 +209,64 @@ class TestPeek:
         assert buffer.tell() == 3
 
 
-class InMemoryTransaction:
-    def __init__(self, seqno: int, domain: bytes):
-        self._seqno = seqno
-        self._domain = ccf.ledger.PublicDomain(domain)
-        self._domain._version = seqno
-
-    def get_public_domain(self) -> ccf.ledger.PublicDomain:
-        return self._domain
-
-
-class InMemoryLedger(ccf.ledger.Ledger):
-    def __init__(self, domains: list[bytes]):
-        self._transactions = [
-            InMemoryTransaction(seqno, domain)
-            for seqno, domain in enumerate(domains, start=1)
-        ]
-
-    def __iter__(self):
-        yield self._transactions
+def ledger_from_domains(directory: str, domains: list[bytes]) -> ccf.ledger.Ledger:
+    """Write a real ledger chunk containing the supplied public domains."""
+    entries = [
+        entry(seqno, {}, domain=domain) for seqno, domain in enumerate(domains, start=1)
+    ]
+    path = write_chunk(directory, "ledger_1", entries)
+    return ccf.ledger.Ledger([path], committed_only=False)
 
 
 class TestLatestPublicState:
-    def test_first_write_with_deletion(self):
-        ledger = InMemoryLedger([write_set_domain({b"a": b"1"}, [b"b"])])
+    def test_first_write_with_deletion(self, tmp_path):
+        ledger = ledger_from_domains(
+            str(tmp_path), [write_set_domain({b"a": b"1"}, [b"b"])]
+        )
         assert ledger.get_latest_public_state() == ({TABLE: {b"a": b"1"}}, 1)
 
-    def test_deletion_only_first_write(self):
-        ledger = InMemoryLedger([write_set_domain({}, [b"b"])])
+    def test_deletion_only_first_write(self, tmp_path):
+        ledger = ledger_from_domains(str(tmp_path), [write_set_domain({}, [b"b"])])
         assert ledger.get_latest_public_state() == ({TABLE: {}}, 1)
 
-    def test_write_then_delete(self):
-        ledger = InMemoryLedger(
+    def test_write_then_delete(self, tmp_path):
+        ledger = ledger_from_domains(
+            str(tmp_path),
             [
                 write_set_domain({b"a": b"1", b"b": b"2"}, []),
-                write_set_domain({b"c": b"3"}, [b"a"]),
-            ]
+                write_set_domain({b"c": b"3"}, [b"a"], version=2),
+            ],
         )
         assert ledger.get_latest_public_state() == (
             {TABLE: {b"b": b"2", b"c": b"3"}},
             2,
         )
 
-    def test_delete_then_rewrite(self):
-        ledger = InMemoryLedger(
+    def test_delete_then_rewrite(self, tmp_path):
+        ledger = ledger_from_domains(
+            str(tmp_path),
             [
                 write_set_domain({b"a": b"1"}, []),
-                write_set_domain({}, [b"a"]),
-                write_set_domain({b"a": b"2"}, []),
-            ]
+                write_set_domain({}, [b"a"], version=2),
+                write_set_domain({b"a": b"2"}, [], version=3),
+            ],
         )
         assert ledger.get_latest_public_state() == ({TABLE: {b"a": b"2"}}, 3)
 
     def test_transaction_tables_not_mutated(self):
-        first = write_set_domain({b"a": b"1"}, [])
-        ledger = InMemoryLedger([first, write_set_domain({b"b": b"2"}, [b"a"])])
-        state, _ = ledger.get_latest_public_state()
+        transactions = [
+            transaction(entry(1, {}, domain=write_set_domain({b"a": b"1"}, []))),
+            transaction(
+                entry(2, {}, domain=write_set_domain({b"b": b"2"}, [b"a"], version=2))
+            ),
+        ]
+        ledger = ccf.ledger.Ledger([])
+        with patch.object(
+            ccf.ledger.Ledger, "__iter__", return_value=iter([transactions])
+        ):
+            state, _ = ledger.get_latest_public_state()
         assert state == {TABLE: {b"b": b"2"}}
-        assert ledger._transactions[0].get_public_domain().get_tables() == {
-            TABLE: {b"a": b"1"}
-        }
+        assert transactions[0].get_public_domain().get_tables() == {TABLE: {b"a": b"1"}}
 
 
 def gcm_header(seqno: int, view: int = 2) -> bytes:
@@ -420,6 +426,106 @@ class TestNodeRemoval:
         assert "n1" not in validator.node_activity_status
 
 
+def test_merkle_level_accepts_empty_first_embedded_tree():
+    # MERKLE trusts the first signature's embedded tree, even an empty one
+    key = ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+    validator = ccf.ledger.LedgerValidator(
+        verification_level=ccf.ledger.VerificationLevel.MERKLE
+    )
+    validator.add_transaction(
+        governance_transaction(
+            1,
+            table_write_set(ccf.signatures.SIGNATURE_TX_TABLE_NAME, {key: b"{}"}, []),
+            table_write_set(
+                ccf.ledger.TREE_TABLE_NAME, {key: struct.pack(">QQ", 0, 0)}, []
+            ),
+        )
+    )
+    assert validator.first_signature_seen
+    assert validator.merkle.get_leaf_count() == 1
+
+
+@pytest.mark.parametrize("removed", [False, True])
+def test_service_info_requires_a_non_null_value(removed: bool):
+    key = ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+    tx = governance_transaction(
+        1,
+        table_write_set(
+            ccf.ledger.SERVICE_INFO_TABLE_NAME, {}, [key] if removed else []
+        ),
+    )
+    validator = ccf.ledger.LedgerValidator()
+    with pytest.raises(TypeError, match="non-null singleton"):
+        validator.add_transaction(tx)
+
+
+def test_merkle_tree_requires_a_non_null_value():
+    tx = governance_transaction(
+        1,
+        table_write_set(
+            ccf.ledger.TREE_TABLE_NAME,
+            {},
+            [ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY],
+        ),
+        table_write_set(ccf.signatures.SIGNATURE_TX_TABLE_NAME, {}, []),
+    )
+    validator = ccf.ledger.LedgerValidator(
+        verification_level=ccf.ledger.VerificationLevel.MERKLE
+    )
+    with pytest.raises(TypeError, match="non-null value"):
+        validator.add_transaction(tx)
+
+
+def test_visualiser_service_info():
+    assert ccf.ledger_viz.try_get_service_info({}) is None
+    key = ccf.signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
+    assert ccf.ledger_viz.try_get_service_info(
+        {ccf.ledger.SERVICE_INFO_TABLE_NAME: {key: b'{"status": "Open"}'}}
+    ) == {"status": "Open"}
+    with pytest.raises(TypeError, match="non-null singleton"):
+        ccf.ledger_viz.try_get_service_info(
+            {ccf.ledger.SERVICE_INFO_TABLE_NAME: {key: None}}
+        )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"), [(b'{"v": 1}', '"v": 1'), (b"\xff", "b'\\xff'")]
+)
+def test_dump_entry_formats_values_and_preserves_binary_fallback(
+    capsys, value: bytes, expected: str
+):
+    tx = governance_transaction(1, table_write_set(TABLE, {b"kept": value}, [b"gone"]))
+    rules: ccf.read_ledger.CompiledTablesFormatRules = [
+        (
+            re.compile(".*"),
+            {"key": ccf.read_ledger.fmt_str, "value": ccf.read_ledger.fmt_json},
+        )
+    ]
+    ccf.read_ledger.dump_entry(tx, None, rules)
+    output = capsys.readouterr().out
+    assert expected in output
+    assert "Removed gone" in output
+
+
+def test_tutorial_handles_node_deletions(tmp_path, capsys):
+    ledger_from_domains(
+        str(tmp_path),
+        [
+            write_set_domain(
+                {b"n1": node_info("Trusted")}, [], table=NODES_TABLE, version=1
+            ),
+            write_set_domain(
+                {b"n2": node_info("Trusted")}, [], table=NODES_TABLE, version=2
+            ),
+            write_set_domain({}, [b"n1"], table=NODES_TABLE, version=3),
+        ],
+    )
+    tutorial = os.path.join(os.path.dirname(__file__), "..", "ledger_tutorial.py")
+    with patch("sys.argv", [tutorial, str(tmp_path)]):
+        runpy.run_path(tutorial, run_name="__main__")
+    assert "n1 : <removed>" in capsys.readouterr().out
+
+
 def write_chunk(directory: str, name: str, entries: list[bytes], cut: int = 0) -> str:
     # An uncommitted chunk: zero positions-table offset, no positions table
     data = (0).to_bytes(ccf.ledger.LEDGER_HEADER_SIZE, "little") + b"".join(entries)
@@ -429,6 +535,72 @@ def write_chunk(directory: str, name: str, entries: list[bytes], cut: int = 0) -
     with open(path, "wb") as f:
         f.write(data)
     return path
+
+
+class TestSplitLedger:
+    @pytest.mark.parametrize("entries", [[], [entry(1, {b"a": b"1"})]])
+    def test_missing_target_cleans_up(self, tmp_path, entries: list[bytes]):
+        path = write_chunk(str(tmp_path), "ledger_1", entries)
+        output = tmp_path / "output"
+        with pytest.raises(ValueError, match="Could not find seqno 2"):
+            ccf.split_ledger.run([path, "2", "--output-dir", str(output)])
+        assert list(output.iterdir()) == []
+
+    def test_non_signature_target_cleans_up(self, tmp_path):
+        signature_domain = write_set_domain(
+            {b"signature": b"value"},
+            [],
+            table=ccf.signatures.SIGNATURE_TX_TABLE_NAME,
+            version=2,
+        )
+        path = write_chunk(
+            str(tmp_path),
+            "ledger_1",
+            [entry(1, {}), entry(2, {}, domain=signature_domain)],
+        )
+        output = tmp_path / "output"
+        with pytest.raises(ValueError, match="Next signature is at seqno 2"):
+            ccf.split_ledger.run([path, "1", "--output-dir", str(output)])
+        assert list(output.iterdir()) == []
+
+    @pytest.mark.parametrize("target", [1, 2])
+    def test_split_preserves_entries(self, tmp_path, target: int):
+        entries = [entry(1, {b"a": b"1"}), entry(2, {b"b": b"2"})]
+        path = write_chunk(str(tmp_path), "ledger_1", entries)
+        output = tmp_path / "output"
+        did_split = ccf.split_ledger.run(
+            [path, str(target), "--output-dir", str(output), "--allow-non-signature"]
+        )
+        assert did_split == (target == 1)
+        chunks = [
+            chunk for chunk in ccf.ledger.Ledger([str(output)], committed_only=False)
+        ]
+        assert len(chunks) == (2 if did_split else 1)
+        assert [tx.get_raw_tx() for chunk in chunks for tx in chunk] == entries
+        assert not (output / ccf.split_ledger.TEMPORARY_LEDGER_FILE_NAME).exists()
+
+
+def test_chunk_index_and_slice(tmp_path):
+    entries = [entry(1, {b"a": b"1"}), entry(2, {b"b": b"2"})]
+    path = write_chunk(str(tmp_path), "ledger_1", entries)
+    chunk = ccf.ledger.LedgerChunk(path)
+    assert chunk[0].get_raw_tx() == entries[0]
+    assert chunk[-1].get_raw_tx() == entries[-1]
+    assert [tx.get_raw_tx() for tx in chunk[:]] == entries
+    assert [tx.get_raw_tx() for tx in chunk[::-1]] == entries[::-1]
+
+
+def test_ledger_iterators(tmp_path):
+    ledger = ledger_from_domains(str(tmp_path), [write_set_domain({b"a": b"1"}, [])])
+    chunks = iter(ledger)
+    assert iter(chunks) is chunks
+    chunk = next(chunks)
+    assert ledger[0].filename() == chunk.filename()
+    assert [c.filename() for c in ledger[:]] == [chunk.filename()]
+    transactions = iter(chunk)
+    assert iter(transactions) is transactions
+    assert [tx.get_public_domain().get_seqno() for tx in transactions] == [1]
+    assert [tx.get_public_domain().get_seqno() for tx in ledger.transactions()] == [1]
 
 
 class TestTornChunkTail:
@@ -475,19 +647,60 @@ def fixture_services() -> list[str]:
     )
 
 
+@pytest.mark.parametrize(
+    "level", [ccf.ledger.VerificationLevel.FULL, ccf.ledger.VerificationLevel.MERKLE]
+)
+def test_failed_signature_does_not_flush_tree(level: ccf.ledger.VerificationLevel):
+    validator = ccf.ledger.LedgerValidator(verification_level=level)
+    ledger_dir = os.path.join(TESTDATA_DIR, "cose_upgraded_service", "ledger")
+    ledger = ccf.ledger.Ledger([ledger_dir], committed_only=False)
+    corrupted = False
+    for chunk in ledger:
+        for tx in chunk:
+            if corrupted and ccf.signatures.is_signature_transaction(
+                tx.get_public_domain().get_tables()
+            ):
+                leaves = validator.merkle.leaves
+                count = validator.merkle.get_leaf_count()
+                with pytest.raises(ccf.signatures.InvalidRootException):
+                    validator.add_transaction(tx)
+                assert validator.merkle.leaves == leaves
+                assert validator.merkle.get_leaf_count() == count
+                return
+            validator.add_transaction(tx)
+            if validator.last_verified_seqno == tx.get_txid().seqno:
+                # Insert an extra leaf so the next signature cannot match.
+                validator.merkle.add_leaf(bytes(32), do_hash=False)
+                corrupted = True
+    pytest.fail("Fixture must contain at least two signature transactions")
+
+
 @pytest.mark.parametrize("service", fixture_services())
-def test_fixture_service_parses(service: str):
+@pytest.mark.parametrize(
+    "level", [ccf.ledger.VerificationLevel.FULL, ccf.ledger.VerificationLevel.MERKLE]
+)
+def test_fixture_service_parses(service: str, level: ccf.ledger.VerificationLevel):
     ledger_dir = os.path.join(TESTDATA_DIR, service, "ledger")
+    validator = ccf.ledger.LedgerValidator(verification_level=level)
+    reference = ccf.merkletree.MerkleTree()
+    reference.add_leaf(bytes(ccf.ledger.SHA256_DIGEST_SIZE), do_hash=False)
     transactions = 0
     for chunk in ccf.ledger.Ledger(
         [ledger_dir],
         committed_only=False,
-        verification_level=ccf.ledger.VerificationLevel.FULL,
+        verification_level=level,
     ):
         for transaction in chunk:
+            validator.add_transaction(transaction)
+            reference.add_leaf(transaction.get_tx_digest(), do_hash=False)
             transaction.get_public_domain().get_tables()
             transactions += 1
     assert transactions > 0
+    assert validator.signature_count > 0
+    assert validator.last_verified_seqno > 0
+    assert validator.merkle.get_merkle_root() == reference.get_merkle_root()
+    assert validator.merkle.get_leaf_count() == reference.get_leaf_count()
+    assert len(validator.merkle.leaves) < validator.merkle.get_leaf_count()
 
     state, seqno = ccf.ledger.Ledger(
         [ledger_dir], committed_only=False
@@ -500,3 +713,100 @@ def test_fixture_service_parses(service: str):
     for path in glob.glob(os.path.join(TESTDATA_DIR, service, "snapshots", "*")):
         with ccf.ledger.Snapshot(path) as snapshot:
             assert len(snapshot.get_public_domain().get_tables()) > 0
+
+
+class TestSnapshotMapFraming:
+    @pytest.mark.parametrize("map_size_delta", [-8, -1, 1])
+    def test_snapshot_entries_must_fill_map(self, map_size_delta: int):
+        domain = snapshot_domain({b"key": (1, b"value")})
+        # Shrink or grow the declared map size, following the map version
+        offset = len(snapshot_prefix()) + len(length_prefixed(TABLE.encode())) + 8
+        (map_size,) = struct.unpack("<Q", domain[offset : offset + 8])
+        domain = (
+            domain[:offset]
+            + struct.pack("<Q", map_size + map_size_delta)
+            + domain[offset + 8 :]
+        )
+        with pytest.raises(ValueError):
+            ccf.ledger.PublicDomain(domain)
+
+
+class TestOffsetsCoverChunk:
+    first = entry(1, {b"a": b"1"})
+
+    def chunk(self, tmp_path, body: bytes, positions: list[int]):
+        path = tmp_path / "ledger_1-1.committed"
+        table_offset = ccf.ledger.LEDGER_HEADER_SIZE + len(body)
+        path.write_bytes(
+            table_offset.to_bytes(ccf.ledger.LEDGER_HEADER_SIZE, "little")
+            + body
+            + b"".join(p.to_bytes(4, "little") for p in positions)
+        )
+        return ccf.ledger.LedgerChunk(str(path), ccf.ledger.VerificationLevel.OFFSETS)
+
+    def test_contiguous_entries(self, tmp_path):
+        assert len(self.chunk(tmp_path, self.first, [8])) == 1
+
+    def test_bytes_before_first_entry_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="does not immediately follow"):
+            self.chunk(tmp_path, b"junk" + self.first, [12])
+
+    def test_bytes_after_last_entry_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="unaccounted bytes"):
+            self.chunk(tmp_path, self.first + b"junk", [8])
+
+    def test_bytes_without_entries_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="No offsets"):
+            self.chunk(tmp_path, self.first, [])
+
+
+class TestSnapshotFileName:
+    @staticmethod
+    def write_snapshot(directory, name: str, receipt: bytes = b"") -> str:
+        directory.mkdir(exist_ok=True)
+        path = directory / name
+        path.write_bytes(
+            entry(1, {}, domain=snapshot_domain({b"k": (1, b"v")})) + receipt
+        )
+        return str(path)
+
+    def test_directory_name_does_not_commit_snapshot(self, tmp_path):
+        path = self.write_snapshot(tmp_path / "x.committed", "snapshot_1_2")
+        with ccf.ledger.Snapshot(path) as snapshot:
+            assert not snapshot.is_committed()
+
+    def test_directory_name_does_not_skip_receipt_verification(self, tmp_path):
+        # A committed 1.x snapshot name has a suffix after ".committed", and
+        # has no receipt to verify. A directory name must not be mistaken for
+        # such a suffix.
+        path = self.write_snapshot(
+            tmp_path / "x.committed", "snapshot_1_2.committed", b"bad receipt"
+        )
+        with pytest.raises(
+            ccf.ledger.InvalidSnapshotException, match="unrecognised format"
+        ):
+            ccf.ledger.Snapshot(path)
+
+    def test_1_x_snapshot_name(self, tmp_path):
+        path = self.write_snapshot(tmp_path / "x", "snapshot_1_2.committed_3")
+        with ccf.ledger.Snapshot(path) as snapshot:
+            assert snapshot.is_committed()
+            assert snapshot.is_snapshot_file_1_x()
+
+
+def test_read_ledger_does_not_modify_rules(tmp_path):
+    write_chunk(str(tmp_path), "ledger_1", [entry(1, {b"a": b"1"})])
+    rule: ccf.read_ledger.FormatRule = {
+        "key": ccf.read_ledger.fmt_raw,
+        "value": ccf.read_ledger.fmt_raw,
+    }
+    rules: ccf.read_ledger.TablesFormatRules = [("^public:test$", rule)]
+    for _ in range(2):
+        assert ccf.read_ledger.run(
+            [str(tmp_path)],
+            ccf.read_ledger.PrintMode.Contents,
+            uncommitted=True,
+            verification_level=ccf.ledger.VerificationLevel.NONE,
+            tables_format_rules=rules,
+        )
+    assert rules == [("^public:test$", rule)]

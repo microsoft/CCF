@@ -4,18 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [7.0.24]
+
+[7.0.24]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.24
+
+### Added
+
+- `ccf::crypto::MLDSAKeyPair` can now issue X.509 certificates and PKCS#10 certificate signing requests signed with pure ML-DSA (`create_csr()`, `sign_csr()`, `self_sign()`), and `ccf::crypto::make_verifier()` accepts ML-DSA certificates, verifying their signatures with `MDType::NONE`. The ML-DSA headers are now included on every build; with OpenSSL older than 3.5, `make_mldsa_key_pair()` and `make_mldsa_public_key()` throw `std::runtime_error` (#8629).
+- Nodes built with OpenSSL 3.5 or newer give the services they start or recover an ML-DSA service certificate (`pq_service_certificate` in `GET /node/network`, `pqCertificate` in `GET /gov/service/info`), selected by `service_mldsa_parameter_set` and renewed by the `set_pq_service_certificate_validity` proposal. Such services only accept nodes with ML-DSA support; see the [7.x to 8.x migration guide](doc/build_apps/migration_7_x_to_8_x.rst) (#8632).
+
+### Changed
+
+- CCF-owned fatal termination paths now all emit flushed diagnostics to stderr, while recoverable logs and fatal-severity-only entries remain on stdout. See [Logging](doc/build_apps/logging.rst) (#8690).
+- CCF consensus protocol tracing now uses `ccf.cft` for the Fluentd tag (#8657).
+- `observability.fluentd` now accepts an array of independent sinks, and configurable delivery behaviour.
+  See [Observability Export](doc/operations/configuration.rst#observability-export) for more details (#8666).
+
+### Fixed
+
+- `ccf::indexing::strategies::SeqnosByKey_Bucketed` queries remain unavailable while a rebuild is pending after a missing or corrupt index file is detected, including when indexing advances concurrently. See [Indexing](doc/architecture/indexing.rst) for rebuild behaviour (#8684).
+- Python ledger verification now uses less memory on large ledgers; see [Python Library](doc/audit/python_library.rst) (#8665).
+- `ccf.receipt.verify_cose` now rejects receipts that do not conform to the [CCF Profile for COSE Receipts, draft -06](https://www.ietf.org/archive/id/draft-ietf-scitt-receipts-ccf-profile-06.html), including malformed CBOR or proofs and proofs that do not all recompute the signed root, and `ccf::cose::edit::set_unprotected_header` now preserves all bytes outside the unprotected header. See [COSE Receipt Verification](doc/use_apps/verify_tx.rst#cose-receipt-verification) for details, including migration from the deprecated `ccf.cose.verify_receipt` (#8646).
+- Nodes no longer abort when a compaction races a transaction run outside of an endpoint, such as the primary's snapshot evidence transaction, a backup's lookup of the primary before fetching a snapshot, JWT key auto-refresh, or the network identity fetch; the operation is retried and otherwise skipped until its next scheduled run. A backup also no longer aborts if a fetched snapshot cannot be written to disk (#8652).
+- The `ccf.merkletree.MerkleTree` Python class now computes each root in time proportional to the leaves added since the previous root, so `ccf.ledger.LedgerValidator` no longer slows down as ledgers grow (#8660).
+- Hardened `ccf::crypto` OpenSSL call sites taking `int` lengths against inputs larger than 2 GiB, and Base64 encoding and decoding no longer use stack buffers proportional to the input size. `ccf::crypto::OpenSSL::Unique_BIO(const void*, int)` now takes a `size_t` and throws `std::invalid_argument` rather than accepting a negative length (#8645).
+
 ## [7.0.23]
 
 [7.0.23]: https://github.com/microsoft/CCF/releases/tag/ccf-7.0.23
 
+### Changed
+
+- `ccf::crypto::OpenSSL::Unique_BIO` no longer accepts temporary `std::vector<uint8_t>` or `Pem` arguments, which would leave it dangling (#8628).
+
 ### Fixed
 
 - `ccf::crypto::Verifier::remaining_seconds()` now returns the whole validity period before that period starts, and `remaining_percentage()` always returns a fraction between 0.0 and 1.0, including for a certificate whose validity period ends before it starts (#8626).
-
-### Added
-
-- C++ applications can use `ccf::json` and `CCF_JSON_*` declarations for direct typed JSON serialization, selected automatically by `ccf::make_success(value)`, while retaining the existing JSON macros and DOM conversions.
-  Generated API documents use OpenAPI 3.1; see [the C++ application guide](doc/build_apps/example_cpp.rst#typed-json-serialization).
+- Service certificate renewal, recovery and previous-identity endorsements now preserve multi-RDN `service_subject_name` values such as `CN=CCF Service,O=CCF User` (#8627).
+- Nodes can now generate and load snapshots of services whose public or private state exceeds 2 GiB, including the snapshot taken when a recovered service opens. `ccf::crypto::KeyAesGcm` encryption and decryption now accept AAD and data larger than 2 GiB (#8644).
 
 ## [7.0.22]
 

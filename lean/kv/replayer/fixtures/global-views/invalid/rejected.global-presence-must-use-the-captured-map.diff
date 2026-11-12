@@ -1,0 +1,5 @@
+--- a/trace.ndjson
++++ b/trace.ndjson
+@@ -32 +32 @@
+-{"key":"01","map":"a","seq":32,"store":1,"tx":3,"type":"has_global","value":true}
++{"key":"01","map":"a","seq":32,"store":1,"tx":3,"type":"has_global","value":false}

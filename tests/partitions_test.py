@@ -243,7 +243,7 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
             # re-joining node fails to get elected but causes others to rev up their
             # term. After that, a successful election needs to take place, and we
             # arbitrarily allow 3 time periods to avoid being too brittle when
-            # raft timeouts line up badly.
+            # CCF consensus protocol timeouts line up badly.
             c.wait_for_commit(new_tx_resp, timeout=(network.election_duration * 4))
         except TimeoutError:
             details = c.get("/node/consensus").body.json()
@@ -696,6 +696,7 @@ def test_invalidated_blocking_calls(network, args):
 
 def _test_invalidated_blocking_call(network, args, blocking_path):
     primary, backups = network.find_nodes()
+    network.wait_for_all_nodes_to_commit(primary=primary)
     key = 42
     val_a = "Hello"
 
@@ -709,13 +710,28 @@ def _test_invalidated_blocking_call(network, args, blocking_path):
         with primary.client("user0") as c:
             ready_to_go.set()
             partition_created.wait()
+            # Keep the blocking transaction beyond the new primary's first commit.
+            for i in range(5):
+                r = c.post("/app/log/private", {"id": key, "msg": f"{val_a} {i}"})
+                assert r.status_code == http.HTTPStatus.OK, r
+
             r = c.post(blocking_path, {"id": key, "msg": val_a}, timeout=10)
             assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR
             tx_id = r.headers[infra.clients.CCF_TX_ID_HEADER]
             body = r.body.json()
+            assert body["error"]["code"] == "TransactionInvalid"
             assert (
                 body["error"]["message"]
                 == f"While waiting for TxID {tx_id} to commit, it was invalidated"
+            )
+
+        with primary.client() as c:
+            r = c.get("/node/commit")
+            assert r.status_code == http.HTTPStatus.OK, r
+            committed_tx_id = TxID.from_str(r.body.json()["transaction_id"])
+            assert committed_tx_id.seqno < TxID.from_str(tx_id).seqno, (
+                f"Expected invalidation of {tx_id} before the commit sequence "
+                f"number caught up, but commit point is {committed_tx_id}"
             )
 
     send_thread = infra.concurrency.Thread(target=blocking_send, name="blocking")

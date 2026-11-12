@@ -39,6 +39,12 @@ inductive Reachable (system : TransitionSystem) : system.State -> Prop where
     (transition : system.step state action = some nextState)
     : Reachable system nextState
 
+/-- Every reachable state admits at least one enabled action, including enabled stutters. -/
+def DeadlockFree (system : TransitionSystem) : Prop :=
+  forall state,
+    system.Reachable state
+    -> exists action nextState, system.step state action = some nextState
+
 end TransitionSystem
 
 end CCF

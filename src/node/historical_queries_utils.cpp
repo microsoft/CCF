@@ -6,7 +6,7 @@
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft_types.h"
 #include "kv/kv_types.h"
 #include "node/cose_common.h"
 #include "node/historical_queries.h"
@@ -169,7 +169,8 @@ namespace ccf
                   ccf::crypto::make_unique_verifier(network_identity->cert);
                 auto endorsement = create_endorsed_cert(
                   hpubkey,
-                  ccf::crypto::get_subject_name(opt_psi->cert),
+                  ccf::crypto::make_unique_verifier(opt_psi->cert)
+                    ->subject_der(),
                   {},
                   ncv->validity_period(),
                   network_identity->priv_key,

@@ -4,6 +4,7 @@
 
 #include "ccf/service/tables/service.h"
 #include "node/historical_queries.h"
+#include "node/retry_on_compacted_version_conflict.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/node_interface.h"
 #include "service/tables/signing_identities.h"
@@ -27,24 +28,39 @@ namespace ccf
   {
     CurrentServiceIdentity result;
 
-    auto* service_info_handle = tx.ro<ccf::Service>(ccf::Tables::SERVICE);
-    auto service_info = service_info_handle->get();
-    check_signing_identity_matches_service_cert(tx);
     // A node can advance to part-of-network before the service-opening tx has
     // been replicated. Until the service is OPEN, its create-txid (and the
-    // endorsement written in the same tx) may be stale, so leave create_txid
-    // unset and let the caller retry.
-    if (
-      service_info && service_info->current_service_create_txid.has_value() &&
-      service_info->status == ServiceStatus::OPEN)
+    // endorsement written in the same tx) may be stale, so report nothing and
+    // let the caller retry.
+    const auto service_info = tx.ro<ccf::Service>(ccf::Tables::SERVICE)->get();
+    const bool service_open = service_info.has_value() &&
+      service_info->current_service_create_txid.has_value() &&
+      service_info->status == ServiceStatus::OPEN;
+    if (!service_open)
     {
-      result.create_txid = service_info->current_service_create_txid;
+      return result;
     }
 
+    try
+    {
+      check_signing_identity_matches_service_cert(tx);
+    }
+    catch (const std::logic_error& e)
+    {
+      // Logged here in case the call site does not handle the exception
+      // properly: this is a broken invariant and must not be recovered from.
+      LOG_FATAL_FMT(
+        "The service signing identities in the ledger are inconsistent with "
+        "the service certificates: {}. This version cannot serve such a "
+        "ledger after a live update; recover it instead.",
+        e.what());
+      throw;
+    }
+
+    result.create_txid = service_info->current_service_create_txid;
     result.endorsement = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
                              ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
                            ->get(ccf::IdentityType::CLASSICAL);
-
     return result;
   }
 
@@ -65,8 +81,19 @@ namespace ccf
     CurrentServiceIdentity get_current_service_identity() override
     {
       auto store = node_state.get_store();
-      auto tx = store->create_read_only_tx();
-      return read_current_service_identity(tx);
+      CurrentServiceIdentity identity;
+      if (!ccf::retry_on_compacted_version_conflict(
+            "Current service identity lookup", [&] {
+              auto tx = store->create_read_only_tx();
+              identity = read_current_service_identity(tx);
+            }))
+      {
+        // Reported as not yet available, which the caller retries later
+        LOG_FAIL_FMT(
+          "Could not read current service identity after repeated compaction "
+          "conflicts");
+      }
+      return identity;
     }
   };
 
@@ -111,7 +138,6 @@ namespace ccf
           "historical state",
           seq));
       }
-      check_signing_identity_matches_service_cert(htx);
       return endorsement;
     }
   };

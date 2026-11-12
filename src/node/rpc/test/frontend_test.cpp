@@ -31,6 +31,14 @@
 using namespace ccf;
 using namespace std;
 
+TEST_CASE("Unknown client HTTP status codes remain usable in diagnostics")
+{
+  const auto status = static_cast<ccf::http_status>(471);
+
+  CHECK(ccf::is_http_status_client_error(status));
+  CHECK(fmt::format("HTTP status {}", status) == "HTTP status 471");
+}
+
 template <typename Registry>
 class TSimpleFrontend : public RpcFrontend
 {
@@ -445,7 +453,7 @@ void prepare_callers(NetworkState& network)
   init_network(network);
 
   InternalTablesAccess::create_service(
-    tx, network.identity->cert, ccf::TxID{2, 1});
+    tx, network.identity->cert, network.identity->pq_cert, ccf::TxID{2, 1});
   user_id = InternalTablesAccess::add_user(tx, {user_caller});
   member_id = InternalTablesAccess::add_member(tx, member_cert);
   invalid_member_id = InternalTablesAccess::add_member(tx, invalid_caller);

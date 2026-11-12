@@ -2,17 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <openssl/opensslv.h>
+#include "ccf/crypto/mldsa_parameter_set.h"
+#include "ccf/crypto/pem.h"
 
-#if OPENSSL_VERSION_PREREQ(3, 5)
-
-#  include "ccf/crypto/mldsa_parameter_set.h"
-#  include "ccf/crypto/pem.h"
-
-#  include <cstdint>
-#  include <memory>
-#  include <span>
-#  include <vector>
+#include <cstdint>
+#include <memory>
+#include <span>
+#include <vector>
 
 namespace ccf::crypto
 {
@@ -29,6 +25,9 @@ namespace ccf::crypto
     /// Export a SubjectPublicKeyInfo public key.
     [[nodiscard]] virtual Pem public_key_pem() const = 0;
     [[nodiscard]] virtual std::vector<uint8_t> public_key_der() const = 0;
+
+    /// Export the FIPS 204 encoded public key.
+    [[nodiscard]] virtual std::vector<uint8_t> public_key_raw() const = 0;
 
     /**
      * Verify a pure ML-DSA signature over the supplied message bytes.
@@ -65,5 +64,14 @@ namespace ccf::crypto
   /// Pinned DER import with the same contract as pinned PEM import.
   MLDSAPublicKeyPtr make_mldsa_public_key(
     std::span<const uint8_t> der, MLDSAParameterSet expected);
+
+  /**
+   * Import a FIPS 204 encoded public key, as carried by an RFC 9964 AKP
+   * COSE_Key, whose algorithm selects the parameter set.
+   * @throws std::invalid_argument if the key is not the parameter set's
+   * public key size, or the configured providers reject it
+   * @throws std::runtime_error for provider failures
+   */
+  MLDSAPublicKeyPtr make_mldsa_public_key_from_raw(
+    std::span<const uint8_t> raw_public_key, MLDSAParameterSet parameter_set);
 }
-#endif // OPENSSL_VERSION_PREREQ

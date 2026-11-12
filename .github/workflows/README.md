@@ -1,6 +1,7 @@
 Documents the various GitHub Actions workflows, the role they fulfill and 3rd party (i.e. outside of https://github.com/actions/) dependencies if any.
 
-All jobs run on 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
+Jobs that build or run CCF use 1ES hosted pools targeted by pool name only, for example `runs-on: [gha-vmss-d16av7-ci]`.
+Lightweight jobs that do not, such as the Lean package checks and trace replays, use GitHub-hosted runners.
 
 # Shared actions
 
@@ -21,6 +22,8 @@ Results are stored as artifacts and summarized in the workflow run against an EW
 Triggered on every commit on `main`, twice daily on week days, and manually, but not on PR builds because the setup required to build from forks is complex and fragile in terms of security, and the increase in pool usage would be substantial.
 
 Tests are run on two different testbeds for comparison: gha-vmss-d16av7-ci (Standard_D16ads_v7 VMs with 16 vCPUs and 64 GiB RAM) and gha-aci-genoa (Azure Container Instances with SEV-SNP).
+
+The Basic JS workload disables JavaScript execution metrics logging in its deployed benchmark bundle; other applications retain the enabled default.
 
 The `FluentD` benchmark reuses Basic Blocking with one node and 20 ms signatures, exporting traces to a lightweight local decoding collector.
 Its throughput, latency, and node memory are charted alongside the other benchmarks, which run without trace export.
@@ -133,34 +136,19 @@ File: `codeql-analysis.yml`
 - `github/codeql-action/init@v4`
 - `github/codeql-action/analyze@v4`
 
-# Continuous Verification
-
-Runs the standard model checking, simulation, trace validation, and counterexample jobs each week.
-
-File: `ci-verification.yml`
-3rd party dependencies: None
-
-# Long Verification
-
-Runs the longer consensus model checking and simulation jobs each week.
-VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
-
-File: `long-verification.yml`
-3rd party dependencies: None
-
-# TLA Shallow Verification
-
-Runs on pull requests that change `tla/` or `src/consensus/aft/raft.h`.
-
-- Simulates the consistency and consensus specifications on a GitHub-hosted runner. The simulation job has a 10-minute timeout.
-- Builds the Raft scenario driver and validates its traces against the consensus specification on a GitHub-hosted runner.
-
-File: `tla-shallow.yml`
-3rd party dependencies: None
-
 # Lean
 
-Runs all Lean verification for the repository. Future Lean checks should be added as jobs to this workflow.
+Runs Lean verification for the repository, with each package checked in an isolated reusable-workflow job.
+All five packages (consensus, common, consistency, disaster-recovery, and kv) run in one matrix.
+Package checks and trace replays run directly on GitHub-hosted Ubuntu 26.04 runners, as does the lightweight final gate.
+Native trace captures build CCF, so they remain on `gha-vmss-d16av7-ci-c` with Azure Linux containers.
+Each matrix job caches its third-party dependency checkouts and build outputs, leanfmt and (for disaster-recovery and kv) Batteries, using GitHub Actions caching.
+Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
+CCF package and common build outputs are not cached, and all verification steps still run.
+CCF consensus, KV, and consistency trace captures run in parallel with package checks.
+Three independent trace-validation jobs each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
+Consistency capture reuses the existing `consistency_trace_validation` e2e test, and its replay job also checks the consistency replay fixtures, including election and rollback traces.
+A final summary job requires every package and trace job to succeed.
 
 The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.
 Canonical behavior checks run with `#eval` when their test module is built, and assertion failures fail the build.
@@ -183,12 +171,28 @@ It then runs the trace viewer's `viewer/build.py`, which fails if a dump the vie
 
 The Genoa SNP job in `ci.yml`, whose tests run with `CCF_RECOVERY_TRACE=1`, builds just the `disaster-recovery-replay` target and replays the protocol's e2e scenarios against the model.
 
+The `KV trace captures` job builds the `CCF_KV_TRACING` unit tests on Azure Linux 3 and captures their traces with `tests/kv_trace_validation.py --capture-only`.
+The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fixtures.
+The dedicated replay job builds `kv-replay` separately to validate the captured traces; no replay executables are transferred between jobs.
+
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
-The workflow runs on pull requests that change `lean/`, any `.lean` file, the formatter script, or the workflow.
+The workflow runs on pull requests that change `lean/` (except `lean/mathlib-equivalence/`), any `.lean` file, the formatter script, or the workflow.
+It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`
-3rd party dependencies: Mathlib and leanfmt (pinned in the Lake package), and elan.
+3rd party dependencies: leanfmt and Batteries (pinned in the Lake packages), and elan.
+
+# Lean Mathlib equivalence
+
+Proves that the local replacements for Mathlib definitions in `lean/common` (`CCF.Seq`, `CCF.Finset` and `CCF.Function`) and the consensus successor ranking are equivalent to the Mathlib definitions they replaced.
+The proofs live in the separate `lean/mathlib-equivalence` package, which is the only Lean package that depends on Mathlib; the main Lean workflow does not schedule it.
+The job runs on a GitHub-hosted Ubuntu 26.04 runner, restores Mathlib's upstream build cache, runs `lake check --inadvisably-no-sandbox` to build the proofs and replay them through the kernel with only the standard axioms, and checks the package's formatting.
+It caches third-party dependency checkouts and build outputs like the main Lean package jobs.
+The workflow runs only on pull requests that change the replacement definitions, the equivalence package, the Lean toolchain, the formatter script, or the workflow, and can be run manually.
+
+File: `lean-mathlib-equivalence.yml`
+3rd party dependencies: Mathlib (pinned in the Lake package), leanfmt and elan.
 
 # Vendored Dependency Verification
 

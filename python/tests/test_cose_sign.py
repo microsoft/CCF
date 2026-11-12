@@ -56,7 +56,9 @@ def hash_algo(priv: ec.EllipticCurvePrivateKey):
     }[priv.key_size]
 
 
-def make_self_signed_cert(priv, subject_name: str):
+def make_self_signed_cert(
+    priv, subject_name: str, cert_hash: hashes.SHA256 | hashes.SHA384 | None = None
+):
     subject = issuer = x509.Name(
         [x509.NameAttribute(x509.oid.NameOID.COMMON_NAME, subject_name)]
     )
@@ -70,13 +72,14 @@ def make_self_signed_cert(priv, subject_name: str):
         .not_valid_after(
             datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=30)
         )
-        .sign(priv, hash_algo(priv))
+        .sign(priv, cert_hash or hash_algo(priv))
     )
     return cert.public_bytes(Encoding.PEM).decode("ascii")
 
 
 @pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])
-def test_create_cose_sign1_finish(curve):
+@pytest.mark.parametrize("signature_as_text", [False, True])
+def test_create_cose_sign1_finish(curve, signature_as_text: bool):
     """
     Check create_cose_sign1_finish() produces the same output when passed
     a signature as create_cose_sign1().
@@ -90,22 +93,31 @@ def test_create_cose_sign1_finish(curve):
     cose_sign1 = ccf.cose.create_cose_sign1(payload, priv_pem, cert)
 
     _, _, _, sig = cbor2.loads(cose_sign1).value
-    b64_sig = base64.urlsafe_b64encode(sig)
+    b64_sig: str | bytes = base64.urlsafe_b64encode(sig)
+    if signature_as_text:
+        b64_sig = b64_sig.decode("ascii")
 
     ccf.cose.verify_cose_sign1_with_cert(cert.encode(), cose_sign1, use_key=False)
     finished_cose_sign1 = ccf.cose.create_cose_sign1_finish(payload, cert, b64_sig)
     assert cose_sign1 == finished_cose_sign1
 
 
-@pytest.mark.parametrize("curve", [ec.SECP256R1(), ec.SECP384R1(), ec.SECP521R1()])
-def test_create_cose_sign1_prepare_and_finish(curve):
+@pytest.mark.parametrize(
+    ("curve", "alg_name"),
+    [(ec.SECP256R1(), "ES256"), (ec.SECP384R1(), "ES384"), (ec.SECP521R1(), "ES512")],
+)
+# The certificate's own signature hash must not affect the signing algorithm
+@pytest.mark.parametrize("cert_hash", [None, hashes.SHA256(), hashes.SHA384()])
+def test_create_cose_sign1_prepare_and_finish(
+    curve, alg_name: str, cert_hash: hashes.SHA256 | hashes.SHA384 | None
+):
     """
     Check adding performing a signature externally on the output of
     cose.create_cose_sign1_prepare() and packaging it with
     cose.create_cose_sign1_finish() produces a valid COSE_Sign1.
     """
     priv = make_private_key(curve)
-    cert = make_self_signed_cert(priv, "example.com")
+    cert = make_self_signed_cert(priv, "example.com", cert_hash)
     payload = b"Hello"
 
     tbs = ccf.cose.create_cose_sign1_prepare(payload, cert)
@@ -113,7 +125,9 @@ def test_create_cose_sign1_prepare_and_finish(curve):
     alg = tbs["alg"]
     raw_value = base64.b64decode(tbs["value"])
 
-    assert alg == ccf.cose.default_algorithm_for_key(priv.public_key())
+    # Azure Key Vault expects a JSON Web Algorithm name
+    assert alg == alg_name
+    assert len(raw_value) == hash_algo(priv).digest_size
     signature = priv.sign(raw_value, ec.ECDSA(utils.Prehashed(hash_algo(priv))))
     r, s = utils.decode_dss_signature(signature)
     num_bytes = (priv.key_size + 7) // 8

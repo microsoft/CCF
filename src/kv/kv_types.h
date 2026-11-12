@@ -5,6 +5,7 @@
 #include "ccf/claims_digest.h"
 #include "ccf/cose_signatures_config.h"
 #include "ccf/crypto/hash_bytes.h"
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/hex.h"
 #include "ccf/ds/json.h"
@@ -320,6 +321,12 @@ namespace ccf::kv
 
     virtual void start_map(const std::string& name, SecurityDomain domain) = 0;
     virtual void serialise_raw(const std::vector<uint8_t>& raw) = 0;
+    // Appends a size-prefixed payload of the given size, written in place by
+    // fill, to avoid an intermediate copy of large payloads. fill is passed
+    // the payload's span, of exactly size bytes, and must write all of it.
+    // Serialisers which only measure sizes do not call fill.
+    virtual void serialise_raw_in_place(
+      size_t size, const std::function<void(std::span<uint8_t>)>& fill) = 0;
     virtual void serialise_view_history(
       const std::vector<Version>& view_history) = 0;
     virtual void serialise_entry_version(const Version& version) = 0;
@@ -354,6 +361,9 @@ namespace ccf::kv
     virtual uint64_t deserialise_write_header() = 0;
     virtual std::tuple<SerialisedKey, SerialisedValue> deserialise_write() = 0;
     virtual std::vector<uint8_t> deserialise_raw() = 0;
+    // As deserialise_raw(), without copying. The returned span is only valid
+    // while both the deserialiser and the data it was initialised with are.
+    virtual std::span<const uint8_t> deserialise_raw_span() = 0;
     virtual std::vector<Version> deserialise_view_history() = 0;
     virtual uint64_t deserialise_remove_header() = 0;
     virtual SerialisedKey deserialise_remove() = 0;
@@ -421,8 +431,10 @@ namespace ccf::kv
     // on-demand signatures via try_emit_signature(), which are suppressed
     // until then.
     virtual void start_signature_emit_timer() = 0;
+    // pq_keypair is nullptr for a service without an ML-DSA identity.
     virtual void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> keypair,
+      ccf::crypto::MLDSAKeyPairPtr pq_keypair,
       const COSESignaturesConfig& cose_signatures) = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
   };
@@ -468,8 +480,14 @@ namespace ccf::kv
     virtual ccf::SeqNo get_committed_seqno() = 0;
     virtual std::optional<NodeId> primary() = 0;
 
+    // The caller authenticates the sender and message before dispatch. The
+    // message contains only the CCF consensus protocol message struct; the
+    // payload contains appended ledger entries, which still require ledger
+    // validation. Both views are borrowed for the duration of this call.
     virtual void recv_message(
-      const NodeId& from, const uint8_t* data, size_t size) = 0;
+      const NodeId& from,
+      std::span<const uint8_t> message,
+      std::span<const uint8_t> payload = {}) = 0;
 
     virtual void periodic(std::chrono::milliseconds /*elapsed*/) {}
 
@@ -573,6 +591,10 @@ namespace ccf::kv
       EntryType entry_type = EntryType::WriteSet,
       bool historical_hint = false) = 0;
 
+    // As above, writing into the given spans. plain and cipher may be the same
+    // buffer (in-place encryption), but must otherwise not overlap each other,
+    // serialised_header or additional_data. Implementations must support
+    // in-place encryption: this default implementation copies plain first.
     virtual bool encrypt(
       std::span<const uint8_t> plain,
       std::span<const uint8_t> additional_data,
@@ -630,6 +652,60 @@ namespace ccf::kv
       Version version,
       Term& term,
       bool historical_hint = false) = 0;
+
+    // Implementations should override this to avoid copying the inputs, which
+    // may be as large as a snapshot.
+    virtual bool decrypt(
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> additional_data,
+      std::span<const uint8_t> serialised_header,
+      std::vector<uint8_t>& plain,
+      Version version,
+      Term& term,
+      bool historical_hint = false)
+    {
+      return decrypt(
+        std::vector<uint8_t>(cipher.begin(), cipher.end()),
+        std::vector<uint8_t>(additional_data.begin(), additional_data.end()),
+        std::vector<uint8_t>(
+          serialised_header.begin(), serialised_header.end()),
+        plain,
+        version,
+        term,
+        historical_hint);
+    }
+
+    // Decrypts data in place, replacing the ciphertext with the plaintext.
+    // data must not overlap additional_data or serialised_header. If this
+    // returns false, data holds no unauthenticated plaintext, but its contents
+    // are otherwise unspecified. Implementations should override this to avoid
+    // a second buffer of data's size: this default decrypts into one, and
+    // copies the plaintext back.
+    virtual bool decrypt_in_place(
+      std::span<uint8_t> data,
+      std::span<const uint8_t> additional_data,
+      std::span<const uint8_t> serialised_header,
+      Version version,
+      Term& term,
+      bool historical_hint = false)
+    {
+      std::vector<uint8_t> plain;
+      if (
+        !decrypt(
+          std::span<const uint8_t>(data),
+          additional_data,
+          serialised_header,
+          plain,
+          version,
+          term,
+          historical_hint) ||
+        plain.size() != data.size())
+      {
+        return false;
+      }
+      std::copy(plain.begin(), plain.end(), data.begin());
+      return true;
+    }
 
     virtual void rollback(Version version) = 0;
 

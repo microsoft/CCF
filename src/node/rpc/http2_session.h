@@ -80,7 +80,6 @@ namespace http
     std::shared_ptr<http2::ServerParser> server_parser;
 
     std::shared_ptr<ccf::RPCMap> rpc_map;
-    std::shared_ptr<ccf::RpcHandler> handler;
     std::shared_ptr<ErrorReporter> error_reporter;
     ccf::ListenInterfaceID interface_id;
 

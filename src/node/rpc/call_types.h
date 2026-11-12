@@ -51,6 +51,7 @@ namespace ccf
     {
       ServiceStatus service_status{};
       ccf::crypto::Pem service_certificate;
+      std::optional<ccf::crypto::Pem> pq_service_certificate;
       std::optional<ccf::View> current_view;
       std::optional<NodeId> primary_id;
       size_t recovery_count{};

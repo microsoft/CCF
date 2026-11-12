@@ -7,6 +7,7 @@ import base64
 import datetime
 import json
 
+import ccf.signatures
 import pytest
 from ccf.signatures import (
     COSE_SIGNATURE_TX_TABLE_NAME,
@@ -81,6 +82,14 @@ def _collateral(**overrides):
 def test_schemes_pin_current_values():
     """Pins the scheme names, so adding or removing one is deliberate."""
     assert [s.name for s in RootSignature] == ["RAW", "COSE_EC384"]
+
+
+def test_internal_verifier_names_remain_compatible():
+    assert _verify_all_root_signatures is ccf.signatures.verify_all_root_signatures
+    assert (
+        ccf.signatures._verify_cose_root_signature_with_key
+        is ccf.signatures.verify_cose_root_signature_with_key
+    )
 
 
 def test_a_transaction_without_a_verifiable_signature_is_rejected():

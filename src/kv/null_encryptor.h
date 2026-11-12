@@ -38,7 +38,10 @@ namespace ccf::kv
       {
         throw std::logic_error("Incorrect null-encryptor output size");
       }
-      std::copy(plain.begin(), plain.end(), cipher.begin());
+      if (plain.data() != cipher.data())
+      {
+        std::copy(plain.begin(), plain.end(), cipher.begin());
+      }
       return true;
     }
 
@@ -52,6 +55,20 @@ namespace ccf::kv
       bool historical_hint = false) override
     {
       plain = cipher;
+      term = 0;
+      return true;
+    }
+
+    bool decrypt(
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> additional_data,
+      std::span<const uint8_t> serialised_header,
+      std::vector<uint8_t>& plain,
+      Version version,
+      Term& term,
+      bool historical_hint = false) override
+    {
+      plain.assign(cipher.begin(), cipher.end());
       term = 0;
       return true;
     }

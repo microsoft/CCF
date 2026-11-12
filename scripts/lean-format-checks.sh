@@ -4,7 +4,8 @@
 
 # Checks (and optionally fixes) all tracked Lean files via leanfmt.
 # Pass -f to auto-fix formatting issues. Pass package names under lean/ to
-# check only those packages; the default checks every package.
+# check only those packages; the default checks every package except
+# mathlib-equivalence, which needs Mathlib and has its own workflow.
 
 set -euo pipefail
 
@@ -22,10 +23,10 @@ if ! command -v lake >/dev/null 2>&1; then
   exit 1
 fi
 
-declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [ccf-raft]=CCFRaft)
+declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [consensus]=Consensus [consistency]=consistency [kv]=Kv [mathlib-equivalence]=MathlibEquivalence)
 PACKAGES=("$@")
 if [ ${#PACKAGES[@]} -eq 0 ]; then
-  PACKAGES=(disaster-recovery ccf-raft)
+  PACKAGES=(disaster-recovery consensus consistency kv)
 fi
 
 for package in "${PACKAGES[@]}"; do
@@ -36,13 +37,16 @@ for package in "${PACKAGES[@]}"; do
   fi
   # The disaster recovery package also checks Lean files outside lean/.
   if [ "$package" == "disaster-recovery" ]; then
-    PATHSPEC=("*.lean" ":(exclude)lean/ccf-raft/*")
+    PATHSPEC=("*.lean" ":(exclude)lean/consensus/*" ":(exclude)lean/consistency/*" ":(exclude)lean/kv/*" ":(exclude)lean/mathlib-equivalence/*")
   else
     PATHSPEC=("lean/$package/*.lean")
   fi
   (
     cd "$ROOT_DIR/lean/$package"
     # leanfmt loads imported modules to parse project-specific syntax.
+    if [ "$package" == "disaster-recovery" ]; then
+      lake build ccf_common/+CCF
+    fi
     lake build "$library"
     git -C "$ROOT_DIR" ls-files -z -- "${PATHSPEC[@]}" |
       while IFS= read -r -d '' file; do

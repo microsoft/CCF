@@ -546,6 +546,12 @@
               }
             ]
           },
+          "pqCertificate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "previousServiceCreationTransactionId": {
             "anyOf": [
               {
