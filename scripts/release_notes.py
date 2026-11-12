@@ -68,6 +68,33 @@ def previous_tag(root: Path, tag: str) -> str:
     return git(root, "describe", "--tags", "--match", "ccf-*", f"{tag}^", "--abbrev=0")
 
 
+def descriptions_in_range(root: Path, previous: str, tag: str) -> dict[Path, str]:
+    git(root, "merge-base", "--is-ancestor", previous, tag)
+    commits = set(git(root, "rev-list", f"{previous}..{tag}").splitlines())
+    descriptions = {}
+    for name in git(
+        root, "ls-tree", "-r", "--name-only", tag, "--", ".changes"
+    ).splitlines():
+        if not name.endswith(".md"):
+            continue
+        path = Path(name)
+        addition = git(
+            root,
+            "log",
+            "-1",
+            "--format=%H%n%s",
+            "--diff-filter=A",
+            "--no-renames",
+            tag,
+            "--",
+            name,
+        )
+        commit, _, subject = addition.partition("\n")
+        if commit in commits:
+            descriptions[path] = subject
+    return descriptions
+
+
 def describe_path_changes(root: Path, tag: str, previous: str, path: str) -> str:
     if git(root, "diff", "--name-only", previous, tag, "--", path):
         return (
@@ -94,15 +121,12 @@ def from_descriptions(
     root: Path,
     version: str,
     pr_overrides: list[str] | None = None,
+    previous: str | None = None,
+    *,
+    absolute_links: bool = True,
 ) -> str:
     tag = f"ccf-{version}"
-    paths = [
-        Path(path)
-        for path in git(
-            root, "ls-tree", "-r", "--name-only", tag, "--", ".changes"
-        ).splitlines()
-        if path.endswith(".md")
-    ]
+    paths = descriptions_in_range(root, previous or previous_tag(root, tag), tag)
     overrides = {}
     names = {path.name for path in paths}
     for value in pr_overrides or []:
@@ -134,27 +158,20 @@ def from_descriptions(
     for category, lines in category_lines.items():
         text = "\n".join(lines).strip()
         if text:
-            entries[category].append(release_links(text, tag))
+            entries[category].append(
+                release_links(text, tag) if absolute_links else text
+            )
 
     for path in sorted(paths):
         category = category_for(path)
         text = git(root, "show", f"{tag}:{path.as_posix()}")
         if not text:
             raise ValueError(f"Empty change description: {path.name}")
-        text = release_links(text, tag)
+        if absolute_links:
+            text = release_links(text, tag)
         number = overrides.get(path.name)
         if number is None:
-            subject = git(
-                root,
-                "log",
-                "-1",
-                "--format=%s",
-                "--diff-filter=A",
-                "--no-renames",
-                tag,
-                "--",
-                path.as_posix(),
-            )
+            subject = paths[path]
             reference = re.search(r"\(#([1-9][0-9]*)\)$", subject)
             if reference is None:
                 raise ValueError(
@@ -164,7 +181,8 @@ def from_descriptions(
             number = int(reference[1])
         entries[category].append(f"- {textwrap.indent(text, '  ')[2:]} (#{number})")
 
-    lines = [release_links("\n".join(uncategorized).strip(), tag)]
+    text = "\n".join(uncategorized).strip()
+    lines = [release_links(text, tag) if absolute_links else text]
     for category, notes in entries.items():
         if notes:
             lines.extend([f"### {category.title()}", "", *notes, ""])
