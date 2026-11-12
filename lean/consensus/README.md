@@ -30,7 +30,7 @@ Crashes are not modeled, so a committed prefix keeps its history, and a valid sn
 The join protocol is not modeled: a configuration may add any node, and a fresh node may instead follow from its first AppendEntries.
 Node identities are never reused, so a configuration may not name a node removed by an earlier configuration in the same log.
 `deadlock_free_after_bootstrap` proves the [shared deadlock-freedom property](../common/README.md#transition-systems) for every state reachable once bootstrapping completes, for any initial configuration.
-Bootstrapping completes when some node commits a signature; a singleton bootstrap node commits its first signature as soon as it emits it.
+Bootstrapping completes ([`Bootstrapped`](Consensus/Properties/Bootstrap.lean)) when some node commits a signature; a singleton bootstrap node commits its first signature as soon as it emits it.
 `deadlock_free_after_bootstrap_witness` shows that every valid initial configuration reaches such a state.
 There are no fairness assumptions or guarantees of eventual election or commitment.
 

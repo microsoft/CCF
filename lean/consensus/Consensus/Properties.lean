@@ -1,6 +1,7 @@
 module
 
 public import Consensus.Model
+public import Consensus.Properties.Bootstrap
 public import Consensus.Properties.Config
 public import CCF.Execution
 
@@ -146,8 +147,7 @@ theorem deadlock_free_after_bootstrap
                 init :=
                   fun state =>
                     (Model.transitionSystem config nodes).Reachable state
-                    /\ exists (node : NodeID) (local_ : NodeState),
-                        (node, local_) ∈ state.nodes /\ 0 < local_.commitIndex
+                    /\ Bootstrapped state
             }
           : CCF.TransitionSystem).DeadlockFree := by
   exact Proofs.Deadlock.deadlock_free_after_bootstrap
@@ -157,8 +157,7 @@ theorem deadlock_free_after_bootstrap_witness
     : forall (config : ValidConfig),
         exists (nodes : List NodeID) (state : Model.State),
           (Model.transitionSystem config nodes).Reachable state
-          /\ exists (node : NodeID) (local_ : NodeState),
-              (node, local_) ∈ state.nodes /\ 0 < local_.commitIndex := by
+          /\ Bootstrapped state := by
   exact Proofs.Witnesses.deadlock_free_after_bootstrap_witness
 
 end Consensus.Properties

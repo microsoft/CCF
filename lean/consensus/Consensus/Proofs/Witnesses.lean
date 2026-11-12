@@ -156,8 +156,7 @@ public theorem deadlock_free_after_bootstrap_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists (nodes : List NodeID) (state : Model.State),
           (Model.transitionSystem config nodes).Reachable state
-          /\ exists (node : NodeID) (local_ : NodeState),
-              (node, local_) ∈ state.nodes /\ 0 < local_.commitIndex := by
+          /\ Consensus.Properties.Bootstrapped state := by
   intro config
   obtain ⟨trace, state, node, nodeState, present, member, positive, _⟩ :=
     committed_trace config

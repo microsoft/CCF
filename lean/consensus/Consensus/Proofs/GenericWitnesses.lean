@@ -1,6 +1,7 @@
 module
 
 public import Consensus.Model
+public import Consensus.Properties.Bootstrap
 public import Consensus.Properties.Config
 public import CCF.Execution
 public import CCF.Proofs.Execution

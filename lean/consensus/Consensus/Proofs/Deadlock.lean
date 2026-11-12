@@ -1,6 +1,7 @@
 module
 
 public import Consensus.Model
+public import Consensus.Properties.Bootstrap
 
 import all Consensus.Proofs.SafetyInvariant
 import CCF.Proofs.Finset
@@ -1656,8 +1657,7 @@ public theorem deadlock_free_after_bootstrap (config : Finset NodeID)
               init :=
                 fun state =>
                   (Model.transitionSystem config nodes).Reachable state
-                  /\ exists (node : NodeID) (local_ : NodeState),
-                      (node, local_) ∈ state.nodes /\ 0 < local_.commitIndex
+                  /\ Properties.Bootstrapped state
           }
         : TransitionSystem).DeadlockFree := by
   let _ : Config.InitialConfiguration := ⟨config⟩
