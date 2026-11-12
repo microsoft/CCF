@@ -421,6 +421,12 @@ class PublicDomain:
                     # src/kv/untyped_map.h, parse but do not retain these
                     if ver >= 0:
                         records[k] = val
+                # As in deserialize_map_snapshot, entries are bounded by the
+                # map's serialised size and must not extend into the next map
+                if self._cursor - start_map_pos != map_size:
+                    raise ValueError(
+                        f"Snapshot entries of map {map_name} overrun its size {map_size}"
+                    )
             else:
                 # read_version
                 self._read8()
@@ -590,11 +596,24 @@ class LedgerValidator:
     @staticmethod
     def validate_offsets(positions: list[int], file_size: int, file: "SimpleBuffer"):
         """
-        Validate that offset table entries point to valid transaction boundaries.
-        Raises ValueError if offsets are invalid.
+        Validate that offset table entries point to valid transaction boundaries,
+        and that the transactions cover every byte between the ledger header and
+        file_size. Raises ValueError if offsets are invalid.
         """
         if not positions:
-            return  # Empty positions list is valid for empty chunks
+            # Empty positions list is valid for empty chunks
+            if file_size > LEDGER_HEADER_SIZE:
+                raise ValueError(
+                    f"No offsets for the {file_size - LEDGER_HEADER_SIZE} bytes "
+                    "following the ledger header"
+                )
+            return
+
+        if positions[0] != LEDGER_HEADER_SIZE:
+            raise ValueError(
+                f"Invalid offset at index 0: {positions[0]} does not immediately "
+                f"follow the {LEDGER_HEADER_SIZE}-byte ledger header"
+            )
 
         # Check positions are sorted and within file bounds
         for i, pos in enumerate(positions):
@@ -635,6 +654,11 @@ class LedgerValidator:
                             f"Offset mismatch: transaction at {pos} ends at {expected_next_pos} "
                             f"but next offset is {actual_next_pos}"
                         )
+                elif tx_end != file_size:
+                    raise ValueError(
+                        f"Last transaction at {pos} ends at {tx_end}, leaving "
+                        f"{file_size - tx_end} unaccounted bytes before {file_size}"
+                    )
             except Exception as e:
                 raise ValueError(
                     f"Failed to validate transaction at offset {pos} (index {i}): {e}"
@@ -1080,13 +1104,15 @@ class Snapshot(Entry):
             self._verify_snapshot_receipt(receipt_bytes, receipt_pos, snapshot_digest)
 
     def is_committed(self):
-        return COMMITTED_FILE_SUFFIX in self._filename
+        # Only the file name, not the directories containing it, is relevant
+        return COMMITTED_FILE_SUFFIX in os.path.basename(self._filename)
 
     def is_snapshot_file_1_x(self):
         # Kept here for compatibility
         if not self.is_committed():
             raise ValueError(f"Snapshot file {self._filename} is not yet committed")
-        return len(self._filename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
+        basename = os.path.basename(self._filename)
+        return len(basename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
 
     def get_len(self) -> int:
         return self._file_size

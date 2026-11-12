@@ -13,6 +13,7 @@ It assumes familiarity with the [CCF consensus protocol documentation](../../doc
 | Protocol policy (one node's step)      | [`Model/Node.lean`](Consensus/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)     |
 | Initial states and network composition | [`Model.lean`](Consensus/Model.lean) (`initialNodeState`, `transitionSystem`)                                                  |
 | Safety theorems and witness lemmas     | [`Properties.lean`](Consensus/Properties.lean)                                                                                 |
+| Valid initial memberships              | [`Properties/Config.lean`](Consensus/Properties/Config.lean)                                                                   |
 | Supporting proofs and executions       | [`Proofs/`](Consensus/Proofs)                                                                                                  |
 | Action-trace tests                     | [`Tests/CanonicalTraces.lean`](Consensus/Tests/CanonicalTraces.lean)                                                           |
 
@@ -23,7 +24,9 @@ Actions are local inputs (including timeouts) or delivery of a queued message; n
 
 ## Scope
 
-Node join and snapshot installation are not modeled.
+Like CCF's `init_as_backup`, a fresh node may initialize once as a follower: with an empty ledger in term zero, or from another node's committed ledger prefix ending at a signature, in that signature's term.
+Crashes are not modeled, so a committed prefix keeps its history, and a valid snapshot, fetched from another node or read from a local file, is such a prefix ([`Model.networkStep`](Consensus/Model.lean)).
+The join protocol is not modeled: any configuration may add a node, and a fresh node may instead follow from its first AppendEntries.
 There are no liveness properties or fairness assumptions.
 
 ## Validation
@@ -42,7 +45,7 @@ Run `lake check` only in CI, not locally.
 The [kernel check](replay/README.md#kernel-checks) builds with compiler warnings, including `sorry`, treated as errors, before replaying the compiled proofs in Lean's kernel and rejecting nonstandard axioms.
 Kernel tracing reports the declarations checked during compilation; cached modules do not emit fresh compilation traces.
 CI runs this before import coverage, formatting, and linting so the initial build and its traces occur in this step.
-The build also runs explicit action traces from an initialized network: committing a client request, and adding two nodes then electing a new primary and committing another request.
+The build also runs explicit action traces from an initialized network: committing a client request, and adding two nodes, one joining from a snapshot, then electing a new primary and committing another request.
 The reconfiguration trace checks each node's ledger before delivery, after setup, after replication and commitment, after election, and after the new primary's client request.
 Append regressions check configuration heartbeats followed by flushing, pre-commit packet headers, per-entry flushing, term-bounded packets, and atomic rejection of invalid flush choices.
 These are regression examples, not exhaustive checking.
@@ -53,12 +56,12 @@ The shared `check-imports` command rejects modules missing from that import clos
 
 ## Proofs
 
-`Properties.lean` contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
+[`Properties.lean`](Consensus/Properties.lean) contains the full theorem and witness-lemma statements, with one-line proof links into `Proofs/`.
 Import `Consensus.Properties` and use `Consensus.Properties.<name>` for these declarations.
 Proof modules follow the shared [dependency import contract](../common/README.md#dependency-imports); import additional facilities explicitly rather than relying on incidental reexports.
 `Proofs/Direct.lean` establishes node-local commit invariants; `Proofs/SafetyInvariant.lean` establishes the cross-node history invariant, in the `Consensus.Proofs.Safety` namespace, used for election safety and committed-log comparability.
-`Proofs/Witnesses.lean` supplies concrete executions checked by the kernel.
-The proof modules do not import each other, so Lake checks them in parallel; lemmas needed by more than one module are duplicated as private declarations to minimise verification wall-clock time.
+[`Proofs/Witnesses.lean`](Consensus/Proofs/Witnesses.lean) supplies the checked witness implementations, using shared execution-construction helpers in [`Proofs/GenericWitnesses.lean`](Consensus/Proofs/GenericWitnesses.lean).
+The safety-invariant proof remains independent of the witness construction, allowing Lake to check them in parallel.
 
 To list the safety-invariant declarations used by the exported theorems, run `lake env lean scripts/invariant-dependencies.lean`.
 

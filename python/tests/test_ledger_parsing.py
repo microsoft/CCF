@@ -828,6 +828,85 @@ def test_committed_recovery_chunk_preferred_over_open_copy(
     ]
 
 
+class TestSnapshotMapFraming:
+    @pytest.mark.parametrize("map_size_delta", [-8, -1, 1])
+    def test_snapshot_entries_must_fill_map(self, map_size_delta: int):
+        domain = snapshot_domain({b"key": (1, b"value")})
+        # Shrink or grow the declared map size, following the map version
+        offset = len(snapshot_prefix()) + len(length_prefixed(TABLE.encode())) + 8
+        (map_size,) = struct.unpack("<Q", domain[offset : offset + 8])
+        domain = (
+            domain[:offset]
+            + struct.pack("<Q", map_size + map_size_delta)
+            + domain[offset + 8 :]
+        )
+        with pytest.raises(ValueError):
+            ccf.ledger.PublicDomain(domain)
+
+
+class TestOffsetsCoverChunk:
+    first = entry(1, {b"a": b"1"})
+
+    def chunk(self, tmp_path, body: bytes, positions: list[int]):
+        path = tmp_path / "ledger_1-1.committed"
+        table_offset = ccf.ledger.LEDGER_HEADER_SIZE + len(body)
+        path.write_bytes(
+            table_offset.to_bytes(ccf.ledger.LEDGER_HEADER_SIZE, "little")
+            + body
+            + b"".join(p.to_bytes(4, "little") for p in positions)
+        )
+        return ccf.ledger.LedgerChunk(str(path), ccf.ledger.VerificationLevel.OFFSETS)
+
+    def test_contiguous_entries(self, tmp_path):
+        assert len(self.chunk(tmp_path, self.first, [8])) == 1
+
+    def test_bytes_before_first_entry_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="does not immediately follow"):
+            self.chunk(tmp_path, b"junk" + self.first, [12])
+
+    def test_bytes_after_last_entry_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="unaccounted bytes"):
+            self.chunk(tmp_path, self.first + b"junk", [8])
+
+    def test_bytes_without_entries_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="No offsets"):
+            self.chunk(tmp_path, self.first, [])
+
+
+class TestSnapshotFileName:
+    @staticmethod
+    def write_snapshot(directory, name: str, receipt: bytes = b"") -> str:
+        directory.mkdir(exist_ok=True)
+        path = directory / name
+        path.write_bytes(
+            entry(1, {}, domain=snapshot_domain({b"k": (1, b"v")})) + receipt
+        )
+        return str(path)
+
+    def test_directory_name_does_not_commit_snapshot(self, tmp_path):
+        path = self.write_snapshot(tmp_path / "x.committed", "snapshot_1_2")
+        with ccf.ledger.Snapshot(path) as snapshot:
+            assert not snapshot.is_committed()
+
+    def test_directory_name_does_not_skip_receipt_verification(self, tmp_path):
+        # A committed 1.x snapshot name has a suffix after ".committed", and
+        # has no receipt to verify. A directory name must not be mistaken for
+        # such a suffix.
+        path = self.write_snapshot(
+            tmp_path / "x.committed", "snapshot_1_2.committed", b"bad receipt"
+        )
+        with pytest.raises(
+            ccf.ledger.InvalidSnapshotException, match="unrecognised format"
+        ):
+            ccf.ledger.Snapshot(path)
+
+    def test_1_x_snapshot_name(self, tmp_path):
+        path = self.write_snapshot(tmp_path / "x", "snapshot_1_2.committed_3")
+        with ccf.ledger.Snapshot(path) as snapshot:
+            assert snapshot.is_committed()
+            assert snapshot.is_snapshot_file_1_x()
+
+
 def test_read_ledger_does_not_modify_rules(tmp_path):
     write_chunk(str(tmp_path), "ledger_1", [entry(1, {b"a": b"1"})])
     rule: ccf.read_ledger.FormatRule = {
