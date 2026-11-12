@@ -77,9 +77,11 @@ def recording(args):
             yield
     finally:
         _recording.events = None
+        ordered = sorted(events.values(), key=lambda e: e[:2])
         with open(path, "w", encoding="ascii") as f:
-            for ts, _, record in sorted(events.values(), key=lambda e: e[:2]):
-                f.write(json.dumps({"ts": ts, **record}) + "\n")
+            f.writelines(
+                json.dumps({"ts": ts, **record}) + "\n" for ts, _, record in ordered
+            )
     result = subprocess.run(
         [replayer, path], capture_output=True, text=True, check=False
     )
