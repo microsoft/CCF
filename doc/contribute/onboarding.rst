@@ -51,7 +51,7 @@ That job gates pull requests, and is also used with a different trigger (on tags
 Review the release and compatibility policy
 -------------------------------------------
 
-:doc:`/build_apps/release_policy` defines what changes are possible in CCF and what timeline they must follow.
+:doc:`/releases/release_policy` defines what changes are possible in CCF and what timeline they must follow.
 
 Simplified Data Flow Map
 ------------------------
