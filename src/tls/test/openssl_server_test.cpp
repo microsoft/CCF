@@ -2168,6 +2168,32 @@ TEST_CASE("Shutdown with staggered connection closes releases every uv handle")
   REQUIRE(uv_loop_alive(uv_default_loop()) == 0);
 }
 
+TEST_CASE("Forced close discards queued output on a writable socket")
+{
+  int sockets[2] = {-1, -1};
+  REQUIRE(
+    socketpair(
+      AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, sockets) == 0);
+  size_t closes = 0;
+  auto engine = std::make_shared<OpenSSLConnectionEngine>(
+    OpenSSLConnectionEngine::Config{},
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
+    },
+    [&](::tcp::ConnID) { ++closes; });
+  engine->start();
+  REQUIRE(engine->adopt(
+    {.id = 1, .fd = sockets[0], .pending_commands = {{1, {'q'}, false}}}));
+
+  // The plaintext socket is ready for writes, but no pass has run yet.
+  engine->stop();
+  CHECK(closes == 1);
+  uint8_t byte = 0;
+  CHECK(::recv(sockets[1], &byte, 1, 0) == 0);
+  ::close(sockets[1]);
+  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+  CHECK(uv_loop_alive(uv_default_loop()) == 0);
+}
+
 // Shutdown must not be hostage to a peer which has stopped reading. A
 // connection with output it cannot flush is closed after a single further
 // pass, rather than being re-dispatched until the socket becomes writable -
