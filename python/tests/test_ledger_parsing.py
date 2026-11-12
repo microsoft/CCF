@@ -713,3 +713,21 @@ def test_fixture_service_parses(service: str, level: ccf.ledger.VerificationLeve
     for path in glob.glob(os.path.join(TESTDATA_DIR, service, "snapshots", "*")):
         with ccf.ledger.Snapshot(path) as snapshot:
             assert len(snapshot.get_public_domain().get_tables()) > 0
+
+
+def test_read_ledger_does_not_modify_rules(tmp_path):
+    write_chunk(str(tmp_path), "ledger_1", [entry(1, {b"a": b"1"})])
+    rule: ccf.read_ledger.FormatRule = {
+        "key": ccf.read_ledger.fmt_raw,
+        "value": ccf.read_ledger.fmt_raw,
+    }
+    rules: ccf.read_ledger.TablesFormatRules = [("^public:test$", rule)]
+    for _ in range(2):
+        assert ccf.read_ledger.run(
+            [str(tmp_path)],
+            ccf.read_ledger.PrintMode.Contents,
+            uncommitted=True,
+            verification_level=ccf.ledger.VerificationLevel.NONE,
+            tables_format_rules=rules,
+        )
+    assert rules == [("^public:test$", rule)]

@@ -44,6 +44,7 @@ inductive Input where
   | sendEntries (destination : NodeID) (endIndex : Nat)
   | timeout (kind : TimeoutKind)
   | nominateSuccessor
+  | initAsBackup (entries : List Entry)
 deriving DecidableEq
 
 inductive Event where
@@ -572,6 +573,12 @@ def observeTerm (state : NodeState) : Message -> NodeState
       if state.role = .primary then updateTerm state response.term else state
   | message => updateTerm state message.term
 
+/-- Like CCF's `init_as_backup`; `Model.networkStep` requires a node to have committed `entries`. -/
+def initAsBackup (state : NodeState) (entries : List Entry) : NodeEffect NodeState := do
+  guard (state.isFresh /\ (entries = [] \/ isSignatureAt entries entries.length = true))
+  return becomeAwareOfNewTerm { state with log := entries, commitIndex := entries.length }
+    (termAt entries entries.length)
+
 /-! ## The step -/
 
 def receive (caps : Caps) (self source : NodeID) (state : NodeState) (message : Message)
@@ -608,6 +615,7 @@ def act (caps : Caps) (self : NodeID) (state : NodeState) : Input -> NodeEffect 
   | .timeout .election => startElection caps state self
   | .timeout .checkQuorum => checkQuorum state self
   | .nominateSuccessor => nominateSuccessor caps state self
+  | .initAsBackup entries => initAsBackup state entries
 
 def step (caps : Caps) (self : NodeID) (state : NodeState) : Event -> NodeEffect NodeState
   | .internal input => act caps self state input

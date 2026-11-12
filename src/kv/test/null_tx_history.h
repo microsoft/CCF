@@ -128,9 +128,11 @@ namespace ccf
 
     void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp_,
+      ccf::crypto::MLDSAKeyPairPtr pq_service_kp_,
       const ccf::COSESignaturesConfig& /*cose_signatures*/) override
     {
       std::ignore = service_kp_;
+      std::ignore = pq_service_kp_;
     }
 
     const ccf::COSESignaturesConfig& get_cose_signatures_config() override

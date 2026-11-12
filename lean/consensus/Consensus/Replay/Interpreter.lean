@@ -48,12 +48,15 @@ inductive Step where
   | local (node : String) (input : Input)
   | receive (source destination : String) (packet : Json)
   | drop (source destination : String)
+  /-- Initialize from a node's committed prefix ending at `index` in term `view`. -/
+  | initAsBackup (node : String) (index view : Nat)
 
 def Step.name : Step → String
   | .local _ (.append _) => "append"
   | .local _ (.sendEntries ..) => "sendEntries"
   | .local _ (.timeout _) => "timeout"
   | .local _ .nominateSuccessor => "nominateSuccessor"
+  | .local _ (.initAsBackup _) | .initAsBackup .. => "initAsBackup"
   | .receive .. => "receive"
   | .drop .. => "drop"
 
@@ -284,6 +287,20 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
       let some envelope := (replay.pending source destination).head?
       | throw s!"no pending packet from '{source}' to '{destination}'"
       return { replay with dropped := replay.dropped ++ [envelope] }
+  | .action (step@(.initAsBackup node index view)) _ =>
+      let joiner ← header.nodeId node
+      -- Committed prefixes in a reachable state are comparable, so any such node will do.
+      let some (_, source) :=
+        replay.state.nodes.find?
+          fun (_, state) =>
+            index <= state.commitIndex
+            && (index == 0 || isSignatureAt state.log index)
+            && termAt state.log index == view
+      | throw s!"no node has a committed signature at {index} in term {view}"
+      let input := Input.initAsBackup (source.log.take index)
+      let some state := system.step replay.state (.local joiner input)
+      | throw s!"disabled model action '{step.name}'"
+      return { replay with state }
 
 structure Result where
   instructions : Nat
