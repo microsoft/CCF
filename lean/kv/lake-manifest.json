@@ -1,0 +1,43 @@
+{
+  "version": "1.3.0",
+  "packagesDir": ".lake/packages",
+  "packages": [
+    {
+      "url": "https://github.com/duckki/leanfmt.git",
+      "type": "git",
+      "subDir": null,
+      "scope": "",
+      "rev": "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef",
+      "name": "leanfmt",
+      "manifestFile": "lake-manifest.json",
+      "inputRev": "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef",
+      "inherited": false,
+      "configFile": "lakefile.toml"
+    },
+    {
+      "url": "https://github.com/leanprover-community/batteries.git",
+      "type": "git",
+      "subDir": null,
+      "scope": "",
+      "rev": "66e469188fe07963e5cf666c7d4433f45b8131c5",
+      "name": "batteries",
+      "manifestFile": "lake-manifest.json",
+      "inputRev": "v4.35.0",
+      "inherited": false,
+      "configFile": "lakefile.toml"
+    },
+    {
+      "type": "path",
+      "scope": "",
+      "name": "ccf_common",
+      "manifestFile": "lake-manifest.json",
+      "inherited": false,
+      "dir": "../common",
+      "copy": false,
+      "configFile": "lakefile.toml"
+    }
+  ],
+  "name": "kv",
+  "lakeDir": ".lake",
+  "fixedToolchain": false
+}

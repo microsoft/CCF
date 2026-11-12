@@ -24,26 +24,27 @@ The Copilot setup workflow runs `scripts/setup-ubuntu-ci-checks.sh` for Ubuntu f
 
 Each command below is under `scripts/`. This table is a routing guide; the scripts own exact file coverage, exclusions, tool versions, and options. When changing that coverage, update this guide too. Include cross-cutting checks (copyright, disallowed comments, ASCII) when applicable.
 
-| Script                     | Relevant changes                                             | Tool/check                                         | Supports auto-fix |
-| -------------------------- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------- |
-| `cpp-format-checks.sh`     | C/C++ in `include/`, `src/`, `samples/`                      | clang-format                                       | `-f`              |
-| `clang-tidier.py -p build` | First-party C++ compile commands and their headers           | clang-query: braces for non-empty case bodies      | No                |
-| `lean-format-checks.sh`    | Tracked Lean files, excluding Aeneas-generated Shamir output | leanfmt                                            | `-f`              |
-| `python-format-checks.sh`  | Python in `tests/`, `python/`, `scripts/`, `tla/`            | black                                              | `-f`              |
-| `python-lint-checks.sh`    | Python in `python/`, `tests/`                                | ruff                                               | `-f`              |
-| `python-types-checks.sh`   | Python SDK                                                   | mypy                                               | No                |
-| `prettier-checks.sh`       | TS, JS, Markdown, YAML, JSON (excluding `tests/sandbox/`)    | prettier                                           | `-f`              |
-| `doc-newline-checks.sh`    | Markdown and RST prose                                       | Mid-sentence newline policy                        | `-f`              |
-| `cmake-format-checks.sh`   | CMake files                                                  | gersemi                                            | `-f`              |
-| `release-notes-checks.sh`  | `CHANGELOG.md` (also run prettier)                           | extract-release-notes.py                           | `-f`              |
-| `shellcheck-checks.sh`     | Shell scripts outside `3rdparty/`                            | shellcheck                                         | No                |
-| `includes-checks.sh`       | Public C++ headers and their uses                            | Public/private include and exported-header checks  | No                |
-| `copyright-checks.sh`      | Source files                                                 | Copyright notices                                  | No                |
-| `openapi-checks.sh`        | JSON under `doc/schemas/`                                    | openapi-spec-validator                             | No                |
-| `todo-checks.sh`           | Tracked files                                                | Disallowed comments                                | No                |
-| `ascii-checks.sh`          | Source/config files and agent-instruction Markdown           | ASCII policy and grandfathered Unicode lines       | No                |
-| `ascii-policy-tests.sh`    | ASCII policy/checker changes                                 | ASCII policy regression tests                      | No                |
-| `test-buckets-checks.sh`   | CMake test registration, defaults, or `tests/ci-buckets.txt` | Fresh configure and CI bucket inventory comparison | No                |
+| Script | Relevant changes | Tool/check | Supports auto-fix |
+| --- | --- | --- | --- |
+| `cpp-format-checks.sh` | C/C++ in `include/`, `src/`, `samples/` | clang-format | `-f` |
+| `clang-tidier.py -p build` | First-party C++ compile commands and their headers | clang-query: braces for non-empty case bodies | No |
+| `lean-format-checks.sh` | All tracked Lean files | leanfmt | `-f` |
+| `python-format-checks.sh` | Python in `tests/`, `python/`, `scripts/` | black | `-f` |
+| `python-lint-checks.sh` | Python in `python/`, `tests/` | ruff | `-f` |
+| `python-types-checks.sh` | Python SDK, tutorial, and SDK tests under `python/` | Pyright | No |
+| `prettier-checks.sh` | TS, JS, Markdown, YAML, JSON (excluding `.github/**/*.md` and `tests/sandbox/`) | prettier | `-f` |
+| `doc-newline-checks.sh` | Markdown and RST prose | Mid-sentence newline policy | `-f` |
+| `builtin-maps-checks.sh` | Built-in map names in `include/` or `src/`, and `doc/audit/builtin_maps.rst` | Every `public:ccf.gov.*` and `public:ccf.internal.*` map is documented | No |
+| `cmake-format-checks.sh` | CMake files | gersemi | `-f` |
+| `release-notes-checks.sh` | `CHANGELOG.md`, `.changes/*.md` (also run prettier) | extract-release-notes.py | `-f` (changelog links only) |
+| `shellcheck-checks.sh` | Shell scripts outside `3rdparty/` | shellcheck | No |
+| `includes-checks.sh` | Public C++ headers and their uses | Public/private include and exported-header checks | No |
+| `copyright-checks.sh` | Source files | Copyright notices | No |
+| `openapi-checks.sh` | JSON under `doc/schemas/` | openapi-spec-validator | No |
+| `todo-checks.sh` | Tracked files | Disallowed comments | No |
+| `ascii-checks.sh` | Source/config files and agent-instruction Markdown | ASCII policy and grandfathered Unicode lines | No |
+| `ascii-policy-tests.sh` | ASCII policy/checker changes | ASCII policy regression tests | No |
+| `test-buckets-checks.sh` | CMake test registration, defaults, or `tests/ci-buckets.txt` | Fresh configure and CI bucket inventory comparison | No |
 
 Some report-only scripts accept `-f` for interface compatibility without changing files. For Rust or other file types not covered by a formatter above, consult their existing build/CI configuration rather than introducing a new tool.
 
@@ -55,4 +56,4 @@ The Lean formatting check runs in `.github/workflows/lean.yml`, not `scripts/ci-
 It requires elan and the package's Lean toolchain.
 See [Lean formatting setup](../../../lean/disaster-recovery/README.md#formatting).
 
-The ASCII check includes Rust and TLA+, but exempts Lean source files (`*.lean`) and excludes `3rdparty/`. Vendored third-party dependencies are exempt from the authoring policy; preserve their upstream contents. In checked files, existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.
+The ASCII check includes Rust, but exempts Lean source files (`*.lean`) and excludes `3rdparty/`. Vendored third-party dependencies are exempt from the authoring policy; preserve their upstream contents. In checked files, existing Unicode is grandfathered by exact line hashes, not file-wide exemptions. Do not extend the grandfathered hashes to accept new Unicode.

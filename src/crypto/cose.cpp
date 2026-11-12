@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/ecdsa.h"
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "crypto/cbor_tags.h"
 #include "crypto/cose.h"
 
@@ -50,25 +51,77 @@ namespace ccf::cose
 
   namespace
   {
+    std::vector<uint8_t> non_empty(std::vector<uint8_t> signature)
+    {
+      if (signature.empty())
+      {
+        throw std::runtime_error("COSE signing returned an empty signature");
+      }
+      return signature;
+    }
+
+    // Signers take the Sig_structure and return the COSE-encoded signature.
+    auto ecdsa_signer(const crypto::ECKeyPair& key, crypto::MDType md)
+    {
+      return [&key, md](std::span<const uint8_t> tbs) {
+        return crypto::ecdsa_sig_der_to_p1363(
+          non_empty(key.sign(tbs, md)), key.get_curve_id());
+      };
+    }
+
+    auto mldsa_signer(const crypto::MLDSAKeyPair& key)
+    {
+      return [&key](std::span<const uint8_t> tbs) {
+        return non_empty(key.sign(tbs));
+      };
+    }
+
+    template <typename Signer>
     std::vector<uint8_t> sign1(
-      const crypto::ECKeyPair& key,
-      crypto::MDType md,
+      const Signer& sign,
       const tav::cbor::Value& protected_header,
       std::span<const uint8_t> payload,
       bool detached)
     {
       const auto protected_bytes = protected_header.det_serialize();
-      const auto tbs = make_cose_sign1_tbs(protected_bytes, payload);
-      const auto der_signature = key.sign(tbs, md);
-      if (der_signature.empty())
-      {
-        throw std::runtime_error("COSE signing returned an empty signature");
-      }
       const auto signature =
-        crypto::ecdsa_sig_der_to_p1363(der_signature, key.get_curve_id());
-
+        sign(make_cose_sign1_tbs(protected_bytes, payload));
       return make_cose_sign1_envelope(
         protected_bytes, payload, signature, detached);
+    }
+
+    tav::cbor::Value ledger_protected_header(
+      int64_t alg,
+      std::string_view kid,
+      int64_t iat,
+      std::string_view issuer,
+      std::string_view subject,
+      std::string_view txid)
+    {
+      using namespace tav::cbor;
+      std::vector<MapItem> cwt_entries;
+      cwt_entries.emplace_back(
+        make_signed(cwt::header::iana::IAT), make_signed(iat));
+      cwt_entries.emplace_back(
+        make_signed(cwt::header::iana::ISS), make_string(issuer));
+      cwt_entries.emplace_back(
+        make_signed(cwt::header::iana::SUB), make_string(subject));
+      std::vector<MapItem> ccf_entries;
+      ccf_entries.emplace_back(
+        make_string(header::custom::TX_ID), make_string(txid));
+      std::vector<MapItem> phdr;
+      phdr.emplace_back(make_signed(header::iana::ALG), make_signed(alg));
+      phdr.emplace_back(
+        make_signed(header::iana::KID),
+        make_bytes({reinterpret_cast<const uint8_t*>(kid.data()), kid.size()}));
+      phdr.emplace_back(
+        make_signed(header::iana::VDS), make_signed(value::CCF_LEDGER_SHA256));
+      phdr.emplace_back(
+        make_signed(header::iana::CWT_CLAIMS),
+        make_map(std::move(cwt_entries)));
+      phdr.emplace_back(
+        make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
+      return make_map(std::move(phdr));
     }
   }
 
@@ -98,6 +151,53 @@ namespace ccf::cose
     }
   }
 
+  int64_t algorithm_for_parameter_set(crypto::MLDSAParameterSet parameter_set)
+  {
+    switch (parameter_set)
+    {
+      case crypto::MLDSAParameterSet::ML_DSA_44:
+      {
+        return alg::ML_DSA_44;
+      }
+      case crypto::MLDSAParameterSet::ML_DSA_65:
+      {
+        return alg::ML_DSA_65;
+      }
+      case crypto::MLDSAParameterSet::ML_DSA_87:
+      {
+        return alg::ML_DSA_87;
+      }
+      default:
+      {
+        throw std::runtime_error("Unsupported COSE ML-DSA parameter set");
+      }
+    }
+  }
+
+  std::optional<crypto::MLDSAParameterSet> parameter_set_for_algorithm(
+    int64_t alg)
+  {
+    switch (alg)
+    {
+      case alg::ML_DSA_44:
+      {
+        return crypto::MLDSAParameterSet::ML_DSA_44;
+      }
+      case alg::ML_DSA_65:
+      {
+        return crypto::MLDSAParameterSet::ML_DSA_65;
+      }
+      case alg::ML_DSA_87:
+      {
+        return crypto::MLDSAParameterSet::ML_DSA_87;
+      }
+      default:
+      {
+        return std::nullopt;
+      }
+    }
+  }
+
   std::vector<uint8_t> sign_ledger(
     const crypto::ECKeyPair& key,
     std::string_view kid,
@@ -107,31 +207,29 @@ namespace ccf::cose
     std::string_view txid,
     std::span<const uint8_t> payload)
   {
-    using namespace tav::cbor;
     const auto algorithm = algorithm_for_curve(key.get_curve_id());
-    std::vector<MapItem> cwt_entries;
-    cwt_entries.emplace_back(
-      make_signed(cwt::header::iana::IAT), make_signed(iat));
-    cwt_entries.emplace_back(
-      make_signed(cwt::header::iana::ISS), make_string(issuer));
-    cwt_entries.emplace_back(
-      make_signed(cwt::header::iana::SUB), make_string(subject));
-    std::vector<MapItem> ccf_entries;
-    ccf_entries.emplace_back(
-      make_string(header::custom::TX_ID), make_string(txid));
-    std::vector<MapItem> phdr;
-    phdr.emplace_back(
-      make_signed(header::iana::ALG), make_signed(algorithm.alg));
-    phdr.emplace_back(
-      make_signed(header::iana::KID),
-      make_bytes({reinterpret_cast<const uint8_t*>(kid.data()), kid.size()}));
-    phdr.emplace_back(
-      make_signed(header::iana::VDS), make_signed(value::CCF_LEDGER_SHA256));
-    phdr.emplace_back(
-      make_signed(header::iana::CWT_CLAIMS), make_map(std::move(cwt_entries)));
-    phdr.emplace_back(
-      make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
-    return sign1(key, algorithm.md, make_map(std::move(phdr)), payload, true);
+    return sign1(
+      ecdsa_signer(key, algorithm.md),
+      ledger_protected_header(algorithm.alg, kid, iat, issuer, subject, txid),
+      payload,
+      true);
+  }
+
+  std::vector<uint8_t> sign_ledger(
+    const crypto::MLDSAKeyPair& key,
+    std::string_view kid,
+    int64_t iat,
+    std::string_view issuer,
+    std::string_view subject,
+    std::string_view txid,
+    std::span<const uint8_t> payload)
+  {
+    const auto alg = algorithm_for_parameter_set(key.get_parameter_set());
+    return sign1(
+      mldsa_signer(key),
+      ledger_protected_header(alg, kid, iat, issuer, subject, txid),
+      payload,
+      true);
   }
 
   std::vector<uint8_t> sign_endorsement(
@@ -168,12 +266,121 @@ namespace ccf::cose
       make_signed(header::iana::CWT_CLAIMS), make_map(std::move(cwt_entries)));
     phdr.emplace_back(
       make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
-    return sign1(key, algorithm.md, make_map(std::move(phdr)), payload, false);
+    return sign1(
+      ecdsa_signer(key, algorithm.md),
+      make_map(std::move(phdr)),
+      payload,
+      false);
   }
 }
 
 namespace ccf::cose::edit
 {
+  namespace
+  {
+    // RFC 8949 Section 3: initial byte layout and major types.
+    constexpr uint8_t CBOR_MAJOR_TYPE_SHIFT = 5;
+    constexpr uint8_t CBOR_ADDITIONAL_INFO_MASK = 0x1f;
+    constexpr uint8_t CBOR_ADDITIONAL_INFO_UINT8 = 24;
+    constexpr uint8_t CBOR_ADDITIONAL_INFO_UINT64 = 27;
+
+    constexpr uint8_t CBOR_MAJOR_BYTES = 2;
+    constexpr uint8_t CBOR_MAJOR_TEXT = 3;
+    constexpr uint8_t CBOR_MAJOR_ARRAY = 4;
+    constexpr uint8_t CBOR_MAJOR_MAP = 5;
+    constexpr uint8_t CBOR_MAJOR_TAG = 6;
+
+    size_t skip_cbor_head(
+      std::span<const uint8_t> input, uint8_t& major, uint64_t& argument)
+    {
+      using namespace tav::cbor;
+      if (input.empty())
+      {
+        throw DecodeError(Error::DECODE_FAILED, "Truncated CBOR item");
+      }
+
+      major = input[0] >> CBOR_MAJOR_TYPE_SHIFT;
+      const auto additional = input[0] & CBOR_ADDITIONAL_INFO_MASK;
+      if (additional < CBOR_ADDITIONAL_INFO_UINT8)
+      {
+        argument = additional;
+        return 1;
+      }
+
+      if (additional > CBOR_ADDITIONAL_INFO_UINT64)
+      {
+        throw DecodeError(
+          Error::DECODE_FAILED, "Expected definite-length CBOR");
+      }
+
+      const size_t width = size_t{1}
+        << (additional - CBOR_ADDITIONAL_INFO_UINT8);
+      if (input.size() < 1 + width)
+      {
+        throw DecodeError(Error::DECODE_FAILED, "Truncated CBOR argument");
+      }
+
+      argument = 0;
+      for (size_t i = 1; i <= width; ++i)
+      {
+        argument = (argument << 8) | input[i];
+      }
+
+      return 1 + width;
+    }
+
+    size_t encoded_item_size(std::span<const uint8_t> input)
+    {
+      // The parser has already validated this input. Walk its original
+      // encoding to locate an item boundary without normalizing its lengths.
+      size_t offset = 0;
+      size_t pending = 1;
+      while (pending != 0)
+      {
+        uint8_t major = 0;
+        uint64_t argument = 0;
+        offset += skip_cbor_head(input.subspan(offset), major, argument);
+        --pending;
+        if (major == CBOR_MAJOR_BYTES || major == CBOR_MAJOR_TEXT)
+        {
+          if (argument > input.size() - offset)
+          {
+            throw tav::cbor::DecodeError(
+              tav::cbor::Error::DECODE_FAILED, "Truncated CBOR string");
+          }
+
+          offset += argument;
+        }
+        else if (
+          major == CBOR_MAJOR_ARRAY || major == CBOR_MAJOR_MAP ||
+          major == CBOR_MAJOR_TAG)
+        {
+          // A tag wraps one item, an array holds argument items, and a map
+          // holds argument key/value pairs.
+          uint64_t children = 1;
+          if (major == CBOR_MAJOR_ARRAY)
+          {
+            children = argument;
+          }
+          else if (major == CBOR_MAJOR_MAP)
+          {
+            children = argument * 2;
+          }
+
+          if (children > input.size() - offset)
+          {
+            throw tav::cbor::DecodeError(
+              tav::cbor::Error::DECODE_FAILED, "Truncated CBOR container");
+          }
+
+          pending += children;
+        }
+      }
+
+      return offset;
+    }
+  }
+
   std::vector<uint8_t> set_unprotected_header(
     const std::span<const uint8_t>& cose_input, const desc::Type& descriptor)
   {
@@ -185,6 +392,12 @@ namespace ccf::cose::edit
     const Value cose_envelope = rethrow_with_msg(
       [&]() { return cose_cbor.tag_at(ccf::cbor::tag::COSE_SIGN_1); },
       "Failed to parse COSE_Sign1 tag");
+
+    if (cose_envelope.kind() != Kind::ARRAY || cose_envelope.size() != 4)
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH, "COSE_Sign1 must be an array of 4 elements");
+    }
 
     const Value phdr = rethrow_with_msg(
       [&]() { return cose_envelope.array_at(0); },
@@ -198,12 +411,40 @@ namespace ccf::cose::edit
       [&]() { return cose_envelope.array_at(3); },
       "Failed to parse COSE_Sign1 signature");
 
-    std::vector<Value> edited;
-    edited.push_back(shallow_copy(phdr));
+    if (phdr.kind() != Kind::BYTES)
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH,
+        "COSE_Sign1 protected header must be a byte string");
+    }
+
+    if (cose_envelope.array_at(1).kind() != Kind::MAP)
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH, "COSE_Sign1 unprotected header must be a map");
+    }
+
+    if (
+      payload.kind() != Kind::BYTES &&
+      (payload.kind() != Kind::SIMPLE ||
+       payload.as_simple() != SimpleValue::Null))
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH,
+        "COSE_Sign1 payload must be a byte string or nil");
+    }
+
+    if (signature.kind() != Kind::BYTES)
+    {
+      throw DecodeError(
+        Error::TYPE_MISMATCH, "COSE_Sign1 signature must be a byte string");
+    }
+
+    Value replacement;
 
     if (std::holds_alternative<desc::Empty>(descriptor))
     {
-      edited.push_back(make_map({}));
+      replacement = make_map({});
     }
     else if (std::holds_alternative<desc::Value>(descriptor))
     {
@@ -232,19 +473,30 @@ namespace ccf::cose::edit
         throw std::logic_error("Invalid COSE_Sign1 edit operation");
       }
 
-      edited.push_back(make_map(std::move(uhdr)));
+      replacement = make_map(std::move(uhdr));
     }
     else
     {
       throw std::logic_error("Invalid COSE_Sign1 edit descriptor");
     }
 
-    edited.push_back(shallow_copy(payload));
-    edited.push_back(shallow_copy(signature));
+    uint8_t major = 0;
+    uint64_t argument = 0;
+    size_t header_start = skip_cbor_head(cose_input, major, argument);
+    header_start +=
+      skip_cbor_head(cose_input.subspan(header_start), major, argument);
+    header_start += encoded_item_size(cose_input.subspan(header_start));
+    const auto header_end =
+      header_start + encoded_item_size(cose_input.subspan(header_start));
+    const auto encoded_header = replacement.nondet_serialize();
 
-    const Value edited_envelope =
-      make_tagged(ccf::cbor::tag::COSE_SIGN_1, make_array(std::move(edited)));
-    return edited_envelope.nondet_serialize();
+    std::vector<uint8_t> edited(
+      cose_input.begin(), cose_input.begin() + header_start);
+    edited.insert(edited.end(), encoded_header.begin(), encoded_header.end());
+    edited.insert(
+      edited.end(), cose_input.begin() + header_end, cose_input.end());
+
+    return edited;
   }
 
   std::vector<uint8_t> detach_payload(

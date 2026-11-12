@@ -5,7 +5,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/locking.h"
 #include "ccf/tx_status.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft_types.h"
 #include "ds/internal_logger.h"
 #include "kv/kv_types.h"
 
@@ -131,10 +131,7 @@ namespace aft
     }
   };
 
-  // std::atomic is neither copyable nor movable, so it cannot be a field of a
-  // type declared with the DECLARE_JSON_* macros, which round-trip each field
-  // by value. This wrapper restores value semantics for serialisation while
-  // keeping every access to the underlying value atomic.
+  // Copyable leadership state with atomic reads and writes.
   class AtomicLeadershipState
   {
     std::atomic<ccf::kv::LeadershipState> value;
@@ -169,16 +166,6 @@ namespace aft
     }
   };
 
-  inline void to_json(nlohmann::json& j, const AtomicLeadershipState& state)
-  {
-    j = state.load();
-  }
-
-  inline void from_json(const nlohmann::json& j, AtomicLeadershipState& state)
-  {
-    state.store(j.get<ccf::kv::LeadershipState>());
-  }
-
   struct State
   {
     State(ccf::NodeId node_id_) : node_id(std::move(node_id_)) {}
@@ -212,7 +199,7 @@ namespace aft
     //
     // Written only under `lock`, but read without it by the unsynchronised
     // accessors (is_primary(), is_candidate(), ...) which callers outside
-    // consensus rely on. Atomic so those reads are not data races. Taking
+    // CFT rely on. Atomic so those reads are not data races. Taking
     // `lock` in those accessors instead is not an option: Store::commit()
     // calls is_primary() while holding the KV version lock, and Aft calls
     // into the Store from under `lock`, so locking here would invert an
@@ -231,19 +218,4 @@ namespace aft
     std::optional<ccf::SeqNo> retired_committed_idx = std::nullopt;
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    State,
-    node_id,
-    current_view,
-    last_idx,
-    commit_idx,
-    leadership_state,
-    membership_state);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    State,
-    retirement_phase,
-    retirement_idx,
-    retirement_committable_idx,
-    retired_committed_idx);
 }

@@ -16,7 +16,7 @@ Then, to set up the dependencies necessary to build CCF itself and its tests, ru
     ./setup-ci.sh
     ./setup-dev.sh
     
-Once this is complete, you can proceed to :doc:`/build_apps/build_app`.
+Once this is complete, you can proceed to :doc:`/contribute/build_ccf`, or :ref:`build an application <build_apps/example_cpp:Building>`.
 
 Visual Studio Code Setup
 ~~~~~~~~~~~~~~~~~~~~~~~~

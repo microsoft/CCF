@@ -34,6 +34,8 @@ namespace ccf::indexing::strategies
       size_t seqnos_per_bucket_ = 1000,
       size_t max_buckets_ = 10);
 
+    void tick() override;
+
     [[nodiscard]] size_t max_requestable_range() const;
   };
 

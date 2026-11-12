@@ -56,14 +56,14 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.viewcode",
     "breathe",
-    "sphinxcontrib.mermaid",
+    "sphinx_pele",
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.githubpages",
     "sphinx_multiversion",
     "sphinx_copybutton",
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
-    "sphinx_panels",
+    "sphinx_design",
     "sphinx.ext.extlinks",
     "sphinx_inline_tabs",
     "rustdoc",
@@ -126,7 +126,35 @@ html_theme = "furo"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {}
+html_theme_options = {
+    "source_repository": "https://github.com/microsoft/CCF/",
+    "source_directory": "doc/",
+    "footer_icons": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/microsoft/CCF",
+            "html": """
+                <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+                  <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+                </svg>
+            """,
+            "class": "",
+        }
+    ],
+    # Dimmed slate dark mode, lighter than Furo's default near-black, so that
+    # diagrams with transparent backgrounds read well in both modes
+    "dark_css_variables": {
+        "color-background-primary": "#1e232b",
+        "color-background-secondary": "#252b34",
+        "color-background-hover": "#2c333dff",
+        "color-background-hover--transparent": "#2c333d00",
+        "color-background-border": "#39414c",
+        "color-background-item": "#4a5360",
+        "color-foreground-muted": "#8f949b",
+        "color-admonition-background": "#232932",
+        "color-card-background": "#232932",
+    },
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -269,12 +297,7 @@ extlinks = {
 
 html_favicon = "_static/favicon.ico"
 
-html_context = {
-    "github_user": "Microsoft",
-    "github_repo": "CCF",
-    "github_version": "main",
-    "doc_path": "doc/",
-}
+html_theme_options["source_branch"] = docs_version
 
 # Configuration for sphinxcontrib-httpdomain, without which the following error happens
 # ERROR: HTTP status code must be an integer (e.g. `200`) or start with an integer (e.g. `200 OK`);
@@ -291,24 +314,6 @@ spelling_show_suggestions = True
 spelling_lang = "en_UK"
 tokenizer_lang = "en_UK"
 spelling_word_list_filename = ["spelling_wordlist.txt"]
-
-# sphinxcontrib-mermaid options
-mermaid_init_js = """mermaid.initialize({startOnLoad:true});
-
-// Remove height from all mermaid diagrams
-window.addEventListener(
-  'load',
-  function() {
-    let nodes = document.querySelectorAll('.mermaid');
-    for (let i = 0; i < nodes.length; i++) {
-      const element = nodes[i];
-      const svg = element.firstChild;
-      svg.removeAttribute('height');
-    }
-  },
-  false
-);"""
-
 
 def typedoc_role(
     name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]
@@ -452,6 +457,37 @@ def config_inited(app, config):
             app.add_role(f"typedoc-{kind}", typedoc_role)
 
 
+VERSION_SUBSTITUTIONS = {}
+
+
+def read_ccf_version(root_dir: pathlib.Path):
+    # Read the CCF release version of the documented sources from the Python
+    # SDK version, which is bumped with each release. This is read relative to
+    # the source directory so that each sphinx-multiversion build uses the
+    # version of its own branch.
+    pyproject_path = root_dir / "python" / "pyproject.toml"
+    if pyproject_path.is_file():
+        match = re.search(
+            r'^version\s*=\s*"([^"]+)"', pyproject_path.read_text(), re.MULTILINE
+        )
+        if match:
+            return match.group(1)
+    return None
+
+
+def make_version_substitutions(ccf_version: str):
+    return {
+        "|ccf_version|": ccf_version,
+        "|ccf_major_version|": ccf_version.split(".")[0],
+    }
+
+
+def substitute_versions(app, docname, source):
+    # Unlike rst_prolog substitutions, this also applies inside code blocks.
+    for token, value in VERSION_SUBSTITUTIONS.items():
+        source[0] = source[0].replace(token, value)
+
+
 def setup(app):
     if not os.environ.get("SKIP_JS"):
         app.connect("config-inited", config_inited)
@@ -464,6 +500,15 @@ def setup(app):
     # import ccf python package to generate docs for this version
     python_path = os.path.abspath(doc_dir / "../python")
     sys.path.insert(0, python_path)
+
+    # |ccf_version| and |ccf_major_version| tokens in documentation sources
+    ccf_version = read_ccf_version(root_dir)
+    if ccf_version is None:
+        raise RuntimeError(
+            f"Could not read CCF version from {root_dir / 'python' / 'pyproject.toml'}"
+        )
+    VERSION_SUBSTITUTIONS.update(make_version_substitutions(ccf_version))
+    app.connect("source-read", substitute_versions)
 
     # doxygen
     breathe_projects["CCF"] = str(doc_dir / breathe_projects["CCF"])

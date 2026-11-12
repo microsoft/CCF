@@ -84,6 +84,7 @@ namespace ccf
     {
       std::vector<uint8_t> node_cert;
       std::vector<uint8_t> service_cert;
+      std::vector<uint8_t> pq_service_cert;
       std::vector<uint8_t> rpc_addresses;
     };
 
@@ -369,6 +370,10 @@ namespace ccf
         // When starting a node in start or recover modes, fresh network secrets
         // are created and the associated certificate can be passed to the host
         result.service_cert = create_info.service_cert.raw();
+        if (create_info.pq_service_cert.has_value())
+        {
+          result.pq_service_cert = create_info.pq_service_cert->raw();
+        }
       }
 
       return result;

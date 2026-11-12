@@ -7,7 +7,7 @@
 #
 # Note: this deliberately does NOT install a C/C++ compiler, cmake or ninja, so
 # the test-buckets check (which configures a build tree) is out of scope. All
-# other checks - clang-format, prettier, black, ruff, mypy, gersemi,
+# other checks - clang-format, prettier, black, ruff, Pyright, gersemi,
 # openapi-spec-validator, shellcheck, copyright and release-notes - are covered.
 
 set -euo pipefail
@@ -52,7 +52,7 @@ install_packages_ubuntu() {
   fi
 }
 
-# uv provides the isolated Python tool runtime (uvx) used by black, ruff, mypy,
+# uv provides the isolated Python tool runtime (uvx) used by black, ruff, Pyright,
 # gersemi and openapi-spec-validator.
 install_uv() {
   log "Installing pinned uv release"

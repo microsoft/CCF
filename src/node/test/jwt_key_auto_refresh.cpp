@@ -19,8 +19,6 @@ namespace
     bool accept_keys = true;
     size_t key_updates = 0;
 
-    void set_sig_intervals(size_t, size_t) override {}
-
     void set_cmd_forwarder(std::shared_ptr<ccf::AbstractForwarder>) override {}
 
     void open() override {}

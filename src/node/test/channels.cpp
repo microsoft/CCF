@@ -390,8 +390,8 @@ TEST_CASE_FIXTURE(
     const uint8_t* header_data = header.data();
     auto header_size = header.size();
     if (
-      serialized::peek<aft::RaftMsgType>(header_data, header_size) ==
-      aft::raft_append_entries)
+      serialized::peek<aft::CftMsgType>(header_data, header_size) ==
+      aft::append_entries)
     {
       // The host appends ledger bytes outside the channel authentication.
       // A non-uniform body catches accidental shifts or overwrites.
@@ -424,8 +424,7 @@ TEST_CASE_FIXTURE(
 
   const auto calls_before = consensus.calls;
   for (const auto type :
-       {aft::raft_append_entries_signed_response,
-        static_cast<aft::RaftMsgType>(255)})
+       {aft::append_entries_signed_response, static_cast<aft::CftMsgType>(255)})
   {
     auto invalid = bytes(type);
     CHECK_THROWS_AS(dispatch(invalid), std::runtime_error);

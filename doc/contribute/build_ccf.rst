@@ -67,6 +67,10 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
 Update the Documentation
 ------------------------
 
+Building the documentation and Python SDK requires Python 3.12 or newer.
+Diagrams use ``sphinx-pele`` with its default rendering options and bundled browser assets; no Mermaid CDN is required.
+Keep using the ``mermaid`` directive for diagram sources.
+
 It is possible to preview local documentation changes by running
 
 .. code-block:: bash
@@ -79,7 +83,17 @@ or if there are no Doxygen changes
 
     $ SKIP_DOXYGEN=ON ./livehtml.sh
 
+The published multi-version documentation is built with:
+
+.. code-block:: bash
+
+    $ python3 scripts/build-docs.py -D smv_remote_whitelist=origin doc build/html
+
+Each version is built from its own sources and configuration in a separate Python environment.
+This keeps older releases' documentation dependencies compatible while sharing version-selector metadata across all builds.
+
 HTML builds also build the :ref:`trace viewer <operations/recovery:Trace viewer>`, which needs ``lake``; ``SKIP_TRACE_VIEWER=ON`` skips it.
+See :ref:`architecture/verification:Running locally` for installing Lean and ``lake``.
 
 Rust API documentation
 ~~~~~~~~~~~~~~~~~~~~~~

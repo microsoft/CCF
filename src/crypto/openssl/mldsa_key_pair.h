@@ -30,6 +30,7 @@ namespace ccf::crypto
 
     [[nodiscard]] Pem public_key_pem() const override;
     [[nodiscard]] std::vector<uint8_t> public_key_der() const override;
+    [[nodiscard]] std::vector<uint8_t> public_key_raw() const override;
 
     [[nodiscard]] std::vector<uint8_t> sign(
       std::span<const uint8_t> contents,
@@ -39,6 +40,24 @@ namespace ccf::crypto
       std::span<const uint8_t> contents,
       std::span<const uint8_t> signature,
       std::span<const uint8_t> context = {}) override;
+
+    [[nodiscard]] Pem create_csr(
+      const std::string& subject_name,
+      const std::vector<SubjectAltName>& subject_alt_names,
+      const std::optional<Pem>& public_key) const override;
+
+    [[nodiscard]] Pem create_csr(
+      const std::vector<uint8_t>& subject_name_der,
+      const std::vector<SubjectAltName>& subject_alt_names,
+      const std::optional<Pem>& public_key) const override;
+
+    [[nodiscard]] Pem sign_csr_impl(
+      const std::optional<Pem>& issuer_cert,
+      const Pem& signing_request,
+      const std::string& valid_from,
+      const std::string& valid_to,
+      bool ca,
+      Signer signer) const override;
   };
 }
 

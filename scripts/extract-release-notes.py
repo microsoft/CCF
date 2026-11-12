@@ -3,27 +3,21 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
-import re
 import sys
 import subprocess
-import tomllib
+from pathlib import Path
 
-
-# Utility function that can convert a git/CCF version
-# (e.g. 7.0.0-dev10) into a Python version (e.g. 7.0.0.dev10) for comparison with the version in pyproject.toml.
-def git_to_python_version(git_version):
-    python_version = git_version.replace("-", ".", 1)
-    return python_version
+import release_notes as fragments
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Parses a CHANGELOG file and checks it meets some formatting expectations. "
-        "Will also extract release notes for targeted versions."
+        description="Validate the historical CHANGELOG or extract release notes for targeted versions. "
+        "Use --from-changes to generate notes directly from tagged change descriptions."
     )
     parser.add_argument(
         "--target-version",
-        help="Add a version string which must be present in the CHANGELOG",
+        help="Release version without 'ccf-'; must be in CHANGELOG unless --from-changes is used",
         action="append",
         default=[],
     )
@@ -34,6 +28,18 @@ def main():
     )
     parser.add_argument(
         "--changelog", help="Path to CHANGELOG file to parse", default="CHANGELOG.md"
+    )
+    parser.add_argument(
+        "--from-changes",
+        help="Generate release notes directly from change descriptions in the target tag.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--pr",
+        action="append",
+        default=[],
+        metavar="FILENAME=NUMBER",
+        help="Override a change description's PR lookup.",
     )
     parser.add_argument(
         "-f",
@@ -48,44 +54,37 @@ def main():
         default=[],
     )
     args = parser.parse_args()
+    root = Path.cwd()
+
+    if args.pr and not args.from_changes:
+        parser.error("--pr requires --from-changes.")
+    if args.from_changes and args.fix:
+        parser.error("--from-changes cannot be combined with --fix.")
 
     if args.target_git_version:
-        git_version = subprocess.run(
-            ["git", "describe", "--tags"], capture_output=True, universal_newlines=True
-        ).stdout.strip()
-        git_version = git_version.replace("ccf-", "")
+        git_version = fragments.git(
+            root, "describe", "--tags", "--exact-match", "--match", "ccf-*"
+        )
+        git_version = git_version.removeprefix("ccf-")
         args.target_version.append(git_version)
 
-    version_header = re.compile(r"## \[(.+)\]")
-    link_definition = re.compile(r"\[(.+)\]:")
+    if args.from_changes:
+        if len(args.target_version) != 1:
+            parser.error("--from-changes requires exactly one target version.")
+        version = args.target_version[0]
+        tag = f"ccf-{version}"
+        notes = fragments.from_descriptions(root, version, args.pr)
+        if args.describe_path_changes:
+            previous = fragments.previous_tag(root, tag)
+            for path in args.describe_path_changes:
+                notes += fragments.describe_path_changes(root, tag, previous, path)
+        print(notes)
+        return
 
-    release_notes = {}
-    links_found = []
+    fragments.check_descriptions(root)
 
-    version_in_pyproject = None
-    with open("python/pyproject.toml", "rb") as pyproject:
-        config = tomllib.load(pyproject)
-        version_in_pyproject = config.get("project", {}).get("version")
-    assert version_in_pyproject is not None, "Could not find version in pyproject.toml"
-
-    # Parse file, bucketing lines into each version's release notes
-    current_release_notes = None
     with open(args.changelog) as f:
-        while line := f.readline():
-            if match := version_header.match(line):
-                log_version = match.group(1)
-                current_release_notes = []
-                if not release_notes:
-                    assert (
-                        git_to_python_version(log_version) == version_in_pyproject
-                    ), f"First version in CHANGELOG ({log_version}) must match version in pyproject.toml ({version_in_pyproject})"
-                release_notes[log_version] = current_release_notes
-            elif match := link_definition.match(line):
-                link_version = match.group(1)
-                links_found.append(link_version)
-            else:
-                if current_release_notes != None:
-                    current_release_notes.append(line.strip())
+        release_notes, links_found = fragments.parse_changelog(f.read())
 
     documented_versions = set(release_notes.keys())
 
@@ -158,4 +157,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        detail = (
+            error.stderr.strip()
+            if isinstance(error, subprocess.CalledProcessError)
+            else str(error)
+        )
+        sys.exit(f"Error: {detail}")

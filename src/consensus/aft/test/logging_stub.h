@@ -4,8 +4,8 @@
 
 #include "ccf/ds/locking.h"
 #include "ccf/entity_id.h"
-#include "consensus/aft/raft.h"
-#include "consensus/aft/raft_types.h"
+#include "consensus/aft/cft.h"
+#include "consensus/aft/cft_types.h"
 
 #include <map>
 #include <optional>
@@ -197,7 +197,7 @@ namespace aft
 
     ChannelStubProxy() {}
 
-    size_t count_messages_with_type(RaftMsgType type)
+    size_t count_messages_with_type(CftMsgType type)
     {
       size_t count = 0;
       for (const auto& [nid, m] : messages)
@@ -205,7 +205,7 @@ namespace aft
         const uint8_t* data = m.data();
         size_t size = m.size();
 
-        if (serialized::peek<RaftMsgType>(data, size) == type)
+        if (serialized::peek<CftMsgType>(data, size) == type)
         {
           ++count;
         }
@@ -215,7 +215,7 @@ namespace aft
     }
 
     std::optional<std::vector<uint8_t>> pop_first(
-      RaftMsgType type, ccf::NodeId target)
+      CftMsgType type, ccf::NodeId target)
     {
       for (auto it = messages.begin(); it != messages.end(); ++it)
       {
@@ -223,7 +223,7 @@ namespace aft
         const uint8_t* data = m.data();
         size_t size = m.size();
 
-        if (serialized::peek<RaftMsgType>(data, size) == type)
+        if (serialized::peek<CftMsgType>(data, size) == type)
         {
           if (target == nid)
           {
@@ -355,6 +355,8 @@ namespace aft
     class ExecutionWrapper : public ccf::kv::AbstractExecutionWrapper
     {
     private:
+      ccf::NodeId node_id;
+      std::vector<ccf::NodeId> retired_nodes;
       ccf::kv::ConsensusHookPtrs hooks;
       aft::Term term;
       ccf::kv::Version index;
@@ -366,9 +368,13 @@ namespace aft
 
     public:
       ExecutionWrapper(
+        const ccf::NodeId& node_id_,
         const std::vector<uint8_t>& data_,
         const std::optional<ccf::TxID>& expected_txid,
-        ccf::kv::ConsensusHookPtrs&& hooks_) :
+        ccf::kv::ConsensusHookPtrs&& hooks_,
+        std::vector<ccf::NodeId> retired_nodes_ = {}) :
+        node_id(node_id_),
+        retired_nodes(std::move(retired_nodes_)),
         hooks(std::move(hooks_))
       {
         const uint8_t* data = data_.data();
@@ -404,6 +410,14 @@ namespace aft
 
       ccf::kv::ApplyResult apply(bool track_deletes_on_missing_keys) override
       {
+        if (result != ccf::kv::ApplyResult::FAIL)
+        {
+          for (const auto& retired_node : retired_nodes)
+          {
+            aft::trace::retired_committed_tx(
+              node_id.value(), index, retired_node.value());
+          }
+        }
         return result;
       }
 
@@ -435,7 +449,7 @@ namespace aft
     {
       ccf::kv::ConsensusHookPtrs hooks = {};
       return std::make_unique<ExecutionWrapper>(
-        data, expected_txid, std::move(hooks));
+        _id, data, expected_txid, std::move(hooks));
     }
 
     bool flag_enabled(ccf::kv::AbstractStore::StoreFlag)
@@ -503,6 +517,7 @@ namespace aft
       auto version = serialized::read<ccf::kv::Version>(data_, size);
       ReplicatedData r = nlohmann::json::parse(std::span{data_, size});
       ccf::kv::ConsensusHookPtrs hooks = {};
+      std::vector<ccf::NodeId> retired_nodes;
       if (r.type == ReplicatedDataType::reconfiguration)
       {
         ccf::kv::Configuration::Nodes configuration =
@@ -516,10 +531,14 @@ namespace aft
         ccf::kv::Configuration::Nodes configuration =
           nlohmann::json::parse(r.data);
         retired_committed_entries.emplace_back(version, configuration);
+        for (const auto& [node_id, _] : configuration)
+        {
+          retired_nodes.push_back(node_id);
+        }
       }
 
       return std::make_unique<ExecutionWrapper>(
-        data, expected_txid, std::move(hooks));
+        _id, data, expected_txid, std::move(hooks), std::move(retired_nodes));
     }
   };
 

@@ -3,10 +3,9 @@ module
 public import consistency.Properties.History
 public import CCF.Execution
 
-import consistency.Proofs.Responses
-import consistency.Proofs.Statuses
-import consistency.Proofs.Ordered
-import consistency.Proofs.InvalidObservations
+import consistency.Proofs.Deadlock
+import consistency.Proofs.Invalidation
+import consistency.Proofs.Ordering
 import consistency.Proofs.Witnesses
 
 @[expose] public section
@@ -23,14 +22,22 @@ namespace consistency.Properties
 
 open Model
 
-abbrev GlobalTrace := CCF.Execution.Trace State
+abbrev GlobalTrace := CCF.Execution.Trace transitionSystem
+
+/-- Every reachable state has an enabled action. -/
+theorem deadlock_free : transitionSystem.DeadlockFree := by
+  exact Proofs.deadlock_free
+
+/-- Witness: the initial state is reachable. -/
+theorem deadlock_free_witness : exists state, transitionSystem.Reachable state := by
+  exact Proofs.deadlock_free_witness
 
 /-- Adjacent TxID-ordered committed responses strictly extend.
 The later observation ends with its own write; intervening ledger writes need not
 have responses with explicitly received committed statuses. -/
 theorem committed_rw_ordered_serializable
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ pair ∈
             (committedRwResponses state.history).zip
               (committedRwResponses state.history).tail,
@@ -41,10 +48,9 @@ theorem committed_rw_ordered_serializable
   exact Proofs.Ordered.committed_rw_ordered_serializable
 
 /-- The sorted committed responses contain an adjacent pair. -/
-lemma committed_rw_ordered_serializable_witness
+theorem committed_rw_ordered_serializable_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Response),
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (left, right)
           ∈ (committedRwResponses state.history).zip
               (committedRwResponses state.history).tail := by
@@ -53,7 +59,7 @@ lemma committed_rw_ordered_serializable_witness
 /-- TxID order respects request-to-response intervals. -/
 theorem committed_rw_ordered_real_time
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ earlier ∈ committedResponses state.history .rw,
             let (earlierIndex, earlier) := earlier
             ∀ request ∈ committedRequests state.history .rw,
@@ -66,14 +72,13 @@ theorem committed_rw_ordered_real_time
   exact Proofs.RealTime.committed_rw_ordered_real_time
 
 /-- Committed writes and a matching request satisfy the real-time antecedents. -/
-lemma committed_rw_ordered_real_time_witness
+theorem committed_rw_ordered_real_time_witness
     : ∃ (trace : GlobalTrace) (state : State)
         (earlier later : Nat × Response) (request : Nat × (TxType × TxContent)),
         let (earlierIndex, earlier) := earlier
         let (laterIndex, later) := later
         let (requestIndex, requestKind, requestTx) := request
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (earlierIndex, earlier) ∈ committedResponses state.history .rw
         ∧ (requestIndex, requestKind, requestTx) ∈ committedRequests state.history .rw
         ∧ (laterIndex, later) ∈ committedResponses state.history .rw
@@ -85,7 +90,7 @@ lemma committed_rw_ordered_real_time_witness
 Matching uses request IDs; distinct reads may return the same transaction ID. -/
 theorem all_received_is_first_sent
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> forall (kind : TxType),
             ∀ response ∈ responsesOf state.history kind,
               let (responseIndex, response) := response
@@ -96,12 +101,11 @@ theorem all_received_is_first_sent
   exact Proofs.History.all_received_is_first_sent
 
 /-- Both response kinds occur in the same execution. -/
-lemma all_received_is_first_sent_witness
+theorem all_received_is_first_sent_witness
     : ∃ (trace : GlobalTrace) (state : State) (write read : Nat × Response),
         let (writeIndex, write) := write
         let (readIndex, read) := read
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (writeIndex, write) ∈ responsesOf state.history .rw
         ∧ (readIndex, read) ∈ responsesOf state.history .ro := by
   exact Proofs.Witnesses.all_received_witness
@@ -110,7 +114,7 @@ lemma all_received_is_first_sent_witness
 This uniqueness does not apply to reads, which can observe the same ledger position. -/
 theorem unique_txs
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ left ∈ responsesOf state.history .rw,
             let (_, left) := left
             ∀ right ∈ responsesOf state.history .rw,
@@ -119,12 +123,11 @@ theorem unique_txs
   exact Proofs.LedgerIdentity.unique_txs
 
 /-- Write responses with matching transaction IDs occur in a valid execution. -/
-lemma unique_txs_witness
+theorem unique_txs_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × Response),
         let (leftIndex, left) := left
         let (rightIndex, right) := right
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (leftIndex, left) ∈ responsesOf state.history .rw
         ∧ (rightIndex, right) ∈ responsesOf state.history .rw
         ∧ left.txid = right.txid := by
@@ -133,7 +136,7 @@ lemma unique_txs_witness
 /-- Equal transaction IDs give equal observations. -/
 theorem same_observations
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ left ∈ responses state.history,
             let (_, left) := left
             ∀ right ∈ responses state.history,
@@ -142,12 +145,11 @@ theorem same_observations
   exact Proofs.LedgerIdentity.same_observations
 
 /-- Responses with matching transaction IDs occur in a valid execution. -/
-lemma same_observations_witness
+theorem same_observations_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × Response),
         let (leftIndex, left) := left
         let (rightIndex, right) := right
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (leftIndex, left) ∈ responses state.history
         ∧ (rightIndex, right) ∈ responses state.history
         ∧ left.txid = right.txid := by
@@ -156,7 +158,7 @@ lemma same_observations_witness
 /-- Requests have distinct IDs across both transaction kinds. -/
 theorem unique_tx_requests
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ left ∈ requests state.history,
             let (leftIndex, _, leftTx) := left
             ∀ right ∈ requests state.history,
@@ -165,12 +167,11 @@ theorem unique_tx_requests
   exact Proofs.History.unique_tx_requests
 
 /-- Requests at distinct history positions occur in a valid execution. -/
-lemma unique_tx_requests_witness
+theorem unique_tx_requests_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × (TxType × TxContent)),
         let (leftIndex, leftKind, leftTx) := left
         let (rightIndex, rightKind, rightTx) := right
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (leftIndex, leftKind, leftTx) ∈ requests state.history
         ∧ (rightIndex, rightKind, rightTx) ∈ requests state.history
         ∧ leftIndex ≠ rightIndex := by
@@ -179,7 +180,7 @@ lemma unique_tx_requests_witness
 /-- Each request receives a unique transaction ID. -/
 theorem unique_tx_ids
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ left ∈ responses state.history,
             let (_, left) := left
             ∀ right ∈ responses state.history,
@@ -188,12 +189,11 @@ theorem unique_tx_ids
   exact Proofs.Responses.unique_tx_ids
 
 /-- Responses with matching request IDs occur in a valid execution. -/
-lemma unique_tx_ids_witness
+theorem unique_tx_ids_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × Response),
         let (leftIndex, left) := left
         let (rightIndex, right) := right
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (leftIndex, left) ∈ responses state.history
         ∧ (rightIndex, right) ∈ responses state.history
         ∧ left.tx = right.tx := by
@@ -204,7 +204,7 @@ This is weaker than uniqueness for all writes and excludes disaster recovery,
 which is outside this model. -/
 theorem unique_seq_nums_committed
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ left ∈ committedResponses state.history .rw,
             let (_, left) := left
             ∀ right ∈ committedResponses state.history .rw,
@@ -213,12 +213,11 @@ theorem unique_seq_nums_committed
   exact Proofs.Commitment.unique_seq_nums_committed
 
 /-- Committed write responses with matching sequence numbers occur in a valid execution. -/
-lemma unique_seq_nums_committed_witness
+theorem unique_seq_nums_committed_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × Response),
         let (leftIndex, left) := left
         let (rightIndex, right) := right
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (leftIndex, left) ∈ committedResponses state.history .rw
         ∧ (rightIndex, right) ∈ committedResponses state.history .rw
         ∧ left.txid.seqno = right.txid.seqno := by
@@ -227,23 +226,21 @@ lemma unique_seq_nums_committed_witness
 /-- Committed and invalid statuses are disjoint. -/
 theorem committed_or_invalid
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ txid ∈ statusIDs state.history .committed,
             txid ∉ statusIDs state.history .invalid := by
   exact Proofs.Statuses.committed_or_invalid
 
 /-- A committed status occurs in a valid execution. -/
-lemma committed_or_invalid_witness
+theorem committed_or_invalid_witness
     : ∃ (trace : GlobalTrace) (state : State) (committed : TxID),
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
-        ∧ committed ∈ statusIDs state.history .committed := by
+        state ∈ trace ∧ committed ∈ statusIDs state.history .committed := by
   exact Proofs.Witnesses.committed_or_invalid_witness
 
 /-- Reported statuses in a committed prefix agree. -/
 theorem once_committed_prev_committed
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ left ∈ statuses state.history,
             let (leftTxID, leftStatus) := left
             ∀ right ∈ statuses state.history,
@@ -255,12 +252,11 @@ theorem once_committed_prev_committed
   exact Proofs.Statuses.once_committed_prev_committed
 
 /-- Reported statuses satisfy the same-view committed-prefix antecedents. -/
-lemma once_committed_prev_committed_witness
+theorem once_committed_prev_committed_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : TxID × Status),
         let (leftTxID, leftStatus) := left
         let (rightTxID, rightStatus) := right
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (leftTxID, leftStatus) ∈ statuses state.history
         ∧ (rightTxID, rightStatus) ∈ statuses state.history
         ∧ leftStatus = .committed
@@ -271,7 +267,7 @@ lemma once_committed_prev_committed_witness
 /-- Older-view conflicting suffixes are invalid. -/
 theorem once_committed_next_invalid
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ left ∈ statuses state.history,
             let (leftTxID, leftStatus) := left
             ∀ right ∈ statuses state.history,
@@ -283,12 +279,11 @@ theorem once_committed_next_invalid
   exact Proofs.Statuses.once_committed_next_invalid
 
 /-- Reported statuses satisfy the older-view conflicting-suffix antecedents. -/
-lemma once_committed_next_invalid_witness
+theorem once_committed_next_invalid_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : TxID × Status),
         let (leftTxID, leftStatus) := left
         let (rightTxID, rightStatus) := right
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (leftTxID, leftStatus) ∈ statuses state.history
         ∧ (rightTxID, rightStatus) ∈ statuses state.history
         ∧ leftStatus = .committed
@@ -299,7 +294,7 @@ lemma once_committed_next_invalid_witness
 /-- Reported statuses in an invalid suffix agree. -/
 theorem once_invalid_next_invalid
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ left ∈ statuses state.history,
             let (leftTxID, leftStatus) := left
             ∀ right ∈ statuses state.history,
@@ -311,12 +306,11 @@ theorem once_invalid_next_invalid
   exact Proofs.Statuses.once_invalid_next_invalid
 
 /-- Reported statuses satisfy the same-view invalid-suffix antecedents. -/
-lemma once_invalid_next_invalid_witness
+theorem once_invalid_next_invalid_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : TxID × Status),
         let (leftTxID, leftStatus) := left
         let (rightTxID, rightStatus) := right
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (leftTxID, leftStatus) ∈ statuses state.history
         ∧ (rightTxID, rightStatus) ∈ statuses state.history
         ∧ leftStatus = .invalid
@@ -327,7 +321,7 @@ lemma once_invalid_next_invalid_witness
 /-- Observations contain only earlier requested writes. -/
 theorem only_observe_sent_requests
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ response ∈ responses state.history,
             let (responseIndex, response) := response
             ∀ tx ∈ response.observed,
@@ -337,12 +331,11 @@ theorem only_observe_sent_requests
   exact Proofs.Observations.only_observe_sent_requests
 
 /-- An observed write populates the observation-membership antecedent. -/
-lemma only_observe_sent_requests_witness
+theorem only_observe_sent_requests_witness
     : ∃ (trace : GlobalTrace) (state : State)
         (response : Nat × Response) (tx : TxContent),
         let (responseIndex, response) := response
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (responseIndex, response) ∈ responses state.history
         ∧ tx ∈ response.observed := by
   exact Proofs.Witnesses.only_observe_sent_requests_witness
@@ -350,19 +343,17 @@ lemma only_observe_sent_requests_witness
 /-- Observations contain no duplicate writes. -/
 theorem at_most_once_observed
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ response ∈ responses state.history,
             let (_, response) := response
             response.observed.Nodup := by
   exact Proofs.Observations.at_most_once_observed
 
 /-- A response populates the observation domain. -/
-lemma at_most_once_observed_witness
+theorem at_most_once_observed_witness
     : ∃ (trace : GlobalTrace) (state : State) (response : Nat × Response),
         let (responseIndex, response) := response
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
-        ∧ (responseIndex, response) ∈ responses state.history := by
+        state ∈ trace ∧ (responseIndex, response) ∈ responses state.history := by
   exact Proofs.Witnesses.at_most_once_observed_witness
 
 /-- Committed writes observe real-time predecessor writes.
@@ -370,7 +361,7 @@ Once a write is known committed, real-time ordering uses its original response,
 not the later event at which the client learns it committed. -/
 theorem all_committed_observed
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ earlier ∈ committedResponses state.history .rw,
             let (earlierIndex, earlier) := earlier
             ∀ request ∈ committedRequests state.history .rw,
@@ -383,14 +374,13 @@ theorem all_committed_observed
   exact Proofs.RealTime.all_committed_observed
 
 /-- Committed writes and a matching request satisfy the real-time antecedents. -/
-lemma all_committed_observed_witness
+theorem all_committed_observed_witness
     : ∃ (trace : GlobalTrace) (state : State)
         (earlier later : Nat × Response) (request : Nat × (TxType × TxContent)),
         let (earlierIndex, earlier) := earlier
         let (laterIndex, later) := later
         let (requestIndex, requestKind, requestTx) := request
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (earlierIndex, earlier) ∈ committedResponses state.history .rw
         ∧ (requestIndex, requestKind, requestTx) ∈ committedRequests state.history .rw
         ∧ (laterIndex, later) ∈ committedResponses state.history .rw
@@ -401,7 +391,7 @@ lemma all_committed_observed_witness
 /-- Committed writes exclude invalid writes. -/
 theorem invalid_not_observed_by_committed
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ invalid ∈ responsesOf state.history .rw,
             let (invalidIndex, invalid) := invalid
             ∀ observer ∈ committedResponses state.history .rw,
@@ -412,12 +402,11 @@ theorem invalid_not_observed_by_committed
   exact Proofs.InvalidObservations.invalid_not_observed_by_committed
 
 /-- An invalid write and a different committed response populate the exclusion antecedents. -/
-lemma invalid_not_observed_by_committed_witness
+theorem invalid_not_observed_by_committed_witness
     : ∃ (trace : GlobalTrace) (state : State) (invalid observer : Nat × Response),
         let (invalidIndex, invalid) := invalid
         let (observerIndex, observer) := observer
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (invalidIndex, invalid) ∈ responsesOf state.history .rw
         ∧ (observerIndex, observer) ∈ committedResponses state.history .rw
         ∧ invalidIndex ≠ observerIndex
@@ -427,7 +416,7 @@ lemma invalid_not_observed_by_committed_witness
 /-- Committed write histories are serializable. -/
 theorem committed_rw_serializable
     : forall (trace : GlobalTrace) (state : State),
-        (trace.Valid transitionSystem /\ state ∈ trace)
+        (state ∈ trace)
         -> ∀ left ∈ committedResponses state.history .rw,
             let (_, left) := left
             ∀ right ∈ committedResponses state.history .rw,
@@ -436,12 +425,11 @@ theorem committed_rw_serializable
   exact Proofs.Commitment.committed_rw_serializable
 
 /-- Committed write responses populate the serialization domain. -/
-lemma committed_rw_serializable_witness
+theorem committed_rw_serializable_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × Response),
         let (leftIndex, left) := left
         let (rightIndex, right) := right
-        trace.Valid transitionSystem
-        ∧ state ∈ trace
+        state ∈ trace
         ∧ (leftIndex, left) ∈ committedResponses state.history .rw
         ∧ (rightIndex, right) ∈ committedResponses state.history .rw := by
   exact Proofs.Witnesses.write_pair_witness

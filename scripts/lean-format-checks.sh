@@ -4,7 +4,8 @@
 
 # Checks (and optionally fixes) all tracked Lean files via leanfmt.
 # Pass -f to auto-fix formatting issues. Pass package names under lean/ to
-# check only those packages; the default checks every package.
+# check only those packages; the default checks every package except
+# mathlib-equivalence, which needs Mathlib and has its own workflow.
 
 set -euo pipefail
 
@@ -22,10 +23,10 @@ if ! command -v lake >/dev/null 2>&1; then
   exit 1
 fi
 
-declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [ccf-raft]=CCFRaft [consistency]=consistency [shamir]=Shamir)
+declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [consensus]=Consensus [consistency]=consistency [kv]=Kv [mathlib-equivalence]=MathlibEquivalence)
 PACKAGES=("$@")
 if [ ${#PACKAGES[@]} -eq 0 ]; then
-  PACKAGES=(disaster-recovery ccf-raft consistency shamir)
+  PACKAGES=(disaster-recovery consensus consistency kv)
 fi
 
 for package in "${PACKAGES[@]}"; do
@@ -36,29 +37,21 @@ for package in "${PACKAGES[@]}"; do
   fi
   # The disaster recovery package also checks Lean files outside lean/.
   if [ "$package" == "disaster-recovery" ]; then
-    PATHSPEC=("*.lean" ":(exclude)lean/ccf-raft/*" ":(exclude)lean/consistency/*" ":(exclude)lean/shamir/*")
-  elif [ "$package" == "shamir" ]; then
-    # Preserve the extractor's exact output for reproducibility checks.
-    PATHSPEC=("lean/shamir/*.lean" ":(exclude)lean/shamir/Generated/*" ":(exclude)lean/shamir/Generated.lean")
+    PATHSPEC=("*.lean" ":(exclude)lean/consensus/*" ":(exclude)lean/consistency/*" ":(exclude)lean/kv/*" ":(exclude)lean/mathlib-equivalence/*")
   else
     PATHSPEC=("lean/$package/*.lean")
   fi
   (
     cd "$ROOT_DIR/lean/$package"
-    jobs="$(( ($(nproc) + 1) >> 1 ))"
     # leanfmt loads imported modules to parse project-specific syntax.
-    if [ "$package" == "shamir" ]; then
-      export LEAN_NUM_THREADS=1
-      jobs=1
-      # ListDeclarations.lean imports the Generated root as well as Shamir.
-      lake build Generated "$library"
-    else
-      lake build "$library"
+    if [ "$package" == "disaster-recovery" ]; then
+      lake build ccf_common/+CCF
     fi
+    lake build "$library"
     git -C "$ROOT_DIR" ls-files -z -- "${PATHSPEC[@]}" |
       while IFS= read -r -d '' file; do
         printf '%s\0' "$ROOT_DIR/$file"
       done |
-      xargs -0 -r lake exe fmt --jobs "$jobs" "${FORMAT_ARGS[@]}"
+      xargs -0 -r lake exe fmt --jobs "$(( ($(nproc) + 1) >> 1 ))" "${FORMAT_ARGS[@]}"
   )
 done

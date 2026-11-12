@@ -7,8 +7,8 @@ CMakeFiles/
 !.vscode/launch.json
 .vs/
 libuv/
-raft_tests.md
-tests/raft_scenarios
+cft_tests.md
+tests/cft_scenarios
 *.pyc
 __pycache__/
 sphinx/build/
@@ -29,3 +29,4 @@ env/
 SECURITY.md
 doc/schemas/
 .venv_ccf_sandbox
+.github/**/*.md

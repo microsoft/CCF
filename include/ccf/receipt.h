@@ -146,6 +146,14 @@ namespace ccf
   };
 
   // NOLINTNEXTLINE(performance-enum-size)
+  enum ConsistencyProofLabel : int64_t
+  {
+    // Values set in draft-ietf-scitt-receipts-ccf-profile-06, Section 4
+    CONSISTENCY_PROOF_ANCHOR_LABEL = 1,
+    CONSISTENCY_PROOF_PATH_LABEL = 2
+  };
+
+  // NOLINTNEXTLINE(performance-enum-size)
   enum MerkleProofPathBranch : int64_t
   {
     // Values set in

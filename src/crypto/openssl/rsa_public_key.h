@@ -73,4 +73,9 @@ namespace ccf::crypto
 
   std::pair<std::vector<uint8_t>, std::vector<uint8_t>> rsa_public_raw_from_jwk(
     const JsonWebKeyRSAPublic& jwk);
+
+  // Sets the OAEP label on an initialised encrypt or decrypt context. A null
+  // or empty label clears it.
+  void set_rsa_oaep_label(
+    EVP_PKEY_CTX* ctx, const uint8_t* label, size_t label_size);
 }

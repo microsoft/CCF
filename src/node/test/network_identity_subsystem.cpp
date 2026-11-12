@@ -6,11 +6,13 @@
 #include "ccf/ds/locking.h"
 #include "crypto/cose.h"
 #include "crypto/openssl/ec_key_pair.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/rpc/network_identity_accessors.h"
 #include "node/rpc/network_identity_accessors_impl.h"
 #include "node/rpc/network_identity_chain_helpers.h"
+#include "node/rpc/serialization.h"
 #include "node/snapshot_serdes.h"
 #include "service/tables/signing_identities.h"
 
@@ -362,6 +364,7 @@ namespace
       identity = std::make_unique<ccf::NetworkIdentity>(
         "CN=Test Service",
         ccf::crypto::CurveID::SECP384R1,
+        ccf::crypto::MLDSAParameterSet::ML_DSA_65,
         "20240101000000Z",
         365);
     }
@@ -809,7 +812,7 @@ TEST_CASE("read_current_service_identity reports a create txid only when open")
     node_state.commit_service(status, create_txid, cb.topmost_entry());
     auto current = node_state.get_current_service_identity();
     REQUIRE_FALSE(current.create_txid.has_value());
-    REQUIRE(current.endorsement.has_value());
+    REQUIRE_FALSE(current.endorsement.has_value());
   }
 
   node_state.commit_service(ccf::ServiceStatus::OPEN, create_txid);
@@ -1185,4 +1188,88 @@ TEST_CASE(
     // target_status.
     REQUIRE(sub.endorsements_fetching_status() == ccf::FetchStatus::Failed);
   }
+}
+
+TEST_CASE("NetworkIdentity carries an ML-DSA identity when the build has one")
+{
+  const std::string valid_from = "20240101000000Z";
+  // A non-default parameter set shows the configured choice is honoured
+  const auto parameter_set = ccf::crypto::MLDSAParameterSet::ML_DSA_44;
+  const ccf::NetworkIdentity identity(
+    "CN=Test Service,O=CCF",
+    ccf::crypto::CurveID::SECP384R1,
+    parameter_set,
+    valid_from,
+    365);
+  const auto classical = ccf::crypto::make_verifier(identity.cert);
+
+  const auto json = nlohmann::json(identity);
+  REQUIRE(json.contains("pq_cert") == ccf::crypto::mldsa_supported());
+  REQUIRE(json.contains("pq_priv_key") == ccf::crypto::mldsa_supported());
+  REQUIRE(json.get<ccf::NetworkIdentity>() == identity);
+
+  if (!ccf::crypto::mldsa_supported())
+  {
+    REQUIRE_FALSE(identity.pq_cert.has_value());
+    REQUIRE_FALSE(identity.pq_priv_key.has_value());
+    REQUIRE(identity.get_pq_key_pair() == nullptr);
+    return;
+  }
+
+  REQUIRE(identity.pq_cert.has_value());
+  REQUIRE(identity.pq_priv_key.has_value());
+  const auto pq = ccf::crypto::make_verifier(identity.pq_cert.value());
+  REQUIRE(pq->is_self_signed());
+  REQUIRE(pq->subject_der() == classical->subject_der());
+  REQUIRE(pq->validity_period() == classical->validity_period());
+  REQUIRE(
+    ccf::crypto::make_mldsa_key_pair(
+      identity.pq_priv_key.value(), parameter_set)
+      ->public_key_der() == pq->public_key_der());
+  const auto key_pair = identity.get_pq_key_pair();
+  REQUIRE(key_pair != nullptr);
+  REQUIRE(key_pair->get_parameter_set() == parameter_set);
+  REQUIRE(key_pair->public_key_der() == pq->public_key_der());
+}
+
+TEST_CASE("A classical-only NetworkIdentity has no PQ key pair")
+{
+  ccf::NetworkIdentity identity;
+  identity.priv_key = ccf::crypto::make_ec_key_pair()->private_key_pem();
+  REQUIRE(identity.get_key_pair() != nullptr);
+  REQUIRE(identity.get_pq_key_pair() == nullptr);
+}
+
+TEST_CASE(
+  "NetworkIdentity renews its ML-DSA certificate like the classical one")
+{
+  ccf::NetworkIdentity identity(
+    "CN=Test Service,O=CCF",
+    ccf::crypto::CurveID::SECP384R1,
+    ccf::crypto::MLDSAParameterSet::ML_DSA_65,
+    "20240101000000Z",
+    1);
+
+  const std::string renewed_from = "20250101000000Z";
+  const auto classical =
+    ccf::crypto::make_verifier(identity.renew_certificate(renewed_from, 30));
+  const auto renewed = identity.renew_pq_certificate(renewed_from, 30);
+
+  if (!ccf::crypto::mldsa_supported())
+  {
+    REQUIRE_FALSE(renewed.has_value());
+    return;
+  }
+
+  REQUIRE(renewed.has_value());
+  const auto pq = ccf::crypto::make_verifier(renewed.value());
+  const auto initial = ccf::crypto::make_verifier(identity.pq_cert.value());
+  REQUIRE(pq->is_self_signed());
+  REQUIRE(pq->subject_der() == classical->subject_der());
+  REQUIRE(pq->validity_period() == classical->validity_period());
+  REQUIRE(pq->validity_period() != initial->validity_period());
+  REQUIRE(pq->public_key_der() == initial->public_key_der());
+
+  REQUIRE_FALSE(
+    ccf::NetworkIdentity().renew_pq_certificate(renewed_from, 30).has_value());
 }

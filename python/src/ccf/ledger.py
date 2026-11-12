@@ -3,11 +3,15 @@
 
 import json
 import os
+import re
 import struct
 import warnings
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum, Flag, IntEnum, auto
 from hashlib import sha256
+from types import TracebackType
+from typing import Any, BinaryIO, Self, overload
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_pem_x509_certificate
@@ -129,23 +133,28 @@ class VerificationLevel(IntEnum):
     FULL = 4
 
 
-def to_uint_64(buffer):
+def to_uint_64(buffer: bytes) -> int:
+    """Unpack a native-endian unsigned 64-bit integer."""
     return struct.unpack("@Q", buffer)[0]
 
 
-def is_ledger_chunk_committed(file_name):
+def is_ledger_chunk_committed(file_name: str) -> bool:
+    """Return whether a ledger chunk has the committed suffix."""
     return file_name.endswith(COMMITTED_FILE_SUFFIX)
 
 
-def is_snapshot_file_committed(file_name):
+def is_snapshot_file_committed(file_name: str) -> bool:
+    """Return whether a snapshot has the committed suffix."""
     return file_name.endswith(COMMITTED_FILE_SUFFIX)
 
 
-def digest(data):
+def digest(data: bytes) -> bytes:
+    """Return the SHA-256 digest of the supplied bytes."""
     return sha256(data).digest()
 
 
-def unpack(stream, fmt):
+def unpack(stream: "SimpleBuffer | BinaryIO", fmt: str) -> Any:
+    """Read one struct-formatted value from a buffer."""
     size = struct.calcsize(fmt)
     buf = stream.read(size)
     if not buf:
@@ -153,9 +162,10 @@ def unpack(stream, fmt):
     return struct.unpack(fmt, buf)[0]
 
 
-def unpack_array(buf, fmt):
+def unpack_array(buf: bytes, fmt: str) -> list[Any]:
+    """Unpack a sequence of struct-formatted values."""
     unpack_iter = struct.iter_unpack(fmt, buf)
-    ret = []
+    ret: list[Any] = []
     while True:
         try:
             ret.append(next(unpack_iter)[0])
@@ -164,32 +174,50 @@ def unpack_array(buf, fmt):
     return ret
 
 
-def range_from_filename(filename: str) -> tuple[int, int | None]:
-    basename = os.path.basename(filename)
-    is_recovery = basename.endswith(RECOVERY_FILE_SUFFIX)
-    basename = basename.removesuffix(RECOVERY_FILE_SUFFIX)
-    if basename.endswith(COMMITTED_PREFIX_FILE_SUFFIX):
-        range_str = basename.removesuffix(COMMITTED_PREFIX_FILE_SUFFIX)
-        elements = range_str.removeprefix("ledger_").split("-")
-        if (
-            is_recovery
-            or not range_str.startswith("ledger_")
-            or len(elements) != 2
-            or not all(element.isascii() and element.isdigit() for element in elements)
-            or int(elements[0]) == 0
-            or int(elements[1]) < int(elements[0])
-        ):
-            raise ValueError(f"Could not read seqno range from ledger file {filename}")
-        return (int(elements[0]), int(elements[1]))
+# Ledger chunk names: ledger_<start>[-<end>][.committed|.committed_prefix][.recovery]
+_LEDGER_CHUNK_NAME = re.compile(
+    r"ledger_(?P<start>\d+)(?:-(?P<end>\d+))?"
+    rf"(?P<suffix>{re.escape(COMMITTED_FILE_SUFFIX)}|{re.escape(COMMITTED_PREFIX_FILE_SUFFIX)})?"
+    rf"(?P<recovery>{re.escape(RECOVERY_FILE_SUFFIX)})?",
+    re.ASCII,
+)
 
-    basename = basename.removesuffix(COMMITTED_FILE_SUFFIX)
-    elements = basename.replace("ledger_", "").split("-")
-    if len(elements) == 2:
-        return (int(elements[0]), int(elements[1]))
-    elif len(elements) == 1:
-        return (int(elements[0]), None)
-    else:
+# Snapshot names: snapshot_<seqno>_<evidence_seqno>[.committed]
+_SNAPSHOT_NAME = re.compile(
+    rf"snapshot_(?P<seqno>\d+)_(?P<evidence_seqno>\d+)(?:{re.escape(COMMITTED_FILE_SUFFIX)})?",
+    re.ASCII,
+)
+
+
+def _parse_ledger_range(basename: str) -> tuple[int, int | None] | None:
+    match = _LEDGER_CHUNK_NAME.fullmatch(basename)
+    if match is None:
+        return None
+    start = int(match["start"])
+    end = None if match["end"] is None else int(match["end"])
+    if end is not None and end < start:
+        return None
+    if match["suffix"] == COMMITTED_PREFIX_FILE_SUFFIX and (
+        start == 0 or end is None or match["recovery"] is not None
+    ):
+        return None
+    return (start, end)
+
+
+def range_from_filename(filename: str) -> tuple[int, int | None]:
+    """Return the start and optional end seqno encoded in a ledger file name.
+
+    Committed prefixes must also have a start of at least 1, an end, and no
+    recovery suffix.
+
+    Raises:
+        ValueError: If the name is not a ledger chunk name, or its end
+            precedes its start.
+    """
+    seqno_range = _parse_ledger_range(os.path.basename(filename))
+    if seqno_range is None:
         raise ValueError(f"Could not read seqno range from ledger file {filename}")
+    return seqno_range
 
 
 def get_range_from_file(ledger_file_path: str) -> tuple[int, int | None]:
@@ -239,23 +267,22 @@ def get_range_from_file(ledger_file_path: str) -> tuple[int, int | None]:
 
 
 def snapshot_index_from_filename(filename: str) -> tuple[int, int]:
-    elements = (
-        os.path.basename(filename)
-        .replace(COMMITTED_FILE_SUFFIX, "")
-        .replace("snapshot_", "")
-        .split("_")
-    )
-    if len(elements) == 2:
-        return (int(elements[0]), int(elements[1]))
-    else:
+    """Return the seqno and evidence seqno encoded in a snapshot file name.
+
+    Raises:
+        ValueError: If the name is not a snapshot name.
+    """
+    match = _SNAPSHOT_NAME.fullmatch(os.path.basename(filename))
+    if match is None:
         raise ValueError(f"Could not read snapshot index from file name {filename}")
+    return (int(match["seqno"]), int(match["evidence_seqno"]))
 
 
 class GcmHeader:
     view: int
     seqno: int
 
-    def __init__(self, buffer):
+    def __init__(self, buffer: bytes) -> None:
         if len(buffer) < GcmHeader.size():
             raise ValueError("Corrupt GCM header")
 
@@ -281,7 +308,7 @@ class PublicDomain:
     _claims_digest: bytes
     _version: int
     _max_conflict_version: int
-    _tables: dict
+    _tables: dict[str, dict[bytes, bytes | None]]
 
     def __init__(self, buffer: bytes):
         self._entry_type = EntryType(buffer[0])
@@ -306,7 +333,7 @@ class PublicDomain:
         self._tables = {}
         self._read()
 
-    def _read_buffer(self, size):
+    def _read_buffer(self, size: int) -> bytes:
         prev_cursor = self._cursor
         next_cursor = prev_cursor + size
         if next_cursor > len(self._buffer):
@@ -319,10 +346,10 @@ class PublicDomain:
     def _read8(self):
         return self._read_buffer(8)
 
-    def _read_int64(self):
+    def _read_int64(self) -> int:
         return struct.unpack("<q", self._read8())[0]
 
-    def _read_uint64(self):
+    def _read_uint64(self) -> int:
         return struct.unpack("<Q", self._read8())[0]
 
     def is_deprecated(self):
@@ -331,7 +358,7 @@ class PublicDomain:
     def get_version_size(self):
         return 8
 
-    def _read_versioned_value(self, size):
+    def _read_versioned_value(self, size: int) -> tuple[int, bytes]:
         if size < self.get_version_size():
             raise ValueError(f"Invalid versioned value of size {size}")
         # Read the version as signed so that legacy negative versions are seen
@@ -354,7 +381,7 @@ class PublicDomain:
         view_history_size = self._read_uint64()
         self._view_history = unpack_array(self._read_buffer(view_history_size), "<Q")
 
-    def _read_snapshot_entry_padding(self, size):
+    def _read_snapshot_entry_padding(self, size: int) -> None:
         padding = -size % 8  # Padded to 8 bytes
         self._read_buffer(padding)
 
@@ -375,7 +402,7 @@ class PublicDomain:
         while self._cursor < buffer_size:
             map_name = self._read_string()
 
-            records = {}
+            records: dict[bytes, bytes | None] = {}
             self._tables[map_name] = records
 
             if self._entry_type == EntryType.SNAPSHOT:
@@ -416,7 +443,7 @@ class PublicDomain:
                         k = self._read_next_entry()
                         records[k] = None
 
-    def get_tables(self) -> dict:
+    def get_tables(self) -> dict[str, dict[bytes, bytes | None]]:
         """
         Return a dictionary of all public tables (with their content) in a :py:class:`ccf.ledger.Transaction`.
 
@@ -454,7 +481,7 @@ class SimpleBuffer:
         self._loc = at_loc
         self._len = len(self._buffer)
 
-    def _safe_loc(self, loc):
+    def _safe_loc(self, loc: int) -> int:
         return min(loc, self._len)
 
     def __len__(self):
@@ -471,7 +498,8 @@ class SimpleBuffer:
         self._loc = end
         return self._buffer[start:end]
 
-    def seek(self, loc):
+    def seek(self, loc: int) -> int:
+        """Move to a byte offset, clamped to the buffer's length."""
         self._loc = self._safe_loc(loc)
         return self._loc
 
@@ -480,12 +508,13 @@ class SimpleBuffer:
         return sb
 
     @staticmethod
-    def from_file(filename):
+    def from_file(filename: str) -> "SimpleBuffer":
+        """Read a file into a new buffer."""
         with open(filename, "rb") as f:
             return SimpleBuffer(filename, f.read())
 
 
-def _byte_read_safe(file: SimpleBuffer, num_of_bytes):
+def _byte_read_safe(file: SimpleBuffer, num_of_bytes: int) -> bytes:
     offset = file.tell()
     ret = file.read(num_of_bytes)
     if len(ret) != num_of_bytes:
@@ -495,7 +524,7 @@ def _byte_read_safe(file: SimpleBuffer, num_of_bytes):
     return ret
 
 
-def _peek(file: SimpleBuffer, num_bytes, pos=None):
+def _peek(file: SimpleBuffer, num_bytes: int, pos: int | None = None) -> bytes:
     save_pos = file.tell()
     try:
         if pos is not None:
@@ -505,7 +534,7 @@ def _peek(file: SimpleBuffer, num_bytes, pos=None):
         file.seek(save_pos)
 
 
-def _peek_all(file: SimpleBuffer, pos=None):
+def _peek_all(file: SimpleBuffer, pos: int | None = None) -> bytes:
     save_pos = file.tell()
     try:
         if pos is not None:
@@ -519,6 +548,7 @@ class LedgerValidator:
     """
     Ledger Validator contains the logic to verify that the ledger hasn't been tampered with.
     It has the ability to take transactions and it maintains a MerkleTree data structure similar to CCF.
+    The Merkle tree is pruned automatically to limit memory use.
 
     Ledger is valid and hasn't been tampered with if following conditions are met:
         1) The merkle proof is signed by a Trusted node in the given network
@@ -537,7 +567,7 @@ class LedgerValidator:
         accept_deprecated_entry_types: bool = True,
         verification_level: VerificationLevel = VerificationLevel.FULL,
     ):
-        self.node_certificates: dict[str, str] = {}
+        self.node_certificates: dict[str, bytes] = {}
         self.node_activity_status: dict[str, tuple[str, int, bool]] = {}
         self.accept_deprecated_entry_types = accept_deprecated_entry_types
         self.verification_level = verification_level
@@ -551,8 +581,8 @@ class LedgerValidator:
         self.last_verified_seqno = 0
         self.last_verified_view = 0
 
-        self.service_status = None
-        self.service_cert = None
+        self.service_status: str | None = None
+        self.service_cert: str | None = None
 
     def last_verified_txid(self) -> TxID:
         return TxID(self.last_verified_view, self.last_verified_seqno)
@@ -647,7 +677,7 @@ class LedgerValidator:
                 f"Invalid transaction header: size {header.size} exceeds maximum {MAX_TX_SIZE}"
             )
 
-    def add_transaction(self, transaction):
+    def add_transaction(self, transaction: "Transaction") -> None:
         """
         To validate the ledger, ledger transactions need to be added via this method.
         Depending on the tables that were part of the transaction, it does different things.
@@ -669,7 +699,7 @@ class LedgerValidator:
 
         # Add contributing nodes certs and update nodes network trust status for verification
         # Only needed for FULL verification
-        node_certs = {}
+        node_certs: dict[str, bytes] = {}
         if (
             self.verification_level >= VerificationLevel.FULL
             and NODES_TABLE_NAME in tables
@@ -732,6 +762,8 @@ class LedgerValidator:
             updated_service = service_table.get(
                 signatures.WELL_KNOWN_SINGLETON_TABLE_KEY
             )
+            if updated_service is None:
+                raise TypeError("Service info must contain a non-null singleton value")
             updated_service_json = json.loads(updated_service)
             updated_status = updated_service_json["status"]
             if updated_status == "Opening":
@@ -760,13 +792,14 @@ class LedgerValidator:
             self.signature_count += 1
 
         if is_signature_tx and self.verification_level >= VerificationLevel.MERKLE:
+            assert transaction.gcm_header is not None
             if self.verification_level >= VerificationLevel.FULL:
                 collateral = signatures.RootSignatureCollateral(
                     service_cert_pem=self.service_cert,
                     node_certificates=self.node_certificates,
                     check_signing_node=self._verify_signing_node_status,
                 )
-                _, signed_txid = signatures._verify_all_root_signatures(
+                _, signed_txid = signatures.verify_all_root_signatures(
                     tables, self.merkle.get_merkle_root(), collateral
                 )
                 header_txid = TxID(
@@ -791,6 +824,8 @@ class LedgerValidator:
                     and signatures.WELL_KNOWN_SINGLETON_TABLE_KEY in tree_table
                 ):
                     tree_data = tree_table[signatures.WELL_KNOWN_SINGLETON_TABLE_KEY]
+                    if tree_data is None:
+                        raise TypeError("Merkle tree must contain a non-null value")
                     embedded_tree = MerkleTree()
                     embedded_tree.deserialise(tree_data)
                     if not self.first_signature_seen:
@@ -802,6 +837,11 @@ class LedgerValidator:
                         )
                     self.last_verified_seqno = transaction.gcm_header.seqno
                     self.last_verified_view = transaction.gcm_header.view
+
+            # Only subtree roots are needed to verify subsequent signatures.
+            leaf_count = self.merkle.get_leaf_count()
+            if leaf_count > 0:
+                self.merkle.flush(leaf_count - 1)
 
         # Checks complete, add this transaction to tree (for MERKLE and above)
         if self.verification_level >= VerificationLevel.MERKLE:
@@ -847,7 +887,7 @@ class TransactionHeader:
     # 6-byte transaction size
     size: int
 
-    def __init__(self, buffer):
+    def __init__(self, buffer: bytes) -> None:
         if len(buffer) != TransactionHeader.get_size():
             raise ValueError("Incomplete transaction header")
 
@@ -886,10 +926,15 @@ class Entry:
 
         self._file = file
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         pass
 
     def _read_header(self):
@@ -1140,6 +1185,9 @@ class TransactionIterator:
         self._positions = positions
         self._buffer = buffer
 
+    def __iter__(self) -> Self:
+        return self
+
     def __next__(self):
         self._idx += 1
         if len(self._positions) > self._idx:
@@ -1150,8 +1198,9 @@ class TransactionIterator:
 
 
 def find_tx_positions(file: SimpleBuffer, file_size: int) -> list[int]:
+    """Locate framed transaction entries following the ledger header."""
     pos = LEDGER_HEADER_SIZE
-    ps = []
+    ps: list[int] = []
     while pos < file_size:
         ps.append(pos)
         file.seek(pos)
@@ -1161,10 +1210,11 @@ def find_tx_positions(file: SimpleBuffer, file_size: int) -> list[int]:
     return ps
 
 
-def latest_snapshot(snapshots_dir):
+def latest_snapshot(snapshots_dir: str) -> str | None:
+    """Return the highest-seqno snapshot filename, or None for an empty directory."""
     best_name, best_seqno = None, None
     for s in os.listdir(snapshots_dir):
-        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
+        with Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
             snapshot_seqno = snapshot.get_public_domain().get_seqno()
             if best_seqno is None or snapshot_seqno > best_seqno:
                 best_name = s
@@ -1237,13 +1287,20 @@ class LedgerChunk:
                     f"Invalid ledger chunk {name}: Expected to contain {tx_count_from_filename} transactions due to filename, but found {tx_count_from_positions} by reading file"
                 )
 
-    def __getitem__(self, key):
+    @overload
+    def __getitem__(self, key: int) -> Transaction: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> list[Transaction]: ...
+
+    def __getitem__(self, key: object) -> Transaction | list[Transaction]:
+        """Return a transaction by index, or a list of transactions for a slice."""
         if isinstance(key, int):
             position = self._positions[key]
             return Transaction(self._file.clone(at_loc=position))
         elif isinstance(key, slice):
             positions = self._positions[key]
-            transactions = []
+            transactions: list[Transaction] = []
             for p in positions:
                 transactions.append(Transaction(self._file.clone(at_loc=p)))
             return transactions
@@ -1273,19 +1330,22 @@ class LedgerChunk:
 
 
 class ChunkIterator:
-    _filenames: list
+    _filenames: list[str]
     _fileindex: int = -1
     _current_chunk: LedgerChunk
     _verification_level: VerificationLevel
 
     def __init__(
         self,
-        filenames: list,
+        filenames: list[str],
         validator: LedgerValidator | None = None,
         verification_level: VerificationLevel = VerificationLevel.NONE,
     ):
         self._filenames = filenames
         self._verification_level = verification_level
+
+    def __iter__(self) -> Self:
+        return self
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1
@@ -1305,7 +1365,7 @@ class Ledger:
     :param str name: Ledger directory for a single CCF node.
     """
 
-    _filenames: list
+    _filenames: list[str]
     _verification_level: VerificationLevel
 
     def __init__(
@@ -1321,7 +1381,7 @@ class Ledger:
 
         ledger_files: list[str] = []
 
-        def try_add_chunk(path):
+        def try_add_chunk(path: str) -> None:
             sanitised_path = path
             if path.endswith(RECOVERY_FILE_SUFFIX):
                 sanitised_path = path[: -len(RECOVERY_FILE_SUFFIX)]
@@ -1364,7 +1424,7 @@ class Ledger:
             key=lambda x: range_from_filename(x)[0],
         )
 
-        suffix = []
+        suffix: list[str] = []
         # [(ledger_100_105, None), ..., (None, ledger_0_5)]
         if len(filenames) > 0:
             for i in range(len(filenames) + 1):
@@ -1392,7 +1452,7 @@ class Ledger:
                         )
                     break
                 # old_X_Y ~> new_A but Y != A => noncontiguous
-                if range_older[1] is not None and range_older[1] + 1 != range_newer[0]:
+                if range_older[1] + 1 != range_newer[0]:
                     if not contiguous_suffix:
                         raise ValueError(
                             f"Ledger cannot parse non-contiguous chunks {file_older} and {file_newer}"
@@ -1408,7 +1468,14 @@ class Ledger:
     def __len__(self):
         return len(self._filenames)
 
-    def __getitem__(self, key):
+    @overload
+    def __getitem__(self, key: int) -> LedgerChunk: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> list[LedgerChunk]: ...
+
+    def __getitem__(self, key: object) -> LedgerChunk | list[LedgerChunk]:
+        """Return a chunk by index, or a list of chunks for a slice."""
         if isinstance(key, int):
             return LedgerChunk(self._filenames[key], self._verification_level)
         elif isinstance(key, slice):
@@ -1422,7 +1489,8 @@ class Ledger:
             self._filenames, verification_level=self._verification_level
         )
 
-    def transactions(self):
+    def transactions(self) -> Iterator[Transaction]:
+        """Iterate over all transactions in chunk order."""
         for chunk in self:
             yield from chunk
 
@@ -1450,7 +1518,7 @@ class Ledger:
             f"Transaction at seqno {seqno} does not exist in ledger"
         )
 
-    def get_latest_public_state(self) -> tuple[dict, int]:
+    def get_latest_public_state(self) -> tuple[dict[str, dict[bytes, bytes]], int]:
         """
         Return the current public state of the service.
 
@@ -1460,7 +1528,7 @@ class Ledger:
         :return: tuple[dict, int]: Tuple containing a dictionary of public tables and their values and the seqno of the state read from the ledger.
         """
 
-        public_tables: dict[str, dict] = {}
+        public_tables: dict[str, dict[bytes, bytes]] = {}
         latest_seqno = 0
         # If a transaction cannot be read (e.g. because it was only partially written to disk
         # before a crash), return public state so far. This is consistent with CCF's behaviour

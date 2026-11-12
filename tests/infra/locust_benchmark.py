@@ -15,7 +15,6 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Callable, Mapping
-from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -372,15 +371,25 @@ def measure(
     export = os.environ.get("CCF_BENCHMARK_FLUENTD", "0")
     if export not in ("0", "1"):
         raise ValueError("CCF_BENCHMARK_FLUENTD must be 0 or 1")
-    if export == "1" and args.observability is not None:
+    if args.observability is not None:
         raise ValueError("Benchmark collector cannot override --observability")
+    if args.log_level in ("fail", "fatal"):
+        raise ValueError(
+            "Benchmark requires --log-level info, debug or trace to read "
+            "the Fluentd exporter shutdown summary"
+        )
 
-    with (
-        infra.fluentd.Collector(len(args.nodes)) if export == "1" else nullcontext()
-    ) as collector:
-        if collector is not None:
-            args = copy.deepcopy(args)
-            args.observability = {"fluentd": collector.endpoint}
+    with infra.fluentd.Collector(len(args.nodes)) as collector:
+        args = copy.deepcopy(args)
+        args.observability = {
+            "fluentd": [
+                {
+                    **collector.endpoint,
+                    "delivery": "buffered-best-effort",
+                    "tag-prefix-allow-list": ["ccf" if export == "1" else "ccf.log"],
+                }
+            ]
+        }
         LOG.info(f"Starting nodes on {args.nodes} with {sig_ms_interval}ms signatures")
         with infra.network.network(
             args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
@@ -401,40 +410,48 @@ def measure(
                 throughput_unit=workload.throughput_unit,
             )
             network.stop_all_nodes()
-            if collector is not None:
-                dropped = 0
-                for node in network.nodes:
-                    out_path, _ = node.get_logs()
-                    if out_path is None:
-                        raise RuntimeError("Missing Fluentd exporter shutdown log")
-                    reports = re.findall(
-                        r"Fluentd exporter shutdown: (\d+) dropped events",
-                        Path(out_path).read_text(encoding="utf-8"),
+            dropped = 0
+            for node in network.nodes:
+                out_path, _ = node.get_logs()
+                if out_path is None:
+                    raise RuntimeError("Missing Fluentd exporter shutdown log")
+                reports = re.findall(
+                    r"Fluentd exporter shutdown: (\d+) dropped events",
+                    Path(out_path).read_text(encoding="utf-8"),
+                )
+                if len(reports) != 1:
+                    raise RuntimeError(
+                        f"Expected one Fluentd exporter shutdown report in {out_path}"
                     )
-                    if len(reports) != 1:
-                        raise RuntimeError(
-                            f"Expected one Fluentd exporter shutdown report in {out_path}"
-                        )
-                    dropped += int(reports[0])
-    if collector is not None:
-        counts = {
-            "records": collector.records,
-            "bytes": collector.bytes,
-            "processes": len(collector.processes),
-            "expected_processes": len(args.nodes),
-            "dropped": dropped,
-            "drop_rate": (
-                dropped / (collector.records + dropped)
-                if collector.records + dropped
-                else None
-            ),
-        }
-        (Path(network.common_dir) / f"{sig_ms_interval}ms_fluentd.json").write_text(
-            json.dumps(counts, indent=2), encoding="utf-8"
+                dropped += int(reports[0])
+    counts = {
+        "records": collector.records,
+        "bytes": collector.bytes,
+        "tags": sorted(collector.tags),
+        "processes": len(collector.processes),
+        "expected_processes": len(args.nodes),
+        "dropped": dropped,
+        "drop_rate": (
+            dropped / (collector.records + dropped)
+            if collector.records + dropped
+            else None
+        ),
+    }
+    (Path(network.common_dir) / f"{sig_ms_interval}ms_fluentd.json").write_text(
+        json.dumps(counts, indent=2), encoding="utf-8"
+    )
+    LOG.info(f"Fluentd collector: {counts}")
+    expected_tags = {"ccf.log", "ccf.cft"} if export == "1" else {"ccf.log"}
+    if (
+        collector.records == 0
+        or len(collector.processes) != len(args.nodes)
+        or not expected_tags <= collector.tags
+        or (export == "0" and collector.tags != expected_tags)
+    ):
+        raise RuntimeError(
+            f"Every benchmark node must export events; expected tags {expected_tags}, "
+            f"received {collector.tags}"
         )
-        LOG.info(f"Fluentd collector: {counts}")
-        if collector.records == 0 or len(collector.processes) != len(args.nodes):
-            raise RuntimeError("Every benchmark node must export Raft trace events")
     return result
 
 

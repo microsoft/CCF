@@ -25,7 +25,9 @@ The unique identifier of a CCF node is the hex-encoded string of the SHA-256 dig
 
 CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported; see :ref:`operations/configuration:IPv6 Addresses` for the bracketed ``[host]:port`` form required for IPv6 literals) or by specifying a fully qualified domain name. If an FQDN is used then a ``dNSName`` subject alternative name should be specified as part of the ``node_certificate.subject_alt_names`` configuration entry. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 
-When starting up, the node generates its own key pair and outputs the unendorsed certificate associated with its public key at the location specified by the ``node_certificate_file`` configuration entry. The certificate of the freshly-created CCF network is also output at the location specified by the ``service_certificate_file`` configuration entry.
+When starting up, the node generates its own key pair and outputs the unendorsed certificate associated with its public key at the location specified by the ``node_certificate_file`` configuration entry.
+The certificate of the freshly-created CCF network is also output at the location specified by the ``service_certificate_file`` configuration entry.
+Nodes with an ML-DSA service identity also output their :doc:`ML-DSA service certificate </operations/certificates>` at the location specified by ``command.pq_service_certificate_file``.
 
 .. note:: The service certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using ``curl``, this is passed as the ``--cacert`` argument.
 
@@ -50,7 +52,7 @@ To add a new node to an existing opening network, other nodes should be started 
         Pending-- poll status -->Pending;
         Pending-- trusted -->PartOfNetwork;
 
-The joining node takes the certificate of the existing network to join via ``service_certificate_file`` configuration entry and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``join.target_rpc_address`` configuration entry.
+The joining node takes the certificate of the existing network to join via ``service_certificate_file`` configuration entry and initiates a TLS connection to the RPC interface of an existing node of the network as specified by ``join.target_rpc_address`` configuration entry.
 
 .. note:: The joining node verifies the target node's TLS certificate against the ``service_certificate_file`` (which is the only trust anchor used for this connection) and checks that it matches the ``join.target_rpc_address`` host. Operators must therefore ensure that the target node's certificate subject alternative names - derived from its RPC interface ``published_address`` values, or set explicitly via ``node_certificate.subject_alt_names`` - include the address used in ``join.target_rpc_address``.
 
@@ -103,7 +105,7 @@ The following diagram summarises the steps that operators and members should fol
         Node 1->>+Node 0: Poll for "Trusted" state
         Node 0-->>-Node 1: "Trusted" state (includes ledger secrets and service private key)
 
-        Note over Node 1: State: "PartOfNetwork" <br/> Ledger replication started <br/> Application open to users
+        Note over Node 1: State: "PartOfNetwork" Ledger replication started Application open to users
 
         loop Node 1 ledger replication
             Node 0->>+Node 1: Ledger replication
@@ -116,7 +118,7 @@ The following diagram summarises the steps that operators and members should fol
             Node 0->>+Node 1: Ledger replication
         end
 
-        Node 1->>+Node 1: Observe own addition to store <br> Endorse TLS with service private key
+        Node 1->>+Node 1: Observe own addition to store Endorse TLS with service private key
 
         Note over Operators: Operators monitor progress of ledger replication
         Operators->>+Node 1: Poll GET /node/commit

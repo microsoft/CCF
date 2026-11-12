@@ -19,12 +19,6 @@ namespace ccf
       std::optional<PrimarySignature> sig = std::nullopt;
       CoseSignatureMap cose_signatures;
       std::optional<std::vector<uint8_t>> serialised_tree = std::nullopt;
-
-      [[nodiscard]] bool is_complete() const
-      {
-        return (sig.has_value() || !cose_signatures.empty()) &&
-          serialised_tree.has_value();
-      }
     };
 
     mutable ccf::ds::Mutex cache_mutex;

@@ -1,12 +1,11 @@
 module
 
 import all Init.Control.State
-import all Init.Data.List.Sort.Basic
 
 public import DisasterRecovery.Properties
 public import DisasterRecovery.Tests.Initial
 
-import Mathlib.Tactic
+import DisasterRecovery.Proofs.Evaluation
 
 @[expose] public section
 
@@ -15,8 +14,7 @@ namespace DisasterRecovery.Tests.Trace
 open CCF
 open Model.Local
 open Properties.Trace
-
-attribute [local simp] StateT.run
+open Proofs.Evaluation
 
 private def config : Model.Config :=
   {
@@ -48,35 +46,25 @@ private def opening : NodeState :=
 private def opened : Model.State :=
   { ready with nodes := [unused, ("A", opening)], network := [gossip] }
 
-private def trace : Properties.GlobalTrace :=
-  Stream'.Seq.ofList [initial, gossipSent, ready, voteSent, opened]
+private def steps : List (Model.Action × Model.State) :=
+  [
+    (.local "A" .retry, gossipSent),
+    (.deliver gossip, ready),
+    (.local "A" .retry, voteSent),
+    (.deliver vote, opened)
+  ]
 
 private theorem initialized : (Model.transitionSystem config).init initial := by
   refine ⟨by unfold Model.Config.Valid; decide, ?_, by decide, rfl, ?_⟩
   · simp [initial, Tests.initial, config]
   · simp [initial, unused, Model.protocol]
 
-private theorem valid : trace.Valid (Model.transitionSystem config) := by
-  refine ⟨⟨initial, rfl, initialized⟩, ?_⟩
-  intro i before after first second
-  simp only [trace, Stream'.Seq.ofList_get?] at first second
-  have bound : i < 4 := by
-    have := (List.getElem?_eq_some_iff.mp second).1
-    simp only [List.length_cons, List.length_nil] at this
-    omega
-  let actions : List Model.Action :=
-    [.local "A" .retry, .deliver gossip, .local "A" .retry, .deliver vote]
-  refine ⟨actions[i]'(by simpa [actions] using bound), ?_⟩
-  interval_cases i <;> simp only [List.getElem?_cons_zero,
-    List.getElem?_cons_succ, Nat.reduceAdd, Option.some.injEq] at first second <;>
-    subst before <;> subst after
-  all_goals
-    simp [actions, Model.transitionSystem, MultiNodeTransitionSystem.lift,
-      MultiNodeTransitionSystem.next, MultiNodeTransitionSystem.nodeState,
-      MultiNodeTransitionSystem.removeOne, Model.protocol, Model.recoveredTxID,
-      Model.receive, step, guard, initial, Tests.initial, config,
-      gossipSent, ready, voteSent, opened, gossip, vote, recovered, unused]
-    cbv
+private def trace : Properties.GlobalTrace config :=
+  ofSteps initial steps initialized
+    (by
+      simp only [StepsFrom, steps, Model.transitionSystem, MultiNodeTransitionSystem.lift,
+        Model.protocol, step, insertGossip_eval, insertVote_eval, and_true]
+      and_intros <;> rfl)
 
 private theorem observedOpening
     : NotificationAt config trace 3 "A" (.opening .quorum) := by
@@ -89,23 +77,18 @@ private theorem observedOpening
     { notifications := [.opening .quorum] },
     rfl,
     rfl,
-    ?_,
+    rfl,
     rfl,
     rfl,
     rfl,
     ?_,
     by simp
   ⟩
-  · simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
-      MultiNodeTransitionSystem.next, voteSent, ready, vote,
-      MultiNodeTransitionSystem.nodeState, MultiNodeTransitionSystem.removeOne,
-      Model.protocol, config, guard]
-    cbv
-  · simp [Model.protocol, config]
-    cbv
+  simp only [event, Model.receive, Model.protocol, step, insertVote_eval]
+  rfl
 
 example : (Model.transitionSystem config).Reachable opened :=
-  valid.reachable (Stream'.Seq.get?_mem (n := 4) rfl)
+  trace.reachable (Execution.Trace.stateAt_mem (n := 4) rfl)
 
 example : NotificationAt config trace 3 "A" (.opening .quorum) := observedOpening
 
@@ -115,10 +98,9 @@ example
         /\ Properties.UpToDateWithQuorum config openerTxID := by
   apply Properties.full_gossip_preserves_commit config trace ready opened "A" opening
   refine ⟨
-    valid,
-    Stream'.Seq.get?_mem (n := 2) rfl,
+    Execution.Trace.stateAt_mem (n := 2) rfl,
     ?_,
-    Stream'.Seq.get?_mem (n := 4) rfl,
+    Execution.Trace.stateAt_mem (n := 4) rfl,
     by simp [opened],
     rfl
   ⟩
@@ -132,65 +114,34 @@ example
 example (notification : Notification)
     : ¬ NotificationAt config trace 4 "A" notification := by
   rintro ⟨_, _, _, _, _, _, _, after, _⟩
-  simp [trace] at after
+  rw [trace, ofSteps_stateAt] at after
+  simp [steps] at after
 
 example (notification : Notification)
     : ¬ NotificationAt config trace 3 "missing-node" notification := by
   rintro ⟨before, _, _, _, _, _, first, _, _, _, found, _⟩
-  have same : before = voteSent := by simpa [trace] using first.symm
+  rw [trace, ofSteps_stateAt] at first
+  have same : before = voteSent := by simpa [steps] using first.symm
   subst before
   simp [voteSent, ready, unused, MultiNodeTransitionSystem.nodeState] at found
 
--- The local run alone is insufficient: its successor must match the trace.
-example
-    : ¬ NotificationAt config (Stream'.Seq.ofList [voteSent, voteSent]) 0 "A"
-          (.opening .quorum) := by
-  rintro ⟨before, after, action, nodeBefore, nodeAfter, outputs,
-    first, second, transition, actor, foundBefore, foundAfter, run, notified⟩
-  simp only [Stream'.Seq.ofList_get?, List.getElem?_cons_zero, List.getElem?_cons_succ,
-    Option.some.injEq] at first second
-  subst before after
+-- Notifications come from the recorded action, not an arbitrary local run.
+example : ¬ NotificationAt config trace 2 "A" (.opening .quorum) := by
+  rintro ⟨before, _, action, nodeBefore, nodeAfter, outputs,
+    first, _, chosen, _, foundBefore, _, run, notified⟩
+  rw [trace, ofSteps_actionAt] at chosen
+  rw [trace, ofSteps_stateAt] at first
+  have actionEq : action = .local "A" .retry := by simpa [steps] using chosen.symm
+  have stateEq : before = ready := by simpa [steps] using first.symm
+  subst action before
   have beforeEq : nodeBefore = selected := by
-    simpa [voteSent, ready, unused, MultiNodeTransitionSystem.nodeState]
-      using foundBefore.symm
-  have afterEq : nodeAfter = selected := by
-    simpa [voteSent, ready, unused, MultiNodeTransitionSystem.nodeState]
-      using foundAfter.symm
-  subst nodeBefore nodeAfter
-  simp [Model.protocol, config] at run
-  cases action with
-  | «local» node input =>
-      simp only [Properties.Trace.actor] at actor
-      subst node
-      cases input
-      · change some (selected, { outgoing := [vote, gossip] }) =
-          some (selected, outputs) at run
-        have effects := congrArg Prod.snd (Option.some.inj run)
-        dsimp only at effects
-        rw [← effects] at notified
-        simp at notified
-      · have impossible := congrArg
-          (fun result => result.map (fun value => value.1.timeoutState)) run
-        cbv at impossible
-        cases impossible
-  | deliver envelope =>
-      have pending : envelope ∈ [vote, gossip] := by
-        simp [Model.transitionSystem, MultiNodeTransitionSystem.lift,
-          MultiNodeTransitionSystem.next, Option.bind_eq_some_iff, guard, failure] at transition
-        exact transition.1
-      rcases List.mem_cons.mp pending with rfl | remaining
-      · have impossible := congrArg
-          (fun result => result.map (fun value => value.1.phase)) run
-        cbv at impossible
-        cases impossible
-      · have same : envelope = gossip := by simpa using remaining
-        subst envelope
-        change some (selected, { outgoing := [], notifications := [.rejected "gossip-frozen"] }) =
-          some (selected, outputs) at run
-        have effects := congrArg Prod.snd (Option.some.inj run)
-        dsimp only at effects
-        rw [← effects] at notified
-        simp at notified
+    simpa [ready, unused, MultiNodeTransitionSystem.nodeState] using foundBefore.symm
+  subst nodeBefore
+  change some (selected, { outgoing := [vote, gossip] }) = some (nodeAfter, outputs) at run
+  have effects := congrArg Prod.snd (Option.some.inj run)
+  dsimp only at effects
+  rw [← effects] at notified
+  simp at notified
 
 private def quorumBefore : NodeState := { selected with votes := ["A"] }
 
@@ -208,15 +159,7 @@ example
       /\ quorumVote.after.openKind = some .quorum
       /\ .opening .quorum ∈ quorumVote.effects.notifications :=
   Properties.quorum_advance_opens config quorumVote
-    ⟨
-      by
-        simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, config,
-          quorumVote]
-        cbv,
-      Or.inr ⟨"A", rfl⟩,
-      rfl,
-      by decide
-    ⟩
+    ⟨rfl, Or.inr ⟨"A", rfl⟩, rfl, by decide⟩
 
 private def quorumTimeout : Properties.LocalStep :=
   {
@@ -229,22 +172,13 @@ example
     : quorumTimeout.after.phase = .opening
       /\ quorumTimeout.after.openKind = some .quorum
       /\ .opening .quorum ∈ quorumTimeout.effects.notifications :=
-  Properties.quorum_advance_opens config quorumTimeout
-    ⟨
-      by
-        simp [MultiNodeTransitionSystem.Protocol.ValidStep, Model.protocol, config,
-          quorumTimeout]
-        cbv,
-      Or.inl rfl,
-      rfl,
-      by decide
-    ⟩
+  Properties.quorum_advance_opens config quorumTimeout ⟨rfl, Or.inl rfl, rfl, by decide⟩
 
-example
-    : ¬ Execution.Trace.Valid (Model.transitionSystem config)
-          (Stream'.Seq.ofList [ready, voteSent]) := by
-  rintro ⟨⟨start, first, _, _, _, _, nodes⟩, _⟩
-  have same : start = ready := by simpa using first.symm
+example (candidate : Properties.GlobalTrace config)
+    (states : candidate.states = CCF.Seq.ofList [ready, voteSent])
+    : False := by
+  obtain ⟨start, first, _, _, _, _, nodes⟩ := candidate.valid_init
+  have same : start = ready := by simpa [states] using first.symm
   subst start
   have invalid := nodes ("A", selected) (by simp [ready])
   have phase := congrArg NodeState.phase invalid

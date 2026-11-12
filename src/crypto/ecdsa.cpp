@@ -3,6 +3,7 @@
 #include "ccf/crypto/ecdsa.h"
 
 #include "ccf/crypto/openssl/openssl_wrappers.h"
+#include "crypto/openssl/bignum.h"
 #include "crypto/openssl/ec_public_key.h"
 
 #include <openssl/bn.h>
@@ -18,18 +19,10 @@ namespace ccf::crypto
     size_t s_size,
     bool big_endian)
   {
-    OpenSSL::Unique_BIGNUM r_bn;
-    OpenSSL::Unique_BIGNUM s_bn;
-    if (big_endian)
-    {
-      OpenSSL::CHECKNULL(BN_bin2bn(r, r_size, r_bn));
-      OpenSSL::CHECKNULL(BN_bin2bn(s, s_size, s_bn));
-    }
-    else
-    {
-      OpenSSL::CHECKNULL(BN_lebin2bn(r, r_size, r_bn));
-      OpenSSL::CHECKNULL(BN_lebin2bn(s, s_size, s_bn));
-    }
+    OpenSSL::Unique_BIGNUM r_bn =
+      OpenSSL::bn_from_bytes(std::span(r, r_size), big_endian);
+    OpenSSL::Unique_BIGNUM s_bn =
+      OpenSSL::bn_from_bytes(std::span(s, s_size), big_endian);
     OpenSSL::Unique_ECDSA_SIG sig;
     OpenSSL::CHECK1(ECDSA_SIG_set0(sig, r_bn, s_bn));
     // Ignore previous pointers, as they're now managed by ECDSA_SIG_set0

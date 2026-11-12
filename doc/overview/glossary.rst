@@ -12,10 +12,14 @@ Glossary
     A :ref:`unique string <use_apps/verify_tx:Commit Evidence>` produced per transaction, and included in the Merkle Tree along with the :term:`Write Set` digest and the `claims_digest`. The reveal of that string guarantees the transaction is committed.
 
   CFT
-    Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to a given limit. CFT however does not account for any nodes behaving maliciously. Read more on CFT :ref:`here <architecture/consensus/index:Consensus Protocol>`.
+    Crash Fault Tolerance is a type of fault tolerance that allows the system to tolerate network and node failures up to a given limit.
+    CFT however does not account for any nodes behaving maliciously.
+    Read more on CFT :ref:`here <architecture/consensus/index:CCF consensus protocol>`.
 
   Enclave
-    `Trusted Execution Environments <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_, allowing fully encrypted and auditable execution without direct access from the host machine.
+    Historical term from CCF's former Intel SGX support, where application code ran in an SGX enclave loaded by an untrusted host process.
+    CCF no longer supports SGX, and a CCF node now runs as a single process inside its :term:`TEE`.
+    Some code identifiers and older documents still use this term.
 
   Members
     Constitute the consortium governing a CCF network. Their public identity should be registered in CCF.
@@ -51,7 +55,9 @@ Glossary
     `Transmission Control Protocol <https://en.wikipedia.org/wiki/Transmission_Control_Protocol>`_ is a network protocol over IP that provides sessions and ordered streams, which we use to connect between nodes and external clients.
 
   TEE
-    `Trusted Execution Environment <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_ is a secure area of a main processor. It guarantees code and data loaded inside to be protected with respect to confidentiality and integrity. Often referred to as "enclave".
+    `Trusted Execution Environment <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_ is a hardware-isolated environment that protects the confidentiality and integrity of the code and data loaded inside it, and can produce attestation evidence describing that code.
+    CCF nodes use :term:`SEV-SNP` protected utility VMs as their TEE, which protect the node's memory from the host and hypervisor.
+    The :doc:`Insecure Virtual </operations/platforms/virtual>` platform provides no TEE protection and is for development only.
 
   TLS
     `Transport Layer Security <https://en.wikipedia.org/wiki/Transport_Layer_Security>`_ is an IETF cryptographic protocol standard designed to secure communications between a client and a server over a computer network.

@@ -283,6 +283,8 @@ extern "C"
       reinterpret_cast<CxaThrowFn>(dlsym(RTLD_NEXT, "__cxa_throw"));
     if (real_cxa_throw == nullptr)
     {
+      ccf::logger::write_fatal_diagnostic(
+        "Failed to resolve the C++ exception runtime handler");
       std::abort();
     }
 

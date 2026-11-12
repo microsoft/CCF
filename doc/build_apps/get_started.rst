@@ -1,144 +1,89 @@
-Quick Start
-===========
+Quickstart
+==========
 
-Application Development using CCF Overview
--------------------------------------------
+This page walks through the shortest path from a fresh machine to a running CCF application that you can modify.
+Each step links to the page describing it in more detail.
+For background on CCF itself, start with :ref:`overview/what_is_ccf:What is CCF?` and :ref:`overview/what_is_ccf:Core Concepts`.
 
--  :ref:`What is Confidential Consortium Framework (CCF) <overview/what_is_ccf:What is CCF?>`
--  Read the :doc:`CCF overview </overview/index>` and get familiar with :ref:`overview/what_is_ccf:Core Concepts` and `Azure confidential computing <https://learn.microsoft.com/en-us/azure/confidential-computing/>`__
--  :doc:`Build new CCF applications </build_apps/index>` in TypeScript/JavaScript, C++, or Rust (experimental)
--  CCF `JavaScript module API reference <https://ccf.dev/main/js/ccf-app/>`__
--  CCF application get started repos `CCF application template <https://github.com/microsoft/ccf-app-template>`__ and  `CCF application samples <https://github.com/microsoft/ccf-app-samples>`__
+1. Set Up a Development Environment
+-----------------------------------
 
-Development environment
------------------------
+CCF builds and runs on Linux, and is primarily developed and tested on Azure Linux 3.0.
+The commands below assume that the latest CCF release is installed under ``/opt/ccf`` (see step 2).
+For a containerized CCF development environment, see :doc:`/contribute/build_setup`.
 
--  VS Code Dev Container |Open in VSCode|
--  Github codespace: |Github codespace|
+The `ccf-app-samples <https://github.com/microsoft/ccf-app-samples>`__ repository contains further, more complete sample applications.
 
-(JavaScript/Typescript) Applications
-------------------------------------
+2. Install CCF
+--------------
 
-CCF apps can be written in JavaScript/Typescript. To test a JS/TS CCF application you need go through the following steps:
+Install the latest CCF release as described in :doc:`/build_apps/install_bin`.
+This installs CCF under ``/opt/ccf``, including the ``js_generic`` application, which hosts JavaScript applications, and the ``sandbox.sh`` script.
 
--  :doc:`Start a CCF Network with at least one node </operations/start_network>`
--  Initialise the CCF network with at least one active member and one user :ref:`governance/open_network:Opening a Network`, this can be done through :ref:`Proposals <governance/proposals:Summary>`.
--  Create an application :ref:`deployment proposal <build_apps/js_app_bundle:Deployment>`
--  Submit the app deployment proposal to the network and all members accept it through voting. This is a part of :ref:`Network Governance <governance/proposals:Submitting a New Proposal>`.
--  :doc:`Open the CCF network for users </governance/open_network>`
--  Start testing of your application endpoints
+3. Start a Sandbox Network
+--------------------------
 
-Build Application
-~~~~~~~~~~~~~~~~~
+Start a local, single-node network running the sample JavaScript logging application:
 
-The application building prerequisites (:doc:`CCF </build_apps/install_bin>`, `NodeJS <https://nodejs.org/en>`__ and `NPM <https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/>`__) must be installed, all will be preinstalled if you are using the devcontainer environment, otherwise you need to install them manually.
+.. code-block:: bash
 
-Please follow `ccf-app-template build process <https://github.com/microsoft/ccf-app-template#run-js-app>`__
+    $ /opt/ccf/bin/sandbox.sh
 
-Testing your Application
-~~~~~~~~~~~~~~~~~~~~~~~~
+``sandbox.sh`` generates member and user identities, starts the node, deploys the application and issues all the governance requests required to open the network to users.
+Once it prints the address of the node (by default ``https://127.0.0.1:8000``), the network is ready to accept requests.
+See :doc:`/build_apps/run_app` for details of what the script does and the options it accepts.
 
-There are several approaches to run and test your application.
+4. Issue a First Request
+------------------------
 
-.. tab:: CCF sandbox
+In a different terminal, copy the generated service certificate and user identity to the current directory:
 
-   -  Running the `sandbox.sh` script automatically starts a CCF network and deploys your application on it. This will create appropriate configuration files and directory structures, and can be made to print each command for further detail. Once the network is initialised, this will print the node addresses you can use to interact with the service.
-   -  No manual governance steps required
+.. code-block:: bash
 
-      -  :doc:`/build_apps/run_app`
-      -  `CCF Application template repository <https://github.com/microsoft/ccf-app-template#run-js-app>`__
+    $ cp workspace/sandbox_common/*.pem .
 
-.. tab:: Direct launch
+Then record a message using the ``/app/log/private`` endpoint of the logging application, and read it back:
 
-   -  The application can be run directly, given a :doc:`CCF config file </operations/configuration>`.
-      Some runtime dependencies are required, so ensure that :doc:`CCF is installed </build_apps/install_bin>`.
-   -  Governance steps are required to :doc:`initialize state, configure your app, and start the network </operations/start_network>`.
+.. code-block:: bash
 
+    $ curl https://127.0.0.1:8000/app/log/private -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -H "Content-Type: application/json" --data-binary '{"id": 42, "msg": "Hello CCF"}'
+    true
+    $ curl "https://127.0.0.1:8000/app/log/private?id=42" -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem
+    {"msg":"Hello CCF"}
 
-Testing: Application Endpoints
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The service certificate (``--cacert``) authenticates the service to the client, and the user certificate and key (``--cert`` and ``--key``) authenticate the client to the service.
+See :doc:`/use_apps/issue_commands` for more ways to interact with an application, and :doc:`/use_apps/verify_tx` to check that a transaction is committed and obtain a receipt for it.
 
-To check samples on how to test your application endpoints, please check these repositories:
+5. Write and Deploy Your Own Application
+----------------------------------------
 
--  `CCF-app-template repo <https://github.com/microsoft/ccf-app-template#--javascript>`__
--  `Banking Application sample <https://github.com/microsoft/ccf-app-samples/tree/main/banking-app#how-to-run-the-tests>`__
+JavaScript and TypeScript applications are deployed as :doc:`application bundles </build_apps/js_app_bundle>`: a directory containing the application's modules and an ``app.json`` file mapping endpoints to handler functions.
+To create your own:
 
-C++ Applications
-----------------
+- Write the application in TypeScript, as described in :doc:`/build_apps/js_app_ts`.
+- Stop the sample sandbox from step 3 with Ctrl+C before starting another one; both use the same default address.
+- Build the bundle, then start a sandbox that runs it on the ``js_generic`` application:
 
-CCF apps can also be written in C++. This offers better performance than JavaScript apps but requires a compilation step and a restart of the CCF node for deployment. please check `ccf-app-template <https://github.com/microsoft/ccf-app-template>`__ repository.
+  .. code-block:: bash
 
-The C++ sample app is located in the `cpp/ <https://github.com/microsoft/ccf-app-template/tree/main/cpp>`__ directory.
+      $ /opt/ccf/bin/sandbox.sh --package /opt/ccf/bin/js_generic --js-app-bundle /path/to/bundle
 
-Build C++ app
-~~~~~~~~~~~~~
+- Each sandbox start generates new identities, so copy the new PEM files as in step 4 before issuing requests to this network.
+- Call your endpoints under ``/app``, as in the previous step.
 
-Please check `ccf-app-template build process <https://github.com/microsoft/ccf-app-template#build-c-app>`__
+``sandbox.sh`` deploys the bundle through a governance proposal on your behalf.
+On a real service, members submit and vote on this proposal, as described in :ref:`build_apps/js_app_bundle:Deployment`.
 
-Run C++ app: Using Sandbox.sh
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Next Steps
+----------
 
-Please check `run ccf-app-template using sandbox.sh <https://github.com/microsoft/ccf-app-template#run-c-app>`__
+- To run a service rather than a local sandbox, see :doc:`/operations/start_network` and :doc:`/governance/open_network`.
+  Members govern the service through :doc:`proposals </governance/proposals>`, which are accepted according to the :doc:`constitution </governance/constitution>`.
+- To control who can call your endpoints, see :doc:`/build_apps/auth/index`.
+- To learn how application state is stored and replicated, see :doc:`/build_apps/kv/index`.
 
-Run C++ app: Using Docker
-~~~~~~~~~~~~~~~~~~~~~~~~~
+.. Preserves the anchor used by older links to this page.
+.. _packaging-your-c-app:
 
-Please check `run ccf-app-template using docker <https://github.com/microsoft/ccf-app-template#docker-1>`__
-
-Packaging your C++ app
-~~~~~~~~~~~~~~~~~~~~~~
-
-To create distributable packages for your CCF application, create a ``cpack.cmake`` file that includes CCF's packaging configuration and add it to your ``CMakeLists.txt``. See :ccf_repo:`tests/ccfapp/CMakeLists.txt` and :ccf_repo:`tests/ccfapp/cpack.cmake` for a complete working example.
-
-Rust Applications
------------------
-
-Rust applications are native CCF executables with the same deployment model as C++ applications.
-The Rust interface is experimental; see :doc:`example_rust` and the :doc:`API reference <rust_api>`.
-
-Network Governance
-------------------
-
-A Consortium of trusted Members :doc:`governs the CCF network </governance/index>`. Members can submit proposals to CCF and these proposals are accepted based on the rules defined in the :ref:`Constitution <governance/constitution:Constitution>`. Governance changes are submitted to a :ref:`network as Proposals <governance/proposals:Summary>`, and put to a vote from members.
-
--  :ref:`Submitting a New Proposal <governance/proposals:Submitting a New Proposal>`
--  :ref:`Members can then vote to accept or reject the proposal <governance/proposals:Summary>`
-
-.. note:: The initial member's certificate and private key, must be generated before starting a CCF network, please check :doc:`/governance/adding_member` .
-
-Activating network members
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-By default the CCF network needs at least one member to be started, after the network is started this member must be activated. 
-
-- :ref:`New member proposal sample <governance/proposals:Submitting a New Proposal>`
-- :ref:`Activating a New Member <governance/adding_member:Activating a New Member>`
-
-Adding network users
-~~~~~~~~~~~~~~~~~~~~
-
-Users directly interact with the application running in CCF. Their public identities should be voted in by members before they are allowed to issue requests. 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to Users. First, the identities of trusted users should be generated, see :ref:`Generating Member Keys and Certificates <governance/adding_member:Generating Member Keys and Certificates>` and :ref:`Adding Users docs <governance/open_network:Adding Users>`
-
-:ref:`New user proposal sample <governance/open_network:Adding Users>`
-
-Application deployment
-~~~~~~~~~~~~~~~~~~~~~~
-
-The native format for JavaScript applications in CCF is a :ref:`JavaScript application bundle <build_apps/js_app_bundle:JavaScript Application Bundle>`, or short app bundle. A bundle can be wrapped directly into a governance proposal for deployment.
-
-:ref:`Application deployment proposal sample <build_apps/js_app_bundle:Deployment>`
-
-Open network for users
-~~~~~~~~~~~~~~~~~~~~~~
-
-Once users are added to the network, members should create a :ref:`proposal to open the network <governance/open_network:Opening a Network>`, Other members are then able to vote for the proposal using the returned proposal id.
-
-Once the proposal has received enough votes under the rules of the Constitution (ie. ballots which evaluate to true), the network is opened to users. It is only then that users are able to execute transactions on the deployed application.
-
-:ref:`Open network proposal sample <governance/open_network:Opening the Network>`
-
-.. |Open in VSCode| image:: https://img.shields.io/static/v1?label=Open+in&message=VSCode&logo=visualstudiocode&color=007ACC&logoColor=007ACC&labelColor=2C2C32
-   :target: https://github.com/microsoft/ccf-app-template#quickstart
-.. |Github codespace| image:: https://img.shields.io/static/v1?label=Open+in&message=GitHub+codespace&logo=github&color=2F363D&logoColor=white&labelColor=2C2C32
-   :target: https://github.com/microsoft/ccf-app-template#quickstart
+Applications can also be written in C++ (see :doc:`/build_apps/example_cpp`, which also describes how to build and package them) or, experimentally, in Rust (see :doc:`/build_apps/example_rust`).
+Native applications offer better performance than JavaScript applications, but are compiled into their own executable, so deploying a new version requires a :doc:`code upgrade </operations/code_upgrade>`.
