@@ -22,6 +22,7 @@ suites = {}
 # This suite tests that rekeying, network configuration changes, recoveries and
 # curve changes can be interleaved
 suite_rekey_recovery = [
+    governance_history.test_service_signing_identities,
     recovery.test_recover_service,
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_on_other_curve,
@@ -36,6 +37,7 @@ suite_rekey_recovery = [
     reconfiguration.test_add_node_on_other_curve,
     e2e_logging.test_rekey,
     recovery.test_recover_service,
+    governance_history.test_service_signing_identities,
     e2e_logging.test_rekey,
     recovery.test_recover_service_with_wrong_identity,
 ]
@@ -139,6 +141,7 @@ all_tests_suite = [
     # test the most complete ledgers
     governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
+    governance_history.test_service_signing_identities,
 ]
 suites["all"] = all_tests_suite
 

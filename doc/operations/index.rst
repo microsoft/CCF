@@ -6,9 +6,9 @@ This section describes how :term:`Operators` manage the different nodes constitu
 .. grid:: 1 2 2 2
     :gutter: 3
 
-    .. grid-item-card:: :fas:`laptop-code` :doc:`run_setup`
+    .. grid-item-card:: :fas:`laptop-code` :doc:`Install CCF </build_apps/install_bin>`
 
-        Set up a VM or a container to run a CCF application node.
+        Install CCF on a VM or a container to run a CCF application node.
 
     .. grid-item-card:: :fas:`play-circle` :doc:`start_network`
 
@@ -16,11 +16,7 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
     .. grid-item-card:: :fas:`cogs` :doc:`configuration`
 
-        Configure CCF nodes using a JSON configuration file.
-
-    .. grid-item-card:: :fas:`laptop-code` :doc:`cli`
-
-        Use the command-line interface for CCF executables.
+        Configure CCF nodes using a JSON configuration file and command-line options.
 
     .. grid-item-card:: :fas:`upload` :doc:`ledger_snapshot`
 
@@ -42,10 +38,6 @@ This section describes how :term:`Operators` manage the different nodes constitu
 
         Recover a service instance from a catastrophic failure, using one or more ledger copies.
 
-    .. grid-item-card:: :fas:`network-wired` :doc:`network`
-
-        Configure a network to deploy a CCF service.
-
     .. grid-item-card:: :fas:`microchip` :doc:`platforms/index`
 
         Explore platforms and trusted execution environments supported by CCF.
@@ -65,16 +57,13 @@ This section describes how :term:`Operators` manage the different nodes constitu
 .. toctree::
     :hidden:
 
-    run_setup
     start_network
     configuration
-    cli
     ledger_snapshot
     data_persistence
     code_upgrade
     certificates
     recovery
-    network
     platforms/index
     troubleshooting
     resource_usage

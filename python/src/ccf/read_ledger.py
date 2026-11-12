@@ -211,11 +211,13 @@ def run(
 
     table_filter = re.compile(tables_regex) if tables_regex is not None else None
 
-    # Extend and compile rules
-    tables_format_rules = tables_format_rules or []
-    tables_format_rules.extend(default_tables_format_rules)
+    # Extend and compile rules, without modifying the caller's rules
+    all_tables_format_rules = [
+        *(tables_format_rules or []),
+        *default_tables_format_rules,
+    ]
     compiled_tables_format_rules = [
-        (re.compile(table_name_re), _) for (table_name_re, _) in tables_format_rules
+        (re.compile(table_name_re), _) for (table_name_re, _) in all_tables_format_rules
     ]
 
     if is_snapshot:

@@ -3,7 +3,7 @@
 
 module
 
-public import CCF.Execution
+public import CCF.TransitionSystem
 public import Kv.Model.Transitions
 
 @[expose] public section
