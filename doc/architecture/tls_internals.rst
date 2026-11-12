@@ -157,6 +157,11 @@ Closing
 
 Closing is deferred rather than immediate. A close requested while output is still buffered sets a flag and flushes; the file descriptor is only closed once the buffered bytes have been written.
 
+For TLS connections, the worker then sends ``close_notify`` before closing the socket.
+If ``SSL_shutdown`` reports ``SSL_ERROR_WANT_WRITE`` or ``SSL_ERROR_WANT_READ``, the connection remains open and retries shutdown on socket readiness without re-entering application reads or writes.
+Once the alert has been sent, the connection closes without waiting for the peer's reciprocal alert.
+Existing idle expiry and transport shutdown can still force a close while the alert is backpressured.
+
 This matters because the common pattern is to write a response and immediately close. Closing eagerly truncates any response large enough to have been backpressured, which the client observes as a connection reset partway through the body rather than as a well-formed response.
 
 Server shutdown and idle expiry are exceptions: there the close is forced rather than deferred. Each connection takes exactly one further worker pass, writing whatever the socket will accept, and then goes. Waiting for the flush would let a peer which has stopped reading hold the whole node's shutdown open, or retain an expired connection, indefinitely.

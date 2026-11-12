@@ -855,6 +855,7 @@ if(BUILD_TESTS)
         "LINKER:--wrap=uv_freeaddrinfo"
         "LINKER:--wrap=socket"
         "LINKER:--wrap=SSL_do_handshake"
+        "LINKER:--wrap=SSL_shutdown"
     )
     add_unit_test(
       node_connections_test
