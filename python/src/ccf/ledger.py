@@ -1080,13 +1080,15 @@ class Snapshot(Entry):
             self._verify_snapshot_receipt(receipt_bytes, receipt_pos, snapshot_digest)
 
     def is_committed(self):
-        return COMMITTED_FILE_SUFFIX in self._filename
+        # Only the file name, not the directories containing it, is relevant
+        return COMMITTED_FILE_SUFFIX in os.path.basename(self._filename)
 
     def is_snapshot_file_1_x(self):
         # Kept here for compatibility
         if not self.is_committed():
             raise ValueError(f"Snapshot file {self._filename} is not yet committed")
-        return len(self._filename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
+        basename = os.path.basename(self._filename)
+        return len(basename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
 
     def get_len(self) -> int:
         return self._file_size
