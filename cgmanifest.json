@@ -46,8 +46,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "1be298e1bd68957e4cd352e1f676f00e07dcfb57",
-          "tag": "12.2.0"
+          "commitHash": "208219daff58f2a7438f6931cc2ddc358acf33ef",
+          "tag": "12.2.1"
         }
       }
     },
@@ -96,8 +96,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "5eac4b66f20b2c189ae40281c29e71cf39a958ec",
-          "tag": "v1.1.3"
+          "commitHash": "de232f2ac3798a3c8b2cc5f3b7ebf737e1c0dbd1",
+          "tag": "v1.1.4"
         }
       }
     },
