@@ -1,0 +1,1 @@
+`ccf.ledger.PublicDomain` now rejects snapshot map entries that extend beyond their map's serialised size, as the node does, and the `OFFSETS` verification level rejects ledger chunks with bytes outside their transactions.

@@ -222,6 +222,10 @@ namespace ccf::kv::test
       return ConsensusDetails{{}, {}, MembershipState::Active};
     }
 
+    void trace_retired_committed_tx(
+      ccf::SeqNo seqno, const std::vector<NodeId>& node_ids) override
+    {}
+
     void set_last_signature_at(ccf::SeqNo seqno)
     {
       last_signature = seqno;
