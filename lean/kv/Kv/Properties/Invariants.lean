@@ -12,6 +12,8 @@ public import Kv.Properties.Programs
 namespace Kv.Properties
 
 open Kv.Model
+      hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
+open Kv.TraceValidation
 
 /-- The event neither creates, ends, nor rolls back store `sid`. -/
 def SegmentEvent (sid : Nat) : Event → Prop
@@ -36,9 +38,5 @@ def projectApplications (w : World) (sid : Nat) : List Record → Except Failure
 def AttemptEvent (tid : Nat) : Event → Prop
   | .txCreate _ id | .txEnd _ id => id ≠ tid
   | _ => True
-
-/-- Every cell was written at or before `version`. -/
-def CellsBounded (db : Data) (version : Nat) : Prop :=
-  ∀ key cell, find db key = some cell → cell.version ≤ version
 
 end Kv.Properties

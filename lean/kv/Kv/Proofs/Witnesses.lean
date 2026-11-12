@@ -5,6 +5,7 @@ module
 
 public import Kv.Properties.Invariants
 public import CCF.Execution
+public import Kv.Proofs.Capture
 
 /-!
 Non-vacuity witnesses for the claims in `Kv.Properties`, together with the executable model's
@@ -12,9 +13,8 @@ read, publication and store claims. Trace claims are witnessed by prefixes and s
 accepted trace, evaluated by the kernel; store claims by directly constructed stores; read and
 publication claims by small concrete association lists.
 
-Each proof module under `Kv/Proofs/` is self-contained: lemmas needed by more than one module are
-duplicated as private declarations, so the proof modules do not import each other and Lake can
-check them in parallel. This layout is chosen to minimize verification wall-clock time.
+Capture claims reuse the authoritative semantic execution and correspondence proofs.
+The concrete witnesses retain the full original trace premises and are evaluated by the kernel.
 -/
 
 @[expose] public section
@@ -40,6 +40,8 @@ end Kv.Proofs.Witnesses
 namespace Kv.Proofs.Execution
 
 open Kv.Model
+      hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
+open Kv.TraceValidation
 
 private theorem step_iff_transition (w next : World) (r : Record)
     : transitionSystem.step w r = some next ↔ step w r = .ok next := by
@@ -50,7 +52,9 @@ end Kv.Proofs.Execution
 
 namespace Kv.Proofs.Invariants
 
-open Kv.Model Kv.Properties
+open Kv.Model
+      hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
+open Kv.TraceValidation Kv.Properties
 
 /-- Store histories are contiguous, headed by the current frame, and contain the global cut. -/
 private structure StoreInvariant (s : Store) : Prop where
@@ -65,7 +69,9 @@ end Kv.Proofs.Invariants
 
 namespace Kv.Proofs.Invariants
 
-open Kv.Model Kv.Properties
+open Kv.Model
+      hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
+open Kv.TraceValidation Kv.Properties
 variable {M K V : Type}
 
 private theorem find_set_same [DecidableEq K] (xs : Assoc K V) (k : K) (v : V)
@@ -124,16 +130,6 @@ private theorem pure_ok {α : Type} {a b : α} (h : (pure a : Except Failure α)
     : a = b := by
   cases h; rfl
 
-private theorem withTx_ok {w next : World} {sid tid : Nat} {f : Tx → Except Failure Tx}
-    (h : withTx w sid tid f = .ok next)
-    : ∃ t t',
-        txOf w sid tid = .ok t
-        ∧ f t = .ok t'
-        ∧ next = { w with txs := set w.txs tid t' } := by
-  obtain ⟨t, tx, h⟩ := bind_ok h
-  obtain ⟨t', f, h⟩ := bind_ok h
-  exact ⟨t, t', tx, f, (pure_ok h).symm⟩
-
 private theorem present_ok {α : Type} {value : Option α} {message : String} {a : α}
     (h : present value message = .ok a)
     : value = some a := by
@@ -155,54 +151,13 @@ private theorem expect_ok {condition : Bool} {message : String} {u : Unit}
   · cases h
   · rfl
 
-private theorem acquireMap_ok {s : Store} {t next : Tx} {map : String}
-    {version global : Nat} (accepted : acquireMap s t map version global = .ok next)
-    : ∃ snap,
-        t.snapshot = some snap
-        ∧ find t.globalViews map = none
-        ∧ (version = (revision (captureGlobal s snap map).current map).version
-            ∧ global = (revision (captureGlobal s snap map).frame map).version)
-        ∧ t.normal.log.all (fun op => op.map != map) = true
-        ∧ next
-          = {
-            t with
-              globalViews := set t.globalViews map (captureGlobal s snap map)
-              data := pinData t.data map (captureGlobal s snap map).current.data
-          } := by
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  obtain ⟨snap, captured, accepted⟩ := bind_ok accepted
-  obtain ⟨_, fresh, accepted⟩ := bind_ok accepted
-  obtain ⟨_, versions, accepted⟩ := bind_ok accepted
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  split at accepted
-  next unused =>
-    cases pure_ok accepted
-    have versions := expect_ok versions
-    simp only [Bool.and_eq_true, beq_iff_eq] at versions
-    exact ⟨snap, present_ok captured, Option.isNone_iff_eq_none.mp (require_ok fresh), versions,
-      unused, rfl⟩
-  next => cases accepted
-
-private theorem step_ok {w next : World} {r : Record} (accepted : step w r = .ok next)
-    : ∃ eventNext,
-        stepEvent w r.event = .ok eventNext
-        ∧ next = { eventNext with lastSeq := some r.seq, count := w.count + 1 } := by
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  obtain ⟨seq, event⟩ := r
-  dsimp only at accepted ⊢
-  split at accepted <;> try split at accepted
-  all_goals first
-    | obtain ⟨_, invalid, -⟩ := bind_ok accepted; cases invalid
-    | obtain ⟨eventNext, event, accepted⟩ := bind_ok accepted
-      exact ⟨eventNext, event, (pure_ok accepted).symm⟩
-
 end Kv.Proofs.Invariants
 
 namespace Kv.Proofs.Model
 
-open Kv.Model Kv.Proofs.Invariants Kv.Properties
+open Kv.Model
+      hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
+open Kv.TraceValidation Kv.Proofs.Invariants Kv.Properties
 section Generic
 variable {M K V : Type} [DecidableEq M] [DecidableEq K]
 
@@ -296,7 +251,9 @@ end Kv.Proofs.Model
 
 namespace Kv.Proofs.Model
 
-open Kv.Model Kv.Proofs.Invariants Kv.Properties
+open Kv.Model
+      hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
+open Kv.TraceValidation Kv.Proofs.Invariants Kv.Properties
 
 theorem apply_atomic (s : Store) (writes : Pending)
     : (advance s writes).head.data = publish s.head.data (s.head.version + 1) writes :=
@@ -304,7 +261,7 @@ theorem apply_atomic (s : Store) (writes : Pending)
 
 theorem compact_above_head_noop (s : Store) (v : Nat) (h : s.head.version < v)
     : compactStore s v = s := by
-  simp [compactStore, Nat.not_le.mpr h]
+  simp [compactStore, Model.compactStore, Nat.not_le.mpr h]
 
 theorem compacted_map_unavailable (s : Store) (f : Frame) (m : String)
     (birth : Stamp) (existing : find f.births m = some birth)
@@ -330,14 +287,14 @@ theorem absent_placeholder_has_no_values (s : Store) (f : Frame) (m key : String
 theorem rollback_keeps_prefix (s : Store) (v term : Nat) (f : Frame)
     (h : f ∈ s.history) (hv : f.version ≤ s.global)
     : f ∈ (rollbackStore s v term).history := by
-  simp only [rollbackStore, List.mem_filter, decide_eq_true_eq]
+  simp only [rollbackStore, Model.rollbackStore, List.mem_filter, decide_eq_true_eq]
   exact ⟨h, Nat.le_trans hv (Nat.le_max_left _ _)⟩
 
 theorem rollback_discards_suffix (s : Store) (v term : Nat) (f : Frame)
     (h : v < f.version) (boundary : s.global ≤ v)
     : f ∉ (rollbackStore s v term).history := by
   have hbound : rollbackCut s v ≤ v := Nat.max_le.mpr ⟨boundary, Nat.min_le_right _ _⟩
-  simp [rollbackStore, Nat.not_le.mpr (Nat.lt_of_le_of_lt hbound h)]
+  simp [rollbackStore, Model.rollbackStore, Nat.not_le.mpr (Nat.lt_of_le_of_lt hbound h)]
 
 theorem stale_term_cannot_apply (s : Store) (t : Tx) (snap : Snapshot)
     (hs : t.snapshot = some snap) (ht : s.term ≠ snap.term)
@@ -381,60 +338,9 @@ end Kv.Proofs.Model
 
 namespace Kv.Proofs.Trace
 
-open Kv.Model Kv.Proofs.Invariants Kv.Properties Kv.Proofs.Model
-
-private theorem step_event_result (w next : World) (r : Record)
-    (accepted : step w r = .ok next)
-    : ∃ eventNext,
-        stepEvent w r.event = .ok eventNext
-        ∧ next.stores = eventNext.stores
-        ∧ next.txs = eventNext.txs := by
-  obtain ⟨eventNext, event, rfl⟩ := step_ok accepted
-  exact ⟨eventNext, event, rfl, rfl⟩
-
-private theorem stepEvent_capture_metadata (w next : World)
-    (sid tid version global term : Nat) (s : Store) (t : Tx)
-    (source : storeOf w sid = .ok s)
-    (accepted : stepEvent w (.snapshot sid tid version global term) = .ok next)
-    (capturedTx : find next.txs tid = some t)
-    : ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term := by
-  refine ⟨{ current := s.head, term }, ?_, rfl, rfl⟩
-  obtain ⟨_, store, accepted⟩ := bind_ok accepted
-  cases source.symm.trans store
-  obtain ⟨_, _, -, h, rfl⟩ := withTx_ok accepted
-  obtain ⟨_, -, h⟩ := bind_ok h
-  split at h
-  · obtain ⟨_, -, h⟩ := bind_ok h
-    cases pure_ok h
-    simp only [find_set_same, Option.some.injEq] at capturedTx
-    subst capturedTx
-    rfl
-  · cases h
-
-private theorem step_capture_metadata (w next : World)
-    (sid tid version global term seq : Nat) (s : Store) (t : Tx)
-    (source : storeOf w sid = .ok s)
-    (accepted : step w ⟨seq, .snapshot sid tid version global term⟩ = .ok next)
-    (capturedTx : find next.txs tid = some t)
-    : ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term := by
-  obtain ⟨eventNext, eventStep, _, txs⟩ := step_event_result w next _ accepted
-  exact stepEvent_capture_metadata w eventNext sid tid version global term s t source
-    eventStep (by simpa [txs] using capturedTx)
-
-private theorem stepEvent_capture_cut_values (w next : World)
-    (sid tid version global term : Nat) (s : Store) (source : storeOf w sid = .ok s)
-    (accepted : stepEvent w (.snapshot sid tid version global term) = .ok next)
-    : version = s.head.version ∧ global = s.global := by
-  obtain ⟨_, store, accepted⟩ := bind_ok accepted
-  cases source.symm.trans store
-  obtain ⟨_, _, -, h, -⟩ := withTx_ok accepted
-  obtain ⟨_, -, h⟩ := bind_ok h
-  split at h
-  · obtain ⟨_, metadata, -⟩ := bind_ok h
-    have metadata := expect_ok metadata
-    simp only [Bool.and_eq_true, beq_iff_eq] at metadata
-    exact metadata.1
-  · cases h
+open Kv.Model
+      hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
+open Kv.TraceValidation Kv.Proofs.Invariants Kv.Properties Kv.Proofs.Model
 
 theorem captureGlobal_placeholder (s : Store) (snap : Snapshot) (map : String)
     (absent : find (captureLocal s snap map).births map = none)
@@ -446,67 +352,26 @@ theorem captureGlobal_committed (s : Store) (snap : Snapshot) (map : String)
     : (captureGlobal s snap map).frame = atCut s s.global := by
   simp [captureGlobal, existing]
 
-private theorem stepEvent_map_capture (w next : World)
-    (sid tid localVersion globalVersion : Nat) (map : String) (s : Store)
-    (before after : Tx) (snap : Snapshot) (store : storeOf w sid = .ok s)
-    (tx : txOf w sid tid = .ok before) (snapshot : before.snapshot = some snap)
-    (accepted : stepEvent w (.acquire sid tid map localVersion globalVersion) = .ok next)
-    (live : find next.txs tid = some after)
-    : find after.globalViews map = some (captureGlobal s snap map)
-      ∧ localVersion = (revision (captureLocal s snap map) map).version
-      ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version := by
-  have captureGlobal_current (s : Store) (snap : Snapshot) (map : String)
-      : (captureGlobal s snap map).current = captureLocal s snap map := by
-    dsimp only [captureGlobal]
-    split <;> rfl
-  obtain ⟨_, store', accepted⟩ := bind_ok accepted
-  cases store.symm.trans store'
-  obtain ⟨_, _, tx', h, rfl⟩ := withTx_ok accepted
-  cases tx.symm.trans tx'
-  obtain ⟨_, captured, -, versions, _, rfl⟩ := acquireMap_ok h
-  cases snapshot.symm.trans captured
-  simp only [find_set_same, Option.some.injEq] at live
-  subst live
-  rw [captureGlobal_current] at versions
-  exact ⟨find_set_same _ _ _, versions⟩
-
-private theorem step_map_capture (w next : World)
-    (sid tid localVersion globalVersion seq : Nat) (map : String) (s : Store)
-    (before after : Tx) (snap : Snapshot) (store : storeOf w sid = .ok s)
-    (tx : txOf w sid tid = .ok before) (snapshot : before.snapshot = some snap)
-    (accepted : step w ⟨seq, .acquire sid tid map localVersion globalVersion⟩ = .ok next)
-    (live : find next.txs tid = some after)
-    : find after.globalViews map = some (captureGlobal s snap map)
-      ∧ localVersion = (revision (captureLocal s snap map) map).version
-      ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version := by
-  obtain ⟨eventNext, eventStep, _, txs⟩ := step_event_result w next _ accepted
-  exact stepEvent_map_capture w eventNext sid tid localVersion globalVersion map s before
-    after snap store tx snapshot eventStep (by simpa [txs] using live)
-
 theorem step_capture_metadata_claim
     : ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
         storeOf w sid = .ok s
-        → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+        → TraceValidation.transitionSystem.step w
+            ⟨seq, .snapshot sid tid version global term⟩
           = some next
         → find next.txs tid = some t
         → ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term := by
   intro w next sid tid version global term seq s t source accepted capturedTx
-  exact Proofs.Trace.step_capture_metadata w next sid tid version global term seq s t source ((Proofs.Execution.step_iff_transition _ _ _).mp accepted) capturedTx
+  exact Proofs.Capture.step_capture_metadata w next sid tid version global term seq s t source ((Proofs.Execution.step_iff_transition _ _ _).mp accepted) capturedTx
 
 theorem step_capture_cut_values_claim
     : ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store),
         storeOf w sid = .ok s
-        → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+        → TraceValidation.transitionSystem.step w
+            ⟨seq, .snapshot sid tid version global term⟩
           = some next
         → version = s.head.version ∧ global = s.global := by
-  have step_capture_cut_values (w next : World) (sid tid version global term seq : Nat)
-      (s : Store) (source : storeOf w sid = .ok s)
-      (accepted : step w ⟨seq, .snapshot sid tid version global term⟩ = .ok next)
-      : version = s.head.version ∧ global = s.global := by
-    obtain ⟨eventNext, eventStep, _, _⟩ := step_event_result w next _ accepted
-    exact stepEvent_capture_cut_values w eventNext sid tid version global term s source eventStep
   intro w next sid tid version global term seq s source accepted
-  exact step_capture_cut_values w next sid tid version global term seq s source
+  exact Proofs.Capture.step_capture_cut_values w next sid tid version global term seq s source
     ((Proofs.Execution.step_iff_transition _ _ _).mp accepted)
 
 theorem step_map_capture_claim
@@ -515,7 +380,7 @@ theorem step_map_capture_claim
         storeOf w sid = .ok s
         → txOf w sid tid = .ok before
         → before.snapshot = some snap
-        → Model.transitionSystem.step w
+        → TraceValidation.transitionSystem.step w
             ⟨seq, .acquire sid tid map localVersion globalVersion⟩
           = some next
         → find next.txs tid = some after
@@ -523,13 +388,15 @@ theorem step_map_capture_claim
           ∧ localVersion = (revision (captureLocal s snap map) map).version
           ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version := by
   intro w next sid tid localVersion globalVersion seq map s before after snap store tx snapshot accepted live
-  exact Proofs.Trace.step_map_capture w next sid tid localVersion globalVersion seq map s before after snap store tx snapshot ((Proofs.Execution.step_iff_transition _ _ _).mp accepted) live
+  exact Proofs.Capture.step_map_capture w next sid tid localVersion globalVersion seq map s before after snap store tx snapshot ((Proofs.Execution.step_iff_transition _ _ _).mp accepted) live
 
 end Kv.Proofs.Trace
 
 namespace Kv.Proofs.Properties
 
-open Kv.Model Kv.Properties
+open Kv.Model
+      hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
+open Kv.TraceValidation Kv.Properties
 
 theorem discarded_handle_cannot_apply
     : ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
@@ -553,7 +420,9 @@ end Kv.Proofs.Properties
 
 namespace Kv.Proofs.Witnesses
 
-open Kv.Model Kv.Properties Kv.Proofs.Invariants
+open Kv.Model
+      hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
+open Kv.TraceValidation Kv.Properties Kv.Proofs.Invariants
 
 private instance (sid : Nat) : DecidablePred (SegmentEvent sid) :=
   fun e => by
@@ -827,7 +696,7 @@ theorem publish_unique_witness : ∃ db : DB String String String, Unique db :=
 
 theorem transaction_snapshot_serial_witness
     : ∃ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ find w.txs tid = some t
         ∧ t.snapshot = some snap
         ∧ t.normal.log ≠ [] :=
@@ -844,7 +713,7 @@ theorem transaction_snapshot_serial_witness
 
 theorem transaction_application_serial_witness
     : ∃ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ storeOf w sid = .ok s
         ∧ txOf w sid tid = .ok t
         ∧ t.snapshot = some snap
@@ -869,7 +738,7 @@ theorem executable_branch_serializability_witness
     : ∃ (s final : Store) (ts : List Tx),
         (∀ t ∈ ts,
           ∃ (w : World) (tid : Nat),
-            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+            TraceValidation.transitionSystem.Reachable w ∧ find w.txs tid = some t)
         ∧ AppliedBranch s ts final
         ∧ ts ≠ [] :=
   ⟨
@@ -878,16 +747,17 @@ theorem executable_branch_serializability_witness
     [txAt 8 1],
     List.forall_mem_singleton.mpr
       ⟨world 8, 1, world_reachable facts.accepted (by decide), find_tx facts.tx8⟩,
-    .cons _ _ _ _ _ (by simp [tryApply, facts.canApply8]) (.nil _),
+    .cons _ _ _ _ _ (by simp [tryApply, Model.tryApply, facts.canApply8, advance])
+      (.nil _),
     List.cons_ne_nil _ _
   ⟩
 
 theorem replay_segment_serializability_witness
     : ∃ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ find w.stores sid = some s
         ∧ (∀ r ∈ rs, SegmentEvent sid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
+        ∧ CCF.Execution.Run TraceValidation.transitionSystem w rs final
         ∧ rs ≠ [] :=
   ⟨
     world 3,
@@ -909,18 +779,19 @@ private theorem reachable_live_store
 
 theorem reachable_store_invariants_witness
     : ∃ (w : World) (sid : Nat) (s : Store),
-        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s :=
+        TraceValidation.transitionSystem.Reachable w ∧ find w.stores sid = some s :=
   reachable_live_store
 
 theorem reachable_store_data_invariants_witness
     : ∃ (w : World) (sid : Nat) (s : Store),
-        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s :=
+        TraceValidation.transitionSystem.Reachable w ∧ find w.stores sid = some s :=
   reachable_live_store
 
 theorem step_capture_metadata_witness
     : ∃ (w next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
         storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+        ∧ TraceValidation.transitionSystem.step w
+            ⟨seq, .snapshot sid tid version global term⟩
           = some next
         ∧ find next.txs tid = some t :=
   ⟨
@@ -942,7 +813,8 @@ theorem step_capture_metadata_witness
 theorem step_capture_cut_values_witness
     : ∃ (w next : World) (sid tid version global term seq : Nat) (s : Store),
         storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+        ∧ TraceValidation.transitionSystem.step w
+            ⟨seq, .snapshot sid tid version global term⟩
           = some next :=
   ⟨
     world 13,
@@ -962,11 +834,12 @@ theorem capture_replay_preserves_metadata_witness
     : ∃ (w capturedWorld final : World) (sid tid version global term seq : Nat)
         (s : Store) (t : Tx) (tail : List Record),
         storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+        ∧ TraceValidation.transitionSystem.step w
+            ⟨seq, .snapshot sid tid version global term⟩
           = some capturedWorld
         ∧ find capturedWorld.txs tid = some t
         ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+        ∧ CCF.Execution.Run TraceValidation.transitionSystem capturedWorld tail final
         ∧ tail ≠ [] :=
   ⟨
     world 4,
@@ -994,7 +867,7 @@ theorem replay_snapshot_fixed_witness
         find w.txs tid = some before
         ∧ before.snapshot = some snap
         ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
+        ∧ CCF.Execution.Run TraceValidation.transitionSystem w rs final
         ∧ rs ≠ [] :=
   ⟨
     world 5,
@@ -1016,7 +889,7 @@ theorem step_map_capture_witness
         storeOf w sid = .ok s
         ∧ txOf w sid tid = .ok before
         ∧ before.snapshot = some snap
-        ∧ Model.transitionSystem.step w
+        ∧ TraceValidation.transitionSystem.step w
             ⟨seq, .acquire sid tid map localVersion globalVersion⟩
           = some next
         ∧ find next.txs tid = some after :=
@@ -1046,7 +919,7 @@ theorem replay_map_global_fixed_witness
         find w.txs tid = some before
         ∧ find before.globalViews map = some view
         ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
+        ∧ CCF.Execution.Run TraceValidation.transitionSystem w rs final
         ∧ rs ≠ [] :=
   ⟨
     world 15,
@@ -1070,12 +943,12 @@ theorem capture_replay_preserves_map_witness
         storeOf w sid = .ok s
         ∧ txOf w sid tid = .ok before
         ∧ before.snapshot = some snap
-        ∧ Model.transitionSystem.step w
+        ∧ TraceValidation.transitionSystem.step w
             ⟨seq, .acquire sid tid map localVersion globalVersion⟩
           = some capturedWorld
         ∧ find capturedWorld.txs tid = some capturedTx
         ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+        ∧ CCF.Execution.Run TraceValidation.transitionSystem capturedWorld tail final
         ∧ tail ≠ [] :=
   ⟨
     world 14,
@@ -1115,10 +988,11 @@ theorem captureGlobal_committed_witness
 theorem step_global_read_from_captured_map_witness
     : ∃ (w next : World) (sid tid seq : Nat) (map key value : String) (t : Tx)
         (view : GlobalView),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ txOf w sid tid = .ok t
         ∧ find t.globalViews map = some view
-        ∧ Model.transitionSystem.step w ⟨seq, .get sid tid map key (some value) true⟩
+        ∧ TraceValidation.transitionSystem.step w
+            ⟨seq, .get sid tid map key (some value) true⟩
           = some next :=
   ⟨
     world 15,
@@ -1140,10 +1014,10 @@ theorem step_global_read_from_captured_map_witness
 theorem step_global_has_from_captured_map_witness
     : ∃ (w next : World) (sid tid seq : Nat) (map key : String) (t : Tx)
         (view : GlobalView),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ txOf w sid tid = .ok t
         ∧ find t.globalViews map = some view
-        ∧ Model.transitionSystem.step w ⟨seq, .has sid tid map key true true⟩
+        ∧ TraceValidation.transitionSystem.step w ⟨seq, .has sid tid map key true true⟩
           = some next :=
   ⟨
     world 16,
@@ -1190,7 +1064,7 @@ theorem rollback_discards_suffix_witness
 
 theorem durable_cut_survives_rollback_witness
     : ∃ (w : World) (sid : Nat) (s : Store) (v cut : Nat),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ find w.stores sid = some s
         ∧ cut ≤ s.global
         ∧ s.global ≤ v

@@ -93,8 +93,13 @@ The same rules apply to every specification namespace, including multi-component
 - `Model` and its submodules cannot import `CCF.Proofs` or the `CCF` entrypoint that reexports it, so models depend only on shared definitions.
 - `Model` and its submodules can import only model modules within the specification.
   Model submodules cannot import the assembled `Model` entrypoint.
-- The `Properties` entrypoint can import model modules, property helpers, and proofs.
-- Property helpers can import model modules and other property helpers, but not proofs or the `Properties` entrypoint.
-- Proofs can import model modules, property helpers, and other proofs, but not the `Properties` entrypoint.
-- Other modules, such as tests and trace validation, are unrestricted.
+- Trace validation can import model modules and other trace-validation modules, but not property helpers or proofs.
+  Trace-validation submodules cannot import their assembled entrypoint or shared proof infrastructure.
+- The `Properties` entrypoint can import model modules, property helpers, trace validation, and proofs.
+- Property helpers can import model modules, trace validation, and other property helpers, but not proofs or the `Properties` entrypoint.
+  Semantic-only helpers should remain independent of trace validation.
+- Proofs can import model modules, trace validation, property helpers, and other proofs, but not the `Properties` entrypoint.
+- Other modules, such as tests, are unrestricted.
   Imports outside the specification namespace are unrestricted except for the `CCF` restrictions above.
+
+`CCF/Tests/Architecture.lean` checks the shared policy for both single-component and nested specification roots.

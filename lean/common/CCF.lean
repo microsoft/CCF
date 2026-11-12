@@ -10,4 +10,5 @@ public import CCF.Parsec
 public import CCF.Proofs.Execution
 public import CCF.Proofs.Finset
 public import CCF.Seq
+public import CCF.Tests.Architecture
 public import CCF.TransitionSystem

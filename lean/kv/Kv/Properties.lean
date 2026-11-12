@@ -9,6 +9,9 @@ public import CCF.Execution
 import Kv.Proofs.Reachable
 import Kv.Proofs.Replay
 import Kv.Proofs.Witnesses
+import Kv.Proofs.Correspondence
+import Kv.Proofs.Semantics
+import Kv.Proofs.SemanticInvariant
 
 @[expose] public section
 
@@ -23,6 +26,186 @@ Each claim with premises has an adjacent witness that its premises can hold.
 namespace Kv.Properties
 
 open Kv.Model
+      hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
+open Kv.TraceValidation
+
+/-! ## Semantic execution and trace correspondence -/
+
+/-- Every semantic-reachable store has a complete history, current head, and bounded global cut. -/
+theorem semantic_reachable_store_invariants
+    : ∀ (w : Model.State) (sid : Nat) (s : Model.Store),
+        Model.transitionSystem.Reachable w
+        → find w.stores sid = some s
+        → History s.history s.head.version
+          ∧ s.history.head? = some s.head
+          ∧ s.global ≤ s.head.version
+          ∧ (atCut s s.global).version = s.global := by
+  exact Proofs.SemanticInvariant.semantic_reachable_store_invariants
+
+/-- Witness: semantic actions reach a live store without any trace metadata. -/
+theorem semantic_reachable_store_invariants_witness
+    : ∃ (w : Model.State) (sid : Nat) (s : Model.Store),
+        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
+  exact Proofs.SemanticInvariant.semantic_reachable_store_invariants_witness
+
+/-- Every semantic-reachable head has unique keys and bounded previous-write versions. -/
+theorem semantic_reachable_store_data_invariants
+    : ∀ (w : Model.State) (sid : Nat) (s : Model.Store),
+        Model.transitionSystem.Reachable w
+        → find w.stores sid = some s
+        → Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
+  exact Proofs.SemanticInvariant.semantic_reachable_store_data_invariants
+
+/-- Witness: semantic actions reach a store satisfying the data-safety premises. -/
+theorem semantic_reachable_store_data_invariants_witness
+    : ∃ (w : Model.State) (sid : Nat) (s : Model.Store),
+        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
+  exact Proofs.SemanticInvariant.semantic_reachable_store_data_invariants_witness
+
+/-- Every semantic-reachable captured program reproduces its writes on pinned local data. -/
+theorem semantic_transaction_snapshot_serial
+    : ∀ (w : Model.State) (tid : Nat) (t : Model.Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        → find w.txs tid = some t
+        → t.snapshot = some snap
+        → serialRun t.data [] t.normal.log = some t.normal.writes := by
+  exact Proofs.SemanticInvariant.semantic_transaction_snapshot_serial
+
+/-- Witness: a nonempty program is reachable using only semantic actions. -/
+theorem semantic_transaction_snapshot_serial_witness
+    : ∃ (w : Model.State) (tid : Nat) (t : Model.Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        ∧ find w.txs tid = some t
+        ∧ t.snapshot = some snap
+        ∧ t.normal.log ≠ [] := by
+  exact Proofs.SemanticInvariant.semantic_transaction_snapshot_serial_witness
+
+/-- Every OCC-valid semantic-reachable program serializes against the application head. -/
+theorem semantic_transaction_application_serial
+    : ∀ (w : Model.State) (sid tid : Nat) (s : Model.Store) (t : Model.Tx)
+        (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        → Model.lookupTx w sid tid = some (s, t)
+        → t.snapshot = some snap
+        → canApply s t = true
+        → serialRun s.head.data [] t.normal.log = some t.normal.writes := by
+  exact Proofs.SemanticInvariant.semantic_transaction_application_serial
+
+/-- Witness: a nonempty semantic-reachable program passes OCC. -/
+theorem semantic_transaction_application_serial_witness
+    : ∃ (w : Model.State) (sid tid : Nat) (s : Model.Store) (t : Model.Tx)
+        (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        ∧ Model.lookupTx w sid tid = some (s, t)
+        ∧ t.snapshot = some snap
+        ∧ canApply s t = true
+        ∧ t.normal.log ≠ [] := by
+  exact Proofs.SemanticInvariant.semantic_transaction_application_serial_witness
+
+/-- Application-order branches of arbitrary semantic-reachable programs serialize with compaction. -/
+theorem semantic_executable_branch_serializability
+    : ∀ (s final : Model.Store) (ts : List Model.Tx),
+        (∀ t ∈ ts,
+          ∃ (w : Model.State) (tid : Nat),
+            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+        → SemanticAppliedBranch s ts final
+        → semanticSerialTransactions s.head.data s.head.version ts
+          = some final.head.data := by
+  exact Proofs.SemanticInvariant.semantic_executable_branch_serializability
+
+/-- Witness: a nonempty application-order branch uses a semantic-reachable attempt. -/
+theorem semantic_executable_branch_serializability_witness
+    : ∃ (s final : Model.Store) (ts : List Model.Tx),
+        (∀ t ∈ ts,
+          ∃ (w : Model.State) (tid : Nat),
+            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+        ∧ SemanticAppliedBranch s ts final
+        ∧ ts ≠ [] := by
+  exact Proofs.SemanticInvariant.semantic_executable_branch_serializability_witness
+
+/-- Actual semantic publication computes the complete multi-map effect and next version. -/
+theorem semantic_apply_atomic
+    : ∀ (w next : Model.State) (sid tid version term : Nat) (writes : Pending),
+        Model.execute w (.apply sid tid) = some (next, .applied version term writes)
+        → ∃ (s : Model.Store) (t : Model.Tx),
+            Model.lookupTx w sid tid = some (s, t)
+            ∧ canApply s t = true
+            ∧ writes = t.normal.writes
+            ∧ version = s.head.version + 1
+            ∧ term = s.term
+            ∧ find next.stores sid = some (Model.advance s writes)
+            ∧ (Model.advance s writes).head.data
+              = publish s.head.data version writes := by
+  exact Proofs.Semantics.semantic_apply_atomic
+
+/-- Witness: an actual semantic publication affects two maps without a trace envelope. -/
+theorem semantic_apply_atomic_witness
+    : ∃ (w next : Model.State) (sid tid version term : Nat) (writes : Pending),
+        Model.execute w (.apply sid tid) = some (next, .applied version term writes)
+        ∧ ∃ a b : Addr String String,
+            a.1 ≠ b.1 ∧ find writes a ≠ none ∧ find writes b ≠ none := by
+  exact Proofs.Semantics.semantic_apply_atomic_witness
+
+/-- Every accepted trace record exercises the semantic model or stutters for bookkeeping. -/
+theorem step_projects
+    : ∀ (w next : World) (r : Record),
+        TraceValidation.transitionSystem.step w r = some next
+        → CCF.Execution.Run Model.transitionSystem (project w) (actions w r.event)
+            (project next) := by
+  exact Proofs.Correspondence.step_projects
+
+/-- Witness: a nonempty input creates a semantic store, rather than only recording scopes. -/
+theorem step_projects_witness
+    : ∃ (w next : World) (r : Record),
+        TraceValidation.transitionSystem.step w r = some next
+        ∧ actions w r.event ≠ [] := by
+  exact Proofs.Correspondence.step_projects_witness
+
+/-- Reported observations match the actual output of the translated semantic execution. -/
+theorem step_reports
+    : ∀ (w next : World) (r : Record),
+        TraceValidation.transitionSystem.step w r = some next
+        → ∃ output,
+            executeActions (project w) (actions w r.event) = some (project next, output)
+            ∧ reportedMatches r.event output = true := by
+  exact Proofs.Correspondence.step_reports
+
+/-- Witness: a read report is checked against the semantic absence result. -/
+theorem step_reports_witness
+    : ∃ (w next : World) (r : Record),
+        TraceValidation.transitionSystem.step w r = some next
+        ∧ r.event = .get 1 1 "m" "k" none false := by
+  exact Proofs.Correspondence.step_reports_witness
+
+/-- Accepted typed replay executes exactly the inputs translated along its own worlds. -/
+theorem replay_projects
+    : ∀ (w final : World) (records : List Record),
+        replay w records = .ok final
+        → ∃ inputs,
+            semanticInputs w records = .ok inputs
+            ∧ CCF.Execution.Run Model.transitionSystem (project w) inputs
+                (project final) := by
+  exact Proofs.Correspondence.replay_projects
+
+/-- Witness: a nonempty typed replay has a semantic execution. -/
+theorem replay_projects_witness
+    : ∃ (w final : World) (records : List Record),
+        replay w records = .ok final ∧ records ≠ [] := by
+  exact Proofs.Correspondence.replay_projects_witness
+
+/-- Trace-reachable projections are reachable by the executable semantic system. -/
+theorem reachable_projects
+    : ∀ w : World,
+        TraceValidation.transitionSystem.Reachable w
+        → Model.transitionSystem.Reachable (project w) := by
+  exact Proofs.Correspondence.reachable_projects
+
+/-- Witness: such a projection contains a live semantic store. -/
+theorem reachable_projects_witness
+    : ∃ (w : World) (sid : Nat) (s : Model.Store),
+        TraceValidation.transitionSystem.Reachable w
+        ∧ find (project w).stores sid = some s := by
+  exact Proofs.Correspondence.reachable_projects_witness
 
 /-! ## Reads and atomic publication -/
 
@@ -154,7 +337,7 @@ theorem apply_atomic_witness
 /-- An attempt's operation log runs serially on its pinned local views to its staged writes. -/
 theorem transaction_snapshot_serial
     : ∀ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         → find w.txs tid = some t
         → t.snapshot = some snap
         → serialRun t.data [] t.normal.log = some t.normal.writes := by
@@ -163,7 +346,7 @@ theorem transaction_snapshot_serial
 /-- Witness: an attempt with a snapshot can have a nonempty log. -/
 theorem transaction_snapshot_serial_witness
     : ∃ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ find w.txs tid = some t
         ∧ t.snapshot = some snap
         ∧ t.normal.log ≠ [] := by
@@ -172,7 +355,7 @@ theorem transaction_snapshot_serial_witness
 /-- An attempt that may apply runs serially on the current head to the same staged writes. -/
 theorem transaction_application_serial
     : ∀ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         → storeOf w sid = .ok s
         → txOf w sid tid = .ok t
         → t.snapshot = some snap
@@ -183,7 +366,7 @@ theorem transaction_application_serial
 /-- Witness: an attempt with a nonempty log can apply. -/
 theorem transaction_application_serial_witness
     : ∃ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ storeOf w sid = .ok s
         ∧ txOf w sid tid = .ok t
         ∧ t.snapshot = some snap
@@ -196,7 +379,7 @@ theorem executable_branch_serializability
     : ∀ (s final : Store) (ts : List Tx),
         (∀ t ∈ ts,
           ∃ (w : World) (tid : Nat),
-            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+            TraceValidation.transitionSystem.Reachable w ∧ find w.txs tid = some t)
         → AppliedBranch s ts final
         → serialTransactions s.head.data s.head.version ts = some final.head.data := by
   exact Proofs.Properties.executable_branch_serializability
@@ -206,7 +389,7 @@ theorem executable_branch_serializability_witness
     : ∃ (s final : Store) (ts : List Tx),
         (∀ t ∈ ts,
           ∃ (w : World) (tid : Nat),
-            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+            TraceValidation.transitionSystem.Reachable w ∧ find w.txs tid = some t)
         ∧ AppliedBranch s ts final
         ∧ ts ≠ [] := by
   exact Proofs.Witnesses.executable_branch_serializability_witness
@@ -215,10 +398,10 @@ theorem executable_branch_serializability_witness
 onto that store run serially to its final head. -/
 theorem replay_segment_serializability
     : ∀ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         → find w.stores sid = some s
         → (∀ r ∈ rs, SegmentEvent sid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
+        → CCF.Execution.Run TraceValidation.transitionSystem w rs final
         → ∃ after txs,
             find final.stores sid = some after
             ∧ projectApplications w sid rs = .ok txs
@@ -229,10 +412,10 @@ theorem replay_segment_serializability
 /-- Witness: an accepted nonempty segment can keep a store alive. -/
 theorem replay_segment_serializability_witness
     : ∃ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ find w.stores sid = some s
         ∧ (∀ r ∈ rs, SegmentEvent sid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
+        ∧ CCF.Execution.Run TraceValidation.transitionSystem w rs final
         ∧ rs ≠ [] := by
   exact Proofs.Witnesses.replay_segment_serializability_witness
 
@@ -242,7 +425,7 @@ theorem replay_segment_serializability_witness
 global version within it that is the version of its global cut. -/
 theorem reachable_store_invariants
     : ∀ (w : World) (sid : Nat) (s : Store),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         → find w.stores sid = some s
         → History s.history s.head.version
           ∧ s.history.head? = some s.head
@@ -253,14 +436,14 @@ theorem reachable_store_invariants
 /-- Witness: a reachable world can have a live store. -/
 theorem reachable_store_invariants_witness
     : ∃ (w : World) (sid : Nat) (s : Store),
-        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
+        TraceValidation.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
   exact Proofs.Witnesses.reachable_store_invariants_witness
 
 /-- Every live store's head data in a reachable world has unique keys and versions no later than
 the head. -/
 theorem reachable_store_data_invariants
     : ∀ (w : World) (sid : Nat) (s : Store),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         → find w.stores sid = some s
         → Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
   exact Proofs.Trace.reachable_store_data_invariants_claim
@@ -268,7 +451,7 @@ theorem reachable_store_data_invariants
 /-- Witness: a reachable world can have a live store. -/
 theorem reachable_store_data_invariants_witness
     : ∃ (w : World) (sid : Nat) (s : Store),
-        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
+        TraceValidation.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
   exact Proofs.Witnesses.reachable_store_data_invariants_witness
 
 /-! ## Current snapshot capture and preservation -/
@@ -277,7 +460,8 @@ theorem reachable_store_data_invariants_witness
 theorem step_capture_metadata
     : ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
         storeOf w sid = .ok s
-        → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+        → TraceValidation.transitionSystem.step w
+            ⟨seq, .snapshot sid tid version global term⟩
           = some next
         → find next.txs tid = some t
         → ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term := by
@@ -287,7 +471,8 @@ theorem step_capture_metadata
 theorem step_capture_metadata_witness
     : ∃ (w next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
         storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+        ∧ TraceValidation.transitionSystem.step w
+            ⟨seq, .snapshot sid tid version global term⟩
           = some next
         ∧ find next.txs tid = some t := by
   exact Proofs.Witnesses.step_capture_metadata_witness
@@ -296,7 +481,8 @@ theorem step_capture_metadata_witness
 theorem step_capture_cut_values
     : ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store),
         storeOf w sid = .ok s
-        → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+        → TraceValidation.transitionSystem.step w
+            ⟨seq, .snapshot sid tid version global term⟩
           = some next
         → version = s.head.version ∧ global = s.global := by
   exact Proofs.Trace.step_capture_cut_values_claim
@@ -305,7 +491,8 @@ theorem step_capture_cut_values
 theorem step_capture_cut_values_witness
     : ∃ (w next : World) (sid tid version global term seq : Nat) (s : Store),
         storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+        ∧ TraceValidation.transitionSystem.step w
+            ⟨seq, .snapshot sid tid version global term⟩
           = some next := by
   exact Proofs.Witnesses.step_capture_cut_values_witness
 
@@ -315,11 +502,12 @@ theorem capture_replay_preserves_metadata
     : ∀ (w capturedWorld final : World) (sid tid version global term seq : Nat)
         (s : Store) (t : Tx) (tail : List Record),
         storeOf w sid = .ok s
-        → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+        → TraceValidation.transitionSystem.step w
+            ⟨seq, .snapshot sid tid version global term⟩
           = some capturedWorld
         → find capturedWorld.txs tid = some t
         → (∀ r ∈ tail, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+        → CCF.Execution.Run TraceValidation.transitionSystem capturedWorld tail final
         → ∃ after snap,
             find final.txs tid = some after
             ∧ after.snapshot = some snap
@@ -332,11 +520,12 @@ theorem capture_replay_preserves_metadata_witness
     : ∃ (w capturedWorld final : World) (sid tid version global term seq : Nat)
         (s : Store) (t : Tx) (tail : List Record),
         storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
+        ∧ TraceValidation.transitionSystem.step w
+            ⟨seq, .snapshot sid tid version global term⟩
           = some capturedWorld
         ∧ find capturedWorld.txs tid = some t
         ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+        ∧ CCF.Execution.Run TraceValidation.transitionSystem capturedWorld tail final
         ∧ tail ≠ [] := by
   exact Proofs.Witnesses.capture_replay_preserves_metadata_witness
 
@@ -346,7 +535,7 @@ theorem replay_snapshot_fixed
         find w.txs tid = some before
         → before.snapshot = some snap
         → (∀ r ∈ rs, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
+        → CCF.Execution.Run TraceValidation.transitionSystem w rs final
         → ∃ after, find final.txs tid = some after ∧ after.snapshot = some snap := by
   exact Proofs.Trace.replay_snapshot_fixed_claim
 
@@ -356,7 +545,7 @@ theorem replay_snapshot_fixed_witness
         find w.txs tid = some before
         ∧ before.snapshot = some snap
         ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
+        ∧ CCF.Execution.Run TraceValidation.transitionSystem w rs final
         ∧ rs ≠ [] := by
   exact Proofs.Witnesses.replay_snapshot_fixed_witness
 
@@ -369,7 +558,7 @@ theorem step_map_capture
         storeOf w sid = .ok s
         → txOf w sid tid = .ok before
         → before.snapshot = some snap
-        → Model.transitionSystem.step w
+        → TraceValidation.transitionSystem.step w
             ⟨seq, .acquire sid tid map localVersion globalVersion⟩
           = some next
         → find next.txs tid = some after
@@ -385,7 +574,7 @@ theorem step_map_capture_witness
         storeOf w sid = .ok s
         ∧ txOf w sid tid = .ok before
         ∧ before.snapshot = some snap
-        ∧ Model.transitionSystem.step w
+        ∧ TraceValidation.transitionSystem.step w
             ⟨seq, .acquire sid tid map localVersion globalVersion⟩
           = some next
         ∧ find next.txs tid = some after := by
@@ -398,7 +587,7 @@ theorem replay_map_global_fixed
         find w.txs tid = some before
         → find before.globalViews map = some view
         → (∀ r ∈ rs, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
+        → CCF.Execution.Run TraceValidation.transitionSystem w rs final
         → ∃ after,
             find final.txs tid = some after ∧ find after.globalViews map = some view := by
   exact Proofs.Trace.replay_map_global_fixed_claim
@@ -410,7 +599,7 @@ theorem replay_map_global_fixed_witness
         find w.txs tid = some before
         ∧ find before.globalViews map = some view
         ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
+        ∧ CCF.Execution.Run TraceValidation.transitionSystem w rs final
         ∧ rs ≠ [] := by
   exact Proofs.Witnesses.replay_map_global_fixed_witness
 
@@ -421,7 +610,7 @@ theorem replay_map_local_fixed
         find w.txs tid = some before
         → find before.globalViews map = some view
         → (∀ r ∈ rs, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
+        → CCF.Execution.Run TraceValidation.transitionSystem w rs final
         → ∃ after,
             find final.txs tid = some after
             ∧ image after.data map = image before.data map := by
@@ -434,7 +623,7 @@ theorem replay_map_local_fixed_witness
         find w.txs tid = some before
         ∧ find before.globalViews map = some view
         ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
+        ∧ CCF.Execution.Run TraceValidation.transitionSystem w rs final
         ∧ rs ≠ [] := by
   exact Proofs.Witnesses.replay_map_global_fixed_witness
 
@@ -447,12 +636,12 @@ theorem capture_replay_preserves_map
         storeOf w sid = .ok s
         → txOf w sid tid = .ok before
         → before.snapshot = some snap
-        → Model.transitionSystem.step w
+        → TraceValidation.transitionSystem.step w
             ⟨seq, .acquire sid tid map localVersion globalVersion⟩
           = some capturedWorld
         → find capturedWorld.txs tid = some capturedTx
         → (∀ r ∈ tail, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+        → CCF.Execution.Run TraceValidation.transitionSystem capturedWorld tail final
         → ∃ after,
             find final.txs tid = some after
             ∧ find after.globalViews map = some (captureGlobal s snap map)
@@ -469,12 +658,12 @@ theorem capture_replay_preserves_map_witness
         storeOf w sid = .ok s
         ∧ txOf w sid tid = .ok before
         ∧ before.snapshot = some snap
-        ∧ Model.transitionSystem.step w
+        ∧ TraceValidation.transitionSystem.step w
             ⟨seq, .acquire sid tid map localVersion globalVersion⟩
           = some capturedWorld
         ∧ find capturedWorld.txs tid = some capturedTx
         ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+        ∧ CCF.Execution.Run TraceValidation.transitionSystem capturedWorld tail final
         ∧ tail ≠ [] := by
   exact Proofs.Witnesses.capture_replay_preserves_map_witness
 
@@ -509,10 +698,11 @@ cut with no cell newer than it. -/
 theorem step_global_read_from_captured_map
     : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Option String)
         (t : Tx) (view : GlobalView),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         → txOf w sid tid = .ok t
         → find t.globalViews map = some view
-        → Model.transitionSystem.step w ⟨seq, .get sid tid map key value true⟩ = some next
+        → TraceValidation.transitionSystem.step w ⟨seq, .get sid tid map key value true⟩
+          = some next
         → value = (find view.frame.data (map, key)).map Cell.value
           ∧ (view.frame = {}
               ∨ ∃ origin : Store,
@@ -525,10 +715,11 @@ theorem step_global_read_from_captured_map
 theorem step_global_read_from_captured_map_witness
     : ∃ (w next : World) (sid tid seq : Nat) (map key value : String) (t : Tx)
         (view : GlobalView),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ txOf w sid tid = .ok t
         ∧ find t.globalViews map = some view
-        ∧ Model.transitionSystem.step w ⟨seq, .get sid tid map key (some value) true⟩
+        ∧ TraceValidation.transitionSystem.step w
+            ⟨seq, .get sid tid map key (some value) true⟩
           = some next := by
   exact Proofs.Witnesses.step_global_read_from_captured_map_witness
 
@@ -537,10 +728,11 @@ global cut with no cell newer than it. -/
 theorem step_global_has_from_captured_map
     : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Bool) (t : Tx)
         (view : GlobalView),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         → txOf w sid tid = .ok t
         → find t.globalViews map = some view
-        → Model.transitionSystem.step w ⟨seq, .has sid tid map key value true⟩ = some next
+        → TraceValidation.transitionSystem.step w ⟨seq, .has sid tid map key value true⟩
+          = some next
         → value = (find view.frame.data (map, key)).isSome
           ∧ (view.frame = {}
               ∨ ∃ origin : Store,
@@ -553,10 +745,10 @@ theorem step_global_has_from_captured_map
 theorem step_global_has_from_captured_map_witness
     : ∃ (w next : World) (sid tid seq : Nat) (map key : String) (t : Tx)
         (view : GlobalView),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ txOf w sid tid = .ok t
         ∧ find t.globalViews map = some view
-        ∧ Model.transitionSystem.step w ⟨seq, .has sid tid map key true true⟩
+        ∧ TraceValidation.transitionSystem.step w ⟨seq, .has sid tid map key true true⟩
           = some next := by
   exact Proofs.Witnesses.step_global_has_from_captured_map_witness
 
@@ -598,7 +790,7 @@ theorem rollback_discards_suffix_witness
 /-- Rollback preserves the data at every cut at or below the global version. -/
 theorem durable_cut_survives_rollback
     : ∀ (w : World) (sid : Nat) (s : Store) (v term cut : Nat),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         → find w.stores sid = some s
         → cut ≤ s.global
         → s.global ≤ v
@@ -608,7 +800,7 @@ theorem durable_cut_survives_rollback
 /-- Witness: a nonempty cut can be at or below the global version. -/
 theorem durable_cut_survives_rollback_witness
     : ∃ (w : World) (sid : Nat) (s : Store) (v cut : Nat),
-        Model.transitionSystem.Reachable w
+        TraceValidation.transitionSystem.Reachable w
         ∧ find w.stores sid = some s
         ∧ cut ≤ s.global
         ∧ s.global ≤ v

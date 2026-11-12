@@ -7,7 +7,7 @@ public import Std
 
 @[expose] public section
 
-/-! Human-reviewed model state, observations, dependencies, trace events, and failure kinds. -/
+/-! Semantic KV data, computed observations, dependencies, and live references. -/
 
 namespace Kv.Model
 
@@ -80,9 +80,9 @@ def scanAt {M K V : Type} [DecidableEq M] [DecidableEq K]
   writeValues ((image db m).map fun (k, c) => (k, c.value))
     (ws.filterMap fun (a, v) => if a.1 = m then some (a.2, v) else none)
 
-/-- An operation on a transaction's normal (current snapshot) view, with what it observed. -/
+/-- A computed operation in the normal-view history, including its semantic result. -/
 inductive NormalOp (M K V : Type) where
-  /-- A read of `addr` that observed `observed`. -/
+  /-- A read of `addr` with its computed value. -/
   | read (addr : Addr M K) (observed : Option V)
   /-- A read of the committed version of `addr`. -/
   | previous (addr : Addr M K) (observed : Option Nat)
@@ -127,15 +127,6 @@ def needs {M K V : Type} [DecidableEq M] [DecidableEq K] (db : DB M K V)
   | .scan m _ => [.map m (image db m)]
   | .write _ _ => []
 
-/-- The operation's recorded observation matches the snapshot and staged writes. -/
-def observes {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
-    (db : DB M K V) (ws : Writes M K V)
-    : NormalOp M K V → Bool
-  | .read a v => decide (valueAt db ws a = v)
-  | .previous a v => decide (previousAt db a = v)
-  | .scan m vs => decide (scanAt db ws m = vs)
-  | .write _ _ => true
-
 /-- Stages an operation's write, if it has one. -/
 def stage {M K V : Type} [DecidableEq M] [DecidableEq K] (ws : Writes M K V)
     : NormalOp M K V → Writes M K V
@@ -150,21 +141,17 @@ structure Normal (M K V : Type) where
   deps : List (Dependency M K V) := []
   /-- Operations executed so far, oldest first. -/
   log : List (NormalOp M K V) := []
-deriving Repr
+deriving Repr, DecidableEq
 
-/-- Executes one operation against `snapshot`; `none` if its observation disagrees. -/
-def normalStep {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
+/-- Records a computed operation, tracking its writes and dependencies. -/
+def recordOp {M K V : Type} [DecidableEq M] [DecidableEq K]
     (snapshot : DB M K V) (n : Normal M K V) (op : NormalOp M K V)
-    : Option (Normal M K V) :=
-  if observes snapshot n.writes op then
-    some
-      {
-        writes := stage n.writes op
-        deps := needs snapshot n.writes op ++ n.deps
-        log := n.log ++ [op]
-      }
-  else
-    none
+    : Normal M K V :=
+  {
+    writes := stage n.writes op
+    deps := needs snapshot n.writes op ++ n.deps
+    log := n.log ++ [op]
+  }
 
 /-- Applies writes to committed state, stamping new cells with `version`. -/
 def publish {M K V : Type} [DecidableEq M] [DecidableEq K]
@@ -205,7 +192,7 @@ structure Frame where
   revisions : Assoc String Stamp := []
   /-- The first change to each map on this branch. -/
   births : Assoc String Stamp := []
-deriving Repr, Inhabited
+deriving Repr, Inhabited, DecidableEq
 
 /-- The latest revision of map `m` in frame `f`. -/
 def revision (f : Frame) (m : String) : Stamp := (find f.revisions m).getD {}
@@ -220,11 +207,9 @@ structure Store where
   global : Nat := 0
   /-- The current term. -/
   term : Nat := 0
-  /-- Whether the term has been established by a snapshot or rollback. -/
-  termKnown : Bool := false
   /-- The identity assigned to the next application. -/
   nextIdentity : Nat := 1
-deriving Repr
+deriving Repr, DecidableEq
 
 instance : Inhabited Store := ⟨{}⟩
 
@@ -238,7 +223,7 @@ structure Snapshot where
   current : Frame
   /-- The term at capture. -/
   term : Nat
-deriving Repr
+deriving Repr, DecidableEq
 
 /-- The local and globally committed views of one map captured by a transaction. -/
 structure GlobalView where
@@ -246,21 +231,7 @@ structure GlobalView where
   current : Frame := {}
   /-- The captured frame, or the empty frame for a map not yet created. -/
   frame : Frame
-deriving Repr
-
-/-- An in-progress `foreach` over a map. -/
-structure Iteration where
-  /-- The iterated map. -/
-  map : String
-  /-- The trace's identifier for this iteration. -/
-  id : Nat
-  /-- Entries not yet visited. -/
-  remaining : Assoc String String
-  /-- An entry was visited and its callback result is pending. -/
-  awaitingContinue : Bool := false
-  /-- The callback requested early termination. -/
-  stopped : Bool := false
-deriving Repr
+deriving Repr, DecidableEq
 
 /-- The commit lifecycle of a transaction attempt. -/
 inductive Phase where
@@ -270,7 +241,7 @@ inductive Phase where
   | committing
   /-- Writes applied at `version`. -/
   | applied (version : Nat)
-  /-- Commit result reported. -/
+  /-- Commit completed. -/
   | finished
 deriving Repr, BEq, DecidableEq
 
@@ -286,17 +257,13 @@ structure Tx where
   data : Data := []
   /-- The normal view over the acquired local data. -/
   normal : Normal String String String := {}
-  /-- Nested iterations, innermost first. -/
-  iterations : List Iteration := []
-  /-- Iteration identifiers used so far, per map. -/
-  iterationIds : List (String × Nat) := []
-  /-- A map acquisition reported its snapshot unavailable. -/
+  /-- A required lazy acquisition could not retain its snapshot. -/
   unavailable : Bool := false
   /-- The commit lifecycle. -/
   phase : Phase := .active
-deriving Repr
+deriving Repr, DecidableEq
 
-/-- The reported result of a commit. -/
+/-- The environment's commit outcome, including conservative pre-apply conflict. -/
 inductive Outcome where
   /-- Committed (and, for writes, applied). -/
   | success
@@ -306,125 +273,12 @@ inductive Outcome where
   | noReplicate
 deriving Repr, BEq, DecidableEq
 
-/-- A trace record's event. Fields follow the schema 1 record of the same name. -/
-inductive Event where
-  /-- Opens a trace with the given schema version. -/
-  | traceStart (schema : Nat)
-  /-- Begins a named C++ test case. -/
-  | caseBegin (name : String)
-  /-- Ends a named C++ test case. -/
-  | caseEnd (name : String) (failed : Bool)
-  /-- Begins a named subcase. -/
-  | subcaseBegin (name : String)
-  /-- Ends a named subcase. -/
-  | subcaseEnd (name : String)
-  /-- Creates a store. -/
-  | storeCreate (store : Nat)
-  /-- Destroys a store. -/
-  | storeEnd (store : Nat)
-  /-- Creates a transaction attempt. -/
-  | txCreate (store tx : Nat)
-  /-- Destroys a transaction attempt. -/
-  | txEnd (store tx : Nat)
-  /-- Captures the current snapshot at `version`, with the store's `global` version and `term`. -/
-  | snapshot (store tx version global term : Nat)
-  /-- Acquires a map handle, reporting its local and global revision versions. -/
-  | acquire (store tx : Nat) (map : String) (version global : Nat)
-  /-- Reports a map's snapshot unavailable at acquisition. -/
-  | unavailable (store tx : Nat) (map : String)
-  /-- Reads a value from the current or, if `global`, the globally committed view. -/
-  | get (store tx : Nat) (map key : String) (value : Option String) (global : Bool)
-  /-- Tests presence in the current or, if `global`, the globally committed view. -/
-  | has (store tx : Nat) (map key : String) (value : Bool) (global : Bool)
-  /-- Reads the committed version of a key. -/
-  | previous (store tx : Nat) (map key : String) (value : Option Nat)
-  /-- Stages a put. -/
-  | put (store tx : Nat) (map key value : String)
-  /-- Stages a removal. -/
-  | remove (store tx : Nat) (map key : String)
-  /-- Stages removal of every entry in a map. -/
-  | clear (store tx : Nat) (map : String)
-  /-- Reads the number of entries in a map. -/
-  | size (store tx : Nat) (map : String) (value : Nat)
-  /-- Reads the entries with keys in `[lower, upper)`, in ascending key order. -/
-  | range (store tx : Nat) (map : String) (lower upper : Option String)
-    (entries : Assoc String String)
-  /-- Begins iterating over a map. -/
-  | foreachBegin (store tx : Nat) (map : String) (iteration : Nat)
-  /-- Visits one entry. -/
-  | foreachEntry (store tx : Nat) (map : String) (iteration : Nat) (key value : String)
-  /-- Records the callback's continue (`true`) or stop (`false`) result. -/
-  | foreachContinue (store tx : Nat) (map : String) (iteration : Nat) (value : Bool)
-  /-- Ends an iteration. -/
-  | foreachEnd (store tx : Nat) (map : String) (iteration : Nat)
-  /-- Begins committing an attempt. -/
-  | commitBegin (store tx : Nat)
-  /-- Applies an attempt's writes at `version` in `term`. -/
-  | apply (store tx version term : Nat) (writes : Pending)
-  /-- Reports an attempt's commit result and assigned version, or 0. -/
-  | commitResult (store tx : Nat) (result : Outcome) (version : Nat)
-  /-- Compacts to the effective `version` after a `requested` one. -/
-  | compact (store version requested : Nat)
-  /-- Rolls back to the effective `version` after a `requested` one, entering `term`. -/
-  | rollback (store version requested term : Nat)
-  /-- Reports a rollback rejected because it would cross the global version. -/
-  | rollbackRejected (store requested term : Nat)
-  /-- Reports an operation outside the model. -/
-  | unsupported (store : Option Nat) (operation : String)
-  /-- Closes a trace that contained `events` records. -/
-  | traceEnd (events : Nat)
-deriving Repr
-
-/-- A trace record: a run-wide sequence number and an event. -/
-structure Record where
-  /-- Strictly increasing sequence number. -/
-  seq : Nat
-  /-- The recorded event. -/
-  event : Event
-deriving Repr
-
-/-- Why a trace was not accepted. -/
-inductive FailureKind where
-  /-- The trace records behavior the model forbids. -/
-  | rejected
-  /-- The trace is malformed, incomplete, or inconsistent with its own lifecycle events. -/
-  | invalidTrace
-  /-- The implementation reported an operation outside the model. -/
-  | unsupported
-deriving Repr, BEq, DecidableEq
-
-/-- A replay failure and its diagnostic. -/
-structure Failure where
-  /-- The failure category. -/
-  kind : FailureKind
-  /-- A human-readable diagnostic. -/
-  message : String
-deriving Repr
-
-/-- The replay state: live stores and attempts plus trace bookkeeping. -/
-structure World where
-  /-- Live stores by identifier. -/
+/-- Live stores and attempts, with reusable semantic references. -/
+structure State where
+  /-- Live stores. -/
   stores : Assoc Nat Store := []
-  /-- Live attempts by identifier. -/
+  /-- Live attempts. -/
   txs : Assoc Nat Tx := []
-  /-- Every store identifier used so far. -/
-  seenStores : List Nat := []
-  /-- Every attempt identifier used so far. -/
-  seenTxs : List Nat := []
-  /-- The open test case, if any. -/
-  currentCase : Option String := none
-  /-- Open subcases, innermost first. -/
-  subcases : List String := []
-  /-- Completed test cases. -/
-  cases : Nat := 0
-  /-- `trace_start` was accepted. -/
-  started : Bool := false
-  /-- `trace_end` was accepted. -/
-  ended : Bool := false
-  /-- The last accepted sequence number. -/
-  lastSeq : Option Nat := none
-  /-- Accepted records. -/
-  count : Nat := 0
-deriving Repr
+deriving Repr, DecidableEq
 
 end Kv.Model

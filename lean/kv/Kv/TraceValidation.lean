@@ -8,7 +8,7 @@ public import Kv.TraceValidation.Records
 public section
 
 /-!
-Streams schema 1 NDJSON traces through `Model.step`, one record per line, and reports the
+Streams schema 1 NDJSON traces through `TraceValidation.step`, one record per line, and reports the
 first failure or acceptance.
 -/
 

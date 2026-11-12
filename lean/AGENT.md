@@ -23,13 +23,38 @@ Within a model's library directory, use this layout:
 | `Proofs/`              | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
 | `Tests/`               | Executable model checks and regression cases.                                                        |
 | `TraceValidation.lean` | Replay recorded implementation traces through the executable model.                                  |
-| `TraceValidation/`     | Parsing and ordering of those traces, for `TraceValidation.lean`.                                    |
+| `TraceValidation/`     | Trace formats, decoding, bookkeeping, and adapters to model transitions.                             |
+
+## Model semantics versus trace validation
+
+`Model.lean` and `Model/` define protocol state, actions, results, and executable transitions independently of implementation trace formats.
+A model execution must be expressible without a recorded test case, trace envelope, or parser.
+Semantic identifiers may name live stores, transactions, nodes, or messages; run-wide identifier uniqueness and recording metadata belong to the trace adapter.
+
+Keep schema versions, sequence numbers, event counts, test-case and subcase scopes, trace completion checks, instrumentation identifiers, parser errors, replay diagnostics, and unsupported-record markers in `TraceValidation.lean` or `TraceValidation/`.
+Also keep accommodations for missing trace fields there, such as establishing an initial term omitted by a recording schema.
+Protocol lifecycle rules belong to the model, but checks that an emitter recorded every required lifecycle event belong to trace validation.
+For iteration, distinguish the semantics of frozen entries and callback mutations from recorded iteration IDs and callback-event completeness.
+
+The model computes operation results and state changes.
+The adapter translates recorded events into model actions, compares reported observations and metadata with model results, and maintains trace bookkeeping.
+An observation may be part of a protocol's semantic action when it represents genuine external input; do not add reported read values, write-set echoes, or assigned-version echoes to model actions solely to validate a trace.
+Do not duplicate KV or protocol transitions in the adapter or leave trace-specific compatibility definitions in the model namespace.
+
+Keep the semantic transition system and the trace replay system explicitly named and separate.
+Prove that accepted replay steps or executions project to the semantic model, allowing trace-only bookkeeping steps to stutter.
+State semantic safety claims over actual model executions, and identify replay-specific assumptions explicitly in trace-to-property claims.
+Moving a checker to a different directory or adding an unused semantic transition system does not establish this separation.
 
 ## Dependency direction
 
 - Keep `common/CCF/`, `Model/`, and `Model.lean` independent of property helpers, theorem entrypoints, and proof modules.
+  They must also be independent of trace validation.
   Shared infrastructure must not depend on a particular protocol.
+- Let `TraceValidation.lean` and `TraceValidation/` depend on the model and shared definitions, not property helpers, theorem entrypoints, or proof implementations.
+  Trace/model correspondence proofs belong under `Proofs/`.
 - Property helpers in `Properties/` should depend on the model, shared definitions, and other property helpers.
+  Helpers for replay-specific claims may also depend on trace validation, but semantic-only helpers should not.
   They may not import `Properties.lean` or `Proofs/`.
 - Let `Proofs/` depend on model definitions, property helpers, and other supporting proofs, but not `Properties.lean`.
   `Properties.lean` publicly imports the types and helpers needed to understand its statements and privately imports proof implementations.

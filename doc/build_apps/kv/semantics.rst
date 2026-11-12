@@ -1,7 +1,7 @@
 KV Implementation Model
 =======================
 
-The Lean project in ``lean/kv`` gives an executable model of KV observations and a checker for traces from the C++ KV unit tests.
+The Lean project in ``lean/kv`` gives an executable semantic KV system and a separate adapter for traces from the C++ KV unit tests.
 It complements the :doc:`kv_how_to` and :doc:`api`: it makes the observed implementation semantics, their assumptions, and differences from documentation explicit.
 See :doc:`/architecture/verification` for an overview of CCF's other Lean models and how traces are validated in CI.
 
@@ -21,7 +21,8 @@ Observation contract
 --------------------
 
 The :ref:`transaction semantics <build_apps/kv/kv_how_to:Transaction Semantics>` promise atomic interaction across maps and a consistent, opaque view.
-Current reads use one transaction-wide snapshot.
+Current reads use frozen transaction-wide read metadata and lazily acquired per-map local views.
+Without rollback between acquisitions, these views come from the same captured read version.
 Global reads follow the implementation's per-map capture described below, not a transaction-wide global snapshot:
 
 .. list-table::
@@ -31,13 +32,13 @@ Global reads follow the implementation's per-map capture described below, not a 
    * - Operation
      - Model interpretation
    * - First map access
-     - Capture the current-state cut used by all maps in this transaction.
+     - Capture the read-version metadata bounding this transaction's later lazy map acquisitions.
        Constructing a transaction without accessing the KV does not capture it.
    * - First handle for each map
      - Capture that map's globally committed view at acquisition.
        Reused handles and different handle facets for this map share the captured view; later acquisitions of other maps may capture a newer global prefix.
    * - ``get`` / ``has``
-     - Read the current snapshot overlaid with the transaction's pending writes.
+     - Read the map's pinned local view overlaid with the transaction's pending writes.
        Missing and deleted keys are absent.
        Handles in one transaction share pending writes.
    * - ``put`` / ``remove``
@@ -45,7 +46,7 @@ Global reads follow the implementation's per-map capture described below, not a 
        Other transactions cannot see these changes until local application.
        An absent map behaves like an empty map.
    * - ``get_version_of_previous_write``
-     - Observe the previous write in the captured current snapshot, not a pending write in this transaction.
+     - Observe the previous write in the map's pinned local view, not a pending write in this transaction.
        Equal value bytes do not imply equal versions.
    * - ``get_globally_committed``
      - Read the global view captured for this map, ignoring pending writes and subsequent consensus progress.
@@ -113,7 +114,8 @@ Conversely, a trace must not invent a rollback to explain a failed submission.
 Pre-application conflict is permitted conservatively; the checker does not claim that every admissible attempt must succeed.
 
 Read-only completion does not append a new write version.
-Local application order is the candidate serial order for writing transactions within a local branch; read-only transactions have witnesses at the snapshot positions they observed.
+Local application order is the candidate serial order for writing transactions within a local branch.
+Read-only normal programs have witnesses against their combined pinned local data, which need not identify one store-wide historical cut if rollback occurs between lazy acquisitions.
 Not every locally acknowledged transaction belongs to one permanent history across rollbacks.
 
 ``Compact(v)`` abstracts the environment's declaration that a prefix is irrevocable and the removal of obsolete history.
@@ -139,10 +141,16 @@ It cannot cross the irrevocable prefix.
 The model accounts for removed maps, retained handles, invalidated writing attempts, sequence-number reuse, and term changes that do not truncate the local history.
 A retained handle may still read its captured state after rollback; that does not authorize it to republish an invalidated write set.
 
+In particular, a read-only attempt can retain one map from a removed branch and acquire another map from the surviving branch at the frozen read-version bound.
+Its observations can therefore combine local states that never coexisted in one store frame.
+This profile preserves that behavior, including successful read-only completion without a new write version.
+It does not prove a single historical snapshot or serial placement for such an attempt.
+The branch serializability theorem concerns actual writing applications on segments without rollback of the selected store, not all acknowledged read-only attempts across rollback.
+
 Proof and trust boundaries
 --------------------------
 
-The model's statements separate read semantics, cross-map current-snapshot consistency, per-map global-view stability, atomic application, normal-view serializability, compaction, rollback, and executable replay.
+The model's statements separate read semantics, frozen read metadata, per-map local/global-view stability, atomic application, normal-view serializability, compaction, rollback, and executable replay.
 The :ccf_repo:`proof catalogue <lean/kv/README.md>` records their precise scope and the corresponding Lean declarations.
 
 .. list-table::
@@ -151,13 +159,20 @@ The :ccf_repo:`proof catalogue <lean/kv/README.md>` records their precise scope 
 
    * - Main declaration
      - Established scope
+   * - ``semantic_reachable_store_invariants``, ``semantic_reachable_store_data_invariants``
+     - Every live store in every semantic-reachable state has complete publication history, a matching head, a bounded global cut, unique data keys, and bounded previous-write versions.
+   * - ``semantic_transaction_snapshot_serial``, ``semantic_transaction_application_serial``
+     - Every semantic-reachable attempt's normal program reproduces its writes on pinned data and, when OCC permits application, on the application head.
+   * - ``semantic_executable_branch_serializability``
+     - Application-order branches of programs drawn from arbitrary semantic-reachable states serialize through the actual semantic application primitive, allowing compaction interleavings.
    * - ``replay_segment_serializability``
      - An accepted typed trace segment for a live store has a serial witness obtained from its actual application events and pre-event transactions.
        The segment excludes creation, destruction, or rollback of that store; operations on other stores may interleave.
    * - ``reachable_store_invariants``
-     - Every live store in a reachable state has a complete publication history, a matching head, and a globally committed cut no later than the local head.
+     - Every live store in a trace-reachable state inherits the semantic store-history and global-cut guarantees.
    * - ``replay_snapshot_fixed``
-     - The current snapshot comes from the initial capture and remains fixed across all maps during the attempt.
+     - The read-version metadata comes from the initial capture and remains fixed during the attempt.
+       Later lazy acquisitions after rollback can select different surviving local frames; this is not a store-wide mixed-view snapshot theorem.
    * - ``capture_replay_preserves_map``
      - An acquired map's local and global views remain fixed, including for other keys, aliases, compaction, and rollback.
        This is not cross-map global consistency.
@@ -168,7 +183,19 @@ The :ccf_repo:`proof catalogue <lean/kv/README.md>` records their precise scope 
 
 Serializability is derived from dependency validation, not from an assumption that an accepted transaction is already serializable.
 Model states carry no proofs.
-Snapshot-execution and store-history invariants are proved separately for every state reachable from the empty store, and claims that need them assume reachability; they are not extra sequential-oracle acceptance checks.
+Snapshot-program and store-history invariants are proved initially and preserved by every successful semantic action, covering arbitrary semantic-reachable states without trace preconditions.
+The original typed-replay statements and witnesses are preserved, deriving the corresponding guarantees through trace-to-model reachability.
+These invariants are not extra sequential-oracle acceptance checks.
+
+``Kv.Model.transitionSystem`` has semantic ``State`` and ``Action`` types independent of records, test cases, schemas, sequence numbers, and reported read values.
+``Kv.Model.execute`` computes an operation's output and next state; the adapter compares recorded results with those semantics.
+Semantic store creation supplies an explicit initial term, while schema-driven inference of an omitted term belongs only to the adapter.
+``Kv.TraceValidation.transitionSystem`` validates recorded lifecycles, iteration IDs, run-unique identities, observation reports, and stream completeness.
+The adapter checks trace guards, executes each event's translated semantic inputs exactly once, compares the computed outputs with the reported observations, and installs the returned semantic state as authoritative.
+Only schema/lifecycle metadata, sequence/count bookkeeping, and frozen callback-entry bookkeeping are updated separately; the adapter does not independently compute a semantic candidate state.
+``step_projects``, ``replay_projects``, and ``reachable_projects`` prove correspondence with actual semantic executions, allowing trace-only records to stutter.
+``step_reports`` proves that accepted reports match the actual semantic outputs.
+``semantic_apply_atomic`` states complete multi-map publication directly over semantic execution without trace assumptions.
 
 Each claim in ``Kv/Properties.lean`` is a proved theorem, followed by a witness theorem showing that its premises can hold or, for a claim without premises, that its conclusion has an effect.
 The Lake build treats warnings as errors, and the shared ``lake exe check-imports`` verifies that the library import root covers every module and respects the layering.
