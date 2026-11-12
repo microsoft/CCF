@@ -221,11 +221,6 @@ namespace ccf
               latest_peer_snapshot->snapshot_name,
               e.what());
 
-            // The peer's latest snapshot is unusable and fetching it again
-            // would not change that, so later join requests are judged
-            // against the peer's startup seqno instead
-            std::lock_guard<ds::Mutex> guard(owner->lock);
-            owner->join_fetch_count += 1;
             return;
           }
 

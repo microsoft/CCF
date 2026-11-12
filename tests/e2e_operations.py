@@ -1063,8 +1063,8 @@ def test_json_receipt_snapshot_handling(network, args):
     Snapshots written by releases before 7.0 carry a JSON receipt, and only
     COSE receipts are accepted:
     - A joiner skips such a snapshot found in its own snapshots directory.
-    - A joiner told to fetch such a snapshot from the primary rejects it, and
-      is then admitted to join by replaying the ledger instead.
+    - While such a snapshot is the primary's newest, joiners are told to fetch
+      it, reject it, and cannot join. Removing it lets them join.
     """
     legacy_snapshot_name = find_latest_committed_snapshot_name(network)
     json_receipt_error = "Snapshot has a JSON receipt"
@@ -1089,7 +1089,7 @@ def test_json_receipt_snapshot_handling(network, args):
             f"Error while verifying {new_node.remote.snapshots_dir_name}/{legacy_snapshot_name}: {json_receipt_error}"
         ), f"Expected {legacy_snapshot_name} to be rejected as a JSON receipt snapshot in node logs"
 
-    LOG.info("Join a node, which fetches and rejects the JSON receipt snapshot")
+    LOG.info("A JSON receipt snapshot as the primary's newest blocks joiners")
     primary, _ = network.find_primary()
     primary_snapshots_dir = os.path.join(
         primary.remote.remote.root, primary.remote.snapshots_dir_name
@@ -1106,14 +1106,27 @@ def test_json_receipt_snapshot_handling(network, args):
 
     try:
         new_node = network.create_node()
-        network.join_node(new_node, args.package, args, from_snapshot=False)
-        new_node.stop()
+        try:
+            network.join_node(
+                new_node, args.package, args, from_snapshot=False, timeout=10
+            )
+        except TimeoutError:
+            LOG.info("Joiner was refused while the JSON receipt snapshot is newest")
+        else:
+            raise AssertionError(
+                f"Node joined although {fetched_snapshot_name} is the primary's newest snapshot"
+            )
 
         assert new_node.check_log_for_error_message(
             f"Error while verifying fetched snapshot {fetched_snapshot_name}: {json_receipt_error}"
         ), f"Expected {fetched_snapshot_name} to be fetched and rejected as a JSON receipt snapshot in node logs"
     finally:
         os.remove(fetched_snapshot_path)
+
+    LOG.info("Join a node once the JSON receipt snapshot is removed")
+    new_node = network.create_node()
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+    new_node.stop()
 
     return network
 
