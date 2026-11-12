@@ -25,30 +25,6 @@ abbrev GlobalTrace (config : Finset Model.Node.NodeID) (nodes : List Model.Node.
 
 open Model.Node
 
-/-- Once bootstrapping completes, which takes a node committing a signature, every
-reachable state has an enabled action. -/
-theorem deadlock_free_after_bootstrap
-    : forall (config : Finset NodeID) (nodes : List NodeID),
-        ({
-              Model.transitionSystem config nodes with
-                init :=
-                  fun state =>
-                    (Model.transitionSystem config nodes).Reachable state
-                    /\ exists (node : NodeID) (local_ : NodeState),
-                        (node, local_) ∈ state.nodes /\ 0 < local_.commitIndex
-            }
-          : CCF.TransitionSystem).DeadlockFree := by
-  exact Proofs.Deadlock.deadlock_free_after_bootstrap
-
-/-- Witness: every valid configuration completes bootstrapping. -/
-theorem deadlock_free_after_bootstrap_witness
-    : forall (config : ValidConfig),
-        exists (nodes : List NodeID) (state : Model.State),
-          (Model.transitionSystem config nodes).Reachable state
-          /\ exists (node : NodeID) (local_ : NodeState),
-              (node, local_) ∈ state.nodes /\ 0 < local_.commitIndex := by
-  exact Proofs.Witnesses.deadlock_free_after_bootstrap_witness
-
 /-- Any two committed logs in a valid trace are prefix-comparable: those of
 any two nodes, in any two states of the trace. -/
 theorem committed_logs_prefix
@@ -160,5 +136,29 @@ theorem committed_frontier_is_signature_witness
           /\ (node, nodeState) ∈ state.nodes
           /\ 0 < nodeState.commitIndex := by
   exact Proofs.Witnesses.committed_frontier_is_signature_witness
+
+/-- Once bootstrapping completes, which takes a node committing a signature, every
+reachable state has an enabled action. -/
+theorem deadlock_free_after_bootstrap
+    : forall (config : Finset NodeID) (nodes : List NodeID),
+        ({
+              Model.transitionSystem config nodes with
+                init :=
+                  fun state =>
+                    (Model.transitionSystem config nodes).Reachable state
+                    /\ exists (node : NodeID) (local_ : NodeState),
+                        (node, local_) ∈ state.nodes /\ 0 < local_.commitIndex
+            }
+          : CCF.TransitionSystem).DeadlockFree := by
+  exact Proofs.Deadlock.deadlock_free_after_bootstrap
+
+/-- Witness: every valid configuration completes bootstrapping. -/
+theorem deadlock_free_after_bootstrap_witness
+    : forall (config : ValidConfig),
+        exists (nodes : List NodeID) (state : Model.State),
+          (Model.transitionSystem config nodes).Reachable state
+          /\ exists (node : NodeID) (local_ : NodeState),
+              (node, local_) ∈ state.nodes /\ 0 < local_.commitIndex := by
+  exact Proofs.Witnesses.deadlock_free_after_bootstrap_witness
 
 end Consensus.Properties
