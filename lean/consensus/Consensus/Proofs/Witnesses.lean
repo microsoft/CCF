@@ -204,7 +204,8 @@ can evaluate the run. Each run becomes a `runWith` over a single copy of the
 step function, rather than one copy per step, and `dsimp` unfolds it without
 building proof terms. -/
 macro "unfold_run" : tactic =>
-  `(tactic| (simp only [run_eq_runWith]; dsimp only [Consensus.Model.transitionSystem, MultiNodeTransitionSystem.lift,
+  `(tactic| (simp only [run_eq_runWith]; dsimp only [Consensus.Model.transitionSystem, Consensus.Model.networkStep,
+    MultiNodeTransitionSystem.lift,
     MultiNodeTransitionSystem.next, Consensus.Model.protocol, Consensus.Model.Node.step,
     Consensus.Model.Node.act, Consensus.Model.Node.receive,
     Consensus.Model.Node.startElection, Consensus.Model.Node.becomePreVoteCandidate,
