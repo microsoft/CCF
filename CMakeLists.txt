@@ -376,6 +376,7 @@ add_ccf_static_library(
     ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
     ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
+    ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_sorted.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
     ${CCF_DIR}/src/indexing/strategies/visit_each_entry_in_map.cpp
     ${CCF_DIR}/src/node/historical_queries_adapter.cpp

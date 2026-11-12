@@ -4,18 +4,14 @@
 
 #include "ccf/node_subsystem_interface.h"
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
 
-/// Defines a simple Large-File System (LFS) interface for offloading large
-/// blobs of data to the host, and later requesting them asynchronously. These
-/// blobs will be encrypted, so may contain secret data. Only files written by
-/// this node can be read by this node.
 namespace ccf::indexing
 {
   using LFSKey = std::string;
-  using LFSEncryptedContents = std::vector<uint8_t>;
   using LFSContents = std::vector<uint8_t>;
 
   struct FetchResult
@@ -27,20 +23,19 @@ namespace ccf::indexing
       NotFound,
       Corrupt,
     };
-    std::atomic<FetchResultType> fetch_result;
-
+    std::atomic<FetchResultType> fetch_result = FetchResultType::Fetching;
     LFSKey key;
-
     LFSContents contents;
   };
 
   using FetchResultPtr = std::shared_ptr<FetchResult>;
 
+  // Node-local authenticated plaintext for public-state indexes only.
+  // Operations execute in submission order, including writes before reads
+  // and replacement writes before obsolete-file deletion.
   class AbstractLFSAccess : public ccf::AbstractNodeSubSystem
   {
   public:
-    ~AbstractLFSAccess() override = default;
-
     static char const* get_subsystem_name()
     {
       return "LFSAccess";
@@ -48,5 +43,6 @@ namespace ccf::indexing
 
     virtual void store(const LFSKey& key, LFSContents&& contents) = 0;
     virtual FetchResultPtr fetch(const LFSKey& key) = 0;
+    virtual void remove(const LFSKey& key) = 0;
   };
 }

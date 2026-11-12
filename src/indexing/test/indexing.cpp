@@ -879,6 +879,11 @@ public:
   std::map<ccf::indexing::LFSKey, ccf::indexing::LFSContents> files;
   ccf::indexing::FetchResultPtr last_fetch;
 
+  void remove(const ccf::indexing::LFSKey& key) override
+  {
+    files.erase(key);
+  }
+
   void store(
     const ccf::indexing::LFSKey& key,
     ccf::indexing::LFSContents&& contents) override

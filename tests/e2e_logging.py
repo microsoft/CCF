@@ -1303,7 +1303,7 @@ def test_historical_query_range(network, args):
     return network
 
 
-@reqs.description("Read paginated range of historical state across index buckets")
+@reqs.description("Read paginated range of historical state across sorted runs")
 @reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
 @reqs.at_least_n_nodes(1)
 def test_historical_query_range_pagination(network, args):
@@ -1319,13 +1319,12 @@ def test_historical_query_range_pagination(network, args):
 
     primary, _ = network.find_primary()
     with primary.client("user0") as c:
-        # With the test app config's page and bucket sizes of 5, 50 writes
-        # reliably span multiple pages and indexing buckets.
+        # Tiny byte budgets force flushes and merges across sparse writes.
         ENTRY_COUNT = 50
         target_write_positions = {0, ENTRY_COUNT - 1}
         for i in range(ENTRY_COUNT):
             idx = SPARSE_ENTRY_ID if i in target_write_positions else FILLER_ENTRY_ID
-            msg = f"Multi-bucket indexing message {i}"
+            msg = f"Sorted-run indexing message {i}"
             r = c.post(
                 "/app/log/public",
                 {
@@ -2407,7 +2406,47 @@ def test_cose_set_member(network, args):
     new_member.ack(primary)
 
 
-def run_multi_bucket_indexing(args):
+@reqs.description("Sorted cache limits reject large pages, not earlier valid pages")
+@reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
+def test_sorted_index_cache_limit(network, args):
+    primary, _ = network.find_primary()
+    idx = 1544
+    with primary.client("user0") as c:
+        first_seqno = None
+        for i in range(50):
+            r = c.post("/app/log/public", {"id": idx, "msg": f"entry {i}"})
+            assert r.status_code == http.HTTPStatus.OK, r
+            if first_seqno is None:
+                first_seqno = r.seqno
+        last_seqno = r.seqno
+        infra.commit.wait_for_commit(c, seqno=last_seqno, view=r.view)
+        assert first_seqno > 6
+        next_page = (
+            f"/app/log/public/historical/range?from_seqno={first_seqno}"
+            f"&to_seqno={last_seqno}&id={idx}"
+        )
+        end_time = time.time() + 30
+        while time.time() < end_time:
+            r = c.get(next_page, log_capture=[])
+            if r.status_code != http.HTTPStatus.ACCEPTED:
+                break
+            time.sleep(0.1)
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+        assert "query_cache_bytes" in r.body.json()["error"]["message"]
+
+        # This page is empty and needs no blocks. Its speculative next-page
+        # fetch targets the already-warmed over-capacity query above.
+        r = c.get(
+            f"/app/log/public/historical/range?from_seqno={first_seqno - 6}"
+            f"&to_seqno={last_seqno}&id={idx}"
+        )
+        assert r.status_code == http.HTTPStatus.OK, r
+        body = r.body.json()
+        assert not body["entries"], body
+        assert body["@nextLink"] == next_page
+
+
+def run_sorted_indexing(args, cache_bytes, test_case):
     os.makedirs(args.workspace, exist_ok=True)
     node_data_json_file = os.path.join(
         args.workspace, f"{args.label}_logging_node_data.json"
@@ -2416,8 +2455,9 @@ def run_multi_bucket_indexing(args):
         json.dump(
             {
                 "logging": {
-                    "seqnos_per_indexing_bucket": 5,
-                    "indexing_buckets_per_key": 3,
+                    "indexing_write_buffer_bytes": 256,
+                    "indexing_block_bytes": 128,
+                    "indexing_query_cache_bytes": cache_bytes,
                     "max_historical_range_seqnos_per_page": 5,
                 }
             },
@@ -2433,7 +2473,15 @@ def run_multi_bucket_indexing(args):
     ) as network:
         network.start_and_open(args)
 
-        test_historical_query_range_pagination(network, args)
+        test_case(network, args)
+
+
+def run_multi_bucket_indexing(args):
+    run_sorted_indexing(args, 8192, test_historical_query_range_pagination)
+
+
+def run_sorted_cache_limit(args):
+    run_sorted_indexing(args, 1024, test_sorted_index_cache_limit)
 
 
 def run_app_space_js(args):
@@ -2691,6 +2739,18 @@ if __name__ == "__main__":
     cr.add(
         "cpp_multi_bucket_indexing",
         run_multi_bucket_indexing,
+        package="samples/apps/logging/logging",
+        js_app_bundle=None,
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=1,
+        initial_member_count=1,
+        sig_tx_interval=5,
+        sig_ms_interval=100,
+    )
+
+    cr.add(
+        "cpp_sorted_cache_limit",
+        run_sorted_cache_limit,
         package="samples/apps/logging/logging",
         js_app_bundle=None,
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),

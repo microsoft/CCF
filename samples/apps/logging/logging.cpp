@@ -21,7 +21,7 @@
 #include "ccf/historical_queries_utils.h"
 #include "ccf/http_etag.h"
 #include "ccf/http_query.h"
-#include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
+#include "ccf/indexing/strategies/seqnos_by_key_sorted.h"
 #include "ccf/indexing/strategy.h"
 #include "ccf/json_handler.h"
 #include "ccf/network_identity_interface.h"
@@ -54,7 +54,7 @@ namespace loggingapp
 
   // SNIPPET_START: indexing_strategy_definition
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
-    ccf::indexing::strategies::SeqnosByKey_Bucketed<RecordsMap>>;
+    ccf::indexing::strategies::SeqnosByKey_Sorted<RecordsMap>>;
 
   // SNIPPET_END: indexing_strategy_definition
 
@@ -248,8 +248,7 @@ namespace loggingapp
     nlohmann::json get_public_params_schema;
     nlohmann::json get_public_result_schema;
 
-    size_t seqnos_per_indexing_bucket = 10000;
-    size_t indexing_buckets_per_key = 20;
+    ccf::indexing::strategies::SortedIndexOptions indexing_options;
     size_t max_historical_range_seqnos_per_page = 5000;
 
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
@@ -289,7 +288,7 @@ namespace loggingapp
     }
 
     /// Reads logging-specific node_data configuration during init_handlers.
-    /// Missing or non-object node_data leaves the default indexing bucket sizes
+    /// Missing or non-object node_data leaves the default indexing byte budgets
     /// and historical range page sizes unchanged.
     void configure_from_node_data()
     {
@@ -313,9 +312,15 @@ namespace loggingapp
       }
 
       read_size_config(
-        *app_config, "seqnos_per_indexing_bucket", seqnos_per_indexing_bucket);
+        *app_config,
+        "indexing_write_buffer_bytes",
+        indexing_options.write_buffer_bytes);
       read_size_config(
-        *app_config, "indexing_buckets_per_key", indexing_buckets_per_key);
+        *app_config, "indexing_block_bytes", indexing_options.block_bytes);
+      read_size_config(
+        *app_config,
+        "indexing_query_cache_bytes",
+        indexing_options.query_cache_bytes);
       read_size_config(
         *app_config,
         "max_historical_range_seqnos_per_page",
@@ -1628,9 +1633,18 @@ namespace loggingapp
         to_seqno;
 
       // SNIPPET_START: indexing_strategy_use
-      const auto interesting_seqnos =
-        index_per_public_key->get_write_txs_in_range(
+      std::optional<ccf::SeqNoCollection> interesting_seqnos;
+      try
+      {
+        interesting_seqnos = index_per_public_key->get_write_txs_in_range(
           id, range_begin, range_end);
+      }
+      catch (const std::length_error& e)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
+        return;
+      }
       // SNIPPET_END: indexing_strategy_use
       if (!interesting_seqnos.has_value())
       {
@@ -1722,8 +1736,16 @@ namespace loggingapp
         const auto next_range_end = (to_seqno - next_page_start > max_page) ?
           (next_page_start + max_page) :
           to_seqno;
-        const auto next_seqnos = index_per_public_key->get_write_txs_in_range(
-          id, next_page_start, next_range_end);
+        std::optional<ccf::SeqNoCollection> next_seqnos;
+        try
+        {
+          next_seqnos = index_per_public_key->get_write_txs_in_range(
+            id, next_page_start, next_range_end);
+        }
+        catch (const std::length_error& e)
+        {
+          CCF_APP_DEBUG("Skipping next-page prefetch: {}", e.what());
+        }
 
         // if we know the next page has some interesting seqnos, begin
         // fetching them
@@ -2227,10 +2249,7 @@ namespace loggingapp
       configure_from_node_data();
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
-        PUBLIC_RECORDS,
-        context,
-        seqnos_per_indexing_bucket,
-        indexing_buckets_per_key);
+        PUBLIC_RECORDS, context, indexing_options);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       const ccf::AuthnPolicies auth_policies = {
