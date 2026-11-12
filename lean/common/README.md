@@ -10,6 +10,7 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Execution`                 | Finite runs and finite or infinite execution traces          |
 | `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
 | `CCF.Architecture`              | Checks of specification import layering                      |
+| `CCF.Nonvacuous`                | `nonvacuous%`, the witness statement of a theorem            |
 | `CCF.Seq`                       | Possibly infinite sequences (replaces Mathlib `Stream'.Seq`) |
 | `CCF.Finset`                    | Finite sets as strictly sorted lists (replaces `Finset`)     |
 | `CCF.Function`                  | Point updates of functions (replaces `Function.update`)      |
@@ -38,6 +39,15 @@ The documented property entrypoints remain the public proof APIs; see the [CCF c
 Selective imports do not reduce the checked CCF roots or omit tests.
 `lake check` still exports the complete imported environment and checks its safe declarations and axiom dependencies, including declarations from dependencies.
 Compilation caches do not avoid this independent kernel check.
+
+## Witness statements
+
+`nonvacuous% foo` is the statement that the hypotheses of the theorem `foo` can be satisfied: `exists xs, pre` for `foo : forall xs, pre -> post`.
+`nonvacuous% foo /\ extra` adds `extra` to what the witness satisfies, with the variables of `foo` in scope under the names `foo` gave them.
+`nonvacuous% foo a` fixes the leading variable of `foo` to `a`, so a witness for every `a` is `forall a, nonvacuous% foo a`.
+It reads the type of `foo`, taking the leading binders that the rest of the statement mentions as variables and every binder after them as a hypothesis.
+A variable bound after a hypothesis, an implicit variable given an argument, or a variable that would hide a name already in scope is an error.
+`CCF.Tests.Nonvacuous` records the statements it produces and its errors.
 
 ## Event parsing
 

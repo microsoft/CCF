@@ -6,12 +6,15 @@ public import CCF.Execution
 import Consensus.Proofs.Direct
 import Consensus.Proofs.SafetyInvariant
 import Consensus.Proofs.Witnesses
+import CCF.Nonvacuous
 
 @[expose] public section
 
 /-!
 Safety theorems about the CCF consensus protocol model, each paired with a witness lemma
 exhibiting a nontrivial execution relevant to that property.
+A witness stated with `nonvacuous% foo /\ extra` asserts that some values of the variables of
+`foo` satisfy its hypotheses and `extra`.
 -/
 
 namespace Consensus.Properties
@@ -41,17 +44,10 @@ theorem committed_logs_prefix
 /-- Witness: a valid trace has two states in which two distinct nodes have
 nonempty committed logs. -/
 theorem committed_logs_prefix_witness
-    : exists (config : Finset NodeID),
-    exists (nodes : List NodeID) (trace : GlobalTrace config nodes),
-    exists (stateA stateB : Model.State),
-    exists (left right : NodeID) (leftState rightState : NodeState),
-      stateA ∈ trace
-      /\ stateB ∈ trace
-      /\ (left, leftState) ∈ stateA.nodes
-      /\ (right, rightState) ∈ stateB.nodes
-      /\ left ≠ right
-      /\ leftState.committedLog ≠ []
-      /\ rightState.committedLog ≠ [] := by
+    : nonvacuous% committed_logs_prefix
+                  /\ left ≠ right
+                  /\ leftState.committedLog ≠ []
+                  /\ rightState.committedLog ≠ [] := by
   exact Proofs.Witnesses.committed_logs_prefix_witness
 
 /-- A successful network step from a state with unique node IDs preserves each
@@ -71,16 +67,9 @@ theorem single_node_committed_log_monotonic
 /-- Witness: a successful step from a state with unique node IDs strictly extends
 one node's nonempty committed log. -/
 theorem single_node_committed_log_monotonic_witness
-    : exists (config : Finset NodeID) (nodes : List NodeID),
-    exists (pre post : Model.State),
-    exists (nodeId : NodeID) (nodePre nodePost : NodeState),
-    exists (action : Model.Action),
-      (pre.nodes.map Prod.fst).Nodup
-      /\ (Model.transitionSystem config nodes).step pre action = some post
-      /\ (nodeId, nodePre) ∈ pre.nodes
-      /\ (nodeId, nodePost) ∈ post.nodes
-      /\ nodePre.committedLog ≠ []
-      /\ nodePre.committedLog.length < nodePost.committedLog.length := by
+    : nonvacuous% single_node_committed_log_monotonic
+                  /\ nodePre.committedLog ≠ []
+                  /\ nodePre.committedLog.length < nodePost.committedLog.length := by
   exact Proofs.Witnesses.single_node_committed_log_monotonic_witness
 
 /-- No two distinct nodes are primary in the same term. -/
@@ -124,11 +113,7 @@ theorem committed_frontier_is_signature
 
 /-- Witness: a valid trace has a state with a positive commit index. -/
 theorem committed_frontier_is_signature_witness
-    : exists (config : Finset NodeID),
-    exists
-    (nodes : List NodeID) (trace : GlobalTrace config nodes) (state : Model.State),
-    exists (node : NodeID) (nodeState : NodeState),
-      state ∈ trace /\ (node, nodeState) ∈ state.nodes /\ 0 < nodeState.commitIndex := by
+    : nonvacuous% committed_frontier_is_signature := by
   exact Proofs.Witnesses.committed_frontier_is_signature_witness
 
 end Consensus.Properties

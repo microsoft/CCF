@@ -7,6 +7,7 @@ import DisasterRecovery.Proofs.Deadlock
 import DisasterRecovery.Proofs.Safety
 import DisasterRecovery.Proofs.Witnesses
 import DisasterRecovery.Proofs.GlobalWitnesses
+import CCF.Nonvacuous
 
 @[expose] public section
 
@@ -65,14 +66,7 @@ theorem quorum_open_preserves_commit
 /-- Witness: for every valid configuration, a valid trace and a state in it with a node with
 `openKind = quorum` whose voters all satisfy `ReceivedOwnGossip` exist. -/
 theorem quorum_open_preserves_commit_witness
-    : forall (config : ValidConfig),
-        exists (trace : GlobalTrace config) (openedState : Model.State),
-        exists (opener : Location) (openerState : NodeState),
-          openedState ∈ trace
-          /\ (opener, openerState) ∈ openedState.nodes
-          /\ openerState.openKind = some .quorum
-          /\ (forall voter,
-                voter ∈ openerState.votes -> ReceivedOwnGossip trace voter) := by
+    : forall (config : ValidConfig), nonvacuous% quorum_open_preserves_commit config := by
   exact Proofs.GlobalWitnesses.quorum_open_preserves_commit_witness
 
 /-- If every configured location has full gossip somewhere in a valid trace, every opener,
@@ -133,12 +127,7 @@ theorem gossip_freezes_after_choice
 /-- Witness: for every valid configuration, a valid step exists that receives accepted gossip
 when `chosen` is set. -/
 theorem gossip_freezes_after_choice_witness
-    : forall (config : ValidConfig),
-        exists localStep : LocalStep,
-        exists (source : Location) (txid : TxID),
-          (Model.protocol config).ValidStep localStep
-          /\ localStep.action = .receiveGossip source txid .accepted
-          /\ localStep.before.chosen.isSome = true := by
+    : forall (config : ValidConfig), nonvacuous% gossip_freezes_after_choice config := by
   exact Proofs.Witnesses.gossip_freezes_after_choice_witness
 
 /-- A valid step receiving rejected gossip leaves the state unchanged and notifies
@@ -155,11 +144,7 @@ theorem rejected_gossip_stutters
 
 /-- Witness: for every valid configuration, a valid step exists that receives rejected gossip. -/
 theorem rejected_gossip_stutters_witness
-    : forall (config : ValidConfig),
-        exists localStep : LocalStep,
-        exists (source : Location) (txid : TxID),
-          (Model.protocol config).ValidStep localStep
-          /\ localStep.action = .receiveGossip source txid .rejected := by
+    : forall (config : ValidConfig), nonvacuous% rejected_gossip_stutters config := by
   exact Proofs.Witnesses.rejected_gossip_stutters_witness
 
 /-- A valid timeout or accepted-vote step from `voting` with at least `voteQuorum`
@@ -180,13 +165,7 @@ theorem quorum_advance_opens
 /-- Witness: for every valid configuration, a valid timeout or accepted-vote step exists from
 `voting` with at least `voteQuorum` votes. -/
 theorem quorum_advance_opens_witness
-    : forall (config : ValidConfig),
-        exists localStep : LocalStep,
-          (Model.protocol config).ValidStep localStep
-          /\ (localStep.action = .timeout
-              \/ exists source, localStep.action = .receiveVote source .accepted)
-          /\ localStep.before.phase = .voting
-          /\ localStep.before.votes.length >= voteQuorum config.val.protocol := by
+    : forall (config : ValidConfig), nonvacuous% quorum_advance_opens config := by
   exact Proofs.Witnesses.quorum_advance_opens_witness
 
 /-- A valid timeout step with `phase` and `timeoutState` both `opening` only sets
@@ -206,11 +185,7 @@ theorem aligned_opening_timeout_completes
 `timeoutState` both `opening`. -/
 theorem aligned_opening_timeout_completes_witness
     : forall (config : ValidConfig),
-        exists localStep : LocalStep,
-          (Model.protocol config).ValidStep localStep
-          /\ localStep.action = .timeout
-          /\ localStep.before.phase = .opening
-          /\ localStep.before.timeoutState = .opening := by
+        nonvacuous% aligned_opening_timeout_completes config := by
   exact Proofs.Witnesses.aligned_opening_timeout_completes_witness
 
 end DisasterRecovery.Properties
