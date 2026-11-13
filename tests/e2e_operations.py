@@ -3716,25 +3716,19 @@ def run_read_ledger_on_testdata(args):
         )
         for snapshot_file in os.scandir(snapshot_path):
             if snapshot_file.is_file() and snapshot_file.name.endswith(".committed"):
-                if testdata_dir.name in LEGACY_RECEIPT_SNAPSHOT_SERVICES:
-                    LOG.info(
-                        f"Checking legacy snapshot {snapshot_file.path} is rejected"
-                    )
-                    try:
-                        ccf.ledger.Snapshot(snapshot_file.path)
-                    except ccf.ledger.InvalidSnapshotException as e:
-                        assert "Snapshot receipt is not a COSE_Sign1 receipt" in str(
-                            e
-                        ), e
-                        LOG.info(f"Legacy snapshot rejected: {e}")
-                    else:
-                        raise AssertionError(
-                            f"Legacy snapshot {snapshot_file.path} was accepted"
-                        )
+                LOG.info(f"Reading and validating snapshot {snapshot_file.path}")
+                # Release tests use the published SDK, which may accept JSON
+                # receipts. Local SDK tests enforce COSE-only snapshot receipts.
+                try:
+                    snapshot = ccf.ledger.Snapshot(snapshot_file.path)
+                except ccf.ledger.InvalidSnapshotException as e:
+                    if testdata_dir.name not in LEGACY_RECEIPT_SNAPSHOT_SERVICES:
+                        raise
+                    assert "Snapshot receipt is not a COSE_Sign1 receipt" in str(e), e
+                    LOG.info(f"Legacy snapshot rejected: {e}")
                     continue
 
-                LOG.info(f"Reading and validating snapshot {snapshot_file.path}")
-                with ccf.ledger.Snapshot(snapshot_file.path) as snapshot:
+                with snapshot:
                     tables = snapshot.get_public_domain().get_tables()
                     LOG.info(
                         f"Valid snapshot at {snapshot_file.path} with {len(tables)} tables"
