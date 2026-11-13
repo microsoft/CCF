@@ -114,6 +114,9 @@ namespace ccf::tracing
       std::chrono::steady_clock::time_point deadline CCF_GUARDED_BY(mutex);
       std::chrono::steady_clock::time_point retry_after CCF_GUARDED_BY(mutex);
       uint64_t reported = 0;
+      // Set while the consumer sleeps and this transport can drain, so
+      // producers must wake it. Like io_uring's IORING_SQ_NEED_WAKEUP.
+      std::atomic<bool> needs_wakeup = false;
       int fd CCF_GUARDED_BY(mutex) = -1;
       std::unique_ptr<std::vector<uint8_t>> pending CCF_GUARDED_BY(mutex);
       size_t write_offset CCF_GUARDED_BY(mutex) = 0;
@@ -155,6 +158,31 @@ namespace ccf::tracing
           tag_prefix_allow_list.begin(),
           tag_prefix_allow_list.end(),
           [tag](const auto& prefix) { return tag.starts_with(prefix); });
+      }
+
+      // The next step would send a new record or, when unbuffered, discard
+      // it. Must be false whenever queued records would stay queued, or the
+      // consumer would spin.
+      [[nodiscard]] bool can_drain() const CCF_REQUIRES(mutex)
+      {
+        return !stopping.load(std::memory_order_relaxed) &&
+          ((connected && !pending) ||
+           delivery == Endpoint::Delivery::UNBUFFERED_NON_BLOCKING);
+      }
+
+      // Waiting to connect, for a blocked send, or to finish shutting down.
+      // Nothing signals when these can progress, so the consumer polls them.
+      [[nodiscard]] bool needs_polling() const CCF_REQUIRES(mutex)
+      {
+        return !finished &&
+          (!connected || pending || stopping.load(std::memory_order_relaxed));
+      }
+
+      [[nodiscard]] bool has_queued_records() const
+      {
+        return std::any_of(queues.begin(), queues.end(), [](const auto& queue) {
+          return queue->size() != 0;
+        });
       }
 
       [[nodiscard]] bool expired() const CCF_REQUIRES(mutex)
@@ -389,10 +417,28 @@ namespace ccf::tracing
       }
     };
 
+    // The consumer sleeps like io_uring's SQPOLL thread: when out of work, it
+    // sets needs_wakeup on each transport that can drain, rechecks their
+    // queues, then sleeps. Producers check needs_wakeup after pushing, so they
+    // only pay for a wake-up when the consumer sleeps. Unlike SQPOLL, the
+    // consumer sleeps rather than spins through its idle period (LINGER), and
+    // its sleep times out to poll stalled transports and report drops.
     struct Worker
     {
+      // Longest wait between passes, which bounds how long drop reports can be
+      // delayed.
+      static constexpr auto MAX_IDLE_WAIT = std::chrono::milliseconds(100);
+      // An idle consumer checks once more after this delay before blocking, so
+      // records closer together than this never make producers wake it.
+      static constexpr auto LINGER = std::chrono::milliseconds(1);
+      // Polls wait 2 ms, doubling to at most 2^6 = 64 ms.
+      static constexpr size_t MAX_POLL_BACKOFF_SHIFT = 6;
+
       std::vector<std::unique_ptr<Transport>> transports;
       ccf::ds::Mutex unbound_producer_mutex;
+      ccf::ds::Mutex wake_mutex;
+      ccf::ds::ConditionVariable wake_condition;
+      bool wake_pending CCF_GUARDED_BY(wake_mutex) = false;
       std::thread consumer;
 
       explicit Worker(std::vector<std::unique_ptr<Transport>> instances) :
@@ -402,16 +448,19 @@ namespace ccf::tracing
 
       void run()
       {
+        size_t idle_passes = 0;
         while (true)
         {
           bool progress = false;
           bool finished = true;
+          bool poll = false;
           for (const auto& t : transports)
           {
             {
               ccf::ds::MutexGuard lock(t->mutex);
               progress |= t->step();
               finished &= t->finished;
+              poll |= t->needs_polling();
             }
             t->report_drops();
           }
@@ -419,11 +468,74 @@ namespace ccf::tracing
           {
             break;
           }
-          if (!progress)
+          if (progress)
           {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            idle_passes = 0;
+            continue;
+          }
+          ++idle_passes;
+          if (idle_passes == 1)
+          {
+            wait(LINGER, false);
+            continue;
+          }
+          const auto poll_wait = std::chrono::milliseconds(
+            int64_t{1} << std::min(idle_passes - 1, MAX_POLL_BACKOFF_SHIFT));
+          wait(poll ? poll_wait : MAX_IDLE_WAIT, true);
+        }
+      }
+
+      // Returns on timeout, on wake(), or, if wake_on_records, when a producer
+      // pushes a record that a transport can drain.
+      void wait(std::chrono::milliseconds timeout, bool wake_on_records)
+      {
+        bool queued = false;
+        if (wake_on_records)
+        {
+          for (const auto& t : transports)
+          {
+            {
+              ccf::ds::MutexGuard lock(t->mutex);
+              if (!t->can_drain())
+              {
+                continue;
+              }
+            }
+            t->needs_wakeup.store(true, std::memory_order_relaxed);
+            // Pairs with the fence in enqueue_at_slot(): either the producer
+            // observes needs_wakeup, or this observes the producer's record.
+            std::atomic_thread_fence(std::memory_order_seq_cst);
+            if (t->has_queued_records())
+            {
+              queued = true;
+              break;
+            }
           }
         }
+        {
+          ccf::ds::MutexGuard lock(wake_mutex);
+          if (!queued)
+          {
+            wake_condition.wait_for(
+              lock, timeout, [this]() CCF_REQUIRES(wake_mutex) {
+                return wake_pending;
+              });
+          }
+          wake_pending = false;
+        }
+        for (const auto& t : transports)
+        {
+          t->needs_wakeup.store(false, std::memory_order_relaxed);
+        }
+      }
+
+      void wake()
+      {
+        {
+          ccf::ds::MutexGuard lock(wake_mutex);
+          wake_pending = true;
+        }
+        wake_condition.notify_one();
       }
 
       void shutdown()
@@ -436,6 +548,7 @@ namespace ccf::tracing
           {
             t->stop(deadline);
           }
+          wake();
           consumer.join();
           for (const auto& t : transports)
           {
@@ -580,6 +693,13 @@ namespace ccf::tracing
         {
           t->dropped.fetch_add(1, std::memory_order_relaxed);
           enqueued = false;
+          continue;
+        }
+        // Pairs with the fence in Worker::wait().
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+        if (t->needs_wakeup.load(std::memory_order_relaxed))
+        {
+          worker()->wake();
         }
       }
       return enqueued;
