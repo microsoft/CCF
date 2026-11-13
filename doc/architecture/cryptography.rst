@@ -113,27 +113,37 @@ Node, member, and user IDs default to the existing ``sha256`` format.
 Member and user IDs are the hexadecimal SHA-256 fingerprint of the DER certificate.
 Node IDs are the hexadecimal SHA-256 fingerprint of the DER SubjectPublicKeyInfo public key.
 
-New identities can instead opt in to a canonical `did:key <https://w3c-ccg.github.io/did-key-spec/>`_ ID.
-This embeds a multicodec-tagged public key using base58btc, rather than hashing it.
+New identities can instead use a `did:key <https://w3c-ccg.github.io/did-key-spec/>`_ ID, which embeds the multicodec-tagged public key rather than hashing it.
 CCF supports compressed P-256, P-384, and P-521 keys and PKCS#1 RSA public keys between 2048 and 16384 bits.
 Existing authentication and signing algorithm restrictions still apply.
-Only bare, canonical IDs are accepted; DID URLs with fragments, queries, or paths are not identity IDs.
-When inserting an ID into an HTTP path, percent-encode its colons as ``%3A`` rather than encoding the endpoint's literal action suffix.
-The stored ID and COSE ``kid`` remain the unencoded canonical DID.
 
-The selected ID is the key stored in the role's governance tables and returned by APIs, not an alias.
-Members and users enroll directly with ``did_key``, without a certificate, and authenticate COSE requests using the embedded public key.
-Re-enrolling an existing DID member or user with ``set_member`` or ``set_user`` replaces its recovery keys and data according to the existing action semantics, so a re-enrolled member must ack again before it is active.
-Changing the public key changes the DID.
-DID authorization has no certificate validity period: governance explicitly grants and revokes access.
-Legacy TLS client-authenticated endpoints can also recognize a transport certificate carrying the enrolled key, but DID enrollment does not store or require that certificate.
-Removing the enrolled identity revokes its access to that role.
-The DID itself is not an authorization grant: the identity must still be enrolled and satisfy the endpoint's authentication policy.
+The `did:key identifier syntax <https://w3c-ccg.github.io/did-key-spec/#did-key-identifier-syntax>`_ allows either a base58-btc (``z``) or a base64url (``u``) multibase value.
+CCF only accepts and produces the base58-btc (``z``) form, which is the form used by every example in the specification, and rejects the base64url form.
+As the specification describes, a ``did:key`` is a deterministic encoding of its public key, and CCF only accepts the ``did:key`` that it would produce from the decoded key.
+For example, an EC key must use the compressed point encoding listed in the specification's key type table.
+Only bare IDs are accepted; DID URLs with fragments, queries, or paths are not identity IDs.
+
+``did:key`` IDs contain colons.
+The ``:`` character is valid in a URL path segment, but CCF endpoint templates use it to separate a path parameter from an action suffix, as in ``/gov/members/state-digests/{memberId}:ack``.
+When inserting a ``did:key`` into an HTTP path, percent-encode its colons as ``%3A``, and leave the endpoint's literal action suffix unchanged.
+The stored ID and COSE ``kid`` remain the unencoded ``did:key``.
+
+Members and users enroll a ``did:key`` by passing it as ``did_key`` to ``set_member`` or ``set_user``; no certificate is stored or required.
+That enrollment is the only step needed.
+COSE Sign1 requests use the ``did:key`` as their ``kid`` and are verified with the embedded public key.
+Endpoints using TLS client certificate authentication (such as ``user_cert`` or ``member_cert``) also accept any client certificate carrying the enrolled public key, and identify the caller by the enrolled ``did:key``.
+The validity period of such a certificate is not checked: governance explicitly grants access by enrolling the identity, and revokes it by removing the identity.
+The ``did:key`` itself is not an authorization grant: the identity must still be enrolled and satisfy the endpoint's authentication policy.
+Re-enrolling an existing ``did:key`` member or user with ``set_member`` or ``set_user`` replaces its recovery keys and data according to the existing action semantics, so a re-enrolled member must ack again before it is active.
+Changing the public key changes the ``did:key``.
+
+Certificate-based and ``did:key`` enrollments are independent identities, even when they contain the same public key.
+CCF does not detect or prevent enrolling the same public key under both ID formats; operators are responsible for deciding whether to do so, and for removing the identity they no longer want.
+Each enrollment has its own ID, data, status, and recovery role, and removing one does not affect the other.
+If both are enrolled in the same role, TLS client certificate authentication with the enrolled certificate identifies the caller by its certificate fingerprint ID; other certificates carrying the same key identify the caller by its ``did:key``.
 
 IDs already stored in the ledger are not changed or backfilled.
-The same public key cannot be enrolled under both ID formats within one role, although existing legacy-only enrollments and key reuse across roles remain supported.
-Moving an existing identity to the DID format requires controlled removal and re-enrollment, respecting member activation, recovery, and node-retirement requirements.
-There is no automatic transfer of metadata, governance state, or recovery shares.
+There is no automatic transfer of metadata, governance state, or recovery shares between IDs.
 Recovery from an existing common directory discovers each member's enrolled ID format and recovery role from the recovered governance state.
 See :doc:`/governance/migrating_identity_ids` for the user and member migration procedure.
 

@@ -65,7 +65,7 @@ static const string contents_ =
 
 vector<uint8_t> contents(contents_.begin(), contents_.end());
 
-TEST_CASE("Canonical did:key public key identifiers")
+TEST_CASE("Deterministic did:key public key identifiers")
 {
   for (const auto curve :
        {CurveID::SECP256R1, CurveID::SECP384R1, CurveID::SECP521R1})
@@ -95,6 +95,10 @@ TEST_CASE("Canonical did:key public key identifiers")
     CHECK_THROWS_AS(
       public_key_der_from_did_key(invalid), std::invalid_argument);
   }
+  CHECK_THROWS_WITH_AS(
+    public_key_der_from_did_key("did:key:uabc"),
+    "Only base58-btc (z) multibase did:key IDs are supported",
+    std::invalid_argument);
 }
 
 TEST_CASE("Published did:key NIST public key vectors")

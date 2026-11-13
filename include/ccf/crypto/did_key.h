@@ -12,21 +12,17 @@
 
 namespace ccf::crypto
 {
-  /// Encode a NIST EC or RSA SubjectPublicKeyInfo as a canonical did:key.
+  /// Encode a NIST EC or RSA SubjectPublicKeyInfo as a base58-btc did:key.
   /// Throws std::invalid_argument for unsupported or invalid public keys.
   std::string did_key_from_public_key_der(std::span<const uint8_t> der);
 
-  /// Decode and validate a bare, base58btc did:key.
-  /// Throws std::invalid_argument for malformed, unsupported or oversized IDs.
+  /// Decode and validate a bare, base58-btc did:key.
+  /// Throws std::invalid_argument for malformed, unsupported or oversized IDs,
+  /// including the base64url (u) multibase form.
   std::vector<uint8_t> public_key_der_from_did_key(std::string_view id);
 
   /// Compare PEM public keys independently of their point or DER encoding.
   bool public_keys_equal(const Pem& lhs, const Pem& rhs);
-
-  /// Compare the public keys of two DER certificates, independently of their
-  /// certificate fields and public-key encoding.
-  bool certs_have_same_public_key(
-    std::span<const uint8_t> lhs, std::span<const uint8_t> rhs);
 
   /// Compare a DER certificate's public key with a DER SubjectPublicKeyInfo.
   bool cert_has_public_key(

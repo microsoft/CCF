@@ -173,7 +173,7 @@ TEST_CASE("Adding a member does not populate an ACK")
 }
 
 TEST_CASE(
-  "DID identity enrollment preserves canonical IDs and rejects ambiguity")
+  "DID and legacy enrollments of the same key are independent identities")
 {
   ccf::kv::Store store;
   store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
@@ -182,50 +182,59 @@ TEST_CASE(
     "CN=replacement", "20200101000000Z", "20201231235959Z");
   const auto did =
     ccf::crypto::compute_cert_id(identity.cert, IdentityIdFormat::DIDKey);
+  const auto legacy_id = ccf::crypto::compute_cert_id(identity.cert);
   REQUIRE(did.starts_with("did:key:z"));
   REQUIRE(
     ccf::crypto::compute_cert_id(replacement, IdentityIdFormat::DIDKey) == did);
   auto tx = store.create_tx();
 
-  SUBCASE("Member DID then legacy")
+  SUBCASE("Members")
   {
     NewMember member;
     member.did_key = did;
     REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
     REQUIRE(InternalTablesAccess::activate_member(tx, did));
+    // Re-adding an existing DID member has no effect
     REQUIRE(InternalTablesAccess::add_member(tx, member).value() == did);
     REQUIRE(
       tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(did)->status ==
       MemberStatus::ACTIVE);
     REQUIRE_FALSE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(did));
-    member.did_key = std::nullopt;
-    member.cert = replacement;
-    CHECK_THROWS_AS(
-      InternalTablesAccess::add_member(tx, member), std::logic_error);
+
+    REQUIRE(
+      InternalTablesAccess::add_member(tx, {identity.cert}).value() ==
+      legacy_id);
+    REQUIRE(
+      InternalTablesAccess::add_member(tx, {replacement}).value() ==
+      ccf::crypto::compute_cert_id(replacement));
+    REQUIRE(tx.ro<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->has(did));
+    REQUIRE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(legacy_id));
+    REQUIRE(
+      tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(legacy_id)->status ==
+      MemberStatus::ACCEPTED);
+    REQUIRE(
+      tx.ro<MemberInfo>(Tables::MEMBER_INFO)->get(did)->status ==
+      MemberStatus::ACTIVE);
   }
-  SUBCASE("Member legacy then DID")
-  {
-    InternalTablesAccess::add_member(tx, {identity.cert});
-    NewMember member;
-    member.did_key = did;
-    CHECK_THROWS_AS(
-      InternalTablesAccess::add_member(tx, member), std::logic_error);
-  }
-  SUBCASE("User DID then legacy")
+  SUBCASE("Users")
   {
     REQUIRE(
+      InternalTablesAccess::add_user(tx, {identity.cert}).value() == legacy_id);
+    REQUIRE(
       InternalTablesAccess::add_user(tx, {{}, nullptr, did}).value() == did);
-    CHECK_THROWS_AS(
-      InternalTablesAccess::add_user(tx, {replacement}), std::logic_error);
     REQUIRE_FALSE(tx.ro<UserCerts>(Tables::USER_CERTS)->has(did));
-    InternalTablesAccess::remove_user(tx, did);
-    CHECK_NOTHROW(InternalTablesAccess::add_user(tx, {replacement}));
-  }
-  SUBCASE("User legacy then DID")
-  {
-    InternalTablesAccess::add_user(tx, {identity.cert});
     CHECK_THROWS_AS(
       InternalTablesAccess::add_user(tx, {{}, nullptr, did}), std::logic_error);
+
+    InternalTablesAccess::remove_user(tx, legacy_id);
+    REQUIRE_FALSE(tx.ro<UserCerts>(Tables::USER_CERTS)->has(legacy_id));
+    REQUIRE(tx.ro<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->has(did));
+
+    REQUIRE(
+      InternalTablesAccess::add_user(tx, {identity.cert}).value() == legacy_id);
+    InternalTablesAccess::remove_user(tx, did);
+    REQUIRE_FALSE(tx.ro<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)->has(did));
+    REQUIRE(tx.ro<UserCerts>(Tables::USER_CERTS)->has(legacy_id));
   }
   CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 }

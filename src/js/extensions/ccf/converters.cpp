@@ -261,35 +261,6 @@ namespace ccf::js::extensions
       }
     }
 
-    JSValue js_certificates_have_same_public_key(
-      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-    {
-      if (argc != 2)
-      {
-        return JS_ThrowTypeError(ctx, "Expected two PEM certificates");
-      }
-      auto& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
-      auto lhs = jsctx.to_str(argv[0]);
-      auto rhs = jsctx.to_str(argv[1]);
-      if (!lhs.has_value() || !rhs.has_value())
-      {
-        return ccf::js::core::constants::Exception;
-      }
-      try
-      {
-        return JS_NewBool(
-          ctx,
-          static_cast<int>(ccf::crypto::certs_have_same_public_key(
-            ccf::crypto::make_verifier(ccf::crypto::Pem(*lhs))->cert_der(),
-            ccf::crypto::make_verifier(ccf::crypto::Pem(*rhs))->cert_der())));
-      }
-      catch (const std::exception& e)
-      {
-        return JS_ThrowInternalError(ctx, "%s", e.what());
-      }
-    }
-
     JSValue js_tcb_hex_to_policy(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
@@ -389,12 +360,6 @@ namespace ccf::js::extensions
       "publicKeyFromDidKey",
       ctx.new_c_function(
         js_public_key_from_did_key, "publicKeyFromDidKey", 1)));
-    JS_CHECK_OR_THROW(ccf.set(
-      "certificatesHaveSamePublicKey",
-      ctx.new_c_function(
-        js_certificates_have_same_public_key,
-        "certificatesHaveSamePublicKey",
-        2)));
 
     JS_CHECK_OR_THROW(ccf.set(
       "tcbHexToPolicy",

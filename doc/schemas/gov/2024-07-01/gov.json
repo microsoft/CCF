@@ -2491,13 +2491,13 @@
     },
     "memberId": {
       "type": "string",
-      "description": "Legacy SHA-256 certificate fingerprint or canonical did:key public-key ID for an opted-in member.",
+      "description": "Legacy SHA-256 certificate fingerprint or did:key public-key ID for an opted-in member.",
       "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
       "maxLength": 3000
     },
     "nodeId": {
       "type": "string",
-      "description": "Legacy SHA-256 public-key fingerprint or canonical did:key ID for an opted-in node.",
+      "description": "Legacy SHA-256 public-key fingerprint or did:key ID for an opted-in node.",
       "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
       "maxLength": 3000
     },
@@ -2519,7 +2519,7 @@
     },
     "userId": {
       "type": "string",
-      "description": "Legacy SHA-256 certificate fingerprint or canonical did:key public-key ID for an opted-in user.",
+      "description": "Legacy SHA-256 certificate fingerprint or did:key public-key ID for an opted-in user.",
       "pattern": "^([a-f0-9]{64}|did:key:z[1-9A-HJ-NP-Za-km-z]+)$",
       "maxLength": 3000
     }

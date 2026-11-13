@@ -2,11 +2,11 @@ Migrating Users and Members to did:key
 ======================================
 
 This guide describes how to move an existing user or member from its legacy SHA-256 ID to a ``did:key`` ID.
-The DID contains the identity public key, so enrollment and COSE authentication no longer require a certificate or certificate fingerprint.
-Changing an enrolled ID is not an in-place operation: CCF does not create an alias, change existing ledger entries, or copy identity data between IDs.
+The ``did:key`` contains the identity public key, so enrollment and COSE authentication no longer require a certificate or certificate fingerprint.
+CCF treats the two IDs as independent identities: it does not create an alias, change existing ledger entries, copy identity data between IDs, or check whether the same public key is enrolled under both formats.
+Operators decide when to add the new identity and when to remove the old one.
 
-Before migrating, upgrade every node in the service to a version that supports ``did:key`` IDs.
-Update the constitution to include the ordered removal-and-enrollment validation used in this guide.
+Before migrating, upgrade every node in the service to a version that supports ``did:key`` IDs, and update the constitution to accept ``did_key`` in ``set_member`` and ``set_user``.
 See :ref:`architecture/cryptography:Identity IDs` for compatibility and identity semantics.
 
 Derive the new ID from the identity public key:
@@ -17,23 +17,14 @@ Derive the new ID from the identity public key:
     did:key:z...
 
 For migration, ``--cert identity_cert.pem`` can instead extract the public key from a legacy certificate locally.
-Only the resulting ``did:key`` string is sent in the new enrollment action.
-Use the explicit DID for signing and recovery; certificate-to-DID extraction is a local migration step, not an alternative enrollment or signing mode.
-Neither ``cert`` nor ``id_format`` is accepted alongside ``did_key``.
-The ID format is scoped to each role: the same public key may be enrolled as a member and a user, but cannot be enrolled in both formats at the same time within either role.
-Group the removal and DID enrollment in a single proposal, with the removal action first.
-The actions are applied in order within one transaction: either both succeed, or neither takes effect.
-There is no externally visible gap between removal and re-enrollment, but the ID changes and a migrated member still needs to activate its new enrollment.
-If the same public key has multiple legacy enrollments in one role, remove all of them before the DID enrollment action.
+Use the resulting ``did:key`` for enrollment, signing, and recovery.
 
 Migrating a user
 ----------------
 
-Before removing the user, record its current user data and the certificate associated with its legacy ID.
-The ``remove_user`` action deletes the user's certificate and user data, so include the saved user data when enrolling the DID identity.
+Before removing the user, record its current user data, since the ``remove_user`` action deletes it.
 
-Submit and get approval for a proposal containing ``remove_user`` followed by ``set_user``.
-Copy the user's existing ``user_data`` into the new action, if present.
+Enroll the ``did:key`` with ``set_user``, copying the user's existing ``user_data``, if present.
 Replace the placeholders and example data below with the saved identity information:
 
 .. code-block:: json
@@ -41,15 +32,9 @@ Replace the placeholders and example data below with the saved identity informat
     {
       "actions": [
         {
-          "name": "remove_user",
-          "args": {
-            "user_id": "<legacy-sha256-id>"
-          }
-        },
-        {
           "name": "set_user",
           "args": {
-            "did_key": "<canonical-did:key>",
+            "did_key": "<did:key>",
             "user_data": {
               "role": "example"
             }
@@ -58,24 +43,22 @@ Replace the placeholders and example data below with the saved identity informat
       ]
     }
 
-Use the returned DID in subsequent ``set_user_data`` and ``remove_user`` actions and in any application data or policy that stores a user ID.
-The user's existing private key can sign requests immediately after the proposal is accepted.
+The user's existing private key can sign COSE requests with the new ID as soon as the proposal is accepted.
 Use ``--signing-did-key`` instead of ``--signing-cert`` when creating COSE requests; their protected ``kid`` must identify the new enrollment.
 Certificate-free requests require an endpoint with COSE authentication enabled.
+
+Once clients and application data use the new ID, remove the legacy enrollment with ``remove_user``.
+While both enrollments exist, they are separate users: TLS client authentication with the enrolled legacy certificate still identifies the caller by its legacy ID.
+To switch over without a period where both IDs are enrolled, include ``remove_user`` and ``set_user`` in the same proposal.
+Use the new ID in subsequent ``set_user_data`` and ``remove_user`` actions and in any application data or policy that stores a user ID.
 See :ref:`governance/open_network:Adding Users` for the standard proposal workflow.
 
 Migrating a member
 ------------------
 
-Before removing a member, record its certificate, member data, encryption public key (if it is a recovery member), and recovery role.
-The ``remove_member`` action deletes that member record and its data.
-Migrate members one at a time and ensure that removing a recovery member will not take the number of active recovery members below the service's recovery threshold; the constitution rejects such a removal.
-Atomic enrollment does not bypass this check, because the replacement member is not active until it acknowledges the service state.
-If necessary, add and activate another recovery member before migrating.
-Keep enough other active members to approve proposals while the migrated member is being reactivated.
+Before removing a member, record its member data, encryption public key (if it is a recovery member), and recovery role, since the ``remove_member`` action deletes them.
 
-Submit and get approval for one proposal containing ``remove_member`` followed by ``set_member``.
-Restore the member data and, for a recovery member, its encryption public key and recovery role.
+Enroll the ``did:key`` with ``set_member``, restoring the member data and, for a recovery member, its encryption public key and recovery role.
 Replace the placeholders and example data below with the saved identity information:
 
 .. code-block:: json
@@ -83,15 +66,9 @@ Replace the placeholders and example data below with the saved identity informat
     {
       "actions": [
         {
-          "name": "remove_member",
-          "args": {
-            "member_id": "<legacy-sha256-id>"
-          }
-        },
-        {
           "name": "set_member",
           "args": {
-            "did_key": "<canonical-did:key>",
+            "did_key": "<did:key>",
             "member_data": {
               "role": "example"
             },
@@ -103,8 +80,17 @@ Replace the placeholders and example data below with the saved identity informat
     }
 
 Omit ``encryption_pub_key`` and ``recovery_role`` for a member that is not a recovery member.
-The re-enrolled member starts in the ``Accepted`` state and must acknowledge the current service state digest again before participating in governance.
-If it is a recovery member, follow the recovery-share procedure for the newly enrolled member; do not assume recovery state transfers from the removed ID.
-For DID-signed governance requests, pass ``--signing-did-key <canonical-did:key>`` instead of ``--signing-cert`` to ``ccf_cose_sign1`` as described in :doc:`adding_member`.
+The new member starts in the ``Accepted`` state and must acknowledge the current service state digest before participating in governance.
+For DID-signed governance requests, pass ``--signing-did-key <did:key>`` instead of ``--signing-cert`` to ``ccf_cose_sign1`` as described in :doc:`adding_member`.
+If it is a recovery member, follow the recovery-share procedure for the newly enrolled member; do not assume recovery state transfers from the legacy ID.
 Pass ``--member-did-key`` instead of ``--member-id-cert`` to ``submit_recovery_share.sh``.
 The separate recovery encryption key is unchanged by this identity migration.
+
+Once the new member is active, remove the legacy member with ``remove_member``.
+The constitution rejects a removal that would take the number of active recovery members below the service's recovery threshold.
+
+While both enrollments exist, the key holder is two members: each can vote on proposals, and each recovery member enrollment receives its own recovery share.
+Consider the effect on the constitution's voting rules and on the recovery threshold, and keep this overlap short.
+To avoid it, include ``remove_member`` followed by ``set_member`` in a single proposal.
+The new member is then not active until it acknowledges the service state, so removing an active recovery member this way must not take the number of active recovery members below the recovery threshold.
+Enough other active members must also remain to approve proposals while the new member is activated.

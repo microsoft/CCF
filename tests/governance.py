@@ -1162,12 +1162,19 @@ def did_key_identities(args):
             r = c.post("/app/log/private", {"id": 1, "msg": "DID user"})
             assert r.status_code == http.HTTPStatus.OK, r
 
-        try:
-            network.consortium.add_user(primary, user.local_id)
-        except infra.proposal.ProposalNotCreated as e:
-            assert "different ID format" in e.response.body.text()
-        else:
-            raise AssertionError("Cross-format duplicate key was accepted")
+        # The same key can also be enrolled under its legacy ID. The two
+        # enrollments are independent identities, and TLS client authentication
+        # with the enrolled certificate resolves to the legacy ID first.
+        network.consortium.add_user(primary, user.local_id)
+        with primary.client(user.local_id) as c:
+            r = c.post("/app/multi_auth", {"msg": "Legacy and DID user"})
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert f"user with ID: u[{legacy_user_id}]" in r.body.text(), r
+        network.consortium.remove_user(primary, legacy_user_id)
+        with primary.client(user.local_id) as c:
+            r = c.post("/app/multi_auth", {"msg": "DID user only"})
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert f"user with ID: u[{did_user_id}]" in r.body.text(), r
 
         with open(user.key_path, encoding="ascii") as f:
             replacement = infra.crypto.generate_cert(f.read(), cn="replacement")

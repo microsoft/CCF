@@ -43,6 +43,19 @@ describe("polyfill", function () {
       );
     });
 
+    it("rejects base64url multibase did:key IDs", function () {
+      const did = "did:key:zDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv";
+      const point = Buffer.from(
+        "038a0ac59a2d3086e8a12a78fd4773a6d52a0ca61ef6c1419e15a05bcc6dafce7b",
+        "hex",
+      );
+      const multicodec = Buffer.concat([Buffer.from([0x80, 0x24]), point]);
+      const base64url = "did:key:u" + multicodec.toString("base64url");
+      assert.equal(ccf.isValidEntityId(did), true);
+      assert.equal(ccf.isValidEntityId(base64url), false);
+      assert.throws(() => ccf.publicKeyFromDidKey(base64url), /base58-btc/);
+    });
+
     it("derives and validates legacy and did:key RSA identities", function () {
       const { cert } = generateSelfSignedCert();
       const legacy = ccf.pemToId(cert);
@@ -60,11 +73,6 @@ describe("polyfill", function () {
       ]) {
         assert.equal(ccf.isValidEntityId(invalid), false);
       }
-      assert.equal(ccf.certificatesHaveSamePublicKey(cert, cert), true);
-      assert.equal(
-        ccf.certificatesHaveSamePublicKey(cert, generateSelfSignedCert().cert),
-        false,
-      );
     });
   });
   describe("strToBuf/bufToStr", function () {

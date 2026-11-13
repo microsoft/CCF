@@ -193,6 +193,11 @@ namespace ccf::crypto
   std::vector<uint8_t> public_key_der_from_did_key(std::string_view id)
   {
     using namespace OpenSSL;
+    if (id.starts_with("did:key:u"))
+    {
+      throw std::invalid_argument(
+        "Only base58-btc (z) multibase did:key IDs are supported");
+    }
     if (
       !id.starts_with(PREFIX) || id.size() <= PREFIX.size() ||
       id.size() > MAX_DID_SIZE)
@@ -219,7 +224,8 @@ namespace ccf::crypto
       auto der = serialise_public_key(key);
       if (did_key_from_public_key_der(der) != id)
       {
-        throw std::invalid_argument("Noncanonical did:key");
+        throw std::invalid_argument(
+          "did:key is not the deterministic encoding of its public key");
       }
       return der;
     }
@@ -274,7 +280,8 @@ namespace ccf::crypto
     auto der = serialise_public_key(key);
     if (did_key_from_public_key_der(der) != id)
     {
-      throw std::invalid_argument("Noncanonical did:key");
+      throw std::invalid_argument(
+        "did:key is not the deterministic encoding of its public key");
     }
     return der;
   }
@@ -287,17 +294,6 @@ namespace ccf::crypto
     Unique_PKEY left_key(left);
     Unique_PKEY right_key(right);
     return same_public_key(left_key, right_key);
-  }
-
-  bool certs_have_same_public_key(
-    std::span<const uint8_t> lhs, std::span<const uint8_t> rhs)
-  {
-    using namespace OpenSSL;
-    const auto* l = lhs.data();
-    const auto* r = rhs.data();
-    Unique_X509 left(d2i_X509(nullptr, &l, lhs.size()), X509_free);
-    Unique_X509 right(d2i_X509(nullptr, &r, rhs.size()), X509_free);
-    return same_public_key(X509_get0_pubkey(left), X509_get0_pubkey(right));
   }
 
   bool cert_has_public_key(

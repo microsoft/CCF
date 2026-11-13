@@ -388,7 +388,7 @@ def _common_parser(description: str) -> argparse.ArgumentParser:
         help="Path to legacy signing certificate, PEM-encoded",
         type=str,
     )
-    identity.add_argument("--signing-did-key", help="Enrolled canonical did:key")
+    identity.add_argument("--signing-did-key", help="Enrolled base58-btc did:key")
     parser.add_argument(
         "--ccf-gov-msg-type",
         help="ccf.gov.msg.type protected header",

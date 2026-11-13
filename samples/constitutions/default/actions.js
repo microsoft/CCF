@@ -242,7 +242,7 @@ function checkEntityId(value, field) {
   checkType(value, "string", field);
   if (value.startsWith("did:key:")) {
     if (!ccf.isValidEntityId(value)) {
-      throw new Error(`${field} must be a supported canonical did:key`);
+      throw new Error(`${field} must be a supported did:key`);
     }
     return;
   }
@@ -258,83 +258,25 @@ function checkEntityId(value, field) {
   }
 }
 
-function checkIdentityEnrollment(args, tableName, previousActions = []) {
+function checkIdentityEnrollment(args) {
   if (args.id_format !== undefined) {
     throw new Error(
       "Use cert for legacy enrollment or did_key without id_format",
     );
   }
-  const isDid = args.did_key !== undefined;
-  if (isDid) {
+  if (args.did_key !== undefined) {
     checkType(args.did_key, "string", "did_key");
     if (args.cert !== undefined) {
       throw new Error("did_key enrollment must not include cert");
     }
     ccf.publicKeyFromDidKey(args.did_key);
+  } else {
+    checkX509CertBundle(args.cert, "cert");
   }
-  const id = isDid ? args.did_key : ccf.pemToId(args.cert);
-  // Validation sees pre-proposal state; application checks the actual tables.
-  const role = tableName === "public:ccf.gov.members.certs" ? "member" : "user";
-  const removedIds = new Set(
-    previousActions
-      .filter((action) => action.name === `remove_${role}`)
-      .map((action) => action.args?.[`${role}_id`]),
-  );
-  if (!isDid) {
-    if (typeof ccf.certificatesHaveSamePublicKey !== "function") {
-      return id;
-    }
-    let did;
-    try {
-      did = ccf.pemToId(args.cert, "did:key");
-    } catch (e) {
-      // Keys outside the did:key profile cannot have a DID enrollment.
-      const reason = e.message.replace(/^Failed to parse PEM: /, "");
-      if (
-        reason === "Unsupported did:key EC curve" ||
-        reason === "Unsupported did:key public key type" ||
-        reason === "did:key RSA keys must be between 2048 and 16384 bits"
-      ) {
-        return id;
-      }
-      throw e;
-    }
-    if (
-      ccf.kv[tableName.replace(".certs", ".public_keys")].has(
-        ccf.strToBuf(did),
-      ) &&
-      !removedIds.has(did)
-    ) {
-      throw new Error(
-        `Public key is already enrolled under a different ID format: ${did}`,
-      );
-    }
-    return id;
-  }
-  ccf.kv[tableName].forEach((cert, key) => {
-    const existingId = ccf.bufToStr(key);
-    let matches = false;
-    if (!existingId.startsWith("did:key:") && !removedIds.has(existingId)) {
-      try {
-        matches = ccf.pemToId(ccf.bufToStr(cert), "did:key") === id;
-      } catch (e) {
-        const reason = e.message.replace(/^Failed to parse PEM: /, "");
-        if (
-          reason !== "Unsupported did:key EC curve" &&
-          reason !== "Unsupported did:key public key type" &&
-          reason !== "did:key RSA keys must be between 2048 and 16384 bits"
-        ) {
-          throw e;
-        }
-      }
-    }
-    if (matches) {
-      throw new Error(
-        `Public key is already enrolled under a different ID format: ${existingId}`,
-      );
-    }
-  });
-  return id;
+}
+
+function identityIdFromArgs(args) {
+  return args.did_key !== undefined ? args.did_key : ccf.pemToId(args.cert);
 }
 
 function getSingletonKvKey() {
@@ -748,10 +690,8 @@ const actions = new Map([
   [
     "set_member",
     new Action(
-      function (args, previousActions = []) {
-        if (args.did_key === undefined) {
-          checkX509CertBundle(args.cert, "cert");
-        }
+      function (args) {
+        checkIdentityEnrollment(args);
         checkType(args.member_data, "object?", "member_data");
         const recovery_role = args.recovery_role;
         if (recovery_role !== undefined) {
@@ -781,12 +721,7 @@ const actions = new Map([
           );
         }
 
-        const memberId = checkIdentityEnrollment(
-          args,
-          "public:ccf.gov.members.certs",
-          previousActions,
-        );
-        const rawMemberId = ccf.strToBuf(memberId);
+        const rawMemberId = ccf.strToBuf(identityIdFromArgs(args));
         checkRecoveryMemberChange(
           rawMemberId,
           args.encryption_pub_key !== null &&
@@ -795,12 +730,8 @@ const actions = new Map([
       },
 
       function (args) {
-        const memberId = checkIdentityEnrollment(
-          args,
-          "public:ccf.gov.members.certs",
-        );
+        const memberId = identityIdFromArgs(args);
         const rawMemberId = ccf.strToBuf(memberId);
-
         checkRecoveryMemberChange(
           rawMemberId,
           args.encryption_pub_key !== null &&
@@ -930,22 +861,12 @@ const actions = new Map([
   [
     "set_user",
     new Action(
-      function (args, previousActions = []) {
-        if (args.did_key === undefined) {
-          checkX509CertBundle(args.cert, "cert");
-        }
+      function (args) {
+        checkIdentityEnrollment(args);
         checkType(args.user_data, "object?", "user_data");
-        checkIdentityEnrollment(
-          args,
-          "public:ccf.gov.users.certs",
-          previousActions,
-        );
       },
       function (args) {
-        let userId = checkIdentityEnrollment(
-          args,
-          "public:ccf.gov.users.certs",
-        );
+        let userId = identityIdFromArgs(args);
         let rawUserId = ccf.strToBuf(userId);
 
         if (args.did_key !== undefined) {

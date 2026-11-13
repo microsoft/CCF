@@ -46,11 +46,9 @@ Once the new member's keys and certificate have been generated, the existing con
 
 The :ref:`governance/proposals:Submitting a New Proposal` section describes the steps that members should follow to register a new member.
 
-To enroll a certificate-free member, pass ``"did_key": "<canonical-did:key>"`` to ``set_member``, alongside any recovery encryption key or member data.
-Do not pass ``cert`` or ``id_format`` for DID enrollment.
-For initial consortium members, set ``did_key`` instead of ``certificate_file`` on the member's entry in ``command.start.members``.
-The legacy ``cert`` action argument retains the certificate-fingerprint ID.
-See :ref:`architecture/cryptography:Identity IDs` and :doc:`migrating_identity_ids` before migrating existing members.
+To enroll a certificate-free member, pass ``did_key`` instead of ``cert`` to ``set_member``.
+For initial consortium members, set ``did_key`` instead of ``certificate_file`` in ``command.start.members``.
+See :ref:`architecture/cryptography:Identity IDs` and :doc:`migrating_identity_ids`.
 
 The Python SDK can derive the DID locally:
 
@@ -63,8 +61,8 @@ The Python SDK can derive the DID locally:
 Omit ``--gen-enc-key`` for non-recovery members.
 
 For a DID member, percent-encode the ID's colons in governance URLs (``did%3Akey%3Az...``), leaving action suffixes such as ``:update`` and ``:ack`` unchanged.
-Pass ``--signing-did-key <canonical-did:key>`` instead of ``--signing-cert`` to every ``ccf_cose_sign1`` operation, including activation and recovery.
-Pass ``--member-did-key <canonical-did:key>`` instead of ``--member-id-cert`` to ``submit_recovery_share.sh`` before its curl options.
+Pass ``--signing-did-key <did:key>`` instead of ``--signing-cert`` to every ``ccf_cose_sign1`` operation, including activation and recovery.
+Pass ``--member-did-key <did:key>`` instead of ``--member-id-cert`` to ``submit_recovery_share.sh`` before its curl options.
 
 Activating a New Member
 -----------------------

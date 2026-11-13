@@ -10,7 +10,7 @@ Requests sent by users can be authenticated one of two ways:
 - by :ref:`use_apps/issue_commands:COSE Sign1` signing the request contents with the user private key, when the endpoint uses :cpp:var:`ccf::user_cose_sign1_auth_policy`.
 
 By default, the user ID is the SHA-256 fingerprint of the registered certificate.
-Users enrolled with ``"did_key": "<canonical-did:key>"`` are identified by their public key and need no certificate for COSE authentication.
-For compatibility with TLS client authentication, callers may present a transport certificate containing that key, but certificate validity does not define DID authorization; revoke access by removing the user.
-COSE requests must carry the canonical enrolled user ID in the protected ``kid`` header.
+Users enrolled with ``"did_key": "<did:key>"`` are identified by their public key and need no certificate for COSE authentication.
+TLS client authentication also accepts any certificate containing that key and identifies the caller by the enrolled ``did:key``, but certificate validity does not define DID authorization; revoke access by removing the user.
+COSE requests must carry the enrolled user ID in the protected ``kid`` header.
 See :ref:`architecture/cryptography:Identity IDs` for supported key encodings, revocation, and migration requirements.

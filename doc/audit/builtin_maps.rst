@@ -18,7 +18,7 @@ X509 certificates of legacy members in the consortium.
 
 Certificate-free member enrollments.
 
-**Key** Member ID: the canonical ``did:key`` containing the member's public key.
+**Key** Member ID: the ``did:key`` containing the member's public key.
 
 **Value** The public key, represented as DER SubjectPublicKeyInfo bytes.
 
@@ -33,7 +33,7 @@ Public encryption keys submitted by members to the network. The recovery share f
 
 **Value** Member public encryption key, represented as a PEM-encoded string.
 
-DID members use their canonical ``did:key`` as the key instead of a certificate fingerprint.
+DID members use their ``did:key`` as the key instead of a certificate fingerprint.
 
 ``members.info``
 ~~~~~~~~~~~~~~~~
@@ -86,11 +86,11 @@ X509 certificates of legacy network users.
 
 Certificate-free user enrollments.
 
-**Key** User ID: the canonical ``did:key`` containing the user's public key.
+**Key** User ID: the ``did:key`` containing the user's public key.
 
 **Value** The public key, represented as DER SubjectPublicKeyInfo bytes.
 
-Member and user information and acknowledgement tables also accept canonical DID IDs as keys.
+Member and user information and acknowledgement tables also accept ``did:key`` IDs as keys.
 
 ``users.info``
 ~~~~~~~~~~~~~~

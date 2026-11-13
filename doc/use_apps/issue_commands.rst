@@ -37,17 +37,17 @@ COSE Sign1
 
 CCF accepts signed requests in `COSE Sign1 <https://www.rfc-editor.org/rfc/rfc8152.html#section-4.2>`_ format.
 
-CCF identifies the signing identity for a request via its canonical enrolled member or user ID.
+CCF identifies the signing identity for a request via its enrolled member or user ID.
 By default this is the SHA-256 digest of its certificate, represented as a hex string; identities enrolled with ``did_key`` use their full public-key DID instead.
 That value must be set in the ``kid`` protected header.
 Additional protected headers may be necessary, for example governance endpoints require setting ``ccf.gov.msg.type``, ``ccf.gov.msg.created_at``, and optionally ``ccf.gov.msg.proposal_id`` on the message types where it applies.
 
 A signing script (``ccf_cose_sign1``) is provided as part of the `ccf Python package <https://pypi.org/project/ccf/>`_. The output can be piped directly into curl, or any other HTTP client.
 
-For DID identities, pass ``--signing-did-key <canonical-did:key>`` instead of ``--signing-cert`` to ``ccf_cose_sign1``, ``ccf_cose_sign1_prepare``, and ``ccf_cose_sign1_finish``.
+For DID identities, pass ``--signing-did-key <did:key>`` instead of ``--signing-cert`` to ``ccf_cose_sign1``, ``ccf_cose_sign1_prepare``, and ``ccf_cose_sign1_finish``.
 The signing commands do not accept an identity-format selector: ``--signing-cert`` always identifies a legacy certificate enrollment, and ``--signing-did-key`` always identifies a certificate-free enrollment.
 Preparation and completion must select the same DID.
-The equivalent SDK functions accept ``did_key="<canonical-did:key>"`` with no certificate argument.
+The equivalent SDK functions accept ``did_key="<did:key>"`` with no certificate argument.
 The default remains ``sha256``; service receipt verification and its public-key fingerprint are unchanged.
 
 For example, a DID member can submit a proposal without a certificate:

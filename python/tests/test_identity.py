@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import base64
 import hashlib
 import subprocess
 from pathlib import Path
@@ -125,3 +126,14 @@ def test_did_key_roundtrip_without_certificate(curve):
     for invalid in [did + "#fragment", did + "?query", "did:key:z1", did[:-1]]:
         with pytest.raises(ValueError):
             ccf.identity.public_key_from_did_key(invalid)
+
+
+def test_did_key_base64url_multibase_is_rejected():
+    # The did:key identifier syntax also allows base64url (u) multibase values,
+    # but CCF only accepts the base58-btc (z) form that it produces.
+    key = ec.generate_private_key(ec.SECP256R1()).public_key()
+    point = key.public_bytes(Encoding.X962, PublicFormat.CompressedPoint)
+    encoded = base64.urlsafe_b64encode(b"\x80\x24" + point).rstrip(b"=")
+    with pytest.raises(ValueError, match="base58-btc"):
+        ccf.identity.public_key_from_did_key("did:key:u" + encoded.decode())
+    assert ccf.identity.did_key_from_public_key(key).startswith("did:key:z")

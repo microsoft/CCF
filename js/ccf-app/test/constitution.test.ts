@@ -7,7 +7,7 @@ import { beforeEach, describe, it } from "node:test";
 import { runInNewContext } from "node:vm";
 import forge from "node-forge";
 import "../src/polyfill.js";
-import { ccf, type CCF } from "../src/global.js";
+import { ccf } from "../src/global.js";
 import { generateSelfSignedCert } from "./crypto.js";
 
 const constitution = readFileSync(
@@ -57,47 +57,36 @@ for (const role of ["member", "user"]) {
   const certsTable = `public:ccf.gov.${role}s.certs`;
   const keysTable = `public:ccf.gov.${role}s.public_keys`;
   const infoTable = `public:ccf.gov.${role}s.info`;
+  const legacyId = ccf.pemToId(cert);
+
+  function setAction(args: object) {
+    return {
+      name: `set_${role}`,
+      args: { ...args, [`${role}_data`]: { v: 1 } },
+    };
+  }
+
+  function removeAction(id: string) {
+    return { name: `remove_${role}`, args: { [`${role}_id`]: id } };
+  }
 
   describe(`${role} identity enrollment`, () => {
-    function enroll(
-      args: { cert?: string; id_format?: string; did_key?: string },
-      runtime: Partial<CCF> = ccf,
-    ): unknown {
-      return runInNewContext(
-        `${constitution}\ncheckIdentityEnrollment(args, tableName);`,
-        { ccf: runtime, args, tableName: certsTable },
-      );
+    function enroll(args: {
+      cert?: string;
+      id_format?: string;
+      did_key?: string;
+    }): void {
+      runInNewContext(`${constitution}\ncheckIdentityEnrollment(args);`, {
+        ccf,
+        args,
+      });
     }
 
-    it("uses keyed legacy lookups without traversing certificates", (t) => {
-      const table = ccf.kv[certsTable];
-      const id = ccf.pemToId(cert);
-      table.set(ccf.strToBuf(id), ccf.strToBuf(cert));
-      t.mock.method(table, "forEach", () => {
-        assert.fail("Legacy enrollment must not traverse certificates");
-      });
-      assert.equal(enroll({ cert }), id);
-    });
-
-    it("rejects legacy enrollment of an existing DID key", () => {
-      ccf.kv[keysTable].set(ccf.strToBuf(did), ccf.publicKeyFromDidKey(did));
-      assert.throws(() => enroll({ cert: replacement }), /different ID format/);
-    });
-
-    it("rejects DID enrollment of an existing legacy key", () => {
-      ccf.kv[certsTable].set(
-        ccf.strToBuf(ccf.pemToId(cert)),
-        ccf.strToBuf(cert),
-      );
-      assert.throws(
-        () => enroll({ did_key: ccf.pemToId(replacement, "did:key") }),
-        /different ID format/,
-      );
-    });
-
     it("accepts a DID alone and rejects certificate-shaped DID enrollment", () => {
-      assert.equal(enroll({ did_key: did }), did);
+      enroll({ did_key: did });
+      enroll({ cert });
       for (const args of [
+        {},
         { did_key: did, cert },
         { did_key: did, id_format: "did:key" },
         { cert, id_format: "did:key" },
@@ -109,196 +98,56 @@ for (const role of ["member", "user"]) {
       }
     });
 
-    it("propagates unexpected conversion failures", () => {
-      const failure = new Error("Failed to parse PEM: invalid public key");
-      assert.throws(
-        () =>
-          enroll(
-            { cert },
-            {
-              certificatesHaveSamePublicKey: ccf.certificatesHaveSamePublicKey,
-              pemToId: (_pem, format) => {
-                if (format === "did:key") {
-                  throw failure;
-                }
-                return ccf.pemToId(cert);
-              },
-            },
-          ),
-        (error) => error === failure,
+    it("enrolls the same key under both ID formats independently", () => {
+      const both = JSON.stringify({
+        actions: [setAction({ cert }), setAction({ did_key: did })],
+      });
+      const result = validate(both);
+      assert.equal(result.valid, true, result.description);
+      apply(both);
+      assert.deepEqual(
+        ccf.kv[certsTable].get(ccf.strToBuf(legacyId)),
+        ccf.strToBuf(cert),
       );
+      assert.deepEqual(
+        ccf.kv[keysTable].get(ccf.strToBuf(did)),
+        ccf.publicKeyFromDidKey(did),
+      );
+      assert.equal(ccf.kv[infoTable].has(ccf.strToBuf(legacyId)), true);
+      assert.equal(ccf.kv[infoTable].has(ccf.strToBuf(did)), true);
+
+      const replacementId = ccf.pemToId(replacement);
+      const renewal = JSON.stringify({
+        actions: [setAction({ cert: replacement })],
+      });
+      assert.equal(validate(renewal).valid, true);
+      apply(renewal);
+      assert.equal(ccf.kv[certsTable].has(ccf.strToBuf(replacementId)), true);
+
+      const removal = JSON.stringify({ actions: [removeAction(legacyId)] });
+      assert.equal(validate(removal).valid, true);
+      apply(removal);
+      assert.equal(ccf.kv[certsTable].has(ccf.strToBuf(legacyId)), false);
+      assert.equal(ccf.kv[certsTable].has(ccf.strToBuf(replacementId)), true);
+      assert.equal(ccf.kv[keysTable].has(ccf.strToBuf(did)), true);
+      assert.equal(ccf.kv[infoTable].has(ccf.strToBuf(did)), true);
     });
 
-    it("preserves legacy keys outside the DID profile", () => {
-      const id = ccf.pemToId(cert);
-      for (const reason of [
-        "Unsupported did:key EC curve",
-        "Unsupported did:key public key type",
-        "did:key RSA keys must be between 2048 and 16384 bits",
-      ]) {
-        assert.equal(
-          enroll(
-            { cert },
-            {
-              certificatesHaveSamePublicKey: ccf.certificatesHaveSamePublicKey,
-              pemToId: (_pem, format) => {
-                if (format === "did:key") {
-                  throw new Error("Failed to parse PEM: " + reason);
-                }
-                return id;
-              },
-            },
-          ),
-          id,
-        );
-      }
-    });
-
-    it("preserves the one-argument legacy API on older runtimes", () => {
-      assert.equal(
-        enroll(
-          { cert },
-          {
-            pemToId: (...args) => {
-              assert.equal(args.length, 1);
-              return ccf.pemToId(args[0]);
-            },
-          },
-        ),
-        ccf.pemToId(cert),
+    it("removes a DID enrollment without affecting a legacy one", () => {
+      apply(
+        JSON.stringify({
+          actions: [setAction({ cert }), setAction({ did_key: did })],
+        }),
       );
+      const removal = JSON.stringify({ actions: [removeAction(did)] });
+      assert.equal(validate(removal).valid, true);
+      apply(removal);
+      assert.equal(ccf.kv[keysTable].has(ccf.strToBuf(did)), false);
+      assert.equal(ccf.kv[infoTable].has(ccf.strToBuf(did)), false);
+      assert.equal(ccf.kv[certsTable].has(ccf.strToBuf(legacyId)), true);
+      assert.equal(ccf.kv[infoTable].has(ccf.strToBuf(legacyId)), true);
     });
   });
-
-  for (const oldFormat of ["sha256", "did:key"] as const) {
-    describe(`${role} atomic migration from ${oldFormat}`, () => {
-      const newFormat = oldFormat === "sha256" ? "did:key" : "sha256";
-      const oldId = ccf.pemToId(cert, oldFormat);
-      const newId = ccf.pemToId(cert, newFormat);
-      const oldTable = oldFormat === "sha256" ? certsTable : keysTable;
-      const newTable = oldFormat === "sha256" ? keysTable : certsTable;
-      const removal = {
-        name: `remove_${role}`,
-        args: { [`${role}_id`]: oldId },
-      };
-      const enrollment = {
-        name: `set_${role}`,
-        args: {
-          ...(newFormat === "sha256" ? { cert } : { did_key: newId }),
-          [`${role}_data`]: { v: 1 },
-        },
-      };
-      const proposal = JSON.stringify({ actions: [removal, enrollment] });
-
-      beforeEach(() => {
-        ccf.kv[oldTable].set(
-          ccf.strToBuf(oldId),
-          oldFormat === "sha256"
-            ? ccf.strToBuf(cert)
-            : ccf.publicKeyFromDidKey(oldId),
-        );
-        ccf.kv[infoTable].set(
-          ccf.strToBuf(oldId),
-          ccf.jsonCompatibleToBuf({
-            [`${role}_data`]: { v: 1 },
-            ...(role === "member" ? { status: "Active" } : {}),
-          }),
-        );
-      });
-
-      it("validates without mutation and applies removal before enrollment", () => {
-        const result = validate(proposal);
-        assert.equal(result.valid, true, result.description);
-        assert.equal(ccf.kv[oldTable].has(ccf.strToBuf(oldId)), true);
-        assert.equal(ccf.kv[newTable].has(ccf.strToBuf(newId)), false);
-        apply(proposal);
-        assert.equal(ccf.kv[oldTable].has(ccf.strToBuf(oldId)), false);
-        assert.equal(ccf.kv[infoTable].has(ccf.strToBuf(oldId)), false);
-        assert.deepEqual(
-          ccf.kv[newTable].get(ccf.strToBuf(newId)),
-          newFormat === "sha256"
-            ? ccf.strToBuf(cert)
-            : ccf.publicKeyFromDidKey(newId),
-        );
-        assert.deepEqual(
-          ccf.bufToJsonCompatible(ccf.kv[infoTable].get(ccf.strToBuf(newId))!),
-          {
-            [`${role}_data`]: { v: 1 },
-            ...(role === "member" ? { status: "Accepted" } : {}),
-          },
-        );
-      });
-
-      it("rejects missing, later, unrelated, and wrong-role removals", () => {
-        const otherRole = role === "member" ? "user" : "member";
-        for (const proposedActions of [
-          [enrollment],
-          [enrollment, removal],
-          [
-            {
-              name: removal.name,
-              args: { [`${role}_id`]: ccf.pemToId(replacement) },
-            },
-            enrollment,
-          ],
-          [
-            {
-              name: `remove_${otherRole}`,
-              args: { [`${otherRole}_id`]: oldId },
-            },
-            enrollment,
-          ],
-        ]) {
-          const result = validate(JSON.stringify({ actions: proposedActions }));
-          assert.equal(result.valid, false);
-          assert.match(result.description, /different ID format/);
-        }
-        assert.equal(ccf.kv[oldTable].has(ccf.strToBuf(oldId)), true);
-      });
-
-      it("rechecks application-time state", () => {
-        assert.equal(validate(proposal).valid, true);
-        assert.throws(
-          () =>
-            runInNewContext(
-              `${constitution}\nactions.get("set_${role}").apply(args);`,
-              { ccf, args: enrollment.args },
-            ),
-          /different ID format/,
-        );
-        assert.equal(ccf.kv[oldTable].has(ccf.strToBuf(oldId)), true);
-        assert.equal(ccf.kv[newTable].has(ccf.strToBuf(newId)), false);
-      });
-
-      if (oldFormat === "sha256") {
-        it("requires removal of every legacy enrollment carrying the key", () => {
-          const otherId = ccf.pemToId(replacement);
-          ccf.kv[certsTable].set(
-            ccf.strToBuf(otherId),
-            ccf.strToBuf(replacement),
-          );
-          ccf.kv[infoTable].set(
-            ccf.strToBuf(otherId),
-            ccf.jsonCompatibleToBuf(
-              role === "member" ? { status: "Active" } : { user_data: null },
-            ),
-          );
-          assert.equal(validate(proposal).valid, false);
-          const complete = JSON.stringify({
-            actions: [
-              removal,
-              { name: removal.name, args: { [`${role}_id`]: otherId } },
-              enrollment,
-            ],
-          });
-          assert.equal(validate(complete).valid, true);
-          apply(complete);
-          assert.equal(ccf.kv[certsTable].size, 0);
-          assert.equal(ccf.kv[keysTable].size, 1);
-        });
-      }
-    });
-  }
 }
 
 describe("set_member re-enrollment", () => {

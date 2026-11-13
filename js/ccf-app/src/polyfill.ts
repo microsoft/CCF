@@ -88,6 +88,11 @@ function didKeyFromKey(key: jscrypto.KeyObject): string {
 }
 
 function publicKeyFromDidKey(id: string): jscrypto.KeyObject {
+  if (id.startsWith("did:key:u")) {
+    throw new TypeError(
+      "Only base58-btc (z) multibase did:key IDs are supported",
+    );
+  }
   if (!id.startsWith("did:key:z") || id.length <= 9 || id.length > 3000) {
     throw new TypeError("Invalid did:key");
   }
@@ -147,7 +152,9 @@ function publicKeyFromDidKey(id: string): jscrypto.KeyObject {
       });
     }
     if (didKeyFromKey(key) !== id) {
-      throw new TypeError("Non-canonical did:key");
+      throw new TypeError(
+        "did:key is not the deterministic encoding of its public key",
+      );
     }
     return key;
   } catch (error) {
@@ -223,12 +230,6 @@ class CCFPolyfill implements CCF {
   publicKeyFromDidKey(id: string): ArrayBuffer {
     return toArrayBuffer(
       publicKeyFromDidKey(id).export({ format: "der", type: "spki" }),
-    );
-  }
-
-  certificatesHaveSamePublicKey(lhs: string, rhs: string): boolean {
-    return new jscrypto.X509Certificate(lhs).publicKey.equals(
-      new jscrypto.X509Certificate(rhs).publicKey,
     );
   }
 

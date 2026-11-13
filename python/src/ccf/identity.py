@@ -66,10 +66,14 @@ def did_key_from_public_key(
 def public_key_from_did_key(
     did_key: str,
 ) -> ec.EllipticCurvePublicKey | rsa.RSAPublicKey:
-    """Decode a canonical supported DID to its public key.
+    """Decode a supported base58-btc did:key to its public key.
 
-    Raises ValueError for malformed, non-canonical, or unsupported identities.
+    Raises ValueError for malformed or unsupported identities, including the
+    base64url (u) multibase form and any DID that is not the deterministic
+    encoding of its public key.
     """
+    if did_key.startswith("did:key:u"):
+        raise ValueError("Only base58-btc (z) multibase did:key IDs are supported")
     if not did_key.startswith("did:key:z") or not 9 < len(did_key) <= 3000:
         raise ValueError("Invalid did:key")
     value = 0
@@ -94,7 +98,7 @@ def public_key_from_did_key(
     else:
         raise ValueError("Unsupported did:key multicodec")
     if did_key_from_public_key(key) != did_key:
-        raise ValueError("Non-canonical did:key")
+        raise ValueError("did:key is not the deterministic encoding of its public key")
     return key
 
 

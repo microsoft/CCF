@@ -303,7 +303,7 @@
                         "did_key": {
                           "type": "string",
                           "pattern": "^did:key:z[1-9A-HJ-NP-Za-km-z]+$",
-                          "description": "Canonical member did:key containing its public key; mutually exclusive with certificate_file"
+                          "description": "Member did:key containing its public key; mutually exclusive with certificate_file"
                         },
                         "encryption_public_key_file": {
                           "type": ["string", "null"],
@@ -480,7 +480,7 @@
           "type": "string",
           "enum": ["sha256", "did:key"],
           "default": "sha256",
-          "description": "Canonical node ID format; did:key embeds the node public key without changing attestation hashes"
+          "description": "Node ID format; did:key embeds the node public key without changing attestation hashes"
         },
         "subject_name": {
           "type": "string",
