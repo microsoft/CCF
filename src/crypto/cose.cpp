@@ -123,6 +123,41 @@ namespace ccf::cose
         make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
       return make_map(std::move(phdr));
     }
+
+    tav::cbor::Value endorsement_protected_header(
+      int64_t alg,
+      int64_t iat,
+      std::string_view epoch_begin,
+      std::string_view epoch_end,
+      std::span<const uint8_t> previous_merkle_root)
+    {
+      using namespace tav::cbor;
+      std::vector<MapItem> cwt_entries;
+      cwt_entries.emplace_back(
+        make_signed(cwt::header::iana::IAT), make_signed(iat));
+      std::vector<MapItem> ccf_entries;
+      ccf_entries.emplace_back(
+        make_string(header::custom::TX_RANGE_BEGIN), make_string(epoch_begin));
+      if (!epoch_end.empty())
+      {
+        ccf_entries.emplace_back(
+          make_string(header::custom::TX_RANGE_END), make_string(epoch_end));
+      }
+      if (!previous_merkle_root.empty())
+      {
+        ccf_entries.emplace_back(
+          make_string(header::custom::EPOCH_LAST_MERKLE_ROOT),
+          make_bytes(previous_merkle_root));
+      }
+      std::vector<MapItem> phdr;
+      phdr.emplace_back(make_signed(header::iana::ALG), make_signed(alg));
+      phdr.emplace_back(
+        make_signed(header::iana::CWT_CLAIMS),
+        make_map(std::move(cwt_entries)));
+      phdr.emplace_back(
+        make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
+      return make_map(std::move(phdr));
+    }
   }
 
   SigningAlgorithm algorithm_for_curve(crypto::CurveID curve)
@@ -240,35 +275,28 @@ namespace ccf::cose
     std::span<const uint8_t> previous_merkle_root,
     std::span<const uint8_t> payload)
   {
-    using namespace tav::cbor;
     const auto algorithm = algorithm_for_curve(key.get_curve_id());
-    std::vector<MapItem> cwt_entries;
-    cwt_entries.emplace_back(
-      make_signed(cwt::header::iana::IAT), make_signed(iat));
-    std::vector<MapItem> ccf_entries;
-    ccf_entries.emplace_back(
-      make_string(header::custom::TX_RANGE_BEGIN), make_string(epoch_begin));
-    if (!epoch_end.empty())
-    {
-      ccf_entries.emplace_back(
-        make_string(header::custom::TX_RANGE_END), make_string(epoch_end));
-    }
-    if (!previous_merkle_root.empty())
-    {
-      ccf_entries.emplace_back(
-        make_string(header::custom::EPOCH_LAST_MERKLE_ROOT),
-        make_bytes(previous_merkle_root));
-    }
-    std::vector<MapItem> phdr;
-    phdr.emplace_back(
-      make_signed(header::iana::ALG), make_signed(algorithm.alg));
-    phdr.emplace_back(
-      make_signed(header::iana::CWT_CLAIMS), make_map(std::move(cwt_entries)));
-    phdr.emplace_back(
-      make_string(header::custom::CCF_V1), make_map(std::move(ccf_entries)));
     return sign1(
       ecdsa_signer(key, algorithm.md),
-      make_map(std::move(phdr)),
+      endorsement_protected_header(
+        algorithm.alg, iat, epoch_begin, epoch_end, previous_merkle_root),
+      payload,
+      false);
+  }
+
+  std::vector<uint8_t> sign_endorsement(
+    const crypto::MLDSAKeyPair& key,
+    int64_t iat,
+    std::string_view epoch_begin,
+    std::string_view epoch_end,
+    std::span<const uint8_t> previous_merkle_root,
+    std::span<const uint8_t> payload)
+  {
+    const auto alg = algorithm_for_parameter_set(key.get_parameter_set());
+    return sign1(
+      mldsa_signer(key),
+      endorsement_protected_header(
+        alg, iat, epoch_begin, epoch_end, previous_merkle_root),
       payload,
       false);
   }
