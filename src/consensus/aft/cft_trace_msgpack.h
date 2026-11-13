@@ -158,6 +158,13 @@ namespace aft::trace
     from_node_id,
     match_idx,
     sent_idx);
+  // Received from a node with no match_idx or sent_idx, and ignored
+  DECLARE_TRACE_EVENT(
+    recv_append_entries_response_unknown_node,
+    cft_trace_tag,
+    state,
+    packet,
+    from_node_id);
   DECLARE_TRACE_EVENT(
     recv_append_entries, cft_trace_tag, state, packet, from_node_id);
   DECLARE_TRACE_EVENT(

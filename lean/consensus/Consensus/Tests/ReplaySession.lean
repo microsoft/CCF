@@ -28,6 +28,14 @@ private def trace : List String :=
     r#"{"msg":{"function":"commit","state":{"node_id":"0"},"idx":2}}"#
   ]
 
+/-- Node 0, which has no peer, is asked to nominate a successor. -/
+private def nomination : String :=
+  r#"{"msg":{"function":"nomination","state":{"node_id":"0","leadership_state":"Leader"}}}"#
+
+/-- Node 0 receives an acknowledgement from node 1, which it does not know. -/
+private def unknownNode : String :=
+  r#"{"msg":{"function":"recv_append_entries_response_unknown_node","state":{"node_id":"0"},"from_node_id":"1","packet":{"msg":"append_entries_response","term":2,"last_log_idx":2,"success":"OK"}}}"#
+
 private def check (condition : Bool) (message : String) : IO Unit := do
   unless condition do
     throw (IO.userError message)
@@ -36,7 +44,10 @@ private def check (condition : Bool) (message : String) : IO Unit := do
 private def ledger (session : Session) : Option (Nat × Nat) :=
   (nodeState session.state 0).map fun node => (node.log.length, node.commitIndex)
 
-/-- Checks replay by command against replay of the whole trace, and the state between commands. -/
+/--
+Checks replay by command against replay of the whole trace, the state between commands,
+and the commands which the model decides how to handle.
+-/
 def run : IO Unit := do
   let records ← IO.ofExcept (parseLog "trace" ("\n".intercalate trace))
   let commands := splitCommands records
@@ -68,6 +79,24 @@ def run : IO Unit := do
         s!"undeclared node: unexpected error {error}"
   | .ok _ =>
       throw (IO.userError "undeclared node: a node outside the declared ones started")
+  -- A primary which finds no successor nominates in the model too.
+  let nominated ← IO.ofExcept (parseLog "nomination" nomination >>= signed.feed)
+  check (nominated.result.outcomes.contains .nominationWithoutSuccessor)
+    "nomination: the model was not asked for a successor"
+  -- The model also receives a response which CCF ignores, from a node it does not know.
+  let response : Model.Envelope :=
+    {
+      source := 1
+      target := 0
+      payload := .appendEntriesResponse { term := 2, success := true, lastLogIndex := 2 }
+    }
+  let holding ← IO.ofExcept (Session.start ["0", "1"] commands[0]!)
+  let holding := { holding with replay.state.network := [response] }
+  let received ← IO.ofExcept (parseLog "unknown node" unknownNode >>= holding.feed)
+  check
+    (received.state.network.isEmpty
+      && received.result.outcomes.contains .appendEntriesResponseFromUnknownPeer)
+    "unknown node: the model did not receive the response"
   IO.println "Replay session checks passed."
 
 #eval run
