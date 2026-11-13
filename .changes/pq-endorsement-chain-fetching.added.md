@@ -1,0 +1,2 @@
+`ccf::NetworkIdentitySubsystemInterface` fetches and validates the endorsement chain of the PQ service identities with the CLASSICAL one, and serves the chain and the trusted service keys of each identity type with `get_cose_endorsements_chain(seqno, identity_type)`, `get_trusted_key_der_for(seqno, identity_type)` and `get_trusted_keys_der(identity_type)`.
+`ccf::IdentityType` is now public, in `ccf/service/identity_type.h`; see the [C++ API reference](doc/build_apps/api.rst#network-identity).
