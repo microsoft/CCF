@@ -1802,6 +1802,7 @@ TEST_CASE("Historical receipts preserve the transaction view across signatures")
           ccf::NodeId{"node_id"},
           *state.node_kp,
           *state.service_kp,
+          nullptr,
           cert,
           history->get_cose_signatures_config(),
           signing_mode),
