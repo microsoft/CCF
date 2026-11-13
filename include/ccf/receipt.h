@@ -9,6 +9,7 @@
 #include "ccf/ds/json.h"
 #include "ccf/ds/openapi.h"
 #include "ccf/entity_id.h"
+#include "ccf/service/identity_type.h"
 
 #include <optional>
 #include <string>
@@ -169,12 +170,27 @@ namespace ccf
   using SerialisedCoseSignature = std::vector<uint8_t>;
   using SerialisedCoseEndorsements = std::vector<SerialisedCoseEndorsement>;
   using SerialisedCoseReceipt = std::vector<uint8_t>;
+
+  // The COSE descriptions of a receipt are those of one service identity
+  // type: CLASSICAL by default, or PQ for a transaction signed by a service
+  // with a PQ identity. Each returns std::nullopt if the receipt has no
+  // description of that type.
+
+  /// Endorsements of the previous service identities of identity_type, newest
+  /// first: from the endorsement signed by the current service identity to
+  /// the endorsement of the identity which signed the receipt.
   std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
-    const TxReceiptImpl& receipt);
+    const TxReceiptImpl& receipt,
+    IdentityType identity_type = IdentityType::CLASSICAL);
+  /// COSE signature of identity_type over the Merkle root.
   std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
-    const TxReceiptImpl& receipt);
+    const TxReceiptImpl& receipt,
+    IdentityType identity_type = IdentityType::CLASSICAL);
+  /// COSE signature of identity_type over the Merkle root, with the Merkle
+  /// proof of the transaction in its unprotected header.
   std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(
-    const TxReceiptImpl& receipt);
+    const TxReceiptImpl& receipt,
+    IdentityType identity_type = IdentityType::CLASSICAL);
 
   // Manual JSON serializers are specified for these types as they are not
   // trivial POD structs

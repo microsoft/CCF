@@ -7,6 +7,7 @@
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
 #include "consensus/aft/cft_types.h"
+#include "crypto/cose.h"
 #include "kv/kv_types.h"
 #include "node/cose_common.h"
 #include "node/historical_queries.h"
@@ -254,7 +255,31 @@ namespace ccf
           "for the receipt at {}",
           state->transaction_id.to_str()));
       }
-      state->receipt->cose_endorsements = cose_endorsements;
+      std::map<IdentityType, CoseEndorsementsChain> chains;
+      chains.emplace(
+        IdentityType::CLASSICAL, std::move(cose_endorsements.value()));
+
+      // A receipt with a PQ signature has a PQ endorsement chain if the PQ
+      // service identities are endorsed from its epoch to the current one.
+      // Otherwise its PQ endorsements are unavailable, and its CLASSICAL
+      // ones are unaffected.
+      if (state->receipt->cose_signatures.contains(IdentityType::PQ))
+      {
+        auto pq_endorsements =
+          network_identity_subsystem->get_cose_endorsements_chain(
+            state->transaction_id.seqno, IdentityType::PQ);
+        if (pq_endorsements.has_value())
+        {
+          chains.emplace(IdentityType::PQ, std::move(pq_endorsements.value()));
+        }
+        else
+        {
+          LOG_DEBUG_FMT(
+            "No PQ service identity endorsement chain for the receipt at {}",
+            state->transaction_id.to_str());
+        }
+      }
+      state->receipt->cose_endorsements = std::move(chains);
       return true;
     }
 
@@ -273,17 +298,37 @@ namespace ccf
           "Failed to convert txid {} to ccf::TxID", receipt.phdr.ccf.txid));
       }
 
-      const auto trusted_key =
-        network_identity_subsystem->get_trusted_identity_for(tx_id->seqno);
-      if (!trusted_key)
+      // An ML-DSA receipt is signed by a PQ service identity
+      ccf::crypto::COSEVerifierUniquePtr verifier = nullptr;
+      if (ccf::cose::parameter_set_for_algorithm(receipt.phdr.alg).has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Verifying receipt for seqno {} failed due to trusted key absence",
-          tx_id->seqno));
+        const auto trusted_key =
+          network_identity_subsystem->get_trusted_key_der_for(
+            tx_id->seqno, IdentityType::PQ);
+        if (!trusted_key.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Verifying receipt for seqno {} failed due to trusted PQ key "
+            "absence",
+            tx_id->seqno));
+        }
+        verifier = ccf::crypto::make_cose_verifier_from_key(
+          std::span<const uint8_t>(trusted_key.value()));
+      }
+      else
+      {
+        const auto trusted_key =
+          network_identity_subsystem->get_trusted_identity_for(tx_id->seqno);
+        if (!trusted_key)
+        {
+          throw std::logic_error(fmt::format(
+            "Verifying receipt for seqno {} failed due to trusted key absence",
+            tx_id->seqno));
+        }
+        verifier = ccf::crypto::make_cose_verifier_from_key(
+          trusted_key->public_key_pem());
       }
 
-      const auto verifier =
-        ccf::crypto::make_cose_verifier_from_key(trusted_key->public_key_pem());
       if (!verifier->verify_detached(cose_receipt, receipt.merkle_root))
       {
         throw ccf::cose::COSESignatureValidationError(
