@@ -112,6 +112,7 @@ jobs:
           for trace in lean/consensus/replay/fixtures/valid/*.ndjson; do
             echo "::group::Validate $trace"
             lean/consensus/.lake/build/bin/consensus-replay "$trace"
+            lean/consensus/.lake/build/bin/consensus-replay --by-command "$trace"
             echo "::endgroup::"
           done
 
@@ -120,14 +121,18 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s failglob
-          for trace in lean/consensus/replay/fixtures/invalid/*.ndjson; do
-            echo "::group::Reject $trace"
+          reject() {
             status=0
-            lean/consensus/.lake/build/bin/consensus-replay "$trace" || status=$?
+            lean/consensus/.lake/build/bin/consensus-replay "$@" || status=$?
             if [ "$status" -ne 1 ]; then
-              echo "::error::$trace: expected rejection (exit 1), got exit $status"
+              echo "::error::$*: expected rejection (exit 1), got exit $status"
               exit 1
             fi
+          }
+          for trace in lean/consensus/replay/fixtures/invalid/*.ndjson; do
+            echo "::group::Reject $trace"
+            reject "$trace"
+            reject --by-command "$trace"
             echo "::endgroup::"
           done
 

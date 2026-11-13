@@ -154,7 +154,7 @@ Caches are isolated by package and runner architecture and invalidated by change
 CCF package and common build outputs are not cached, and all verification steps still run.
 CCF consensus, KV, and consistency trace captures run in parallel with package checks.
 Three independent trace-validation jobs each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
-The CCF consensus replay job also adds to its summary the [outcomes](../../lean/consensus/replay/README.md#outcomes) of the model which the captured traces show, and those which none shows.
+The CCF consensus replay job replays each trace whole and [by driver command](../../lean/consensus/replay/README.md#replay-by-command), and adds to its summary the [outcomes](../../lean/consensus/replay/README.md#outcomes) of the model which the captured traces show, and those which none shows.
 Consistency capture reuses the existing `consistency_trace_validation` e2e test, and its replay job also checks the consistency replay fixtures, including election and rollback traces.
 A final summary job requires every package and trace job to succeed.
 

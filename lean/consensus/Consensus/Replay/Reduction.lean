@@ -398,18 +398,45 @@ private def ruleStep : Reduction Unit := do
   <|> attempt ruleNomination
   <|> attempt ruleDrop
 
-private def ruleTrace : Reduction String := do
-  let leader ← ruleBootstrap
+/-- Every remaining event is in a group; an ungrouped event is never a stutter. -/
+private def ruleGroups : Reduction Unit := do
   many_ ruleStep
   if let some event ← CCF.Parsec.peek then
     failure s!"{event.record.location}: ungrouped event {event.function}"
+
+private def ruleTrace : Reduction String := do
+  let leader ← ruleBootstrap
+  ruleGroups
   return leader
+
+private def runRule {α : Type} (rule : Reduction α) (events : Array Event)
+    (header : Header) (nextRequestId : ReqID)
+    : Except String (α × Array Instruction × ReqID) := do
+  let (result, state) ← CCF.Parsec.run events (rule.run { header, nextRequestId })
+  return (result, state.instructions, state.nextRequestId)
 
 /-- Consume every event exactly once; an ungrouped event is never a stutter. -/
 def reduce (events : Array Event) (header : Header)
     : Except String (String × Array Instruction) := do
-  let (leader, state) ← CCF.Parsec.run events (ruleTrace.run { header })
-  return (leader, state.instructions)
+  let (leader, instructions, _) ← runRule ruleTrace events header 1
+  return (leader, instructions)
+
+/--
+Reduce the events of the first driver command of a trace, as `reduce` does those of a
+whole trace. Also return the request ID from which the next command numbers transactions.
+-/
+def reduceFirstCommand (events : Array Event) (header : Header)
+    : Except String (String × Array Instruction × ReqID) :=
+  runRule ruleTrace events header 1
+
+/--
+Reduce the events of a later driver command, which are whole native groups, numbering
+transactions from `nextRequestId`. Also return the request ID for the next command.
+-/
+def reduceCommand (events : Array Event) (header : Header) (nextRequestId : ReqID)
+    : Except String (Array Instruction × ReqID) := do
+  let ((), instructions, nextRequestId) ← runRule ruleGroups events header nextRequestId
+  return (instructions, nextRequestId)
 
 end Consensus.Replay.Reducer
 

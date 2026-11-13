@@ -53,6 +53,18 @@ To compare with the implementation, configure the scenario build with `-DCOVERAG
 (cd /tmp/cft-build && "$OLDPWD/../../scripts/coverage.sh" --show-uncovered cft_driver)
 ```
 
+## Replay by command
+
+The driver starts each command of a scenario with a `cmd` record, and the events which follow it are whole groups.
+[`Session.lean`](../Consensus/Replay/Session.lean) replays the records of one command at a time, and keeps the model state between commands, so that a program which issues driver commands can follow the model as it goes.
+To replay a saved trace in this way:
+
+```sh
+./.lake/build/bin/consensus-replay --by-command path/to/trace.ndjson
+```
+
+This reports the trace as replay of the whole trace does, and exits with status 3 if that gives another result.
+
 ## Replay contract
 
 Every protocol event must match a named rule; bootstrap selects the initial singleton membership.
@@ -74,9 +86,11 @@ Native code does not trace the `propose_request_vote` send that follows `step_do
 - [`Reduction.lean`](../Consensus/Replay/Reduction.lean): named rules, explicit boundaries and rule-tagged snapshot checks.
 - [`Interpreter.lean`](../Consensus/Replay/Interpreter.lean): boundary-state field comparisons, packet selection, send checks and model execution.
 - [`Outcomes.lean`](../Consensus/Replay/Outcomes.lean): the outcomes of model steps, and their report.
-- [`ReplayMain.lean`](ReplayMain.lean): CLI which validates one trace, or reports the outcomes of several.
+- [`Session.lean`](../Consensus/Replay/Session.lean): replay of one driver command at a time.
+- [`ReplayMain.lean`](ReplayMain.lean): CLI which validates one trace, whole or by command, or reports the outcomes of several.
 - [`ReplayDelivery.lean`](../Consensus/Tests/ReplayDelivery.lean): delivery selection among equal rendered packets.
 - [`ReplayOutcomes.lean`](../Consensus/Tests/ReplayOutcomes.lean): outcomes of chosen steps, and the report of several traces.
+- [`ReplaySession.lean`](../Consensus/Tests/ReplaySession.lean): replay by command against replay of the whole trace, and the model state between commands.
 - [`cft_scenarios_runner.py`](../../../tests/cft_scenarios_runner.py): existing native scenario runner and capture generation.
 
 See [failure fixtures](fixtures/README.md) for examples and expected diagnostics.
