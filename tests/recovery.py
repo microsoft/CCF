@@ -1310,7 +1310,7 @@ def run_recover_service_from_files(
     expected_recovery_count,
     test_receipts_at=None,
     test_cose_receipts_at=None,
-    legacy_snapshots=False,
+    snapshots_with_json_receipts=False,
 ):
     service_dir = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), "testdata", directory
@@ -1352,7 +1352,9 @@ def run_recover_service_from_files(
             args,
             committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
             snapshots_dir=(
-                None if legacy_snapshots else os.path.join(service_dir, "snapshots")
+                None
+                if snapshots_with_json_receipts
+                else os.path.join(service_dir, "snapshots")
             ),
             common_dir=new_common,
         )
@@ -1968,7 +1970,7 @@ def run_recovery_from_files(args):
         expected_recovery_count=args.expected_recovery_count,
         test_receipts_at=args.test_receipts_at,
         test_cose_receipts_at=args.test_cose_receipts_at,
-        legacy_snapshots=args.legacy_snapshots,
+        snapshots_with_json_receipts=args.snapshots_with_json_receipts,
     )
 
 
@@ -3390,14 +3392,13 @@ checked. Note that the key for each logging message is unique (per table).
         snapshot_tx_interval=30,
     )
 
-    # legacy_snapshots marks services whose snapshots were written before 7.0
-    # and carry JSON receipts, which nodes reject
+    # Releases before 7.0 wrote snapshots with JSON receipts, which nodes reject
     for (
         directory,
         expected_recovery_count,
         test_receipts_at,
         test_cose_receipts_at,
-        legacy_snapshots,
+        snapshots_with_json_receipts,
     ) in (
         ("expired_service", 2, [(2, 3)], None, True),
         # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
@@ -3427,7 +3428,7 @@ checked. Note that the key for each logging message is unique (per table).
             expected_recovery_count=expected_recovery_count,
             test_receipts_at=test_receipts_at,
             test_cose_receipts_at=test_cose_receipts_at,
-            legacy_snapshots=legacy_snapshots,
+            snapshots_with_json_receipts=snapshots_with_json_receipts,
             gov_api_version="2024-07-01",
         )
 
