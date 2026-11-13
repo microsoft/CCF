@@ -2,9 +2,9 @@
 # and leadership-transfer request are ignored while no primary exists, and the
 # surviving quorum elects a replacement before the network heals.
 start_node,0
-emit_signature,2
+replicate,2,$
 trust_nodes,2,1,2
-emit_signature,2
+replicate,2,$
 dispatch_all
 periodic_all,10
 dispatch_all

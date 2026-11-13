@@ -263,7 +263,17 @@ A :cpp:type:`ccf::indexing::Strategy` may offload partial results to disk to avo
 Since the indexing system and all the strategies it manages run entirely inside the node's TEE, this has the same trust guarantees as any other code running in the node - users can trust that the results are accurate and complete, and the query may process private data.
 
 An example :cpp:type:`ccf::indexing::Strategy` is included in the logging app, to accelerate historical range queries.
-This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` stores the list of seqnos where every key is written to, offloading completed ranges to disk to cap the total memory usage.
+This :cpp:type:`strategy <ccf::indexing::strategies::SeqnosByKey_Bucketed_Untyped>` records writes to keys in public tables and offloads completed non-empty buckets to authenticated disk storage.
+Late first writes and gaps between writes do not create empty bucket files.
+
+When using this strategy:
+
+- Memory still grows with the number of distinct keys: each retains a current bucket and bucket manifest metadata, including up to 2 KiB of bucket numbers.
+- Disk storage includes one manifest page per 256 completed non-empty buckets; queries for empty ranges may need additional metadata reads.
+- Queries use inclusive ranges, limited by ``max_requestable_range()``.
+  Retry ``nullopt`` results: fetching is asynchronous, and missing or corrupt required files trigger rebuilding rather than partial answers.
+- Each node builds its own index and rebuilds it after restart.
+
 In the endpoint handler, rather than requesting every transaction in the requested range, the node relies on its index to fetch only the `interesting` transactions; those which write to the target key:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
@@ -408,7 +418,10 @@ Deferring Response Until Commit
 
 By default, CCF sends the HTTP response as soon as a transaction is locally committed (assigned a :term:`Transaction ID`), without waiting for it to be globally committed by consensus. This means a successful response indicates the transaction has been `accepted` but not yet `durably replicated` across the network. Clients that need stronger guarantees — for example, to know a write is durable before proceeding — can poll the ``/commit`` endpoint or the transaction status API.
 
-CCF also supports deferring the HTTP response until the transaction reaches a terminal consensus state: either globally committed, or invalidated (e.g. due to a view change). This is controlled per-request from within the endpoint handler by calling ``set_consensus_committed_function()`` on the RPC context, passing a callback that will be invoked once the transaction's fate is known.
+CCF also supports deferring the HTTP response until the transaction reaches a terminal consensus state: either globally committed, or invalidated (e.g. due to a view change).
+This is controlled per-request from within the endpoint handler by calling ``set_consensus_committed_function()`` on the RPC context, passing a callback that will be invoked once the transaction's fate is known.
+Uncommitted transactions lost in an election are reported as invalid once the node observes a commit in a later view, even if that commit's sequence number is lower than the lost transaction's.
+A local rollback alone is not sufficient to establish invalidation.
 
 The simplest use is to unconditionally block:
 

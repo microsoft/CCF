@@ -37,15 +37,22 @@ Every protocol event must match a named rule; bootstrap selects the initial sing
 Rules group related protocol events and read action inputs from those events; only top-level alternatives backtrack.
 Actions must be enabled by the model.
 After bootstrap, each rule emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
+A native `replicate` event and the entries that follow it, each starting with its `replicate_entry` event, form one group and one model append, so the model checks commit once per batch, as CCF does.
+A `replicate` call rejected at its first entry traces no entries and appends nothing.
 
-Delivery is strict FIFO per directed node pair, preserving multiplicity and delivering the queued **model payload**, not reconstructing unrecorded native bytes.
+A receive delivers any queued model envelope from its sender whose rendered packet has exactly the native packet's fields, with equal values.
+It delivers the queued **model payload**, not reconstructing unrecorded native bytes; if matching envelopes differ in payload, for example in AppendEntries entries, which packets omit, replay fails with an ambiguous delivery.
+An envelope that is never delivered stays queued, which models loss, so `drop_pending_to` emits no observation or action.
+After each rule's actions, the envelopes they queued must equal the rule's native sends, as a multiset of target and rendered packet.
+Native code does not trace the `propose_request_vote` send that follows `step_down_and_nominate_successor`, so replay counts each `step_down_and_nominate_successor` as that send.
 
 ## Source and checks
 
 - [`Input.lean`](../Consensus/Replay/Input.lean): decode events, carry optional command provenance and collect identities.
 - [`Reduction.lean`](../Consensus/Replay/Reduction.lean): named rules, explicit boundaries and rule-tagged snapshot checks.
-- [`Interpreter.lean`](../Consensus/Replay/Interpreter.lean): boundary-state field comparisons, FIFO selection and model execution.
+- [`Interpreter.lean`](../Consensus/Replay/Interpreter.lean): boundary-state field comparisons, packet selection, send checks and model execution.
 - [`ReplayMain.lean`](ReplayMain.lean): single-trace validation CLI.
+- [`ReplayDelivery.lean`](../Consensus/Tests/ReplayDelivery.lean): delivery selection among equal rendered packets.
 - [`cft_scenarios_runner.py`](../../../tests/cft_scenarios_runner.py): existing native scenario runner and capture generation.
 
 See [failure fixtures](fixtures/README.md) for examples and expected diagnostics.

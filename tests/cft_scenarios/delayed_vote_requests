@@ -2,9 +2,9 @@
 # 2's delayed same-term vote request because it knows the leader. Node 2 then
 # ignores the delayed rejection after entering a new pre-vote round.
 start_node,0
-emit_signature,2
+replicate,2,$
 trust_nodes,2,1,2,3,4
-emit_signature,2
+replicate,2,$
 dispatch_all
 periodic_all,10
 dispatch_all

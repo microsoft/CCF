@@ -44,6 +44,7 @@ inductive Input where
   | sendEntries (destination : NodeID) (endIndex : Nat)
   | timeout (kind : TimeoutKind)
   | nominateSuccessor
+  | initAsBackup (entries : List Entry)
 deriving DecidableEq
 
 inductive Event where
@@ -93,26 +94,27 @@ abbrev canStartElection (state : NodeState) (self : NodeID) : Prop :=
   /\ Not (state.isRetiredCommitted self)
 
 /--
-The highest current-term signature above the primary's commit index which a
-majority of every active configuration at or before that signature has reached,
-or zero when there is none.
+The primary's commit index after trying each current-term signature above it in turn.
+A signature commits if a majority of every configuration active at the commit index
+reached so far, at or before that signature, has reached it; committing it retires the
+configurations its own configuration supersedes for the signatures after it.
 -/
 def highestCommittableIndex (state : NodeState) (self : NodeID) : Nat :=
   let replicatedBy index :=
     state.activeMembers.filter fun node => node = self \/ state.matchIndex node >= index
   (List.range (state.log.length + 1)).foldl
-    (fun highest index =>
-      if index > state.commitIndex
+    (fun commitIndex index =>
+      if index > commitIndex
           /\ isSignatureAt state.log index = true
           /\ termAt state.log index = state.currentTerm
           /\ hasQuorum
-              (state.activeConfigurations.filter
+              ((activeConfigurations state.log commitIndex).filter
                 fun configuration => configuration.index <= index)
               (replicatedBy index) then
-        max highest index
+        index
       else
-        highest)
-    0
+        commitIndex)
+    state.commitIndex
 
 /--
 Record a chosen commit index, latching the original transaction index once this
@@ -572,6 +574,12 @@ def observeTerm (state : NodeState) : Message -> NodeState
       if state.role = .primary then updateTerm state response.term else state
   | message => updateTerm state message.term
 
+/-- Like CCF's `init_as_backup`; `Model.networkStep` requires a node to have committed `entries`. -/
+def initAsBackup (state : NodeState) (entries : List Entry) : NodeEffect NodeState := do
+  guard (state.isFresh /\ (entries = [] \/ isSignatureAt entries entries.length = true))
+  return becomeAwareOfNewTerm { state with log := entries, commitIndex := entries.length }
+    (termAt entries entries.length)
+
 /-! ## The step -/
 
 def receive (caps : Caps) (self source : NodeID) (state : NodeState) (message : Message)
@@ -608,6 +616,7 @@ def act (caps : Caps) (self : NodeID) (state : NodeState) : Input -> NodeEffect 
   | .timeout .election => startElection caps state self
   | .timeout .checkQuorum => checkQuorum state self
   | .nominateSuccessor => nominateSuccessor caps state self
+  | .initAsBackup entries => initAsBackup state entries
 
 def step (caps : Caps) (self : NodeID) (state : NodeState) : Event -> NodeEffect NodeState
   | .internal input => act caps self state input

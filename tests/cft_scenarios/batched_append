@@ -1,0 +1,29 @@
+# Entries passed to replicate() together are appended as one batch
+start_node,0
+replicate,2,$
+assert_commit_idx,0,2
+
+# 3: signature, 4: transaction, replicated in one batch by the only node.
+# 0 commits 3 once, at the end of the batch.
+replicate,2,$,hello
+assert_last_txid,0,2.4
+assert_commit_idx,0,3
+
+# With a peer, a batch commits once the peer acknowledges it
+trust_node,2,1
+replicate,2,$
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,6
+
+# 7: transaction, 8: signature, 9: transaction
+replicate,2,a,$,b
+periodic_one,0,10
+dispatch_all
+periodic_one,0,10
+dispatch_all
+assert_commit_idx,0,8
+assert_commit_idx,1,8
