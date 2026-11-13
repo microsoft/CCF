@@ -22,8 +22,7 @@ abbrev LocalStep :=
 open Model.Local in
 /-- Consensus's vote freshness check on last signed TxIDs, not a log-prefix relation. -/
 abbrev LogUpToDate (candidate voter : TxID) : Prop :=
-  voter.view < candidate.view
-  \/ (voter.view = candidate.view /\ voter.seqno <= candidate.seqno)
+  CCF.TxID.le voter candidate
 
 open Model.Local in
 /-- The candidate passes Consensus's log freshness check against a strict majority.

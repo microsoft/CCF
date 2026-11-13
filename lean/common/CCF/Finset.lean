@@ -154,10 +154,6 @@ instance decidableNonempty (s : Finset α) : Decidable s.Nonempty :=
   | ⟨[], _⟩ => isFalse fun ⟨_, member⟩ => nomatch member
   | ⟨a :: _, _⟩ => isTrue ⟨a, List.mem_cons_self⟩
 
-/-- The sets share no element. -/
-def Disjoint (s t : Finset α) : Prop :=
-  forall ⦃a⦄, a ∈ s -> a ∉ t
-
 /-- The elements in increasing order. -/
 def sort (s : Finset α) : List α :=
   s.val

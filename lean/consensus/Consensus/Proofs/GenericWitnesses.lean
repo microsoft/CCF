@@ -5,7 +5,7 @@ public import Consensus.Properties.Config
 public import CCF.Execution
 public import CCF.Proofs.Execution
 public import CCF.Proofs.Finset
-public import CCF.Function
+public import CCF.Proofs.Function
 
 import all Init.Control.State
 

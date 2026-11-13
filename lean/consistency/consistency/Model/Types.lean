@@ -1,6 +1,7 @@
 module
 
 public import CCF.TransitionSystem
+public import CCF.TxID
 
 @[expose] public section
 
@@ -11,11 +12,7 @@ A read-write transaction appends its number to a list and reads the resulting li
 a read-only transaction just reads that list. -/
 abbrev TxContent := Nat
 
-/-- Ledger positions use one-based views and sequence numbers; zero is a sentinel. -/
-structure TxID where
-  view : Nat
-  seqno : Nat
-deriving DecidableEq, Repr
+export CCF (TxID)
 
 /-- Only final status observations are modeled.
 Unknown and pending statuses are omitted to reduce the state space. -/

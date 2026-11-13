@@ -11,7 +11,7 @@ namespace CCF.Execution
 Executions of a `TransitionSystem`. `Run` relates a start state, a finite
 action list, and an end state. `Trace` records an initial state and a finite or
 infinite sequence of actions paired with their successor states, with a validity proof.
-Theorems about executions are in `CCF.Proofs.Execution`.
+Execution constructors and theorems are in `CCF.Proofs.Execution`.
 -/
 
 /-- `Run system start actions final`: executing `actions` from `start` reaches `final`. -/

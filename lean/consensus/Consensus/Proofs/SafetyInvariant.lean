@@ -1,5 +1,7 @@
 module
 
+import CCF.Proofs.Function
+
 public import Consensus.Model
 
 import all Init.Control.State
@@ -5712,7 +5714,7 @@ private theorem vals_upToDate {state : NodeState} (term : Nat)
       (Nat.max_le.mpr ⟨frontier, maxCommittableIndexBounded state.log⟩)
   rcases Nat.lt_or_eq_of_le mono with lt | eq
   · exact Or.inl lt
-  · exact Or.inr ⟨eq.symm, Nat.le_max_right _ _⟩
+  · exact Or.inr ⟨eq, Nat.le_max_right _ _⟩
 
 end Consensus.Proofs.Safety
 
@@ -6165,7 +6167,7 @@ private theorem doomed_absurd {term commit : Nat} {log : List Entry}
     exact termAt_mono (grantInv.sorted voter granting grantingMem)
       (signatureIndex_le_maxCommittableIndex signed) (maxCommittableIndexBounded _)
   have requestTerm := lowTerm (max commit (maxCommittableIndex log))
-  simp only [voteLogUpToDate, vals] at upToDate
+  simp only [voteLogUpToDate, CCF.TxID.le, vals] at upToDate
   omega
 
 /-- The actor's committed prefix is committed no later than `bound`, or a later
@@ -6417,7 +6419,7 @@ private theorem core {small large : History} (within : small <:+ large)
     rw [termAt_of_prefix inGranting (Nat.le_of_eq partLength.symm), partTerm] at this
     exact this
   -- The election's last committable position.
-  simp only [voteLogUpToDate, vals] at upToDate
+  simp only [voteLogUpToDate, CCF.TxID.le, vals] at upToDate
   generalize jEq : max commit (maxCommittableIndex log) = j at upToDate ⊢
   have two : 2 <= term := by
     have := leaderLed.two_le
@@ -6425,7 +6427,7 @@ private theorem core {small large : History} (within : small <:+ large)
   have jBound : j <= log.length := jEq ▸ Nat.max_le.mpr ⟨frontier, maxCommittableIndexBounded log⟩
   have termGe : term <= termAt log j :=
     upToDate.elim (fun gt => Nat.le_trans maxTermGe (Nat.le_of_lt gt))
-      (fun eq => Nat.le_trans maxTermGe (Nat.le_of_eq eq.1.symm))
+      (fun eq => Nat.le_trans maxTermGe (Nat.le_of_eq eq.1))
   have jPos : 0 < j := by
     rcases Nat.eq_zero_or_pos j with zero | positive
     · rw [zero, termAt_zero] at termGe
