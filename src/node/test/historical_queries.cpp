@@ -4115,7 +4115,7 @@ TEST_CASE(
   }
 }
 
-TEST_CASE("COSE receipt descriptions select CLASSICAL by default, or PQ")
+TEST_CASE("COSE receipt descriptions: _v1 are CLASSICAL, _v2 take the type")
 {
   const ccf::CoseSignature classical_signature{1, 2, 3};
   const ccf::CoseSignature pq_signature{4, 5, 6};
@@ -4130,10 +4130,10 @@ TEST_CASE("COSE receipt descriptions select CLASSICAL by default, or PQ")
 
   REQUIRE(ccf::describe_cose_signature_v1(receipt) == classical_signature);
   REQUIRE(
-    ccf::describe_cose_signature_v1(receipt, ccf::IdentityType::CLASSICAL) ==
+    ccf::describe_cose_signature_v2(receipt, ccf::IdentityType::CLASSICAL) ==
     classical_signature);
   REQUIRE(
-    ccf::describe_cose_signature_v1(receipt, ccf::IdentityType::PQ) ==
+    ccf::describe_cose_signature_v2(receipt, ccf::IdentityType::PQ) ==
     pq_signature);
   REQUIRE(
     ccf::historical::select_described_cose_signature(receipt.cose_signatures) ==
@@ -4148,11 +4148,11 @@ TEST_CASE("COSE receipt descriptions select CLASSICAL by default, or PQ")
   REQUIRE(
     ccf::describe_cose_endorsements_v1(receipt) == classical_endorsements);
   REQUIRE_FALSE(
-    ccf::describe_cose_endorsements_v1(receipt, ccf::IdentityType::PQ)
+    ccf::describe_cose_endorsements_v2(receipt, ccf::IdentityType::PQ)
       .has_value());
   receipt.cose_endorsements[ccf::IdentityType::PQ] = pq_endorsements;
   REQUIRE(
-    ccf::describe_cose_endorsements_v1(receipt, ccf::IdentityType::PQ) ==
+    ccf::describe_cose_endorsements_v2(receipt, ccf::IdentityType::PQ) ==
     pq_endorsements);
   REQUIRE(
     ccf::describe_cose_endorsements_v1(receipt) == classical_endorsements);
@@ -4160,14 +4160,14 @@ TEST_CASE("COSE receipt descriptions select CLASSICAL by default, or PQ")
   receipt.cose_signatures.erase(ccf::IdentityType::CLASSICAL);
   REQUIRE_FALSE(ccf::describe_cose_signature_v1(receipt).has_value());
   REQUIRE(
-    ccf::describe_cose_signature_v1(receipt, ccf::IdentityType::PQ) ==
+    ccf::describe_cose_signature_v2(receipt, ccf::IdentityType::PQ) ==
     pq_signature);
   REQUIRE_FALSE(
     ccf::historical::select_described_cose_signature(receipt.cose_signatures)
       .has_value());
 
   receipt.cose_signatures.erase(ccf::IdentityType::PQ);
-  REQUIRE_FALSE(ccf::describe_cose_signature_v1(receipt, ccf::IdentityType::PQ)
+  REQUIRE_FALSE(ccf::describe_cose_signature_v2(receipt, ccf::IdentityType::PQ)
                   .has_value());
 }
 
@@ -4204,11 +4204,11 @@ TEST_CASE("Historical receipts carry a COSE receipt of each identity type")
 
   const auto classical_receipt = ccf::describe_cose_receipt_v1(receipt);
   const auto pq_receipt =
-    ccf::describe_cose_receipt_v1(receipt, ccf::IdentityType::PQ);
+    ccf::describe_cose_receipt_v2(receipt, ccf::IdentityType::PQ);
   REQUIRE(classical_receipt.has_value());
   REQUIRE(pq_receipt.has_value());
   REQUIRE(
-    ccf::describe_cose_receipt_v1(receipt, ccf::IdentityType::CLASSICAL) ==
+    ccf::describe_cose_receipt_v2(receipt, ccf::IdentityType::CLASSICAL) ==
     classical_receipt);
 
   INFO("Both receipts prove the transaction against the same signed root");
@@ -4241,7 +4241,7 @@ TEST_CASE("Historical receipts carry a COSE receipt of each identity type")
   INFO("The signature transaction has a COSE signature of each type");
   REQUIRE(states[1]->receipt != nullptr);
   REQUIRE(
-    ccf::describe_cose_signature_v1(*states[1]->receipt, ccf::IdentityType::PQ)
+    ccf::describe_cose_signature_v2(*states[1]->receipt, ccf::IdentityType::PQ)
       .has_value());
 }
 

@@ -134,7 +134,7 @@ A service with an ML-DSA identity signs each signature transaction with its clas
 Transactions signed before the service first had an ML-DSA identity have no ``PQ`` receipt, for which the endpoint returns ``404 Not Found``.
 :py:func:`ccf.receipt.verify_cose` verifies a ``PQ`` receipt against the public key of the ML-DSA service certificate, ``pq_service_certificate`` in ``GET /node/network``; ML-DSA keys require ``cryptography`` 48 or later.
 
-A receipt of a transaction signed by a previous service identity, before a disaster recovery, is trusted through the COSE endorsements chain from the current service identity of the same type to that one, which applications can serve with ``ccf::describe_cose_endorsements_v1``, as the ``/log/public/cose_endorsements`` endpoint of the logging sample application does.
+A receipt of a transaction signed by a previous service identity, before a disaster recovery, is trusted through the COSE endorsements chain from the current service identity of the same type to that one, which applications can serve with ``ccf::describe_cose_endorsements_v2``, as the ``/log/public/cose_endorsements`` endpoint of the logging sample application does.
 Given the chain as ``endorsements``, :py:func:`ccf.receipt.verify_cose` verifies it from the trusted current service key, and requires the receipt to be signed by the identity it endorses, for a transaction of the epoch it endorses (see :py:func:`ccf.receipt.verify_cose_endorsements`).
 
 For SCITT statements, the application must compute the claims digest over the registered Signed Statement, not the Transparent Statement containing receipts.
