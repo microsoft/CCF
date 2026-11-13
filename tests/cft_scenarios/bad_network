@@ -1,12 +1,12 @@
 start_node,0
 assert_detail,0,leadership_state,Leader
-emit_signature,2
+replicate,2,$
 
 assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -14,7 +14,7 @@ dispatch_all
 assert_commit_idx,0,4
 
 trust_node,2,2
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -27,7 +27,7 @@ assert_detail,2,leadership_state,Follower
 
 # An initial entry is written and successfully replicated
 replicate,2,helloworld
-emit_signature,2
+replicate,2,$
 
 periodic_all,10
 dispatch_all
@@ -40,7 +40,7 @@ assert_state_sync
 
 # An additional entry takes much longer to replicate, as it is lost on bad connection between nodes
 replicate,2,salutonmondo
-emit_signature,2
+replicate,2,$
 
 periodic_all,10
 drop_pending,0
