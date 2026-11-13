@@ -187,6 +187,27 @@ def test_verify_cose_sign1_mldsa():
     assert ccf.cose.verify_cose_sign1_with_key(pem, embedded)[2] == b"payload"
 
 
+def test_mldsa_verification_does_not_need_cbor2_frozendict(monkeypatch):
+    # cbor2 exports frozendict only before Python 3.15, which has a built-in one
+    monkeypatch.delattr(cbor2, "frozendict", raising=False)
+    keys = [_mldsa_key() for _ in range(2)]
+    spki = _spki(keys[0].public_key())
+    protected = {1: ccf.cose.COSE_ALG_ML_DSA_65}
+    unprotected = {"note": {"nested": b"map"}}
+    message = _sign1(keys[0], protected, unprotected, b"payload", False)
+    assert ccf.cose.verify_cose_sign1_mldsa(spki, message) == (
+        protected,
+        unprotected,
+        b"payload",
+    )
+    ccf.receipt.verify_cose(
+        _receipt(keys[0]),
+        keys[1].public_key(),
+        CLAIM,
+        [_endorsement(keys[1], keys[0], "2.1", "2.200")],
+    )
+
+
 def test_endorsements_chain_endorses_previous_service_keys(make_key):
     keys, endorsements = _chain(make_key)
     current = keys[2].public_key()
@@ -236,6 +257,12 @@ def test_endorsements_chain_must_be_connected(make_key):
             [endorsements[0], _endorsement(keys[1], keys[0], "2.1", "2.199")],
             current,
         )
+    # A recovery starts two views after the end of the previous epoch
+    with pytest.raises(ValueError, match="does not end just before"):
+        ccf.receipt.verify_cose_endorsements(
+            [endorsements[0], _endorsement(keys[1], keys[0], "2.1", "3.200")],
+            current,
+        )
     with pytest.raises(ValueError, match="is empty"):
         ccf.receipt.verify_cose_endorsements(
             [_endorsement(keys[2], keys[1], "4.400", "4.201")], current
@@ -244,3 +271,15 @@ def test_endorsements_chain_must_be_connected(make_key):
         ccf.receipt.verify_cose_endorsements(
             [_endorsement(keys[2], keys[2], "6.401", None)], current
         )
+
+
+def test_endorsements_must_be_a_sequence_of_messages(make_key):
+    keys, endorsements = _chain(make_key)
+    current = keys[2].public_key()
+    for message in (endorsements[0], bytearray(endorsements[0]), b""):
+        # A single message, which the annotation of endorsements excludes
+        single: Any = message
+        with pytest.raises(TypeError, match="sequence of COSE Sign1 messages"):
+            ccf.receipt.verify_cose_endorsements(single, current)
+        with pytest.raises(TypeError, match="sequence of COSE Sign1 messages"):
+            ccf.receipt.verify_cose(_receipt(keys[1], "4.300"), current, CLAIM, single)

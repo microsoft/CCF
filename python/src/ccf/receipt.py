@@ -258,6 +258,21 @@ def check_cert_chain(
     verifier.verify(leaf=node_cert, intermediates=endorsements)
 
 
+# A recovered service starts its first view this many views after the last view
+# of the previous service, as aft::starting_view_change in the node
+_RECOVERY_VIEW_INCREMENT = 2
+
+
+def _require_endorsements_sequence(endorsements: Sequence[bytes]) -> None:
+    """Raise TypeError if endorsements is a single message rather than a
+    sequence of COSE_Sign1 messages."""
+    if type(endorsements) in (bytes, bytearray, memoryview, str):
+        raise TypeError(
+            "Endorsements must be a sequence of COSE Sign1 messages, not a single "
+            f"{type(endorsements).__name__}"
+        )
+
+
 def _txid_claim(claims: Mapping[Any, Any], label: str) -> TxID:
     """Return the valid transaction ID at label in a ccf.v1 claims map."""
     value = claims.get(label)
@@ -275,13 +290,16 @@ def verify_cose_endorsements(
     key, and return the service key it endorses last, with the first and last
     transaction IDs of the epoch that key signed.
 
-    The chain is ordered newest first, as served for a receipt of a transaction
-    signed by a previous service identity. The first endorsement must be signed
-    by key, and each later one by the key that the one before it endorses, for
-    the epoch that ends just before the epoch of the one before it.
+    The chain is a sequence of COSE_Sign1 messages, ordered newest first, as
+    served for a receipt of a transaction signed by a previous service
+    identity. The first endorsement must be signed by key, and each later one
+    by the key that the one before it endorses. Each epoch must end, as a
+    disaster recovery leaves it, one sequence number and two views before the
+    start of the epoch of the endorsement before it.
     Keys are EC keys for CLASSICAL service identities, and ML-DSA keys for PQ
     ones.
     """
+    _require_endorsements_sequence(endorsements)
     if not endorsements:
         raise ValueError("Endorsements chain must not be empty")
 
@@ -310,8 +328,12 @@ def verify_cose_endorsements(
         if end.seqno < begin.seqno:
             raise ValueError(f"Endorsement epoch {begin} - {end} is empty")
         if newer_begin is not None:
-            assert newer_begin.seqno is not None
-            if end.seqno + 1 != newer_begin.seqno:
+            assert newer_begin.seqno is not None and newer_begin.view is not None
+            assert end.view is not None
+            if (
+                end.seqno + 1 != newer_begin.seqno
+                or end.view + _RECOVERY_VIEW_INCREMENT != newer_begin.view
+            ):
                 raise ValueError(
                     f"Endorsement epoch {begin} - {end} does not end just "
                     f"before the next epoch, which starts at {newer_begin}"
@@ -346,6 +368,7 @@ def verify_cose(
     (see :func:`verify_cose_endorsements`).
     """
     _require_digest(claim_digest)
+    _require_endorsements_sequence(endorsements)
     signing_key = key
     epoch: tuple[TxID, TxID] | None = None
     if endorsements:

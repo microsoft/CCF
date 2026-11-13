@@ -234,6 +234,16 @@ def verify_cose_sign1_with_cert(
     return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)
 
 
+_COSE_SIGN1_TAG = cwt.const.COSE_TYPE_TO_TAG[cwt.COSETypes.SIGN1]
+
+
+def _decode_cose_sign1(value: Any, _immutable: bool) -> cbor2.CBORTag:
+    """Decode a COSE_Sign1 tag. Registering it keeps the contents of the
+    message a mutable array and map, which cbor2 decodes as immutable
+    containers for other tags."""
+    return cbor2.CBORTag(_COSE_SIGN1_TAG, value)
+
+
 def _is_mldsa_key(key: PublicKeyTypes) -> bool:
     """Return whether key is an ML-DSA public key."""
     try:
@@ -274,15 +284,13 @@ def verify_cose_sign1_mldsa(
     else:
         raise TypeError("Key is not an ML-DSA public key")
 
-    # cbor2 decodes the contents of tags as immutable arrays and maps
-    message = cbor2.loads(cose_sign1)
-    if (
-        type(message) is not cbor2.CBORTag
-        or message.tag != cwt.const.COSE_TYPE_TO_TAG[cwt.COSETypes.SIGN1]
-    ):
+    message = cbor2.loads(
+        cose_sign1, semantic_decoders={_COSE_SIGN1_TAG: _decode_cose_sign1}
+    )
+    if type(message) is not cbor2.CBORTag or message.tag != _COSE_SIGN1_TAG:
         raise ValueError("Message must be a tagged four-element COSE Sign1 message")
-    elements = cast(tuple[Any, ...], message.value)
-    if type(elements) not in (list, tuple) or len(elements) != 4:
+    elements = cast(list[Any], message.value)
+    if type(elements) is not list or len(elements) != 4:
         raise ValueError("Message must be a tagged four-element COSE Sign1 message")
     phdr_bytes, uhdr, message_payload, signature = elements
     if type(phdr_bytes) is not bytes or type(signature) is not bytes:
@@ -290,9 +298,9 @@ def verify_cose_sign1_mldsa(
     protected = cast(dict[str | int, Any], cbor2.loads(phdr_bytes))
     if type(protected) is not dict:
         raise ValueError("Protected header must be a map")
-    if type(uhdr) not in (dict, cbor2.frozendict):
+    unprotected = cast(dict[str | int, Any], uhdr)
+    if type(unprotected) is not dict:
         raise ValueError("Unprotected header must be a map")
-    unprotected = dict(cast(dict[str | int, Any], uhdr))
 
     if protected.get(int(cwt.COSEHeaders.ALG)) != alg:
         raise ValueError(f"Protected alg must be {alg} for this ML-DSA key")
