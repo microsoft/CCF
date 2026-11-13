@@ -284,9 +284,12 @@ def verify_cose_sign1_mldsa(
     else:
         raise TypeError("Key is not an ML-DSA public key")
 
-    message = cbor2.loads(
-        cose_sign1, semantic_decoders={_COSE_SIGN1_TAG: _decode_cose_sign1}
-    )
+    try:
+        message = cbor2.loads(
+            cose_sign1, semantic_decoders={_COSE_SIGN1_TAG: _decode_cose_sign1}
+        )
+    except cbor2.CBORDecodeError as exc:
+        raise ValueError(f"Invalid COSE Sign1 CBOR: {exc}") from exc
     if type(message) is not cbor2.CBORTag or message.tag != _COSE_SIGN1_TAG:
         raise ValueError("Message must be a tagged four-element COSE Sign1 message")
     elements = cast(list[Any], message.value)
@@ -295,7 +298,10 @@ def verify_cose_sign1_mldsa(
     phdr_bytes, uhdr, message_payload, signature = elements
     if type(phdr_bytes) is not bytes or type(signature) is not bytes:
         raise ValueError("Protected header and signature must be bstr")
-    protected = cast(dict[str | int, Any], cbor2.loads(phdr_bytes))
+    try:
+        protected = cast(dict[str | int, Any], cbor2.loads(phdr_bytes))
+    except cbor2.CBORDecodeError as exc:
+        raise ValueError(f"Invalid protected header CBOR: {exc}") from exc
     if type(protected) is not dict:
         raise ValueError("Protected header must be a map")
     unprotected = cast(dict[str | int, Any], uhdr)

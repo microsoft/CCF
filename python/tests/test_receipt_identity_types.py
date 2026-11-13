@@ -187,6 +187,19 @@ def test_verify_cose_sign1_mldsa():
     assert ccf.cose.verify_cose_sign1_with_key(pem, embedded)[2] == b"payload"
 
 
+def test_verify_cose_sign1_mldsa_rejects_malformed_cbor():
+    key = _mldsa_key()
+    spki = _spki(key.public_key())
+    message = _sign1(key, {1: ccf.cose.COSE_ALG_ML_DSA_65}, {}, b"payload", False)
+    with pytest.raises(ValueError, match="Invalid COSE Sign1 CBOR"):
+        ccf.cose.verify_cose_sign1_mldsa(spki, message[:-1])
+    truncated_protected = cbor2.dumps(
+        cbor2.CBORTag(COSE_SIGN1_TAG, [b"\xa1", {}, b"payload", b"signature"])
+    )
+    with pytest.raises(ValueError, match="Invalid protected header CBOR"):
+        ccf.cose.verify_cose_sign1_mldsa(spki, truncated_protected)
+
+
 def test_mldsa_verification_does_not_need_cbor2_frozendict(monkeypatch):
     # cbor2 exports frozendict only before Python 3.15, which has a built-in one
     monkeypatch.delattr(cbor2, "frozendict", raising=False)
