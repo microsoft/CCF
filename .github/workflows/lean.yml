@@ -267,6 +267,14 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Check CCF consensus trace order independence
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          python3 lean/consensus/replay/check-order.py \
+            lean/consensus/.lake/build/bin/consensus-replay \
+            "$RUNNER_TEMP"/cft-scenario-traces/*.ndjson
+
   models:
     name: Lean models and proofs
     needs:

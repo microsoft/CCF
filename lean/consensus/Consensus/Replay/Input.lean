@@ -5,6 +5,8 @@ module
 
 public import Consensus.Replay.Interpreter
 
+import Std.Data.HashMap
+
 public section
 
 namespace Consensus.Replay
@@ -72,6 +74,8 @@ def readLog (path : System.FilePath) : IO (Except String (Array Record)) := do
 structure Event where
   record : Record
   command : Option Record
+  /-- `h_ts`, the emission order within the record's process; other tags share the counter. -/
+  time : Nat
   function : String
   node : String
   message : Json
@@ -81,13 +85,33 @@ deriving Inhabited
 def Event.origin (event : Event) (rule : String) : Origin :=
   { file := event.record.file, line := event.record.line, rule }
 
-/-- Project events, carry command provenance, and collect node identities. -/
+/--
+Order each process's records by `h_ts`, carry command provenance within a process,
+split events into per-node streams sorted by node, and collect node identities.
+-/
 def prepareEvents (records : Array Record)
-    : Except String (Array Event × List String) := do
+    : Except String (Array (Array Event) × List String) := do
+  let keyed ←
+    records.mapM
+      fun record =>
+        (do
+          return (← string record.value "process_id", ← nat record.value "h_ts", record))
+        |>.mapError (s!"{record.location}: " ++ ·)
+  let keyed :=
+    keyed.toList.mergeSort fun (p, t, _) (q, u, _) => p < q || (p == q && t <= u)
   let mut events := #[]
+  let mut previous : Option (String × Nat × Record) := none
   let mut command : Option Record := none
+  let mut processes : Std.HashMap String String := {}
   let mut declared : List String := []
-  for record in records do
+  for (process, time, record) in keyed do
+    if let some (last, lastTime, earlier) := previous then
+      if last == process && lastTime == time then
+        throw
+          s!"{record.location}: h_ts {time} of process '{process}' repeats {earlier.location}"
+      if last != process then
+        command := none
+    previous := some (process, time, record)
     try
       let message ← field record.value "msg"
       if (optional message "cmd").isSome then
@@ -101,7 +125,11 @@ def prepareEvents (records : Array Record)
             field message "state"
         let node ←
           string (if function == "retired_committed_tx" then message else state) "node_id"
-        events := events.push { record, command, function, node, message, state }
+        if let some other := processes[node]? then
+          require (other == process)
+            s!"node '{node}' is traced by processes '{other}' and '{process}'"
+        processes := processes.insert node process
+        events := events.push { record, command, time, function, node, message, state }
         declared := node :: declared
         if function == "retired_committed_tx" then
           declared := (← string message "retired_node_id") :: declared
@@ -109,6 +137,8 @@ def prepareEvents (records : Array Record)
           declared := (← configuration message) ++ declared
     catch error =>
       throw s!"{record.location}: {error}"
-  return (events, declared.mergeSort.eraseDups)
+  let streams :=
+    processes.keys.mergeSort.toArray.map fun node => events.filter (·.node == node)
+  return (streams, declared.mergeSort.eraseDups)
 
 end Consensus.Replay
