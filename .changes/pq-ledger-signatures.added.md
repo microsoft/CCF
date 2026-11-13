@@ -1,0 +1,2 @@
+Every signature transaction of a service with an ML-DSA identity carries an ML-DSA COSE signature in `public:ccf.internal.cose_signatures` next to the classical one, and nodes replaying the ledger verify every COSE signature and require one for each identity in `public:ccf.gov.service.signing_identities`.
+A node built without ML-DSA support aborts recovery at the first ML-DSA-signed transaction; see the [built-in maps reference](doc/audit/builtin_maps.rst) and the [7.x to 8.x migration guide](doc/releases/migration_7_x_to_8_x.rst#ml-dsa-service-identity).
