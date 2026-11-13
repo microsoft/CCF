@@ -4,6 +4,7 @@ module
 -- Licensed under the Apache 2.0 License.
 
 public import Consensus.Model
+public import Consensus.Replay.Outcomes
 public import Lean.Data.Json
 
 public section
@@ -62,6 +63,8 @@ structure ReplayState where
   state : Model.State
   /-- Envelopes queued by actions since the last send observation. -/
   queued : List Envelope := []
+  /-- Outcomes shown by the actions run so far, in order. -/
+  shown : Array Outcome := #[]
 
 /-- A traced native send, or the proposal a nomination implies. -/
 structure NativeSend where
@@ -279,7 +282,11 @@ private def ReplayState.run (replay : ReplayState) (header : Header)
   | throw s!"disabled model action '{name}'"
   -- A step appends the acting node's sends to the network left after any delivery.
   let pending := replay.state.network.length - if action matches .deliver _ then 1 else 0
-  return { state, queued := replay.queued ++ state.network.drop pending }
+  return {
+    state,
+    queued := replay.queued ++ state.network.drop pending,
+    shown := replay.shown ++ outcomes replay.state action
+  }
 
 /-- Observations never change model state or repair a disabled action. -/
 def runInstruction (header : Header) (replay : ReplayState) (instruction : Instruction)
@@ -342,6 +349,8 @@ structure Result where
   instructions : Nat
   actions : Nat
   observations : Nat
+  /-- Outcomes shown by the actions, in order. -/
+  outcomes : Array Outcome
 deriving Repr, BEq
 
 def replay (header : Header) (instructions : Array Instruction)
@@ -369,7 +378,8 @@ def replay (header : Header) (instructions : Array Instruction)
   return {
     instructions := instructions.size,
     actions,
-    observations := instructions.size - actions
+    observations := instructions.size - actions,
+    outcomes := state.shown
   }
 
 end Consensus.Replay

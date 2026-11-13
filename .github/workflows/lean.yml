@@ -272,6 +272,14 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Report model outcomes shown by CCF consensus traces
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          lean/consensus/.lake/build/bin/consensus-replay --outcomes \
+            "$RUNNER_TEMP"/cft-scenario-traces/*.ndjson >> "$GITHUB_STEP_SUMMARY"
+
   models:
     name: Lean models and proofs
     needs:

@@ -69,4 +69,5 @@ To list the safety-invariant declarations used by the exported theorems, run `la
 
 The [trace replayer](replay/README.md) checks finite driver observations against direct model transitions, independently of proofs.
 It checks each native send against the model, delivers any matching queued packet, treats undelivered packets as lost, and never repairs model state.
+It also reports which [outcomes](replay/README.md#outcomes) of the model's handlers a set of traces shows, and which it never shows.
 The current native Fluentd capture path and replay's assurance limits are documented there.
