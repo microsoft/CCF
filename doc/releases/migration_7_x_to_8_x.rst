@@ -114,6 +114,7 @@ Nodes that join a service never create one.
   Join requests from nodes built without ML-DSA support, including all 7.x nodes, are rejected with ``400 Bad Request`` before the node is recorded, and an 8.x node built without ML-DSA support aborts the recovery of a ledger whose service has one at the end of the public ledger.
   Rolling such a service back to 7.x nodes is therefore impossible by joining and unsupported by disaster recovery: 7.x nodes recover the ledger, and the recovered service silently loses its ML-DSA identity.
   Plan the recovery that introduces the identity for after the live upgrade has completed and been validated.
+- Every signature transaction of a service with an ML-DSA identity carries an ML-DSA COSE signature next to the classical one, and nodes verify both when they replay the ledger (see :ref:`audit/builtin_maps:``cose_signatures```).
 - The ML-DSA service certificate is renewed by the ``set_pq_service_certificate_validity`` proposal of the 8.x default constitution (see :ref:`governance/common_member_operations:Renewing ML-DSA Service Certificate`).
   A recovery keeps the constitution stored in the ledger, so under a 7.x or custom constitution the ML-DSA certificate expires after ``initial_service_certificate_validity_days``.
   After the recovery that introduces the identity and before the first renewal, install the 8.x default constitution with ``set_constitution``, or port its ``set_pq_service_certificate_validity`` action into the custom constitution.
