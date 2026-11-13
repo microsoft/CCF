@@ -62,10 +62,11 @@ The corresponding witness supplies a reachable initial state for every valid rec
 The first property requires each voter to have received its own gossip; without this premise, `Tests/QuorumCommit.lean` exhibits a stale node opening by quorum.
 The second requires a state in which every node's gossip equals `config.recovered`, and it also covers failover openings.
 
-Each safety theorem has a corresponding `_witness` lemma asserting that, for every valid configuration, some valid trace or step satisfies its premises.
+Each safety theorem is stated with `witnessed%`, or followed by a `_witness` lemma, asserting that, for every valid configuration, some valid trace or step satisfies its premises.
+The `witnessed%` claims therefore assume `config.Valid` for the safety statement as well as the witness.
 `ValidConfig` restricts `Model.Config` to configurations satisfying the existing `Config.Valid` predicate without changing the model configuration type.
 The full-gossip witness includes a failover opening and requires at least two expected locations, since a single vote already forms a quorum in a single-location configuration.
-`Tests/Witnesses.lean` applies each public witness lemma to its corresponding safety theorem.
+`Tests/Witnesses.lean` applies each public witness to its corresponding safety theorem.
 
 Freshness is a necessary condition for election, not a definition of commitment in CCF.
 `update_commit` additionally requires a current-term signature replicated on a majority, and the [consensus safety properties](../consensus/Consensus/Properties.lean) are stated on committed log prefixes.

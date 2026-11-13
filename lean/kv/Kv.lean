@@ -3,6 +3,7 @@ module  -- shake: keep-all --deprecated_module: ignore
 public import Kv.Model
 public import Kv.Model.Transitions
 public import Kv.Model.Types
+public import Kv.Proofs.Claims
 public import Kv.Proofs.Reachable
 public import Kv.Proofs.Replay
 public import Kv.Proofs.Witnesses

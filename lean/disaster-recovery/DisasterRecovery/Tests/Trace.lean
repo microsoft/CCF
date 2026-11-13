@@ -158,8 +158,8 @@ example
     : quorumVote.after.phase = .opening
       /\ quorumVote.after.openKind = some .quorum
       /\ .opening .quorum ∈ quorumVote.effects.notifications :=
-  Properties.quorum_advance_opens config quorumVote
-    ⟨rfl, Or.inr ⟨"A", rfl⟩, rfl, by decide⟩
+  (Properties.quorum_advance_opens config (by unfold Model.Config.Valid; decide)).safety
+    quorumVote ⟨rfl, Or.inr ⟨"A", rfl⟩, rfl, by decide⟩
 
 private def quorumTimeout : Properties.LocalStep :=
   {
@@ -172,7 +172,8 @@ example
     : quorumTimeout.after.phase = .opening
       /\ quorumTimeout.after.openKind = some .quorum
       /\ .opening .quorum ∈ quorumTimeout.effects.notifications :=
-  Properties.quorum_advance_opens config quorumTimeout ⟨rfl, Or.inl rfl, rfl, by decide⟩
+  (Properties.quorum_advance_opens config (by unfold Model.Config.Valid; decide)).safety
+    quorumTimeout ⟨rfl, Or.inl rfl, rfl, by decide⟩
 
 example (candidate : Properties.GlobalTrace config)
     (states : candidate.states = CCF.Seq.ofList [ready, voteSent])

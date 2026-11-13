@@ -34,23 +34,32 @@ Within a model's library directory, use this layout:
 - Let `Proofs/` depend on model definitions, property helpers, and other supporting proofs, but not `Properties.lean`.
   `Properties.lean` publicly imports the types and helpers needed to understand its statements and privately imports proof implementations.
 
-Write the full logical statement in each public safety theorem and existential witness lemma, rather than defining a separate named proposition.
+Write the full logical statement in each public safety theorem, rather than defining a separate named proposition.
+State each safety claim together with an existential witness that it is not vacuous, using `witnessed%` from [`CCF.Witnessed`](common/CCF/Witnessed.lean).
+`witnessed% forall xs, { pre := p, post := q, witness := w }` states both `forall xs, p -> q` and `exists xs, p /\ w`; omit `witness` for `exists xs, p`.
+Bind in a leading `forall c, h c ->` prefix only what both the claim and the witness assume.
+Write a witness that does not fit this shape as a separate theorem in full, named after its safety theorem with a `_witness` suffix and placed next to it.
 Declare public safety claims and their existential witnesses with the `theorem` keyword, since Lean core has no `lemma` command.
-Name each witness after its safety theorem with a `_witness` suffix, including the witness implementations under `Proofs/`.
-Keep each proof body a one-line `by exact Proofs.<implementation>` reference, and place each witness lemma next to its corresponding safety theorem.
+Keep each proof body a one-line `by exact Proofs.<implementation>` reference.
+Put the glue that assembles a `witnessed%` claim from the safety and witness implementations in `Proofs/Claims.lean`, under the claim's name.
 For example:
 
 ```lean
 namespace DisasterRecovery.Properties
 
 theorem rejected_gossip_stutters
-    : forall (config : Model.Config) (localStep : Properties.LocalStep),
-      forall (source : Model.Local.Location) (txid : Model.Local.TxID),
-        ((Model.protocol config).ValidStep localStep
-          /\ localStep.action = .receiveGossip source txid .rejected)
-        -> localStep.after = localStep.before
-            /\ List.Mem (.rejected "quote-or-certificate") localStep.effects.notifications := by
-  exact Proofs.Local.rejected_gossip_stutters
+    : forall (config : Model.Config),
+        config.Valid
+        -> witnessed% forall (localStep : LocalStep) (source : Location) (txid : TxID),
+                        {
+                          pre :=
+                            (Model.protocol config).ValidStep localStep
+                            /\ localStep.action = .receiveGossip source txid .rejected
+                          post :=
+                            localStep.after = localStep.before
+                            /\ List.Mem (.rejected "quote-or-certificate") localStep.effects.notifications
+                        } := by
+  exact Proofs.Claims.rejected_gossip_stutters
 
 end DisasterRecovery.Properties
 ```

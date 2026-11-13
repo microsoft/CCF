@@ -10,6 +10,7 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Execution`                 | Finite runs and finite or infinite execution traces          |
 | `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
 | `CCF.Architecture`              | Checks of specification import layering                      |
+| `CCF.Witnessed`                 | `witnessed%`, a safety claim stated with its witness         |
 | `CCF.Seq`                       | Possibly infinite sequences (replaces Mathlib `Stream'.Seq`) |
 | `CCF.Finset`                    | Finite sets as strictly sorted lists (replaces `Finset`)     |
 | `CCF.Function`                  | Point updates of functions (replaces `Function.update`)      |
@@ -38,6 +39,15 @@ The documented property entrypoints remain the public proof APIs; see the [CCF c
 Selective imports do not reduce the checked CCF roots or omit tests.
 `lake check` still exports the complete imported environment and checks its safe declarations and axiom dependencies, including declarations from dependencies.
 Compilation caches do not avoid this independent kernel check.
+
+## Witness statements
+
+`witnessed% forall xs, { pre := p, post := q, witness := w }` is the proposition `CCF.Witnessed (forall xs, p -> q) (exists xs, p /\ w)`, so the variables and hypotheses of a safety claim and of its witness are written once.
+Without `witness`, the witness statement is `exists xs, p`.
+The braces are a `CCF.Witnessed.Spec` structure instance, and `xs` must be explicit binders.
+Being a proposition, it can follow other binders and hypotheses: `forall c, h c -> witnessed% forall xs, spec` assumes `h c` for both the claim and the witness.
+Use `.safety` and `.witness` to project the two statements.
+`CCF.Tests.Witnessed` records the statements it produces and its errors.
 
 ## Event parsing
 

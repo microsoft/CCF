@@ -5,9 +5,9 @@ module
 
 public import Kv.Properties.Invariants
 public import CCF.Execution
+public import CCF.Witnessed
 
-import Kv.Proofs.Reachable
-import Kv.Proofs.Replay
+import Kv.Proofs.Claims
 import Kv.Proofs.Witnesses
 
 @[expose] public section
@@ -17,7 +17,9 @@ import Kv.Proofs.Witnesses
 
 Review these statements with the definitions in `Kv/Model/`, `Kv/Model.lean`, and
 `Kv/Properties/`. Each theorem links to its implementation in `Kv/Proofs/`.
-Each claim with premises has an adjacent witness that its premises can hold.
+Each claim with premises has a witness that its premises can hold.
+A claim stated with `witnessed% ∀ xs, { pre := p, post := q, witness := w }` is both
+`∀ xs, p → q` and the witness `∃ xs, p ∧ w`.
 -/
 
 namespace Kv.Properties
@@ -151,558 +153,470 @@ theorem apply_atomic_witness
 
 /-! ## Serial snapshot runs and normal-view serializability -/
 
-/-- An attempt's operation log runs serially on its pinned local views to its staged writes. -/
+/-- An attempt's operation log runs serially on its pinned local views to its staged writes.
+Witness: an attempt with a snapshot can have a nonempty log. -/
 theorem transaction_snapshot_serial
-    : ∀ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
-        Model.transitionSystem.Reachable w
-        → find w.txs tid = some t
-        → t.snapshot = some snap
-        → serialRun t.data [] t.normal.log = some t.normal.writes := by
-  exact Proofs.Properties.transaction_snapshot_serial
+    : witnessed% ∀ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
+                  {
+                    pre :=
+                      Model.transitionSystem.Reachable w
+                      ∧ find w.txs tid = some t
+                      ∧ t.snapshot = some snap
+                    post := serialRun t.data [] t.normal.log = some t.normal.writes
+                    witness := t.normal.log ≠ []
+                  } := by
+  exact Proofs.Claims.transaction_snapshot_serial
 
-/-- Witness: an attempt with a snapshot can have a nonempty log. -/
-theorem transaction_snapshot_serial_witness
-    : ∃ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
-        Model.transitionSystem.Reachable w
-        ∧ find w.txs tid = some t
-        ∧ t.snapshot = some snap
-        ∧ t.normal.log ≠ [] := by
-  exact Proofs.Witnesses.transaction_snapshot_serial_witness
-
-/-- An attempt that may apply runs serially on the current head to the same staged writes. -/
+/-- An attempt that may apply runs serially on the current head to the same staged writes.
+Witness: an attempt with a nonempty log can apply. -/
 theorem transaction_application_serial
-    : ∀ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
-        Model.transitionSystem.Reachable w
-        → storeOf w sid = .ok s
-        → txOf w sid tid = .ok t
-        → t.snapshot = some snap
-        → canApply s t = true
-        → serialRun s.head.data [] t.normal.log = some t.normal.writes := by
-  exact Proofs.Properties.transaction_application_serial
+    : witnessed% ∀ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
+                  {
+                    pre :=
+                      Model.transitionSystem.Reachable w
+                      ∧ storeOf w sid = .ok s
+                      ∧ txOf w sid tid = .ok t
+                      ∧ t.snapshot = some snap
+                      ∧ canApply s t = true
+                    post := serialRun s.head.data [] t.normal.log = some t.normal.writes
+                    witness := t.normal.log ≠ []
+                  } := by
+  exact Proofs.Claims.transaction_application_serial
 
-/-- Witness: an attempt with a nonempty log can apply. -/
-theorem transaction_application_serial_witness
-    : ∃ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
-        Model.transitionSystem.Reachable w
-        ∧ storeOf w sid = .ok s
-        ∧ txOf w sid tid = .ok t
-        ∧ t.snapshot = some snap
-        ∧ canApply s t = true
-        ∧ t.normal.log ≠ [] := by
-  exact Proofs.Witnesses.transaction_application_serial_witness
-
-/-- A branch of applied attempts matches running their logs serially from the start. -/
+/-- A branch of applied attempts matches running their logs serially from the start.
+Witness: a nonempty branch of applied attempts exists. -/
 theorem executable_branch_serializability
-    : ∀ (s final : Store) (ts : List Tx),
-        (∀ t ∈ ts,
-          ∃ (w : World) (tid : Nat),
-            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
-        → AppliedBranch s ts final
-        → serialTransactions s.head.data s.head.version ts = some final.head.data := by
-  exact Proofs.Properties.executable_branch_serializability
-
-/-- Witness: a nonempty branch of applied attempts exists. -/
-theorem executable_branch_serializability_witness
-    : ∃ (s final : Store) (ts : List Tx),
-        (∀ t ∈ ts,
-          ∃ (w : World) (tid : Nat),
-            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
-        ∧ AppliedBranch s ts final
-        ∧ ts ≠ [] := by
-  exact Proofs.Witnesses.executable_branch_serializability_witness
+    : witnessed% ∀ (s final : Store) (ts : List Tx),
+                  {
+                    pre :=
+                      (∀ t ∈ ts,
+                        ∃ (w : World) (tid : Nat),
+                          Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+                      ∧ AppliedBranch s ts final
+                    post :=
+                      serialTransactions s.head.data s.head.version ts
+                      = some final.head.data
+                    witness := ts ≠ []
+                  } := by
+  exact Proofs.Claims.executable_branch_serializability
 
 /-- In an accepted record segment that keeps store `sid` alive, the applications projected
-onto that store run serially to its final head. -/
+onto that store run serially to its final head.
+Witness: an accepted nonempty segment can keep a store alive. -/
 theorem replay_segment_serializability
-    : ∀ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        Model.transitionSystem.Reachable w
-        → find w.stores sid = some s
-        → (∀ r ∈ rs, SegmentEvent sid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
-        → ∃ after txs,
-            find final.stores sid = some after
-            ∧ projectApplications w sid rs = .ok txs
-            ∧ serialTransactions s.head.data s.head.version txs = some after.head.data
-            ∧ after.head.version = s.head.version + txs.length := by
-  exact Proofs.Trace.replay_segment_serializability_claim
-
-/-- Witness: an accepted nonempty segment can keep a store alive. -/
-theorem replay_segment_serializability_witness
-    : ∃ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        Model.transitionSystem.Reachable w
-        ∧ find w.stores sid = some s
-        ∧ (∀ r ∈ rs, SegmentEvent sid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
-        ∧ rs ≠ [] := by
-  exact Proofs.Witnesses.replay_segment_serializability_witness
+    : witnessed% ∀ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
+                  {
+                    pre :=
+                      Model.transitionSystem.Reachable w
+                      ∧ find w.stores sid = some s
+                      ∧ (∀ r ∈ rs, SegmentEvent sid r.event)
+                      ∧ CCF.Execution.Run Model.transitionSystem w rs final
+                    post :=
+                      ∃ after txs,
+                        find final.stores sid = some after
+                        ∧ projectApplications w sid rs = .ok txs
+                        ∧ serialTransactions s.head.data s.head.version txs
+                          = some after.head.data
+                        ∧ after.head.version = s.head.version + txs.length
+                    witness := rs ≠ []
+                  } := by
+  exact Proofs.Claims.replay_segment_serializability
 
 /-! ## Reachable store invariants -/
 
 /-- Every live store in a reachable world has a well-formed history whose head is newest, and a
-global version within it that is the version of its global cut. -/
+global version within it that is the version of its global cut.
+Witness: a reachable world can have a live store. -/
 theorem reachable_store_invariants
-    : ∀ (w : World) (sid : Nat) (s : Store),
-        Model.transitionSystem.Reachable w
-        → find w.stores sid = some s
-        → History s.history s.head.version
-          ∧ s.history.head? = some s.head
-          ∧ s.global ≤ s.head.version
-          ∧ (atCut s s.global).version = s.global := by
-  exact Proofs.Trace.reachable_store_invariants_claim
-
-/-- Witness: a reachable world can have a live store. -/
-theorem reachable_store_invariants_witness
-    : ∃ (w : World) (sid : Nat) (s : Store),
-        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
-  exact Proofs.Witnesses.reachable_store_invariants_witness
+    : witnessed% ∀ (w : World) (sid : Nat) (s : Store),
+                  {
+                    pre :=
+                      Model.transitionSystem.Reachable w ∧ find w.stores sid = some s
+                    post :=
+                      History s.history s.head.version
+                      ∧ s.history.head? = some s.head
+                      ∧ s.global ≤ s.head.version
+                      ∧ (atCut s s.global).version = s.global
+                  } := by
+  exact Proofs.Claims.reachable_store_invariants
 
 /-- Every live store's head data in a reachable world has unique keys and versions no later than
-the head. -/
+the head.
+Witness: a reachable world can have a live store. -/
 theorem reachable_store_data_invariants
-    : ∀ (w : World) (sid : Nat) (s : Store),
-        Model.transitionSystem.Reachable w
-        → find w.stores sid = some s
-        → Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
-  exact Proofs.Trace.reachable_store_data_invariants_claim
-
-/-- Witness: a reachable world can have a live store. -/
-theorem reachable_store_data_invariants_witness
-    : ∃ (w : World) (sid : Nat) (s : Store),
-        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
-  exact Proofs.Witnesses.reachable_store_data_invariants_witness
+    : witnessed% ∀ (w : World) (sid : Nat) (s : Store),
+                  {
+                    pre :=
+                      Model.transitionSystem.Reachable w ∧ find w.stores sid = some s
+                    post := Unique s.head.data ∧ CellsBounded s.head.data s.head.version
+                  } := by
+  exact Proofs.Claims.reachable_store_data_invariants
 
 /-! ## Current snapshot capture and preservation -/
 
-/-- Capturing a snapshot records the store's head and the reported term. -/
+/-- Capturing a snapshot records the store's head and the reported term.
+Witness: a snapshot capture can be accepted. -/
 theorem step_capture_metadata
-    : ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
-        storeOf w sid = .ok s
-        → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some next
-        → find next.txs tid = some t
-        → ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term := by
-  exact Proofs.Trace.step_capture_metadata_claim
+    : witnessed% ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store)
+                    (t : Tx),
+                  {
+                    pre :=
+                      storeOf w sid = .ok s
+                      ∧ Model.transitionSystem.step w
+                          ⟨seq, .snapshot sid tid version global term⟩
+                        = some next
+                      ∧ find next.txs tid = some t
+                    post :=
+                      ∃ snap,
+                        t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term
+                  } := by
+  exact Proofs.Claims.step_capture_metadata
 
-/-- Witness: a snapshot capture can be accepted. -/
-theorem step_capture_metadata_witness
-    : ∃ (w next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
-        storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some next
-        ∧ find next.txs tid = some t := by
-  exact Proofs.Witnesses.step_capture_metadata_witness
-
-/-- An accepted snapshot capture reports the store's head and global versions. -/
+/-- An accepted snapshot capture reports the store's head and global versions.
+Witness: a snapshot capture can be accepted. -/
 theorem step_capture_cut_values
-    : ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store),
-        storeOf w sid = .ok s
-        → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some next
-        → version = s.head.version ∧ global = s.global := by
-  exact Proofs.Trace.step_capture_cut_values_claim
-
-/-- Witness: a snapshot capture can be accepted. -/
-theorem step_capture_cut_values_witness
-    : ∃ (w next : World) (sid tid version global term seq : Nat) (s : Store),
-        storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some next := by
-  exact Proofs.Witnesses.step_capture_cut_values_witness
+    : witnessed% ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store),
+                  {
+                    pre :=
+                      storeOf w sid = .ok s
+                      ∧ Model.transitionSystem.step w
+                          ⟨seq, .snapshot sid tid version global term⟩
+                        = some next
+                    post := version = s.head.version ∧ global = s.global
+                  } := by
+  exact Proofs.Claims.step_capture_cut_values
 
 /-- A captured snapshot's head and term are unchanged by later records that do not end the
-attempt. -/
+attempt.
+Witness: a snapshot capture can be followed by an accepted nonempty run that keeps the attempt. -/
 theorem capture_replay_preserves_metadata
-    : ∀ (w capturedWorld final : World) (sid tid version global term seq : Nat)
-        (s : Store) (t : Tx) (tail : List Record),
-        storeOf w sid = .ok s
-        → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some capturedWorld
-        → find capturedWorld.txs tid = some t
-        → (∀ r ∈ tail, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem capturedWorld tail final
-        → ∃ after snap,
-            find final.txs tid = some after
-            ∧ after.snapshot = some snap
-            ∧ snap.current = s.head
-            ∧ snap.term = term := by
-  exact Proofs.Trace.capture_replay_preserves_metadata_claim
+    : witnessed% ∀ (w capturedWorld final : World) (sid tid version global term seq : Nat)
+                    (s : Store) (t : Tx) (tail : List Record),
+                  {
+                    pre :=
+                      storeOf w sid = .ok s
+                      ∧ Model.transitionSystem.step w
+                          ⟨seq, .snapshot sid tid version global term⟩
+                        = some capturedWorld
+                      ∧ find capturedWorld.txs tid = some t
+                      ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
+                      ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+                    post :=
+                      ∃ after snap,
+                        find final.txs tid = some after
+                        ∧ after.snapshot = some snap
+                        ∧ snap.current = s.head
+                        ∧ snap.term = term
+                    witness := tail ≠ []
+                  } := by
+  exact Proofs.Claims.capture_replay_preserves_metadata
 
-/-- Witness: a snapshot capture can be followed by an accepted nonempty run that keeps the attempt. -/
-theorem capture_replay_preserves_metadata_witness
-    : ∃ (w capturedWorld final : World) (sid tid version global term seq : Nat)
-        (s : Store) (t : Tx) (tail : List Record),
-        storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some capturedWorld
-        ∧ find capturedWorld.txs tid = some t
-        ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
-        ∧ tail ≠ [] := by
-  exact Proofs.Witnesses.capture_replay_preserves_metadata_witness
-
-/-- An attempt's captured snapshot is unchanged by later records that do not end it. -/
+/-- An attempt's captured snapshot is unchanged by later records that do not end it.
+Witness: an attempt with a snapshot can be followed by an accepted nonempty run that keeps it. -/
 theorem replay_snapshot_fixed
-    : ∀ (w final : World) (tid : Nat) (before : Tx) (snap : Snapshot) (rs : List Record),
-        find w.txs tid = some before
-        → before.snapshot = some snap
-        → (∀ r ∈ rs, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
-        → ∃ after, find final.txs tid = some after ∧ after.snapshot = some snap := by
-  exact Proofs.Trace.replay_snapshot_fixed_claim
-
-/-- Witness: an attempt with a snapshot can be followed by an accepted nonempty run that keeps it. -/
-theorem replay_snapshot_fixed_witness
-    : ∃ (w final : World) (tid : Nat) (before : Tx) (snap : Snapshot) (rs : List Record),
-        find w.txs tid = some before
-        ∧ before.snapshot = some snap
-        ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
-        ∧ rs ≠ [] := by
-  exact Proofs.Witnesses.replay_snapshot_fixed_witness
+    : witnessed% ∀ (w final : World) (tid : Nat) (before : Tx) (snap : Snapshot)
+                    (rs : List Record),
+                  {
+                    pre :=
+                      find w.txs tid = some before
+                      ∧ before.snapshot = some snap
+                      ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
+                      ∧ CCF.Execution.Run Model.transitionSystem w rs final
+                    post :=
+                      ∃ after,
+                        find final.txs tid = some after ∧ after.snapshot = some snap
+                    witness := rs ≠ []
+                  } := by
+  exact Proofs.Claims.replay_snapshot_fixed
 
 /-! ## Per-map globally committed views -/
 
-/-- Acquiring a map records its global view and checks the reported revision versions. -/
+/-- Acquiring a map records its global view and checks the reported revision versions.
+Witness: a map acquisition can be accepted. -/
 theorem step_map_capture
-    : ∀ (w next : World) (sid tid localVersion globalVersion seq : Nat) (map : String)
-        (s : Store) (before after : Tx) (snap : Snapshot),
-        storeOf w sid = .ok s
-        → txOf w sid tid = .ok before
-        → before.snapshot = some snap
-        → Model.transitionSystem.step w
-            ⟨seq, .acquire sid tid map localVersion globalVersion⟩
-          = some next
-        → find next.txs tid = some after
-        → find after.globalViews map = some (captureGlobal s snap map)
-          ∧ localVersion = (revision (captureLocal s snap map) map).version
-          ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version := by
-  exact Proofs.Trace.step_map_capture_claim
+    : witnessed% ∀ (w next : World) (sid tid localVersion globalVersion seq : Nat)
+                    (map : String) (s : Store) (before after : Tx) (snap : Snapshot),
+                  {
+                    pre :=
+                      storeOf w sid = .ok s
+                      ∧ txOf w sid tid = .ok before
+                      ∧ before.snapshot = some snap
+                      ∧ Model.transitionSystem.step w
+                          ⟨seq, .acquire sid tid map localVersion globalVersion⟩
+                        = some next
+                      ∧ find next.txs tid = some after
+                    post :=
+                      find after.globalViews map = some (captureGlobal s snap map)
+                      ∧ localVersion = (revision (captureLocal s snap map) map).version
+                      ∧ globalVersion
+                        = (revision (captureGlobal s snap map).frame map).version
+                  } := by
+  exact Proofs.Claims.step_map_capture
 
-/-- Witness: a map acquisition can be accepted. -/
-theorem step_map_capture_witness
-    : ∃ (w next : World) (sid tid localVersion globalVersion seq : Nat) (map : String)
-        (s : Store) (before after : Tx) (snap : Snapshot),
-        storeOf w sid = .ok s
-        ∧ txOf w sid tid = .ok before
-        ∧ before.snapshot = some snap
-        ∧ Model.transitionSystem.step w
-            ⟨seq, .acquire sid tid map localVersion globalVersion⟩
-          = some next
-        ∧ find next.txs tid = some after := by
-  exact Proofs.Witnesses.step_map_capture_witness
-
-/-- A map's captured local and global views are unchanged by later records that do not end the attempt. -/
+/-- A map's captured local and global views are unchanged by later records that do not end the attempt.
+Witness: an attempt with an acquired map can be followed by an accepted nonempty run that keeps it. -/
 theorem replay_map_global_fixed
-    : ∀ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
-        (rs : List Record),
-        find w.txs tid = some before
-        → find before.globalViews map = some view
-        → (∀ r ∈ rs, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
-        → ∃ after,
-            find final.txs tid = some after ∧ find after.globalViews map = some view := by
-  exact Proofs.Trace.replay_map_global_fixed_claim
+    : witnessed% ∀ (w final : World) (tid : Nat) (before : Tx) (map : String)
+                    (view : GlobalView) (rs : List Record),
+                  {
+                    pre :=
+                      find w.txs tid = some before
+                      ∧ find before.globalViews map = some view
+                      ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
+                      ∧ CCF.Execution.Run Model.transitionSystem w rs final
+                    post :=
+                      ∃ after,
+                        find final.txs tid = some after
+                        ∧ find after.globalViews map = some view
+                    witness := rs ≠ []
+                  } := by
+  exact Proofs.Claims.replay_map_global_fixed
 
-/-- Witness: an attempt with an acquired map can be followed by an accepted nonempty run that keeps it. -/
-theorem replay_map_global_fixed_witness
-    : ∃ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
-        (rs : List Record),
-        find w.txs tid = some before
-        ∧ find before.globalViews map = some view
-        ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
-        ∧ rs ≠ [] := by
-  exact Proofs.Witnesses.replay_map_global_fixed_witness
-
-/-- Acquired local data is unchanged by later records, including rollback and other map acquisitions. -/
+/-- Acquired local data is unchanged by later records, including rollback and other map acquisitions.
+Witness: an acquired map can survive a nonempty accepted segment. -/
 theorem replay_map_local_fixed
-    : ∀ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
-        (rs : List Record),
-        find w.txs tid = some before
-        → find before.globalViews map = some view
-        → (∀ r ∈ rs, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
-        → ∃ after,
-            find final.txs tid = some after
-            ∧ image after.data map = image before.data map := by
-  exact Proofs.Trace.replay_map_local_fixed_claim
-
-/-- Witness: an acquired map can survive a nonempty accepted segment. -/
-theorem replay_map_local_fixed_witness
-    : ∃ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
-        (rs : List Record),
-        find w.txs tid = some before
-        ∧ find before.globalViews map = some view
-        ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
-        ∧ rs ≠ [] := by
-  exact Proofs.Witnesses.replay_map_global_fixed_witness
+    : witnessed% ∀ (w final : World) (tid : Nat) (before : Tx) (map : String)
+                    (view : GlobalView) (rs : List Record),
+                  {
+                    pre :=
+                      find w.txs tid = some before
+                      ∧ find before.globalViews map = some view
+                      ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
+                      ∧ CCF.Execution.Run Model.transitionSystem w rs final
+                    post :=
+                      ∃ after,
+                        find final.txs tid = some after
+                        ∧ image after.data map = image before.data map
+                    witness := rs ≠ []
+                  } := by
+  exact Proofs.Claims.replay_map_local_fixed
 
 /-- A map acquisition's global view and reported versions persist through later records that do
-not end the attempt. -/
+not end the attempt.
+Witness: a map acquisition can be followed by an accepted nonempty run that keeps the attempt. -/
 theorem capture_replay_preserves_map
-    : ∀ (w capturedWorld final : World) (sid tid localVersion globalVersion seq : Nat)
-        (map : String) (s : Store) (before capturedTx : Tx) (snap : Snapshot)
-        (tail : List Record),
-        storeOf w sid = .ok s
-        → txOf w sid tid = .ok before
-        → before.snapshot = some snap
-        → Model.transitionSystem.step w
-            ⟨seq, .acquire sid tid map localVersion globalVersion⟩
-          = some capturedWorld
-        → find capturedWorld.txs tid = some capturedTx
-        → (∀ r ∈ tail, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem capturedWorld tail final
-        → ∃ after,
-            find final.txs tid = some after
-            ∧ find after.globalViews map = some (captureGlobal s snap map)
-            ∧ localVersion = (revision (captureLocal s snap map) map).version
-            ∧ globalVersion
-              = (revision (captureGlobal s snap map).frame map).version := by
-  exact Proofs.Trace.capture_replay_preserves_map_claim
+    : witnessed% ∀ (w capturedWorld final : World)
+                    (sid tid localVersion globalVersion seq : Nat) (map : String)
+                    (s : Store) (before capturedTx : Tx) (snap : Snapshot)
+                    (tail : List Record),
+                  {
+                    pre :=
+                      storeOf w sid = .ok s
+                      ∧ txOf w sid tid = .ok before
+                      ∧ before.snapshot = some snap
+                      ∧ Model.transitionSystem.step w
+                          ⟨seq, .acquire sid tid map localVersion globalVersion⟩
+                        = some capturedWorld
+                      ∧ find capturedWorld.txs tid = some capturedTx
+                      ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
+                      ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+                    post :=
+                      ∃ after,
+                        find final.txs tid = some after
+                        ∧ find after.globalViews map = some (captureGlobal s snap map)
+                        ∧ localVersion = (revision (captureLocal s snap map) map).version
+                        ∧ globalVersion
+                          = (revision (captureGlobal s snap map).frame map).version
+                    witness := tail ≠ []
+                  } := by
+  exact Proofs.Claims.capture_replay_preserves_map
 
-/-- Witness: a map acquisition can be followed by an accepted nonempty run that keeps the attempt. -/
-theorem capture_replay_preserves_map_witness
-    : ∃ (w capturedWorld final : World) (sid tid localVersion globalVersion seq : Nat)
-        (map : String) (s : Store) (before capturedTx : Tx) (snap : Snapshot)
-        (tail : List Record),
-        storeOf w sid = .ok s
-        ∧ txOf w sid tid = .ok before
-        ∧ before.snapshot = some snap
-        ∧ Model.transitionSystem.step w
-            ⟨seq, .acquire sid tid map localVersion globalVersion⟩
-          = some capturedWorld
-        ∧ find capturedWorld.txs tid = some capturedTx
-        ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
-        ∧ tail ≠ [] := by
-  exact Proofs.Witnesses.capture_replay_preserves_map_witness
-
-/-- The global view of a map not yet created is the empty frame. -/
+/-- The global view of a map not yet created is the empty frame.
+Witness: a snapshot can lack a map. -/
 theorem captureGlobal_placeholder
-    : ∀ (s : Store) (snap : Snapshot) (map : String),
-        find (captureLocal s snap map).births map = none
-        → (captureGlobal s snap map).frame = {} := by
-  exact Proofs.Trace.captureGlobal_placeholder
+    : witnessed% ∀ (s : Store) (snap : Snapshot) (map : String),
+                  {
+                    pre :=
+                      find (captureLocal s snap map).births map = none
+                    post := (captureGlobal s snap map).frame = {}
+                  } := by
+  exact Proofs.Claims.captureGlobal_placeholder
 
-/-- Witness: a snapshot can lack a map. -/
-theorem captureGlobal_placeholder_witness
-    : ∃ (s : Store) (snap : Snapshot) (map : String),
-        find (captureLocal s snap map).births map = none := by
-  exact Proofs.Witnesses.captureGlobal_placeholder_witness
-
-/-- The global view of an existing map is the store's global cut. -/
+/-- The global view of an existing map is the store's global cut.
+Witness: a snapshot can contain a map. -/
 theorem captureGlobal_committed
-    : ∀ (s : Store) (snap : Snapshot) (map : String) (birth : Stamp),
-        find (captureLocal s snap map).births map = some birth
-        → (captureGlobal s snap map).frame = atCut s s.global := by
-  exact Proofs.Trace.captureGlobal_committed
-
-/-- Witness: a snapshot can contain a map. -/
-theorem captureGlobal_committed_witness
-    : ∃ (s : Store) (snap : Snapshot) (map : String) (birth : Stamp),
-        find (captureLocal s snap map).births map = some birth := by
-  exact Proofs.Witnesses.captureGlobal_committed_witness
+    : witnessed% ∀ (s : Store) (snap : Snapshot) (map : String) (birth : Stamp),
+                  {
+                    pre :=
+                      find (captureLocal s snap map).births map = some birth
+                    post := (captureGlobal s snap map).frame = atCut s s.global
+                  } := by
+  exact Proofs.Claims.captureGlobal_committed
 
 /-- A global read returns the captured view's value, and that view is empty or a store's global
-cut with no cell newer than it. -/
+cut with no cell newer than it.
+Witness: a global read of a committed value can be accepted. -/
 theorem step_global_read_from_captured_map
-    : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Option String)
-        (t : Tx) (view : GlobalView),
-        Model.transitionSystem.Reachable w
-        → txOf w sid tid = .ok t
-        → find t.globalViews map = some view
-        → Model.transitionSystem.step w ⟨seq, .get sid tid map key value true⟩ = some next
-        → value = (find view.frame.data (map, key)).map Cell.value
-          ∧ (view.frame = {}
-              ∨ ∃ origin : Store,
-                  view.frame = atCut origin origin.global
-                  ∧ view.frame.version = origin.global
-                  ∧ CellsBounded view.frame.data origin.global) := by
-  exact Proofs.Trace.step_global_read_from_captured_map_claim
-
-/-- Witness: a global read of a committed value can be accepted. -/
-theorem step_global_read_from_captured_map_witness
-    : ∃ (w next : World) (sid tid seq : Nat) (map key value : String) (t : Tx)
-        (view : GlobalView),
-        Model.transitionSystem.Reachable w
-        ∧ txOf w sid tid = .ok t
-        ∧ find t.globalViews map = some view
-        ∧ Model.transitionSystem.step w ⟨seq, .get sid tid map key (some value) true⟩
-          = some next := by
-  exact Proofs.Witnesses.step_global_read_from_captured_map_witness
+    : witnessed% ∀ (w next : World) (sid tid seq : Nat) (map key : String)
+                    (value : Option String) (t : Tx) (view : GlobalView),
+                  {
+                    pre :=
+                      Model.transitionSystem.Reachable w
+                      ∧ txOf w sid tid = .ok t
+                      ∧ find t.globalViews map = some view
+                      ∧ Model.transitionSystem.step w
+                          ⟨seq, .get sid tid map key value true⟩
+                        = some next
+                    post :=
+                      value = (find view.frame.data (map, key)).map Cell.value
+                      ∧ (view.frame = {}
+                          ∨ ∃ origin : Store,
+                              view.frame = atCut origin origin.global
+                              ∧ view.frame.version = origin.global
+                              ∧ CellsBounded view.frame.data origin.global)
+                    witness := value.isSome = true
+                  } := by
+  exact Proofs.Claims.step_global_read_from_captured_map
 
 /-- A global presence test reflects the captured view, and that view is empty or a store's
-global cut with no cell newer than it. -/
+global cut with no cell newer than it.
+Witness: a global presence test of a committed key can be accepted. -/
 theorem step_global_has_from_captured_map
-    : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Bool) (t : Tx)
-        (view : GlobalView),
-        Model.transitionSystem.Reachable w
-        → txOf w sid tid = .ok t
-        → find t.globalViews map = some view
-        → Model.transitionSystem.step w ⟨seq, .has sid tid map key value true⟩ = some next
-        → value = (find view.frame.data (map, key)).isSome
-          ∧ (view.frame = {}
-              ∨ ∃ origin : Store,
-                  view.frame = atCut origin origin.global
-                  ∧ view.frame.version = origin.global
-                  ∧ CellsBounded view.frame.data origin.global) := by
-  exact Proofs.Trace.step_global_has_from_captured_map_claim
-
-/-- Witness: a global presence test of a committed key can be accepted. -/
-theorem step_global_has_from_captured_map_witness
-    : ∃ (w next : World) (sid tid seq : Nat) (map key : String) (t : Tx)
-        (view : GlobalView),
-        Model.transitionSystem.Reachable w
-        ∧ txOf w sid tid = .ok t
-        ∧ find t.globalViews map = some view
-        ∧ Model.transitionSystem.step w ⟨seq, .has sid tid map key true true⟩
-          = some next := by
-  exact Proofs.Witnesses.step_global_has_from_captured_map_witness
+    : witnessed% ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Bool)
+                    (t : Tx) (view : GlobalView),
+                  {
+                    pre :=
+                      Model.transitionSystem.Reachable w
+                      ∧ txOf w sid tid = .ok t
+                      ∧ find t.globalViews map = some view
+                      ∧ Model.transitionSystem.step w
+                          ⟨seq, .has sid tid map key value true⟩
+                        = some next
+                    post :=
+                      value = (find view.frame.data (map, key)).isSome
+                      ∧ (view.frame = {}
+                          ∨ ∃ origin : Store,
+                              view.frame = atCut origin origin.global
+                              ∧ view.frame.version = origin.global
+                              ∧ CellsBounded view.frame.data origin.global)
+                    witness := value = true
+                  } := by
+  exact Proofs.Claims.step_global_has_from_captured_map
 
 /-! ## Compaction, rollback, and invalidated attempts -/
 
-/-- Compacting beyond the head leaves the store unchanged. -/
+/-- Compacting beyond the head leaves the store unchanged.
+Witness: a version can be beyond the head. -/
 theorem compact_above_head_noop
-    : ∀ (s : Store) (v : Nat), s.head.version < v → compactStore s v = s := by
-  exact Proofs.Model.compact_above_head_noop
+    : witnessed% ∀ (s : Store) (v : Nat),
+                  {
+                    pre :=
+                      s.head.version < v
+                    post := compactStore s v = s
+                  } := by
+  exact Proofs.Claims.compact_above_head_noop
 
-/-- Witness: a version can be beyond the head. -/
-theorem compact_above_head_noop_witness
-    : ∃ (s : Store) (v : Nat), s.head.version < v := by
-  exact Proofs.Witnesses.compact_above_head_noop_witness
-
-/-- Rollback keeps every frame at or below the global version. -/
+/-- Rollback keeps every frame at or below the global version.
+Witness: a nonempty frame can be on the branch at or below the global version. -/
 theorem rollback_keeps_prefix
-    : ∀ (s : Store) (v term : Nat) (f : Frame),
-        f ∈ s.history → f.version ≤ s.global → f ∈ (rollbackStore s v term).history := by
-  exact Proofs.Model.rollback_keeps_prefix
+    : witnessed% ∀ (s : Store) (v term : Nat) (f : Frame),
+                  {
+                    pre := f ∈ s.history ∧ f.version ≤ s.global
+                    post := f ∈ (rollbackStore s v term).history
+                    witness := f.data ≠ []
+                  } := by
+  exact Proofs.Claims.rollback_keeps_prefix
 
-/-- Witness: a nonempty frame can be on the branch at or below the global version. -/
-theorem rollback_keeps_prefix_witness
-    : ∃ (s : Store) (f : Frame), f ∈ s.history ∧ f.version ≤ s.global ∧ f.data ≠ [] := by
-  exact Proofs.Witnesses.rollback_keeps_prefix_witness
-
-/-- Rollback discards every frame above the requested version. -/
+/-- Rollback discards every frame above the requested version.
+Witness: a frame on the branch can be above a version at or above the global version. -/
 theorem rollback_discards_suffix
-    : ∀ (s : Store) (v term : Nat) (f : Frame),
-        v < f.version → s.global ≤ v → f ∉ (rollbackStore s v term).history := by
-  exact Proofs.Model.rollback_discards_suffix
+    : witnessed% ∀ (s : Store) (v term : Nat) (f : Frame),
+                  {
+                    pre := v < f.version ∧ s.global ≤ v
+                    post := f ∉ (rollbackStore s v term).history
+                    witness := f ∈ s.history
+                  } := by
+  exact Proofs.Claims.rollback_discards_suffix
 
-/-- Witness: a frame on the branch can be above a version at or above the global version. -/
-theorem rollback_discards_suffix_witness
-    : ∃ (s : Store) (v : Nat) (f : Frame),
-        f ∈ s.history ∧ v < f.version ∧ s.global ≤ v := by
-  exact Proofs.Witnesses.rollback_discards_suffix_witness
-
-/-- Rollback preserves the data at every cut at or below the global version. -/
+/-- Rollback preserves the data at every cut at or below the global version.
+Witness: a nonempty cut can be at or below the global version. -/
 theorem durable_cut_survives_rollback
-    : ∀ (w : World) (sid : Nat) (s : Store) (v term cut : Nat),
-        Model.transitionSystem.Reachable w
-        → find w.stores sid = some s
-        → cut ≤ s.global
-        → s.global ≤ v
-        → (atCut (rollbackStore s v term) cut).data = (atCut s cut).data := by
-  exact Proofs.Properties.durable_cut_survives_rollback
+    : witnessed% ∀ (w : World) (sid : Nat) (s : Store) (v term cut : Nat),
+                  {
+                    pre :=
+                      Model.transitionSystem.Reachable w
+                      ∧ find w.stores sid = some s
+                      ∧ cut ≤ s.global
+                      ∧ s.global ≤ v
+                    post := (atCut (rollbackStore s v term) cut).data = (atCut s cut).data
+                    witness := (atCut s cut).data ≠ []
+                  } := by
+  exact Proofs.Claims.durable_cut_survives_rollback
 
-/-- Witness: a nonempty cut can be at or below the global version. -/
-theorem durable_cut_survives_rollback_witness
-    : ∃ (w : World) (sid : Nat) (s : Store) (v cut : Nat),
-        Model.transitionSystem.Reachable w
-        ∧ find w.stores sid = some s
-        ∧ cut ≤ s.global
-        ∧ s.global ≤ v
-        ∧ (atCut s cut).data ≠ [] := by
-  exact Proofs.Witnesses.durable_cut_survives_rollback_witness
-
-/-- An attempt whose snapshot term differs from the store's cannot apply. -/
+/-- An attempt whose snapshot term differs from the store's cannot apply.
+Witness: an attempt's snapshot term can differ from the store's. -/
 theorem stale_term_cannot_apply
-    : ∀ (s : Store) (t : Tx) (snap : Snapshot),
-        t.snapshot = some snap → s.term ≠ snap.term → canApply s t = false := by
-  exact Proofs.Model.stale_term_cannot_apply
+    : witnessed% ∀ (s : Store) (t : Tx) (snap : Snapshot),
+                  {
+                    pre :=
+                      t.snapshot = some snap ∧ s.term ≠ snap.term
+                    post := canApply s t = false
+                  } := by
+  exact Proofs.Claims.stale_term_cannot_apply
 
-/-- Witness: an attempt's snapshot term can differ from the store's. -/
-theorem stale_term_cannot_apply_witness
-    : ∃ (s : Store) (t : Tx) (snap : Snapshot),
-        t.snapshot = some snap ∧ s.term ≠ snap.term := by
-  exact Proofs.Witnesses.stale_term_cannot_apply_witness
-
-/-- An attempt whose acquired map revision is no longer on the branch cannot apply. -/
+/-- An attempt whose acquired map revision is no longer on the branch cannot apply.
+Witness: an attempt can hold a map whose revision is no longer on the branch. -/
 theorem discarded_handle_cannot_apply
-    : ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
-        t.snapshot = some snap
-        → (m, view) ∈ t.globalViews
-        → (∀ f ∈ s.history, (revision f m == revision view.current m) = false)
-        → canApply s t = false := by
-  exact Proofs.Properties.discarded_handle_cannot_apply
+    : witnessed% ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String)
+                    (view : GlobalView),
+                  {
+                    pre :=
+                      t.snapshot = some snap
+                      ∧ (m, view) ∈ t.globalViews
+                      ∧ (∀ f ∈ s.history,
+                          (revision f m == revision view.current m) = false)
+                    post := canApply s t = false
+                  } := by
+  exact Proofs.Claims.discarded_handle_cannot_apply
 
-/-- Witness: an attempt can hold a map whose revision is no longer on the branch. -/
-theorem discarded_handle_cannot_apply_witness
-    : ∃ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
-        t.snapshot = some snap
-        ∧ (m, view) ∈ t.globalViews
-        ∧ (∀ f ∈ s.history, (revision f m == revision view.current m) = false) := by
-  exact Proofs.Witnesses.discarded_handle_cannot_apply_witness
-
-/-- An attempt whose acquired map creation is no longer on the branch cannot apply. -/
+/-- An attempt whose acquired map creation is no longer on the branch cannot apply.
+Witness: an attempt can hold a map whose creation is no longer on the branch. -/
 theorem discarded_birth_cannot_apply
-    : ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
-        t.snapshot = some snap
-        → (m, view) ∈ t.globalViews
-        → (∀ f ∈ s.history, (find f.births m == find view.current.births m) = false)
-        → canApply s t = false := by
-  exact Proofs.Properties.discarded_birth_cannot_apply
+    : witnessed% ∀ (s : Store) (t : Tx) (snap : Snapshot) (m : String)
+                    (view : GlobalView),
+                  {
+                    pre :=
+                      t.snapshot = some snap
+                      ∧ (m, view) ∈ t.globalViews
+                      ∧ (∀ f ∈ s.history,
+                          (find f.births m == find view.current.births m) = false)
+                    post := canApply s t = false
+                  } := by
+  exact Proofs.Claims.discarded_birth_cannot_apply
 
-/-- Witness: an attempt can hold a map whose creation is no longer on the branch. -/
-theorem discarded_birth_cannot_apply_witness
-    : ∃ (s : Store) (t : Tx) (snap : Snapshot) (m : String) (view : GlobalView),
-        t.snapshot = some snap
-        ∧ (m, view) ∈ t.globalViews
-        ∧ (∀ f ∈ s.history, (find f.births m == find view.current.births m) = false) := by
-  exact Proofs.Witnesses.discarded_birth_cannot_apply_witness
-
-/-- A map revised before the global cut's revision is unavailable. -/
+/-- A map revised before the global cut's revision is unavailable.
+Witness: a map can be revised before the global cut's revision. -/
 theorem compacted_map_unavailable
-    : ∀ (s : Store) (f : Frame) (m : String) (birth : Stamp),
-        find f.births m = some birth
-        → (revision f m).version < (revision (atCut s s.global) m).version
-        → mapAvailable s f m = false := by
-  exact Proofs.Model.compacted_map_unavailable
+    : witnessed% ∀ (s : Store) (f : Frame) (m : String) (birth : Stamp),
+                  {
+                    pre :=
+                      find f.births m = some birth
+                      ∧ (revision f m).version < (revision (atCut s s.global) m).version
+                    post := mapAvailable s f m = false
+                  } := by
+  exact Proofs.Claims.compacted_map_unavailable
 
-/-- Witness: a map can be revised before the global cut's revision. -/
-theorem compacted_map_unavailable_witness
-    : ∃ (s : Store) (f : Frame) (m : String) (birth : Stamp),
-        find f.births m = some birth
-        ∧ (revision f m).version < (revision (atCut s s.global) m).version := by
-  exact Proofs.Witnesses.compacted_map_unavailable_witness
-
-/-- A map that does not exist, has no data, and was never revised is available. -/
+/-- A map that does not exist, has no data, and was never revised is available.
+Witness: a map can be absent, empty, and unrevised. -/
 theorem absent_map_available
-    : ∀ (s : Store) (f : Frame) (m : String),
-        find f.births m = none
-        → image f.data m = []
-        → find f.revisions m = none
-        → mapAvailable s f m = true := by
-  exact Proofs.Model.absent_map_available
+    : witnessed% ∀ (s : Store) (f : Frame) (m : String),
+                  {
+                    pre :=
+                      find f.births m = none
+                      ∧ image f.data m = []
+                      ∧ find f.revisions m = none
+                    post := mapAvailable s f m = true
+                  } := by
+  exact Proofs.Claims.absent_map_available
 
-/-- Witness: a map can be absent, empty, and unrevised. -/
-theorem absent_map_available_witness
-    : ∃ (f : Frame) (m : String),
-        find f.births m = none ∧ image f.data m = [] ∧ find f.revisions m = none := by
-  exact Proofs.Witnesses.absent_map_available_witness
-
-/-- An available map that does not exist has no values. -/
+/-- An available map that does not exist has no values.
+Witness: an absent map can be available. -/
 theorem absent_placeholder_has_no_values
-    : ∀ (s : Store) (f : Frame) (m key : String),
-        find f.births m = none
-        → mapAvailable s f m = true
-        → find f.data (m, key) = none := by
-  exact Proofs.Model.absent_placeholder_has_no_values
-
-/-- Witness: an absent map can be available. -/
-theorem absent_placeholder_has_no_values_witness
-    : ∃ (s : Store) (f : Frame) (m : String),
-        find f.births m = none ∧ mapAvailable s f m = true := by
-  exact Proofs.Witnesses.absent_placeholder_has_no_values_witness
+    : witnessed% ∀ (s : Store) (f : Frame) (m key : String),
+                  {
+                    pre := find f.births m = none ∧ mapAvailable s f m = true
+                    post := find f.data (m, key) = none
+                  } := by
+  exact Proofs.Claims.absent_placeholder_has_no_values
 
 end Kv.Properties
