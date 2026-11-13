@@ -829,6 +829,7 @@ namespace ccf::tls
           SSL_set_msg_callback_arg(conn->ssl, &keys);
           SSL_set_mode(conn->ssl, SSL_MODE_AUTO_RETRY);
           SSL_clear_options(conn->ssl, SSL_OP_ENABLE_KTLS);
+          SSL_set_post_handshake_auth(conn->ssl, 0);
           if (
             SSL_set_min_proto_version(conn->ssl, TLS1_3_VERSION) != 1 ||
             SSL_set_max_proto_version(conn->ssl, TLS1_3_VERSION) != 1 ||

@@ -772,6 +772,7 @@ namespace
     // holding mutex, so it may call back into the client.
     std::function<void(::tcp::ConnID)> on_client_close;
     std::function<void(SSL*)> client_handshake_hook;
+    std::function<void(SSL*)> server_handshake_hook;
     std::atomic<size_t> client_key_updates{0};
     std::atomic<size_t> server_key_updates{0};
     UVLoopRunner loop;
@@ -819,6 +820,10 @@ namespace
         std::lock_guard<std::mutex> guard(mutex);
         CHECK_FALSE(outgoing);
         ++server_handshakes;
+        if (server_handshake_hook)
+        {
+          server_handshake_hook(ssl);
+        }
         sockaddr_in peer{};
         socklen_t size = sizeof(peer);
         CHECK(
@@ -1058,6 +1063,31 @@ namespace
       pair.wait([&]() { return pair.received.size() == data.size() + 2; }));
     CHECK(pair.client_key_updates == 1);
     CHECK(pair.server_key_updates == 1);
+  }
+
+  TEST_CASE(
+    "Sending-key policy excludes inherited post-handshake authentication")
+  {
+    std::optional<TrafficKeyPolicy> policy = TrafficKeyPolicy{};
+    SUBCASE("Opted in") {}
+    SUBCASE("Default behavior")
+    {
+      policy.reset();
+    }
+    EnginePair pair(std::nullopt, policy);
+    pair.reply = false;
+    SSL_CTX_set_post_handshake_auth(pair.client_ctx.get(), 1);
+    pair.server_handshake_hook = [&](SSL* ssl) {
+      REQUIRE(SSL_version(ssl) == TLS1_3_VERSION);
+      SSL_set_verify(ssl, SSL_VERIFY_PEER, nullptr);
+      CHECK(SSL_verify_client_post_handshake(ssl) == (policy ? 0 : 1));
+      ERR_clear_error();
+    };
+    REQUIRE(pair.client->connect(pair.config()).has_value());
+    pair.loop.start();
+    REQUIRE(pair.wait([&]() {
+      return pair.client_handshakes == 1 && pair.server_handshakes == 1;
+    }));
   }
 
   TEST_CASE("Sending-key policy retries negotiated small records safely")
