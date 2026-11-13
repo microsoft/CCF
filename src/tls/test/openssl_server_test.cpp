@@ -1060,6 +1060,44 @@ namespace
     CHECK(pair.server_key_updates == 1);
   }
 
+  TEST_CASE("Sending-key policy retries negotiated small records safely")
+  {
+    TrafficWriteGate gate;
+    gate.updates_only = false;
+    auto blocked = gate.blocked.get_future();
+    EnginePair pair(std::nullopt, TrafficKeyPolicy{.record_budget = 2});
+    REQUIRE(
+      SSL_CTX_set_tlsext_max_fragment_length(
+        pair.client_ctx.get(), TLSEXT_max_fragment_length_512) == 1);
+    pair.client_handshake_hook = [&](SSL* ssl) {
+      REQUIRE(
+        SSL_SESSION_get_max_fragment_length(SSL_get_session(ssl)) ==
+        TLSEXT_max_fragment_length_512);
+      gate.install(ssl);
+    };
+    const auto id = pair.client->connect(pair.config());
+    if (!id)
+    {
+      FAIL("Failed to queue connection");
+      return;
+    }
+    const std::vector<uint8_t> data(4096, 42);
+    pair.client->send(*id, data.data(), data.size());
+    pair.loop.start();
+    REQUIRE(
+      blocked.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    gate.block = false;
+    REQUIRE(
+      pair.wait([&]() { return pair.received.size() == data.size() + 2; }));
+    std::lock_guard lock(pair.mutex);
+    CHECK(pair.accepted_data == data);
+    CHECK(
+      std::vector<uint8_t>(pair.received.begin() + 2, pair.received.end()) ==
+      data);
+    CHECK(pair.client_key_updates >= 7);
+    CHECK(pair.server_key_updates >= 7);
+  }
+
   TEST_CASE("Sending-key policy aborts a blocked update without retrying it")
   {
     TrafficWriteGate gate;

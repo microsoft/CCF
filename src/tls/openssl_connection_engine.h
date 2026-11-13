@@ -626,6 +626,22 @@ namespace ccf::tls
       c.out_off = 0;
     }
 
+    // Keep retries within one record, including a peer-negotiated fragment cap.
+    static size_t max_record_plaintext(const SSL* ssl)
+    {
+      const SSL_SESSION* session = SSL_get_session(ssl);
+      const uint8_t mode = session != nullptr ?
+        SSL_SESSION_get_max_fragment_length(session) :
+        TLSEXT_max_fragment_length_DISABLED;
+      if (
+        mode >= TLSEXT_max_fragment_length_512 &&
+        mode <= TLSEXT_max_fragment_length_4096)
+      {
+        return size_t{512} << (mode - TLSEXT_max_fragment_length_512);
+      }
+      return read_chunk;
+    }
+
     bool update_traffic_keys(Conn& connection)
     {
       ERR_clear_error();
@@ -693,7 +709,9 @@ namespace ccf::tls
         const size_t remaining = c.outbuf.size() - c.out_off;
         const size_t length = c.write_retry_length != 0 ?
           c.write_retry_length :
-          std::min(remaining, c.traffic_keys ? read_chunk : size_t{INT_MAX});
+          std::min(
+            remaining,
+            c.traffic_keys ? max_record_plaintext(c.ssl) : size_t{INT_MAX});
         const int n = SSL_write(
           c.ssl, c.outbuf.data() + c.out_off, static_cast<int>(length));
         const int e = n > 0 ? SSL_ERROR_NONE : SSL_get_error(c.ssl, n);

@@ -95,6 +95,7 @@ The internal ``Config::traffic_key_policy`` option on the engine, server and cli
 It is unset by default and adds no node configuration or operator option.
 OpenSSL already implements KeyUpdate, but ordinary TLS connections do not automatically initiate updates based on key usage.
 The policy counts outgoing encrypted records, not application messages or write calls, and reserves one old-key record for KeyUpdate itself.
+Application writes are capped at the negotiated record size so that retries cannot construct additional records without another budget check.
 Its internal ``record_budget`` defaults to 2^20 and accepts 2 through 2^24, below the AES-GCM bound in RFC 8446 section 5.5.
 Peer key-usage policy is not enforced; incoming KeyUpdates remain OpenSSL's responsibility.
 
