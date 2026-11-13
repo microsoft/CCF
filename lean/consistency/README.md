@@ -89,7 +89,7 @@ lake build --wfail consistency-replay
 It uses `become_leader`, `send_request_vote`, `replicate` and `commit`, and skips other events.
 Elections are then observed, not reconstructed: a new leader's view starts from the ledger prefix that it reported when requesting votes.
 Every ledger entry is replayed as a write, which a node's `commit` reports committed.
-A `tx_status` record adds a status given to a client, which nodes do not trace; only `Invalid` is replayed.
+A `tx_status` record adds a status given to a client, which nodes do not trace; only `Invalid` is accepted.
 
 [`tests/partitions_test.py`](../../tests/partitions_test.py) records and replays such a trace for each of its networks when `CCF_LEAN_CONSISTENCY_REPLAYER` names the replayer, using [`tests/infra/consistency_trace.py`](../../tests/infra/consistency_trace.py).
 Each trace is written to the test workspace, named after its group, such as `basic_partitions_consistency_trace.ndjson`:

@@ -208,7 +208,6 @@ jobs:
       - name: "Build Lean consistency trace replayer"
         run: |
           set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           curl --proto '=https' --tlsv1.2 -sSf \
             https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
             -o /tmp/elan-init.sh

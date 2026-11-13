@@ -19,7 +19,7 @@ private def nat (record : Json) (field : String) : Except String Nat :=
   (record.getObjVal? field).bind Json.getNat?
 
 private def tx (record : Json) : Except String Nat :=
-  nat record "tx"
+  (record.getObjVal? "tx").bind Json.getNat?
 
 private def txid (record : Json) : Except String TxID := do
   let values ← (record.getObjVal? "tx_id").bind Json.getArr?
@@ -113,7 +113,7 @@ def replayRecord (state : State) (record : Json) : Except String State := do
 
 /-- State for replaying consensus traces: the model state, and each node's latest vote
 request as (node, view, last committable sequence number, view of that entry). -/
-structure Replay where
+private structure Replay where
   model : State := initialState
   votes : List (String × Nat × Nat × Nat) := []
 
