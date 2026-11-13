@@ -80,6 +80,8 @@ namespace
   // Installed only while the test owns all threads using the gate.
   std::atomic<NotificationGate*> notification_gate = nullptr;
   std::atomic<NotificationGate*> handshake_gate = nullptr;
+  std::atomic<NotificationGate*> shutdown_gate = nullptr;
+  std::atomic<size_t> shutdown_want_writes = 0;
   std::atomic<bool> suppress_connect_poll = false;
   std::atomic<size_t> suppressed_connect_polls = 0;
   std::atomic<size_t> socket_calls = 0;
@@ -110,6 +112,24 @@ namespace
 }
 
 extern "C" int __real_SSL_do_handshake(SSL* ssl);
+
+extern "C" int __real_SSL_shutdown(SSL* ssl);
+
+extern "C" int __wrap_SSL_shutdown(SSL* ssl)
+{
+  const int result = __real_SSL_shutdown(ssl);
+  if (auto* gate = shutdown_gate.load())
+  {
+    if (result < 0 && SSL_get_error(ssl, result) == SSL_ERROR_WANT_WRITE)
+    {
+      ++shutdown_want_writes;
+    }
+    ccf::ds::MutexGuard guard(gate->mutex);
+    ++gate->calls;
+    gate->cv.notify_all();
+  }
+  return result;
+}
 
 extern "C" int __wrap_SSL_do_handshake(SSL* ssl)
 {
@@ -3369,6 +3389,150 @@ TEST_CASE("Graceful close flushes buffered response without truncation")
   REQUIRE(resp == payload);
 
   mgr.stop(OpenSSLServer::LoopState::Running);
+}
+
+TEST_CASE("Graceful TLS close retries close_notify after socket backpressure")
+{
+  using namespace std::chrono_literals;
+  enum class Close
+  {
+    Resume,
+    Idle,
+    Stop
+  } close = Close::Resume;
+  SUBCASE("Peer resumes reading") {}
+  SUBCASE("Idle expiry interrupts shutdown")
+  {
+    close = Close::Idle;
+  }
+  SUBCASE("Engine stop interrupts shutdown")
+  {
+    close = Close::Stop;
+  }
+  auto [cert, key] = make_server_cert();
+  std::shared_ptr<SSL_CTX> context(
+    SSL_CTX_new(TLS_server_method()), SSL_CTX_free);
+  REQUIRE(context != nullptr);
+  ccf::crypto::OpenSSL::Unique_BIO cert_bio(
+    cert.data(), static_cast<int>(cert.size()));
+  ccf::crypto::OpenSSL::Unique_X509 x509(cert_bio, true);
+  ccf::crypto::OpenSSL::Unique_BIO key_bio(
+    key.data(), static_cast<int>(key.size()));
+  ccf::crypto::OpenSSL::Unique_PKEY pkey(
+    PEM_read_bio_PrivateKey(key_bio, nullptr, nullptr, nullptr), EVP_PKEY_free);
+  REQUIRE(SSL_CTX_use_certificate(context.get(), x509) == 1);
+  REQUIRE(SSL_CTX_use_PrivateKey(context.get(), pkey) == 1);
+  REQUIRE(SSL_CTX_set_num_tickets(context.get(), 0) == 1);
+
+  int sockets[2] = {-1, -1};
+  REQUIRE(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) == 0);
+  REQUIRE(fcntl(sockets[0], F_SETFL, O_NONBLOCK) == 0);
+  const int send_buffer = 4096;
+  REQUIRE(
+    setsockopt(
+      sockets[0], SOL_SOCKET, SO_SNDBUF, &send_buffer, sizeof(send_buffer)) ==
+    0);
+  timeval timeout{.tv_sec = 5, .tv_usec = 0};
+  REQUIRE(
+    setsockopt(
+      sockets[1], SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == 0);
+
+  const std::vector<uint8_t> payload(7 * 512, 42);
+  NotificationGate gate;
+  shutdown_want_writes = 0;
+  shutdown_gate = &gate;
+  NotificationGate closed;
+  UVLoopRunner loop;
+  std::shared_ptr<OpenSSLConnectionEngine> engine;
+  engine = std::make_shared<OpenSSLConnectionEngine>(
+    OpenSSLConnectionEngine::Config{
+      .idle_timeout = 1s,
+      .on_handshake =
+        [&](::tcp::ConnID id, SSL* ssl, bool) {
+          // Small records fill the Unix socket's send queue completely.
+          CHECK(SSL_set_max_send_fragment(ssl, 512) == 1);
+          engine->send(id, payload.data(), payload.size());
+          engine->close_connection(id);
+          return true;
+        }},
+    [](::tcp::ConnID, std::vector<uint8_t>, const std::vector<uint8_t>&, bool) {
+      FAIL("Unexpected application input");
+    },
+    [&](::tcp::ConnID) {
+      ccf::ds::MutexGuard guard(closed.mutex);
+      ++closed.calls;
+      closed.cv.notify_all();
+    });
+
+  struct Cleanup
+  {
+    std::shared_ptr<OpenSSLConnectionEngine> engine;
+    UVLoopRunner& loop;
+    int peer_fd;
+
+    ~Cleanup()
+    {
+      engine->stop(
+        loop.thread.joinable() ?
+          OpenSSLConnectionEngine::LoopState::Running :
+          OpenSSLConnectionEngine::LoopState::NotRunning);
+      shutdown_gate = nullptr;
+      ::close(peer_fd);
+    }
+  } cleanup{engine, loop, sockets[1]};
+
+  engine->start();
+  REQUIRE(engine->adopt({.id = 1, .fd = sockets[0], .tls_context = context}));
+  loop.start();
+
+  std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)> peer_context(
+    SSL_CTX_new(TLS_client_method()), SSL_CTX_free);
+  REQUIRE(peer_context != nullptr);
+  std::unique_ptr<SSL, decltype(&SSL_free)> peer(
+    SSL_new(peer_context.get()), SSL_free);
+  REQUIRE(peer != nullptr);
+  REQUIRE(SSL_set_fd(peer.get(), sockets[1]) == 1);
+  REQUIRE(SSL_connect(peer.get()) == 1);
+  REQUIRE(gate.wait_for_calls(1));
+  REQUIRE(shutdown_want_writes > 0);
+
+  if (close == Close::Idle)
+  {
+    REQUIRE(closed.wait_for_calls(1));
+  }
+  else if (close == Close::Stop)
+  {
+    engine->stop(OpenSSLConnectionEngine::LoopState::Running);
+    CHECK(closed.call_count() == 1);
+  }
+
+  std::vector<uint8_t> received;
+  std::array<uint8_t, 4096> buffer{};
+  int result = 0;
+  do
+  {
+    ERR_clear_error();
+    result = SSL_read(peer.get(), buffer.data(), buffer.size());
+    if (result > 0)
+    {
+      received.insert(received.end(), buffer.data(), buffer.data() + result);
+    }
+  } while (result > 0);
+  const int error = SSL_get_error(peer.get(), result);
+  INFO(ccf::crypto::OpenSSL::first_error());
+  if (close == Close::Resume)
+  {
+    CHECK(error == SSL_ERROR_ZERO_RETURN);
+    CHECK((SSL_get_shutdown(peer.get()) & SSL_RECEIVED_SHUTDOWN) != 0);
+    CHECK(gate.wait_for_calls(2));
+  }
+  else
+  {
+    CHECK(error == SSL_ERROR_SSL);
+  }
+  CHECK(received == payload);
+  engine->stop(OpenSSLConnectionEngine::LoopState::Running);
+  CHECK(closed.call_count() == 1);
 }
 
 // Multiple sequential requests on a single kept-alive TLS connection - the node

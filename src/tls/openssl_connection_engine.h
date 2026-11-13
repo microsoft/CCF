@@ -156,7 +156,8 @@ namespace ccf::tls
       enum State : uint8_t
       {
         Handshaking,
-        Ready
+        Ready,
+        ShuttingDown
       } state = Handshaking;
 
       std::vector<uint8_t> peer_cert;
@@ -164,7 +165,7 @@ namespace ccf::tls
       std::vector<uint8_t> outbuf;
       size_t out_off = 0;
       // True when progress needs the socket to become writable (handshake
-      // wants write, or there is buffered outbound data).
+      // wants write, there is buffered outbound data, or shutdown wants write).
       bool want_write = false;
       // A close was requested but is deferred until the buffered output has
       // been fully written, so a response queued just before close is not
@@ -230,16 +231,23 @@ namespace ccf::tls
       return inbound_admission != nullptr && inbound_admission->saturated();
     }
 
-    // The subset of a connection's pending events which may be acted on now.
-    // Read interest is withheld while the node holds more unprocessed inbound
-    // data than it is willing to.
-    [[nodiscard]] int actionable_events(const Conn& c) const
+    [[nodiscard]] int desired_events(const Conn& c) const
     {
+      if (c.state == Conn::ShuttingDown)
+      {
+        return c.want_write ? UV_WRITABLE : UV_READABLE;
+      }
+      int events = c.want_write ? UV_WRITABLE : 0;
       if (!inbound_saturated())
       {
-        return c.pending_events;
+        events |= UV_READABLE;
       }
-      return c.pending_events & ~UV_READABLE;
+      return events;
+    }
+
+    [[nodiscard]] int actionable_events(const Conn& c) const
+    {
+      return c.pending_events & (desired_events(c) | UV_DISCONNECT);
     }
 
     // Cross-thread outbound queue: send()/close_connection() append here from
@@ -327,11 +335,7 @@ namespace ccf::tls
       {
         return;
       }
-      int events = c.want_write ? UV_WRITABLE : 0;
-      if (!inbound_saturated())
-      {
-        events |= UV_READABLE;
-      }
+      const int events = desired_events(c);
       if (events == c.polled_events)
       {
         return;
@@ -660,6 +664,27 @@ namespace ccf::tls
       notify_loop();
     }
 
+    // Keep the connection alive only while sending close_notify would block.
+    bool do_shutdown(Conn& c)
+    {
+      ERR_clear_error();
+      const int r = SSL_shutdown(c.ssl);
+      if (r >= 0)
+      {
+        // The alert was sent. Do not wait for the peer's reciprocal alert.
+        return false;
+      }
+      const int e = SSL_get_error(c.ssl, r);
+      if (e == SSL_ERROR_WANT_WRITE || e == SSL_ERROR_WANT_READ)
+      {
+        c.want_write = e == SSL_ERROR_WANT_WRITE;
+        return true;
+      }
+      LOG_DEBUG_FMT(
+        "Connection {}: shutdown failed: {}", c.id, ssl_error_string(e));
+      return false;
+    }
+
     void drive_connection(std::shared_ptr<Conn> conn, DriveInput input)
     {
       if (
@@ -734,37 +759,44 @@ namespace ccf::tls
         conn->close_after_flush = true;
       }
 
-      if (conn->state == Conn::Handshaking)
+      if (conn->state != Conn::ShuttingDown)
       {
-        alive = do_handshake(*conn, more_to_read);
-      }
-      else
-      {
-        if ((input.events & (UV_READABLE | UV_DISCONNECT)) != 0)
+        if (conn->state == Conn::Handshaking)
         {
-          alive = do_read(*conn, more_to_read);
+          alive = do_handshake(*conn, more_to_read);
         }
-        if (alive)
+        else
         {
-          alive = do_write(*conn);
+          if ((input.events & (UV_READABLE | UV_DISCONNECT)) != 0)
+          {
+            alive = do_read(*conn, more_to_read);
+          }
+          if (alive)
+          {
+            alive = do_write(*conn);
+          }
+        }
+
+        if (!alive && conn->ssl != nullptr)
+        {
+          ERR_clear_error();
+          (void)SSL_shutdown(conn->ssl);
+        }
+        else if (
+          alive && conn->close_after_flush &&
+          conn->out_off >= conn->outbuf.size())
+        {
+          conn->state = Conn::ShuttingDown;
         }
       }
 
-      if (
-        alive && conn->close_after_flush &&
-        conn->out_off >= conn->outbuf.size())
+      if (conn->state == Conn::ShuttingDown)
       {
-        alive = false;
-      }
-      if (input.force_close)
-      {
-        // Shutdown and idle expiry do not wait for buffered output to drain.
-        alive = false;
+        more_to_read = false;
+        alive = conn->ssl != nullptr && do_shutdown(*conn);
       }
       if (!alive && conn->ssl != nullptr)
       {
-        ERR_clear_error();
-        (void)SSL_shutdown(conn->ssl);
         SSL_free(conn->ssl);
         conn->ssl = nullptr;
       }
@@ -953,7 +985,7 @@ namespace ccf::tls
         }
         conn->worker_active = false;
         conn->last_active = completion.last_active;
-        if (conn->state == Conn::Ready)
+        if (conn->state != Conn::Handshaking)
         {
           conn->handshake_deadline.reset();
         }
