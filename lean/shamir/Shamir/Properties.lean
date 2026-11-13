@@ -174,8 +174,8 @@ theorem recovery_returns_secret_witness
 /-- Recovery returns for any inputs, and succeeds exactly on a nonempty selection of distinct
 coordinates with a workspace entry per share.
 
-Recovery shares are not authenticated, so this covers every input, including repeated,
-noncanonical and zero coordinates. -/
+The member who submits a recovery share is authenticated, but the contents of the share are not
+validated, so this covers every input, including repeated, noncanonical and zero coordinates. -/
 theorem recovery_succeeds_iff
     : ∀ (s : Slice ccf_shamir.Share) (w : Slice U64) (secret : Array U32 10#usize),
         ccf_shamir.recover s w secret
