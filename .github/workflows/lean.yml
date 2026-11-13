@@ -9,6 +9,7 @@ on:
       - "tests/cft_trace*.py"
       - "tests/cft_scenarios*.py"
       - "tests/cft_scenarios/**"
+      - "tests/cft_model/**"
       - "src/consensus/aft/**"
       - "src/kv/**"
       - "include/ccf/kv/**"
@@ -68,7 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          cmake -S . -B "$RUNNER_TEMP/cft-build" -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON
+          cmake -S . -B "$RUNNER_TEMP/cft-build" -GNinja -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DCFT_MODEL_DRIVER=ON
           cmake --build "$RUNNER_TEMP/cft-build" --target cft_driver --parallel "$(( ($(nproc) + 1) >> 1 ))"
           # RUNNER_TEMP can persist between jobs on reused self-hosted runners; drop files from earlier runs.
           rm -rf "$RUNNER_TEMP/cft-build/consensus/raw"
@@ -83,6 +84,13 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           overwrite: true
+
+      # cft_model_driver also links the consensus model, which lake builds.
+      - name: Run scenarios with the consensus model
+        run: |
+          set -euo pipefail
+          cmake --build "$RUNNER_TEMP/cft-build" --target cft_model_test --parallel "$(( ($(nproc) + 1) >> 1 ))"
+          ctest --test-dir "$RUNNER_TEMP/cft-build" -VV -R "^cft_model_test$" --no-tests=error
 
   kv_traces:
     name: KV trace captures

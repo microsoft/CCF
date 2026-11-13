@@ -1,0 +1,51 @@
+{
+  "version": "1.3.0",
+  "packagesDir": ".lake/packages",
+  "packages": [
+    {
+      "type": "path",
+      "scope": "",
+      "name": "consensus",
+      "manifestFile": "lake-manifest.json",
+      "inherited": false,
+      "dir": "../../lean/consensus",
+      "copy": false,
+      "configFile": "lakefile.toml"
+    },
+    {
+      "type": "path",
+      "scope": "",
+      "name": "cft",
+      "manifestFile": "lake-manifest.json",
+      "inherited": false,
+      "dir": "../cft_scenarios",
+      "copy": false,
+      "configFile": "lakefile.toml"
+    },
+    {
+      "url": "https://github.com/duckki/leanfmt.git",
+      "type": "git",
+      "subDir": null,
+      "scope": "",
+      "rev": "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef",
+      "name": "leanfmt",
+      "manifestFile": "lake-manifest.json",
+      "inputRev": "65d69c8dc2dfd0aa69fd4132d48f38b7af9a57ef",
+      "inherited": true,
+      "configFile": "lakefile.toml"
+    },
+    {
+      "type": "path",
+      "scope": "",
+      "name": "ccf_common",
+      "manifestFile": "lake-manifest.json",
+      "inherited": true,
+      "dir": "../../lean/consensus/../common",
+      "copy": false,
+      "configFile": "lakefile.toml"
+    }
+  ],
+  "name": "cft_model",
+  "lakeDir": ".lake",
+  "fixedToolchain": false
+}

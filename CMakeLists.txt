@@ -1312,6 +1312,82 @@ if(BUILD_TESTS)
       )
     endif()
 
+    # Consensus model driver: the scenario driver, linked also with the Lean
+    # model of the protocol, which replays the trace of a scenario in the
+    # process which runs it. Opt-in, because lake then builds the model, and
+    # fetches the formatter which the package of the model requires.
+    option(
+      CFT_MODEL_DRIVER
+      "Build cft_model_driver, which runs consensus scenarios with the Lean model"
+      OFF
+    )
+    if(CFT_MODEL_DRIVER)
+      if(NOT LAKE)
+        message(
+          FATAL_ERROR
+          "CFT_MODEL_DRIVER needs lake. Install Lean (https://lean-lang.org/install/)."
+        )
+      endif()
+
+      set(CFT_MODEL_DIR ${CMAKE_SOURCE_DIR}/tests/cft_model)
+      set(
+        CFT_MODEL_LIBRARIES
+        ${CFT_MODEL_DIR}/.lake/build/lib/libcft__model_ModelDriver.a
+        ${CMAKE_SOURCE_DIR}/lean/consensus/.lake/build/lib/libconsensus_Consensus.a
+        ${CMAKE_SOURCE_DIR}/lean/common/.lake/build/lib/libccf__common_CCF.a
+      )
+      add_custom_target(
+        cft_model
+        COMMAND
+          ${LAKE} build ModelDriver:static @consensus/Consensus:static
+          @ccf_common/CCF:static
+        WORKING_DIRECTORY ${CFT_MODEL_DIR}
+        BYPRODUCTS ${CFT_MODEL_LIBRARIES}
+        COMMENT "Building consensus model driver"
+        VERBATIM
+      )
+      # lake builds the scenarios for this package too, so never at once
+      add_dependencies(cft_model cft_scenarios)
+
+      add_executable(
+        cft_model_driver
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
+      )
+      add_dependencies(cft_model_driver cft_model)
+      add_san(cft_model_driver)
+      add_warning_checks(cft_model_driver)
+      enable_coverage(cft_model_driver)
+      # As for cft_driver. The model driver library comes first, so that its
+      # main is linked, and not that of the scenario library.
+      target_link_libraries(
+        cft_model_driver
+        PRIVATE
+          ${CFT_MODEL_LIBRARIES}
+          ${CFT_SCENARIOS_LIBRARY}
+          ccfcrypto
+          ccf_tasks
+          gcc_s
+          ${LEAN_SYSROOT}/lib/lean/libleanshared.so
+      )
+      target_include_directories(cft_model_driver PRIVATE src/consensus/aft)
+      target_include_directories(
+        cft_model_driver
+        SYSTEM
+        PRIVATE ${LEAN_SYSROOT}/include
+      )
+
+      add_test(NAME cft_model_test COMMAND cft_model_driver --all)
+      add_test_target(cft_model_test cft_model_driver)
+      if(COVERAGE)
+        # One process per scenario, as for cft_scenario_test
+        set_property(
+          TEST cft_model_test
+          APPEND
+          PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=cft_model-%p.profraw"
+        )
+      endif()
+    endif()
+
     add_test(
       NAME csr_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/certs.py ./kp_cert_test

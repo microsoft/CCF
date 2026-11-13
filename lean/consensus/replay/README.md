@@ -65,6 +65,8 @@ To replay a saved trace in this way:
 
 This reports the trace as replay of the whole trace does, and exits with status 3 if that gives another result.
 
+The [consensus model driver](../../../tests/cft_model/README.md) is such a program: it links the driver with replay, and replays each command of a run as soon as the driver has run it.
+
 ## Replay contract
 
 Every protocol event must match a named rule; bootstrap selects the initial singleton membership.
@@ -91,6 +93,7 @@ Native code does not trace the `propose_request_vote` send that follows `step_do
 - [`ReplayDelivery.lean`](../Consensus/Tests/ReplayDelivery.lean): delivery selection among equal rendered packets.
 - [`ReplayOutcomes.lean`](../Consensus/Tests/ReplayOutcomes.lean): outcomes of chosen steps, and the report of several traces.
 - [`ReplaySession.lean`](../Consensus/Tests/ReplaySession.lean): replay by command against replay of the whole trace, and the model state between commands.
+- [`ModelDriver.lean`](../../../tests/cft_model/ModelDriver.lean): the consensus model driver, which replays the scenarios in the process which runs them.
 - [`cft_scenarios_runner.py`](../../../tests/cft_scenarios_runner.py): existing native scenario runner and capture generation.
 
 See [failure fixtures](fixtures/README.md) for examples and expected diagnostics.

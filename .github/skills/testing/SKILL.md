@@ -27,6 +27,9 @@ Labels include `unit`, `e2e`, `partitions`, `perf`, `benchmark`, `cft_scenario`,
 
 `cft_scenario_test` runs the [consensus scenarios](../../../tests/cft_scenarios/README.md), Lean programs linked into `cft_driver`. If CMake cannot find `lake` when configuring, it does not build `cft_driver` and disables the test; install Lean and reconfigure rather than reporting the disabled test as passing.
 
+`cft_model_test` runs the same scenarios with the [consensus model driver](../../../tests/cft_model/README.md), which replays each trace against the Lean model of the protocol in the process which records it.
+CMake registers it only when configured with `-DCFT_MODEL_DRIVER=ON`.
+
 The release workflow sets `CCF_USE_RELEASED_PYTHON_PACKAGE=1` so `tests.sh`, installed-package tests, and sandboxes install the latest released `ccf` package from PyPI with `uv pip install --upgrade --reinstall-package ccf ccf`, replacing any previously installed editable SDK.
 Without this flag, development and normal CI tests retain their editable local SDK installation.
 Installed sandboxes still default to the SDK version matching the installed CCF release.

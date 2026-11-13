@@ -1,0 +1,18 @@
+name = "cft_model"
+version = "0.1.0"
+moreLeanArgs = ["-DwarningAsError=true"]
+leanOptions = { autoImplicit = false }
+defaultTargets = ["ModelDriver"]
+
+[[require]]
+name = "cft"
+path = "../cft_scenarios"
+copy = false
+
+[[require]]
+name = "consensus"
+path = "../../lean/consensus"
+copy = false
+
+[[lean_lib]]
+name = "ModelDriver"

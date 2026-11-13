@@ -248,6 +248,10 @@ private def checkPacket (packet : Json) (message : Model.Node.Message)
   unless missing.isEmpty do
     throw s!"packet lacks fields {missing}"
 
+/-- Whether a native packet is the rendering of a model message. -/
+def packetMatches (packet : Json) (message : Model.Node.Message) : Bool :=
+  (checkPacket packet message).isOk
+
 /-- The first matching envelope, else the first with the same `msg`, to diagnose a mismatch. -/
 private def closest (packet : Json) (envelopes : List Envelope) : Option Envelope :=
   envelopes.find? (fun envelope => (checkPacket packet envelope.payload).isOk)

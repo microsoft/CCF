@@ -63,6 +63,7 @@ Each replayer consumes traces produced by existing C++ tests:
 * **Consensus**: the ``cft_scenario_test`` test runs :ccf_repo:`tests/cft_scenarios_runner.py`, which executes each scenario in :ccf_repo:`tests/cft_scenarios/Scenarios/` with the ``cft_driver`` binary.
   The scenarios are Lean programs, which drive the implementation through the bindings in :ccf_repo:`tests/cft_scenarios/CftDriver.lean` and :ccf_repo:`src/consensus/aft/test/driver.cpp`; see :ccf_repo:`tests/cft_scenarios/README.md`.
   The driver exports consensus events as Fluentd records with the ``ccf.cft`` tag, which the runner collects and writes as NDJSON traces to ``consensus/raw/`` in the build directory.
+  The ``cft_model_test`` test, built with ``-DCFT_MODEL_DRIVER=ON``, runs the same scenarios with ``cft_model_driver``, which links the driver with the replayer and replays each trace in the process which records it; see :ccf_repo:`tests/cft_model/README.md`.
 * **KV**: building with ``-DCCF_KV_TRACING=ON`` enables test-only trace capture in ``kv_test``.
   :ccf_repo:`tests/kv_trace_validation.py` captures the purpose-built ``KV trace *`` test cases and a seeded concurrent fuzzer, then checks every trace with ``kv-replay`` unless ``--capture-only`` is passed.
   Tracing is disabled in normal builds.
@@ -80,6 +81,7 @@ The :ccf_repo:`Lean workflow <.github/workflows/lean.yml>` runs on pull requests
 
 * A package job for each of ``common``, ``consensus``, ``consistency``, ``disaster-recovery`` and ``kv`` runs the kernel and axiom check (``lake check``), import coverage and architecture checks, formatting and linting, and, where applicable, the package's replay fixtures.
 * Separate capture jobs build CCF and record consensus, KV and consistency traces from the tests described above.
+  The consensus capture job also runs ``cft_model_test``.
 * Replay jobs build each replayer and validate every captured trace.
   The consensus replay job also reports which outcomes of the model's handlers the captured traces show, and which none shows; see :ccf_repo:`lean/consensus/replay/README.md`.
 * A final ``Lean models and proofs`` job succeeds only if all of the above succeed.
@@ -93,7 +95,8 @@ Running locally
 
 Install Lean with `elan <https://lean-lang.org/install/>`__.
 The Lean toolchain is pinned by :ccf_repo:`lean/lean-toolchain`, and the models are independent of normal CCF builds.
-The only part of a CCF build which needs Lean is ``cft_driver``; without Lean, it is not built and ``cft_scenario_test`` is disabled.
+The only part of a default CCF build which needs Lean is ``cft_driver``; without Lean, it is not built and ``cft_scenario_test`` is disabled.
+``cft_model_driver`` also needs Lean, and is built only with ``-DCFT_MODEL_DRIVER=ON``.
 From a package directory under ``lean/``, the common checks are:
 
 .. code-block:: bash
