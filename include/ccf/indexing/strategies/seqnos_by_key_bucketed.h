@@ -9,9 +9,9 @@
 namespace ccf::indexing::strategies
 {
   // Retains a trusted current bucket for every distinct key. Completed
-  // non-empty buckets and immutable directory pages are authenticated by LFS
+  // non-empty buckets and immutable manifest pages are authenticated by LFS
   // and fetched through bounded caches. Each key also retains an unfinished
-  // directory page; memory still grows with the number of distinct keys.
+  // manifest page; memory still grows with the number of distinct keys.
   class SeqnosByKey_Bucketed_Untyped : public VisitEachEntryInMap
   {
   protected:
@@ -38,7 +38,7 @@ namespace ccf::indexing::strategies
     void tick() override;
 
     // Inclusive queries with to - from above this limit are rejected.
-    // Directory lookup progresses across asynchronous retries independently
+    // Manifest lookup progresses across asynchronous retries independently
     // of file-cache eviction.
     [[nodiscard]] size_t max_requestable_range() const;
   };

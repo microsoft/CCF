@@ -268,8 +268,8 @@ Late first writes and gaps between writes do not create empty bucket files.
 
 When using this strategy:
 
-- Memory still grows with the number of distinct keys: each retains a current bucket and directory metadata, including up to 2 KiB of bucket numbers.
-- Disk storage includes one directory file per 256 completed non-empty buckets; queries for empty ranges may need additional metadata reads.
+- Memory still grows with the number of distinct keys: each retains a current bucket and bucket manifest metadata, including up to 2 KiB of bucket numbers.
+- Disk storage includes one manifest page per 256 completed non-empty buckets; queries for empty ranges may need additional metadata reads.
 - Queries use inclusive ranges, limited by ``max_requestable_range()``.
   Retry ``nullopt`` results: fetching is asynchronous, and missing or corrupt required files trigger rebuilding rather than partial answers.
 - Each node builds its own index and rebuilds it after restart.

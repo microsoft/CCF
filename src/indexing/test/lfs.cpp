@@ -757,7 +757,7 @@ public:
     ccf::indexing::LFSContents&& contents) override
   {
     stores.push_back(key);
-    (key.find(": directory ") == std::string::npos ? data_stores : page_stores)
+    (key.find(": manifest ") == std::string::npos ? data_stores : page_stores)
       .push_back(key);
     EnclaveLFSAccess::store(key, std::move(contents));
   }
@@ -765,8 +765,7 @@ public:
   ccf::indexing::FetchResultPtr fetch(const ccf::indexing::LFSKey& key) override
   {
     fetches.push_back(key);
-    (key.find(": directory ") == std::string::npos ? data_fetches :
-                                                     page_fetches)
+    (key.find(": manifest ") == std::string::npos ? data_fetches : page_fetches)
       .push_back(key);
     return EnclaveLFSAccess::fetch(key);
   }
@@ -1014,7 +1013,7 @@ TEST_CASE("Sparse bucket direct old-range lookup" * doctest::test_suite("lfs"))
   }
 }
 
-TEST_CASE("Sparse bucket in-memory directory gaps" * doctest::test_suite("lfs"))
+TEST_CASE("Sparse bucket in-memory manifest gaps" * doctest::test_suite("lfs"))
 {
   ccf::tasks::JobBoard board;
   auto lfs = std::make_shared<CountingLFS>(board);
@@ -1177,7 +1176,7 @@ TEST_CASE(
       index.get_write_txs_in_range("fragmented", from, from + width);
     if (!result.has_value())
     {
-      CHECK(index.describe()["directory_searches_current_size"] == 0);
+      CHECK(index.describe()["manifest_searches_current_size"] == 0);
       REQUIRE(flush_lfs(board) > 0);
       result = index.get_write_txs_in_range("fragmented", from, from + width);
     }
@@ -1188,7 +1187,7 @@ TEST_CASE(
       expected.insert(seqno);
     }
     REQUIRE(check_seqnos(expected, result));
-    CHECK(index.describe()["directory_searches_current_size"] == 0);
+    CHECK(index.describe()["manifest_searches_current_size"] == 0);
     CHECK(index.describe()["old_results_current_size"] <= cache_slots);
 
     // Identical and overlapping ranges reuse the same bounded bucket cache.
@@ -1197,17 +1196,17 @@ TEST_CASE(
       expected,
       index.get_write_txs_in_range("fragmented", from, from + width)));
     CHECK(lfs->fetches.size() == fetches);
-    CHECK(index.describe()["directory_searches_current_size"] == 0);
+    CHECK(index.describe()["manifest_searches_current_size"] == 0);
   }
 }
 
-TEST_CASE("Sparse bucket paged directory costs" * doctest::test_suite("lfs"))
+TEST_CASE("Sparse bucket paged manifest costs" * doctest::test_suite("lfs"))
 {
   const std::pair<size_t, ccf::SeqNo> cases[] = {
     {4, 20}, {40, 20}, {40, 1'000'000}};
   for (auto [pages, gap] : cases)
   {
-    INFO("Directory pages: " << pages);
+    INFO("Manifest pages: " << pages);
     ccf::tasks::JobBoard board;
     auto lfs = std::make_shared<CountingLFS>(board);
     ccf::AbstractNodeContext context;
@@ -1238,8 +1237,8 @@ TEST_CASE("Sparse bucket paged directory costs" * doctest::test_suite("lfs"))
     REQUIRE(check_seqnos({}, result));
     CHECK(lfs->data_fetches.size() == 1);
     CHECK(lfs->page_fetches.size() == search_reads);
-    CHECK(index.describe()["directory_pages_current_size"] == 1);
-    CHECK(index.describe()["directory_searches_current_size"] == 0);
+    CHECK(index.describe()["manifest_pages_current_size"] == 1);
+    CHECK(index.describe()["manifest_searches_current_size"] == 0);
     const auto fetches = lfs->fetches.size();
     REQUIRE(check_seqnos({}, index.get_write_txs_in_range("sparse", 10, 10)));
     CHECK(lfs->fetches.size() == fetches);
@@ -1248,7 +1247,7 @@ TEST_CASE("Sparse bucket paged directory costs" * doctest::test_suite("lfs"))
   }
 }
 
-TEST_CASE("Sparse bucket directory boundaries" * doctest::test_suite("lfs"))
+TEST_CASE("Sparse bucket manifest boundaries" * doctest::test_suite("lfs"))
 {
   ccf::tasks::JobBoard board;
   auto lfs = std::make_shared<CountingLFS>(board);
@@ -1288,7 +1287,7 @@ TEST_CASE("Sparse bucket directory boundaries" * doctest::test_suite("lfs"))
 }
 
 TEST_CASE(
-  "Sparse bucket overlapping directory searches" * doctest::test_suite("lfs"))
+  "Sparse bucket overlapping manifest searches" * doctest::test_suite("lfs"))
 {
   ccf::tasks::JobBoard board;
   auto lfs = std::make_shared<CountingLFS>(board);
@@ -1319,7 +1318,7 @@ TEST_CASE(
   REQUIRE(check_seqnos({5101, 5121}, first));
   REQUIRE(check_seqnos({5101, 5121}, second));
   CHECK(lfs->data_fetches.size() == 4);
-  CHECK(index.describe()["directory_searches_current_size"] == 0);
+  CHECK(index.describe()["manifest_searches_current_size"] == 0);
   const auto fetches = lfs->fetches.size();
   REQUIRE(check_seqnos(
     {5101, 5121}, index.get_write_txs_in_range("key", 5091, 5121)));
@@ -1329,7 +1328,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "Sparse bucket directory sealing during a query" * doctest::test_suite("lfs"))
+  "Sparse bucket manifest sealing during a query" * doctest::test_suite("lfs"))
 {
   ccf::tasks::JobBoard board;
   auto lfs = std::make_shared<CountingLFS>(board);
@@ -1385,14 +1384,14 @@ TEST_CASE(
   }
 }
 
-TEST_CASE("Sparse bucket required directory pages" * doctest::test_suite("lfs"))
+TEST_CASE("Sparse bucket required manifest pages" * doctest::test_suite("lfs"))
 {
   for (const auto& fault :
        {"missing", "corrupt", "substituted", "wrong-key", "malformed"})
   {
     for (size_t target : {0, 1, 2})
     {
-      INFO("Directory fault " << fault << ", page " << target);
+      INFO("Manifest fault " << fault << ", page " << target);
       ccf::tasks::JobBoard board;
       auto lfs = std::make_shared<CountingLFS>(board);
       ccf::AbstractNodeContext context;
@@ -1469,7 +1468,7 @@ TEST_CASE("Sparse bucket required directory pages" * doctest::test_suite("lfs"))
 }
 
 TEST_CASE(
-  "Sparse bucket sealed directory requires data" * doctest::test_suite("lfs"))
+  "Sparse bucket sealed manifest requires data" * doctest::test_suite("lfs"))
 {
   for (bool corrupt : {false, true})
   {
@@ -1513,7 +1512,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "Sparse bucket directory configuration identity" * doctest::test_suite("lfs"))
+  "Sparse bucket manifest configuration identity" * doctest::test_suite("lfs"))
 {
   ccf::tasks::JobBoard board;
   auto lfs = std::make_shared<CountingLFS>(board);
@@ -1552,7 +1551,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-  "Sparse bucket inconsistent directory rebuilds" * doctest::test_suite("lfs"))
+  "Sparse bucket inconsistent manifest rebuilds" * doctest::test_suite("lfs"))
 {
   ccf::tasks::JobBoard board;
   auto lfs = std::make_shared<CountingLFS>(board);

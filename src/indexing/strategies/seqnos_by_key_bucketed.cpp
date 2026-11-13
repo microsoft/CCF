@@ -18,7 +18,7 @@ namespace ccf::indexing::strategies
   struct SeqnosByKey_Bucketed_Untyped::Impl
   {
   public:
-    static constexpr size_t DIRECTORY_PAGE_SIZE = 256;
+    static constexpr size_t MANIFEST_PAGE_SIZE = 256;
     const size_t seqnos_per_bucket;
     const size_t max_buckets;
 
@@ -27,7 +27,7 @@ namespace ccf::indexing::strategies
 
     // Inclusive begin, exclusive end
     using Range = std::pair<ccf::SeqNo, ccf::SeqNo>;
-    using DirectoryPage = std::vector<ccf::SeqNo>;
+    using ManifestPage = std::vector<ccf::SeqNo>;
 
     struct CurrentResult
     {
@@ -35,7 +35,7 @@ namespace ccf::indexing::strategies
       SeqNoCollection seqnos;
       size_t page_count = 0;
       std::optional<ccf::SeqNo> last_paged_bucket = std::nullopt;
-      DirectoryPage directory;
+      ManifestPage manifest;
     };
 
     // These trusted heads must not be evicted: absence means never written.
@@ -46,10 +46,10 @@ namespace ccf::indexing::strategies
     using PageKey = std::pair<ccf::ByteVector, size_t>;
     using BucketValue = std::pair<FetchResultPtr, SeqNoCollection>;
     LRU<BucketKey, BucketValue> old_results CCF_GUARDED_BY(results_access);
-    using PageValue = std::pair<FetchResultPtr, DirectoryPage>;
-    LRU<PageKey, PageValue> directory_pages CCF_GUARDED_BY(results_access);
+    using PageValue = std::pair<FetchResultPtr, ManifestPage>;
+    LRU<PageKey, PageValue> manifest_pages CCF_GUARDED_BY(results_access);
 
-    struct DirectorySearch
+    struct ManifestSearch
     {
       size_t low = 0;
       size_t high = 0;
@@ -57,7 +57,7 @@ namespace ccf::indexing::strategies
 
     // Only metadata search bounds survive retries. Data reads and parsed
     // buckets live exclusively in old_results, as in the original strategy.
-    LRU<BucketKey, DirectorySearch> directory_searches
+    LRU<BucketKey, ManifestSearch> manifest_searches
       CCF_GUARDED_BY(results_access);
 
     bool rebuild_requested CCF_GUARDED_BY(results_access) = false;
@@ -77,8 +77,8 @@ namespace ccf::indexing::strategies
       seqnos_per_bucket(seqnos_per_bucket_),
       max_buckets(max_buckets_),
       old_results(max_buckets_),
-      directory_pages(max_buckets_),
-      directory_searches(max_buckets_),
+      manifest_pages(max_buckets_),
+      manifest_searches(max_buckets_),
       name(std::move(name_)),
       lfs_access(lfs_access_),
       current_txid_lock(current_txid_lock_),
@@ -166,7 +166,7 @@ namespace ccf::indexing::strategies
     {
       const auto hex_key = ds::to_hex(pk.first.begin(), pk.first.end());
       return fmt::format(
-        "{}: directory {} ({} seqnos per bucket) for {}",
+        "{}: manifest {} ({} seqnos per bucket) for {}",
         name,
         pk.second,
         seqnos_per_bucket,
@@ -186,19 +186,18 @@ namespace ccf::indexing::strategies
       rebuild_requested = true;
     }
 
-    const DirectoryPage* load_page(
+    const ManifestPage* load_page(
       const PageKey& key, ccf::SeqNo last_paged_bucket)
       CCF_REQUIRES(results_access)
     {
-      auto cached = directory_pages.find(key);
-      if (cached == directory_pages.end())
+      auto cached = manifest_pages.find(key);
+      if (cached == manifest_pages.end())
       {
-        directory_pages.insert(
-          key, {lfs_access->fetch(get_page_name(key)), {}});
+        manifest_pages.insert(key, {lfs_access->fetch(get_page_name(key)), {}});
         return nullptr;
       }
 
-      directory_pages.promote(cached);
+      manifest_pages.promote(cached);
       auto& [fetch, contents] = cached->second;
       if (fetch == nullptr)
       {
@@ -211,21 +210,21 @@ namespace ccf::indexing::strategies
         return nullptr;
       }
 
-      std::optional<DirectoryPage> page;
+      std::optional<ManifestPage> page;
       if (status == FetchResult::FetchResultType::Loaded)
       {
-        page = deserialise(fetch->contents, DIRECTORY_PAGE_SIZE);
+        page = deserialise(fetch->contents, MANIFEST_PAGE_SIZE);
       }
 
       if (
-        !page.has_value() || page->size() != DIRECTORY_PAGE_SIZE ||
+        !page.has_value() || page->size() != MANIFEST_PAGE_SIZE ||
         page->back() > last_paged_bucket ||
         std::any_of(page->begin(), page->end(), [&](auto start) {
           return start % seqnos_per_bucket != 0;
         }))
       {
         LOG_FAIL_FMT(
-          "Required directory page unavailable: {}", get_page_name(key));
+          "Required manifest page unavailable: {}", get_page_name(key));
         rebuild();
         return nullptr;
       }
@@ -235,16 +234,16 @@ namespace ccf::indexing::strategies
       return &contents;
     }
 
-    std::optional<bool> directory_contains(
+    std::optional<bool> manifest_contains(
       const BucketKey& key, size_t page_count, ccf::SeqNo last_paged_bucket)
       CCF_REQUIRES(results_access)
     {
-      auto it = directory_searches.find(key);
-      if (it == directory_searches.end())
+      auto it = manifest_searches.find(key);
+      if (it == manifest_searches.end())
       {
-        it = directory_searches.insert(key, {0, page_count});
+        it = manifest_searches.insert(key, {0, page_count});
       }
-      directory_searches.promote(it);
+      manifest_searches.promote(it);
       auto& search = it->second;
       const auto start = key.second.first;
 
@@ -271,12 +270,12 @@ namespace ccf::indexing::strategies
         {
           const auto found =
             std::binary_search(page->begin(), page->end(), start);
-          directory_searches.erase(key);
+          manifest_searches.erase(key);
           return found;
         }
       }
 
-      directory_searches.erase(key);
+      manifest_searches.erase(key);
       return false;
     }
 
@@ -325,14 +324,14 @@ namespace ccf::indexing::strategies
         if (!head.last_paged_bucket.has_value())
         {
           LOG_FAIL_FMT(
-            "Cannot prove absence of bucket without a sealed directory: {}",
+            "Cannot prove absence of bucket without a sealed manifest: {}",
             get_blob_name(key));
           rebuild();
           return nullptr;
         }
 
         const auto present =
-          directory_contains(key, head.page_count, *head.last_paged_bucket);
+          manifest_contains(key, head.page_count, *head.last_paged_bucket);
         if (!present.has_value())
         {
           return nullptr;
@@ -347,7 +346,7 @@ namespace ccf::indexing::strategies
         return nullptr;
       }
 
-      // Only an authenticated directory search can turn a failed speculative
+      // Only an authenticated manifest search can turn a failed speculative
       // fetch into a cached empty bucket.
       fetch = nullptr;
       return &seqnos;
@@ -427,7 +426,7 @@ namespace ccf::indexing::strategies
         }
 
         const auto required = std::binary_search(
-          head.directory.begin(), head.directory.end(), range.first);
+          head.manifest.begin(), head.manifest.end(), range.first);
         if (
           !required &&
           (!head.last_paged_bucket.has_value() ||
@@ -475,8 +474,8 @@ namespace ccf::indexing::strategies
       ccf::ds::MutexGuard current_txid_guard(current_txid_lock);
       current_txid = {};
       impl->old_results.clear();
-      impl->directory_pages.clear();
-      impl->directory_searches.clear();
+      impl->manifest_pages.clear();
+      impl->manifest_searches.clear();
       impl->current_results.clear();
       impl->rebuild_requested = false;
     }
@@ -500,15 +499,15 @@ namespace ccf::indexing::strategies
       auto& head = it->second;
       impl->lfs_access->store(
         impl->get_blob_name({k, head.range}), Impl::serialise(head.seqnos));
-      head.directory.push_back(head.range.first);
-      if (head.directory.size() == Impl::DIRECTORY_PAGE_SIZE)
+      head.manifest.push_back(head.range.first);
+      if (head.manifest.size() == Impl::MANIFEST_PAGE_SIZE)
       {
         impl->lfs_access->store(
           impl->get_page_name({k, head.page_count}),
-          Impl::serialise(head.directory));
+          Impl::serialise(head.manifest));
         ++head.page_count;
-        head.last_paged_bucket = head.directory.back();
-        head.directory.clear();
+        head.last_paged_bucket = head.manifest.back();
+        head.manifest.clear();
       }
 
       head.range = range;
@@ -527,9 +526,9 @@ namespace ccf::indexing::strategies
       j["old_results_max_size"] = impl->old_results.get_max_size();
       j["old_results_current_size"] = impl->old_results.size();
       j["current_results_size"] = impl->current_results.size();
-      j["directory_page_size"] = Impl::DIRECTORY_PAGE_SIZE;
-      j["directory_pages_current_size"] = impl->directory_pages.size();
-      j["directory_searches_current_size"] = impl->directory_searches.size();
+      j["manifest_page_size"] = Impl::MANIFEST_PAGE_SIZE;
+      j["manifest_pages_current_size"] = impl->manifest_pages.size();
+      j["manifest_searches_current_size"] = impl->manifest_searches.size();
     }
     return j;
   }
