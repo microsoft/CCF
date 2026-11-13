@@ -134,6 +134,10 @@ Validating a token means checking its format, signature, and IdP- and app-specif
 
 Token signing keys are stored in the ``public:ccf.gov.jwt.public_signing_keys_metadata_v2`` kv map. The key is the key ID, matching the ``kid`` field in the token header, and the value is a list of metadata objects containing the public key, issuer, and optional constraint.
 
+Parsed signing keys are cached per thread, shared across JWT authentication policies on that thread, with at most 10 keys per thread.
+Signature verification does not take a shared cache lock.
+The cache is keyed by the public key DER read from the transaction, so key rotation and removal still take effect even if an old key remains cached.
+
 Extracting JWT metrics
 ----------------------
 
