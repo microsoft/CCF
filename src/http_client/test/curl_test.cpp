@@ -637,6 +637,9 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
       REQUIRE(response.has_value());
       CHECK(response->snapshot_name == "snapshot-test.committed");
       REQUIRE(response->snapshot_data.size() == DATA_SIZE);
+      // The buffer is sized for the whole snapshot after the first range,
+      // rather than grown as the remaining ranges arrive
+      CHECK(response->snapshot_data.capacity() == DATA_SIZE);
       CHECK(std::equal(
         expected_data.begin(),
         expected_data.end(),

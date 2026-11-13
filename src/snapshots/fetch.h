@@ -242,6 +242,7 @@ namespace ccf::snapshots
       size_t range_end = range_size;
       size_t inclusive_range_end = range_end - 1;
       bool fetched_all = false;
+      size_t snapshot_size = 0;
 
       auto process_partial_response =
         [&](const ccf::http_client::CurlRequest& request) {
@@ -268,6 +269,8 @@ namespace ccf::snapshots
               inclusive_range_end,
               content_range.inclusive_range_end));
           }
+
+          snapshot_size = content_range.total_size;
 
           const auto content_range_exclusive_range_end =
             content_range.inclusive_range_end + 1;
@@ -353,6 +356,15 @@ namespace ccf::snapshots
 
           response_body = std::move(request->get_response_ptr());
           curl_easy = std::move(request->get_easy_handle_ptr());
+
+          // The remaining ranges are appended to this buffer. Size it for the
+          // whole snapshot now: growing it as they arrive copies it into a
+          // buffer twice as large, briefly holding both copies. A snapshot
+          // larger than max_size is still rejected by the response size limit.
+          if (!fetched_all && snapshot_size <= max_size)
+          {
+            response_body->buffer.reserve(snapshot_size);
+          }
           break;
         }
 
