@@ -269,6 +269,7 @@ jobs:
           for trace in "$RUNNER_TEMP"/cft-scenario-traces/*.ndjson; do
             echo "::group::Validate $trace"
             lean/consensus/.lake/build/bin/consensus-replay "$trace"
+            lean/consensus/.lake/build/bin/consensus-replay --by-command "$trace"
             echo "::endgroup::"
           done
 

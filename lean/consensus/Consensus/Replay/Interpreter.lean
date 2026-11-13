@@ -353,8 +353,8 @@ structure Result where
   outcomes : Array Outcome
 deriving Repr, BEq
 
-def replay (header : Header) (instructions : Array Instruction)
-    : Except String Result := do
+/-- The declared nodes are distinct and sorted, and the initial members are among them. -/
+def Header.validate (header : Header) : Except String Unit := do
   unless !header.declared.isEmpty
           && header.declared.all (!·.isEmpty)
           && header.declared.eraseDups == header.declared do
@@ -366,15 +366,28 @@ def replay (header : Header) (instructions : Array Instruction)
   for node in header.bootstrap.sort do
     unless node < header.declared.length do
       throw s!"undeclared model node {node}"
-  if instructions.isEmpty then throw "replay instructions must not be empty"
-  let mut state : ReplayState := { state := header.initial }
-  let mut actions := 0
+
+/-- Run instructions in order. Diagnostics number them from `first`. -/
+def runInstructions (header : Header) (state : ReplayState)
+    (instructions : Array Instruction) (first : Nat := 1)
+    : Except String ReplayState := do
+  let mut state := state
   for instruction in instructions, index in [:instructions.size] do
     state ←
       (runInstruction header state instruction).mapError
         fun error =>
-          s!"instruction {index + 1} at {instruction.origin.label}: {error}"
-    if let .action .. := instruction then actions := actions + 1
+          s!"instruction {first + index} at {instruction.origin.label}: {error}"
+  return state
+
+def countActions (instructions : Array Instruction) : Nat :=
+  (instructions.filter (· matches .action ..)).size
+
+def replay (header : Header) (instructions : Array Instruction)
+    : Except String Result := do
+  header.validate
+  if instructions.isEmpty then throw "replay instructions must not be empty"
+  let state ← runInstructions header { state := header.initial } instructions
+  let actions := countActions instructions
   return {
     instructions := instructions.size,
     actions,
