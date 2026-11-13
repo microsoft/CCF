@@ -1091,7 +1091,7 @@ TEST_CASE("The PQ chain restarts after a service without a PQ identity")
   REQUIRE(services.write_version(IdentityType::PQ) == stale_pq_version);
   REQUIRE(services.write_version(IdentityType::CLASSICAL) != stale_pq_version);
 
-  INFO("The next PQ key cannot endorse the stale PQ key, so self-endorses");
+  INFO("The next service starts a new PQ chain with a self-endorsement");
   const TestIdentity next;
   services.open(next, {6, 20});
   require_self_endorsement(
