@@ -87,7 +87,7 @@ lake build --wfail consistency-replay
 
 `consistency-replay` also consumes the `ccf.cft` consensus trace events that nodes [export](../../doc/operations/configuration.rst), in records with a `msg` field ordered by timestamp.
 It uses `become_leader`, `send_request_vote`, `replicate` and `commit`, and skips other events.
-Elections are then observed, not reconstructed: a new leader's view starts from the ledger prefix that it reported when requesting votes.
+Nothing is reconstructed for these traces: a new leader's view starts from the ledger prefix that it reported when requesting votes, and a trace missing an election or a ledger entry is rejected.
 Every ledger entry is replayed as a write, which a node's `commit` reports committed.
 A `tx_status` record adds a status given to a client, which nodes do not trace; only `Invalid` is accepted.
 

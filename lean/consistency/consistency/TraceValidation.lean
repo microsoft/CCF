@@ -118,10 +118,10 @@ private structure Replay where
   votes : List (String × Nat × Nat × Nat) := []
 
 /-- Replay one `ccf.cft` consensus trace event exported by a node, or a transaction status
-reported to a client. Elections are observed, not reconstructed: a new leader keeps the
-prefix that it reported when requesting votes. Every ledger entry is replayed as a write,
-so that nodes can report it committed. Consensus events the model does not use are
-skipped. -/
+reported to a client. Nothing is reconstructed: a new leader keeps the prefix that it
+reported when requesting votes, and every ledger entry is replayed as a write, so that
+nodes can report it committed. A trace missing an election or an entry is rejected.
+Consensus events the model does not use are skipped. -/
 private def replayEvent (replay : Replay) (event : Json) : Except String Replay := do
   let model := replay.model
   let node := event.getObjVal? "state"
@@ -155,7 +155,6 @@ private def replayEvent (replay : Replay) (event : Json) : Except String Replay 
       let request := nextRequestId model.history
       let model ← apply model (.request .rw)
       let index ← requestIndex model .rw request
-      let model ← prepare model id (id.seqno - 1)
       let model ← apply model (.execute index id.view)
       let model ← checkResponse (← apply model (.respond index id.view id.seqno)) id
       return { replay with model }

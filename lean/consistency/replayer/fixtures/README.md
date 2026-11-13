@@ -39,6 +39,8 @@ Every [valid](valid) fixture must be accepted, and every [invalid](invalid) fixt
 | [Consensus stale commit](invalid/consensus-stale-commit.ndjson)   | Consensus trace: old leader commits a lost write   |
 | [Consensus invalid](invalid/consensus-invalid-committed.ndjson)   | Consensus trace: committed write reported invalid  |
 | [Consensus two leaders](invalid/consensus-two-leaders.ndjson)     | Consensus trace: second leader in the same view    |
+| [Consensus no election](invalid/consensus-no-election.ndjson)     | Consensus trace: entry in a view with no leader    |
+| [Consensus missing entry](invalid/consensus-missing-entry.ndjson) | Consensus trace: gap in a view's ledger entries    |
 
 From `lean/consistency`, inspect a failure directly (exit status 1 is expected):
 
