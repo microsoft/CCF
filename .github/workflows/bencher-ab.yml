@@ -135,7 +135,7 @@ jobs:
     name: Post performance summary
     needs: benchmark_pr
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       pull-requests: write
     steps:
