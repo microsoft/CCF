@@ -46,7 +46,7 @@ CCF requires Rust for attestation whichever Shamir backend is selected.
 [`Generated/CcfShamir.lean`](Generated/CcfShamir.lean) is extracted by Aeneas from the production, dependency-free Rust core, not a handwritten substitute.
 The same core crate is linked into `ccf-rs` and used by the C ABI.
 `#![forbid(unsafe_code)]` applies to the entire core.
-Raw-pointer conversion is confined to `src/rust/src/shamir.rs`; callers must supply live, aligned, nonoverlapping buffers of the declared lengths.
+Raw-pointer conversion is confined to `src/rust/src/shamir.rs`; callers must supply live, initialized, aligned, nonoverlapping buffers of the declared lengths, including the output buffers.
 The shim checks null pointers, alignment, length arithmetic, and overlap, but cannot establish allocation validity, initialized contents, lifetimes, or the absence of concurrent access.
 Those obligations remain with the C++ caller.
 The C header `src/crypto/sharing_ffi.h` is generated from those Rust declarations by cbindgen; CI checks that it matches the Rust signatures, layout, limb count, and status codes, and the adapter additionally checks the layout with `static_assert`.
