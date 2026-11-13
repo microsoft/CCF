@@ -397,9 +397,9 @@ class Network:
     def _finish_cft_trace(self):
         """Close the consensus trace recorder, if any, and write its capture.
 
-        The capture is complete only if every node stopped cleanly without
-        dropping trace events and every connection reached EOF. Otherwise it is
-        inconclusive, which never fails the test."""
+        The capture is complete only if every node recorded events, stopped
+        cleanly without dropping trace events, and every connection reached
+        EOF. Otherwise it is inconclusive, which never fails the test."""
         recorder, self.cft_recorder = self.cft_recorder, None
         if recorder is None:
             return
@@ -420,8 +420,10 @@ class Network:
             node_ids = [node.local_node_id for node in self.cft_trace_nodes]
             if len(set(node_ids)) < len(node_ids):
                 reasons.append(f"A node was configured more than once: {node_ids}")
-            if len(connections) < len(node_ids):
-                reasons.append(f"Only {len(connections)} connections from nodes")
+            # Each node process has its own ID, so this also catches a node
+            # whose configuration did not end up with the capture sink.
+            if len(counts) != len(node_ids):
+                reasons.append(f"Records from {len(counts)} processes")
             for node in self.cft_trace_nodes:
                 proc = node.remote.remote.proc if node.remote else None
                 if proc is None or proc.poll() != 0:

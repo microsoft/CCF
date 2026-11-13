@@ -156,6 +156,8 @@ class Recorder:
                         continue
                     try:
                         data = key.fileobj.recv(65536)
+                    except BlockingIOError:
+                        continue
                     except OSError:
                         data = None
                     if data:
