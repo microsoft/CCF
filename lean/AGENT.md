@@ -29,25 +29,17 @@ Within a model's library directory, use this layout:
 
 `Model.lean` and `Model/` define protocol state, actions, results, and executable transitions independently of implementation trace formats.
 A model execution must be expressible without a recorded test case, trace envelope, or parser.
-Semantic identifiers may name live stores, transactions, nodes, or messages; run-wide identifier uniqueness and recording metadata belong to the trace adapter.
-
-Keep schema versions, sequence numbers, event counts, test-case and subcase scopes, trace completion checks, instrumentation identifiers, parser errors, replay diagnostics, and unsupported-record markers in `TraceValidation.lean` or `TraceValidation/`.
-Also keep accommodations for missing trace fields there, such as establishing an initial term omitted by a recording schema.
-Protocol lifecycle rules belong to the model, but checks that an emitter recorded every required lifecycle event belong to trace validation.
-For iteration, distinguish the semantics of frozen entries and callback mutations from recorded iteration IDs and callback-event completeness.
-
+Keep schemas, sequence numbers, test scopes, recording identifiers, lifecycle-completeness checks, parser errors, and replay diagnostics in `TraceValidation.lean` or `TraceValidation/`.
+Accommodations for missing trace fields, such as an omitted initial term, also belong there.
 The model computes operation results and state changes.
-The adapter translates recorded events into model actions, compares reported observations and metadata with model results, and maintains trace bookkeeping.
-An observation may be part of a protocol's semantic action when it represents genuine external input; do not add reported read values, write-set echoes, or assigned-version echoes to model actions solely to validate a trace.
-Do not duplicate KV or protocol transitions in the adapter or leave trace-specific compatibility definitions in the model namespace.
-
+The adapter translates records into model actions, compares reported results with computed outputs, and maintains trace bookkeeping without duplicating model transitions.
+Do not add reported observations to semantic actions solely to validate a trace.
 Keep the semantic transition system and the trace replay system explicitly named and separate.
 Prove that accepted replay steps or executions project to the semantic model, allowing trace-only bookkeeping steps to stutter.
 State every public safety claim in `Properties.lean` over semantic model state, actions, outputs, or executions of `Model.transitionSystem`.
-Do not use trace-adapter reachability as a premise for a model safety property, or keep duplicate adapter-scoped versions alongside semantic versions in that entrypoint.
-Keep replay projection, reported-result agreement, and other trace/model correspondence proofs under `Proofs/`, without a separate correspondence entrypoint.
-The safety entrypoint and the helpers needed to understand it must not depend on trace validation or correspondence declarations.
-Moving a checker to a different directory or adding an unused semantic transition system does not establish this separation.
+Do not use trace-adapter reachability as a safety premise or retain duplicate adapter-scoped safety catalogues.
+Keep trace/model correspondence proofs under `Proofs/`, without a separate entrypoint or directory.
+The safety entrypoint and its transitive imports must not depend on trace validation or correspondence proofs.
 
 ## Dependency direction
 

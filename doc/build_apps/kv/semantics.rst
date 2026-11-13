@@ -186,15 +186,9 @@ Every canonical safety statement in ``Kv/Properties.lean`` concerns model state,
 Its property helpers and proof import chains are independent of trace validation and correspondence.
 These invariants are not extra sequential-oracle acceptance checks.
 
-``Kv.Model.transitionSystem`` has semantic ``State`` and ``Action`` types independent of records, test cases, schemas, sequence numbers, and reported read values.
-``Kv.Model.execute`` computes an operation's output and next state; the adapter compares recorded results with those semantics.
-Semantic store creation supplies an explicit initial term, while schema-driven inference of an omitted term belongs only to the adapter.
-``Kv.TraceValidation.transitionSystem`` validates recorded lifecycles, iteration IDs, run-unique identities, observation reports, and stream completeness.
-The adapter checks trace guards, executes each event's translated semantic inputs exactly once, compares the computed outputs with the reported observations, and installs the returned semantic state as authoritative.
-Only schema/lifecycle metadata, sequence/count bookkeeping, and frozen callback-entry bookkeeping are updated separately; the adapter does not independently compute a semantic candidate state.
-``Kv/Proofs/Correspondence.lean`` proves correspondence with actual semantic executions and allows trace-only records to stutter, without a separate theorem entrypoint.
-Its ``step_reports`` theorem proves that accepted reports match the actual semantic outputs.
-``application_atomic`` in the safety entrypoint states complete multi-map publication directly over semantic execution without trace assumptions.
+``Kv.Model.execute`` computes outputs and state changes independently of trace formats.
+The separate ``Kv.TraceValidation.transitionSystem`` validates recorded lifecycles and bookkeeping, supplies schema-omitted initial terms, and compares reported observations with computed outputs.
+``Kv/Proofs/Correspondence.lean`` proves that accepted replay projects to semantic execution and agrees with its outputs, allowing trace-only records to stutter.
 
 Each claim in ``Kv/Properties.lean`` is a proved theorem, followed by a witness theorem showing that its premises can hold or, for a claim without premises, that its conclusion has an effect.
 The Lake build treats warnings as errors, and the shared ``lake exe check-imports`` verifies that the library import root covers every module and respects the layering.

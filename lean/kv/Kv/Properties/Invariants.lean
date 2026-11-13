@@ -3,7 +3,7 @@
 
 module
 
-public import Kv.Properties.Semantics
+public import Kv.Properties.Programs
 public import CCF.Execution
 
 @[expose] public section

@@ -3,13 +3,13 @@
 
 module
 
-meta import Kv.TraceValidation.Projections
-meta import Kv.Proofs.ReplayPrograms
+meta import Kv.Properties.Invariants
 meta import Kv.TraceValidation
+meta import Kv.TraceValidation.System
 
-public import Kv.TraceValidation.Projections
-public import Kv.Proofs.ReplayPrograms
+public import Kv.Properties.Invariants
 public import Kv.TraceValidation
+public import Kv.TraceValidation.System
 
 public section
 
@@ -22,7 +22,7 @@ rejected, invalid and unsupported traces are fixtures under `replayer/fixtures/`
 
 namespace Kv.Tests.Replay
 
-open Lean Kv.Properties Kv.Correspondence Kv.TraceValidation
+open Lean Kv.Properties Kv.TraceValidation
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
 
@@ -85,10 +85,14 @@ private def assertProjection : IO Unit := do
     match replay initial segment with
     | .ok w => pure w
     | .error e => throw (IO.userError s!"projection replay: {e.message}")
-  let txs ←
-    match projectApplications initial 1 segment with
-    | .ok txs => pure txs
+  let inputs ←
+    match semanticInputs initial segment with
+    | .ok inputs => pure inputs
     | .error e => throw (IO.userError s!"projection computation: {e.message}")
+  let txs ←
+    match applicationInputs (project initial) 1 inputs with
+    | some txs => pure txs
+    | none => throw (IO.userError "projected semantic execution is disabled")
   let before := (find initial.stores 1).get!
   let after := (find final.stores 1).get!
   if txs.length != 1

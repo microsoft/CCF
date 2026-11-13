@@ -83,7 +83,6 @@ The `CCF` root contains shared infrastructure; it is not treated as a specificat
 New specifications need no per-model architecture test, namespace configuration, or additional CI command.
 
 The checker examines direct import edges throughout each library root's transitive import closure, including private imports.
-It also rejects a safety entrypoint or property helper whose import closure reaches trace validation or correspondence, including a dependency hidden behind a proof module.
 Import coverage ensures that all source modules are included.
 Architecture checks run in `lake exe check-imports`, not during `lake build`; CI already runs this command for every Lean package.
 
@@ -94,15 +93,8 @@ The same rules apply to every specification namespace, including multi-component
 - `Model` and its submodules cannot import `CCF.Proofs` or the `CCF` entrypoint that reexports it, so models depend only on shared definitions.
 - `Model` and its submodules can import only model modules within the specification.
   Model submodules cannot import the assembled `Model` entrypoint.
-- Trace validation can import model modules and other trace-validation modules, but not property helpers or proofs.
-  This includes a trace-validation entrypoint that defines reusable replay types, as in disaster recovery.
-  Trace-validation modules cannot import shared proof infrastructure.
-- The `Properties` safety entrypoint can import model modules, property helpers, and model-only proofs.
-- Property helpers can import model modules and other property helpers, but not proofs, trace validation, correspondence, or the `Properties` entrypoint.
-- The separate `Correspondence` entrypoint can import trace validation, semantic definitions, and proofs.
-  Replay projections belong in `TraceValidation/`, and supporting reference programs used only by correspondence proofs belong in `Proofs/`.
+- The `Properties` entrypoint can import model modules, property helpers, and proofs.
+- Property helpers can import model modules and other property helpers, but not proofs or the `Properties` entrypoint.
 - Proofs can import model modules, trace validation, property helpers, and other proofs, but not the `Properties` entrypoint.
-- Other modules, such as tests, are unrestricted.
+- Other modules, such as tests and trace validation, are unrestricted.
   Imports outside the specification namespace are unrestricted except for the `CCF` restrictions above.
-
-`CCF/Tests/Architecture.lean` checks the shared policy for both single-component and nested specification roots.

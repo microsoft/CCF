@@ -12,41 +12,6 @@ namespace Kv.Proofs.Correspondence
 
 open Kv.TraceValidation
 
-/-- Lookup commutes with changing association-list values without changing their keys. -/
-theorem find_map {K V U : Type} [DecidableEq K] (xs : Model.Assoc K V)
-    (f : K → V → U) (key : K)
-    : Model.find (xs.map fun (k, v) => (k, f k v)) key
-      = (Model.find xs key).map (f key) := by
-  induction xs with
-  | nil => rfl
-  | cons entry xs ih =>
-      rcases entry with ⟨k, v⟩
-      by_cases equal : k = key <;> simp_all [Model.find]
-
-/-- Semantic store lookup erases precisely the trace decoration. -/
-theorem project_store (w : World) (sid : Nat)
-    : Model.find (project w).stores sid = (Model.find w.stores sid).map Store.toStore :=
-  find_map w.stores (fun _ s => s.toStore) sid
-
-/-- Semantic transaction lookup erases precisely the callback decoration. -/
-theorem project_tx (w : World) (tid : Nat)
-    : Model.find (project w).txs tid = (Model.find w.txs tid).map Tx.toTx :=
-  find_map w.txs (fun _ t => t.toTx) tid
-
-/-- A projected live transaction has a corresponding decorated live transaction. -/
-theorem project_tx_exists (w : World) (tid : Nat) (core : Model.Tx)
-    (found : Model.find (project w).txs tid = some core)
-    : ∃ t, Model.find w.txs tid = some t ∧ t.toTx = core := by
-  rw [project_tx] at found
-  exact Option.map_eq_some_iff.mp found
-
-/-- A projected live store has a corresponding decorated live store. -/
-theorem project_store_exists (w : World) (sid : Nat) (core : Model.Store)
-    (found : Model.find (project w).stores sid = some core)
-    : ∃ s, Model.find w.stores sid = some s ∧ s.toStore = core := by
-  rw [project_store] at found
-  exact Option.map_eq_some_iff.mp found
-
 private theorem bind_ok {α β : Type} {value : Except Failure α}
     {f : α → Except Failure β} {b : β} (h : value.bind f = .ok b)
     : ∃ a, value = .ok a ∧ f a = .ok b := by
@@ -190,23 +155,6 @@ theorem step_reports
         exact congrArg Except.ok equal
   exact step_reports_checked typed
 
-/-- A reported read is checked against a computed absence result. -/
-theorem step_reports_witness
-    : ∃ (w next : World) (r : Record),
-        transitionSystem.step w r = some next
-        ∧ r.event = .get 1 1 "m" "k" none false := by
-  let w : World := {
-    started := true
-    stores := [(1, { termKnown := true })]
-    txs := [(1, {
-      store := 1
-      snapshot := some { current := {}, term := 0 }
-      globalViews := [("m", { frame := {} })]
-    })]
-  }
-  exact ⟨w, (step w ⟨1, .get 1 1 "m" "k" none false⟩).toOption.getD {},
-    ⟨1, .get 1 1 "m" "k" none false⟩, rfl, rfl⟩
-
 private theorem run_append {s middle final : Model.State} {left right : List Model.Action}
     (first : CCF.Execution.Run Model.transitionSystem s left middle)
     (second : CCF.Execution.Run Model.transitionSystem middle right final)
@@ -243,28 +191,6 @@ theorem replay_projects
         rfl
       · exact run_append (executeActions_run _ _ _ (step_checked one)) execution
 
-/-- Nonempty accepted input exercises store creation in the semantic system. -/
-theorem step_projects_witness
-    : ∃ (w next : World) (r : Record),
-        transitionSystem.step w r = some next ∧ actions w r.event ≠ [] := by
-  refine ⟨{ started := true, currentCase := some "witness" },
-    { started := true, currentCase := some "witness", stores := [(1, {})],
-      seenStores := [1], lastSeq := some 1, count := 1 },
-    ⟨1, .storeCreate 1⟩, rfl, ?_⟩
-  intro impossible
-  cases impossible
-
-/-- The same nonempty record has a translated replay execution. -/
-theorem replay_projects_witness
-    : ∃ (w final : World) (records : List Record),
-        replay w records = .ok final ∧ records ≠ [] := by
-  refine ⟨{ started := true, currentCase := some "witness" },
-    { started := true, currentCase := some "witness", stores := [(1, {})],
-      seenStores := [1], lastSeq := some 1, count := 1 },
-    [⟨1, .storeCreate 1⟩], rfl, ?_⟩
-  intro impossible
-  cases impossible
-
 private theorem run_reachable {s final : Model.State} {inputs : List Model.Action}
     (reachable : Model.transitionSystem.Reachable s)
     (execution : CCF.Execution.Run Model.transitionSystem s inputs final)
@@ -287,23 +213,5 @@ theorem reachable_projects
       cases initialized
       exact .initial rfl
   | step _ accepted ih => exact run_reachable ih (step_projects _ _ _ accepted)
-
-/-- A trace-reachable projection contains a real live store. -/
-theorem reachable_projects_witness
-    : ∃ (w : World) (sid : Nat) (s : Model.Store),
-        transitionSystem.Reachable w ∧ Model.find (project w).stores sid = some s := by
-  let start : World := { started := true, lastSeq := some 1, count := 1 }
-  let scope : World :=
-    { started := true, currentCase := some "witness", lastSeq := some 2, count := 2 }
-  let live : World := {
-    started := true, currentCase := some "witness", lastSeq := some 3, count := 3,
-    stores := [(1, {})], seenStores := [1]
-  }
-  have r0 : transitionSystem.Reachable ({} : World) := .initial rfl
-  have r1 : transitionSystem.Reachable start :=
-    .step (action := ⟨1, .traceStart 1⟩) r0 rfl
-  have r2 : transitionSystem.Reachable scope :=
-    .step (action := ⟨2, .caseBegin "witness"⟩) r1 rfl
-  exact ⟨live, 1, {}, .step (action := ⟨3, .storeCreate 1⟩) r2 rfl, rfl⟩
 
 end Kv.Proofs.Correspondence

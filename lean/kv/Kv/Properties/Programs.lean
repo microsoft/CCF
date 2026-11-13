@@ -54,27 +54,26 @@ def serialRun (base : DB M K V) (ws : Writes M K V)
 end Generic
 
 /-- A branch of semantic applications, with compaction but no rollback. -/
-inductive SemanticAppliedBranch : Model.Store → List Model.Tx → Model.Store → Prop
+inductive AppliedBranch : Model.Store → List Model.Tx → Model.Store → Prop
   /-- Empty application order. -/
-  | nil (s) : SemanticAppliedBranch s [] s
+  | nil (s) : AppliedBranch s [] s
   /-- One enabled semantic publication primitive. -/
   | cons (s middle final : Model.Store) (t : Model.Tx) (ts : List Model.Tx)
     (one : Model.tryApply s t = some middle)
-    (rest : SemanticAppliedBranch middle ts final)
-    : SemanticAppliedBranch s (t :: ts) final
+    (rest : AppliedBranch middle ts final)
+    : AppliedBranch s (t :: ts) final
   /-- Environment compaction between applications. -/
   | compact (s final : Model.Store) (v : Nat) (ts : List Model.Tx)
-    (rest : SemanticAppliedBranch (Model.compactStore s v) ts final)
-    : SemanticAppliedBranch s ts final
+    (rest : AppliedBranch (Model.compactStore s v) ts final)
+    : AppliedBranch s ts final
 
 /-- Serial reference interpretation of semantic attempts in application order. -/
-def semanticSerialTransactions (db : Model.Data) (version : Nat)
+def serialTransactions (db : Model.Data) (version : Nat)
     : List Model.Tx → Option Model.Data
   | [] => some db
   | t :: ts =>
       (serialRun db [] t.normal.log).bind
         fun writes =>
-          semanticSerialTransactions (Model.publish db (version + 1) writes) (version + 1)
-            ts
+          serialTransactions (Model.publish db (version + 1) writes) (version + 1) ts
 
 end Kv.Properties
