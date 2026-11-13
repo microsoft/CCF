@@ -1253,6 +1253,60 @@ TEST_CASE("Endorsements must be signed by the service signing identity")
       ->size() == 0);
 }
 
+TEST_CASE("Endorsements require each published identity to match its cert")
+{
+  ccf::kv::Store store;
+  store.set_encryptor(std::make_shared<ccf::kv::NullTxEncryptor>());
+  const TestIdentity identity;
+  const TestIdentity other_identity;
+  {
+    auto tx = store.create_tx();
+    InternalTablesAccess::create_service(
+      tx, identity.cert, identity.pq_cert, {1, 1});
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+  const auto before = store.current_txid();
+  {
+    auto tx = store.create_tx();
+    auto* signing_identities =
+      tx.rw<ccf::SigningIdentities>(Tables::SIGNING_IDENTITIES);
+    auto pq_key = identity.pq_key;
+    SUBCASE("CLASSICAL")
+    {
+      signing_identities->put(
+        IdentityType::CLASSICAL,
+        expected_signing_identity(other_identity.key->public_key_der()));
+    }
+    if (ccf::crypto::mldsa_supported())
+    {
+      SUBCASE("PQ, with a PQ key")
+      {
+        signing_identities->put(
+          IdentityType::PQ,
+          expected_pq_signing_identity(other_identity.pq_cert).value());
+      }
+      SUBCASE("PQ, without a PQ key")
+      {
+        signing_identities->put(
+          IdentityType::PQ,
+          expected_pq_signing_identity(other_identity.pq_cert).value());
+        pq_key = nullptr;
+      }
+    }
+    REQUIRE_THROWS_WITH_AS(
+      InternalTablesAccess::endorse_previous_identity(
+        tx, *identity.key, pq_key),
+      "Service signing identity does not match its service certificate",
+      std::logic_error);
+  }
+  REQUIRE(store.current_txid() == before);
+  auto ro = store.create_read_only_tx();
+  REQUIRE(
+    ro.ro<ccf::PreviousServiceIdentityEndorsement>(
+        Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+      ->size() == 0);
+}
+
 TEST_CASE("direct node deletion updates consensus configuration")
 {
   const NodeId removed_id = std::string("removed");
