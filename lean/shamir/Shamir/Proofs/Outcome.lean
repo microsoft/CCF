@@ -9,9 +9,10 @@ public import Shamir.Proofs.Sharing
 /-!
 # Outcome of recovery for arbitrary inputs
 
-Recovery shares are not authenticated, so the extracted recovery must return for every input, and
-must succeed only when the selected coordinates are distinct. These proofs do not assume
-distinctness, unlike the functional specifications in `Shamir.Proofs.Interpolation`.
+The member who submits a recovery share is authenticated, but the contents of the share are not
+validated, so the extracted recovery must return for every input, and must succeed only when the
+selected coordinates are distinct. These proofs do not assume distinctness, unlike the functional
+specifications in `Shamir.Proofs.Interpolation`.
 -/
 
 @[expose] public section

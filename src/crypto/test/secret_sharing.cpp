@@ -265,11 +265,12 @@ TEST_CASE("Cover a range of share and recover combinations")
   }
 }
 
-TEST_CASE("Backends agree on arbitrary unauthenticated recovery inputs")
+TEST_CASE("Backends agree on arbitrary recovery inputs")
 {
-  // Recovery shares are submitted by members and are not authenticated, so
-  // both backends must treat every input identically, including coordinates
-  // and values that are not canonical field elements.
+  // The member who submits a recovery share is authenticated, but the
+  // contents of the share are not validated, so both backends must treat
+  // every input identically, including coordinates and values that are not
+  // canonical field elements.
   constexpr uint32_t field_prime = (1U << 31) - 1;
   constexpr std::array<uint32_t, 8> edge_values = {
     0,

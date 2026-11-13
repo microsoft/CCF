@@ -86,7 +86,9 @@ Most are Aeneas total-correctness triples: the function returns on its arguments
 | `recovery_error_preserves_secret` | For any inputs, a recovery that reports an error leaves the caller's array unchanged.                                                                                                                                                                                                  |
 
 Each claim with premises has an adjacent `_witness` theorem showing that its premises can hold.
-`sharing_succeeds_iff` and `recovery_succeeds_iff` matter because a Rust panic in the C ABI aborts the process, and recovery shares are submitted by members without authentication: no input, including repeated, zero or noncanonical coordinates, can make the core panic, overflow or index out of bounds.
+`sharing_succeeds_iff` and `recovery_succeeds_iff` matter because a Rust panic in the C ABI aborts the process.
+CCF authenticates the member who submits a recovery share, but that does not validate the share: only its length is checked before recovery.
+The arithmetic must therefore handle arbitrary share contents, and no input, including repeated, zero or noncanonical coordinates, can make the core panic, overflow or index out of bounds.
 CCF's threshold counts shares; CSLib's `Params.threshold` is the polynomial-degree bound, one less.
 
 The supporting proofs cover all `u64` inputs to the three-fold Mersenne reduction, overflow/underflow safety of the field arithmetic, Horner evaluation, the share-filling loop, exponentiation, inversion, Lagrange weights, and all-limb reconstruction.
