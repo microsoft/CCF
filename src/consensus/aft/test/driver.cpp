@@ -25,7 +25,7 @@ namespace
 
   std::string text(b_lean_obj_arg string)
   {
-    return lean_string_cstr(string);
+    return std::string(lean_string_cstr(string), lean_string_size(string) - 1);
   }
 
   std::vector<std::string> texts(b_lean_obj_arg list)
