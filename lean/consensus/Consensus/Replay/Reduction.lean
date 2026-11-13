@@ -106,9 +106,9 @@ private def ruleBootstrap : Reduction String := do
   let head ← peek
   -- consume
   event head "become_leader"
+  event head "replicate_batch"
   event head "replicate"
   event head "add_configuration"
-  event head "replicate_batch_end"
   return head.node
 
 private def readAppendContent (head : Event) (config : Option Event)
@@ -173,27 +173,28 @@ private def readAppendEntry (head : Event) : Reduction AppendEntryInput := do
   return { content, flushes := flushes.getD [] }
 
 /--
-The entries of one native `replicate` call, up to its `replicate_batch_end`, are
-appended to the model as one batch, which checks commit once at the end, as CCF does.
+The entries after a native `replicate_batch` event, each starting with its `replicate`
+event, are appended to the model as one batch, which checks commit once at the end, as
+CCF does.
 -/
 private def ruleAppend : Reduction Unit := do
   let head ← peek
   -- consume
   let start ← position
-  let first ← readAppendEntry head
-  let rest ←
+  event head "replicate_batch"
+  let entries ←
     CCF.Parsec.many do
       let next ← peek
       unless next.function == "replicate" && next.node == head.node do
         failure s!"{next.record.location}: not an entry of the batch"
       readAppendEntry next
-  event head "replicate_batch_end"
+  liftExcept head (require (!entries.isEmpty) "batch without entries")
   optional_ do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
   -- emit
   emitObserve head "append"
-  emitAction head "append" (.local head.node (.append (first :: rest)))
+  emitAction head "append" (.local head.node (.append entries))
   emitObserveSends head (← extractSends start)
 
 private def readReceive (head : Event) (families : List String) : Reduction Step := do

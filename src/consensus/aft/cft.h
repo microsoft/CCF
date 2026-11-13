@@ -673,6 +673,10 @@ namespace aft
 
       CFT_DEBUG_FMT("Replicating {} entries", entries.size());
 
+      // Starts this call's entry events, so that trace replay can append the
+      // entries to the model as one batch
+      trace::replicate_batch(*state);
+
       for (const auto& [index, data, is_globally_committable, hooks] : entries)
       {
         bool globally_committable = is_globally_committable;
@@ -736,10 +740,6 @@ namespace aft
           }
         }
       }
-
-      // Ends this call's entry events, before any commit below, so that trace
-      // replay can append the entries to the model as one batch
-      trace::replicate_batch_end(*state);
 
       // Try to advance commit at once if there are no other nodes.
       if (other_nodes_in_active_configs().size() == 0)

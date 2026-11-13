@@ -34,11 +34,10 @@ The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `
 ## Replay contract
 
 Every protocol event must match a named rule; bootstrap selects the initial singleton membership.
-Bootstrap ends at the `replicate_batch_end` event that follows the genesis entry.
 Rules group related protocol events and read action inputs from those events; only top-level alternatives backtrack.
 Actions must be enabled by the model.
 After bootstrap, each rule emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
-The entries of one native `replicate` call, up to its `replicate_batch_end` event, form one group and one model append, so the model checks commit once per batch, as CCF does.
+A native `replicate_batch` event and the entries that follow it, each starting with its `replicate` event, form one group and one model append, so the model checks commit once per batch, as CCF does.
 
 A receive delivers any queued model envelope from its sender whose rendered packet has exactly the native packet's fields, with equal values.
 It delivers the queued **model payload**, not reconstructing unrecorded native bytes; if matching envelopes differ in payload, for example in AppendEntries entries, which packets omit, replay fails with an ambiguous delivery.
