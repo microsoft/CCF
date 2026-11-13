@@ -2174,12 +2174,12 @@ namespace ccf
             hook->call(consensus.get());
           }
         }
-        catch (const ccf::kv::UnverifiableSignatureType& e)
+        catch (const ccf::kv::UnverifiableSignatureType&)
         {
           // The ledger may continue past this entry, so recovering the prefix
           // before it would silently drop committed transactions
           LOG_FAIL_FMT(
-            "Cannot recover this ledger with this build: {}", e.what());
+            "Aborting recovery: this build cannot verify the ledger");
           throw;
         }
         catch (const std::exception& e)

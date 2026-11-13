@@ -679,7 +679,7 @@ namespace ccf
         const auto identity_type = signature.first;
         if (!can_verify(identity_type))
         {
-          throw ccf::kv::UnverifiableSignatureType(fmt::format(
+          throw_unverifiable(fmt::format(
             "Transaction {} carries a {} signature, which this build cannot "
             "verify",
             version,
@@ -898,6 +898,14 @@ namespace ccf
     }
 
   private:
+    // Logs the cause at FAIL for every caller, since raft logs exceptions from
+    // apply() at DEBUG
+    [[noreturn]] static void throw_unverifiable(const std::string& msg)
+    {
+      LOG_FAIL_FMT("{}", msg);
+      throw ccf::kv::UnverifiableSignatureType(msg);
+    }
+
     // COSE signatures written by the transaction at version, by identity type
     static ccf::CoseSignatureMap get_cose_signatures_written_at(
       ccf::kv::ReadOnlyTx& tx, ccf::kv::Version version)
@@ -916,7 +924,7 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        throw ccf::kv::UnverifiableSignatureType(fmt::format(
+        throw_unverifiable(fmt::format(
           "Cannot read the identity types of the COSE signatures in "
           "transaction {}: {}",
           version,
@@ -1047,7 +1055,7 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        throw ccf::kv::UnverifiableSignatureType(fmt::format(
+        throw_unverifiable(fmt::format(
           "Cannot read the identity types of the service signing identities "
           "to verify transaction {}: {}",
           version,
