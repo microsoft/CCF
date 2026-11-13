@@ -1,7 +1,7 @@
 {"msg":{"function":"become_leader","state":{"node_id":"0"}}}
-{"msg":{"function":"replicate_batch","state":{"node_id":"0"}}}
-{"msg":{"function":"replicate","state":{"node_id":"0"},"globally_committable":false}}
+{"msg":{"function":"replicate","state":{"node_id":"0"}}}
+{"msg":{"function":"replicate_entry","state":{"node_id":"0"},"globally_committable":false}}
 {"msg":{"function":"add_configuration","state":{"node_id":"0"},"nodes":{"0":{}}}}
-{"msg":{"function":"replicate_batch","state":{"node_id":"0","last_idx":1}}}
-{"msg":{"function":"replicate","state":{"node_id":"0","last_idx":1},"seqno":2,"globally_committable":false}}
+{"msg":{"function":"replicate","state":{"node_id":"0","last_idx":1}}}
+{"msg":{"function":"replicate_entry","state":{"node_id":"0","last_idx":1},"seqno":2,"globally_committable":false}}
 {"msg":{"function":"retired_committed_tx","node_id":"0","seqno":3,"retired_node_id":"0"}}

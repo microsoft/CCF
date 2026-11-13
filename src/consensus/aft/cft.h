@@ -675,7 +675,7 @@ namespace aft
 
       // Starts this call's entry events, so that trace replay can append the
       // entries to the model as one batch
-      trace::replicate_batch(*state);
+      trace::replicate(*state);
 
       for (const auto& [index, data, is_globally_committable, hooks] : entries)
       {
@@ -693,7 +693,7 @@ namespace aft
           (globally_committable ? " committable" : ""),
           hooks->size());
 
-        trace::replicate(*state, term, index, globally_committable);
+        trace::replicate_entry(*state, term, index, globally_committable);
 
         for (auto& hook : *hooks)
         {

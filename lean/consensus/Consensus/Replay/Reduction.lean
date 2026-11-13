@@ -106,8 +106,8 @@ private def ruleBootstrap : Reduction String := do
   let head ← peek
   -- consume
   event head "become_leader"
-  event head "replicate_batch"
   event head "replicate"
+  event head "replicate_entry"
   event head "add_configuration"
   return head.node
 
@@ -142,7 +142,7 @@ private def readAppendContent (head : Event) (config : Option Event)
 private def readAppendEntry (head : Event) : Reduction AppendEntryInput := do
   let seqno ← readJson head head.message (nat · "seqno")
   -- consume
-  event head "replicate"
+  event head "replicate_entry"
   let retirements ←
     CCF.Parsec.many do
       let retirement ← peek
@@ -173,28 +173,28 @@ private def readAppendEntry (head : Event) : Reduction AppendEntryInput := do
   return { content, flushes := flushes.getD [] }
 
 /--
-The entries after a native `replicate_batch` event, each starting with its `replicate`
+The entries after a native `replicate` event, each starting with its `replicate_entry`
 event, are appended to the model as one batch, which checks commit once at the end, as
-CCF does.
+CCF does. A call rejected at its first entry traces no entries and appends nothing.
 -/
 private def ruleAppend : Reduction Unit := do
   let head ← peek
   -- consume
   let start ← position
-  event head "replicate_batch"
+  event head "replicate"
   let entries ←
     CCF.Parsec.many do
       let next ← peek
-      unless next.function == "replicate" && next.node == head.node do
+      unless next.function == "replicate_entry" && next.node == head.node do
         failure s!"{next.record.location}: not an entry of the batch"
       readAppendEntry next
-  liftExcept head (require (!entries.isEmpty) "batch without entries")
   optional_ do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
   -- emit
   emitObserve head "append"
-  emitAction head "append" (.local head.node (.append entries))
+  unless entries.isEmpty do
+    emitAction head "append" (.local head.node (.append entries))
   emitObserveSends head (← extractSends start)
 
 private def readReceive (head : Event) (families : List String) : Reduction Step := do
@@ -373,7 +373,8 @@ private def ruleInitAsBackup : Reduction Unit := do
   many_ (hooks.foldr (fun name rest => event head name <|> rest) (event head "tick"))
   unless (← CCF.Parsec.peek).any (·.function == "init_as_backup") do
     liftExcept head
-      (throw "not grouped with replicate, execute_append_entries_sync or init_as_backup")
+      (throw
+        "not grouped with replicate_entry, execute_append_entries_sync or init_as_backup")
   let init ← peek
   event head "init_as_backup"
   event head "become_follower"
