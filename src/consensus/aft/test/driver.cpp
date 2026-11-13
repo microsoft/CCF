@@ -12,11 +12,22 @@
 
 #include "tracing/fluentd_sink.h"
 
+#include <array>
+#include <atomic>
+#include <condition_variable>
+#include <istream>
 #include <lean/lean.h>
 #include <memory>
+#include <mutex>
+#include <netinet/in.h>
 #include <stdexcept>
+#include <streambuf>
 #include <string>
+#include <sys/socket.h>
+#include <thread>
 #include <type_traits>
+#include <unistd.h>
+#include <utility>
 #include <vector>
 
 namespace
@@ -139,6 +150,218 @@ namespace
     }
     return array;
   }
+
+  // Reads a connected socket as a stream
+  class SocketBuffer : public std::streambuf
+  {
+    int fd;
+    std::array<char, 65536> buffer = {};
+
+  protected:
+    int_type underflow() override
+    {
+      ssize_t count = 0;
+      do
+      {
+        count = ::recv(fd, buffer.data(), buffer.size(), 0);
+      } while (count < 0 && errno == EINTR);
+
+      if (count <= 0)
+      {
+        return traits_type::eof();
+      }
+
+      setg(buffer.data(), buffer.data(), buffer.data() + count);
+      return traits_type::to_int_type(*gptr());
+    }
+
+  public:
+    explicit SocketBuffer(int fd_) : fd(fd_) {}
+  };
+
+  // Keeps the trace in this process, for cft_take_trace. FluentdSink exports
+  // records only over TCP, so it is pointed at a local listener, which a
+  // thread reads.
+  class TraceCapture
+  {
+    // take() emits a record with this key, to learn that the records before
+    // it have arrived
+    static constexpr const char* MARKER = "sync";
+
+    int listener = -1;
+    uint16_t listening_port = 0;
+    std::atomic<int> peer = -1;
+    std::thread collector;
+
+    std::mutex mutex;
+    std::condition_variable arrived;
+    // Records which have arrived and are not yet taken, as JSON
+    std::vector<std::string> records;
+    uint64_t arrived_marker = 0;
+    uint64_t emitted_marker = 0;
+    bool closed = false;
+    std::string error;
+
+    void collect()
+    {
+      try
+      {
+        peer = ::accept4(listener, nullptr, nullptr, SOCK_CLOEXEC);
+        if (peer < 0)
+        {
+          throw std::runtime_error(
+            fmt::format("Cannot accept its connection: errno {}", errno));
+        }
+
+        SocketBuffer buffer(peer);
+        std::istream stream(&buffer);
+        while (stream.peek() != std::istream::traits_type::eof())
+        {
+          // A Fluentd forward message is [tag, time, record]
+          const auto message = nlohmann::json::from_msgpack(stream, false);
+          const auto& record = message.at(2);
+          const auto& msg = record.at("msg");
+
+          std::lock_guard<std::mutex> lock(mutex);
+          if (msg.contains(MARKER))
+          {
+            arrived_marker = msg.at(MARKER).get<uint64_t>();
+            arrived.notify_all();
+          }
+          else
+          {
+            records.push_back(record.dump());
+          }
+        }
+      }
+      catch (const std::exception& e)
+      {
+        std::lock_guard<std::mutex> lock(mutex);
+        error = e.what();
+      }
+
+      std::lock_guard<std::mutex> lock(mutex);
+      closed = true;
+      arrived.notify_all();
+    }
+
+  public:
+    TraceCapture()
+    {
+      sockaddr_in address = {};
+      address.sin_family = AF_INET;
+      address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      auto* generic = reinterpret_cast<sockaddr*>(&address);
+      socklen_t size = sizeof(address);
+
+      listener = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+      if (
+        listener < 0 || ::bind(listener, generic, size) != 0 ||
+        ::listen(listener, 1) != 0 ||
+        ::getsockname(listener, generic, &size) != 0)
+      {
+        const auto reason = errno;
+        if (listener >= 0)
+        {
+          ::close(listener);
+        }
+        throw std::runtime_error(
+          fmt::format("Cannot listen for the trace: errno {}", reason));
+      }
+
+      listening_port = ntohs(address.sin_port);
+      collector = std::thread([this]() { collect(); });
+    }
+
+    ~TraceCapture()
+    {
+      // Unblock the collector, if the sink never connected or did not stop
+      ::shutdown(listener, SHUT_RDWR);
+      if (peer >= 0)
+      {
+        ::shutdown(peer, SHUT_RDWR);
+      }
+      if (collector.joinable())
+      {
+        collector.join();
+      }
+      if (peer >= 0)
+      {
+        ::close(peer);
+      }
+      ::close(listener);
+    }
+
+    [[nodiscard]] uint16_t port() const
+    {
+      return listening_port;
+    }
+
+    // The records emitted since the last call
+    std::vector<std::string> take()
+    {
+      using Sink = ccf::tracing::FluentdSink;
+      if (Sink::is_running())
+      {
+        // The sink sends from another thread, so wait for a marker to arrive
+        ++emitted_marker;
+        ccf::tracing::emit(aft::trace::cft_trace_tag, MARKER, emitted_marker);
+
+        std::unique_lock<std::mutex> lock(mutex);
+        arrived.wait_for(lock, std::chrono::seconds(10), [this]() {
+          return arrived_marker == emitted_marker || closed;
+        });
+        if (arrived_marker != emitted_marker)
+        {
+          throw std::runtime_error(fmt::format(
+            "The trace did not arrive: {}",
+            closed ? "its connection closed" : "timed out"));
+        }
+      }
+      else if (collector.joinable())
+      {
+        // The sink has sent what it held, and closed its connection
+        collector.join();
+      }
+
+      const auto dropped = Sink::dropped_count();
+      std::lock_guard<std::mutex> lock(mutex);
+      if (dropped != 0 || !error.empty())
+      {
+        throw std::runtime_error(fmt::format(
+          "The trace is incomplete: {} events dropped. {}", dropped, error));
+      }
+      return std::exchange(records, {});
+    }
+  };
+
+  std::unique_ptr<TraceCapture> capture;
+
+  // Exports the trace to the Fluentd collector at a host and port, if given,
+  // and creates the driver
+  void start(const std::vector<std::string>& host_and_port)
+  {
+    // Log all CFT steps to stdout; cft_scenarios_runner.py
+    // filters them.
+    ccf::logger::config::add_text_console_logger();
+    ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
+
+    if (!host_and_port.empty())
+    {
+      ccf::tracing::FluentdSink::Endpoint endpoint{
+        host_and_port.at(0), host_and_port.at(1)};
+      endpoint.tag_prefix_allow_list = {"ccf.cft"};
+      ccf::tracing::FluentdSink::configure(endpoint);
+      ccf::tracing::FluentdSink::bind_producer(0);
+      if (!ccf::tracing::FluentdSink::wait_for_connection(
+            std::chrono::seconds(5)))
+      {
+        throw std::runtime_error("Timed out waiting for Fluentd connection");
+      }
+    }
+
+    driver = std::make_unique<CftDriver>();
+  }
 }
 
 extern "C"
@@ -158,28 +381,26 @@ extern "C"
 
   lean_obj_res cft_start(b_lean_obj_arg fluentd)
   {
-    return io([&]() {
-      // Log all CFT steps to stdout; cft_scenarios_runner.py
-      // filters them.
-      ccf::logger::config::add_text_console_logger();
-      ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
+    return io([&]() { start(texts(fluentd)); });
+  }
 
-      const auto host_and_port = texts(fluentd);
-      if (!host_and_port.empty())
+  lean_obj_res cft_start_capture()
+  {
+    return io([]() {
+      capture = std::make_unique<TraceCapture>();
+      start({"127.0.0.1", std::to_string(capture->port())});
+    });
+  }
+
+  lean_obj_res cft_take_trace()
+  {
+    return io([]() {
+      if (capture == nullptr)
       {
-        ccf::tracing::FluentdSink::Endpoint endpoint{
-          host_and_port.at(0), host_and_port.at(1)};
-        endpoint.tag_prefix_allow_list = {"ccf.cft"};
-        ccf::tracing::FluentdSink::configure(endpoint);
-        ccf::tracing::FluentdSink::bind_producer(0);
-        if (!ccf::tracing::FluentdSink::wait_for_connection(
-              std::chrono::seconds(5)))
-        {
-          throw std::runtime_error("Timed out waiting for Fluentd connection");
-        }
+        throw std::runtime_error(
+          "The trace is only kept in memory after start_capture");
       }
-
-      driver = std::make_unique<CftDriver>();
+      return strings(capture->take());
     });
   }
 
