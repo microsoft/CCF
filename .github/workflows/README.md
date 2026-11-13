@@ -196,14 +196,17 @@ File: `lean-mathlib-equivalence.yml`
 
 # Lean Shamir
 
-Checks the model and proofs of the experimental Rust Shamir secret-sharing backend in `lean/shamir`.
-The package depends on Aeneas, CSLib and Mathlib, so the main Lean workflow does not schedule it.
+Extraction and verification pipeline for the experimental Rust Shamir secret-sharing backend, whose model and proofs are in `lean/shamir`.
+It needs Aeneas, Charon, CSLib, Mathlib, Miri and cbindgen.
+These are confined to this workflow: the CCF build, the Continuous Integration workflow and the main Lean workflow do not install or use any of them, and the main Lean workflow does not schedule the package.
 The `Reproduce Rust Shamir extraction and C header` job downloads the pinned Aeneas and Charon release, checks its SHA-256, re-extracts the Lean model from `src/rust/shamir` and requires it to match the committed `lean/shamir/Generated/CcfShamir.lean` exactly.
 It then runs the Rust core's tests, runs the C ABI tests under Miri with the Stacked Borrows and Tree Borrows models, and checks with a pinned cbindgen that `src/crypto/sharing_ffi.h` matches the Rust declarations.
 The `Check Shamir model and proofs` job restores Mathlib's upstream build cache and runs `scripts/check-shamir.sh`, which builds the package with warnings as errors and replays every declaration the package owns, and their dependencies, through the kernel with only the standard axioms.
 It then runs the shared import coverage and architecture check, the formatting check and the linters.
-Both jobs run on GitHub-hosted Ubuntu 26.04 runners.
-The workflow runs only on pull requests that change the Rust sources, the generated C header, the Shamir or common Lean packages, the Lean toolchain, the Shamir or formatter scripts, or the workflow, and can be run manually.
+Both jobs run on standard GitHub-hosted `ubuntu-latest` runners, and the proofs job installs Lean with elan from apt.
+Its dependency cache is keyed on the runner image, since `ubuntu-latest` moves between Ubuntu releases.
+The workflow runs only on pull requests that change the Rust Shamir core (`src/rust/shamir`), the `ccf-rs` crate that exposes its C interface, the generated C header, the Shamir or common Lean packages, the Lean toolchain, the Shamir or formatter scripts, or the workflow, and can be run manually.
+Changes to other Rust code under `src/rust`, such as `ccf-app`, do not trigger it.
 See the [package README](../../lean/shamir/README.md) for the scope of the proofs.
 
 File: `lean-shamir.yml`
