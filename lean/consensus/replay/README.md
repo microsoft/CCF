@@ -31,6 +31,7 @@ done
 
 The scenario runner writes the raw records to `consensus/raw/`.
 The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `append_entries` and `request_vote`.
+For one scenario, `/tmp/cft-build/cft_driver <name> <name>.ndjson` writes the same trace, without the scenario test or `msgpack`.
 
 ## Outcomes
 

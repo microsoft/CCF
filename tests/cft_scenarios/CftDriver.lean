@@ -245,26 +245,54 @@ def scenario (name : String) (steps : IO Unit) : IO Unit :=
 @[extern "cft_start"]
 private opaque start (fluentd : @& List String) : IO Unit
 
+/--
+Start the driver, as `run` does before a scenario, and keep the trace in memory for
+`takeTrace`. A process can start the driver once.
+-/
+@[extern "cft_start_capture"]
+opaque startCapture : IO Unit
+
+/--
+The trace records emitted since the last call, in order.
+Each is JSON, like a line of a trace which the scenario test writes.
+Only after `startCapture`.
+-/
+@[extern "cft_take_trace"]
+opaque takeTrace : IO (Array String)
+
+/--
+Confirm that the network can still make progress, as `run` does after a scenario, and
+stop the driver. After `startCapture`, `takeTrace` then returns the rest of the trace.
+-/
 @[extern "cft_finish"]
-private opaque finish : IO Unit
+opaque finish : IO Unit
 
 /--
 Run the scenario named by the first argument.
-Any trace is exported to the Fluentd host and port given by the remaining arguments.
+One more argument is a file, to which the trace is written.
+Two more are a Fluentd host and port, to which the trace is exported.
 -/
 def run (args : List String) : IO Unit := do
-  let usage := "Expected a scenario name, optionally followed by a Fluentd host and port"
-  let (name, fluentd) ←
-    match args with
-    | [name] => pure (name, [])
-    | [name, host, port] => pure (name, [host, port])
-    | _ => throw <| IO.userError usage
+  let usage :=
+    "Expected a scenario name, then optionally a trace file, or a Fluentd host and port"
+  let name :: target := args | throw <| IO.userError usage
   let registered ← scenarios.get
   let known := registered.map (·.1) |>.reverse
   let some steps := registered.lookup name
   | throw <| IO.userError s!"Unknown scenario '{name}'. Known scenarios: {known}"
-  start fluentd
-  steps
-  finish
+  match target with
+  | [file] =>
+      startCapture
+      try
+        steps
+        finish
+      finally
+        let records ← takeTrace
+        IO.FS.writeFile file (String.join (records.toList.map (· ++ "\n")))
+  | [] | [_, _] =>
+      start target
+      steps
+      finish
+  | _ => throw <| IO.userError usage
 
 end CftDriver
