@@ -31,7 +31,9 @@ namespace ccf
       }
       try
       {
-        auto did = crypto::did_key_from_public_key_der(
+        // The caller is not authenticated yet, so derive its ID without the
+        // costly key validation. Enrolled keys were validated on admission.
+        auto did = crypto::unvalidated_did_key_from_public_key_der(
           crypto::public_key_der_from_cert(session.caller_cert));
         auto enrolled = keys->get(did);
         if (enrolled.has_value())

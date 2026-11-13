@@ -39,19 +39,39 @@ beforeEach(() => {
   );
 });
 
-function validate(input: string): { valid: boolean; description: string } {
+function validate(
+  input: string,
+  runtime: object = ccf,
+): { valid: boolean; description: string } {
   return runInNewContext(
     `${constitution}\n${proposalScripts}\nvalidate(input);`,
-    { ccf, input },
+    { ccf: runtime, input },
   );
 }
 
-function apply(input: string): void {
+function apply(input: string, runtime: object = ccf): void {
   runInNewContext(`${constitution}\n${proposalScripts}\napply(input);`, {
-    ccf,
+    ccf: runtime,
     input,
   });
 }
+
+// A runtime predating did:key support: it has no DID functions, and its
+// pemToId only accepts a certificate.
+const olderRuntime = new Proxy(ccf, {
+  get(target, name, receiver) {
+    if (name === "isValidEntityId" || name === "publicKeyFromDidKey") {
+      return undefined;
+    }
+    if (name === "pemToId") {
+      return (...args: string[]) => {
+        assert.equal(args.length, 1);
+        return target.pemToId(args[0]);
+      };
+    }
+    return Reflect.get(target, name, receiver);
+  },
+});
 
 for (const role of ["member", "user"]) {
   const certsTable = `public:ccf.gov.${role}s.certs`;
@@ -131,6 +151,36 @@ for (const role of ["member", "user"]) {
       assert.equal(ccf.kv[certsTable].has(ccf.strToBuf(replacementId)), true);
       assert.equal(ccf.kv[keysTable].has(ccf.strToBuf(did)), true);
       assert.equal(ccf.kv[infoTable].has(ccf.strToBuf(did)), true);
+    });
+
+    it("supports legacy identities on runtimes without did:key support", () => {
+      const steps = [
+        [setAction({ cert })],
+        [
+          {
+            name: `set_${role}_data`,
+            args: { [`${role}_id`]: legacyId, [`${role}_data`]: { v: 2 } },
+          },
+        ],
+        [removeAction(legacyId)],
+      ];
+      for (const actions of steps) {
+        const input = JSON.stringify({ actions });
+        const result = validate(input, olderRuntime);
+        assert.equal(result.valid, true, result.description);
+        apply(input, olderRuntime);
+        assert.equal(
+          ccf.kv[certsTable].has(ccf.strToBuf(legacyId)),
+          actions !== steps[2],
+        );
+      }
+      assert.equal(ccf.kv[infoTable].has(ccf.strToBuf(legacyId)), false);
+
+      const didEnrollment = JSON.stringify({
+        actions: [setAction({ did_key: did })],
+      });
+      assert.equal(validate(didEnrollment, olderRuntime).valid, false);
+      assert.equal(ccf.kv[keysTable].size, 0);
     });
 
     it("removes a DID enrollment without affecting a legacy one", () => {

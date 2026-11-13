@@ -13,6 +13,29 @@
 
 namespace ccf
 {
+  inline bool is_legacy_identity_id(std::string_view id)
+  {
+    return id.size() == 64 && std::all_of(id.begin(), id.end(), [](char c) {
+             return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
+               (c >= 'A' && c <= 'F');
+           });
+  }
+
+  /// Check the syntax of an identity ID, without validating the key contained
+  /// in a did:key. This is cheap enough to apply to unauthenticated input,
+  /// such as an ID used to look up an identity.
+  inline bool is_well_formed_identity_id(std::string_view id)
+  {
+    if (id.starts_with("did:key:"))
+    {
+      return crypto::is_well_formed_did_key(id);
+    }
+    return is_legacy_identity_id(id);
+  }
+
+  /// Check an identity ID, including validation of the key contained in a
+  /// did:key. This is costly for large RSA keys, so must only be applied to
+  /// authenticated input.
   inline bool is_valid_identity_id(std::string_view id)
   {
     if (id.starts_with("did:key:"))
@@ -27,10 +50,7 @@ namespace ccf
         return false;
       }
     }
-    return id.size() == 64 && std::all_of(id.begin(), id.end(), [](char c) {
-             return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
-               (c >= 'A' && c <= 'F');
-           });
+    return is_legacy_identity_id(id);
   }
 
   template <typename FmtExtender = void>

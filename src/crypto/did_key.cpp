@@ -19,6 +19,7 @@ namespace ccf::crypto
       "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
     constexpr std::string_view PREFIX = "did:key:z";
     constexpr size_t MAX_DID_SIZE = 3000;
+    constexpr int MIN_RSA_BITS = 2048;
     constexpr int MAX_RSA_BITS = 16384;
 
     bool same_public_key(EVP_PKEY* lhs, EVP_PKEY* rhs)
@@ -54,20 +55,27 @@ namespace ccf::crypto
       return result;
     }
 
-    void validate_public_key(EVP_PKEY* key)
+    void check_rsa_size(EVP_PKEY* key)
     {
-      Unique_EVP_PKEY_CTX ctx(key);
-      if (EVP_PKEY_public_check(ctx) != 1)
-      {
-        invalid_key();
-      }
       if (
         EVP_PKEY_is_a(key, "RSA") != 0 &&
-        (EVP_PKEY_get_bits(key) < 2048 ||
+        (EVP_PKEY_get_bits(key) < MIN_RSA_BITS ||
          EVP_PKEY_get_bits(key) > MAX_RSA_BITS))
       {
         throw std::invalid_argument(
           "did:key RSA keys must be between 2048 and 16384 bits");
+      }
+    }
+
+    // The public key check is costly for large RSA keys, so it must only run
+    // on authenticated input such as governance enrollment.
+    void validate_public_key(EVP_PKEY* key)
+    {
+      check_rsa_size(key);
+      Unique_EVP_PKEY_CTX ctx(key);
+      if (EVP_PKEY_public_check(ctx) != 1)
+      {
+        invalid_key();
       }
     }
 
@@ -76,14 +84,26 @@ namespace ccf::crypto
       Unique_BIGNUM value;
       CHECKNULL(BN_bin2bn(bytes.data(), bytes.size(), value));
       std::string result;
+      // Divide by 58^10 to produce ten digits per bignum division, since this
+      // runs on keys presented by unauthenticated callers
+      static_assert(sizeof(BN_ULONG) >= sizeof(uint64_t));
+      constexpr BN_ULONG CHUNK = 430804206899405824ULL;
+      constexpr size_t CHUNK_DIGITS = 10;
       while (BN_is_zero(value) == 0)
       {
-        const auto digit = BN_div_word(value, 58);
-        if (digit == static_cast<BN_ULONG>(-1))
+        auto remainder = BN_div_word(value, CHUNK);
+        if (remainder == static_cast<BN_ULONG>(-1))
         {
           throw std::runtime_error("Failed to encode base58: " + first_error());
         }
-        result.push_back(BASE58[digit]);
+        // The most significant chunk has no leading zero digits
+        const auto is_last = BN_is_zero(value) != 0;
+        for (size_t i = 0; i < CHUNK_DIGITS && (!is_last || remainder != 0);
+             ++i)
+        {
+          result.push_back(BASE58[remainder % BASE58.size()]);
+          remainder /= BASE58.size();
+        }
       }
       for (auto b : bytes)
       {
@@ -128,66 +148,103 @@ namespace ccf::crypto
       CHECKEQUAL(size, i2d_PUBKEY(key, &p));
       return result;
     }
+
+    // Enforces the supported key profile, but does not validate the key.
+    std::string encode_did_key(EVP_PKEY* key)
+    {
+      std::vector<uint8_t> encoded;
+      if (EVP_PKEY_is_a(key, "EC") != 0)
+      {
+        char group[80] = {};
+        size_t length = 0;
+        CHECK1(EVP_PKEY_get_utf8_string_param(
+          key, OSSL_PKEY_PARAM_GROUP_NAME, group, sizeof(group), &length));
+        const auto nid = OBJ_txt2nid(group);
+        size_t coordinate_size = 0;
+        if (nid == NID_X9_62_prime256v1)
+        {
+          encoded = {0x80, 0x24};
+          coordinate_size = 32;
+        }
+        else if (nid == NID_secp384r1)
+        {
+          encoded = {0x81, 0x24};
+          coordinate_size = 48;
+        }
+        else if (nid == NID_secp521r1)
+        {
+          encoded = {0x82, 0x24};
+          coordinate_size = 66;
+        }
+        else
+        {
+          throw std::invalid_argument("Unsupported did:key EC curve");
+        }
+        BIGNUM* x_raw = nullptr;
+        BIGNUM* y_raw = nullptr;
+        CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, &x_raw));
+        Unique_BIGNUM x(x_raw, BN_free);
+        CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &y_raw));
+        Unique_BIGNUM y(y_raw, BN_free);
+        encoded.push_back(BN_is_odd(y) != 0 ? 3 : 2);
+        encoded.resize(3 + coordinate_size);
+        CHECKEQUAL(
+          coordinate_size,
+          BN_bn2binpad(x, encoded.data() + 3, coordinate_size));
+      }
+      else if (EVP_PKEY_is_a(key, "RSA") != 0)
+      {
+        check_rsa_size(key);
+        encoded = {0x85, 0x24};
+        const auto size = i2d_PublicKey(key, nullptr);
+        CHECKPOSITIVE(size);
+        encoded.resize(2 + size);
+        auto* p = encoded.data() + 2;
+        CHECKEQUAL(size, i2d_PublicKey(key, &p));
+      }
+      else
+      {
+        throw std::invalid_argument("Unsupported did:key public key type");
+      }
+      return std::string(PREFIX) + encode_base58(encoded);
+    }
+
+    // Validate a decoded key in the form in which it is stored and used: as
+    // parsed from its SubjectPublicKeyInfo. Validating only the key object
+    // built from the did:key's raw encoding is not sufficient.
+    std::vector<uint8_t> validated_public_key_der(
+      EVP_PKEY* decoded, std::string_view id)
+    {
+      auto der = serialise_public_key(decoded);
+      auto key = parse_public_key(der);
+      validate_public_key(key);
+      if (encode_did_key(key) != id)
+      {
+        throw std::invalid_argument(
+          "did:key is not the deterministic encoding of its public key");
+      }
+      return der;
+    }
   }
 
   std::string did_key_from_public_key_der(std::span<const uint8_t> der)
   {
-    using namespace OpenSSL;
     auto key = parse_public_key(der);
     validate_public_key(key);
-    std::vector<uint8_t> encoded;
-    if (EVP_PKEY_is_a(key, "EC") != 0)
-    {
-      char group[80] = {};
-      size_t length = 0;
-      CHECK1(EVP_PKEY_get_utf8_string_param(
-        key, OSSL_PKEY_PARAM_GROUP_NAME, group, sizeof(group), &length));
-      const auto nid = OBJ_txt2nid(group);
-      size_t coordinate_size = 0;
-      if (nid == NID_X9_62_prime256v1)
-      {
-        encoded = {0x80, 0x24};
-        coordinate_size = 32;
-      }
-      else if (nid == NID_secp384r1)
-      {
-        encoded = {0x81, 0x24};
-        coordinate_size = 48;
-      }
-      else if (nid == NID_secp521r1)
-      {
-        encoded = {0x82, 0x24};
-        coordinate_size = 66;
-      }
-      else
-      {
-        throw std::invalid_argument("Unsupported did:key EC curve");
-      }
-      BIGNUM* x_raw = nullptr;
-      BIGNUM* y_raw = nullptr;
-      CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, &x_raw));
-      Unique_BIGNUM x(x_raw, BN_free);
-      CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &y_raw));
-      Unique_BIGNUM y(y_raw, BN_free);
-      encoded.push_back(BN_is_odd(y) != 0 ? 3 : 2);
-      encoded.resize(3 + coordinate_size);
-      CHECKEQUAL(
-        coordinate_size, BN_bn2binpad(x, encoded.data() + 3, coordinate_size));
-    }
-    else if (EVP_PKEY_is_a(key, "RSA") != 0)
-    {
-      encoded = {0x85, 0x24};
-      const auto size = i2d_PublicKey(key, nullptr);
-      CHECKPOSITIVE(size);
-      encoded.resize(2 + size);
-      auto* p = encoded.data() + 2;
-      CHECKEQUAL(size, i2d_PublicKey(key, &p));
-    }
-    else
-    {
-      throw std::invalid_argument("Unsupported did:key public key type");
-    }
-    return std::string(PREFIX) + encode_base58(encoded);
+    return encode_did_key(key);
+  }
+
+  std::string unvalidated_did_key_from_public_key_der(
+    std::span<const uint8_t> der)
+  {
+    return encode_did_key(parse_public_key(der));
+  }
+
+  bool is_well_formed_did_key(std::string_view id)
+  {
+    return id.starts_with(PREFIX) && id.size() > PREFIX.size() &&
+      id.size() <= MAX_DID_SIZE &&
+      id.find_first_not_of(BASE58, PREFIX.size()) == std::string_view::npos;
   }
 
   std::vector<uint8_t> public_key_der_from_did_key(std::string_view id)
@@ -220,14 +277,7 @@ namespace ccf::crypto
       {
         invalid_key();
       }
-      validate_public_key(key);
-      auto der = serialise_public_key(key);
-      if (did_key_from_public_key_der(der) != id)
-      {
-        throw std::invalid_argument(
-          "did:key is not the deterministic encoding of its public key");
-      }
-      return der;
+      return validated_public_key_der(key, id);
     }
     const char* group = nullptr;
     size_t size = 0;
@@ -276,14 +326,7 @@ namespace ccf::crypto
     {
       invalid_key();
     }
-    validate_public_key(key);
-    auto der = serialise_public_key(key);
-    if (did_key_from_public_key_der(der) != id)
-    {
-      throw std::invalid_argument(
-        "did:key is not the deterministic encoding of its public key");
-    }
-    return der;
+    return validated_public_key_der(key, id);
   }
 
   bool public_keys_equal(const Pem& lhs, const Pem& rhs)

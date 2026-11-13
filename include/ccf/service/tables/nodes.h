@@ -35,7 +35,11 @@ namespace ccf
   {
     if (format == IdentityIdFormat::DIDKey)
     {
-      return ccf::crypto::did_key_from_public_key_der(node_pubk_der);
+      // Node keys come from this node's own key pair or from a certificate
+      // presented over TLS, including by unauthenticated callers, so skip the
+      // costly key validation.
+      return ccf::crypto::unvalidated_did_key_from_public_key_der(
+        node_pubk_der);
     }
     return ccf::crypto::Sha256Hash(node_pubk_der).hex_str();
   }

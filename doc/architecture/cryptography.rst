@@ -115,12 +115,13 @@ Node IDs are the hexadecimal SHA-256 fingerprint of the DER SubjectPublicKeyInfo
 
 New identities can instead use a `did:key <https://w3c-ccg.github.io/did-key-spec/>`_ ID, which embeds the multicodec-tagged public key rather than hashing it.
 CCF supports compressed P-256, P-384, and P-521 keys and PKCS#1 RSA public keys between 2048 and 16384 bits.
+The ``did:key`` specification lists the P-256 and P-384 key types; P-521 and RSA keys use the ``p521-pub`` and ``rsa-pub`` codes from the `multicodec table <https://github.com/multiformats/multicodec/blob/master/table.csv>`_, so other ``did:key`` implementations may not accept them.
 Existing authentication and signing algorithm restrictions still apply.
 
 The `did:key identifier syntax <https://w3c-ccg.github.io/did-key-spec/#did-key-identifier-syntax>`_ allows either a base58-btc (``z``) or a base64url (``u``) multibase value.
 CCF only accepts and produces the base58-btc (``z``) form, which is the form used by every example in the specification, and rejects the base64url form.
 As the specification describes, a ``did:key`` is a deterministic encoding of its public key, and CCF only accepts the ``did:key`` that it would produce from the decoded key.
-For example, an EC key must use the compressed point encoding listed in the specification's key type table.
+For example, an EC key must use the compressed point encoding.
 Only bare IDs are accepted; DID URLs with fragments, queries, or paths are not identity IDs.
 
 ``did:key`` IDs contain colons.
@@ -130,6 +131,7 @@ The stored ID and COSE ``kid`` remain the unencoded ``did:key``.
 
 Members and users enroll a ``did:key`` by passing it as ``did_key`` to ``set_member`` or ``set_user``; no certificate is stored or required.
 That enrollment is the only step needed.
+The embedded public key is validated when it is enrolled; an ID that is only used to look up an identity is checked for syntax alone.
 COSE Sign1 requests use the ``did:key`` as their ``kid`` and are verified with the embedded public key.
 Endpoints using TLS client certificate authentication (such as ``user_cert`` or ``member_cert``) also accept any client certificate carrying the enrolled public key, and identify the caller by the enrolled ``did:key``.
 The validity period of such a certificate is not checked: governance explicitly grants access by enrolling the identity, and revokes it by removing the identity.

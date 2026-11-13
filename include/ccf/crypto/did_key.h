@@ -16,6 +16,19 @@ namespace ccf::crypto
   /// Throws std::invalid_argument for unsupported or invalid public keys.
   std::string did_key_from_public_key_der(std::span<const uint8_t> der);
 
+  /// Encode a public key as did_key_from_public_key_der does, enforcing the
+  /// supported key types and sizes but skipping the public key validation,
+  /// which is costly for large RSA keys.
+  /// Use this to derive the ID that a key would have, to look it up or compare
+  /// it with an enrolled ID while authenticating a caller. Use
+  /// did_key_from_public_key_der when admitting a new key.
+  std::string unvalidated_did_key_from_public_key_der(
+    std::span<const uint8_t> der);
+
+  /// Check that a string is a bare base58-btc did:key of acceptable size,
+  /// without decoding or validating the key it contains.
+  bool is_well_formed_did_key(std::string_view id);
+
   /// Decode and validate a bare, base58-btc did:key.
   /// Throws std::invalid_argument for malformed, unsupported or oversized IDs,
   /// including the base64url (u) multibase form.

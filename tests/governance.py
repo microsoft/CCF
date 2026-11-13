@@ -1158,6 +1158,12 @@ def did_key_identities(args):
             ).body.json()
             assert "certificate" not in body, body
             assert body["userData"] == {"migrated": True}, body
+            # Unauthenticated lookups only check the syntax of an ID, without
+            # decoding or validating the key in a did:key
+            r = c.get(f"/gov/service/users/{quote('did:key:z0', safe='')}")
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+            r = c.get(f"/gov/service/users/{quote(did_user_id + '1', safe='')}")
+            assert r.status_code == http.HTTPStatus.NOT_FOUND, r
         with primary.client(user.local_id) as c:
             r = c.post("/app/log/private", {"id": 1, "msg": "DID user"})
             assert r.status_code == http.HTTPStatus.OK, r

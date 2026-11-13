@@ -82,7 +82,7 @@ namespace ccf::gov::endpoints::detail
     }
 
     // Parse member ID from string
-    const auto member_id_opt = ccf::is_valid_identity_id(member_id_str) ?
+    const auto member_id_opt = ccf::is_well_formed_identity_id(member_id_str) ?
       std::make_optional(ccf::MemberId(member_id_str)) :
       std::nullopt;
     if (!member_id_opt.has_value())
@@ -146,7 +146,7 @@ namespace ccf::gov::endpoints::detail
     }
 
     // Parse user ID from string
-    const auto user_id_opt = ccf::is_valid_identity_id(user_id_str) ?
+    const auto user_id_opt = ccf::is_well_formed_identity_id(user_id_str) ?
       std::make_optional(ccf::UserId(user_id_str)) :
       std::nullopt;
     if (!user_id_opt.has_value())
@@ -253,7 +253,7 @@ namespace ccf::gov::endpoints::detail
     }
 
     // Parse node ID from string
-    const auto node_id_opt = ccf::is_valid_identity_id(node_id_str) ?
+    const auto node_id_opt = ccf::is_well_formed_identity_id(node_id_str) ?
       std::make_optional(ccf::NodeId(node_id_str)) :
       std::nullopt;
     if (!node_id_opt.has_value())

@@ -18,6 +18,7 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/x509_time_fmt.h"
+#include "ccf/entity_id.h"
 #include "crypto/cbor_tags.h"
 #include "crypto/certs.h"
 #include "crypto/cose.h"
@@ -99,6 +100,61 @@ TEST_CASE("Deterministic did:key public key identifiers")
     public_key_der_from_did_key("did:key:uabc"),
     "Only base58-btc (z) multibase did:key IDs are supported",
     std::invalid_argument);
+}
+
+TEST_CASE("Deriving a did:key to identify a caller skips key validation")
+{
+  for (const auto curve :
+       {CurveID::SECP256R1, CurveID::SECP384R1, CurveID::SECP521R1})
+  {
+    const auto der = make_ec_key_pair(curve)->public_key_der();
+    CHECK(
+      unvalidated_did_key_from_public_key_der(der) ==
+      did_key_from_public_key_der(der));
+  }
+  const auto rsa_der = make_rsa_key_pair()->public_key_der();
+  CHECK(
+    unvalidated_did_key_from_public_key_der(rsa_der) ==
+    did_key_from_public_key_der(rsa_der));
+
+  // A well-formed 2048-bit RSA public key whose modulus, 3 * (2^2046 + 1),
+  // fails validation because it has a small factor
+  const auto invalid_der = raw_from_b64(
+    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw" + std::string(340, 'A') +
+    "wIDAQAB");
+  CHECK_THROWS_AS(
+    did_key_from_public_key_der(invalid_der), std::invalid_argument);
+  const auto did = unvalidated_did_key_from_public_key_der(invalid_der);
+  CHECK(did.starts_with("did:key:z"));
+
+  // Such an ID is well-formed, so can be looked up, but cannot be enrolled
+  CHECK(is_well_formed_did_key(did));
+  CHECK(ccf::is_well_formed_identity_id(did));
+  CHECK_FALSE(ccf::is_valid_identity_id(did));
+  CHECK_THROWS_AS(public_key_der_from_did_key(did), std::invalid_argument);
+
+  // Keys outside the supported profile are rejected without validation
+  CHECK_THROWS_AS(
+    unvalidated_did_key_from_public_key_der(
+      make_rsa_key_pair(1024)->public_key_der()),
+    std::invalid_argument);
+
+  for (const auto& malformed :
+       {std::string(""),
+        std::string("did:key:"),
+        std::string("did:key:z"),
+        std::string("did:key:z0"),
+        std::string("did:key:uabc"),
+        did + "#key",
+        did + "?version=1",
+        std::string("did:key:z") + std::string(3000, '1')})
+  {
+    CHECK_FALSE(is_well_formed_did_key(malformed));
+    CHECK_FALSE(ccf::is_well_formed_identity_id(malformed));
+  }
+  CHECK(ccf::is_well_formed_identity_id(std::string(64, 'a')));
+  CHECK_FALSE(ccf::is_well_formed_identity_id(std::string(63, 'a')));
+  CHECK_FALSE(ccf::is_well_formed_identity_id(std::string(64, 'g')));
 }
 
 TEST_CASE("Published did:key NIST public key vectors")

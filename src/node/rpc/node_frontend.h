@@ -484,10 +484,11 @@ namespace ccf
     {
       const auto in = params.get<JoinNetworkNodeToNode::In>();
 
-      NodeId requested_id;
       try
       {
-        requested_id = compute_node_id_from_cert_der(
+        // Reject keys which cannot be identified in the requested format
+        // before any further processing
+        compute_node_id_from_cert_der(
           args.rpc_ctx->get_session_context()->caller_cert, in.id_format);
       }
       catch (const std::exception& e)
@@ -597,13 +598,6 @@ namespace ccf
         in.id_format);
       if (existing_node_info.has_value())
       {
-        if (existing_node_info->node_id != requested_id)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::NodeAlreadyExists,
-            "Node public key is already enrolled under a different ID format");
-        }
         JoinNetworkNodeToNode::Out rep;
 
         // If the node already exists, return network secrets if is already

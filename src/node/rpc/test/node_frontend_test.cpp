@@ -798,19 +798,23 @@ TEST_CASE("Add a node to an opening service")
     CHECK(node_kp->public_key_pem() == node_info->public_key);
   }
 
-  INFO("Adding the same key under a different ID format is rejected");
+  INFO("Joining again with the same key returns the existing node");
   {
+    // Node keys are not reused, so the requested ID format does not create a
+    // second identity for a key which has already joined
     JoinNetworkNodeToNode::In join_input;
     join_input.mldsa_supported = ccf::crypto::mldsa_supported();
     join_input.id_format = id_format == IdentityIdFormat::DIDKey ?
       IdentityIdFormat::SHA256 :
       IdentityIdFormat::DIDKey;
     join_input.public_encryption_key = node_public_encryption_key;
-    const auto response =
+    const auto http_response =
       frontend_process(frontend, join_input, "join", caller);
-    check_error(response, HTTP_STATUS_BAD_REQUEST);
-    check_error_message(
-      response, "already enrolled under a different ID format");
+    CHECK(http_response.status == HTTP_STATUS_OK);
+    const auto response =
+      parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
+    CHECK(response.node_status == NodeStatus::TRUSTED);
+    CHECK(response.node_id == compute_node_id_from_kp(node_kp, id_format));
     auto verify_tx = network.tables->create_tx();
     CHECK(verify_tx.ro(network.nodes)->size() == 1);
   }

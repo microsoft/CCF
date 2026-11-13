@@ -268,7 +268,8 @@ namespace ccf
     {
       if (
         member_key.has_value() &&
-        crypto::did_key_from_public_key_der(*member_key) != phdr.kid)
+        crypto::unvalidated_did_key_from_public_key_der(*member_key) !=
+          phdr.kid)
       {
         error_reason = "Enrolled did:key does not match its public key";
         return nullptr;
@@ -422,7 +423,7 @@ namespace ccf
     {
       if (
         user_key.has_value() &&
-        crypto::did_key_from_public_key_der(*user_key) != phdr.kid)
+        crypto::unvalidated_did_key_from_public_key_der(*user_key) != phdr.kid)
       {
         error_reason = "Enrolled did:key does not match its public key";
         return nullptr;
