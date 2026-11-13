@@ -2,13 +2,13 @@
 # Five nodes let a short-log candidate obtain a genuine pre-vote quorum.
 start_node,0
 assert_detail,0,leadership_state,Leader
-emit_signature,2
+replicate,2,$
 
 assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -16,7 +16,7 @@ dispatch_all
 assert_commit_idx,0,4
 
 trust_nodes,2,2,3,4
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -28,7 +28,7 @@ assert_state_sync
 
 # Node 0 emits an entry, and signature
 replicate,2,hello world
-emit_signature,2
+replicate,2,$
 periodic_all,10
 
 # But only succeeds in replicating this to node 1
@@ -102,7 +102,7 @@ assert_detail,1,leadership_state,Leader
 # Regardless of earlier disagreements, we can all agree now
 reconnect_node,2
 replicate,5,place trace checker
-emit_signature,5
+replicate,5,$
 periodic_all,10
 dispatch_all
 periodic_all,10

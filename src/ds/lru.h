@@ -139,4 +139,14 @@ public:
     entries_list.clear();
     iter_map.clear();
   }
+
+  void erase(const K& key)
+  {
+    const auto it = iter_map.find(key);
+    if (it != iter_map.end())
+    {
+      entries_list.erase(it->second);
+      iter_map.erase(it);
+    }
+  }
 };

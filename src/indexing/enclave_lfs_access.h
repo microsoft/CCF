@@ -189,7 +189,7 @@ namespace ccf::indexing
       std::error_code ec;
       if (!std::filesystem::is_regular_file(target_path, ec))
       {
-        if (ec)
+        if (ec && ec != std::errc::no_such_file_or_directory)
         {
           LOG_FAIL_FMT(
             "Failed to inspect LFS file {}: {}",

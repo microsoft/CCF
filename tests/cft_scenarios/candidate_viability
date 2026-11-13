@@ -3,11 +3,11 @@
 # Node 0 is the start node
 start_node,0
 assert_detail,0,leadership_state,Leader
-emit_signature,2
+replicate,2,$
 
 # Single reconfiguration adds nodes 1, 2, 3, and 4
 trust_nodes,2,1,2,3,4
-emit_signature,2
+replicate,2,$
 
 # Few roundtrips advance the commit on node 0
 periodic_all,10
@@ -34,8 +34,8 @@ dispatch_all
 assert_detail,0,leadership_state,Leader
 
 # Node 0 produces a slightly longer suffix in term 3
-emit_signature,3
-emit_signature,3
+replicate,3,$
+replicate,3,$
 
 # Roundtrip advances the commit on node 0
 periodic_all,10
@@ -44,8 +44,8 @@ dispatch_all
 assert_commit_idx,0,6
 
 # Node 0 produces a further uncommitted suffix
-emit_signature,3
-emit_signature,3
+replicate,3,$
+replicate,3,$
 
 # But they're partitioned, so no-one hears this final suffix or the latest commit point
 disconnect_node,0
@@ -60,8 +60,8 @@ dispatch_all
 assert_detail,1,leadership_state,Leader
 
 # Node 1 produces an alternative branch
-emit_signature,4
-emit_signature,4
+replicate,4,$
+replicate,4,$
 
 # But before _that_ is shared, the partition flips:
 # - Node 0 reconnects
@@ -82,9 +82,9 @@ dispatch_all
 assert_detail,0,leadership_state,Leader
 
 # Node 0 further extends their branch, in term 5
-emit_signature,5
-emit_signature,5
-emit_signature,5
+replicate,5,$
+replicate,5,$
+replicate,5,$
 
 # But before _that_ is shared, the partition flips again:
 # - Node 1 reconnects
@@ -113,7 +113,7 @@ dispatch_all
 assert_detail,1,leadership_state,Leader
 
 # Node 1 further extends their branch, in term 6
-emit_signature,6
+replicate,6,$
 
 # Now we only connect nodes 1 with 3 and 4, to minimise unnecessary traffic
 assert_commit_idx,3,4 # 3 hasn't heard anything for a long time
