@@ -383,7 +383,7 @@ namespace ccf
         fail_fetching(e.what());
       }
 
-      complete_pq_chain(target_status);
+      complete_pq_chain(target_status, *current_service_from);
 
       log_status(target_status);
       fetch_status.store(target_status);
@@ -395,10 +395,11 @@ namespace ccf
     }
 
     // Starts the PQ chain at the PQ endorsement which the opening of the
-    // current service wrote with the CLASSICAL one
+    // current service, created at current_from, wrote with the CLASSICAL one
     void start_pq_chain(
       const std::optional<CoseEndorsement>& pq_endorsement,
-      const CoseEndorsement& classical_endorsement)
+      const CoseEndorsement& classical_endorsement,
+      const ccf::TxID& current_from)
     {
       // A build without ML-DSA never holds a PQ identity
       if (!ccf::crypto::mldsa_supported())
@@ -443,19 +444,17 @@ namespace ccf
 
         if (is_self_endorsement(pq_endorsement.value()))
         {
-          if (
-            pq_endorsement->endorsement_epoch_begin !=
-            current_service_from.value())
+          if (pq_endorsement->endorsement_epoch_begin != current_from)
           {
             throw std::logic_error(fmt::format(
               "the current PQ self-endorsement at {} is different from "
               "current_service_create_txid {}",
               pq_endorsement->endorsement_epoch_begin.to_str(),
-              current_service_from->to_str()));
+              current_from.to_str()));
           }
           LOG_INFO_FMT(
             "The PQ endorsements chain starts with the current service at {}",
-            current_service_from->to_str());
+            current_from.to_str());
           return;
         }
 
@@ -548,7 +547,8 @@ namespace ccf
       }
     }
 
-    void complete_pq_chain(FetchStatus target_status)
+    void complete_pq_chain(
+      FetchStatus target_status, const ccf::TxID& current_from)
     {
       if (!current_pq_key_der.has_value())
       {
@@ -573,10 +573,10 @@ namespace ccf
             ++prev;
             ++next;
           }
-          validate_chain_front_connection(
-            prev->second, current_service_from.value());
+          validate_chain_front_connection(prev->second, current_from);
         }
-        build_pq_trusted_key_chain(current_pq_key_der.value());
+        build_pq_trusted_key_chain(
+          current_pq_key_der.value(), current_from.seqno);
       }
       catch (const std::exception& e)
       {
@@ -587,7 +587,8 @@ namespace ccf
         "Fetched {} PQ service endorsement(s)", pq_endorsements.size());
     }
 
-    void build_pq_trusted_key_chain(std::span<const uint8_t> current_pq_key)
+    void build_pq_trusted_key_chain(
+      std::span<const uint8_t> current_pq_key, ccf::SeqNo current_from)
     {
       std::span<const uint8_t> previous_key_der{};
       for (const auto& [seqno, endorsement] : pq_endorsements)
@@ -643,7 +644,7 @@ namespace ccf
       }
 
       pq_trusted_keys.emplace(
-        current_service_from->seqno,
+        current_from,
         std::vector<uint8_t>(current_pq_key.begin(), current_pq_key.end()));
     }
 
@@ -718,7 +719,10 @@ namespace ccf
       }
 
       current_service_from = current.create_txid;
-      start_pq_chain(current.pq_endorsement, endorsement.value());
+      start_pq_chain(
+        current.pq_endorsement,
+        endorsement.value(),
+        current.create_txid.value());
 
       if (is_self_endorsement(endorsement.value()))
       {
