@@ -16,7 +16,7 @@ import Kv.Proofs.SemanticInvariant
 
 /-! The canonical KV safety catalogue concerns only semantic model states, outputs and executions.
 Each full statement and adjacent nonvacuity witness links to its checked proof implementation.
-Trace conformance is exposed separately by `Kv.Correspondence`. -/
+Trace conformance proofs remain separate under `Kv.Proofs.Correspondence`. -/
 
 namespace Kv.Properties
 

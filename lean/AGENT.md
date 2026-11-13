@@ -45,7 +45,7 @@ Keep the semantic transition system and the trace replay system explicitly named
 Prove that accepted replay steps or executions project to the semantic model, allowing trace-only bookkeeping steps to stutter.
 State every public safety claim in `Properties.lean` over semantic model state, actions, outputs, or executions of `Model.transitionSystem`.
 Do not use trace-adapter reachability as a premise for a model safety property, or keep duplicate adapter-scoped versions alongside semantic versions in that entrypoint.
-Expose replay projection, reported-result agreement, and other trace/model correspondence claims in a separate correspondence entrypoint.
+Keep replay projection, reported-result agreement, and other trace/model correspondence proofs under `Proofs/`, without a separate correspondence entrypoint.
 The safety entrypoint and the helpers needed to understand it must not depend on trace validation or correspondence declarations.
 Moving a checker to a different directory or adding an unused semantic transition system does not establish this separation.
 

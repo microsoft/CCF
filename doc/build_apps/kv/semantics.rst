@@ -192,7 +192,7 @@ Semantic store creation supplies an explicit initial term, while schema-driven i
 ``Kv.TraceValidation.transitionSystem`` validates recorded lifecycles, iteration IDs, run-unique identities, observation reports, and stream completeness.
 The adapter checks trace guards, executes each event's translated semantic inputs exactly once, compares the computed outputs with the reported observations, and installs the returned semantic state as authoritative.
 Only schema/lifecycle metadata, sequence/count bookkeeping, and frozen callback-entry bookkeeping are updated separately; the adapter does not independently compute a semantic candidate state.
-The separate ``Kv/Correspondence.lean`` entrypoint exposes ``step_projects``, ``replay_projects``, and ``reachable_projects``, proving correspondence with actual semantic executions and allowing trace-only records to stutter.
+``Kv/Proofs/Correspondence.lean`` proves correspondence with actual semantic executions and allows trace-only records to stutter, without a separate theorem entrypoint.
 Its ``step_reports`` theorem proves that accepted reports match the actual semantic outputs.
 ``application_atomic`` in the safety entrypoint states complete multi-map publication directly over semantic execution without trace assumptions.
 

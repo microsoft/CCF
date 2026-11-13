@@ -26,7 +26,6 @@ public import Kv.TraceValidation.Types
 public import Kv.TraceValidation.Adapter
 public import Kv.TraceValidation.Transitions
 public import Kv.TraceValidation.System
-public import Kv.Correspondence
 public import Kv.Properties.Executions
 public import Kv.Proofs.Core
 public import Kv.Proofs.CoreWitnesses
