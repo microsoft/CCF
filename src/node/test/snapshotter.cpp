@@ -1608,6 +1608,19 @@ TEST_CASE("Snapshot receipt")
     decoded.claims_digest ==
     std::vector<uint8_t>(claims_digest.h.begin(), claims_digest.h.end()));
 
+  INFO("A PQ signature next to the CLASSICAL one leaves the receipt unchanged");
+  auto cose_sigs_with_pq = cose_sigs;
+  cose_sigs_with_pq[ccf::IdentityType::PQ] = {1, 2, 3};
+  REQUIRE(
+    ccf::build_and_serialise_receipt(
+      cose_sigs_with_pq,
+      ccf::IdentityType::CLASSICAL,
+      tree.serialise(),
+      evidence_seqno,
+      write_set_digest,
+      commit_evidence,
+      claims_digest) == receipt);
+
   INFO("The receipt verifies under the signing service identity");
   const ccf::SnapshotSegments segments{snapshot_body, receipt};
   REQUIRE_NOTHROW(ccf::verify_snapshot(segments));
