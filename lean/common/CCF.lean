@@ -6,11 +6,11 @@ public import CCF.Execution
 public import CCF.Finset
 public import CCF.Function
 public import CCF.MultiNodeTransitionSystem
-public import CCF.Nonvacuous
 public import CCF.Parsec
 public import CCF.Proofs.Execution
 public import CCF.Proofs.Finset
 public import CCF.Seq
 public import CCF.TransitionSystem
+public import CCF.Witnessed
 
-import CCF.Tests.Nonvacuous
+import CCF.Tests.Witnessed

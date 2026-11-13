@@ -20,19 +20,21 @@ example (config : Properties.ValidConfig)
     : exists (trace : Properties.GlobalTrace config) (step : Nat) (opener : Location),
         Properties.Trace.NotificationAt config trace step opener (.opening .quorum)
         /\ opener = opener := by
-  obtain ⟨trace, step, opener, notified⟩ := Properties.quorum_opener_unique_witness config
+  obtain ⟨trace, step, _, opener, _, notified, _⟩ :=
+    (Properties.quorum_opener_unique config config.property).witness
   exact ⟨trace, step, opener, notified,
-    Properties.quorum_opener_unique config trace step step opener opener ⟨notified, notified⟩⟩
+    (Properties.quorum_opener_unique config config.property).safety trace step step opener opener
+      ⟨notified, notified⟩⟩
 
 example (config : Properties.ValidConfig)
     : exists (opener : Location) (txid : TxID),
         Model.recoveredTxID config opener = some txid
         /\ Properties.UpToDateWithQuorum config txid := by
   obtain ⟨trace, openedState, opener, openerState, opened, present, kind, own⟩ :=
-    Properties.quorum_open_preserves_commit_witness config
+    (Properties.quorum_open_preserves_commit config config.property).witness
   obtain ⟨txid, recovered, upToDate⟩ :=
-    Properties.quorum_open_preserves_commit config trace openedState opener openerState
-      ⟨opened, present, kind, own⟩
+    (Properties.quorum_open_preserves_commit config config.property).safety trace openedState
+      opener openerState ⟨opened, present, kind, own⟩
   exact ⟨opener, txid, recovered, upToDate⟩
 
 example (config : Properties.ValidConfig)
@@ -52,33 +54,40 @@ example (config : Properties.ValidConfig)
         localStep.after = localStep.before
         /\ .rejected "gossip-frozen" ∈ localStep.effects.notifications := by
   obtain ⟨localStep, source, txid, valid, action, chosen⟩ :=
-    Properties.gossip_freezes_after_choice_witness config
+    (Properties.gossip_freezes_after_choice config config.property).witness
   exact ⟨localStep,
-    Properties.gossip_freezes_after_choice config localStep source txid ⟨valid, action, chosen⟩⟩
+    (Properties.gossip_freezes_after_choice config config.property).safety localStep source txid
+      ⟨valid, action, chosen⟩⟩
 
 example (config : Properties.ValidConfig)
     : exists localStep : Properties.LocalStep,
         localStep.after = localStep.before
         /\ .rejected "quote-or-certificate" ∈ localStep.effects.notifications := by
-  obtain ⟨localStep, source, txid, valid, action⟩ := Properties.rejected_gossip_stutters_witness config
+  obtain ⟨localStep, source, txid, valid, action⟩ :=
+    (Properties.rejected_gossip_stutters config config.property).witness
   exact ⟨localStep,
-    Properties.rejected_gossip_stutters config localStep source txid ⟨valid, action⟩⟩
+    (Properties.rejected_gossip_stutters config config.property).safety localStep source txid
+      ⟨valid, action⟩⟩
 
 example (config : Properties.ValidConfig)
     : exists localStep : Properties.LocalStep,
         localStep.after.phase = .opening
         /\ localStep.after.openKind = some .quorum
         /\ .opening .quorum ∈ localStep.effects.notifications := by
-  obtain ⟨localStep, valid, action, phase, quorum⟩ := Properties.quorum_advance_opens_witness config
-  exact ⟨localStep, Properties.quorum_advance_opens config localStep ⟨valid, action, phase, quorum⟩⟩
+  obtain ⟨localStep, valid, action, phase, quorum⟩ :=
+    (Properties.quorum_advance_opens config config.property).witness
+  exact ⟨localStep,
+    (Properties.quorum_advance_opens config config.property).safety localStep
+      ⟨valid, action, phase, quorum⟩⟩
 
 example (config : Properties.ValidConfig)
     : exists localStep : Properties.LocalStep,
         localStep.after = { localStep.before with phase := .open }
         /\ .completed ∈ localStep.effects.notifications := by
   obtain ⟨localStep, valid, action, phase, timeoutState⟩ :=
-    Properties.aligned_opening_timeout_completes_witness config
+    (Properties.aligned_opening_timeout_completes config config.property).witness
   exact ⟨localStep,
-    Properties.aligned_opening_timeout_completes config localStep ⟨valid, action, phase, timeoutState⟩⟩
+    (Properties.aligned_opening_timeout_completes config config.property).safety localStep
+      ⟨valid, action, phase, timeoutState⟩⟩
 
 end DisasterRecovery.Tests.Witnesses

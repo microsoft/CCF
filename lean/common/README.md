@@ -10,7 +10,7 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 | `CCF.Execution`                 | Finite runs and finite or infinite execution traces          |
 | `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
 | `CCF.Architecture`              | Checks of specification import layering                      |
-| `CCF.Nonvacuous`                | `nonvacuous%`, the witness statement of a theorem            |
+| `CCF.Witnessed`                 | `witnessed%`, a safety claim stated with its witness         |
 | `CCF.Seq`                       | Possibly infinite sequences (replaces Mathlib `Stream'.Seq`) |
 | `CCF.Finset`                    | Finite sets as strictly sorted lists (replaces `Finset`)     |
 | `CCF.Function`                  | Point updates of functions (replaces `Function.update`)      |
@@ -42,12 +42,12 @@ Compilation caches do not avoid this independent kernel check.
 
 ## Witness statements
 
-`nonvacuous% foo` is the statement that the hypotheses of the theorem `foo` can be satisfied: `exists xs, pre` for `foo : forall xs, pre -> post`.
-`nonvacuous% foo /\ extra` adds `extra` to what the witness satisfies, with the variables of `foo` in scope under the names `foo` gave them.
-`nonvacuous% foo a` fixes the leading variable of `foo` to `a`, so a witness for every `a` is `forall a, nonvacuous% foo a`.
-It reads the type of `foo`, taking the leading binders that the rest of the statement mentions as variables and every binder after them as a hypothesis.
-A variable bound after a hypothesis, an implicit variable given an argument, or a variable that would hide a name already in scope is an error.
-`CCF.Tests.Nonvacuous` records the statements it produces and its errors.
+`witnessed% forall xs, { pre := p, post := q, witness := w }` is the proposition `CCF.Witnessed (forall xs, p -> q) (exists xs, p /\ w)`, so the variables and hypotheses of a safety claim and of its witness are written once.
+Without `witness`, the witness statement is `exists xs, p`.
+The braces are a `CCF.Witnessed.Spec` structure instance, and `xs` must be explicit binders.
+Being a proposition, it can follow other binders and hypotheses: `forall c, h c -> witnessed% forall xs, spec` assumes `h c` for both the claim and the witness.
+Use `.safety` and `.witness` to project the two statements.
+`CCF.Tests.Witnessed` records the statements it produces and its errors.
 
 ## Event parsing
 
