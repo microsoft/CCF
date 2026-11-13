@@ -126,9 +126,7 @@ class Recorder:
     def __init__(self):
         self.connections = []
         self.error = None
-        self.closed = False
-        self.deadline = None
-        self.stop = threading.Event()
+        self.deadline = None  # Set by close
         self.selector = selectors.DefaultSelector()
         self.listener = socket.create_server(("127.0.0.1", 0))
         self.listener.setblocking(False)
@@ -143,9 +141,9 @@ class Recorder:
     def run(self):
         try:
             while True:
-                # Only an idle select that starts after stop shows that no
+                # Only an idle select that starts after close shows that no
                 # connection or data is still queued.
-                stopping = self.stop.is_set()
+                deadline = self.deadline
                 events = self.selector.select(timeout=0.1)
                 for key, _ in events:
                     if key.fileobj is self.listener:
@@ -158,8 +156,6 @@ class Recorder:
                         continue
                     try:
                         data = key.fileobj.recv(65536)
-                    except BlockingIOError:
-                        continue
                     except OSError:
                         data = None
                     if data:
@@ -168,9 +164,9 @@ class Recorder:
                     key.data.eof = data == b""
                     self.selector.unregister(key.fileobj)
                     key.fileobj.close()
-                if stopping and (
+                if deadline is not None and (
                     (not events and len(self.selector.get_map()) == 1)
-                    or time.monotonic() >= self.deadline
+                    or time.monotonic() >= deadline
                 ):
                     break
         except Exception as error:  # Reported by the capture, not raised.
@@ -179,13 +175,9 @@ class Recorder:
     def close(self, timeout=5):
         """Wait up to timeout seconds for every connection to reach EOF, then
         stop listening. Idempotent; returns the recorded connections."""
-        if not self.closed:
-            self.closed = True
+        if self.deadline is None:
             self.deadline = time.monotonic() + timeout
-            self.stop.set()
-            self.thread.join(timeout + 1)
-            if self.thread.is_alive():
-                self.error = self.error or RuntimeError("Recorder did not stop")
+            self.thread.join()
             for key in list(self.selector.get_map().values()):
                 key.fileobj.close()
             self.selector.close()
