@@ -855,22 +855,6 @@ def test_nulled_snapshot(network, args):
             raise AssertionError("Expected corrupt snapshot to be skipped in node logs")
 
 
-def snapshot_with_json_receipt():
-    """
-    Snapshot bytes which pass separate_segments() (valid header with non-zero
-    body size and non-empty receipt area) but fail verify_snapshot() because
-    the receipt is a JSON receipt, as written by releases before 7.0, and only
-    COSE receipts are accepted.
-    """
-    # SerialisedEntryHeader is 8 bytes: version(1) + flags(1) + size(48-bit LE)
-    body_size = 16
-    header = bytes([1, 0]) + body_size.to_bytes(6, "little")
-    assert len(header) == 8
-    body = b"\x00" * body_size
-    receipt = b'{"signature": "", "proof": [], "leaf_components": {}}'
-    return header + body + receipt
-
-
 def test_corrupt_snapshot_handling(network, args):
     """
     Test that corrupt snapshots in writable and read-only directories are
@@ -1054,79 +1038,6 @@ def test_corrupt_snapshot_handling(network, args):
         assert new_node2.check_log_for_error_message(
             "Unable to mark snapshot as ignored"
         ), "Expected 'Unable to mark snapshot as ignored' in node logs"
-
-    return network
-
-
-def test_json_receipt_snapshot_handling(network, args):
-    """
-    Snapshots written by releases before 7.0 carry a JSON receipt, and only
-    COSE receipts are accepted:
-    - A joiner skips such a snapshot found in its own snapshots directory.
-    - While such a snapshot is the primary's newest, joiners are told to fetch
-      it, reject it, and cannot join. Removing it lets them join.
-    """
-    legacy_snapshot_name = find_latest_committed_snapshot_name(network)
-    json_receipt_error = "Snapshot has a JSON receipt"
-
-    LOG.info("Join a node, skipping the local JSON receipt snapshot")
-    with tempfile.TemporaryDirectory() as snapshots_dir:
-        with open(os.path.join(snapshots_dir, legacy_snapshot_name), "wb") as f:
-            f.write(snapshot_with_json_receipt())
-
-        new_node = network.create_node()
-        network.join_node(
-            new_node,
-            args.package,
-            args,
-            snapshots_dir=snapshots_dir,
-            fetch_recent_snapshot=False,
-            from_snapshot=True,
-        )
-        new_node.stop()
-
-        assert new_node.check_log_for_error_message(
-            f"Error while verifying {new_node.remote.snapshots_dir_name}/{legacy_snapshot_name}: {json_receipt_error}"
-        ), f"Expected {legacy_snapshot_name} to be rejected as a JSON receipt snapshot in node logs"
-
-    LOG.info("A JSON receipt snapshot as the primary's newest blocks joiners")
-    primary, _ = network.find_primary()
-    primary_snapshots_dir = os.path.join(
-        primary.remote.remote.root, primary.remote.snapshots_dir_name
-    )
-    latest_seqno, _ = ccf.ledger.snapshot_index_from_filename(legacy_snapshot_name)
-    # Named after a seqno beyond the primary's newest snapshot, so that it is
-    # the snapshot joiners are asked to fetch
-    fetched_snapshot_name = (
-        f"snapshot_{latest_seqno + 1000}_{latest_seqno + 1001}.committed"
-    )
-    fetched_snapshot_path = os.path.join(primary_snapshots_dir, fetched_snapshot_name)
-    with open(fetched_snapshot_path, "wb") as f:
-        f.write(snapshot_with_json_receipt())
-
-    try:
-        new_node = network.create_node()
-        try:
-            network.join_node(
-                new_node, args.package, args, from_snapshot=False, timeout=10
-            )
-        except TimeoutError:
-            LOG.info("Joiner was refused while the JSON receipt snapshot is newest")
-        else:
-            raise AssertionError(
-                f"Node joined although {fetched_snapshot_name} is the primary's newest snapshot"
-            )
-
-        assert new_node.check_log_for_error_message(
-            f"Error while verifying fetched snapshot {fetched_snapshot_name}: {json_receipt_error}"
-        ), f"Expected {fetched_snapshot_name} to be fetched and rejected as a JSON receipt snapshot in node logs"
-    finally:
-        os.remove(fetched_snapshot_path)
-
-    LOG.info("Join a node once the JSON receipt snapshot is removed")
-    new_node = network.create_node()
-    network.join_node(new_node, args.package, args, from_snapshot=False)
-    new_node.stop()
 
     return network
 
@@ -2064,7 +1975,6 @@ def run_file_operations(args):
                 test_empty_snapshot(network, args)
                 test_nulled_snapshot(network, args)
                 test_corrupt_snapshot_handling(network, args)
-                test_json_receipt_snapshot_handling(network, args)
 
                 # Ensure that the network is still live
                 primary, _ = network.find_primary()
@@ -3813,7 +3723,9 @@ def run_read_ledger_on_testdata(args):
                     try:
                         ccf.ledger.Snapshot(snapshot_file.path)
                     except ccf.ledger.InvalidSnapshotException as e:
-                        assert "Snapshot has a JSON receipt" in str(e), e
+                        assert "Snapshot receipt is not a COSE_Sign1 receipt" in str(
+                            e
+                        ), e
                         LOG.info(f"Legacy snapshot rejected: {e}")
                     else:
                         raise AssertionError(

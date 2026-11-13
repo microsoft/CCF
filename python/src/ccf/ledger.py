@@ -1083,7 +1083,7 @@ class Snapshot(Entry):
     """
     Utility used to parse the content of a snapshot file.
 
-    Committed snapshots carry a COSE receipt of their evidence transaction, which is verified against the service identity recorded in the snapshot.
+    Committed snapshots carry an embedded COSE receipt of their evidence transaction, which is verified against the service identity recorded in the snapshot.
     """
 
     _filename: str
@@ -1098,7 +1098,7 @@ class Snapshot(Entry):
 
         if self.is_committed() and self.is_snapshot_file_1_x():
             raise InvalidSnapshotException(
-                "Snapshot has a 1.x file name and no receipt, which is not supported: only COSE receipts are accepted"
+                "Snapshot has a 1.x file name and no receipt, which is not supported: only snapshots with an embedded COSE receipt are accepted"
             )
 
         entry_start_pos = super()._read_header()
@@ -1132,14 +1132,9 @@ class Snapshot(Entry):
         if not receipt_bytes:
             raise InvalidSnapshotException("Empty snapshot receipt")
 
-        first_byte = receipt_bytes[0]
-        if first_byte == ord("{"):
+        if receipt_bytes[0] != ENCODED_COSE_SIGN1_TAG:
             raise InvalidSnapshotException(
-                "Snapshot has a JSON receipt, as written by releases before 7.0, which is not supported: only COSE receipts are accepted"
-            )
-        if first_byte != ENCODED_COSE_SIGN1_TAG:
-            raise InvalidSnapshotException(
-                f"Invalid snapshot receipt: expected a COSE_Sign1 receipt (first byte: 0x{first_byte:02X})"
+                "Snapshot receipt is not a COSE_Sign1 receipt"
             )
 
         ccf.receipt.verify_cose(
