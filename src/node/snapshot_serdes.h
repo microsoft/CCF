@@ -14,8 +14,7 @@
 #include "node/cose_common.h"
 #include "node/history.h"
 #include "node/rpc/network_identity_chain_helpers.h"
-
-#include <nlohmann/json.hpp>
+#include "service/tables/signing_identities.h"
 
 namespace ccf
 {
@@ -103,13 +102,14 @@ namespace ccf
   }
 
   // Validates the collected COSE endorsement chain against the configured
-  // previous service identity (target_key) and returns the snapshot signer
-  // key: the identity, active at snapshot_seqno, that signed the snapshot
-  // receipt. The oldest endorsement covers snapshot_seqno and endorses that
-  // key, so it is captured as the endorsed key of the first (oldest) link.
-  static std::vector<uint8_t> validate_recovery_snapshot_endorsement_chain(
+  // previous service signing identity and returns the service signing identity
+  // that signed the snapshot receipt: the one active at snapshot_seqno. The
+  // oldest endorsement covers snapshot_seqno and endorses the key of that
+  // identity, so it is captured as the endorsed key of the first (oldest)
+  // link.
+  static Identity validate_recovery_snapshot_endorsement_chain(
     const std::vector<CollectedCoseEndorsement>& collected,
-    std::span<const uint8_t> target_key,
+    const Identity& previous_service_identity,
     ccf::kv::Version snapshot_seqno)
   {
     if (collected.empty())
@@ -196,12 +196,7 @@ namespace ccf
       previous_endorsing_key = endorsement.endorsing_key;
     }
 
-    if (
-      previous_endorsing_key.size() != target_key.size() ||
-      !std::equal(
-        previous_endorsing_key.begin(),
-        previous_endorsing_key.end(),
-        target_key.begin()))
+    if (!is_same_key(previous_service_identity, previous_endorsing_key))
     {
       throw std::logic_error(
         "Newest collected endorsement is not signed by the configured "
@@ -222,7 +217,8 @@ namespace ccf
         snapshot_seqno));
     }
 
-    return snapshot_signer_key;
+    return signing_identity_from_key(
+      ccf::crypto::COSEKey::from_der_public_key(snapshot_signer_key));
   }
 
   static auto decode_and_verify_cose_snapshot_receipt(
@@ -261,10 +257,24 @@ namespace ccf
     return receipt;
   }
 
+  // Whether the snapshot receipt, as decoded by
+  // decode_and_verify_cose_snapshot_receipt(), is signed by the given service
+  // signing identity
+  static bool is_snapshot_receipt_signed_by(
+    const SnapshotSegments& segments,
+    const ccf::cose::CcfCoseReceipt& receipt,
+    const Identity& signing_identity)
+  {
+    return ccf::crypto::make_cose_verifier_from_key(
+             cose_key_from_identity(signing_identity))
+      ->verify_detached(segments.receipt, receipt.merkle_root);
+  }
+
+  // Verifies the snapshot receipt against the snapshot and, if a service
+  // signing identity is given, that the receipt is signed by it
   static void verify_snapshot(
     const SnapshotSegments& segments,
-    const std::optional<std::vector<uint8_t>>& prev_service_identity =
-      std::nullopt)
+    const std::optional<Identity>& signing_identity = std::nullopt)
   {
     LOG_INFO_FMT(
       "Deserialising snapshot receipt (size: {}).", segments.receipt.size());
@@ -287,17 +297,16 @@ namespace ccf
 
     const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
 
-    if (prev_service_identity)
+    if (signing_identity.has_value())
     {
-      auto verifier = ccf::crypto::make_cose_verifier_from_pem_cert(
-        ccf::crypto::Pem(*prev_service_identity));
-      if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
+      if (!is_snapshot_receipt_signed_by(
+            segments, receipt, signing_identity.value()))
       {
         throw std::logic_error(
-          "Previous service identity does not match the service identity that "
-          "signed the snapshot");
+          "Snapshot receipt is not signed by the service signing identity");
       }
-      LOG_DEBUG_FMT("Previous service identity matches snapshot signer");
+      LOG_DEBUG_FMT(
+        "Snapshot receipt is signed by the service signing identity");
     }
   }
 
@@ -426,8 +435,7 @@ namespace ccf
     if (cose_signature == cose_sigs.end())
     {
       throw std::logic_error(fmt::format(
-        "No {} COSE signature available for snapshot receipt",
-        nlohmann::json(identity_type).dump()));
+        "No {} COSE signature available for snapshot receipt", identity_type));
     }
 
     ccf::MerkleTreeHistory history(tree);

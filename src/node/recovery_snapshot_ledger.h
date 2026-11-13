@@ -40,9 +40,12 @@ namespace ccf
     std::vector<CollectedCoseEndorsement> endorsements;
   };
 
+  // Reads the previous_service_identity_endorsement write for identity_type,
+  // if any, from a public ledger entry
   static RecoverySnapshotLedgerEntry parse_recovery_snapshot_ledger_entry(
     const std::vector<uint8_t>& entry,
-    const std::shared_ptr<ccf::kv::AbstractTxEncryptor>& encryptor)
+    const std::shared_ptr<ccf::kv::AbstractTxEncryptor>& encryptor,
+    IdentityType identity_type)
   {
     auto deserialiser = ccf::kv::RawKvStoreDeserialiser(
       encryptor, ccf::kv::SecurityDomain::PUBLIC);
@@ -55,6 +58,10 @@ namespace ccf
       throw std::logic_error(
         "Failed to initialise public ledger entry deserialiser");
     }
+
+    const auto endorsement_key =
+      ccf::PreviousServiceIdentityEndorsement::KeySerialiser::to_serialised(
+        identity_type);
 
     RecoverySnapshotLedgerEntry result;
     result.version = *version;
@@ -74,16 +81,9 @@ namespace ccf
       for (size_t i = 0; i < write_count; ++i)
       {
         auto [key, value] = deserialiser.deserialise_write();
-        if (*map_name != ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-        {
-          continue;
-        }
-        // The surrounding code does not yet support multi-identity verification
-        // from the previous service, so only CLASSICAL is verified.
         if (
-          key !=
-          ccf::kv::serialisers::BlitSerialiser<
-            ccf::IdentityType>::to_serialised(ccf::IdentityType::CLASSICAL))
+          *map_name != ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT ||
+          key != endorsement_key)
         {
           continue;
         }
@@ -427,6 +427,7 @@ namespace ccf
   static void scan_recovery_snapshot_ledger_file(
     const RecoverySnapshotLedgerFile& ledger_file,
     const std::shared_ptr<ccf::kv::AbstractTxEncryptor>& encryptor,
+    IdentityType identity_type,
     ccf::kv::Version& expected_seqno,
     RecoverySnapshotLedgerScan& scan,
     size_t& endorsements_serialised_size)
@@ -445,7 +446,8 @@ namespace ccf
     while (auto entry =
              read_recovery_snapshot_ledger_entry(reader, ledger_file))
     {
-      auto parsed = parse_recovery_snapshot_ledger_entry(*entry, encryptor);
+      auto parsed =
+        parse_recovery_snapshot_ledger_entry(*entry, encryptor, identity_type);
       if (!first_file_version.has_value())
       {
         first_file_version = parsed.version;
@@ -494,10 +496,13 @@ namespace ccf
       ledger_file, first_file_version, previous_file_version);
   }
 
+  // Collects the previous_service_identity_endorsement writes for
+  // identity_type in the public ledger suffix after snapshot_seqno
   static RecoverySnapshotLedgerScan scan_recovery_snapshot_ledger_files(
     const ccf::CCFConfig::Ledger& ledger_config,
     const std::shared_ptr<ccf::kv::AbstractTxEncryptor>& encryptor,
-    ccf::kv::Version snapshot_seqno)
+    ccf::kv::Version snapshot_seqno,
+    IdentityType identity_type)
   {
     if (snapshot_seqno == std::numeric_limits<ccf::kv::Version>::max())
     {
@@ -514,6 +519,7 @@ namespace ccf
       scan_recovery_snapshot_ledger_file(
         ledger_file,
         encryptor,
+        identity_type,
         expected_seqno,
         scan,
         endorsements_serialised_size);

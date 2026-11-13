@@ -138,10 +138,11 @@ struct RecoverySnapshotLedgerFixture
   }
 
   ccf::RecoverySnapshotLedgerScan scan(
-    ccf::kv::Version snapshot_seqno = 0) const
+    ccf::kv::Version snapshot_seqno = 0,
+    ccf::IdentityType identity_type = ccf::IdentityType::CLASSICAL) const
   {
     return ccf::scan_recovery_snapshot_ledger_files(
-      ledger_config, encryptor, snapshot_seqno);
+      ledger_config, encryptor, snapshot_seqno, identity_type);
   }
 };
 
@@ -223,20 +224,22 @@ TEST_CASE("Recovery snapshot endorsement scan reads ledger files directly")
   ccf::CCFConfig::Ledger malformed_ledger_config;
   malformed_ledger_config.directory = malformed_ledger_dir.path.string();
   REQUIRE_THROWS(ccf::scan_recovery_snapshot_ledger_files(
-    malformed_ledger_config, encryptor, 0));
+    malformed_ledger_config, encryptor, 0, ccf::IdentityType::CLASSICAL));
 
   write_ledger_file(ledger_dir.path / "ledger_1", entries);
 
   ccf::CCFConfig::Ledger ledger_config;
   ledger_config.directory = ledger_dir.path.string();
-  const auto scan =
-    ccf::scan_recovery_snapshot_ledger_files(ledger_config, encryptor, 1);
+  const auto scan = ccf::scan_recovery_snapshot_ledger_files(
+    ledger_config, encryptor, 1, ccf::IdentityType::CLASSICAL);
   REQUIRE(scan.endorsements.size() == 1);
   REQUIRE(scan.endorsements.front().write_version == 2);
 
-  const auto target_key = ccf::crypto::make_ec_key_pair()->public_key_der();
+  const ccf::Identity previous_service_identity{
+    ccf::IdentityKind::X509_SPKI_DER,
+    ccf::crypto::make_ec_key_pair()->public_key_der()};
   REQUIRE_THROWS(ccf::validate_recovery_snapshot_endorsement_chain(
-    scan.endorsements, target_key, 1));
+    scan.endorsements, previous_service_identity, 1));
 }
 
 TEST_CASE("Recovery snapshot endorsement scan bounds candidate endorsements")
@@ -274,8 +277,8 @@ TEST_CASE("Recovery snapshot endorsement scan bounds candidate endorsements")
 
   ccf::CCFConfig::Ledger ledger_config;
   ledger_config.directory = ledger_dir.path.string();
-  REQUIRE_THROWS(
-    ccf::scan_recovery_snapshot_ledger_files(ledger_config, encryptor, 0));
+  REQUIRE_THROWS(ccf::scan_recovery_snapshot_ledger_files(
+    ledger_config, encryptor, 0, ccf::IdentityType::CLASSICAL));
 }
 
 TEST_CASE(
@@ -324,8 +327,8 @@ TEST_CASE(
 
   ccf::CCFConfig::Ledger ledger_config;
   ledger_config.directory = ledger_dir.path.string();
-  REQUIRE_THROWS(
-    ccf::scan_recovery_snapshot_ledger_files(ledger_config, encryptor, 0));
+  REQUIRE_THROWS(ccf::scan_recovery_snapshot_ledger_files(
+    ledger_config, encryptor, 0, ccf::IdentityType::CLASSICAL));
 }
 
 TEST_CASE("Recovery snapshot ledger file ordering is deterministic")
@@ -387,7 +390,10 @@ TEST_CASE("Recovery snapshot endorsement scan bounds ledger entry allocation")
   ccf::CCFConfig::Ledger ledger_config;
   ledger_config.directory = ledger_dir.path.string();
   REQUIRE_THROWS(ccf::scan_recovery_snapshot_ledger_files(
-    ledger_config, std::make_shared<ccf::kv::NullTxEncryptor>(), 0));
+    ledger_config,
+    std::make_shared<ccf::kv::NullTxEncryptor>(),
+    0,
+    ccf::IdentityType::CLASSICAL));
 }
 
 TEST_CASE("Recovery snapshot ledger scan filters directory contents")
@@ -790,6 +796,27 @@ TEST_CASE(
     REQUIRE(
       nlohmann::json(scan.endorsements.front().endorsement) ==
       nlohmann::json(fixture.endorsement));
+  }
+
+  SUBCASE("A PQ scan collects PQ records only")
+  {
+    write_ledger_file(
+      path,
+      {fixture.entry(1, {ccf::IdentityType::PQ}),
+       fixture.entry(2, {ccf::IdentityType::CLASSICAL, ccf::IdentityType::PQ}),
+       fixture.entry(3, {ccf::IdentityType::CLASSICAL})});
+    const auto scan = fixture.scan(0, ccf::IdentityType::PQ);
+    REQUIRE(scan.endorsements.size() == 2);
+    REQUIRE(scan.endorsements[0].write_version == 1);
+    REQUIRE(scan.endorsements[1].write_version == 2);
+
+    write_ledger_file(
+      path, {fixture.entry(1, {ccf::IdentityType::PQ, ccf::IdentityType::PQ})});
+    REQUIRE_THROWS_WITH_AS(
+      fixture.scan(0, ccf::IdentityType::PQ),
+      "Invalid previous service identity endorsement table write",
+      std::logic_error);
+    REQUIRE(fixture.scan().endorsements.empty());
   }
 
   SUBCASE("Duplicate classical writes in an entry are rejected")
@@ -1584,12 +1611,35 @@ TEST_CASE("Snapshot receipt")
   INFO("The receipt verifies under the signing service identity");
   const ccf::SnapshotSegments segments{snapshot_body, receipt};
   REQUIRE_NOTHROW(ccf::verify_snapshot(segments));
-  REQUIRE_NOTHROW(ccf::verify_snapshot(segments, service_cert.raw()));
+  const auto service_identity = ccf::signing_identity_from_cert(service_cert);
+  REQUIRE(service_identity.kind == ccf::IdentityKind::COSE_KEY);
+  REQUIRE_NOTHROW(ccf::verify_snapshot(segments, service_identity));
+
+  INFO("Any encoding of the service signing identity verifies the receipt");
+  const auto decoded_receipt =
+    ccf::decode_and_verify_cose_snapshot_receipt(segments);
+  for (const auto& identity :
+       {service_identity,
+        ccf::Identity{
+          ccf::IdentityKind::X509_CERT_DER,
+          ccf::crypto::cert_pem_to_der(service_cert)},
+        ccf::Identity{
+          ccf::IdentityKind::X509_SPKI_DER, service_kp->public_key_der()}})
+  {
+    REQUIRE(
+      ccf::is_snapshot_receipt_signed_by(segments, decoded_receipt, identity));
+  }
 
   INFO("The receipt is rejected under another service identity");
   const auto other_cert = ccf::crypto::make_ec_key_pair()->self_sign(
     "CN=Other service", valid_from, valid_to);
-  REQUIRE_THROWS(ccf::verify_snapshot(segments, other_cert.raw()));
+  const auto other_identity = ccf::signing_identity_from_cert(other_cert);
+  REQUIRE_FALSE(ccf::is_snapshot_receipt_signed_by(
+    segments, decoded_receipt, other_identity));
+  REQUIRE_THROWS_WITH_AS(
+    ccf::verify_snapshot(segments, other_identity),
+    "Snapshot receipt is not signed by the service signing identity",
+    std::logic_error);
 
   INFO("The receipt is rejected for another snapshot body");
   auto other_body = snapshot_body;
@@ -1610,14 +1660,17 @@ TEST_CASE("Snapshot receipt")
     std::logic_error);
 
   INFO("The receipt requires a signature of the requested identity type");
-  REQUIRE_THROWS(ccf::build_and_serialise_receipt(
-    cose_sigs,
-    ccf::IdentityType::PQ,
-    tree.serialise(),
-    evidence_seqno,
-    write_set_digest,
-    commit_evidence,
-    claims_digest));
+  REQUIRE_THROWS_WITH_AS(
+    ccf::build_and_serialise_receipt(
+      cose_sigs,
+      ccf::IdentityType::PQ,
+      tree.serialise(),
+      evidence_seqno,
+      write_set_digest,
+      commit_evidence,
+      claims_digest),
+    "No PQ COSE signature available for snapshot receipt",
+    std::logic_error);
 }
 
 int main(int argc, char** argv)

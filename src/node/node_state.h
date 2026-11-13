@@ -69,6 +69,7 @@
 #include "secret_broadcast.h"
 #include "service/tables/local_sealing.h"
 #include "service/tables/recovery_type.h"
+#include "service/tables/signing_identities.h"
 #include "share_manager.h"
 #include "snapshots/fetch.h"
 #include "snapshots/filenames.h"
@@ -212,7 +213,9 @@ namespace ccf
           {
             const auto segments =
               separate_segments(latest_peer_snapshot->snapshot_data);
-            verify_snapshot(segments, service_cert);
+            verify_snapshot(
+              segments,
+              signing_identity_from_cert(ccf::crypto::Pem(service_cert)));
           }
           catch (const std::exception& e)
           {
@@ -621,52 +624,38 @@ namespace ccf
         throw std::logic_error("No previous service identity is configured");
       }
 
-      const ccf::crypto::Pem target_identity(
-        *startup_inputs.previous_service_identity);
+      // Snapshot receipts carry the CLASSICAL signature, and the configured
+      // previous service identity is the CLASSICAL service certificate
+      const auto previous_identity = signing_identity_from_cert(
+        ccf::crypto::Pem(*startup_inputs.previous_service_identity));
       verify_snapshot_seqno(
         segments, network.tables->get_encryptor(), snapshot_seqno);
 
       const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
 
-      std::string direct_verification_error;
-      try
+      if (is_snapshot_receipt_signed_by(segments, receipt, previous_identity))
       {
-        const auto verifier =
-          ccf::crypto::make_cose_verifier_from_pem_cert(target_identity);
-        if (verifier->verify_detached(segments.receipt, receipt.merkle_root))
-        {
-          LOG_INFO_FMT(
-            "Recovery snapshot at {} is directly signed by the configured "
-            "previous service identity",
-            snapshot_seqno);
-          return;
-        }
-        direct_verification_error =
-          "Previous service identity does not match the service identity that "
-          "signed the snapshot";
-      }
-      catch (const std::exception& e)
-      {
-        direct_verification_error = e.what();
+        LOG_INFO_FMT(
+          "Recovery snapshot at {} is directly signed by the configured "
+          "previous service identity",
+          snapshot_seqno);
+        return;
       }
 
       LOG_INFO_FMT(
         "Recovery snapshot at {} is not directly signed by the configured "
-        "previous service identity ({}); scanning the public ledger suffix "
-        "for COSE endorsements",
-        snapshot_seqno,
-        direct_verification_error);
+        "previous service identity; scanning the public ledger suffix for "
+        "COSE endorsements",
+        snapshot_seqno);
 
       const auto scan = scan_recovery_snapshot_ledger_files(
-        config.ledger, network.tables->get_encryptor(), snapshot_seqno);
-      const auto target_key = ccf::crypto::public_key_der_from_cert(
-        ccf::crypto::cert_pem_to_der(target_identity));
-      const auto snapshot_signer_key =
-        validate_recovery_snapshot_endorsement_chain(
-          scan.endorsements, target_key, snapshot_seqno);
-      const auto verifier =
-        ccf::crypto::make_cose_verifier_from_key(snapshot_signer_key);
-      if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
+        config.ledger,
+        network.tables->get_encryptor(),
+        snapshot_seqno,
+        IdentityType::CLASSICAL);
+      const auto snapshot_signer = validate_recovery_snapshot_endorsement_chain(
+        scan.endorsements, previous_identity, snapshot_seqno);
+      if (!is_snapshot_receipt_signed_by(segments, receipt, snapshot_signer))
       {
         throw std::logic_error(
           "Snapshot receipt signature verification failed under the "
@@ -727,8 +716,10 @@ namespace ccf
 
         try
         {
+          // A local snapshot may predate the current service identity, so its
+          // receipt is checked against the snapshot itself
           const auto segments = separate_segments(snapshot_data);
-          verify_snapshot(segments, startup_inputs.previous_service_identity);
+          verify_snapshot(segments);
         }
         catch (const std::exception& e)
         {
