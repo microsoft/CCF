@@ -88,6 +88,18 @@ namespace ccf
       std::span<const uint8_t> previous_merkle_root,
       std::span<const uint8_t> payload);
 
+    /// Same protected header except alg, signed with pure ML-DSA over the
+    /// Sig_structure and an empty context (RFC 9964).
+    /// @throws std::runtime_error if header construction, signing, or
+    /// encoding fails.
+    std::vector<uint8_t> sign_endorsement(
+      const crypto::MLDSAKeyPair& key,
+      int64_t iat,
+      std::string_view epoch_begin,
+      std::string_view epoch_end,
+      std::span<const uint8_t> previous_merkle_root,
+      std::span<const uint8_t> payload);
+
     namespace header
     {
       namespace iana // https://www.iana.org/assignments/cose/cose.xhtml
