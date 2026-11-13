@@ -9,9 +9,9 @@ open CftDriver
 -- configurations, rolls back the abandoned reconfiguration, and becomes active.
 initialize scenario "retirement_rollback" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
   dispatchAll
   periodicAll 10
   dispatchAll

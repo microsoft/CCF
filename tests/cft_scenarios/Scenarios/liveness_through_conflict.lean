@@ -8,13 +8,13 @@ open CftDriver
 initialize scenario "liveness_through_conflict" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -28,8 +28,8 @@ initialize scenario "liveness_through_conflict" do
   stateAll
 
   -- Original primary node 0 produces a small suffix, doesn't get to share it
-  emitSignature 2
-  emitSignature 2
+  replicate 2 [signature]
+  replicate 2 [signature]
 
   -- Node 1 calls and wins an election
   periodicOne 1 100
@@ -44,7 +44,7 @@ initialize scenario "liveness_through_conflict" do
   -- Node 1 produces multiple heartbeat AEs before emitting a signature!
   periodicOne 1 10
   periodicOne 1 10
-  emitSignature 3
+  replicate 3 [signature]
 
   -- With a few iterations node 1 should be able to bring all nodes in-sync
   periodicAll 10

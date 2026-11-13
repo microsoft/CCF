@@ -6,9 +6,9 @@ open CftDriver
 
 initialize scenario "check_quorum_0_012" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   swapNodes 2 (trust := [1, 2])
-  emitSignature 2
+  replicate 2 [signature]
 
   periodicOne 0 10
   dispatchAll

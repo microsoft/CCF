@@ -7,13 +7,13 @@ open CftDriver
 initialize scenario "suffix_collision_1" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -21,7 +21,7 @@ initialize scenario "suffix_collision_1" do
   assertCommitIdx 0 4
 
   trustNode 2 2
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -35,13 +35,13 @@ initialize scenario "suffix_collision_1" do
   assertDetail 1 "leadership_state" "Follower"
   assertDetail 2 "leadership_state" "Follower"
 
-  replicate 2 "hello world"
-  emitSignature 2
+  replicate 2 ["hello world"]
+  replicate 2 [signature]
   periodicAll 10
   dispatchAll
 
-  replicate 2 "saluton mondo"
-  emitSignature 2
+  replicate 2 ["saluton mondo"]
+  replicate 2 [signature]
   periodicAll 10
   dispatchAll
 
@@ -54,8 +54,8 @@ initialize scenario "suffix_collision_1" do
   disconnect 0 1
   disconnect 0 2
 
-  replicate 2 "drop me 1"
-  emitSignature 2
+  replicate 2 ["drop me 1"]
+  replicate 2 [signature]
   periodicAll 10
   dispatchAll
 
@@ -71,13 +71,13 @@ initialize scenario "suffix_collision_1" do
   stateAll
 
   -- Node 1 replicates a new entry, resulting in the same seqno as Node 0
-  replicate 3 "keep me 1"
-  emitSignature 3
+  replicate 3 ["keep me 1"]
+  replicate 3 [signature]
   periodicAll 10
   dispatchAll
 
-  replicate 3 "keep me 2"
-  emitSignature 3
+  replicate 3 ["keep me 2"]
+  replicate 3 [signature]
   periodicAll 10
   dispatchAll
 

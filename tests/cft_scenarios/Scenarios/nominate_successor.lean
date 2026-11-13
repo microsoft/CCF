@@ -6,10 +6,10 @@ open CftDriver
 
 initialize scenario "nominate_successor" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
 
   swapNodes 2 (trust := [1, 2])
-  emitSignature 2
+  replicate 2 [signature]
 
   periodicOne 0 10
   dispatchAll
@@ -35,7 +35,7 @@ initialize scenario "nominate_successor" do
   assertDetail 2 "leadership_state" "Candidate"
 
   -- Node 1 now is updated to have a better matchIdx than node 2
-  emitSignature 2
+  replicate 2 [signature]
   periodicOne 0 10
   dispatchSingle 0 1
   dispatchSingle 1 0

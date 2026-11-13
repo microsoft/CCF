@@ -8,10 +8,10 @@ open CftDriver
 -- even when a node with a higher ID is in the same latest configuration.
 initialize scenario "retirement_nominates_most_replicated" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
 
   swapNodes 2 (trust := [1, 2, 3])
-  emitSignature 2
+  replicate 2 [signature]
 
   periodicAll 10
   dispatchAll
@@ -27,7 +27,7 @@ initialize scenario "retirement_nominates_most_replicated" do
 
   -- Reconfig [0, 1, 2, 3] -> [1, 2, 3]
   swapNodes 2 (retire := [0])
-  emitSignature 2
+  replicate 2 [signature]
   periodicAll 10
   dispatchAll
   periodicAll 10
@@ -42,7 +42,7 @@ initialize scenario "retirement_nominates_most_replicated" do
   dispatchAll
   assertLastTxid 1 "2.7"
   assertLastTxid 2 "2.7"
-  emitSignature 2
+  replicate 2 [signature]
   periodicAll 10
   dispatchAll
   assertCommitIdx 0 8
@@ -56,7 +56,7 @@ initialize scenario "retirement_nominates_most_replicated" do
   assertDetail 3 "leadership_state" "Follower"
 
   reconnectNode 3
-  emitSignature 3
+  replicate 3 [signature]
   periodicAll 10
   dispatchAll
   periodicAll 10

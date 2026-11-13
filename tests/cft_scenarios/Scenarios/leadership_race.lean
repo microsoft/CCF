@@ -9,9 +9,9 @@ open CftDriver
 -- surviving quorum elects a replacement before the network heals.
 initialize scenario "leadership_race" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
   dispatchAll
   periodicAll 10
   dispatchAll
@@ -23,7 +23,7 @@ initialize scenario "leadership_race" do
   disconnectNode 0
   periodicOne 0 100
   assertDetail 0 "leadership_state" "Follower"
-  replicate latest "write while leaderless"
+  replicate latest ["write while leaderless"]
   nominateSuccessor 0
   stateOne 0
 

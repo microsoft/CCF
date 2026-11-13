@@ -77,13 +77,15 @@ opaque replicateNewConfiguration (term : @& Term) (nodes : @& List NodeId) : IO 
 
 /-! ## Replication -/
 
-/-- Replicate `data` on the primary in `term`. -/
-@[extern "cft_replicate"]
-opaque replicate (term : @& Term) (data : @& String) : IO Unit
+/-- The entry of a `replicate` batch which is a signature, and so committable. -/
+def signature : Text := "$"
 
-/-- Replicate a signature, which is committable, on the primary in `term`. -/
-@[extern "cft_emit_signature"]
-opaque emitSignature (term : @& Term) : IO Unit
+/--
+Replicate `entries` in one batch on the primary in `term`.
+Each entry is `signature`, or the data of a transaction.
+-/
+@[extern "cft_replicate"]
+opaque replicate (term : @& Term) (entries : @& List Text) : IO Unit
 
 /-! ## Time -/
 

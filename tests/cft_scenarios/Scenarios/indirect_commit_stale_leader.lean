@@ -14,13 +14,13 @@ open CftDriver
 initialize scenario "indirect_commit_stale_leader" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -32,8 +32,8 @@ initialize scenario "indirect_commit_stale_leader" do
 
   -- Node 0 locally appends and signs a term-2 client entry at indexes 5 and 6,
   -- but does not replicate it.
-  replicate 2 "e2"
-  emitSignature 2
+  replicate 2 ["e2"]
+  replicate 2 [signature]
   assertLastTxid 0 "2.6"
 
   -- Node 1 times out and wins term 3 with node 2. Node 0 observes the newer-term
@@ -54,8 +54,8 @@ initialize scenario "indirect_commit_stale_leader" do
 
   -- Node 1 appends and signs a conflicting term-3 entry at indexes 5 and 6, but
   -- keeps it local. Node 2 still has only the shared prefix committed to index 4.
-  replicate 3 "e3"
-  emitSignature 3
+  replicate 3 ["e3"]
+  replicate 3 [signature]
   assertLastTxid 1 "3.6"
   assertCommitIdx 1 4
   assertCommitIdx 2 4
@@ -76,8 +76,8 @@ initialize scenario "indirect_commit_stale_leader" do
   -- Node 0 appends and signs in term 4, then brings Node 2 up to index 8. Committing
   -- s4 at index 8 indirectly commits the earlier term-2 e2/s2 suffix at 5 and 6,
   -- while stale leader Node 1 still has the conflicting e3/s3 suffix.
-  replicate 4 "e4"
-  emitSignature 4
+  replicate 4 ["e4"]
+  replicate 4 [signature]
 
   periodicOne 0 10
   dispatchAll

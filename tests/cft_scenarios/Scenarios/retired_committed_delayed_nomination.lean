@@ -8,9 +8,9 @@ open CftDriver
 -- commits its own retirement. The old nomination must not restart an election.
 initialize scenario "retired_committed_delayed_nomination" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
   dispatchAll
   periodicAll 10
   dispatchAll
@@ -19,7 +19,7 @@ initialize scenario "retired_committed_delayed_nomination" do
   assertStateSync
 
   -- Give node 2 a strictly higher match index so nomination cannot choose node 1.
-  emitSignature 2
+  replicate 2 [signature]
   periodicOne 0 10
   dispatchSingle 0 2
   dispatchSingle 2 0
@@ -52,7 +52,7 @@ initialize scenario "retired_committed_delayed_nomination" do
   -- Retire both primaries, leaving node 1 as the sole member of the new config.
   -- Node 0 learns it is retired without dispatching its delayed nomination.
   swapNodes 3 (retire := [0, 2])
-  emitSignature 3
+  replicate 3 [signature]
   periodicOne 2 10
   dispatchSingle 2 0
   dispatchSingle 2 1
@@ -67,7 +67,7 @@ initialize scenario "retired_committed_delayed_nomination" do
   assertDetail 0 "retirement_phase" "Completed"
 
   cleanupNodes 3 [0, 2]
-  emitSignature 3
+  replicate 3 [signature]
   periodicOne 2 10
   dispatchSingle 2 1
   dispatchSingle 1 2

@@ -7,7 +7,7 @@ open CftDriver
 initialize scenario "reconfig_0_1" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
@@ -18,7 +18,7 @@ initialize scenario "reconfig_0_1" do
   assertDetail 0 "retirement_phase" "Ordered"
 
   -- Sign reconfig
-  emitSignature 2
+  replicate 2 [signature]
   assertDetail 0 "membership_state" "Retired"
   assertDetail 0 "retirement_phase" "Signed"
 
@@ -31,7 +31,7 @@ initialize scenario "reconfig_0_1" do
   -- RTX of 0 is now committed, 0 emits a retired_committed transaction
   -- followed by a signature
   cleanupNodes 2 [0]
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -45,6 +45,6 @@ initialize scenario "reconfig_0_1" do
   assertDetail 1 "leadership_state" "Leader"
 
   -- 1 commits a transaction
-  replicate 3 "some_tx"
-  emitSignature 3
+  replicate 3 ["some_tx"]
+  replicate 3 [signature]
   assertCommitIdx 1 8

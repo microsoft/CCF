@@ -6,9 +6,9 @@ open CftDriver
 
 initialize scenario "pre_vote" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   swapNodes 2 (trust := [1, 2])
-  emitSignature 2
+  replicate 2 [signature]
 
   periodicOne 0 10
   dispatchAll
@@ -75,7 +75,7 @@ initialize scenario "pre_vote" do
   assertDetail 2 "current_view" 3
 
   -- PreVotes can be denied if they are from an older log
-  emitSignature 3
+  replicate 3 [signature]
   periodicOne 1 10
   dispatchSingle 1 2
 

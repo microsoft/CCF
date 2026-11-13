@@ -8,13 +8,13 @@ open CftDriver
 initialize scenario "fancy_election_2" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -22,7 +22,7 @@ initialize scenario "fancy_election_2" do
   assertCommitIdx 0 4
 
   trustNode 2 2
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -30,7 +30,7 @@ initialize scenario "fancy_election_2" do
   assertCommitIdx 0 6
 
   trustNode 2 3
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -38,7 +38,7 @@ initialize scenario "fancy_election_2" do
   assertCommitIdx 0 8
 
   trustNode 2 4
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -49,8 +49,8 @@ initialize scenario "fancy_election_2" do
   assertStateSync
 
   -- Node 0 appends a single entry, replicates it to all nodes
-  replicate 2 "entry_1"
-  emitSignature 2
+  replicate 2 ["entry_1"]
+  replicate 2 [signature]
 
   periodicAll 10
   dispatchAll
@@ -58,8 +58,8 @@ initialize scenario "fancy_election_2" do
   -- Node 0 appends a second entry, which only reaches Node 1
   disconnectNode 0
   connect 0 1
-  replicate 2 "entry_2"
-  emitSignature 2
+  replicate 2 ["entry_2"]
+  replicate 2 [signature]
 
   periodicAll 10
   dispatchAll
@@ -72,8 +72,8 @@ initialize scenario "fancy_election_2" do
   periodicOne 4 110
   dispatchAll
 
-  replicate 3 "entry_3"
-  emitSignature 3
+  replicate 3 ["entry_3"]
+  replicate 3 [signature]
 
   stateAll
 
@@ -125,8 +125,8 @@ initialize scenario "fancy_election_2" do
   stateAll
 
   -- Not yet! We need node 4 to produce a new entry in its current term
-  replicate 5 "entry_4"
-  emitSignature 5
+  replicate 5 ["entry_4"]
+  replicate 5 [signature]
 
   periodicAll 10
   dispatchAll

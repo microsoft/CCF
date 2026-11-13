@@ -9,16 +9,16 @@ open CftDriver
 -- This was fixed by no longer rolling back uncommittable entries (no signature) when becoming a follower.
 initialize scenario "follower_rollback_match_index" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   assertCommitIdx 0 2
 
   swapNodes 2 (trust := [1, 2])
-  emitSignature 2
+  replicate 2 [signature]
 
   loopUntilSync
 
   assertLastTxid 0 "2.5"
-  replicate 2 "tx1"
+  replicate 2 ["tx1"]
   assertLastTxid 0 "2.6"
 
   -- advance matchIdx
@@ -29,7 +29,7 @@ initialize scenario "follower_rollback_match_index" do
   -- Partition 2
   disconnectNode 2
 
-  emitSignature 2
+  replicate 2 [signature]
   assertLastTxid 0 "2.7"
 
   periodicOne 0 10

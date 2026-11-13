@@ -7,11 +7,11 @@ open CftDriver
 -- Reconfigures from [0, 1] to [2, 3], with 2 becoming leader while the reconfiguration is in-progress
 initialize scenario "reconfig_01_el2_23" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -24,7 +24,7 @@ initialize scenario "reconfig_01_el2_23" do
 
   -- Reconfig [0, 1] -> [2, 3]
   swapNodes 2 (retire := [0, 1]) (trust := [2, 3])
-  emitSignature 2
+  replicate 2 [signature]
   -- 0 knows its retirement is signed
   assertDetail 0 "membership_state" "Retired"
   assertDetail 0 "retirement_phase" "Signed"
@@ -48,7 +48,7 @@ initialize scenario "reconfig_01_el2_23" do
   assertDetail 2 "leadership_state" "Leader"
 
   -- 2 signs to extend, observes retirement committed
-  emitSignature 3
+  replicate 3 [signature]
   periodicAll 10
   dispatchAll
   assertCommitIdx 2 7
@@ -59,7 +59,7 @@ initialize scenario "reconfig_01_el2_23" do
 
   -- Now that the retirement of 0 and 1 is committed, 2 schedules retired_committed
   cleanupNodes 3 [0, 1]
-  emitSignature 3
+  replicate 3 [signature]
   periodicAll 10
   dispatchAll
   periodicAll 10
@@ -74,8 +74,8 @@ initialize scenario "reconfig_01_el2_23" do
   disconnect 1 3
 
   -- the network continues
-  replicate 3 "some_tx"
-  emitSignature 3
+  replicate 3 ["some_tx"]
+  replicate 3 [signature]
   periodicAll 10
   dispatchAll
   dispatchAll

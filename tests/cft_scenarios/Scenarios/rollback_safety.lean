@@ -8,13 +8,13 @@ open CftDriver
 initialize scenario "rollback_safety" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNodes 2 [1, 2, 3, 4]
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
 
@@ -34,10 +34,10 @@ initialize scenario "rollback_safety" do
   disconnectNode 4
 
   -- Node 0 produces a suffix
-  replicate 2 "hello"
-  emitSignature 2
-  replicate 2 "world"
-  emitSignature 2
+  replicate 2 ["hello"]
+  replicate 2 [signature]
+  replicate 2 ["world"]
+  replicate 2 [signature]
 
   -- Node 0 shares this suffix with 1
   periodicOne 0 10
@@ -77,7 +77,7 @@ initialize scenario "rollback_safety" do
   assertDetail 0 "leadership_state" "Leader"
 
   -- Node 0 emits a fresh signature, so that they can advance commit
-  emitSignature 4
+  replicate 4 [signature]
 
   -- Node 0 sends heartbeats
   periodicOne 0 10

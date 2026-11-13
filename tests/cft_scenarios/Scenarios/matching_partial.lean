@@ -21,9 +21,9 @@ open CftDriver
 initialize scenario "matching_partial" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
   dispatchAll
   periodicAll 10
   dispatchAll
@@ -35,8 +35,8 @@ initialize scenario "matching_partial" do
   periodicOne 2 100
   dispatchAll
   assertDetail 2 "leadership_state" "Leader"
-  replicate 3 "divergent 5"
-  emitSignature 3
+  replicate 3 ["divergent 5"]
+  replicate 3 [signature]
   dropPending 2
   assertLastTxid 2 "3.6"
 
@@ -48,8 +48,8 @@ initialize scenario "matching_partial" do
 
   -- Node 1 builds its own block [5,6]@t4.
   dropPending 1
-  replicate 4 "block 5"
-  emitSignature 4
+  replicate 4 ["block 5"]
+  replicate 4 [signature]
 
   -- Optimistically advance node 1's sentIndex for node 2 to 6, then DROP that AppendEntries
   -- so node 2 does not adopt yet and stays on its divergent [5,6]@t3.
@@ -73,7 +73,7 @@ initialize scenario "matching_partial" do
   assertLastTxid 2 "4.6"
 
   -- Node 1 extends its block with [7]@t4.
-  emitSignature 4
+  replicate 4 [signature]
 
   -- Deliver the RETAINED NACK #2: node 1 again backs sentIndex off to 4 (match still <= 4).
   dispatchSingle 2 1

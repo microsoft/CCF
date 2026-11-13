@@ -9,13 +9,13 @@ open CftDriver
 initialize scenario "soft_rollback" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -23,7 +23,7 @@ initialize scenario "soft_rollback" do
   assertCommitIdx 0 4
 
   trustNodes 2 [2, 3, 4]
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -34,8 +34,8 @@ initialize scenario "soft_rollback" do
   assertStateSync
 
   -- Node 0 emits an entry, and signature
-  replicate 2 "hello world"
-  emitSignature 2
+  replicate 2 ["hello world"]
+  replicate 2 [signature]
   periodicAll 10
 
   -- But only succeeds in replicating this to node 1
@@ -59,8 +59,8 @@ initialize scenario "soft_rollback" do
   assertDetail 1 "leadership_state" "Leader"
 
   -- Node 1 may do work in this term, but crucially doesn't get as far as emitting a signature
-  replicate 3 "saluton mondo"
-  replicate 3 "ah well nevertheless"
+  replicate 3 ["saluton mondo"]
+  replicate 3 ["ah well nevertheless"]
   stateAll
   assertLastTxid 1 "3.10"
 
@@ -108,8 +108,8 @@ initialize scenario "soft_rollback" do
 
   -- Regardless of earlier disagreements, we can all agree now
   reconnectNode 2
-  replicate 5 "place trace checker"
-  emitSignature 5
+  replicate 5 ["place trace checker"]
+  replicate 5 [signature]
   periodicAll 10
   dispatchAll
   periodicAll 10

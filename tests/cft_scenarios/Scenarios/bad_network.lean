@@ -7,13 +7,13 @@ open CftDriver
 initialize scenario "bad_network" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -21,7 +21,7 @@ initialize scenario "bad_network" do
   assertCommitIdx 0 4
 
   trustNode 2 2
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -33,8 +33,8 @@ initialize scenario "bad_network" do
   assertDetail 2 "leadership_state" "Follower"
 
   -- An initial entry is written and successfully replicated
-  replicate 2 "helloworld"
-  emitSignature 2
+  replicate 2 ["helloworld"]
+  replicate 2 [signature]
 
   periodicAll 10
   dispatchAll
@@ -46,8 +46,8 @@ initialize scenario "bad_network" do
   assertStateSync
 
   -- An additional entry takes much longer to replicate, as it is lost on bad connection between nodes
-  replicate 2 "salutonmondo"
-  emitSignature 2
+  replicate 2 ["salutonmondo"]
+  replicate 2 [signature]
 
   periodicAll 10
   dropPending 0

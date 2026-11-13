@@ -38,6 +38,8 @@ Every protocol event must match a named rule; bootstrap selects the initial sing
 Rules group related protocol events and read action inputs from those events; only top-level alternatives backtrack.
 Actions must be enabled by the model.
 After bootstrap, each rule emits one read-only observation before its model actions, comparing the native group's entry snapshot with the current model state.
+A native `replicate` event and the entries that follow it, each starting with its `replicate_entry` event, form one group and one model append, so the model checks commit once per batch, as CCF does.
+A `replicate` call rejected at its first entry traces no entries and appends nothing.
 
 A receive delivers any queued model envelope from its sender whose rendered packet has exactly the native packet's fields, with equal values.
 It delivers the queued **model payload**, not reconstructing unrecorded native bytes; if matching envelopes differ in payload, for example in AppendEntries entries, which packets omit, replay fails with an ambiguous delivery.

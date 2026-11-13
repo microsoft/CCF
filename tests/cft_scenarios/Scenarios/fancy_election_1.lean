@@ -7,13 +7,13 @@ open CftDriver
 initialize scenario "fancy_election_1" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -21,7 +21,7 @@ initialize scenario "fancy_election_1" do
   assertCommitIdx 0 4
 
   trustNode 2 2
-  emitSignature 2
+  replicate 2 [signature]
 
   -- Node 2 is initially partitioned
   disconnect 0 2
@@ -38,17 +38,17 @@ initialize scenario "fancy_election_1" do
   assertDetail 0 "leadership_state" "Leader"
   assertDetail 1 "leadership_state" "Follower"
 
-  replicate 2 "helloworld"
-  emitSignature 2
+  replicate 2 ["helloworld"]
+  replicate 2 [signature]
   periodicAll 10
   dispatchAll
 
   -- Build an uncommitted suffix
-  replicate 2 "salutonmondo"
-  replicate 2 "hallo"
-  replicate 2 "hullo"
-  replicate 2 "ahoyhoy"
-  emitSignature 2
+  replicate 2 ["salutonmondo"]
+  replicate 2 ["hallo"]
+  replicate 2 ["hullo"]
+  replicate 2 ["ahoyhoy"]
+  replicate 2 [signature]
 
   -- Dispatch AppendEntries containing this suffix, which will be received by Node 1, making
   -- it committed (known by a majority of nodes), though its commit status remains unknown
@@ -65,10 +65,10 @@ initialize scenario "fancy_election_1" do
   stateAll
 
   -- Build a further suffix which is _not_ shared in time
-  replicate 2 "z"
-  replicate 2 "zz"
-  replicate 2 "zzz"
-  emitSignature 2
+  replicate 2 ["z"]
+  replicate 2 ["zz"]
+  replicate 2 ["zzz"]
+  replicate 2 [signature]
 
   stateAll
 
@@ -91,8 +91,8 @@ initialize scenario "fancy_election_1" do
   dispatchOne 2
 
   -- Node 1 appends a new committable entry to confirm its primaryship
-  replicate 3 "ConfirmCommit"
-  emitSignature 3
+  replicate 3 ["ConfirmCommit"]
+  replicate 3 [signature]
 
   -- Node 1 sends an initial AppendEntries probe
   periodicOne 1 10

@@ -9,9 +9,9 @@ open CftDriver
 -- consensus peer state has been removed.
 initialize scenario "retired_node_delayed_responses" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
   dispatchAll
   periodicAll 10
   dispatchAll
@@ -35,7 +35,7 @@ initialize scenario "retired_node_delayed_responses" do
   dropPending 0
 
   swapNodes 3 (retire := [1])
-  emitSignature 3
+  replicate 3 [signature]
   periodicOne 0 10
   dispatchSingle 0 1
   dispatchSingle 0 2
@@ -43,7 +43,7 @@ initialize scenario "retired_node_delayed_responses" do
   assertCommitIdx 0 6
 
   cleanupNodes 3 [1]
-  emitSignature 3
+  replicate 3 [signature]
   periodicOne 0 10
   dropPendingTo 0 1
   dispatchSingle 0 2

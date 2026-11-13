@@ -7,13 +7,13 @@ open CftDriver
 -- Test what happens when a node is re-elected, and receives messages from previous terms
 initialize scenario "reelection" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -29,8 +29,8 @@ initialize scenario "reelection" do
   assertStateSync
 
   -- Produce more entries
-  emitSignature 2
-  emitSignature 2
+  replicate 2 [signature]
+  replicate 2 [signature]
 
   -- Send AEs, but don't get responses yet
   periodicOne 0 10

@@ -10,13 +10,13 @@ open CftDriver
 initialize scenario "election_while_reconfiguration" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2 -- Initial configuration: C0=[0,1]
+  replicate 2 [signature] -- Initial configuration: C0=[0,1]
 
   dispatchAll
   periodicAll 10
@@ -28,7 +28,7 @@ initialize scenario "election_while_reconfiguration" do
 
   -- Reconfiguration: add three nodes
   trustNodes 2 [2, 3, 4] -- New configuration: C1=[0,1,2,3,4] in term 2 (quorum=3)
-  emitSignature 2
+  replicate 2 [signature]
   periodicAll 10
 
   -- New nodes first respond with NACKs as they don't have full history
@@ -79,7 +79,7 @@ initialize scenario "election_while_reconfiguration" do
   assertCommitIdx 2 4
 
   -- New primary appends a new committable entry to confirm its primaryship
-  emitSignature 3
+  replicate 3 [signature]
 
   dispatchAll
   periodicAll 10

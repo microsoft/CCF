@@ -10,23 +10,24 @@ open CftDriver
 -- A second node joins, and replicates the ledger
 initialize scenario "example" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 ["hello", signature]
   dispatchAll
   periodicAll 10
   dispatchAll
   periodicAll 10
   dispatchAll
 
-  assertCommitIdx 1 4
+  assertCommitIdx 1 5
   assertDetail 1 "leadership_state" "Follower"
 ```
 
 [`CftDriver.lean`](CftDriver.lean) documents every command.
 Node identifiers and terms are written as numbers or strings, and `latest` is the primary in the highest term.
+Each `replicate` appends one batch of entries, which are transaction data or `signature`.
 Scenarios are ordinary Lean, so they can also use loops, conditions and definitions.
 
 After each command which can alter state, the driver asserts that the commit index of every node is safe.

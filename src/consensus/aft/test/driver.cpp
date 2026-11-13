@@ -268,21 +268,12 @@ extern "C"
     });
   }
 
-  lean_obj_res cft_replicate(b_lean_obj_arg term, b_lean_obj_arg data)
+  lean_obj_res cft_replicate(b_lean_obj_arg term, b_lean_obj_arg entries)
   {
     const auto t = text(term);
-    const auto d = text(data);
-    return step(command("replicate", t, d), [&]() {
-      driver->replicate(
-        t, std::make_shared<std::vector<uint8_t>>(d.begin(), d.end()));
-    });
-  }
-
-  lean_obj_res cft_emit_signature(b_lean_obj_arg term)
-  {
-    const auto t = text(term);
+    const auto batch = texts(entries);
     return step(
-      command("emit_signature", t), [&]() { driver->emit_signature(t); });
+      command("replicate", t, batch), [&]() { driver->replicate(t, batch); });
   }
 
   lean_obj_res cft_periodic_one(b_lean_obj_arg node, uint64_t milliseconds)

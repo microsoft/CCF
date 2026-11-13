@@ -8,7 +8,7 @@ open CftDriver
 -- it leading normally without queueing a proposal.
 initialize scenario "nominate_without_successor" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   assertDetail 0 "leadership_state" "Leader"
 
   nominateSuccessor 0

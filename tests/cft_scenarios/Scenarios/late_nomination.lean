@@ -8,9 +8,9 @@ open CftDriver
 -- term. The delayed proposal must be ignored without changing the candidate.
 initialize scenario "late_nomination" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
 
   periodicAll 10
   dispatchAll

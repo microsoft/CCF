@@ -3,6 +3,7 @@
 import Scenarios.ackuracy
 import Scenarios.append
 import Scenarios.bad_network
+import Scenarios.batched_append
 import Scenarios.candidate_viability
 import Scenarios.check_quorum
 import Scenarios.check_quorum_012_0

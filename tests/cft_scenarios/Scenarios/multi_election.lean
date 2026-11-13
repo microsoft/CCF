@@ -7,13 +7,13 @@ open CftDriver
 initialize scenario "multi_election" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -21,7 +21,7 @@ initialize scenario "multi_election" do
   assertCommitIdx 0 4
 
   trustNode 2 2
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -37,13 +37,13 @@ initialize scenario "multi_election" do
   assertDetail 1 "leadership_state" "Follower"
   assertDetail 2 "leadership_state" "Follower"
 
-  replicate 2 "helloworld"
-  emitSignature 2
+  replicate 2 ["helloworld"]
+  replicate 2 [signature]
   periodicAll 10
   dispatchAll
 
-  replicate 2 "salutonmondo"
-  emitSignature 2
+  replicate 2 ["salutonmondo"]
+  replicate 2 [signature]
   periodicAll 10
   dispatchAll
 
@@ -64,8 +64,8 @@ initialize scenario "multi_election" do
 
   -- NB: Node 1 i now primary in term 2. There is no primary in term 1,
   -- and attempting to replicate in it will produce an error
-  replicate 3 "my world now"
-  emitSignature 3
+  replicate 3 ["my world now"]
+  replicate 3 [signature]
   periodicAll 10
   dispatchAll
 
@@ -75,8 +75,8 @@ initialize scenario "multi_election" do
   stateAll
   assertStateSync
 
-  replicate 3 "im in charge"
-  emitSignature 3
+  replicate 3 ["im in charge"]
+  replicate 3 [signature]
   periodicAll 10
   dispatchAll
 
@@ -91,9 +91,9 @@ initialize scenario "multi_election" do
   disconnect 1 2
 
   -- While 1 was partitioned, it continued to receive transactions!
-  replicate 3 "i think i am still in charge"
-  replicate 3 "i am going to continue like i am the primary"
-  replicate 3 "until i am told otherwise"
+  replicate 3 ["i think i am still in charge"]
+  replicate 3 ["i am going to continue like i am the primary"]
+  replicate 3 ["until i am told otherwise"]
 
   periodicAll 10
   dispatchAll
@@ -119,8 +119,8 @@ initialize scenario "multi_election" do
   dispatchAll
 
   -- Election has now succeeded, and new primary can replicate in term 3
-  replicate 4 "look at me i am the primary now"
-  emitSignature 4
+  replicate 4 ["look at me i am the primary now"]
+  replicate 4 [signature]
 
   periodicAll 10
   dispatchAll

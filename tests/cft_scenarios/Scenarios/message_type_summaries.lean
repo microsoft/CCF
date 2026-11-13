@@ -8,9 +8,9 @@ open CftDriver
 -- render their compact labels for scenario diagnostics.
 initialize scenario "message_type_summaries" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
   dispatchAll
   periodicAll 10
   dispatchAll

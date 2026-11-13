@@ -15,10 +15,10 @@ open CftDriver
 -- step-down now preserves node 1's vote, so node 2 remains a candidate.
 initialize scenario "pre_vote_double_leader" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
 
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
 
   -- Bring every node to the same committed prefix.
   periodicAll 10
@@ -32,7 +32,7 @@ initialize scenario "pre_vote_double_leader" do
 
   -- Give future leader node 0 a longer committable suffix. Its first heartbeat
   -- will refer to index 5, which node 1 does not have.
-  emitSignature 2
+  replicate 2 [signature]
   assertLastTxid 0 "2.5"
   assertLastTxid 1 "2.4"
   assertLastTxid 2 "2.4"

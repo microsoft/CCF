@@ -7,21 +7,21 @@ open CftDriver
 initialize scenario "reconnect" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
   dispatchAll
   assertCommitIdx 0 4
 
-  replicate 2 "helloworld"
-  emitSignature 2
+  replicate 2 ["helloworld"]
+  replicate 2 [signature]
   dispatchAll
   periodicAll 10
   dispatchAll
@@ -32,8 +32,8 @@ initialize scenario "reconnect" do
   assertStateSync
 
   disconnect 0 1
-  replicate 2 "salutonmondo"
-  emitSignature 2
+  replicate 2 ["salutonmondo"]
+  replicate 2 [signature]
 
   assertCommitIdx 1 6
   dispatchAll

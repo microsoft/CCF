@@ -7,13 +7,13 @@ open CftDriver
 initialize scenario "retire_one" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -21,13 +21,13 @@ initialize scenario "retire_one" do
   assertCommitIdx 0 4
 
   -- # ... with the same logs up to index 11
-  replicate 2 "txAtIdx1"
-  replicate 2 "txAtIdx2"
-  replicate 2 "txAtIdx3"
-  replicate 2 "txAtIdx4"
-  replicate 2 "txAtIdx5"
-  replicate 2 "txAtIdx6"
-  emitSignature 2
+  replicate 2 ["txAtIdx1"]
+  replicate 2 ["txAtIdx2"]
+  replicate 2 ["txAtIdx3"]
+  replicate 2 ["txAtIdx4"]
+  replicate 2 ["txAtIdx5"]
+  replicate 2 ["txAtIdx6"]
+  replicate 2 [signature]
   periodicAll 30
   dispatchAll
 
@@ -51,13 +51,13 @@ initialize scenario "retire_one" do
   assertDetail 0 "leadership_state" "Leader"
   assertDetail 1 "leadership_state" "Follower"
   -- # Index 13 is a signature, index 14 some random transaction and index 15 is a signature.
-  emitSignature 2
+  replicate 2 [signature]
   assertCommitIdx 0 11
 
-  replicate 2 "txAt10"
+  replicate 2 ["txAt10"]
   assertCommitIdx 0 11
 
-  emitSignature 2
+  replicate 2 [signature]
   assertCommitIdx 0 11
 
   periodicAll 30
@@ -75,7 +75,7 @@ initialize scenario "retire_one" do
   -- Since the retirement of 1 is now committed, 0 emits a retired_committed transaction
   -- followed by a signature
   cleanupNodes 2 [1]
-  emitSignature 2
+  replicate 2 [signature]
   -- 0 commits immediately, now that 1 is out of configuration
   assertCommitIdx 0 17
 
@@ -95,6 +95,6 @@ initialize scenario "retire_one" do
   disconnect 0 1
 
   -- and so 1 can continue
-  replicate 2 "some_tx"
-  emitSignature 2
+  replicate 2 ["some_tx"]
+  replicate 2 [signature]
   assertCommitIdx 0 19

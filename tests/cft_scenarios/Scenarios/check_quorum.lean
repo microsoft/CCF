@@ -7,13 +7,13 @@ open CftDriver
 initialize scenario "check_quorum" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -21,7 +21,7 @@ initialize scenario "check_quorum" do
   assertCommitIdx 0 4
 
   trustNode 2 2
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -29,7 +29,7 @@ initialize scenario "check_quorum" do
   assertCommitIdx 0 6
 
   trustNode 2 3
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -42,8 +42,8 @@ initialize scenario "check_quorum" do
   assertStateSync
 
   -- An initial entry is written and successfully replicated
-  replicate 2 "helloworld"
-  emitSignature 2
+  replicate 2 ["helloworld"]
+  replicate 2 [signature]
 
   periodicAll 10
   dispatchAll

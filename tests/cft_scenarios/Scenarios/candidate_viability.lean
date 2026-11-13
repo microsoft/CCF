@@ -10,11 +10,11 @@ open CftDriver
 initialize scenario "candidate_viability" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   -- Single reconfiguration adds nodes 1, 2, 3, and 4
   trustNodes 2 [1, 2, 3, 4]
-  emitSignature 2
+  replicate 2 [signature]
 
   -- Few roundtrips advance the commit on node 0
   periodicAll 10
@@ -41,8 +41,8 @@ initialize scenario "candidate_viability" do
   assertDetail 0 "leadership_state" "Leader"
 
   -- Node 0 produces a slightly longer suffix in term 3
-  emitSignature 3
-  emitSignature 3
+  replicate 3 [signature]
+  replicate 3 [signature]
 
   -- Roundtrip advances the commit on node 0
   periodicAll 10
@@ -51,8 +51,8 @@ initialize scenario "candidate_viability" do
   assertCommitIdx 0 6
 
   -- Node 0 produces a further uncommitted suffix
-  emitSignature 3
-  emitSignature 3
+  replicate 3 [signature]
+  replicate 3 [signature]
 
   -- But they're partitioned, so no-one hears this final suffix or the latest commit point
   disconnectNode 0
@@ -67,8 +67,8 @@ initialize scenario "candidate_viability" do
   assertDetail 1 "leadership_state" "Leader"
 
   -- Node 1 produces an alternative branch
-  emitSignature 4
-  emitSignature 4
+  replicate 4 [signature]
+  replicate 4 [signature]
 
   -- But before _that_ is shared, the partition flips:
   -- - Node 0 reconnects
@@ -89,9 +89,9 @@ initialize scenario "candidate_viability" do
   assertDetail 0 "leadership_state" "Leader"
 
   -- Node 0 further extends their branch, in term 5
-  emitSignature 5
-  emitSignature 5
-  emitSignature 5
+  replicate 5 [signature]
+  replicate 5 [signature]
+  replicate 5 [signature]
 
   -- But before _that_ is shared, the partition flips again:
   -- - Node 1 reconnects
@@ -120,7 +120,7 @@ initialize scenario "candidate_viability" do
   assertDetail 1 "leadership_state" "Leader"
 
   -- Node 1 further extends their branch, in term 6
-  emitSignature 6
+  replicate 6 [signature]
 
   -- Now we only connect nodes 1 with 3 and 4, to minimise unnecessary traffic
   assertCommitIdx 3 4 -- 3 hasn't heard anything for a long time

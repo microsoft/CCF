@@ -8,9 +8,9 @@ open CftDriver
 -- ledger while the removed backup remains retired.
 initialize scenario "swap_single_node" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
   dispatchAll
   periodicAll 10
   dispatchAll
@@ -19,7 +19,7 @@ initialize scenario "swap_single_node" do
   assertStateSync
 
   swapNode 2 1 3
-  emitSignature 2
+  replicate 2 [signature]
   periodicAll 10
   dispatchAll
   periodicAll 10

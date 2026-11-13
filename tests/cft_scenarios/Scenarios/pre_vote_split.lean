@@ -6,12 +6,12 @@ open CftDriver
 
 initialize scenario "pre_vote_split" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   swapNodes 2 (trust := [1])
-  emitSignature 2
+  replicate 2 [signature]
 
   swapNodes 2 (trust := [2])
-  emitSignature 2
+  replicate 2 [signature]
 
   periodicAll 10
   dispatchAll

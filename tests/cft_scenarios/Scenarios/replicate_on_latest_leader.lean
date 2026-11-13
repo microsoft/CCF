@@ -8,9 +8,9 @@ open CftDriver
 -- the latest leader must select node 1 rather than the stale primary.
 initialize scenario "replicate_on_latest_leader" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
   dispatchAll
   periodicAll 10
   dispatchAll
@@ -37,7 +37,7 @@ initialize scenario "replicate_on_latest_leader" do
   assertDetail 0 "current_view" 2
   assertDetail 1 "current_view" 3
 
-  replicate latest "latest leader write"
+  replicate latest ["latest leader write"]
   assertLastTxid 0 "2.4"
   assertLastTxid 1 "3.5"
   loopUntilSync

@@ -7,7 +7,7 @@ open CftDriver
 initialize scenario "retire_backup_pre_vote" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
@@ -15,7 +15,7 @@ initialize scenario "retire_backup_pre_vote" do
   trustNode 2 1
   trustNode 2 2
   trustNode 2 3
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -29,7 +29,7 @@ initialize scenario "retire_backup_pre_vote" do
 
   -- # the leader 0 reconfigures to remove 3
   swapNodes 2 (retire := [3])
-  emitSignature 2
+  replicate 2 [signature]
 
   -- # node 3 learns it is out of the network but not that this entry is committed
   dispatchSingle 0 3

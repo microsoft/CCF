@@ -8,13 +8,13 @@ open CftDriver
 initialize scenario "suffix_collision_3" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNode 2 1
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -22,7 +22,7 @@ initialize scenario "suffix_collision_3" do
   assertCommitIdx 0 4
 
   trustNode 2 2
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -30,7 +30,7 @@ initialize scenario "suffix_collision_3" do
   assertCommitIdx 0 6
 
   trustNode 2 3
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -38,7 +38,7 @@ initialize scenario "suffix_collision_3" do
   assertCommitIdx 0 8
 
   trustNode 2 4
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -48,13 +48,13 @@ initialize scenario "suffix_collision_3" do
   assertCommitIdx 0 10
   assertStateSync
 
-  replicate 2 "hello world"
-  emitSignature 2
+  replicate 2 ["hello world"]
+  replicate 2 [signature]
   periodicAll 10
   dispatchAll
 
-  replicate 2 "saluton mondo"
-  emitSignature 2
+  replicate 2 ["saluton mondo"]
+  replicate 2 [signature]
   periodicAll 10
   dispatchAll
 
@@ -81,27 +81,27 @@ initialize scenario "suffix_collision_3" do
   dispatchAll
 
   -- Node 0 continues to produce a suffix in term 1
-  replicate 2 "branch a 0"
-  emitSignature 2
+  replicate 2 ["branch a 0"]
+  replicate 2 [signature]
 
-  replicate 2 "branch a 1"
-  emitSignature 2
+  replicate 2 ["branch a 1"]
+  replicate 2 [signature]
 
-  replicate 2 "branch a 2"
-  emitSignature 2
+  replicate 2 ["branch a 2"]
+  replicate 2 [signature]
 
   -- Node 2 continues to produce a suffix in term 2
-  replicate 3 "branch b 0"
-  emitSignature 3
+  replicate 3 ["branch b 0"]
+  replicate 3 [signature]
 
-  replicate 3 "branch b 1"
-  emitSignature 3
+  replicate 3 ["branch b 1"]
+  replicate 3 [signature]
 
-  replicate 3 "branch b 2"
-  emitSignature 3
+  replicate 3 ["branch b 2"]
+  replicate 3 [signature]
 
-  replicate 3 "branch b 3"
-  emitSignature 3
+  replicate 3 ["branch b 3"]
+  replicate 3 [signature]
 
   -- AEs describing these suffices are produced, but lost in transit
   periodicAll 10
@@ -128,24 +128,24 @@ initialize scenario "suffix_collision_3" do
   disconnect 2 4
 
   -- Node 0 continues to produce a suffix in term 3
-  replicate 4 "branch a 10"
-  emitSignature 4
+  replicate 4 ["branch a 10"]
+  replicate 4 [signature]
 
-  replicate 4 "branch a 11"
-  emitSignature 4
+  replicate 4 ["branch a 11"]
+  replicate 4 [signature]
 
-  replicate 4 "branch a 12"
-  emitSignature 4
+  replicate 4 ["branch a 12"]
+  replicate 4 [signature]
 
   -- Node 2 continues to produce a suffix in term 4
-  replicate 5 "branch b 10"
-  emitSignature 5
+  replicate 5 ["branch b 10"]
+  replicate 5 [signature]
 
-  replicate 5 "branch b 11"
-  emitSignature 5
+  replicate 5 ["branch b 11"]
+  replicate 5 [signature]
 
-  replicate 5 "branch b 12"
-  emitSignature 5
+  replicate 5 ["branch b 12"]
+  replicate 5 [signature]
 
   -- AEs describing these suffices are produced, and delivered,
   -- but due to partition they cannot be committed

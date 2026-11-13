@@ -8,13 +8,13 @@ open CftDriver
 initialize scenario "ackuracy" do
   startNode 0
   assertDetail 0 "leadership_state" "Leader"
-  emitSignature 2
+  replicate 2 [signature]
 
   assertDetail 0 "leadership_state" "Leader"
   assertCommitIdx 0 2
 
   trustNodes 2 [1, 2, 3, 4]
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -28,9 +28,9 @@ initialize scenario "ackuracy" do
   stateAll
 
   -- Node 0 produces an unshared suffix
-  emitSignature 2
-  emitSignature 2
-  emitSignature 2
+  replicate 2 [signature]
+  replicate 2 [signature]
+  replicate 2 [signature]
 
   -- Node 1 calls and wins an election
   periodicOne 1 100
@@ -47,9 +47,9 @@ initialize scenario "ackuracy" do
   assertDetail 1 "leadership_state" "Leader"
 
   -- Node 1 produces a conflicting suffix
-  emitSignature 3
-  emitSignature 3
-  emitSignature 3
+  replicate 3 [signature]
+  replicate 3 [signature]
+  replicate 3 [signature]
 
   -- Node 1 tries to share this
   periodicOne 1 10
@@ -93,8 +93,8 @@ initialize scenario "ackuracy" do
   dispatchSingle 0 2
 
   -- Node 2 extends this suffix, shares it with node 0
-  emitSignature 4
-  emitSignature 4
+  replicate 4 [signature]
+  replicate 4 [signature]
   periodicOne 2 10
   dispatchSingle 2 0
 
@@ -115,8 +115,8 @@ initialize scenario "ackuracy" do
   dropPending 1
 
   -- Node 1 creates an alternative branch from 2's recent suffix
-  emitSignature 5
-  emitSignature 5
+  replicate 5 [signature]
+  replicate 5 [signature]
 
   -- Node 1 shares this with 3, so that it is only needs 1 more ACK to advance commit
   periodicOne 1 10

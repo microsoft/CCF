@@ -28,7 +28,7 @@ namespace ccf
   {
   protected:
     static const OpenAPISecuritySchema security_schema;
-    std::unique_ptr<PublicKeysCache> keys_cache;
+    static thread_local std::unique_ptr<PublicKeysCache> keys_cache;
 
   public:
     static constexpr auto SECURITY_SCHEME_NAME = "jwt";

@@ -24,9 +24,9 @@ open CftDriver
 -- through index 6. Node 2 commits [7,8]@3 while node 0 committed [7,8]@4.
 initialize scenario "follower_overcommit_partial_verified" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   trustNodes 2 [1, 2, 3, 4]
-  emitSignature 2
+  replicate 2 [signature]
   dispatchAll
   periodicAll 10
   dispatchAll
@@ -80,8 +80,8 @@ initialize scenario "follower_overcommit_partial_verified" do
   dispatchSingle 4 1
 
   -- Build [5,6]@3 and share it with every node.
-  replicate 3 "shared"
-  emitSignature 3
+  replicate 3 ["shared"]
+  replicate 3 [signature]
   periodicOne 1 10
   dispatchSingle 1 0
   dispatchSingle 1 2
@@ -96,8 +96,8 @@ initialize scenario "follower_overcommit_partial_verified" do
   assertLastTxid 4 "3.6"
 
   -- Build a divergent signed suffix [7,8]@3 only on node 2.
-  replicate 3 "old-branch"
-  emitSignature 3
+  replicate 3 ["old-branch"]
+  replicate 3 [signature]
   periodicOne 1 10
   dropPendingTo 1 0
   dropPendingTo 1 3
@@ -128,8 +128,8 @@ initialize scenario "follower_overcommit_partial_verified" do
   assertDetail 0 "current_view" 4
 
   -- Build conflicting [7,8]@4 and commit it with nodes 3 and 4.
-  replicate 4 "new-branch"
-  emitSignature 4
+  replicate 4 ["new-branch"]
+  replicate 4 [signature]
   periodicOne 0 10
   dropPendingTo 0 1
   dropPendingTo 0 2

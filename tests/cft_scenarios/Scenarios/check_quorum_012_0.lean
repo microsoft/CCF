@@ -6,9 +6,9 @@ open CftDriver
 
 initialize scenario "check_quorum_012_0" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   swapNodes 2 (trust := [1, 2])
-  emitSignature 2
+  replicate 2 [signature]
 
   dispatchAll
   periodicAll 10
@@ -23,7 +23,7 @@ initialize scenario "check_quorum_012_0" do
 
   disconnectNode 0
   swapNodes 2 (retire := [1, 2])
-  emitSignature 2
+  replicate 2 [signature]
 
   -- Only node 0 knows about config {0}, as it is partitioned from nodes 1 and 2
   assertConfig 0 3 [0, 1, 2]

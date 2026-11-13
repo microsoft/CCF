@@ -8,9 +8,9 @@ open CftDriver
 -- commit an earlier signature. Learning that commit must leave node 2 Signed.
 initialize scenario "retirement_commit_below_signature" do
   startNode 0
-  emitSignature 2
+  replicate 2 [signature]
   trustNodes 2 [1, 2]
-  emitSignature 2
+  replicate 2 [signature]
   dispatchAll
   periodicAll 10
   dispatchAll
@@ -20,7 +20,7 @@ initialize scenario "retirement_commit_below_signature" do
   assertCommitIdx 2 4
 
   -- Both backups hold signature 5, but neither ACK has reached the leader.
-  emitSignature 2
+  replicate 2 [signature]
   periodicOne 0 10
   dispatchSingle 0 1
   dispatchSingle 0 2
@@ -30,7 +30,7 @@ initialize scenario "retirement_commit_below_signature" do
 
   -- Only node 2 receives the retirement order and its signature at 7.
   swapNodes 2 (retire := [2])
-  emitSignature 2
+  replicate 2 [signature]
   periodicOne 0 10
   dropPendingTo 0 1
   dispatchSingle 0 2
