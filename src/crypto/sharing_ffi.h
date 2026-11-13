@@ -66,9 +66,10 @@ extern "C"
   // # Safety
   //
   // Null, misaligned, empty, oversized, or overlapping buffers are rejected
-  // without dereferencing anything. Otherwise the buffers must be live for
-  // their indicated lengths, and no buffer may be accessed concurrently for the
-  // duration of this call.
+  // without dereferencing anything. Otherwise the buffers must be live and hold
+  // initialized elements for their indicated lengths, including the shares,
+  // which are only partly overwritten, and no buffer may be accessed
+  // concurrently for the duration of this call.
   CCF_SHAMIR_NODISCARD
   ccf_shamir_status ccf_shamir_share_limb(
     const uint64_t* coefficients,
@@ -84,9 +85,10 @@ extern "C"
   // # Safety
   //
   // Null, misaligned, empty, oversized, or overlapping buffers are rejected
-  // without dereferencing anything. Otherwise `shares` must be live for
-  // `threshold` elements and not mutated concurrently, and `secret` must be
-  // live for exclusive access.
+  // without dereferencing anything. Otherwise `shares` must be live and hold
+  // `threshold` initialized elements that are not mutated concurrently, and
+  // `secret` must be live for exclusive access and already initialized, even
+  // though it is only written.
   CCF_SHAMIR_NODISCARD
   ccf_shamir_status ccf_shamir_recover(
     const ccf_shamir_share* shares,

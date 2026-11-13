@@ -78,9 +78,10 @@ pub extern "C" fn ccf_shamir_reduce(x: u64) -> u64 {
 /// # Safety
 ///
 /// Null, misaligned, empty, oversized, or overlapping buffers are rejected
-/// without dereferencing anything. Otherwise the buffers must be live for
-/// their indicated lengths, and no buffer may be accessed concurrently for the
-/// duration of this call.
+/// without dereferencing anything. Otherwise the buffers must be live and hold
+/// initialized elements for their indicated lengths, including the shares,
+/// which are only partly overwritten, and no buffer may be accessed
+/// concurrently for the duration of this call.
 #[must_use]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ccf_shamir_share_limb(
@@ -100,7 +101,8 @@ pub unsafe extern "C" fn ccf_shamir_share_limb(
         return Status::InvalidArguments;
     }
     // SAFETY: The buffers are nonnull, aligned, disjoint, and sized as checked
-    // above; the caller guarantees they are live and not accessed concurrently.
+    // above; the caller guarantees they are live, initialized, and not accessed
+    // concurrently.
     let coefficients = unsafe { slice::from_raw_parts(coefficients, coefficient_count) };
     let shares = unsafe { slice::from_raw_parts_mut(shares, share_count) };
     match ccf_shamir::share_limb(coefficients, limb, shares) {
@@ -116,9 +118,10 @@ pub unsafe extern "C" fn ccf_shamir_share_limb(
 /// # Safety
 ///
 /// Null, misaligned, empty, oversized, or overlapping buffers are rejected
-/// without dereferencing anything. Otherwise `shares` must be live for
-/// `threshold` elements and not mutated concurrently, and `secret` must be
-/// live for exclusive access.
+/// without dereferencing anything. Otherwise `shares` must be live and hold
+/// `threshold` initialized elements that are not mutated concurrently, and
+/// `secret` must be live for exclusive access and already initialized, even
+/// though it is only written.
 #[must_use]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ccf_shamir_recover(
@@ -138,7 +141,8 @@ pub unsafe extern "C" fn ccf_shamir_recover(
     }
     weights.resize(threshold, 0u64);
     // SAFETY: The buffers are nonnull, aligned, disjoint, and sized as checked
-    // above; the caller guarantees they are live and not accessed concurrently.
+    // above; the caller guarantees they are live, initialized, and not accessed
+    // concurrently.
     let shares = unsafe { slice::from_raw_parts(shares, threshold) };
     let secret = unsafe { &mut *secret };
     match ccf_shamir::recover(shares, &mut weights, secret) {
