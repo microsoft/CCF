@@ -11,11 +11,14 @@
 #include "indexing/lfs_interface.h"
 #include "kv/kv_types.h"
 
+#include <algorithm>
+
 namespace ccf::indexing::strategies
 {
   struct SeqnosByKey_Bucketed_Untyped::Impl
   {
   public:
+    static constexpr size_t MANIFEST_PAGE_SIZE = 256;
     const size_t seqnos_per_bucket;
     const size_t max_buckets;
 
@@ -24,26 +27,43 @@ namespace ccf::indexing::strategies
 
     // Inclusive begin, exclusive end
     using Range = std::pair<ccf::SeqNo, ccf::SeqNo>;
+    using ManifestPage = std::vector<ccf::SeqNo>;
 
-    // Store a single bucket of current results for each key
-    using CurrentResult = std::pair<Range, SeqNoCollection>;
+    struct CurrentResult
+    {
+      Range range;
+      SeqNoCollection seqnos;
+      size_t page_count = 0;
+      std::optional<ccf::SeqNo> last_paged_bucket = std::nullopt;
+      ManifestPage manifest;
+    };
+
+    // These trusted heads must not be evicted: absence means never written.
     std::unordered_map<ccf::ByteVector, CurrentResult> current_results
       CCF_GUARDED_BY(results_access);
 
-    // Maintain an LRU of old, requested buckets, which are asynchronously
-    // fetched from disk
     using BucketKey = std::pair<ccf::ByteVector, Range>;
-    // First element is a handle while result is being fetched. Second is parsed
-    // result, after fetch completes, at which point the first is set to nullptr
+    using PageKey = std::pair<ccf::ByteVector, size_t>;
     using BucketValue = std::pair<FetchResultPtr, SeqNoCollection>;
     LRU<BucketKey, BucketValue> old_results CCF_GUARDED_BY(results_access);
+    using PageValue = std::pair<FetchResultPtr, ManifestPage>;
+    LRU<PageKey, PageValue> manifest_pages CCF_GUARDED_BY(results_access);
+
+    struct ManifestSearch
+    {
+      size_t low = 0;
+      size_t high = 0;
+    };
+
+    // Only metadata search bounds survive retries. Data reads and parsed
+    // buckets live exclusively in old_results, as in the original strategy.
+    LRU<BucketKey, ManifestSearch> manifest_searches
+      CCF_GUARDED_BY(results_access);
 
     bool rebuild_requested CCF_GUARDED_BY(results_access) = false;
 
     std::string name;
-
     std::shared_ptr<AbstractLFSAccess> lfs_access;
-
     ccf::ds::Mutex& current_txid_lock;
     ccf::TxID& current_txid CCF_GUARDED_BY(current_txid_lock);
 
@@ -57,6 +77,8 @@ namespace ccf::indexing::strategies
       seqnos_per_bucket(seqnos_per_bucket_),
       max_buckets(max_buckets_),
       old_results(max_buckets_),
+      manifest_pages(max_buckets_),
+      manifest_searches(max_buckets_),
       name(std::move(name_)),
       lfs_access(lfs_access_),
       current_txid_lock(current_txid_lock_),
@@ -64,153 +86,270 @@ namespace ccf::indexing::strategies
     {
       if (lfs_access == nullptr)
       {
-        throw std::logic_error(fmt::format(
-          "Cannot create this strategy without access to the LFS subsystem"));
+        throw std::logic_error(
+          "Cannot create this strategy without access to the LFS subsystem");
+      }
+
+      if (seqnos_per_bucket == 0 || max_buckets_ == 0)
+      {
+        throw std::logic_error(
+          "Bucketed indexing requires a non-zero bucket size and cache "
+          "capacity");
       }
     }
 
-    static LFSContents serialise(SeqNoCollection&& seqnos)
+    static LFSContents serialise(const auto& seqnos)
     {
-      LFSContents blob;
-
+      LFSContents blob(sizeof(size_t) + seqnos.size() * sizeof(ccf::SeqNo));
+      auto* data = blob.data();
+      auto size = blob.size();
+      serialized::write(data, size, seqnos.size());
+      for (auto seqno : seqnos)
       {
-        // Write number of seqnos
-        const auto orig_size = blob.size();
-        blob.resize(orig_size + sizeof(seqnos.size()));
-        auto* data = blob.data() + orig_size;
-        auto size = blob.size() - orig_size;
-        serialized::write(data, size, seqnos.size());
-      }
-
-      // Write each seqno
-      for (const auto& seqno : seqnos)
-      {
-        const auto orig_size = blob.size();
-        blob.resize(orig_size + sizeof(seqno));
-        auto* data = blob.data() + orig_size;
-        auto size = blob.size() - orig_size;
         serialized::write(data, size, seqno);
       }
 
       return blob;
     }
 
-    SeqNoCollection deserialise(const LFSContents& raw, bool& corrupt)
+    std::optional<std::vector<ccf::SeqNo>> deserialise(
+      const LFSContents& raw, size_t max_count)
     {
-      corrupt = false;
       try
       {
         const auto* data = raw.data();
         auto size = raw.size();
-
-        // Read number of seqnos
-        const auto seqno_count = serialized::read<size_t>(data, size);
-        SeqNoCollection seqnos;
-
-        for (auto j = 0U; j < seqno_count; ++j)
+        const auto count = serialized::read<size_t>(data, size);
+        if (
+          count == 0 || count > max_count ||
+          count != size / sizeof(ccf::SeqNo) || size % sizeof(ccf::SeqNo) != 0)
         {
-          seqnos.insert(serialized::read<ccf::SeqNo>(data, size));
+          LOG_FAIL_FMT("Invalid sparse index contents for {}", name);
+          return std::nullopt;
         }
 
-        if (size != 0)
+        std::vector<ccf::SeqNo> seqnos;
+        seqnos.reserve(count);
+        for (size_t j = 0; j < count; ++j)
         {
-          LOG_TRACE_FMT("{} bytes remaining after deserialisation", size);
-          corrupt = true;
-          return {};
+          const auto seqno = serialized::read<ccf::SeqNo>(data, size);
+          if (!seqnos.empty() && seqno <= seqnos.back())
+          {
+            LOG_FAIL_FMT("Unordered sparse index contents for {}", name);
+            return std::nullopt;
+          }
+
+          seqnos.push_back(seqno);
         }
 
         return seqnos;
       }
-      // Catch errors thrown by serialized::read
       catch (const serialized::InsufficientSpaceException& e)
       {
-        LOG_TRACE_FMT("Deserialisation failed: {}", e.what());
-        corrupt = true;
-        return {};
+        LOG_FAIL_FMT("Sparse index deserialisation failed: {}", e.what());
+        return std::nullopt;
       }
     }
 
     LFSKey get_blob_name(const BucketKey& bk)
     {
       const auto hex_key = ds::to_hex(bk.first.begin(), bk.first.end());
-      const auto& range = bk.second;
       return fmt::format(
-        "{}: {} -> {} for {}", name, range.first, range.second, hex_key);
+        "{}: {} -> {} for {}",
+        name,
+        bk.second.first,
+        bk.second.second,
+        hex_key);
     }
 
-    void store_empty_buckets(
-      const ccf::ByteVector& k, Range begin, const Range& end)
-      CCF_REQUIRES(results_access)
+    LFSKey get_page_name(const PageKey& pk)
     {
-      while (begin != end)
-      {
-        LOG_TRACE_FMT(
-          "Storing empty bucket for range [{}, {}) for key {:02x}",
-          begin.first,
-          begin.second,
-          fmt::join(k, ""));
-        store_to_disk(k, begin, {});
-        begin = get_range_for(begin.second);
-      }
-    }
-
-    void store_to_disk(
-      const ccf::ByteVector& k, const Range& range, SeqNoCollection&& seqnos)
-      CCF_REQUIRES(results_access)
-    {
-      const BucketKey bucket_key{k, range};
-      const auto blob_key = get_blob_name(bucket_key);
-      lfs_access->store(blob_key, serialise(std::move(seqnos)));
-    }
-
-    bool resolve_fetch_result(BucketValue& bucket_value, bool& complete)
-      CCF_REQUIRES(results_access)
-    {
-      const auto fetch_result = bucket_value.first->fetch_result.load();
-      switch (fetch_result)
-      {
-        case (ccf::indexing::FetchResult::FetchResultType::Fetching):
-        {
-          complete = false;
-          break;
-        }
-        case (ccf::indexing::FetchResult::FetchResultType::Loaded):
-        {
-          bool corrupt = false;
-          bucket_value.second =
-            deserialise(bucket_value.first->contents, corrupt);
-          if (!corrupt)
-          {
-            bucket_value.first = nullptr;
-            break;
-          }
-          LOG_FAIL_FMT("Deserialisation failed");
-          [[fallthrough]];
-        }
-        case (ccf::indexing::FetchResult::FetchResultType::NotFound):
-        case (ccf::indexing::FetchResult::FetchResultType::Corrupt):
-        {
-          const auto* problem = fetch_result ==
-              ccf::indexing::FetchResult::FetchResultType::NotFound ?
-            "missing" :
-            "corrupt";
-          LOG_FAIL_FMT(
-            "A file that {} requires is {}. Re-indexing.", name, problem);
-          LOG_DEBUG_FMT("The {} file is {}", problem, bucket_value.first->key);
-
-          rebuild_requested = true;
-          return false;
-        }
-      }
-
-      return true;
+      const auto hex_key = ds::to_hex(pk.first.begin(), pk.first.end());
+      return fmt::format(
+        "{}: manifest {} ({} seqnos per bucket) for {}",
+        name,
+        pk.second,
+        seqnos_per_bucket,
+        hex_key);
     }
 
     Range get_range_for(ccf::SeqNo seqno) const
     {
       const auto begin = (seqno / seqnos_per_bucket) * seqnos_per_bucket;
-      const auto end = begin + seqnos_per_bucket;
-      return {begin, end};
+      return {begin, begin + seqnos_per_bucket};
+    }
+
+    void rebuild() CCF_REQUIRES(results_access)
+    {
+      LOG_FAIL_FMT(
+        "A file that {} requires is missing or corrupt. Re-indexing.", name);
+      rebuild_requested = true;
+    }
+
+    const ManifestPage* load_page(
+      const PageKey& key, ccf::SeqNo last_paged_bucket)
+      CCF_REQUIRES(results_access)
+    {
+      auto cached = manifest_pages.find(key);
+      if (cached == manifest_pages.end())
+      {
+        manifest_pages.insert(key, {lfs_access->fetch(get_page_name(key)), {}});
+        return nullptr;
+      }
+
+      manifest_pages.promote(cached);
+      auto& [fetch, contents] = cached->second;
+      if (fetch == nullptr)
+      {
+        return &contents;
+      }
+
+      const auto status = fetch->fetch_result.load();
+      if (status == FetchResult::FetchResultType::Fetching)
+      {
+        return nullptr;
+      }
+
+      std::optional<ManifestPage> page;
+      if (status == FetchResult::FetchResultType::Loaded)
+      {
+        page = deserialise(fetch->contents, MANIFEST_PAGE_SIZE);
+      }
+
+      if (
+        !page.has_value() || page->size() != MANIFEST_PAGE_SIZE ||
+        page->back() > last_paged_bucket ||
+        std::any_of(page->begin(), page->end(), [&](auto start) {
+          return start % seqnos_per_bucket != 0;
+        }))
+      {
+        LOG_FAIL_FMT(
+          "Required manifest page unavailable: {}", get_page_name(key));
+        rebuild();
+        return nullptr;
+      }
+
+      contents = std::move(*page);
+      fetch = nullptr;
+      return &contents;
+    }
+
+    std::optional<bool> manifest_contains(
+      const BucketKey& key, size_t page_count, ccf::SeqNo last_paged_bucket)
+      CCF_REQUIRES(results_access)
+    {
+      auto it = manifest_searches.find(key);
+      if (it == manifest_searches.end())
+      {
+        it = manifest_searches.insert(key, {0, page_count});
+      }
+      manifest_searches.promote(it);
+      auto& search = it->second;
+      const auto start = key.second.first;
+
+      // Page ordinals are dense and bounded by a trusted count. Every page
+      // consulted is required; an unavailable page cannot prove a gap.
+      while (search.low < search.high)
+      {
+        const auto mid = search.low + (search.high - search.low) / 2;
+        const auto* page = load_page({key.first, mid}, last_paged_bucket);
+        if (page == nullptr)
+        {
+          return std::nullopt;
+        }
+
+        if (start > page->back())
+        {
+          search.low = mid + 1;
+        }
+        else if (start < page->front())
+        {
+          search.high = mid;
+        }
+        else
+        {
+          const auto found =
+            std::binary_search(page->begin(), page->end(), start);
+          manifest_searches.erase(key);
+          return found;
+        }
+      }
+
+      manifest_searches.erase(key);
+      return false;
+    }
+
+    const SeqNoCollection* get_bucket(
+      const BucketKey& key, const CurrentResult& head, bool required)
+      CCF_REQUIRES(results_access)
+    {
+      auto it = old_results.find(key);
+      if (it == old_results.end())
+      {
+        old_results.insert(key, {lfs_access->fetch(get_blob_name(key)), {}});
+        return nullptr;
+      }
+
+      old_results.promote(it);
+      auto& [fetch, seqnos] = it->second;
+      if (fetch == nullptr)
+      {
+        return &seqnos;
+      }
+
+      const auto status = fetch->fetch_result.load();
+      if (status == FetchResult::FetchResultType::Fetching)
+      {
+        return nullptr;
+      }
+
+      if (status == FetchResult::FetchResultType::Loaded)
+      {
+        const auto parsed = deserialise(fetch->contents, seqnos_per_bucket);
+        if (
+          parsed.has_value() && parsed->front() >= key.second.first &&
+          parsed->back() < key.second.second)
+        {
+          for (auto seqno : *parsed)
+          {
+            seqnos.insert(seqno);
+          }
+          fetch = nullptr;
+          return &seqnos;
+        }
+      }
+
+      if (!required)
+      {
+        if (!head.last_paged_bucket.has_value())
+        {
+          LOG_FAIL_FMT(
+            "Cannot prove absence of bucket without a sealed manifest: {}",
+            get_blob_name(key));
+          rebuild();
+          return nullptr;
+        }
+
+        const auto present =
+          manifest_contains(key, head.page_count, *head.last_paged_bucket);
+        if (!present.has_value())
+        {
+          return nullptr;
+        }
+        required = *present;
+      }
+
+      if (required)
+      {
+        LOG_FAIL_FMT("Required bucket unavailable: {}", get_blob_name(key));
+        rebuild();
+        return nullptr;
+      }
+
+      // Only an authenticated manifest search can turn a failed speculative
+      // fetch into a cached empty bucket.
+      fetch = nullptr;
+      return &seqnos;
     }
 
     std::optional<SeqNoCollection> get_write_txs_impl(
@@ -242,123 +381,83 @@ namespace ccf::indexing::strategies
         return std::nullopt;
       }
 
-      auto from_range = get_range_for(from);
-      const auto to_range = get_range_for(to);
-
-      // Check that once the entire requested range is fetched, it will fit
-      // into the LRU at the same time
-      const auto range_len = to - from;
-      if (range_len > max_requestable_range())
+      if (to - from > max_requestable_range())
       {
         throw std::logic_error(fmt::format(
-          "Requesting transactions from {} to {} requires buckets covering "
-          "[{}, {}). These {} transactions are larger than the maximum "
+          "Requesting transactions from {} to {} exceeds the maximum "
           "requestable {}",
           from,
           to,
-          from_range.first,
-          to_range.second,
-          range_len,
           max_requestable_range()));
       }
 
-      SeqNoCollection result;
+      const auto head_it = current_results.find(serialised_key);
+      if (
+        head_it == current_results.end() ||
+        head_it->second.range.second <= from)
+      {
+        return SeqNoCollection{};
+      }
 
-      auto append_bucket_result = [&](const SeqNoCollection& seqnos) {
-        for (auto n : seqnos)
+      const auto& head = head_it->second;
+      SeqNoCollection result;
+      auto append = [&](const SeqNoCollection& seqnos) {
+        for (auto seqno : seqnos)
         {
-          if (n >= from && n <= to)
+          if (seqno >= from && seqno <= to)
           {
-            result.insert(n);
+            result.insert(seqno);
           }
         }
       };
 
       bool complete = true;
-
-      while (true)
+      const auto last = std::min(to, head.range.first);
+      for (auto range = get_range_for(from); range.first <= last;
+           range = get_range_for(range.second))
       {
-        const auto bucket_key = std::make_pair(serialised_key, from_range);
-        const auto old_it = old_results.find(bucket_key);
-        if (old_it != old_results.end())
+        if (range == head.range)
         {
-          auto& bucket_value = old_it->second;
-
-          // We were already trying to fetch this. If it's finished fetching,
-          // parse and store the result
-          if (bucket_value.first != nullptr)
+          if (complete)
           {
-            if (!resolve_fetch_result(bucket_value, complete))
-            {
-              return std::nullopt;
-            }
+            append(head.seqnos);
           }
-
-          if (bucket_value.first == nullptr && complete)
-          {
-            // Still building a contiguous result, and have a parsed result for
-            // this bucket - insert it
-            append_bucket_result(bucket_value.second);
-          }
-        }
-        else
-        {
-          // We're not currently fetching this. First check if it's in our
-          // current results
-          const auto current_it = current_results.find(serialised_key);
-          if (
-            current_it != current_results.end() &&
-            current_it->second.first == from_range)
-          {
-            if (complete)
-            {
-              append_bucket_result(current_it->second.second);
-            }
-          }
-          // Another possibility is that the requested range is _after_ the
-          // current_results for this key. That means, assuming we have
-          // constructed a complete index up to to_range, that there are no
-          // later buckets to fetch - we have constructed a complete result.
-          // Similarly, if we have _no_ current_results for this key, then
-          // (assuming we have a complete index), there are no writes to this
-          // key, and we have constructed a complete result.
-          else if (
-            (current_it != current_results.end() &&
-             current_it->second.first.first < from_range.first) ||
-            current_it == current_results.end())
-          {
-            break;
-          }
-          else
-          {
-            // Begin fetching this bucket from disk
-            auto fetch_handle = lfs_access->fetch(get_blob_name(bucket_key));
-            old_results.insert(
-              bucket_key, std::make_pair(fetch_handle, SeqNoCollection()));
-            complete = false;
-          }
-        }
-
-        if (from_range == to_range)
-        {
           break;
         }
-        from_range.first += seqnos_per_bucket;
-        from_range.second += seqnos_per_bucket;
+
+        const auto required = std::binary_search(
+          head.manifest.begin(), head.manifest.end(), range.first);
+        if (
+          !required &&
+          (!head.last_paged_bucket.has_value() ||
+           range.first > *head.last_paged_bucket))
+        {
+          continue;
+        }
+
+        const auto* seqnos =
+          get_bucket({serialised_key, range}, head, required);
+        if (rebuild_requested)
+        {
+          return std::nullopt;
+        }
+        if (seqnos == nullptr)
+        {
+          complete = false;
+        }
+        else if (complete)
+        {
+          append(*seqnos);
+        }
       }
 
-      if (complete)
+      if (!complete)
       {
-        return result;
+        return std::nullopt;
       }
-
-      return std::nullopt;
+      return result;
     }
 
-    // This returns the max range which may be requested. This accounts for the
-    // case where the range is not aligned with a bucket start, in which case we
-    // will have unrequested entries sharing a bucket with the requested entries
-    // at the beginning and end, essentially wasting some space.
     size_t max_requestable_range() const
     {
       return ((max_buckets - 1) * seqnos_per_bucket);
@@ -375,6 +474,8 @@ namespace ccf::indexing::strategies
       ccf::ds::MutexGuard current_txid_guard(current_txid_lock);
       current_txid = {};
       impl->old_results.clear();
+      impl->manifest_pages.clear();
+      impl->manifest_searches.clear();
       impl->current_results.clear();
       impl->rebuild_requested = false;
     }
@@ -385,48 +486,35 @@ namespace ccf::indexing::strategies
   {
     (void)v;
     const auto range = impl->get_range_for(tx_id.seqno);
-
     ccf::ds::MutexGuard guard(impl->results_access);
-
     auto it = impl->current_results.find(k);
-    if (it != impl->current_results.end())
+    if (it == impl->current_results.end())
     {
-      // Have existing results. If they're from an old range, they must be
-      // flushed, and the bucket updated to contain the new entry
-      auto& current_result = it->second;
-      const auto current_range = current_result.first;
-      if (range != current_range)
-      {
-        LOG_TRACE_FMT(
-          "Storing {} entries from real range [{}, {}) for key {:02x}",
-          current_result.second.size(),
-          current_range.first,
-          current_range.second,
-          fmt::join(k, ""));
-        impl->store_to_disk(k, current_range, std::move(current_result.second));
-
-        const auto next_range = impl->get_range_for(current_range.second);
-        if (next_range != range)
-        {
-          impl->store_empty_buckets(k, next_range, range);
-        }
-
-        current_result.first = range;
-        current_result.second.clear();
-      }
-    }
-    else
-    {
-      // This key has never been seen before. Insert a new bucket for it
-      impl->store_empty_buckets(k, impl->get_range_for(0), range);
       it = impl->current_results
-             .emplace(k, std::make_pair(range, SeqNoCollection()))
+             .emplace(k, Impl::CurrentResult{range, {}, 0, std::nullopt, {}})
              .first;
     }
+    else if (it->second.range != range)
+    {
+      auto& head = it->second;
+      impl->lfs_access->store(
+        impl->get_blob_name({k, head.range}), Impl::serialise(head.seqnos));
+      head.manifest.push_back(head.range.first);
+      if (head.manifest.size() == Impl::MANIFEST_PAGE_SIZE)
+      {
+        impl->lfs_access->store(
+          impl->get_page_name({k, head.page_count}),
+          Impl::serialise(head.manifest));
+        ++head.page_count;
+        head.last_paged_bucket = head.manifest.back();
+        head.manifest.clear();
+      }
 
-    auto& current_result = it->second;
-    auto& current_seqnos = current_result.second;
-    current_seqnos.insert(tx_id.seqno);
+      head.range = range;
+      head.seqnos.clear();
+    }
+
+    it->second.seqnos.insert(tx_id.seqno);
   }
 
   nlohmann::json SeqnosByKey_Bucketed_Untyped::describe()
@@ -438,6 +526,9 @@ namespace ccf::indexing::strategies
       j["old_results_max_size"] = impl->old_results.get_max_size();
       j["old_results_current_size"] = impl->old_results.size();
       j["current_results_size"] = impl->current_results.size();
+      j["manifest_page_size"] = Impl::MANIFEST_PAGE_SIZE;
+      j["manifest_pages_current_size"] = impl->manifest_pages.size();
+      j["manifest_searches_current_size"] = impl->manifest_searches.size();
     }
     return j;
   }
@@ -466,7 +557,6 @@ namespace ccf::indexing::strategies
         get_name(),
         map_name_));
     }
-
     impl = std::make_shared<Impl>(
       get_name(),
       current_txid_lock,

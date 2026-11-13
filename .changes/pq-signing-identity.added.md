@@ -1,0 +1,1 @@
+Services publish their ML-DSA signing public key in `service.signing_identities[PQ]` alongside `service.info.pq_cert`, with no fallback when the PQ pair is incomplete or mismatched; see the [built-in maps reference](doc/audit/builtin_maps.rst) and the [7.x to 8.x migration guide](doc/releases/migration_7_x_to_8_x.rst#ml-dsa-service-identity).
