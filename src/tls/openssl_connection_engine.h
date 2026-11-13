@@ -15,6 +15,7 @@
 #include "tcp/msg_types.h"
 #include "tls/inbound_admission.h"
 #include "tls/openssl_connection_utils.h"
+#include "tls/traffic_keys.h"
 
 #include <algorithm>
 #include <atomic>
@@ -31,6 +32,7 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <optional>
+#include <poll.h>
 #include <stdexcept>
 #include <string>
 #include <sys/socket.h>
@@ -86,6 +88,7 @@ namespace ccf::tls
       std::atomic<::tcp::ConnID>* shared_next_id = nullptr;
       std::shared_ptr<InboundAdmission> inbound_admission = nullptr;
       OnHandshake on_handshake = {};
+      std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt;
       // Owner callbacks run on the loop and remain valid until stop returns.
       std::function<void()> on_wake = {};
       std::function<void()> on_stop = {};
@@ -128,6 +131,8 @@ namespace ccf::tls
       std::shared_ptr<ccf::tasks::OrderedTasks> tls_tasks;
       std::shared_ptr<SSL_CTX> tls_context;
       SSL* ssl = nullptr;
+      std::optional<TrafficKeys> traffic_keys;
+      size_t write_retry_length = 0;
       ::tcp::ConnID id = 0;
       // Admission decision from OnAccept, passed to OnData.
       bool soft_limited = false;
@@ -166,6 +171,7 @@ namespace ccf::tls
       // True when progress needs the socket to become writable (handshake
       // wants write, or there is buffered outbound data).
       bool want_write = false;
+      bool abort_tls = false;
       // A close was requested but is deferred until the buffered output has
       // been fully written, so a response queued just before close is not
       // truncated.
@@ -255,6 +261,7 @@ namespace ccf::tls
     OnData on_data;
     OnClose on_close;
     OnHandshake on_handshake;
+    std::optional<TrafficKeyPolicy> traffic_key_policy;
     std::function<void()> owner_wake;
     std::function<void()> owner_stop;
     std::function<void(::tcp::ConnID, std::vector<uint8_t>, bool)>
@@ -390,6 +397,10 @@ namespace ccf::tls
         }
         c.state = Conn::Ready;
         c.want_write = false;
+        if (c.traffic_keys)
+        {
+          c.traffic_keys->start();
+        }
         X509* cert = SSL_get1_peer_certificate(c.ssl);
         if (cert != nullptr)
         {
@@ -514,6 +525,19 @@ namespace ccf::tls
       return true;
     }
 
+    bool sending_limit_exceeded(Conn& connection)
+    {
+      if (connection.traffic_keys && connection.traffic_keys->failed())
+      {
+        LOG_FAIL_FMT(
+          "Connection {}: TLS sending-key record budget exceeded",
+          connection.id);
+        connection.abort_tls = true;
+        return true;
+      }
+      return false;
+    }
+
     // Returns false if the connection should be closed.
     bool do_read(Conn& c, bool& more_to_read)
     {
@@ -527,6 +551,11 @@ namespace ccf::tls
         uint8_t buf[read_chunk];
         ERR_clear_error();
         const int n = SSL_read(c.ssl, buf, static_cast<int>(sizeof(buf)));
+        const int e = n > 0 ? SSL_ERROR_NONE : SSL_get_error(c.ssl, n);
+        if (sending_limit_exceeded(c))
+        {
+          return false;
+        }
         if (n > 0)
         {
           total_read += static_cast<size_t>(n);
@@ -541,19 +570,26 @@ namespace ccf::tls
           continue;
         }
 
-        const int e = SSL_get_error(c.ssl, n);
         if (e == SSL_ERROR_WANT_READ)
         {
           return true;
         }
         if (e == SSL_ERROR_WANT_WRITE)
         {
+          if (c.traffic_keys)
+          {
+            LOG_DEBUG_FMT(
+              "Connection {}: TLS control write blocked; closing", c.id);
+            c.abort_tls = true;
+            return false;
+          }
           // A renegotiation needs the socket to become writable.
           c.want_write = true;
           return true;
         }
         // SSL_ERROR_ZERO_RETURN (clean close), an unclean EOF from the peer
         // (no close_notify), or a fatal error - in all cases close.
+        c.abort_tls = c.traffic_keys.has_value() && e != SSL_ERROR_ZERO_RETURN;
         return false;
       }
 
@@ -590,6 +626,49 @@ namespace ccf::tls
       c.out_off = 0;
     }
 
+    // Keep retries within one record, including a peer-negotiated fragment cap.
+    static size_t max_record_plaintext(const SSL* ssl)
+    {
+      const SSL_SESSION* session = SSL_get_session(ssl);
+      const uint8_t mode = session != nullptr ?
+        SSL_SESSION_get_max_fragment_length(session) :
+        TLSEXT_max_fragment_length_DISABLED;
+      if (
+        mode >= TLSEXT_max_fragment_length_512 &&
+        mode <= TLSEXT_max_fragment_length_4096)
+      {
+        return size_t{512} << (mode - TLSEXT_max_fragment_length_512);
+      }
+      return read_chunk;
+    }
+
+    bool update_traffic_keys(Conn& connection)
+    {
+      ERR_clear_error();
+      if (SSL_key_update(connection.ssl, SSL_KEY_UPDATE_NOT_REQUESTED) == 1)
+      {
+        const int result = SSL_do_handshake(connection.ssl);
+        if (result == 1)
+        {
+          return !sending_limit_exceeded(connection);
+        }
+        const int error = SSL_get_error(connection.ssl, result);
+        LOG_DEBUG_FMT(
+          "Connection {}: KeyUpdate did not complete; closing: {}",
+          connection.id,
+          ssl_error_string(error));
+      }
+      else
+      {
+        LOG_DEBUG_FMT(
+          "Connection {}: could not schedule KeyUpdate: {}",
+          connection.id,
+          ccf::crypto::OpenSSL::first_error());
+      }
+      connection.abort_tls = true;
+      return false;
+    }
+
     // Returns false if the connection should be closed. Implements
     // backpressure: a WANT_WRITE leaves the remaining plaintext buffered and
     // arms UV_WRITABLE.
@@ -601,21 +680,64 @@ namespace ccf::tls
       }
       while (c.out_off < c.outbuf.size())
       {
+        if (
+          c.traffic_keys && c.write_retry_length == 0 &&
+          c.traffic_keys->update_due())
+        {
+          pollfd socket{.fd = c.fd, .events = POLLOUT, .revents = 0};
+          const int ready = ::poll(&socket, 1, 0);
+          if (ready == 0 || (ready < 0 && errno == EINTR))
+          {
+            c.want_write = true;
+            return true;
+          }
+          if (ready < 0 || (socket.revents & POLLOUT) == 0)
+          {
+            LOG_DEBUG_FMT(
+              "Connection {}: socket readiness failed before KeyUpdate", c.id);
+            c.abort_tls = true;
+            return false;
+          }
+          if (!update_traffic_keys(c))
+          {
+            return false;
+          }
+        }
         ERR_clear_error();
         // SSL_write takes an int length. SSL_MODE_ENABLE_PARTIAL_WRITE is
         // set, so each call may write any prefix of the remainder.
         const size_t remaining = c.outbuf.size() - c.out_off;
+        const size_t length = c.write_retry_length != 0 ?
+          c.write_retry_length :
+          std::min(
+            remaining,
+            c.traffic_keys ? max_record_plaintext(c.ssl) : size_t{INT_MAX});
         const int n = SSL_write(
-          c.ssl,
-          c.outbuf.data() + c.out_off,
-          static_cast<int>(std::min(remaining, size_t{INT_MAX})));
+          c.ssl, c.outbuf.data() + c.out_off, static_cast<int>(length));
+        const int e = n > 0 ? SSL_ERROR_NONE : SSL_get_error(c.ssl, n);
+        if (sending_limit_exceeded(c))
+        {
+          return false;
+        }
         if (n > 0)
         {
+          c.write_retry_length = 0;
           c.out_off += static_cast<size_t>(n);
           continue;
         }
 
-        const int e = SSL_get_error(c.ssl, n);
+        if (c.traffic_keys)
+        {
+          c.write_retry_length = length;
+          if (SSL_in_init(c.ssl) != 0)
+          {
+            LOG_DEBUG_FMT(
+              "Connection {}: TLS control write did not complete; closing",
+              c.id);
+            c.abort_tls = true;
+            return false;
+          }
+        }
         if (e == SSL_ERROR_WANT_WRITE)
         {
           c.want_write = true;
@@ -631,6 +753,7 @@ namespace ccf::tls
         // level which a client cannot use to flood the log.
         LOG_DEBUG_FMT(
           "Connection {}: write failed: {}", c.id, ssl_error_string(e));
+        c.abort_tls = c.traffic_keys.has_value();
         return false;
       }
 
@@ -699,6 +822,36 @@ namespace ccf::tls
         SSL_set_mode(
           conn->ssl,
           SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_ENABLE_PARTIAL_WRITE);
+        if (traffic_key_policy)
+        {
+          auto& keys = conn->traffic_keys.emplace(*traffic_key_policy);
+          SSL_set_msg_callback(conn->ssl, TrafficKeys::observe);
+          SSL_set_msg_callback_arg(conn->ssl, &keys);
+          SSL_set_mode(conn->ssl, SSL_MODE_AUTO_RETRY);
+          SSL_clear_options(conn->ssl, SSL_OP_ENABLE_KTLS);
+          SSL_set_post_handshake_auth(conn->ssl, 0);
+          if (
+            SSL_set_min_proto_version(conn->ssl, TLS1_3_VERSION) != 1 ||
+            SSL_set_max_proto_version(conn->ssl, TLS1_3_VERSION) != 1 ||
+            SSL_set_ciphersuites(
+              conn->ssl, "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256") !=
+              1 ||
+            SSL_set_max_send_fragment(conn->ssl, read_chunk) != 1 ||
+            SSL_set_split_send_fragment(conn->ssl, read_chunk) != 1 ||
+            SSL_set_max_pipelines(conn->ssl, 1) != 1 ||
+            SSL_set_num_tickets(conn->ssl, 0) != 1 ||
+            SSL_set_max_early_data(conn->ssl, 0) != 1)
+          {
+            LOG_FAIL_FMT(
+              "Connection {}: traffic-key policy setup failed: {}",
+              conn->id,
+              ccf::crypto::OpenSSL::first_error());
+            SSL_free(conn->ssl);
+            conn->ssl = nullptr;
+            complete_drive(std::move(conn), false, false);
+            return;
+          }
+        }
         if (conn->outgoing)
         {
           SSL_set_connect_state(conn->ssl);
@@ -764,7 +917,10 @@ namespace ccf::tls
       if (!alive && conn->ssl != nullptr)
       {
         ERR_clear_error();
-        (void)SSL_shutdown(conn->ssl);
+        if (!conn->abort_tls)
+        {
+          (void)SSL_shutdown(conn->ssl);
+        }
         SSL_free(conn->ssl);
         conn->ssl = nullptr;
       }
@@ -1302,6 +1458,12 @@ namespace ccf::tls
         details::close_socket(conn->fd);
         return false;
       };
+      if (traffic_key_policy && conn->tls_context == nullptr)
+      {
+        LOG_FAIL_FMT(
+          "Connection {}: traffic-key policy requires TLS", conn->id);
+        return fail();
+      }
       if (conn->poll != nullptr)
       {
         (void)uv_poll_stop(conn->poll);
@@ -1370,10 +1532,21 @@ namespace ccf::tls
       on_data(std::move(on_data_)),
       on_close(std::move(on_close_)),
       on_handshake(std::move(config.on_handshake)),
+      traffic_key_policy(config.traffic_key_policy),
       owner_wake(std::move(config.on_wake)),
       owner_stop(std::move(config.on_stop)),
       on_unconnected(std::move(config.on_unconnected))
-    {}
+    {
+      if (
+        traffic_key_policy &&
+        (traffic_key_policy->record_budget < 2 ||
+         traffic_key_policy->record_budget >
+           TrafficKeyPolicy::MAX_RECORD_BUDGET))
+      {
+        throw std::invalid_argument(
+          "TLS sending-key record budget must be between 2 and 2^24");
+      }
+    }
 
     OpenSSLConnectionEngine(const OpenSSLConnectionEngine&) = delete;
     OpenSSLConnectionEngine& operator=(const OpenSSLConnectionEngine&) = delete;

@@ -64,7 +64,7 @@ The context must not be mutated while in use.
 OpenSSL client contexts otherwise default to ``SSL_VERIFY_NONE``, which completes the handshake with any certificate.
 This check cannot detect a verification callback which overrides failures; such a callback remains the owner's responsibility.
 The engine does not impose N2N policy on RPC: RPC retains its existing TLS configuration.
-This foundation does not activate N2N endpoints, route messages, or implement the future N2N TLS 1.3 and record-based KeyUpdate policy.
+This foundation does not activate N2N endpoints or route messages.
 
 ``Config::on_handshake`` is optional and applies to both accepted and initiating TLS connections.
 It runs once on a connection worker after TLS establishment, with a borrowed ``SSL`` and a direction flag.
@@ -87,6 +87,25 @@ When stopping without a running loop, the caller must eventually drain the loop 
 An optional ``tcp_user_timeout`` sets Linux ``TCP_USER_TIMEOUT`` on accepted sockets (in ``Config``) or an initiating socket (in ``ConnectConfig``).
 It bounds how long transmitted data can remain unacknowledged or blocked by a zero receive window, independently of the application's idle timeout.
 Leaving it unset preserves the operating system defaults, including existing RPC behavior.
+
+Sending-key policy
+~~~~~~~~~~~~~~~~~~
+
+The internal ``Config::traffic_key_policy`` option on the engine, server and client requires TLS 1.3 with AES-GCM and enables outgoing record accounting.
+It is unset by default and adds no node configuration or operator option.
+OpenSSL already implements KeyUpdate, but ordinary TLS connections do not automatically initiate updates based on key usage.
+The policy counts outgoing encrypted records, not application messages or write calls, and reserves one old-key record for KeyUpdate itself.
+Application writes are capped at the negotiated record size so that retries cannot construct additional records without another budget check.
+Post-handshake authentication is disabled because its response flight can produce multiple records without an intervening budget check.
+Its internal ``record_budget`` defaults to 2^20 and accepts 2 through 2^24, below the AES-GCM bound in RFC 8446 section 5.5.
+Peer key-usage policy is not enforced; incoming KeyUpdates remain OpenSSL's responsibility.
+
+An update is attempted between completed application writes, only when the socket reports writable.
+If the update does not complete immediately, the connection is closed without further TLS I/O.
+An opted-in read or write which stalls on TLS control output is also closed rather than worked around.
+Ordinary application-write backpressure retains normal retry handling.
+This intentionally trades connection continuity for a small policy: there are no retry deadlines, extra ciphertext buffers or output budgets.
+The owner must reconnect and recover outstanding application work; the engine does not replay it.
 
 Certificates
 ~~~~~~~~~~~~
