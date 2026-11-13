@@ -44,7 +44,7 @@ To report how many steps and traces show each outcome, and which outcomes no tra
 ```
 
 An outcome which no trace shows is a missing scenario, a step which the driver or the reduction cannot produce, or behaviour which the model allows and the implementation lacks.
-For example, a nomination without a successor traces no `step_down_and_nominate_successor`, so replay runs no model action for it.
+For example, the driver starts every node with an empty ledger, so no trace of a scenario shows `joinFromSnapshot`.
 
 To compare with the implementation, configure the scenario build with `-DCOVERAGE=ON` and run the scenario test.
 [`coverage.sh`](../../../scripts/coverage.sh) then lists the lines of [`cft.h`](../../../src/consensus/aft/cft.h) which the scenarios do not execute:
@@ -81,6 +81,9 @@ It delivers the queued **model payload**, not reconstructing unrecorded native b
 An envelope that is never delivered stays queued, which models loss, so `drop_pending_to` emits no observation or action.
 After each rule's actions, the envelopes they queued must equal the rule's native sends, as a multiset of target and rendered packet.
 Native code does not trace the `propose_request_vote` send that follows `step_down_and_nominate_successor`, so replay counts each `step_down_and_nominate_successor` as that send.
+A `nomination` whose snapshot is of a primary runs the model's nomination even if no `step_down_and_nominate_successor` follows it, so the model must find no successor either.
+CCF ignores an AppendEntries response from a node which it does not know, and traces it as `recv_append_entries_response_unknown_node`.
+Replay delivers that response too, and the model decides by itself whether it knows the sender.
 
 ## Source and checks
 
@@ -92,7 +95,7 @@ Native code does not trace the `propose_request_vote` send that follows `step_do
 - [`ReplayMain.lean`](ReplayMain.lean): CLI which validates one trace, whole or by command, or reports the outcomes of several.
 - [`ReplayDelivery.lean`](../Consensus/Tests/ReplayDelivery.lean): delivery selection among equal rendered packets.
 - [`ReplayOutcomes.lean`](../Consensus/Tests/ReplayOutcomes.lean): outcomes of chosen steps, and the report of several traces.
-- [`ReplaySession.lean`](../Consensus/Tests/ReplaySession.lean): replay by command against replay of the whole trace, and the model state between commands.
+- [`ReplaySession.lean`](../Consensus/Tests/ReplaySession.lean): replay by command against replay of the whole trace, the model state between commands, and a nomination and a response which the model decides how to handle.
 - [`ModelDriver.lean`](../../../tests/cft_model/ModelDriver.lean): the consensus model driver, which replays the scenarios in the process which runs them.
 - [`cft_scenarios_runner.py`](../../../tests/cft_scenarios_runner.py): existing native scenario runner and capture generation.
 

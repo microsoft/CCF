@@ -242,6 +242,17 @@ private def ruleRecvAppendEntriesResponse : Reduction Unit := do
   emitAction head "recv-append-entries-response" action
   emitObserveSends head (← extractSends start)
 
+/-- CCF ignores the response of a node which it does not know. -/
+private def ruleRecvAppendEntriesResponseUnknownNode : Reduction Unit := do
+  let head ← peek
+  let action ← readReceive head ["append_entries_response"]
+  -- consume
+  event head "recv_append_entries_response_unknown_node"
+  -- emit
+  emitObserve head "recv-append-entries-response-unknown-node"
+  emitAction head "recv-append-entries-response-unknown-node" action
+  emitObserveSends head []
+
 private def ruleRecvRequestVote : Reduction Unit := do
   let head ← peek
   let action ← readReceive head ["request_vote", "request_pre_vote"]
@@ -348,9 +359,11 @@ private def ruleNomination : Reduction Unit := do
   let start ← position
   event head "nomination"
   let nominated ← CCF.Parsec.optionalRule (event head "step_down_and_nominate_successor")
+  -- A primary which finds no successor also nominates, and sends no proposal.
+  let primary := optional head.state "leadership_state" == some (toJson "Leader")
   -- emit
   emitObserve head "nomination"
-  if nominated.isSome then
+  if nominated.isSome || primary then
     emitAction head "nomination" (.local head.node .nominateSuccessor)
   emitObserveSends head (← extractSends start)
 
@@ -388,6 +401,7 @@ private def ruleStep : Reduction Unit := do
   -- Recv rules
   attempt ruleRecvAppendEntries
   <|> attempt ruleRecvAppendEntriesResponse
+  <|> attempt ruleRecvAppendEntriesResponseUnknownNode
   <|> attempt ruleRecvRequestVote
   <|> attempt ruleRecvProposeRequestVote
   <|> attempt ruleRecvRequestVoteResponse

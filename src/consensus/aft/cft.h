@@ -1542,6 +1542,8 @@ namespace aft
       if (node == all_other_nodes.end())
       {
         // Ignore if we don't recognise the node.
+        trace::recv_append_entries_response_unknown_node(
+          *state, r, from.value());
         CFT_FAIL_FMT(
           "Recv append entries response to {} from {}: unknown node",
           state->node_id,
