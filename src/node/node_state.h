@@ -744,7 +744,7 @@ namespace ccf
             const auto claims_digest = verify_recovery_snapshot_receipt_unsafe(
               receipt_bytes, snapshot_seqno);
             LOG_INFO_FMT("Reading authenticated recovery snapshot body");
-            auto snapshot_data = files::slurp(snapshot_path);
+            auto snapshot_data = files::slurp(snapshot_path, true);
             const auto segments = separate_segments(snapshot_data);
             if (!std::ranges::equal(segments.receipt, receipt_bytes))
             {
