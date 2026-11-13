@@ -27,6 +27,7 @@
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -207,6 +208,7 @@ namespace didx509
       return value;
     }
 
+    inline constexpr auto fulcio_issuer_oid = "1.3.6.1.4.1.57264.1.1";
     inline constexpr auto fulcio_othername_oid = "1.3.6.1.4.1.57264.1.7";
 
     inline const std::map<std::string, std::string>& fulcio_extension_oids()
@@ -823,46 +825,52 @@ namespace didx509
         return names;
       };
 
-      [[nodiscard]] std::map<std::string, std::string> fulcio_extensions() const
+      /// The raw value of the extension with this OID, if present. Throws if
+      /// the extension is repeated or critical; name is used in the error.
+      [[nodiscard]] std::optional<std::string> single_extension(
+        const std::string& oid, const std::string& name) const
       {
-        std::map<std::string, std::string> fields;
-        for (const auto& [field, oid] : fulcio_extension_oids())
+        const auto exts = extensions<UqX509_EXTENSION>(oid);
+        if (exts.empty())
         {
-          const auto exts = extensions<UqX509_EXTENSION>(oid);
-          if (exts.size() > 1)
-          {
-            throw std::runtime_error("duplicate Fulcio extension: " + field);
-          }
-          if (!exts.empty())
-          {
-            const auto& ext = exts.front();
-            if (ext.critical())
-            {
-              throw std::runtime_error("critical Fulcio extension: " + field);
-            }
-            fields.emplace(
-              field,
-              decode_der_utf8_string(static_cast<std::string>(ext.data())));
-          }
+          return std::nullopt;
         }
-        const auto legacy =
-          extensions<UqX509_EXTENSION>("1.3.6.1.4.1.57264.1.1");
-        if (legacy.size() > 1)
+        if (exts.size() > 1)
         {
-          throw std::runtime_error("duplicate fulcio-issuer extension");
+          throw std::runtime_error("duplicate " + name);
         }
-        for (const auto& ext : legacy)
+        if (exts.front().critical())
         {
-          if (ext.critical())
-          {
-            throw std::runtime_error("critical fulcio-issuer extension");
-          }
-          if (!is_valid_utf8(static_cast<std::string>(ext.data())))
-          {
-            throw std::runtime_error("fulcio-issuer is not valid UTF-8");
-          }
+          throw std::runtime_error("critical " + name);
         }
-        return fields;
+        return static_cast<std::string>(exts.front().data());
+      }
+
+      /// The value of the registered standalone Fulcio extension for this
+      /// field, if present. Throws if it is repeated, critical or malformed.
+      [[nodiscard]] std::optional<std::string> fulcio_extension(
+        const std::string& field) const
+      {
+        const auto encoded = single_extension(
+          fulcio_extension_oids().at(field), "Fulcio extension: " + field);
+        if (!encoded)
+        {
+          return std::nullopt;
+        }
+        return decode_der_utf8_string(*encoded);
+      }
+
+      /// The value of the legacy Fulcio issuer extension, if present. Throws
+      /// if it is repeated, critical or not valid UTF-8.
+      [[nodiscard]] std::optional<std::string> fulcio_issuer() const
+      {
+        auto issuer =
+          single_extension(fulcio_issuer_oid, "fulcio-issuer extension");
+        if (issuer && !is_valid_utf8(*issuer))
+        {
+          throw std::runtime_error("fulcio-issuer is not valid UTF-8");
+        }
+        return issuer;
       }
 
       [[nodiscard]] std::vector<UqEXTENDED_KEY_USAGE> extended_key_usage() const
@@ -1775,8 +1783,7 @@ namespace didx509
     }
 
     inline void verify_fulcio(
-      const std::map<std::string, std::string>& fields,
-      const std::vector<std::string>& args)
+      const UqX509& leaf, const std::vector<std::string>& args)
     {
       if (args.size() != 2)
       {
@@ -1788,12 +1795,12 @@ namespace didx509
         throw std::runtime_error("unknown Fulcio field: " + field);
       }
       const auto value = decode_scalar(args[1]);
-      const auto ext = fields.find(field);
-      if (ext == fields.end())
+      const auto ext = leaf.fulcio_extension(field);
+      if (!ext)
       {
         throw std::runtime_error("Fulcio extension not found: " + field);
       }
-      if (ext->second != value)
+      if (*ext != value)
       {
         throw std::runtime_error("invalid Fulcio field/value: " + field);
       }
@@ -1843,16 +1850,11 @@ namespace didx509
 
       check_fingerprint(chain, ca_fingerprint_alg, ca_fingerprint);
 
-      std::map<std::string, std::string> leaf_fulcio;
+      // Standalone Fulcio extensions are not examined here: each one is
+      // decoded only when a policy selects it, and only on the leaf.
       for (size_t i = 0; i < chain.size(); i++)
       {
-        const auto cert = chain.at(i);
-        (void)cert.subject_alternative_name();
-        auto fields = cert.fulcio_extensions();
-        if (i == 0)
-        {
-          leaf_fulcio = std::move(fields);
-        }
+        (void)chain.at(i).subject_alternative_name();
       }
 
       // Check policies
@@ -1969,21 +1971,11 @@ namespace didx509
             throw std::runtime_error("excessive arguments to fulcio-issuer");
           }
 
-          const std::string fulcio_oid("1.3.6.1.4.1.57264.1.1");
           auto decoded_arg = decode_scalar(args[0]);
           auto fulcio_issuer = "https://" + decoded_arg;
 
-          bool found = false;
-          auto exts = chain.at(0).extensions<UqX509_EXTENSION>(fulcio_oid);
-          for (const auto& ext : exts)
-          {
-            if ((std::string)ext.data() == fulcio_issuer)
-            {
-              found = true;
-              break;
-            }
-          }
-          if (!found)
+          const auto issuer = chain.at(0).fulcio_issuer();
+          if (!issuer || *issuer != fulcio_issuer)
           {
             throw std::runtime_error(
               std::string("invalid fulcio-issuer: ") + fulcio_issuer);
@@ -1991,7 +1983,7 @@ namespace didx509
         }
         else if (policy_name == "fulcio")
         {
-          verify_fulcio(leaf_fulcio, args);
+          verify_fulcio(chain.at(0), args);
         }
         else
         {
