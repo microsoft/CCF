@@ -6,4 +6,4 @@ defaultTargets = ["Scenarios"]
 
 [[lean_lib]]
 name = "Scenarios"
-roots = ["Scenarios", "CftDriver"]
+roots = ["Main", "Scenarios", "CftDriver"]

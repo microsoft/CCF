@@ -153,6 +153,7 @@ Each matrix job caches its third-party dependency checkouts and build outputs, l
 Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
 CCF package and common build outputs are not cached, and all verification steps still run.
 CCF consensus, KV, and consistency trace captures run in parallel with package checks.
+The CCF consensus capture job then builds the [consensus model driver](../../tests/cft_model/README.md) with `-DCFT_MODEL_DRIVER=ON`, and runs `cft_model_test`, which replays each scenario in the process which runs it.
 Three independent trace-validation jobs each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
 The CCF consensus replay job replays each trace whole and [by driver command](../../lean/consensus/replay/README.md#replay-by-command), and adds to its summary the [outcomes](../../lean/consensus/replay/README.md#outcomes) of the model which the captured traces show, and those which none shows.
 Consistency capture reuses the existing `consistency_trace_validation` e2e test, and its replay job also checks the consistency replay fixtures, including election and rollback traces.
@@ -185,7 +186,7 @@ The dedicated replay job builds `kv-replay` separately to validate the captured 
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
 The workflow runs on pull requests that change `lean/` (except `lean/mathlib-equivalence/`), any `.lean` file, the formatter script, or the workflow.
-It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
+It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests and model driver, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
 File: `lean.yml`

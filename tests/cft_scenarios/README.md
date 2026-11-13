@@ -68,8 +68,11 @@ The runner prints each scenario as a Mermaid sequence diagram, and writes its tr
 
 ## Bindings
 
-`lake` compiles the scenarios to a static library, which defines `main`.
+`lake` compiles the scenarios to a static library, which defines `main` in [`Main.lean`](Main.lean).
 `cft_driver` links it with [`driver.cpp`](../../src/consensus/aft/test/driver.cpp), which implements each command declared in `CftDriver.lean` by calling `CftDriver` in [`driver.h`](../../src/consensus/aft/test/driver.h), and with the Lean runtime.
 A trace records each command as a `cmd` record, naming the command and its arguments.
 The driver exports its trace over TCP, to a Fluentd collector such as the scenario test runs.
 For a trace file, and for `takeTrace`, `driver.cpp` collects it from a local port in the same process.
+
+Another program can import `Scenarios` and define its own `main`.
+The [consensus model driver](../cft_model/README.md) does, to run the scenarios with the Lean model of the protocol in the same process.
