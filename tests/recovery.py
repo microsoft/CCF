@@ -3442,6 +3442,7 @@ def run_pq_endorsement_chain(args):
     identity before, and verifies that each service endorses the previous one
     with its PQ key."""
     txs = app.LoggingTxs("user0")
+    recovered_networks = []
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -3449,38 +3450,54 @@ def run_pq_endorsement_chain(args):
         pdb=args.pdb,
         txs=txs,
     ) as network:
-        network.start_and_open(args)
-        primary, _ = network.find_primary()
-        snapshot_trigger = primary.trigger_snapshot()
-        committed_snapshots_dir = network.get_committed_snapshots(
-            primary,
-            target_seqno=snapshot_trigger.seqno,
-            wait_for_target_seqno=True,
-        )
-        first_service_snapshots_dir = os.path.join(
-            network.common_dir, "pq_endorsement_chain_snapshots"
-        )
-        os.makedirs(first_service_snapshots_dir)
-        shutil.copy(
-            os.path.join(
-                committed_snapshots_dir,
-                ccf.ledger.latest_snapshot(committed_snapshots_dir),
-            ),
-            first_service_snapshots_dir,
-        )
+        try:
+            network.start_and_open(args)
+            primary, _ = network.find_primary()
+            snapshot_trigger = primary.trigger_snapshot()
+            committed_snapshots_dir = network.get_committed_snapshots(
+                primary,
+                target_seqno=snapshot_trigger.seqno,
+                wait_for_target_seqno=True,
+            )
+            first_service_snapshots_dir = os.path.join(
+                network.common_dir, "pq_endorsement_chain_snapshots"
+            )
+            os.makedirs(first_service_snapshots_dir)
+            shutil.copy(
+                os.path.join(
+                    committed_snapshots_dir,
+                    ccf.ledger.latest_snapshot(committed_snapshots_dir),
+                ),
+                first_service_snapshots_dir,
+            )
 
-        network = test_recover_service(network, args, from_snapshot=False)
-        # The snapshot is verified with the endorsements written after it, which
-        # include the PQ ones
-        network = test_recover_service(
-            network, args, snapshots_dir=first_service_snapshots_dir
-        )
-        primary, _ = network.find_primary()
-        assert primary.check_log_for_error_message(
-            "Validated 1 recovery snapshot endorsement(s) in memory"
-        )
-        pq_service_cert = network.get_pq_service_certificate()
-        network.stop_all_nodes()
+            network = test_recover_service(
+                network,
+                args,
+                from_snapshot=False,
+                recovered_networks=recovered_networks,
+            )
+            # The snapshot is verified with the endorsements written after it,
+            # which include the PQ ones
+            network = test_recover_service(
+                network,
+                args,
+                snapshots_dir=first_service_snapshots_dir,
+                recovered_networks=recovered_networks,
+            )
+            primary, _ = network.find_primary()
+            assert primary.check_log_for_error_message(
+                "Validated 1 recovery snapshot endorsement(s) in memory"
+            )
+            pq_service_cert = network.get_pq_service_certificate()
+            network.stop_all_nodes()
+        finally:
+            for recovered_network in reversed(recovered_networks):
+                recovered_network.stop_all_nodes(
+                    skip_verification=True,
+                    check_file_invariants=False,
+                    skip_verify_chunking=True,
+                )
 
     pq_endorsements = verify_pq_endorsement_chain(
         primary.remote.ledger_paths(), pq_service_cert, temp_dir=network.common_dir
