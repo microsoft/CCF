@@ -423,7 +423,9 @@ class Network:
             # Each node process has its own ID, so this also catches a node
             # whose configuration did not end up with the capture sink.
             if len(counts) != len(node_ids):
-                reasons.append(f"Records from {len(counts)} processes")
+                reasons.append(
+                    f"Records from {len(counts)} processes for {len(node_ids)} nodes"
+                )
             for node in self.cft_trace_nodes:
                 proc = node.remote.remote.proc if node.remote else None
                 if proc is None or proc.poll() != 0:
