@@ -1,17 +1,26 @@
 name: "Lean Shamir"
 
-# Checks the experimental Rust Shamir backend: that its Lean model is the one
-# Aeneas extracts from the production Rust core, and that the proofs about that
-# model hold. They need Aeneas, CSLib and Mathlib, unlike the packages checked
-# by lean.yml, so this only runs when the Rust core, the model or the proofs
-# change.
+# Extraction and verification pipeline for the experimental Rust Shamir
+# backend: checks that its Lean model is the one Aeneas extracts from the
+# production Rust core, and that the proofs about that model hold.
+#
+# This needs Aeneas, Charon, CSLib, Mathlib, Miri and cbindgen, none of which
+# the CCF build or the Lean workflow in lean.yml use. Keep them confined to
+# this workflow, which only runs when the Rust Shamir code, its C interface,
+# the model or the proofs change.
 on:
   pull_request:
     paths:
       - "lean/shamir/**"
       - "lean/common/**"
       - "lean/lean-toolchain"
-      - "src/rust/**"
+      # The ccf-shamir core and the ccf-rs crate that exposes its C interface.
+      # Other Rust code under src/rust, such as ccf-app, is unrelated.
+      - "src/rust/shamir/**"
+      - "src/rust/src/**"
+      - "src/rust/Cargo.toml"
+      - "src/rust/Cargo.lock"
+      - "src/rust/cbindgen.toml"
       - "src/crypto/sharing_ffi.h"
       - "scripts/extract-shamir.sh"
       - "scripts/check-shamir.sh"
@@ -30,7 +39,7 @@ permissions:
 jobs:
   extraction:
     name: Reproduce Rust Shamir extraction and C header
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
       run:
@@ -79,7 +88,7 @@ jobs:
 
   proofs:
     name: Check Shamir model and proofs
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     defaults:
       run:
@@ -90,10 +99,13 @@ jobs:
 
     steps:
       - name: Install prerequisites
+        id: prerequisites
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y elan
+          # ubuntu-latest moves between Ubuntu releases; key caches on the image.
+          echo "image=${ImageOS:-unknown}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -107,7 +119,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: lean/shamir/.lake/packages
-          key: lean-deps-v3-ubuntu-26.04-${{ runner.arch }}-shamir-${{ hashFiles('lean/lean-toolchain', 'lean/shamir/lake-manifest.json', 'lean/shamir/lakefile.toml', 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-shamir.yml') }}
+          key: lean-deps-v3-${{ steps.prerequisites.outputs.image }}-${{ runner.arch }}-shamir-${{ hashFiles('lean/lean-toolchain', 'lean/shamir/lake-manifest.json', 'lean/shamir/lakefile.toml', 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-shamir.yml') }}
 
       - name: Restore Mathlib cache
         working-directory: lean/shamir
