@@ -1265,7 +1265,6 @@ TEST_CASE("Endorsements require each published identity to match its cert")
       tx, identity.cert, identity.pq_cert, {1, 1});
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
-  const auto before = store.current_txid();
   {
     auto tx = store.create_tx();
     auto* signing_identities =
@@ -1298,13 +1297,13 @@ TEST_CASE("Endorsements require each published identity to match its cert")
         tx, *identity.key, pq_key),
       "Service signing identity does not match its service certificate",
       std::logic_error);
+    // The transaction holds the mismatched identity, so it is checked for
+    // endorsements written before the throw
+    auto* endorsements = tx.ro<ccf::PreviousServiceIdentityEndorsement>(
+      Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+    REQUIRE_FALSE(endorsements->has(IdentityType::CLASSICAL));
+    REQUIRE_FALSE(endorsements->has(IdentityType::PQ));
   }
-  REQUIRE(store.current_txid() == before);
-  auto ro = store.create_read_only_tx();
-  REQUIRE(
-    ro.ro<ccf::PreviousServiceIdentityEndorsement>(
-        Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-      ->size() == 0);
 }
 
 TEST_CASE("direct node deletion updates consensus configuration")
