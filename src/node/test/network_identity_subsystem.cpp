@@ -533,11 +533,27 @@ TEST_CASE("Recovery snapshot endorsements are validated newest-to-oldest")
   std::vector<ccf::CollectedCoseEndorsement> collected{
     {cb.write_versions[1], cb.entries[1]},
     {cb.write_versions[2], cb.entries[2]}};
-  const auto target_key = cb.current_pkey_der();
+  const auto previous_service_cert = cb.current_key_pair()->self_sign(
+    "CN=Previous service", "20240101000000Z", "20250101000000Z");
+  const auto expected_signer =
+    ccf::signing_identity_from_key(ccf::crypto::COSEKey::from_der_public_key(
+      cb.service_keys.front()->public_key_der()));
 
-  const auto snapshot_signer =
-    ccf::validate_recovery_snapshot_endorsement_chain(collected, target_key, 1);
-  REQUIRE(snapshot_signer == cb.service_keys.front()->public_key_der());
+  // The previous service identity matches whatever its encoding
+  for (const auto& previous_service_identity :
+       {ccf::signing_identity_from_cert(previous_service_cert),
+        ccf::Identity{
+          ccf::IdentityKind::X509_CERT_DER,
+          ccf::crypto::cert_pem_to_der(previous_service_cert)},
+        ccf::Identity{ccf::IdentityKind::X509_SPKI_DER, cb.current_pkey_der()}})
+  {
+    const auto snapshot_signer =
+      ccf::validate_recovery_snapshot_endorsement_chain(
+        collected, previous_service_identity, 1);
+    REQUIRE(snapshot_signer == expected_signer);
+    REQUIRE(ccf::is_same_key(
+      snapshot_signer, cb.service_keys.front()->public_key_der()));
+  }
 }
 
 TEST_CASE("Recovery snapshot endorsements fail closed")
@@ -548,33 +564,46 @@ TEST_CASE("Recovery snapshot endorsements fail closed")
   std::vector<ccf::CollectedCoseEndorsement> collected{
     {cb.write_versions[1], cb.entries[1]},
     {cb.write_versions[2], cb.entries[2]}};
-  const auto target_key = cb.current_pkey_der();
+  const ccf::Identity target{
+    ccf::IdentityKind::X509_SPKI_DER, cb.current_pkey_der()};
 
   // Snapshot seqno inconsistent with the collected endorsement chain.
   REQUIRE_THROWS_AS(
-    ccf::validate_recovery_snapshot_endorsement_chain(
-      collected, target_key, 1000),
+    ccf::validate_recovery_snapshot_endorsement_chain(collected, target, 1000),
     std::logic_error);
 
-  const auto wrong_target_key =
-    ccf::crypto::make_ec_key_pair()->public_key_der();
+  const ccf::Identity wrong_target{
+    ccf::IdentityKind::X509_SPKI_DER,
+    ccf::crypto::make_ec_key_pair()->public_key_der()};
+  REQUIRE_THROWS_WITH_AS(
+    ccf::validate_recovery_snapshot_endorsement_chain(
+      collected, wrong_target, 1),
+    "Newest collected endorsement is not signed by the configured previous "
+    "service identity",
+    std::logic_error);
+
+  // The chain is anchored at the newest endorsing key, so the snapshot signer
+  // is rejected as an anchor
+  const ccf::Identity snapshot_signer_target{
+    ccf::IdentityKind::X509_SPKI_DER,
+    cb.service_keys.front()->public_key_der()};
   REQUIRE_THROWS_AS(
     ccf::validate_recovery_snapshot_endorsement_chain(
-      collected, wrong_target_key, 1),
+      collected, snapshot_signer_target, 1),
     std::logic_error);
 
   auto broken_back_pointer = collected;
   broken_back_pointer.back().endorsement.previous_version = 999;
   REQUIRE_THROWS_AS(
     ccf::validate_recovery_snapshot_endorsement_chain(
-      broken_back_pointer, target_key, 1),
+      broken_back_pointer, target, 1),
     std::logic_error);
 
   auto epoch_mismatch = collected;
   epoch_mismatch.front().endorsement.endorsement_epoch_end->seqno -= 1;
   REQUIRE_THROWS_AS(
     ccf::validate_recovery_snapshot_endorsement_chain(
-      epoch_mismatch, target_key, 1),
+      epoch_mismatch, target, 1),
     std::logic_error);
 
   auto injected = collected;
@@ -584,7 +613,7 @@ TEST_CASE("Recovery snapshot endorsements fail closed")
     collected.back().write_version;
   injected.emplace_back(std::move(injected_endorsement));
   REQUIRE_THROWS_AS(
-    ccf::validate_recovery_snapshot_endorsement_chain(injected, target_key, 1),
+    ccf::validate_recovery_snapshot_endorsement_chain(injected, target, 1),
     std::logic_error);
 }
 
