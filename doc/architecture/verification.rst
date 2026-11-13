@@ -81,6 +81,7 @@ The :ccf_repo:`Lean workflow <.github/workflows/lean.yml>` runs on pull requests
 * A package job for each of ``common``, ``consensus``, ``consistency``, ``disaster-recovery`` and ``kv`` runs the kernel and axiom check (``lake check``), import coverage and architecture checks, formatting and linting, and, where applicable, the package's replay fixtures.
 * Separate capture jobs build CCF and record consensus, KV and consistency traces from the tests described above.
 * Replay jobs build each replayer and validate every captured trace.
+  The consensus replay job also reports which outcomes of the model's handlers the captured traces show, and which none shows; see :ccf_repo:`lean/consensus/replay/README.md`.
 * A final ``Lean models and proofs`` job succeeds only if all of the above succeed.
 
 The disaster recovery traces are replayed by the SNP Genoa job in the main CI workflow instead, since that is where the recovery scenarios run.
