@@ -1044,7 +1044,7 @@ class TestSnapshotFileName:
         ):
             ccf.ledger.Snapshot(path)
 
-    def test_ignored_snapshot_name_does_not_skip_receipt_verification(self, tmp_path):
+    def test_snapshot_with_ignored_suffix_has_receipt_verified(self, tmp_path):
         # Nodes rename a snapshot which fails verification to <name>.ignored
         path = self.write_snapshot(
             tmp_path / "x", "snapshot_1_2.committed.ignored", b"bad receipt"

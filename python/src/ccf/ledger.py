@@ -1120,6 +1120,9 @@ class Snapshot(Entry):
             raise ValueError(f"Snapshot file {self._filename} is not yet committed")
         basename = os.path.basename(self._filename)
         suffix = basename.split(COMMITTED_FILE_SUFFIX)[1]
+        # An exact match, so that every other committed name has its receipt
+        # verified, including the <name>.ignored that nodes give to a snapshot
+        # which fails verification
         return re.fullmatch(r"_\d+", suffix, re.ASCII) is not None
 
     def get_len(self) -> int:
