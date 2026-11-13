@@ -45,7 +45,16 @@ jobs:
           test "$(find release-assets -maxdepth 1 -type f | wc -l)" -gt 0
           package="./release-assets/microsoft-ccf-app-${tag#ccf-}.tgz"
           test -f "$package"
-          npm publish "$package" --dry-run --access public --tag latest
+          mkdir npm-smoke
+          tar -xzf "$package" -C npm-smoke
+          (
+            cd npm-smoke/package
+            version="0.0.0-ubuntu26.${GITHUB_RUN_ID}"
+            npm version "$version" --no-git-tag-version --ignore-scripts
+            npm pack --ignore-scripts
+            npm publish "./microsoft-ccf-app-${version}.tgz" \
+              --dry-run --access public --tag ubuntu26-validation
+          )
           ./scripts/extract-release-notes.py
           gh release create --help > /dev/null
           gh release upload --help > /dev/null
