@@ -370,7 +370,7 @@ namespace ccf
         }
 
         assert(historical_state->receipt);
-        auto cose_receipt = ccf::describe_cose_receipt_v1(
+        auto cose_receipt = ccf::describe_cose_receipt_v2(
           *historical_state->receipt, identity_type.value());
         if (!cose_receipt.has_value())
         {
