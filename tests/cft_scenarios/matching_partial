@@ -15,9 +15,9 @@
 
 start_node,0
 assert_detail,0,leadership_state,Leader
-emit_signature,2
+replicate,2,$
 trust_nodes,2,1,2
-emit_signature,2
+replicate,2,$
 dispatch_all
 periodic_all,10
 dispatch_all
@@ -30,7 +30,7 @@ periodic_one,2,100
 dispatch_all
 assert_detail,2,leadership_state,Leader
 replicate,3,divergent 5
-emit_signature,3
+replicate,3,$
 drop_pending,2
 assert_last_txid,2,3.6
 
@@ -43,7 +43,7 @@ assert_detail,1,current_view,4
 # Node 1 builds its own block [5,6]@t4.
 drop_pending,1
 replicate,4,block 5
-emit_signature,4
+replicate,4,$
 
 # Optimistically advance node 1's sentIndex for node 2 to 6, then DROP that AppendEntries
 # so node 2 does not adopt yet and stays on its divergent [5,6]@t3.
@@ -67,7 +67,7 @@ dispatch_single,1,2
 assert_last_txid,2,4.6
 
 # Node 1 extends its block with [7]@t4.
-emit_signature,4
+replicate,4,$
 
 # Deliver the RETAINED NACK #2: node 1 again backs sentIndex off to 4 (match still <= 4).
 dispatch_single,2,1

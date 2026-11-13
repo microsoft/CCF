@@ -75,7 +75,6 @@ int main(int argc, char** argv)
     vector<string> items{
       sregex_token_iterator(line.begin(), line.end(), delim, -1),
       std::sregex_token_iterator()};
-    std::shared_ptr<std::vector<uint8_t>> data;
     const std::string& in = items[0].c_str();
     if (in.starts_with("===="))
     {
@@ -260,28 +259,9 @@ int main(int argc, char** argv)
       }
       case shash("replicate"):
       {
-        assert(items.size() == 3);
-        data = std::make_shared<std::vector<uint8_t>>(
-          items[2].begin(), items[2].end());
-        driver->replicate(items[1], data, lineno);
-        break;
-      }
-      case shash("emit_signature"):
-      {
-        assert(items.size() == 2);
-        driver->emit_signature(items[1], lineno);
-        break;
-      }
-      case shash("start_batch"):
-      {
-        assert(items.size() == 1);
-        driver->start_batch(lineno);
-        break;
-      }
-      case shash("replicate_batch"):
-      {
-        assert(items.size() == 1);
-        driver->replicate_batch(lineno);
+        assert(items.size() >= 3);
+        driver->replicate(
+          items[1], {std::next(items.begin(), 2), items.end()}, lineno);
         break;
       }
       case shash("disconnect"):

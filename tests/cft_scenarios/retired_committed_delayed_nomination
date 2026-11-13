@@ -1,9 +1,9 @@
 # A nomination from node 0 is delayed while node 2 wins a later election and
 # commits its own retirement. The old nomination must not restart an election.
 start_node,0
-emit_signature,2
+replicate,2,$
 trust_nodes,2,1,2
-emit_signature,2
+replicate,2,$
 dispatch_all
 periodic_all,10
 dispatch_all
@@ -12,7 +12,7 @@ dispatch_all
 assert_state_sync
 
 # Give node 2 a strictly higher match index so nomination cannot choose node 1.
-emit_signature,2
+replicate,2,$
 periodic_one,0,10
 dispatch_single,0,2
 dispatch_single,2,0
@@ -45,7 +45,7 @@ dispatch_single,1,2
 # Retire both primaries, leaving node 1 as the sole member of the new config.
 # Node 0 learns it is retired without dispatching its delayed nomination.
 swap_nodes,3,out,0,2
-emit_signature,3
+replicate,3,$
 periodic_one,2,10
 dispatch_single,2,0
 dispatch_single,2,1
@@ -60,7 +60,7 @@ assert_detail,0,membership_state,Retired
 assert_detail,0,retirement_phase,Completed
 
 cleanup_nodes,3,0,2
-emit_signature,3
+replicate,3,$
 periodic_one,2,10
 dispatch_single,2,1
 dispatch_single,1,2

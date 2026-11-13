@@ -2,9 +2,9 @@
 # term. The delayed proposal must be ignored without changing the candidate.
 
 start_node,0
-emit_signature,2
+replicate,2,$
 trust_nodes,2,1,2
-emit_signature,2
+replicate,2,$
 
 periodic_all,10
 dispatch_all

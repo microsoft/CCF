@@ -1,10 +1,10 @@
 # Reconfigures from [0, 1] to [2, 3], with 2 becoming leader while the reconfiguration is in-progress
 start_node,0
-emit_signature,2
+replicate,2,$
 assert_commit_idx,0,2
 
 trust_node,2,1
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -17,7 +17,7 @@ assert_commit_idx,1,4
 
 # Reconfig [0, 1] -> [2, 3]
 swap_nodes,2,out,0,1,in,2,3
-emit_signature,2
+replicate,2,$
 # 0 knows its retirement is signed
 assert_detail,0,membership_state,Retired
 assert_detail,0,retirement_phase,Signed
@@ -41,7 +41,7 @@ dispatch_all
 assert_detail,2,leadership_state,Leader
 
 # 2 signs to extend, observes retirement committed
-emit_signature,3
+replicate,3,$
 periodic_all,10
 dispatch_all
 assert_commit_idx,2,7
@@ -52,7 +52,7 @@ assert_detail,2,leadership_state,Leader
 
 # Now that the retirement of 0 and 1 is committed, 2 schedules retired_committed
 cleanup_nodes,3,0,1
-emit_signature,3
+replicate,3,$
 periodic_all,10
 dispatch_all
 periodic_all,10
@@ -68,7 +68,7 @@ disconnect,1,3
 
 # the network continues
 replicate,3,some_tx
-emit_signature,3
+replicate,3,$
 periodic_all,10
 dispatch_all
 dispatch_all
