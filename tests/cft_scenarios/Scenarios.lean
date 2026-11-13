@@ -1,0 +1,62 @@
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+import Scenarios.ackuracy
+import Scenarios.append
+import Scenarios.bad_network
+import Scenarios.candidate_viability
+import Scenarios.check_quorum
+import Scenarios.check_quorum_012_0
+import Scenarios.check_quorum_0_012
+import Scenarios.delayed_vote_requests
+import Scenarios.election
+import Scenarios.election_while_reconfiguration
+import Scenarios.fancy_election_1
+import Scenarios.fancy_election_2
+import Scenarios.follower_overcommit_partial_verified
+import Scenarios.follower_rollback_match_index
+import Scenarios.indirect_commit_stale_leader
+import Scenarios.large_entry_batching
+import Scenarios.late_nomination
+import Scenarios.leadership_race
+import Scenarios.liveness_through_conflict
+import Scenarios.matching_partial
+import Scenarios.message_type_summaries
+import Scenarios.multi_election
+import Scenarios.nominate_successor
+import Scenarios.nominate_without_successor
+import Scenarios.pre_vote
+import Scenarios.pre_vote_double_leader
+import Scenarios.pre_vote_split
+import Scenarios.reconfig_01_12
+import Scenarios.reconfig_01_23
+import Scenarios.reconfig_01_el0_12
+import Scenarios.reconfig_01_el0_23
+import Scenarios.reconfig_01_el1_12
+import Scenarios.reconfig_01_el2_12
+import Scenarios.reconfig_01_el2_23
+import Scenarios.reconfig_0_1
+import Scenarios.reconfiguration
+import Scenarios.reconnect
+import Scenarios.reelection
+import Scenarios.replicate
+import Scenarios.replicate_on_latest_leader
+import Scenarios.retire_backup
+import Scenarios.retire_backup_pre_vote
+import Scenarios.retire_one
+import Scenarios.retired_committed_delayed_nomination
+import Scenarios.retired_node_delayed_responses
+import Scenarios.retirement_commit_below_signature
+import Scenarios.retirement_nominates_most_replicated
+import Scenarios.retirement_rollback
+import Scenarios.rollback_safety
+import Scenarios.soft_rollback
+import Scenarios.startup
+import Scenarios.startup_2nodes
+import Scenarios.suffix_collision_1
+import Scenarios.suffix_collision_2
+import Scenarios.suffix_collision_3
+import Scenarios.swap_single_node
+
+/-- Run one of the imported scenarios, named by the first argument. -/
+def main (args : List String) : IO Unit :=
+  CftDriver.run args

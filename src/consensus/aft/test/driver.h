@@ -117,14 +117,13 @@ private:
   void _replicate(
     const std::string& term_s,
     std::vector<uint8_t> data,
-    const size_t lineno,
     bool committable = false,
     const std::optional<ccf::kv::Configuration::Nodes>& configuration =
       std::nullopt,
     const std::optional<ccf::kv::Configuration::Nodes>& retired_committed =
       std::nullopt)
   {
-    const auto opt = find_primary_in_term(term_s, lineno);
+    const auto opt = find_primary_in_term(term_s);
     if (!opt.has_value())
     {
       CFT_DRIVER_PRINT(
@@ -246,7 +245,7 @@ public:
   }
 
   // Note: deprecated, to be removed when the last scenario using it is removed
-  void create_start_node(const std::string& start_node_id, const size_t lineno)
+  void create_start_node(const std::string& start_node_id)
   {
     if (!_nodes.empty())
     {
@@ -256,20 +255,20 @@ public:
     add_node(start_node_id, false);
     configuration.try_emplace(start_node_id);
     _nodes.at(start_node_id).cft->force_become_primary();
-    _replicate("2", {}, lineno, false, configuration);
+    _replicate("2", {}, false, configuration);
     CFT_DRIVER_PRINT(
       "Note over {}: Node {} created",
       ccf::NodeId(start_node_id),
       start_node_id);
   }
 
-  void nominate_successor(std::string node_id_s, const size_t lineno)
+  void nominate_successor(std::string node_id_s)
   {
     ccf::NodeId node_id(node_id_s);
     if (_nodes.find(node_id) == _nodes.end())
     {
-      throw std::runtime_error(fmt::format(
-        "Attempted to nominate unknown node {} on line {}", node_id, lineno));
+      throw std::runtime_error(
+        fmt::format("Attempted to nominate unknown node {}", node_id));
     }
 
     CFT_DRIVER_PRINT(
@@ -279,27 +278,23 @@ public:
   }
 
   void cleanup_nodes(
-    const std::string& term,
-    const std::vector<std::string>& node_ids,
-    const size_t lineno)
+    const std::string& term, const std::vector<std::string>& node_ids)
   {
     ccf::kv::Configuration::Nodes retired_committed;
     for (const auto& id : node_ids)
     {
       if (_nodes.find(id) == _nodes.end())
       {
-        throw std::runtime_error(fmt::format(
-          "Attempted to clean up unknown node {} on line {}", id, lineno));
+        throw std::runtime_error(
+          fmt::format("Attempted to clean up unknown node {}", id));
       }
       retired_committed.try_emplace(id);
     }
-    _replicate(term, {}, lineno, false, std::nullopt, retired_committed);
+    _replicate(term, {}, false, std::nullopt, retired_committed);
   }
 
   void trust_nodes(
-    const std::string& term,
-    const std::vector<std::string>& node_ids,
-    const size_t lineno)
+    const std::string& term, const std::vector<std::string>& node_ids)
   {
     for (const auto& node_id : node_ids)
     {
@@ -322,14 +317,13 @@ public:
         }
       }
     }
-    _replicate(term, {}, lineno, false, configuration);
+    _replicate(term, {}, false, configuration);
   }
 
   void swap_nodes(
     const std::string& term,
     const std::vector<std::string>& nodes_out,
-    const std::vector<std::string>& nodes_in,
-    const size_t lineno)
+    const std::vector<std::string>& nodes_in)
   {
     for (auto node_in : nodes_in)
     {
@@ -362,14 +356,12 @@ public:
         }
       }
     }
-    _replicate(term, {}, lineno, false, configuration);
+    _replicate(term, {}, false, configuration);
   }
 
   // Note: deprecated, to be removed when the last scenario using it is removed
   void replicate_new_configuration(
-    const std::string& term_s,
-    std::vector<std::string> node_ids,
-    const size_t lineno)
+    const std::string& term_s, std::vector<std::string> node_ids)
   {
     ccf::kv::Configuration::Nodes configuration;
     for (const auto& node_id_s : node_ids)
@@ -384,7 +376,7 @@ public:
       configuration.try_emplace(node_id);
     }
 
-    _replicate(term_s, {}, lineno, false, configuration);
+    _replicate(term_s, {}, false, configuration);
   }
 
   void log(
@@ -926,7 +918,7 @@ public:
   }
 
   std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(
-    const std::string& term_s, const size_t lineno)
+    const std::string& term_s)
   {
     auto primaries = find_primaries();
 
@@ -957,22 +949,20 @@ public:
     }
 
     throw std::runtime_error(
-      fmt::format("Found no primary in term {} on line {}", term_s, lineno));
+      fmt::format("Found no primary in term {}", term_s));
   }
 
   void replicate(
-    const std::string& term_s,
-    std::shared_ptr<std::vector<uint8_t>> data,
-    const size_t lineno)
+    const std::string& term_s, std::shared_ptr<std::vector<uint8_t>> data)
   {
-    _replicate(term_s, *data, lineno);
+    _replicate(term_s, *data);
   }
 
-  void emit_signature(const std::string& term_s, const size_t lineno)
+  void emit_signature(const std::string& term_s)
   {
     std::string sig_s = "signature";
     std::vector<uint8_t> sig(sig_s.data(), sig_s.data() + sig_s.size());
-    _replicate(term_s, sig, lineno, true);
+    _replicate(term_s, sig, true);
   }
 
   void disconnect(ccf::NodeId left, ccf::NodeId right)
@@ -1150,7 +1140,7 @@ public:
     }
   }
 
-  void assert_state_sync(const size_t lineno)
+  void assert_state_sync()
   {
     const auto discrepancies = check_state_sync(_nodes);
 
@@ -1158,12 +1148,11 @@ public:
     {
       print_discrepancies(discrepancies);
 
-      throw std::runtime_error(fmt::format(
-        "States not in sync on line {}", std::to_string((int)lineno)));
+      throw std::runtime_error("States not in sync");
     }
   }
 
-  void loop_until_sync(const size_t lineno)
+  void loop_until_sync()
   {
     std::pair<aft::Term, ccf::NodeId> term_primary;
     {
@@ -1201,7 +1190,7 @@ public:
     }
 
     // Emit a fresh signature on that primary (so that they can advance commit)
-    emit_signature(std::to_string(term), lineno);
+    emit_signature(std::to_string(term));
 
     // Reconnect all nodes
     for (const auto& [node_id, _] : nodes)
@@ -1234,7 +1223,7 @@ public:
     }
   }
 
-  void assert_commit_safety(ccf::NodeId node_id, const size_t lineno)
+  void assert_commit_safety(ccf::NodeId node_id)
   {
     // Confirm that the index this node considers committed, is present on a
     // majority of nodes (ledger matches exactly up to and including this
@@ -1293,32 +1282,28 @@ public:
             configuration.rid,
             configuration.idx);
           throw std::runtime_error(fmt::format(
-            "Node ({}) at unsafe commit idx ({}) on line {}",
-            node_id,
-            committed_seqno,
-            lineno));
+            "Node ({}) at unsafe commit idx ({})", node_id, committed_seqno));
         }
       }
     }
   }
 
-  void assert_commit_safety_all(const size_t lineno)
+  void assert_commit_safety_all()
   {
     for (const auto& [node_id, _] : _nodes)
     {
-      assert_commit_safety(node_id, lineno);
+      assert_commit_safety(node_id);
     }
   }
 
-  void assert_invariants(const size_t lineno)
+  void assert_invariants()
   {
     // Check invariants:
     // Assert commit_index on all nodes is safe
-    assert_commit_safety_all(lineno);
+    assert_commit_safety_all();
   }
 
-  void assert_commit_idx(
-    ccf::NodeId node_id, const std::string& idx_s, const size_t lineno)
+  void assert_commit_idx(ccf::NodeId node_id, const std::string& idx_s)
   {
     auto idx = static_cast<aft::Index>(std::stoull(idx_s));
     if (_nodes.at(node_id).cft->get_committed_seqno() != idx)
@@ -1326,10 +1311,9 @@ public:
       CFT_DRIVER_PRINT(
         "Note over {}: Node is not at expected commit idx {}", node_id, idx);
       throw std::runtime_error(fmt::format(
-        "Node {} not at expected commit idx ({}) on line {} : {}",
+        "Node {} not at expected commit idx ({}) : {}",
         node_id,
         idx,
-        std::to_string((int)lineno),
         _nodes.at(node_id).cft->get_committed_seqno()));
     }
   }
@@ -1347,8 +1331,7 @@ public:
     ccf::NodeId node_id,
     const std::string& detail,
     const std::string& expected,
-    bool equal,
-    const size_t lineno)
+    bool equal)
   {
     auto details = _nodes.at(node_id).cft->get_details();
     nlohmann::json d = details;
@@ -1356,11 +1339,8 @@ public:
     {
       CFT_DRIVER_PRINT(
         "  Note over {}: Node does not have detail {}", node_id, detail);
-      throw std::runtime_error(fmt::format(
-        "Node {} does not have detail {} on line {}",
-        node_id,
-        detail,
-        std::to_string((int)lineno)));
+      throw std::runtime_error(
+        fmt::format("Node {} does not have detail {}", node_id, detail));
     }
 
     std::string value = detail_to_string(d[detail]);
@@ -1375,13 +1355,12 @@ public:
         cmp,
         expected);
       throw std::runtime_error(fmt::format(
-        "Node {} detail {} is not as expected: {} {}= {} on line {}",
+        "Node {} detail {} is not as expected: {} {}= {}",
         node_id,
         detail,
         value,
         cmp,
-        expected,
-        std::to_string((int)lineno)));
+        expected));
     }
   }
 
