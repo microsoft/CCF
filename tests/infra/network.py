@@ -5,6 +5,7 @@ import copy
 import functools
 import hashlib
 import http
+import itertools
 import json
 import os
 import pprint
@@ -299,11 +300,8 @@ class Network:
         self.ignore_error_patterns = []
         self.nodes = []
         # With --capture-cft-trace, records the consensus trace of every node
-        # configured until stop_all_nodes. Unlike self.nodes, cft_trace_nodes
-        # keeps retired nodes, with the index of their sink for this recorder.
+        # configured until stop_all_nodes.
         self.cft_recorder = None
-        self.cft_trace_nodes = []
-        self.cft_trace_folder = None
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
@@ -373,27 +371,28 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def _add_cft_trace_sink(self, node, args, observability):
-        """Return node observability configuration with a sink for this
-        network's consensus trace recorder, if --capture-cft-trace is set."""
+    def _add_cft_trace_sink(self, node, args, node_args):
+        """With --capture-cft-trace, add a sink for this network's consensus
+        trace recorder to the node's observability configuration."""
         if not args.capture_cft_trace:
-            return observability
+            return
         if node.version is not None:
             raise ValueError(
                 f"--capture-cft-trace does not support node {node.local_node_id} "
-                f"at version {node.version}: only nodes built from this tree are supported"
+                f"with explicit version {node.version}"
             )
         if self.cft_recorder is None:
             self.cft_recorder = infra.fluentd.Recorder()
+            # Unlike self.nodes, this keeps retired nodes.
             self.cft_trace_nodes = []
             self.cft_trace_folder = os.path.join(args.workspace, f"{args.label}_trace")
-        observability = copy.deepcopy(observability) or {}
-        sinks = observability.setdefault("fluentd", [])
-        self.cft_trace_nodes.append((node, len(sinks)))
-        sinks.append(
+        self.cft_trace_nodes.append(node)
+        # Copied, as args are shared between nodes and networks.
+        observability = copy.deepcopy(node_args.get("observability")) or {}
+        observability.setdefault("fluentd", []).append(
             {**self.cft_recorder.endpoint, "tag-prefix-allow-list": ["ccf.cft"]}
         )
-        return observability
+        node_args["observability"] = observability
 
     def _finish_cft_trace(self):
         """Close the consensus trace recorder, if any, and write its capture.
@@ -406,24 +405,24 @@ class Network:
             return
         try:
             connections = recorder.close()
-            os.makedirs(self.cft_trace_folder, exist_ok=True)
-            index = 0
-            while True:
+            for index in itertools.count():
                 folder = os.path.join(self.cft_trace_folder, str(index))
                 try:
-                    os.mkdir(folder)
+                    os.makedirs(folder)
                     break
                 except FileExistsError:
-                    index += 1
+                    pass
             counts, reasons = infra.fluentd.write_cft_trace(
                 connections, os.path.join(folder, "cft.ndjson")
             )
             if recorder.error is not None:
                 reasons.append(f"Recorder failed: {recorder.error}")
-            node_ids = [node.local_node_id for node, _ in self.cft_trace_nodes]
+            node_ids = [node.local_node_id for node in self.cft_trace_nodes]
             if len(set(node_ids)) < len(node_ids):
                 reasons.append(f"A node was configured more than once: {node_ids}")
-            for node, sink in self.cft_trace_nodes:
+            if len(connections) < len(node_ids):
+                reasons.append(f"Only {len(connections)} connections from nodes")
+            for node in self.cft_trace_nodes:
                 proc = node.remote.remote.proc if node.remote else None
                 if proc is None or proc.poll() != 0:
                     reasons.append(f"Node {node.local_node_id} did not stop cleanly")
@@ -433,7 +432,9 @@ class Network:
                     drops = re.findall(
                         r"Fluentd exporter shutdown: (\d+) dropped events", out.read()
                     )
-                if len(drops) <= sink or drops[sink] != "0":
+                # Worker::shutdown in src/tracing/fluentd_sink.h logs one line
+                # per sink in configuration order, and the capture sink is last.
+                if drops[-1:] != ["0"]:
                     reasons.append(
                         f"Node {node.local_node_id} did not report shutdown "
                         f"without dropped trace events: {drops}"
@@ -595,9 +596,7 @@ class Network:
         for i, node in enumerate(self.nodes):
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
-            forwarded_args_with_overrides["observability"] = self._add_cft_trace_sink(
-                node, args, forwarded_args_with_overrides.get("observability")
-            )
+            self._add_cft_trace_sink(node, args, forwarded_args_with_overrides)
             try:
                 if i == 0:
                     if not recovery:
@@ -1004,9 +1003,7 @@ class Network:
 
             forwarded_args_with_overrides = forwarded_args.copy()
             forwarded_args_with_overrides.update(self.per_node_args_override.get(i, {}))
-            forwarded_args_with_overrides["observability"] = self._add_cft_trace_sink(
-                node, args, forwarded_args_with_overrides.get("observability")
-            )
+            self._add_cft_trace_sink(node, args, forwarded_args_with_overrides)
             try:
                 node_kwargs = {
                     "lib_name": args.package,
@@ -1515,9 +1512,7 @@ class Network:
             for arg in infra.network.Network.node_args_to_forward
         }
         forwarded_args.update(kwargs)
-        forwarded_args["observability"] = self._add_cft_trace_sink(
-            node, args, forwarded_args.get("observability")
-        )
+        self._add_cft_trace_sink(node, args, forwarded_args)
         self._setup_node(node, lib_name, args, target_node, **forwarded_args)
 
     def run_join_node(
