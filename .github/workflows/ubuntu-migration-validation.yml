@@ -43,7 +43,7 @@ jobs:
           gh release download --repo "$GITHUB_REPOSITORY" "$tag" -D release-assets
           find release-assets -maxdepth 1 -type f \( -name '*.whl' -o -name '*.sigstore.json' \) -delete
           test "$(find release-assets -maxdepth 1 -type f | wc -l)" -gt 0
-          package="release-assets/microsoft-ccf-app-${tag#ccf-}.tgz"
+          package="./release-assets/microsoft-ccf-app-${tag#ccf-}.tgz"
           test -f "$package"
           npm publish "$package" --dry-run --access public --tag latest
           ./scripts/extract-release-notes.py
