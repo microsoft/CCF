@@ -3,10 +3,12 @@
 
 module
 
-meta import Kv.Correspondence.Invariants
+meta import Kv.TraceValidation.Projections
+meta import Kv.Proofs.ReplayPrograms
 meta import Kv.TraceValidation
 
-public import Kv.Correspondence.Invariants
+public import Kv.TraceValidation.Projections
+public import Kv.Proofs.ReplayPrograms
 public import Kv.TraceValidation
 
 public section

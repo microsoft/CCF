@@ -8,6 +8,8 @@ public import Kv.TraceValidation.System
 
 @[expose] public section
 
+/-! Supporting reference programs for trace-to-model correspondence proofs. -/
+
 namespace Kv.Correspondence
 
 open Kv.Model

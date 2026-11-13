@@ -3,7 +3,8 @@
 
 module
 
-public import Kv.Correspondence.Invariants
+public import Kv.TraceValidation.Projections
+public import Kv.Proofs.ReplayPrograms
 public import CCF.Execution
 public import Kv.Proofs.Capture
 

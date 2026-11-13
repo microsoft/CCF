@@ -15,8 +15,8 @@ public import Kv.Proofs.Retention
 public import Kv.Proofs.AdapterRetention
 public import Kv.Proofs.Segment
 public import Kv.Properties
-public import Kv.Correspondence.Invariants
-public import Kv.Correspondence.Programs
+public import Kv.TraceValidation.Projections
+public import Kv.Proofs.ReplayPrograms
 public import Kv.Properties.Semantics
 public import Kv.Tests.Replay
 public import Kv.Tests.Semantics

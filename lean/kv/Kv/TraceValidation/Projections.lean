@@ -3,17 +3,16 @@
 
 module
 
-public import Kv.Correspondence.Programs
+public import Kv.TraceValidation.System
 
 @[expose] public section
 
 /-! Human-reviewed trace projections, segment assumptions, and store invariants. -/
 
-namespace Kv.Correspondence
+namespace Kv.TraceValidation
 
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
-open Kv.TraceValidation
 
 /-- The event neither creates, ends, nor rolls back store `sid`. -/
 def SegmentEvent (sid : Nat) : Event → Prop
@@ -39,4 +38,4 @@ def AttemptEvent (tid : Nat) : Event → Prop
   | .txCreate _ id | .txEnd _ id => id ≠ tid
   | _ => True
 
-end Kv.Correspondence
+end Kv.TraceValidation

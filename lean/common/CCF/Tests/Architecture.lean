@@ -27,11 +27,11 @@ private def run : IO Unit := do
       (`Properties, `TraceValidation, false),
       (`Properties.Programs, `TraceValidation.Adapter, false),
       (`Properties, `Correspondence, false),
-      (`Properties.Programs, `Correspondence.Programs, false),
+      (`Properties.Programs, `TraceValidation.Projections, false),
       (`Correspondence, `Proofs.Correspondence, true),
-      (`Correspondence.Programs, `TraceValidation.Adapter, true),
-      (`Correspondence.Programs, `Proofs.Correspondence, false),
-      (`Proofs.Correspondence, `Correspondence.Programs, true),
+      (`TraceValidation.Projections, `TraceValidation.System, true),
+      (`TraceValidation.Projections, `Proofs.ReplayPrograms, false),
+      (`Proofs.Correspondence, `Proofs.ReplayPrograms, true),
       (`Proofs.Correspondence, `TraceValidation.Adapter, true),
       (`Properties.Programs, `Proofs.Correspondence, false),
       (`Proofs.Correspondence, `Properties, false),
@@ -45,8 +45,7 @@ private def run : IO Unit := do
     let allowed := [(owner, [proof]), (proof, [core]), (core, [])]
     unless CCF.Architecture.safetyImportClosure root owner allowed do
       throw (IO.userError "semantic proof import closure was rejected")
-    for forbidden
-        in [root ++ `TraceValidation.Adapter, root ++ `Correspondence.Programs] do
+    for forbidden in [root ++ `TraceValidation.Adapter, root ++ `Correspondence] do
       let hidden := [(owner, [proof]), (proof, [core]), (core, [forbidden])]
       if CCF.Architecture.safetyImportClosure root owner hidden then
         throw (IO.userError "trace dependency hidden behind a proof was admitted")

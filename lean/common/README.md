@@ -99,8 +99,8 @@ The same rules apply to every specification namespace, including multi-component
   Trace-validation modules cannot import shared proof infrastructure.
 - The `Properties` safety entrypoint can import model modules, property helpers, and model-only proofs.
 - Property helpers can import model modules and other property helpers, but not proofs, trace validation, correspondence, or the `Properties` entrypoint.
-- The separate `Correspondence` entrypoint can import trace validation, semantic definitions, correspondence helpers, and proofs.
-  Correspondence helpers cannot import proofs or the safety entrypoint.
+- The separate `Correspondence` entrypoint can import trace validation, semantic definitions, and proofs.
+  Replay projections belong in `TraceValidation/`, and supporting reference programs used only by correspondence proofs belong in `Proofs/`.
 - Proofs can import model modules, trace validation, property helpers, and other proofs, but not the `Properties` entrypoint.
 - Other modules, such as tests, are unrestricted.
   Imports outside the specification namespace are unrestricted except for the `CCF` restrictions above.

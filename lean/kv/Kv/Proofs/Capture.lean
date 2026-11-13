@@ -4,7 +4,8 @@
 module
 
 public import Kv.Proofs.Correspondence
-public import Kv.Correspondence.Invariants
+public import Kv.TraceValidation.Projections
+public import Kv.Proofs.ReplayPrograms
 public import Kv.Proofs.SemanticHelpers
 
 @[expose] public section

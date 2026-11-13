@@ -8,20 +8,20 @@ This profile follows the implementation's **per-map globally committed views**.
 
 ## Contents
 
-| Purpose                                                     | Location                                       |
-| ----------------------------------------------------------- | ---------------------------------------------- |
-| Proved theorems and their witnesses                         | `Kv/Properties.lean`                           |
-| State, observations, and dependencies                       | `Kv/Model/Types.lean`                          |
-| Semantic inputs, computed outputs, and transitions          | `Kv/Model/Transitions.lean`                    |
-| Transition-system assembly and shared execution definitions | `Kv/Model.lean`, `../common/CCF/`              |
-| Semantic sequential reference and execution predicates      | `Kv/Properties/`                               |
-| Trace/model correspondence and replay-only helpers          | `Kv/Correspondence.lean`, `Kv/Correspondence/` |
-| Proof implementations                                       | `Kv/Proofs/`                                   |
-| Replay self-tests                                           | `Kv/Tests/`                                    |
-| Valid and invalid trace fixtures                            | `replayer/fixtures/`                           |
-| Replay of recorded C++ traces                               | `Kv/TraceValidation.lean`                      |
-| Strict decoding, lifecycle validation, and semantic adapter | `Kv/TraceValidation/`                          |
-| Replayer executable                                         | `replayer/`                                    |
+| Purpose                                                     | Location                                                        |
+| ----------------------------------------------------------- | --------------------------------------------------------------- |
+| Proved theorems and their witnesses                         | `Kv/Properties.lean`                                            |
+| State, observations, and dependencies                       | `Kv/Model/Types.lean`                                           |
+| Semantic inputs, computed outputs, and transitions          | `Kv/Model/Transitions.lean`                                     |
+| Transition-system assembly and shared execution definitions | `Kv/Model.lean`, `../common/CCF/`                               |
+| Semantic sequential reference and execution predicates      | `Kv/Properties/`                                                |
+| Trace/model correspondence and replay projections           | `Kv/Correspondence.lean`, `Kv/TraceValidation/Projections.lean` |
+| Proof implementations                                       | `Kv/Proofs/`                                                    |
+| Replay self-tests                                           | `Kv/Tests/`                                                     |
+| Valid and invalid trace fixtures                            | `replayer/fixtures/`                                            |
+| Replay of recorded C++ traces                               | `Kv/TraceValidation.lean`                                       |
+| Strict decoding, lifecycle validation, and semantic adapter | `Kv/TraceValidation/`                                           |
+| Replayer executable                                         | `replayer/`                                                     |
 
 Human review covers the model, the full theorem statements in `Properties.lean`, the definitions they use, and their one-line references to proof implementations.
 The proof implementations under `Proofs/` are verified by the build and `lake check` and are marked `linguist-generated` in `.gitattributes`.
@@ -89,7 +89,7 @@ Neither the entrypoint, its property helpers, nor its transitive proof imports d
 The separate `Kv/Correspondence.lean` entrypoint exposes `step_projects`, `step_reports`, `replay_projects`, and `reachable_projects` in `Kv.Correspondence`.
 `application_atomic` states publication directly over `Model.execute`, with no trace assumptions.
 Generic finite-map, dependency, and sequential reference helpers in `Properties/Semantics.lean` depend only on the semantic model.
-Semantic segment projections are defined in `Properties/Executions.lean`; replay projections and decorated-attempt programs live outside `Properties/`, under `Correspondence/`.
+Semantic segment projections are defined in `Properties/Executions.lean`; replay projections live in `TraceValidation/Projections.lean`, and reference programs used only by correspondence proofs live in `Proofs/ReplayPrograms.lean`.
 
 Each claim is followed by a `_witness` lemma, so no claim is vacuous.
 For a claim with premises, the witness asserts that some concrete semantic state, execution or program satisfies them.
