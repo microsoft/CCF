@@ -139,7 +139,7 @@ private def readAppendContent (head : Event) (config : Option Event)
   return .transaction request { configuration, retirementConfirmations }
 
 /-- One entry of a batch: its replicate event, retirements, configuration and flush. -/
-private def readAppendEntry (head : Event) : Reduction AppendEntryInput := do
+private def readReplicateEntry (head : Event) : Reduction AppendEntryInput := do
   let seqno ← readJson head head.message (nat · "seqno")
   -- consume
   event head "replicate_entry"
@@ -187,7 +187,7 @@ private def ruleAppend : Reduction Unit := do
       let next ← peek
       unless next.function == "replicate_entry" && next.node == head.node do
         failure s!"{next.record.location}: not an entry of the batch"
-      readAppendEntry next
+      readReplicateEntry next
   optional_ do
     event head "commit"
     optional_ (event head "step_down_and_nominate_successor")
