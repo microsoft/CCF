@@ -1096,10 +1096,14 @@ class Snapshot(Entry):
         if self._file_size == 0:
             raise InvalidSnapshotException(f"{filename} is currently empty")
 
+        if self.is_committed() and self.is_snapshot_file_1_x():
+            raise InvalidSnapshotException(
+                "Snapshot has a 1.x file name and no receipt, which is not supported: only COSE receipts are accepted"
+            )
+
         entry_start_pos = super()._read_header()
 
-        # 1.x snapshots do not include evidence
-        if self.is_committed() and not self.is_snapshot_file_1_x():
+        if self.is_committed():
             receipt_pos = entry_start_pos + self._header.size
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
             snapshot_digest = sha256(_peek(self._file, receipt_pos, pos=0)).digest()
@@ -1110,11 +1114,13 @@ class Snapshot(Entry):
         return COMMITTED_FILE_SUFFIX in os.path.basename(self._filename)
 
     def is_snapshot_file_1_x(self):
-        # Kept here for compatibility
+        # 1.x committed snapshots are named
+        # snapshot_<seqno>_<evidence_seqno>.committed_<evidence_commit_seqno>
         if not self.is_committed():
             raise ValueError(f"Snapshot file {self._filename} is not yet committed")
         basename = os.path.basename(self._filename)
-        return len(basename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
+        suffix = basename.split(COMMITTED_FILE_SUFFIX)[1]
+        return re.fullmatch(r"_\d+", suffix, re.ASCII) is not None
 
     def get_len(self) -> int:
         return self._file_size

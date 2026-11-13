@@ -1037,11 +1037,22 @@ class TestSnapshotFileName:
         ):
             ccf.ledger.Snapshot(path)
 
-    def test_1_x_snapshot_name(self, tmp_path):
+    def test_1_x_snapshot_name_rejected(self, tmp_path):
         path = self.write_snapshot(tmp_path / "x", "snapshot_1_2.committed_3")
-        with ccf.ledger.Snapshot(path) as snapshot:
-            assert snapshot.is_committed()
-            assert snapshot.is_snapshot_file_1_x()
+        with pytest.raises(
+            ccf.ledger.InvalidSnapshotException, match="Snapshot has a 1.x file name"
+        ):
+            ccf.ledger.Snapshot(path)
+
+    def test_ignored_snapshot_name_does_not_skip_receipt_verification(self, tmp_path):
+        # Nodes rename a snapshot which fails verification to <name>.ignored
+        path = self.write_snapshot(
+            tmp_path / "x", "snapshot_1_2.committed.ignored", b"bad receipt"
+        )
+        with pytest.raises(
+            ccf.ledger.InvalidSnapshotException, match="expected a COSE_Sign1 receipt"
+        ):
+            ccf.ledger.Snapshot(path)
 
 
 def test_read_ledger_does_not_modify_rules(tmp_path):
