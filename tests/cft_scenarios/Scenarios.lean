@@ -39,6 +39,7 @@ import Scenarios.reconfig_0_1
 import Scenarios.reconfiguration
 import Scenarios.reconnect
 import Scenarios.reelection
+import Scenarios.reordered_messages
 import Scenarios.replicate
 import Scenarios.replicate_on_latest_leader
 import Scenarios.retire_backup

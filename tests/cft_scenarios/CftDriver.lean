@@ -127,6 +127,20 @@ opaque dispatchOne (node : @& NodeId) : IO Unit
 @[extern "cft_dispatch_single"]
 opaque dispatchSingle (source target : @& NodeId) : IO Unit
 
+/--
+Deliver the message at `position`, counting from 0, among the undelivered messages sent by
+`source` to `target`, oldest first.
+-/
+@[extern "cft_dispatch_nth"]
+opaque dispatchNth (source target : @& NodeId) (position : UInt64) : IO Unit
+
+/--
+The undelivered messages sent by `source` to `target`, oldest first.
+Each is the JSON of its packet, with the fields which a trace records for it.
+-/
+@[extern "cft_pending_messages"]
+opaque pendingMessages (source target : @& NodeId) : IO (Array String)
+
 /-- Deliver the messages already sent by every node, but not their responses. -/
 @[extern "cft_dispatch_all_once"]
 opaque dispatchAllOnce : IO Unit
@@ -142,6 +156,10 @@ opaque dropPending (node : @& NodeId) : IO Unit
 /-- Drop the undelivered messages sent by `source` to `target`. -/
 @[extern "cft_drop_pending_to"]
 opaque dropPendingTo (source target : @& NodeId) : IO Unit
+
+/-- Drop the undelivered message at `position`, as `dispatchNth` counts it. -/
+@[extern "cft_drop_nth"]
+opaque dropNth (source target : @& NodeId) (position : UInt64) : IO Unit
 
 /-- Shuffle the undelivered messages sent by `node`. -/
 @[extern "cft_shuffle_one"]
