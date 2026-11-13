@@ -2011,7 +2011,7 @@ namespace loggingapp
       }
 
       assert(historical_state->receipt);
-      auto endorsements = describe_cose_endorsements_v1(
+      auto endorsements = describe_cose_endorsements_v2(
         *historical_state->receipt, identity_type.value());
       if (!endorsements.has_value())
       {
@@ -2071,7 +2071,7 @@ namespace loggingapp
       }
 
       assert(historical_state->receipt);
-      auto signature = describe_cose_signature_v1(
+      auto signature = describe_cose_signature_v2(
         *historical_state->receipt, identity_type.value());
       if (!signature.has_value())
       {
@@ -2100,7 +2100,7 @@ namespace loggingapp
 
       assert(historical_state->receipt);
 
-      auto cose_receipt = describe_cose_receipt_v1(
+      auto cose_receipt = describe_cose_receipt_v2(
         *historical_state->receipt, identity_type.value());
       if (!cose_receipt.has_value())
       {

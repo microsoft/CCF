@@ -205,6 +205,24 @@ namespace ccf
   }
 
   std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
+    const TxReceiptImpl& receipt)
+  {
+    return describe_cose_endorsements_v2(receipt, IdentityType::CLASSICAL);
+  }
+
+  std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
+    const TxReceiptImpl& receipt)
+  {
+    return describe_cose_signature_v2(receipt, IdentityType::CLASSICAL);
+  }
+
+  std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(
+    const TxReceiptImpl& receipt)
+  {
+    return describe_cose_receipt_v2(receipt, IdentityType::CLASSICAL);
+  }
+
+  std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v2(
     const TxReceiptImpl& receipt, IdentityType identity_type)
   {
     const auto endorsements = receipt.cose_endorsements.find(identity_type);
@@ -215,7 +233,7 @@ namespace ccf
     return endorsements->second;
   }
 
-  std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
+  std::optional<SerialisedCoseSignature> describe_cose_signature_v2(
     const TxReceiptImpl& receipt, IdentityType identity_type)
   {
     const auto signature = receipt.cose_signatures.find(identity_type);
@@ -226,10 +244,10 @@ namespace ccf
     return signature->second;
   }
 
-  std::optional<SerialisedCoseReceipt> describe_cose_receipt_v1(
+  std::optional<SerialisedCoseReceipt> describe_cose_receipt_v2(
     const TxReceiptImpl& receipt, IdentityType identity_type)
   {
-    auto signature = describe_cose_signature_v1(receipt, identity_type);
+    auto signature = describe_cose_signature_v2(receipt, identity_type);
     if (!signature.has_value())
     {
       return std::nullopt;
