@@ -47,7 +47,11 @@ struct TestState
   std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp = nullptr;
 };
 
-TestState create_and_init_state(bool initialise_ledger_rekey = true)
+// pq_service_kp is the ML-DSA service key, if any, which signs with the
+// service key
+TestState create_and_init_state(
+  bool initialise_ledger_rekey = true,
+  ccf::crypto::MLDSAKeyPairPtr pq_service_kp = nullptr)
 {
   TestState ts;
 
@@ -66,7 +70,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *ts.node_kp);
   h->set_endorsed_certificate({});
   h->set_service_signing_identity(
-    ts.service_kp, nullptr, ccf::COSESignaturesConfig{});
+    ts.service_kp, std::move(pq_service_kp), ccf::COSESignaturesConfig{});
   ts.kv_store->set_history(h);
   ts.kv_store->initialise_term(2);
 
@@ -4111,7 +4115,7 @@ TEST_CASE(
   }
 }
 
-TEST_CASE("Legacy COSE receipt descriptions select CLASSICAL, not PQ")
+TEST_CASE("COSE receipt descriptions select CLASSICAL by default, or PQ")
 {
   const ccf::CoseSignature classical_signature{1, 2, 3};
   const ccf::CoseSignature pq_signature{4, 5, 6};
@@ -4126,13 +4130,118 @@ TEST_CASE("Legacy COSE receipt descriptions select CLASSICAL, not PQ")
 
   REQUIRE(ccf::describe_cose_signature_v1(receipt) == classical_signature);
   REQUIRE(
+    ccf::describe_cose_signature_v1(receipt, ccf::IdentityType::CLASSICAL) ==
+    classical_signature);
+  REQUIRE(
+    ccf::describe_cose_signature_v1(receipt, ccf::IdentityType::PQ) ==
+    pq_signature);
+  REQUIRE(
     ccf::historical::select_described_cose_signature(receipt.cose_signatures) ==
     classical_signature);
 
+  INFO("Endorsements are described for the identity types which have them");
+  const ccf::CoseEndorsementsChain classical_endorsements{{7}, {8}};
+  const ccf::CoseEndorsementsChain pq_endorsements{{9}};
+  REQUIRE_FALSE(ccf::describe_cose_endorsements_v1(receipt).has_value());
+  receipt.cose_endorsements[ccf::IdentityType::CLASSICAL] =
+    classical_endorsements;
+  REQUIRE(
+    ccf::describe_cose_endorsements_v1(receipt) == classical_endorsements);
+  REQUIRE_FALSE(
+    ccf::describe_cose_endorsements_v1(receipt, ccf::IdentityType::PQ)
+      .has_value());
+  receipt.cose_endorsements[ccf::IdentityType::PQ] = pq_endorsements;
+  REQUIRE(
+    ccf::describe_cose_endorsements_v1(receipt, ccf::IdentityType::PQ) ==
+    pq_endorsements);
+  REQUIRE(
+    ccf::describe_cose_endorsements_v1(receipt) == classical_endorsements);
+
   receipt.cose_signatures.erase(ccf::IdentityType::CLASSICAL);
   REQUIRE_FALSE(ccf::describe_cose_signature_v1(receipt).has_value());
+  REQUIRE(
+    ccf::describe_cose_signature_v1(receipt, ccf::IdentityType::PQ) ==
+    pq_signature);
   REQUIRE_FALSE(
     ccf::historical::select_described_cose_signature(receipt.cose_signatures)
+      .has_value());
+
+  receipt.cose_signatures.erase(ccf::IdentityType::PQ);
+  REQUIRE_FALSE(ccf::describe_cose_signature_v1(receipt, ccf::IdentityType::PQ)
+                  .has_value());
+}
+
+TEST_CASE("Historical receipts carry a COSE receipt of each identity type")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  const auto pq_service_kp =
+    ccf::crypto::make_mldsa_key_pair(ccf::crypto::MLDSAParameterSet::ML_DSA_65);
+  auto state = create_and_init_state(true, pq_service_kp);
+  auto& store = *state.kv_store;
+
+  const auto seqno = write_transactions(store, 1);
+  const auto signature_seqno = write_transactions_and_signature(store, 0);
+  REQUIRE(signature_seqno == seqno + 1);
+
+  auto ledger = construct_host_ledger(store.get_consensus());
+  ccf::historical::StateCache cache(
+    store,
+    state.ledger_secrets,
+    std::make_shared<consensus::test::StubLedgerReader>());
+  REQUIRE(cache.get_state_range(0, seqno, signature_seqno).empty());
+  cache.tick(std::chrono::milliseconds(0));
+  REQUIRE(cache.handle_ledger_entry(seqno, ledger.at(seqno)));
+  REQUIRE(
+    cache.handle_ledger_entry(signature_seqno, ledger.at(signature_seqno)));
+  const auto states = cache.get_state_range(0, seqno, signature_seqno);
+  REQUIRE(states.size() == 2);
+  REQUIRE(states[0]->receipt != nullptr);
+  const auto& receipt = *states[0]->receipt;
+
+  const auto classical_receipt = ccf::describe_cose_receipt_v1(receipt);
+  const auto pq_receipt =
+    ccf::describe_cose_receipt_v1(receipt, ccf::IdentityType::PQ);
+  REQUIRE(classical_receipt.has_value());
+  REQUIRE(pq_receipt.has_value());
+  REQUIRE(
+    ccf::describe_cose_receipt_v1(receipt, ccf::IdentityType::CLASSICAL) ==
+    classical_receipt);
+
+  INFO("Both receipts prove the transaction against the same signed root");
+  const auto decoded_classical =
+    ccf::cose::decode_ccf_receipt(classical_receipt.value(), true);
+  const auto decoded_pq =
+    ccf::cose::decode_ccf_receipt(pq_receipt.value(), true);
+  REQUIRE(decoded_pq.merkle_root == decoded_classical.merkle_root);
+  REQUIRE(decoded_pq.phdr.ccf.txid == decoded_classical.phdr.ccf.txid);
+  REQUIRE(decoded_pq.phdr.alg == ccf::cose::alg::ML_DSA_65);
+  REQUIRE(
+    std::string(decoded_pq.phdr.kid.begin(), decoded_pq.phdr.kid.end()) ==
+    ccf::crypto::kid_from_key(pq_service_kp->public_key_der()));
+
+  INFO("Each receipt is signed by the service key of its identity type");
+  const auto classical_verifier = ccf::crypto::make_cose_verifier_from_key(
+    state.service_kp->public_key_pem());
+  const auto pq_public_key = pq_service_kp->public_key_der();
+  const auto pq_verifier = ccf::crypto::make_cose_verifier_from_key(
+    std::span<const uint8_t>(pq_public_key.data(), pq_public_key.size()));
+  REQUIRE(classical_verifier->verify_detached(
+    classical_receipt.value(), decoded_classical.merkle_root));
+  REQUIRE(
+    pq_verifier->verify_detached(pq_receipt.value(), decoded_pq.merkle_root));
+  REQUIRE_FALSE(pq_verifier->verify_detached(
+    classical_receipt.value(), decoded_classical.merkle_root));
+  REQUIRE_FALSE(classical_verifier->verify_detached(
+    pq_receipt.value(), decoded_pq.merkle_root));
+
+  INFO("The signature transaction has a COSE signature of each type");
+  REQUIRE(states[1]->receipt != nullptr);
+  REQUIRE(
+    ccf::describe_cose_signature_v1(*states[1]->receipt, ccf::IdentityType::PQ)
       .has_value());
 }
 

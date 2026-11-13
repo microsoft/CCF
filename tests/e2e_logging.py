@@ -51,6 +51,52 @@ def get_service_key(network):
     return service_cert.public_key()
 
 
+def get_pq_service_key(network):
+    """Public key of the ML-DSA service certificate, or None for a service
+    without a PQ identity"""
+    pq_service_cert = network.get_pq_service_certificate()
+    if pq_service_cert is None:
+        return None
+    return load_pem_x509_certificate(pq_service_cert.encode("ascii")).public_key()
+
+
+def get_historical(client, path, txid, timeout=3.0, validate_openapi=True):
+    """GET a historical endpoint for txid, retrying while it is not available"""
+    end_time = time.time() + timeout
+    while True:
+        r = client.get(
+            path,
+            headers={infra.clients.CCF_TX_ID_HEADER: str(txid)},
+            log_capture=[],  # Do not emit raw binary to stdout
+            validate_openapi=validate_openapi,
+        )
+        if r.status_code != http.HTTPStatus.ACCEPTED:
+            return r
+        assert time.time() < end_time, f"Timed out fetching {path} for {txid}"
+        time.sleep(0.1)
+
+
+def fetch_cose_receipt(
+    client, txid, identity_type=None, timeout=3.0, validate_openapi=True
+):
+    """Fetch the COSE receipt of txid for identity_type, CLASSICAL by default,
+    retrying while it is not available"""
+    query = f"transaction_id={txid}"
+    if identity_type is not None:
+        query += f"&identity_type={identity_type}"
+    end_time = time.time() + timeout
+    while True:
+        r = client.get(
+            f"/node/receipt/cose?{query}",
+            log_capture=[],
+            validate_openapi=validate_openapi,
+        )
+        if r.status_code != http.HTTPStatus.ACCEPTED:
+            return r
+        assert time.time() < end_time, f"Timed out fetching receipt for {txid}"
+        time.sleep(0.1)
+
+
 def fetch_and_verify_cose_receipt(
     client, view, seqno, service_key, claim_digest, timeout=3.0
 ):
@@ -1160,6 +1206,121 @@ def test_cose_receipt_schema(network, args):
             assert (
                 False
             ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
+
+    return network
+
+
+@reqs.description("Check COSE receipts of each service identity type")
+def test_cose_receipts_of_each_identity_type(network, args):
+    primary, _ = network.find_nodes()
+    pq_service_key = get_pq_service_key(network)
+
+    # A transaction without application claims
+    member = network.consortium.get_any_active_member()
+    r = member.update_ack_state_digest(primary)
+    with primary.client() as client:
+        client.wait_for_commit(r)
+    txid = TxID.from_str(r.headers[infra.clients.CCF_TX_ID_HEADER])
+    claim_digest = b"\0" * 32
+
+    with primary.client("user0") as client:
+        # Not an identity type of the API schema
+        r = fetch_cose_receipt(client, txid, "EC", validate_openapi=False)
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+        assert r.body.json()["error"]["code"] == "InvalidQueryParameterValue", r
+
+        classical = fetch_cose_receipt(client, txid, "CLASSICAL")
+        assert classical.status_code == http.HTTPStatus.OK, classical
+        default = fetch_cose_receipt(client, txid)
+        assert default.status_code == http.HTTPStatus.OK, default
+        assert default.body.data() == classical.body.data()
+        ccf.receipt.verify_cose(
+            classical.body.data(), get_service_key(network), claim_digest
+        )
+
+        pq = fetch_cose_receipt(client, txid, "PQ")
+        sample_pq = get_historical(
+            client, "/log/public/cose_receipt?identity_type=PQ", txid
+        )
+        if pq_service_key is None:
+            LOG.info("The service has no PQ identity, so no PQ receipts")
+            assert pq.status_code == http.HTTPStatus.NOT_FOUND, pq
+            assert sample_pq.status_code == http.HTTPStatus.NOT_FOUND, sample_pq
+            return network
+
+        assert pq.status_code == http.HTTPStatus.OK, pq
+        pq_receipt = pq.body.data()
+        ccf.receipt.verify_cose(pq_receipt, pq_service_key, claim_digest)
+        try:
+            ccf.receipt.verify_cose(pq_receipt, get_service_key(network), claim_digest)
+        except ValueError as e:
+            LOG.info(f"PQ receipt rejected with the CLASSICAL service key: {e}")
+        else:
+            assert False, "PQ receipt verified with the CLASSICAL service key"
+
+        # Same signed statement and proof as the CLASSICAL receipt, with the
+        # ML-DSA algorithm and key
+        classical_phdr = cbor2.loads(cbor2.loads(classical.body.data()).value[0])
+        pq_phdr = cbor2.loads(cbor2.loads(pq_receipt).value[0])
+        COSE_ALG = 1
+        COSE_KID = 4
+        assert pq_phdr[COSE_ALG] in (-48, -49, -50), pq_phdr
+        assert {k: v for k, v in pq_phdr.items() if k not in (COSE_ALG, COSE_KID)} == {
+            k: v for k, v in classical_phdr.items() if k not in (COSE_ALG, COSE_KID)
+        }, (pq_phdr, classical_phdr)
+        assert (
+            cbor2.loads(pq_receipt).value[1]
+            == cbor2.loads(classical.body.data()).value[1]
+        )
+
+        receipt_file = os.path.join(network.common_dir, f"pq_receipt_{txid}.cose")
+        with open(receipt_file, "wb") as f:
+            f.write(pq_receipt)
+        subprocess.run(
+            ["cddl", "../cddl/ccf-receipt.cddl", "v", receipt_file], check=True
+        )
+
+        LOG.info("The service verifies its own PQ receipts")
+        r = client.get(
+            "/log/public/verify_cose_receipt",
+            pq_receipt,
+            headers={"Content-Type": "application/cose"},
+        )
+        assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+        corrupted_receipt = pq_receipt[:-4] + b"\x00\x00\x00\x00"
+        r = client.get(
+            "/log/public/verify_cose_receipt",
+            corrupted_receipt,
+            headers={"Content-Type": "application/cose"},
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+
+        LOG.info("The logging app serves the same PQ receipt and signature")
+        assert sample_pq.status_code == http.HTTPStatus.OK, sample_pq
+        assert sample_pq.body.data() == pq_receipt
+        r = get_historical(client, "/log/public/cose_signature?identity_type=PQ", txid)
+        assert r.status_code == http.HTTPStatus.OK, r
+        signature_file = os.path.join(
+            network.common_dir, f"pq_cose_signature_{txid}.cose"
+        )
+        with open(signature_file, "wb") as f:
+            f.write(base64.b64decode(r.body.json()["cose_signature"]))
+        subprocess.run(
+            [
+                "cddl",
+                "../cddl/ccf-merkle-tree-cose-signature.cddl",
+                "v",
+                signature_file,
+            ],
+            check=True,
+        )
+        r = get_historical(
+            client,
+            "/log/public/cose_receipt?identity_type=PQC",
+            txid,
+            validate_openapi=False,
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
 
     return network
 
@@ -2586,6 +2747,7 @@ def do_main_tests(network, args):
         test_cbor_receipts(network, args)
         test_cose_signature_schema(network, args)
         test_cose_receipt_schema(network, args)
+        test_cose_receipts_of_each_identity_type(network, args)
 
     # HTTP/2 does not support chunked transfer encoding.
     if not args.http2:

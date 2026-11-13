@@ -8,6 +8,8 @@
 #include "node/history.h"
 #include "service/tables/signatures.h"
 
+#include <map>
+
 namespace ccf
 {
   // Representation of receipt used by internal framework code. Mirrored in
@@ -25,7 +27,8 @@ namespace ccf
     ccf::ClaimsDigest claims_digest;
     std::optional<std::vector<ccf::crypto::Pem>> service_endorsements =
       std::nullopt;
-    std::optional<CoseEndorsementsChain> cose_endorsements = std::nullopt;
+    // Endorsement chain of each identity type for which it is available
+    std::map<IdentityType, CoseEndorsementsChain> cose_endorsements;
 
     TxReceiptImpl(
       const std::optional<std::vector<uint8_t>>& signature_,
@@ -42,8 +45,7 @@ namespace ccf
       ccf::ClaimsDigest claims_digest_ = ccf::no_claims(),
       const std::optional<std::vector<ccf::crypto::Pem>>&
         service_endorsements_ = std::nullopt,
-      const std::optional<CoseEndorsementsChain>& cose_endorsements_ =
-        std::nullopt) :
+      std::map<IdentityType, CoseEndorsementsChain> cose_endorsements_ = {}) :
       signature(signature_),
       cose_signatures(std::move(cose_signatures_)),
       root(root_),
@@ -54,7 +56,7 @@ namespace ccf
       commit_evidence(commit_evidence_),
       claims_digest(std::move(claims_digest_)),
       service_endorsements(service_endorsements_),
-      cose_endorsements(cose_endorsements_)
+      cose_endorsements(std::move(cose_endorsements_))
     {}
   };
 
