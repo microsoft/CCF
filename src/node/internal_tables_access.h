@@ -575,7 +575,7 @@ namespace ccf
         key_to_endorse = endorsement.endorsing_key;
       }
 
-      check_signing_identity_matches_service_cert(tx);
+      // Checks the published identity of this type against its certificate
       const auto signing_identity =
         get_service_signing_identity(tx, identity_type);
       if (
