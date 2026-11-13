@@ -30,11 +30,10 @@ MAX_NODES = 64
 _recording = threading.local()
 
 
-def tx_status(r):
-    """Record the transaction status that r, a /node/tx response, gave a client."""
+def tx_status(body, ts=None):
+    """Record a transaction status given to a client: the body of a /tx response."""
     events = getattr(_recording, "events", None)
     if events is not None:
-        body = r.body.json()
         view, seqno = body["transaction_id"].split(".")
         msg = {
             "function": "tx_status",
@@ -42,7 +41,7 @@ def tx_status(r):
             "seqno": int(seqno),
             "status": body["status"],
         }
-        events[("client", len(events))] = (time.time_ns(), 0, {"msg": msg})
+        events[("client", len(events))] = (ts or time.time_ns(), 0, {"msg": msg})
 
 
 @contextlib.contextmanager

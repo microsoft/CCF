@@ -1,4 +1,6 @@
-{"action":"RwTxRequestAction","type":"RwTxRequest","tx":0}
-{"action":"RwTxExecuteAction","type":"RwTxExecute","tx":0,"tx_id":[2,10]}
-{"action":"RwTxResponseAction","type":"RwTxResponse","tx":0,"tx_id":[2,10]}
-{"action":"StatusCommittedResponseAction","type":"TxStatusReceived","tx_id":[2,10],"status":"CommittedStatus"}
+{"msg":{"function":"become_leader","state":{"node_id":"n0","current_view":2,"last_idx":0}}}
+{"msg":{"function":"replicate","state":{"node_id":"n0"},"view":2,"seqno":1}}
+{"msg":{"function":"replicate","state":{"node_id":"n0"},"view":2,"seqno":2}}
+{"msg":{"function":"commit","state":{"node_id":"n0","current_view":2},"idx":2}}
+{"msg":{"function":"commit","state":{"node_id":"n1","current_view":2},"idx":2}}
+{"msg":{"function":"tx_status","view":2,"seqno":1,"status":"Committed"}}

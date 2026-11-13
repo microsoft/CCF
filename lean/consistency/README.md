@@ -65,39 +65,32 @@ The unsandboxed check executes build-time code, which must be trusted.
 
 ## Trace validation
 
-`consistency-replay` consumes the NDJSON format from [`tests/tvc.py`](../../tests/tvc.py).
-It replays requests, write executions, responses, and final statuses through `Model.step`, checking request IDs and response transaction IDs.
-Missing views and non-application ledger entries are backfilled before write executions and reads.
-Backfilling uses guarded model elections and appends; it cannot roll back a known committed prefix.
-Elections discard known-invalid suffixes before filling gaps in the new view.
-This is a deterministic reconstruction for these captures, not a complete search for all possible model executions.
-The capture contains no application read values, so this does not validate the model's append-and-read application observations.
-An unfinished final request is allowed, but empty traces, malformed records, and disabled transitions fail with a line-numbered diagnostic and nonzero exit code.
-
-From the repository root, generate a capture using the existing e2e test (requires the [CCF build prerequisites](../../doc/contribute/build_setup.rst)):
-
-```sh
-cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON
-cmake --build build --target consistency_trace_validation
-(cd build && ./tests.sh -VV -R '^consistency_trace_validation$' --no-tests=error)
-cd lean/consistency
-lake build --wfail consistency-replay
-.lake/build/bin/consistency-replay ../../build/consistency/trace.ndjson
-```
-
-`consistency-replay` also consumes the `ccf.cft` consensus trace events that nodes [export](../../doc/operations/configuration.rst), in records with a `msg` field ordered by timestamp.
-It uses `become_leader`, `send_request_vote`, `replicate` and `commit`, and skips other events.
-Nothing is reconstructed for these traces: a new leader's view starts from the ledger prefix that it reported when requesting votes, and a trace missing an election or a ledger entry is rejected.
+`consistency-replay` consumes the `ccf.cft` consensus trace events that nodes [export](../../doc/operations/configuration.rst), as NDJSON records with the event in a `msg` field, ordered by timestamp.
+It replays them through `Model.step`, using `become_leader`, `send_request_vote`, `replicate` and `commit`, and skipping other events.
+A new leader's view starts from the ledger prefix that it reported when requesting votes.
 Every ledger entry is replayed as a write, which a node's `commit` reports committed.
-A `tx_status` record adds a status given to a client, which nodes do not trace; only `Invalid` is accepted.
+A `tx_status` record adds what nodes do not trace: a `Committed` or `Invalid` status given to a client.
+Nothing is reconstructed: a trace missing an election or a ledger entry is rejected.
+Client reads are not traced, so this does not validate the model's read observations.
+Empty traces, malformed records, and disabled transitions fail with a line-numbered diagnostic and nonzero exit code.
 
-[`tests/partitions_test.py`](../../tests/partitions_test.py) records and replays such a trace for each of its networks when `CCF_LEAN_CONSISTENCY_REPLAYER` names the replayer, using [`tests/infra/consistency_trace.py`](../../tests/infra/consistency_trace.py).
-Each trace is written to the test workspace, named after its group, such as `basic_partitions_consistency_trace.ndjson`:
+[`tests/infra/consistency_trace.py`](../../tests/infra/consistency_trace.py) records such a trace for the nodes of a test and replays it, when `CCF_LEAN_CONSISTENCY_REPLAYER` names the replayer.
+The trace is written to the test workspace, named after the test, such as `basic_partitions_consistency_trace.ndjson`.
+Two e2e tests use it (they require the [CCF build prerequisites](../../doc/contribute/build_setup.rst)):
+
+- [`tests/consistency_trace_validation.py`](../../tests/consistency_trace_validation.py) suspends the primary to cause an election while [`tests/tvc.py`](../../tests/tvc.py) writes, and reports the final status of each write.
+- [`tests/partitions_test.py`](../../tests/partitions_test.py) traces each of its networks, and reports the `Invalid` statuses that it checks.
+
+From the repository root:
 
 ```sh
-(cd build && CCF_LEAN_CONSISTENCY_REPLAYER="$PWD/../lean/consistency/.lake/build/bin/consistency-replay" ./tests.sh -VV -C partitions -R '^partitions$' --no-tests=error)
+(cd lean/consistency && lake build --wfail consistency-replay)
+export CCF_LEAN_CONSISTENCY_REPLAYER="$PWD/lean/consistency/.lake/build/bin/consistency-replay"
+cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON
+cmake --build build --target consistency_trace_validation partitions
+(cd build && ./tests.sh -VV -R '^consistency_trace_validation$' --no-tests=error)
+(cd build && ./tests.sh -VV -C partitions -R '^partitions$' --no-tests=error)
 ```
 
-The [Lean workflow](../../.github/workflows/lean.yml) captures and replays the `tvc.py` trace in separate jobs, following the KV and CCF consensus setup, and also checks the [replay fixtures](replayer/fixtures/README.md), including election and rollback traces.
-The partitions tests in the [CI workflow](../../.github/workflows/ci.yml) record and replay their consensus traces.
-The replay fixtures check that the replayer accepts valid traces and rejects invalid ones.
+The [Lean workflow](../../.github/workflows/lean.yml) runs `consistency_trace_validation` with the replayer, and the [CI workflow](../../.github/workflows/ci.yml) does the same for the partitions tests.
+The [replay fixtures](replayer/fixtures/README.md) check that the replayer accepts valid traces and rejects invalid ones.

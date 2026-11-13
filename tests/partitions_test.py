@@ -256,7 +256,7 @@ def test_isolate_and_reconnect_primary(network, args, **kwargs):
         r = c.get(f"/node/tx?transaction_id={lost_tx_resp.view}.{lost_tx_resp.seqno}")
         status = TxStatus(r.body.json()["status"])
         assert status == TxStatus.Invalid, r
-        infra.consistency_trace.tx_status(r)
+        infra.consistency_trace.tx_status(r.body.json())
 
 
 @reqs.description("New joiner helps liveness")
@@ -459,7 +459,7 @@ def test_rolled_back_node_certificate(network, args):
             f"{renewal.completed_view}.{renewal.completed_seqno}"
         )
         assert TxStatus(r.body.json()["status"]) == TxStatus.Invalid, r
-        infra.consistency_trace.tx_status(r)
+        infra.consistency_trace.tx_status(r.body.json())
 
     LOG.info("Confirm the re-elected node can use the rolled-back certificate")
     force_become_primary(network, args, renewed_node)
