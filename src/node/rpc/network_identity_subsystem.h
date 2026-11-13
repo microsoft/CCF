@@ -47,17 +47,17 @@ namespace ccf
 
     // PQ chain, fetched from the historical states of the CLASSICAL one: a PQ
     // back-endorsement is written with a CLASSICAL one, over the same epochs
-    // and with the same previous version. It ends with the self-endorsement of
-    // the first service with a PQ identity. An inconsistent PQ chain is
-    // dropped, which leaves the CLASSICAL chain and its readers unaffected.
-    bool pq_chain_valid{false};
+    // and with the same previous version. It ends with the PQ self-endorsement
+    // of the service which started it. An inconsistent PQ chain fails
+    // fetching, as an inconsistent CLASSICAL chain does.
+    // Set when the current service has a PQ identity
+    std::optional<std::vector<uint8_t>> current_pq_key_der;
     // Whether the oldest PQ endorsement fetched so far has a predecessor
     bool pq_fetching{false};
-    std::vector<uint8_t> current_pq_key_der;
     std::map<SeqNo, CoseEndorsement> pq_endorsements;
     // DER-encoded SubjectPublicKeyInfo of each PQ service key, from the start
     // of its epoch
-    std::map<SeqNo, std::vector<uint8_t>> pq_trusted_keys;
+    TrustedKeysDer pq_trusted_keys;
 
   public:
     NetworkIdentitySubsystem(
@@ -231,10 +231,6 @@ namespace ccf
               "fetching has not been completed yet",
               seqno));
           }
-          if (!pq_chain_valid)
-          {
-            return std::nullopt;
-          }
           auto it = pq_trusted_keys.upper_bound(seqno);
           if (it == pq_trusted_keys.begin())
           {
@@ -300,7 +296,7 @@ namespace ccf
           seqno));
       }
 
-      if (!pq_chain_valid || !current_service_from.has_value())
+      if (!current_pq_key_der.has_value() || !current_service_from.has_value())
       {
         return std::nullopt;
       }
@@ -310,8 +306,8 @@ namespace ccf
         return CoseEndorsementsChain{};
       }
 
-      // Earlier seqnos are covered from the epoch of the first service with a
-      // PQ identity, or in Partial from the earliest fetched PQ endorsement
+      // Earlier seqnos are covered from the epoch of the service which started
+      // the PQ chain, or in Partial from the earliest fetched PQ endorsement
       auto it = pq_endorsements.upper_bound(seqno);
       if (it == pq_endorsements.begin())
       {
@@ -393,13 +389,9 @@ namespace ccf
       fetch_status.store(target_status);
     }
 
-    void drop_pq_chain(const std::string& reason)
+    [[noreturn]] void fail_pq_chain(const std::exception& e)
     {
-      LOG_FAIL_FMT("PQ service endorsements will not be served: {}", reason);
-      pq_chain_valid = false;
-      pq_fetching = false;
-      pq_endorsements.clear();
-      pq_trusted_keys.clear();
+      fail_fetching(fmt::format("Invalid PQ endorsements chain: {}", e.what()));
     }
 
     // Starts the PQ chain at the PQ endorsement which the opening of the
@@ -419,17 +411,18 @@ namespace ccf
         const auto pq_key = network_identity->get_pq_key_pair();
         if (pq_key == nullptr)
         {
+          // Every node of a service with a PQ identity holds its PQ key
           if (pq_endorsement.has_value())
           {
-            LOG_FAIL_FMT(
-              "Ignoring the PQ endorsement written when the current service "
-              "opened, as the current service has no PQ identity");
+            throw std::logic_error(
+              "a PQ endorsement was written when the current service opened, "
+              "but the network identity of this node has no PQ key");
           }
           return;
         }
 
-        current_pq_key_der = pq_key->public_key_der();
-        pq_chain_valid = true;
+        const auto& current_pq_key =
+          current_pq_key_der.emplace(pq_key->public_key_der());
 
         if (!pq_endorsement.has_value())
         {
@@ -438,14 +431,14 @@ namespace ccf
             "written when it opened");
         }
 
-        if (pq_endorsement->endorsing_key != current_pq_key_der)
+        if (pq_endorsement->endorsing_key != current_pq_key)
         {
           throw std::logic_error(fmt::format(
             "the PQ endorsement written when the current service opened is "
             "signed by public key {}, which is not the current PQ service "
             "public key {}",
             ccf::ds::to_hex(pq_endorsement->endorsing_key),
-            ccf::ds::to_hex(current_pq_key_der)));
+            ccf::ds::to_hex(current_pq_key)));
         }
 
         if (is_self_endorsement(pq_endorsement.value()))
@@ -470,7 +463,7 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        drop_pq_chain(e.what());
+        fail_pq_chain(e);
       }
     }
 
@@ -532,7 +525,7 @@ namespace ccf
     void fetch_pq_endorsement_at(
       ccf::SeqNo seq, const WrittenEndorsements& written)
     {
-      if (!pq_chain_valid || !pq_fetching)
+      if (!pq_fetching)
       {
         return;
       }
@@ -551,13 +544,13 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        drop_pq_chain(e.what());
+        fail_pq_chain(e);
       }
     }
 
     void complete_pq_chain(FetchStatus target_status)
     {
-      if (!pq_chain_valid)
+      if (!current_pq_key_der.has_value())
       {
         return;
       }
@@ -583,19 +576,18 @@ namespace ccf
           validate_chain_front_connection(
             prev->second, current_service_from.value());
         }
-        build_pq_trusted_key_chain();
+        build_pq_trusted_key_chain(current_pq_key_der.value());
       }
       catch (const std::exception& e)
       {
-        drop_pq_chain(e.what());
-        return;
+        fail_pq_chain(e);
       }
 
       LOG_INFO_FMT(
         "Fetched {} PQ service endorsement(s)", pq_endorsements.size());
     }
 
-    void build_pq_trusted_key_chain()
+    void build_pq_trusted_key_chain(std::span<const uint8_t> current_pq_key)
     {
       std::span<const uint8_t> previous_key_der{};
       for (const auto& [seqno, endorsement] : pq_endorsements)
@@ -640,17 +632,19 @@ namespace ccf
         !std::equal(
           previous_key_der.begin(),
           previous_key_der.end(),
-          current_pq_key_der.begin(),
-          current_pq_key_der.end()))
+          current_pq_key.begin(),
+          current_pq_key.end()))
       {
         throw std::logic_error(fmt::format(
           "Current PQ service public key {} does not match the last PQ "
           "endorsing key {}",
-          ccf::ds::to_hex(current_pq_key_der),
+          ccf::ds::to_hex(current_pq_key),
           ccf::ds::to_hex(previous_key_der)));
       }
 
-      pq_trusted_keys.emplace(current_service_from->seqno, current_pq_key_der);
+      pq_trusted_keys.emplace(
+        current_service_from->seqno,
+        std::vector<uint8_t>(current_pq_key.begin(), current_pq_key.end()));
     }
 
     static void log_status(FetchStatus status)
