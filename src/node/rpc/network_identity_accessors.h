@@ -39,9 +39,9 @@ namespace ccf
 
     [[nodiscard]] virtual bool is_part_of_network() const = 0;
 
-    // Read the current service create-txid and previous-identity endorsement
+    // Read the current service create-txid and previous-identity endorsements
     // together, only when the service status is OPEN. This guarantees they
-    // belong to the same service, because the endorsement is written in the
+    // belong to the same service, because the endorsements are written in the
     // same transaction that opens the service.
     virtual CurrentServiceIdentity get_current_service_identity() = 0;
   };
