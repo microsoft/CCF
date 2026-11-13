@@ -16,6 +16,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace
@@ -65,19 +66,44 @@ namespace
   }
 
   // Lean cannot unwind C++ exceptions, so return them as IO errors, which fail
-  // the scenario
+  // the scenario. f returns nothing, or the Lean value which the IO action
+  // returns.
   template <typename F>
   lean_obj_res io(F&& f)
   {
     try
     {
-      f();
-      return lean_io_result_mk_ok(lean_box(0));
+      if constexpr (std::is_void_v<std::invoke_result_t<F&>>)
+      {
+        f();
+        return lean_io_result_mk_ok(lean_box(0));
+      }
+      else
+      {
+        return lean_io_result_mk_ok(f());
+      }
     }
     catch (const std::exception& e)
     {
       return lean_io_result_mk_error(
         lean_mk_io_user_error(lean_mk_string(e.what())));
+    }
+  }
+
+  // Records a step in the trace, and names it if it fails
+  template <typename F>
+  auto traced(const std::string& cmd, F&& f)
+  {
+    ++step_count;
+    try
+    {
+      ccf::tracing::emit(aft::trace::cft_trace_tag, "cmd", cmd);
+      return f();
+    }
+    catch (const std::exception& e)
+    {
+      throw std::runtime_error(
+        fmt::format("Step {} ({}) failed: {}", step_count, cmd, e.what()));
     }
   }
 
@@ -93,22 +119,25 @@ namespace
     const std::string& cmd, F&& f, Invariants invariants = Invariants::CHECK)
   {
     return io([&]() {
-      ++step_count;
-      try
-      {
-        ccf::tracing::emit(aft::trace::cft_trace_tag, "cmd", cmd);
+      traced(cmd, [&]() {
         f();
         if (invariants == Invariants::CHECK)
         {
           driver->assert_invariants();
         }
-      }
-      catch (const std::exception& e)
-      {
-        throw std::runtime_error(
-          fmt::format("Step {} ({}) failed: {}", step_count, cmd, e.what()));
-      }
+      });
     });
+  }
+
+  lean_obj_res strings(const std::vector<std::string>& items)
+  {
+    auto* array = lean_mk_empty_array();
+    for (const auto& item : items)
+    {
+      array = lean_array_push(
+        array, lean_mk_string_from_bytes(item.data(), item.size()));
+    }
+    return array;
   }
 }
 
@@ -343,6 +372,28 @@ extern "C"
     });
   }
 
+  lean_obj_res cft_dispatch_nth(
+    b_lean_obj_arg source, b_lean_obj_arg target, uint64_t position)
+  {
+    const auto src = text(source);
+    const auto dst = text(target);
+    return step(command("dispatch_nth", src, dst, position), [&]() {
+      driver->dispatch_nth(src, dst, position);
+    });
+  }
+
+  lean_obj_res cft_pending_messages(
+    b_lean_obj_arg source, b_lean_obj_arg target)
+  {
+    const auto src = text(source);
+    const auto dst = text(target);
+    return io([&]() {
+      return traced(command("pending_messages", src, dst), [&]() {
+        return strings(driver->pending_messages(src, dst));
+      });
+    });
+  }
+
   lean_obj_res cft_dispatch_all_once()
   {
     return step(
@@ -367,6 +418,16 @@ extern "C"
     const auto dst = text(target);
     return step(command("drop_pending_to", src, dst), [&]() {
       driver->drop_pending_to(src, dst);
+    });
+  }
+
+  lean_obj_res cft_drop_nth(
+    b_lean_obj_arg source, b_lean_obj_arg target, uint64_t position)
+  {
+    const auto src = text(source);
+    const auto dst = text(target);
+    return step(command("drop_nth", src, dst, position), [&]() {
+      driver->drop_nth(src, dst, position);
     });
   }
 

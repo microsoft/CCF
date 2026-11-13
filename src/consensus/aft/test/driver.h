@@ -526,26 +526,12 @@ public:
     log(node_id, tgt_node_id, s, dropped);
   }
 
-  void log_msg_details(
-    ccf::NodeId node_id,
-    ccf::NodeId tgt_node_id,
-    const std::vector<uint8_t>& contents,
-    bool dropped = false)
+  // Calls f with the packet at the start of a queued message
+  template <typename F>
+  void visit_packet(const std::vector<uint8_t>& contents, F&& f)
   {
     const uint8_t* data = contents.data();
     size_t size = contents.size();
-
-    const auto log_packet = [&](const auto& packet) {
-      log_msg_details(node_id, tgt_node_id, packet, dropped);
-      if (dropped)
-      {
-        aft::trace::drop_pending_to(
-          _nodes.at(node_id).cft->get_state_for_trace(),
-          node_id.value(),
-          tgt_node_id.value(),
-          packet);
-      }
-    };
 
     const auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
     switch (msg_type)
@@ -553,37 +539,37 @@ public:
       case (aft::CftMsgType::request_vote):
       {
         auto rv = *(aft::RequestVote*)data;
-        log_packet(rv);
+        f(rv);
         break;
       }
       case (aft::CftMsgType::request_pre_vote):
       {
         auto rpv = *(aft::RequestPreVote*)data;
-        log_packet(rpv);
+        f(rpv);
         break;
       }
       case (aft::CftMsgType::request_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
-        log_packet(rvr);
+        f(rvr);
         break;
       }
       case (aft::CftMsgType::request_pre_vote_response):
       {
         auto rvr = *(aft::RequestPreVoteResponse*)data;
-        log_packet(rvr);
+        f(rvr);
         break;
       }
       case (aft::CftMsgType::append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
-        log_packet(ae);
+        f(ae);
         break;
       }
       case (aft::CftMsgType::append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
-        log_packet(aer);
+        f(aer);
         break;
       }
       case (aft::CftMsgType::append_entries_signed_response):
@@ -594,7 +580,7 @@ public:
       case (aft::CftMsgType::propose_request_vote):
       {
         auto prv = *(aft::ProposeRequestVote*)data;
-        log_packet(prv);
+        f(prv);
         break;
       }
       default:
@@ -603,6 +589,36 @@ public:
           fmt::format("Unhandled CftMsgType: {}", msg_type));
       }
     }
+  }
+
+  void log_msg_details(
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    const std::vector<uint8_t>& contents,
+    bool dropped = false)
+  {
+    visit_packet(contents, [&](const auto& packet) {
+      log_msg_details(node_id, tgt_node_id, packet, dropped);
+      if (dropped)
+      {
+        aft::trace::drop_pending_to(
+          _nodes.at(node_id).cft->get_state_for_trace(),
+          node_id.value(),
+          tgt_node_id.value(),
+          packet);
+      }
+    });
+  }
+
+  // The packet of a queued message as JSON, with the fields which a trace
+  // records for it
+  std::string packet_json(const std::vector<uint8_t>& contents)
+  {
+    std::vector<uint8_t> encoded;
+    visit_packet(contents, [&encoded](const auto& packet) {
+      write_msgpack(encoded, packet);
+    });
+    return nlohmann::json::from_msgpack(encoded).dump();
   }
 
   void connect(ccf::NodeId first, ccf::NodeId second)
@@ -924,6 +940,56 @@ public:
         ++it;
       }
     }
+  }
+
+  // The undelivered messages sent by src to dst, oldest first, each as
+  // packet_json
+  std::vector<std::string> pending_messages(ccf::NodeId src, ccf::NodeId dst)
+  {
+    std::vector<std::string> packets;
+    for (const auto& [target, contents] :
+         channel_stub_proxy(*_nodes.at(src).cft)->messages)
+    {
+      if (target == dst)
+      {
+        packets.push_back(packet_json(contents));
+      }
+    }
+    return packets;
+  }
+
+  // Removes and returns the undelivered message at position, counting from 0,
+  // among those sent by src to dst
+  std::vector<uint8_t> take_pending(
+    ccf::NodeId src, ccf::NodeId dst, size_t position)
+  {
+    auto& messages = channel_stub_proxy(*_nodes.at(src).cft)->messages;
+    size_t seen = 0;
+    for (auto it = messages.begin(); it != messages.end(); ++it)
+    {
+      if (it->first == dst && seen++ == position)
+      {
+        auto contents = std::move(it->second);
+        messages.erase(it);
+        return contents;
+      }
+    }
+
+    throw std::runtime_error(fmt::format(
+      "No undelivered message at position {} from {} to {}",
+      position,
+      src,
+      dst));
+  }
+
+  void dispatch_nth(ccf::NodeId src, ccf::NodeId dst, size_t position)
+  {
+    dispatch_single_message(src, dst, take_pending(src, dst, position));
+  }
+
+  void drop_nth(ccf::NodeId src, ccf::NodeId dst, size_t position)
+  {
+    log_msg_details(src, dst, take_pending(src, dst, position), true);
   }
 
   std::vector<std::pair<aft::Term, ccf::NodeId>> find_primaries()
