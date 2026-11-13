@@ -4,41 +4,45 @@
 module
 
 public import Kv.Properties.Programs
+public import CCF.Execution
 
 @[expose] public section
-
-/-! Human-reviewed trace projections, segment assumptions, and store invariants. -/
 
 namespace Kv.Properties
 
 open Kv.Model
 
-/-- The event neither creates, ends, nor rolls back store `sid`. -/
-def SegmentEvent (sid : Nat) : Event → Prop
-  | .storeCreate id | .storeEnd id | .rollback id _ _ _ => id ≠ sid
+/-- The selected attempt is neither destroyed nor recreated by this semantic input. -/
+def AttemptAction (tid : Nat) : Action → Prop
+  | .txCreate _ actual | .txEnd _ actual => actual ≠ tid
   | _ => True
 
-/-- The attempt an event applies to store `sid`, if any. -/
-def projectedApplication (w : World) (sid : Nat) : Event → List Tx
-  | .apply id tid _ _ _ =>
-      if id = sid then (txOf w id tid).toOption.toList else []
+/-- The selected store is neither created, destroyed, nor successfully rolled back. -/
+def SegmentAction (w : State) (sid : Nat) : Action → Prop
+  | .storeCreate actual _ | .storeEnd actual => actual ≠ sid
+  | .rollback actual requested _ =>
+      actual ≠ sid ∨ ∃ s, find w.stores actual = some s ∧ requested < s.global
+  | _ => True
+
+/-- Every actual step along these inputs respects the selected store's branch boundary. -/
+def SegmentInputs (w : State) (sid : Nat) : List Action → Prop
+  | [] => True
+  | a :: rest =>
+      SegmentAction w sid a
+      ∧ ∀ next, transitionSystem.step w a = some next → SegmentInputs next sid rest
+
+/-- The live attempt an actual semantic input applies to the selected store. -/
+def appliedTransaction (w : State) (sid : Nat) : Action → List Tx
+  | .apply actual tid =>
+      if actual = sid then ((lookupTx w actual tid).map Prod.snd).toList else []
   | _ => []
 
-/-- The attempts a record sequence applies to store `sid`, in order. -/
-def projectApplications (w : World) (sid : Nat) : List Record → Except Failure (List Tx)
-  | [] => .ok []
-  | r :: rs => do
-      let next ← step w r
-      let rest ← projectApplications next sid rs
-      return projectedApplication w sid r.event ++ rest
-
-/-- The event neither creates nor ends attempt `tid`. -/
-def AttemptEvent (tid : Nat) : Event → Prop
-  | .txCreate _ id | .txEnd _ id => id ≠ tid
-  | _ => True
-
-/-- Every cell was written at or before `version`. -/
-def CellsBounded (db : Data) (version : Nat) : Prop :=
-  ∀ key cell, find db key = some cell → cell.version ≤ version
+/-- Execute semantic inputs and extract their actual pre-application attempts in order. -/
+def applicationInputs (w : State) (sid : Nat) : List Action → Option (List Tx)
+  | [] => some []
+  | a :: rest => do
+      let next ← transitionSystem.step w a
+      let tail ← applicationInputs next sid rest
+      return appliedTransaction w sid a ++ tail
 
 end Kv.Properties

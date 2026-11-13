@@ -12,3 +12,10 @@ public import Kv.Properties.Programs
 public import Kv.Tests.Replay
 public import Kv.TraceValidation
 public import Kv.TraceValidation.Records
+public import Kv.Proofs.Correspondence
+public import Kv.Proofs.Segment
+public import Kv.Tests.Semantics
+public import Kv.TraceValidation.Types
+public import Kv.TraceValidation.Adapter
+public import Kv.TraceValidation.Transitions
+public import Kv.TraceValidation.System

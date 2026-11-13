@@ -95,6 +95,6 @@ The same rules apply to every specification namespace, including multi-component
   Model submodules cannot import the assembled `Model` entrypoint.
 - The `Properties` entrypoint can import model modules, property helpers, and proofs.
 - Property helpers can import model modules and other property helpers, but not proofs or the `Properties` entrypoint.
-- Proofs can import model modules, property helpers, and other proofs, but not the `Properties` entrypoint.
+- Proofs can import model modules, trace validation, property helpers, and other proofs, but not the `Properties` entrypoint.
 - Other modules, such as tests and trace validation, are unrestricted.
   Imports outside the specification namespace are unrestricted except for the `CCF` restrictions above.

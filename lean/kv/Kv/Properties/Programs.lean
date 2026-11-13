@@ -16,6 +16,10 @@ open Kv.Model
 /-- Each key occurs at most once. -/
 def Unique {K V : Type} (xs : Assoc K V) : Prop := (xs.map Prod.fst).Nodup
 
+/-- Every cell was written at or before the supplied publication version. -/
+def CellsBounded (db : Data) (version : Nat) : Prop :=
+  ∀ key cell, find db key = some cell → cell.version ≤ version
+
 /-- `History fs n`: `fs` lists frames from version `n` down to the empty frame at 0, each obtained from its predecessor by publishing some writes. -/
 inductive History : List Frame → Nat → Prop
   /-- The empty initial history. -/
@@ -49,29 +53,27 @@ def serialRun (base : DB M K V) (ws : Writes M K V)
 
 end Generic
 
-/-- A branch of actual executable applications, including no_replicate ones.
-The sequence supplied to the reference interpreter is the recorded operation
-program of each transaction, not a list of final-state observations. -/
-inductive AppliedBranch : Store → List Tx → Store → Prop
-  /-- No applications. -/
+/-- A branch of semantic applications, with compaction but no rollback. -/
+inductive AppliedBranch : Model.Store → List Model.Tx → Model.Store → Prop
+  /-- Empty application order. -/
   | nil (s) : AppliedBranch s [] s
-  /-- Applies one attempt with `tryApply`. -/
-  | cons (s middle final : Store) (t : Tx) (ts : List Tx)
-    (one : tryApply s t = some middle)
+  /-- One enabled semantic publication primitive. -/
+  | cons (s middle final : Model.Store) (t : Model.Tx) (ts : List Model.Tx)
+    (one : Model.tryApply s t = some middle)
     (rest : AppliedBranch middle ts final)
     : AppliedBranch s (t :: ts) final
-  /-- Compacts without applying anything. -/
-  | compact (s final : Store) (v : Nat) (ts : List Tx)
-    (rest : AppliedBranch (compactStore s v) ts final)
+  /-- Environment compaction between applications. -/
+  | compact (s final : Model.Store) (v : Nat) (ts : List Model.Tx)
+    (rest : AppliedBranch (Model.compactStore s v) ts final)
     : AppliedBranch s ts final
 
-/-- Runs each attempt's recorded operation log serially, applying its writes at successive
-versions. -/
-def serialTransactions (db : Data) (version : Nat) : List Tx → Option Data
+/-- Serial reference interpretation of semantic attempts in application order. -/
+def serialTransactions (db : Model.Data) (version : Nat)
+    : List Model.Tx → Option Model.Data
   | [] => some db
   | t :: ts =>
       (serialRun db [] t.normal.log).bind
         fun writes =>
-          serialTransactions (publish db (version + 1) writes) (version + 1) ts
+          serialTransactions (Model.publish db (version + 1) writes) (version + 1) ts
 
 end Kv.Properties

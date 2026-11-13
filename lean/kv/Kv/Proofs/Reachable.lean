@@ -6,77 +6,29 @@ module
 public import Kv.Properties.Invariants
 public import CCF.Execution
 
-/-!
-The executable model's state invariants, their preservation by every accepted step, and the
-claims that depend on them: store invariants, serializability of replayed segments, and global
-reads from captured maps.
-
-This module is self-contained: shared lemmas are duplicated as private declarations in each
-proof module so that the proof modules can be checked in parallel.
--/
-
 @[expose] public section
 
-namespace Kv.Proofs.Execution
-end Kv.Proofs.Execution
-
-namespace Kv.Proofs.Invariants
-end Kv.Proofs.Invariants
-
-namespace Kv.Proofs.Model
-end Kv.Proofs.Model
-
-namespace Kv.Proofs.Trace
-end Kv.Proofs.Trace
-
-namespace Kv.Proofs.Properties
-end Kv.Proofs.Properties
-
-namespace Kv.Proofs.Witnesses
-end Kv.Proofs.Witnesses
-
-namespace Kv.Proofs.Execution
-
-open Kv.Model
-
-private theorem step_iff_transition (w next : World) (r : Record)
-    : transitionSystem.step w r = some next ↔ step w r = .ok next := by
-  simp only [transitionSystem]
-  cases step w r <;> simp [Except.toOption]
-
-private theorem replay_iff_run (w final : World) (rs : List Record)
-    : CCF.Execution.Run transitionSystem w rs final ↔ replay w rs = .ok final := by
-  induction rs generalizing w with
-  | nil =>
-      constructor
-      · intro run
-        cases run using @CCF.Execution.Run.casesOn transitionSystem
-        rfl
-      · intro accepted
-        cases accepted
-        exact .nil _
-  | cons r rs ih =>
-      constructor
-      · intro run
-        cases run using @CCF.Execution.Run.casesOn transitionSystem with
-        | cons transition rest =>
-            simp only [replay, (step_iff_transition _ _ _).mp transition, Except.bind]
-            exact (ih _).mp rest
-      · intro accepted
-        simp only [replay] at accepted
-        cases accepted' : step w r with
-        | error failure => simp [accepted', Except.bind] at accepted
-        | ok next =>
-            simp only [accepted', Except.bind] at accepted
-            exact .cons ((step_iff_transition _ _ _).mpr accepted') ((ih _).mpr accepted)
-
-end Kv.Proofs.Execution
-
-namespace Kv.Proofs.Invariants
+namespace Kv.Proofs.SemanticInvariant
 
 open Kv.Model Kv.Properties
 
-/-- Executes operations in order with `normalStep` to reconstruct the normal view. -/
+variable {M K V : Type}
+
+/-- The reports agree with the computed local operation. -/
+private def observes {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
+    (db : DB M K V) (ws : Writes M K V)
+    : NormalOp M K V → Bool
+  | .read a v => decide (valueAt db ws a = v)
+  | .previous a v => decide (previousAt db a = v)
+  | .scan m vs => decide (scanAt db ws m = vs)
+  | .write _ _ => true
+
+/-- Validates reports before using the semantic dependency/write recorder. -/
+private def normalStep {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
+    (snapshot : DB M K V) (n : Normal M K V) (op : NormalOp M K V)
+    : Option (Normal M K V) :=
+  if observes snapshot n.writes op then some (recordOp snapshot n op) else none
+
 private def normalRun {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
     (snapshot : DB M K V) (n : Normal M K V) (ops : List (NormalOp M K V))
     : Option (Normal M K V) :=
@@ -113,92 +65,13 @@ private structure TxInvariant (t : Tx) : Prop where
   globals : ∀ map view, find t.globalViews map = some view → GlobalInvariant view
 
 /-- Internal consistency of every live store and attempt. -/
-private structure WorldInvariant (w : World) : Prop where
+private structure StateInvariant (w : State) : Prop where
   /-- Live stores have well-formed histories. -/
   stores : ∀ sid s, find w.stores sid = some s → StoreInvariant s
   /-- Live attempts have valid logs and captured views. -/
   txs : ∀ tid t, find w.txs tid = some t → TxInvariant t
 
 /-- An attempt keeps its snapshot, pinned data and global views, and its invariant. -/
-private structure Frozen (t next : Tx) : Prop where
-  /-- The captured snapshot is unchanged. -/
-  snapshot : next.snapshot = t.snapshot
-  /-- The pinned local data is unchanged. -/
-  data : next.data = t.data
-  /-- The captured global views are unchanged. -/
-  globals : next.globalViews = t.globalViews
-  /-- The attempt invariant is preserved. -/
-  valid : TxInvariant t → TxInvariant next
-
-/-- How an accepted event changes the live stores and attempts. -/
-private inductive StepEffect (w : World) : Event → World → Prop
-  /-- Stores and attempts are unchanged. -/
-  | same {e : Event} {next : World} (stores : next.stores = w.stores)
-    (txs : next.txs = w.txs) (noApply : ∀ sid, projectedApplication w sid e = [])
-    : StepEffect w e next
-  /-- A fresh store is created. -/
-  | storeCreate {sid : Nat} {next : World} (stores : next.stores = set w.stores sid {})
-    (txs : next.txs = w.txs)
-    : StepEffect w (.storeCreate sid) next
-  /-- A store is ended. -/
-  | storeEnd {sid : Nat} {next : World} (stores : next.stores = erase w.stores sid)
-    (txs : next.txs = w.txs)
-    : StepEffect w (.storeEnd sid) next
-  /-- A fresh attempt is created. -/
-  | txCreate {sid tid : Nat} {next : World} (stores : next.stores = w.stores)
-    (txs : next.txs = set w.txs tid { store := sid })
-    : StepEffect w (.txCreate sid tid) next
-  /-- An attempt is ended. -/
-  | txEnd {sid tid : Nat} {next : World} (stores : next.stores = w.stores)
-    (txs : next.txs = erase w.txs tid)
-    : StepEffect w (.txEnd sid tid) next
-  /-- A store is compacted. -/
-  | compact {sid version requested : Nat} {next : World} {s : Store}
-    (store : storeOf w sid = .ok s)
-    (stores : next.stores = set w.stores sid (compactStore s requested))
-    (txs : next.txs = w.txs)
-    : StepEffect w (.compact sid version requested) next
-  /-- A store is rolled back. -/
-  | rollback {sid version requested term : Nat} {next : World} {s : Store}
-    (store : storeOf w sid = .ok s)
-    (stores : next.stores = set w.stores sid (rollbackStore s version term))
-    (txs : next.txs = w.txs)
-    : StepEffect w (.rollback sid version requested term) next
-  /-- An attempt captures its snapshot; the store may learn its term. -/
-  | snapshot {sid tid version global term : Nat} {next : World} {s established : Store}
-    {t : Tx} (store : storeOf w sid = .ok s) (history : established.history = s.history)
-    (head : established.head = s.head) (globalCut : established.global = s.global)
-    (tx : find w.txs tid = some t) (fresh : t.snapshot = none)
-    (stores : next.stores = set w.stores sid established)
-    (txs
-      : next.txs = set w.txs tid { t with snapshot := some { current := s.head, term } })
-    : StepEffect w (.snapshot sid tid version global term) next
-  /-- An attempt acquires a map. -/
-  | acquire {sid tid version global : Nat} {m : String} {next : World} {s : Store}
-    {t t' : Tx} (store : storeOf w sid = .ok s) (tx : txOf w sid tid = .ok t)
-    (accepted : acquireMap s t m version global = .ok t')
-    (stores : next.stores = w.stores) (txs : next.txs = set w.txs tid t')
-    : StepEffect w (.acquire sid tid m version global) next
-  /-- An attempt is applied to its store. -/
-  | apply {sid tid version term : Nat} {writes : Pending} {next : World} {s new : Store}
-    {t : Tx} (store : storeOf w sid = .ok s) (tx : txOf w sid tid = .ok t)
-    (applied : tryApply s t = some new) (stores : next.stores = set w.stores sid new)
-    (txs : next.txs = set w.txs tid { t with phase := .applied version })
-    : StepEffect w (.apply sid tid version term writes) next
-  /-- An attempt changes without moving its snapshot, pinned data or global views. -/
-  | update {e : Event} {sid tid : Nat} {next : World} {t t' : Tx}
-    (tx : txOf w sid tid = .ok t) (frozen : Frozen t t')
-    (stores : next.stores = w.stores) (txs : next.txs = set w.txs tid t')
-    (noApply : ∀ sid, projectedApplication w sid e = [])
-    : StepEffect w e next
-
-end Kv.Proofs.Invariants
-
-namespace Kv.Proofs.Invariants
-
-open Kv.Model Kv.Properties
-variable {M K V : Type}
-
 private theorem find_set_same [DecidableEq K] (xs : Assoc K V) (k : K) (v : V)
     : find (set xs k v) k = some v := by
   simp [Model.set, find]
@@ -381,11 +254,11 @@ private theorem normalStep_pinData (db acquired : Data) (m : String)
       have hf := congrArg (fun entries => find entries a.2) hi
       simp only [NormalOp.map, find_image] at hf
       change find (pinData db m acquired) a = find db a at hf
-      simp only [normalStep, observes, valueAt, previousAt, needs, hf]
+      simp only [normalStep, recordOp, observes, valueAt, previousAt, needs, hf]
       rfl
   | scan name entries =>
       change image (pinData db m acquired) name = image db name at hi
-      simp only [normalStep, observes, scanAt, needs, hi]
+      simp only [normalStep, recordOp, observes, scanAt, needs, hi]
       rfl
   | write => rfl
 
@@ -482,90 +355,6 @@ private theorem captureGlobal_invariant (s : Store) (valid : StoreInvariant s)
   · exact Or.inl rfl
   · exact Or.inr ⟨s, valid, rfl⟩
 
-private theorem bind_ok {α β : Type} {x : Except Failure α} {f : α → Except Failure β}
-    {b : β} (h : (x >>= f) = .ok b)
-    : ∃ a, x = .ok a ∧ f a = .ok b := by
-  cases x with
-  | error => cases h
-  | ok a => exact ⟨a, rfl, h⟩
-
-private theorem pure_ok {α : Type} {a b : α} (h : (pure a : Except Failure α) = .ok b)
-    : a = b := by
-  cases h; rfl
-
-private theorem withTx_ok {w next : World} {sid tid : Nat} {f : Tx → Except Failure Tx}
-    (h : withTx w sid tid f = .ok next)
-    : ∃ t t',
-        txOf w sid tid = .ok t
-        ∧ f t = .ok t'
-        ∧ next = { w with txs := set w.txs tid t' } := by
-  obtain ⟨t, tx, h⟩ := bind_ok h
-  obtain ⟨t', f, h⟩ := bind_ok h
-  exact ⟨t, t', tx, f, (pure_ok h).symm⟩
-
-private theorem present_ok {α : Type} {value : Option α} {message : String} {a : α}
-    (h : present value message = .ok a)
-    : value = some a := by
-  cases value with
-  | none => cases h
-  | some => cases h; rfl
-
-private theorem require_ok {condition : Bool} {message : String} {u : Unit}
-    (h : require condition message = .ok u)
-    : condition = true := by
-  cases condition
-  · cases h
-  · rfl
-
-private theorem expect_ok {condition : Bool} {message : String} {u : Unit}
-    (h : expect condition message = .ok u)
-    : condition = true := by
-  cases condition
-  · cases h
-  · rfl
-
-private theorem acquireMap_ok {s : Store} {t next : Tx} {map : String}
-    {version global : Nat} (accepted : acquireMap s t map version global = .ok next)
-    : ∃ snap,
-        t.snapshot = some snap
-        ∧ find t.globalViews map = none
-        ∧ (version = (revision (captureGlobal s snap map).current map).version
-            ∧ global = (revision (captureGlobal s snap map).frame map).version)
-        ∧ t.normal.log.all (fun op => op.map != map) = true
-        ∧ next
-          = {
-            t with
-              globalViews := set t.globalViews map (captureGlobal s snap map)
-              data := pinData t.data map (captureGlobal s snap map).current.data
-          } := by
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  obtain ⟨snap, captured, accepted⟩ := bind_ok accepted
-  obtain ⟨_, fresh, accepted⟩ := bind_ok accepted
-  obtain ⟨_, versions, accepted⟩ := bind_ok accepted
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  split at accepted
-  next unused =>
-    cases pure_ok accepted
-    have versions := expect_ok versions
-    simp only [Bool.and_eq_true, beq_iff_eq] at versions
-    exact ⟨snap, present_ok captured, Option.isNone_iff_eq_none.mp (require_ok fresh), versions,
-      unused, rfl⟩
-  next => cases accepted
-
-private theorem acquireMap_invariant (s : Store) (store : StoreInvariant s)
-    (t next : Tx) (valid : TxInvariant t) (map : String) (version global : Nat)
-    (accepted : acquireMap s t map version global = .ok next)
-    : TxInvariant next := by
-  obtain ⟨_, _, _, _, unused, rfl⟩ := acquireMap_ok accepted
-  refine ⟨acquisition_normal t valid.normal map _ unused, valid.snapshot, ?_⟩
-  intro name view found
-  rw [find_set_cases] at found
-  split at found
-  · cases found
-    exact captureGlobal_invariant s store _ map
-  · exact valid.globals name view found
-
 private theorem snapshot_invariant (s : Store) (store : StoreInvariant s) (term : Nat)
     (t : Tx) (valid : TxInvariant t) (fresh : t.snapshot = none)
     : TxInvariant { t with snapshot := some { current := s.head, term } } := by
@@ -603,26 +392,6 @@ private theorem lookup_erase_invariant [DecidableEq K] (P : V → Prop) (xs : As
   · contradiction
   · exact valid key next found
 
-private theorem storeOf_invariant (w : World) (valid : WorldInvariant w) (sid : Nat)
-    (s : Store) (found : storeOf w sid = .ok s)
-    : StoreInvariant s := by
-  cases h : find w.stores sid <;> simp [storeOf, present, invalid, h] at found
-  next => cases found; exact valid.stores sid _ h
-
-private theorem txOf_found (w : World) (sid tid : Nat) (t : Tx)
-    (found : txOf w sid tid = .ok t)
-    : find w.txs tid = some t := by
-  obtain ⟨_, -, found⟩ := bind_ok found
-  obtain ⟨_, lookup, found⟩ := bind_ok found
-  obtain ⟨_, -, found⟩ := bind_ok found
-  cases pure_ok found
-  exact present_ok lookup
-
-private theorem txOf_invariant (w : World) (valid : WorldInvariant w) (sid tid : Nat)
-    (t : Tx) (found : txOf w sid tid = .ok t)
-    : TxInvariant t :=
-  valid.txs tid t (txOf_found w sid tid t found)
-
 private theorem tryApply_invariant (s next : Store) (valid : StoreInvariant s) (t : Tx)
     (applied : tryApply s t = some next)
     : StoreInvariant next := by
@@ -631,426 +400,11 @@ private theorem tryApply_invariant (s next : Store) (valid : StoreInvariant s) (
   · cases applied; exact advance_invariant s valid t.normal.writes
   · contradiction
 
-private theorem world_initial : WorldInvariant {} := by
+private theorem world_initial : StateInvariant {} := by
   constructor <;> simp [find]
 
-private theorem Frozen.refl (t : Tx) : Frozen t t := ⟨rfl, rfl, rfl, id⟩
-
-private theorem Frozen.trans {a b c : Tx} (ab : Frozen a b) (bc : Frozen b c)
-    : Frozen a c :=
-  ⟨
-    bc.snapshot.trans ab.snapshot,
-    bc.data.trans ab.data,
-    bc.globals.trans ab.globals,
-    bc.valid ∘ ab.valid
-  ⟩
-
-private theorem Frozen.fields {t next : Tx} (snapshot : next.snapshot = t.snapshot)
-    (data : next.data = t.data) (normal : next.normal = t.normal)
-    (globals : next.globalViews = t.globalViews)
-    : Frozen t next :=
-  ⟨
-    snapshot,
-    data,
-    globals,
-    fun valid => tx_fields_invariant t next valid snapshot data normal globals
-  ⟩
-
-private theorem runOp_frozen {t next : Tx} {op : NormalOp String String String}
-    (accepted : runOp t op = .ok next)
-    : Frozen t next := by
-  simp only [runOp, Pure.pure, Except.pure] at accepted
-  split at accepted
-  next => contradiction
-  next snap hs =>
-    split at accepted
-    next n hn =>
-      cases accepted
-      exact ⟨rfl, rfl, rfl, fun valid =>
-        ⟨operation_normal t valid.normal snap n op hs hn, valid.snapshot, valid.globals⟩⟩
-    next => contradiction
-
-private theorem clearWrites_frozen {t next : Tx} {map : String}
-    {entries : Assoc String String} (accepted : clearWrites t map entries = .ok next)
-    : Frozen t next := by
-  unfold clearWrites at accepted
-  induction entries generalizing t with
-  | nil => cases accepted; exact Frozen.refl _
-  | cons entry entries ih =>
-      obtain ⟨middle, one, rest⟩ := bind_ok accepted
-      exact (runOp_frozen one).trans (ih rest)
-
-private theorem StepEffect.withTx {w next : World} {e : Event} {sid tid : Nat}
-    {f : Tx → Except Failure Tx} (noApply : ∀ sid, projectedApplication w sid e = [])
-    (frozen : ∀ t t', f t = .ok t' → Frozen t t')
-    (accepted : withTx w sid tid f = .ok next)
-    : StepEffect w e next := by
-  obtain ⟨t, t', tx, h, rfl⟩ := withTx_ok accepted
-  exact .update tx (frozen t t' h) rfl rfl noApply
-
-private theorem stepEvent_effect_rollbackRejected (w next : World)
-    (store requested term : Nat)
-    (accepted : stepEvent w (.rollbackRejected store requested term) = .ok next)
-    : StepEffect w (.rollbackRejected store requested term) next := by
-  repeat obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  cases pure_ok accepted
-  exact .same rfl rfl fun _ => rfl
-
-private theorem stepEvent_effect_storeCreate (w next : World) (store : Nat)
-    (accepted : stepEvent w (.storeCreate store) = .ok next)
-    : StepEffect w (.storeCreate store) next := by
-  repeat obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  cases pure_ok accepted
-  exact .storeCreate rfl rfl
-
-private theorem stepEvent_effect_storeEnd (w next : World) (store : Nat)
-    (accepted : stepEvent w (.storeEnd store) = .ok next)
-    : StepEffect w (.storeEnd store) next := by
-  repeat obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  cases pure_ok accepted
-  exact .storeEnd rfl rfl
-
-private theorem stepEvent_effect_txCreate (w next : World) (store tx : Nat)
-    (accepted : stepEvent w (.txCreate store tx) = .ok next)
-    : StepEffect w (.txCreate store tx) next := by
-  repeat obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  cases pure_ok accepted
-  exact .txCreate rfl rfl
-
-private theorem stepEvent_effect_txEnd (w next : World) (store tx : Nat)
-    (accepted : stepEvent w (.txEnd store tx) = .ok next)
-    : StepEffect w (.txEnd store tx) next := by
-  repeat obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  cases pure_ok accepted
-  exact .txEnd rfl rfl
-
-private theorem stepEvent_effect_snapshot (w next : World)
-    (sid tid version global term : Nat)
-    (accepted : stepEvent w (.snapshot sid tid version global term) = .ok next)
-    : StepEffect w (.snapshot sid tid version global term) next := by
-  obtain ⟨s, store, accepted⟩ := bind_ok accepted
-  obtain ⟨t, t', tx, h, rfl⟩ := withTx_ok accepted
-  obtain ⟨_, -, h⟩ := bind_ok h
-  split at h
-  next fresh =>
-    obtain ⟨_, -, h⟩ := bind_ok h
-    cases pure_ok h
-    have live := txOf_found _ sid tid t tx
-    exact .snapshot store (by split <;> rfl) (by split <;> rfl) (by split <;> rfl)
-      live fresh rfl rfl
-  next => cases h
-
-private theorem stepEvent_effect_apply (w next : World) (store tx version term : Nat)
-    (writes : Pending)
-    (accepted : stepEvent w (.apply store tx version term writes) = .ok next)
-    : StepEffect w (.apply store tx version term writes) next := by
-  obtain ⟨s, store, accepted⟩ := bind_ok accepted
-  obtain ⟨t, tx, accepted⟩ := bind_ok accepted
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  split at accepted
-  next new applied =>
-    obtain ⟨_, same, accepted⟩ := bind_ok accepted
-    cases pure_ok same
-    obtain ⟨_, -, accepted⟩ := bind_ok accepted
-    cases pure_ok accepted
-    exact .apply store tx applied rfl rfl
-  next =>
-    obtain ⟨_, rejected, -⟩ := bind_ok accepted
-    cases rejected
-
-private theorem stepEvent_effect_get (w next : World) (store tx : Nat) (map key : String)
-    (value : Option String) (global : Bool)
-    (accepted : stepEvent w (.get store tx map key value global) = .ok next)
-    : StepEffect w (.get store tx map key value global) next := by
-  refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-  obtain ⟨_, -, h⟩ := bind_ok h
-  split at h
-  · repeat obtain ⟨_, -, h⟩ := bind_ok h
-    cases pure_ok h
-    exact .refl _
-  · exact runOp_frozen h
-
-private theorem stepEvent_effect_has (w next : World) (store tx : Nat) (map key : String)
-    (value : Bool) (global : Bool)
-    (accepted : stepEvent w (.has store tx map key value global) = .ok next)
-    : StepEffect w (.has store tx map key value global) next := by
-  refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-  obtain ⟨_, -, h⟩ := bind_ok h
-  split at h
-  · repeat obtain ⟨_, -, h⟩ := bind_ok h
-    cases pure_ok h
-    exact .refl _
-  · repeat obtain ⟨_, -, h⟩ := bind_ok h
-    exact runOp_frozen h
-
-private theorem stepEvent_effect_previous (w next : World) (store tx : Nat)
-    (map key : String) (value : Option Nat)
-    (accepted : stepEvent w (.previous store tx map key value) = .ok next)
-    : StepEffect w (.previous store tx map key value) next := by
-  refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-  repeat obtain ⟨_, -, h⟩ := bind_ok h
-  exact runOp_frozen h
-
-private theorem stepEvent_effect_put (w next : World) (store tx : Nat)
-    (map key value : String)
-    (accepted : stepEvent w (.put store tx map key value) = .ok next)
-    : StepEffect w (.put store tx map key value) next := by
-  refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-  repeat obtain ⟨_, -, h⟩ := bind_ok h
-  exact runOp_frozen h
-
-private theorem stepEvent_effect_remove (w next : World) (store tx : Nat)
-    (map key : String) (accepted : stepEvent w (.remove store tx map key) = .ok next)
-    : StepEffect w (.remove store tx map key) next := by
-  refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-  repeat obtain ⟨_, -, h⟩ := bind_ok h
-  exact runOp_frozen h
-
-private theorem stepEvent_effect_size (w next : World) (store tx : Nat) (map : String)
-    (value : Nat) (accepted : stepEvent w (.size store tx map value) = .ok next)
-    : StepEffect w (.size store tx map value) next := by
-  refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-  repeat obtain ⟨_, -, h⟩ := bind_ok h
-  exact runOp_frozen h
-
-private theorem stepEvent_effect_range (w next : World) (store tx : Nat) (map : String)
-    (lower upper : Option String) (entries : Assoc String String)
-    (accepted : stepEvent w (.range store tx map lower upper entries) = .ok next)
-    : StepEffect w (.range store tx map lower upper entries) next := by
-  refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-  obtain ⟨_, -, h⟩ := bind_ok h
-  split at h
-  · obtain ⟨_, -, h⟩ := bind_ok h
-    cases pure_ok h
-    exact .refl _
-  · obtain ⟨_, -, h⟩ := bind_ok h
-    exact runOp_frozen h
-
-private theorem stepEvent_effect_clear (w next : World) (store tx : Nat) (map : String)
-    (accepted : stepEvent w (.clear store tx map) = .ok next)
-    : StepEffect w (.clear store tx map) next := by
-  refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-  obtain ⟨_, -, h⟩ := bind_ok h
-  obtain ⟨_, one, h⟩ := bind_ok h
-  exact (runOp_frozen one).trans (clearWrites_frozen h)
-
-private theorem stepEvent_effect_foreachBegin (w next : World) (store tx : Nat)
-    (map : String) (iteration : Nat)
-    (accepted : stepEvent w (.foreachBegin store tx map iteration) = .ok next)
-    : StepEffect w (.foreachBegin store tx map iteration) next := by
-  refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-  obtain ⟨_, -, h⟩ := bind_ok h
-  obtain ⟨_, -, h⟩ := bind_ok h
-  obtain ⟨_, one, h⟩ := bind_ok h
-  cases pure_ok h
-  exact (runOp_frozen one).trans (.fields rfl rfl rfl rfl)
-
-private theorem stepEvent_effect_unavailable (w next : World) (store tx : Nat)
-    (map : String) (accepted : stepEvent w (.unavailable store tx map) = .ok next)
-    : StepEffect w (.unavailable store tx map) next := by
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-  repeat obtain ⟨_, -, h⟩ := bind_ok h
-  cases pure_ok h
-  exact .fields rfl rfl rfl rfl
-
-private theorem stepEvent_effect_commitResult (w next : World) (store tx : Nat)
-    (result : Outcome) (version : Nat)
-    (accepted : stepEvent w (.commitResult store tx result version) = .ok next)
-    : StepEffect w (.commitResult store tx result version) next := by
-  refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-  split at h
-  next =>
-    obtain ⟨_, -, h⟩ := bind_ok h
-    cases pure_ok h
-    exact .fields rfl rfl rfl rfl
-  next =>
-    obtain ⟨_, -, h⟩ := bind_ok h
-    split at h
-    · obtain ⟨_, -, h⟩ := bind_ok h
-      cases pure_ok h
-      exact .fields rfl rfl rfl rfl
-    · cases pure_ok h
-      exact .fields rfl rfl rfl rfl
-  next =>
-    obtain ⟨_, -, h⟩ := bind_ok h
-    cases pure_ok h
-    exact .fields rfl rfl rfl rfl
-
-private theorem stepEvent_effect (w next : World) (e : Event)
-    (accepted : stepEvent w e = .ok next)
-    : StepEffect w e next := by
-  cases e with
-  | traceStart | caseBegin | caseEnd | subcaseBegin | subcaseEnd | traceEnd =>
-      repeat obtain ⟨_, -, accepted⟩ := bind_ok accepted
-      cases pure_ok accepted
-      exact .same rfl rfl fun _ => rfl
-  | rollbackRejected => exact stepEvent_effect_rollbackRejected w next _ _ _ accepted
-  | unsupported => cases accepted
-  | storeCreate => exact stepEvent_effect_storeCreate w next _ accepted
-  | storeEnd => exact stepEvent_effect_storeEnd w next _ accepted
-  | txCreate => exact stepEvent_effect_txCreate w next _ _ accepted
-  | txEnd => exact stepEvent_effect_txEnd w next _ _ accepted
-  | compact =>
-      obtain ⟨s, store, accepted⟩ := bind_ok accepted
-      repeat obtain ⟨_, -, accepted⟩ := bind_ok accepted
-      cases pure_ok accepted
-      exact .compact store rfl rfl
-  | rollback =>
-      obtain ⟨s, store, accepted⟩ := bind_ok accepted
-      repeat obtain ⟨_, -, accepted⟩ := bind_ok accepted
-      cases pure_ok accepted
-      exact .rollback store rfl rfl
-  | snapshot => exact stepEvent_effect_snapshot w next _ _ _ _ _ accepted
-  | acquire =>
-      obtain ⟨s, store, accepted⟩ := bind_ok accepted
-      obtain ⟨t, t', tx, h, rfl⟩ := withTx_ok accepted
-      exact .acquire store tx h rfl rfl
-  | apply => exact stepEvent_effect_apply w next _ _ _ _ _ accepted
-  | get => exact stepEvent_effect_get w next _ _ _ _ _ _ accepted
-  | has => exact stepEvent_effect_has w next _ _ _ _ _ _ accepted
-  | previous => exact stepEvent_effect_previous w next _ _ _ _ _ accepted
-  | put => exact stepEvent_effect_put w next _ _ _ _ _ accepted
-  | remove => exact stepEvent_effect_remove w next _ _ _ _ accepted
-  | size => exact stepEvent_effect_size w next _ _ _ _ accepted
-  | range => exact stepEvent_effect_range w next _ _ _ _ _ _ accepted
-  | clear => exact stepEvent_effect_clear w next _ _ _ accepted
-  | foreachBegin => exact stepEvent_effect_foreachBegin w next _ _ _ _ accepted
-  | foreachEntry | foreachContinue | foreachEnd =>
-      refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-      obtain ⟨⟨_, _⟩, -, h⟩ := bind_ok h
-      repeat obtain ⟨_, -, h⟩ := bind_ok h
-      cases pure_ok h
-      exact .fields rfl rfl rfl rfl
-  | unavailable => exact stepEvent_effect_unavailable w next _ _ _ accepted
-  | commitBegin =>
-      refine StepEffect.withTx (fun _ => rfl) (fun t t' h => ?_) accepted
-      repeat obtain ⟨_, -, h⟩ := bind_ok h
-      cases pure_ok h
-      exact .fields rfl rfl rfl rfl
-  | commitResult => exact stepEvent_effect_commitResult w next _ _ _ _ accepted
-
-private theorem stepEvent_invariant (w next : World) (valid : WorldInvariant w)
-    (e : Event) (accepted : stepEvent w e = .ok next)
-    : WorldInvariant next := by
-  cases stepEvent_effect w next e accepted with
-  | same stores txs =>
-      exact ⟨by rw [stores]; exact valid.stores, by rw [txs]; exact valid.txs⟩
-  | storeCreate stores txs =>
-      exact ⟨
-        by rw [stores]; exact lookup_set_invariant _ _ valid.stores _ _ store_initial,
-        by rw [txs]; exact valid.txs
-      ⟩
-  | storeEnd stores txs =>
-      exact ⟨
-        by rw [stores]; exact lookup_erase_invariant _ _ valid.stores _,
-        by rw [txs]; exact valid.txs
-      ⟩
-  | txCreate stores txs =>
-      exact ⟨
-        by rw [stores]; exact valid.stores,
-        by rw [txs]; exact lookup_set_invariant _ _ valid.txs _ _ (tx_initial _)
-      ⟩
-  | txEnd stores txs =>
-      exact ⟨
-        by rw [stores]; exact valid.stores,
-        by rw [txs]; exact lookup_erase_invariant _ _ valid.txs _
-      ⟩
-  | compact store stores txs =>
-      exact ⟨
-        by
-          rw [stores]
-          exact lookup_set_invariant _ _ valid.stores _ _
-            (compact_invariant _ (storeOf_invariant w valid _ _ store) _),
-        by rw [txs]; exact valid.txs
-      ⟩
-  | rollback store stores txs =>
-      exact ⟨
-        by
-          rw [stores]
-          exact lookup_set_invariant _ _ valid.stores _ _
-            (rollback_invariant _ (storeOf_invariant w valid _ _ store) _ _),
-        by rw [txs]; exact valid.txs
-      ⟩
-  | snapshot store history head globalCut tx fresh stores txs =>
-      have shape := storeOf_invariant w valid _ _ store
-      refine ⟨?_, ?_⟩
-      · rw [stores]
-        refine lookup_set_invariant _ _ valid.stores _ _ ⟨?_, ?_, ?_⟩
-        · rw [history, head]; exact shape.historyShape
-        · rw [history, head]; exact shape.headFirst
-        · rw [globalCut, head]; exact shape.globalBound
-      · rw [txs]
-        exact lookup_set_invariant _ _ valid.txs _ _
-          (snapshot_invariant _ shape _ _ (valid.txs _ _ tx) fresh)
-  | acquire store tx acquired stores txs =>
-      exact ⟨
-        by rw [stores]; exact valid.stores,
-        by
-          rw [txs]
-          exact lookup_set_invariant _ _ valid.txs _ _
-            (acquireMap_invariant _ (storeOf_invariant w valid _ _ store) _ _
-              (txOf_invariant w valid _ _ _ tx) _ _ _ acquired)
-      ⟩
-  | apply store tx applied stores txs =>
-      exact ⟨
-        by
-          rw [stores]
-          exact lookup_set_invariant _ _ valid.stores _ _
-            (tryApply_invariant _ _ (storeOf_invariant w valid _ _ store) _ applied),
-        by
-          rw [txs]
-          exact lookup_set_invariant _ _ valid.txs _ _
-            (tx_fields_invariant _ _ (txOf_invariant w valid _ _ _ tx) rfl rfl rfl rfl)
-      ⟩
-  | update tx frozen stores txs =>
-      exact ⟨
-        by rw [stores]; exact valid.stores,
-        by
-          rw [txs]
-          exact lookup_set_invariant _ _ valid.txs _ _
-            (frozen.valid (txOf_invariant w valid _ _ _ tx))
-      ⟩
-
-private theorem step_ok {w next : World} {r : Record} (accepted : step w r = .ok next)
-    : ∃ eventNext,
-        stepEvent w r.event = .ok eventNext
-        ∧ next = { eventNext with lastSeq := some r.seq, count := w.count + 1 } := by
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  obtain ⟨_, -, accepted⟩ := bind_ok accepted
-  obtain ⟨seq, event⟩ := r
-  dsimp only at accepted ⊢
-  split at accepted <;> try split at accepted
-  all_goals first
-    | obtain ⟨_, invalid, -⟩ := bind_ok accepted; cases invalid
-    | obtain ⟨eventNext, event, accepted⟩ := bind_ok accepted
-      exact ⟨eventNext, event, (pure_ok accepted).symm⟩
-
-private theorem step_invariant (w next : World) (valid : WorldInvariant w) (r : Record)
-    (accepted : step w r = .ok next)
-    : WorldInvariant next := by
-  obtain ⟨_, event, rfl⟩ := step_ok accepted
-  have eventValid := stepEvent_invariant w _ valid r.event event
-  exact ⟨eventValid.stores, eventValid.txs⟩
-
-private theorem reachable_invariant (w : World) (reachable : transitionSystem.Reachable w)
-    : WorldInvariant w := by
-  induction reachable using @CCF.TransitionSystem.Reachable.rec transitionSystem with
-  | initial initialized => cases initialized; exact world_initial
-  | step _ transition ih =>
-      exact step_invariant _ _ ih _ ((Execution.step_iff_transition _ _ _).mp transition)
-
-end Kv.Proofs.Invariants
-
-namespace Kv.Proofs.Model
-
-open Kv.Model Kv.Proofs.Invariants Kv.Properties
 section Generic
-variable {M K V : Type} [DecidableEq M] [DecidableEq K]
-
+variable [DecidableEq M] [DecidableEq K]
 private theorem erase_keys (xs : Assoc K V) (k : K)
     : (erase xs k).map Prod.fst = (xs.map Prod.fst).filter (· != k) :=
   (List.filter_map (f := Prod.fst) (p := (· != k)) (l := xs)).symm
@@ -1096,15 +450,8 @@ private theorem publish_unique (db : DB M K V) (version : Nat) (ws : Writes M K 
       | some value => exact set_unique _ a ⟨value, version⟩ ih
 
 end Generic
-end Kv.Proofs.Model
-
-namespace Kv.Proofs.Model
-
-open Kv.Model Kv.Proofs.Invariants Kv.Properties
 section Generic
-variable {M K V : Type} [DecidableEq M] [DecidableEq K]
-variable [DecidableEq V]
-
+variable [DecidableEq M] [DecidableEq K] [DecidableEq V]
 private theorem validates_append (db : DB M K V) (a b : List (Dependency M K V))
     : validates db (a ++ b) = (validates db a && validates db b) := by
   simp [validates]
@@ -1148,7 +495,7 @@ private theorem normalStep_prefix_valid (snapshot current : DB M K V)
   next h =>
     cases hs
     have hh : validates current (needs snapshot n.writes op) = true ∧
-        validates current n.deps = true := by simpa [validates_append] using hv
+        validates current n.deps = true := by simpa [recordOp, validates_append] using hv
     exact hh.2
   next h => simp at hs
 
@@ -1162,11 +509,11 @@ private theorem normalStep_rebase (snapshot current : DB M K V)
   next h =>
     cases hs
     have hh : validates current (needs snapshot n.writes op) = true ∧
-        validates current n.deps = true := by simpa [validates_append] using hv
+        validates current n.deps = true := by simpa [recordOp, validates_append] using hv
     have hneeds := hh.1
     have hobs := dependency_rebase snapshot current n.writes op hneeds
     rw [serialStep_eq, ← hobs]
-    simp [h]
+    simp [h, recordOp]
   next h => simp at hs
 
 private theorem normalRun_prefix_valid (snapshot current : DB M K V)
@@ -1224,7 +571,7 @@ private theorem normalRun_snapshot_valid (snapshot : DB M K V)
             split at hs
             next h =>
               cases hs
-              simp [validates_append, validates_self, hn]
+              simp [recordOp, validates_append, validates_self, hn]
             next h => simp at hs
           · simpa [normalRun, hs] using hr
 
@@ -1236,12 +583,6 @@ private theorem readonly_snapshot_serial (snapshot : DB M K V)
     (normalRun_snapshot_valid snapshot ops {} n (by rfl) hr)
 
 end Generic
-end Kv.Proofs.Model
-
-namespace Kv.Proofs.Model
-
-open Kv.Model Kv.Proofs.Invariants Kv.Properties
-
 private theorem compact_preserves_head (s : Store) (v : Nat)
     : (compactStore s v).head = s.head := by
   unfold compactStore
@@ -1321,209 +662,238 @@ private theorem executable_branch_serializability (s final : Store) (ts : List T
       rw [← hw.2, ← hversion]
       exact ih (fun tx member => valid tx (by simp [member]))
 
-end Kv.Proofs.Model
+private theorem record_invariant (t : Tx) (valid : TxInvariant t) (snap : Snapshot)
+    (captured : t.snapshot = some snap) (op : NormalOp String String String)
+    (observed : observes t.data t.normal.writes op = true)
+    : TxInvariant { t with normal := recordOp t.data t.normal op } := by
+  refine ⟨?_, valid.snapshot, valid.globals⟩
+  exact operation_normal t valid.normal snap _ op captured
+    (by simp [normalStep, observed])
 
-namespace Kv.Proofs.Trace
+private theorem clear_invariant (t : Tx) (valid : TxInvariant t) (snap : Snapshot)
+    (captured : t.snapshot = some snap) (m : String) (entries : Assoc String String)
+    : TxInvariant
+        (entries.foldl
+          (fun acc (k, _) =>
+            { acc with normal := recordOp acc.data acc.normal (.write (m, k) none) })
+          t) := by
+  induction entries generalizing t with
+  | nil => exact valid
+  | cons entry _rest ih =>
+      exact ih _ (record_invariant t valid snap captured (.write (m, entry.1) none) rfl)
+        captured
 
-open Kv.Model Kv.Proofs.Invariants Kv.Properties Kv.Proofs.Model
+private theorem operation_invariant (t : Tx) (valid : TxInvariant t) (snap : Snapshot)
+    (captured : t.snapshot = some snap) (op : Operation)
+    : TxInvariant (executeOperation t op).1 := by
+  cases op with
+  | get m k global =>
+      cases global
+      · exact record_invariant t valid snap captured _ (by simp [observes])
+      · exact valid
+  | has m k global =>
+      cases global
+      · exact record_invariant t valid snap captured _ (by simp [observes])
+      · exact valid
+  | previous m k => exact record_invariant t valid snap captured _ (by simp [observes])
+  | write m k v => exact record_invariant t valid snap captured _ rfl
+  | size m =>
+      exact record_invariant t valid snap captured _ (by simp [observes])
+  | scan m =>
+      exact record_invariant t valid snap captured _ (by simp [observes])
+  | range m lower upper =>
+      dsimp only [executeOperation, Operation.map]
+      split
+      · exact valid
+      · exact record_invariant t valid snap captured _ (by simp [observes])
+  | clear m =>
+      exact clear_invariant _
+        (record_invariant t valid snap captured _ (by simp [observes]))
+        snap captured m _
 
-/-- The head of `after` is that of `before`, or follows from it by applying the listed attempt. -/
-private inductive HeadEffect (before after : Store) : List Tx → Prop
-  /-- The head data and version are unchanged. -/
-  | stutter (data : after.head.data = before.head.data)
-    (version : after.head.version = before.head.version)
-    : HeadEffect before after []
-  /-- One attempt is applied. -/
-  | apply (tx : Tx) (one : tryApply before tx = some after) : HeadEffect before after [tx]
+private theorem option_bind_ok {α β : Type} {x : Option α} {f : α → Option β} {b : β}
+    (accepted : x.bind f = some b)
+    : ∃ a, x = some a ∧ f a = some b := by
+  cases x with
+  | none => cases accepted
+  | some a => exact ⟨a, rfl, accepted⟩
 
-private theorem storeOf_ok (w : World) (sid : Nat) (s : Store)
-    : storeOf w sid = .ok s ↔ find w.stores sid = some s := by
-  cases h : find w.stores sid <;> simp [storeOf, present, invalid, h]
+private theorem lookup_invariant (w : State) (valid : StateInvariant w)
+    (sid tid : Nat) (s : Store) (t : Tx) (found : lookupTx w sid tid = some (s, t))
+    : StoreInvariant s ∧ TxInvariant t := by
+  obtain ⟨store, hs, rest⟩ := option_bind_ok found
+  obtain ⟨tx, ht, rest⟩ := option_bind_ok rest
+  split at rest
+  · cases rest
+    exact ⟨valid.stores sid s hs, valid.txs tid t ht⟩
+  · cases rest
 
-private theorem stable_update_store_effect (w next : World) (sid id : Nat)
-    (s old new : Store) (hs : find w.stores sid = some s)
-    (hold : find w.stores id = some old) (same : next.stores = set w.stores id new)
-    (head : new.head = old.head)
-    : ∃ after, find next.stores sid = some after ∧ HeadEffect s after [] := by
-  by_cases h : id = sid
-  · subst id
-    have ho : old = s := Option.some.inj (hold.symm.trans hs)
-    subst old
-    exact ⟨new, by simp [same, find_set_same], .stutter (congrArg Frame.data head)
-      (congrArg Frame.version head)⟩
-  · exact ⟨s, by simpa [same, find_set_other _ id sid new h] using hs, .stutter rfl rfl⟩
+private theorem update_tx (w : State) (valid : StateInvariant w) (tid : Nat) (t : Tx)
+    (holds : TxInvariant t)
+    : StateInvariant { w with txs := set w.txs tid t } :=
+  ⟨valid.stores, lookup_set_invariant TxInvariant w.txs valid.txs tid t holds⟩
 
-private theorem stepEvent_store_effect (w next : World) (sid : Nat) (s : Store)
-    (e : Event) (hs : find w.stores sid = some s) (segment : SegmentEvent sid e)
-    (accepted : stepEvent w e = .ok next)
-    : ∃ after,
-        find next.stores sid = some after
-        ∧ HeadEffect s after (projectedApplication w sid e) := by
-  have unchanged_store_effect (w next : World) (sid : Nat) (s : Store) (e : Event)
-      (hs : find w.stores sid = some s) (same : next.stores = w.stores)
-      (noApply : projectedApplication w sid e = [])
-      : ∃ after,
-          find next.stores sid = some after
-          ∧ HeadEffect s after (projectedApplication w sid e) := by
-    refine ⟨s, ?_, ?_⟩
-    · simpa [same] using hs
-    · rw [noApply]
-      exact .stutter rfl rfl
-  have applied_update_store_effect (w next : World) (sid id tid : Nat)
-      (s old new : Store) (t : Tx)
-      (hs : find w.stores sid = some s) (hold : storeOf w id = .ok old)
-      (htx : txOf w id tid = .ok t) (ha : tryApply old t = some new)
-      (same : next.stores = set w.stores id new)
-      : ∃ after,
-          find next.stores sid = some after
-          ∧ HeadEffect s after
-              (if id = sid then (txOf w id tid).toOption.toList else []) := by
-    have hf := (storeOf_ok w id old).mp hold
-    by_cases h : id = sid
-    · subst id
-      have ho : old = s := Option.some.inj (hf.symm.trans hs)
-      subst old
-      refine ⟨new, by simp [same, find_set_same], ?_⟩
-      simpa [htx, Except.toOption, Option.toList] using HeadEffect.apply t ha
-    · refine ⟨s, by simpa [same, find_set_other _ id sid new h] using hs, ?_⟩
-      simpa [h] using HeadEffect.stutter (before := s) rfl rfl
-  cases stepEvent_effect w next e accepted with
-  | same stores _ noApply =>
-      exact unchanged_store_effect w next sid s _ hs stores (noApply sid)
-  | storeCreate stores _ | rollback _ stores _ =>
-      exact ⟨
-        s,
-        by rw [stores, find_set_other _ _ _ _ segment]; exact hs,
-        .stutter rfl rfl
-      ⟩
-  | storeEnd stores _ =>
-      exact ⟨
-        s,
-        by rw [stores, find_erase_other _ _ _ segment]; exact hs,
-        .stutter rfl rfl
-      ⟩
-  | txCreate stores _ | txEnd stores _ | acquire _ _ _ stores _ =>
-      exact unchanged_store_effect w next sid s _ hs stores rfl
-  | compact store stores _ =>
-      exact stable_update_store_effect w next sid _ s _ _ hs ((storeOf_ok _ _ _).mp store) stores
-        (compact_preserves_head _ _)
-  | snapshot store _ head _ _ _ stores _ =>
-      exact stable_update_store_effect w next sid _ s _ _ hs ((storeOf_ok _ _ _).mp store) stores
-        head
-  | apply store tx applied stores _ =>
-      exact applied_update_store_effect w next sid _ _ s _ _ _ hs store tx applied stores
-  | update _ _ stores _ noApply =>
-      exact unchanged_store_effect w next sid s _ hs stores (noApply sid)
+private theorem update_store (w : State) (valid : StateInvariant w) (sid : Nat)
+    (s : Store) (holds : StoreInvariant s)
+    : StateInvariant { w with stores := set w.stores sid s } :=
+  ⟨lookup_set_invariant StoreInvariant w.stores valid.stores sid s holds, valid.txs⟩
 
-private theorem step_event_result (w next : World) (r : Record)
-    (accepted : step w r = .ok next)
-    : ∃ eventNext,
-        stepEvent w r.event = .ok eventNext
-        ∧ next.stores = eventNext.stores
-        ∧ next.txs = eventNext.txs := by
-  obtain ⟨eventNext, event, rfl⟩ := step_ok accepted
-  exact ⟨eventNext, event, rfl, rfl⟩
+private theorem acquired_invariant (s : Store) (store : StoreInvariant s) (t : Tx)
+    (valid : TxInvariant t) (snap : Snapshot) (_captured : t.snapshot = some snap)
+    (m : String) (unused : t.normal.log.all (fun op => op.map != m) = true)
+    : TxInvariant
+        {
+          t with
+            globalViews := set t.globalViews m (captureGlobal s snap m)
+            data := pinData t.data m (captureGlobal s snap m).current.data
+        } := by
+  refine ⟨acquisition_normal t valid.normal m _ unused, valid.snapshot, ?_⟩
+  exact lookup_set_invariant GlobalInvariant t.globalViews valid.globals m _
+    (captureGlobal_invariant s store snap m)
 
-private theorem HeadEffect.serial_witness (before after : Store) (txs : List Tx)
-    (valid : ∀ t ∈ txs, NormalInvariant t)
-    (effect : HeadEffect before after txs)
-    : serialTransactions before.head.data before.head.version txs = some after.head.data
-      ∧ after.head.version = before.head.version + txs.length := by
-  cases effect with
-  | stutter data version => simp [serialTransactions, data, version]
-  | apply tx one =>
-      have h := tryApply_serial before after tx (valid tx (by simp)) one
-      constructor
-      · simpa [serialTransactions, h.1] using congrArg some h.2.symm
-      · unfold tryApply at one
-        split at one
-        next => cases one; rfl
-        next => simp at one
+private theorem execute_invariant (w next : State) (valid : StateInvariant w)
+    (a : Action) (output : Output) (accepted : execute w a = some (next, output))
+    : StateInvariant next := by
+  cases a with
+  | storeCreate sid term =>
+      dsimp only [execute] at accepted
+      split at accepted
+      · cases accepted
+      · cases accepted
+        exact update_store w valid sid _ ⟨.zero, rfl, Nat.le_refl 0⟩
+  | storeEnd sid =>
+      obtain ⟨_, _, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      split at rest
+      · cases rest
+      · cases rest
+        exact ⟨lookup_erase_invariant StoreInvariant w.stores valid.stores sid, valid.txs⟩
+  | txCreate sid tid =>
+      obtain ⟨_, _, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      split at rest
+      · cases rest
+      · cases rest
+        exact update_tx w valid tid _ (tx_initial sid)
+  | txEnd sid tid =>
+      obtain ⟨_, _, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      cases rest
+      exact ⟨valid.stores, lookup_erase_invariant TxInvariant w.txs valid.txs tid⟩
+  | setTerm sid term =>
+      obtain ⟨s, found, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      split at rest
+      · cases rest
+      · cases rest
+        have inv := valid.stores sid s found
+        exact update_store w valid sid _ ⟨inv.historyShape, inv.headFirst, inv.globalBound⟩
+  | snapshot sid tid =>
+      obtain ⟨⟨s, t⟩, found, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      have inv := lookup_invariant w valid sid tid s t found
+      split at rest
+      · cases rest
+      · have fresh : t.snapshot = none := by
+          have condition : (t.phase != .active || t.snapshot.isSome) = false := by
+            apply Bool.eq_false_iff.mpr
+            assumption
+          cases captured : t.snapshot
+          · rfl
+          · simp [captured] at condition
+        cases rest
+        exact update_tx w valid tid _ (snapshot_invariant s inv.1 s.term t inv.2 fresh)
+  | acquire sid tid m =>
+      obtain ⟨⟨s, t⟩, found, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      have inv := lookup_invariant w valid sid tid s t found
+      obtain ⟨snap, captured, rest⟩ := option_bind_ok rest
+      try dsimp only at rest
+      split at rest
+      · cases rest
+      · have unused : t.normal.log.all (fun op => op.map != m) = true := by
+          have condition : (t.phase != .active || (find t.globalViews m).isSome
+              || !t.normal.log.all (fun op => op.map != m)) = false := by
+            apply Bool.eq_false_iff.mpr
+            assumption
+          cases used : t.normal.log.all (fun op => op.map != m) <;>
+            simp [used] at condition ⊢
+        split at rest
+        · cases rest
+          exact update_tx w valid tid _ (acquired_invariant s inv.1 t inv.2 snap captured m unused)
+        · cases rest
+          exact update_tx w valid tid _ (tx_fields_invariant t _ inv.2 rfl rfl rfl rfl)
+  | operation sid tid op =>
+      obtain ⟨⟨s, t⟩, found, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      have inv := lookup_invariant w valid sid tid s t found
+      split at rest
+      · cases rest
+      · have captured : ∃ snap, t.snapshot = some snap := by
+          cases captured : t.snapshot with
+          | none => simp [captured] at *
+          | some snap => exact ⟨snap, rfl⟩
+        obtain ⟨snap, captured⟩ := captured
+        cases rest
+        exact update_tx w valid tid _ (operation_invariant t inv.2 snap captured op)
+  | commitBegin sid tid =>
+      obtain ⟨⟨s, t⟩, found, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      have inv := lookup_invariant w valid sid tid s t found
+      split at rest
+      · cases rest
+      · cases rest
+        exact update_tx w valid tid _ (tx_fields_invariant t _ inv.2 rfl rfl rfl rfl)
+  | apply sid tid =>
+      obtain ⟨⟨s, t⟩, found, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      have inv := lookup_invariant w valid sid tid s t found
+      split at rest
+      · cases rest
+      · obtain ⟨store, applied, rest⟩ := option_bind_ok rest
+        try dsimp only at rest
+        cases rest
+        exact update_tx _ (update_store w valid sid store
+          (tryApply_invariant s store inv.1 t applied)) tid _
+          (tx_fields_invariant t _ inv.2 rfl rfl rfl rfl)
+  | commitResult sid tid result =>
+      obtain ⟨⟨s, t⟩, found, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      have inv := lookup_invariant w valid sid tid s t found
+      cases phase : t.phase <;> simp only [phase] at rest
+      all_goals try split at rest
+      all_goals try dsimp only at rest
+      all_goals cases rest
+      all_goals exact update_tx w valid tid _ (tx_fields_invariant t _ inv.2 rfl rfl rfl rfl)
+  | compact sid requested =>
+      obtain ⟨s, found, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      cases rest
+      exact update_store w valid sid _ (compact_invariant s (valid.stores sid s found) requested)
+  | rollback sid requested term =>
+      obtain ⟨s, found, rest⟩ := option_bind_ok accepted
+      try dsimp only at rest
+      split at rest
+      · cases rest
+        exact valid
+      · split at rest
+        · cases rest
+        · cases rest
+          exact update_store w valid sid _ (rollback_invariant s (valid.stores sid s found) requested term)
 
-private theorem serialTransactions_append (db : Data) (version : Nat) (xs ys : List Tx)
-    : serialTransactions db version (xs ++ ys)
-      = (serialTransactions db version xs).bind
-          (fun next => serialTransactions next (version + xs.length) ys) := by
-  induction xs generalizing db version with
-  | nil => rfl
-  | cons tx xs ih =>
-      cases h : serialRun db [] tx.normal.log with
-      | none => simp [serialTransactions, h]
-      | some writes =>
-          simp [serialTransactions, h, ih, Nat.add_comm, Nat.add_left_comm]
-
-private theorem projectedApplication_normal (w : World) (valid : WorldInvariant w)
-    (sid : Nat) (e : Event)
-    : ∀ t ∈ projectedApplication w sid e, NormalInvariant t := by
-  cases e <;> simp only [projectedApplication]
-  all_goals try exact fun _ member => False.elim (List.not_mem_nil member)
-  rename_i id tid version term writes
-  intro t member
-  by_cases same : id = sid
-  · subst id
-    simp only [ite_true] at member
-    cases lookup : txOf w sid tid with
-    | error err => simp [lookup, Except.toOption] at member
-    | ok tx =>
-        have equal : t = tx := by
-          simpa [lookup, Except.toOption, Option.toList] using member
-        subst t
-        exact (txOf_invariant w valid sid tid tx lookup).normal
-  · simp [same] at member
-
-/-- A selected store stays live throughout the segment. Its rollback/create/end
-events partition segments; all other-store events are permitted. The projected
-attempts are obtained from the real pre-event txOf, not supplied as a premise. -/
-private theorem replay_segment_serializability (w final : World) (sid : Nat) (s : Store)
-    (valid : WorldInvariant w)
-    (rs : List Record) (live : find w.stores sid = some s)
-    (segment : ∀ r ∈ rs, SegmentEvent sid r.event)
-    (accepted : replay w rs = .ok final)
-    : ∃ after txs,
-        find final.stores sid = some after
-        ∧ projectApplications w sid rs = .ok txs
-        ∧ serialTransactions s.head.data s.head.version txs = some after.head.data
-        ∧ after.head.version = s.head.version + txs.length := by
-  have step_store_effect (w next : World) (sid : Nat) (s : Store) (r : Record)
-      (hs : find w.stores sid = some s) (segment : SegmentEvent sid r.event)
-      (accepted : step w r = .ok next)
-      : ∃ after,
-          find next.stores sid = some after
-          ∧ HeadEffect s after (projectedApplication w sid r.event) := by
-    obtain ⟨eventNext, he, stores, _⟩ := step_event_result w next r accepted
-    obtain ⟨after, found, effect⟩ := stepEvent_store_effect w eventNext sid s r.event hs segment he
-    exact ⟨after, by simpa [stores] using found, effect⟩
-  induction rs generalizing w s with
-  | nil =>
-      cases accepted
-      exact ⟨s, [], live, rfl, rfl, by simp⟩
-  | cons r rs ih =>
-      cases first : step w r with
-      | error err => simp [replay, first, Except.bind] at accepted
-      | ok middle =>
-          have rest : replay middle rs = .ok final := by
-            simpa [replay, first, Except.bind] using accepted
-          obtain ⟨nextStore, nextLive, effect⟩ := step_store_effect w middle sid s r live
-            (segment r (by simp)) first
-          obtain ⟨after, tailTxs, afterLive, projected, tailSerial, tailVersion⟩ :=
-            ih middle nextStore (step_invariant w middle valid r first) nextLive
-              (fun e he => segment e (by simp [he])) rest
-          have applications := projectedApplication_normal w valid sid r.event
-          have one := HeadEffect.serial_witness s nextStore _ applications effect
-          refine ⟨
-            after,
-            projectedApplication w sid r.event ++ tailTxs,
-            afterLive,
-            ?_,
-            ?_,
-            ?_
-          ⟩
-          · simp [projectApplications, first, projected, Bind.bind, Except.bind, Pure.pure, Except.pure]
-          · rw [serialTransactions_append, one.1]
-            simpa [← one.2] using tailSerial
-          · simp only [List.length_append]
-            rw [tailVersion, one.2]
-            exact Nat.add_assoc _ _ _
+private theorem reachable_invariant (w : State)
+    (reachable : Model.transitionSystem.Reachable w)
+    : StateInvariant w := by
+  induction reachable
+    using @CCF.TransitionSystem.Reachable.rec Model.transitionSystem with
+  | initial initialized =>
+      cases initialized
+      exact world_initial
+  | @step w next action _ transition ih =>
+      obtain ⟨pair, executed, state⟩ := Option.map_eq_some_iff.mp transition
+      obtain ⟨semantic, output⟩ := pair
+      cases state
+      exact execute_invariant _ _ ih action output executed
 
 private theorem History.head_cells_bounded (fs : List Frame) (n : Nat)
     (shape : History fs n)
@@ -1582,202 +952,199 @@ private theorem map_global_view_safety (view : GlobalView) (valid : GlobalInvari
     · rw [committed]; exact (atCut_spec origin store origin.global store.globalBound).1
     · rw [committed]; exact atCut_cells_bounded origin store origin.global store.globalBound
 
-theorem replay_segment_serializability_claim
-    : ∀ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        Model.transitionSystem.Reachable w
-        → find w.stores sid = some s
-        → (∀ r ∈ rs, SegmentEvent sid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
-        → ∃ after txs,
-            find final.stores sid = some after
-            ∧ projectApplications w sid rs = .ok txs
-            ∧ serialTransactions s.head.data s.head.version txs = some after.head.data
-            ∧ after.head.version = s.head.version + txs.length := by
-  intro w final sid s rs reachable live segment accepted
-  exact Proofs.Trace.replay_segment_serializability w final sid s
-    (Invariants.reachable_invariant w reachable) rs live segment ((Proofs.Execution.replay_iff_run _ _ _).mp accepted)
-
-theorem reachable_store_invariants_claim
-    : ∀ (w : World) (sid : Nat) (s : Store),
+/-- All semantic-reachable stores have complete publication histories and valid global cuts. -/
+theorem semantic_reachable_store_invariants
+    : ∀ (w : State) (sid : Nat) (s : Store),
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
         → History s.history s.head.version
           ∧ s.history.head? = some s.head
           ∧ s.global ≤ s.head.version
           ∧ (atCut s s.global).version = s.global := by
-  have reachable_store_invariants (w : World)
-      (valid : WorldInvariant w)
-      (sid : Nat) (s : Store) (_live : find w.stores sid = some s)
-      : History s.history s.head.version
-        ∧ s.history.head? = some s.head
-        ∧ s.global ≤ s.head.version
-        ∧ (atCut s s.global).version = s.global := by
-    have store := valid.stores sid s _live
-    exact ⟨store.historyShape, store.headFirst, store.globalBound,
-      (atCut_spec s store s.global store.globalBound).1⟩
-  intro w sid s reachable live
-  exact reachable_store_invariants w (Invariants.reachable_invariant w reachable) sid s
-    live
+  intro w sid s reachable found
+  have inv := (reachable_invariant w reachable).stores sid s found
+  exact ⟨inv.historyShape, inv.headFirst, inv.globalBound,
+    (atCut_spec s inv s.global inv.globalBound).1⟩
 
-theorem reachable_store_data_invariants_claim
-    : ∀ (w : World) (sid : Nat) (s : Store),
+/-- Every semantic-reachable head has unique keys and bounded previous-write versions. -/
+theorem semantic_reachable_store_data_invariants
+    : ∀ (w : State) (sid : Nat) (s : Store),
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
-        → Kv.Properties.Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
-  have reachable_store_data_invariants (w : World)
-      (valid : WorldInvariant w)
-      (sid : Nat) (s : Store) (_live : find w.stores sid = some s)
-      : Kv.Properties.Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
-    have store := valid.stores sid s _live
-    have unique := History.head_unique s.history s.head.version store.historyShape
-    have bounded := History.head_cells_bounded s.history s.head.version store.historyShape
-    simpa only [store.headFirst, Option.getD_some] using And.intro unique bounded
-  intro w sid s reachable live
-  exact reachable_store_data_invariants w (Invariants.reachable_invariant w reachable) sid
-    s live
+        → Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
+  intro w sid s reachable found
+  have inv := (reachable_invariant w reachable).stores sid s found
+  exact ⟨
+    by
+      simpa only [inv.headFirst, Option.getD_some]
+        using History.head_unique s.history s.head.version inv.historyShape,
+    by
+      simpa only [inv.headFirst, Option.getD_some]
+        using History.head_cells_bounded s.history s.head.version inv.historyShape
+  ⟩
 
-theorem step_global_read_from_captured_map_claim
-    : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Option String)
-        (t : Tx) (view : GlobalView),
-        Model.transitionSystem.Reachable w
-        → txOf w sid tid = .ok t
-        → find t.globalViews map = some view
-        → Model.transitionSystem.step w ⟨seq, .get sid tid map key value true⟩ = some next
-        → value = (find view.frame.data (map, key)).map Cell.value
-          ∧ (view.frame = {}
-              ∨ ∃ origin : Store,
-                  view.frame = atCut origin origin.global
-                  ∧ view.frame.version = origin.global
-                  ∧ CellsBounded view.frame.data origin.global) := by
-  have stepEvent_get_global (w next : World) (sid tid : Nat) (map key : String)
-      (value : Option String) (t : Tx) (view : GlobalView)
-      (source : txOf w sid tid = .ok t) (captured : find t.globalViews map = some view)
-      (accepted : stepEvent w (.get sid tid map key value true) = .ok next)
-      : value = (find view.frame.data (map, key)).map Cell.value := by
-    obtain ⟨_, _, tx, h, -⟩ := withTx_ok accepted
-    cases source.symm.trans tx
-    obtain ⟨_, -, h⟩ := bind_ok h
-    obtain ⟨_, found, h⟩ := bind_ok h
-    cases captured.symm.trans (present_ok found)
-    obtain ⟨_, observed, -⟩ := bind_ok h
-    exact (beq_iff_eq.mp (expect_ok observed)).symm
-  have step_global_read_from_captured_map (w next : World) (sid tid seq : Nat)
-      (valid : WorldInvariant w)
-      (map key : String) (value : Option String) (t : Tx) (view : GlobalView)
-      (source : txOf w sid tid = .ok t) (captured : find t.globalViews map = some view)
-      (accepted : step w ⟨seq, .get sid tid map key value true⟩ = .ok next)
-      : value = (find view.frame.data (map, key)).map Cell.value
-        ∧ (view.frame = {}
-            ∨ ∃ origin : Store,
-                view.frame = atCut origin origin.global
-                ∧ view.frame.version = origin.global
-                ∧ CellsBounded view.frame.data origin.global) := by
-    obtain ⟨eventNext, eventStep, _, _⟩ := step_event_result w next _ accepted
-    exact ⟨stepEvent_get_global w eventNext sid tid map key value t view source captured eventStep,
-      map_global_view_safety view
-        ((txOf_invariant w valid sid tid t source).globals map view captured)⟩
-  intro w next sid tid seq map key value t view reachable source captured accepted
-  exact step_global_read_from_captured_map w next sid tid seq
-    (Invariants.reachable_invariant w reachable) map key value t view source captured
-    ((Proofs.Execution.step_iff_transition _ _ _).mp accepted)
-
-theorem step_global_has_from_captured_map_claim
-    : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Bool) (t : Tx)
-        (view : GlobalView),
-        Model.transitionSystem.Reachable w
-        → txOf w sid tid = .ok t
-        → find t.globalViews map = some view
-        → Model.transitionSystem.step w ⟨seq, .has sid tid map key value true⟩ = some next
-        → value = (find view.frame.data (map, key)).isSome
-          ∧ (view.frame = {}
-              ∨ ∃ origin : Store,
-                  view.frame = atCut origin origin.global
-                  ∧ view.frame.version = origin.global
-                  ∧ CellsBounded view.frame.data origin.global) := by
-  have stepEvent_has_global (w next : World) (sid tid : Nat) (map key : String)
-      (value : Bool) (t : Tx) (view : GlobalView)
-      (source : txOf w sid tid = .ok t) (captured : find t.globalViews map = some view)
-      (accepted : stepEvent w (.has sid tid map key value true) = .ok next)
-      : value = (find view.frame.data (map, key)).isSome := by
-    obtain ⟨_, _, tx, h, -⟩ := withTx_ok accepted
-    cases source.symm.trans tx
-    obtain ⟨_, -, h⟩ := bind_ok h
-    obtain ⟨_, found, h⟩ := bind_ok h
-    cases captured.symm.trans (present_ok found)
-    obtain ⟨_, observed, -⟩ := bind_ok h
-    exact (beq_iff_eq.mp (expect_ok observed)).symm
-  have step_global_has_from_captured_map (w next : World) (sid tid seq : Nat)
-      (valid : WorldInvariant w)
-      (map key : String) (value : Bool) (t : Tx) (view : GlobalView)
-      (source : txOf w sid tid = .ok t) (captured : find t.globalViews map = some view)
-      (accepted : step w ⟨seq, .has sid tid map key value true⟩ = .ok next)
-      : value = (find view.frame.data (map, key)).isSome
-        ∧ (view.frame = {}
-            ∨ ∃ origin : Store,
-                view.frame = atCut origin origin.global
-                ∧ view.frame.version = origin.global
-                ∧ CellsBounded view.frame.data origin.global) := by
-    obtain ⟨eventNext, eventStep, _, _⟩ := step_event_result w next _ accepted
-    exact ⟨stepEvent_has_global w eventNext sid tid map key value t view source captured eventStep,
-      map_global_view_safety view
-        ((txOf_invariant w valid sid tid t source).globals map view captured)⟩
-  intro w next sid tid seq map key value t view reachable source captured accepted
-  exact step_global_has_from_captured_map w next sid tid seq
-    (Invariants.reachable_invariant w reachable) map key value t view source captured
-    ((Proofs.Execution.step_iff_transition _ _ _).mp accepted)
-
-end Kv.Proofs.Trace
-
-namespace Kv.Proofs.Properties
-
-open Kv.Model Kv.Properties
-
-theorem transaction_snapshot_serial
-    : ∀ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
+/-- Every semantic-reachable captured normal program reproduces its staged writes on pinned data. -/
+theorem semantic_transaction_snapshot_serial
+    : ∀ (w : State) (tid : Nat) (t : Tx) (snap : Snapshot),
         Model.transitionSystem.Reachable w
         → find w.txs tid = some t
         → t.snapshot = some snap
         → serialRun t.data [] t.normal.log = some t.normal.writes := by
-  intro w tid t snap reachable live captured
-  exact Proofs.Model.transaction_snapshot_serial t snap
-    ((Proofs.Invariants.reachable_invariant w reachable).txs tid t live).normal captured
+  intro w tid t snap reachable found captured
+  exact transaction_snapshot_serial t snap
+    ((reachable_invariant w reachable).txs tid t found).normal captured
 
-theorem transaction_application_serial
-    : ∀ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
+/-- OCC-valid semantic-reachable programs have an independent serial witness at application. -/
+theorem semantic_transaction_application_serial
+    : ∀ (w : State) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
         Model.transitionSystem.Reachable w
-        → storeOf w sid = .ok s
-        → txOf w sid tid = .ok t
+        → lookupTx w sid tid = some (s, t)
         → t.snapshot = some snap
         → canApply s t = true
         → serialRun s.head.data [] t.normal.log = some t.normal.writes := by
-  intro w sid tid s t snap reachable _store tx captured applies
-  exact Proofs.Model.transaction_application_serial s t snap
-    (Proofs.Invariants.txOf_invariant w
-      (Proofs.Invariants.reachable_invariant w reachable) sid tid t tx).normal
-    captured applies
+  intro w sid tid s t snap reachable found captured permitted
+  exact transaction_application_serial s t snap
+    (lookup_invariant w (reachable_invariant w reachable) sid tid s t found).2.normal
+    captured permitted
 
-theorem executable_branch_serializability
+/-- Application order serializes arbitrary semantic-reachable attempts, with compaction interleavings. -/
+theorem semantic_executable_branch_serializability
     : ∀ (s final : Store) (ts : List Tx),
         (∀ t ∈ ts,
-          ∃ (w : World) (tid : Nat),
+          ∃ (w : State) (tid : Nat),
             Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
         → AppliedBranch s ts final
         → serialTransactions s.head.data s.head.version ts = some final.head.data := by
   intro s final ts reachable branch
-  apply Proofs.Model.executable_branch_serializability s final ts _ branch
+  apply executable_branch_serializability s final ts _ branch
   intro t member
-  obtain ⟨w, tid, reached, live⟩ := reachable t member
-  exact ((Proofs.Invariants.reachable_invariant w reached).txs tid t live).normal
+  obtain ⟨w, tid, initialized, found⟩ := reachable t member
+  exact ((reachable_invariant w initialized).txs tid t found).normal
 
-theorem durable_cut_survives_rollback
-    : ∀ (w : World) (sid : Nat) (s : Store) (v term cut : Nat),
+/-- Captured global frames of all semantic-reachable attempts have irrevocable provenance. -/
+theorem semantic_global_provenance
+    : ∀ (w : State) (tid : Nat) (t : Tx) (map : String) (view : GlobalView),
+        Model.transitionSystem.Reachable w
+        → find w.txs tid = some t
+        → find t.globalViews map = some view
+        → view.frame = {}
+          ∨ ∃ origin : Store,
+              view.frame = atCut origin origin.global
+              ∧ view.frame.version = origin.global
+              ∧ CellsBounded view.frame.data origin.global := by
+  intro w tid t map view reachable found captured
+  exact map_global_view_safety view
+    (((reachable_invariant w reachable).txs tid t found).globals map view captured)
+
+/-- A semantic-reachable store's durable cuts survive legal rollback. -/
+theorem semantic_durable_cut_survives_rollback
+    : ∀ (w : State) (sid v term cut : Nat) (s : Store),
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
         → cut ≤ s.global
         → s.global ≤ v
         → (atCut (rollbackStore s v term) cut).data = (atCut s cut).data := by
-  intro w sid s v term cut reachable live below boundary
-  exact Proofs.Model.durable_cut_survives_rollback s v term cut
-    ((Proofs.Invariants.reachable_invariant w reachable).stores sid s live) below boundary
+  intro w sid v term cut s reachable found within boundary
+  exact durable_cut_survives_rollback s v term cut
+    ((reachable_invariant w reachable).stores sid s found) within boundary
 
-end Kv.Proofs.Properties
+private def witnessTx : Tx :=
+  {
+    store := 1
+    snapshot := some { current := {}, term := 0 }
+    globalViews := [("m", { frame := {} })]
+    normal :=
+      { writes := [(("m", "k"), some "v")], log := [.write ("m", "k") (some "v")] }
+  }
+
+private def witnessState : State := { stores := [(1, {})], txs := [(1, witnessTx)] }
+
+private theorem witness_reachable : Model.transitionSystem.Reachable witnessState := by
+  have r0 : Model.transitionSystem.Reachable ({} : State) := .initial rfl
+  have r1 : Model.transitionSystem.Reachable ({ stores := [(1, {})] } : State) :=
+    .step (action := .storeCreate 1 0) r0 rfl
+  have r2 : Model.transitionSystem.Reachable
+      ({ stores := [(1, {})], txs := [(1, { store := 1 })] } : State) :=
+    .step (action := .txCreate 1 1) r1 rfl
+  have r3 : Model.transitionSystem.Reachable ({
+      stores := [(1, {})]
+      txs := [(1, { store := 1, snapshot := some { current := {}, term := 0 } })]
+    } : State) := .step (action := .snapshot 1 1) r2 rfl
+  have r4 : Model.transitionSystem.Reachable ({
+      stores := [(1, {})]
+      txs := [(1, {
+        store := 1
+        snapshot := some { current := {}, term := 0 }
+        globalViews := [("m", { frame := {} })]
+      })]
+    } : State) := .step (action := .acquire 1 1 "m") r3 rfl
+  exact .step (action := .operation 1 1 (.write "m" "k" (some "v"))) r4 rfl
+
+/-- A semantic-reachable store witnesses both store safety premises. -/
+theorem semantic_reachable_store_invariants_witness
+    : ∃ (w : State) (sid : Nat) (s : Store),
+        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s :=
+  ⟨witnessState, 1, {}, witness_reachable, rfl⟩
+
+/-- A semantic-reachable head witnesses data invariant premises. -/
+theorem semantic_reachable_store_data_invariants_witness
+    : ∃ (w : State) (sid : Nat) (s : Store),
+        Model.transitionSystem.Reachable w ∧ find w.stores sid = some s :=
+  ⟨witnessState, 1, {}, witness_reachable, rfl⟩
+
+/-- A nonempty normal program is reachable using only semantic actions. -/
+theorem semantic_transaction_snapshot_serial_witness
+    : ∃ (w : State) (tid : Nat) (t : Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        ∧ find w.txs tid = some t
+        ∧ t.snapshot = some snap
+        ∧ t.normal.log ≠ [] :=
+  ⟨
+    witnessState,
+    1,
+    witnessTx,
+    { current := {}, term := 0 },
+    witness_reachable,
+    rfl,
+    rfl,
+    by decide +kernel
+  ⟩
+
+/-- A nonempty semantic-reachable program can pass OCC. -/
+theorem semantic_transaction_application_serial_witness
+    : ∃ (w : State) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
+        Model.transitionSystem.Reachable w
+        ∧ lookupTx w sid tid = some (s, t)
+        ∧ t.snapshot = some snap
+        ∧ canApply s t = true
+        ∧ t.normal.log ≠ [] :=
+  ⟨
+    witnessState,
+    1,
+    1,
+    {},
+    witnessTx,
+    { current := {}, term := 0 },
+    witness_reachable,
+    rfl,
+    rfl,
+    rfl,
+    by decide +kernel
+  ⟩
+
+/-- A nonempty application-order branch uses a semantic-reachable attempt. -/
+theorem semantic_executable_branch_serializability_witness
+    : ∃ (s final : Store) (ts : List Tx),
+        (∀ t ∈ ts,
+          ∃ (w : State) (tid : Nat),
+            Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
+        ∧ AppliedBranch s ts final
+        ∧ ts ≠ [] := by
+  refine ⟨{}, advance {} witnessTx.normal.writes, [witnessTx], ?_, ?_, by decide +kernel⟩
+  · intro t member
+    simp only [List.mem_singleton] at member
+    subst t
+    exact ⟨witnessState, 1, witness_reachable, rfl⟩
+  · exact .cons _ _ _ _ [] rfl (.nil _)
+
+end Kv.Proofs.SemanticInvariant

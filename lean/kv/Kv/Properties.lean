@@ -9,6 +9,7 @@ public import CCF.Execution
 import Kv.Proofs.Reachable
 import Kv.Proofs.Replay
 import Kv.Proofs.Witnesses
+import Kv.Proofs.Segment
 
 @[expose] public section
 
@@ -18,6 +19,7 @@ import Kv.Proofs.Witnesses
 Review these statements with the definitions in `Kv/Model/`, `Kv/Model.lean`, and
 `Kv/Properties/`. Each theorem links to its implementation in `Kv/Proofs/`.
 Each claim with premises has an adjacent witness that its premises can hold.
+Safety statements and their proof dependencies concern only the semantic model.
 -/
 
 namespace Kv.Properties
@@ -151,339 +153,323 @@ theorem apply_atomic_witness
 
 /-! ## Serial snapshot runs and normal-view serializability -/
 
-/-- An attempt's operation log runs serially on its pinned local views to its staged writes. -/
+/-- Every semantic-reachable captured program reproduces its writes on pinned local data. -/
 theorem transaction_snapshot_serial
-    : ∀ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
+    : ∀ (w : Model.State) (tid : Nat) (t : Model.Tx) (snap : Snapshot),
         Model.transitionSystem.Reachable w
         → find w.txs tid = some t
         → t.snapshot = some snap
         → serialRun t.data [] t.normal.log = some t.normal.writes := by
-  exact Proofs.Properties.transaction_snapshot_serial
+  exact Proofs.SemanticInvariant.semantic_transaction_snapshot_serial
 
-/-- Witness: an attempt with a snapshot can have a nonempty log. -/
+/-- Witness: a nonempty program is reachable using only semantic actions. -/
 theorem transaction_snapshot_serial_witness
-    : ∃ (w : World) (tid : Nat) (t : Tx) (snap : Snapshot),
+    : ∃ (w : Model.State) (tid : Nat) (t : Model.Tx) (snap : Snapshot),
         Model.transitionSystem.Reachable w
         ∧ find w.txs tid = some t
         ∧ t.snapshot = some snap
         ∧ t.normal.log ≠ [] := by
-  exact Proofs.Witnesses.transaction_snapshot_serial_witness
+  exact Proofs.SemanticInvariant.semantic_transaction_snapshot_serial_witness
 
-/-- An attempt that may apply runs serially on the current head to the same staged writes. -/
+/-- Every OCC-valid semantic-reachable program serializes against the application head. -/
 theorem transaction_application_serial
-    : ∀ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
+    : ∀ (w : Model.State) (sid tid : Nat) (s : Model.Store) (t : Model.Tx)
+        (snap : Snapshot),
         Model.transitionSystem.Reachable w
-        → storeOf w sid = .ok s
-        → txOf w sid tid = .ok t
+        → Model.lookupTx w sid tid = some (s, t)
         → t.snapshot = some snap
         → canApply s t = true
         → serialRun s.head.data [] t.normal.log = some t.normal.writes := by
-  exact Proofs.Properties.transaction_application_serial
+  exact Proofs.SemanticInvariant.semantic_transaction_application_serial
 
-/-- Witness: an attempt with a nonempty log can apply. -/
+/-- Witness: a nonempty semantic-reachable program passes OCC. -/
 theorem transaction_application_serial_witness
-    : ∃ (w : World) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
+    : ∃ (w : Model.State) (sid tid : Nat) (s : Model.Store) (t : Model.Tx)
+        (snap : Snapshot),
         Model.transitionSystem.Reachable w
-        ∧ storeOf w sid = .ok s
-        ∧ txOf w sid tid = .ok t
+        ∧ Model.lookupTx w sid tid = some (s, t)
         ∧ t.snapshot = some snap
         ∧ canApply s t = true
         ∧ t.normal.log ≠ [] := by
-  exact Proofs.Witnesses.transaction_application_serial_witness
+  exact Proofs.SemanticInvariant.semantic_transaction_application_serial_witness
 
-/-- A branch of applied attempts matches running their logs serially from the start. -/
+/-- Application-order branches of arbitrary semantic-reachable programs serialize with compaction. -/
 theorem executable_branch_serializability
-    : ∀ (s final : Store) (ts : List Tx),
+    : ∀ (s final : Model.Store) (ts : List Model.Tx),
         (∀ t ∈ ts,
-          ∃ (w : World) (tid : Nat),
+          ∃ (w : Model.State) (tid : Nat),
             Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
         → AppliedBranch s ts final
         → serialTransactions s.head.data s.head.version ts = some final.head.data := by
-  exact Proofs.Properties.executable_branch_serializability
+  exact Proofs.SemanticInvariant.semantic_executable_branch_serializability
 
-/-- Witness: a nonempty branch of applied attempts exists. -/
+/-- Witness: a nonempty application-order branch uses a semantic-reachable attempt. -/
 theorem executable_branch_serializability_witness
-    : ∃ (s final : Store) (ts : List Tx),
+    : ∃ (s final : Model.Store) (ts : List Model.Tx),
         (∀ t ∈ ts,
-          ∃ (w : World) (tid : Nat),
+          ∃ (w : Model.State) (tid : Nat),
             Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
         ∧ AppliedBranch s ts final
         ∧ ts ≠ [] := by
-  exact Proofs.Witnesses.executable_branch_serializability_witness
+  exact Proofs.SemanticInvariant.semantic_executable_branch_serializability_witness
 
-/-- In an accepted record segment that keeps store `sid` alive, the applications projected
-onto that store run serially to its final head. -/
-theorem replay_segment_serializability
-    : ∀ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        Model.transitionSystem.Reachable w
+/-- Actual semantic executions serialize the selected store's applications in their real order. -/
+theorem execution_segment_serializability
+    : ∀ (w final : State) (sid : Nat) (s : Store) (inputs : List Action),
+        transitionSystem.Reachable w
         → find w.stores sid = some s
-        → (∀ r ∈ rs, SegmentEvent sid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
+        → SegmentInputs w sid inputs
+        → CCF.Execution.Run transitionSystem w inputs final
         → ∃ after txs,
             find final.stores sid = some after
-            ∧ projectApplications w sid rs = .ok txs
+            ∧ applicationInputs w sid inputs = some txs
             ∧ serialTransactions s.head.data s.head.version txs = some after.head.data
             ∧ after.head.version = s.head.version + txs.length := by
-  exact Proofs.Trace.replay_segment_serializability_claim
+  exact Proofs.ModelExecution.execution_segment_serializability
 
-/-- Witness: an accepted nonempty segment can keep a store alive. -/
-theorem replay_segment_serializability_witness
-    : ∃ (w final : World) (sid : Nat) (s : Store) (rs : List Record),
-        Model.transitionSystem.Reachable w
+/-- A nonempty actual semantic segment includes publication and compaction. -/
+theorem execution_segment_serializability_witness
+    : ∃ (w final : State) (sid : Nat) (s : Store) (actions : List Action),
+        transitionSystem.Reachable w
         ∧ find w.stores sid = some s
-        ∧ (∀ r ∈ rs, SegmentEvent sid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
-        ∧ rs ≠ [] := by
-  exact Proofs.Witnesses.replay_segment_serializability_witness
+        ∧ SegmentInputs w sid actions
+        ∧ CCF.Execution.Run transitionSystem w actions final
+        ∧ actions ≠ [] := by
+  exact Proofs.Witnesses.execution_segment_serializability_witness
 
 /-! ## Reachable store invariants -/
 
-/-- Every live store in a reachable world has a well-formed history whose head is newest, and a
-global version within it that is the version of its global cut. -/
+/-- Every semantic-reachable store has a complete history, current head, and bounded global cut. -/
 theorem reachable_store_invariants
-    : ∀ (w : World) (sid : Nat) (s : Store),
+    : ∀ (w : Model.State) (sid : Nat) (s : Model.Store),
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
         → History s.history s.head.version
           ∧ s.history.head? = some s.head
           ∧ s.global ≤ s.head.version
           ∧ (atCut s s.global).version = s.global := by
-  exact Proofs.Trace.reachable_store_invariants_claim
+  exact Proofs.SemanticInvariant.semantic_reachable_store_invariants
 
-/-- Witness: a reachable world can have a live store. -/
+/-- Witness: semantic actions reach a live store without any trace metadata. -/
 theorem reachable_store_invariants_witness
-    : ∃ (w : World) (sid : Nat) (s : Store),
+    : ∃ (w : Model.State) (sid : Nat) (s : Model.Store),
         Model.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
-  exact Proofs.Witnesses.reachable_store_invariants_witness
+  exact Proofs.SemanticInvariant.semantic_reachable_store_invariants_witness
 
-/-- Every live store's head data in a reachable world has unique keys and versions no later than
-the head. -/
+/-- Every semantic-reachable head has unique keys and bounded previous-write versions. -/
 theorem reachable_store_data_invariants
-    : ∀ (w : World) (sid : Nat) (s : Store),
+    : ∀ (w : Model.State) (sid : Nat) (s : Model.Store),
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
         → Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
-  exact Proofs.Trace.reachable_store_data_invariants_claim
+  exact Proofs.SemanticInvariant.semantic_reachable_store_data_invariants
 
-/-- Witness: a reachable world can have a live store. -/
+/-- Witness: semantic actions reach a store satisfying the data-safety premises. -/
 theorem reachable_store_data_invariants_witness
-    : ∃ (w : World) (sid : Nat) (s : Store),
+    : ∃ (w : Model.State) (sid : Nat) (s : Model.Store),
         Model.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
-  exact Proofs.Witnesses.reachable_store_data_invariants_witness
+  exact Proofs.SemanticInvariant.semantic_reachable_store_data_invariants_witness
 
 /-! ## Current snapshot capture and preservation -/
 
-/-- Capturing a snapshot records the store's head and the reported term. -/
+/-- Capturing a current snapshot computes the frozen head and commit term. -/
 theorem step_capture_metadata
-    : ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
-        storeOf w sid = .ok s
-        → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some next
+    : ∀ (w next : State) (sid tid : Nat) (s : Store) (t : Tx) (output : Output),
+        find w.stores sid = some s
+        → execute w (.snapshot sid tid) = some (next, output)
         → find next.txs tid = some t
-        → ∃ snap, t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = term := by
-  exact Proofs.Trace.step_capture_metadata_claim
+        → ∃ snap,
+            t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = s.term := by
+  exact Proofs.Safety.step_capture_metadata
 
-/-- Witness: a snapshot capture can be accepted. -/
+/-- An actual semantic snapshot witnesses capture metadata. -/
 theorem step_capture_metadata_witness
-    : ∃ (w next : World) (sid tid version global term seq : Nat) (s : Store) (t : Tx),
-        storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some next
+    : ∃ (w next : State) (sid tid : Nat) (s : Store) (t : Tx) (output : Output),
+        find w.stores sid = some s
+        ∧ execute w (.snapshot sid tid) = some (next, output)
         ∧ find next.txs tid = some t := by
   exact Proofs.Witnesses.step_capture_metadata_witness
 
-/-- An accepted snapshot capture reports the store's head and global versions. -/
+/-- Snapshot output contains the actual local/global cuts and commit term. -/
 theorem step_capture_cut_values
-    : ∀ (w next : World) (sid tid version global term seq : Nat) (s : Store),
-        storeOf w sid = .ok s
-        → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some next
-        → version = s.head.version ∧ global = s.global := by
-  exact Proofs.Trace.step_capture_cut_values_claim
+    : ∀ (w next : State) (sid tid version global term : Nat) (s : Store),
+        find w.stores sid = some s
+        → execute w (.snapshot sid tid) = some (next, .snapshot version global term)
+        → version = s.head.version ∧ global = s.global ∧ term = s.term := by
+  exact Proofs.Safety.step_capture_cut_values
 
-/-- Witness: a snapshot capture can be accepted. -/
+/-- Snapshot output witnesses the source store's actual cuts. -/
 theorem step_capture_cut_values_witness
-    : ∃ (w next : World) (sid tid version global term seq : Nat) (s : Store),
-        storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some next := by
+    : ∃ (w next : State) (sid tid version global term : Nat) (s : Store),
+        find w.stores sid = some s
+        ∧ execute w (.snapshot sid tid) = some (next, .snapshot version global term) := by
   exact Proofs.Witnesses.step_capture_cut_values_witness
 
-/-- A captured snapshot's head and term are unchanged by later records that do not end the
-attempt. -/
-theorem capture_replay_preserves_metadata
-    : ∀ (w capturedWorld final : World) (sid tid version global term seq : Nat)
-        (s : Store) (t : Tx) (tail : List Record),
-        storeOf w sid = .ok s
-        → Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some capturedWorld
-        → find capturedWorld.txs tid = some t
-        → (∀ r ∈ tail, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+/-- Metadata computed by capture survives the rest of an attempt-preserving semantic execution. -/
+theorem capture_execution_preserves_metadata
+    : ∀ (w captured final : State) (sid tid : Nat) (s : Store) (t : Tx)
+        (output : Output) (inputs : List Action),
+        find w.stores sid = some s
+        → execute w (.snapshot sid tid) = some (captured, output)
+        → find captured.txs tid = some t
+        → (∀ a ∈ inputs, AttemptAction tid a)
+        → CCF.Execution.Run transitionSystem captured inputs final
         → ∃ after snap,
             find final.txs tid = some after
             ∧ after.snapshot = some snap
             ∧ snap.current = s.head
-            ∧ snap.term = term := by
-  exact Proofs.Trace.capture_replay_preserves_metadata_claim
+            ∧ snap.term = s.term := by
+  exact Proofs.Safety.capture_execution_preserves_metadata
 
-/-- Witness: a snapshot capture can be followed by an accepted nonempty run that keeps the attempt. -/
-theorem capture_replay_preserves_metadata_witness
-    : ∃ (w capturedWorld final : World) (sid tid version global term seq : Nat)
-        (s : Store) (t : Tx) (tail : List Record),
-        storeOf w sid = .ok s
-        ∧ Model.transitionSystem.step w ⟨seq, .snapshot sid tid version global term⟩
-          = some capturedWorld
-        ∧ find capturedWorld.txs tid = some t
-        ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
-        ∧ tail ≠ [] := by
-  exact Proofs.Witnesses.capture_replay_preserves_metadata_witness
+/-- Actual capture followed by a nonempty semantic execution witnesses metadata preservation. -/
+theorem capture_execution_preserves_metadata_witness
+    : ∃ (w captured final : State) (sid tid : Nat) (s : Store) (t : Tx)
+        (output : Output) (actions : List Action),
+        find w.stores sid = some s
+        ∧ execute w (.snapshot sid tid) = some (captured, output)
+        ∧ find captured.txs tid = some t
+        ∧ (∀ a ∈ actions, AttemptAction tid a)
+        ∧ CCF.Execution.Run transitionSystem captured actions final
+        ∧ actions ≠ [] := by
+  exact Proofs.Witnesses.capture_execution_preserves_metadata_witness
 
-/-- An attempt's captured snapshot is unchanged by later records that do not end it. -/
-theorem replay_snapshot_fixed
-    : ∀ (w final : World) (tid : Nat) (before : Tx) (snap : Snapshot) (rs : List Record),
+/-- Every attempt-preserving semantic execution keeps an existing current snapshot fixed. -/
+theorem execution_snapshot_fixed
+    : ∀ (w final : State) (tid : Nat) (before : Tx) (snap : Snapshot)
+        (inputs : List Action),
         find w.txs tid = some before
         → before.snapshot = some snap
-        → (∀ r ∈ rs, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
+        → (∀ a ∈ inputs, AttemptAction tid a)
+        → CCF.Execution.Run transitionSystem w inputs final
         → ∃ after, find final.txs tid = some after ∧ after.snapshot = some snap := by
-  exact Proofs.Trace.replay_snapshot_fixed_claim
+  exact Proofs.Safety.execution_snapshot_fixed
 
-/-- Witness: an attempt with a snapshot can be followed by an accepted nonempty run that keeps it. -/
-theorem replay_snapshot_fixed_witness
-    : ∃ (w final : World) (tid : Nat) (before : Tx) (snap : Snapshot) (rs : List Record),
+/-- A nonempty semantic execution preserves an already captured current frame. -/
+theorem execution_snapshot_fixed_witness
+    : ∃ (w final : State) (tid : Nat) (before : Tx) (snap : Snapshot)
+        (actions : List Action),
         find w.txs tid = some before
         ∧ before.snapshot = some snap
-        ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
-        ∧ rs ≠ [] := by
-  exact Proofs.Witnesses.replay_snapshot_fixed_witness
+        ∧ (∀ a ∈ actions, AttemptAction tid a)
+        ∧ CCF.Execution.Run transitionSystem w actions final
+        ∧ actions ≠ [] := by
+  exact Proofs.Witnesses.execution_snapshot_fixed_witness
 
 /-! ## Per-map globally committed views -/
 
-/-- Acquiring a map records its global view and checks the reported revision versions. -/
+/-- Semantic acquisition installs its selected local/global frames and computes their revisions. -/
 theorem step_map_capture
-    : ∀ (w next : World) (sid tid localVersion globalVersion seq : Nat) (map : String)
+    : ∀ (w next : State) (sid tid localVersion globalVersion : Nat) (map : String)
         (s : Store) (before after : Tx) (snap : Snapshot),
-        storeOf w sid = .ok s
-        → txOf w sid tid = .ok before
+        lookupTx w sid tid = some (s, before)
         → before.snapshot = some snap
-        → Model.transitionSystem.step w
-            ⟨seq, .acquire sid tid map localVersion globalVersion⟩
-          = some next
+        → execute w (.acquire sid tid map)
+          = some (next, .acquired localVersion globalVersion)
         → find next.txs tid = some after
         → find after.globalViews map = some (captureGlobal s snap map)
           ∧ localVersion = (revision (captureLocal s snap map) map).version
           ∧ globalVersion = (revision (captureGlobal s snap map).frame map).version := by
-  exact Proofs.Trace.step_map_capture_claim
+  exact Proofs.Safety.step_map_capture
 
-/-- Witness: a map acquisition can be accepted. -/
+/-- A semantic acquisition witnesses captured frames and revision outputs. -/
 theorem step_map_capture_witness
-    : ∃ (w next : World) (sid tid localVersion globalVersion seq : Nat) (map : String)
+    : ∃ (w next : State) (sid tid localVersion globalVersion : Nat) (map : String)
         (s : Store) (before after : Tx) (snap : Snapshot),
-        storeOf w sid = .ok s
-        ∧ txOf w sid tid = .ok before
+        lookupTx w sid tid = some (s, before)
         ∧ before.snapshot = some snap
-        ∧ Model.transitionSystem.step w
-            ⟨seq, .acquire sid tid map localVersion globalVersion⟩
-          = some next
+        ∧ execute w (.acquire sid tid map)
+          = some (next, .acquired localVersion globalVersion)
         ∧ find next.txs tid = some after := by
   exact Proofs.Witnesses.step_map_capture_witness
 
-/-- A map's captured local and global views are unchanged by later records that do not end the attempt. -/
-theorem replay_map_global_fixed
-    : ∀ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
-        (rs : List Record),
+/-- Every attempt-preserving semantic execution keeps already acquired global frames fixed. -/
+theorem execution_map_global_fixed
+    : ∀ (w final : State) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
+        (inputs : List Action),
         find w.txs tid = some before
         → find before.globalViews map = some view
-        → (∀ r ∈ rs, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
+        → (∀ a ∈ inputs, AttemptAction tid a)
+        → CCF.Execution.Run transitionSystem w inputs final
         → ∃ after,
             find final.txs tid = some after ∧ find after.globalViews map = some view := by
-  exact Proofs.Trace.replay_map_global_fixed_claim
+  exact Proofs.Safety.execution_map_global_fixed
 
-/-- Witness: an attempt with an acquired map can be followed by an accepted nonempty run that keeps it. -/
-theorem replay_map_global_fixed_witness
-    : ∃ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
-        (rs : List Record),
+/-- A nonempty semantic execution preserves an acquired global frame. -/
+theorem execution_map_global_fixed_witness
+    : ∃ (w final : State) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
+        (actions : List Action),
         find w.txs tid = some before
         ∧ find before.globalViews map = some view
-        ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
-        ∧ rs ≠ [] := by
-  exact Proofs.Witnesses.replay_map_global_fixed_witness
+        ∧ (∀ a ∈ actions, AttemptAction tid a)
+        ∧ CCF.Execution.Run transitionSystem w actions final
+        ∧ actions ≠ [] := by
+  exact Proofs.Witnesses.execution_map_global_fixed_witness
 
-/-- Acquired local data is unchanged by later records, including rollback and other map acquisitions. -/
-theorem replay_map_local_fixed
-    : ∀ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
-        (rs : List Record),
+/-- Later acquisitions and publications cannot change an already acquired map's pinned local data. -/
+theorem execution_map_local_fixed
+    : ∀ (w final : State) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
+        (inputs : List Action),
         find w.txs tid = some before
         → find before.globalViews map = some view
-        → (∀ r ∈ rs, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem w rs final
+        → (∀ a ∈ inputs, AttemptAction tid a)
+        → CCF.Execution.Run transitionSystem w inputs final
         → ∃ after,
             find final.txs tid = some after
             ∧ image after.data map = image before.data map := by
-  exact Proofs.Trace.replay_map_local_fixed_claim
+  exact Proofs.Safety.execution_map_local_fixed
 
-/-- Witness: an acquired map can survive a nonempty accepted segment. -/
-theorem replay_map_local_fixed_witness
-    : ∃ (w final : World) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
-        (rs : List Record),
+/-- Writes and application witness nonempty execution with fixed pinned local data. -/
+theorem execution_map_local_fixed_witness
+    : ∃ (w final : State) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
+        (actions : List Action),
         find w.txs tid = some before
         ∧ find before.globalViews map = some view
-        ∧ (∀ r ∈ rs, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem w rs final
-        ∧ rs ≠ [] := by
-  exact Proofs.Witnesses.replay_map_global_fixed_witness
+        ∧ (∀ a ∈ actions, AttemptAction tid a)
+        ∧ CCF.Execution.Run transitionSystem w actions final
+        ∧ actions ≠ [] := by
+  exact Proofs.Witnesses.execution_map_local_fixed_witness
 
-/-- A map acquisition's global view and reported versions persist through later records that do
-not end the attempt. -/
-theorem capture_replay_preserves_map
-    : ∀ (w capturedWorld final : World) (sid tid localVersion globalVersion seq : Nat)
-        (map : String) (s : Store) (before capturedTx : Tx) (snap : Snapshot)
-        (tail : List Record),
-        storeOf w sid = .ok s
-        → txOf w sid tid = .ok before
+/-- Acquired frames and computed revisions survive an attempt-preserving semantic execution. -/
+theorem capture_execution_preserves_map
+    : ∀ (w captured final : State) (sid tid localVersion globalVersion : Nat)
+        (map : String) (s : Store) (before acquired : Tx) (snap : Snapshot)
+        (inputs : List Action),
+        lookupTx w sid tid = some (s, before)
         → before.snapshot = some snap
-        → Model.transitionSystem.step w
-            ⟨seq, .acquire sid tid map localVersion globalVersion⟩
-          = some capturedWorld
-        → find capturedWorld.txs tid = some capturedTx
-        → (∀ r ∈ tail, AttemptEvent tid r.event)
-        → CCF.Execution.Run Model.transitionSystem capturedWorld tail final
+        → execute w (.acquire sid tid map)
+          = some (captured, .acquired localVersion globalVersion)
+        → find captured.txs tid = some acquired
+        → (∀ a ∈ inputs, AttemptAction tid a)
+        → CCF.Execution.Run transitionSystem captured inputs final
         → ∃ after,
             find final.txs tid = some after
             ∧ find after.globalViews map = some (captureGlobal s snap map)
             ∧ localVersion = (revision (captureLocal s snap map) map).version
             ∧ globalVersion
               = (revision (captureGlobal s snap map).frame map).version := by
-  exact Proofs.Trace.capture_replay_preserves_map_claim
+  exact Proofs.Safety.capture_execution_preserves_map
 
-/-- Witness: a map acquisition can be followed by an accepted nonempty run that keeps the attempt. -/
-theorem capture_replay_preserves_map_witness
-    : ∃ (w capturedWorld final : World) (sid tid localVersion globalVersion seq : Nat)
-        (map : String) (s : Store) (before capturedTx : Tx) (snap : Snapshot)
-        (tail : List Record),
-        storeOf w sid = .ok s
-        ∧ txOf w sid tid = .ok before
+/-- Actual map capture followed by publication witnesses frame/revision preservation. -/
+theorem capture_execution_preserves_map_witness
+    : ∃ (w captured final : State) (sid tid localVersion globalVersion : Nat)
+        (map : String) (s : Store) (before acquired : Tx) (snap : Snapshot)
+        (actions : List Action),
+        lookupTx w sid tid = some (s, before)
         ∧ before.snapshot = some snap
-        ∧ Model.transitionSystem.step w
-            ⟨seq, .acquire sid tid map localVersion globalVersion⟩
-          = some capturedWorld
-        ∧ find capturedWorld.txs tid = some capturedTx
-        ∧ (∀ r ∈ tail, AttemptEvent tid r.event)
-        ∧ CCF.Execution.Run Model.transitionSystem capturedWorld tail final
-        ∧ tail ≠ [] := by
-  exact Proofs.Witnesses.capture_replay_preserves_map_witness
+        ∧ execute w (.acquire sid tid map)
+          = some (captured, .acquired localVersion globalVersion)
+        ∧ find captured.txs tid = some acquired
+        ∧ (∀ a ∈ actions, AttemptAction tid a)
+        ∧ CCF.Execution.Run transitionSystem captured actions final
+        ∧ actions ≠ [] := by
+  exact Proofs.Witnesses.capture_execution_preserves_map_witness
 
 /-- The global view of a map not yet created is the empty frame. -/
 theorem captureGlobal_placeholder
     : ∀ (s : Store) (snap : Snapshot) (map : String),
         find (captureLocal s snap map).births map = none
         → (captureGlobal s snap map).frame = {} := by
-  exact Proofs.Trace.captureGlobal_placeholder
+  exact Proofs.Model.captureGlobal_placeholder
 
 /-- Witness: a snapshot can lack a map. -/
 theorem captureGlobal_placeholder_witness
@@ -496,7 +482,7 @@ theorem captureGlobal_committed
     : ∀ (s : Store) (snap : Snapshot) (map : String) (birth : Stamp),
         find (captureLocal s snap map).births map = some birth
         → (captureGlobal s snap map).frame = atCut s s.global := by
-  exact Proofs.Trace.captureGlobal_committed
+  exact Proofs.Model.captureGlobal_committed
 
 /-- Witness: a snapshot can contain a map. -/
 theorem captureGlobal_committed_witness
@@ -504,60 +490,59 @@ theorem captureGlobal_committed_witness
         find (captureLocal s snap map).births map = some birth := by
   exact Proofs.Witnesses.captureGlobal_committed_witness
 
-/-- A global read returns the captured view's value, and that view is empty or a store's global
-cut with no cell newer than it. -/
+/-- Global read outputs are computed from the frozen map frame with committed-prefix provenance. -/
 theorem step_global_read_from_captured_map
-    : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Option String)
-        (t : Tx) (view : GlobalView),
-        Model.transitionSystem.Reachable w
-        → txOf w sid tid = .ok t
+    : ∀ (w next : State) (sid tid : Nat) (s : Store) (t : Tx) (map key : String)
+        (value : Option String) (view : GlobalView),
+        transitionSystem.Reachable w
+        → lookupTx w sid tid = some (s, t)
         → find t.globalViews map = some view
-        → Model.transitionSystem.step w ⟨seq, .get sid tid map key value true⟩ = some next
+        → execute w (.operation sid tid (.get map key true)) = some (next, .value value)
         → value = (find view.frame.data (map, key)).map Cell.value
           ∧ (view.frame = {}
               ∨ ∃ origin : Store,
                   view.frame = atCut origin origin.global
                   ∧ view.frame.version = origin.global
                   ∧ CellsBounded view.frame.data origin.global) := by
-  exact Proofs.Trace.step_global_read_from_captured_map_claim
+  exact Proofs.Safety.step_global_read_from_captured_map
 
-/-- Witness: a global read of a committed value can be accepted. -/
+/-- A present global value is produced by a reachable semantic execution. -/
 theorem step_global_read_from_captured_map_witness
-    : ∃ (w next : World) (sid tid seq : Nat) (map key value : String) (t : Tx)
+    : ∃ (w next : State) (sid tid : Nat) (s : Store) (t : Tx) (map key value : String)
         (view : GlobalView),
-        Model.transitionSystem.Reachable w
-        ∧ txOf w sid tid = .ok t
+        transitionSystem.Reachable w
+        ∧ lookupTx w sid tid = some (s, t)
         ∧ find t.globalViews map = some view
-        ∧ Model.transitionSystem.step w ⟨seq, .get sid tid map key (some value) true⟩
-          = some next := by
+        ∧ execute w (.operation sid tid (.get map key true))
+          = some (next, .value (some value)) := by
   exact Proofs.Witnesses.step_global_read_from_captured_map_witness
 
-/-- A global presence test reflects the captured view, and that view is empty or a store's
-global cut with no cell newer than it. -/
+/-- Global presence outputs are computed from the frozen frame with committed-prefix provenance. -/
 theorem step_global_has_from_captured_map
-    : ∀ (w next : World) (sid tid seq : Nat) (map key : String) (value : Bool) (t : Tx)
-        (view : GlobalView),
-        Model.transitionSystem.Reachable w
-        → txOf w sid tid = .ok t
+    : ∀ (w next : State) (sid tid : Nat) (s : Store) (t : Tx) (map key : String)
+        (value : Bool) (view : GlobalView),
+        transitionSystem.Reachable w
+        → lookupTx w sid tid = some (s, t)
         → find t.globalViews map = some view
-        → Model.transitionSystem.step w ⟨seq, .has sid tid map key value true⟩ = some next
+        → execute w (.operation sid tid (.has map key true))
+          = some (next, .presence value)
         → value = (find view.frame.data (map, key)).isSome
           ∧ (view.frame = {}
               ∨ ∃ origin : Store,
                   view.frame = atCut origin origin.global
                   ∧ view.frame.version = origin.global
                   ∧ CellsBounded view.frame.data origin.global) := by
-  exact Proofs.Trace.step_global_has_from_captured_map_claim
+  exact Proofs.Safety.step_global_has_from_captured_map
 
-/-- Witness: a global presence test of a committed key can be accepted. -/
+/-- Global presence is produced by a reachable semantic execution. -/
 theorem step_global_has_from_captured_map_witness
-    : ∃ (w next : World) (sid tid seq : Nat) (map key : String) (t : Tx)
+    : ∃ (w next : State) (sid tid : Nat) (s : Store) (t : Tx) (map key : String)
         (view : GlobalView),
-        Model.transitionSystem.Reachable w
-        ∧ txOf w sid tid = .ok t
+        transitionSystem.Reachable w
+        ∧ lookupTx w sid tid = some (s, t)
         ∧ find t.globalViews map = some view
-        ∧ Model.transitionSystem.step w ⟨seq, .has sid tid map key true true⟩
-          = some next := by
+        ∧ execute w (.operation sid tid (.has map key true))
+          = some (next, .presence true) := by
   exact Proofs.Witnesses.step_global_has_from_captured_map_witness
 
 /-! ## Compaction, rollback, and invalidated attempts -/
@@ -597,18 +582,18 @@ theorem rollback_discards_suffix_witness
 
 /-- Rollback preserves the data at every cut at or below the global version. -/
 theorem durable_cut_survives_rollback
-    : ∀ (w : World) (sid : Nat) (s : Store) (v term cut : Nat),
+    : ∀ (w : State) (sid v term cut : Nat) (s : Store),
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
         → cut ≤ s.global
         → s.global ≤ v
         → (atCut (rollbackStore s v term) cut).data = (atCut s cut).data := by
-  exact Proofs.Properties.durable_cut_survives_rollback
+  exact Proofs.SemanticInvariant.semantic_durable_cut_survives_rollback
 
-/-- Witness: a nonempty cut can be at or below the global version. -/
+/-- A reachable nonempty durable cut witnesses rollback safety. -/
 theorem durable_cut_survives_rollback_witness
-    : ∃ (w : World) (sid : Nat) (s : Store) (v cut : Nat),
-        Model.transitionSystem.Reachable w
+    : ∃ (w : State) (sid : Nat) (s : Store) (v cut : Nat),
+        transitionSystem.Reachable w
         ∧ find w.stores sid = some s
         ∧ cut ≤ s.global
         ∧ s.global ≤ v
@@ -634,7 +619,7 @@ theorem discarded_handle_cannot_apply
         → (m, view) ∈ t.globalViews
         → (∀ f ∈ s.history, (revision f m == revision view.current m) = false)
         → canApply s t = false := by
-  exact Proofs.Properties.discarded_handle_cannot_apply
+  exact Proofs.Model.discarded_handle_cannot_apply
 
 /-- Witness: an attempt can hold a map whose revision is no longer on the branch. -/
 theorem discarded_handle_cannot_apply_witness
@@ -651,7 +636,7 @@ theorem discarded_birth_cannot_apply
         → (m, view) ∈ t.globalViews
         → (∀ f ∈ s.history, (find f.births m == find view.current.births m) = false)
         → canApply s t = false := by
-  exact Proofs.Properties.discarded_birth_cannot_apply
+  exact Proofs.Model.discarded_birth_cannot_apply
 
 /-- Witness: an attempt can hold a map whose creation is no longer on the branch. -/
 theorem discarded_birth_cannot_apply_witness

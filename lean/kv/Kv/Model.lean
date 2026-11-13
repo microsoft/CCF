@@ -8,15 +8,15 @@ public import Kv.Model.Transitions
 
 @[expose] public section
 
-/-! Assembles the executable KV model as a transition system over trace records. -/
+/-! Assembles the executable KV model over semantic inputs, independently of instrumentation. -/
 
 namespace Kv.Model
 
-/-- The model starts from the empty world, and a record is enabled exactly when `step` accepts it. -/
-def transitionSystem : CCF.TransitionSystem where
-  State := World
-  Action := Record
+/-- Empty live state; inputs compute outputs through `execute` and state through `step`. -/
+abbrev transitionSystem : CCF.TransitionSystem where
+  State := State
+  Action := Action
   init w := w = {}
-  step w r := (step w r).toOption
+  step := step
 
 end Kv.Model
