@@ -51,6 +51,10 @@ See :ref:`architecture/consensus/index:Retirement details` for the normal live-s
 
 The recovery procedure can be accelerated by specifying a valid snapshot file created by the previous service in the directory specified via the ``snapshots.directory`` configuration entry. If specified, the ``recover`` node will automatically recover the snapshot and the ledger entries following that snapshot, which in practice should be a fraction of the total time required to recover the entire historical ledger.
 
+Recovery checks each candidate snapshot's header and authenticates its receipt against the configured previous service identity, directly or through COSE endorsements in the ledger, before reading its body.
+Only after receipt authentication succeeds is the body read, hashed against the receipt's claims digest, and checked against the sequence number in the file name.
+An invalid candidate is skipped in favour of an older snapshot; if none can be validated, recovery replays the public ledger without a snapshot.
+
 The state machine for the ``recover`` node is as follows:
 
 .. mermaid::
