@@ -60,3 +60,4 @@ Nodes that join a service never create one.
   After the recovery that introduces the identity and before the first renewal, install the 8.x default constitution with ``set_constitution``, or port its ``set_pq_service_certificate_validity`` action into the custom constitution.
 - When a service with an ML-DSA identity opens, it endorses the ML-DSA identity of the previous service with its own, as it does for the classical identity (see :ref:`audit/builtin_maps:``previous_service_identity_endorsement```).
   A service whose previous service had no ML-DSA identity, such as the one that introduces it, endorses its own ML-DSA identity, which starts the chain.
+- Nodes fetch and validate the ML-DSA endorsement chain with the classical one, and applications read the endorsement chain and trusted keys of either identity type through :cpp:class:`ccf::NetworkIdentitySubsystemInterface`.
