@@ -8,8 +8,10 @@
 #include "logging_stub.h"
 
 #include <chrono>
+#include <functional>
 #include <random>
 #include <set>
+#include <span>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -89,6 +91,32 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
   {
     CFT_DRIVER_PRINT("{}->>{}: [KV] initialising in term {}", _id, _id, t);
     aft::LoggingStubStoreConfig::initialise_term(t);
+  }
+};
+
+// Queues each AppendEntries with its entries, read from the ledger of the
+// sender as it is sent, like the host of a real node. A later rollback of the
+// sender does not change them. The entries follow the packet in the message.
+struct ChannelStubProxy_Entries : public aft::ChannelStubProxy
+{
+  std::function<std::vector<uint8_t>(const aft::AppendEntries&)> read_entries;
+
+  bool send_consensus_message(
+    const ccf::NodeId& to, const uint8_t* data, size_t size) override
+  {
+    if (!aft::ChannelStubProxy::send_consensus_message(to, data, size))
+    {
+      return false;
+    }
+
+    if (serialized::peek<aft::CftMsgType>(data, size) == aft::append_entries)
+    {
+      const auto entries = read_entries(*(aft::AppendEntries*)data);
+      auto& message = messages.back().second;
+      message.insert(message.end(), entries.begin(), entries.end());
+    }
+
+    return true;
   }
 };
 
@@ -212,13 +240,26 @@ private:
   {
     auto kv = std::make_shared<Store>(node_id);
     const ccf::consensus::Configuration settings{{"10ms"}, {"100ms"}};
+    auto channels = std::make_shared<ChannelStubProxy_Entries>();
     auto cft = std::make_shared<TCft>(
       settings,
       std::make_unique<Adaptor>(kv),
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
-      std::make_shared<aft::ChannelStubProxy>(),
+      channels,
       std::make_shared<aft::State>(node_id),
       nullptr);
+    channels->read_entries =
+      [ledger = cft->ledger.get()](const aft::AppendEntries& ae) {
+        auto entries = ledger->get_append_entries_payload(ae);
+        if (!entries.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Sent AppendEntries ({}, {}] is not in the ledger",
+            ae.prev_idx,
+            ae.idx));
+        }
+        return std::move(*entries);
+      };
     kv->set_set_retired_committed_hook(
       [cft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
         cft->set_retired_committed(idx, node_ids);
@@ -803,51 +844,21 @@ public:
   {
     if (_connections.find(std::make_pair(src, dst)) != _connections.end())
     {
-      // If this is AppendEntries, fetch the corresponding ledger entries.
+      // The entries of an AppendEntries follow its packet, since it was sent
       const uint8_t* data = contents.data();
       auto size = contents.size();
       auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
-      bool should_send = true;
-      std::vector<uint8_t> body;
+      std::span<const uint8_t> packet = contents;
+      std::span<const uint8_t> entries;
       if (msg_type == aft::append_entries)
       {
-        // Parse the indices to be sent to the recipient.
-        auto ae = *(aft::AppendEntries*)data;
-
-        auto& sender_cft = _nodes.at(src).cft;
-        auto payload_opt = sender_cft->ledger->get_append_entries_payload(ae);
-
-        if (!payload_opt.has_value())
-        {
-          // While trying to construct an AppendEntries, we asked for an
-          // entry that doesn't exist. This is a valid situation - we queued
-          // the AppendEntries, but rolled back before it was dispatched!
-          // We abandon this operation here.
-          // We could log this in Mermaid with the line below, but since
-          // this does not occur in a real node it is silently ignored. In a
-          // real node, the AppendEntries and truncate messages are ordered
-          // and processed by the host in that order. All AppendEntries
-          // referencing a specific index will be processed before any
-          // truncation that removes that index.
-          // CFT_DRIVER_PRINT(
-          //        "Note right of {}: Abandoning AppendEntries"
-          //        "containing {} - no longer in ledger",
-          //        node_id,
-          //        idx);
-          should_send = false;
-        }
-        else
-        {
-          body = std::move(*payload_opt);
-        }
+        entries = packet.subspan(sizeof(aft::AppendEntries));
+        packet = packet.first(sizeof(aft::AppendEntries));
       }
 
-      if (should_send)
-      {
-        log_msg_details(src, dst, contents);
-        _nodes.at(dst).cft->recv_message(src, contents, body);
-        return true;
-      }
+      log_msg_details(src, dst, contents);
+      _nodes.at(dst).cft->recv_message(src, packet, entries);
+      return true;
     }
 
     // Log that this message was dropped
