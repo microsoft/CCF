@@ -2,9 +2,9 @@
 # retire and clean up node 1. Its delayed responses must be ignored after its
 # consensus peer state has been removed.
 start_node,0
-emit_signature,2
+replicate,2,$
 trust_nodes,2,1,2
-emit_signature,2
+replicate,2,$
 dispatch_all
 periodic_all,10
 dispatch_all
@@ -28,7 +28,7 @@ assert_detail,0,leadership_state,Leader
 drop_pending,0
 
 swap_nodes,3,out,1
-emit_signature,3
+replicate,3,$
 periodic_one,0,10
 dispatch_single,0,1
 dispatch_single,0,2
@@ -36,7 +36,7 @@ dispatch_single,2,0
 assert_commit_idx,0,6
 
 cleanup_nodes,3,1
-emit_signature,3
+replicate,3,$
 periodic_one,0,10
 drop_pending_to,0,1
 dispatch_single,0,2

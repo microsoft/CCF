@@ -1,10 +1,10 @@
 start_node,0
-emit_signature,2
+replicate,2,$
 swap_nodes,2,in,1
-emit_signature,2
+replicate,2,$
 
 swap_nodes,2,in,2
-emit_signature,2
+replicate,2,$
 
 periodic_all,10
 dispatch_all

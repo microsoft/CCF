@@ -1,10 +1,10 @@
 # A retiring leader nominates the successor with the highest match index,
 # even when a node with a higher ID is in the same latest configuration.
 start_node,0
-emit_signature,2
+replicate,2,$
 
 swap_nodes,2,in,1,2,3
-emit_signature,2
+replicate,2,$
 
 periodic_all,10
 dispatch_all
@@ -20,7 +20,7 @@ disconnect_node,3
 
 # Reconfig [0, 1, 2, 3] -> [1, 2, 3]
 swap_nodes,2,out,0
-emit_signature,2
+replicate,2,$
 periodic_all,10
 dispatch_all
 periodic_all,10
@@ -35,7 +35,7 @@ periodic_all,10
 dispatch_all
 assert_last_txid,1,2.7
 assert_last_txid,2,2.7
-emit_signature,2
+replicate,2,$
 periodic_all,10
 dispatch_all
 assert_commit_idx,0,8
@@ -49,7 +49,7 @@ assert_detail,1,leadership_state,Follower
 assert_detail,3,leadership_state,Follower
 
 reconnect_node,3
-emit_signature,3
+replicate,3,$
 periodic_all,10
 dispatch_all
 periodic_all,10
