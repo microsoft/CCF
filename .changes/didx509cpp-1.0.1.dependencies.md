@@ -1,0 +1,1 @@
+Updated didx509cpp to [1.0.1](https://github.com/microsoft/didx509cpp/releases/tag/didx509cpp-1.0.1), which decodes standalone Fulcio extensions only when selected by DID policy and only on the leaf certificate.
