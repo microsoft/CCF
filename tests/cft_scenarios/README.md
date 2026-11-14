@@ -33,6 +33,8 @@ Scenarios are ordinary Lean, so they can also use loops, conditions and definiti
 
 After each command which can alter state, the driver asserts that the commit index of every node is safe.
 After the last command, it confirms that the network can still make progress.
+A node starts its election timer as a real node does, when it first holds a signature while it is in its latest configuration.
+Advancing its clock before that starts no election.
 
 ## Adding a scenario
 

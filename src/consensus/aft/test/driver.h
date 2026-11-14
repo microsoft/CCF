@@ -278,7 +278,8 @@ private:
     {
       cft->init_as_backup(0, 0, {});
     }
-    cft->start_ticking();
+    // The node starts its election timer as a real node does: when it first
+    // holds a signature while it is in its latest configuration.
 
     if (_nodes.find(node_id) != _nodes.end())
     {
@@ -306,6 +307,8 @@ public:
     for (auto& node : _nodes)
     {
       node.second.cft->add_configuration(0, configuration);
+      // No node can sign before one is elected
+      node.second.cft->start_ticking();
     }
   }
 
