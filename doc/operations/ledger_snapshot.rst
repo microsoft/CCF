@@ -219,7 +219,8 @@ Time-based snapshotting can also be enabled with ``snapshots.time_interval``. Wh
 
 .. warning:: Setting ``snapshots.min_tx_count`` lower than ``2`` while ``snapshots.time_interval`` is greater than ``0s`` can lead to repeated time-based snapshots even when there are no new application writes. This is because the snapshot itself generates two transactions.
 
-To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the :ref:`audit/builtin_maps:``snapshot_evidence``` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operations/configuration:``ledger_signatures```).
+To allow a snapshot to be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the :ref:`audit/builtin_maps:``snapshot_evidence``` table.
+The snapshot evidence is signed with the service identity in the next signature transaction (see :ref:`operations/configuration:``ledger_signatures```).
 A COSE receipt of that signature is appended to the snapshot file, and is verified before a node joins or recovers from the snapshot.
 Snapshots written by 6.x and earlier releases carry a JSON receipt instead; these releases are out of support and nodes reject their snapshots, as do ``ccf.ledger.Snapshot`` and ``read_ledger.py --snapshot`` in the Python package.
 
