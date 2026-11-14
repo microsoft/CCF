@@ -98,7 +98,8 @@ class SnapshotServer:
         match = re.fullmatch(r"bytes=(\d+)-(\d+)", request.headers["Range"])
         assert match is not None, request.headers
         start, end = map(int, match.groups())
-        end = min(end, self.size - 1)
+        if self.mode != "overrun":
+            end = min(end, self.size - 1)
         if self.mode == "chunk_error" and start != 0:
             return web.Response(status=500, text="Snapshot chunk unavailable")
         if self.mode == "wrong_start":
@@ -108,10 +109,17 @@ class SnapshotServer:
 
         # CCF 6.x used exclusive ends; 7.x uses HTTP-style inclusive ends.
         header_end = end + 1 if self.mode == "exclusive" else end
+        total = self.size
+        if self.mode == "wrong_total" and start != 0:
+            total += 1
+        body = self.data[start : end + 1]
+        if self.mode == "overrun":
+            # Send every requested range in full, even past the snapshot's end
+            body = body.ljust(end + 1 - start, b"\0")
         return web.Response(
             status=206,
-            headers={"Content-Range": f"bytes {start}-{header_end}/{self.size}"},
-            body=self.data[start : end + 1],
+            headers={"Content-Range": f"bytes {start}-{header_end}/{total}"},
+            body=body,
         )
 
     async def headers(self, request):

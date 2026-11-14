@@ -687,6 +687,7 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
     {"redirect_loop", 21},
     {"wrong_start", 3},
     {"wrong_end", 3},
+    {"wrong_total", 4},
     {"chunk_error", 4},
   };
   for (const auto& [mode, request_count] : failures)
@@ -703,7 +704,10 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
     CHECK(requests.front().at("range") == initial_range);
   }
 
-  for (const size_t max_size : {CHUNK_SIZE - 1, CHUNK_SIZE + 16})
+  // A snapshot larger than max_size is rejected by the first range: by the
+  // response size limit if the range itself does not fit, otherwise by its
+  // total size
+  for (const size_t max_size : {CHUNK_SIZE - 1, CHUNK_SIZE + 16, DATA_SIZE - 1})
   {
     INFO(max_size);
     configure("inclusive");
@@ -711,12 +715,22 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
       ccf::snapshots::try_fetch_from_peer(peer_address, peer_ca, max_size)
         .has_value());
     const auto requests = get_requests();
-    CHECK(requests.size() == (max_size < CHUNK_SIZE ? 3 : 4));
+    CHECK(requests.size() == 3);
+    CHECK(requests.back().at("range") == initial_range);
+  }
+
+  // A peer sending more than its total size is cut off once that total has
+  // arrived, even when max_size would allow more
+  {
+    configure("overrun");
+    CHECK_FALSE(
+      ccf::snapshots::try_fetch_from_peer(peer_address, peer_ca, 2 * DATA_SIZE)
+        .has_value());
+    const auto requests = get_requests();
+    CHECK(requests.size() == 5);
     CHECK(
       requests.back().at("range") ==
-      (max_size < CHUNK_SIZE ?
-         initial_range :
-         fmt::format("bytes={}-{}", CHUNK_SIZE, 2 * CHUNK_SIZE - 1)));
+      fmt::format("bytes={}-{}", 2 * CHUNK_SIZE, 3 * CHUNK_SIZE - 1));
   }
 
   configure("not_found");

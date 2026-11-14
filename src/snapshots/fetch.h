@@ -242,10 +242,10 @@ namespace ccf::snapshots
       size_t range_end = range_size;
       size_t inclusive_range_end = range_end - 1;
       bool fetched_all = false;
-      size_t snapshot_size = 0;
+      std::optional<size_t> snapshot_size = std::nullopt;
 
       auto process_partial_response =
-        [&](const ccf::http_client::CurlRequest& request) {
+        [&](ccf::http_client::CurlRequest& request) {
           auto content_range = parse_content_range_header(request);
 
           if (content_range.range_start != range_start)
@@ -270,7 +270,37 @@ namespace ccf::snapshots
               content_range.inclusive_range_end));
           }
 
-          snapshot_size = content_range.total_size;
+          if (!snapshot_size.has_value())
+          {
+            // The first response gives the snapshot's total size. Reject a
+            // snapshot larger than max_size now, rather than after fetching
+            // max_size bytes of it
+            if (content_range.total_size > max_size)
+            {
+              throw std::runtime_error(fmt::format(
+                "Snapshot size ({} bytes) exceeds the maximum fetch size ({} "
+                "bytes)",
+                content_range.total_size,
+                max_size));
+            }
+            snapshot_size = content_range.total_size;
+
+            // The remaining ranges are appended to this buffer. Size it for
+            // the whole snapshot now (a no-op if this range holds all of it):
+            // growing it as they arrive copies it into a buffer twice as
+            // large, briefly holding both copies. A peer that then sends more
+            // than this total is cut off before the buffer can grow past it
+            auto* body = request.get_response_body();
+            body->buffer.reserve(content_range.total_size);
+            body->maximum_size = content_range.total_size;
+          }
+          else if (content_range.total_size != *snapshot_size)
+          {
+            throw std::runtime_error(fmt::format(
+              "Unexpected range response. Expected total size {}, received {}",
+              *snapshot_size,
+              content_range.total_size));
+          }
 
           const auto content_range_exclusive_range_end =
             content_range.inclusive_range_end + 1;
@@ -356,15 +386,6 @@ namespace ccf::snapshots
 
           response_body = std::move(request->get_response_ptr());
           curl_easy = std::move(request->get_easy_handle_ptr());
-
-          // The remaining ranges are appended to this buffer. Size it for the
-          // whole snapshot now: growing it as they arrive copies it into a
-          // buffer twice as large, briefly holding both copies. A snapshot
-          // larger than max_size is still rejected by the response size limit.
-          if (!fetched_all && snapshot_size <= max_size)
-          {
-            response_body->buffer.reserve(snapshot_size);
-          }
           break;
         }
 
