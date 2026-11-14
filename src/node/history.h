@@ -166,6 +166,30 @@ namespace ccf
     }
   };
 
+  // Encodes the inclusion proof carried by a COSE receipt, for the leaf with
+  // these components and its path in a HistoryTree
+  static inline std::vector<uint8_t> encode_merkle_proof(
+    const ccf::crypto::Sha256Hash& write_set_digest,
+    const std::string& commit_evidence,
+    const ccf::crypto::Sha256Hash& claims_digest,
+    const HistoryTree::Path& path)
+  {
+    cose::MerkleProof proof;
+    proof.leaf.write_set_digest.assign(
+      write_set_digest.h.begin(), write_set_digest.h.end());
+    proof.leaf.commit_evidence = commit_evidence;
+    proof.leaf.claims_digest.assign(
+      claims_digest.h.begin(), claims_digest.h.end());
+    for (const auto& element : path)
+    {
+      proof.path.emplace_back(
+        element.direction == HistoryTree::Path::Direction::PATH_LEFT ? 1 : 0,
+        std::vector<uint8_t>(
+          element.hash.bytes, element.hash.bytes + element.hash.size()));
+    }
+    return cose::encode_merkle_proof(proof);
+  }
+
   template <class T>
   class MerkleTreeHistoryPendingTx : public ccf::kv::PendingTx
   {
