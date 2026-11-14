@@ -22,6 +22,8 @@ on:
       - ".github/workflows/lean-package.yml"
       # Checked by lean-mathlib-equivalence.yml.
       - "!lean/mathlib-equivalence/**"
+      # Checked by lean-shamir.yml.
+      - "!lean/shamir/**"
   workflow_dispatch:
 
 concurrency:
@@ -321,8 +323,8 @@ jobs:
           import pathlib
 
           expected = {"consensus", "common", "consistency", "disaster-recovery", "kv"}
-          # Checked by lean-mathlib-equivalence.yml.
-          separate = {"mathlib-equivalence"}
+          # Checked by lean-mathlib-equivalence.yml and lean-shamir.yml.
+          separate = {"mathlib-equivalence", "shamir"}
           actual = {config.parent.name for config in pathlib.Path("lean").glob("*/lakefile.toml")} - separate
           if actual != expected:
               raise SystemExit(

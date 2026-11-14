@@ -146,6 +146,10 @@ namespace ccf::crypto::sharing
     {
       throw std::invalid_argument("invalid threshold");
     }
+    if (shares.size() >= prime)
+    {
+      throw std::invalid_argument("too many shares for the field");
+    }
 
     size_t degree = threshold - 1;
 
@@ -175,6 +179,10 @@ namespace ccf::crypto::sharing
     if (shares.size() < threshold)
     {
       throw std::invalid_argument("insufficient input shares");
+    }
+    if (threshold == 0)
+    {
+      throw std::invalid_argument("invalid threshold");
     }
     // We systematically reduce the input shares instead of checking they are
     // well-formed.

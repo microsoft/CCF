@@ -176,7 +176,7 @@ The KV package job checks `lean/kv/replayer/check-fixtures.sh` against the KV fi
 The dedicated replay job builds `kv-replay` separately to validate the captured traces; no replay executables are transferred between jobs.
 
 After the build, `scripts/lean-format-checks.sh` checks every tracked `.lean` file with the pinned leanfmt dependency.
-The workflow runs on pull requests that change `lean/` (except `lean/mathlib-equivalence/`), any `.lean` file, the formatter script, or the workflow.
+The workflow runs on pull requests that change `lean/` (except `lean/mathlib-equivalence/` and `lean/shamir/`), any `.lean` file outside those packages, the formatter script, or the workflow.
 It also runs on changes to the C++ sources and trace runners checked against the CCF consensus and KV models: `src/consensus/aft/`, the CCF consensus scenario tests, `src/kv/`, the public KV and transaction headers, and the KV trace runner.
 See the [local formatting commands](../../lean/disaster-recovery/README.md#formatting) to apply fixes.
 
@@ -186,13 +186,31 @@ File: `lean.yml`
 # Lean Mathlib equivalence
 
 Proves that the local replacements for Mathlib definitions in `lean/common` (`CCF.Seq`, `CCF.Finset` and `CCF.Function`) and the consensus successor ranking are equivalent to the Mathlib definitions they replaced.
-The proofs live in the separate `lean/mathlib-equivalence` package, which is the only Lean package that depends on Mathlib; the main Lean workflow does not schedule it.
+The proofs live in the separate `lean/mathlib-equivalence` package, which depends on Mathlib; the main Lean workflow does not schedule it.
 The job runs on a GitHub-hosted Ubuntu 26.04 runner, restores Mathlib's upstream build cache, runs `lake check --inadvisably-no-sandbox` to build the proofs and replay them through the kernel with only the standard axioms, and checks the package's formatting.
 It caches third-party dependency checkouts and build outputs like the main Lean package jobs.
 The workflow runs only on pull requests that change the replacement definitions, the equivalence package, the Lean toolchain, the formatter script, or the workflow, and can be run manually.
 
 File: `lean-mathlib-equivalence.yml`
 3rd party dependencies: Mathlib (pinned in the Lake package), leanfmt and elan.
+
+# Lean Shamir
+
+Extraction and verification pipeline for the experimental Rust Shamir secret-sharing backend, whose model and proofs are in `lean/shamir`.
+It needs Aeneas, Charon, CSLib, Mathlib, Miri and cbindgen.
+These are confined to this workflow: the CCF build, the Continuous Integration workflow and the main Lean workflow do not install or use any of them, and the main Lean workflow does not schedule the package.
+The `Reproduce Rust Shamir extraction and C header` job downloads the pinned Aeneas and Charon release, checks its SHA-256, re-extracts the Lean model from `src/rust/shamir` and requires it to match the committed `lean/shamir/Generated/CcfShamir.lean` exactly.
+It then runs the Rust core's tests, runs the C ABI tests under Miri with the Stacked Borrows and Tree Borrows models, and checks with a pinned cbindgen that `src/crypto/sharing_ffi.h` matches the Rust declarations.
+The `Check Shamir model and proofs` job restores Mathlib's upstream build cache and runs `scripts/check-shamir.sh`, which builds the package with warnings as errors and replays every declaration the package owns, and their dependencies, through the kernel with only the standard axioms.
+It then runs the shared import coverage and architecture check, the formatting check and the linters.
+Both jobs run on standard GitHub-hosted `ubuntu-latest` runners, and the proofs job installs Lean with elan from apt.
+Its dependency cache is keyed on the runner image, since `ubuntu-latest` moves between Ubuntu releases.
+The workflow runs only on pull requests that change the Rust Shamir core (`src/rust/shamir`), the `ccf-rs` crate that exposes its C interface, the generated C header, the Shamir or common Lean packages, the Lean toolchain, the Shamir or formatter scripts, or the workflow, and can be run manually.
+Changes to other Rust code under `src/rust`, such as `ccf-app`, do not trigger it.
+See the [package README](../../lean/shamir/README.md) for the scope of the proofs.
+
+File: `lean-shamir.yml`
+3rd party dependencies: Aeneas and Charon (pinned release with a checked SHA-256, and pinned in the Lake package), CSLib, Mathlib and leanfmt (pinned in the Lake package), a pinned nightly Rust toolchain with Miri, cbindgen (pinned version), and elan.
 
 # Vendored Dependency Verification
 

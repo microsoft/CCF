@@ -5,7 +5,8 @@
 # Checks (and optionally fixes) all tracked Lean files via leanfmt.
 # Pass -f to auto-fix formatting issues. Pass package names under lean/ to
 # check only those packages; the default checks every package except
-# mathlib-equivalence, which needs Mathlib and has its own workflow.
+# mathlib-equivalence and shamir, which need Mathlib and have their own
+# workflows.
 
 set -euo pipefail
 
@@ -23,7 +24,7 @@ if ! command -v lake >/dev/null 2>&1; then
   exit 1
 fi
 
-declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [consensus]=Consensus [consistency]=consistency [kv]=Kv [mathlib-equivalence]=MathlibEquivalence)
+declare -A LIBRARIES=([disaster-recovery]=DisasterRecovery [consensus]=Consensus [consistency]=consistency [kv]=Kv [mathlib-equivalence]=MathlibEquivalence [shamir]=Shamir)
 PACKAGES=("$@")
 if [ ${#PACKAGES[@]} -eq 0 ]; then
   PACKAGES=(disaster-recovery consensus consistency kv)
@@ -37,21 +38,31 @@ for package in "${PACKAGES[@]}"; do
   fi
   # The disaster recovery package also checks Lean files outside lean/.
   if [ "$package" == "disaster-recovery" ]; then
-    PATHSPEC=("*.lean" ":(exclude)lean/consensus/*" ":(exclude)lean/consistency/*" ":(exclude)lean/kv/*" ":(exclude)lean/mathlib-equivalence/*")
+    PATHSPEC=("*.lean" ":(exclude)lean/consensus/*" ":(exclude)lean/consistency/*" ":(exclude)lean/kv/*" ":(exclude)lean/mathlib-equivalence/*" ":(exclude)lean/shamir/*")
+  elif [ "$package" == "shamir" ]; then
+    # Keep the Aeneas output byte-identical, so CI can check that it is
+    # reproduced from the Rust source.
+    PATHSPEC=("lean/shamir/*.lean" ":(exclude)lean/shamir/Generated/*" ":(exclude)lean/shamir/Generated.lean")
   else
     PATHSPEC=("lean/$package/*.lean")
   fi
   (
     cd "$ROOT_DIR/lean/$package"
+    jobs="$(( ($(nproc) + 1) >> 1 ))"
     # leanfmt loads imported modules to parse project-specific syntax.
     if [ "$package" == "disaster-recovery" ]; then
       lake build ccf_common/+CCF
+    elif [ "$package" == "shamir" ]; then
+      # Each formatter process loads the Aeneas and Mathlib environment.
+      jobs=1
+      # ListDeclarations.lean also imports the extracted model's root.
+      lake build Generated
     fi
     lake build "$library"
     git -C "$ROOT_DIR" ls-files -z -- "${PATHSPEC[@]}" |
       while IFS= read -r -d '' file; do
         printf '%s\0' "$ROOT_DIR/$file"
       done |
-      xargs -0 -r lake exe fmt --jobs "$(( ($(nproc) + 1) >> 1 ))" "${FORMAT_ARGS[@]}"
+      xargs -0 -r lake exe fmt --jobs "$jobs" "${FORMAT_ARGS[@]}"
   )
 done
