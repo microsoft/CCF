@@ -100,6 +100,9 @@ class SnapshotServer:
         start, end = map(int, match.groups())
         if self.mode != "overrun":
             end = min(end, self.size - 1)
+        if self.mode == "ignore_range":
+            # Send the rest of the snapshot, whatever range was requested
+            end = self.size - 1
         if self.mode == "chunk_error" and start != 0:
             return web.Response(status=500, text="Snapshot chunk unavailable")
         if self.mode == "wrong_start":

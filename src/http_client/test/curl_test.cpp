@@ -799,6 +799,18 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
       fmt::format("bytes={}-{}", 2 * CHUNK_SIZE, 3 * CHUNK_SIZE - 1));
   }
 
+  // A peer ignoring the requested range is cut off after one range, before
+  // the snapshot's total size has been validated
+  {
+    configure("ignore_range");
+    LogCapture logs;
+    CHECK_FALSE(
+      ccf::snapshots::try_fetch_from_peer(peer_address, peer_ca, DATA_SIZE)
+        .has_value());
+    CHECK(logs.contains(fmt::format("maximum is {} bytes", CHUNK_SIZE)));
+    CHECK(get_requests().size() == 3);
+  }
+
   configure("not_found");
   CHECK_FALSE(
     ccf::snapshots::fetch_from_peer(peer_address, peer_ca, 3, 1, DATA_SIZE, 42)

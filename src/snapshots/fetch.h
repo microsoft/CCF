@@ -9,6 +9,7 @@
 #include "http/http_builder.h"
 #include "http_client/curl.h"
 
+#include <algorithm>
 #include <charconv>
 #include <curl/curl.h>
 #include <llhttp/llhttp.h>
@@ -267,6 +268,10 @@ namespace ccf::snapshots
       size_t inclusive_range_end = range_end - 1;
       bool fetched_all = false;
       std::optional<size_t> snapshot_size = std::nullopt;
+
+      // Until the first range gives the snapshot's total size, accept no more
+      // than one range from the peer
+      response_body->maximum_size = std::min(range_size, max_size);
 
       auto process_partial_response =
         [&](ccf::http_client::CurlRequest& request) {
