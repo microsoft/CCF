@@ -652,6 +652,34 @@ extern "C"
     });
   }
 
+  lean_obj_res cft_undelivered_messages()
+  {
+    return io([]() { return strings(driver->undelivered_messages()); });
+  }
+
+  lean_obj_res cft_hold_nth(
+    b_lean_obj_arg source, b_lean_obj_arg target, uint64_t position)
+  {
+    const auto src = text(source);
+    const auto dst = text(target);
+    return step(
+      command("hold_nth", src, dst, position),
+      [&]() { driver->hold_nth(src, dst, position); },
+      Invariants::SKIP);
+  }
+
+  lean_obj_res cft_held_messages()
+  {
+    return io([]() { return strings(driver->held_messages()); });
+  }
+
+  lean_obj_res cft_dispatch_held(uint64_t position)
+  {
+    return step(command("dispatch_held", position), [&]() {
+      driver->dispatch_held(position);
+    });
+  }
+
   lean_obj_res cft_shuffle_one(b_lean_obj_arg node)
   {
     const auto id = text(node);

@@ -139,8 +139,18 @@ private:
     std::shared_ptr<TCft> cft;
   };
 
+  // A message which hold_nth has set aside
+  struct HeldMessage
+  {
+    ccf::NodeId src;
+    ccf::NodeId dst;
+    std::vector<uint8_t> contents;
+  };
+
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
+  // Oldest first. Only dispatch_held delivers these.
+  std::vector<HeldMessage> _held;
 
   void _replicate(
     const std::string& term_s,
@@ -651,15 +661,34 @@ public:
     });
   }
 
-  // The packet of a queued message as JSON, with the fields which a trace
-  // records for it
-  std::string packet_json(const std::vector<uint8_t>& contents)
+  // The packet of a queued message, with the fields which a trace records for
+  // it
+  nlohmann::json packet_fields(const std::vector<uint8_t>& contents)
   {
     std::vector<uint8_t> encoded;
     visit_packet(contents, [&encoded](const auto& packet) {
       write_msgpack(encoded, packet);
     });
-    return nlohmann::json::from_msgpack(encoded).dump();
+    return nlohmann::json::from_msgpack(encoded);
+  }
+
+  // The packet of a queued message as JSON
+  std::string packet_json(const std::vector<uint8_t>& contents)
+  {
+    return packet_fields(contents).dump();
+  }
+
+  // A queued message as JSON: its sender, its target and its packet
+  std::string message_json(
+    const ccf::NodeId& src,
+    const ccf::NodeId& dst,
+    const std::vector<uint8_t>& contents)
+  {
+    nlohmann::json message;
+    message["from"] = src.value();
+    message["to"] = dst.value();
+    message["packet"] = packet_fields(contents);
+    return message.dump();
   }
 
   void connect(ccf::NodeId first, ccf::NodeId second)
@@ -1001,6 +1030,61 @@ public:
   void drop_nth(ccf::NodeId src, ccf::NodeId dst, size_t position)
   {
     log_msg_details(src, dst, take_pending(src, dst, position), true);
+  }
+
+  // The undelivered messages of every node, each oldest first, as
+  // message_json
+  std::vector<std::string> undelivered_messages()
+  {
+    std::vector<std::string> messages;
+    for (const auto& [src, node] : _nodes)
+    {
+      for (const auto& [dst, contents] :
+           channel_stub_proxy(*node.cft)->messages)
+      {
+        messages.push_back(message_json(src, dst, contents));
+      }
+    }
+    return messages;
+  }
+
+  // Sets aside the undelivered message which dispatch_nth would deliver. It
+  // is no longer undelivered: no other step delivers or drops it.
+  void hold_nth(ccf::NodeId src, ccf::NodeId dst, size_t position)
+  {
+    auto contents = take_pending(src, dst, position);
+    CFT_DRIVER_PRINT(
+      "Note right of {}: Holding {} to {}",
+      src,
+      get_message_summary(contents),
+      dst);
+    _held.push_back({src, dst, std::move(contents)});
+  }
+
+  // The messages which hold_nth has set aside, oldest first, as message_json
+  std::vector<std::string> held_messages()
+  {
+    std::vector<std::string> messages;
+    for (const auto& held : _held)
+    {
+      messages.push_back(message_json(held.src, held.dst, held.contents));
+    }
+    return messages;
+  }
+
+  // Delivers the held message at position, counting from 0, or drops it if
+  // its sender and target are no longer connected
+  void dispatch_held(size_t position)
+  {
+    if (position >= _held.size())
+    {
+      throw std::runtime_error(
+        fmt::format("No held message at position {}", position));
+    }
+
+    auto held = std::move(_held.at(position));
+    _held.erase(_held.begin() + static_cast<std::ptrdiff_t>(position));
+    dispatch_single_message(held.src, held.dst, std::move(held.contents));
   }
 
   std::vector<std::pair<aft::Term, ccf::NodeId>> find_primaries()

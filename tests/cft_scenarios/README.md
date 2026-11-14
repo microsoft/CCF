@@ -28,6 +28,7 @@ initialize scenario "example" do
 [`CftDriver.lean`](CftDriver.lean) documents every command.
 Node identifiers and terms are written as numbers or strings, and `latest` is the primary in the highest term.
 Each `replicate` appends one batch of entries, which are transaction data or `signature`.
+A scenario delivers the messages of a node in the order in which they were sent, or picks one: `dispatchNth` delivers it, `dropNth` loses it, and `holdNth` sets it aside until `dispatchHeld` delivers it, however late.
 Scenarios are ordinary Lean, so they can also use loops, conditions and definitions.
 
 After each command which can alter state, the driver asserts that the commit index of every node is safe.
