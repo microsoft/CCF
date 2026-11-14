@@ -192,6 +192,41 @@ def run_recovery_snapshot_endorsements(args):
             source_snapshot_bytes = snapshot_file.read()
         snapshot_digest = hashlib.sha256(source_snapshot_bytes).digest()
 
+        newest_seqno = infra.node.get_snapshot_seqnos(malformed_snapshot_name)[0] + 1
+        corrupt_body = bytearray(source_snapshot_bytes)
+        corrupt_body[ccf.ledger.LEDGER_HEADER_SIZE] ^= 1
+        with open(
+            os.path.join(
+                source_snapshots_dir,
+                f"snapshot_{newest_seqno}_{newest_seqno + 1}.committed",
+            ),
+            "wb",
+        ) as snapshot_file:
+            snapshot_file.write(corrupt_body)
+
+        # Preserve the signature and body, but claim a different snapshot seqno.
+        wrong_seqno = infra.node.get_snapshot_seqnos(snapshot_name)[0] + 1
+        assert wrong_seqno < infra.node.get_snapshot_seqnos(malformed_snapshot_name)[0]
+        shutil.copy(
+            source_snapshot_path,
+            os.path.join(
+                source_snapshots_dir,
+                f"snapshot_{wrong_seqno}_{wrong_seqno + 1}.committed",
+            ),
+        )
+
+        # The final COSE_Sign1 array element is the signature byte string.
+        invalid_signature = bytearray(source_snapshot_bytes)
+        invalid_signature[-1] ^= 1
+        with open(
+            os.path.join(
+                source_snapshots_dir,
+                f"snapshot_{newest_seqno}_{newest_seqno + 2}.committed",
+            ),
+            "wb",
+        ) as snapshot_file:
+            snapshot_file.write(invalid_signature)
+
         first_recovery, first_args = _recover_and_open(
             initial_network, args, f"{args.label}_identity_1"
         )
@@ -227,18 +262,26 @@ def run_recovery_snapshot_endorsements(args):
             validated_log = "Validated 2 recovery snapshot endorsement(s) in memory"
             snapshot_body_log = "Deserialising snapshot (size:"
             public_recovery_log = "Starting to read public ledger"
+            body_read_log = "Reading authenticated recovery snapshot body"
             malformed_log = (
                 "Recovery snapshot recovery_snapshot_endorsements_source/"
                 f"{malformed_snapshot_name} cannot be verified"
             )
             assert (
-                logs.index(malformed_log)
-                < logs.index("Looking for an older snapshot")
-                < logs.index(scan_log)
+                logs.index(scan_log)
                 < logs.index(validated_log)
+                < logs.index(body_read_log)
+                < logs.index("does not match receipt claim")
+                < logs.index(malformed_log)
                 < logs.index(snapshot_body_log)
                 < logs.index(public_recovery_log)
             )
+            assert logs.count(body_read_log) == 3, logs
+            assert (
+                "Snapshot receipt signature verification failed under the "
+                "endorsed snapshot service identity"
+            ) in logs
+            assert "but its file name claims" in logs
             _assert_node_snapshot_unchanged(
                 valid_primary, snapshot_name, snapshot_digest
             )
@@ -274,6 +317,7 @@ def run_recovery_snapshot_endorsements(args):
             logs = _logs(fallback_primary)
             assert "No usable local snapshot found" in logs
             assert "Setting startup snapshot seqno" not in logs
+            assert body_read_log not in logs
             _assert_node_snapshot_unchanged(
                 fallback_primary, snapshot_name, snapshot_digest
             )

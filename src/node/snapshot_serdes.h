@@ -19,6 +19,7 @@
 #include "node/rpc/network_identity_chain_helpers.h"
 #include "node/tx_receipt_impl.h"
 
+#include <istream>
 #include <nlohmann/json.hpp>
 
 namespace ccf
@@ -76,6 +77,58 @@ namespace ccf
     std::span<const uint8_t> receipt{receipt_data, receipt_size};
 
     return SnapshotSegments{header_and_body, receipt};
+  }
+
+  static void verify_snapshot_digest(
+    std::span<const uint8_t> header_and_body,
+    const ccf::crypto::Sha256Hash& claims_digest)
+  {
+    const auto digest =
+      ccf::crypto::Sha256Hash(header_and_body.data(), header_and_body.size());
+    if (digest != claims_digest)
+    {
+      throw std::logic_error(fmt::format(
+        "Snapshot digest ({}) does not match receipt claim ({})",
+        digest,
+        claims_digest));
+    }
+  }
+
+  static std::vector<uint8_t> read_snapshot_receipt(std::istream& input)
+  {
+    input.seekg(0, std::ios::end);
+    const auto end = input.tellg();
+    if (end < 0)
+    {
+      throw std::logic_error("Could not determine recovery snapshot size");
+    }
+    const auto file_size = static_cast<size_t>(end);
+    input.seekg(0);
+    ccf::kv::SerialisedEntryHeader header;
+    if (!input.read(reinterpret_cast<char*>(&header), sizeof(header)))
+    {
+      throw std::logic_error("Could not read recovery snapshot header");
+    }
+    const auto body_size = header.size;
+    if (
+      body_size == 0 || file_size <= sizeof(header) ||
+      body_size >= file_size - sizeof(header))
+    {
+      throw std::logic_error(fmt::format(
+        "Invalid recovery snapshot body size {} for file size {}",
+        body_size,
+        file_size));
+    }
+
+    const auto receipt_offset = sizeof(header) + body_size;
+    input.seekg(receipt_offset);
+    std::vector<uint8_t> receipt_bytes(file_size - receipt_offset);
+    if (!input.read(
+          reinterpret_cast<char*>(receipt_bytes.data()), receipt_bytes.size()))
+    {
+      throw std::logic_error("Could not read recovery snapshot receipt");
+    }
+    return receipt_bytes;
   }
 
   static void verify_snapshot_seqno(
@@ -274,12 +327,11 @@ namespace ccf
     }
   }
 
-  static void verify_json_snapshot_receipt(
-    const SnapshotSegments& segments,
+  static ccf::crypto::Sha256Hash verify_json_snapshot_receipt_signature(
+    std::span<const uint8_t> receipt_bytes,
     const std::optional<std::vector<uint8_t>>& prev_service_identity)
   {
-    auto j =
-      ccf::parse_json_safe(segments.receipt.begin(), segments.receipt.end());
+    auto j = ccf::parse_json_safe(receipt_bytes.begin(), receipt_bytes.end());
     auto receipt_p = j.get<ReceiptPtr>();
     auto receipt = std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_p);
     if (receipt == nullptr)
@@ -288,16 +340,7 @@ namespace ccf
         "Unexpected receipt type: missing expanded claims");
     }
 
-    auto snapshot_digest = ccf::crypto::Sha256Hash(
-      segments.header_and_body.data(), segments.header_and_body.size());
     auto snapshot_digest_claim = receipt->leaf_components.claims_digest.value();
-    if (snapshot_digest != snapshot_digest_claim)
-    {
-      throw std::logic_error(fmt::format(
-        "Snapshot digest ({}) does not match receipt claim ({})",
-        snapshot_digest,
-        snapshot_digest_claim));
-    }
 
     auto root = receipt->calculate_root();
 
@@ -326,6 +369,16 @@ namespace ccf
       }
       LOG_DEBUG_FMT("Previous service identity endorses snapshot signer");
     }
+    return snapshot_digest_claim;
+  }
+
+  static void verify_json_snapshot_receipt(
+    const SnapshotSegments& segments,
+    const std::optional<std::vector<uint8_t>>& prev_service_identity)
+  {
+    const auto claims_digest = verify_json_snapshot_receipt_signature(
+      segments.receipt, prev_service_identity);
+    verify_snapshot_digest(segments.header_and_body, claims_digest);
   }
 
   static void verify_snapshot(

@@ -613,8 +613,8 @@ namespace ccf
 #endif
     }
 
-    void verify_recovery_snapshot_candidate_unsafe(
-      const SnapshotSegments& segments, ccf::kv::Version snapshot_seqno)
+    ccf::crypto::Sha256Hash verify_recovery_snapshot_receipt_unsafe(
+      std::span<const uint8_t> receipt_bytes, ccf::kv::Version snapshot_seqno)
     {
       if (!startup_inputs.previous_service_identity.has_value())
       {
@@ -623,19 +623,27 @@ namespace ccf
 
       const ccf::crypto::Pem target_identity(
         *startup_inputs.previous_service_identity);
-      verify_snapshot_seqno(
-        segments, network.tables->get_encryptor(), snapshot_seqno);
+      if (receipt_bytes.empty())
+      {
+        throw std::logic_error("Empty snapshot receipt");
+      }
 
-      if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
+      if (receipt_bytes[0] != 0xD2)
       {
         try
         {
-          verify_snapshot(segments, target_identity.raw());
+          if (receipt_bytes[0] != '{')
+          {
+            throw std::logic_error("Unrecognised snapshot receipt format");
+          }
+
+          const auto claims_digest = verify_json_snapshot_receipt_signature(
+            receipt_bytes, target_identity.raw());
           LOG_INFO_FMT(
             "Recovery snapshot at {} is directly signed by the configured "
             "previous service identity",
             snapshot_seqno);
-          return;
+          return claims_digest;
         }
         catch (const std::exception& e)
         {
@@ -645,20 +653,29 @@ namespace ccf
         }
       }
 
-      const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
+      const auto receipt = ccf::cose::decode_ccf_receipt(
+        {receipt_bytes.begin(), receipt_bytes.end()},
+        /* recompute_root */ true);
+      if (receipt.claims_digest.size() != ccf::crypto::Sha256Hash::SIZE)
+      {
+        throw std::logic_error("Invalid snapshot receipt claims digest size");
+      }
+      const auto claims_digest = ccf::crypto::Sha256Hash::from_span(
+        std::span(receipt.claims_digest)
+          .first<ccf::crypto::Sha256Hash::SIZE>());
 
       std::string direct_verification_error;
       try
       {
         const auto verifier =
           ccf::crypto::make_cose_verifier_from_pem_cert(target_identity);
-        if (verifier->verify_detached(segments.receipt, receipt.merkle_root))
+        if (verifier->verify_detached(receipt_bytes, receipt.merkle_root))
         {
           LOG_INFO_FMT(
             "Recovery snapshot at {} is directly signed by the configured "
             "previous service identity",
             snapshot_seqno);
-          return;
+          return claims_digest;
         }
         direct_verification_error =
           "Previous service identity does not match the service identity that "
@@ -685,7 +702,7 @@ namespace ccf
           scan.endorsements, target_key, snapshot_seqno);
       const auto verifier =
         ccf::crypto::make_cose_verifier_from_key(snapshot_signer_key);
-      if (!verifier->verify_detached(segments.receipt, receipt.merkle_root))
+      if (!verifier->verify_detached(receipt_bytes, receipt.merkle_root))
       {
         throw std::logic_error(
           "Snapshot receipt signature verification failed under the "
@@ -694,6 +711,7 @@ namespace ccf
       LOG_INFO_FMT(
         "Validated {} recovery snapshot endorsement(s) in memory",
         scan.endorsements.size());
+      return claims_digest;
     }
 
     void find_local_startup_snapshot()
@@ -715,19 +733,30 @@ namespace ccf
         snapshots::find_committed_snapshots_in_directories(directories);
       for (const auto& [snapshot_seqno, snapshot_path] : committed_snapshots)
       {
-        auto snapshot_data = files::slurp(snapshot_path);
-
-        LOG_INFO_FMT(
-          "Found latest local snapshot file: {} (size: {})",
-          snapshot_path,
-          snapshot_data.size());
-
         if (start_type == StartType::Recover)
         {
           try
           {
+            LOG_INFO_FMT(
+              "Checking local recovery snapshot file: {}", snapshot_path);
+            std::ifstream input(snapshot_path, std::ios::binary);
+            const auto receipt_bytes = read_snapshot_receipt(input);
+            const auto claims_digest = verify_recovery_snapshot_receipt_unsafe(
+              receipt_bytes, snapshot_seqno);
+            LOG_INFO_FMT("Reading authenticated recovery snapshot body");
+            auto snapshot_data = files::slurp(snapshot_path, true);
             const auto segments = separate_segments(snapshot_data);
-            verify_recovery_snapshot_candidate_unsafe(segments, snapshot_seqno);
+            if (!std::ranges::equal(segments.receipt, receipt_bytes))
+            {
+              throw std::logic_error(
+                "Snapshot receipt changed during validation");
+            }
+            verify_snapshot_digest(segments.header_and_body, claims_digest);
+            verify_snapshot_seqno(
+              segments, network.tables->get_encryptor(), snapshot_seqno);
+            startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+              snapshot_seqno, std::move(snapshot_data));
+            return;
           }
           catch (const std::exception& e)
           {
@@ -738,11 +767,13 @@ namespace ccf
               e.what());
             continue;
           }
-
-          startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
-            snapshot_seqno, std::move(snapshot_data));
-          return;
         }
+
+        auto snapshot_data = files::slurp(snapshot_path);
+        LOG_INFO_FMT(
+          "Found latest local snapshot file: {} (size: {})",
+          snapshot_path,
+          snapshot_data.size());
 
         try
         {
