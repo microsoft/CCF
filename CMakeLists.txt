@@ -1358,7 +1358,9 @@ if(BUILD_TESTS)
       add_warning_checks(cft_model_driver)
       enable_coverage(cft_model_driver)
       # Count the edges of the consensus implementation which a run reaches,
-      # so that the model driver can tell the runs which reach new ones
+      # so that the model driver can tell the runs which reach new ones.
+      # Without inlining, they are the edges of that implementation only, and
+      # not also those of the library code which it calls.
       if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         set(CFT_MODEL_EDGES ${CFT_MODEL_DIR}/edges.allowlist)
         target_compile_options(
@@ -1366,6 +1368,7 @@ if(BUILD_TESTS)
           PRIVATE
             -fsanitize-coverage=inline-8bit-counters
             -fsanitize-coverage-allowlist=${CFT_MODEL_EDGES}
+            -fno-inline
         )
         set_property(
           SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp

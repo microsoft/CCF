@@ -242,9 +242,11 @@ def main (args : List String) : IO UInt32 := do
       | .error error =>
           IO.eprintln error
           return 2
-  | ["--shrink", program, output] => shrink program output none 8
+  | ["--shrink", program, output] => shrink program output .finding 8
   | ["--shrink", program, output, "--outcome", outcome] =>
-      shrink program output (some outcome) 8
+      shrink program output (.outcome outcome) 8
+  | ["--shrink", program, output, "--edges", known] =>
+      shrink program output (.edges (← IO.FS.readBinFile known)) 8
   | [name] =>
       if name == inStep then
         report "in step" runInStep
@@ -254,5 +256,5 @@ def main (args : List String) : IO UInt32 := do
         | none => unknown name
   | _ =>
       IO.eprintln
-        "usage: cft_model_driver SCENARIO | --in-step | --all | --record SCENARIO PROGRAM | --run PROGRAM [RESULT] | --explore DIRECTORY [--seed N] [--runs N] [--jobs N] | --shrink PROGRAM OUTPUT [--outcome OUTCOME] | --scenario PROGRAM NAME OUTPUT"
+        "usage: cft_model_driver SCENARIO | --in-step | --all | --record SCENARIO PROGRAM | --run PROGRAM [RESULT] | --explore DIRECTORY [--seed N] [--runs N] [--jobs N] | --shrink PROGRAM OUTPUT [--outcome OUTCOME | --edges EDGES] | --scenario PROGRAM NAME OUTPUT"
       return 2
