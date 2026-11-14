@@ -1357,6 +1357,22 @@ if(BUILD_TESTS)
       add_san(cft_model_driver)
       add_warning_checks(cft_model_driver)
       enable_coverage(cft_model_driver)
+      # Count the edges of the consensus implementation which a run reaches,
+      # so that the model driver can tell the runs which reach new ones
+      if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        set(CFT_MODEL_EDGES ${CFT_MODEL_DIR}/edges.allowlist)
+        target_compile_options(
+          cft_model_driver
+          PRIVATE
+            -fsanitize-coverage=inline-8bit-counters
+            -fsanitize-coverage-allowlist=${CFT_MODEL_EDGES}
+        )
+        set_property(
+          SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
+          APPEND
+          PROPERTY OBJECT_DEPENDS ${CFT_MODEL_EDGES}
+        )
+      endif()
       # As for cft_driver. The model driver library comes first, so that its
       # main is linked, and not that of the scenario library.
       target_link_libraries(
