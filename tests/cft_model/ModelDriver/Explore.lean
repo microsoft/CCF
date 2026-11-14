@@ -486,13 +486,23 @@ private def groups (jobs : Array Job) (size : Nat) : List (Array Job) :=
   (List.range ((jobs.size + size - 1) / size)).map
     fun group => jobs.extract (group * size) ((group + 1) * size)
 
+/-- What a shorter program must keep of the run of the program which it shortens. -/
+inductive Keep where
+  /-- The finding: its kind and its message, numbers aside. -/
+  | finding
+  /-- An outcome which the model shows, in a run which the model accepts. -/
+  | outcome (name : String)
+  /--
+  Every edge which the run reaches and these lack, each nonzero if reached, in a run
+  which the model accepts.
+  -/
+  | edges (known : ByteArray)
+
 /--
-Make the program in `file` shorter: leave out steps for as long as its run shows `outcome`
-and is accepted by the model or, if no outcome is given, is a finding of the same kind
-and message, numbers aside. Write the program left to `output`.
+Make the program in `file` shorter: leave out steps for as long as its run keeps what
+`keep` asks. Write the program left to `output`.
 -/
-def shrink (file output : System.FilePath) (outcome : Option String) (jobs : Nat)
-    : IO UInt32 := do
+def shrink (file output : System.FilePath) (keep : Keep) (jobs : Nat) : IO UInt32 := do
   let directory ← IO.FS.createTempDir
   IO.FS.createDirAll (directory / "run")
   let run (programs : Array (Array Step)) : IO (Array Ran) := do
@@ -505,10 +515,20 @@ def shrink (file output : System.FilePath) (outcome : Option String) (jobs : Nat
     return ran
   let given ← readProgram file
   let some first := (← run #[given])[0]? | return 1
+  let wanted :=
+    match keep with
+    | .edges known =>
+        (List.range first.edges.size).filter
+          fun index => first.edges.get! index != 0 && byte known index == 0
+    | _ => []
   let keeps (ran : Ran) : Bool :=
-    match outcome with
-    | some outcome => ran.status == "ok" && ran.outcomes.contains outcome
-    | none =>
+    match keep with
+    | .outcome name => ran.status == "ok" && ran.outcomes.contains name
+    | .edges _ =>
+        ran.status == "ok"
+        && !wanted.isEmpty
+        && wanted.all fun index => byte ran.edges index != 0
+    | .finding =>
         -- The same finding, and still before or after the driver confirms progress
         ran.status != "ok"
         && ran.status != "invalid"
@@ -547,9 +567,10 @@ def shrink (file output : System.FilePath) (outcome : Option String) (jobs : Nat
         size := (size + 1) / 2
   IO.FS.removeDirAll directory
   let kept :=
-    match outcome with
-    | some outcome => [s!"shows {outcome}"]
-    | none => [s!"{last.kind} at '{last.command}'", last.message.replace "\n" " "]
+    match keep with
+    | .outcome name => [s!"shows {name}"]
+    | .edges _ => [s!"reaches {wanted.length} edges which the others do not"]
+    | .finding => [s!"{last.kind} at '{last.command}'", last.message.replace "\n" " "]
   IO.FS.writeFile output (programText (s!"{file}, shrunk" :: kept) steps)
   IO.println s!"{given.size} steps shrunk to {steps.size}: {kept.head!}"
   return 0
@@ -592,6 +613,8 @@ def explore (options : Exploration) (scenarios : List String) : IO UInt32 := do
               edges := mergeEdges state.edges ran.edges
           }
   state := { state with shown := state.outcomes, reached := countEdges state.edges }
+  -- For `shrink`, to keep what a run reaches and the scenarios do not
+  IO.FS.writeBinFile (directory / "scenarios.edges") state.edges
   for jobs in groups seeds options.jobs do
     for job in jobs, ran in (← runJobs directory jobs) do
       state := (← absorb directory state job ran).1

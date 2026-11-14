@@ -58,15 +58,17 @@ It runs each changed program in a process of its own.
   Findings with the same message, numbers aside, are counted together.
 - A run is neither if the model does not cover it, for example because a primary is asked to remove a node which has not retired.
 
-The directory receives the programs kept in `corpus/`, the first program and trace of each finding in `findings/`, and `report.md`.
+The directory receives the programs kept in `corpus/`, the first program and trace of each finding in `findings/`, the edges which the scenarios reach in `scenarios.edges`, and `report.md`.
 The same seed gives the same changes.
 
 ```sh
-build/cft_model_driver --shrink <program> <shorter program> [--outcome <outcome>]
+build/cft_model_driver --shrink <program> <shorter program> [--outcome <outcome> | --edges <edges>]
 build/cft_model_driver --scenario <program> <name> <name>.lean
 ```
 
-- `--shrink` leaves out steps of a program for as long as its run is the same finding or, with `--outcome`, still shows that outcome.
+- `--shrink` leaves out steps of a program for as long as its run is the same finding.
+  With `--outcome`, it does so for as long as the model accepts the run and shows that outcome.
+  With `--edges`, it does so for as long as the model accepts the run, and the run reaches every edge which it reached at first and the edges in that file lack, such as `scenarios.edges`.
 - `--scenario` writes a program as a scenario in Lean, which ends by asserting the leadership and the commit index of each node.
 
 ## Building
@@ -91,4 +93,4 @@ For the model driver, `lake` builds the consensus model, and fetches from GitHub
 - [`Command.lean`](ModelDriver/Command.lean): driver commands as data, programs, and scenarios written from them.
 - [`Episode.lean`](ModelDriver/Episode.lean): one run of the driver in a process, checked against the model.
 - [`Explore.lean`](ModelDriver/Explore.lean): the changes made to programs, the runs kept, and the findings.
-- [`edges.allowlist`](edges.allowlist): the functions whose edges the driver counts, for which `driver.cpp` is compiled with `-fsanitize-coverage`.
+- [`edges.allowlist`](edges.allowlist): the functions whose edges the driver counts, for which `driver.cpp` is compiled with `-fsanitize-coverage`, and without inlining, so that the edges are those of `cft.h` only.
