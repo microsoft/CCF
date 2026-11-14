@@ -64,6 +64,7 @@ Each replayer consumes traces produced by existing C++ tests:
   The scenarios are Lean programs, which drive the implementation through the bindings in :ccf_repo:`tests/cft_scenarios/CftDriver.lean` and :ccf_repo:`src/consensus/aft/test/driver.cpp`; see :ccf_repo:`tests/cft_scenarios/README.md`.
   The driver exports consensus events as Fluentd records with the ``ccf.cft`` tag, which the runner collects and writes as NDJSON traces to ``consensus/raw/`` in the build directory.
   The ``cft_model_test`` test, built with ``-DCFT_MODEL_DRIVER=ON``, runs the same scenarios with ``cft_model_driver``, which links the driver with the replayer and replays each trace in the process which records it; see :ccf_repo:`tests/cft_model/README.md`.
+  ``cft_model_driver --explore`` also changes the scenarios at random, and replays each changed run, to find runs in which the implementation and the model disagree, or which show an outcome that no scenario does.
 * **KV**: building with ``-DCCF_KV_TRACING=ON`` enables test-only trace capture in ``kv_test``.
   :ccf_repo:`tests/kv_trace_validation.py` captures the purpose-built ``KV trace *`` test cases and a seeded concurrent fuzzer, then checks every trace with ``kv-replay`` unless ``--capture-only`` is passed.
   Tracing is disabled in normal builds.

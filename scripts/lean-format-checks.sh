@@ -57,6 +57,11 @@ for package in "${PACKAGES[@]}"; do
       lake --dir "$ROOT_DIR/tests/cft_scenarios" build
       export LEAN_PATH="$ROOT_DIR/tests/cft_scenarios/.lake/build/lib/lean"
     fi
+    # The modules of the model driver import one another.
+    if [ "$package" == "consensus" ]; then
+      lake --dir "$ROOT_DIR/tests/cft_model" build
+      export LEAN_PATH="$LEAN_PATH:$ROOT_DIR/tests/cft_model/.lake/build/lib/lean"
+    fi
     git -C "$ROOT_DIR" ls-files -z -- "${PATHSPEC[@]}" |
       while IFS= read -r -d '' file; do
         printf '%s\0' "$ROOT_DIR/$file"

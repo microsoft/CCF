@@ -1,7 +1,6 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
-import Consensus.Replay.Session
-import Scenarios
+import ModelDriver.Explore
 
 /-!
 Runs consensus scenarios with the Lean model of the protocol in the same process.
@@ -16,16 +15,6 @@ open Consensus Consensus.Replay
 open CCF.MultiNodeTransitionSystem (nodeState)
 
 namespace ModelDriver
-
-private def fail {α : Type} (message : String) : IO α :=
-  throw (IO.userError message)
-
-/-- Take the trace records emitted since the last call, numbered after the `taken` before. -/
-private def takeRecords (source : String) (taken : Nat) : IO (Array Record) := do
-  (← takeTrace).mapIdxM
-    fun index line => do
-      let value ← IO.ofExcept (Json.parse line)
-      return { file := source, line := taken + index + 1, value }
 
 /--
 Run a scenario with its trace kept in memory, then replay the trace against the model:
@@ -50,29 +39,6 @@ private structure Run where
   records : Array Record := #[]
   /-- The replay, once a command has started the first node. -/
   session : Option Session := none
-
-/-- The nodes which have started, by name and model identifier. -/
-private def started (session : Session) : List (String × Nat) :=
-  session.header.declared.zipIdx.filter
-    fun (_, id) => (nodeState session.state id).any fun node => !decide node.isFresh
-
-/--
-Each undelivered message of the driver must be a distinct envelope in the network of the
-model. The model also keeps the messages which the driver has dropped.
--/
-private def checkPending (session : Session) : IO Unit := do
-  let nodes := started session
-  for (source, sourceId) in nodes do
-    for (target, targetId) in nodes do
-      if sourceId != targetId then
-        let mut queued :=
-          session.state.network.filter
-            fun envelope => envelope.source == sourceId && envelope.target == targetId
-        for pending in ← pendingMessages source target do
-          let packet ← IO.ofExcept (Json.parse pending)
-          let some envelope := queued.find? (packetMatches packet ·.payload)
-          | fail s!"the model holds no message from {source} to {target} like {pending}"
-          queued := queued.erase envelope
 
 /--
 Deliver the message which the model holds as `envelope`, wherever it is among the
@@ -150,25 +116,72 @@ private def runInStep : IO Result := do
 /-- The argument which selects the run in step, where a scenario is named. -/
 private def inStep : String := "--in-step"
 
+/-- Start this program again with `args`. Give its exit status and what it wrote to stderr. -/
+private def again (args : Array String) : IO (UInt32 × String) := do
+  let child ←
+    IO.Process.spawn
+      { cmd := (← IO.appPath).toString, args, stdout := .null, stderr := .piped }
+  let errors ← child.stderr.readToEnd
+  return (← child.wait, errors)
+
+/-- The status and the outcomes in the result file of a run, and its message. -/
+private def reported (file : System.FilePath) : IO (String × Json × String) := do
+  let result ← IO.ofExcept (Json.parse (← IO.FS.readFile file))
+  return (
+    ← IO.ofExcept (string result "status"),
+    ← IO.ofExcept (field result "outcomes"),
+    ← IO.ofExcept (string result "message")
+  )
+
+/--
+Record the commands of a scenario, and run them as a program, which must show the outcomes
+which the scenario shows. Give what went wrong, if anything did.
+-/
+private def roundTrip (directory : System.FilePath) (name : String) : IO String := do
+  let program := directory / s!"{name}.program"
+  let (status, errors) ← again #["--record", name, program.toString]
+  if status != 0 then
+    return s!"recording its commands: {errors}"
+  let result := directory / s!"{name}.again.json"
+  let (status, errors) ← again #["--run", program.toString, result.toString]
+  if status != 0 then
+    return s!"running its commands: {errors}"
+  let (_, recorded, _) ← reported (program.withExtension "json")
+  let (status, ran, message) ← reported result
+  if status != "ok" then
+    return s!"its commands are {status}: {message}"
+  if recorded != ran then
+    return "its commands show other outcomes"
+  return ""
+
 /--
 Run every scenario and the run in step, each in a process of its own, because a process
-can start the driver once.
+can start the driver once. Also run each scenario from its commands, and explore briefly.
 -/
 private def runAll : IO UInt32 := do
-  let app ← IO.appPath
   let names := (← scenarios.get).map (·.1) |>.reverse
+  let directory ← IO.FS.createTempDir
   let mut failed := 0
   for name in names ++ [inStep] do
-    let child ←
-      IO.Process.spawn
-        { cmd := app.toString, args := #[name], stdout := .null, stderr := .piped }
-    let errors ← child.stderr.readToEnd
-    if (← child.wait) == 0 then
+    let (status, errors) ← again #[name]
+    let mut problem := if status == 0 then "" else errors
+    if problem.isEmpty && name != inStep then
+      problem ← roundTrip directory name
+    if problem.isEmpty then
       IO.println s!"{name}: ok"
     else
       failed := failed + 1
-      IO.println s!"{name}: FAILED\n{errors}"
-  IO.println s!"{names.length + 1} runs, {failed} failed"
+      IO.println s!"{name}: FAILED\n{problem}"
+  -- A short exploration must run, whatever it finds
+  let (status, errors) ←
+    again #["--explore", (directory / "explore").toString, "--runs", "40"]
+  if status == 0 then
+    IO.println "--explore: ok"
+  else
+    failed := failed + 1
+    IO.println s!"--explore: FAILED\n{errors}"
+  IO.FS.removeDirAll directory
+  IO.println s!"{names.length + 2} runs, {failed} failed"
   return if failed == 0 then 0 else 1
 
 /-- Report the result of one run. -/
@@ -192,22 +205,54 @@ private def report (name : String) (run : IO Result) : IO UInt32 := do
 end ModelDriver
 
 open ModelDriver in
+/-- The options of an exploration, after its directory. -/
+private def exploration (options : Exploration) : List String → Except String Exploration
+  | [] => pure options
+  | name :: value :: rest =>
+      match name, value.toNat? with
+      | "--seed", some seed => exploration { options with seed } rest
+      | "--runs", some runs => exploration { options with runs } rest
+      | "--jobs", some jobs => exploration { options with jobs := max jobs 1 } rest
+      | _, _ => throw s!"unknown option '{name} {value}'"
+  | [name] => throw s!"option '{name}' has no value"
+
+open ModelDriver in
 /--
 Run the scenario named by the argument, `--in-step` for the run in step with the model,
-or `--all` for every scenario and the run in step.
+or `--all` for every scenario and the run in step. `--record` writes the commands of a
+scenario as a program, `--run` runs a program, and `--explore` changes the scenarios at
+random and runs them.
 -/
 def main (args : List String) : IO UInt32 := do
+  let unknown (name : String) : IO UInt32 := do
+    IO.eprintln s!"Unknown scenario '{name}'"
+    return 2
   match args with
   | ["--all"] => runAll
+  | ["--record", name, file] =>
+      match (← scenarios.get).lookup name with
+      | some steps => recordScenario name steps file
+      | none => unknown name
+  | ["--run", program] => runProgram program none
+  | ["--run", program, result] => runProgram program (some result)
+  | ["--scenario", program, name, output] => writeScenario program name output
+  | "--explore" :: directory :: options =>
+      match exploration { directory } options with
+      | .ok options => explore options ((← scenarios.get).map (·.1) |>.reverse)
+      | .error error =>
+          IO.eprintln error
+          return 2
+  | ["--shrink", program, output] => shrink program output none 8
+  | ["--shrink", program, output, "--outcome", outcome] =>
+      shrink program output (some outcome) 8
   | [name] =>
       if name == inStep then
         report "in step" runInStep
       else
         match (← scenarios.get).lookup name with
         | some steps => report name (runScenario name steps)
-        | none =>
-            IO.eprintln s!"Unknown scenario '{name}'"
-            return 2
+        | none => unknown name
   | _ =>
-      IO.eprintln "usage: cft_model_driver SCENARIO | --in-step | --all"
+      IO.eprintln
+        "usage: cft_model_driver SCENARIO | --in-step | --all | --record SCENARIO PROGRAM | --run PROGRAM [RESULT] | --explore DIRECTORY [--seed N] [--runs N] [--jobs N] | --shrink PROGRAM OUTPUT [--outcome OUTCOME] | --scenario PROGRAM NAME OUTPUT"
       return 2

@@ -1,0 +1,8 @@
+# The functions whose edges cft_model_driver counts: the members of aft::Aft,
+# the consensus implementation in src/consensus/aft/cft.h, and the lambdas in
+# them.
+src:*
+fun:_ZN3aft3AftI*
+fun:_ZNK3aft3AftI*
+fun:_ZZN3aft3AftI*
+fun:_ZZNK3aft3AftI*
