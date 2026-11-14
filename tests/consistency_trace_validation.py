@@ -1,18 +1,19 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import os
+import json
 import signal
 import subprocess
 import sys
 import time
 
+import infra.consistency_trace
 import infra.e2e_args
 from loguru import logger as LOG
 
 
 def run(args):
-    with infra.network.network(
+    with infra.consistency_trace.recording(args), infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
@@ -26,27 +27,24 @@ def run(args):
         cli.append("--ca")
         cli.append(network.cert_path)
 
-        # Create consistency-specific output directory
-        output_dir = os.path.join("consistency")
-        os.makedirs(output_dir, exist_ok=True)
-
-        with open("consistency/trace.ndjson", "w") as trace_file:
-            LOG.info(f"Starting {' '.join(cli)} > {trace_file.name}")
-            tvc = subprocess.Popen(cli, stdout=trace_file)
-            # Do some normal transactions
-            time.sleep(2)
-            # Suspend the primary long enough to cause an election
-            primary, _ = network.find_primary()
-            primary.suspend()
-            time.sleep(network.election_duration * 2)
-            primary.resume()
-            # Do some more transactions
-            time.sleep(5)
-            tvc.poll()
-            if tvc.returncode is not None:
-                raise RuntimeError(f"tvc failed with rc {tvc.returncode}")
-            tvc.send_signal(signal.SIGINT)
-            tvc.wait()
+        LOG.info(f"Starting {' '.join(cli)}")
+        tvc = subprocess.Popen(cli, stdout=subprocess.PIPE, text=True)
+        # Do some normal transactions
+        time.sleep(2)
+        # Suspend the primary long enough to cause an election
+        primary, _ = network.find_primary()
+        primary.suspend()
+        time.sleep(network.election_duration * 2)
+        primary.resume()
+        # Do some more transactions
+        time.sleep(5)
+        tvc.poll()
+        if tvc.returncode is not None:
+            raise RuntimeError(f"tvc failed with rc {tvc.returncode}")
+        tvc.send_signal(signal.SIGINT)
+        statuses, _ = tvc.communicate()
+        for status in map(json.loads, statuses.splitlines()):
+            infra.consistency_trace.tx_status(status, status["ts"])
 
 
 if __name__ == "__main__":

@@ -146,8 +146,8 @@ Each matrix job caches its third-party dependency checkouts and build outputs, l
 Caches are isolated by package and runner architecture and invalidated by changes to the Ubuntu version, Lean toolchain, package and common dependency manifests/configuration, or reusable workflow.
 CCF package and common build outputs are not cached, and all verification steps still run.
 CCF consensus, KV, and consistency trace captures run in parallel with package checks.
-Three independent trace-validation jobs each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
-Consistency capture reuses the existing `consistency_trace_validation` e2e test, and its replay job also checks the consistency replay fixtures, including election and rollback traces.
+Two independent trace-validation jobs, for consensus and KV, each build their own replayer, download the corresponding capture artifacts, and replay the traces without depending on the package matrix.
+Consistency capture reuses the existing `consistency_trace_validation` e2e test, which replays its own trace in the capture job.
 A final summary job requires every package and trace job to succeed.
 
 The disaster recovery job builds the library and replayer with `lake build --wfail --fail-fast` and runs Lean's built-in linters with `lake lint` on Ubuntu 26.04 on relevant pull requests.

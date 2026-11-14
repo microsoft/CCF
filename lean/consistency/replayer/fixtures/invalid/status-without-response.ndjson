@@ -1,1 +1,4 @@
-{"action":"StatusCommittedResponseAction","type":"TxStatusReceived","tx_id":[2,10],"status":"CommittedStatus"}
+{"msg":{"function":"become_leader","state":{"node_id":"n0","current_view":2,"last_idx":0}}}
+{"msg":{"function":"replicate","state":{"node_id":"n0"},"view":2,"seqno":1}}
+{"msg":{"function":"replicate","state":{"node_id":"n0"},"view":2,"seqno":2}}
+{"msg":{"function":"tx_status","view":2,"seqno":5,"status":"Invalid"}}

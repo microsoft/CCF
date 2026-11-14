@@ -42,7 +42,7 @@ Lean packages
      - CCF's externally visible consistency semantics, including :ref:`transaction status <use_apps/verify_tx:Checking for Commit>`, for a simple append-and-read application with forwarded reads, elections and invalidation.
        The primary guarantee is that committed writes serialize in transaction ID order, and that this order respects the real-time order of requests and their initial responses.
        There is no refinement proof connecting this model to the consensus model.
-     - ``consistency-replay`` replays client-observed request, response and transaction status traces from a multi-node e2e test.
+     - ``consistency-replay`` replays the consensus events of multi-node e2e tests, with the transaction statuses given to their clients.
    * - :ccf_repo:`disaster-recovery <lean/disaster-recovery/README.md>`
      - The :doc:`recovery decision protocol </operations/recovery>` (:ccf_repo:`src/node/recovery_decision_protocol.cpp`).
        Proved properties include that all quorum openings in a trace originate from one node and, under stated premises, that the opening node passes the consensus vote freshness check against a strict majority of the recovered ledgers.
@@ -65,8 +65,9 @@ Each replayer consumes traces produced by existing C++ tests:
 * **KV**: building with ``-DCCF_KV_TRACING=ON`` enables test-only trace capture in ``kv_test``.
   :ccf_repo:`tests/kv_trace_validation.py` captures the purpose-built ``KV trace *`` test cases and a seeded concurrent fuzzer, then checks every trace with ``kv-replay`` unless ``--capture-only`` is passed.
   Tracing is disabled in normal builds.
-* **Consistency**: the ``consistency_trace_validation`` e2e test (:ccf_repo:`tests/consistency_trace_validation.py`) starts a three-node network running the :ccf_repo:`basic_tv <samples/apps/basic_tv/>` JavaScript application, and runs :ccf_repo:`tests/tvc.py` against it to record client requests, responses and transaction statuses to ``consistency/trace.ndjson``.
-  The test suspends the primary to cause an election during the recording.
+* **Consistency**: nodes export consensus events as Fluentd records with the ``ccf.cft`` tag, which :ccf_repo:`tests/infra/consistency_trace.py` collects, joins with the transaction statuses given to clients, and replays through ``consistency-replay``.
+  The ``consistency_trace_validation`` e2e test (:ccf_repo:`tests/consistency_trace_validation.py`) starts a three-node network running the :ccf_repo:`basic_tv <samples/apps/basic_tv/>` JavaScript application, runs :ccf_repo:`tests/tvc.py` against it, and suspends the primary to cause an election.
+  The partitions e2e test (:ccf_repo:`tests/partitions_test.py`) records and replays a trace for each of its networks.
 * **Disaster recovery**: nodes started with the ``CCF_RECOVERY_TRACE`` environment variable set log each step of the recovery decision protocol as an ``RDP_TRACE`` record.
   These scenarios only run in the SNP Genoa CI job, where :ccf_repo:`tests/infra/recovery_trace.py` replays the node logs of the quorum, failover and multiple-timeout scenarios in :ccf_repo:`tests/e2e_operations.py` through ``disaster-recovery-replay``.
 
@@ -79,10 +80,11 @@ The :ccf_repo:`Lean workflow <.github/workflows/lean.yml>` runs on pull requests
 
 * A package job for each of ``common``, ``consensus``, ``consistency``, ``disaster-recovery`` and ``kv`` runs the kernel and axiom check (``lake check``), import coverage and architecture checks, formatting and linting, and, where applicable, the package's replay fixtures.
 * Separate capture jobs build CCF and record consensus, KV and consistency traces from the tests described above.
-* Replay jobs build each replayer and validate every captured trace.
+* Replay jobs build the consensus and KV replayers and validate every captured trace; the consistency capture job replays its own trace.
 * A final ``Lean models and proofs`` job succeeds only if all of the above succeed.
 
 The disaster recovery traces are replayed by the SNP Genoa job in the main CI workflow instead, since that is where the recovery scenarios run.
+The partitions tests replay their consistency traces in the main CI workflow for the same reason.
 
 A separate ``Lean Mathlib equivalence`` workflow proves that the replacements for Mathlib definitions in ``lean/common`` are equivalent to the Mathlib originals, and runs only when those definitions change; see :ccf_repo:`lean/mathlib-equivalence/README.md`.
 
