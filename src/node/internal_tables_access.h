@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -474,14 +475,25 @@ namespace ccf
         service_info->cert == expected_service_cert;
     }
 
-    static bool endorse_previous_identity(
-      ccf::kv::Tx& tx, const ccf::crypto::ECKeyPair_OpenSSL& service_key)
+  private:
+    // Endorsement, signed with the service key of identity_type, of the key
+    // which signed the previous endorsement of that type if back_endorse, or
+    // else of the service key itself. Returns nullopt, already logged, if it
+    // cannot be signed.
+    template <typename KeyPair>
+    static std::optional<ccf::CoseEndorsement>
+    sign_previous_identity_endorsement(
+      ccf::kv::Tx& tx,
+      IdentityType identity_type,
+      const KeyPair& service_key,
+      bool back_endorse,
+      int64_t iat)
     {
       auto* service = tx.ro<ccf::Service>(Tables::SERVICE);
       auto active_service = service->get();
 
       auto* previous_identity_endorsement =
-        tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+        tx.ro<ccf::PreviousServiceIdentityEndorsement>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
 
       ccf::CoseEndorsement endorsement{};
@@ -490,10 +502,10 @@ namespace ccf
 
       endorsement.endorsing_key = service_key.public_key_der();
 
-      if (previous_identity_endorsement->has(IdentityType::CLASSICAL))
+      if (back_endorse)
       {
         const auto prev_endorsement =
-          previous_identity_endorsement->get(IdentityType::CLASSICAL);
+          previous_identity_endorsement->get(identity_type);
         if (!prev_endorsement.has_value())
         {
           throw std::logic_error("Failed to get previous endorsement");
@@ -517,7 +529,7 @@ namespace ccf
 
         endorsement.previous_version =
           previous_identity_endorsement->get_version_of_previous_write(
-            IdentityType::CLASSICAL);
+            identity_type);
 
         key_to_endorse = prev_endorsement->endorsing_key;
 
@@ -527,17 +539,19 @@ namespace ccf
         if (!previous_service_last_signed_root->has())
         {
           LOG_FAIL_FMT(
-            "Failed to sign previous service identity: no last signed root");
-          return false;
+            "Failed to sign previous {} service identity: no last signed root",
+            identity_type);
+          return std::nullopt;
         }
 
         auto root_opt = previous_service_last_signed_root->get();
         if (!root_opt.has_value())
         {
           LOG_FAIL_FMT(
-            "Failed to sign previous service identity: no last signed root "
-            "value");
-          return false;
+            "Failed to sign previous {} service identity: no last signed root "
+            "value",
+            identity_type);
+          return std::nullopt;
         }
         const auto root = root_opt.value();
         previous_root.assign(root.h.begin(), root.h.end());
@@ -561,15 +575,16 @@ namespace ccf
         key_to_endorse = endorsement.endorsing_key;
       }
 
-      check_signing_identity_matches_service_cert(tx);
+      // Checks the published identity of this type against its certificate
       const auto signing_identity =
-        get_service_signing_identity(tx, IdentityType::CLASSICAL);
+        get_service_signing_identity(tx, identity_type);
       if (
         !signing_identity.has_value() ||
         !is_same_key(signing_identity.value(), endorsement.endorsing_key))
       {
-        throw std::logic_error(
-          "Endorsing key is not the service signing identity");
+        throw std::logic_error(fmt::format(
+          "Endorsing key is not the {} service signing identity",
+          identity_type));
       }
 
       auto from_txid = endorsement.endorsement_epoch_begin.to_str();
@@ -579,29 +594,97 @@ namespace ccf
         to_txid = endorsement.endorsement_epoch_end->to_str();
       }
 
-      const auto time_since_epoch =
-        std::chrono::duration_cast<std::chrono::seconds>(
-          std::chrono::system_clock::now().time_since_epoch())
-          .count();
-
       try
       {
         endorsement.endorsement = cose::sign_endorsement(
-          service_key,
-          time_since_epoch,
-          from_txid,
-          to_txid,
-          previous_root,
-          key_to_endorse);
+          service_key, iat, from_txid, to_txid, previous_root, key_to_endorse);
       }
       catch (const std::exception& error)
       {
         LOG_FAIL_FMT(
-          "Failed to sign previous service identity: {}", error.what());
+          "Failed to sign previous {} service identity: {}",
+          identity_type,
+          error.what());
+        return std::nullopt;
+      }
+
+      return endorsement;
+    }
+
+  public:
+    // Endorses, with the service key of each identity type, the previous
+    // service identity of that type, or the service key itself if there is
+    // none. pq_service_key is nullptr for a service without a PQ identity.
+    // Writes the endorsements of every type or none, and returns false if they
+    // cannot be signed (already logged).
+    static bool endorse_previous_identity(
+      ccf::kv::Tx& tx,
+      const ccf::crypto::ECKeyPair_OpenSSL& service_key,
+      const ccf::crypto::MLDSAKeyPairPtr& pq_service_key)
+    {
+      auto* previous_identity_endorsement =
+        tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+
+      const auto iat = std::chrono::duration_cast<std::chrono::seconds>(
+                         std::chrono::system_clock::now().time_since_epoch())
+                         .count();
+
+      const auto classical_endorsement = sign_previous_identity_endorsement(
+        tx,
+        IdentityType::CLASSICAL,
+        service_key,
+        previous_identity_endorsement->has(IdentityType::CLASSICAL),
+        iat);
+      if (!classical_endorsement.has_value())
+      {
         return false;
       }
 
-      previous_identity_endorsement->put(IdentityType::CLASSICAL, endorsement);
+      std::optional<ccf::CoseEndorsement> pq_endorsement = std::nullopt;
+      if (pq_service_key != nullptr)
+      {
+        // The PQ chain continues only from a PQ endorsement written with the
+        // previous CLASSICAL one, by the opening of the previous service, so
+        // that the PQ back-endorsement has the same epochs and previous root
+        // as the CLASSICAL one. Otherwise the previous service, if any, had no
+        // PQ identity, and the PQ chain starts with a self-endorsement.
+        const auto previous_pq_version =
+          previous_identity_endorsement->get_version_of_previous_write(
+            IdentityType::PQ);
+        const bool continue_pq_chain = previous_pq_version.has_value() &&
+          previous_pq_version ==
+            previous_identity_endorsement->get_version_of_previous_write(
+              IdentityType::CLASSICAL);
+        if (previous_pq_version.has_value() && !continue_pq_chain)
+        {
+          LOG_INFO_FMT(
+            "Previous PQ service identity endorsement at {} was not written by "
+            "the previous service, starting a new PQ endorsement chain",
+            previous_pq_version.value());
+        }
+
+        pq_endorsement = sign_previous_identity_endorsement(
+          tx, IdentityType::PQ, *pq_service_key, continue_pq_chain, iat);
+        if (!pq_endorsement.has_value())
+        {
+          return false;
+        }
+      }
+      else if (get_service_signing_identity(tx, IdentityType::PQ).has_value())
+      {
+        throw std::logic_error(
+          "No ML-DSA service key for the published PQ service signing "
+          "identity");
+      }
+
+      previous_identity_endorsement->put(
+        IdentityType::CLASSICAL, classical_endorsement.value());
+      if (pq_endorsement.has_value())
+      {
+        previous_identity_endorsement->put(
+          IdentityType::PQ, pq_endorsement.value());
+      }
       return true;
     }
 

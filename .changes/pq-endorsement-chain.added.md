@@ -1,0 +1,1 @@
+Services with an ML-DSA identity endorse the ML-DSA identity of the previous service when they open, or their own when the previous service had none, in `previous_service_identity_endorsement[PQ]` next to the classical endorsement; see the [built-in maps reference](doc/audit/builtin_maps.rst).

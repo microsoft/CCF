@@ -2,15 +2,18 @@
 // Licensed under the Apache 2.0 License.
 #include "node/open_service.h"
 
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "kv/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/ledger_secrets.h"
 #include "node/share_manager.h"
 #include "service/tables/shares.h"
+#include "service/tables/signing_identities.h"
 #include "service/tables/submitted_shares.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -26,6 +29,8 @@ namespace
     std::shared_ptr<ccf::kv::Store> store;
     std::shared_ptr<ccf::LedgerSecrets> ledger_secrets;
     std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_key;
+    // nullptr on builds without ML-DSA, whose services are classical-only
+    ccf::crypto::MLDSAKeyPairPtr pq_service_key;
     ccf::crypto::Pem service_cert;
     ccf::MemberId member_id;
   };
@@ -54,6 +59,14 @@ namespace
       valid_from, certificate_validity_period_days);
     ts.service_cert =
       ts.service_key->self_sign("CN=Test Service", valid_from, valid_to);
+    std::optional<ccf::crypto::Pem> pq_service_cert = std::nullopt;
+    if (ccf::crypto::mldsa_supported())
+    {
+      ts.pq_service_key = ccf::crypto::make_mldsa_key_pair(
+        ccf::crypto::MLDSAParameterSet::ML_DSA_65);
+      pq_service_cert =
+        ts.pq_service_key->self_sign("CN=Test Service", valid_from, valid_to);
+    }
 
     auto tx = ts.store->create_tx();
 
@@ -72,9 +85,17 @@ namespace
 
     ccf::ServiceInfo service_info;
     service_info.cert = ts.service_cert;
+    service_info.pq_cert = pq_service_cert;
     service_info.status = status;
     service_info.current_service_create_txid = ccf::TxID{2, 1};
     tx.rw<ccf::Service>(ccf::Tables::SERVICE)->put(service_info);
+    if (pq_service_cert.has_value())
+    {
+      tx.rw<ccf::SigningIdentities>(ccf::Tables::SIGNING_IDENTITIES)
+        ->put(
+          ccf::IdentityType::PQ,
+          ccf::signing_identity_from_cert(pq_service_cert.value()));
+    }
 
     // A submitted share, as left behind by the recovery share submission
     // which triggered the private ledger read.
@@ -96,7 +117,8 @@ TEST_CASE("Opening a service on creation")
   ccf::ShareManager share_manager(ts.ledger_secrets);
 
   auto tx = ts.store->create_tx();
-  REQUIRE(ccf::open_service(tx, share_manager, *ts.service_key));
+  REQUIRE(
+    ccf::open_service(tx, share_manager, *ts.service_key, ts.pq_service_key));
   REQUIRE(tx.tx_flag_enabled(
     ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
   REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
@@ -109,6 +131,10 @@ TEST_CASE("Opening a service on creation")
   REQUIRE(ro.ro<ccf::PreviousServiceIdentityEndorsement>(
               ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
             ->has(ccf::IdentityType::CLASSICAL));
+  REQUIRE(
+    ro.ro<ccf::PreviousServiceIdentityEndorsement>(
+        ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+      ->has(ccf::IdentityType::PQ) == (ts.pq_service_key != nullptr));
 }
 
 TEST_CASE("Opening a service reports an unopenable status")
@@ -122,7 +148,8 @@ TEST_CASE("Opening a service reports an unopenable status")
   const auto before = ts.store->current_txid();
   {
     auto tx = ts.store->create_tx();
-    REQUIRE_FALSE(ccf::open_service(tx, share_manager, *ts.service_key));
+    REQUIRE_FALSE(
+      ccf::open_service(tx, share_manager, *ts.service_key, ts.pq_service_key));
     REQUIRE_FALSE(tx.tx_flag_enabled(
       ccf::kv::CommittableTx::TxFlag::SNAPSHOT_AT_NEXT_SIGNATURE));
   }
@@ -176,7 +203,8 @@ TEST_CASE(
   {
     auto tx = ts.store->create_tx();
     REQUIRE_THROWS_WITH_AS(
-      static_cast<void>(ccf::open_service(tx, share_manager, *ts.service_key)),
+      static_cast<void>(ccf::open_service(
+        tx, share_manager, *ts.service_key, ts.pq_service_key)),
       expected_error,
       std::logic_error);
     REQUIRE_FALSE(tx.tx_flag_enabled(
@@ -212,7 +240,8 @@ TEST_CASE("Opening a recovered service requires an active service")
   {
     auto tx = ts.store->create_tx();
     REQUIRE_THROWS_WITH_AS(
-      ccf::open_recovered_service(tx, share_manager, *ts.service_key),
+      ccf::open_recovered_service(
+        tx, share_manager, *ts.service_key, ts.pq_service_key),
       "Error in open_recovered_service: no value in "
       "public:ccf.gov.service.info",
       std::logic_error);
@@ -237,7 +266,8 @@ TEST_CASE("Opening a recovered service")
   ccf::ShareManager share_manager(ts.ledger_secrets);
 
   auto tx = ts.store->create_tx();
-  ccf::open_recovered_service(tx, share_manager, *ts.service_key);
+  ccf::open_recovered_service(
+    tx, share_manager, *ts.service_key, ts.pq_service_key);
 
   INFO("A snapshot is requested at the next signature");
   REQUIRE(tx.tx_flag_enabled(
@@ -264,13 +294,19 @@ TEST_CASE("Opening a recovered service")
             ->has());
   REQUIRE(ro.ro<ccf::RecoveryShares>(ccf::Tables::SHARES)->has());
 
-  INFO("The previous identity was endorsed by the new service key");
-  const auto endorsement =
-    ro.ro<ccf::PreviousServiceIdentityEndorsement>(
-        ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
-      ->get(ccf::IdentityType::CLASSICAL);
+  INFO("The previous identities were endorsed by the new service keys");
+  auto* endorsements = ro.ro<ccf::PreviousServiceIdentityEndorsement>(
+    ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+  const auto endorsement = endorsements->get(ccf::IdentityType::CLASSICAL);
   REQUIRE(endorsement.has_value());
   REQUIRE(endorsement->endorsing_key == ts.service_key->public_key_der());
+  const auto pq_endorsement = endorsements->get(ccf::IdentityType::PQ);
+  REQUIRE(pq_endorsement.has_value() == (ts.pq_service_key != nullptr));
+  if (pq_endorsement.has_value())
+  {
+    REQUIRE(
+      pq_endorsement->endorsing_key == ts.pq_service_key->public_key_der());
+  }
 }
 
 TEST_CASE("Opening a recovered service happens at most once")
@@ -289,7 +325,8 @@ TEST_CASE("Opening a recovered service happens at most once")
     const auto before = ts.store->current_txid();
     auto tx = ts.store->create_tx();
     REQUIRE_THROWS_WITH_AS(
-      ccf::open_recovered_service(tx, share_manager, *ts.service_key),
+      ccf::open_recovered_service(
+        tx, share_manager, *ts.service_key, ts.pq_service_key),
       fmt::format(
         "Error in open_recovered_service: current service status is {}", status)
         .c_str(),
@@ -323,7 +360,8 @@ TEST_CASE("The ledger secret created on recovery points at the opening")
 
   const auto open = [&]() {
     auto tx = ts.store->create_tx();
-    ccf::open_recovered_service(tx, share_manager, *ts.service_key);
+    ccf::open_recovered_service(
+      tx, share_manager, *ts.service_key, ts.pq_service_key);
     REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     return tx.commit_version();
   };
