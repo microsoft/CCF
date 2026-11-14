@@ -24,10 +24,12 @@ import Scenarios.liveness_through_conflict
 import Scenarios.matching_partial
 import Scenarios.message_type_summaries
 import Scenarios.multi_election
+import Scenarios.nominate_new_node
 import Scenarios.nominate_successor
 import Scenarios.nominate_without_successor
 import Scenarios.pre_vote
 import Scenarios.pre_vote_double_leader
+import Scenarios.pre_vote_response_to_candidate
 import Scenarios.pre_vote_split
 import Scenarios.reconfig_01_12
 import Scenarios.reconfig_01_23
@@ -53,12 +55,17 @@ import Scenarios.retirement_nominates_most_replicated
 import Scenarios.retirement_rollback
 import Scenarios.rollback_safety
 import Scenarios.soft_rollback
+import Scenarios.sole_member_election
+import Scenarios.stale_ack_after_reelection
+import Scenarios.stale_vote_after_new_term
+import Scenarios.stale_vote_request
 import Scenarios.startup
 import Scenarios.startup_2nodes
 import Scenarios.suffix_collision_1
 import Scenarios.suffix_collision_2
 import Scenarios.suffix_collision_3
 import Scenarios.swap_single_node
+import Scenarios.vote_request_after_append_entries
 
 /-!
 Every scenario. Importing this module registers them, for `Main` and for other programs
