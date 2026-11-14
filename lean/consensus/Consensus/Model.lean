@@ -31,7 +31,11 @@ abbrev Action :=
 /-- The term of the initial primary, matching CCF's forced-primary startup. -/
 def BOOTSTRAP_TERM : Nat := 2
 
-/-- The smallest initial member is primary and holds the unsigned configuration. -/
+/--
+Production starts with one voting node. The model also permits multi-node initial
+configurations, which the consensus testing infrastructure can construct.
+The smallest initial member is primary and holds the unsigned configuration.
+-/
 def initialNodeState (initialConfiguration : Finset NodeID) (node : NodeID) : NodeState :=
   let primary := initialConfiguration.min? = some node
   {
