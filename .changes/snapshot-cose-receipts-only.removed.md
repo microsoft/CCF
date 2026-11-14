@@ -1,0 +1,2 @@
+Nodes and `ccf.ledger.Snapshot` accept only COSE snapshot receipts, so snapshots written by 6.x and earlier releases, which are out of support, are rejected when joining or recovering.
+Before upgrading, make sure the service has a snapshot written by 7.0 or later and remove the older ones, upgrading a service still on 6.x to an earlier 7.0 release first; a 6.x snapshot left as the primary's newest prevents nodes from joining (see [Snapshot Generation](doc/operations/ledger_snapshot.rst#snapshot-generation)).

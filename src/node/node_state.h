@@ -626,25 +626,6 @@ namespace ccf
       verify_snapshot_seqno(
         segments, network.tables->get_encryptor(), snapshot_seqno);
 
-      if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
-      {
-        try
-        {
-          verify_snapshot(segments, target_identity.raw());
-          LOG_INFO_FMT(
-            "Recovery snapshot at {} is directly signed by the configured "
-            "previous service identity",
-            snapshot_seqno);
-          return;
-        }
-        catch (const std::exception& e)
-        {
-          throw std::logic_error(fmt::format(
-            "old-style snapshot receipt cannot use an endorsement chain: {}",
-            e.what()));
-        }
-      }
-
       const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
 
       std::string direct_verification_error;

@@ -220,6 +220,12 @@ Time-based snapshotting can also be enabled with ``snapshots.time_interval``. Wh
 .. warning:: Setting ``snapshots.min_tx_count`` lower than ``2`` while ``snapshots.time_interval`` is greater than ``0s`` can lead to repeated time-based snapshots even when there are no new application writes. This is because the snapshot itself generates two transactions.
 
 To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the :ref:`audit/builtin_maps:``snapshot_evidence``` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operations/configuration:``ledger_signatures```).
+A COSE receipt of that signature is appended to the snapshot file, and is verified before a node joins or recovers from the snapshot.
+Snapshots written by 6.x and earlier releases carry a JSON receipt instead; these releases are out of support and nodes reject their snapshots, as do ``ccf.ledger.Snapshot`` and ``read_ledger.py --snapshot`` in the Python package.
+
+.. warning:: A service running 6.x reaches this release through a 7.0 release up to 7.0.24, which accepts JSON receipts and writes COSE receipts.
+    Upgrade the service to that release, or recover the 6.x ledger with it, and make sure it has written a snapshot, requesting one with :http:POST:`/node/snapshot:create` if needed.
+    Then remove the older snapshots from every ``snapshots.directory`` and from the snapshot backups before upgrading further (see :ref:`operations/ledger_snapshot:Join or Recover From Snapshot`).
 
 Committed snapshot files are named ``snapshot_<seqno>_<evidence_seqno>.committed``, with ``<seqno>`` the sequence number of the state of the key-value store at which they were generated and ``<evidence_seqno>`` the sequence number at which the snapshot evidence was recorded.
 
@@ -262,6 +268,11 @@ The legacy behaviour without ``fetch_recent_snapshot`` relies on a shared read-o
 
 In particular, there is a hard lower bound on the age of the snapshot that a joining node can start from. It must be at least as recent as the snapshot that the primary node started from, otherwise the primary will return a ``StartupSeqnoIsOld`` error to the joining node.
 
+.. warning:: The primary serves its newest committed snapshot without verifying it, and a joining node discards a fetched snapshot which fails verification and requests it again on its next join attempt.
+    A snapshot written by a 6.x or earlier release in the primary's ``snapshots.directory`` therefore prevents nodes from joining until a newer snapshot exists.
+    Remove such snapshots before upgrading, or create a new one with :http:POST:`/node/snapshot:create`.
+    A recovering node skips such snapshots and recovers from an older one or from the ledger.
+
 The following flowchart summarises the join procedure when ``command.join.fetch_recent_snapshot`` is enabled:
 
 .. mermaid::
@@ -290,6 +301,7 @@ The following flowchart summarises the join procedure when ``command.join.fetch_
         fetch.response{"Response type?"}
         fetch.send("{peer_address} GET /snapshot?since={startup_seqno}")
         fetch.fetch("{peer_address} GET /snapshot/{snapshot_name}")
+        fetch.verify{"Validate snapshot"}
     
         recovery.process("Complete recovery")
         recovery.public("Deserialise snapshot public state")
@@ -325,11 +337,13 @@ The following flowchart summarises the join procedure when ``command.join.fetch_
                 fetch.begin --> fetch.send
                 fetch.send -->|Response received| fetch.response
                 fetch.response -->|2xx Success| fetch.fetch
-                fetch.fetch --> fetch.apply
+                fetch.fetch --> fetch.verify
+                fetch.verify -->|Valid| fetch.apply
                 fetch.response -->|30x Redirect| fetch.redirect
                 fetch.redirect --> fetch.send
             end
             fetch.apply --> join.timeout
+            fetch.verify -->|Invalid| join.timeout
             fetch.send -.-> join.timeout
             fetch.response -->|Other error| join.timeout
     

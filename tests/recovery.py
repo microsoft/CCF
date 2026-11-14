@@ -1310,6 +1310,7 @@ def run_recover_service_from_files(
     expected_recovery_count,
     test_receipts_at=None,
     test_cose_receipts_at=None,
+    snapshots_with_json_receipts=False,
 ):
     service_dir = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), "testdata", directory
@@ -1344,10 +1345,17 @@ def run_recover_service_from_files(
             old_common, "service_cert.pem"
         )
 
+        # Snapshots written by releases before 7.0 carry JSON receipts, which
+        # nodes reject. Operators remove them before recovering, so such a
+        # service is recovered from its ledger alone.
         network.start_in_recovery(
             args,
             committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
-            snapshots_dir=os.path.join(service_dir, "snapshots"),
+            snapshots_dir=(
+                None
+                if snapshots_with_json_receipts
+                else os.path.join(service_dir, "snapshots")
+            ),
             common_dir=new_common,
         )
 
@@ -1962,6 +1970,7 @@ def run_recovery_from_files(args):
         expected_recovery_count=args.expected_recovery_count,
         test_receipts_at=args.test_receipts_at,
         test_cose_receipts_at=args.test_cose_receipts_at,
+        snapshots_with_json_receipts=args.snapshots_with_json_receipts,
     )
 
 
@@ -3383,22 +3392,30 @@ checked. Note that the key for each logging message is unique (per table).
         snapshot_tx_interval=30,
     )
 
-    for directory, expected_recovery_count, test_receipts_at, test_cose_receipts_at in (
-        ("expired_service", 2, [(2, 3)], None),
+    # Releases before 7.0 wrote snapshots with JSON receipts, which nodes reject
+    for (
+        directory,
+        expected_recovery_count,
+        test_receipts_at,
+        test_cose_receipts_at,
+        snapshots_with_json_receipts,
+    ) in (
+        ("expired_service", 2, [(2, 3)], None, True),
         # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
         # This is used to test recovery from SGX to SNP.
-        ("sgx_service", 4, None, None),
+        ("sgx_service", 4, None, None, True),
         # double_sealed_service is a regression test for the issue described in #6906
         (
             "double_sealed_service",
             2,
             [(2, 3), (4, 498), (5, 504), (7, 506)],
             [(2, 3), (4, 498), (5, 504), (7, 506)],
+            False,
         ),
         # cose_flipflop_service is a regression test for the issue described in #7002
-        ("cose_flipflop_service", 0, None, None),
+        ("cose_flipflop_service", 0, None, None, False),
         # acme_containing_service is a compatibility test for acme-containing ledgers
-        ("acme_containing_service", 0, [(2, 3)], [(2, 3)]),
+        ("acme_containing_service", 0, [(2, 3)], [(2, 3)], False),
     ):
         cr.add(
             f"recovery_from_{directory}",
@@ -3411,6 +3428,7 @@ checked. Note that the key for each logging message is unique (per table).
             expected_recovery_count=expected_recovery_count,
             test_receipts_at=test_receipts_at,
             test_cose_receipts_at=test_cose_receipts_at,
+            snapshots_with_json_receipts=snapshots_with_json_receipts,
             gov_api_version="2024-07-01",
         )
 

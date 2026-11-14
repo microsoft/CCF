@@ -22,6 +22,9 @@ import pytest
 
 TABLE = "public:test"
 TESTDATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests", "testdata")
+# Snapshots written by releases before 7.0 carry JSON receipts, which
+# ccf.ledger.Snapshot rejects
+LEGACY_RECEIPT_SNAPSHOT_SERVICES = {"eol_service", "expired_service", "sgx_service"}
 
 
 def length_prefixed(data: bytes) -> bytes:
@@ -711,6 +714,13 @@ def test_fixture_service_parses(service: str, level: ccf.ledger.VerificationLeve
     )
 
     for path in glob.glob(os.path.join(TESTDATA_DIR, service, "snapshots", "*")):
+        if service in LEGACY_RECEIPT_SNAPSHOT_SERVICES:
+            with pytest.raises(
+                ccf.ledger.InvalidSnapshotException,
+                match="Snapshot receipt is not a COSE_Sign1 receipt",
+            ):
+                ccf.ledger.Snapshot(path)
+            continue
         with ccf.ledger.Snapshot(path) as snapshot:
             assert len(snapshot.get_public_domain().get_tables()) > 0
 
@@ -1023,15 +1033,28 @@ class TestSnapshotFileName:
             tmp_path / "x.committed", "snapshot_1_2.committed", b"bad receipt"
         )
         with pytest.raises(
-            ccf.ledger.InvalidSnapshotException, match="unrecognised format"
+            ccf.ledger.InvalidSnapshotException,
+            match="Snapshot receipt is not a COSE_Sign1 receipt",
         ):
             ccf.ledger.Snapshot(path)
 
-    def test_1_x_snapshot_name(self, tmp_path):
+    def test_1_x_snapshot_name_rejected(self, tmp_path):
         path = self.write_snapshot(tmp_path / "x", "snapshot_1_2.committed_3")
-        with ccf.ledger.Snapshot(path) as snapshot:
-            assert snapshot.is_committed()
-            assert snapshot.is_snapshot_file_1_x()
+        with pytest.raises(
+            ccf.ledger.InvalidSnapshotException, match="Snapshot has a 1.x file name"
+        ):
+            ccf.ledger.Snapshot(path)
+
+    def test_snapshot_with_ignored_suffix_has_receipt_verified(self, tmp_path):
+        # Nodes rename a snapshot which fails verification to <name>.ignored
+        path = self.write_snapshot(
+            tmp_path / "x", "snapshot_1_2.committed.ignored", b"bad receipt"
+        )
+        with pytest.raises(
+            ccf.ledger.InvalidSnapshotException,
+            match="Snapshot receipt is not a COSE_Sign1 receipt",
+        ):
+            ccf.ledger.Snapshot(path)
 
 
 def test_read_ledger_does_not_modify_rules(tmp_path):
