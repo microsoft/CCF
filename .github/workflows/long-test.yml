@@ -42,6 +42,10 @@ jobs:
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
 
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
+
       - name: "Build Debug (Long Test)"
         run: |
           set -ex
@@ -95,6 +99,10 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
 
       - name: "Build Debug (Long Test)"
         run: |
@@ -152,6 +160,10 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
 
       - name: "Build"
         run: |
@@ -227,6 +239,10 @@ jobs:
 
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
+
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
 
       - name: "Build"
         run: |

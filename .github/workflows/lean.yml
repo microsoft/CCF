@@ -20,6 +20,7 @@ on:
       - "CMakeLists.txt"
       - ".github/workflows/lean.yml"
       - ".github/workflows/lean-package.yml"
+      - ".github/actions/install-lean/**"
       # Checked by lean-mathlib-equivalence.yml.
       - "!lean/mathlib-equivalence/**"
   workflow_dispatch:
@@ -58,6 +59,10 @@ jobs:
         uses: ./.github/actions/install-ci-dependencies
         with:
           cache-python-packages: "false"
+
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: Install Lean
+        uses: ./.github/actions/install-lean
 
       - name: Generate scenario captures
         run: |

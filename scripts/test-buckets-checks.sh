@@ -30,10 +30,11 @@ if ! cmake -GNinja -S "$ROOT_DIR" -B "$BUILD_DIR" \
 fi
 
 ctest_names() {
-  # ctest -N lines look like "  Test  #12: foo_test"; take the last field.
+  # ctest -N lines look like "  Test  #12: foo_test", followed by " (Disabled)"
+  # for disabled tests; take the name.
   (cd "$BUILD_DIR" && ctest -N "$@" 2>/dev/null) \
     | grep -E "^[[:space:]]*Test +#" \
-    | awk '{print $NF}'
+    | awk '{print $3}'
 }
 
 emit_bucket() {

@@ -1,0 +1,105 @@
+-- Copyright (c) Microsoft Corporation. All rights reserved.
+-- Licensed under the Apache 2.0 License.
+import CftDriver
+
+open CftDriver
+
+-- Reconfigures from [0, 1] to [2, 3], with 2 becoming leader while the reconfiguration is in-progress
+initialize scenario "reconfig_01_el0_23" do
+  startNode 0
+  replicate 2 [signature]
+  assertCommitIdx 0 2
+
+  trustNode 2 1
+  replicate 2 [signature]
+
+  dispatchAll
+  periodicAll 10
+  dispatchAll
+  periodicAll 10
+  dispatchAll
+  assertCommitIdx 0 4
+  assertCommitIdx 1 4
+  -- Initial network state [0, 1], all nodes in sync
+
+  -- Reconfig [0, 1] -> [2, 3]
+  swapNodes 2 (retire := [0, 1]) (trust := [2, 3])
+  replicate 2 [signature]
+  -- 0 knows its retirement is signed
+  assertDetail 0 "membership_state" "Retired"
+  assertDetail 0 "retirement_phase" "Signed"
+
+  -- Leader (0) replicates
+  periodicOne 0 10
+  dispatchOne 0
+  -- Need to "catch up" 2 to give it a configuration
+  -- otherwise it will not be able to run for election
+  periodicOne 2 10
+  dispatchOne 2
+  periodicOne 0 10
+  dispatchOne 0
+
+  -- Extend suffix on 0
+  replicate 2 ["some_tx"]
+  replicate 2 [signature]
+
+  -- But node 2 runs for election before ack/cmt
+  periodicOne 2 150
+  assertDetail 2 "leadership_state" "PreVoteCandidate"
+  dispatchAll
+  dispatchAll
+  -- which it loses, since it is not sufficiently up to date
+  assertDetail 2 "leadership_state" "PreVoteCandidate"
+
+  -- 0 runs again
+  periodicOne 0 150
+  periodicOne 0 150
+  assertDetail 0 "leadership_state" "PreVoteCandidate"
+  dispatchAll
+  dispatchAll
+  -- and becomes leader once more
+  assertDetail 0 "leadership_state" "Leader"
+
+  -- 0 signs to extend, observes retirement committed
+  replicate 3 [signature]
+  periodicAll 10
+  dispatchAll
+  assertCommitIdx 0 9
+  assertDetail 0 "membership_state" "Retired"
+  assertDetail 0 "leadership_state" "Leader"
+  assertDetail 1 "leadership_state" "Follower"
+  assertDetail 2 "leadership_state" "Follower"
+
+  -- Now that the retirement of 0 and 1 is committed, 0 schedules retired_committed
+  cleanupNodes 3 [0, 1]
+  replicate 3 [signature]
+  periodicAll 10
+  dispatchAll
+  periodicAll 10
+  dispatchAll
+  -- retired_committed committed
+  assertCommitIdx 0 11
+
+  -- the operator shuts down 1
+  disconnect 1 2
+  disconnect 1 3
+
+  -- 0 becomes a follower again, because it receives messages
+  -- from the new primary before it realises 0 is retired committed.
+  -- But 0 does not attempt to run for election
+  -- because it knows it is retired committed
+  assertDetail 0 "retirement_phase" "RetiredCommitted"
+  assertDetail 0 "leadership_state" "Follower"
+  periodicOne 0 150
+  assertDetail 0 "retirement_phase" "RetiredCommitted"
+  assertDetail 0 "leadership_state" "Follower"
+
+  -- the network continues
+  replicate 4 ["some_tx"]
+  replicate 4 [signature]
+  periodicAll 10
+  dispatchAll
+  periodicAll 10
+  dispatchAll
+  assertCommitIdx 2 13
+  assertCommitIdx 3 13

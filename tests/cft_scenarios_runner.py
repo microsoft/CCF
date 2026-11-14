@@ -7,7 +7,6 @@ import pathlib
 import sys
 from contextlib import contextmanager
 
-from cft_scenarios_gen import generate_scenarios
 from cft_trace import run_driver
 
 
@@ -46,13 +45,8 @@ def driver_diagram(text):
 
 def expand_files(files):
     all_files = []
-    for path in files:
-        if os.path.isdir(path):
-            for dirpath, _, filenames in os.walk(path):
-                for name in filenames:
-                    all_files.append(os.path.join(dirpath, name))
-        else:
-            all_files.append(path)
+    for path in map(pathlib.Path, files):
+        all_files += sorted(path.glob("*.lean")) if path.is_dir() else [path]
     return all_files
 
 
@@ -60,8 +54,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument("driver", type=str, help="Path to cft_driver binary")
-    parser.add_argument("--gen-scenarios", action="store_true")
-    parser.add_argument("files", nargs="*", type=str, help="Path to scenario files")
+    parser.add_argument(
+        "files",
+        nargs="*",
+        type=str,
+        help="Paths to Lean scenario files, each registering the scenario named by its stem",
+    )
     parser.add_argument(
         "-o",
         "--output",
@@ -77,9 +75,6 @@ if __name__ == "__main__":
 
     files = expand_files(args.files)
 
-    if args.gen_scenarios:
-        files += generate_scenarios()
-
     ostream = sys.stdout
 
     # Create the CCF consensus protocol output directory.
@@ -87,13 +82,14 @@ if __name__ == "__main__":
     raw_output = pathlib.Path(args.output) / "raw"
     raw_output.mkdir(exist_ok=True)
 
-    for scenario in files:
-        raw_trace = raw_output / f"{os.path.basename(scenario)}.ndjson"
+    for source in files:
+        name = source.stem
+        raw_trace = raw_output / f"{name}.ndjson"
         raw_trace.unlink(missing_ok=True)
-        ostream.write(f"## {os.path.basename(scenario)}\n\n")
-        with block(ostream, "steps", 3), open(scenario, "r", encoding="utf-8") as scen:
-            ostream.write(scen.read())
-        proc, records = run_driver(args.driver, scenario)
+        ostream.write(f"## {name}\n\n")
+        with block(ostream, "steps", 3, "lean"):
+            ostream.write(source.read_text(encoding="utf-8"))
+        proc, records = run_driver(args.driver, name)
         out, err = proc.stdout, proc.stderr
         test_result = test_result and proc.returncode == 0
 
@@ -106,7 +102,7 @@ if __name__ == "__main__":
             )
 
         if err:
-            err_list.append([os.path.basename(scenario), err])
+            err_list.append([name, err])
             with block(ostream, "stderr", 3):
                 ostream.write(err)
 

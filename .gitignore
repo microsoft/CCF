@@ -10,7 +10,7 @@ CMakeFiles/
 .vs/
 libuv/
 cft_tests.md
-tests/cft_scenarios/scenario-*
+tests/cft_scenarios/.lake/
 *.pyc
 __pycache__/
 sphinx/build/

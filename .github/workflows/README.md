@@ -13,6 +13,13 @@ At a weekly rollover, restore keys first reuse the latest cache for the same dep
 
 The action also assigns uv a writable cache directory outside `/github/home/.cache`, because some tests clear that directory. A weekly cache persists uv's content-addressed package cache, keyed on the pinned uv installer, `python/pyproject.toml`, and the `python-requirements` input, which each workflow sets to the requirements files it installs so unrelated jobs do not invalidate each other's cache; jobs that do not install Python packages disable this cache entirely with `cache-python-packages: false`. CI dependency setup uses `uv pip` so cached packages remain reusable, with workflows configuring the package index through `UV_INDEX_URL`. Pip is not used for package installation because the PyPI proxy redirects artifacts to short-lived URLs that pip cannot reuse across jobs.
 
+## Lean
+
+The local composite action in `.github/actions/install-lean/action.yml` installs elan and the Lean toolchain pinned by `lean/lean-toolchain`.
+The jobs which run `cft_scenario_test` in `ci.yml`, `ci-al4.yml`, `coverage.yml`, `long-test.yml` and `lean.yml` use it, because `cft_driver` links the [consensus scenarios](../../tests/cft_scenarios/README.md), which are Lean programs.
+Without Lean, CMake does not build `cft_driver` and disables that test.
+The release build in `release.yml` does not install Lean, so it does not run that test.
+
 # Maintained
 
 ## Bencher
@@ -58,7 +65,7 @@ Main continuous integration job. Builds CCF for all target platforms, runs unit,
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
 
 File: `ci.yml`
-3rd party dependencies: None
+3rd party dependencies: elan
 
 ## Test failure annotations
 
@@ -91,7 +98,7 @@ Builds CCF on Azure Linux 4 and runs unit and end to end tests, to track readine
 Its Virtual A, B, and C jobs use the same pool distribution as the main continuous integration workflow.
 
 File: `ci-al4.yml`
-3rd party dependencies: None
+3rd party dependencies: elan
 
 # Cross-platform LTS
 
@@ -113,7 +120,7 @@ A parallel job on `gha-aci-genoa` builds with coverage and runs the same SEV-SNP
 The Virtual job summary plots line and branch coverage together on a shared percentage axis with endpoint labels, for the previous successful runs on the same branch, recovered from their job logs, followed by the current run. The GitHub API sometimes returns an outdated list of runs, so a list is only used if it includes the current run, and is otherwise requested again. If no up-to-date list is returned, the trend only includes the current run, and the job reports a warning.
 
 File: `coverage.yml`
-3rd party dependencies: None
+3rd party dependencies: elan
 
 # Long Tests
 
@@ -124,7 +131,7 @@ Secondary continuous integration job. Runs more expensive, longer tests, such as
 - VMSS jobs target `gha-vmss-d16av7-ci-c` to use pool C's larger runner capacity.
 
 File: `long-test.yml`
-3rd party dependencies: None
+3rd party dependencies: elan
 
 # CodeQL analysis
 
