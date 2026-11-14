@@ -107,7 +107,9 @@ class SnapshotServer:
             return web.Response(status=500, text="Snapshot chunk unavailable")
         if self.mode == "wrong_start":
             start += 1
-        if self.mode == "wrong_end":
+        # After the first range, which the first-response size limit would
+        # reject before the range check
+        if self.mode == "wrong_end" and start != 0:
             end += 1
 
         # CCF 6.x used exclusive ends; 7.x uses HTTP-style inclusive ends.

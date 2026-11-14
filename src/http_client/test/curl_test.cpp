@@ -750,7 +750,7 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
     {"no_location", 1},
     {"redirect_loop", 21},
     {"wrong_start", 3},
-    {"wrong_end", 3},
+    {"wrong_end", 4},
     {"wrong_total", 4},
     {"chunk_error", 4},
   };
