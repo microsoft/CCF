@@ -604,6 +604,8 @@ TEST_CASE("Snapshot Content-Range headers")
     {"past_total", "Invalid range in content-range header"},
     {"empty", "Invalid range in content-range header"},
     {"inverted", "Invalid range in content-range header"},
+    {"empty_at_start", "Invalid range in content-range header"},
+    {"inverted_with_body", "Invalid range in content-range header"},
   };
   for (const auto& [mode, error] : invalid_headers)
   {

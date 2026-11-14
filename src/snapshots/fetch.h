@@ -143,6 +143,13 @@ namespace ccf::snapshots
       }
     }
 
+    const auto invalid_range = [&it]() {
+      return std::runtime_error(fmt::format(
+        "Invalid range in content-range header. Expected a non-empty range "
+        "ending before the total size, received: {}",
+        it->second));
+    };
+
     {
       // Use content-length to determine whether the sender used an exclusive or
       // inclusive range end
@@ -167,6 +174,16 @@ namespace ccf::snapshots
             "Could not parse length from content-length header: {}",
             length_it->second));
         }
+      }
+
+      // An empty or inverted range is invalid in either notation. Reject it
+      // before the arithmetic below, which needs the end not to precede the
+      // start
+      if (
+        content_length == 0 ||
+        parsed_values.inclusive_range_end < parsed_values.range_start)
+      {
+        throw invalid_range();
       }
 
       const auto range_length =
@@ -202,16 +219,11 @@ namespace ccf::snapshots
       }
     }
 
-    // After normalising the range end above, the range must hold at least
-    // one byte and end before the total size
-    if (
-      parsed_values.inclusive_range_end < parsed_values.range_start ||
-      parsed_values.inclusive_range_end >= parsed_values.total_size)
+    // After normalising the range end above, the range must end before the
+    // total size
+    if (parsed_values.inclusive_range_end >= parsed_values.total_size)
     {
-      throw std::runtime_error(fmt::format(
-        "Invalid range in content-range header. Expected a non-empty range "
-        "ending before the total size, received: {}",
-        it->second));
+      throw invalid_range();
     }
 
     return parsed_values;

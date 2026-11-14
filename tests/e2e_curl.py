@@ -146,6 +146,8 @@ class SnapshotServer:
             "past_total": "bytes 2-4/3",
             "empty": "bytes 5-5/10",
             "inverted": "bytes 5-4/10",
+            "empty_at_start": "bytes 0-0/10",
+            "inverted_with_body": "bytes 6-4/10",
         }
         case = request.match_info["case"]
         content_range = ranges[case]
@@ -157,7 +159,7 @@ class SnapshotServer:
             await response.write(b"abc")
             await response.write_eof()
             return response
-        body = b"" if case in ("empty", "inverted") else b"abc"
+        body = b"" if case in ("empty", "inverted", "empty_at_start") else b"abc"
         return web.Response(status=206, headers=headers, body=body)
 
 
