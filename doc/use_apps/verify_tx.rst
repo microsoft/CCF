@@ -129,6 +129,14 @@ Checking accompanying consistency proofs against that root does not establish co
 The deprecated :py:func:`ccf.cose.verify_receipt` entry point retains its existing behavior and does not apply these additional checks.
 Callers should migrate to :py:func:`ccf.receipt.verify_cose` to use the stricter verification.
 
+A service with an ML-DSA identity signs each signature transaction with its classical and its ML-DSA service keys (see :ref:`releases/migration_7_x_to_8_x:ML-DSA Service Identity`).
+``GET /node/receipt/cose`` returns the receipt signed with the classical key, and with ``identity_type=PQ`` the one signed with the ML-DSA key, for example ``/node/receipt/cose?transaction_id=2.643&identity_type=PQ``.
+Transactions signed before the service first had an ML-DSA identity have no ``PQ`` receipt, for which the endpoint returns ``404 Not Found``.
+:py:func:`ccf.receipt.verify_cose` verifies a ``PQ`` receipt against the public key of the ML-DSA service certificate, ``pq_service_certificate`` in ``GET /node/network``; ML-DSA keys require ``cryptography`` 48 or later.
+
+A receipt of a transaction signed by a previous service identity, before a disaster recovery, is trusted through the COSE endorsements chain from the current service identity of the same type to that one, which applications can serve with ``ccf::describe_cose_endorsements_v2``, as the ``/log/public/cose_endorsements`` endpoint of the logging sample application does.
+Given the chain as ``endorsements``, :py:func:`ccf.receipt.verify_cose` verifies it from the trusted current service key, and requires the receipt to be signed by the identity it endorses, for a transaction of the epoch it endorses (see :py:func:`ccf.receipt.verify_cose_endorsements`).
+
 For SCITT statements, the application must compute the claims digest over the registered Signed Statement, not the Transparent Statement containing receipts.
 :cpp:func:`ccf::cose::edit::set_unprotected_header` preserves all input bytes outside the unprotected header, including non-preferred length encodings, and encodes an empty replacement header as ``0xa0``.
 This permits stripping and reinserting receipts without changing the registered components.

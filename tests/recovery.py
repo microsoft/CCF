@@ -15,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 
 import cbor2
 import ccf.ledger
+import ccf.receipt
 import ccf.signatures
 import ccf.tx_id
 import infra.checker
@@ -38,6 +39,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.x509 import load_pem_x509_certificate
 from e2e_logging import (
     fetch_and_verify_cose_receipt,
+    fetch_cose_receipt,
+    get_pq_service_key,
     get_service_key,
     test_cose_receipt_schema,
     verify_receipt,
@@ -70,17 +73,68 @@ def get_and_verify_historical_receipt(network, ref_msg):
     return ref_msg
 
 
-def query_endorsements_chain(node, txid):
+def query_endorsements_chain(node, txid, identity_type=None, user="user0"):
+    path = "/log/public/cose_endorsements"
+    if identity_type is not None:
+        path += f"?identity_type={identity_type}"
     for _ in range(10):
-        with node.client("user0") as cli:
+        with node.client(user) as cli:
             response = cli.get(
-                "/log/public/cose_endorsements",
+                path,
                 headers={infra.clients.CCF_TX_ID_HEADER: str(txid)},
             )
             if response.status_code != http.HTTPStatus.ACCEPTED:
                 return response
         time.sleep(0.1)
     return response
+
+
+def verify_cose_receipts_with_endorsements(node, txids, identity_type, service_key):
+    """Verify the COSE receipts of identity_type of txids from service_key, the
+    current service key of that type, through the endorsements chains served
+    with them. Return, by transaction, the length of its endorsements chain, or
+    None for a transaction of the current service, and whether it has a
+    receipt, which signature transactions do not."""
+    results = {}
+    with node.client("user0") as client:
+        for txid in txids:
+            response = query_endorsements_chain(node, txid, identity_type)
+            if response.status_code == http.HTTPStatus.NOT_FOUND:
+                # Signed by the current service identity
+                endorsements = []
+                chain_length = None
+            else:
+                assert response.status_code == http.HTTPStatus.OK, response
+                endorsements = [
+                    base64.b64decode(e) for e in response.body.json()["endorsements"]
+                ]
+                chain_length = len(endorsements)
+                _, begin, end = ccf.receipt.verify_cose_endorsements(
+                    endorsements, service_key
+                )
+                assert begin.seqno <= txid.seqno <= end.seqno, (txid, begin, end)
+
+            r = fetch_cose_receipt(client, txid, identity_type)
+            if r.status_code == http.HTTPStatus.NOT_FOUND:
+                results[str(txid)] = (chain_length, False)
+                continue
+            assert r.status_code == http.HTTPStatus.OK, r
+            receipt = r.body.data()
+            # The claims digest is taken from the leaf, [write set digest, commit
+            # evidence, claims digest], whose commit evidence names txid
+            _, uhdr, _, _ = cbor2.loads(receipt).value
+            leaf = cbor2.loads(uhdr[396][-1][0])[1]
+            assert leaf[1].startswith(f"ce:{txid}:"), (txid, leaf[1])
+            ccf.receipt.verify_cose(receipt, service_key, leaf[2], endorsements)
+            r = client.get(
+                "/log/public/verify_cose_receipt",
+                receipt,
+                headers={"Content-Type": "application/cose"},
+            )
+            assert r.status_code == http.HTTPStatus.NO_CONTENT, r
+            results[str(txid)] = (chain_length, True)
+    LOG.info(f"Verified {identity_type} receipts and endorsements: {results}")
+    return results
 
 
 def validate_endorsement_schema(endorsement, *, temp_dir):
@@ -1355,6 +1409,26 @@ def test_recover_service_with_wrong_identity(network, args):
             response = query_endorsements_chain(primary, tx)
             assert response.status_code == http.HTTPStatus.NOT_FOUND, response
 
+        classical = verify_cose_receipts_with_endorsements(
+            primary, txids, "CLASSICAL", cert.public_key()
+        )
+        assert any(has_receipt for _, has_receipt in classical.values()), classical
+        pq_service_key = get_pq_service_key(recovered_network)
+        if pq_service_key is None:
+            with primary.client() as client:
+                for tx in txids:
+                    r = fetch_cose_receipt(client, tx, "PQ")
+                    assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+                    r = query_endorsements_chain(primary, tx, "PQ")
+                    assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+        else:
+            # Every service of this ledger had a PQ identity, so every receipt
+            # has a PQ counterpart, endorsed through as many recoveries
+            pq = verify_cose_receipts_with_endorsements(
+                primary, txids, "PQ", pq_service_key
+            )
+            assert pq == classical, (pq, classical)
+
         return recovered_network
 
 
@@ -1515,6 +1589,11 @@ def run_recover_service_from_files(
                 skip_cert_chain_checks=True,
             )
 
+        pq_service_key = get_pq_service_key(network)
+        with primary.client() as client:
+            recovered_service_create_txid = ccf.tx_id.TxID.from_str(
+                client.get("/node/network").body.json()["current_service_create_txid"]
+            )
         for view, seqno in test_cose_receipts_at or []:
             with primary.client() as client:
                 for _ in range(10):
@@ -1544,6 +1623,25 @@ def run_recover_service_from_files(
                         ), f"Failed to get COSE receipt for tx {view}.{seqno} with response {r.status_code} {r.body.text()}"
                 else:
                     assert False, f"Failed to get a receipt for tx {view}.{seqno}"
+
+                # The services of the recovered ledger had no PQ identity, so
+                # only transactions of the recovered service have PQ receipts
+                txid = ccf.tx_id.TxID(view, seqno)
+                r = fetch_cose_receipt(client, txid, "PQ")
+                if (
+                    pq_service_key is not None
+                    and seqno >= recovered_service_create_txid.seqno
+                ):
+                    assert r.status_code == http.HTTPStatus.OK, r
+                    _, uhdr, _, _ = cbor2.loads(r.body.data()).value
+                    leaf = cbor2.loads(uhdr[396][-1][0])[1]
+                    ccf.receipt.verify_cose(r.body.data(), pq_service_key, leaf[2])
+                else:
+                    assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+                r = query_endorsements_chain(
+                    primary, txid, "PQ", user=new_user_local_id
+                )
+                assert r.status_code == http.HTTPStatus.NOT_FOUND, r
 
         pq_service_cert = network.get_pq_service_certificate()
 

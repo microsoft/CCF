@@ -30,7 +30,9 @@ namespace ccf::historical
   // endorsements, where required. If the state talks about a different service
   // identity, which is known to be a predecessor of this service (via disaster
   // recoveries), then an endorsement chain of all service identities preceding
-  // the current one will be created. This may need to use the state_cache to
+  // the current one will be created, for the CLASSICAL identities and, if the
+  // receipt has a PQ signature and the PQ identities are endorsed from its
+  // epoch on, for the PQ identities. This may need to use the state_cache to
   // request additional historical entries to construct this endorsement, and
   // may read from the current/latest state via tx. Returns true if the
   // operation is complete, though it may still have failed to produce an
@@ -44,7 +46,9 @@ namespace ccf::historical
 
   // Verifies CCF COSE receipt issued by either current service identity or the
   // one from the past that both corresponds to the receipt Tx ID and can be
-  // trusted via back-endorsement chain.
+  // trusted via back-endorsement chain. A receipt signed with ML-DSA is
+  // verified with the PQ service identities, any other with the CLASSICAL
+  // ones.
   void verify_self_issued_receipt(
     const std::vector<uint8_t>& cose_receipt,
     std::shared_ptr<NetworkIdentitySubsystemInterface>

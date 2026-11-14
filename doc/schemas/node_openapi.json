@@ -472,6 +472,13 @@
         ],
         "type": "object"
       },
+      "IdentityType": {
+        "enum": [
+          "CLASSICAL",
+          "PQ"
+        ],
+        "type": "string"
+      },
       "JWTRefreshMetrics": {
         "properties": {
           "attempts": {
@@ -973,7 +980,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "5.0.10"
+    "version": "5.0.11"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1857,7 +1864,7 @@
     },
     "/node/receipt/cose": {
       "get": {
-        "description": "A COSE Sign1 envelope containing a signed statement from the service over a transaction entry in the ledger, with a Merkle proof in the unprotected header. See https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-profile/ for a complete description.",
+        "description": "A COSE Sign1 envelope containing a signed statement from the service over a transaction entry in the ledger, with a Merkle proof in the unprotected header. See https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-profile/ for a complete description. The statement is signed by the CLASSICAL service identity, or by the PQ service identity if identity_type is PQ, in which case only transactions signed by a service with a PQ identity have a receipt.",
         "operationId": "GetNodeReceiptCose",
         "parameters": [
           {
@@ -1866,6 +1873,14 @@
             "required": true,
             "schema": {
               "$ref": "#/components/schemas/TransactionId"
+            }
+          },
+          {
+            "in": "query",
+            "name": "identity_type",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/IdentityType"
             }
           }
         ],

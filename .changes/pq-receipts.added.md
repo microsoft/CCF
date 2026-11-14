@@ -1,0 +1,2 @@
+COSE receipts can be requested for the PQ service identity with the `identity_type=PQ` query parameter of `GET /node/receipt/cose`, and `ccf::describe_cose_receipt_v2`, `describe_cose_signature_v2` and `describe_cose_endorsements_v2` describe a receipt for a given identity type.
+`ccf.receipt.verify_cose` verifies ML-DSA receipts and, given their `endorsements`, receipts of previous service identities with `ccf.receipt.verify_cose_endorsements`; see [COSE receipt verification](doc/use_apps/verify_tx.rst#cose-receipt-verification).

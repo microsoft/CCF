@@ -11,6 +11,7 @@
 #include "ccf/json_handler.h"
 #include "ccf/node_context.h"
 #include "ccf/receipt.h"
+#include "ccf/service/identity_type.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/service/tables/snp_measurements.h"
@@ -54,6 +55,7 @@ namespace ccf
   static constexpr auto tx_id_param_key = "transaction_id";
   static constexpr auto view_history_param_key = "view_history";
   static constexpr auto view_history_since_param_key = "view_history_since";
+  static constexpr auto identity_type_param_key = "identity_type";
 
   namespace
   {
@@ -91,6 +93,38 @@ namespace ccf
       }
 
       return tx_id_opt;
+    }
+
+    // Service identity type selected by the optional identity_type parameter,
+    // CLASSICAL by default
+    std::optional<ccf::IdentityType> identity_type_from_query_string(
+      ccf::endpoints::CommandEndpointContext& ctx)
+    {
+      const auto parsed_query =
+        http::parse_query(ctx.rpc_ctx->get_request_query());
+
+      const auto it = parsed_query.find(identity_type_param_key);
+      if (it == parsed_query.end())
+      {
+        return ccf::IdentityType::CLASSICAL;
+      }
+
+      try
+      {
+        return nlohmann::json(it->second).get<ccf::IdentityType>();
+      }
+      catch (const ccf::JsonParseError&)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidQueryParameterValue,
+          fmt::format(
+            "The value '{}' passed as '{}' could not be converted to a valid "
+            "identity type (CLASSICAL or PQ).",
+            it->second,
+            identity_type_param_key));
+        return std::nullopt;
+      }
     }
   }
 
@@ -329,9 +363,15 @@ namespace ccf
         auto& ctx,
         ccf::historical::StatePtr
           historical_state) { // NOLINT(performance-unnecessary-value-param)
+        const auto identity_type = identity_type_from_query_string(ctx);
+        if (!identity_type.has_value())
+        {
+          return;
+        }
+
         assert(historical_state->receipt);
-        auto cose_receipt =
-          ccf::describe_cose_receipt_v1(*historical_state->receipt);
+        auto cose_receipt = ccf::describe_cose_receipt_v2(
+          *historical_state->receipt, identity_type.value());
         if (!cose_receipt.has_value())
         {
           ctx.rpc_ctx->set_error(
@@ -360,13 +400,18 @@ namespace ccf
         "The transaction is not yet available. The response describes why "
         "and the Retry-After header indicates when to retry.")
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
+      .add_query_parameter<ccf::IdentityType>(
+        identity_type_param_key, ccf::endpoints::OptionalParameter)
       .set_openapi_summary("COSE receipt for a transaction")
       .set_openapi_description(
         "A COSE Sign1 envelope containing a signed statement from the "
         "service over a transaction entry in the ledger, with a Merkle "
         "proof in the unprotected header. See "
         "https://datatracker.ietf.org/doc/draft-ietf-scitt-receipts-ccf-"
-        "profile/ for a complete description.")
+        "profile/ for a complete description. The statement is signed by the "
+        "CLASSICAL service identity, or by the PQ service identity if "
+        "identity_type is PQ, in which case only transactions signed by a "
+        "service with a PQ identity have a receipt.")
       .install();
   }
 

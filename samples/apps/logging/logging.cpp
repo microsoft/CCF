@@ -52,6 +52,10 @@ namespace loggingapp
   static constexpr int64_t COSE_HEADER_PARAM_INCLUSION_PROOFS = -1;
   static constexpr int64_t COSE_HEADER_PARAM_VDP = 396;
 
+  // Query parameter selecting the service identity type (CLASSICAL or PQ) of
+  // a COSE receipt, signature or endorsements
+  static constexpr auto identity_type_param_key = "identity_type";
+
   // SNIPPET_START: indexing_strategy_definition
   using RecordsIndexingStrategy = ccf::indexing::LazyStrategy<
     ccf::indexing::strategies::SeqnosByKey_Bucketed<RecordsMap>>;
@@ -320,6 +324,37 @@ namespace loggingapp
         *app_config,
         "max_historical_range_seqnos_per_page",
         max_historical_range_seqnos_per_page);
+    }
+
+    // Service identity type of the COSE receipt, signature or endorsements
+    // requested with the optional identity_type query parameter, CLASSICAL by
+    // default. Returns nullopt and sets an error on ctx if it is invalid.
+    static std::optional<ccf::IdentityType> get_identity_type_param(
+      ccf::endpoints::ReadOnlyEndpointContext& ctx)
+    {
+      const auto parsed_query =
+        ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
+      const auto it = parsed_query.find(identity_type_param_key);
+      if (it == parsed_query.end())
+      {
+        return ccf::IdentityType::CLASSICAL;
+      }
+
+      try
+      {
+        return nlohmann::json(it->second).get<ccf::IdentityType>();
+      }
+      catch (const ccf::JsonParseError& e)
+      {
+        ctx.rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidQueryParameterValue,
+          fmt::format(
+            "Invalid '{}' query parameter: {}",
+            identity_type_param_key,
+            e.what()));
+        return std::nullopt;
+      }
     }
 
     // Build a COSE receipt (signature + Merkle inclusion proof) from a
@@ -1969,9 +2004,15 @@ namespace loggingapp
     {
       auto historical_tx = historical_state->store->create_read_only_tx();
 
+      const auto identity_type = get_identity_type_param(ctx);
+      if (!identity_type.has_value())
+      {
+        return;
+      }
+
       assert(historical_state->receipt);
-      auto endorsements =
-        describe_cose_endorsements_v1(*historical_state->receipt);
+      auto endorsements = describe_cose_endorsements_v2(
+        *historical_state->receipt, identity_type.value());
       if (!endorsements.has_value())
       {
         ctx.rpc_ctx->set_error(
@@ -2023,8 +2064,15 @@ namespace loggingapp
     {
       auto historical_tx = historical_state->store->create_read_only_tx();
 
+      const auto identity_type = get_identity_type_param(ctx);
+      if (!identity_type.has_value())
+      {
+        return;
+      }
+
       assert(historical_state->receipt);
-      auto signature = describe_cose_signature_v1(*historical_state->receipt);
+      auto signature = describe_cose_signature_v2(
+        *historical_state->receipt, identity_type.value());
       if (!signature.has_value())
       {
         ctx.rpc_ctx->set_error(
@@ -2044,9 +2092,16 @@ namespace loggingapp
       ccf::endpoints::ReadOnlyEndpointContext& ctx,
       ccf::historical::StatePtr historical_state)
     {
+      const auto identity_type = get_identity_type_param(ctx);
+      if (!identity_type.has_value())
+      {
+        return;
+      }
+
       assert(historical_state->receipt);
 
-      auto cose_receipt = describe_cose_receipt_v1(*historical_state->receipt);
+      auto cose_receipt = describe_cose_receipt_v2(
+        *historical_state->receipt, identity_type.value());
       if (!cose_receipt.has_value())
       {
         ctx.rpc_ctx->set_error(
@@ -2217,7 +2272,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.8.6";
+      openapi_info.document_version = "2.8.7";
     };
 
     void init_handlers() override
@@ -2724,6 +2779,8 @@ namespace loggingapp
           get_cose_endorsements, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetCoseEndorsements::Out>()
+        .add_query_parameter<ccf::IdentityType>(
+          identity_type_param_key, ccf::endpoints::OptionalParameter)
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
@@ -2752,6 +2809,8 @@ namespace loggingapp
           get_cose_signature, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetCoseSignature::Out>()
+        .add_query_parameter<ccf::IdentityType>(
+          identity_type_param_key, ccf::endpoints::OptionalParameter)
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
@@ -2767,6 +2826,8 @@ namespace loggingapp
           get_cose_receipt, context, is_tx_committed),
         ccf::no_auth_required)
         .set_auto_schema<void, void>()
+        .add_query_parameter<ccf::IdentityType>(
+          identity_type_param_key, ccf::endpoints::OptionalParameter)
         .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::None)
         .install();
 
