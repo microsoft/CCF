@@ -9,6 +9,7 @@ import Scenarios.check_quorum
 import Scenarios.check_quorum_012_0
 import Scenarios.check_quorum_0_012
 import Scenarios.commit_before_pending_reconfiguration
+import Scenarios.commit_index_beyond_batch
 import Scenarios.commit_stepwise_through_reconfiguration
 import Scenarios.delayed_append_entries
 import Scenarios.delayed_vote_requests
@@ -27,6 +28,7 @@ import Scenarios.matching_partial
 import Scenarios.message_type_summaries
 import Scenarios.multi_election
 import Scenarios.nominate_new_node
+import Scenarios.nominate_over_retiring_node
 import Scenarios.nominate_successor
 import Scenarios.nominate_without_successor
 import Scenarios.pre_vote
@@ -60,6 +62,7 @@ import Scenarios.rollback_safety
 import Scenarios.soft_rollback
 import Scenarios.sole_member_election
 import Scenarios.stale_ack_after_reelection
+import Scenarios.stale_nack_after_ack
 import Scenarios.stale_vote_after_new_term
 import Scenarios.stale_vote_request
 import Scenarios.startup
