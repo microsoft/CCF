@@ -140,6 +140,12 @@ class SnapshotServer:
             "overflow_total": f"bytes 2-4/{overflow}",
             "length_mismatch": "bytes 2-6/10",
             "missing_length": "bytes 2-4/10",
+            "inclusive_final": "bytes 7-9/10",
+            "exclusive_final": "bytes 7-10/10",
+            "end_at_total": "bytes 8-10/10",
+            "past_total": "bytes 2-4/3",
+            "empty": "bytes 5-5/10",
+            "inverted": "bytes 5-4/10",
         }
         case = request.match_info["case"]
         content_range = ranges[case]
@@ -151,7 +157,8 @@ class SnapshotServer:
             await response.write(b"abc")
             await response.write_eof()
             return response
-        return web.Response(status=206, headers=headers, body=b"abc")
+        body = b"" if case in ("empty", "inverted") else b"abc"
+        return web.Response(status=206, headers=headers, body=body)
 
 
 def make_self_signed_cert(san_dns):

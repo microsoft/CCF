@@ -571,6 +571,21 @@ TEST_CASE("Snapshot Content-Range headers")
     CHECK(range.total_size == 10);
   }
 
+  // A final range ends at the total size, in either notation
+  for (const auto* mode : {"inclusive_final", "exclusive_final"})
+  {
+    INFO(mode);
+    const auto request = snapshot_test_request(
+      HTTP_GET,
+      fmt::format("/snapshot-test/headers/{}", mode),
+      nullptr,
+      HTTP_STATUS_PARTIAL_CONTENT);
+    const auto range = ccf::snapshots::parse_content_range_header(*request);
+    CHECK(range.range_start == 7);
+    CHECK(range.inclusive_range_end == 9);
+    CHECK(range.total_size == 10);
+  }
+
   const std::vector<std::pair<std::string, std::string>> invalid_headers = {
     {"missing_range", "missing expected content-range header"},
     {"unit", "Unexpected content-range unit"},
@@ -585,6 +600,10 @@ TEST_CASE("Snapshot Content-Range headers")
     {"overflow_total", "Could not parse total size"},
     {"length_mismatch", "headers do not agree"},
     {"missing_length", "missing expected content-length header"},
+    {"end_at_total", "Invalid range in content-range header"},
+    {"past_total", "Invalid range in content-range header"},
+    {"empty", "Invalid range in content-range header"},
+    {"inverted", "Invalid range in content-range header"},
   };
   for (const auto& [mode, error] : invalid_headers)
   {
@@ -719,8 +738,8 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
     CHECK(requests.back().at("range") == initial_range);
   }
 
-  // A peer sending more than its total size is cut off once that total has
-  // arrived, even when max_size would allow more
+  // A peer sending more than its total size is rejected at the range that
+  // overruns it, even when max_size would allow more
   {
     configure("overrun");
     CHECK_FALSE(

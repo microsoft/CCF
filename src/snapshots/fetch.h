@@ -202,6 +202,18 @@ namespace ccf::snapshots
       }
     }
 
+    // After normalising the range end above, the range must hold at least
+    // one byte and end before the total size
+    if (
+      parsed_values.inclusive_range_end < parsed_values.range_start ||
+      parsed_values.inclusive_range_end >= parsed_values.total_size)
+    {
+      throw std::runtime_error(fmt::format(
+        "Invalid range in content-range header. Expected a non-empty range "
+        "ending before the total size, received: {}",
+        it->second));
+    }
+
     return parsed_values;
   }
 
