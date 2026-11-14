@@ -2174,6 +2174,14 @@ namespace ccf
             hook->call(consensus.get());
           }
         }
+        catch (const ccf::kv::UnverifiableSignatureType&)
+        {
+          // The ledger may continue past this entry, so recovering the prefix
+          // before it would silently drop committed transactions
+          LOG_FAIL_FMT(
+            "Aborting recovery: this build cannot verify the ledger");
+          throw;
+        }
         catch (const std::exception& e)
         {
           LOG_FAIL_FMT(
