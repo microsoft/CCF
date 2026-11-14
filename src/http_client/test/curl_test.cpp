@@ -7,6 +7,7 @@
 #include "http_client/curl.h"
 #include "snapshots/fetch.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <curl/header.h>
 #include <fstream>
@@ -522,6 +523,48 @@ TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
   }
 }
 
+// Records the messages logged while it is in scope
+class LogCapture
+{
+  class Logger : public ccf::logger::AbstractLogger
+  {
+    std::vector<std::string>& messages;
+
+  public:
+    explicit Logger(std::vector<std::string>& messages_) : messages(messages_)
+    {}
+
+    void write(const ccf::logger::LogLine& line) override
+    {
+      messages.push_back(line.msg);
+    }
+  };
+
+  std::vector<std::string> messages;
+
+public:
+  LogCapture()
+  {
+    ccf::logger::config::loggers().push_back(
+      std::make_unique<Logger>(messages));
+  }
+
+  LogCapture(const LogCapture&) = delete;
+  LogCapture& operator=(const LogCapture&) = delete;
+
+  ~LogCapture()
+  {
+    ccf::logger::config::loggers().pop_back();
+  }
+
+  [[nodiscard]] bool contains(const std::string& text) const
+  {
+    return std::ranges::any_of(messages, [&text](const auto& message) {
+      return message.find(text) != std::string::npos;
+    });
+  }
+};
+
 static std::unique_ptr<ccf::http_client::CurlRequest> snapshot_test_request(
   ccf::RESTVerb method,
   const std::string& path,
@@ -740,13 +783,15 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
     CHECK(requests.back().at("range") == initial_range);
   }
 
-  // A peer sending more than its total size is rejected at the range that
-  // overruns it, even when max_size would allow more
+  // A peer sending more than its total size is cut off by the response size
+  // limit, which drops to that total, even when max_size would allow more
   {
     configure("overrun");
+    LogCapture logs;
     CHECK_FALSE(
       ccf::snapshots::try_fetch_from_peer(peer_address, peer_ca, 2 * DATA_SIZE)
         .has_value());
+    CHECK(logs.contains(fmt::format("maximum is {} bytes", DATA_SIZE)));
     const auto requests = get_requests();
     CHECK(requests.size() == 5);
     CHECK(
