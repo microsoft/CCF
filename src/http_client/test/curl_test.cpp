@@ -7,6 +7,7 @@
 #include "http_client/curl.h"
 #include "snapshots/fetch.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <curl/header.h>
 #include <fstream>
@@ -522,6 +523,48 @@ TEST_CASE("VERIFYHOST rejects a certificate SAN mismatch")
   }
 }
 
+// Records the messages logged while it is in scope
+class LogCapture
+{
+  class Logger : public ccf::logger::AbstractLogger
+  {
+    std::vector<std::string>& messages;
+
+  public:
+    explicit Logger(std::vector<std::string>& messages_) : messages(messages_)
+    {}
+
+    void write(const ccf::logger::LogLine& line) override
+    {
+      messages.push_back(line.msg);
+    }
+  };
+
+  std::vector<std::string> messages;
+
+public:
+  LogCapture()
+  {
+    ccf::logger::config::loggers().push_back(
+      std::make_unique<Logger>(messages));
+  }
+
+  LogCapture(const LogCapture&) = delete;
+  LogCapture& operator=(const LogCapture&) = delete;
+
+  ~LogCapture()
+  {
+    ccf::logger::config::loggers().pop_back();
+  }
+
+  [[nodiscard]] bool contains(const std::string& text) const
+  {
+    return std::ranges::any_of(messages, [&text](const auto& message) {
+      return message.find(text) != std::string::npos;
+    });
+  }
+};
+
 static std::unique_ptr<ccf::http_client::CurlRequest> snapshot_test_request(
   ccf::RESTVerb method,
   const std::string& path,
@@ -571,6 +614,21 @@ TEST_CASE("Snapshot Content-Range headers")
     CHECK(range.total_size == 10);
   }
 
+  // A final range ends at the total size, in either notation
+  for (const auto* mode : {"inclusive_final", "exclusive_final"})
+  {
+    INFO(mode);
+    const auto request = snapshot_test_request(
+      HTTP_GET,
+      fmt::format("/snapshot-test/headers/{}", mode),
+      nullptr,
+      HTTP_STATUS_PARTIAL_CONTENT);
+    const auto range = ccf::snapshots::parse_content_range_header(*request);
+    CHECK(range.range_start == 7);
+    CHECK(range.inclusive_range_end == 9);
+    CHECK(range.total_size == 10);
+  }
+
   const std::vector<std::pair<std::string, std::string>> invalid_headers = {
     {"missing_range", "missing expected content-range header"},
     {"unit", "Unexpected content-range unit"},
@@ -585,6 +643,12 @@ TEST_CASE("Snapshot Content-Range headers")
     {"overflow_total", "Could not parse total size"},
     {"length_mismatch", "headers do not agree"},
     {"missing_length", "missing expected content-length header"},
+    {"end_at_total", "Invalid range in content-range header"},
+    {"past_total", "Invalid range in content-range header"},
+    {"empty", "Invalid range in content-range header"},
+    {"inverted", "Invalid range in content-range header"},
+    {"empty_at_start", "Invalid range in content-range header"},
+    {"inverted_with_body", "Invalid range in content-range header"},
   };
   for (const auto& [mode, error] : invalid_headers)
   {
@@ -637,6 +701,9 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
       REQUIRE(response.has_value());
       CHECK(response->snapshot_name == "snapshot-test.committed");
       REQUIRE(response->snapshot_data.size() == DATA_SIZE);
+      // The buffer is sized for the whole snapshot after the first range,
+      // rather than grown as the remaining ranges arrive
+      CHECK(response->snapshot_data.capacity() == DATA_SIZE);
       CHECK(std::equal(
         expected_data.begin(),
         expected_data.end(),
@@ -683,7 +750,8 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
     {"no_location", 1},
     {"redirect_loop", 21},
     {"wrong_start", 3},
-    {"wrong_end", 3},
+    {"wrong_end", 4},
+    {"wrong_total", 4},
     {"chunk_error", 4},
   };
   for (const auto& [mode, request_count] : failures)
@@ -700,7 +768,10 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
     CHECK(requests.front().at("range") == initial_range);
   }
 
-  for (const size_t max_size : {CHUNK_SIZE - 1, CHUNK_SIZE + 16})
+  // A snapshot larger than max_size is rejected by the first range: by the
+  // response size limit if the range itself does not fit, otherwise by its
+  // total size
+  for (const size_t max_size : {CHUNK_SIZE - 1, CHUNK_SIZE + 16, DATA_SIZE - 1})
   {
     INFO(max_size);
     configure("inclusive");
@@ -708,12 +779,36 @@ TEST_CASE("Snapshot fetching over multiple HTTPS byte ranges")
       ccf::snapshots::try_fetch_from_peer(peer_address, peer_ca, max_size)
         .has_value());
     const auto requests = get_requests();
-    CHECK(requests.size() == (max_size < CHUNK_SIZE ? 3 : 4));
+    CHECK(requests.size() == 3);
+    CHECK(requests.back().at("range") == initial_range);
+  }
+
+  // A peer sending more than its total size is cut off by the response size
+  // limit, which drops to that total, even when max_size would allow more
+  {
+    configure("overrun");
+    LogCapture logs;
+    CHECK_FALSE(
+      ccf::snapshots::try_fetch_from_peer(peer_address, peer_ca, 2 * DATA_SIZE)
+        .has_value());
+    CHECK(logs.contains(fmt::format("maximum is {} bytes", DATA_SIZE)));
+    const auto requests = get_requests();
+    CHECK(requests.size() == 5);
     CHECK(
       requests.back().at("range") ==
-      (max_size < CHUNK_SIZE ?
-         initial_range :
-         fmt::format("bytes={}-{}", CHUNK_SIZE, 2 * CHUNK_SIZE - 1)));
+      fmt::format("bytes={}-{}", 2 * CHUNK_SIZE, 3 * CHUNK_SIZE - 1));
+  }
+
+  // A peer ignoring the requested range is cut off after one range, before
+  // the snapshot's total size has been validated
+  {
+    configure("ignore_range");
+    LogCapture logs;
+    CHECK_FALSE(
+      ccf::snapshots::try_fetch_from_peer(peer_address, peer_ca, DATA_SIZE)
+        .has_value());
+    CHECK(logs.contains(fmt::format("maximum is {} bytes", CHUNK_SIZE)));
+    CHECK(get_requests().size() == 3);
   }
 
   configure("not_found");
