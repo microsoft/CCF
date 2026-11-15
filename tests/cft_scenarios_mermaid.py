@@ -32,7 +32,6 @@ PRE_VOTE = "\N{RAISED HAND}"
 NOMINATION = "\N{WHITE RIGHT POINTING BACKHAND INDEX}"
 APPEND_ENTRIES = "\N{PACKAGE}"
 COMMIT = "\N{LOCK}"
-TRUNCATION = "\N{BLACK SCISSORS}\N{VARIATION SELECTOR-16}"
 ROLLBACK = "\N{BLACK LEFT-POINTING DOUBLE TRIANGLE}"
 TIME = "\N{HOURGLASS WITH FLOWING SAND}"
 CREATED = "\N{SQUARED NEW}"
@@ -45,7 +44,7 @@ DISCONNECTED = "\N{NO ENTRY}"
 # What the driver prints, and the symbols which replace it
 LABELS = [
     (r"\[KV\] initialising in term ", LEADER),
-    (r"\[ledger\] truncating to ", TRUNCATION),
+    (r"\[ledger\] truncating to ", ROLLBACK),
     (r"\[KV\] rolling back to (\S+), in term \d+", rf"{ROLLBACK}\1"),
     (r"\[KV\] compacting to ", COMMIT),
     (r"periodic for (\d+) ms", rf"{TIME}\1ms"),
@@ -88,6 +87,13 @@ APPENDED = re.compile(
 )
 KINDS = {("signature", "raw"): SIGNATURE, ("", "reconfiguration"): RECONFIGURATION}
 
+# A rollback, which a node prints for its KV and then for its ledger
+ROLLED_BACK = re.compile(
+    r"^((?P<node>\S+)->>(?P=node): \[KV\] rolling back to \S+\.(?P<index>\d+),"
+    r" in term \d+)\n(?P=node)->>(?P=node): \[ledger\] truncating to (?P=index)$",
+    re.MULTILINE,
+)
+
 # A step which only involves one node, such as a commit
 LOCAL = re.compile(r"(?:(\S+)->>\1|Note over (\S+)): (.*)")
 
@@ -129,12 +135,13 @@ def local(step: str) -> tuple[str | None, str]:
 
 def diagram(output: str) -> str:
     """Return the diagram of the scenario for which the driver wrote `output`."""
-    printed = [
+    printed = "\n".join(
         line.removeprefix(MARKER).strip()
         for line in output.splitlines()
         if line.startswith(MARKER)
-    ]
-    steps = (local(label(step)) for step in entries(printed))
+    )
+    printed = ROLLED_BACK.sub(r"\1", printed)
+    steps = (local(label(step)) for step in entries(printed.splitlines()))
     lines = [HEADER]
     for node, group in itertools.groupby(steps, key=lambda step: step[0]):
         texts = [text for _, text in group]

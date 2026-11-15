@@ -75,7 +75,7 @@ Symbols replace what the driver prints, followed by the term, index or transacti
 | ----------- | ---------------------------------------------------------------------------- |
 | 👑 💂 🙋 🔰 | Primary, backup, candidate, or none of these                                 |
 | 📝 ♻️ 📄    | Signature, reconfiguration, or another entry, appended to the ledger         |
-| ✂️ ⏪ 🔒    | Truncation of the ledger, rollback, commit                                   |
+| ⏪ 🔒       | Rollback, commit                                                             |
 | 📦 ✋ 🙋 👉 | Requests: append entries, pre-vote, vote, nomination of a successor          |
 | ✅ ❌       | Response which accepts or rejects a request                                  |
 | 🆕 🤝 👋 🙈 | Node created, trusted, retired, left out of the final check as it is retired |
