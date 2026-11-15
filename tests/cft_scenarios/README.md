@@ -60,6 +60,27 @@ ctest --test-dir build -VV -R '^cft_scenario_test$' --no-tests=error
 The runner prints each scenario as a Mermaid sequence diagram, and writes its trace to `consensus/raw/<name>.ndjson` in the build directory.
 [`consensus-replay`](../../lean/consensus/replay/README.md) validates these traces against the Lean model of the protocol.
 
+## Diagrams
+
+[`cft_scenarios_mermaid.py`](../cft_scenarios_mermaid.py) prints one scenario as a compact Mermaid sequence diagram:
+
+```sh
+python3 tests/cft_scenarios_mermaid.py build/cft_driver tests/cft_scenarios/Scenarios/<name>.lean
+```
+
+Messages are arrows, which end in a cross when the message is dropped, and consecutive local steps of a node share a note.
+Symbols replace what the driver prints, followed by the term, index or transaction ID to which they apply:
+
+| Symbols     | Meaning                                                                      |
+| ----------- | ---------------------------------------------------------------------------- |
+| 👑 💂 🙋 🔰 | Primary, backup, candidate, or none of these                                 |
+| 📝 ♻️ 📄    | Replication of a signature, a reconfiguration, or another entry              |
+| 💾 ✂️ ⏪ 🔒 | Append to the ledger, truncation of the ledger, rollback, commit             |
+| 📦 ✋ 🙋 👉 | Requests: append entries, pre-vote, vote, nomination of a successor          |
+| ✅ ❌       | Response which accepts or rejects a request                                  |
+| 🆕 🤝 👋 🙈 | Node created, trusted, retired, left out of the final check as it is retired |
+| 🔗 ⛔ ⏳    | Nodes connected, nodes disconnected, time passing                            |
+
 ## Bindings
 
 `lake` compiles the scenarios to a static library, which defines `main`.
