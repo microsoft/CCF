@@ -4,7 +4,10 @@
 
 Usage: cft_scenarios_mermaid.py <cft_driver> <Scenarios/name.lean>
 
-Messages are arrows, and consecutive local steps of a node share a note.
+Messages are arrows, as are the actions of a node, such as appending to its
+ledger, which go from that node to itself. Updates to the state of a node, such
+as its role or commit index, are notes. Consecutive actions of a node share an
+arrow, and consecutive updates share a note.
 Symbols replace what the driver prints, and anything else is left as it is.
 """
 
@@ -94,8 +97,13 @@ ROLLED_BACK = re.compile(
     re.MULTILINE,
 )
 
-# A step which only involves one node, such as a commit
-LOCAL = re.compile(r"(?:(\S+)->>\1|Note over (\S+)): (.*)")
+# A step which only involves one node: what it prints as a message to itself is an
+# action, unless it updates its state, and what it prints as a note is an update,
+# unless it is an action
+SELF = re.compile(r"(\S+)->>\1: (.*)")
+NOTE = re.compile(r"Note (?:over|right of) (\S+): (.*)")
+UPDATES = re.compile(r"\[KV\] (?:initialising in term|compacting to) .*")
+ACTIONS = re.compile(r"Node \S+ nominates a successor")
 
 
 def entries(steps: list[str]) -> Iterator[str]:
@@ -116,7 +124,7 @@ def entries(steps: list[str]) -> Iterator[str]:
                 continue
         elif entry := APPENDED.fullmatch(step):
             symbol = symbols.get(entry["txid"], ENTRY)
-            step = f"Note over {entry['node']}: {symbol}{entry['txid']}"
+            step = f"{entry['node']}->>{entry['node']}: {symbol}{entry['txid']}"
         yield step
 
 
@@ -127,10 +135,17 @@ def label(step: str) -> str:
     return step
 
 
-def local(step: str) -> tuple[str | None, str]:
-    """Split a local step into its node and what that node does there."""
-    match = LOCAL.fullmatch(step)
-    return (match[1] or match[2], match[3]) if match else (None, step)
+def local(step: str) -> tuple[str | None, bool, str]:
+    """Split a local step into its node, whether it is an action, and its text."""
+    if match := SELF.fullmatch(step):
+        node, text = match.groups()
+        action = not UPDATES.fullmatch(text)
+    elif match := NOTE.fullmatch(step):
+        node, text = match.groups()
+        action = bool(ACTIONS.fullmatch(text))
+    else:
+        return None, False, label(step)
+    return node, action, label(text)
 
 
 def diagram(output: str) -> str:
@@ -141,11 +156,16 @@ def diagram(output: str) -> str:
         if line.startswith(MARKER)
     )
     printed = ROLLED_BACK.sub(r"\1", printed)
-    steps = (local(label(step)) for step in entries(printed.splitlines()))
+    steps = (local(step) for step in entries(printed.splitlines()))
     lines = [HEADER]
-    for node, group in itertools.groupby(steps, key=lambda step: step[0]):
-        texts = [text for _, text in group]
-        lines += [f"Note over {node}:wrap: {' '.join(texts)}"] if node else texts
+    for (node, action), group in itertools.groupby(steps, key=lambda s: s[:2]):
+        texts = [text for _, _, text in group]
+        if node is None:
+            lines += texts
+        elif action:
+            lines.append(f"{node}->>{node}:wrap: {' '.join(texts)}")
+        else:
+            lines.append(f"Note over {node}:wrap: {' '.join(texts)}")
     return "\n  ".join(lines) + "\n"
 
 

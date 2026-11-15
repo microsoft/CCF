@@ -68,7 +68,10 @@ The runner prints each scenario as a Mermaid sequence diagram, and writes its tr
 python3 tests/cft_scenarios_mermaid.py build/cft_driver tests/cft_scenarios/Scenarios/<name>.lean
 ```
 
-Messages are arrows, which end in a cross when the message is dropped, and consecutive local steps of a node share a note.
+Messages are arrows, which end in a cross when the message is dropped.
+The actions of a node, such as appending to its ledger, rolling back or time passing, are arrows from that node to itself.
+Updates to the state of a node, such as its role or commit index, are notes.
+Consecutive actions of a node share an arrow, and consecutive updates share a note.
 Symbols replace what the driver prints, followed by the term, index or transaction ID to which they apply:
 
 | Symbols     | Meaning                                                                      |
