@@ -12,9 +12,11 @@ import itertools
 import re
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 MARKER = "<CftDriver>"
+HEADER = "---\nconfig:\n  sequence:\n    noteAlign: left\n---\nsequenceDiagram"
 
 # Symbols
 LEADER = "\N{CROWN}"
@@ -28,8 +30,7 @@ RECONFIGURATION = "\N{BLACK UNIVERSAL RECYCLING SYMBOL}\N{VARIATION SELECTOR-16}
 ENTRY = "\N{PAGE FACING UP}"
 PRE_VOTE = "\N{RAISED HAND}"
 NOMINATION = "\N{WHITE RIGHT POINTING BACKHAND INDEX}"
-ENTRIES = "\N{PACKAGE}"
-LEDGER = "\N{FLOPPY DISK}"
+APPEND_ENTRIES = "\N{PACKAGE}"
 COMMIT = "\N{LOCK}"
 TRUNCATION = "\N{BLACK SCISSORS}\N{VARIATION SELECTOR-16}"
 ROLLBACK = "\N{BLACK LEFT-POINTING DOUBLE TRIANGLE}"
@@ -44,17 +45,13 @@ DISCONNECTED = "\N{NO ENTRY}"
 # What the driver prints, and the symbols which replace it
 LABELS = [
     (r"\[KV\] initialising in term ", LEADER),
-    (r"replicate (\S+) = \[\d+ bytes\] signature \[raw\]", rf"{SIGNATURE}\1"),
-    (r"replicate (\S+) = .* \[reconfiguration\]", rf"{RECONFIGURATION}\1"),
-    (r"replicate (\S+) = .* \[raw\]", rf"{ENTRY}\1"),
-    (r"\[ledger\] appending: (\S+?)=.*", rf"{LEDGER}\1"),
     (r"\[ledger\] truncating to ", TRUNCATION),
     (r"\[KV\] rolling back to (\S+), in term \d+", rf"{ROLLBACK}\1"),
     (r"\[KV\] compacting to ", COMMIT),
     (r"periodic for (\d+) ms", rf"{TIME}\1ms"),
     (
         r"append_entries (\(.*\]) \(term (\d+), commit (\d+)\)",
-        rf"{ENTRIES}\1 {LEADER}\2 {COMMIT}\3",
+        rf"{APPEND_ENTRIES}\1 {LEADER}\2 {COMMIT}\3",
     ),
     (r"append_entries_response ACK for ", YES),
     (r"append_entries_response NACK for ", NO),
@@ -80,15 +77,48 @@ LABELS = [
     (r"\(committed (\d+)\)", rf"{COMMIT}\1"),
 ]
 
-# A step which only involves one node, such as an append to its ledger
+# What a primary prints for an entry which it replicates, and what any node prints
+# for an entry which it appends to its ledger
+REPLICATED = re.compile(
+    r"(?P<node>\S+)->>(?P=node): replicate (?P<txid>\S+) = \[\d+ bytes\] "
+    r"(?P<data>.*) \[(?P<type>\w+)\]"
+)
+APPENDED = re.compile(
+    r"(?P<node>\S+)->>(?P=node): \[ledger\] appending: (?P<txid>\S+?)=.*"
+)
+KINDS = {("signature", "raw"): SIGNATURE, ("", "reconfiguration"): RECONFIGURATION}
+
+# A step which only involves one node, such as a commit
 LOCAL = re.compile(r"(?:(\S+)->>\1|Note over (\S+)): (.*)")
+
+
+def entries(steps: list[str]) -> Iterator[str]:
+    """Show each entry where it is appended, with the symbol for its kind.
+
+    Its primary prints that kind when it replicates the entry, a step which is
+    only shown if the append does not follow.
+    """
+    appended = {
+        match.group("node", "txid") for match in map(APPENDED.fullmatch, steps) if match
+    }
+    symbols: dict[str, str] = {}
+    for step in steps:
+        if entry := REPLICATED.fullmatch(step):
+            kind = (entry["data"], entry["type"])
+            symbols[entry["txid"]] = KINDS.get(kind, ENTRY)
+            if entry.group("node", "txid") in appended:
+                continue
+        elif entry := APPENDED.fullmatch(step):
+            symbol = symbols.get(entry["txid"], ENTRY)
+            step = f"Note over {entry['node']}: {symbol}{entry['txid']}"
+        yield step
 
 
 def label(step: str) -> str:
     """Replace what the driver prints in `step` with symbols."""
     for printed, symbols in LABELS:
         step = re.sub(printed, symbols, step)
-    return step.strip()
+    return step
 
 
 def local(step: str) -> tuple[str | None, str]:
@@ -99,12 +129,13 @@ def local(step: str) -> tuple[str | None, str]:
 
 def diagram(output: str) -> str:
     """Return the diagram of the scenario for which the driver wrote `output`."""
-    steps = (
-        local(label(line.removeprefix(MARKER)))
+    printed = [
+        line.removeprefix(MARKER).strip()
         for line in output.splitlines()
         if line.startswith(MARKER)
-    )
-    lines = ["sequenceDiagram"]
+    ]
+    steps = (local(label(step)) for step in entries(printed))
+    lines = [HEADER]
     for node, group in itertools.groupby(steps, key=lambda step: step[0]):
         texts = [text for _, text in group]
         lines += [f"Note over {node}:wrap: {' '.join(texts)}"] if node else texts
