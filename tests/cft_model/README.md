@@ -50,7 +50,7 @@ build/cft_model_driver --explore <directory> [--seed N] [--runs N] [--jobs N]
 ```
 
 The commands of each scenario, without its assertions, are a first program.
-The model driver changes a program at random: it holds a message until later, loses or delivers one early, advances the clock of a node, disconnects a node for a while, nominates, replicates, or leaves out, repeats or swaps commands.
+The model driver changes a program at random: it holds a message until later, loses or delivers one early, advances the clock of a node, disconnects a node for a while, nominates, replicates, adds a node which starts empty or from a snapshot, or leaves out, repeats or swaps commands.
 It runs each changed program in a process of its own.
 
 - A run is kept, to be changed in turn, if the model shows an outcome, or the run reaches an edge of [`cft.h`](../../src/consensus/aft/cft.h), which no run before it has.

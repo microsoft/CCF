@@ -365,6 +365,12 @@ private def choose (kind : String) (value : Nat) (nodes isolated : List String)
   | "write" =>
       return some { name := "replicate", args := ["latest", s!"m{value % 1000}"] }
   | "sign" => return some { name := "replicate", args := ["latest", "$"] }
+  | "join" =>
+      -- A node which does not exist yet: one more number than there are nodes has one
+      let fresh :=
+        ((List.range (nodes.length + 1)).map toString).find? (!nodes.contains ·)
+      let name := if value % 2 == 0 then "trust_node_from_snapshot" else "trust_node"
+      return fresh.map fun node => { name, args := ["latest", node] }
   | _ => fail s!"unknown choice '{kind}'"
 
 /--

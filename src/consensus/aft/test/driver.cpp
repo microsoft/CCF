@@ -472,6 +472,16 @@ extern "C"
       command("trust_nodes", t, ids), [&]() { driver->trust_nodes(t, ids); });
   }
 
+  lean_obj_res cft_trust_node_from_snapshot(
+    b_lean_obj_arg term, b_lean_obj_arg node)
+  {
+    const auto t = text(term);
+    const auto id = text(node);
+    return step(command("trust_node_from_snapshot", t, id), [&]() {
+      driver->trust_nodes(t, {id}, true);
+    });
+  }
+
   lean_obj_res cft_swap_node(
     b_lean_obj_arg term, b_lean_obj_arg retire, b_lean_obj_arg trust)
   {

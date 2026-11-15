@@ -244,9 +244,45 @@ private:
     return {idx, d, committable, hooks};
   }
 
-  // A joining node starts as a follower with an empty ledger, like a real
-  // node joining without a snapshot.
-  void add_node(ccf::NodeId node_id, bool joining = true)
+  // What a real node does when it joins from a snapshot which source took at
+  // the index which it has committed: it adopts the configuration of the
+  // snapshot, and starts as a follower at that index. It also holds the
+  // entries before the snapshot, like a real node which was given the
+  // committed ledger files of source, so that ledgers can still be compared.
+  static void init_from_snapshot(TCft& cft, TCft& source)
+  {
+    const auto idx = source.get_committed_seqno();
+    if (idx == 0)
+    {
+      cft.init_as_backup(0, 0, {});
+      return;
+    }
+
+    std::optional<ccf::kv::Configuration::Nodes> configuration;
+    for (const auto& conf : source.get_details().configs)
+    {
+      if (conf.idx <= idx)
+      {
+        configuration = conf.nodes;
+      }
+    }
+    if (configuration.has_value())
+    {
+      cft.add_configuration(idx, configuration.value());
+    }
+
+    const auto& entries = source.ledger->ledger;
+    cft.ledger->ledger.assign(
+      entries.begin(), entries.begin() + static_cast<std::ptrdiff_t>(idx));
+    cft.init_as_backup(idx, source.get_view(idx), source.get_view_history(idx));
+  }
+
+  // A joining node starts as a follower: with an empty ledger, like a real
+  // node joining without a snapshot, or from a snapshot of another node.
+  void add_node(
+    ccf::NodeId node_id,
+    bool joining = true,
+    const std::optional<ccf::NodeId>& snapshot_of = std::nullopt)
   {
     auto kv = std::make_shared<Store>(node_id);
     const ccf::consensus::Configuration settings{{"10ms"}, {"100ms"}};
@@ -276,7 +312,14 @@ private:
       });
     if (joining)
     {
-      cft->init_as_backup(0, 0, {});
+      if (snapshot_of.has_value())
+      {
+        init_from_snapshot(*cft, *_nodes.at(snapshot_of.value()).cft);
+      }
+      else
+      {
+        cft->init_as_backup(0, 0, {});
+      }
     }
     // The node starts its election timer as a real node does: when it first
     // holds a signature while it is in its latest configuration.
@@ -382,14 +425,39 @@ public:
     _replicate(term, {}, false, std::nullopt, retired_committed);
   }
 
+  // With from_snapshot, each new node starts from a snapshot of the primary in
+  // term. If there is no such primary, it starts empty, as it does without.
   void trust_nodes(
-    const std::string& term, const std::vector<std::string>& node_ids)
+    const std::string& term,
+    const std::vector<std::string>& node_ids,
+    bool from_snapshot = false)
   {
+    std::optional<ccf::NodeId> snapshot_of = std::nullopt;
+    if (from_snapshot)
+    {
+      const auto primary = find_primary_in_term(term, false);
+      if (primary.has_value())
+      {
+        snapshot_of = primary->second;
+      }
+    }
     for (const auto& node_id : node_ids)
     {
-      add_node(node_id);
-      CFT_DRIVER_PRINT(
-        "Note over {}: Node {} trusted", ccf::NodeId(node_id), node_id);
+      add_node(node_id, true, snapshot_of);
+      if (snapshot_of.has_value())
+      {
+        CFT_DRIVER_PRINT(
+          "Note over {}: Node {} trusted, from a snapshot of {} at {}",
+          ccf::NodeId(node_id),
+          node_id,
+          snapshot_of.value(),
+          _nodes.at(node_id).cft->get_last_idx());
+      }
+      else
+      {
+        CFT_DRIVER_PRINT(
+          "Note over {}: Node {} trusted", ccf::NodeId(node_id), node_id);
+      }
     }
     ccf::kv::Configuration::Nodes configuration = latest_configuration(term);
     for (const auto& node_id : node_ids)

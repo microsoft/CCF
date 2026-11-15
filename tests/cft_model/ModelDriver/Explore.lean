@@ -55,6 +55,8 @@ private def changes : Array String :=
       ("nominate", 1),
       ("write", 1),
       ("sign", 1),
+      ("join", 1),
+      ("snapshot", 1),
       ("duplicate", 1),
       ("swap", 1),
       ("latest", 1),
@@ -74,7 +76,8 @@ private def choices : Array String :=
       ("rejoin", 1),
       ("nominate", 1),
       ("write", 1),
-      ("sign", 1)
+      ("sign", 1),
+      ("join", 1)
     ]
 
 /--
@@ -138,6 +141,21 @@ private def change (steps : Array Step) : Random (Array Step × String) := do
       if position < size then
         return (steps.extract 0 position, s!"truncate {position}")
       return (steps, "")
+  | "snapshot" =>
+      -- Have a node which joins start from a snapshot of the primary
+      let joins :=
+        (Array.range size).filter
+          fun (index : Nat) =>
+            match steps[index]? with
+            | some (.given command) => command.name == "trust_node"
+            | _ => false
+      match joins[value % joins.size]? with
+      | some index =>
+          let fromSnapshot : Step → Step
+            | .given command => .given { command with name := "trust_node_from_snapshot" }
+            | step => step
+          return (steps.modify index fromSnapshot, s!"snapshot {index}")
+      | none => return (steps, "")
   | kind => return (insert steps position (.choice kind value), s!"{kind} {position}")
 
 /-- Why a program is run. -/

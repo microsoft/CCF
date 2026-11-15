@@ -44,7 +44,7 @@ To report how many steps and traces show each outcome, and which outcomes no tra
 ```
 
 An outcome which no trace shows is a missing scenario, a step which the driver or the reduction cannot produce, or behaviour which the model allows and the implementation lacks.
-For example, the driver starts every node with an empty ledger, so no trace of a scenario shows `joinFromSnapshot`.
+For example, no trace of a scenario shows `appendEntriesConflictIgnored`, which [`cft.h`](../../../src/consensus/aft/cft.h) logs as a branch which it expects not to reach.
 The [consensus model driver](../../../tests/cft_model/README.md#exploring) looks for runs which show such an outcome, by changing the scenarios at random.
 
 To compare with the implementation, configure the scenario build with `-DCOVERAGE=ON` and run the scenario test.

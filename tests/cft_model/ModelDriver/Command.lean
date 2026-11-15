@@ -52,6 +52,7 @@ def run (command : Command) : IO Unit := do
   | "start_node", [node] => startNode node
   | "trust_node", [term, node] => trustNode term node
   | "trust_nodes", term :: nodes => trustNodes term (texts nodes)
+  | "trust_node_from_snapshot", [term, node] => trustNodeFromSnapshot term node
   | "swap_node", [term, retire, trust] => swapNode term retire trust
   | "swap_nodes", term :: items =>
       let (retire, trust) := changes items
@@ -126,6 +127,7 @@ def creates (command : Command) : List String :=
   | "start_node", [node] => [node]
   | "create_new_node", [node] => [node]
   | "trust_node", [_, node] => [node]
+  | "trust_node_from_snapshot", [_, node] => [node]
   | "swap_node", [_, _, node] => [node]
   | "trust_nodes", _ :: nodes => nodes
   | "replicate_new_configuration", _ :: nodes => nodes
@@ -172,6 +174,7 @@ private def namesTerm : List String :=
   [
     "trust_node",
     "trust_nodes",
+    "trust_node_from_snapshot",
     "swap_node",
     "swap_nodes",
     "cleanup_nodes",
@@ -205,6 +208,7 @@ def scenarioLine (command : Command) : Except String String :=
   match command.name, command.args with
   | "start_node", [_] => values "startNode"
   | "trust_node", [_, _] => values "trustNode"
+  | "trust_node_from_snapshot", [_, _] => values "trustNodeFromSnapshot"
   | "trust_nodes", term :: nodes => call "trustNodes" [value term, list (nodes.map value)]
   | "swap_node", [_, _, _] => values "swapNode"
   | "swap_nodes", term :: items =>

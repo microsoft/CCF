@@ -46,6 +46,13 @@ opaque trustNode (term : @& Term) (node : @& NodeId) : IO Unit
 @[extern "cft_trust_nodes"]
 opaque trustNodes (term : @& Term) (nodes : @& List NodeId) : IO Unit
 
+/--
+As `trustNode`, but `node` starts from a snapshot of the primary in `term`: it holds what
+that primary has committed, and the configuration which the primary had then.
+-/
+@[extern "cft_trust_node_from_snapshot"]
+opaque trustNodeFromSnapshot (term : @& Term) (node : @& NodeId) : IO Unit
+
 /-- Replicate a configuration which removes `retire` and adds the new node `trust`. -/
 @[extern "cft_swap_node"]
 opaque swapNode (term : @& Term) (retire trust : @& NodeId) : IO Unit
