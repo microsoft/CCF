@@ -113,6 +113,11 @@ private:
 
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
+  // The role and term of each node, as last printed
+  std::map<
+    ccf::NodeId,
+    std::pair<std::optional<ccf::kv::LeadershipState>, aft::Term>>
+    _roles;
 
   void _replicate(
     const std::string& term_s,
@@ -164,7 +169,8 @@ private:
       term,
       idx,
       stringify(data),
-      configuration.has_value() ? "reconfiguration" : "raw");
+      configuration.has_value() ? "reconfiguration" :
+                                  (committable ? "signature" : "raw"));
 
     aft::ReplicatedDataType type = aft::ReplicatedDataType::raw;
     auto hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
@@ -277,6 +283,7 @@ public:
     add_node(start_node_id, false);
     configuration.try_emplace(start_node_id);
     _nodes.at(start_node_id).cft->force_become_primary();
+    print_role_change(start_node_id);
     _replicate("2", {}, false, configuration);
     CFT_DRIVER_PRINT(
       "Note over {}: Node {} created",
@@ -618,6 +625,7 @@ public:
     s << "periodic for " << std::to_string(ms_.count()) << " ms";
     log(node_id, node_id, s.str());
     _nodes.at(node_id).cft->periodic(ms_);
+    print_role_change(node_id);
   }
 
   void periodic_all(ms ms_)
@@ -757,6 +765,32 @@ public:
       cft->get_committed_seqno());
   }
 
+  // Prints the role and term of a node when either has changed since they were
+  // last printed, or when they have not been printed yet
+  void print_role_change(ccf::NodeId node_id)
+  {
+    auto cft = _nodes.at(node_id).cft;
+    const std::pair role{cft->get_details().leadership_state, cft->get_view()};
+    auto [it, inserted] = _roles.try_emplace(node_id, role);
+    if (inserted || it->second != role)
+    {
+      it->second = role;
+      CFT_DRIVER_PRINT(
+        "Note over {}: becomes {} in term {}",
+        node_id,
+        role.first.has_value() ? fmt::format("{}", *role.first) : "None",
+        role.second);
+    }
+  }
+
+  void print_role_changes()
+  {
+    for (const auto& node : _nodes)
+    {
+      print_role_change(node.first);
+    }
+  }
+
   void state_all()
   {
     for (auto& node : _nodes)
@@ -832,6 +866,7 @@ public:
       {
         log_msg_details(src, dst, contents);
         _nodes.at(dst).cft->recv_message(src, contents, body);
+        print_role_change(dst);
         return true;
       }
     }

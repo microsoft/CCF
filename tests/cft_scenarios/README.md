@@ -70,13 +70,13 @@ python3 tests/cft_scenarios_mermaid.py build/cft_driver tests/cft_scenarios/Scen
 
 Messages are arrows, which end in a cross when the message is dropped.
 The actions of a node, such as appending to its ledger, rolling back or time passing, are arrows from that node to itself.
-Updates to the state of a node, such as its role or commit index, are notes.
+Updates to the state of a node, such as its role or commit index, are notes, and the driver prints the role and term of a node whenever either changes.
 Consecutive actions of a node share an arrow, and consecutive updates share a note.
 Symbols replace what the driver prints, followed by the term, index or transaction ID to which they apply:
 
 | Symbols     | Meaning                                                                      |
 | ----------- | ---------------------------------------------------------------------------- |
-| 👑 💂 🙋 🔰 | Primary, backup, candidate, or none of these                                 |
+| 👑 💂 ✋ 🙋 🔰 | Role, in a term: primary, backup, pre-vote candidate, candidate, or none of these |
 | 📝 ♻️ 📄    | Signature, reconfiguration, or another entry, appended to the ledger         |
 | ⏪ 🔒       | Rollback, commit                                                             |
 | 📦 ✋ 🙋 👉 | Requests: append entries, pre-vote, vote, nomination of a successor          |

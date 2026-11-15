@@ -19,7 +19,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 MARKER = "<CftDriver>"
-HEADER = "---\nconfig:\n  sequence:\n    noteAlign: left\n---\nsequenceDiagram"
+HEADER = "sequenceDiagram"
 
 # Symbols
 LEADER = "\N{CROWN}"
@@ -46,7 +46,11 @@ DISCONNECTED = "\N{NO ENTRY}"
 
 # What the driver prints, and the symbols which replace it
 LABELS = [
-    (r"\[KV\] initialising in term ", LEADER),
+    (r"becomes Leader in term ", LEADER),
+    (r"becomes Follower in term ", FOLLOWER),
+    (r"becomes PreVoteCandidate in term ", PRE_VOTE),
+    (r"becomes Candidate in term ", CANDIDATE),
+    (r"becomes None in term ", NO_ROLE),
     (r"\[ledger\] truncating to ", ROLLBACK),
     (r"\[KV\] rolling back to (\S+), in term \d+", rf"{ROLLBACK}\1"),
     (r"\[KV\] compacting to ", COMMIT),
@@ -83,12 +87,12 @@ LABELS = [
 # for an entry which it appends to its ledger
 REPLICATED = re.compile(
     r"(?P<node>\S+)->>(?P=node): replicate (?P<txid>\S+) = \[\d+ bytes\] "
-    r"(?P<data>.*) \[(?P<type>\w+)\]"
+    r".* \[(?P<kind>\w+)\]"
 )
 APPENDED = re.compile(
     r"(?P<node>\S+)->>(?P=node): \[ledger\] appending: (?P<txid>\S+?)=.*"
 )
-KINDS = {("signature", "raw"): SIGNATURE, ("", "reconfiguration"): RECONFIGURATION}
+KINDS = {"signature": SIGNATURE, "reconfiguration": RECONFIGURATION}
 
 # A rollback, which a node prints for its KV and then for its ledger
 ROLLED_BACK = re.compile(
@@ -102,8 +106,11 @@ ROLLED_BACK = re.compile(
 # unless it is an action
 SELF = re.compile(r"(\S+)->>\1: (.*)")
 NOTE = re.compile(r"Note (?:over|right of) (\S+): (.*)")
-UPDATES = re.compile(r"\[KV\] (?:initialising in term|compacting to) .*")
+UPDATES = re.compile(r"\[KV\] compacting to .*")
 ACTIONS = re.compile(r"Node \S+ nominates a successor")
+
+# What a node prints when it becomes primary, which the note for its role shows
+INITIALISED = re.compile(r"\S+->>\S+: \[KV\] initialising in term \d+")
 
 
 def entries(steps: list[str]) -> Iterator[str]:
@@ -118,8 +125,7 @@ def entries(steps: list[str]) -> Iterator[str]:
     symbols: dict[str, str] = {}
     for step in steps:
         if entry := REPLICATED.fullmatch(step):
-            kind = (entry["data"], entry["type"])
-            symbols[entry["txid"]] = KINDS.get(kind, ENTRY)
+            symbols[entry["txid"]] = KINDS.get(entry["kind"], ENTRY)
             if entry.group("node", "txid") in appended:
                 continue
         elif entry := APPENDED.fullmatch(step):
@@ -156,7 +162,8 @@ def diagram(output: str) -> str:
         if line.startswith(MARKER)
     )
     printed = ROLLED_BACK.sub(r"\1", printed)
-    steps = (local(step) for step in entries(printed.splitlines()))
+    kept = [step for step in printed.splitlines() if not INITIALISED.fullmatch(step)]
+    steps = (local(step) for step in entries(kept))
     lines = [HEADER]
     for (node, action), group in itertools.groupby(steps, key=lambda s: s[:2]):
         texts = [text for _, _, text in group]
