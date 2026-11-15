@@ -69,7 +69,7 @@ def checkPending (session : Session) : IO Unit := do
 
 /-- Why the driver stopped before the end of a run. -/
 structure Stop where
-  /-- `stuck`, `invariant` or `error`. -/
+  /-- `stuck`, `invariant`, `refused` or `error`. -/
   kind : String
   message : String
   /-- The command which it could not run. -/
@@ -80,7 +80,8 @@ structure Report where
   /--
   `ok`, or `finding` if the driver and the model disagree or the driver fails, or `invalid`
   if the model does not cover the run: it does not start a network, or it has a primary
-  append what no application would, such as the removal of a node which has not retired.
+  append what no application would, such as the removal of a node which has not retired,
+  or of every node, which CCF refuses.
   -/
   status : String := "ok"
   /-- What kind of finding: `model`, `undelivered`, `invariant` or `error`. -/
@@ -124,6 +125,9 @@ private def stopFor (error : String) : Option String :=
     none
   else if has error ["at unsafe commit idx"] then
     some "invariant"
+  else if has error ["has no nodes"] then
+    -- A primary refuses a configuration with no nodes, which the model disables
+    some "refused"
   else if isStuck error then
     some "stuck"
   else
@@ -177,7 +181,7 @@ private def conclude (stopped : Option Stop)
   let counters ← edges
   -- A command which fails may leave a group of events unfinished.
   let whole :=
-    if stopped.any (·.kind == "error") then
+    if stopped.any (fun stop => stop.kind == "error" || stop.kind == "refused") then
       (splitCommands records).pop.foldl (· ++ ·) #[]
     else
       records
@@ -210,6 +214,8 @@ private def conclude (stopped : Option Stop)
         let report : Report :=
           if stop.kind == "stuck" then
             { outcomes, checks, stuck := stop.message }
+          else if stop.kind == "refused" then
+            { status := "invalid", message := stop.message, command := stop.command }
           else
             {
               status := "finding"

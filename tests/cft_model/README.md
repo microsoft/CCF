@@ -56,7 +56,7 @@ It runs each changed program in a process of its own.
   It is run a second time first, and is only kept if it does so again.
 - A run is a finding if the driver fails, for example because a commit is unsafe, or if the model rejects its trace.
   Findings with the same message, numbers aside, are counted together.
-- A run is neither if the model does not cover it, for example because a primary is asked to remove a node which has not retired.
+- A run is neither if the model does not cover it, for example because a primary is asked to remove a node which has not retired, or to remove every node, which CCF refuses.
 
 The directory receives the programs kept in `corpus/`, the first program and trace of each finding in `findings/`, the edges which the scenarios reach in `scenarios.edges`, and `report.md`.
 The same seed gives the same changes.

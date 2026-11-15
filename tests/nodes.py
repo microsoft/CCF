@@ -339,6 +339,7 @@ if __name__ == "__main__":
             "join_no_snapshot_ipv6",
             reconfiguration.run_join_no_snapshot_against_original_primary_ipv6,
         ),
+        ("remove_last_node", reconfiguration.run_remove_last_node),
     ):
         cr.add(
             name,
