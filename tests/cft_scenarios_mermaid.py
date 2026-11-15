@@ -83,11 +83,12 @@ LABELS = [
     (r"\(committed (\d+)\)", rf"{COMMIT}\1"),
 ]
 
-# What a primary prints for an entry which it replicates, and what any node prints
-# for an entry which it appends to its ledger
+# What a primary prints for an entry which it replicates, with the nodes which a
+# reconfiguration removes and adds, and what any node prints for an entry which it
+# appends to its ledger
 REPLICATED = re.compile(
     r"(?P<node>\S+)->>(?P=node): replicate (?P<txid>\S+) = \[\d+ bytes\] "
-    r".* \[(?P<kind>\w+)\]"
+    r".* \[(?P<kind>\w+)(?: (?P<delta>\(.*\)))?\]"
 )
 APPENDED = re.compile(
     r"(?P<node>\S+)->>(?P=node): \[ledger\] appending: (?P<txid>\S+?)=.*"
@@ -116,21 +117,23 @@ INITIALISED = re.compile(r"\S+->>\S+: \[KV\] initialising in term \d+")
 def entries(steps: list[str]) -> Iterator[str]:
     """Show each entry where it is appended, with the symbol for its kind.
 
-    Its primary prints that kind when it replicates the entry, a step which is
-    only shown if the append does not follow.
+    Its primary prints that kind, and the change to the configuration if it is a
+    reconfiguration, when it replicates the entry, a step which is only shown if
+    the append does not follow.
     """
     appended = {
         match.group("node", "txid") for match in map(APPENDED.fullmatch, steps) if match
     }
-    symbols: dict[str, str] = {}
+    symbols: dict[str, tuple[str, str]] = {}
     for step in steps:
         if entry := REPLICATED.fullmatch(step):
-            symbols[entry["txid"]] = KINDS.get(entry["kind"], ENTRY)
+            symbol = KINDS.get(entry["kind"], ENTRY)
+            symbols[entry["txid"]] = (symbol, entry["delta"] or "")
             if entry.group("node", "txid") in appended:
                 continue
         elif entry := APPENDED.fullmatch(step):
-            symbol = symbols.get(entry["txid"], ENTRY)
-            step = f"{entry['node']}->>{entry['node']}: {symbol}{entry['txid']}"
+            symbol, delta = symbols.get(entry["txid"], (ENTRY, ""))
+            step = f"{entry['node']}->>{entry['node']}: {symbol}{entry['txid']}{delta}"
         yield step
 
 

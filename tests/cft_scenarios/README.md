@@ -84,6 +84,8 @@ Symbols replace what the driver prints, followed by the term, index or transacti
 | 🆕 🤝 👋 🙈 | Node created, trusted, retired, left out of the final check as it is retired |
 | 🔗 🧱 ⏳    | Nodes connected, nodes disconnected, time passing                            |
 
+A reconfiguration is also followed by the nodes it removes and adds, such as `⚙️2.3(-n[0],+n[1])`.
+
 ## Bindings
 
 `lake` compiles the scenarios to a static library, which defines `main`.

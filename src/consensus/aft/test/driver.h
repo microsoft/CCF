@@ -151,6 +151,30 @@ private:
       term);
   }
 
+  // Nodes removed from, then nodes added to, a configuration, such as
+  // (-n[0],+n[1])
+  static std::string configuration_delta(
+    const ccf::kv::Configuration::Nodes& from,
+    const ccf::kv::Configuration::Nodes& to)
+  {
+    std::vector<std::string> changes;
+    for (const auto& [id, info] : from)
+    {
+      if (!to.contains(id))
+      {
+        changes.push_back(fmt::format("-{}", id));
+      }
+    }
+    for (const auto& [id, info] : to)
+    {
+      if (!from.contains(id))
+      {
+        changes.push_back(fmt::format("+{}", id));
+      }
+    }
+    return fmt::format("({})", fmt::join(changes, ","));
+  }
+
   ccf::kv::BatchVector::value_type make_entry(
     const ccf::NodeId& node_id,
     aft::Index idx,
@@ -162,6 +186,15 @@ private:
     const std::optional<ccf::kv::Configuration::Nodes>& retired_committed =
       std::nullopt)
   {
+    std::string kind = committable ? "signature" : "raw";
+    if (configuration.has_value())
+    {
+      kind = fmt::format(
+        "reconfiguration {}",
+        configuration_delta(
+          _nodes.at(node_id).cft->get_latest_configuration(),
+          configuration.value()));
+    }
     CFT_DRIVER_PRINT(
       "{}->>{}: replicate {}.{} = {} [{}]",
       node_id,
@@ -169,8 +202,7 @@ private:
       term,
       idx,
       stringify(data),
-      configuration.has_value() ? "reconfiguration" :
-                                  (committable ? "signature" : "raw"));
+      kind);
 
     aft::ReplicatedDataType type = aft::ReplicatedDataType::raw;
     auto hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
