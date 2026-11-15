@@ -415,6 +415,7 @@ extern "C"
     return io([]() {
       // Confirm path to liveness from final state
       driver->loop_until_sync();
+      driver->assert_invariants();
       driver.reset();
 
       ccf::tracing::FluentdSink::shutdown();

@@ -9,7 +9,8 @@ Each command is implemented by the C function named in its `extern` attribute, i
 A scenario is an `IO` action built from these commands and registered with `scenario`.
 
 After each command that can alter state, the driver asserts that every node's commit index
-is safe. After the last command, it confirms that the network can still make progress.
+is safe, and that what each node reports and asks for agrees with its ledger. After the last
+command, it confirms that the network can still make progress.
 -/
 
 namespace CftDriver

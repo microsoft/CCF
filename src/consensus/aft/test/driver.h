@@ -133,10 +133,34 @@ aft::ChannelStubProxy* channel_stub_proxy(const TCft& r)
 class CftDriver
 {
 private:
+  // Records the commits of which a node notifies its observer
+  struct CommitRecorder : public aft::CommitObserver
+  {
+    std::vector<ccf::TxID> notified;
+
+    void on_commit(
+      ccf::TxID committed, const aft::ViewHistory& /*view_history*/) override
+    {
+      notified.push_back(committed);
+    }
+  };
+
   struct NodeDriver
   {
     std::shared_ptr<Store> kv;
     std::shared_ptr<TCft> cft;
+    std::shared_ptr<CommitRecorder> commits;
+    // How many times the node has asked for retired nodes to be cleaned up
+    std::shared_ptr<size_t> cleanup_requests;
+
+    // What assert_invariants last saw of the node: its commit index, how many
+    // commits and cleanup requests it had made, the view in which it was
+    // primary, and the retirements which it then had yet to confirm
+    aft::Index seen_commit_idx = 0;
+    size_t seen_commits = 0;
+    size_t seen_cleanup_requests = 0;
+    std::optional<aft::Term> seen_primary_view = std::nullopt;
+    std::set<ccf::NodeId> seen_unconfirmed = {};
   };
 
   // A message which hold_nth has set aside
@@ -287,13 +311,16 @@ private:
     auto kv = std::make_shared<Store>(node_id);
     const ccf::consensus::Configuration settings{{"10ms"}, {"100ms"}};
     auto channels = std::make_shared<ChannelStubProxy_Entries>();
+    auto commits = std::make_shared<CommitRecorder>();
+    auto cleanup_requests = std::make_shared<size_t>(0);
     auto cft = std::make_shared<TCft>(
       settings,
       std::make_unique<Adaptor>(kv),
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
       channels,
       std::make_shared<aft::State>(node_id),
-      nullptr);
+      [cleanup_requests]() { ++*cleanup_requests; },
+      commits);
     channels->read_entries =
       [ledger = cft->ledger.get()](const aft::AppendEntries& ae) {
         auto entries = ledger->get_append_entries_payload(ae);
@@ -329,7 +356,10 @@ private:
       throw std::logic_error(fmt::format("Node {} already exists", node_id));
     }
 
-    _nodes.emplace(node_id, NodeDriver{kv, cft});
+    NodeDriver node{kv, cft, commits, cleanup_requests};
+    // A node which starts from a snapshot has committed it, without notice
+    node.seen_commit_idx = cft->get_committed_seqno();
+    _nodes.emplace(node_id, node);
   }
 
   // The configuration which a reconfiguration on the primary in term changes:
@@ -343,6 +373,285 @@ private:
       return {};
     }
     return _nodes.at(primary->second).cft->get_latest_configuration();
+  }
+
+  // An entry as the ledger of a node holds it: see LedgerStubProxy::put_entry
+  struct LedgerEntry
+  {
+    bool committable;
+    aft::Term term;
+    aft::ReplicatedData data;
+  };
+
+  static std::optional<LedgerEntry> ledger_entry(TCft& cft, aft::Index idx)
+  {
+    const auto entry = cft.ledger->get_entry_by_idx(idx);
+    if (!entry.has_value() || entry->empty())
+    {
+      return std::nullopt;
+    }
+
+    const uint8_t* data = entry->data();
+    auto size = entry->size();
+    serialized::skip(data, size, sizeof(size_t));
+    const auto committable = serialized::read<bool>(data, size);
+    const auto term = serialized::read<aft::Term>(data, size);
+    serialized::skip(data, size, sizeof(ccf::kv::Version));
+    return LedgerEntry{
+      committable, term, nlohmann::json::parse(std::span{data, size})};
+  }
+
+  static std::set<ccf::NodeId> named_nodes(const aft::ReplicatedData& data)
+  {
+    const ccf::kv::Configuration::Nodes nodes =
+      nlohmann::json::parse(data.data);
+    std::set<ccf::NodeId> ids;
+    for (const auto& [id, _] : nodes)
+    {
+      ids.insert(id);
+    }
+    return ids;
+  }
+
+  // The nodes whose retirement a node has committed, and which no entry of
+  // its ledger confirms yet. A real primary confirms the retirement of these
+  // when it handles the request of its consensus to clean up retired nodes.
+  static std::set<ccf::NodeId> unconfirmed_retirements(TCft& cft)
+  {
+    std::set<ccf::NodeId> retired;
+    std::set<ccf::NodeId> latest;
+    std::set<ccf::NodeId> confirmed;
+    const auto commit_idx = cft.get_committed_seqno();
+    for (aft::Index idx = 1; idx <= cft.get_last_idx(); ++idx)
+    {
+      const auto entry = ledger_entry(cft, idx);
+      if (!entry.has_value())
+      {
+        continue;
+      }
+
+      if (
+        entry->data.type == aft::ReplicatedDataType::reconfiguration &&
+        idx <= commit_idx)
+      {
+        const auto nodes = named_nodes(entry->data);
+        for (const auto& id : latest)
+        {
+          if (!nodes.contains(id))
+          {
+            retired.insert(id);
+          }
+        }
+        latest = nodes;
+      }
+      else if (entry->data.type == aft::ReplicatedDataType::retired_committed)
+      {
+        confirmed.merge(named_nodes(entry->data));
+      }
+    }
+
+    std::set<ccf::NodeId> unconfirmed;
+    for (const auto& id : retired)
+    {
+      if (!latest.contains(id) && !confirmed.contains(id))
+      {
+        unconfirmed.insert(id);
+      }
+    }
+    return unconfirmed;
+  }
+
+  static std::runtime_error broken(const std::string& what)
+  {
+    return std::runtime_error(fmt::format("Invariant broken: {}", what));
+  }
+
+  // The view history of a node gives each entry of its ledger the term which
+  // the ledger records for it, and so its transaction ID. A real node tells
+  // the status of a transaction from its view history.
+  static void assert_view_history(const ccf::NodeId& node_id, TCft& cft)
+  {
+    for (aft::Index idx = 1; idx <= cft.get_last_idx(); ++idx)
+    {
+      const auto entry = ledger_entry(cft, idx);
+      if (!entry.has_value())
+      {
+        throw broken(fmt::format("Node {} holds no entry at {}", node_id, idx));
+      }
+
+      const auto view = cft.get_view(idx);
+      if (view != entry->term)
+      {
+        throw broken(fmt::format(
+          "Node {} reports {}.{} for the entry which its ledger holds as {}.{}",
+          node_id,
+          view,
+          idx,
+          entry->term,
+          idx));
+      }
+    }
+
+    const auto commit_idx = cft.get_committed_seqno();
+    const auto [view, seqno] = cft.get_committed_txid();
+    const auto committed = ledger_entry(cft, commit_idx);
+    if (
+      seqno != commit_idx || (committed.has_value() && view != committed->term))
+    {
+      throw broken(fmt::format(
+        "Node {} reports {}.{} as committed, and its commit index is {}",
+        node_id,
+        view,
+        seqno,
+        commit_idx));
+    }
+  }
+
+  // What a node reports of the primary agrees with its role, and with its
+  // ledger: a primary should sign until it has signed in its term
+  void assert_reported_primary(const ccf::NodeId& node_id, TCft& cft)
+  {
+    const auto primary = cft.primary();
+    const auto is_primary = cft.is_primary();
+    if (is_primary != (primary == node_id) || cft.can_replicate() != is_primary)
+    {
+      throw broken(fmt::format(
+        "Node {} {} primary, {} replicate, and reports {} as primary",
+        node_id,
+        is_primary ? "is" : "is not",
+        cft.can_replicate() ? "can" : "cannot",
+        primary.has_value() ? primary->value() : "no node"));
+    }
+
+    if (primary.has_value() && primary != node_id)
+    {
+      // It learnt of this primary in its own term, which it has had since
+      const auto it = _nodes.find(primary.value());
+      if (
+        it == _nodes.end() || !cft.is_backup() ||
+        it->second.cft->get_view() < cft.get_view())
+      {
+        throw broken(fmt::format(
+          "Node {} reports {} as primary in term {}",
+          node_id,
+          primary.value(),
+          cft.get_view()));
+      }
+    }
+
+    using Disposition = ccf::kv::Consensus::SignatureDisposition;
+    auto expected = Disposition::CANT_REPLICATE;
+    if (is_primary)
+    {
+      expected = Disposition::SHOULD_SIGN;
+      const auto view = cft.get_view();
+      for (aft::Index idx = cft.get_last_idx(); idx > 0; --idx)
+      {
+        const auto entry = ledger_entry(cft, idx);
+        if (!entry.has_value() || entry->term != view)
+        {
+          break;
+        }
+        if (entry->committable)
+        {
+          expected = Disposition::CAN_SIGN;
+          break;
+        }
+      }
+    }
+    const auto reported = cft.get_signature_disposition();
+    if (reported != expected)
+    {
+      const auto name = [](Disposition disposition) {
+        switch (disposition)
+        {
+          case Disposition::CANT_REPLICATE:
+            return "cannot replicate";
+          case Disposition::CAN_SIGN:
+            return "can sign";
+          case Disposition::SHOULD_SIGN:
+            return "should sign";
+        }
+        return "?";
+      };
+      throw broken(fmt::format(
+        "Node {} reports that it {} in term {}, where it {}",
+        node_id,
+        name(reported),
+        cft.get_view(),
+        name(expected)));
+    }
+  }
+
+  // A node notifies its observer of each advance of its commit index, with
+  // the transaction ID which its ledger holds there
+  static void assert_commit_notified(
+    const ccf::NodeId& node_id, NodeDriver& node)
+  {
+    const auto commit_idx = node.cft->get_committed_seqno();
+    const auto& notified = node.commits->notified;
+    auto previous = node.seen_commit_idx;
+    for (auto i = node.seen_commits; i < notified.size(); ++i)
+    {
+      if (notified[i].seqno <= previous)
+      {
+        throw broken(fmt::format(
+          "Node {} notified its observer of a commit at {} after one at {}",
+          node_id,
+          notified[i].seqno,
+          previous));
+      }
+      previous = notified[i].seqno;
+    }
+
+    const auto committed = ledger_entry(*node.cft, commit_idx);
+    if (
+      previous != commit_idx ||
+      (notified.size() > node.seen_commits &&
+       (!committed.has_value() || notified.back().view != committed->term)))
+    {
+      throw broken(fmt::format(
+        "Node {} has committed {}, and last notified its observer of {}",
+        node_id,
+        commit_idx,
+        notified.empty() ? "nothing" : notified.back().to_str()));
+    }
+
+    node.seen_commit_idx = commit_idx;
+    node.seen_commits = notified.size();
+  }
+
+  // A primary asks for retired nodes to be cleaned up when it is elected, and
+  // when it commits a configuration. It has then asked since it had a
+  // retirement to confirm, if it has one.
+  static void assert_cleanup_requested(
+    const ccf::NodeId& node_id, NodeDriver& node)
+  {
+    const auto requests = *node.cleanup_requests;
+    std::optional<aft::Term> primary_view = std::nullopt;
+    std::set<ccf::NodeId> unconfirmed;
+    if (node.cft->is_primary())
+    {
+      primary_view = node.cft->get_view();
+      unconfirmed = unconfirmed_retirements(*node.cft);
+      const auto was_primary = node.seen_primary_view == primary_view;
+      for (const auto& id : unconfirmed)
+      {
+        const auto seen = was_primary && node.seen_unconfirmed.contains(id);
+        if (!seen && requests == node.seen_cleanup_requests)
+        {
+          throw broken(fmt::format(
+            "Node {} is primary and has committed the retirement of {}, "
+            "without asking for retired nodes to be cleaned up",
+            node_id,
+            id));
+        }
+      }
+    }
+
+    node.seen_primary_view = primary_view;
+    node.seen_unconfirmed = unconfirmed;
+    node.seen_cleanup_requests = requests;
   }
 
 public:
@@ -1592,6 +1901,14 @@ public:
     // Check invariants:
     // Assert commit_index on all nodes is safe
     assert_commit_safety_all();
+    // Assert that what each node reports and asks for agrees with its ledger
+    for (auto& [node_id, node] : _nodes)
+    {
+      assert_view_history(node_id, *node.cft);
+      assert_reported_primary(node_id, *node.cft);
+      assert_commit_notified(node_id, node);
+      assert_cleanup_requested(node_id, node);
+    }
   }
 
   void assert_commit_idx(ccf::NodeId node_id, const std::string& idx_s)

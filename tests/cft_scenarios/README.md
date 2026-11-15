@@ -32,8 +32,15 @@ A node which `trustNode` adds starts with an empty ledger, and one which `trustN
 A scenario delivers the messages of a node in the order in which they were sent, or picks one: `dispatchNth` delivers it, `dropNth` loses it, and `holdNth` sets it aside until `dispatchHeld` delivers it, however late.
 Scenarios are ordinary Lean, so they can also use loops, conditions and definitions.
 
-After each command which can alter state, the driver asserts that the commit index of every node is safe.
-After the last command, it confirms that the network can still make progress.
+After each command which can alter state, the driver asserts of every node that:
+
+- a quorum of each of its configurations holds what it has committed;
+- its view history gives each entry of its ledger the term which the ledger records for it, and so its transaction ID;
+- what it reports of the primary, and of whether it should sign, agrees with its role and its ledger;
+- it has notified its commit observer of each advance of its commit index;
+- if it is primary, it has asked for retired nodes to be cleaned up since it had a retirement to confirm.
+
+After the last command, it confirms that the network can still make progress, and asserts these again.
 A node starts its election timer as a real node does, when it first holds a signature while it is in its latest configuration.
 Advancing its clock before that starts no election.
 

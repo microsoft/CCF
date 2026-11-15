@@ -55,7 +55,7 @@ It runs each changed program in a process of its own.
 
 - A run is kept, to be changed in turn, if the model shows an outcome, or the run reaches an edge of [`cft.h`](../../src/consensus/aft/cft.h), which no run before it has.
   It is run a second time first, and is only kept if it does so again.
-- A run is a finding if the driver fails, for example because a commit is unsafe, or if the model rejects its trace.
+- A run is a finding if the driver fails, for example because a commit is unsafe or a node reports a transaction ID which its ledger does not hold, or if the model rejects its trace.
   Findings with the same message, numbers aside, are counted together.
 - A run is neither if the model does not cover it, for example because a primary is asked to remove a node which has not retired, or to remove every node, which CCF refuses.
 

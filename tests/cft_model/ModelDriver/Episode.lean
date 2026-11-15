@@ -123,7 +123,7 @@ private def stopFor (error : String) : Option String :=
         "No held message at position"
       ] then
     none
-  else if has error ["at unsafe commit idx"] then
+  else if has error ["at unsafe commit idx", "Invariant broken"] then
     some "invariant"
   else if has error ["has no nodes"] then
     -- A primary refuses a configuration with no nodes, which the model disables
@@ -236,7 +236,10 @@ private def conclude (stopped : Option Stop)
       let report : Report :=
         if !failure.isEmpty && !isStuck failure then
           {
-            status := "finding", kind := "error", message := failure, command := "finish"
+            status := "finding"
+            kind := (stopFor failure).getD "error"
+            message := failure
+            command := "finish"
           }
         else
           match session.feed rest with
