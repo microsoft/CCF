@@ -39,7 +39,7 @@ def findSuccessorLex (state : NodeState) (self : NodeID) : Option NodeID :=
 
 theorem findSuccessor_eq_lex (state : NodeState) (self : NodeID)
     : findSuccessor state self = findSuccessorLex state self := by
-  simp only [findSuccessor, findSuccessorLex, rankBelow_eq, decide_eq_true_eq]
+  simp only [findSuccessor, bestSuccessor, findSuccessorLex, rankBelow_eq, decide_eq_true_eq]
   congr!
 
 end MathlibEquivalence.Rank

@@ -3588,6 +3588,24 @@ private theorem nominate_sends (state : NodeState)
       Sends.pure' ⟨rfl, leader, by simp [eq]⟩
   · exact Sends.pure' ⟨rfl, leader, by simp⟩
 
+private theorem nominateOnRetirement_sends (state : NodeState)
+    : Sends
+        (fun result sent =>
+          result = state
+          /\ state.role = .primary
+          /\ forall e,
+              e ∈ sent
+              -> e.source = self
+                  /\ e.payload = .proposeRequestVoteRequest state.currentTerm)
+        (nominateOnRetirement (Capabilities.record self : Caps) state self) := by
+  unfold nominateOnRetirement
+  refine Sends.bind' Sends.guard' fun _ _ ⟨leader, empty⟩ => ?_
+  subst empty
+  split
+  · exact Sends.bind' (Sends.send _ _ _) fun _ sent eq =>
+      Sends.pure' ⟨rfl, leader, by simp [eq]⟩
+  · exact Sends.pure' ⟨rfl, leader, by simp⟩
+
 private theorem advanceCommit_sends (middle : NodeState)
     : Sends
         (fun state sent =>
@@ -3610,7 +3628,7 @@ private theorem advanceCommit_sends (middle : NodeState)
   refine Sends.ite'
     (fun _ => Sends.ite' (fun _ => ?_) fun _ => Sends.pure' ⟨advanced, by simp⟩)
     fun _ => Sends.pure' ⟨advanced, by simp⟩
-  exact Sends.bind' (nominate_sends self middle)
+  exact Sends.bind' (nominateOnRetirement_sends self middle)
     fun _ sent nominated =>
       Sends.pure' ⟨advanced, by simpa using nominated.2.2⟩
 
