@@ -8,6 +8,8 @@ import Scenarios.candidate_viability
 import Scenarios.check_quorum
 import Scenarios.check_quorum_012_0
 import Scenarios.check_quorum_0_012
+import Scenarios.commit_before_pending_reconfiguration
+import Scenarios.commit_stepwise_through_reconfiguration
 import Scenarios.delayed_vote_requests
 import Scenarios.election
 import Scenarios.election_while_reconfiguration
