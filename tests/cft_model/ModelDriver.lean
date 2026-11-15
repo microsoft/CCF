@@ -158,7 +158,8 @@ private def roundTrip (directory : System.FilePath) (name : String) : IO String 
 
 /--
 Run every scenario and the run in step, each in a process of its own, because a process
-can start the driver once. Also run each scenario from its commands, and explore briefly.
+can start the driver once. Also run each scenario from its commands, and explore briefly,
+which fails if a run is a finding.
 -/
 private def runAll : IO UInt32 := do
   let names := (← scenarios.get).map (·.1) |>.reverse
@@ -174,7 +175,7 @@ private def runAll : IO UInt32 := do
     else
       failed := failed + 1
       IO.println s!"{name}: FAILED\n{problem}"
-  -- A short exploration must run, whatever it finds
+  -- A short exploration, in which no run may be a finding
   let (status, errors) ←
     again #["--explore", (directory / "explore").toString, "--runs", "40"]
   if status == 0 then

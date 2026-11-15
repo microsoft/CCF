@@ -599,7 +599,8 @@ def shrink (file output : System.FilePath) (keep : Keep) (jobs : Nat) : IO UInt3
 
 /--
 Record the commands of each scenario, change them at random and run the changed programs.
-Write the programs kept and found, and a report, to the directory.
+Write the programs kept and found, and a report, to the directory. The status is 1 if a
+run is a finding.
 -/
 def explore (options : Exploration) (scenarios : List String) : IO UInt32 := do
   let directory := options.directory
@@ -671,6 +672,10 @@ def explore (options : Exploration) (scenarios : List String) : IO UInt32 := do
   let report := summary options state seconds
   IO.FS.writeFile (directory / "report.md") report
   IO.println report
-  return 0
+  -- A finding fails the exploration, and its program is what shows it again
+  for index in [0:state.findings.size] do
+    let file := directory / "findings" / s!"{index}.program"
+    IO.eprintln s!"finding {file}:\n{← IO.FS.readFile file}"
+  return if state.findings.isEmpty then 0 else 1
 
 end ModelDriver

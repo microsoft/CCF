@@ -16,7 +16,7 @@ build/cft_model_driver --all
   It replays each command as soon as the driver has run it, and requires each undelivered message of the driver to be a message which the model holds.
   It delivers the messages which the model holds, newest first, and asserts of the driver the commit indexes of the model.
 - `--all` runs every scenario and the run in step, each in a process of its own, because a process can start the driver once.
-  It also runs each scenario again from its [recorded commands](#programs), which the model must accept and which must all apply, and [explores](#exploring) briefly.
+  It also runs each scenario again from its [recorded commands](#programs), which the model must accept and which must all apply, and [explores](#exploring) briefly, which must give no finding.
   The two runs of a scenario may differ where an election timeout decides, because the timeout of a node differs between processes.
 
 A run prints its status as JSON.
@@ -61,6 +61,8 @@ It runs each changed program in a process of its own.
 
 The directory receives the programs kept in `corpus/`, the first program and trace of each finding in `findings/`, the edges which the scenarios reach in `scenarios.edges`, and `report.md`.
 The same seed gives the same changes.
+The exploration exits with status 1 if a run is a finding, and writes the program of each finding to its error output.
+The election timeout of a node differs between processes, so a finding which depends on one may not show in every exploration with the same seed.
 
 ```sh
 build/cft_model_driver --shrink <program> <shorter program> [--outcome <outcome> | --edges <edges>]
