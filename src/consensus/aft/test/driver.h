@@ -289,6 +289,19 @@ private:
     _nodes.emplace(node_id, NodeDriver{kv, cft});
   }
 
+  // The configuration which a reconfiguration on the primary in term changes:
+  // the latest which that primary holds, as the nodes which a real primary
+  // trusts are. A node which an earlier configuration removed stays out of it.
+  ccf::kv::Configuration::Nodes latest_configuration(const std::string& term)
+  {
+    const auto primary = find_primary_in_term(term, false);
+    if (!primary.has_value())
+    {
+      return {};
+    }
+    return _nodes.at(primary->second).cft->get_latest_configuration();
+  }
+
 public:
   CftDriver() = default;
 
@@ -378,10 +391,10 @@ public:
       CFT_DRIVER_PRINT(
         "Note over {}: Node {} trusted", ccf::NodeId(node_id), node_id);
     }
-    ccf::kv::Configuration::Nodes configuration;
-    for (const auto& [id, node] : _nodes)
+    ccf::kv::Configuration::Nodes configuration = latest_configuration(term);
+    for (const auto& node_id : node_ids)
     {
-      configuration.try_emplace(id);
+      configuration.try_emplace(node_id);
     }
     for (const auto& node_id : node_ids)
     {
@@ -412,15 +425,15 @@ public:
       CFT_DRIVER_PRINT(
         "Note over {}: Node {} retired", ccf::NodeId(node_out), node_out);
     }
-    std::set<std::string> out(nodes_out.begin(), nodes_out.end());
 
-    ccf::kv::Configuration::Nodes configuration;
-    for (const auto& [id, node] : _nodes)
+    ccf::kv::Configuration::Nodes configuration = latest_configuration(term);
+    for (const auto& node_out : nodes_out)
     {
-      if (out.find(id) == out.end())
-      {
-        configuration.try_emplace(id);
-      }
+      configuration.erase(node_out);
+    }
+    for (const auto& node_in : nodes_in)
+    {
+      configuration.try_emplace(node_in);
     }
     for (const auto& [id, node] : _nodes)
     {
@@ -1103,8 +1116,9 @@ public:
     return primaries;
   }
 
+  // Unless required, there may be no primary in the term which term_s names
   std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(
-    const std::string& term_s)
+    const std::string& term_s, bool required = true)
   {
     auto primaries = find_primaries();
 
@@ -1132,6 +1146,11 @@ public:
           return pair;
         }
       }
+    }
+
+    if (!required)
+    {
+      return std::nullopt;
     }
 
     throw std::runtime_error(
