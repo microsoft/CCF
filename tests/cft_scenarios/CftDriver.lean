@@ -67,6 +67,15 @@ opaque swapNodes (term : @& Term) (retire : @& List NodeId := [])
 @[extern "cft_cleanup_nodes"]
 opaque cleanupNodes (term : @& Term) (nodes : @& List NodeId) : IO Unit
 
+/--
+Replicate that the retirement is committed of each node whose retirement the primary in
+`term` has committed, and has yet to confirm. A real primary does so when its consensus
+asks it to clean up retired nodes: when it is elected, and when it commits a configuration.
+Does nothing if there is no such node.
+-/
+@[extern "cft_cleanup_retired"]
+opaque cleanupRetired (term : @& Term) : IO Unit
+
 /-- Ask `node` to nominate a successor. -/
 @[extern "cft_nominate_successor"]
 opaque nominateSuccessor (node : @& NodeId) : IO Unit

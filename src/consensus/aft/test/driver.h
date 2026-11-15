@@ -734,6 +734,36 @@ public:
     _replicate(term, {}, false, std::nullopt, retired_committed);
   }
 
+  // What a real primary does when it handles the request of its consensus to
+  // clean up retired nodes: it confirms the retirement of each node whose
+  // retirement it has committed, and which it has yet to confirm
+  void cleanup_retired(const std::string& term)
+  {
+    const auto primary = find_primary_in_term(term);
+    if (!primary.has_value())
+    {
+      CFT_DRIVER_PRINT(
+        "Note left of {}: No primary to clean up retired nodes",
+        _nodes.begin()->first);
+      return;
+    }
+
+    const auto& node_id = primary->second;
+    const auto unconfirmed = unconfirmed_retirements(*_nodes.at(node_id).cft);
+    if (unconfirmed.empty())
+    {
+      CFT_DRIVER_PRINT("Note over {}: No retired node to clean up", node_id);
+      return;
+    }
+
+    ccf::kv::Configuration::Nodes retired_committed;
+    for (const auto& id : unconfirmed)
+    {
+      retired_committed.try_emplace(id);
+    }
+    _replicate(term, {}, false, std::nullopt, retired_committed);
+  }
+
   // With from_snapshot, each new node starts from a snapshot of the primary in
   // term. If there is no such primary, it starts empty, as it does without.
   void trust_nodes(

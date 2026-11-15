@@ -57,6 +57,7 @@ import Scenarios.retire_one
 import Scenarios.retired_committed_delayed_nomination
 import Scenarios.retired_node_delayed_responses
 import Scenarios.retirement_commit_below_signature
+import Scenarios.retirement_confirmed_by_new_primary
 import Scenarios.retirement_forgets_lower_node
 import Scenarios.retirement_nominates_higher_node
 import Scenarios.retirement_nominates_most_replicated

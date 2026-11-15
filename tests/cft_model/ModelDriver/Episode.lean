@@ -332,9 +332,10 @@ private def queuedMessages (reported : Array String) : IO (Array Queued) := do
 
 /--
 The command for a choice, if the state of the driver allows one. `nodes` are those which
-exist, and `isolated` those which a command has disconnected from every other.
+exist, `members` those which the commands issued leave in the latest configuration, if
+none was lost, and `isolated` those which a command has disconnected from every other.
 -/
-private def choose (kind : String) (value : Nat) (nodes isolated : List String)
+private def choose (kind : String) (value : Nat) (nodes members isolated : List String)
     : IO (Option Command) := do
   let pick (items : List String) : Option String := items[value % items.length]?
   let named (name : String) (node : Option String) : Option Command :=
@@ -374,6 +375,13 @@ private def choose (kind : String) (value : Nat) (nodes isolated : List String)
         ((List.range (nodes.length + 1)).map toString).find? (!nodes.contains ·)
       let name := if value % 2 == 0 then "trust_node_from_snapshot" else "trust_node"
       return fresh.map fun node => { name, args := ["latest", node] }
+  | "retire" =>
+      -- Not the last member: a primary refuses a configuration with no nodes
+      if members.length < 2 then
+        return none
+      return (pick members).map
+        fun node => { name := "swap_nodes", args := ["latest", "out", node] }
+  | "cleanup" => return some { name := "cleanup_retired", args := ["latest"] }
   | _ => fail s!"unknown choice '{kind}'"
 
 /--
@@ -386,13 +394,14 @@ private def execute (steps : Array Step)
   startCapture
   let mut issued : Array Command := #[]
   let mut nodes : List String := []
+  let mut members : List String := []
   let mut isolated : List String := []
   let mut stopped : Option Stop := none
   for step in steps do
     let chosen ←
       match step with
       | .given command => pure (some command)
-      | .choice kind value => choose kind value nodes isolated
+      | .choice kind value => choose kind value nodes members isolated
     let some command := chosen | continue
     -- The driver fails these, some after it has created a node
     if command.needs.any (!nodes.contains ·) then
@@ -415,7 +424,9 @@ private def execute (steps : Array Step)
       catch error =>
         pure (some (toString error))
     match failure with
-    | none => issued := issued.push command
+    | none =>
+        issued := issued.push command
+        members := command.configures members
     | some message =>
         match stopFor message with
         | none =>

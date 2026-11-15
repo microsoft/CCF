@@ -29,6 +29,7 @@ initialize scenario "example" do
 Node identifiers and terms are written as numbers or strings, and `latest` is the primary in the highest term.
 Each `replicate` appends one batch of entries, which are transaction data or `signature`.
 A node which `trustNode` adds starts with an empty ledger, and one which `trustNodeFromSnapshot` adds starts from a snapshot of the primary, at the index which that primary has committed.
+`cleanupNodes` confirms the retirement of the nodes which it names, and `cleanupRetired` that of each node whose retirement the primary has committed, as a real primary does when its consensus asks it to clean up retired nodes.
 A scenario delivers the messages of a node in the order in which they were sent, or picks one: `dispatchNth` delivers it, `dropNth` loses it, and `holdNth` sets it aside until `dispatchHeld` delivers it, however late.
 Scenarios are ordinary Lean, so they can also use loops, conditions and definitions.
 

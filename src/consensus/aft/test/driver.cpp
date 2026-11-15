@@ -525,6 +525,13 @@ extern "C"
     });
   }
 
+  lean_obj_res cft_cleanup_retired(b_lean_obj_arg term)
+  {
+    const auto t = text(term);
+    return step(
+      command("cleanup_retired", t), [&]() { driver->cleanup_retired(t); });
+  }
+
   lean_obj_res cft_nominate_successor(b_lean_obj_arg node)
   {
     const auto id = text(node);

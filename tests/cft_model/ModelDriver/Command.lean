@@ -58,6 +58,7 @@ def run (command : Command) : IO Unit := do
       let (retire, trust) := changes items
       swapNodes term (texts retire) (texts trust)
   | "cleanup_nodes", term :: nodes => cleanupNodes term (texts nodes)
+  | "cleanup_retired", [term] => cleanupRetired term
   | "nominate_successor", [node] => nominateSuccessor node
   | "nodes", nodes => CftDriver.nodes (texts nodes)
   | "create_new_node", [node] => createNewNode node
@@ -135,6 +136,23 @@ def creates (command : Command) : List String :=
   | "swap_nodes", _ :: items => (changes items).2
   | _, _ => []
 
+/--
+The nodes of the latest configuration once the command is issued, where `members` are
+those before it.
+-/
+def configures (command : Command) (members : List String) : List String :=
+  match command.name, command.args with
+  | "start_node", [node] => [node]
+  | "nodes", nodes => nodes
+  | "replicate_new_configuration", _ :: nodes => nodes
+  | "trust_node", [_, node] | "trust_node_from_snapshot", [_, node] => members ++ [node]
+  | "trust_nodes", _ :: nodes => members ++ nodes
+  | "swap_node", [_, retire, trust] => members.filter (· != retire) ++ [trust]
+  | "swap_nodes", _ :: items =>
+      let (retire, trust) := changes items
+      members.filter (!retire.contains ·) ++ trust
+  | _, _ => members
+
 /-- The commands which the driver cannot run unless the node which they name first exists. -/
 private def namesNode : List String :=
   [
@@ -178,6 +196,7 @@ private def namesTerm : List String :=
     "swap_node",
     "swap_nodes",
     "cleanup_nodes",
+    "cleanup_retired",
     "replicate_new_configuration",
     "replicate"
   ]
@@ -216,6 +235,7 @@ def scenarioLine (command : Command) : Except String String :=
       call "swapNodes" [value term, list (retire.map value), list (trust.map value)]
   | "cleanup_nodes", term :: nodes =>
       call "cleanupNodes" [value term, list (nodes.map value)]
+  | "cleanup_retired", [_] => values "cleanupRetired"
   | "nominate_successor", [_] => values "nominateSuccessor"
   | "replicate", term :: entries =>
       let entries :=

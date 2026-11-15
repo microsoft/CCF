@@ -57,6 +57,8 @@ private def changes : Array String :=
       ("sign", 1),
       ("join", 1),
       ("snapshot", 1),
+      ("retire", 1),
+      ("cleanup", 1),
       ("duplicate", 1),
       ("swap", 1),
       ("latest", 1),
@@ -77,7 +79,9 @@ private def choices : Array String :=
       ("nominate", 1),
       ("write", 1),
       ("sign", 1),
-      ("join", 1)
+      ("join", 1),
+      ("retire", 1),
+      ("cleanup", 1)
     ]
 
 /--
