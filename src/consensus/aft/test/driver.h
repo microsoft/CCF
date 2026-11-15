@@ -138,7 +138,7 @@ private:
       ccf::kv::BatchVector{make_entry(
         node_id,
         cft->get_last_idx() + 1,
-        term_s,
+        term,
         std::move(data),
         committable,
         configuration,
@@ -149,7 +149,7 @@ private:
   ccf::kv::BatchVector::value_type make_entry(
     const ccf::NodeId& node_id,
     aft::Index idx,
-    const std::string& term_s,
+    aft::Term term,
     std::vector<uint8_t> data,
     bool committable = false,
     const std::optional<ccf::kv::Configuration::Nodes>& configuration =
@@ -161,7 +161,7 @@ private:
       "{}->>{}: replicate {}.{} = {} [{}]",
       node_id,
       node_id,
-      term_s,
+      term,
       idx,
       stringify(data),
       configuration.has_value() ? "reconfiguration" : "raw");
@@ -1000,7 +1000,7 @@ public:
       batch.push_back(make_entry(
         node_id,
         cft->get_last_idx() + 1 + batch.size(),
-        term_s,
+        term,
         {data_s.begin(), data_s.end()},
         signature));
     }
