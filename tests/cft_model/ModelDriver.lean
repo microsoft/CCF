@@ -124,18 +124,20 @@ private def again (args : Array String) : IO (UInt32 × String) := do
   let errors ← child.stderr.readToEnd
   return (← child.wait, errors)
 
-/-- The status and the outcomes in the result file of a run, and its message. -/
+/-- The status and the commands in the result file of a run, and its message. -/
 private def reported (file : System.FilePath) : IO (String × Json × String) := do
   let result ← IO.ofExcept (Json.parse (← IO.FS.readFile file))
   return (
     ← IO.ofExcept (string result "status"),
-    ← IO.ofExcept (field result "outcomes"),
+    ← IO.ofExcept (field result "commands"),
     ← IO.ofExcept (string result "message")
   )
 
 /--
-Record the commands of a scenario, and run them as a program, which must show the outcomes
-which the scenario shows. Give what went wrong, if anything did.
+Record the commands of a scenario, and run them as a program, which the model must accept
+and which must issue each of them, its assertions among them. The two runs need not show
+the same outcomes, because the election timeout of a node differs between processes.
+Give what went wrong, if anything did.
 -/
 private def roundTrip (directory : System.FilePath) (name : String) : IO String := do
   let program := directory / s!"{name}.program"
@@ -151,7 +153,7 @@ private def roundTrip (directory : System.FilePath) (name : String) : IO String 
   if status != "ok" then
     return s!"its commands are {status}: {message}"
   if recorded != ran then
-    return "its commands show other outcomes"
+    return "its program issues other commands"
   return ""
 
 /--
