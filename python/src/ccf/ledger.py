@@ -1082,6 +1082,8 @@ class Transaction(Entry):
 class Snapshot(Entry):
     """
     Utility used to parse the content of a snapshot file.
+
+    Committed snapshots carry an embedded COSE receipt of their evidence transaction, which is verified against the service identity recorded in the snapshot.
     """
 
     _filename: str
@@ -1094,46 +1096,50 @@ class Snapshot(Entry):
         if self._file_size == 0:
             raise InvalidSnapshotException(f"{filename} is currently empty")
 
+        if self.is_committed() and self.is_snapshot_file_1_x():
+            raise InvalidSnapshotException(
+                "Snapshot has a 1.x file name and no receipt, which is not supported: only snapshots with an embedded COSE receipt are accepted"
+            )
+
         entry_start_pos = super()._read_header()
 
-        # 1.x snapshots do not include evidence
-        if self.is_committed() and not self.is_snapshot_file_1_x():
+        if self.is_committed():
             receipt_pos = entry_start_pos + self._header.size
             receipt_bytes = _peek_all(self._file, pos=receipt_pos)
             snapshot_digest = sha256(_peek(self._file, receipt_pos, pos=0)).digest()
-            self._verify_snapshot_receipt(receipt_bytes, receipt_pos, snapshot_digest)
+            self._verify_snapshot_receipt(receipt_bytes, snapshot_digest)
 
     def is_committed(self):
         # Only the file name, not the directories containing it, is relevant
         return COMMITTED_FILE_SUFFIX in os.path.basename(self._filename)
 
     def is_snapshot_file_1_x(self):
-        # Kept here for compatibility
+        # 1.x committed snapshots are named
+        # snapshot_<seqno>_<evidence_seqno>.committed_<evidence_commit_seqno>
         if not self.is_committed():
             raise ValueError(f"Snapshot file {self._filename} is not yet committed")
         basename = os.path.basename(self._filename)
-        return len(basename.split(COMMITTED_FILE_SUFFIX)[1]) != 0
+        suffix = basename.split(COMMITTED_FILE_SUFFIX)[1]
+        # An exact match, so that every other committed name has its receipt
+        # verified, including the <name>.ignored that nodes give to a snapshot
+        # which fails verification
+        return re.fullmatch(r"_\d+", suffix, re.ASCII) is not None
 
     def get_len(self) -> int:
         return self._file_size
 
-    def _verify_snapshot_receipt(
-        self, receipt_bytes: bytes, receipt_pos: int, snapshot_digest: bytes
-    ):
+    def _verify_snapshot_receipt(self, receipt_bytes: bytes, snapshot_digest: bytes):
         if not receipt_bytes:
             raise InvalidSnapshotException("Empty snapshot receipt")
 
-        first_byte = receipt_bytes[0]
-        if first_byte == ENCODED_COSE_SIGN1_TAG:
-            self._verify_cose_snapshot_receipt(receipt_bytes, snapshot_digest)
-        elif first_byte == ord("{"):
-            self._verify_json_snapshot_receipt(
-                receipt_bytes, receipt_pos, snapshot_digest
-            )
-        else:
+        if receipt_bytes[0] != ENCODED_COSE_SIGN1_TAG:
             raise InvalidSnapshotException(
-                f"Invalid snapshot receipt: unrecognised format (first byte: 0x{first_byte:02X})"
+                "Snapshot receipt is not a COSE_Sign1 receipt"
             )
+
+        ccf.receipt.verify_cose(
+            receipt_bytes, self._service_public_key(), snapshot_digest
+        )
 
     def _service_public_key(self):
         service_info_table = (
@@ -1155,47 +1161,6 @@ class Snapshot(Entry):
             service_info_json["cert"].encode("ascii"), default_backend()
         )
         return cert.public_key()
-
-    def _verify_cose_snapshot_receipt(
-        self, receipt_bytes: bytes, snapshot_digest: bytes
-    ):
-        ccf.receipt.verify_cose(
-            receipt_bytes, self._service_public_key(), snapshot_digest
-        )
-
-    def _verify_json_snapshot_receipt(
-        self, receipt_bytes: bytes, receipt_pos: int, snapshot_digest: bytes
-    ):
-        try:
-            receipt = json.loads(receipt_bytes.decode("utf-8"))
-        except json.decoder.JSONDecodeError as e:
-            raise InvalidSnapshotException(
-                f"Cannot read receipt from snapshot {os.path.basename(self._filename)}: Receipt starts at {receipt_pos} (file is {self._file_size} bytes), and contains {receipt_bytes!r}"
-            ) from e
-
-        # Receipts included in snapshots always contain leaf components,
-        # including a claims digest and commit evidence, from 2.0.0-rc0 onwards.
-        # This verification code deliberately does not support snapshots
-        # produced by 2.0.0-dev* releases.
-        assert "leaf_components" in receipt
-        write_set_digest = bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
-        claims_digest = bytes.fromhex(receipt["leaf_components"]["claims_digest"])
-        if snapshot_digest != claims_digest:
-            raise InvalidSnapshotException(
-                f"Snapshot digest ({snapshot_digest.hex()}) does not match receipt claim ({claims_digest.hex()})"
-            )
-
-        commit_evidence_digest = sha256(
-            receipt["leaf_components"]["commit_evidence"].encode()
-        ).digest()
-        leaf = sha256(
-            write_set_digest + commit_evidence_digest + claims_digest
-        ).hexdigest()
-        root = ccf.receipt.root(leaf, receipt["proof"])
-        node_cert = load_pem_x509_certificate(
-            receipt["cert"].encode(), default_backend()
-        )
-        ccf.receipt.verify(root, receipt["signature"], node_cert)
 
 
 class TransactionIterator:

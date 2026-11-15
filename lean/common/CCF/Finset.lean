@@ -158,6 +158,10 @@ instance decidableNonempty (s : Finset α) : Decidable s.Nonempty :=
 def Disjoint (s t : Finset α) : Prop :=
   forall ⦃a⦄, a ∈ s -> a ∉ t
 
+instance [DecidableEq α] (s t : Finset α) : Decidable (Disjoint s t) :=
+  decidable_of_iff (s.val.all fun a => decide (a ∉ t))
+    (by simp only [List.all_eq_true, decide_eq_true_eq]; exact Iff.rfl)
+
 /-- The elements in increasing order. -/
 def sort (s : Finset α) : List α :=
   s.val

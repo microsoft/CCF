@@ -151,6 +151,17 @@ public theorem election_safety_witness
     rfl
   ⟩
 
+/-- Every valid configuration reaches a state in which a node has committed. -/
+public theorem deadlock_free_after_bootstrap_witness
+    : forall (config : Consensus.Properties.ValidConfig),
+        exists (nodes : List NodeID) (state : Model.State),
+          (Model.transitionSystem config nodes).Reachable state
+          /\ Consensus.Properties.Bootstrapped state := by
+  intro config
+  obtain ⟨trace, state, node, nodeState, present, member, positive, _⟩ :=
+    committed_trace config
+  exact ⟨ids config, state, trace.reachable present, node, nodeState, member, positive⟩
+
 public theorem committed_frontier_is_signature_witness
     : forall (config : Consensus.Properties.ValidConfig),
         exists
