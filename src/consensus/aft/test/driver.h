@@ -647,7 +647,9 @@ public:
   void summarise_log(ccf::NodeId node_id)
   {
     CFT_DRIVER_PRINT(
-      "{}: {}", node_id, get_ledger_summary(*_nodes.at(node_id).cft));
+      "Note right of {}: {}",
+      node_id,
+      get_ledger_summary(*_nodes.at(node_id).cft));
   }
 
   void summarise_logs_all()
