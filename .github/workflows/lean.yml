@@ -100,7 +100,7 @@ jobs:
           # RUNNER_TEMP can persist between jobs on reused self-hosted runners; drop files from earlier runs.
           rm -rf "$RUNNER_TEMP/cft-explore"
           "$RUNNER_TEMP/cft-build/cft_model_driver" --explore "$RUNNER_TEMP/cft-explore" \
-            --seed 1 --runs 2000 --jobs "$(( ($(nproc) + 1) >> 1 ))"
+            --seed 1 --runs 5000 --jobs "$(( ($(nproc) + 1) >> 1 ))"
 
       - name: Upload exploration findings
         if: ${{ failure() }}
