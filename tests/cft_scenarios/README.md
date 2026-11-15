@@ -42,6 +42,7 @@ After each command which can alter state, the driver asserts of every node that:
 - if it is primary, it has asked for retired nodes to be cleaned up since it had a retirement to confirm.
 
 After the last command, it confirms that the network can still make progress, and asserts these again.
+To do so, it signs on the latest primary, and runs until the active nodes which that primary knows are in sync with it.
 A node starts its election timer as a real node does, when it first holds a signature while it is in its latest configuration.
 Advancing its clock before that starts no election.
 

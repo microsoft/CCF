@@ -1804,18 +1804,27 @@ public:
 
     const auto& [term, primary] = term_primary;
 
-    // Don't try to confirm sync with retired nodes
+    // Don't try to confirm sync with retired nodes, or with nodes which the
+    // primary does not know, and so sends nothing to
+    const auto known = _nodes.at(primary).cft->get_details().acks;
     decltype(_nodes) nodes;
     for (auto& [node_id, node_driver] : _nodes)
     {
-      if (node_driver.cft->is_active())
-      {
-        nodes[node_id] = node_driver;
-      }
-      else
+      if (!node_driver.cft->is_active())
       {
         CFT_DRIVER_PRINT(
           "Note over {}: Ignoring from sync check, due to retirement", node_id);
+      }
+      else if (node_id != primary && !known.contains(node_id))
+      {
+        CFT_DRIVER_PRINT(
+          "Note over {}: Ignoring from sync check, as {} does not know it",
+          node_id,
+          primary);
+      }
+      else
+      {
+        nodes[node_id] = node_driver;
       }
     }
 
