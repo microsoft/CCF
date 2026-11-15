@@ -75,6 +75,7 @@ import Scenarios.suffix_collision_1
 import Scenarios.suffix_collision_2
 import Scenarios.suffix_collision_3
 import Scenarios.swap_single_node
+import Scenarios.unsigned_entry_replaces_stale_suffix
 import Scenarios.vote_request_after_append_entries
 
 /-!
