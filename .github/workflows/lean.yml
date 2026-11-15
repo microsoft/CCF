@@ -92,6 +92,28 @@ jobs:
           cmake --build "$RUNNER_TEMP/cft-build" --target cft_model_test --parallel "$(( ($(nproc) + 1) >> 1 ))"
           ctest --test-dir "$RUNNER_TEMP/cft-build" -VV -R "^cft_model_test$" --no-tests=error
 
+      # Fails if the implementation and the model disagree in a changed scenario.
+      - name: Explore changes to the scenarios
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          # RUNNER_TEMP can persist between jobs on reused self-hosted runners; drop files from earlier runs.
+          rm -rf "$RUNNER_TEMP/cft-explore"
+          "$RUNNER_TEMP/cft-build/cft_model_driver" --explore "$RUNNER_TEMP/cft-explore" \
+            --seed 1 --runs 2000 --jobs "$(( ($(nproc) + 1) >> 1 ))"
+
+      - name: Upload exploration findings
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cft-exploration
+          path: |
+            ${{ runner.temp }}/cft-explore/report.md
+            ${{ runner.temp }}/cft-explore/findings
+          if-no-files-found: ignore
+          retention-days: 7
+          overwrite: true
+
   kv_traces:
     name: KV trace captures
     runs-on: [gha-vmss-d16av7-ci-c]

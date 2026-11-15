@@ -62,6 +62,7 @@ It runs each changed program in a process of its own.
 The directory receives the programs kept in `corpus/`, the first program and trace of each finding in `findings/`, the edges which the scenarios reach in `scenarios.edges`, and `report.md`.
 The same seed gives the same changes.
 The exploration exits with status 1 if a run is a finding, and writes the program of each finding to its error output.
+The [Lean workflow](../../.github/workflows/lean.yml) explores in this way with a fixed seed, so that a change which makes the implementation and the model disagree in one of those runs fails CI.
 The election timeout of a node differs between processes, so a finding which depends on one may not show in every exploration with the same seed.
 
 ```sh
