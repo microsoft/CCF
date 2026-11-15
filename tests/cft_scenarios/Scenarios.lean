@@ -31,6 +31,8 @@ import Scenarios.matching_partial
 import Scenarios.message_type_summaries
 import Scenarios.multi_election
 import Scenarios.nominate_new_node
+import Scenarios.nominate_node_removed_before_signature
+import Scenarios.nominate_node_retired_before_signature
 import Scenarios.nominate_over_retiring_node
 import Scenarios.nominate_successor
 import Scenarios.nominate_without_successor

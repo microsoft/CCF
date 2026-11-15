@@ -90,6 +90,9 @@ Replay delivers that response too, and the model decides by itself whether it kn
 Where CCF acts on fewer messages than the model does, for a reason which the model lacks, replay treats those messages as lost, which the model allows.
 A node which starts from a snapshot is given the configuration at that snapshot, so as a primary it sends neither entries nor a nomination to a node which retired before it.
 The model reads the peers of a node from its whole log, and sends both until the retirement is confirmed: replay treats what it sends to such a node as lost.
+CCF ignores a `propose_request_vote` until the election timer of the node has started, which is when it appends or receives a signature while it is in its latest configuration.
+The model has no timer: it campaigns if a signature covers an active configuration which names the node, or if the retirement of the node is committed and not confirmed.
+Replay treats a proposal which CCF ignores as lost if the model would campaign and the log of the node holds no such signature, and delivers it otherwise, so that the model must ignore it too.
 
 ## Source and checks
 

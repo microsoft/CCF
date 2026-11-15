@@ -48,6 +48,11 @@ def Header.initial (header : Header) : Model.State :=
 inductive Step where
   | local (node : String) (input : Input)
   | receive (source destination : String) (packet : Json)
+  /--
+  A vote proposal which CCF received and ignored. It is lost if the model would campaign
+  and the log of the node does not show that CCF has started its election timer.
+  -/
+  | declineProposal (source destination : String) (packet : Json)
   /-- Initialize from a node's committed prefix ending at `index` in term `view`. -/
   | initAsBackup (node : String) (index view : Nat)
 
@@ -57,7 +62,7 @@ def Step.name : Step → String
   | .local _ (.timeout _) => "timeout"
   | .local _ .nominateSuccessor => "nominateSuccessor"
   | .local _ (.initAsBackup _) | .initAsBackup .. => "initAsBackup"
-  | .receive .. => "receive"
+  | .receive .. | .declineProposal .. => "receive"
 
 structure ReplayState where
   state : Model.State
@@ -309,6 +314,36 @@ private def toUnknownPeer (replay : ReplayState) (envelope : Envelope) : Bool :=
       decide (envelope.target ∈ removedNodes (state.log.take index))
   | _, _, _ => false
 
+/--
+Whether the log of `node` shows that CCF has started its election timer. CCF starts it when
+the node appends or receives a signature while it is in its latest configuration, and never
+stops it. A node receives no signature of the snapshot from which it started. Without such
+a signature, the timer may still have started, since a rollback may have removed the
+signature which started it.
+-/
+private def electionTimerStarted (replay : ReplayState) (node : NodeID) (log : List Entry)
+    : Bool :=
+  let snapshot := (replay.snapshots.lookup node).getD 0
+  (List.range (log.length + 1)).any
+    fun index =>
+      snapshot < index
+      && isSignatureAt log index
+      && decide
+          (node ∈ latestConfigurationMembers (configurationHistory (log.take index)))
+
+/--
+Whether CCF may ignore a vote proposal for which the model campaigns: it does so until it
+has started the election timer of the node, which the model does not have.
+-/
+private def mayDeclineProposal (replay : ReplayState) (destination : NodeID)
+    (envelope : Envelope)
+    : Bool :=
+  match envelope.payload, nodeState replay.state destination with
+  | .proposeRequestVoteRequest term, some state =>
+      decide (term = state.currentTerm /\ canStartElection state destination)
+      && !electionTimerStarted replay destination state.log
+  | _, _ => false
+
 /-- Observations never change model state or repair a disabled action. -/
 def runInstruction (header : Header) (replay : ReplayState) (instruction : Instruction)
     : Except String ReplayState := do
@@ -354,6 +389,14 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
       let source ← header.nodeId source
       let destination ← header.nodeId destination
       let envelope ← selectPacket replay source destination packet
+      replay.run header (.deliver envelope) "receive"
+  | .action (.declineProposal source destination packet) _ =>
+      let source ← header.nodeId source
+      let destination ← header.nodeId destination
+      let envelope ← selectPacket replay source destination packet
+      if mayDeclineProposal replay destination envelope then
+        -- Loss is non-delivery
+        return replay
       replay.run header (.deliver envelope) "receive"
   | .action (step@(.initAsBackup node index view)) _ =>
       let joiner ← header.nodeId node

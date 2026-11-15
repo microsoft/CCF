@@ -280,15 +280,22 @@ private def ruleRecvProposeRequestVote : Reduction Unit := do
   -- consume
   let start ← position
   event head "recv_propose_request_vote"
-  optional_ do
-    event head "become_candidate"
-    optional_ do
-      event head "become_leader"
+  let campaigned ←
+    CCF.Parsec.optionalRule do
+      event head "become_candidate"
       optional_ do
-        event head "commit"
-        optional_ (event head "step_down_and_nominate_successor")
-      many_ (event head "send_append_entries")
-    many_ (event head "send_request_vote")
+        event head "become_leader"
+        optional_ do
+          event head "commit"
+          optional_ (event head "step_down_and_nominate_successor")
+        many_ (event head "send_append_entries")
+      many_ (event head "send_request_vote")
+  -- CCF ignores a proposal until it has started the election timer of the node
+  let action :=
+    match action, campaigned with
+    | .receive source destination packet, none =>
+        .declineProposal source destination packet
+    | action, _ => action
   -- emit
   emitObserve head "recv-propose-request-vote"
   emitAction head "recv-propose-request-vote" action

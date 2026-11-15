@@ -30,6 +30,7 @@ Crashes are not modeled, so a committed prefix keeps its history, and a valid sn
 The join protocol is not modeled: a configuration may add any node, and a fresh node may instead follow from its first AppendEntries.
 Node identities are never reused, so a configuration may not name a node removed by an earlier configuration in the same log.
 A node which starts from a snapshot holds the log which precedes it, and so knows the nodes which retired before the snapshot until their retirement is confirmed, where CCF gives such a node only the configuration at the snapshot; [replay](replay/README.md#replay-contract) treats what the model sends to those nodes as lost.
+The election timer is not modeled: a node may campaign once a signature covers an active configuration which names it, or while its retirement is committed and not confirmed, where CCF waits for the node to hold a signature while it is in its latest configuration; replay treats a nomination which CCF ignores for that reason as lost.
 There are no fairness assumptions or guarantees of eventual election or commitment.
 
 ## Validation

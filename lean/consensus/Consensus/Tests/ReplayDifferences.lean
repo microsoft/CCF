@@ -13,6 +13,7 @@ namespace Consensus.Tests.ReplayDifferences
 
 open Consensus Consensus.Replay Consensus.Model.Node
 open CCF (Finset)
+open CCF.MultiNodeTransitionSystem (nodeState)
 
 private def header : Header := { bootstrap := {0}, declared := ["0", "1", "2"] }
 
@@ -21,8 +22,8 @@ private def configuration (request : ReqID) (nodes : Finset NodeID) : Entry :=
 
 private def signature : Entry := { term := 2, content := .signature }
 
-/-- Node 1 as a follower in term 2 which holds `log`. -/
-private def follower (log : List Entry) : Model.State :=
+/-- Node 1 as a follower in term 2 which holds `log`, with `network` to deliver. -/
+private def follower (log : List Entry) (network : List Envelope := []) : Model.State :=
   let initial := header.initial
   let node : NodeState :=
     {
@@ -32,6 +33,7 @@ private def follower (log : List Entry) : Model.State :=
   {
     initial with
       nodes := initial.nodes.map fun (id, state) => (id, if id = 1 then node else state)
+      network
   }
 
 /-- Node 2 retires before the signature at 3, and node 1 joins after it. -/
@@ -66,6 +68,17 @@ private def unsent (snapshot : Nat) (queued : List Envelope)
     { state := follower retiredBeforeSnapshot, queued, snapshots := [(1, snapshot)] }
     (.observeSends [] default)
 
+private def proposal : Envelope :=
+  { source := 0, target := 1, payload := .proposeRequestVoteRequest 2 }
+
+/-- Node 1 ignores a proposal of node 0, and sends nothing. -/
+private def ignored (log : List Entry) : Except String ReplayState := do
+  let packet := messageJson proposal.payload
+  let replay ←
+    runInstruction header { state := follower log [proposal] }
+      (.action (.declineProposal "0" "1" packet) default)
+  runInstruction header replay (.observeSends [] default)
+
 private def check (condition : Bool) (message : String) : IO Unit := do
   unless condition do
     throw (IO.userError message)
@@ -89,6 +102,16 @@ def run : IO Unit := do
         payload := .requestVoteResponse { term := 2, voteGranted := true }
     }
   check (rejected (unsent 3 [response])) "snapshot: a response must be sent to any node"
+  -- A node ignores a proposal until a signature finds it in its latest configuration
+  match ignored [configuration 0 {0, 1}, configuration 1 {0}, signature] with
+  | .ok replay =>
+      check
+        (replay.state.network == [proposal]
+          && (nodeState replay.state 1).map (·.role) == some .follower)
+        "no timer: the proposal must be lost"
+  | .error error => throw (IO.userError s!"no timer: {error}")
+  check (rejected (ignored [configuration 0 {0, 1}, signature]))
+    "timer: the model must campaign, and CCF with it"
   IO.println "Replay difference checks passed."
 
 #eval run
