@@ -87,6 +87,10 @@ A `nomination` whose snapshot is of a primary runs the model's nomination even i
 CCF ignores an AppendEntries response from a node which it does not know, and traces it as `recv_append_entries_response_unknown_node`.
 Replay delivers that response too, and the model decides by itself whether it knows the sender.
 
+Where CCF acts on fewer messages than the model does, for a reason which the model lacks, replay treats those messages as lost, which the model allows.
+A node which starts from a snapshot is given the configuration at that snapshot, so as a primary it sends neither entries nor a nomination to a node which retired before it.
+The model reads the peers of a node from its whole log, and sends both until the retirement is confirmed: replay treats what it sends to such a node as lost.
+
 ## Source and checks
 
 - [`Input.lean`](../Consensus/Replay/Input.lean): decode events, carry optional command provenance and collect identities.
@@ -96,6 +100,7 @@ Replay delivers that response too, and the model decides by itself whether it kn
 - [`Session.lean`](../Consensus/Replay/Session.lean): replay of one driver command at a time.
 - [`ReplayMain.lean`](ReplayMain.lean): CLI which validates one trace, whole or by command, or reports the outcomes of several.
 - [`ReplayDelivery.lean`](../Consensus/Tests/ReplayDelivery.lean): delivery selection among equal rendered packets.
+- [`ReplayDifferences.lean`](../Consensus/Tests/ReplayDifferences.lean): the differences between CCF and the model which replay accepts, and that it accepts no more.
 - [`ReplayOutcomes.lean`](../Consensus/Tests/ReplayOutcomes.lean): outcomes of chosen steps, and the report of several traces.
 - [`ReplaySession.lean`](../Consensus/Tests/ReplaySession.lean): replay by command against replay of the whole trace, the model state between commands, and a nomination and a response which the model decides how to handle.
 - [`ModelDriver.lean`](../../../tests/cft_model/ModelDriver.lean): the consensus model driver, which replays the scenarios in the process which runs them.

@@ -29,6 +29,7 @@ Like CCF's `init_as_backup`, a fresh node may initialize once as a follower: wit
 Crashes are not modeled, so a committed prefix keeps its history, and a valid snapshot, fetched from another node or read from a local file, is such a prefix ([`Model.networkStep`](Consensus/Model.lean)).
 The join protocol is not modeled: a configuration may add any node, and a fresh node may instead follow from its first AppendEntries.
 Node identities are never reused, so a configuration may not name a node removed by an earlier configuration in the same log.
+A node which starts from a snapshot holds the log which precedes it, and so knows the nodes which retired before the snapshot until their retirement is confirmed, where CCF gives such a node only the configuration at the snapshot; [replay](replay/README.md#replay-contract) treats what the model sends to those nodes as lost.
 There are no fairness assumptions or guarantees of eventual election or commitment.
 
 ## Validation

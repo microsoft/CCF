@@ -65,6 +65,8 @@ structure ReplayState where
   queued : List Envelope := []
   /-- Outcomes shown by the actions run so far, in order. -/
   shown : Array Outcome := #[]
+  /-- The index of the snapshot from which each joining node started, zero if it had none. -/
+  snapshots : List (NodeID × Nat) := []
 
 /-- A traced native send, or the proposal a nomination implies. -/
 structure NativeSend where
@@ -287,10 +289,25 @@ private def ReplayState.run (replay : ReplayState) (header : Header)
   -- A step appends the acting node's sends to the network left after any delivery.
   let pending := replay.state.network.length - if action matches .deliver _ then 1 else 0
   return {
-    state,
-    queued := replay.queued ++ state.network.drop pending,
-    shown := replay.shown ++ outcomes replay.state action
+    replay with
+      state,
+      queued := replay.queued ++ state.network.drop pending,
+      shown := replay.shown ++ outcomes replay.state action
   }
+
+/--
+Whether CCF cannot send `envelope`: entries or a nomination, from a node to a peer which it
+has never known because that peer retired before the snapshot from which the node started.
+CCF gives such a node the configuration at its snapshot. The model reads the peers of a
+node from its whole log, and sends to that peer until its retirement is confirmed.
+-/
+private def toUnknownPeer (replay : ReplayState) (envelope : Envelope) : Bool :=
+  match envelope.payload, replay.snapshots.lookup envelope.source,
+        nodeState replay.state envelope.source with
+  | .appendEntriesRequest _, some index, some state
+  | .proposeRequestVoteRequest _, some index, some state =>
+      decide (envelope.target ∈ removedNodes (state.log.take index))
+  | _, _, _ => false
 
 /-- Observations never change model state or repair a disabled action. -/
 def runInstruction (header : Header) (replay : ReplayState) (instruction : Instruction)
@@ -308,7 +325,8 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
         | throw s!"{context}: not queued by the model: {send.packet.compress}"
         (checkPacket send.packet envelope.payload).mapError (s!"{context}: " ++ ·)
         queued := removeOne envelope queued
-      if let some envelope := queued.head? then
+      -- What the model sends to a peer which CCF does not know is lost
+      if let some envelope := queued.find? (!toUnknownPeer replay ·) then
         let target := header.declared[envelope.target]?.getD (toString envelope.target)
         throw
           s!"model queued {(messageJson envelope.payload).compress} to '{target}' with no native send"
@@ -347,7 +365,10 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
             && (index == 0 || isSignatureAt state.log index)
             && termAt state.log index == view
       | throw s!"no node has a committed signature at {index} in term {view}"
-      replay.run header (.local joiner (.initAsBackup (source.log.take index))) step.name
+      let replay ←
+        replay.run header (.local joiner (.initAsBackup (source.log.take index)))
+          step.name
+      return { replay with snapshots := (joiner, index) :: replay.snapshots }
 
 structure Result where
   instructions : Nat

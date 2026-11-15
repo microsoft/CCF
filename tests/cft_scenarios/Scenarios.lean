@@ -22,6 +22,7 @@ import Scenarios.follower_rollback_match_index
 import Scenarios.heartbeat_before_stale_suffix
 import Scenarios.indirect_commit_stale_leader
 import Scenarios.join_from_snapshot
+import Scenarios.join_from_snapshot_after_retirement
 import Scenarios.large_entry_batching
 import Scenarios.late_nomination
 import Scenarios.leadership_race
