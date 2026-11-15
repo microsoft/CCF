@@ -47,6 +47,14 @@ An outcome which no trace shows is a missing scenario, a step which the driver o
 For example, no trace of a scenario shows `appendEntriesConflictIgnored`, which [`cft.h`](../../../src/consensus/aft/cft.h) logs as a branch which it expects not to reach.
 The [consensus model driver](../../../tests/cft_model/README.md#exploring) looks for runs which show such an outcome, by changing the scenarios at random.
 
+With `--not-shown` and the names of outcomes, separated by commas, the report also fails unless the outcomes which no trace shows are those named:
+
+```sh
+./.lake/build/bin/consensus-replay --outcomes --not-shown appendEntriesConflictIgnored /tmp/cft-build/consensus/raw/*.ndjson
+```
+
+The [Lean workflow](../../../.github/workflows/lean.yml) does so, so that a change after which the scenarios no longer show an outcome fails CI, and the name of an outcome which a new scenario shows is removed there.
+
 To compare with the implementation, configure the scenario build with `-DCOVERAGE=ON` and run the scenario test.
 [`coverage.sh`](../../../scripts/coverage.sh) then lists the lines of [`cft.h`](../../../src/consensus/aft/cft.h) which the scenarios do not execute:
 

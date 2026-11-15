@@ -303,12 +303,14 @@ jobs:
             echo "::endgroup::"
           done
 
+      # An outcome which the scenarios showed and no longer show fails this step.
       - name: Report model outcomes shown by CCF consensus traces
         shell: bash
         run: |
           set -euo pipefail
           shopt -s failglob
           lean/consensus/.lake/build/bin/consensus-replay --outcomes \
+            --not-shown appendEntriesConflictIgnored \
             "$RUNNER_TEMP"/cft-scenario-traces/*.ndjson >> "$GITHUB_STEP_SUMMARY"
 
   models:

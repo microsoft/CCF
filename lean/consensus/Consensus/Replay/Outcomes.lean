@@ -568,6 +568,10 @@ def outcomes (state : Model.State) (action : Model.Action) : List Outcome :=
         | .receive source message => receiveOutcomes s source message
       handled ++ electedOutcomes s ++ commitOutcomes s ++ retirementOutcomes s
 
+/-- The outcomes which none of the traces shows, in the order of `Outcome.all`. -/
+def notShown (traces : Array (String × Array Outcome)) : List Outcome :=
+  Outcome.all.filter fun outcome => traces.all fun (_, shown) => !shown.contains outcome
+
 /--
 A Markdown table of the steps and traces which show each outcome, with the first such
 trace, followed by the outcomes which no trace shows.
@@ -579,7 +583,7 @@ def report (traces : Array (String × Array Outcome)) : String :=
         let showing := traces.filter fun (_, shown) => shown.contains outcome
         let steps := traces.foldl (fun total (_, shown) => total + shown.count outcome) 0
         (outcome.name, steps, showing.size, (showing[0]?.map Prod.fst).getD "")
-  let missing := (rows.filter fun (_, steps, _) => steps == 0).map (·.1)
+  let missing := (notShown traces).map (·.name)
   let lines :=
     ["| Outcome | Steps | Traces | First trace |", "| --- | ---: | ---: | --- |"]
     ++ rows.map

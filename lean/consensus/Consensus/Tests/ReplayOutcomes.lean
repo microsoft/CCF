@@ -132,6 +132,9 @@ private def reporting : IO Unit := do
   for line in expected do
     unless lines.contains line do
       throw (IO.userError s!"report: missing line '{line}'")
+  let missing := notShown traces
+  unless missing.length + 1 == Outcome.all.length && !missing.contains .voteGranted do
+    throw (IO.userError "not shown: expected every outcome but the one which is shown")
 
 /-- Checks the outcomes of chosen steps, and the report of several traces. -/
 def run : IO Unit := do

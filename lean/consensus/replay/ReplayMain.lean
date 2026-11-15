@@ -48,8 +48,12 @@ private def validateByCommand (path : String) : IO UInt32 := do
   | .error error, .ok _ =>
       disagree path s!"only replay of the whole trace rejects it: {error}"
 
-/-- Validate each trace, then report the outcomes which they show together. -/
-private def reportOutcomes (paths : List String) : IO UInt32 := do
+/--
+Validate each trace, then report the outcomes which they show together. With `expected`,
+the outcomes which no trace shows must be those which it names.
+-/
+private def reportOutcomes (expected : Option (List String)) (paths : List String)
+    : IO UInt32 := do
   let mut traces := #[]
   for path in paths do
     match ← validate path with
@@ -58,19 +62,38 @@ private def reportOutcomes (paths : List String) : IO UInt32 := do
         let name := (System.FilePath.mk path).fileStem.getD path
         traces := traces.push (name, result.outcomes)
   IO.println (report traces)
-  return 0
+  let some expected := expected | return 0
+  let missing := (notShown traces).map (·.name)
+  let known := Outcome.all.map (·.name)
+  let problems :=
+    [
+      ("no trace shows any longer", missing.filter (!expected.contains ·)),
+      (
+        "a trace now shows, and --not-shown still names",
+        expected.filter fun name => known.contains name && !missing.contains name
+      ),
+      ("not an outcome", expected.filter (!known.contains ·))
+    ]
+  for (problem, names) in problems do
+    unless names.isEmpty do
+      IO.eprintln s!"{problem}: {", ".intercalate names}"
+  return if problems.all (·.2.isEmpty) then 0 else 1
 
 private def usage : IO UInt32 := do
   IO.eprintln "usage: consensus-replay TRACE.ndjson"
   IO.eprintln "       consensus-replay --by-command TRACE.ndjson"
-  IO.eprintln "       consensus-replay --outcomes TRACE.ndjson..."
+  IO.eprintln
+    "       consensus-replay --outcomes [--not-shown OUTCOME,...] TRACE.ndjson..."
   return 2
 
 def main (args : List String) : IO UInt32 := do
   try
     match args with
     | ["--outcomes"] | ["--by-command"] => usage
-    | "--outcomes" :: paths => reportOutcomes paths
+    | "--outcomes" :: "--not-shown" :: names :: path :: paths =>
+        reportOutcomes (some ((names.splitOn ",").filter (!·.isEmpty))) (path :: paths)
+    | "--outcomes" :: "--not-shown" :: _ => usage
+    | "--outcomes" :: paths => reportOutcomes none paths
     | ["--by-command", path] => validateByCommand path
     | [path] =>
         match ← validate path with
