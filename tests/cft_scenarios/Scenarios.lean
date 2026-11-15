@@ -63,6 +63,7 @@ import Scenarios.retirement_nominates_higher_node
 import Scenarios.retirement_nominates_most_replicated
 import Scenarios.retirement_rollback
 import Scenarios.retirement_signature_rollback
+import Scenarios.rollback_forgets_added_node
 import Scenarios.rollback_safety
 import Scenarios.soft_rollback
 import Scenarios.sole_member_election
