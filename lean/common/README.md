@@ -23,7 +23,6 @@ The `ccf_common` Lake package exposes protocol-independent definitions in the `C
 `reachable_iff_trace`, in `CCF.Proofs.Execution`, shows that finite execution traces reach exactly the reachable states.
 Proof-only constructors in `CCF.Proofs.Execution` build concrete executions for witnesses and regression checks.
 `CCF.Execution.ofSteps` constructs finite traces from recorded action/state pairs satisfying `StepsFrom`.
-`CCF.Execution.run` evaluates state-dependent action choices, and `lassoTrace` constructs an infinite trace from a completed stem and a nonempty cycle returning to its starting state.
 Their indexing, membership, and step-extension theorems are in the same proof module.
 `CCF.TxID` shares the view/sequence-number representation and its strict (`lt`) and non-strict (`le`) lexicographic ordering across models.
 
