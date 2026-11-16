@@ -123,18 +123,18 @@ class Recorder:
     test process alive.
     """
 
-    def __init__(self):
+    def __init__(self, ipv6=False):
         self.connections = []
         self.error = None
         self.deadline = None  # Set by close
         self.selector = selectors.DefaultSelector()
-        self.listener = socket.create_server(("127.0.0.1", 0))
+        host = "::1" if ipv6 else "127.0.0.1"
+        self.listener = socket.create_server(
+            (host, 0), family=socket.AF_INET6 if ipv6 else socket.AF_INET
+        )
         self.listener.setblocking(False)
         self.selector.register(self.listener, selectors.EVENT_READ)
-        self.endpoint = {
-            "host": "127.0.0.1",
-            "port": str(self.listener.getsockname()[1]),
-        }
+        self.endpoint = {"host": host, "port": str(self.listener.getsockname()[1])}
         self.thread = threading.Thread(target=self.run, daemon=True)
         self.thread.start()
 
