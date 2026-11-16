@@ -15,6 +15,7 @@ lake build --wfail consensus-replay
 ```
 
 To generate captures, build the native driver and run the existing scenario test.
+The driver links the [scenarios](../../../tests/cft_scenarios/README.md), which are Lean programs, so CMake must find `lake`.
 Use a fresh build directory to avoid replaying stale captures from earlier runs.
 This needs Python `msgpack` available to CTest:
 
