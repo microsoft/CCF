@@ -5,11 +5,9 @@ module
 
 meta import Kv.Properties.Invariants
 meta import Kv.TraceValidation
-meta import Kv.TraceValidation.System
 
 public import Kv.Properties.Invariants
 public import Kv.TraceValidation
-public import Kv.TraceValidation.System
 
 public section
 
@@ -25,6 +23,13 @@ namespace Kv.Tests.Replay
 open Lean Kv.Properties Kv.TraceValidation
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
+
+private def semanticInputs (w : World) : List Record → Except Failure (List Model.Action)
+  | [] => .ok []
+  | r :: rs => do
+      let next ← step w r
+      let rest ← semanticInputs next rs
+      return actions w r.event ++ rest
 
 private def closed (body : List Event) : List Event :=
   let events :=
@@ -90,11 +95,11 @@ private def assertProjection : IO Unit := do
     | .ok inputs => pure inputs
     | .error e => throw (IO.userError s!"projection computation: {e.message}")
   let txs ←
-    match applicationInputs (project initial) 1 inputs with
+    match applicationInputs (initial.model) 1 inputs with
     | some txs => pure txs
     | none => throw (IO.userError "projected semantic execution is disabled")
-  let before := (find initial.stores 1).get!
-  let after := (find final.stores 1).get!
+  let before := (find initial.model.stores 1).get!
+  let after := (find final.model.stores 1).get!
   if txs.length != 1
       || serialTransactions before.head.data before.head.version txs
           != some after.head.data
@@ -102,23 +107,23 @@ private def assertProjection : IO Unit := do
     throw (IO.userError "selected-store serial projection disagrees with actual replay")
 
 private def assertStutters (initial : World) (events : List Event) : IO World := do
-  let baseline := project initial
+  let baseline := initial.model
   let records :=
     events.mapIdx
       fun index event =>
-        { event, seq := initial.lastSeq.getD 0 + index + 1 : Record }
+        { event, seq := initial.recording.lastSeq.getD 0 + index + 1 : Record }
   let mut current := initial
   for r in records do
     if !(actions current r.event).isEmpty then
       throw (IO.userError "metadata-only report executed a semantic input")
-    if executeActions (project current) (actions current r.event)
+    if executeActions (current.model) (actions current r.event)
         != some (baseline, .unit) then
       throw (IO.userError "metadata-only execution did not stutter")
     let next ←
       match step current r with
       | .ok next => pure next
       | .error failure => throw (IO.userError s!"metadata stutter: {failure.message}")
-    if project next != baseline then
+    if next.model != baseline then
       throw (IO.userError "trace metadata changed semantic store/transaction state")
     current := next
   if ((semanticInputs initial records).toOption.map List.isEmpty) != some true then
@@ -154,14 +159,16 @@ private def run : IO Unit := do
         match Model.execute s input with
         | some (next, _) => pure next
         | none => throw (IO.userError "translated interleaved input is disabled"))
-      (project {})
-  if semantic ≠ project final then
+      ({} : Model.State)
+  if semantic ≠ final.model then
     throw (IO.userError "interleaved adapter replay differs from semantic execution")
+  if !final.recording.knownTerms.isEmpty || !final.recording.attempts.isEmpty then
+    throw (IO.userError "closed lifecycles retained term or callback bookkeeping")
   let beforeManifest ←
     match replay {} (records.dropLast) with
     | .ok w => pure w
     | .error failure => throw (IO.userError failure.message)
-  let _ ← assertStutters beforeManifest [.traceEnd beforeManifest.count]
+  let _ ← assertStutters beforeManifest [.traceEnd beforeManifest.recording.count]
   let capturePrefix :=
     [
       .traceStart 1,
@@ -179,8 +186,28 @@ private def run : IO Unit := do
     match replay w [⟨7, .put 1 1 "m" "k" "v"⟩, ⟨8, .foreachBegin 1 1 "m" 1⟩] with
     | .ok w => pure w
     | .error failure => throw (IO.userError failure.message)
+  let interleaved ←
+    match replay callbackWorld
+            (([
+                .txCreate 1 2,
+                .snapshot 1 2 0 0 9,
+                .acquire 1 2 "m" 0 0,
+                .put 1 2 "m" "other" "second",
+                .foreachBegin 1 2 "m" 1,
+                .foreachEntry 1 2 "m" 1 "other" "second",
+                .foreachContinue 1 2 "m" 1 false,
+                .foreachEnd 1 2 "m" 1,
+                .txEnd 1 2
+              ]
+              : List Event).mapIdx
+              fun index event => ⟨index + 9, event⟩) with
+    | .ok w => pure w
+    | .error failure => throw (IO.userError failure.message)
+  if interleaved.model != callbackWorld.model
+      || (find interleaved.recording.attempts 2).isSome then
+    throw (IO.userError "ending an interleaved attempt retained model or callback state")
   let _ ←
-    assertStutters callbackWorld
+    assertStutters interleaved
       [
         .subcaseBegin "callback metadata",
         .subcaseEnd "callback metadata",

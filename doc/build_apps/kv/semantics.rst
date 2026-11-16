@@ -183,12 +183,13 @@ Serializability is derived from dependency validation, not from an assumption th
 Model states carry no proofs.
 Snapshot-program and store-history invariants are proved initially and preserved by every successful semantic action, covering arbitrary semantic-reachable states without trace preconditions.
 Every canonical safety statement in ``Kv/Properties.lean`` concerns model state, outputs, or executions of ``Kv.Model.transitionSystem``, with no trace reachability premise.
-Its property helpers and proof import chains are independent of trace validation and correspondence.
+Its property helpers and proof import chains are independent of trace validation.
 These invariants are not extra sequential-oracle acceptance checks.
 
 ``Kv.Model.execute`` computes outputs and state changes independently of trace formats.
-The separate ``Kv.TraceValidation.transitionSystem`` validates recorded lifecycles and bookkeeping, supplies schema-omitted initial terms, and compares reported observations with computed outputs.
-``Kv/Proofs/Correspondence.lean`` proves that accepted replay projects to semantic execution and agrees with its outputs, allowing trace-only records to stutter.
+The checker stores ``Model.State`` directly alongside separate recording bookkeeping, supplies schema-omitted initial terms, executes the main model, and compares reported observations with computed outputs.
+Trace-only records leave the model state unchanged; there is no separate trace transition system or model-state reconstruction.
+Trace decoding, translation, and report checks remain part of the validation trust boundary rather than a proved refinement of C++ executions.
 
 Each claim in ``Kv/Properties.lean`` is a proved theorem, followed by a witness theorem showing that its premises can hold or, for a claim without premises, that its conclusion has an effect.
 The Lake build treats warnings as errors, and the shared ``lake exe check-imports`` verifies that the library import root covers every module and respects the layering.

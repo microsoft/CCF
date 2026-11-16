@@ -34,12 +34,12 @@ Accommodations for missing trace fields, such as an omitted initial term, also b
 The model computes operation results and state changes.
 The adapter translates records into model actions, compares reported results with computed outputs, and maintains trace bookkeeping without duplicating model transitions.
 Do not add reported observations to semantic actions solely to validate a trace.
-Keep the semantic transition system and the trace replay system explicitly named and separate.
-Prove that accepted replay steps or executions project to the semantic model, allowing trace-only bookkeeping steps to stutter.
+Store the model state directly alongside separate recording bookkeeping, and execute model actions when checking traces.
+Do not reconstruct model state from trace-decorated stores or transactions, or introduce a second transition system solely for replay.
+Trace-only bookkeeping steps must leave the model state unchanged.
 State every public safety claim in `Properties.lean` over semantic model state, actions, outputs, or executions of `Model.transitionSystem`.
 Do not use trace-adapter reachability as a safety premise or retain duplicate adapter-scoped safety catalogues.
-Keep trace/model correspondence proofs under `Proofs/`, without a separate entrypoint or directory.
-The safety entrypoint and its transitive imports must not depend on trace validation or correspondence proofs.
+The safety entrypoint and its transitive imports must not depend on trace validation.
 
 ## Dependency direction
 

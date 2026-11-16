@@ -9,14 +9,7 @@ public import Kv.TraceValidation.Types
 
 namespace Kv.TraceValidation
 
-open Kv.Model hiding Store Tx step transitionSystem
-
-/-- Erases schema and callback-protocol decorations, retaining all semantic state. -/
-def project (w : World) : Model.State :=
-  {
-    stores := w.stores.map fun (id, s) => (id, s.toStore)
-    txs := w.txs.map fun (id, t) => (id, t.toTx)
-  }
+open Kv.Model
 
 /-- Translates inputs, not reported outputs, into semantic model actions.
 The omitted initial term is supplied as an environment input before the first snapshot.
@@ -27,7 +20,7 @@ def actions (w : World) : Event → List Model.Action
   | .txCreate sid tid => [.txCreate sid tid]
   | .txEnd sid tid => [.txEnd sid tid]
   | .snapshot sid tid _ _ term =>
-      (if (find w.stores sid).any (fun s => !s.termKnown) then
+      (if !(w.recording.knownTerms.contains sid) then
           [.setTerm sid term]
         else
           [])

@@ -28,8 +28,8 @@ Safety proofs depend only on the semantic model and semantic property helpers.
 
 `Model.transitionSystem` presents semantic `State` and `Action` through a [`CCF.TransitionSystem`](../common/CCF/TransitionSystem.lean), starting with no live stores or attempts.
 `Model.execute` computes both the next state and an `Output`; its state projection is `Model.step`.
-`TraceValidation.transitionSystem` separately presents typed record validation.
-`Proofs/Correspondence.lean` connects accepted typed replay to semantic executions, allowing trace-only bookkeeping and individual callback reports to stutter.
+The checker holds this `Model.State` directly alongside separate recording metadata.
+Each record supplies model actions and expected outputs; trace-only bookkeeping and individual callback reports leave the model state unchanged.
 
 ## Model
 
@@ -46,7 +46,8 @@ The [observation contract](../../doc/build_apps/kv/semantics.rst#observation-con
 Model states are plain data and carry no proofs; execution computes observations and effects, never consulting a sequential oracle.
 Live store and attempt references may be reused after destruction in the semantic system.
 The adapter separately requires run-unique recorded IDs and complete instrumentation lifecycles.
-The adapter decorates semantic state with omitted-term and callback-protocol bookkeeping, checks recorded lifecycles and reports, and installs the model's computed state as authoritative.
+The adapter keeps omitted-term and callback-protocol bookkeeping in `Recording`, checks recorded lifecycles and reports, and stores the result of `Model.execute` directly.
+There are no trace-specific store or transaction types, model-state projections, or reconstruction steps.
 
 A `Store` keeps its branch of committed frames newest first, its current head, global (compacted) version, term, and next application identity.
 `Snapshot` retains the captured head frame and commit term.
@@ -74,7 +75,7 @@ The normal-view reconstruction function `normalRun` and the per-step head-effect
 `Kv/Properties.lean` states each claim as a proved theorem in `Kv.Properties`, whose one-line proof refers to an implementation in `Kv/Proofs/`.
 No `sorry`, custom axioms, unsafe declarations, or external solver are used; `lake check` accepts only Lean's standard `propext`, `Quot.sound` and `Classical.choice`.
 All safety statements concern semantic state, computed outputs, or executions of `Model.transitionSystem`, without trace reachability premises.
-Neither the entrypoint, its property helpers, nor its transitive proof imports depend on trace validation or correspondence.
+Neither the entrypoint, its property helpers, nor its transitive proof imports depend on trace validation.
 The existing sequential reference helpers remain in `Properties/Programs.lean`, and semantic execution predicates are in `Properties/Invariants.lean`.
 
 Each claim is followed by a `_witness` lemma, so no claim is vacuous.
@@ -127,7 +128,7 @@ Snapshot preservation requires no creation/end of the selected attempt during it
 `Proofs/Replay.lean` proves captured-view preservation for every semantic action and finite attempt-preserving run.
 
 The semantic guarantees are proved for actual `Model.execute` transitions and arbitrary reachable semantic runs, without trace preconditions or a sequential acceptance oracle.
-The separate correspondence guarantees cover successful typed trace `step` and `replay` results, not the JSON parser.
+The trace decoder, event translation, report comparisons, and recording checks are part of the validation trust boundary, rather than a separately proved trace transition system.
 The canonical model theorems cover normal-view serial projection, history safety, frozen read metadata, and per-map local/global provenance and immutability.
 They do not establish cross-map snapshot consistency for the mixed lazy-acquisition rollback schedule described above.
 They do not prove that arbitrary C++ executions refine this model or that the instrumentation is complete; iteration protocol and acquisition-availability checks are not claimed as independently verified C++ algorithms.
@@ -196,7 +197,7 @@ They cover forbidden map-view refreshes, wrong global values/presence/revisions,
 
 `replayer/check-fixtures.sh` replays each base trace, which must be accepted, and each diff applied with `git apply --unidiff-zero`, which must produce its named status.
 It also requires replay to be deterministic, every failure to carry a diagnostic, and every rejection to identify the failing record.
-`Tests/Replay.lean` checks serial projection, interleaved adapter/model correspondence, reported-observation rejection, trace ID reuse, and exact uint64 decoding.
+`Tests/Replay.lean` checks serial projection, direct model execution of interleaved traces, metadata-only steps, reported-observation rejection, trace ID reuse, and exact uint64 decoding.
 `Tests/Semantics.lean` imports only the semantic model and executes overlapping transactions, multiple stores, nonreplicating publication, conflict dependencies, reusable live references, rollback identities, lazy acquisition across rollback, and per-map global frames without any trace records.
 Both run with `#eval` when their modules are built.
 Other positive implementation schedules come from the focused C++ tests and concurrent fuzzer.

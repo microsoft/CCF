@@ -11,16 +11,6 @@ namespace Kv.TraceValidation
 
 open Kv.Model
 
-/-- Schema 1 infers a store's omitted initial term at first capture or rollback. -/
-structure Store extends Model.Store where
-  /-- Whether the initial term has been established. -/
-  termKnown : Bool := false
-deriving Repr
-
-instance : Inhabited Store := ⟨{}⟩
-
-instance : Coe Store Model.Store := ⟨Store.toStore⟩
-
 /-- Trace protocol state for a frozen iteration, not a KV reference or operation input. -/
 structure Iteration where
   /-- Map whose entries were frozen. -/
@@ -35,15 +25,13 @@ structure Iteration where
   stopped : Bool := false
 deriving Repr
 
-/-- A semantic attempt decorated with the trace's callback protocol. -/
-structure Tx extends Model.Tx where
+/-- Trace-only callback bookkeeping for an attempt. -/
+structure AttemptRecording where
   /-- Nested iterations, innermost first. -/
   iterations : List Iteration := []
   /-- Run-local iteration identities already used by each map. -/
   iterationIds : List (String × Nat) := []
 deriving Repr
-
-instance : Coe Tx Model.Tx := ⟨Tx.toTx⟩
 
 /-- Schema 1 event inputs and reported observations. -/
 inductive Event where
@@ -140,12 +128,12 @@ structure Failure where
   message : String
 deriving Repr
 
-/-- Replay state with semantic data and instrumentation bookkeeping. -/
-structure World where
-  /-- Live store incarnations. -/
-  stores : Assoc Nat Store := []
-  /-- Live attempts. -/
-  txs : Assoc Nat Tx := []
+/-- Instrumentation bookkeeping, independent of semantic store and transaction state. -/
+structure Recording where
+  /-- Stores whose schema-omitted initial term has been established. -/
+  knownTerms : List Nat := []
+  /-- Sparse callback bookkeeping; attempts without entries have no recorded iterations. -/
+  attempts : Assoc Nat AttemptRecording := []
   /-- Previously seen store IDs. -/
   seenStores : List Nat := []
   /-- Previously seen attempt IDs. -/
@@ -165,6 +153,18 @@ structure World where
   /-- Number of accepted records. -/
   count : Nat := 0
 deriving Repr
+
+/-- The main model state and separate trace-only recording state. -/
+structure World where
+  /-- Authoritative state passed directly to the semantic executor. -/
+  model : Model.State := {}
+  /-- Recording protocol and stream metadata. -/
+  recording : Recording := {}
+deriving Repr
+
+/-- Unrecorded iteration state is empty until an attempt's first iteration. -/
+def attemptRecording (w : World) (tid : Nat) : AttemptRecording :=
+  (find w.recording.attempts tid).getD {}
 
 /-- The reports agree with the computed local operation. -/
 def observes {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]

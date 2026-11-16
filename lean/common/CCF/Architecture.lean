@@ -41,7 +41,6 @@ def allowedImport (root owner dependency : Name) : Bool :=
     model.isPrefixOf dependency
     || proofs.isPrefixOf dependency
     || (dependency != properties && properties.isPrefixOf dependency)
-    || (root ++ `TraceValidation).isPrefixOf dependency
   else
     true
 
