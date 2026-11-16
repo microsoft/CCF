@@ -73,9 +73,11 @@ def readLog (path : System.FilePath) : IO (Except String (Array Record)) := do
 
 structure Event where
   record : Record
-  command : Option Record
+  process : String
   /-- `h_ts`, the emission order within the record's process; other tags share the counter. -/
   time : Nat
+  /-- `ts`, the wall-clock emission time in nanoseconds, when the trace records it. -/
+  ts : Option Nat
   function : String
   node : String
   message : Json
@@ -86,8 +88,8 @@ def Event.origin (event : Event) (rule : String) : Origin :=
   { file := event.record.file, line := event.record.line, rule }
 
 /--
-Order each process's records by `h_ts`, carry command provenance within a process,
-split events into per-node streams sorted by node, and collect node identities.
+Order each process's records by `h_ts`, skip driver command records, split events into
+per-node streams sorted by node, and collect node identities.
 -/
 def prepareEvents (records : Array Record)
     : Except String (Array (Array Event) × List String) := do
@@ -99,9 +101,8 @@ def prepareEvents (records : Array Record)
         |>.mapError (s!"{record.location}: " ++ ·)
   let keyed :=
     keyed.toList.mergeSort fun (p, t, _) (q, u, _) => p < q || (p == q && t <= u)
-  let mut events := #[]
+  let mut events : Array Event := #[]
   let mut previous : Option (String × Nat × Record) := none
-  let mut command : Option Record := none
   let mut processes : Std.HashMap String String := {}
   let mut declared : List String := []
   for (process, time, record) in keyed do
@@ -109,14 +110,10 @@ def prepareEvents (records : Array Record)
       if last == process && lastTime == time then
         throw
           s!"{record.location}: h_ts {time} of process '{process}' repeats {earlier.location}"
-      if last != process then
-        command := none
     previous := some (process, time, record)
     try
       let message ← field record.value "msg"
-      if (optional message "cmd").isSome then
-        command := some record
-      else
+      unless (optional message "cmd").isSome do
         let function ← string message "function"
         let state ←
           if function == "retired_committed_tx" then
@@ -129,7 +126,9 @@ def prepareEvents (records : Array Record)
           require (other == process)
             s!"node '{node}' is traced by processes '{other}' and '{process}'"
         processes := processes.insert node process
-        events := events.push { record, command, time, function, node, message, state }
+        let ts ← (optional record.value "ts").mapM natural
+        events :=
+          events.push { record, process, time, ts, function, node, message, state }
         declared := node :: declared
         if function == "retired_committed_tx" then
           declared := (← string message "retired_node_id") :: declared

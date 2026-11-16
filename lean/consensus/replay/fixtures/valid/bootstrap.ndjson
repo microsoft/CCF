@@ -1,6 +1,6 @@
 {"process_id":"driver","h_ts":0,"msg":{"function":"become_leader","state":{"node_id":"0","current_view":2,"last_idx":0,"commit_idx":0,"leadership_state":"Leader"}}}
 {"process_id":"driver","h_ts":1,"msg":{"function":"tick","state":{"node_id":"0","current_view":2,"last_idx":0,"commit_idx":0,"leadership_state":"Leader"}}}
-{"process_id":"driver","h_ts":2,"msg":{"function":"tick","state":{"node_id":"0","current_view":2,"last_idx":0,"commit_idx":0,"leadership_state":"Leader"}}}
+{"process_id":"driver","h_ts":2,"msg":{"function":"nomination","state":{"node_id":"0","current_view":2,"last_idx":0,"commit_idx":0,"leadership_state":"Leader"}}}
 {"process_id":"driver","h_ts":3,"msg":{"function":"replicate","state":{"node_id":"0","current_view":2,"last_idx":0,"commit_idx":0,"leadership_state":"Leader"}}}
 {"process_id":"driver","h_ts":4,"msg":{"function":"replicate_entry","state":{"node_id":"0","current_view":2,"last_idx":0,"commit_idx":0,"leadership_state":"Leader"},"seqno":1,"globally_committable":false}}
 {"process_id":"driver","h_ts":5,"msg":{"function":"add_configuration","state":{"node_id":"0"},"idx":1,"nodes":{"0":{}}}}

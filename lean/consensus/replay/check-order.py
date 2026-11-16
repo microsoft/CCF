@@ -3,10 +3,11 @@
 # Licensed under the Apache 2.0 License.
 """Check that consensus replay verdicts depend on neither record order nor schedule.
 
-Each trace is replayed after shuffling its records, and after also moving each node's
-records into a process of its own with a random, gapped h_ts counter, which changes the
-order in which the replayer runs enabled groups. Every variant must give the original's
-exit status and output, ignoring record locations.
+Each trace is replayed after shuffling its records. A trace that replays successfully is
+also replayed after moving each node's records into a process of its own with a random,
+gapped h_ts counter and no wall-clock times, which changes the order in which the replayer
+runs enabled groups; a trace that fails may do so because of its order within a process.
+Every variant must give the original's exit status and output, ignoring record locations.
 """
 
 import argparse
@@ -64,10 +65,11 @@ def main():
             expected = replay(args.replayer, trace)
             records = [json.loads(line) for line in trace.read_text().splitlines()]
             for seed in range(args.seeds):
-                for name, variant in [
-                    ("shuffled", records),
-                    ("per-node", list(per_node(records, random.Random(seed)))),
-                ]:
+                variants = [("shuffled", records)]
+                if expected[0] == 0:
+                    per_node_records = list(per_node(records, random.Random(seed)))
+                    variants.append(("per-node", per_node_records))
+                for name, variant in variants:
                     variant = variant[:]
                     random.Random(seed).shuffle(variant)
                     path = pathlib.Path(work) / f"{name}-{seed}.ndjson"

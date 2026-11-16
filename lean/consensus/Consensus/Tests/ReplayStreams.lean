@@ -46,7 +46,7 @@ private def sends (sends : List (String × Json)) : Instruction :=
 
 private def group (node : String) (time : Nat) (instructions : Array Instruction)
     : Group :=
-  { node, time, instructions }
+  { node, process := node, time, instructions }
 
 /-- The primary's first AppendEntries to the follower, carrying the genesis entry. -/
 private def appendEntries : Json :=

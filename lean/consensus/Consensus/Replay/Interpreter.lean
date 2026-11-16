@@ -82,14 +82,22 @@ def Instruction.origin : Instruction → Origin
   | .observeSends _ origin => origin
 
 /--
-A head event and its follow-on events on the same node: one native lock hold, or an
-initialization with the snapshot hooks around it.
+A head event and its follow-on events on the same node: one hold of the node's consensus
+lock.
 -/
 structure Group where
   node : String
-  /-- The head event's emission order within its process. -/
+  process : String
+  /-- The emission order within its process of the head event, and of the last event. -/
   time : Nat
+  last : Nat := time
+  /-- The head event's wall-clock time, when the trace records it. -/
+  ts : Option Nat := none
   instructions : Array Instruction
+
+/-- Where the group starts, with its rule. -/
+def Group.label (group : Group) : String :=
+  (group.instructions[0]?.map (·.origin.label)).getD ""
 
 private def checkValue {α : Type} [ToJson α] (actual : α) (expected : Json)
     : Except String Unit := do
@@ -417,13 +425,55 @@ structure Result where
   observations : Nat
 deriving Repr, BEq
 
+/-- Where a group natively sends `packet` to `destination`. -/
+private def Group.send? (group : Group) (destination : String) (packet : Json)
+    : Option Origin :=
+  group.instructions.findSome?
+    fun
+    | .observeSends sends _ =>
+        (sends.find? fun send => send.target == destination && send.packet == packet).map
+          (·.origin)
+    | _ => none
+
 /--
-Run each node's groups in order, picking the enabled next group with the earliest head `h_ts`,
-then node, only so that diagnostics are reproducible: counters of different processes are not
-comparable. A group's node changes only through its own groups, and other nodes only add
-packets it may receive, so the verdict does not depend on the pick.
+Explain a replay in which every process's next group waits. A receive whose sender does not
+send its packet in the rest of the trace, or sends it later in the receiver's own process,
+can never run; the other groups wait for another node.
 -/
-def replay (header : Header) (streams : Array (Array Group)) : Except String Result := do
+private def stuck (rest : Array Group) (blocked : Array (Group × String)) : String :=
+  let (never, waits) :=
+    blocked.toList.partitionMap
+      fun (group, reason) =>
+        let waiting := s!"node '{group.node}' waits at {reason}"
+        match group.instructions.find? (· matches .action ..) with
+        | some (.action (.receive source destination packet) _) =>
+            let sender := rest.filter (·.node == source)
+            match sender.findSome? (·.send? destination packet) with
+            | none => .inl s!"{waiting}; '{source}' sends no such packet later"
+            | some origin =>
+                if sender.any (·.process == group.process) then
+                  .inl
+                    s!"{waiting}; '{source}', in the same process, sends it only later at {origin.label}"
+                else
+                  .inr s!"{waiting}; '{source}' sends it later at {origin.label}"
+        | _ => .inr waiting
+  let list (title : String) (lines : List String) :=
+    if lines.isEmpty then "" else s!"\n{title}:\n  {"\n  ".intercalate lines}"
+  "no enabled group"
+  ++ list "can never run" never
+  ++ list "waiting for another node" waits
+
+/--
+Run each process's groups in order, recording the groups run, ending with any that failed.
+`h_ts` is the order of execution within a process. Among processes, the enabled group with
+the earliest wall-clock time runs, then by process; without wall-clock times `h_ts` stands
+in, only so that diagnostics are reproducible, as counters of different processes are not
+comparable. A group's node changes only through its own groups, other nodes only add
+packets it may receive, and a committed prefix stays committed, so the verdict does not
+depend on which enabled group runs.
+-/
+def schedule (header : Header) (queues : Array (Array Group))
+    : ExceptT String (StateM (Array Group)) Result := do
   unless !header.declared.isEmpty
           && header.declared.all (!·.isEmpty)
           && header.declared.eraseDups == header.declared do
@@ -435,31 +485,36 @@ def replay (header : Header) (streams : Array (Array Group)) : Except String Res
   for node in header.bootstrap.sort do
     unless node < header.declared.length do
       throw s!"undeclared model node {node}"
-  let total := streams.foldl (· + ·.size) 0
+  let total := queues.foldl (· + ·.size) 0
   if total == 0 then throw "replay groups must not be empty"
+  let key (group : Group) := group.ts.getD group.time
   let mut state : ReplayState := { state := header.initial }
-  let mut next := Array.replicate streams.size 0
+  let mut next := Array.replicate queues.size 0
   for _ in [:total] do
     let heads :=
-      (streams.zipIdx.filterMap
-        fun (groups, stream) => (·, stream) <$> groups[next[stream]!]?)
-      |>.qsort fun (a, i) (b, j) => a.time < b.time || (a.time == b.time && i < j)
+      (queues.zipIdx.filterMap
+        fun (groups, queue) => (·, queue) <$> groups[next[queue]!]?)
+      |>.qsort fun (a, i) (b, j) => key a < key b || (key a == key b && i < j)
     let mut chosen := none
     let mut blocked := #[]
-    for (group, stream) in heads do
-      match ← group.waiting header state with
+    for (group, queue) in heads do
+      match ← ofExcept (group.waiting header state) with
       | none =>
-          chosen := some (group, stream)
+          chosen := some (group, queue)
           break
-      | some reason =>
-          blocked := blocked.push (stream, s!"node '{group.node}' waits at {reason}")
-    let waits := (blocked.qsort (·.1 < ·.1)).toList.map Prod.snd
-    let some (group, stream) := chosen
-    | throw s!"no enabled group:\n  {"\n  ".intercalate waits}"
-    state ← runGroup header state group
-    next := next.modify stream (· + 1)
-  let instructions := streams.flatMap (·.flatMap (·.instructions))
+      | some reason => blocked := blocked.push (group, reason)
+    let some (group, queue) := chosen
+    |
+      let rest := queues.zipIdx.flatMap fun (groups, queue) => groups.extract next[queue]!
+      throw (stuck rest blocked)
+    modify (·.push group)
+    state ← ofExcept (runGroup header state group)
+    next := next.modify queue (· + 1)
+  let instructions := queues.flatMap (·.flatMap (·.instructions))
   let actions := (instructions.filter (· matches .action ..)).size
   return { groups := total, actions, observations := instructions.size - actions }
+
+def replay (header : Header) (queues : Array (Array Group)) : Except String Result :=
+  (schedule header queues).run.run' #[]
 
 end Consensus.Replay
