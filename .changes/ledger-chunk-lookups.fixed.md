@@ -1,0 +1,2 @@
+`GET` and `HEAD` `/node/ledger_chunk?since=<seqno>` no longer wait for the ledger's file operations, such as the fsync of a completed chunk, to find the committed chunk containing the seqno, which on slow ledger storage could take up the threads serving other requests; with `include_committed_prefix=true`, requests still wait for them when no committed chunk contains the seqno.
+See [Download Endpoints](doc/operations/ledger_snapshot.rst#download-endpoints).
