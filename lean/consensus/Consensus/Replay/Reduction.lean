@@ -32,10 +32,6 @@ structure ReductionState where
   nextRequestId : ReqID := 1
   /-- Instructions emitted by the rule that last ran. -/
   instructions : Array Instruction := #[]
-  /-- The node has bootstrapped the network or initialized as a backup. -/
-  initialized : Bool := false
-  /-- A snapshot hook whose `init_as_backup` has not been seen yet. -/
-  hook : Option Event := none
 
 abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
 
@@ -124,7 +120,6 @@ def ruleBootstrap : Reduction String := do
   event head "replicate_entry"
   event head "add_configuration"
   optional_ (event head "batch_flush")
-  modify fun s => { s with initialized := true }
   return head.node
 
 private def readAppendContent (head : Event) (config : Option Event)
@@ -379,7 +374,8 @@ private def ruleDrop : Reduction Unit := do
 /--
 Snapshot installation runs ledger hooks outside the consensus lock before the node
 initializes, so other lock holds of the node, such as ticks, may fall between a hook and its
-`init_as_backup`. A hook is therefore a rule of its own, which emits nothing.
+`init_as_backup`. A hook is therefore a rule of its own, which emits nothing and needs only
+that the node initializes later.
 -/
 private def ruleSnapshotHook : Reduction Unit := do
   let head ← peek
@@ -387,17 +383,19 @@ private def ruleSnapshotHook : Reduction Unit := do
     failure s!"{head.record.location}: expected a snapshot hook, got {head.function}"
   -- consume
   event head head.function
+  let later ←
+    liftM (m := CCF.Parsec.Parser Event)
+      ((fun input => .success input (input.events.extract input.position))
+        : CCF.Parsec.Parser Event (Array Event))
   liftExcept head
-    (require (!(← get).initialized)
+    (require (later.any (·.function == "init_as_backup"))
       "not grouped with replicate_entry, execute_append_entries_sync or init_as_backup")
-  modify fun s => { s with hook := s.hook <|> some head }
 
 private def ruleInitAsBackup : Reduction Unit := do
   let head ← peek
   -- consume
   event head "init_as_backup"
   event head "become_follower"
-  modify fun s => { s with initialized := true, hook := none }
   let index ← readJson head head.message (nat · "seqno")
   let view ← readJson head head.message (nat · "view")
   -- emit
@@ -419,14 +417,5 @@ def ruleStep : Reduction Unit := do
   <|> attempt ruleTick
   <|> attempt ruleNomination
   <|> attempt ruleDrop
-
-/-- The end of a node's events: an ungrouped event is never a stutter. -/
-def ruleEnd : Reduction Unit := do
-  if let some event ← CCF.Parsec.peek then
-    failure s!"{event.record.location}: ungrouped event {event.function}"
-  if let some hook := (← get).hook then
-    liftExcept hook
-      (throw
-        "not grouped with replicate_entry, execute_append_entries_sync or init_as_backup")
 
 end Consensus.Replay.Reducer

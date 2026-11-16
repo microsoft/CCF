@@ -38,11 +38,15 @@ private def group : Reduction (Option Group) := do
       instructions := state.instructions
     }
 
-/-- One node's events: bootstrap, if this node starts the network, then groups. -/
+/--
+One node's events: bootstrap, if this node starts the network, then groups.
+Every event is consumed; an ungrouped event is never a stutter.
+-/
 private def node : Reduction (Option String × List Group) := do
   let leader ← CCF.Parsec.optionalRule (CCF.Parsec.attempt ruleBootstrap)
   let groups ← CCF.Parsec.many group
-  ruleEnd
+  if let some event ← CCF.Parsec.peek then
+    CCF.Parsec.failure s!"{event.record.location}: ungrouped event {event.function}"
   return (leader, groups.filterMap id)
 
 /-- Prepared initialization and each process's groups for direct model replay. -/
