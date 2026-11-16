@@ -11,6 +11,7 @@ import os
 import pprint
 import random
 import re
+import shutil
 import time
 from collections import deque
 from contextlib import contextmanager
@@ -47,6 +48,8 @@ JOIN_TIMEOUT = 40
 DEFAULT_TIMEOUT_MULTIPLIER = 15
 
 COMMON_FOLDER = "common"
+
+_cleared_cft_trace_folders = set()
 
 
 class NodeRole(Enum):
@@ -382,10 +385,14 @@ class Network:
                 f"with explicit version {node.version}"
             )
         if self.cft_recorder is None:
-            self.cft_recorder = infra.fluentd.Recorder()
+            self.cft_recorder = infra.fluentd.Recorder(ipv6=self.ipv6)
             # Unlike self.nodes, this keeps retired nodes.
             self.cft_trace_nodes = []
             self.cft_trace_folder = os.path.join(args.workspace, f"{args.label}_trace")
+            # Remove an earlier run's captures, once per test process.
+            if self.cft_trace_folder not in _cleared_cft_trace_folders:
+                _cleared_cft_trace_folders.add(self.cft_trace_folder)
+                shutil.rmtree(self.cft_trace_folder, ignore_errors=True)
         self.cft_trace_nodes.append(node)
         # Copied, as args are shared between nodes and networks.
         observability = copy.deepcopy(node_args.get("observability")) or {}
@@ -431,6 +438,11 @@ class Network:
                 if proc is None or proc.poll() != 0:
                     reasons.append(f"Node {node.local_node_id} did not stop cleanly")
                     continue
+                if node.remote.start_type == infra.remote.StartType.recover:
+                    reasons.append(
+                        f"Node {node.local_node_id} recovered a service, "
+                        "which trace replay does not model"
+                    )
                 out_path, _ = node.get_logs()
                 with open(out_path, encoding="utf-8", errors="replace") as out:
                     drops = re.findall(
