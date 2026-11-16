@@ -3,16 +3,15 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
+public import CCF.Parsec
 public import Consensus.Replay.Input
-
-import CCF.Parsec
 
 public section
 
 /-!
 Rules peek action arguments, consume named events, and emit direct model actions.
-Each node's events reduce independently into groups, one per hold of its consensus lock.
-A receive or `init_as_backup` must be its group's first action, since replay decides from that
+A rule consumes the events of one hold of a node's consensus lock, from that node's events.
+A receive or `init_as_backup` must be its rule's first action, since replay decides from that
 action whether the group waits.
 Explicit native boundaries distinguish related events from subsequent actions.
 After bootstrap, each rule observes its native group's starting snapshot before emitting actions.
@@ -27,20 +26,18 @@ open Lean Model.Node
 open CCF (Finset)
 open CCF.Parsec (failure validated attempt many_ optional_)
 
-private structure ReductionState where
+/-- What the rules carry from one of a node's lock holds to the next. -/
+structure ReductionState where
   header : Header
-  nextRequestId : ReqID
-  /-- Instructions emitted by the current group. -/
+  nextRequestId : ReqID := 1
+  /-- Instructions emitted by the rule that last ran. -/
   instructions : Array Instruction := #[]
-  groups : Array Group := #[]
-  /-- The last consumed event, to locate a group cut short by the end of its node's events. -/
-  last : Option Event := none
   /-- The node has bootstrapped the network or initialized as a backup. -/
   initialized : Bool := false
   /-- A snapshot hook whose `init_as_backup` has not been seen yet. -/
   hook : Option Event := none
 
-private abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
+abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
 
 private def liftExcept {α : Type} (event : Event) (result : Except String α)
     : Reduction α :=
@@ -52,13 +49,8 @@ private def readJson {α : Type} (event : Event) (value : Json)
     : Reduction α :=
   liftExcept event (decode value)
 
-private def peek (expected := "another event") : Reduction Event := do
-  let some event ← CCF.Parsec.peek
-  | match (← get).last with
-    | some last =>
-        failure
-          s!"{last.record.location}: expected {expected}, got end of node '{last.node}' events"
-    | none => failure "unexpected end of input"
+private def peek : Reduction Event := do
+  let some event ← CCF.Parsec.peek | failure "unexpected end of input"
   return event
 
 /-- The cursor position, from which `extractSends` finds the events a rule consumed. -/
@@ -85,13 +77,12 @@ private def extractSends (start : Nat) : Reduction (List NativeSend) := do
           return { target, packet, origin := event.origin event.function }
 
 private def event (source : Event) (name : String) : Reduction Unit := do
-  let next ← peek name
+  let next ← peek
   unless next.function == name do
     failure s!"{next.record.location}: expected {name}, got {next.function}"
   liftExcept next do
     require (next.node == source.node) s!"expected event on node {source.node}"
   discard CCF.Parsec.take
-  modify fun s => { s with last := some next }
 
 /-- A leader steps down and proposes that its successor becomes candidate. -/
 private def nominate (source : Event) : Reduction Unit := do
@@ -124,7 +115,7 @@ so they are not observed.
 `replicate` flushes a genesis entry over the append entries size limit. The node has no peers
 yet, so the flush sends nothing.
 -/
-private def ruleBootstrap : Reduction String := do
+def ruleBootstrap : Reduction String := do
   let head ← peek
   -- consume
   event head "become_leader"
@@ -387,8 +378,8 @@ private def ruleDrop : Reduction Unit := do
 
 /--
 Snapshot installation runs ledger hooks outside the consensus lock before the node
-initializes, so other groups of the node, such as ticks, may fall between a hook and its
-`init_as_backup`. A hook therefore forms no group.
+initializes, so other lock holds of the node, such as ticks, may fall between a hook and its
+`init_as_backup`. A hook is therefore a rule of its own, which emits nothing.
 -/
 private def ruleSnapshotHook : Reduction Unit := do
   let head ← peek
@@ -413,7 +404,8 @@ private def ruleInitAsBackup : Reduction Unit := do
   emitObserve head "init-as-backup"
   emitAction head "init-as-backup" (.initAsBackup head.node index view)
 
-private def ruleStep : Reduction Unit := do
+/-- One lock hold of a node, or one of its snapshot hooks or dropped packets. -/
+def ruleStep : Reduction Unit := do
   -- Recv rules
   attempt ruleRecvAppendEntries
   <|> attempt ruleRecvAppendEntriesResponse
@@ -428,88 +420,13 @@ private def ruleStep : Reduction Unit := do
   <|> attempt ruleNomination
   <|> attempt ruleDrop
 
-/-- Collect the instructions a rule emits into one group; a drop or a snapshot hook emits none. -/
-private def group (rule : Reduction Unit) : Reduction Unit := do
-  let head ← peek
-  rule
-  let state ← get
-  unless state.instructions.isEmpty do
-    set
-      {
-        state with
-          instructions := #[]
-          groups :=
-            state.groups.push
-              {
-                node := head.node
-                process := head.process
-                time := head.time
-                last := (state.last.getD head).time
-                ts := head.ts
-                instructions := state.instructions
-              }
-      }
-
-/-- One node's events: bootstrap, if this node starts the network, then groups. -/
-private def ruleNode : Reduction (Option String) := do
-  let leader ← CCF.Parsec.optionalRule (attempt ruleBootstrap)
-  many_ (group ruleStep)
+/-- The end of a node's events: an ungrouped event is never a stutter. -/
+def ruleEnd : Reduction Unit := do
   if let some event ← CCF.Parsec.peek then
     failure s!"{event.record.location}: ungrouped event {event.function}"
   if let some hook := (← get).hook then
     liftExcept hook
       (throw
         "not grouped with replicate_entry, execute_append_entries_sync or init_as_backup")
-  return leader
-
-/--
-Consume every event exactly once; an ungrouped event is never a stutter.
-Request IDs continue across nodes, so they are unique in the trace.
--/
-def reduce (streams : Array (Array Event)) (header : Header)
-    : Except String (String × Array (Array Group)) := do
-  let mut bootstrap := none
-  let mut groups := #[]
-  let mut nextRequestId := 1
-  for events in streams do
-    let (leader, state) ← CCF.Parsec.run events (ruleNode.run { header, nextRequestId })
-    if let some leader := leader then
-      if let some other := bootstrap then
-        throw s!"nodes '{other}' and '{leader}' both bootstrap the network"
-      bootstrap := some leader
-    groups := groups.push state.groups
-    nextRequestId := state.nextRequestId
-  let some leader := bootstrap | throw "no node bootstraps the network"
-  return (leader, groups)
 
 end Consensus.Replay.Reducer
-
-namespace Consensus.Replay
-
-/-- Prepared initialization and each process's groups for direct model replay. -/
-structure Reduced where
-  header : Header
-  queues : Array (Array Group)
-
-/--
-Prepare replay identities, reduce each node's events and queue each process's groups in
-`h_ts` order. A process that traces several nodes, as `cft_driver` does, runs them on one
-thread, so its groups must not overlap.
--/
-def reduce (streams : Array (Array Event)) (declared : List String)
-    : Except String Reduced := do
-  let header : Header := { bootstrap := ∅, declared }
-  let (leader, streams) ← Reducer.reduce streams header
-  let header := { header with bootstrap := {← header.nodeId leader} }
-  let groups :=
-    streams.flatten.qsort
-      fun a b => a.process < b.process || (a.process == b.process && a.time < b.time)
-  let queues := (groups.toList.splitBy (·.process == ·.process)).toArray.map (·.toArray)
-  for queue in queues do
-    for earlier in queue, group in queue.extract 1 do
-      unless earlier.last < group.time do
-        throw
-          s!"{group.label}: starts before the group at {earlier.label} of the same process ends"
-  return { header, queues }
-
-end Consensus.Replay

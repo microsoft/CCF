@@ -62,7 +62,8 @@ After each rule's actions, the envelopes they queued must equal the rule's nativ
 ## Source and checks
 
 - [`Input.lean`](../Consensus/Replay/Input.lean): decode events, order and split them into per-node streams and collect identities.
-- [`Reduction.lean`](../Consensus/Replay/Reduction.lean): named rules reducing each node's stream into groups, explicit boundaries and rule-tagged snapshot checks.
+- [`Reduction.lean`](../Consensus/Replay/Reduction.lean): named rules, each reducing one lock hold of a node, explicit boundaries and rule-tagged snapshot checks.
+- [`Groups.lean`](../Consensus/Replay/Groups.lean): runs the rules over each node's stream, taking each rule's instructions as a group, and queues the groups of each process.
 - [`Interpreter.lean`](../Consensus/Replay/Interpreter.lean): boundary-state field comparisons, packet selection, send checks, group scheduling and model execution.
 - [`ReplayMain.lean`](ReplayMain.lean): single-trace validation CLI.
 - [`ReplayDelivery.lean`](../Consensus/Tests/ReplayDelivery.lean): delivery selection among equal rendered packets.
