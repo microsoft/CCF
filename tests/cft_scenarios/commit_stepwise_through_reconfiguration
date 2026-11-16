@@ -1,0 +1,61 @@
+# Committing a signature after a pending configuration retires the configuration
+# before it, so the same commit can reach later signatures without it
+start_node,0
+replicate,2,$
+assert_commit_idx,0,2
+
+# Initial configuration [0, 1, 2], all nodes in sync
+trust_nodes,2,1,2
+replicate,2,$
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+assert_state_sync
+
+# 2 becomes unavailable
+disconnect_node,2
+
+# 5: [0, 1, 2] -> [0, 1, 2, 3, 4], 6: signature
+trust_nodes,2,3,4
+replicate,2,$
+
+# 1 receives up to 6, but its acknowledgement is held back
+periodic_one,0,10
+dispatch_one,0
+assert_last_txid,1,2.6
+
+# 7: transaction, 8: signature
+replicate,2,hello
+replicate,2,$
+
+# 3 and 4 catch up to 8, while 1 receives nothing more
+periodic_one,0,10
+drop_pending_to,0,1
+dispatch_one,0
+dispatch_one,3
+dispatch_one,4
+periodic_one,0,10
+drop_pending_to,0,1
+dispatch_one,0
+dispatch_one,3
+dispatch_one,4
+periodic_one,0,10
+drop_pending_to,0,1
+dispatch_one,0
+dispatch_one,3
+dispatch_one,4
+assert_last_txid,3,2.8
+assert_last_txid,4,2.8
+
+# 0, 3 and 4 are a majority of [0, 1, 2, 3, 4] at 8, but only 0 of [0, 1, 2]
+# has 6, so nothing after 4 commits
+assert_commit_idx,0,4
+
+# 1's acknowledgement of 6 gives [0, 1, 2] a majority at 6, so 6 can commit.
+# That would commit [0, 1, 2, 3, 4] and retire [0, 1, 2], so 0 commits 8 at once.
+dispatch_one,1
+assert_commit_idx,0,8

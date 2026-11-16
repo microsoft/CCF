@@ -30,7 +30,7 @@ As in the specification packages, definitions and the theorems about them live i
 Theorems go under `CCF.Proofs`, keeping their original names, so `CCF.Execution.reachable_iff_trace` is declared in `CCF.Proofs.Execution`.
 Definition modules keep only the proofs their definitions carry, such as the sortedness of `CCF.Finset` and the stability of `CCF.Seq`.
 Sequence and function lemmas live in `CCF.Proofs.Seq` and `CCF.Proofs.Function`, including their `rfl` and `simp` lemmas.
-The proof-only `CCF.Finset.Disjoint` predicate lives in `CCF.Proofs.Finset`.
+`CCF.Finset.Disjoint` remains with the set definitions because the consensus model uses it in its commit rule.
 
 ## Dependency imports
 

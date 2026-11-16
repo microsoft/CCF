@@ -1,10 +1,12 @@
 module
 
 public import Consensus.Model
+public import Consensus.Properties.Bootstrap
 public import Consensus.Properties.Config
 public import CCF.Execution
 
 import Consensus.Proofs.Direct
+import Consensus.Proofs.Deadlock
 import Consensus.Proofs.SafetyInvariant
 import Consensus.Proofs.Witnesses
 
@@ -135,5 +137,27 @@ theorem committed_frontier_is_signature_witness
           /\ (node, nodeState) ∈ state.nodes
           /\ 0 < nodeState.commitIndex := by
   exact Proofs.Witnesses.committed_frontier_is_signature_witness
+
+/-- Once bootstrapping completes, which takes a node committing a signature, every
+reachable state has an enabled action. -/
+theorem deadlock_free_after_bootstrap
+    : forall (config : Finset NodeID) (nodes : List NodeID),
+        ({
+              Model.transitionSystem config nodes with
+                init :=
+                  fun state =>
+                    (Model.transitionSystem config nodes).Reachable state
+                    /\ Bootstrapped state
+            }
+          : CCF.TransitionSystem).DeadlockFree := by
+  exact Proofs.Deadlock.deadlock_free_after_bootstrap
+
+/-- Witness: every valid configuration completes bootstrapping. -/
+theorem deadlock_free_after_bootstrap_witness
+    : forall (config : ValidConfig),
+        exists (nodes : List NodeID) (state : Model.State),
+          (Model.transitionSystem config nodes).Reachable state
+          /\ Bootstrapped state := by
+  exact Proofs.Witnesses.deadlock_free_after_bootstrap_witness
 
 end Consensus.Properties

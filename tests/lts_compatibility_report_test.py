@@ -57,12 +57,33 @@ class CompatibilityReportTest(unittest.TestCase):
     def test_release_context_requires_data_coverage(self):
         self.report["data compatibility"] = {
             "with previous ledger": ["ccf-6.0.14"],
-            "with previous snapshots": ["ccf-6.0.14"],
+            "with previous snapshots": [],
         }
         with self.assertRaisesRegex(
             AssertionError, "Data compatibility did not cover releases"
         ):
             validate_compatibility_report(self.report, "release/7.x")
+
+    def test_release_context_accepts_data_coverage(self):
+        # 6.x snapshots carry JSON receipts, so later steps start from none
+        self.report["data compatibility"] = {
+            "with previous ledger": ["ccf-6.0.14", "ccf-7.0.19"],
+            "with previous snapshots": ["ccf-7.0.19"],
+        }
+        validate_compatibility_report(self.report, "release/7.x")
+
+    def test_release_context_requires_matching_snapshot_coverage(self):
+        for snapshot_versions in (["ccf-6.0.14", "ccf-7.0.19"], []):
+            with self.subTest(snapshot_versions=snapshot_versions):
+                self.report["data compatibility"] = {
+                    "with previous ledger": ["ccf-6.0.14", "ccf-7.0.19"],
+                    "with previous snapshots": snapshot_versions,
+                }
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    "Ledger and snapshot compatibility covered different releases",
+                ):
+                    validate_compatibility_report(self.report, "release/7.x")
 
 
 if __name__ == "__main__":
