@@ -20,7 +20,7 @@ from loguru import logger as LOG
 import infra.fluentd
 
 # The consensus events that the consistency replayer uses.
-FUNCTIONS = ("become_leader", "send_request_vote", "replicate", "commit")
+FUNCTIONS = ("become_leader", "send_request_vote", "replicate_entry", "commit")
 
 # Upper bound on the nodes started by one test.
 MAX_NODES = 64

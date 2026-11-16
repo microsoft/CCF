@@ -72,7 +72,7 @@ private def replayEvent (replay : Replay) (event : Json) : Except String Replay 
       for _ in [:view - latest] do
         model ← apply model (.elect source length)
       return { replay with model }
-  | "replicate" =>
+  | "replicate_entry" =>
       let view ← nat event "view"
       let model ← apply model (.request .rw)
       let request := model.history.length

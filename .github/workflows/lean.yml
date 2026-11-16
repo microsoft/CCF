@@ -180,17 +180,13 @@ jobs:
       - name: Install build dependencies
         uses: ./.github/actions/install-ci-dependencies
 
+      - name: Install Lean
+        uses: ./.github/actions/install-lean
+
       - name: Build consistency replay
+        working-directory: lean/consistency
         run: |
           set -euo pipefail
-          curl --proto '=https' --tlsv1.2 -sSf \
-            https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh \
-            -o /tmp/elan-init.sh
-          sh /tmp/elan-init.sh -y --default-toolchain none
-          rm /tmp/elan-init.sh
-          export PATH="${HOME}/.elan/bin:${PATH}"
-          elan toolchain install "$(cat lean/lean-toolchain)"
-          cd lean/consistency
           lake build --wfail consistency-replay
 
       - name: Build, capture and replay consistency trace

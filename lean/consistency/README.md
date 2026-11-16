@@ -66,7 +66,7 @@ The unsandboxed check executes build-time code, which must be trusted.
 ## Trace validation
 
 `consistency-replay` consumes the `ccf.cft` consensus trace events that nodes [export](../../doc/operations/configuration.rst), as NDJSON records with the event in a `msg` field, ordered by timestamp.
-It replays them through `Model.step`, using `become_leader`, `send_request_vote`, `replicate` and `commit`, and skipping other events.
+It replays them through `Model.step`, using `become_leader`, `send_request_vote`, `replicate_entry` and `commit`, and skipping other events.
 A new leader's view starts from the ledger prefix that it reported when requesting votes.
 Every ledger entry is replayed as a write, which a node's `commit` reports committed.
 A `tx_status` record adds what nodes do not trace: a `Committed` or `Invalid` status given to a client.
