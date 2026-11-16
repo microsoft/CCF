@@ -68,12 +68,39 @@ namespace
     items.push_back(std::to_string(item));
   }
 
+  // A backslash escapes a comma or a backslash in an argument, and \n stands
+  // for a newline, so that a step is one line, from which its arguments are
+  // read as they were given
+  std::string escaped(const std::string& item)
+  {
+    std::string text;
+    text.reserve(item.size());
+    for (const char c : item)
+    {
+      if (c == '\n')
+      {
+        text += "\\n";
+        continue;
+      }
+      if (c == '\\' || c == ',')
+      {
+        text += '\\';
+      }
+      text += c;
+    }
+    return text;
+  }
+
   // The trace records each step as its name and arguments, comma separated
   template <typename... Args>
   std::string command(const Args&... args)
   {
     std::vector<std::string> items;
     (append(items, args), ...);
+    for (auto& item : items)
+    {
+      item = escaped(item);
+    }
     return fmt::format("{}", fmt::join(items, ","));
   }
 

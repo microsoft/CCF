@@ -18,6 +18,7 @@ build/cft_model_driver --all
 - `--all` runs every scenario and the run in step, each in a process of its own, because a process can start the driver once.
   It also runs each scenario again from its [recorded commands](#programs), which the model must accept and which must all apply, and [explores](#exploring) briefly, which must give no finding.
   The two runs of a scenario may differ where an election timeout decides, because the timeout of a node differs between processes.
+  It runs in the same way a scenario of its own, `escaped_arguments`, whose entries hold the characters which a program escapes.
   A run fails if its process does not exit with status 0, whether or not it writes an error, and `--all` reports that status.
 
 A run prints its status as JSON.
@@ -26,6 +27,7 @@ It exits with status 1 if a command fails or the model rejects the trace, and 2 
 ## Programs
 
 A trace records each command of a scenario as its name and arguments, separated by commas.
+In an argument, a backslash precedes a comma or a backslash, and `\n` stands for a newline, so that a command is one line, from which its arguments are read as they were given.
 A program is a file of such commands, one on each line, which the model driver runs without compiling a scenario:
 
 ```sh

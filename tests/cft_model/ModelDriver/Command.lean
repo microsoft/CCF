@@ -6,6 +6,8 @@ import Scenarios
 Driver commands as data.
 
 A trace records each command of a scenario as its name and arguments, separated by commas.
+In them, a backslash escapes a comma or a backslash, and `\n` stands for a newline, so that
+the text of a command is one line, from which its arguments are read as they were given.
 A `Command` is such a record, which can be issued again, so that a scenario can be changed
 and run without being compiled. A `Step` of a program is a command, or a choice which is
 made when the program runs, among what the state of the driver then allows.
@@ -23,15 +25,36 @@ deriving BEq, Inhabited
 
 namespace Command
 
+/-- The name and the arguments in the text of a command, without what escapes them. -/
+private def fields (text : String) : List String :=
+  let rec go : List Char → String → List String → List String
+    | [], field, read => (field :: read).reverse
+    | '\\' :: 'n' :: rest, field, read => go rest (field.push '\n') read
+    | '\\' :: c :: rest, field, read => go rest (field.push c) read
+    | ',' :: rest, field, read => go rest "" (field :: read)
+    | c :: rest, field, read => go rest (field.push c) read
+  go text.toList "" []
+
+/-- A name or an argument as the text of a command has it. -/
+private def escape (field : String) : String :=
+  field.foldl
+    (fun text c =>
+      match c with
+      | '\n' => text ++ "\\n"
+      | '\\' => text ++ "\\\\"
+      | ',' => text ++ "\\,"
+      | c => text.push c)
+    ""
+
 /-- Read a command from the text which a trace records for it. -/
 def parse (text : String) : Command :=
-  match text.splitOn "," with
+  match fields text with
   | name :: args => { name, args }
   | [] => { name := text, args := [] }
 
 /-- The text which a trace records for the command. -/
 def text (command : Command) : String :=
-  ",".intercalate (command.name :: command.args)
+  ",".intercalate ((command.name :: command.args).map escape)
 
 private def number (text : String) : IO UInt64 :=
   match text.toNat? with
@@ -94,10 +117,9 @@ def run (command : Command) : IO Unit := do
   | "assert_state_sync", [] => assertStateSync
   | "assert_commit_safety", [node] => assertCommitSafety node
   | "assert_commit_idx", [node, idx] => assertCommitIdx node (← number idx)
-  | "assert_detail", node :: detail :: expected =>
-      assertDetail node detail (",".intercalate expected)
-  | "assert_!detail", node :: detail :: unexpected =>
-      assertNotDetail node detail (",".intercalate unexpected)
+  | "assert_detail", [node, detail, expected] => assertDetail node detail expected
+  | "assert_!detail", [node, detail, unexpected] =>
+      assertNotDetail node detail unexpected
   | "assert_config", node :: idx :: nodes =>
       assertConfig node (← number idx) (texts nodes)
   | "assert_absent_config", [node, idx] => assertAbsentConfig node (← number idx)
@@ -259,8 +281,8 @@ def scenarioLine (command : Command) : Except String String :=
   | "hold_nth", [_, _, _] => values "holdNth"
   | "dispatch_held", [_] => values "dispatchHeld"
   | "assert_commit_idx", [_, _] => values "assertCommitIdx"
-  | "assert_detail", node :: detail :: expected =>
-      call "assertDetail" [value node, detail.quote, value (",".intercalate expected)]
+  | "assert_detail", [node, detail, expected] =>
+      call "assertDetail" [value node, detail.quote, value expected]
   | "loop_until_sync", [] => values "loopUntilSync"
   | _, _ => throw s!"a scenario cannot issue '{command.text}'"
 

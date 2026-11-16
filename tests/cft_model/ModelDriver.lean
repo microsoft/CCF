@@ -117,6 +117,24 @@ private def runInStep : IO Result := do
 private def inStep : String := "--in-step"
 
 /--
+The scenario of the model driver alone, which `--all` runs with the others. Its entries
+hold what the text of a command escapes: a comma, a newline and a backslash. Its program
+fails the assertion unless it replicates each of them as one entry.
+-/
+private def escapedArguments : String × IO Unit :=
+  (
+    "escaped_arguments",
+    do
+      startNode 0
+      replicate 2 ["a,b", "c\nd", "e\\f", "\\n", ",", "\\", signature]
+      assertLastTxid 0 "2.8"
+  )
+
+/-- The scenario `name`: one of those registered, or that of the model driver alone. -/
+private def findScenario (name : String) : IO (Option (IO Unit)) := do
+  return (escapedArguments :: (← scenarios.get)).lookup name
+
+/--
 Start this program again with `args`. Give what went wrong unless it exits with status 0:
 that status, which is all there is of a process which a signal ends, and what it wrote
 to stderr.
@@ -163,12 +181,12 @@ private def roundTrip (directory : System.FilePath) (name : String)
   return none
 
 /--
-Run every scenario and the run in step, each in a process of its own, because a process
-can start the driver once. Also run each scenario from its commands, and explore briefly,
-which fails if a run is a finding.
+Run every scenario, that of the model driver alone and the run in step, each in a process
+of its own, because a process can start the driver once. Also run each scenario from its
+commands, and explore briefly, which fails if a run is a finding.
 -/
 private def runAll : IO UInt32 := do
-  let names := (← scenarios.get).map (·.1) |>.reverse
+  let names := ((← scenarios.get).map (·.1) |>.reverse) ++ [escapedArguments.1]
   let directory ← IO.FS.createTempDir
   let mut failed := 0
   for name in names ++ [inStep] do
@@ -236,7 +254,7 @@ def main (args : List String) : IO UInt32 := do
   match args with
   | ["--all"] => runAll
   | ["--record", name, file] =>
-      match (← scenarios.get).lookup name with
+      match ← findScenario name with
       | some steps => recordScenario name steps file
       | none => unknown name
   | ["--run", program] => runProgram program none
@@ -257,7 +275,7 @@ def main (args : List String) : IO UInt32 := do
       if name == inStep then
         report "in step" runInStep
       else
-        match (← scenarios.get).lookup name with
+        match ← findScenario name with
         | some steps => report name (runScenario name steps)
         | none => unknown name
   | _ =>

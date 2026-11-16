@@ -166,9 +166,10 @@ private def stateChecks (session : Session) : Array String :=
             | .candidate => "Candidate"
             | .primary => "Leader"
           #[
-            s!"assert_detail,{node},leadership_state,{leadership}",
-            s!"assert_commit_idx,{node},{state.commitIndex}"
-          ]
+            { name := "assert_detail", args := [node, "leadership_state", leadership] },
+            { name := "assert_commit_idx", args := [node, toString state.commitIndex] }
+          ].map
+            Command.text
 
 /--
 Check what the driver has done against the model. Unless it has `stopped`, have it confirm
