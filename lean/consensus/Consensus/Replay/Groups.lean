@@ -11,6 +11,8 @@ public section
 Runs the reduction rules over each node's events: peek the next event, run one rule from
 it, and take what the rule emitted as a group. The peeked event gives the group's node,
 process and times, so the rules track none of them.
+A receive or `init_as_backup` must be its rule's first action, since replay decides from
+that action whether the group waits.
 -/
 
 namespace Consensus.Replay

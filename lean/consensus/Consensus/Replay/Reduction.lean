@@ -3,16 +3,13 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-public import CCF.Parsec
 public import Consensus.Replay.Input
+public import CCF.Parsec
 
 public section
 
 /-!
 Rules peek action arguments, consume named events, and emit direct model actions.
-A rule consumes the events of one hold of a node's consensus lock, from that node's events.
-A receive or `init_as_backup` must be its rule's first action, since replay decides from that
-action whether the group waits.
 Explicit native boundaries distinguish related events from subsequent actions.
 After bootstrap, each rule observes its native group's starting snapshot before emitting actions.
 Each rule that may send checks the native sends among its events against the envelopes its
@@ -26,11 +23,9 @@ open Lean Model.Node
 open CCF (Finset)
 open CCF.Parsec (failure validated attempt many_ optional_)
 
-/-- What the rules carry from one of a node's lock holds to the next. -/
 structure ReductionState where
   header : Header
   nextRequestId : ReqID := 1
-  /-- Instructions emitted by the rule that last ran. -/
   instructions : Array Instruction := #[]
 
 abbrev Reduction := CCF.Parsec.ParserT Event ReductionState
@@ -105,9 +100,8 @@ private def emitObserveSends (event : Event) (sends : List NativeSend) : Reducti
   appendInstruction (.observeSends sends (event.origin "sends"))
 
 /--
-Genesis runs asynchronously after the first node becomes leader, so bare ticks and
-nominations, which name no successor yet, may precede it; the model starts after genesis,
-so they are not observed.
+Genesis runs asynchronously after the first node becomes leader, so bare ticks may precede
+it, as may nominations; the model starts after genesis, so they are not observed.
 `replicate` flushes a genesis entry over the append entries size limit. The node has no peers
 yet, so the flush sends nothing.
 -/
@@ -372,37 +366,37 @@ private def ruleDrop : Reduction Unit := do
   event head "drop_pending_to"
 
 /--
-Snapshot installation runs ledger hooks outside the consensus lock before the node
-initializes, so other lock holds of the node, such as ticks, may fall between a hook and its
-`init_as_backup`. A hook is therefore a rule of its own, which emits nothing and needs only
-that the node initializes later.
+Snapshot installation runs ledger hooks outside the consensus lock, so bare ticks
+may interleave with their events.
+A tick is a lock hold of its own, so hooks that `init_as_backup` does not directly follow
+emit nothing; the node must still initialize later.
 -/
-private def ruleSnapshotHook : Reduction Unit := do
+private def ruleInitAsBackup : Reduction Unit := do
   let head ← peek
-  unless ["add_configuration", "retired_committed_tx"].contains head.function do
-    failure s!"{head.record.location}: expected a snapshot hook, got {head.function}"
+  let hooks := ["add_configuration", "retired_committed_tx"]
+  unless hooks.contains head.function || head.function == "init_as_backup" do
+    failure s!"{head.record.location}: expected init_as_backup, got {head.function}"
   -- consume
-  event head head.function
-  let later ←
+  many_ (event head "add_configuration" <|> event head "retired_committed_tx")
+  let rest ←
     liftM (m := CCF.Parsec.Parser Event)
       ((fun input => .success input (input.events.extract input.position))
         : CCF.Parsec.Parser Event (Array Event))
-  liftExcept head
-    (require (later.any (·.function == "init_as_backup"))
-      "not grouped with replicate_entry, execute_append_entries_sync or init_as_backup")
-
-private def ruleInitAsBackup : Reduction Unit := do
-  let head ← peek
-  -- consume
+  unless rest.any (·.function == "init_as_backup") do
+    liftExcept head
+      (throw
+        "not grouped with replicate_entry, execute_append_entries_sync or init_as_backup")
+  unless rest[0]?.any (·.function == "init_as_backup") do
+    return
+  let init ← peek
   event head "init_as_backup"
   event head "become_follower"
-  let index ← readJson head head.message (nat · "seqno")
-  let view ← readJson head head.message (nat · "view")
+  let index ← readJson init init.message (nat · "seqno")
+  let view ← readJson init init.message (nat · "view")
   -- emit
-  emitObserve head "init-as-backup"
-  emitAction head "init-as-backup" (.initAsBackup head.node index view)
+  emitObserve init "init-as-backup"
+  emitAction init "init-as-backup" (.initAsBackup head.node index view)
 
-/-- One lock hold of a node, or one of its snapshot hooks or dropped packets. -/
 def ruleStep : Reduction Unit := do
   -- Recv rules
   attempt ruleRecvAppendEntries
@@ -411,7 +405,6 @@ def ruleStep : Reduction Unit := do
   <|> attempt ruleRecvProposeRequestVote
   <|> attempt ruleRecvRequestVoteResponse
   -- Async rules
-  <|> attempt ruleSnapshotHook
   <|> attempt ruleInitAsBackup
   <|> attempt ruleAppend
   <|> attempt ruleTick
