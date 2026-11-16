@@ -116,13 +116,20 @@ private def runInStep : IO Result := do
 /-- The argument which selects the run in step, where a scenario is named. -/
 private def inStep : String := "--in-step"
 
-/-- Start this program again with `args`. Give its exit status and what it wrote to stderr. -/
-private def again (args : Array String) : IO (UInt32 × String) := do
+/--
+Start this program again with `args`. Give what went wrong unless it exits with status 0:
+that status, which is all there is of a process which a signal ends, and what it wrote
+to stderr.
+-/
+private def again (args : Array String) : IO (Option String) := do
   let child ←
     IO.Process.spawn
       { cmd := (← IO.appPath).toString, args, stdout := .null, stderr := .piped }
   let errors ← child.stderr.readToEnd
-  return (← child.wait, errors)
+  let status ← child.wait
+  if status == 0 then
+    return none
+  return some (s!"exit status {status}" ++ if errors.isEmpty then "" else s!": {errors}")
 
 /-- The status and the commands in the result file of a run, and its message. -/
 private def reported (file : System.FilePath) : IO (String × Json × String) := do
@@ -139,22 +146,21 @@ and which must issue each of them, its assertions among them. The two runs need 
 the same outcomes, because the election timeout of a node differs between processes.
 Give what went wrong, if anything did.
 -/
-private def roundTrip (directory : System.FilePath) (name : String) : IO String := do
+private def roundTrip (directory : System.FilePath) (name : String)
+    : IO (Option String) := do
   let program := directory / s!"{name}.program"
-  let (status, errors) ← again #["--record", name, program.toString]
-  if status != 0 then
-    return s!"recording its commands: {errors}"
+  if let some problem ← again #["--record", name, program.toString] then
+    return some s!"recording its commands: {problem}"
   let result := directory / s!"{name}.again.json"
-  let (status, errors) ← again #["--run", program.toString, result.toString]
-  if status != 0 then
-    return s!"running its commands: {errors}"
+  if let some problem ← again #["--run", program.toString, result.toString] then
+    return some s!"running its commands: {problem}"
   let (_, recorded, _) ← reported (program.withExtension "json")
   let (status, ran, message) ← reported result
   if status != "ok" then
-    return s!"its commands are {status}: {message}"
+    return some s!"its commands are {status}: {message}"
   if recorded != ran then
-    return "its program issues other commands"
-  return ""
+    return some "its program issues other commands"
+  return none
 
 /--
 Run every scenario and the run in step, each in a process of its own, because a process
@@ -166,23 +172,20 @@ private def runAll : IO UInt32 := do
   let directory ← IO.FS.createTempDir
   let mut failed := 0
   for name in names ++ [inStep] do
-    let (status, errors) ← again #[name]
-    let mut problem := if status == 0 then "" else errors
-    if problem.isEmpty && name != inStep then
+    let mut problem ← again #[name]
+    if problem.isNone && name != inStep then
       problem ← roundTrip directory name
-    if problem.isEmpty then
-      IO.println s!"{name}: ok"
-    else
-      failed := failed + 1
-      IO.println s!"{name}: FAILED\n{problem}"
+    match problem with
+    | none => IO.println s!"{name}: ok"
+    | some message =>
+        failed := failed + 1
+        IO.println s!"{name}: FAILED\n{message}"
   -- A short exploration, in which no run may be a finding
-  let (status, errors) ←
-    again #["--explore", (directory / "explore").toString, "--runs", "40"]
-  if status == 0 then
-    IO.println "--explore: ok"
-  else
-    failed := failed + 1
-    IO.println s!"--explore: FAILED\n{errors}"
+  match ← again #["--explore", (directory / "explore").toString, "--runs", "40"] with
+  | none => IO.println "--explore: ok"
+  | some message =>
+      failed := failed + 1
+      IO.println s!"--explore: FAILED\n{message}"
   IO.FS.removeDirAll directory
   IO.println s!"{names.length + 2} runs, {failed} failed"
   return if failed == 0 then 0 else 1
