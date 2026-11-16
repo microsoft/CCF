@@ -39,7 +39,7 @@ permissions:
 jobs:
   extraction:
     name: Reproduce Rust Shamir extraction and C header
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     defaults:
       run:
@@ -88,7 +88,7 @@ jobs:
 
   proofs:
     name: Check Shamir model and proofs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
     defaults:
       run:
@@ -99,13 +99,10 @@ jobs:
 
     steps:
       - name: Install prerequisites
-        id: prerequisites
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y elan
-          # ubuntu-latest moves between Ubuntu releases; key caches on the image.
-          echo "image=${ImageOS:-unknown}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -119,7 +116,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: lean/shamir/.lake/packages
-          key: lean-deps-v3-${{ steps.prerequisites.outputs.image }}-${{ runner.arch }}-shamir-${{ hashFiles('lean/lean-toolchain', 'lean/shamir/lake-manifest.json', 'lean/shamir/lakefile.toml', 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-shamir.yml') }}
+          key: lean-deps-v3-ubuntu-26.04-${{ runner.arch }}-shamir-${{ hashFiles('lean/lean-toolchain', 'lean/shamir/lake-manifest.json', 'lean/shamir/lakefile.toml', 'lean/common/lake-manifest.json', 'lean/common/lakefile.toml', '.github/workflows/lean-shamir.yml') }}
 
       - name: Restore Mathlib cache
         working-directory: lean/shamir

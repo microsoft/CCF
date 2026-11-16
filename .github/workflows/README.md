@@ -210,8 +210,7 @@ The `Reproduce Rust Shamir extraction and C header` job downloads the pinned Aen
 It then runs the Rust core's tests, runs the C ABI tests under Miri with the Stacked Borrows and Tree Borrows models, and checks with a pinned cbindgen that `src/crypto/sharing_ffi.h` matches the Rust declarations.
 The `Check Shamir model and proofs` job restores Mathlib's upstream build cache and runs `scripts/check-shamir.sh`, which builds the package with warnings as errors and replays every declaration the package owns, and their dependencies, through the kernel with only the standard axioms.
 It then runs the shared import coverage and architecture check, the formatting check and the linters.
-Both jobs run on standard GitHub-hosted `ubuntu-latest` runners, and the proofs job installs Lean with elan from apt.
-Its dependency cache is keyed on the runner image, since `ubuntu-latest` moves between Ubuntu releases.
+Both jobs run on GitHub-hosted Ubuntu 26.04 runners, and the proofs job installs Lean with elan from apt.
 The workflow runs only on pull requests that change the Rust Shamir core (`src/rust/shamir`), the `ccf-rs` crate that exposes its C interface, the generated C header, the Shamir or common Lean packages, the Lean toolchain, the Shamir or formatter scripts, or the workflow, and can be run manually.
 Changes to other Rust code under `src/rust`, such as `ccf-app`, do not trigger it.
 See the [package README](../../lean/shamir/README.md) for the scope of the proofs.
