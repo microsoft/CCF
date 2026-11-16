@@ -120,6 +120,9 @@ namespace
     ccf::kv::Configuration::Nodes configuration;
     ccf::SeqNo configuration_version = 0;
     size_t configuration_changes = 0;
+    std::vector<std::pair<ccf::SeqNo, std::vector<NodeId>>>
+      retired_committed_txs;
+    std::vector<std::string> calls;
 
     TestConsensus(ccf::kv::Configuration::Nodes configuration_) :
       configuration(std::move(configuration_))
@@ -132,6 +135,14 @@ namespace
       configuration_version = seqno;
       configuration = new_configuration;
       ++configuration_changes;
+      calls.emplace_back("add_configuration");
+    }
+
+    void trace_retired_committed_tx(
+      ccf::SeqNo seqno, const std::vector<NodeId>& node_ids) override
+    {
+      retired_committed_txs.emplace_back(seqno, node_ids);
+      calls.emplace_back("trace_retired_committed_tx");
     }
 
     ccf::kv::Configuration::Nodes get_latest_configuration() override
@@ -1024,6 +1035,39 @@ TEST_CASE("direct node deletion updates consensus configuration")
 
   REQUIRE(consensus.configuration_version == 42);
   REQUIRE(consensus.configuration_changes == 1);
+}
+
+TEST_CASE("node write traces retired_committed before configuration change")
+{
+  const NodeId retired_committed_id = std::string("retired_committed");
+  const NodeId retired_id = std::string("retired");
+  const NodeId trusted_id = std::string("trusted");
+  TestConsensus consensus({{retired_id, {"retired.example.com", "1234"}}});
+
+  NodeInfo trusted;
+  trusted.status = NodeStatus::TRUSTED;
+  NodeInfo retired = trusted;
+  retired.status = NodeStatus::RETIRED;
+  NodeInfo retired_committed = retired;
+  retired_committed.retired_committed = true;
+
+  ConfigurationChangeHook(
+    44,
+    Nodes::Write{
+      {retired_committed_id, retired_committed},
+      {retired_id, retired},
+      {trusted_id, trusted}})
+    .call(&consensus);
+
+  REQUIRE(
+    consensus.calls ==
+    std::vector<std::string>{
+      "trace_retired_committed_tx", "add_configuration"});
+  REQUIRE(consensus.retired_committed_txs.size() == 1);
+  REQUIRE(consensus.retired_committed_txs[0].first == 44);
+  REQUIRE(
+    consensus.retired_committed_txs[0].second ==
+    std::vector<NodeId>{retired_committed_id});
 }
 
 TEST_CASE("trust_node_snp_tcb_version rejects an empty owner")

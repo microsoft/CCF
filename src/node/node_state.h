@@ -626,25 +626,6 @@ namespace ccf
       verify_snapshot_seqno(
         segments, network.tables->get_encryptor(), snapshot_seqno);
 
-      if (segments.receipt.empty() || segments.receipt[0] != 0xD2)
-      {
-        try
-        {
-          verify_snapshot(segments, target_identity.raw());
-          LOG_INFO_FMT(
-            "Recovery snapshot at {} is directly signed by the configured "
-            "previous service identity",
-            snapshot_seqno);
-          return;
-        }
-        catch (const std::exception& e)
-        {
-          throw std::logic_error(fmt::format(
-            "old-style snapshot receipt cannot use an endorsement chain: {}",
-            e.what()));
-        }
-      }
-
       const auto receipt = decode_and_verify_cose_snapshot_receipt(segments);
 
       std::string direct_verification_error;
@@ -3955,16 +3936,8 @@ namespace ccf
       network.tables->set_map_hook(
         network.nodes.get_name(),
         Nodes::wrap_map_hook(
-          [source = self](ccf::kv::Version version, const Nodes::Write& w)
+          [](ccf::kv::Version version, const Nodes::Write& w)
             -> ccf::kv::ConsensusHookPtr {
-            for (const auto& [node_id, ni] : w)
-            {
-              if (ni.has_value() && ni->retired_committed)
-              {
-                aft::trace::retired_committed_tx(
-                  source.value(), version, node_id.value());
-              }
-            }
             return std::make_unique<ConfigurationChangeHook>(version, w);
           }));
 

@@ -165,6 +165,10 @@ jobs:
       - name: "Install dependencies"
         uses: ./.github/actions/install-ci-dependencies
 
+      # cft_driver links the consensus scenarios, which lake builds.
+      - name: "Install Lean"
+        uses: ./.github/actions/install-lean
+
       - name: "Build Debug"
         run: |
           set -ex

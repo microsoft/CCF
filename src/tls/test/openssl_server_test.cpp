@@ -36,6 +36,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <string_view>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
@@ -486,6 +487,7 @@ namespace
     bool succeeded = false;
     std::string group;
     std::string cipher;
+    int version = 0;
   };
 
   // Handshakes against the server, optionally restricting what the client
@@ -495,7 +497,8 @@ namespace
   HandshakeResult handshake_and_inspect(
     uint16_t port,
     const std::string& client_groups = {},
-    const std::string& client_ciphersuites = {})
+    const std::string& client_ciphersuites = {},
+    int maximum_version = 0)
   {
     const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
     REQUIRE(fd >= 0);
@@ -509,6 +512,7 @@ namespace
 
     SSL_CTX* cctx = SSL_CTX_new(TLS_client_method());
     REQUIRE(cctx != nullptr);
+    REQUIRE(SSL_CTX_set_max_proto_version(cctx, maximum_version) == 1);
     if (!client_groups.empty())
     {
       REQUIRE(SSL_CTX_set1_groups_list(cctx, client_groups.c_str()) == 1);
@@ -524,9 +528,11 @@ namespace
     SSL_set_connect_state(ssl);
 
     HandshakeResult result;
+    ERR_clear_error();
     result.succeeded = SSL_connect(ssl) == 1;
     if (result.succeeded)
     {
+      result.version = SSL_version(ssl);
       result.group = ccf::tls::details::get_negotiated_group(ssl);
       const auto* cipher = SSL_get_current_cipher(ssl);
       if (cipher != nullptr)
@@ -701,6 +707,49 @@ namespace
 
 namespace
 {
+  struct TrafficWriteGate
+  {
+    bool updates_only = true;
+    std::atomic<bool> block{true};
+    std::atomic<bool> notified{false};
+    std::atomic<size_t> attempts{0};
+    std::promise<void> blocked;
+
+    void install(SSL* ssl)
+    {
+      BIO* bio = SSL_get_wbio(ssl);
+      BIO_set_callback_arg(bio, reinterpret_cast<char*>(this));
+      BIO_set_callback_ex(
+        bio,
+        [](
+          BIO* output,
+          int operation,
+          const char* /*data*/,
+          size_t size,
+          int /*number*/,
+          long /*argument*/,
+          int result,
+          size_t* /*processed*/) -> long {
+          auto& gate =
+            *reinterpret_cast<TrafficWriteGate*>(BIO_get_callback_arg(output));
+          // A KeyUpdate under AES-GCM is a 27-byte encrypted record.
+          if (
+            operation == BIO_CB_WRITE && gate.block &&
+            (!gate.updates_only || size == 27))
+          {
+            ++gate.attempts;
+            BIO_set_retry_write(output);
+            if (!gate.notified.exchange(true))
+            {
+              gate.blocked.set_value();
+            }
+            return -1;
+          }
+          return result;
+        });
+    }
+  };
+
   struct EnginePair
   {
     std::mutex mutex;
@@ -722,13 +771,18 @@ namespace
     // Runs on the loop thread after client_closed is incremented, without
     // holding mutex, so it may call back into the client.
     std::function<void(::tcp::ConnID)> on_client_close;
+    std::function<void(SSL*)> client_handshake_hook;
+    std::function<void(SSL*)> server_handshake_hook;
+    std::atomic<size_t> client_key_updates{0};
+    std::atomic<size_t> server_key_updates{0};
     UVLoopRunner loop;
     std::shared_ptr<OpenSSLServer> server;
     std::shared_ptr<OpenSSLClient> client;
     std::shared_ptr<SSL_CTX> client_ctx;
 
     EnginePair(
-      std::optional<std::chrono::milliseconds> server_timeout = std::nullopt)
+      std::optional<std::chrono::milliseconds> server_timeout = std::nullopt,
+      std::optional<TrafficKeyPolicy> policy = std::nullopt)
     {
       auto [cert, key] = make_server_cert();
       client_ctx = {SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
@@ -741,14 +795,35 @@ namespace
         X509_STORE_add_cert(SSL_CTX_get_cert_store(client_ctx.get()), root) ==
         1);
       SSL_CTX_set_verify(client_ctx.get(), SSL_VERIFY_PEER, nullptr);
+      SSL_CTX_set_app_data(client_ctx.get(), this);
+      SSL_CTX_set_keylog_callback(
+        client_ctx.get(), [](const SSL* ssl, const char* line) {
+          auto& pair = *static_cast<EnginePair*>(
+            SSL_CTX_get_app_data(SSL_get_SSL_CTX(ssl)));
+          // Count labels only, never retain or log the traffic secrets.
+          const std::string_view label(line);
+          if (label.starts_with("CLIENT_TRAFFIC_SECRET_N "))
+          {
+            ++pair.client_key_updates;
+          }
+          if (label.starts_with("SERVER_TRAFFIC_SECRET_N "))
+          {
+            ++pair.server_key_updates;
+          }
+        });
 
       OpenSSLServer::Config config{
         .host = "127.0.0.1", .cert_pem = cert, .key_pem = key};
       config.tcp_user_timeout = server_timeout;
+      config.traffic_key_policy = policy;
       config.on_handshake = [this](::tcp::ConnID id, SSL* ssl, bool outgoing) {
         std::lock_guard<std::mutex> guard(mutex);
         CHECK_FALSE(outgoing);
         ++server_handshakes;
+        if (server_handshake_hook)
+        {
+          server_handshake_hook(ssl);
+        }
         sockaddr_in peer{};
         socklen_t size = sizeof(peer);
         CHECK(
@@ -798,6 +873,7 @@ namespace
           cv.notify_all();
         });
       OpenSSLClient::Config client_config;
+      client_config.traffic_key_policy = policy;
       client_config.on_handshake =
         [this](::tcp::ConnID id, SSL* ssl, bool outgoing) {
           std::lock_guard<std::mutex> guard(mutex);
@@ -814,6 +890,10 @@ namespace
               &size) == 0);
           ++client_handshakes;
           admitted = !reject_client;
+          if (admitted && client_handshake_hook)
+          {
+            client_handshake_hook(ssl);
+          }
           if (admitted && after_client_handshake)
           {
             after_client_handshake(id);
@@ -902,6 +982,240 @@ TEST_CASE(
   }
   pair.client->close_connection(id);
   REQUIRE(pair.wait([&]() { return pair.client_closed == 1; }));
+}
+
+namespace
+{
+  TEST_CASE("Sending-key policy updates real bidirectional fragmented traffic")
+  {
+    std::optional<TrafficKeyPolicy> policy =
+      TrafficKeyPolicy{.record_budget = 8};
+    bool coalesce = false;
+    SUBCASE("One message fragments into many records") {}
+    SUBCASE("Many messages coalesce into one record")
+    {
+      coalesce = true;
+    }
+    SUBCASE("Default RPC behavior")
+    {
+      policy.reset();
+    }
+    EnginePair pair(std::nullopt, policy);
+    REQUIRE(
+      SSL_CTX_set_max_proto_version(pair.client_ctx.get(), TLS1_2_VERSION) ==
+      1);
+    const auto id = pair.client->connect(pair.config());
+    if (!id)
+    {
+      FAIL("Failed to queue connection");
+      return;
+    }
+    const std::vector<uint8_t> data(coalesce ? 40 : size_t{512} * 1024, 42);
+    if (coalesce)
+    {
+      for (const auto byte : data)
+      {
+        pair.client->send(*id, &byte, 1);
+      }
+    }
+    else
+    {
+      pair.client->send(*id, data.data(), data.size());
+    }
+    pair.loop.start();
+    REQUIRE(
+      pair.wait([&]() { return pair.received.size() == data.size() + 2; }));
+    std::lock_guard lock(pair.mutex);
+    CHECK(pair.accepted_data == data);
+    CHECK(
+      std::vector<uint8_t>(pair.received.begin() + 2, pair.received.end()) ==
+      data);
+    CHECK(
+      SSL_CTX_get_max_proto_version(pair.client_ctx.get()) == TLS1_2_VERSION);
+    if (policy && !coalesce)
+    {
+      CHECK(pair.client_key_updates >= 4);
+      CHECK(pair.server_key_updates >= 4);
+    }
+    else
+    {
+      CHECK(pair.client_key_updates == 0);
+      CHECK(pair.server_key_updates == 0);
+    }
+  }
+
+  TEST_CASE("Sending-key policy lets OpenSSL handle a peer-requested update")
+  {
+    EnginePair pair(std::nullopt, TrafficKeyPolicy{.record_budget = 8});
+    pair.client_handshake_hook = [](SSL* ssl) {
+      REQUIRE(SSL_key_update(ssl, SSL_KEY_UPDATE_REQUESTED) == 1);
+    };
+    const auto id = pair.client->connect(pair.config());
+    if (!id)
+    {
+      FAIL("Failed to queue connection");
+      return;
+    }
+    const std::vector<uint8_t> data(4, 42);
+    pair.client->send(*id, data.data(), data.size());
+    pair.loop.start();
+    REQUIRE(
+      pair.wait([&]() { return pair.received.size() == data.size() + 2; }));
+    CHECK(pair.client_key_updates == 1);
+    CHECK(pair.server_key_updates == 1);
+  }
+
+  TEST_CASE(
+    "Sending-key policy excludes inherited post-handshake authentication")
+  {
+    std::optional<TrafficKeyPolicy> policy = TrafficKeyPolicy{};
+    SUBCASE("Opted in") {}
+    SUBCASE("Default behavior")
+    {
+      policy.reset();
+    }
+    EnginePair pair(std::nullopt, policy);
+    pair.reply = false;
+    SSL_CTX_set_post_handshake_auth(pair.client_ctx.get(), 1);
+    pair.server_handshake_hook = [&](SSL* ssl) {
+      REQUIRE(SSL_version(ssl) == TLS1_3_VERSION);
+      SSL_set_verify(ssl, SSL_VERIFY_PEER, nullptr);
+      CHECK(SSL_verify_client_post_handshake(ssl) == (policy ? 0 : 1));
+      ERR_clear_error();
+    };
+    REQUIRE(pair.client->connect(pair.config()).has_value());
+    pair.loop.start();
+    REQUIRE(pair.wait([&]() {
+      return pair.client_handshakes == 1 && pair.server_handshakes == 1;
+    }));
+  }
+
+  TEST_CASE("Sending-key policy retries negotiated small records safely")
+  {
+    TrafficWriteGate gate;
+    gate.updates_only = false;
+    auto blocked = gate.blocked.get_future();
+    EnginePair pair(std::nullopt, TrafficKeyPolicy{.record_budget = 2});
+    REQUIRE(
+      SSL_CTX_set_tlsext_max_fragment_length(
+        pair.client_ctx.get(), TLSEXT_max_fragment_length_512) == 1);
+    pair.client_handshake_hook = [&](SSL* ssl) {
+      REQUIRE(
+        SSL_SESSION_get_max_fragment_length(SSL_get_session(ssl)) ==
+        TLSEXT_max_fragment_length_512);
+      gate.install(ssl);
+    };
+    const auto id = pair.client->connect(pair.config());
+    if (!id)
+    {
+      FAIL("Failed to queue connection");
+      return;
+    }
+    const std::vector<uint8_t> data(4096, 42);
+    pair.client->send(*id, data.data(), data.size());
+    pair.loop.start();
+    REQUIRE(
+      blocked.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    gate.block = false;
+    REQUIRE(
+      pair.wait([&]() { return pair.received.size() == data.size() + 2; }));
+    std::lock_guard lock(pair.mutex);
+    CHECK(pair.accepted_data == data);
+    CHECK(
+      std::vector<uint8_t>(pair.received.begin() + 2, pair.received.end()) ==
+      data);
+    CHECK(pair.client_key_updates >= 7);
+    CHECK(pair.server_key_updates >= 7);
+  }
+
+  TEST_CASE("Sending-key policy aborts a blocked update without retrying it")
+  {
+    TrafficWriteGate gate;
+    auto blocked = gate.blocked.get_future();
+    EnginePair pair(std::nullopt, TrafficKeyPolicy{.record_budget = 2});
+    pair.reply = false;
+    pair.client_handshake_hook = [&](SSL* ssl) { gate.install(ssl); };
+    const auto id = pair.client->connect(pair.config());
+    if (!id)
+    {
+      FAIL("Failed to queue connection");
+      return;
+    }
+    const std::vector<uint8_t> data(size_t{3} * 16384, 42);
+    pair.client->send(*id, data.data(), data.size());
+    pair.loop.start();
+    REQUIRE(
+      blocked.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    REQUIRE(pair.wait([&]() { return pair.client_closed == 1; }));
+    CHECK(gate.attempts == 1);
+    CHECK(pair.client_key_updates == 0);
+  }
+
+  TEST_CASE(
+    "Sending-key policy retains ordinary write retry and flush-before-close")
+  {
+    TrafficWriteGate gate;
+    gate.updates_only = false;
+    auto blocked = gate.blocked.get_future();
+    EnginePair pair(std::nullopt, TrafficKeyPolicy{.record_budget = 8});
+    pair.reply = false;
+    pair.client_handshake_hook = [&](SSL* ssl) { gate.install(ssl); };
+    const auto id = pair.client->connect(pair.config());
+    if (!id)
+    {
+      FAIL("Failed to queue connection");
+      return;
+    }
+    std::vector<uint8_t> expected(1000, 42);
+    pair.client->send(*id, expected.data(), expected.size());
+    pair.loop.start();
+    REQUIRE(
+      blocked.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    const std::vector<uint8_t> tail(2000, 17);
+    pair.client->send(*id, tail.data(), tail.size());
+    pair.client->close_connection(*id);
+    expected.insert(expected.end(), tail.begin(), tail.end());
+    gate.block = false;
+    REQUIRE(pair.wait([&]() {
+      return pair.client_closed == 1 &&
+        pair.accepted_data.size() == expected.size();
+    }));
+    std::lock_guard lock(pair.mutex);
+    CHECK(pair.accepted_data == expected);
+  }
+
+  TEST_CASE("Sending-key policy rejects TLS 1.2 without changing default RPC")
+  {
+    std::optional<TrafficKeyPolicy> policy = TrafficKeyPolicy{};
+    SUBCASE("Opted in") {}
+    SUBCASE("Default RPC behavior")
+    {
+      policy.reset();
+    }
+    EnginePair pair(std::nullopt, policy);
+    pair.reply = false;
+    pair.loop.start();
+    const auto result =
+      handshake_and_inspect(pair.server->port(), {}, {}, TLS1_2_VERSION);
+    CHECK(result.succeeded == !policy.has_value());
+    if (result.succeeded)
+    {
+      CHECK(result.version == TLS1_2_VERSION);
+    }
+  }
+
+  TEST_CASE("Sending-key policy does not enforce a peer's sending interval")
+  {
+    EnginePair pair(std::nullopt, TrafficKeyPolicy{.record_budget = 2});
+    pair.reply = false;
+    pair.loop.start();
+    const std::vector<uint8_t> data(size_t{16} * 16384, 42);
+    tls_client_exchange(pair.server->port(), data, 0);
+    REQUIRE(
+      pair.wait([&]() { return pair.accepted_data.size() == data.size(); }));
+    std::lock_guard lock(pair.mutex);
+    CHECK(pair.accepted_data == data);
+  }
 }
 
 TEST_CASE("Outbound client startup allocates no listener or socket")

@@ -40,7 +40,7 @@ env:
 jobs:
   configure:
     name: "Configure cross-platform LTS"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     outputs:
       from_version: ${{ steps.versions.outputs.from_version }}

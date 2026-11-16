@@ -1,0 +1,9 @@
+name = "cft"
+version = "0.1.0"
+moreLeanArgs = ["-DwarningAsError=true"]
+leanOptions = { autoImplicit = false }
+defaultTargets = ["Scenarios"]
+
+[[lean_lib]]
+name = "Scenarios"
+roots = ["Scenarios", "CftDriver"]

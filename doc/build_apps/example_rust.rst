@@ -1,7 +1,7 @@
 Example app (Rust)
 ==================
 
-.. warning:: The Rust interface is **experimental** and is not covered by the API stability commitments in :doc:`release_policy`. Its Rust API, C ABI and build integration may change incompatibly in any release, so use the SDK, CCF libraries and documentation from the same CCF revision.
+.. warning:: The Rust interface is **experimental** and is not covered by the API stability commitments in :doc:`/releases/release_policy`. Its Rust API, C ABI and build integration may change incompatibly in any release, so use the SDK, CCF libraries and documentation from the same CCF revision.
 
 The Rust SDK, the ``ccf-app`` crate, exposes a small subset of the native application API: read-only and read-write endpoints, user-certificate or no authentication, request and response access, OData errors, and raw-byte KV ``get``, ``has``, ``put`` and ``remove``.
 API schemas, custom authentication, caller identity, historical queries, indexing, logging, crypto helpers and commit callbacks are not exposed.
