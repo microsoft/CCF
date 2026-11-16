@@ -422,7 +422,7 @@ theorem step_map_capture
     · cases accepted
 
 /-- Every attempt-preserving semantic execution keeps an existing current snapshot fixed. -/
-theorem execution_snapshot_fixed
+theorem replay_snapshot_fixed
     : ∀ (w final : State) (tid : Nat) (before : Tx) (snap : Snapshot)
         (inputs : List Action),
         find w.txs tid = some before
@@ -435,7 +435,7 @@ theorem execution_snapshot_fixed
   exact ⟨after, finalLive, kept.snapshot snap captured⟩
 
 /-- Every attempt-preserving semantic execution keeps already acquired global frames fixed. -/
-theorem execution_map_global_fixed
+theorem replay_map_global_fixed
     : ∀ (w final : State) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
         (inputs : List Action),
         find w.txs tid = some before
@@ -449,7 +449,7 @@ theorem execution_map_global_fixed
   exact ⟨after, finalLive, (kept.maps map view captured).1⟩
 
 /-- Later acquisitions and publications cannot change an already acquired map's pinned local data. -/
-theorem execution_map_local_fixed
+theorem replay_map_local_fixed
     : ∀ (w final : State) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
         (inputs : List Action),
         find w.txs tid = some before
@@ -464,7 +464,7 @@ theorem execution_map_local_fixed
   exact ⟨after, finalLive, (kept.maps map view captured).2⟩
 
 /-- Metadata computed by capture survives the rest of an attempt-preserving semantic execution. -/
-theorem capture_execution_preserves_metadata
+theorem capture_replay_preserves_metadata
     : ∀ (w captured final : State) (sid tid : Nat) (s : Store) (t : Tx)
         (output : Output) (inputs : List Action),
         find w.stores sid = some s
@@ -479,11 +479,11 @@ theorem capture_execution_preserves_metadata
             ∧ snap.term = s.term := by
   intro w captured final sid tid s t output inputs source capture live segment run
   obtain ⟨snap, pinned, current, term⟩ := step_capture_metadata w captured sid tid s t output source capture live
-  obtain ⟨after, finalLive, same⟩ := execution_snapshot_fixed captured final tid t snap inputs live pinned segment run
+  obtain ⟨after, finalLive, same⟩ := replay_snapshot_fixed captured final tid t snap inputs live pinned segment run
   exact ⟨after, snap, finalLive, same, current, term⟩
 
 /-- Acquired frames and computed revisions survive an attempt-preserving semantic execution. -/
-theorem capture_execution_preserves_map
+theorem capture_replay_preserves_map
     : ∀ (w captured final : State) (sid tid localVersion globalVersion : Nat)
         (map : String) (s : Store) (before acquired : Tx) (snap : Snapshot)
         (inputs : List Action),
@@ -505,7 +505,7 @@ theorem capture_execution_preserves_map
   obtain ⟨view, localCut, globalCut⟩ :=
     step_map_capture w captured sid tid localVersion globalVersion map s before acquired snap source pinned capture live
   obtain ⟨after, finalLive, same⟩ :=
-    execution_map_global_fixed captured final tid acquired map _ inputs live view segment run
+    replay_map_global_fixed captured final tid acquired map _ inputs live view segment run
   exact ⟨after, finalLive, same, localCut, globalCut⟩
 
 private theorem provenance (w : State) (sid tid : Nat) (s : Store) (t : Tx) (map : String)

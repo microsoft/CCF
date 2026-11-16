@@ -247,7 +247,7 @@ private theorem serial_append (db : Data) (version : Nat) (xs ys : List Tx)
           simp [serialTransactions, h, ih, Nat.add_comm, Nat.add_left_comm]
 
 /-- Actual semantic executions serialize the selected store's applications in their real order. -/
-theorem execution_segment_serializability
+theorem replay_segment_serializability
     : ∀ (w final : State) (sid : Nat) (s : Store) (inputs : List Action),
         transitionSystem.Reachable w
         → find w.stores sid = some s

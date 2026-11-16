@@ -431,7 +431,7 @@ theorem step_map_capture_witness
   ⟩
 
 /-- A nonempty semantic execution preserves an already captured current frame. -/
-theorem execution_snapshot_fixed_witness
+theorem replay_snapshot_fixed_witness
     : ∃ (w final : State) (tid : Nat) (before : Tx) (snap : Snapshot)
         (actions : List Action),
         find w.txs tid = some before
@@ -454,7 +454,7 @@ theorem execution_snapshot_fixed_witness
   ⟩
 
 /-- A nonempty semantic execution preserves an acquired global frame. -/
-theorem execution_map_global_fixed_witness
+theorem replay_map_global_fixed_witness
     : ∃ (w final : State) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
         (actions : List Action),
         find w.txs tid = some before
@@ -478,7 +478,7 @@ theorem execution_map_global_fixed_witness
   ⟩
 
 /-- Writes and application witness nonempty execution with fixed pinned local data. -/
-theorem execution_map_local_fixed_witness
+theorem replay_map_local_fixed_witness
     : ∃ (w final : State) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
         (actions : List Action),
         find w.txs tid = some before
@@ -502,7 +502,7 @@ theorem execution_map_local_fixed_witness
   ⟩
 
 /-- Actual capture followed by a nonempty semantic execution witnesses metadata preservation. -/
-theorem capture_execution_preserves_metadata_witness
+theorem capture_replay_preserves_metadata_witness
     : ∃ (w captured final : State) (sid tid : Nat) (s : Store) (t : Tx)
         (output : Output) (actions : List Action),
         find w.stores sid = some s
@@ -530,7 +530,7 @@ theorem capture_execution_preserves_metadata_witness
   ⟩
 
 /-- Actual map capture followed by publication witnesses frame/revision preservation. -/
-theorem capture_execution_preserves_map_witness
+theorem capture_replay_preserves_map_witness
     : ∃ (w captured final : State) (sid tid localVersion globalVersion : Nat)
         (map : String) (s : Store) (before acquired : Tx) (snap : Snapshot)
         (actions : List Action),
@@ -617,7 +617,7 @@ theorem step_global_has_from_captured_map_witness
   ⟩
 
 /-- A nonempty actual semantic segment includes publication and compaction. -/
-theorem execution_segment_serializability_witness
+theorem replay_segment_serializability_witness
     : ∃ (w final : State) (sid : Nat) (s : Store) (actions : List Action),
         transitionSystem.Reachable w
         ∧ find w.stores sid = some s

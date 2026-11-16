@@ -165,13 +165,13 @@ The :ccf_repo:`proof catalogue <lean/kv/README.md>` records their precise scope 
      - Every semantic-reachable attempt's normal program reproduces its writes on pinned data and, when OCC permits application, on the application head.
    * - ``executable_branch_serializability``
      - Application-order branches of programs drawn from arbitrary semantic-reachable states serialize through the actual semantic application primitive, allowing compaction interleavings.
-   * - ``execution_segment_serializability``
+   * - ``replay_segment_serializability``
      - An actual semantic execution for a live store has a serial witness obtained from its actual application inputs and pre-application transactions.
        The segment excludes creation, destruction, or successful rollback of that store; rejected rollback and operations on other stores may interleave.
-   * - ``execution_snapshot_fixed``
+   * - ``replay_snapshot_fixed``
      - The read-version metadata comes from the initial capture and remains fixed during the attempt.
        Later lazy acquisitions after rollback can select different surviving local frames; this is not a store-wide mixed-view snapshot theorem.
-   * - ``capture_execution_preserves_map``
+   * - ``capture_replay_preserves_map``
      - An acquired map's local and global views remain fixed, including for other keys, aliases, compaction, and rollback.
        This is not cross-map global consistency.
    * - ``step_global_read_from_captured_map``
