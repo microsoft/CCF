@@ -20,11 +20,13 @@
 #include <cstring>
 #include <doctest/doctest.h>
 #include <fcntl.h>
+#include <future>
 #include <limits>
 #include <random>
 #include <string>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <thread>
 #include <unistd.h>
 
 using namespace asynchost;
@@ -2144,6 +2146,295 @@ TEST_CASE("Delete committed file from main directory")
 
     read_entries_range_from_ledger(ledger, 1, last_idx);
   }
+}
+
+// The ledger chunk endpoints find committed files in the ledger's own record
+// of the main ledger directory, rather than by scanning it. Check that, for all
+// indices up to last_idx, they find a file whenever a scan of the directory
+// would, and only a file which still exists and contains the index.
+void check_committed_ledger_paths(Ledger& ledger, size_t last_idx)
+{
+  for (size_t idx = 1; idx <= last_idx; ++idx)
+  {
+    std::optional<std::string> scanned = std::nullopt;
+    if (ledger.is_in_committed_file(idx))
+    {
+      scanned = get_file_name_with_idx(
+        ledger_dir, idx, false /* do not allow recovery files */);
+    }
+    const auto path = ledger.committed_ledger_path_with_idx(idx);
+
+    CAPTURE(idx);
+    REQUIRE(path.has_value() == scanned.has_value());
+    if (path.has_value())
+    {
+      REQUIRE(path->parent_path() == fs::path(ledger_dir));
+      REQUIRE(fs::exists(path.value()));
+      const auto file_name = path->filename().string();
+      REQUIRE(get_start_idx_from_file_name(file_name) <= idx);
+      const auto file_last_idx = get_last_idx_from_file_name(file_name);
+      REQUIRE(file_last_idx.has_value());
+      REQUIRE(idx <= file_last_idx.value());
+    }
+  }
+}
+
+TEST_CASE("Committed ledger paths match the main ledger directory")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+  size_t chunk_count = 4;
+  size_t last_idx = 0;
+
+  INFO("Commit chunks");
+  {
+    Ledger ledger(ledger_dir);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+    initialise_ledger(entry_submitter, entries_per_chunk, chunk_count);
+    last_idx = entry_submitter.get_last_idx();
+    check_committed_ledger_paths(ledger, last_idx);
+
+    ledger.commit(entries_per_chunk);
+    check_committed_ledger_paths(ledger, last_idx);
+    REQUIRE(ledger.committed_ledger_path_with_idx(1).has_value());
+
+    ledger.commit(3 * entries_per_chunk);
+    check_committed_ledger_paths(ledger, last_idx);
+  }
+
+  INFO("Restart");
+  {
+    Ledger ledger(ledger_dir);
+    check_committed_ledger_paths(ledger, last_idx);
+    REQUIRE(
+      ledger.committed_ledger_path_with_idx(3 * entries_per_chunk).has_value());
+  }
+
+  INFO("Init and replay");
+  {
+    Ledger ledger(ledger_dir);
+    ledger.init(entries_per_chunk);
+    REQUIRE(ledger.get_init_idx() == entries_per_chunk);
+    check_committed_ledger_paths(ledger, last_idx);
+    REQUIRE_FALSE(
+      ledger.committed_ledger_path_with_idx(entries_per_chunk + 1).has_value());
+
+    TestEntrySubmitter entry_submitter(
+      ledger, chunk_threshold, entries_per_chunk);
+    while (ledger.get_last_idx() < last_idx)
+    {
+      entry_submitter.write(true);
+    }
+    ledger.commit(3 * entries_per_chunk);
+    check_committed_ledger_paths(ledger, last_idx);
+    REQUIRE(
+      ledger.committed_ledger_path_with_idx(3 * entries_per_chunk).has_value());
+  }
+
+  INFO("Committed file removed without the ledger, e.g. by files cleanup");
+  {
+    Ledger ledger(ledger_dir);
+    const auto path = ledger.committed_ledger_path_with_idx(1);
+    REQUIRE(path.has_value());
+    REQUIRE(fs::remove(path.value()));
+    check_committed_ledger_paths(ledger, last_idx);
+    REQUIRE_FALSE(ledger.committed_ledger_path_with_idx(1).has_value());
+  }
+}
+
+TEST_CASE("Committed ledger paths include recovery files once open")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+
+  Ledger ledger(ledger_dir);
+  TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+  initialise_ledger(entry_submitter, entries_per_chunk, 1);
+  ledger.commit(entry_submitter.get_last_idx());
+
+  ledger.set_recovery_start_idx(entry_submitter.get_last_idx());
+  for (size_t i = 0; i < entries_per_chunk; i++)
+  {
+    entry_submitter.write(true);
+  }
+  const auto recovery_last_idx = entry_submitter.get_last_idx();
+  ledger.commit(recovery_last_idx);
+  REQUIRE(number_of_recovery_files_in_ledger_dir() == 1);
+  check_committed_ledger_paths(ledger, recovery_last_idx);
+  REQUIRE_FALSE(
+    ledger.committed_ledger_path_with_idx(recovery_last_idx).has_value());
+
+  ledger.complete_recovery();
+  REQUIRE(number_of_recovery_files_in_ledger_dir() == 0);
+  check_committed_ledger_paths(ledger, recovery_last_idx);
+
+  // The former recovery file is found once a later file is committed
+  for (size_t i = 0; i < entries_per_chunk; i++)
+  {
+    entry_submitter.write(true);
+  }
+  ledger.commit(entry_submitter.get_last_idx());
+  check_committed_ledger_paths(ledger, entry_submitter.get_last_idx());
+  REQUIRE(ledger.committed_ledger_path_with_idx(recovery_last_idx).has_value());
+}
+
+TEST_CASE("Committed ledger paths ignore files set aside on startup")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+  fs::create_directory(ledger_dir);
+
+  write_test_ledger_file(ledger_dir, 1, 10, true);
+
+  // An uncommitted file named with a range of entries, which ends before the
+  // last committed index, so is ignored on startup
+  write_test_ledger_file(ledger_dir, 1, 8);
+  fs::rename(
+    fs::path(ledger_dir) / "ledger_1", fs::path(ledger_dir) / "ledger_1-8");
+
+  // A file whose name has no valid range of entries
+  write_test_ledger_file(ledger_dir, 11, 12, true);
+  fs::rename(
+    fs::path(ledger_dir) / "ledger_11-12.committed",
+    fs::path(ledger_dir) / "ledger_12-4.committed");
+
+  Ledger ledger(ledger_dir);
+  REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_1-8.ignored"));
+  check_committed_ledger_paths(ledger, 10);
+  REQUIRE(
+    ledger.committed_ledger_path_with_idx(1) ==
+    fs::path(ledger_dir) / "ledger_1-10.committed");
+}
+
+TEST_CASE("Committed ledger paths include overlapping files")
+{
+  auto dir = AutoDeleteFolder(ledger_dir);
+
+  Ledger ledger(ledger_dir);
+  TestEntrySubmitter entry_submitter(ledger, 1000);
+  for (size_t idx = 1; idx <= 12; ++idx)
+  {
+    entry_submitter.write(
+      true, idx == 12 ? ccf::kv::FORCE_LEDGER_CHUNK_AFTER : 0);
+  }
+  ledger.commit(12);
+
+  // Initialising the ledger inside a committed file and replaying the entries
+  // after it in other chunks leaves files which overlap it
+  ledger.init(3);
+  TestEntrySubmitter replay_submitter(ledger, 1000, 3);
+  for (size_t idx = 4; idx <= 12; ++idx)
+  {
+    replay_submitter.write(
+      true, (idx == 8 || idx == 12) ? ccf::kv::FORCE_LEDGER_CHUNK_AFTER : 0);
+    if (idx == 8)
+    {
+      ledger.commit(8);
+      check_committed_ledger_paths(ledger, 12);
+    }
+  }
+  ledger.commit(12);
+  REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_1-12.committed"));
+  REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_4-8.committed"));
+  REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_9-12.committed"));
+  check_committed_ledger_paths(ledger, 12);
+
+  // A file is still found when another file containing the same entries is
+  // removed
+  REQUIRE(fs::remove(fs::path(ledger_dir) / "ledger_9-12.committed"));
+  check_committed_ledger_paths(ledger, 12);
+  REQUIRE(
+    ledger.committed_ledger_path_with_idx(12) ==
+    fs::path(ledger_dir) / "ledger_1-12.committed");
+}
+
+TEST_CASE("Committed ledger paths do not wait for slow ledger file operations")
+{
+  // File operations under the ledger state lock (e.g. the fsync of a completed
+  // file) can take tens of seconds on network storage. The ledger chunk
+  // endpoints run on the threads serving all requests, so their lookups must
+  // not wait for those. Here, opening a FIFO for reading stands in for a slow
+  // file operation: it blocks until the FIFO is opened for writing.
+  auto dir = AutoDeleteFolder(ledger_dir);
+  auto dir2 = AutoDeleteFolder(ledger_dir_read_only);
+
+  size_t chunk_threshold = 30;
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+  size_t last_idx = 0;
+
+  {
+    Ledger ledger(ledger_dir);
+    TestEntrySubmitter entry_submitter(ledger, chunk_threshold);
+    initialise_ledger(entry_submitter, entries_per_chunk, 1);
+    last_idx = entry_submitter.get_last_idx();
+    ledger.commit(last_idx);
+  }
+
+  fs::create_directory(ledger_dir_read_only);
+  const auto blocking_file =
+    fs::path(ledger_dir_read_only) /
+    fmt::format(
+      "ledger_{}-{}{}", last_idx + 1, last_idx + 1, ledger_committed_suffix);
+  REQUIRE(mkfifo(blocking_file.c_str(), 0600) == 0);
+
+  Ledger ledger(
+    ledger_dir, ledger_max_read_cache_files_default, {ledger_dir_read_only});
+
+  // Reading the entry "in" the FIFO holds the state lock while it is opened
+  auto blocked_read = std::async(std::launch::async, [&ledger, last_idx]() {
+    return ledger.read_entries(last_idx + 1, last_idx + 1);
+  });
+
+  // Wait until the state lock is held, i.e. until a call taking it blocks
+  std::future<size_t> blocked_call;
+  for (size_t attempt = 0; attempt < 100; ++attempt)
+  {
+    blocked_call = std::async(
+      std::launch::async, [&ledger]() { return ledger.get_last_idx(); });
+    if (
+      blocked_call.wait_for(std::chrono::milliseconds(100)) ==
+      std::future_status::timeout)
+    {
+      break;
+    }
+  }
+
+  auto lookups = std::async(std::launch::async, [&ledger]() {
+    return std::make_pair(
+      ledger.committed_ledger_path_with_idx(1), ledger.get_init_idx());
+  });
+  const auto lookups_status = lookups.wait_for(std::chrono::seconds(10));
+  const auto lock_was_held = blocked_call.wait_for(std::chrono::seconds(1)) ==
+    std::future_status::timeout;
+
+  // Let the read complete: once the FIFO is opened for writing, the read's
+  // open returns and it then fails to read a ledger file from the FIFO. The
+  // FIFO can only be opened for writing once the read is opening it, so keep
+  // trying until then, or until the read has completed in another way.
+  while (blocked_read.wait_for(std::chrono::milliseconds(100)) ==
+         std::future_status::timeout)
+  {
+    const auto fd = open(blocking_file.c_str(), O_WRONLY | O_NONBLOCK);
+    if (fd >= 0)
+    {
+      close(fd);
+      break;
+    }
+  }
+
+  REQUIRE(lock_was_held);
+  REQUIRE(lookups_status == std::future_status::ready);
+  const auto lookup_results = lookups.get();
+  REQUIRE(
+    lookup_results.first ==
+    fs::path(ledger_dir) /
+      fmt::format("ledger_1-{}{}", last_idx, ledger_committed_suffix));
+  REQUIRE(lookup_results.second == 0);
+  REQUIRE_FALSE(blocked_read.get().has_value());
+  REQUIRE(blocked_call.get() == last_idx + 1);
 }
 
 TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
