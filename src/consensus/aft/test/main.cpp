@@ -57,6 +57,29 @@ DOCTEST_TEST_CASE(
   DOCTEST_CHECK(calls.size() == 3);
 }
 
+DOCTEST_TEST_CASE("Vote state trace encoding" * doctest::test_suite("trace"))
+{
+  std::map<aft::Index, aft::Votes> votes_for_me;
+  votes_for_me[7] = {{ccf::NodeId("c"), ccf::NodeId("a"), ccf::NodeId("b")}, 2};
+  votes_for_me[3] = {{}, 1};
+  std::vector<uint8_t> bytes;
+  write_msgpack(bytes, votes_for_me);
+  DOCTEST_CHECK(
+    nlohmann::json::from_msgpack(bytes) ==
+    nlohmann::json::array(
+      {{{"idx", 3}, {"quorum", 1}, {"votes", nlohmann::json::array()}},
+       {{"idx", 7}, {"quorum", 2}, {"votes", {"a", "b", "c"}}}}));
+
+  std::optional<ccf::NodeId> leader_id = std::nullopt;
+  bytes.clear();
+  write_msgpack(bytes, leader_id);
+  DOCTEST_CHECK(nlohmann::json::from_msgpack(bytes).is_null());
+  leader_id = ccf::NodeId("a");
+  bytes.clear();
+  write_msgpack(bytes, leader_id);
+  DOCTEST_CHECK(nlohmann::json::from_msgpack(bytes) == "a");
+}
+
 DOCTEST_TEST_CASE("cft owns its periodic timer" * doctest::test_suite("single"))
 {
   const auto self = ccf::kv::test::PrimaryNodeId;

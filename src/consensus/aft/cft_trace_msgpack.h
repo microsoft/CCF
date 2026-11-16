@@ -10,6 +10,10 @@
 
 #include <algorithm>
 #include <list>
+#include <map>
+#include <optional>
+#include <string_view>
+#include <vector>
 
 namespace aft
 {
@@ -103,6 +107,51 @@ namespace aft
     if (count > 1)
     {
       write_msgpack(out, state.committable_indices.back());
+    }
+  }
+
+  inline void write_msgpack(
+    std::vector<uint8_t>& out, const std::map<Index, Votes>& votes_for_me)
+  {
+    using namespace ccf::msgpack;
+    using ccf::msgpack::write_msgpack;
+    write_array_header(out, container_size(votes_for_me.size()));
+    for (const auto& [idx, votes] : votes_for_me)
+    {
+      write_map_header(out, 3);
+      write_str(out, "idx");
+      write_msgpack(out, idx);
+      write_str(out, "quorum");
+      write_msgpack(out, votes.quorum);
+      write_str(out, "votes");
+      std::vector<std::string_view> voters;
+      voters.reserve(votes.votes.size());
+      for (const auto& voter : votes.votes)
+      {
+        voters.emplace_back(voter.value());
+      }
+      std::sort(voters.begin(), voters.end());
+      write_array_header(out, container_size(voters.size()));
+      for (const auto& voter : voters)
+      {
+        write_str(out, voter);
+      }
+    }
+  }
+}
+
+namespace ccf
+{
+  inline void write_msgpack(
+    std::vector<uint8_t>& out, const std::optional<NodeId>& node_id)
+  {
+    if (node_id.has_value())
+    {
+      msgpack::write_str(out, node_id->value());
+    }
+    else
+    {
+      msgpack::write_nil(out);
     }
   }
 }

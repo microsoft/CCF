@@ -103,12 +103,6 @@ namespace aft
     std::optional<ccf::NodeId> leader_id = std::nullopt;
 
     // Keep track of votes in each active configuration
-    struct Votes
-    {
-      std::unordered_set<ccf::NodeId> votes;
-      size_t quorum = 0;
-    };
-
     std::map<Index, Votes> votes_for_me;
 
     std::chrono::milliseconds timeout_elapsed;

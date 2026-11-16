@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cstdint>
 #include <limits>
+#include <unordered_set>
 
 namespace aft
 {
@@ -19,6 +20,13 @@ namespace aft
   using Node2NodeMsg = uint64_t;
 
   static constexpr size_t starting_view_change = 2;
+
+  // Votes received by a candidate in one active configuration
+  struct Votes
+  {
+    std::unordered_set<ccf::NodeId> votes;
+    size_t quorum = 0;
+  };
 
   class Store
   {
