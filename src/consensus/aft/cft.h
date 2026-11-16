@@ -677,6 +677,10 @@ namespace aft
       // entries to the model as one batch
       trace::replicate(*state);
 
+      // A configuration in this batch may add a node, but an earlier signature
+      // in the batch is still committable without it
+      const bool no_other_nodes = other_nodes_in_active_configs().empty();
+
       for (const auto& [index, data, is_globally_committable, hooks] : entries)
       {
         bool globally_committable = is_globally_committable;
@@ -741,8 +745,8 @@ namespace aft
         }
       }
 
-      // Try to advance commit at once if there are no other nodes.
-      if (other_nodes_in_active_configs().size() == 0)
+      // Try to advance commit at once if there were no other nodes.
+      if (no_other_nodes)
       {
         update_commit();
       }

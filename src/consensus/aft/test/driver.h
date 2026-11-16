@@ -977,7 +977,10 @@ public:
   // Replicates the entries in one batch: "$" is a signature, anything else a
   // transaction with that data
   void replicate(
-    const std::string& term_s, const std::vector<std::string>& entries)
+    const std::string& term_s,
+    const std::vector<std::string>& entries,
+    const std::optional<ccf::kv::Configuration::Nodes>& configuration =
+      std::nullopt)
   {
     const auto opt = find_primary_in_term(term_s);
     if (!opt.has_value())
@@ -1002,7 +1005,38 @@ public:
         {data_s.begin(), data_s.end()},
         signature));
     }
+    if (configuration.has_value())
+    {
+      batch.push_back(make_entry(
+        node_id,
+        cft->get_last_idx() + 1 + batch.size(),
+        term_s,
+        {},
+        false,
+        configuration));
+    }
     cft->replicate(batch, term);
+  }
+
+  // Replicates entries then a configuration adding new_node, in one batch
+  void replicate_and_trust_node(
+    const std::string& term_s,
+    const std::vector<std::string>& entries,
+    const std::string& new_node)
+  {
+    add_node(new_node);
+    CFT_DRIVER_PRINT(
+      "Note over {}: Node {} trusted", ccf::NodeId(new_node), new_node);
+    ccf::kv::Configuration::Nodes configuration;
+    for (const auto& [id, node] : _nodes)
+    {
+      configuration.try_emplace(id);
+      if (id != ccf::NodeId(new_node))
+      {
+        connect(id, new_node);
+      }
+    }
+    replicate(term_s, entries, configuration);
   }
 
   void disconnect(ccf::NodeId left, ccf::NodeId right)

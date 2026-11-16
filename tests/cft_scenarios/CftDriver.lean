@@ -87,6 +87,14 @@ Each entry is `signature`, or the data of a transaction.
 @[extern "cft_replicate"]
 opaque replicate (term : @& Term) (entries : @& List Text) : IO Unit
 
+/--
+Create `node`, and replicate `entries` then a configuration adding it, in one batch on the
+primary in `term`.
+-/
+@[extern "cft_replicate_and_trust_node"]
+opaque replicateAndTrustNode (term : @& Term) (entries : @& List Text) (node : @& NodeId)
+    : IO Unit
+
 /-! ## Time -/
 
 /-- Advance the clock of `node` by `ms` milliseconds. -/

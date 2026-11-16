@@ -276,6 +276,17 @@ extern "C"
       command("replicate", t, batch), [&]() { driver->replicate(t, batch); });
   }
 
+  lean_obj_res cft_replicate_and_trust_node(
+    b_lean_obj_arg term, b_lean_obj_arg entries, b_lean_obj_arg node)
+  {
+    const auto t = text(term);
+    const auto batch = texts(entries);
+    const auto id = text(node);
+    return step(command("replicate_and_trust_node", t, batch, id), [&]() {
+      driver->replicate_and_trust_node(t, batch, id);
+    });
+  }
+
   lean_obj_res cft_periodic_one(b_lean_obj_arg node, uint64_t milliseconds)
   {
     const auto id = text(node);
