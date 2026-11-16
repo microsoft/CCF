@@ -56,6 +56,39 @@ describe("polyfill", function () {
       assert.throws(() => ccf.publicKeyFromDidKey(base64url), /base58-btc/);
     });
 
+    it("rejects an RSA key that a service refuses to enroll", function () {
+      // A well-formed 2048-bit RSA public key whose modulus,
+      // 3 * (2^2046 + 1), has a small factor
+      const invalid = crypto.createPublicKey({
+        key: Buffer.from(
+          "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw" +
+            "A".repeat(340) +
+            "wIDAQAB",
+          "base64",
+        ),
+        format: "der",
+        type: "spki",
+      });
+      // The did:key which encodes this key
+      const alphabet =
+        "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+      let value = BigInt(
+        "0x8524" +
+          invalid.export({ format: "der", type: "pkcs1" }).toString("hex"),
+      );
+      let encoded = "";
+      while (value > 0n) {
+        encoded = alphabet[Number(value % 58n)] + encoded;
+        value /= 58n;
+      }
+      const did = "did:key:z" + encoded;
+      assert.equal(ccf.isValidEntityId(did), false);
+      assert.throws(
+        () => ccf.publicKeyFromDidKey(did),
+        /Invalid did:key RSA public key/,
+      );
+    });
+
     it("derives and validates legacy and did:key RSA identities", function () {
       const { cert } = generateSelfSignedCert();
       const legacy = ccf.pemToId(cert);

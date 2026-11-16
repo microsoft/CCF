@@ -376,7 +376,9 @@ def cose_protected_headers_api_v1(request_path, created_at=None):
     phdr = {"ccf.gov.msg.created_at": created_at or get_clock().moment()}
 
     hex_id = "([a-f0-9]+)"
-    member_id = "([^/]+)"
+    # A legacy hex ID, or a did:key with its colons percent-encoded. These IDs
+    # cannot contain the colon which starts the action suffix.
+    member_id = "([a-f0-9]+|did%3[Aa]key%3[Aa]z[1-9A-HJ-NP-Za-km-z]+)"
     opt_query = r"(\?.*)?"
 
     if match := re.match(

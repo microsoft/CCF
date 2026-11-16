@@ -45,6 +45,47 @@ import { toArrayBuffer } from "./utils.js";
 const base58Alphabet =
   "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
+// Product of the odd primes below 752. A CCF service rejects an RSA modulus
+// which shares a factor with it.
+const smallOddPrimesProduct = (() => {
+  let product = 1n;
+  for (let p = 3; p < 752; p += 2) {
+    let isPrime = true;
+    for (let d = 3; d * d <= p; d += 2) {
+      if (p % d === 0) {
+        isPrime = false;
+        break;
+      }
+    }
+    if (isPrime) {
+      product *= BigInt(p);
+    }
+  }
+  return product;
+})();
+
+// Reject RSA keys that a CCF service refuses to enroll. This applies the
+// deterministic part of the service's validation: the service also rejects a
+// modulus which is prime, or a power of a prime.
+function checkRsaPublicKey(key: jscrypto.KeyObject): void {
+  const jwk = key.export({ format: "jwk" });
+  if (!jwk.n || !jwk.e) {
+    throw new TypeError("Invalid did:key RSA public key");
+  }
+  const toBigInt = (value: string) =>
+    BigInt("0x" + Buffer.from(value, "base64url").toString("hex"));
+  const n = toBigInt(jwk.n);
+  const e = toBigInt(jwk.e);
+  let a = n;
+  let b = smallOddPrimesProduct;
+  while (b > 0n) {
+    [a, b] = [b, a % b];
+  }
+  if (e <= 1n || e % 2n === 0n || n % 2n === 0n || a !== 1n) {
+    throw new TypeError("Invalid did:key RSA public key");
+  }
+}
+
 function didKeyFromKey(key: jscrypto.KeyObject): string {
   let codec: number;
   let raw: Buffer;
@@ -69,6 +110,7 @@ function didKeyFromKey(key: jscrypto.KeyObject): string {
         "did:key RSA keys must be between 2048 and 16384 bits",
       );
     }
+    checkRsaPublicKey(key);
     codec = 0x1205;
     raw = key.export({ format: "der", type: "pkcs1" });
   } else {

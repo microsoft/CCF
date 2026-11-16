@@ -796,28 +796,46 @@ class Network:
                 members = {
                     member["memberId"]: member for member in r.body.json()["value"]
                 }
+                has_did_members = any(
+                    member_id.startswith("did:key:") for member_id in members
+                )
                 for f in os.listdir(self.common_dir):
                     match = re.fullmatch(r"(member[^_]*)_privk\.pem", f)
-                    if match is not None:
-                        local_id = match.group(1)
-                        cert_path = os.path.join(
-                            self.common_dir, f"{local_id}_cert.pem"
-                        )
-                        id_format = "sha256"
-                        service_id = (
-                            infra.crypto.identity_id_from_cert(slurp_file(cert_path))
-                            if os.path.isfile(cert_path)
-                            else None
-                        )
-                        if service_id not in members:
-                            id_format = "did:key"
-                            service_id = infra.crypto.did_key_from_private_key(
-                                slurp_file(os.path.join(self.common_dir, f))
+                    if match is None:
+                        continue
+                    local_id = match.group(1)
+                    cert_path = os.path.join(self.common_dir, f"{local_id}_cert.pem")
+                    # A key can be enrolled under both ID formats, as two
+                    # independent members with their own votes and shares
+                    enrollments = []
+                    if os.path.isfile(cert_path):
+                        enrollments.append(
+                            (
+                                "sha256",
+                                infra.crypto.identity_id_from_cert(
+                                    slurp_file(cert_path)
+                                ),
                             )
-                        if service_id not in members:
-                            raise ValueError(
-                                f"Member {local_id} is not enrolled in the recovered service"
+                        )
+                    if has_did_members:
+                        enrollments.append(
+                            (
+                                "did:key",
+                                infra.crypto.did_key_from_private_key(
+                                    slurp_file(os.path.join(self.common_dir, f))
+                                ),
                             )
+                        )
+                    enrollments = [
+                        (id_format, service_id)
+                        for id_format, service_id in enrollments
+                        if service_id in members
+                    ]
+                    if not enrollments:
+                        raise ValueError(
+                            f"Member {local_id} is not enrolled in the recovered service"
+                        )
+                    for id_format, service_id in enrollments:
                         member_info = members[service_id]
                         recovery_role = infra.member.RecoveryRole(
                             member_info["recoveryRole"]
