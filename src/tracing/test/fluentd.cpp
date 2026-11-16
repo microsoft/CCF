@@ -467,19 +467,26 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
         static_cast<ssize_t>(actual.size()));
       CHECK(actual == buffer);
     };
-  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
   check_event(
-    request_trace::empty_from_other_translation_unit, {{"function", "empty"}});
+    [] { request_trace::empty(); }, {{"function", "empty"}, {"lock_hold", 0}});
+  check_event(
+    request_trace::empty_from_other_translation_unit,
+    {{"function", "empty"}, {"lock_hold", 0}});
   check_event(
     [] { request_trace::single(request_trace::Nested{7, false}); },
-    {{"function", "single"}, {"value", {{"number", 7}, {"flag", false}}}});
+    {{"function", "single"},
+     {"lock_hold", 0},
+     {"value", {{"number", 7}, {"flag", false}}}});
   check_event(
     request_trace::single_from_other_translation_unit,
-    {{"function", "single"}, {"value", {{"number", 7}, {"flag", false}}}});
+    {{"function", "single"},
+     {"lock_hold", 0},
+     {"value", {{"number", 7}, {"flag", false}}}});
   int evaluations = 0;
   check_event(
     [&] { request_trace::request("/app/log", ++evaluations, false); },
     {{"function", "request"},
+     {"lock_hold", 0},
      {"path", "/app/log"},
      {"status", 1},
      {"cached", false}});
@@ -497,10 +504,26 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   ccf::tracing::emit("ccf.cft", "probe", request_trace::EncodingProbe{encoded});
   CHECK_FALSE(encoded);
   CHECK(ccf::tracing::event_buffer() == buffer_before_filtering);
-  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  check_event(
+    [] { request_trace::empty(); }, {{"function", "empty"}, {"lock_hold", 0}});
   CHECK(
     nlohmann::json::from_msgpack(ccf::tracing::event_buffer())[2]["h_ts"] ==
     sequence_before_filtering + 1);
+  // Each hold of a traced mutex is numbered in the events emitted in it
+  ccf::tracing::TracedMutex outer_mutex;
+  ccf::tracing::TracedMutex inner_mutex;
+  for (const auto hold : {1, 2})
+  {
+    std::lock_guard<ccf::tracing::TracedMutex> outer_guard(outer_mutex);
+    {
+      std::lock_guard<ccf::tracing::TracedMutex> inner_guard(inner_mutex);
+    }
+    check_event(
+      [] { request_trace::empty(); },
+      {{"function", "empty"}, {"lock_hold", hold}});
+  }
+  check_event(
+    [] { request_trace::empty(); }, {{"function", "empty"}, {"lock_hold", 0}});
 
   for (const auto level :
        {ccf::LoggerLevel::TRACE,
@@ -608,14 +631,16 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK_NOTHROW(request_trace::single(large_value));
   allocation_failure = 0;
   CHECK(Sink::dropped_count() == before_encoding_failure + 1);
-  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  check_event(
+    [] { request_trace::empty(); }, {{"function", "empty"}, {"lock_hold", 0}});
 
   const std::string oversized_value(
     ccf::tracing::SPSCQueue::MAX_RECORD_SIZE, 'x');
   const auto before_oversized = Sink::dropped_count();
   request_trace::single(oversized_value);
   CHECK(Sink::dropped_count() == before_oversized + 1);
-  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  check_event(
+    [] { request_trace::empty(); }, {{"function", "empty"}, {"lock_hold", 0}});
 
   std::thread second([&] {
     Sink::bind_producer(1);
@@ -646,7 +671,9 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
       static_cast<ssize_t>(received.size()));
     CHECK(received == bytes);
     CHECK(Sink::dropped_count() == drops_before_disconnect);
-    check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+    check_event(
+      [] { request_trace::empty(); },
+      {{"function", "empty"}, {"lock_hold", 0}});
   }
 
   const auto drops_before_allocation_failures = Sink::dropped_count();
@@ -667,7 +694,8 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     allocation_failure = 0;
   }
   CHECK(Sink::dropped_count() == drops_before_emission_failures + 2);
-  check_event([] { request_trace::empty(); }, {{"function", "empty"}});
+  check_event(
+    [] { request_trace::empty(); }, {{"function", "empty"}, {"lock_hold", 0}});
 
   stalled = true;
   std::array<uint8_t, 128> payload = {};

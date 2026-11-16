@@ -3,11 +3,11 @@
 #pragma once
 
 #include "ccf/crypto/verifier.h"
-#include "ccf/ds/locking.h"
 #include "ccf/tx_status.h"
 #include "consensus/aft/cft_types.h"
 #include "ds/internal_logger.h"
 #include "kv/kv_types.h"
+#include "tracing/traced_mutex.h"
 
 #include <atomic>
 #include <deque>
@@ -172,7 +172,7 @@ namespace aft
 
     State() = default;
 
-    ccf::ds::Mutex lock;
+    ccf::tracing::TracedMutex lock;
 
     ccf::NodeId node_id;
     ccf::View current_view = 0;
