@@ -191,6 +191,9 @@ namespace aft::trace
 {
   constexpr std::string_view cft_trace_tag = "ccf.cft";
 
+  // Besides state, an event carries the members of Aft (voted_for,
+  // votes_for_me, leader_id, is_new_follower, ticking) that its handling
+  // reads or writes, as they are when the event is traced.
   DECLARE_TRACE_EVENT(
     send_append_entries,
     cft_trace_tag,
@@ -208,36 +211,94 @@ namespace aft::trace
     match_idx,
     sent_idx);
   DECLARE_TRACE_EVENT(
-    recv_append_entries, cft_trace_tag, state, packet, from_node_id);
+    recv_append_entries,
+    cft_trace_tag,
+    state,
+    packet,
+    from_node_id,
+    leader_id,
+    is_new_follower);
   DECLARE_TRACE_EVENT(
-    execute_append_entries_sync, cft_trace_tag, state, from_node_id);
+    execute_append_entries_sync, cft_trace_tag, state, from_node_id, ticking);
   DECLARE_TRACE_EVENT(
     send_append_entries_response, cft_trace_tag, state, packet, to_node_id);
   DECLARE_TRACE_EVENT(
     send_request_vote, cft_trace_tag, state, packet, to_node_id);
   DECLARE_TRACE_EVENT(
     send_request_vote_response, cft_trace_tag, state, packet, to_node_id);
+  // Only a regular vote request reads voted_for and leader_id
   DECLARE_TRACE_EVENT(
     recv_request_vote, cft_trace_tag, state, packet, from_node_id);
   DECLARE_TRACE_EVENT(
-    recv_request_vote_response, cft_trace_tag, state, packet, from_node_id);
+    recv_request_vote,
+    cft_trace_tag,
+    state,
+    packet,
+    from_node_id,
+    voted_for,
+    leader_id);
   DECLARE_TRACE_EVENT(
-    recv_propose_request_vote, cft_trace_tag, state, packet, from_node_id);
-  DECLARE_TRACE_EVENT(tick, cft_trace_tag, state);
+    recv_request_vote_response,
+    cft_trace_tag,
+    state,
+    packet,
+    from_node_id,
+    votes_for_me);
   DECLARE_TRACE_EVENT(
-    become_pre_vote_candidate, cft_trace_tag, state, configurations);
-  DECLARE_TRACE_EVENT(become_candidate, cft_trace_tag, state, configurations);
-  DECLARE_TRACE_EVENT(become_leader, cft_trace_tag, state, configurations);
-  DECLARE_TRACE_EVENT(become_follower, cft_trace_tag, state, configurations);
+    recv_propose_request_vote,
+    cft_trace_tag,
+    state,
+    packet,
+    from_node_id,
+    ticking);
+  DECLARE_TRACE_EVENT(tick, cft_trace_tag, state, ticking);
+  DECLARE_TRACE_EVENT(
+    become_pre_vote_candidate,
+    cft_trace_tag,
+    state,
+    configurations,
+    votes_for_me,
+    leader_id);
+  DECLARE_TRACE_EVENT(
+    become_candidate,
+    cft_trace_tag,
+    state,
+    configurations,
+    voted_for,
+    votes_for_me,
+    leader_id);
+  DECLARE_TRACE_EVENT(
+    become_leader,
+    cft_trace_tag,
+    state,
+    configurations,
+    votes_for_me,
+    leader_id);
+  DECLARE_TRACE_EVENT(
+    become_follower,
+    cft_trace_tag,
+    state,
+    configurations,
+    voted_for,
+    votes_for_me,
+    leader_id,
+    is_new_follower);
   DECLARE_TRACE_EVENT(nomination, cft_trace_tag, state);
   DECLARE_TRACE_EVENT(
     step_down_and_nominate_successor,
     cft_trace_tag,
     state,
     configurations,
-    to_node_id);
+    to_node_id,
+    leader_id);
   DECLARE_TRACE_EVENT(
-    replicate_entry, cft_trace_tag, state, view, seqno, globally_committable);
+    replicate_entry,
+    cft_trace_tag,
+    state,
+    view,
+    seqno,
+    globally_committable,
+    ticking);
   DECLARE_TRACE_EVENT(
     retired_committed_tx, cft_trace_tag, node_id, seqno, retired_node_id);
   DECLARE_TRACE_EVENT(init_as_backup, cft_trace_tag, state, seqno, view);
@@ -245,7 +306,8 @@ namespace aft::trace
   DECLARE_TRACE_EVENT(replicate, cft_trace_tag, state);
   DECLARE_TRACE_EVENT(
     add_configuration, cft_trace_tag, state, configurations, idx, nodes, rid);
-  DECLARE_TRACE_EVENT(commit, cft_trace_tag, state, idx, configurations);
+  DECLARE_TRACE_EVENT(
+    commit, cft_trace_tag, state, idx, configurations, leader_id);
   DECLARE_TRACE_EVENT(
     drop_pending_to, cft_trace_tag, state, from_node_id, to_node_id, packet);
 }

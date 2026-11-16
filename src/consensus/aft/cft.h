@@ -691,7 +691,8 @@ namespace aft
           (globally_committable ? " committable" : ""),
           hooks->size());
 
-        trace::replicate_entry(*state, term, index, globally_committable);
+        trace::replicate_entry(
+          *state, term, index, globally_committable, ticking);
 
         for (auto& hook : *hooks)
         {
@@ -848,7 +849,7 @@ namespace aft
     void periodic(std::chrono::milliseconds elapsed) override
     {
       std::unique_lock<ccf::ds::Mutex> guard(state->lock);
-      trace::tick(*state);
+      trace::tick(*state, ticking);
       timeout_elapsed += elapsed;
 
       if (state->leadership_state.load() == ccf::kv::LeadershipState::Leader)
@@ -1118,7 +1119,8 @@ namespace aft
         r.idx,
         r.term);
 
-      trace::recv_append_entries(*state, r, from.value());
+      trace::recv_append_entries(
+        *state, r, from.value(), leader_id, is_new_follower);
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
@@ -1372,7 +1374,7 @@ namespace aft
         auto& [ds, i] = ae;
         CFT_DEBUG_FMT("Replicating on follower {}: {}", state->node_id, i);
 
-        trace::execute_append_entries_sync(*state, from.value());
+        trace::execute_append_entries_sync(*state, from.value(), ticking);
 
         bool track_deletes_on_missing_keys = false;
         ccf::kv::ApplyResult apply_success =
@@ -1791,7 +1793,7 @@ namespace aft
     {
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
-      trace::recv_request_vote(*state, r, from.value());
+      trace::recv_request_vote(*state, r, from.value(), voted_for, leader_id);
 
       recv_request_vote_unsafe(from, r, ElectionType::RegularVote);
     }
@@ -1857,7 +1859,7 @@ namespace aft
     {
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
-      trace::recv_request_vote_response(*state, r, from.value());
+      trace::recv_request_vote_response(*state, r, from.value(), votes_for_me);
 
       // Ignore if we don't recognise the node.
       auto node = all_other_nodes.find(from);
@@ -1980,7 +1982,7 @@ namespace aft
     {
       std::lock_guard<ccf::ds::Mutex> guard(state->lock);
 
-      trace::recv_propose_request_vote(*state, r, from.value());
+      trace::recv_propose_request_vote(*state, r, from.value(), ticking);
 
       if (!is_retired_committed() && ticking && r.term == state->current_view)
       {
@@ -2032,7 +2034,8 @@ namespace aft
         state->node_id,
         state->current_view);
 
-      trace::become_pre_vote_candidate(*state, configurations);
+      trace::become_pre_vote_candidate(
+        *state, configurations, votes_for_me, leader_id);
 
       add_vote_for_me(state->node_id);
 
@@ -2072,7 +2075,8 @@ namespace aft
       CFT_INFO_FMT(
         "Becoming candidate {}: {}", state->node_id, state->current_view);
 
-      trace::become_candidate(*state, configurations);
+      trace::become_candidate(
+        *state, configurations, voted_for, votes_for_me, leader_id);
 
       add_vote_for_me(state->node_id);
 
@@ -2122,7 +2126,7 @@ namespace aft
       CFT_INFO_FMT(
         "Becoming leader {}: {}", state->node_id, state->current_view);
 
-      trace::become_leader(*state, configurations);
+      trace::become_leader(*state, configurations, votes_for_me, leader_id);
 
       // Try to advance commit at once if there are no other nodes.
       if (other_nodes_in_active_configs().size() == 0)
@@ -2161,7 +2165,13 @@ namespace aft
         state->current_view,
         state->commit_idx);
 
-      trace::become_follower(*state, configurations);
+      trace::become_follower(
+        *state,
+        configurations,
+        voted_for,
+        votes_for_me,
+        leader_id,
+        is_new_follower);
     }
 
     // Called when a replica becomes aware of the existence of a new term
@@ -2523,7 +2533,7 @@ namespace aft
         return;
       }
 
-      trace::commit(*state, idx, configurations);
+      trace::commit(*state, idx, configurations, leader_id);
 
       compact_committable_indices(idx);
 
@@ -2719,7 +2729,7 @@ namespace aft
       if (successor.has_value())
       {
         trace::step_down_and_nominate_successor(
-          *state, configurations, successor.value().value());
+          *state, configurations, successor.value().value(), leader_id);
 
         send_propose_request_vote(successor.value());
       }

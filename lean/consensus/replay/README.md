@@ -31,6 +31,10 @@ done
 
 The scenario runner writes the raw records to `consensus/raw/`.
 The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `append_entries` and `request_vote`.
+Each event's `state` field is a snapshot of `aft::State`.
+Events whose code reads or writes the `aft::Aft` variables `voted_for`, `votes_for_me`, `leader_id`, `is_new_follower` or `ticking` also carry those variables as top-level fields next to `state`, with their values when the event is traced; [`cft_trace_msgpack.h`](../../../src/consensus/aft/cft_trace_msgpack.h) lists the fields of each event.
+`voted_for` and `leader_id` are a node ID or nil, and `votes_for_me` is an array, ordered by configuration index, of `{"idx", "quorum", "votes"}` maps whose `votes` lists the sorted IDs of the nodes that voted for this node in that configuration.
+Replay currently ignores these fields.
 
 ## Replay contract
 
