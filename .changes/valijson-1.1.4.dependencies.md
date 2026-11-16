@@ -1,0 +1,1 @@
+Update the exported Valijson headers from 1.1.3 to [1.1.4](https://github.com/tristanpenman/valijson/releases/tag/v1.1.4), adding JSON Schema `ipv6` and `hostname` format validation for C++ applications.

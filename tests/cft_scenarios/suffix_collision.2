@@ -1,12 +1,12 @@
 start_node,0
 assert_detail,0,leadership_state,Leader
-emit_signature,2
+replicate,2,$
 
 assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -14,7 +14,7 @@ dispatch_all
 assert_commit_idx,0,4
 
 trust_node,2,2
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -29,12 +29,12 @@ assert_detail,1,leadership_state,Follower
 assert_detail,2,leadership_state,Follower
 
 replicate,2,hello world
-emit_signature,2
+replicate,2,$
 periodic_all,10
 dispatch_all
 
 replicate,2,saluton mondo
-emit_signature,2
+replicate,2,$
 periodic_all,10
 dispatch_all
 
@@ -52,7 +52,7 @@ disconnect,0,2
 replicate,2,drop me 1
 replicate,2,drop me 2
 replicate,2,drop me 3
-emit_signature,2
+replicate,2,$
 periodic_all,10
 dispatch_all
 
@@ -69,12 +69,12 @@ state_all
 
 # Node 1 replicates new entries
 replicate,3,keep me 1
-emit_signature,3
+replicate,3,$
 periodic_all,10
 dispatch_all
 
 replicate,3,keep me 2
-emit_signature,3
+replicate,3,$
 periodic_all,10
 dispatch_all
 
@@ -88,7 +88,7 @@ periodic_all,10
 dispatch_all
 
 replicate,4,keep me term 4
-emit_signature,4
+replicate,4,$
 
 periodic_all,10
 dispatch_all
@@ -100,7 +100,7 @@ periodic_all,10
 dispatch_all
 
 replicate,5,keep me term 5
-emit_signature,5
+replicate,5,$
 
 periodic_all,10
 dispatch_all

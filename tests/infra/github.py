@@ -236,7 +236,7 @@ class GitEnv:
 class Repository:
     """
     Helper class to verify CCF operations compatibility described at
-    https://microsoft.github.io/CCF/main/build_apps/release_policy.html#operations-compatibility
+    https://microsoft.github.io/CCF/main/releases/release_policy.html#operations-compatibility
     """
 
     def __init__(self, env=None):

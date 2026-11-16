@@ -1,13 +1,13 @@
 # Set up 5 node network
 start_node,0
 assert_detail,0,leadership_state,Leader
-emit_signature,2
+replicate,2,$
 
 assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_nodes,2,1,2,3,4
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 
@@ -28,9 +28,9 @@ disconnect_node,4
 
 # Node 0 produces a suffix
 replicate,2,hello
-emit_signature,2
+replicate,2,$
 replicate,2,world
-emit_signature,2
+replicate,2,$
 
 # Node 0 shares this suffix with 1
 periodic_one,0,10
@@ -70,7 +70,7 @@ dispatch_single,2,0
 assert_detail,0,leadership_state,Leader
 
 # Node 0 emits a fresh signature, so that they can advance commit
-emit_signature,4
+replicate,4,$
 
 # Node 0 sends heartbeats
 periodic_one,0,10

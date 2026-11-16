@@ -94,15 +94,16 @@ namespace ccf
 
     /// Re-issues the ML-DSA certificate with the service certificate's
     /// subject; nullopt without an ML-DSA key.
-    std::optional<ccf::crypto::Pem> renew_pq_certificate(
-      const std::string& valid_from, size_t validity_period_days)
+    [[nodiscard]] std::optional<ccf::crypto::Pem> renew_pq_certificate(
+      const std::string& valid_from, size_t validity_period_days) const
     {
-      if (!pq_priv_key.has_value())
+      const auto key_pair = get_pq_key_pair();
+      if (key_pair == nullptr)
       {
         return std::nullopt;
       }
       return ccf::crypto::create_self_signed_cert(
-        ccf::crypto::make_mldsa_key_pair(pq_priv_key.value()),
+        key_pair,
         ccf::crypto::make_verifier(cert)->subject_der(),
         {} /* SAN */,
         valid_from,
@@ -122,6 +123,16 @@ namespace ccf
     std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> get_key_pair()
     {
       return std::make_shared<ccf::crypto::ECKeyPair_OpenSSL>(priv_key);
+    }
+
+    /// The ML-DSA service key, or nullptr for a classical-only service.
+    [[nodiscard]] ccf::crypto::MLDSAKeyPairPtr get_pq_key_pair() const
+    {
+      if (!pq_priv_key.has_value())
+      {
+        return nullptr;
+      }
+      return ccf::crypto::make_mldsa_key_pair(pq_priv_key.value());
     }
 
   private:

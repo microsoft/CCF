@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/cose_key.h"
 #include "ccf/crypto/ecdsa.h"
+#include "ccf/crypto/openssl/cose_key.h"
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/ec_public_key.h"
 #include "crypto/openssl/eddsa_public_key.h"
@@ -267,7 +268,20 @@ namespace
       throw std::invalid_argument(
         fmt::format("Failed to parse certificate: {}", OpenSSL::first_error()));
     }
-    EVP_PKEY* public_key = X509_get_pubkey(cert);
+    return OpenSSL::cose_key_from_x509(cert);
+  }
+}
+
+namespace ccf::crypto
+{
+  COSEKey OpenSSL::cose_key_from_x509(const X509* cert)
+  {
+    if (cert == nullptr)
+    {
+      throw std::invalid_argument("No certificate");
+    }
+    // As X509_get_pubkey(), which does not accept a const certificate
+    EVP_PKEY* public_key = X509_PUBKEY_get(X509_get_X509_PUBKEY(cert));
     if (public_key == nullptr)
     {
       throw std::invalid_argument(fmt::format(
@@ -283,10 +297,7 @@ namespace
       throw std::invalid_argument(error.what());
     }
   }
-}
 
-namespace ccf::crypto
-{
   COSEKey cose_key_from_der_cert(std::span<const uint8_t> der)
   {
     return cose_key_from_certificate(der, CertificateFormat::DER);

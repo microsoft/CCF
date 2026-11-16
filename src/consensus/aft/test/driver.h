@@ -135,7 +135,29 @@ private:
     }
     const auto& [term, node_id] = *opt;
     auto& cft = _nodes.at(node_id).cft;
-    const auto idx = cft->get_last_idx() + 1;
+    cft->replicate(
+      ccf::kv::BatchVector{make_entry(
+        node_id,
+        cft->get_last_idx() + 1,
+        term_s,
+        std::move(data),
+        committable,
+        configuration,
+        retired_committed)},
+      term);
+  }
+
+  ccf::kv::BatchVector::value_type make_entry(
+    const ccf::NodeId& node_id,
+    aft::Index idx,
+    const std::string& term_s,
+    std::vector<uint8_t> data,
+    bool committable = false,
+    const std::optional<ccf::kv::Configuration::Nodes>& configuration =
+      std::nullopt,
+    const std::optional<ccf::kv::Configuration::Nodes>& retired_committed =
+      std::nullopt)
+  {
     CFT_DRIVER_PRINT(
       "{}->>{}: replicate {}.{} = {} [{}]",
       node_id,
@@ -172,11 +194,8 @@ private:
       // necessary to emulate the global commit hook effectively.
       _nodes.at(node_id).kv->retired_committed_entries.emplace_back(
         idx, retired_committed.value());
-      for (const auto& [retired_node_id, _] : retired_committed.value())
-      {
-        aft::trace::retired_committed_tx(
-          node_id.value(), idx, retired_node_id.value());
-      }
+      hooks->push_back(std::make_unique<aft::RetiredCommittedHook>(
+        retired_committed.value(), idx));
 
       type = aft::ReplicatedDataType::retired_committed;
       auto c = nlohmann::json(retired_committed).dump();
@@ -185,10 +204,12 @@ private:
 
     auto s = nlohmann::json(aft::ReplicatedData{type, data}).dump();
     auto d = std::make_shared<std::vector<uint8_t>>(s.begin(), s.end());
-    cft->replicate(ccf::kv::BatchVector{{idx, d, committable, hooks}}, term);
+    return {idx, d, committable, hooks};
   }
 
-  void add_node(ccf::NodeId node_id)
+  // A joining node starts as a follower with an empty ledger, like a real
+  // node joining without a snapshot.
+  void add_node(ccf::NodeId node_id, bool joining = true)
   {
     auto kv = std::make_shared<Store>(node_id);
     const ccf::consensus::Configuration settings{{"10ms"}, {"100ms"}};
@@ -203,6 +224,10 @@ private:
       [cft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
         cft->set_retired_committed(idx, node_ids);
       });
+    if (joining)
+    {
+      cft->init_as_backup(0, 0, {});
+    }
     cft->start_ticking();
 
     if (_nodes.find(node_id) != _nodes.end())
@@ -224,7 +249,7 @@ public:
     ccf::kv::Configuration::Nodes configuration;
     for (auto const& n : node_ids)
     {
-      add_node(n);
+      add_node(n, false);
       configuration.try_emplace(n);
     }
 
@@ -250,7 +275,7 @@ public:
       throw std::logic_error("Start node already exists");
     }
     ccf::kv::Configuration::Nodes configuration;
-    add_node(start_node_id);
+    add_node(start_node_id, false);
     configuration.try_emplace(start_node_id);
     _nodes.at(start_node_id).cft->force_become_primary();
     _replicate("2", {}, lineno, false, configuration);
@@ -957,19 +982,37 @@ public:
       fmt::format("Found no primary in term {} on line {}", term_s, lineno));
   }
 
+  // Replicates the entries in one batch: "$" is a signature, anything else a
+  // transaction with that data
   void replicate(
     const std::string& term_s,
-    std::shared_ptr<std::vector<uint8_t>> data,
+    const std::vector<std::string>& entries,
     const size_t lineno)
   {
-    _replicate(term_s, *data, lineno);
-  }
-
-  void emit_signature(const std::string& term_s, const size_t lineno)
-  {
-    std::string sig_s = "signature";
-    std::vector<uint8_t> sig(sig_s.data(), sig_s.data() + sig_s.size());
-    _replicate(term_s, sig, lineno, true);
+    const auto opt = find_primary_in_term(term_s, lineno);
+    if (!opt.has_value())
+    {
+      CFT_DRIVER_PRINT(
+        "Note left of {}: No primary to replicate {} entries",
+        _nodes.begin()->first,
+        entries.size());
+      return;
+    }
+    const auto& [term, node_id] = *opt;
+    auto& cft = _nodes.at(node_id).cft;
+    ccf::kv::BatchVector batch;
+    for (const auto& entry : entries)
+    {
+      const bool signature = entry == "$";
+      const std::string data_s = signature ? "signature" : entry;
+      batch.push_back(make_entry(
+        node_id,
+        cft->get_last_idx() + 1 + batch.size(),
+        term_s,
+        {data_s.begin(), data_s.end()},
+        signature));
+    }
+    cft->replicate(batch, term);
   }
 
   void disconnect(ccf::NodeId left, ccf::NodeId right)
@@ -1198,7 +1241,7 @@ public:
     }
 
     // Emit a fresh signature on that primary (so that they can advance commit)
-    emit_signature(std::to_string(term), lineno);
+    replicate(std::to_string(term), {"$"}, lineno);
 
     // Reconnect all nodes
     for (const auto& [node_id, _] : nodes)

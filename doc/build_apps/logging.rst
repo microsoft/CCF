@@ -37,7 +37,7 @@ These logging functions do several things:
 - Prefix formatted metadata. The produced log line will include a timestamp, the name and line number where the line was produced, and an ``[app]`` tag
 - Write directly to stdout through the framework logger
 
-CCF bundles the header-only C++ interface from `fmt 12.2.0 <https://github.com/fmtlib/fmt/releases/tag/12.2.0>`_.
+CCF bundles the header-only C++ interface from `fmt 12.2.1 <https://github.com/fmtlib/fmt/releases/tag/12.2.1>`_.
 Applications using fmt directly should include ``<fmt/format.h>`` for ``fmt::format`` rather than relying on ``<fmt/core.h>`` to include it, and ``<fmt/std.h>`` for ``std::byte`` formatting.
 The ``CCF_APP_*`` logging macros remain available through ``ccf/ds/logger.h``.
 

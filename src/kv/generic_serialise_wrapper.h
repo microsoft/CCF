@@ -455,6 +455,37 @@ namespace ccf::kv
       EntryFlags& flags,
       bool historical_hint) override
     {
+      return init_internal(data, size, term, flags, historical_hint, nullptr);
+    }
+
+    /** As init(), but decrypts the private domain in place, overwriting the
+     * ciphertext in data, rather than into a separate buffer. data must
+     * outlive this deserialiser, and is unspecified if this fails.
+     */
+    std::optional<Version> init_in_place(
+      uint8_t* data,
+      size_t size,
+      ccf::kv::Term& term,
+      EntryFlags& flags,
+      bool historical_hint)
+    {
+      return init_internal(data, size, term, flags, historical_hint, data);
+    }
+
+  private:
+    // mutable_data is either nullptr or data, writable
+    std::optional<Version> init_internal(
+      const uint8_t* data,
+      size_t size,
+      ccf::kv::Term& term,
+      EntryFlags& flags,
+      bool historical_hint,
+      uint8_t* mutable_data)
+    {
+      CCF_ASSERT_FMT(
+        mutable_data == nullptr || mutable_data == data,
+        "Entry deserialised in place must be in the given writable buffer");
+
       current_reader = &public_reader;
       const auto* data_ = data;
       auto size_ = size;
@@ -528,12 +559,31 @@ namespace ccf::kv
       }
 
       serialized::skip(data_, size_, public_domain_length);
-      decrypted_buffer.resize(size_);
+
+      const auto aad =
+        std::span<const uint8_t>(data_public, public_domain_length);
+      const auto gcm_hdr = std::span<const uint8_t>(
+        gcm_hdr_data, crypto_util->get_header_length());
+
+      if (mutable_data != nullptr)
+      {
+        // The rest of the entry, writable
+        const auto private_domain =
+          std::span<uint8_t>(mutable_data, size)
+            .subspan(static_cast<size_t>(data_ - data));
+        if (!crypto_util->decrypt_in_place(
+              private_domain, aad, gcm_hdr, version, term, historical_hint))
+        {
+          return std::nullopt;
+        }
+        private_reader.init(private_domain);
+        return version;
+      }
 
       if (!crypto_util->decrypt(
-            {data_, data_ + size_},
-            {data_public, data_public + public_domain_length},
-            {gcm_hdr_data, gcm_hdr_data + crypto_util->get_header_length()},
+            std::span<const uint8_t>(data_, size_),
+            aad,
+            gcm_hdr,
             decrypted_buffer,
             version,
             term,
@@ -546,6 +596,7 @@ namespace ccf::kv
       return version;
     }
 
+  public:
     std::optional<std::string> start_map() override
     {
       if (current_reader->is_eos())
@@ -595,6 +646,11 @@ namespace ccf::kv
     std::vector<uint8_t> deserialise_raw() override
     {
       return current_reader->template read_next<std::vector<uint8_t>>();
+    }
+
+    std::span<const uint8_t> deserialise_raw_span() override
+    {
+      return current_reader->read_next_span();
     }
 
     std::vector<Version> deserialise_view_history() override

@@ -1,13 +1,13 @@
 # Start a 5-node network
 start_node,0
 assert_detail,0,leadership_state,Leader
-emit_signature,2
+replicate,2,$
 
 assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_nodes,2,1,2,3,4
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -21,9 +21,9 @@ assert_state_sync
 state_all
 
 # Node 0 produces an unshared suffix
-emit_signature,2
-emit_signature,2
-emit_signature,2
+replicate,2,$
+replicate,2,$
+replicate,2,$
 
 # Node 1 calls and wins an election
 periodic_one,1,100
@@ -40,9 +40,9 @@ dispatch_single,3,1
 assert_detail,1,leadership_state,Leader
 
 # Node 1 produces a conflicting suffix
-emit_signature,3
-emit_signature,3
-emit_signature,3
+replicate,3,$
+replicate,3,$
+replicate,3,$
 
 # Node 1 tries to share this
 periodic_one,1,10
@@ -86,8 +86,8 @@ dispatch_one,2
 dispatch_single,0,2
 
 # Node 2 extends this suffix, shares it with node 0
-emit_signature,4
-emit_signature,4
+replicate,4,$
+replicate,4,$
 periodic_one,2,10
 dispatch_single,2,0
 
@@ -108,8 +108,8 @@ assert_detail,1,leadership_state,Leader
 drop_pending,1
 
 # Node 1 creates an alternative branch from 2's recent suffix
-emit_signature,5
-emit_signature,5
+replicate,5,$
+replicate,5,$
 
 # Node 1 shares this with 3, so that it is only needs 1 more ACK to advance commit
 periodic_one,1,10

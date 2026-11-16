@@ -166,6 +166,30 @@ namespace ccf
     }
   };
 
+  // Encodes the inclusion proof carried by a COSE receipt, for the leaf with
+  // these components and its path in a HistoryTree
+  static inline std::vector<uint8_t> encode_merkle_proof(
+    const ccf::crypto::Sha256Hash& write_set_digest,
+    const std::string& commit_evidence,
+    const ccf::crypto::Sha256Hash& claims_digest,
+    const HistoryTree::Path& path)
+  {
+    cose::MerkleProof proof;
+    proof.leaf.write_set_digest.assign(
+      write_set_digest.h.begin(), write_set_digest.h.end());
+    proof.leaf.commit_evidence = commit_evidence;
+    proof.leaf.claims_digest.assign(
+      claims_digest.h.begin(), claims_digest.h.end());
+    for (const auto& element : path)
+    {
+      proof.path.emplace_back(
+        element.direction == HistoryTree::Path::Direction::PATH_LEFT ? 1 : 0,
+        std::vector<uint8_t>(
+          element.hash.bytes, element.hash.bytes + element.hash.size()));
+    }
+    return cose::encode_merkle_proof(proof);
+  }
+
   template <class T>
   class MerkleTreeHistoryPendingTx : public ccf::kv::PendingTx
   {
@@ -416,6 +440,8 @@ namespace ccf
     struct ServiceSigningIdentity
     {
       const std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp;
+      // nullptr for a service without an ML-DSA identity
+      const ccf::crypto::MLDSAKeyPairPtr pq_service_kp;
       const ccf::COSESignaturesConfig cose_signatures_config;
       const ccf::LedgerSignMode ledger_sign_mode = ccf::LedgerSignMode::Dual;
     };
@@ -444,6 +470,7 @@ namespace ccf
 
     void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::ECKeyPair_OpenSSL> service_kp_,
+      ccf::crypto::MLDSAKeyPairPtr pq_service_kp_,
       const ccf::COSESignaturesConfig& cose_signatures_config_) override
     {
       if (signing_identity.has_value())
@@ -454,15 +481,26 @@ namespace ccf
 
       const auto ledger_sign_mode_ = ccf::get_ledger_sign_mode();
 
+      std::string pq_key_description = "none";
+      if (pq_service_kp_ != nullptr)
+      {
+        pq_key_description =
+          nlohmann::json(pq_service_kp_->get_parameter_set()).dump();
+      }
+
       signing_identity.emplace(ServiceSigningIdentity{
-        service_kp_, cose_signatures_config_, ledger_sign_mode_});
+        service_kp_,
+        pq_service_kp_,
+        cose_signatures_config_,
+        ledger_sign_mode_});
 
       LOG_INFO_FMT(
         "Setting service signing identity to iss: {} sub: {}. Ledger "
-        "signature mode: {}",
+        "signature mode: {}. ML-DSA key: {}",
         cose_signatures_config_.issuer,
         cose_signatures_config_.subject,
-        nlohmann::json(ledger_sign_mode_).dump());
+        nlohmann::json(ledger_sign_mode_).dump(),
+        pq_key_description);
     }
 
     const ccf::COSESignaturesConfig& get_cose_signatures_config() override
@@ -646,8 +684,20 @@ namespace ccf
         cose_sig.has_value() && cose_sig_version.has_value() &&
         cose_sig_version.value() == version)
       {
-        const auto service_signing_identity =
-          ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL);
+        std::optional<ccf::Identity> service_signing_identity;
+        try
+        {
+          service_signing_identity =
+            ccf::get_service_signing_identity(tx, ccf::IdentityType::CLASSICAL);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT(
+            "Cannot determine the service signing identity to verify the "
+            "signature: {}",
+            e.what());
+          return false;
+        }
         if (!service_signing_identity.has_value())
         {
           LOG_FAIL_FMT(

@@ -131,10 +131,7 @@ namespace aft
     }
   };
 
-  // std::atomic is neither copyable nor movable, so it cannot be a field of a
-  // type declared with the DECLARE_JSON_* macros, which round-trip each field
-  // by value. This wrapper restores value semantics for serialisation while
-  // keeping every access to the underlying value atomic.
+  // Copyable leadership state with atomic reads and writes.
   class AtomicLeadershipState
   {
     std::atomic<ccf::kv::LeadershipState> value;
@@ -168,16 +165,6 @@ namespace aft
       value.store(value_, std::memory_order_release);
     }
   };
-
-  inline void to_json(nlohmann::json& j, const AtomicLeadershipState& state)
-  {
-    j = state.load();
-  }
-
-  inline void from_json(const nlohmann::json& j, AtomicLeadershipState& state)
-  {
-    state.store(j.get<ccf::kv::LeadershipState>());
-  }
 
   struct State
   {
@@ -231,19 +218,4 @@ namespace aft
     std::optional<ccf::SeqNo> retired_committed_idx = std::nullopt;
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    State,
-    node_id,
-    current_view,
-    last_idx,
-    commit_idx,
-    leadership_state,
-    membership_state);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    State,
-    retirement_phase,
-    retirement_idx,
-    retirement_committable_idx,
-    retired_committed_idx);
 }

@@ -8,6 +8,8 @@
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
+#include "ccf/crypto/openssl/cose_key.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
@@ -1186,6 +1188,13 @@ TEST_CASE("CCF receipt proof schema and mixed proofs")
   }
 }
 
+static ccf::crypto::OpenSSL::Unique_X509 parse_der_cert(
+  const std::vector<uint8_t>& der)
+{
+  ccf::crypto::OpenSSL::Unique_BIO bio(der);
+  return {bio, false, true};
+}
+
 TEST_CASE("COSE verifier imports public keys and certificates")
 {
   // Generate a fresh key pair and self-signed certificate.
@@ -1234,6 +1243,25 @@ TEST_CASE("COSE verifier imports public keys and certificates")
     verifier = ccf::crypto::make_cose_verifier_from_key(
       ccf::crypto::COSEKey::from_der_cert(cert_der));
     CHECK(verifier->verify(envelope, authned));
+  }
+
+  SUBCASE("parsed certificate")
+  {
+    auto cert = parse_der_cert(cert_der);
+    const auto key = ccf::crypto::OpenSSL::cose_key_from_x509(cert);
+    CHECK(
+      key.thumbprint_sha256() ==
+      ccf::crypto::COSEKey::from_der_cert(cert_der).thumbprint_sha256());
+    // The key does not depend on the certificate that it was taken from
+    cert.reset(nullptr);
+    std::span<uint8_t> authned;
+    CHECK(
+      ccf::crypto::make_cose_verifier_from_key(key)->verify(envelope, authned));
+
+    CHECK_THROWS_WITH_AS(
+      std::ignore = ccf::crypto::OpenSSL::cose_key_from_x509(nullptr),
+      "No certificate",
+      std::invalid_argument);
   }
 
   SUBCASE("DER public key bytes")
@@ -1298,6 +1326,10 @@ TEST_CASE("COSE verifier imports public keys and certificates")
           ccf::crypto::cert_pem_to_der(unsupported_cert)),
         std::invalid_argument);
       CHECK_THROWS_AS(
+        std::ignore = ccf::crypto::OpenSSL::cose_key_from_x509(
+          parse_der_cert(ccf::crypto::cert_pem_to_der(unsupported_cert))),
+        std::invalid_argument);
+      CHECK_THROWS_AS(
         ccf::crypto::make_cose_verifier_from_key(subject_key),
         std::runtime_error);
     }
@@ -1317,6 +1349,10 @@ TEST_CASE("COSE verifier imports public keys and certificates")
     const auto weak_cert_der = ccf::crypto::cert_pem_to_der(weak_cert);
     CHECK_THROWS_AS(
       std::ignore = ccf::crypto::COSEKey::from_der_cert(weak_cert_der),
+      std::invalid_argument);
+    CHECK_THROWS_AS(
+      std::ignore =
+        ccf::crypto::OpenSSL::cose_key_from_x509(parse_der_cert(weak_cert_der)),
       std::invalid_argument);
     CHECK_THROWS_AS(
       ccf::crypto::make_cose_verifier_from_der_cert(weak_cert_der),
@@ -1344,6 +1380,11 @@ TEST_CASE("COSE verifier imports public keys and certificates")
       std::invalid_argument);
     CHECK_THROWS_AS(
       std::ignore = ccf::crypto::COSEKey::from_der_cert(invalid_der),
+      std::invalid_argument);
+    CHECK_THROWS_WITH_AS(
+      std::ignore =
+        ccf::crypto::OpenSSL::cose_key_from_x509(parse_der_cert(invalid_der)),
+      doctest::Contains("Failed to get certificate public key"),
       std::invalid_argument);
   }
 

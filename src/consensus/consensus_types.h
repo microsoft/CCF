@@ -14,16 +14,6 @@ namespace consensus
 {
 #pragma pack(push, 1)
 
-  template <typename T>
-  struct ConsensusHeader
-  {
-    ConsensusHeader() = default;
-
-    ConsensusHeader(T msg_) : msg(msg_) {}
-
-    T msg;
-  };
-
   struct AppendEntriesIndex
   {
     ccf::SeqNo idx;

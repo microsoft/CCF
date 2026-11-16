@@ -3,11 +3,18 @@ Install CCF
 
 .. tip:: The `ccf-app-template <https://github.com/microsoft/ccf-app-template>`_ repository can be used to quickly setup the environment necessary to build CCF apps.
 
-Quickstart
-----------
+Installing a Release
+--------------------
 
-CCF builds and runs on Linux. It is primarily developed and tested on `Azure Linux 3.0 <https://github.com/microsoft/azurelinux>`_.
-To build a CCF application, installing the `ccf_devel` RPM package is sufficient. This package contains the libraries and headers required to build CCF applications.
+CCF builds and runs on Linux.
+It is primarily developed and tested on `Azure Linux 3.0 <https://github.com/microsoft/azurelinux>`_.
+
+The same ``ccf_devel`` RPM package is used both to build and to run CCF applications:
+
+- Application developers use the libraries, headers and CMake files it contains to build C++ and Rust applications, and its ``sandbox.sh`` script to run them locally (see :doc:`/build_apps/run_app`).
+- Operators use it to run CCF nodes.
+  It contains the ``js_generic`` application, which hosts :doc:`JavaScript application bundles </build_apps/js_app_bundle>`, along with its runtime dependencies.
+  Native applications can instead be distributed as their own packages, which declare the system libraries CCF requires at runtime, so that ``ccf_devel`` does not need to be installed on the nodes (see :ref:`build_apps/example_cpp:Packaging`).
 
 CCF releases are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_. They can be installed as follows:
 
@@ -20,7 +27,7 @@ CCF releases are available on the `GitHub repository release page <https://githu
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_devel_${CCF_VERSION}_x86_64.rpm
     $ sudo tdnf install ./ccf_devel_${CCF_VERSION}_x86_64.rpm
 
-The following commands can be run to verify that CCF was installed successfully:
+The following command can be run to verify that CCF was installed successfully:
 
 .. code-block:: bash
 
@@ -30,6 +37,8 @@ The following commands can be run to verify that CCF was installed successfully:
 
 .. note:: The platform is detected at runtime rather than selected at build or install time.
     On machines without AMD SEV-SNP support, this reports ``Platform: Virtual``, the :doc:`Insecure Virtual </operations/platforms/virtual>` platform, which provides no security guarantees and is for development only.
+
+Application developers can then start a local sandbox network running the sample JavaScript logging application:
 
 .. code-block:: bash
 

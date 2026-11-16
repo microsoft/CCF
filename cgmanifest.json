@@ -46,8 +46,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "1be298e1bd68957e4cd352e1f676f00e07dcfb57",
-          "tag": "12.2.0"
+          "commitHash": "208219daff58f2a7438f6931cc2ddc358acf33ef",
+          "tag": "12.2.1"
         }
       }
     },
@@ -96,8 +96,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "5eac4b66f20b2c189ae40281c29e71cf39a958ec",
-          "tag": "v1.1.3"
+          "commitHash": "de232f2ac3798a3c8b2cc5f3b7ebf737e1c0dbd1",
+          "tag": "v1.1.4"
         }
       }
     },
@@ -106,8 +106,8 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/didx509cpp",
-          "commitHash": "21304177762d71a1ee1b6632d73a3547a7b82666",
-          "tag": "didx509cpp-1.0.0"
+          "commitHash": "a56f00fa5f861cfc763899c758f2f955da60b22d",
+          "tag": "didx509cpp-1.0.1"
         }
       }
     },

@@ -1,7 +1,7 @@
 start_node,0
-emit_signature,2
+replicate,2,$
 swap_nodes,2,in,1,2
-emit_signature,2
+replicate,2,$
 
 periodic_one,0,10
 dispatch_all
@@ -68,7 +68,7 @@ assert_commit_idx,2,4
 assert_detail,2,current_view,3
 
 # PreVotes can be denied if they are from an older log
-emit_signature,3
+replicate,3,$
 periodic_one,1,10
 dispatch_single,1,2
 

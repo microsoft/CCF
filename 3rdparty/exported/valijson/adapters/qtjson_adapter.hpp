@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <cmath>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -337,12 +339,12 @@ public:
 
     bool getInteger(int64_t &result) const
     {
-        if (m_value.isDouble()) {
-            result = m_value.toInt();
-            return true;
+        if (!isInteger()) {
+            return false;
         }
 
-        return false;
+        result = static_cast<int64_t>(m_value.toDouble());
+        return true;
     }
 
     /**
@@ -417,8 +419,18 @@ public:
 
     bool isInteger() const
     {
-        //toInt returns the default value (0, 1) if the value is not a whole number
-        return m_value.isDouble() && (m_value.toInt(0) == m_value.toInt(1));
+        if (!m_value.isDouble()) {
+            return false;
+        }
+
+        // Casting a double outside int64_t's range is undefined behaviour,
+        // so range-check in floating point first.
+        // TODO: Replace this with toInteger() when deprecating Qt 5 support
+        const double value = m_value.toDouble();
+        return std::isfinite(value) &&
+                value >= static_cast<double>(std::numeric_limits<int64_t>::min()) &&
+                value <= static_cast<double>(std::numeric_limits<int64_t>::max()) &&
+                std::floor(value) == value;
     }
 
     bool isNull() const

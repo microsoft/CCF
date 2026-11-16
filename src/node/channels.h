@@ -106,11 +106,6 @@ namespace ccf
     uint64_t nonce : (sizeof(MsgNonce) - sizeof(tid)) * CHAR_BIT;
 
     WireNonce(uint64_t nonce_) : nonce(nonce_) {}
-
-    [[nodiscard]] uint64_t get_val() const
-    {
-      return *reinterpret_cast<const uint64_t*>(this);
-    }
   };
 
   static_assert(

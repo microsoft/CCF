@@ -1,9 +1,9 @@
 # Queue the messages produced by replication, elections, and nomination, then
 # render their compact labels for scenario diagnostics.
 start_node,0
-emit_signature,2
+replicate,2,$
 trust_nodes,2,1,2
-emit_signature,2
+replicate,2,$
 dispatch_all
 periodic_all,10
 dispatch_all

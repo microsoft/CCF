@@ -2,9 +2,9 @@
 # and uncommitted. It wins a new-term election with quorums from both active
 # configurations, rolls back the abandoned reconfiguration, and becomes active.
 start_node,0
-emit_signature,2
+replicate,2,$
 trust_nodes,2,1,2
-emit_signature,2
+replicate,2,$
 dispatch_all
 periodic_all,10
 dispatch_all

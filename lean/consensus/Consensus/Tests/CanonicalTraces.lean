@@ -10,6 +10,7 @@ namespace Consensus.Tests.CanonicalTraces
 
 open Consensus Consensus.Model.Node
 open Consensus.Model (initialNodeState BOOTSTRAP_TERM)
+open CCF (Finset)
 open CCF.MultiNodeTransitionSystem (nodeState)
 
 private inductive Action where
@@ -131,13 +132,21 @@ private def reconfigureElectAndCommit : IO Unit := do
   for node in [1, 2] do
     checkLedger "reconfiguration before delivery" state node [] 0
 
-  -- New-peer heartbeats start at the old ledger end; NACKs enable full replication.
+  -- Node 1 joins without a snapshot, and node 2 from node 0's committed signature.
+  let state ←
+    runTrace "join" {0} nodes state
+      [.local 1 (.initAsBackup []), .local 2 (.initAsBackup (expected.take 3))]
+  checkLedger "join" state 1 [] 0
+  checkLedger "join" state 2 (expected.take 3) 3
+
+  -- New-peer heartbeats start at the old ledger end, where node 2's snapshot ends;
+  -- node 1's NACK enables full replication.
   let state ←
     runTrace "initial setup delivery" {0} nodes state
       [.deliver 0 1, .deliver 1 0, .deliver 0 2, .deliver 2 0]
   checkLedger "initial setup delivery" state 0 expected 3
-  for node in [1, 2] do
-    checkLedger "initial setup delivery" state node [] 0
+  checkLedger "initial setup delivery" state 1 [] 0
+  checkLedger "initial setup delivery" state 2 (expected.take 3) 3
 
   let state ←
     runTrace "replication" {0} nodes state

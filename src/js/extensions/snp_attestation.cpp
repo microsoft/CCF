@@ -30,11 +30,6 @@ namespace ccf::js::extensions
       return data_hex.take();
     }
 
-    JSValue JS_NewArrayBuffer2(JSContext* ctx, std::span<const uint8_t> data)
-    {
-      return JS_NewArrayBufferCopy(ctx, data.data(), data.size());
-    }
-
     JSValue js_verify_snp_attestation(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {

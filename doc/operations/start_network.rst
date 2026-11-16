@@ -25,7 +25,9 @@ The unique identifier of a CCF node is the hex-encoded string of the SHA-256 dig
 
 CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported; see :ref:`operations/configuration:IPv6 Addresses` for the bracketed ``[host]:port`` form required for IPv6 literals) or by specifying a fully qualified domain name. If an FQDN is used then a ``dNSName`` subject alternative name should be specified as part of the ``node_certificate.subject_alt_names`` configuration entry. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 
-When starting up, the node generates its own key pair and outputs the unendorsed certificate associated with its public key at the location specified by the ``node_certificate_file`` configuration entry. The certificate of the freshly-created CCF network is also output at the location specified by the ``service_certificate_file`` configuration entry.
+When starting up, the node generates its own key pair and outputs the unendorsed certificate associated with its public key at the location specified by the ``node_certificate_file`` configuration entry.
+The certificate of the freshly-created CCF network is also output at the location specified by the ``service_certificate_file`` configuration entry.
+Nodes with an ML-DSA service identity also output their :doc:`ML-DSA service certificate </operations/certificates>` at the location specified by ``command.pq_service_certificate_file``.
 
 .. note:: The service certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using ``curl``, this is passed as the ``--cacert`` argument.
 

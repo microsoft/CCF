@@ -426,15 +426,43 @@ namespace ccf::kv::untyped
       }
     };
 
-    ChangeSetPtr deserialise_snapshot_changes(KvStoreDeserialiser& d)
+    // A map's version and serialised state, as read from a snapshot. The state
+    // views the deserialiser's input, so is only valid while that is.
+    struct SnapshotEntry
+    {
+      Version version;
+      std::span<const uint8_t> serialised_state;
+    };
+
+    // Reads this map's entry from a snapshot, without deserialising its state
+    SnapshotEntry read_snapshot_entry(KvStoreDeserialiser& d)
     {
       KV_TRACE(trace::unsupported(get_store(), "map snapshot import"));
-      // Create a new empty change set, deserialising d's contents into it.
-      auto v = d.deserialise_entry_version();
-      auto map_snapshot = d.deserialise_raw();
+      const auto version = d.deserialise_entry_version();
+      // The map's serialised state may be as large as the snapshot, so it is
+      // parsed in place rather than copied
+      return {version, d.deserialise_raw_span()};
+    }
 
-      return std::make_unique<SnapshotChangeSet>(
-        deserialize_map_snapshot(map_snapshot), v);
+    ChangeSetPtr deserialise_snapshot_changes(KvStoreDeserialiser& d)
+    {
+      // Create a new empty change set, deserialising d's contents into it.
+      const auto entry = read_snapshot_entry(d);
+      return make_snapshot_changes(
+        deserialise_snapshot_state(entry.serialised_state), entry.version);
+    }
+
+    static State deserialise_snapshot_state(
+      std::span<const uint8_t> serialised_state)
+    {
+      return deserialize_map_snapshot(serialised_state);
+    }
+
+    // Change set replacing a map's state with state, at version, as when the
+    // map is deserialised from a snapshot
+    static ChangeSetPtr make_snapshot_changes(State state, Version version)
+    {
+      return std::make_unique<SnapshotChangeSet>(std::move(state), version);
     }
 
     ChangeSetPtr deserialise_changes(KvStoreDeserialiser& d, Version version)

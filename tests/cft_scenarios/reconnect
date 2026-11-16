@@ -1,12 +1,12 @@
 start_node,0
 assert_detail,0,leadership_state,Leader
-emit_signature,2
+replicate,2,$
 
 assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -14,7 +14,7 @@ dispatch_all
 assert_commit_idx,0,4
 
 replicate,2,helloworld
-emit_signature,2
+replicate,2,$
 dispatch_all
 periodic_all,10
 dispatch_all
@@ -26,7 +26,7 @@ assert_state_sync
 
 disconnect,0,1
 replicate,2,salutonmondo
-emit_signature,2
+replicate,2,$
 
 assert_commit_idx,1,6
 dispatch_all

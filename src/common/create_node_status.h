@@ -22,34 +22,3 @@ enum CreateNodeStatus : std::uint8_t
   ReconfigurationMethodNotSupported = 8,
 
 };
-
-constexpr char const* create_node_result_to_str(CreateNodeStatus result)
-{
-  switch (result)
-  {
-    case CreateNodeStatus::OK:
-    {
-      return "OK";
-    }
-    case CreateNodeStatus::InternalError:
-    {
-      return "InternalError";
-    }
-    case CreateNodeStatus::NodeAlreadyCreated:
-    {
-      return "NodeAlreadyCreated";
-    }
-    case CreateNodeStatus::EnclaveInitFailed:
-    {
-      return "EnclaveInitFailed";
-    }
-    case CreateNodeStatus::ReconfigurationMethodNotSupported:
-    {
-      return "ReconfigurationMethodNotSupported";
-    }
-    default:
-    {
-      return "Unknown CreateNodeStatus";
-    }
-  }
-}

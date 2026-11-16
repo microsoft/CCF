@@ -166,7 +166,7 @@ Configuration
    * - :doc:`config.json </operations/configuration>`
      - Contains options intended to be safe for an untrusted actor to control, rather than security-sensitive launch options.
      - Unprotected, host-controlled input. Schema validation checks its format.
-   * - :doc:`CLI arguments </operations/cli>`
+   * - :ref:`CLI arguments <operations/configuration:Command-Line Interface>`
      - Capture security-sensitive options, such as ``--log-level``, whose value must be attested because they impact security guarantees.
      - Constrained by the execution policy and bound through attestation where that policy fixes their values.
 

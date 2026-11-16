@@ -812,7 +812,7 @@ TEST_CASE("read_current_service_identity reports a create txid only when open")
     node_state.commit_service(status, create_txid, cb.topmost_entry());
     auto current = node_state.get_current_service_identity();
     REQUIRE_FALSE(current.create_txid.has_value());
-    REQUIRE(current.endorsement.has_value());
+    REQUIRE_FALSE(current.endorsement.has_value());
   }
 
   node_state.commit_service(ccf::ServiceStatus::OPEN, create_txid);
@@ -1212,6 +1212,7 @@ TEST_CASE("NetworkIdentity carries an ML-DSA identity when the build has one")
   {
     REQUIRE_FALSE(identity.pq_cert.has_value());
     REQUIRE_FALSE(identity.pq_priv_key.has_value());
+    REQUIRE(identity.get_pq_key_pair() == nullptr);
     return;
   }
 
@@ -1225,6 +1226,18 @@ TEST_CASE("NetworkIdentity carries an ML-DSA identity when the build has one")
     ccf::crypto::make_mldsa_key_pair(
       identity.pq_priv_key.value(), parameter_set)
       ->public_key_der() == pq->public_key_der());
+  const auto key_pair = identity.get_pq_key_pair();
+  REQUIRE(key_pair != nullptr);
+  REQUIRE(key_pair->get_parameter_set() == parameter_set);
+  REQUIRE(key_pair->public_key_der() == pq->public_key_der());
+}
+
+TEST_CASE("A classical-only NetworkIdentity has no PQ key pair")
+{
+  ccf::NetworkIdentity identity;
+  identity.priv_key = ccf::crypto::make_ec_key_pair()->private_key_pem();
+  REQUIRE(identity.get_key_pair() != nullptr);
+  REQUIRE(identity.get_pq_key_pair() == nullptr);
 }
 
 TEST_CASE(

@@ -3,13 +3,13 @@
 # Note: This is a fix for the issue described in https://github.com/microsoft/CCF/issues/3948
 start_node,0
 assert_detail,0,leadership_state,Leader
-emit_signature,2
+replicate,2,$
 
 assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
-emit_signature,2 # Initial configuration: C0=[0,1]
+replicate,2,$ # Initial configuration: C0=[0,1]
 
 dispatch_all
 periodic_all,10
@@ -21,7 +21,7 @@ assert_state_sync
 
 # Reconfiguration: add three nodes
 trust_nodes,2,2,3,4 # New configuration: C1=[0,1,2,3,4] in term 2 (quorum=3)
-emit_signature,2
+replicate,2,$
 periodic_all,10
 
 # New nodes first respond with NACKs as they don't have full history
@@ -72,7 +72,7 @@ assert_detail,2,leadership_state,Leader
 assert_commit_idx,2,4
 
 # New primary appends a new committable entry to confirm its primaryship
-emit_signature,3
+replicate,3,$
 
 dispatch_all
 periodic_all,10

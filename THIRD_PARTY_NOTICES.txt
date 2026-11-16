@@ -555,7 +555,7 @@ SOFTWARE.
 
 -------------------------------------------------------------------
 
-tristanpenman/valijson 5eac4b66f20b2c189ae40281c29e71cf39a958ec - BSD-2-Clause
+tristanpenman/valijson de232f2ac3798a3c8b2cc5f3b7ebf737e1c0dbd1 - BSD-2-Clause
 
 Copyright (c) 2016, Tristan Penman
 Copyright (c) 2016, Akamai Technologies, Inc.

@@ -61,6 +61,13 @@ namespace ccf::crypto
       std::span<const uint8_t> aad,
       std::vector<uint8_t>& plain) const override;
 
+    bool decrypt(
+      std::span<const uint8_t> iv,
+      const uint8_t tag[GCM_SIZE_TAG],
+      std::span<const uint8_t> cipher,
+      std::span<const uint8_t> aad,
+      std::span<uint8_t> plain) const override;
+
     // @brief RFC 5649 AES key wrap with padding (CKM_AES_KEY_WRAP_PAD)
     // @param plain Plaintext key to wrap
     [[nodiscard]] std::vector<uint8_t> ckm_aes_key_wrap_pad(

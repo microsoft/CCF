@@ -9,20 +9,52 @@ Applications can be written in JavaScript/TypeScript or C++. An application cons
 
 These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/index:Key-Value Store` that represents the internal state of the application. Applications define a set of ``Maps`` (see :doc:`kv/kv_how_to`), mapping from a key to a value. When an application endpoint is triggered, the effects on the Store are committed atomically.
 
+For CCF release cadence, compatibility commitments and migration guides, see :doc:`/releases/index`.
+
+.. toctree::
+    :hidden:
+
+    get_started
+    install_bin
+    run_app
+    example_cpp
+    js_app_ts
+    example_rust
+    js_app_bundle
+    logging
+    auth/index
+    kv/index
+    api
+    rust_api
+    crypto
+
+Get Started
+-----------
+
 .. grid:: 1 2 2 2
     :gutter: 3
 
     .. grid-item-card:: :fas:`rocket` :doc:`get_started`
 
-        Get started developing a CCF application.
+        Go from a fresh machine to a running CCF application.
 
     .. grid-item-card:: :fas:`download` :doc:`install_bin`
 
         Install CCF on Linux.
 
-    .. grid-item-card:: |cpp| :doc:`example`
+    .. grid-item-card:: :fas:`play` :doc:`run_app`
 
-        Write a CCF application in C++.
+        Run a CCF application in a sandbox environment.
+
+Write an Application
+--------------------
+
+.. grid:: 1 2 2 2
+    :gutter: 3
+
+    .. grid-item-card:: |cpp| :doc:`example_cpp`
+
+        Write, build and package a CCF application in C++.
 
     .. grid-item-card:: |ts| :doc:`js_app_ts`
 
@@ -40,14 +72,6 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
         Log messages from a CCF application.
 
-    .. grid-item-card:: :fas:`tools` :doc:`build_app`
-
-        Build a CCF application.
-
-    .. grid-item-card:: :fas:`rocket` :doc:`run_app`
-
-        Run a CCF application in a sandbox environment.
-
     .. grid-item-card:: :fas:`users` :doc:`auth/index`
 
         Authenticate users of a CCF application.
@@ -55,6 +79,12 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     .. grid-item-card:: :fas:`database` :doc:`kv/index`
 
         Access application state transactionally through the key-value store.
+
+Reference
+---------
+
+.. grid:: 1 2 2 2
+    :gutter: 3
 
     .. grid-item-card:: :fas:`terminal` :doc:`api`
 
@@ -67,39 +97,6 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     .. grid-item-card:: :fas:`key` :doc:`crypto`
 
         Use CCF cryptographic APIs.
-
-    .. grid-item-card:: :fas:`rocket` :doc:`release_policy`
-
-        Understand CCF release cadence and compatibility commitments.
-
-    .. grid-item-card:: :fas:`exchange-alt` :doc:`migration_7_x_to_8_x`
-
-        Prepare applications and deployments for CCF 8.x.
-
-    .. grid-item-card:: :fas:`share` :doc:`fwd_to_redirect`
-
-        Migrate from forwarding (deprecated) to redirect (recommended) endpoints.
-
-.. toctree::
-    :hidden:
-
-    get_started
-    install_bin
-    example
-    js_app_ts
-    example_rust
-    js_app_bundle
-    logging
-    build_app
-    run_app
-    auth/index
-    kv/index
-    api
-    rust_api
-    crypto
-    release_policy
-    migration_7_x_to_8_x
-    fwd_to_redirect
 
 .. |cpp| image:: ../img/cpp.svg
     :alt: C++

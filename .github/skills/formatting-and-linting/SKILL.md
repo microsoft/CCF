@@ -36,7 +36,7 @@ Each command below is under `scripts/`. This table is a routing guide; the scrip
 | `doc-newline-checks.sh` | Markdown and RST prose | Mid-sentence newline policy | `-f` |
 | `builtin-maps-checks.sh` | Built-in map names in `include/` or `src/`, and `doc/audit/builtin_maps.rst` | Every `public:ccf.gov.*` and `public:ccf.internal.*` map is documented | No |
 | `cmake-format-checks.sh` | CMake files | gersemi | `-f` |
-| `release-notes-checks.sh` | `CHANGELOG.md` (also run prettier) | extract-release-notes.py | `-f` |
+| `release-notes-checks.sh` | `CHANGELOG.md`, `.changes/*.md` (also run prettier) | extract-release-notes.py | `-f` (changelog links only) |
 | `shellcheck-checks.sh` | Shell scripts outside `3rdparty/` | shellcheck | No |
 | `includes-checks.sh` | Public C++ headers and their uses | Public/private include and exported-header checks | No |
 | `copyright-checks.sh` | Source files | Copyright notices | No |

@@ -12,7 +12,7 @@ CCF Documentation
 
         Write application logic against the CCF key-value store in C++, JavaScript/TypeScript or Rust (experimental).
 
-        |cpp| :doc:`C++ <build_apps/example>` \| |ts| :doc:`TypeScript <build_apps/js_app_ts>` \| |rust| :doc:`Rust <build_apps/example_rust>`
+        |cpp| :doc:`C++ <build_apps/example_cpp>` \| |ts| :doc:`TypeScript <build_apps/js_app_ts>` \| |rust| :doc:`Rust <build_apps/example_rust>`
 
     .. grid-item-card:: :fas:`user` :doc:`use_apps/index`
 
@@ -29,6 +29,10 @@ CCF Documentation
     .. grid-item-card:: :fas:`eye` :doc:`audit/index`
 
         Audit a running CCF network and its complete history.
+
+    .. grid-item-card:: :fas:`tags` :doc:`releases/index`
+
+        Understand CCF release and compatibility policy, upgrade a live service and migrate between major versions.
 
     .. grid-item-card:: :fas:`code-branch` :doc:`contribute/index`
 
@@ -52,6 +56,7 @@ CCF Documentation
     operations/index.rst
     governance/index.rst
     audit/index.rst
+    releases/index.rst
     contribute/index.rst
     architecture/index.rst
     research/index.rst

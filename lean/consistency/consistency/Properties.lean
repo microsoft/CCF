@@ -25,15 +25,11 @@ open Model
 abbrev GlobalTrace := CCF.Execution.Trace transitionSystem
 
 /-- Every reachable state has an enabled action. -/
-theorem deadlock_free
-    : forall (state : State),
-        transitionSystem.Reachable state
-        -> exists action nextState,
-            transitionSystem.step state action = some nextState := by
+theorem deadlock_free : transitionSystem.DeadlockFree := by
   exact Proofs.deadlock_free
 
 /-- Witness: the initial state is reachable. -/
-lemma deadlock_free_witness : exists state, transitionSystem.Reachable state := by
+theorem deadlock_free_witness : exists state, transitionSystem.Reachable state := by
   exact Proofs.deadlock_free_witness
 
 /-- Adjacent TxID-ordered committed responses strictly extend.
@@ -52,7 +48,7 @@ theorem committed_rw_ordered_serializable
   exact Proofs.Ordered.committed_rw_ordered_serializable
 
 /-- The sorted committed responses contain an adjacent pair. -/
-lemma committed_rw_ordered_serializable_witness
+theorem committed_rw_ordered_serializable_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Response),
         state ∈ trace
         ∧ (left, right)
@@ -76,7 +72,7 @@ theorem committed_rw_ordered_real_time
   exact Proofs.RealTime.committed_rw_ordered_real_time
 
 /-- Committed writes and a matching request satisfy the real-time antecedents. -/
-lemma committed_rw_ordered_real_time_witness
+theorem committed_rw_ordered_real_time_witness
     : ∃ (trace : GlobalTrace) (state : State)
         (earlier later : Nat × Response) (request : Nat × (TxType × TxContent)),
         let (earlierIndex, earlier) := earlier
@@ -105,7 +101,7 @@ theorem all_received_is_first_sent
   exact Proofs.History.all_received_is_first_sent
 
 /-- Both response kinds occur in the same execution. -/
-lemma all_received_is_first_sent_witness
+theorem all_received_is_first_sent_witness
     : ∃ (trace : GlobalTrace) (state : State) (write read : Nat × Response),
         let (writeIndex, write) := write
         let (readIndex, read) := read
@@ -127,7 +123,7 @@ theorem unique_txs
   exact Proofs.LedgerIdentity.unique_txs
 
 /-- Write responses with matching transaction IDs occur in a valid execution. -/
-lemma unique_txs_witness
+theorem unique_txs_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × Response),
         let (leftIndex, left) := left
         let (rightIndex, right) := right
@@ -149,7 +145,7 @@ theorem same_observations
   exact Proofs.LedgerIdentity.same_observations
 
 /-- Responses with matching transaction IDs occur in a valid execution. -/
-lemma same_observations_witness
+theorem same_observations_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × Response),
         let (leftIndex, left) := left
         let (rightIndex, right) := right
@@ -171,7 +167,7 @@ theorem unique_tx_requests
   exact Proofs.History.unique_tx_requests
 
 /-- Requests at distinct history positions occur in a valid execution. -/
-lemma unique_tx_requests_witness
+theorem unique_tx_requests_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × (TxType × TxContent)),
         let (leftIndex, leftKind, leftTx) := left
         let (rightIndex, rightKind, rightTx) := right
@@ -193,7 +189,7 @@ theorem unique_tx_ids
   exact Proofs.Responses.unique_tx_ids
 
 /-- Responses with matching request IDs occur in a valid execution. -/
-lemma unique_tx_ids_witness
+theorem unique_tx_ids_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × Response),
         let (leftIndex, left) := left
         let (rightIndex, right) := right
@@ -217,7 +213,7 @@ theorem unique_seq_nums_committed
   exact Proofs.Commitment.unique_seq_nums_committed
 
 /-- Committed write responses with matching sequence numbers occur in a valid execution. -/
-lemma unique_seq_nums_committed_witness
+theorem unique_seq_nums_committed_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × Response),
         let (leftIndex, left) := left
         let (rightIndex, right) := right
@@ -236,7 +232,7 @@ theorem committed_or_invalid
   exact Proofs.Statuses.committed_or_invalid
 
 /-- A committed status occurs in a valid execution. -/
-lemma committed_or_invalid_witness
+theorem committed_or_invalid_witness
     : ∃ (trace : GlobalTrace) (state : State) (committed : TxID),
         state ∈ trace ∧ committed ∈ statusIDs state.history .committed := by
   exact Proofs.Witnesses.committed_or_invalid_witness
@@ -256,7 +252,7 @@ theorem once_committed_prev_committed
   exact Proofs.Statuses.once_committed_prev_committed
 
 /-- Reported statuses satisfy the same-view committed-prefix antecedents. -/
-lemma once_committed_prev_committed_witness
+theorem once_committed_prev_committed_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : TxID × Status),
         let (leftTxID, leftStatus) := left
         let (rightTxID, rightStatus) := right
@@ -283,7 +279,7 @@ theorem once_committed_next_invalid
   exact Proofs.Statuses.once_committed_next_invalid
 
 /-- Reported statuses satisfy the older-view conflicting-suffix antecedents. -/
-lemma once_committed_next_invalid_witness
+theorem once_committed_next_invalid_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : TxID × Status),
         let (leftTxID, leftStatus) := left
         let (rightTxID, rightStatus) := right
@@ -310,7 +306,7 @@ theorem once_invalid_next_invalid
   exact Proofs.Statuses.once_invalid_next_invalid
 
 /-- Reported statuses satisfy the same-view invalid-suffix antecedents. -/
-lemma once_invalid_next_invalid_witness
+theorem once_invalid_next_invalid_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : TxID × Status),
         let (leftTxID, leftStatus) := left
         let (rightTxID, rightStatus) := right
@@ -335,7 +331,7 @@ theorem only_observe_sent_requests
   exact Proofs.Observations.only_observe_sent_requests
 
 /-- An observed write populates the observation-membership antecedent. -/
-lemma only_observe_sent_requests_witness
+theorem only_observe_sent_requests_witness
     : ∃ (trace : GlobalTrace) (state : State)
         (response : Nat × Response) (tx : TxContent),
         let (responseIndex, response) := response
@@ -354,7 +350,7 @@ theorem at_most_once_observed
   exact Proofs.Observations.at_most_once_observed
 
 /-- A response populates the observation domain. -/
-lemma at_most_once_observed_witness
+theorem at_most_once_observed_witness
     : ∃ (trace : GlobalTrace) (state : State) (response : Nat × Response),
         let (responseIndex, response) := response
         state ∈ trace ∧ (responseIndex, response) ∈ responses state.history := by
@@ -378,7 +374,7 @@ theorem all_committed_observed
   exact Proofs.RealTime.all_committed_observed
 
 /-- Committed writes and a matching request satisfy the real-time antecedents. -/
-lemma all_committed_observed_witness
+theorem all_committed_observed_witness
     : ∃ (trace : GlobalTrace) (state : State)
         (earlier later : Nat × Response) (request : Nat × (TxType × TxContent)),
         let (earlierIndex, earlier) := earlier
@@ -406,7 +402,7 @@ theorem invalid_not_observed_by_committed
   exact Proofs.InvalidObservations.invalid_not_observed_by_committed
 
 /-- An invalid write and a different committed response populate the exclusion antecedents. -/
-lemma invalid_not_observed_by_committed_witness
+theorem invalid_not_observed_by_committed_witness
     : ∃ (trace : GlobalTrace) (state : State) (invalid observer : Nat × Response),
         let (invalidIndex, invalid) := invalid
         let (observerIndex, observer) := observer
@@ -429,7 +425,7 @@ theorem committed_rw_serializable
   exact Proofs.Commitment.committed_rw_serializable
 
 /-- Committed write responses populate the serialization domain. -/
-lemma committed_rw_serializable_witness
+theorem committed_rw_serializable_witness
     : ∃ (trace : GlobalTrace) (state : State) (left right : Nat × Response),
         let (leftIndex, left) := left
         let (rightIndex, right) := right

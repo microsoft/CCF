@@ -19,6 +19,7 @@
   "command": {
     "type": "Recover",
     "service_certificate_file": "service_cert.pem",
+    "pq_service_certificate_file": "pq_service_cert.pem",
     "recover": {
       "initial_service_certificate_validity_days": 1,
       "previous_service_identity_file": "previous_service_cert.pem"

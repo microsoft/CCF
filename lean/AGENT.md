@@ -35,7 +35,8 @@ Within a model's library directory, use this layout:
   `Properties.lean` publicly imports the types and helpers needed to understand its statements and privately imports proof implementations.
 
 Write the full logical statement in each public safety theorem and existential witness lemma, rather than defining a separate named proposition.
-Use the `theorem` declaration keyword for public safety claims and `lemma` for their existential `_witness` declarations, including the witness implementations under `Proofs/`.
+Declare public safety claims and their existential witnesses with the `theorem` keyword, since Lean core has no `lemma` command.
+Name each witness after its safety theorem with a `_witness` suffix, including the witness implementations under `Proofs/`.
 Keep each proof body a one-line `by exact Proofs.<implementation>` reference, and place each witness lemma next to its corresponding safety theorem.
 For example:
 
@@ -56,6 +57,9 @@ end DisasterRecovery.Properties
 
 Keep supporting proof statements explicit too, or use existing lower-level facts, so they do not depend on the final theorem entrypoint.
 Do not use axioms or unfinished theorems as placeholders for property statements.
+
+Do not restate safety properties or witness claims in READMEs.
+Link to the authoritative statements in `Properties.lean` instead.
 
 ## Statement definitions versus proof machinery
 

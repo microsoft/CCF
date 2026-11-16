@@ -1,7 +1,6 @@
 module
 
-public import Mathlib.Data.Finset.Card
-public import Mathlib.Data.Finset.Lattice.Fold
+public import CCF.Finset
 
 @[expose] public section
 
@@ -13,6 +12,8 @@ Signatures make their prefixes committable. Behaviour is in `Node.lean`.
 -/
 
 namespace Consensus.Model.Node
+
+open CCF (Finset)
 
 /-- A node's identifier. -/
 abbrev NodeID := Nat
@@ -81,6 +82,10 @@ namespace NodeState
 
 def committedLog (state : NodeState) : List Entry :=
   state.log.take state.commitIndex
+
+/-- Like a CCF node before `init_as_backup`. -/
+abbrev isFresh (state : NodeState) : Prop :=
+  state.role = .none /\ state.currentTerm = 0 /\ state.log = [] /\ state.commitIndex = 0
 
 end NodeState
 

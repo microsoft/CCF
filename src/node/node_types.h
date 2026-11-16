@@ -60,13 +60,6 @@ namespace ccf
 
 #pragma pack(push, 1)
 
-  // Channel-specific header for key exchange
-  struct ChannelHeader
-  {
-    ChannelMsg msg;
-    NodeId from_node;
-  };
-
   // Frontend-specific header for forwarding
   struct ForwardedHeader_v1
   {
@@ -112,19 +105,6 @@ namespace ccf
     // If the response contains a fatal error, indicate to the original node
     // that the session should be terminated.
     bool terminate_session{};
-  };
-
-  struct MessageHash
-  {
-    MessageHash() = default;
-
-    MessageHash(ForwardedMsg msg_, ccf::crypto::Sha256Hash&& hash_) :
-      msg(msg_),
-      hash(std::move(hash_))
-    {}
-
-    ForwardedMsg msg{};
-    ccf::crypto::Sha256Hash hash;
   };
 
 #pragma pack(pop)

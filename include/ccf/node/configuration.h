@@ -287,6 +287,7 @@ namespace ccf
     {
       StartType type = StartType::Start;
       std::string service_certificate_file = "service_cert.pem";
+      std::string pq_service_certificate_file = "pq_service_cert.pem";
 
       struct Start
       {
@@ -519,7 +520,12 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Command, type);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::Command, service_certificate_file, start, join, recover);
+    CCFConfig::Command,
+    service_certificate_file,
+    pq_service_certificate_file,
+    start,
+    join,
+    recover);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network, command);

@@ -4,6 +4,7 @@
 module
 
 public import Kv.Properties.Invariants
+public import CCF.Execution
 
 /-!
 Snapshot, map-capture and attempt-replay claims for accepted traces.

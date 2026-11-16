@@ -12,6 +12,8 @@ Ledger-derived membership history and retirement queries.
 
 namespace Consensus.Model.Node
 
+open CCF (Finset)
+
 inductive MembershipState where
   /-- No membership removal observed; includes nodes that have never joined. -/
   | noRetirementObserved
@@ -48,6 +50,14 @@ def configurationMembers (configurations : List Configuration) : Finset NodeID :
 /-- Members of the last supplied configuration, or none for an empty list. -/
 def latestConfigurationMembers (configurations : List Configuration) : Finset NodeID :=
   configurations.getLast?.map Configuration.nodes |>.getD ∅
+
+/--
+Nodes named by an earlier configuration in the log but absent from its latest one.
+CCF never reuses a node identity, so such a node may not rejoin.
+-/
+def removedNodes (log : List Entry) : Finset NodeID :=
+  let history := configurationHistory log
+  configurationMembers history \ latestConfigurationMembers history
 
 def latestMembershipIndex (configurations : List Configuration) (node : NodeID) : Nat :=
   configurations.foldl

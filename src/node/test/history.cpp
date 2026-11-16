@@ -3,11 +3,13 @@
 #include "node/history.h"
 
 #include "ccf/app_interface.h"
+#include "ccf/crypto/mldsa_key_pair.h"
 #include "ccf/ds/locking.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
+#include "crypto/openssl/mldsa_support.h"
 #include "ds/internal_logger.h"
 #include "kv/kv_types.h"
 #include "kv/null_encryptor.h"
@@ -95,7 +97,7 @@ TEST_CASE("Check signature verification")
       primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
 
@@ -106,7 +108,7 @@ TEST_CASE("Check signature verification")
       backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
   backup_history->set_endorsed_certificate(self_signed);
   backup_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   backup_store.set_history(backup_history);
   backup_store.initialise_term(store_term);
 
@@ -181,7 +183,7 @@ TEST_CASE("Check signature verification with the signing identities table")
     primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
 
@@ -278,6 +280,83 @@ TEST_CASE("Check signature verification with the signing identities table")
   }
 }
 
+TEST_CASE("Signing identity carries an ML-DSA key next to the classical key")
+{
+  if (!ccf::crypto::mldsa_supported())
+  {
+    return;
+  }
+
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto node_kp = ccf::crypto::make_ec_key_pair();
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::ECKeyPair_OpenSSL>(
+    ccf::crypto::make_ec_key_pair());
+  auto pq_service_kp =
+    ccf::crypto::make_mldsa_key_pair(ccf::crypto::MLDSAParameterSet::ML_DSA_65);
+  const auto self_signed = node_kp->self_sign("CN=Node", valid_from, valid_to);
+  const auto service_cert =
+    service_kp->self_sign("CN=Service", valid_from, valid_to);
+  const auto pq_service_cert =
+    pq_service_kp->self_sign("CN=Service", valid_from, valid_to);
+
+  ccf::kv::Store primary_store;
+  primary_store.set_encryptor(encryptor);
+  constexpr auto store_term = 2;
+  auto primary_history = std::make_shared<ccf::MerkleTxHistory>(
+    primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
+  primary_history->set_endorsed_certificate(self_signed);
+  primary_history->set_service_signing_identity(
+    service_kp, pq_service_kp, ccf::COSESignaturesConfig{});
+  primary_store.set_history(primary_history);
+  primary_store.initialise_term(store_term);
+
+  INFO("The history keeps the ML-DSA key");
+  const std::weak_ptr<ccf::crypto::MLDSAKeyPair> retained_pq_service_kp =
+    pq_service_kp;
+  pq_service_kp.reset();
+  REQUIRE_FALSE(retained_pq_service_kp.expired());
+
+  ccf::kv::Store backup_store;
+  backup_store.set_encryptor(encryptor);
+  auto backup_history = std::make_shared<ccf::MerkleTxHistory>(
+    backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
+  backup_store.set_history(backup_history);
+  backup_store.initialise_term(store_term);
+  backup_store.set_consensus(std::make_shared<DummyConsensus>(nullptr));
+
+  auto consensus = std::make_shared<DummyConsensus>(&backup_store);
+  primary_store.set_consensus(consensus);
+
+  ccf::Nodes nodes(ccf::Tables::NODES);
+  ccf::Service service(ccf::Tables::SERVICE);
+  ccf::SigningIdentities signing_identities(ccf::Tables::SIGNING_IDENTITIES);
+  {
+    auto tx = primary_store.create_tx();
+    ccf::NodeInfo node_info;
+    node_info.encryption_pub_key = node_kp->public_key_pem();
+    node_info.cert = self_signed;
+    tx.rw(nodes)->put(ccf::kv::test::PrimaryNodeId, node_info);
+    tx.rw(service)->put(
+      ccf::ServiceInfo{.cert = service_cert, .pq_cert = pq_service_cert});
+    auto* identities = tx.rw(signing_identities);
+    identities->put(
+      ccf::IdentityType::CLASSICAL,
+      ccf::signing_identity_from_cert(service_cert));
+    identities->put(
+      ccf::IdentityType::PQ, ccf::signing_identity_from_cert(pq_service_cert));
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
+  }
+
+  INFO("The classical signature is emitted and verified on the backup");
+  primary_history->emit_signature();
+  REQUIRE(consensus->last_apply_result == ccf::kv::ApplyResult::PASS_SIGNATURE);
+
+  auto tx = backup_store.create_read_only_tx();
+  auto* cose_signatures =
+    tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+  REQUIRE(cose_signatures->get(ccf::IdentityType::CLASSICAL).has_value());
+}
+
 TEST_CASE("Check signing works across rollback")
 {
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
@@ -296,7 +375,7 @@ TEST_CASE("Check signing works across rollback")
       primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
 
@@ -306,7 +385,7 @@ TEST_CASE("Check signing works across rollback")
       backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
   backup_history->set_endorsed_certificate(self_signed);
   backup_history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   backup_store.set_history(backup_history);
   backup_store.set_encryptor(encryptor);
   backup_store.initialise_term(store_term);
@@ -464,7 +543,7 @@ TEST_CASE("Pending signatures retain their endorsed certificate")
     store, ccf::kv::test::PrimaryNodeId, *node_kp);
   history->set_endorsed_certificate(first_cert);
   history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   store.set_history(history);
 
   constexpr auto store_term = 2;
@@ -540,7 +619,7 @@ TEST_CASE("Signatures are not emitted on demand until signing is enabled")
     sig_ms_interval);
   history->set_endorsed_certificate(node_cert);
   history->set_service_signing_identity(
-    service_kp, ccf::COSESignaturesConfig{});
+    service_kp, nullptr, ccf::COSESignaturesConfig{});
   store.set_history(history);
 
   constexpr auto store_term = 2;

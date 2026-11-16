@@ -2,9 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ccf/node/configuration.h"
+#include "tracing/logger.h"
 #include "tracing/test/events.h"
 
 #include <arpa/inet.h>
+#include <barrier>
 #include <doctest/doctest.h>
 
 namespace request_trace
@@ -41,6 +43,16 @@ namespace
   std::atomic<bool> fail_next_close = false;
   std::atomic<bool> wrong_thread = false;
   std::thread::id producer;
+
+  struct JsonCapture : ccf::logger::JsonConsoleLogger
+  {
+    std::string output;
+
+    void emit(const std::string& value) override
+    {
+      output = value;
+    }
+  };
 
   struct DropLogger : ccf::logger::AbstractLogger
   {
@@ -213,7 +225,7 @@ TEST_CASE("Fluentd settings round-trip through the operator configuration")
   CHECK(config.observability.fluentd[0].queue_capacity == 4096);
   CHECK(
     config.observability.fluentd[0].tag_prefix_allow_list ==
-    std::vector<std::string>{""});
+    std::vector<std::string>{"ccf.log"});
   CHECK(
     config.observability.fluentd[0].delivery ==
     ccf::FluentdConfig::Delivery::BUFFERED_BEST_EFFORT);
@@ -350,7 +362,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   Sink::Endpoint endpoint{"127.0.0.1", std::to_string(ntohs(address.sin_port))};
   endpoint.queue_capacity = 3;
   endpoint.tag_prefix_allow_list = {
-    "ccf.sho", "ccf.request", "ccf.request.child", "ccf.request"};
+    "ccf.sho", "ccf.request", "ccf.request.child", "ccf.request", "ccf.log"};
   const int excluded_listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   REQUIRE(excluded_listener >= 0);
   address.sin_port = 0;
@@ -360,8 +372,14 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   Sink::Endpoint excluded_endpoint{
     "127.0.0.1", std::to_string(ntohs(address.sin_port))};
   excluded_endpoint.tag_prefix_allow_list = {"ccf.kv", "ccf.unused"};
+  auto logger = std::make_unique<DropLogger>();
+  auto* logs = logger.get();
+  ccf::logger::config::loggers().emplace_back(
+    std::make_unique<ccf::tracing::FluentdLogger>());
+  ccf::logger::config::loggers().push_back(std::move(logger));
   Sink::configure(std::vector{endpoint, excluded_endpoint}, 2);
   Sink::bind_producer(0);
+  CHECK_THROWS_AS(Sink::bind_producer(2), std::out_of_range);
   const auto waiting = std::chrono::steady_clock::now();
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::milliseconds(150)));
   CHECK(std::chrono::steady_clock::now() - waiting < std::chrono::seconds(1));
@@ -484,6 +502,105 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     nlohmann::json::from_msgpack(ccf::tracing::event_buffer())[2]["h_ts"] ==
     sequence_before_filtering + 1);
 
+  for (const auto level :
+       {ccf::LoggerLevel::TRACE,
+        ccf::LoggerLevel::DEBUG,
+        ccf::LoggerLevel::INFO,
+        ccf::LoggerLevel::FAIL,
+        ccf::LoggerLevel::FATAL})
+  {
+    ccf::logger::LogLine line(level, "app", "file.cpp", 42);
+    line << "message with \"quotes\", a newline\nand backslash\\";
+    line.finalize();
+    ccf::tracing::FluentdLogger fluentd;
+    fluentd.write(line);
+    const auto& buffer = ccf::tracing::event_buffer();
+    const auto event = nlohmann::json::from_msgpack(buffer);
+    CHECK(event[0] == "ccf.log");
+    CHECK(event[2]["msg"]["h_ts"].is_string());
+    CHECK(event[2]["msg"]["h_ts"].get<std::string>().ends_with("Z"));
+    const nlohmann::json expected = {
+      {"h_ts", event[2]["msg"]["h_ts"]},
+      {"thread_id", fmt::format("{}", line.thread_id)},
+      {"level", ccf::logger::to_string(level)},
+      {"tag", "app"},
+      {"file", "file.cpp"},
+      {"number", "42"},
+      {"msg", "message with \"quotes\", a newline\nand backslash\\"}};
+    CHECK(event[2]["msg"] == expected);
+    JsonCapture console;
+    console.write(line);
+    auto console_record = nlohmann::json::parse(console.output);
+    auto forwarded_record = event[2]["msg"];
+    console_record.erase("h_ts");
+    forwarded_record.erase("h_ts");
+    CHECK(console_record == forwarded_record);
+    std::vector<uint8_t> actual(buffer.size());
+    REQUIRE(
+      recv(peer, actual.data(), actual.size(), MSG_WAITALL) ==
+      static_cast<ssize_t>(actual.size()));
+    CHECK(actual == buffer);
+  }
+  for (auto log :
+       {+[] { LOG_TRACE_FMT("Trace exported"); },
+        +[] { LOG_DEBUG_FMT("Debug exported"); },
+        +[] { LOG_INFO_FMT("Info exported"); },
+        +[] { LOG_FAIL_FMT("Failure exported"); },
+        +[] { LOG_FATAL_FMT("Fatal exported"); }})
+  {
+    log();
+    const auto& buffer = ccf::tracing::event_buffer();
+    CHECK(nlohmann::json::from_msgpack(buffer)[0] == "ccf.log");
+    std::vector<uint8_t> actual(buffer.size());
+    REQUIRE(
+      recv(peer, actual.data(), actual.size(), MSG_WAITALL) ==
+      static_cast<ssize_t>(actual.size()));
+    CHECK(actual == buffer);
+  }
+  ccf::logger::config::level() = ccf::LoggerLevel::FATAL;
+  const auto before_level_filtering = ccf::tracing::event_buffer();
+  LOG_INFO_FMT("Filtered info");
+  LOG_FAIL_FMT("Filtered failure");
+  CHECK(ccf::tracing::event_buffer() == before_level_filtering);
+  ccf::logger::config::level() = ccf::logger::MOST_VERBOSE;
+  const auto drops_before_unbound_log = Sink::dropped_count();
+  std::array<std::vector<uint8_t>, 2> unbound_bytes;
+  std::barrier start_unbound(2);
+  std::thread unbound_logger([&] {
+    start_unbound.arrive_and_wait();
+    LOG_FAIL_FMT("Unbound logger output");
+    unbound_bytes[0] = ccf::tracing::event_buffer();
+  });
+  std::thread unbound_trace([&] {
+    start_unbound.arrive_and_wait();
+    ccf::tracing::emit("ccf.request", "unbound", true);
+    unbound_bytes[1] = ccf::tracing::event_buffer();
+  });
+  unbound_logger.join();
+  unbound_trace.join();
+  CHECK(Sink::dropped_count() == drops_before_unbound_log);
+  std::vector<uint8_t> unbound_received(
+    unbound_bytes[0].size() + unbound_bytes[1].size());
+  REQUIRE(
+    recv(peer, unbound_received.data(), unbound_received.size(), MSG_WAITALL) ==
+    static_cast<ssize_t>(unbound_received.size()));
+  auto expected_unbound = unbound_bytes[0];
+  expected_unbound.insert(
+    expected_unbound.end(), unbound_bytes[1].begin(), unbound_bytes[1].end());
+  if (unbound_received != expected_unbound)
+  {
+    expected_unbound = unbound_bytes[1];
+    expected_unbound.insert(
+      expected_unbound.end(), unbound_bytes[0].begin(), unbound_bytes[0].end());
+  }
+  CHECK(unbound_received == expected_unbound);
+  CHECK(
+    nlohmann::json::from_msgpack(unbound_bytes[0])[2]["msg"]["msg"] ==
+    "Unbound logger output");
+  CHECK(
+    nlohmann::json::from_msgpack(unbound_bytes[1])[2]["msg"]["unbound"] ==
+    true);
+
   const std::string large_value(
     ccf::tracing::event_buffer().capacity() + 1, 'x');
   const auto before_encoding_failure = Sink::dropped_count();
@@ -552,9 +669,6 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(Sink::dropped_count() == drops_before_emission_failures + 2);
   check_event([] { request_trace::empty(); }, {{"function", "empty"}});
 
-  auto logger = std::make_unique<DropLogger>();
-  auto* logs = logger.get();
-  ccf::logger::config::loggers().push_back(std::move(logger));
   stalled = true;
   std::array<uint8_t, 128> payload = {};
   const auto previous = calls.load();
@@ -569,6 +683,9 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   const auto full_after = allocations;
   CHECK_FALSE(full);
   CHECK(full_before == full_after);
+  const auto drops_before_bound_log = Sink::dropped_count();
+  LOG_INFO_FMT("Bound logs share their producer queue");
+  CHECK(Sink::dropped_count() == drops_before_bound_log + 1);
   std::vector<uint8_t> oversize(ccf::tracing::SPSCQueue::MAX_RECORD_SIZE + 1);
   forbid_allocation = true;
   bool allocation_failed = false;
@@ -593,15 +710,18 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     std::this_thread::yield();
   CHECK(logs->reports == 2);
   const auto drops_before_unbound = Sink::dropped_count();
-  bool unbound_pushed = true;
+  bool unbound_pushed = false;
+  bool unbound_full_pushed = true;
   size_t unbound_allocations = 0;
   std::thread unbound([&] {
-    const auto before = allocations;
     unbound_pushed = Sink::enqueue("ccf.request", payload);
+    const auto before = allocations;
+    unbound_full_pushed = Sink::enqueue("ccf.request", payload);
     unbound_allocations = allocations - before;
   });
   unbound.join();
-  CHECK_FALSE(unbound_pushed);
+  CHECK(unbound_pushed);
+  CHECK_FALSE(unbound_full_pushed);
   CHECK(unbound_allocations == 0);
   CHECK(Sink::dropped_count() == drops_before_unbound + 1);
   const auto drops_before_shutdown = Sink::dropped_count();
@@ -614,13 +734,13 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(logs->close_errors == 1);
   CHECK_FALSE(Sink::wait_for_connection(std::chrono::seconds(1)));
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(3));
-  CHECK(Sink::dropped_count() == drops_before_shutdown + 4);
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 7);
   CHECK(logs->shutdown_reports == 2);
   CHECK(
     logs->shutdown_messages[0] ==
     fmt::format(
       "Fluentd exporter shutdown: {} dropped events",
-      drops_before_shutdown + 4));
+      drops_before_shutdown + 7));
   CHECK(
     logs->shutdown_messages[1] ==
     "Fluentd exporter shutdown: 0 dropped events");
@@ -634,7 +754,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK_FALSE(shutdown_pushed);
   CHECK(
     allocations_after_shutdown_enqueue == allocations_before_shutdown_enqueue);
-  CHECK(Sink::dropped_count() == drops_before_shutdown + 5);
+  CHECK(Sink::dropped_count() == drops_before_shutdown + 8);
   CHECK(logs->reports == 2);
   CHECK_FALSE(wrong_thread);
   close(peer);

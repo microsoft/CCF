@@ -3,11 +3,11 @@
 # This was fixed by no longer rolling back uncommittable entries (no signature) when becoming a follower.
 
 start_node,0
-emit_signature,2
+replicate,2,$
 assert_commit_idx,0,2
 
 swap_nodes,2,in,1,2
-emit_signature,2
+replicate,2,$
 
 loop_until_sync
 
@@ -23,7 +23,7 @@ dispatch_single,2,0
 # Partition 2
 disconnect_node,2
 
-emit_signature,2
+replicate,2,$
 assert_last_txid,0,2.7
 
 periodic_one,0,10

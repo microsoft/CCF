@@ -15,16 +15,13 @@ namespace ccf
   {
   protected:
     std::shared_ptr<ccf::RPCMap> rpc_map;
-    ccf::crypto::ECKeyPairPtr node_sign_kp;
     const std::function<ccf::crypto::Pem()> get_node_certificate;
 
   public:
     NodeClient(
       std::shared_ptr<ccf::RPCMap> rpc_map_,
-      ccf::crypto::ECKeyPairPtr node_sign_kp_,
       std::function<ccf::crypto::Pem()> get_node_certificate_) :
       rpc_map(std::move(rpc_map_)),
-      node_sign_kp(std::move(node_sign_kp_)),
       get_node_certificate(std::move(get_node_certificate_))
     {}
 

@@ -487,6 +487,13 @@ namespace ccf::kv
       span_ = data;
     }
 
+    /** Reads the next size-prefixed payload without copying it.
+     */
+    std::span<const uint8_t> read_next_span()
+    {
+      return read_size_prefixed_entry();
+    }
+
     template <typename T>
     T read_next()
     {

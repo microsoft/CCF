@@ -1,13 +1,13 @@
 # 5 initial nodes
 start_node,0
 assert_detail,0,leadership_state,Leader
-emit_signature,2
+replicate,2,$
 
 assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -15,7 +15,7 @@ dispatch_all
 assert_commit_idx,0,4
 
 trust_node,2,2
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -23,7 +23,7 @@ dispatch_all
 assert_commit_idx,0,6
 
 trust_node,2,3
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -31,7 +31,7 @@ dispatch_all
 assert_commit_idx,0,8
 
 trust_node,2,4
-emit_signature,2
+replicate,2,$
 
 dispatch_all
 periodic_all,10
@@ -42,12 +42,12 @@ assert_commit_idx,0,10
 assert_state_sync
 
 replicate,2,hello world
-emit_signature,2
+replicate,2,$
 periodic_all,10
 dispatch_all
 
 replicate,2,saluton mondo
-emit_signature,2
+replicate,2,$
 periodic_all,10
 dispatch_all
 
@@ -75,26 +75,26 @@ dispatch_all
 
 # Node 0 continues to produce a suffix in term 1
 replicate,2,branch a 0
-emit_signature,2
+replicate,2,$
 
 replicate,2,branch a 1
-emit_signature,2
+replicate,2,$
 
 replicate,2,branch a 2
-emit_signature,2
+replicate,2,$
 
 # Node 2 continues to produce a suffix in term 2
 replicate,3,branch b 0
-emit_signature,3
+replicate,3,$
 
 replicate,3,branch b 1
-emit_signature,3
+replicate,3,$
 
 replicate,3,branch b 2
-emit_signature,3
+replicate,3,$
 
 replicate,3,branch b 3
-emit_signature,3
+replicate,3,$
 
 # AEs describing these suffices are produced, but lost in transit
 periodic_all,10
@@ -122,23 +122,23 @@ disconnect,2,4
 
 # Node 0 continues to produce a suffix in term 3
 replicate,4,branch a 10
-emit_signature,4
+replicate,4,$
 
 replicate,4,branch a 11
-emit_signature,4
+replicate,4,$
 
 replicate,4,branch a 12
-emit_signature,4
+replicate,4,$
 
 # Node 2 continues to produce a suffix in term 4
 replicate,5,branch b 10
-emit_signature,5
+replicate,5,$
 
 replicate,5,branch b 11
-emit_signature,5
+replicate,5,$
 
 replicate,5,branch b 12
-emit_signature,5
+replicate,5,$
 
 # AEs describing these suffices are produced, and delivered,
 # but due to partition they cannot be committed

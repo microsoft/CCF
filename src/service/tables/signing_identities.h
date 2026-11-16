@@ -34,8 +34,7 @@ namespace ccf
       }
       case IdentityKind::X509_SPKI_DER:
       {
-        return ccf::crypto::COSEKey(
-          ccf::crypto::make_ec_public_key(identity.value));
+        return ccf::crypto::COSEKey::from_der_public_key(identity.value);
       }
       case IdentityKind::COSE_KEY:
       {
@@ -45,17 +44,26 @@ namespace ccf
     throw std::logic_error("Unknown identity kind");
   }
 
-  // Encode an EC public key with its curve's ledger signing algorithm.
+  // Encode a public key with its service signing algorithm.
   inline Identity signing_identity_from_key(const ccf::crypto::COSEKey& key)
   {
     const auto ec_key = key.ec_public_key();
-    if (ec_key == nullptr)
+    if (ec_key != nullptr)
     {
-      throw std::logic_error("Service signing key must be an EC key");
+      return {
+        IdentityKind::COSE_KEY,
+        key.to_cbor(cose::algorithm_for_curve(ec_key->get_curve_id()).alg)};
     }
-    return {
-      IdentityKind::COSE_KEY,
-      key.to_cbor(cose::algorithm_for_curve(ec_key->get_curve_id()).alg)};
+
+    const auto pq_key = key.mldsa_public_key();
+    if (pq_key != nullptr)
+    {
+      return {
+        IdentityKind::COSE_KEY,
+        key.to_cbor(
+          cose::algorithm_for_parameter_set(pq_key->get_parameter_set()))};
+    }
+    throw std::logic_error("Service signing key must be an EC or ML-DSA key");
   }
 
   inline Identity signing_identity_from_cert(const ccf::crypto::Pem& cert)
@@ -73,44 +81,64 @@ namespace ccf
         {IdentityKind::X509_SPKI_DER, public_key_der}));
   }
 
-  // Return the CLASSICAL entry unchanged, or the service certificate's key
-  // if absent (legacy services and live updates). PQ is unsupported.
-  inline std::optional<Identity> get_service_signing_identity(
-    ccf::kv::ReadOnlyTx& tx, IdentityType identity_type)
-  {
-    if (identity_type != IdentityType::CLASSICAL)
-    {
-      throw std::logic_error("PQ signing identities are not supported yet");
-    }
-
-    auto signing_identity =
-      tx.ro<SigningIdentities>(Tables::SIGNING_IDENTITIES)->get(identity_type);
-    if (signing_identity.has_value())
-    {
-      return signing_identity;
-    }
-
-    const auto service_info = tx.ro<Service>(Tables::SERVICE)->get();
-    if (!service_info.has_value())
-    {
-      return std::nullopt;
-    }
-    return signing_identity_from_cert(service_info->cert);
-  }
-
-  // Require matching public keys when both records are present.
+  // CLASSICAL permits a certificate without an entry, as in ledgers written
+  // before this table existed. PQ holds both or neither.
   inline void check_signing_identity_matches_service_cert(
     const std::optional<Identity>& published_identity,
-    const std::optional<ServiceInfo>& service_info)
+    const std::optional<ServiceInfo>& service_info,
+    IdentityType identity_type)
   {
-    if (!published_identity.has_value() || !service_info.has_value())
+    std::optional<ccf::crypto::Pem> cert;
+    switch (identity_type)
     {
-      return;
+      case IdentityType::CLASSICAL:
+      {
+        if (!published_identity.has_value() || !service_info.has_value())
+        {
+          return;
+        }
+        cert = service_info->cert;
+        break;
+      }
+      case IdentityType::PQ:
+      {
+        if (service_info.has_value())
+        {
+          cert = service_info->pq_cert;
+        }
+        if (published_identity.has_value() != cert.has_value())
+        {
+          throw std::logic_error(
+            "PQ signing identity and service certificate must both be present "
+            "or absent");
+        }
+        if (!published_identity.has_value())
+        {
+          return;
+        }
+        // Reject the encoding before parsing, so a non-COSE entry fails with
+        // this error rather than a parser error on builds without ML-DSA.
+        if (published_identity->kind != IdentityKind::COSE_KEY)
+        {
+          throw std::logic_error(
+            "PQ signing identity must be an ML-DSA COSE_Key");
+        }
+        break;
+      }
+      default:
+      {
+        throw std::logic_error("Unknown service signing identity type");
+      }
     }
 
+    const auto key = cose_key_from_identity(published_identity.value());
+    if (identity_type == IdentityType::PQ && key.mldsa_public_key() == nullptr)
+    {
+      throw std::logic_error("PQ signing identity must be an ML-DSA COSE_Key");
+    }
     if (
-      signing_identity_from_key(cose_key_from_identity(*published_identity)) !=
-      signing_identity_from_cert(service_info->cert))
+      signing_identity_from_key(key) !=
+      signing_identity_from_cert(cert.value()))
     {
       throw std::logic_error(
         "Service signing identity does not match its service certificate");
@@ -120,9 +148,39 @@ namespace ccf
   inline void check_signing_identity_matches_service_cert(
     ccf::kv::ReadOnlyTx& tx)
   {
+    auto* identities = tx.ro<SigningIdentities>(Tables::SIGNING_IDENTITIES);
+    const auto service_info = tx.ro<Service>(Tables::SERVICE)->get();
     check_signing_identity_matches_service_cert(
-      tx.ro<SigningIdentities>(Tables::SIGNING_IDENTITIES)
-        ->get(IdentityType::CLASSICAL),
-      tx.ro<Service>(Tables::SERVICE)->get());
+      identities->get(IdentityType::CLASSICAL),
+      service_info,
+      IdentityType::CLASSICAL);
+    check_signing_identity_matches_service_cert(
+      identities->get(IdentityType::PQ), service_info, IdentityType::PQ);
+  }
+
+  // CLASSICAL falls back to the service certificate when its entry is absent,
+  // as in ledgers written before this table existed. PQ never falls back.
+  inline std::optional<Identity> get_service_signing_identity(
+    ccf::kv::ReadOnlyTx& tx, IdentityType identity_type)
+  {
+    auto signing_identity =
+      tx.ro<SigningIdentities>(Tables::SIGNING_IDENTITIES)->get(identity_type);
+    const auto service_info = tx.ro<Service>(Tables::SERVICE)->get();
+    check_signing_identity_matches_service_cert(
+      signing_identity, service_info, identity_type);
+
+    if (signing_identity.has_value())
+    {
+      return signing_identity;
+    }
+    if (identity_type == IdentityType::PQ)
+    {
+      return std::nullopt;
+    }
+    if (!service_info.has_value())
+    {
+      return std::nullopt;
+    }
+    return signing_identity_from_cert(service_info->cert);
   }
 }

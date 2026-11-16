@@ -4,6 +4,7 @@
 module
 
 public import Kv.Properties.Invariants
+public import CCF.Execution
 
 /-!
 The executable model's state invariants, their preservation by every accepted step, and the
