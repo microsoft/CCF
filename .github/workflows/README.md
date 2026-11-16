@@ -64,6 +64,9 @@ Main continuous integration job. Builds CCF for all target platforms, runs unit,
 
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
 
+End to end tests record each network's CCF consensus protocol trace and upload it with their logs.
+The `Replay e2e consensus traces` job then replays every complete capture from the Virtual jobs against the Lean model with `tests/cft_trace_validation.py`, and fails if one is rejected.
+
 File: `ci.yml`
 3rd party dependencies: elan
 
