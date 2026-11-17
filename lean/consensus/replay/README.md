@@ -109,6 +109,13 @@ Validation also tolerates the following without checking them exactly.
   The entries below the base remain a ghost, and any read of them is rejected (S9).
 - **T4:** on an election timeout with no configurations, `cft.h` returns early; the proof matches it with no clean step.
 
+## When a `cft.h` change is rejected
+
+A rejection names the trace line, the trace point and the field or rule that failed.
+If its diagnostic says "known implementation and specification difference", the trace hit one of the cases listed [above](#known-implementation-and-specification-differences).
+Otherwise either the change is wrong, or M_tv must follow it: a new or removed event field goes in `traceFields` in [`Observe.lean`](../Consensus/TraceValidation/Observe.lean) with its comparison, and a moved trace point or changed behaviour goes in the handler of that lock hold in [`Aft.lean`](../Consensus/TraceValidation/Aft.lean).
+The build then fails until that handler's proof under [`Proofs/Handlers/`](../Consensus/TraceValidation/Proofs/Handlers) holds again, which is what shows the changed behaviour is still allowed by the consensus model.
+
 ## Source
 
 - [`TraceValidation/`](../Consensus/TraceValidation): declared state, events, observation, abstraction, M_tv, the validator and proofs.
