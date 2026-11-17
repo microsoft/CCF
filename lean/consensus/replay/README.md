@@ -32,6 +32,8 @@ done
 The scenario runner writes the raw records to `consensus/raw/`.
 The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `append_entries` and `request_vote`.
 
+The [consensus model driver](../../../tests/cft_model/README.md) links the driver with replay, and replays the trace of each scenario in the process which runs it.
+
 ## Replay contract
 
 Every protocol event must match a named rule; bootstrap selects the initial singleton membership.
@@ -55,6 +57,7 @@ Native code does not trace the `propose_request_vote` send that follows `step_do
 - [`Interpreter.lean`](../Consensus/Replay/Interpreter.lean): boundary-state field comparisons, packet selection, send checks and model execution.
 - [`ReplayMain.lean`](ReplayMain.lean): single-trace validation CLI.
 - [`ReplayDelivery.lean`](../Consensus/Tests/ReplayDelivery.lean): delivery selection among equal rendered packets.
+- [`ModelDriver.lean`](../../../tests/cft_model/ModelDriver.lean): the consensus model driver, which replays the scenarios in the process which runs them.
 - [`cft_scenarios_runner.py`](../../../tests/cft_scenarios_runner.py): existing native scenario runner and capture generation.
 
 See [failure fixtures](fixtures/README.md) for examples and expected diagnostics.
