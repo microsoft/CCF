@@ -173,6 +173,8 @@ namespace aft::trace
   DECLARE_TRACE_EVENT(
     recv_request_vote_response, cft_trace_tag, state, packet, from_node_id);
   DECLARE_TRACE_EVENT(
+    send_propose_request_vote, cft_trace_tag, state, packet, to_node_id);
+  DECLARE_TRACE_EVENT(
     recv_propose_request_vote, cft_trace_tag, state, packet, from_node_id);
   DECLARE_TRACE_EVENT(tick, cft_trace_tag, state);
   DECLARE_TRACE_EVENT(
