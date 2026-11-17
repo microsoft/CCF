@@ -11,7 +11,7 @@ The driver keeps its trace in memory, and the model replays it once the scenario
 
 open Lean
 open CftDriver
-open Consensus Consensus.Replay
+open Consensus.Replay
 
 namespace ModelDriver
 

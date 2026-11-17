@@ -1356,7 +1356,6 @@ if(BUILD_TESTS)
       add_dependencies(cft_model_driver cft_model)
       add_san(cft_model_driver)
       add_warning_checks(cft_model_driver)
-      enable_coverage(cft_model_driver)
       # As for cft_driver. The model driver library comes first, so that its
       # main is linked, and not that of the scenario library.
       target_link_libraries(
@@ -1378,14 +1377,6 @@ if(BUILD_TESTS)
 
       add_test(NAME cft_model_test COMMAND cft_model_driver --all)
       add_test_target(cft_model_test cft_model_driver)
-      if(COVERAGE)
-        # One process per scenario, as for cft_scenario_test
-        set_property(
-          TEST cft_model_test
-          APPEND
-          PROPERTY ENVIRONMENT "LLVM_PROFILE_FILE=cft_model-%p.profraw"
-        )
-      endif()
     endif()
 
     add_test(
