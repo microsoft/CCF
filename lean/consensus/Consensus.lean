@@ -6,6 +6,7 @@ public import Consensus.TraceValidation.Lockstep
 import Consensus.Tests.CanonicalTraces
 import Consensus.Tests.TraceValidationHooks
 import Consensus.TraceValidation.Proofs.Handlers.AppendEntries
+import Consensus.TraceValidation.Proofs.Handlers.AppendEntriesResponse
 import Consensus.TraceValidation.Proofs.Handlers.DropPendingTo
 import Consensus.TraceValidation.Proofs.Handlers.ForceBecomePrimary
 import Consensus.TraceValidation.Proofs.Handlers.InitAsBackup
