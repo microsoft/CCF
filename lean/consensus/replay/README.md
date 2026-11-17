@@ -74,9 +74,9 @@ Its proof, in [`TraceValidation/Proofs`](../Consensus/TraceValidation/Proofs), i
 Properties are stated and proved of the clean model only ([`Properties.lean`](../Consensus/Properties.lean)); trace validation claims nothing more of the implementation than this refinement.
 The proof reduces it to one obligation per `cft.h` handler, each stated in [`Obligation.lean`](../Consensus/TraceValidation/Proofs/Obligation.lean) and proved in its own file under [`Proofs/Handlers/`](../Consensus/TraceValidation/Proofs/Handlers) ([`Handlers.lean`](../Consensus/TraceValidation/Proofs/Handlers.lean) assembles them).
 
-To review: `TraceValidation.lean`, `CCF.Observation`, and `State`, `Event`, `Action`, `Observe` and `Abs` in [`TraceValidation/`](../Consensus/TraceValidation).
-`Handler`, `Aft`, `Machine` and `Validator` are the executable model and its scheduler, and `Invariant` and `Lockstep` the invariants and the diagnostic check; the proofs cover them.
-The decoder (`Event`) and the per-node split are trusted.
+To review: [`TraceValidation.lean`](../Consensus/TraceValidation.lean), the files directly in [`TraceValidation/`](../Consensus/TraceValidation) (`State`, `Event`, `Input`, `Action`, `Observe` and `Abs`), and [`CCF.Observation`](../../common/CCF/Observation.lean).
+They import only each other, the clean model and `lean/common` definitions, which `lake exe check-imports` enforces; the decoder and the split into per-node streams (`Event`, `Input`) are trusted, so they are among them.
+Nothing in a subfolder is reviewed: [`MTv/`](../Consensus/TraceValidation/MTv) is M_tv (the handler monad, the `cft.h` handlers, the machine, its invariant and its full-ledger state), [`Validator/`](../Consensus/TraceValidation/Validator) the scheduler, certification and the lock-step check, and [`Proofs/`](../Consensus/TraceValidation/Proofs) the proof; the theorem covers them.
 
 ## Known implementation and specification differences
 
@@ -115,10 +115,14 @@ A rejection names the trace line, the trace point and the field or rule that fai
 If its diagnostic says "known implementation and specification difference", the trace hit one of the cases listed [above](#known-implementation-and-specification-differences).
 Otherwise either the change is wrong, or M_tv must follow it: a new or removed event field goes in `traceFields` in [`Observe.lean`](../Consensus/TraceValidation/Observe.lean) with its comparison, and a moved trace point or changed behaviour goes in the handler of that lock hold in [`Aft.lean`](../Consensus/TraceValidation/MTv/Aft.lean).
 The build then fails until that handler's proof under [`Proofs/Handlers/`](../Consensus/TraceValidation/Proofs/Handlers) holds again, which is what shows the changed behaviour is still allowed by the consensus model.
+A change to `Observe.lean`, or to any other file directly in `TraceValidation/`, changes the reviewed surface and needs review; a change under `MTv/` or `Proofs/` does not.
 
 ## Source
 
-- [`TraceValidation/`](../Consensus/TraceValidation): declared state, events, observation, abstraction, M_tv, the validator and proofs.
+- [`TraceValidation.lean`](../Consensus/TraceValidation.lean) and the files directly in [`TraceValidation/`](../Consensus/TraceValidation) (reviewed): the theorem, declared state, events and their decoding, observation and state mapping.
+- [`TraceValidation/MTv/`](../Consensus/TraceValidation/MTv): M_tv, the model of `cft.h`.
+- [`TraceValidation/Validator/`](../Consensus/TraceValidation/Validator): the scheduler, certification and the lock-step check.
+- [`TraceValidation/Proofs/`](../Consensus/TraceValidation/Proofs): the proof of `accepted_refines`.
 - [`ReplayMain.lean`](ReplayMain.lean): validation CLI.
 - [`cft_scenarios_runner.py`](../../../tests/cft_scenarios_runner.py): native scenario runner and capture generation.
 

@@ -14,7 +14,7 @@ The handlers (`Consensus.TraceValidation.MTv.Aft`) run on `State`: the reviewed 
 state (`Exec.Declared`) with the whole ledger instead of the entries the node holds. For a
 node that joined from a snapshot, the entries up to `base` are a ghost: the machine fills
 them at the `init_as_backup` release from a node that has committed them
-(`Consensus.TraceValidation.MTv.Machine.fillSnapshot`), so that the clean `initAsBackup` input
+(`fillSnapshot` in `MTv/Machine.lean`), so that the clean `initAsBackup` input
 is admitted. `State.declared` projects them away; the machine checks that no hold's
 outcome depends on them (`Machine.ghostFree`).
 

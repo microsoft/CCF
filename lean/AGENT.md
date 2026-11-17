@@ -13,17 +13,18 @@ To be clear being able to save 1 line of human readable code at the cost of 1000
 
 Within a model's library directory, use this layout:
 
-| Location               | Responsibility                                                                                        |
-| ---------------------- | ----------------------------------------------------------------------------------------------------- |
-| `Model.lean`           | Assemble the executable model, including configuration and network composition.                       |
-| `Model/`               | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`.  |
-| `../common/CCF/`       | Reusable transition systems, network composition, and execution definitions in the `CCF` namespace.   |
-| `Properties.lean`      | State safety theorems and witness lemmas explicitly, linked to checked implementations.               |
-| `Properties/`          | Definitions needed to state and understand those claims, such as state and trace predicates.          |
-| `Proofs/`              | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.             |
-| `Tests/`               | Executable model checks and regression cases.                                                         |
-| `TraceValidation.lean` | State that accepted implementation traces refine the model.                                           |
-| `TraceValidation/`     | Declared state, trace events, observation, state mapping, implementation model, validator and proofs. |
+| Location               | Responsibility                                                                                       |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `Model.lean`           | Assemble the executable model, including configuration and network composition.                      |
+| `Model/`               | Model-specific definitions and transitions. For disaster recovery, this includes `Model/Local.lean`. |
+| `../common/CCF/`       | Reusable transition systems, network composition, and execution definitions in the `CCF` namespace.  |
+| `Properties.lean`      | State safety theorems and witness lemmas explicitly, linked to checked implementations.              |
+| `Properties/`          | Definitions needed to state and understand those claims, such as state and trace predicates.         |
+| `Proofs/`              | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
+| `Tests/`               | Executable model checks and regression cases.                                                        |
+| `TraceValidation.lean` | State that accepted implementation traces refine the model.                                          |
+| `TraceValidation/`     | Reviewed: declared state, trace events and their decoding, observation and state mapping.            |
+| `TraceValidation/*/`   | Not reviewed: the implementation model, validator and proofs, each in a sensibly named subfolder.    |
 
 ## Dependency direction
 
@@ -32,6 +33,7 @@ Within a model's library directory, use this layout:
 - Property helpers in `Properties/` should depend on the model, shared definitions, and other property helpers.
   They may not import `Properties.lean` or `Proofs/`.
 - Let `Proofs/` depend on model definitions, property helpers, and other supporting proofs, but not `Properties.lean`.
+- Files directly in `TraceValidation/` may import only the model, `common/CCF/` definitions (not `CCF.Proofs`), `TraceValidation.lean` and each other, so the reviewed surface reads without its subfolders.
   `Properties.lean` publicly imports the types and helpers needed to understand its statements and privately imports proof implementations.
 
 Write the full logical statement in each public safety theorem and existential witness lemma, rather than defining a separate named proposition.
@@ -78,7 +80,7 @@ Moving ghost definitions into `Properties/` merely to remove an import does not 
 
 Review the model, full statements and proof links in `Properties.lean`, and the property helpers used by those statements.
 Keep the detailed proof implementations machine-checked and within the axiom allowlist.
-For trace validation, review the files that `consensus/replay/README.md` lists; its proofs under `TraceValidation/Proofs/` follow the same rule.
+For trace validation, review `TraceValidation.lean` and the files directly in `TraceValidation/`; its subfolders are machine-checked like `Proofs/`.
 
 Retain the package-level import root, whole-package import coverage with `lake exe check-imports`, and kernel and axiom-dependency checks with `lake check`.
 The proof entrypoint does not replace either check.
@@ -87,4 +89,4 @@ For disaster recovery, see the [validation commands](disaster-recovery/README.md
 
 The shared `lake exe check-imports` command checks dependency direction for every specification library root discovered from Lake.
 Do not add per-model architecture tests; see [the common package](common/README.md#architecture-checks) for the policy.
-It keeps common and model modules independent of properties and proofs, property helpers independent of proofs and theorem entrypoints, and proof implementations independent of the final theorem entrypoint.
+It keeps common and model modules independent of properties and proofs, property helpers independent of proofs and theorem entrypoints, proof implementations independent of the final theorem entrypoint, and the reviewed trace-validation files independent of their subfolders.

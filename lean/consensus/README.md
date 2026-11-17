@@ -5,19 +5,19 @@ It assumes familiarity with the [CCF consensus protocol documentation](../../doc
 
 ## Source map
 
-| Area                                   | Source                                                                                                                         |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Node state, log entries, log queries   | [`Model/NodeState.lean`](Consensus/Model/NodeState.lean)                                                                       |
-| Configurations, quorums, retirement    | [`Model/ClusterConfig.lean`](Consensus/Model/ClusterConfig.lean) (`activeConfigurations`, `hasQuorum`, `NodeState.retirement`) |
-| Messages                               | [`Model/Messages.lean`](Consensus/Model/Messages.lean)                                                                         |
-| Protocol policy (one node's step)      | [`Model/Node.lean`](Consensus/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)     |
-| Initial states and network composition | [`Model.lean`](Consensus/Model.lean) (`initialNodeState`, `transitionSystem`)                                                  |
-| Safety theorems and witness lemmas     | [`Properties.lean`](Consensus/Properties.lean)                                                                                 |
-| Valid initial memberships              | [`Properties/Config.lean`](Consensus/Properties/Config.lean)                                                                   |
-| Supporting proofs and executions       | [`Proofs/`](Consensus/Proofs)                                                                                                  |
-| Trace validation: statement            | [`TraceValidation.lean`](Consensus/TraceValidation.lean) (`accepted_refines`)                                                  |
-| Trace validation: model and validator  | [`TraceValidation/`](Consensus/TraceValidation) (declared state, observation, `abs`, M_tv, validator, proofs)                  |
-| Action-trace tests                     | [`Tests/CanonicalTraces.lean`](Consensus/Tests/CanonicalTraces.lean)                                                           |
+| Area                                             | Source                                                                                                                                                             |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Node state, log entries, log queries             | [`Model/NodeState.lean`](Consensus/Model/NodeState.lean)                                                                                                           |
+| Configurations, quorums, retirement              | [`Model/ClusterConfig.lean`](Consensus/Model/ClusterConfig.lean) (`activeConfigurations`, `hasQuorum`, `NodeState.retirement`)                                     |
+| Messages                                         | [`Model/Messages.lean`](Consensus/Model/Messages.lean)                                                                                                             |
+| Protocol policy (one node's step)                | [`Model/Node.lean`](Consensus/Model/Node.lean) (`Node.step`, `receive`, `act`, `highestCommittableIndex`, `eligiblePeers`)                                         |
+| Initial states and network composition           | [`Model.lean`](Consensus/Model.lean) (`initialNodeState`, `transitionSystem`)                                                                                      |
+| Safety theorems and witness lemmas               | [`Properties.lean`](Consensus/Properties.lean)                                                                                                                     |
+| Valid initial memberships                        | [`Properties/Config.lean`](Consensus/Properties/Config.lean)                                                                                                       |
+| Supporting proofs and executions                 | [`Proofs/`](Consensus/Proofs)                                                                                                                                      |
+| Trace validation: reviewed statement and mapping | [`TraceValidation.lean`](Consensus/TraceValidation.lean) (`accepted_refines`) and the files directly in [`TraceValidation/`](Consensus/TraceValidation)            |
+| Trace validation: not reviewed                   | [`TraceValidation/MTv/`](Consensus/TraceValidation/MTv) (M_tv), [`Validator/`](Consensus/TraceValidation/Validator), [`Proofs/`](Consensus/TraceValidation/Proofs) |
+| Action-trace tests                               | [`Tests/CanonicalTraces.lean`](Consensus/Tests/CanonicalTraces.lean)                                                                                               |
 
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
 Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
