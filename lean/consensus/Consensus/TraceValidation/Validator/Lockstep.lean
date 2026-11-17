@@ -3,8 +3,8 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-public import Consensus.TraceValidation.Validator
-public import Consensus.TraceValidation.Invariant
+public import Consensus.TraceValidation.Validator.Validate
+public import Consensus.TraceValidation.MTv.Invariant
 
 @[expose] public section
 

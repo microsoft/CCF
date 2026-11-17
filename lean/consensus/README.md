@@ -55,7 +55,7 @@ Append regressions check configuration heartbeats followed by flushing, pre-comm
 These are regression examples, not exhaustive checking.
 `lake check` checks both default targets, `Consensus` and `consensus-replay`, in one invocation.
 It runs without sandboxing here, so build-time code must be trusted.
-`Consensus.lean` reexports `Properties.lean`, `TraceValidation.lean` and the diagnostic `TraceValidation/Lockstep.lean`, while importing tests privately.
+`Consensus.lean` reexports `Properties.lean`, `TraceValidation.lean` and the diagnostic `TraceValidation/Validator/Lockstep.lean`, while importing tests privately.
 The shared `check-imports` command rejects modules missing from that import closure.
 
 ## Proofs

@@ -4,7 +4,7 @@ module
 -- Licensed under the Apache 2.0 License.
 
 public import Consensus.TraceValidation.Proofs.Monad
-public import Consensus.TraceValidation.Invariant
+public import Consensus.TraceValidation.MTv.Invariant
 public import CCF.Proofs.Finset
 
 @[expose] public section

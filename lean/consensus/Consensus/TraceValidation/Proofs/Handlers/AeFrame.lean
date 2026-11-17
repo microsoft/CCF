@@ -4,7 +4,7 @@ module
 -- Licensed under the Apache 2.0 License.
 
 public import Consensus.TraceValidation.Proofs.Handlers.AeHoare
-public import Consensus.TraceValidation.Aft
+public import Consensus.TraceValidation.MTv.Aft
 
 @[expose] public section
 

@@ -1,8 +1,8 @@
 module
 
-meta import Consensus.TraceValidation.Lockstep
+meta import Consensus.TraceValidation.Validator.Lockstep
 
-public import Consensus.TraceValidation.Lockstep
+public import Consensus.TraceValidation.Validator.Lockstep
 
 public section
 

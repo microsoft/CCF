@@ -5,8 +5,8 @@ module
 
 public import Consensus.Model
 public import Consensus.TraceValidation.Abs
-public import Consensus.TraceValidation.Aft
-public import Consensus.TraceValidation.Invariant
+public import Consensus.TraceValidation.MTv.Aft
+public import Consensus.TraceValidation.MTv.Invariant
 public import CCF.Sections
 
 @[expose] public section

@@ -47,7 +47,7 @@ Records are split into one stream per node, ordered by `h_ts`; all of a node's r
 `h_ts` is never compared across nodes, so captures with one process per node, or with shuffled lines, validate the same way.
 
 Each node's state is the declared state ([`State`](../Consensus/TraceValidation/State.lean)), one field per `cft.h` member, extended by the position inside the current lock hold.
-[`Aft`](../Consensus/TraceValidation/Aft.lean) mirrors the `cft.h` functions statement by statement; it takes one step per trace point, running the code from the previous trace point up to this one.
+[`Aft`](../Consensus/TraceValidation/MTv/Aft.lean) mirrors the `cft.h` functions statement by statement; it takes one step per trace point, running the code from the previous trace point up to this one.
 The first trace point of a lock hold opens a section; a silent release, inserted when the node's next event opens another section or its stream ends, runs the code after the last trace point and publishes the hold's sends.
 Where `cft.h` depends on something no trace point records, such as a timer or a batch size, the handler follows the branch that the node's next event requires.
 
@@ -61,7 +61,7 @@ A node that joined from a snapshot holds only the ledger after it: its declared 
 Each release checks that the base is a committed signature in that view, and that the hold's outcome does not depend on the entries up to the base, which the node does not hold.
 For the proof only, the model takes those entries, which no trace point records, from another node's committed ledger.
 
-With `--refine`, [`Lockstep`](../Consensus/TraceValidation/Lockstep.lean) also checks every release against the [clean model](../Consensus/Model/Node.lean): the clean inputs of the hold are rebuilt, the clean `Node.step`s run from the node's clean state, and the result must agree ([`Abs`](../Consensus/TraceValidation/Abs.lean)) with the declared state, with the same sends in the same order, and satisfy the invariants the proofs use.
+With `--refine`, [`Lockstep`](../Consensus/TraceValidation/Validator/Lockstep.lean) also checks every release against the [clean model](../Consensus/Model/Node.lean): the clean inputs of the hold are rebuilt, the clean `Node.step`s run from the node's clean state, and the result must agree ([`Abs`](../Consensus/TraceValidation/Abs.lean)) with the declared state, with the same sends in the same order, and satisfy the invariants the proofs use.
 This check is a diagnostic and a regression oracle for the proofs, not part of what acceptance means.
 
 ## What acceptance means
@@ -113,7 +113,7 @@ Validation also tolerates the following without checking them exactly.
 
 A rejection names the trace line, the trace point and the field or rule that failed.
 If its diagnostic says "known implementation and specification difference", the trace hit one of the cases listed [above](#known-implementation-and-specification-differences).
-Otherwise either the change is wrong, or M_tv must follow it: a new or removed event field goes in `traceFields` in [`Observe.lean`](../Consensus/TraceValidation/Observe.lean) with its comparison, and a moved trace point or changed behaviour goes in the handler of that lock hold in [`Aft.lean`](../Consensus/TraceValidation/Aft.lean).
+Otherwise either the change is wrong, or M_tv must follow it: a new or removed event field goes in `traceFields` in [`Observe.lean`](../Consensus/TraceValidation/Observe.lean) with its comparison, and a moved trace point or changed behaviour goes in the handler of that lock hold in [`Aft.lean`](../Consensus/TraceValidation/MTv/Aft.lean).
 The build then fails until that handler's proof under [`Proofs/Handlers/`](../Consensus/TraceValidation/Proofs/Handlers) holds again, which is what shows the changed behaviour is still allowed by the consensus model.
 
 ## Source

@@ -12,7 +12,7 @@ public import Lean.Data.Json
 
 One `Declared` state per node. Every field mirrors one implementation member, named
 in its doc comment; there is no control, thread, lock or ghost state here. M_tv runs on
-an extension of it (`Consensus.TraceValidation.Full`), which is not part of the reviewed
+an extension of it (`Consensus.TraceValidation.MTv.Full`), which is not part of the reviewed
 surface. `Consensus.TraceValidation.Observe` compares trace events against projections of
 this structure only.
 

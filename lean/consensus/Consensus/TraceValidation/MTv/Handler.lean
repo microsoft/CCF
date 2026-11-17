@@ -3,7 +3,7 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-public import Consensus.TraceValidation.Full
+public import Consensus.TraceValidation.MTv.Full
 
 @[expose] public section
 
@@ -15,7 +15,7 @@ monad over `Ctx`, with no suspension. The run consumes the hold's actions from
 `Ctx.queue`, one per `trace` call, in order. The program counter is therefore the
 number of actions consumed: M_tv steps an event by rerunning the handler from the
 declared state at lock acquisition with one more action queued
-(`Consensus.TraceValidation.Machine`).
+(`Consensus.TraceValidation.MTv.Machine`).
 
 A run that has consumed every queued action stops (`Stop.blocked`) at the first state
 mutation, trace or peek after the last trace point, so the state it stops in is the

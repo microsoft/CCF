@@ -3,7 +3,7 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-public import Consensus.TraceValidation.Aft
+public import Consensus.TraceValidation.MTv.Aft
 
 @[expose] public section
 
@@ -15,7 +15,7 @@ The refinement proof relates a node's clean state to its declared state by `Rel`
 before the node's first ledger entry, the clean initial state; in both cases with the
 local invariant `inv` of the declared state. Messages in flight satisfy `msgInv`.
 
-The machine (`Consensus.TraceValidation.Machine`) evaluates `inv` at every release and
+The machine (`Consensus.TraceValidation.MTv.Machine`) evaluates `inv` at every release and
 rejects the trace when a conjunct fails, so each handler obligation assumes `inv` of the
 declared state at release rather than proving it. A rejection by a conjunct is of one of
 two kinds, stated in its doc comment:
@@ -27,7 +27,7 @@ two kinds, stated in its doc comment:
   implementation and specification difference.
 
 `msgInv` stays a conclusion of each obligation about the messages it sends; the
-diagnostic lock-step check (`Consensus.TraceValidation.Lockstep`) evaluates it at every
+diagnostic lock-step check (`Consensus.TraceValidation.Validator.Lockstep`) evaluates it at every
 send.
 
 Each conjunct of `inv` is named; the names are what rejections and lock-step findings

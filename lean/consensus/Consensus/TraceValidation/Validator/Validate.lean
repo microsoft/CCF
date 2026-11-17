@@ -3,7 +3,7 @@ module
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
-public import Consensus.TraceValidation.Machine
+public import Consensus.TraceValidation.MTv.Machine
 
 @[expose] public section
 

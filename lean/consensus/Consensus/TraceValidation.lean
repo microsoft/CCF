@@ -10,7 +10,7 @@ public import Consensus.TraceValidation.Proofs.Refinement
 /-!
 # Trace validation (reviewed statement)
 
-The validator `validate` (in `Consensus.TraceValidation.Validator`) checks a trace of
+The validator `validate` (in `Consensus.TraceValidation.Validator.Validate`) checks a trace of
 `cft.h` trace points, split into one stream per node. The theorem below is what
 acceptance means: the accepted trace is a behaviour of the clean model
 `Consensus.Model.transitionSystem` under a state refinement mapping. Properties are
