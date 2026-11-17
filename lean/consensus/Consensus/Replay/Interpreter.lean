@@ -90,9 +90,9 @@ structure Group where
   process : String
   /-- The emission order within its process of the head event, and of the last event. -/
   time : Nat
-  last : Nat := time
+  last : Nat
   /-- The head event's wall-clock time, when the trace records it. -/
-  ts : Option Nat := none
+  ts : Option Nat
   instructions : Array Instruction
 
 /-- Where the group starts, with its rule. -/
@@ -515,8 +515,5 @@ def schedule (header : Header) (queues : Array (Array Group))
   let instructions := queues.flatMap (·.flatMap (·.instructions))
   let actions := (instructions.filter (· matches .action ..)).size
   return { groups := total, actions, observations := instructions.size - actions }
-
-def replay (header : Header) (queues : Array (Array Group)) : Except String Result :=
-  (schedule header queues).run.run' #[]
 
 end Consensus.Replay

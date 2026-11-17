@@ -67,7 +67,6 @@ After each rule's actions, the envelopes they queued must equal the rule's nativ
 - [`Interpreter.lean`](../Consensus/Replay/Interpreter.lean): boundary-state field comparisons, packet selection, send checks, group scheduling and model execution.
 - [`ReplayMain.lean`](ReplayMain.lean): single-trace validation CLI.
 - [`ReplayDelivery.lean`](../Consensus/Tests/ReplayDelivery.lean): delivery selection among equal rendered packets.
-- [`ReplayStreams.lean`](../Consensus/Tests/ReplayStreams.lean): rejection of repeated `h_ts` and of a node traced by two processes, waiting receives and atomic groups.
 - [`check-order.py`](check-order.py): verdicts unchanged by shuffling records, and valid traces unchanged by moving each node into its own process without wall-clock times.
 - [`cft_scenarios_runner.py`](../../../tests/cft_scenarios_runner.py): existing native scenario runner and capture generation.
 
