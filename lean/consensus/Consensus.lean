@@ -7,7 +7,10 @@ import Consensus.Tests.CanonicalTraces
 import Consensus.Tests.TraceValidationHooks
 import Consensus.TraceValidation.Proofs.Handlers.AeHoare
 import Consensus.TraceValidation.Proofs.Handlers.AeLemmas
-import Consensus.TraceValidation.Proofs.Handlers.LifeHoare
+import Consensus.TraceValidation.Proofs.Handlers.DropPendingTo
+import Consensus.TraceValidation.Proofs.Handlers.ForceBecomePrimary
+import Consensus.TraceValidation.Proofs.Handlers.InitAsBackup
+import Consensus.TraceValidation.Proofs.Handlers.OutOfLockHook
 import Consensus.TraceValidation.Proofs.Handlers.ReplUpdateCommit
 import Consensus.TraceValidation.Proofs.Handlers.VoteLemmas
 import Consensus.TraceValidation.Proofs.Section
