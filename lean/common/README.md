@@ -2,21 +2,25 @@
 
 The `ccf_common` Lake package exposes protocol-independent definitions in the `CCF` namespace.
 
-| Module                          | Purpose                                                      |
-| ------------------------------- | ------------------------------------------------------------ |
-| `CCF.Capabilities`              | Envelopes, ordered outputs, effects, and recording callbacks |
-| `CCF.TransitionSystem`          | Initial states, enabled transitions, and reachability        |
-| `CCF.MultiNodeTransitionSystem` | Local protocols composed into a message-passing network      |
-| `CCF.Execution`                 | Finite runs and finite or infinite execution traces          |
-| `CCF.Parsec`                    | Stateful Parsec combinators over arrays of arbitrary events  |
-| `CCF.Architecture`              | Checks of specification import layering                      |
-| `CCF.Seq`                       | Possibly infinite sequences (replaces Mathlib `Stream'.Seq`) |
-| `CCF.Finset`                    | Finite sets as strictly sorted lists (replaces `Finset`)     |
-| `CCF.Function`                  | Point updates of functions (replaces `Function.update`)      |
-| `CCF.Proofs.Execution`          | Execution constructors and theorems about runs and traces    |
-| `CCF.Proofs.Finset`             | Lemmas about the `CCF.Finset` operations                     |
-| `CCF.Proofs.Function`           | Lemmas about point updates                                   |
-| `CCF.Proofs.Seq`                | Lemmas about sequence access and membership                  |
+| Module                           | Purpose                                                      |
+| -------------------------------- | ------------------------------------------------------------ |
+| `CCF.Capabilities`               | Envelopes, ordered outputs, effects, and recording callbacks |
+| `CCF.TransitionSystem`           | Initial states, enabled transitions, and reachability        |
+| `CCF.MultiNodeTransitionSystem`  | Local protocols composed into a message-passing network      |
+| `CCF.Execution`                  | Finite runs and finite or infinite execution traces          |
+| `CCF.Observation`                | Refinement of a specification at observed trace events       |
+| `CCF.Sections`                   | Event-granular nodes whose lock holds refine local steps     |
+| `CCF.Parsec`                     | Stateful Parsec combinators over arrays of arbitrary events  |
+| `CCF.Architecture`               | Checks of specification import layering                      |
+| `CCF.Seq`                        | Possibly infinite sequences (replaces Mathlib `Stream'.Seq`) |
+| `CCF.Finset`                     | Finite sets as strictly sorted lists (replaces `Finset`)     |
+| `CCF.Function`                   | Point updates of functions (replaces `Function.update`)      |
+| `CCF.Proofs.Execution`           | Execution constructors and theorems about runs and traces    |
+| `CCF.Proofs.Finset`              | Lemmas about the `CCF.Finset` operations                     |
+| `CCF.Proofs.Function`            | Lemmas about point updates                                   |
+| `CCF.Proofs.Seq`                 | Lemmas about sequence access and membership                  |
+| `CCF.Proofs.Sections`            | Lock-hold networks simulated by the clean network            |
+| `CCF.Proofs.SectionsObservation` | Accepted section runs establish `CCF.Observation` refinement |
 
 `CCF.Execution.TraceImpl system` records an `init` state and a possibly infinite `steps` sequence pairing each action with its destination state.
 `CCF.Execution.Trace system` is the subtype whose `TraceImpl.Valid` proof establishes initialization and every recorded transition.
