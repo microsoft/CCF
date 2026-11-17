@@ -134,6 +134,9 @@ Recovery Decision Protocol
 At a high level, the recovery decision protocol allows recovering nodes to discover which node has the most up-to-date ledger and automatically recover the network using that ledger.
 The protocol completes with a node choosing to `transition-to-open`, and so requires another mechanism to unseal and recover the private ledger.
 
+Recovery traffic must be isolated between services, or protocol messages must include and validate a distinct per-service identifier.
+Without one of these protections, nodes from different services with identical attestations may be aliased as participants in the same recovery decision.
+
 The protocol uses three phases to ensure that so long as the hosts and network between them is sufficiently healthy, forks are prevented and the most up-to-date ledger is recovered.
 Specifically, the protocol ensures this so long as: all nodes restart, have full network connectivity and a majority of nodes' on-disk ledger contains every committed transaction.
 This is a strong, but reasonable requirement, and greatly simplifies the protocol.
