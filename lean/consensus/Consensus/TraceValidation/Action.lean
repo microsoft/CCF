@@ -8,12 +8,13 @@ public import Lean.Data.Json
 @[expose] public section
 
 /-!
-# M_tv actions
+# M_tv actions (reviewed)
 
 One action per trace event: the trace point reached and the event fields the
 model consumes as input (see `Observe.inputFields`). The silent lock release is
 `none : Option Action`. Each step also returns a `Label`: the values the model
-computed at the trace point for the event's remaining non-state fields.
+computed at the trace point for the event's remaining non-state fields. A reviewer
+checks that these carry nothing but the trace point and its event's fields.
 -/
 
 namespace Consensus.TraceValidation.Exec

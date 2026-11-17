@@ -7,39 +7,31 @@ public import Consensus.TraceValidation.Validator.Lockstep
 
 public section
 
-open Lean Consensus.TraceValidation.Exec
-
 /--
-Validate one trace with `Consensus.TraceValidation.validate`, the validator whose
-acceptance `Consensus.TraceValidation.accepted_refines` is about. With `refine`, also
-run the diagnostic lock-step check against the clean model and fail on any finding.
+Validate one trace with `Consensus.TraceValidation.validate` on the arguments
+`Consensus.TraceValidation.load` decodes, the validator whose acceptance
+`Consensus.TraceValidation.accepted_refines` is about. With `refine`, also run the
+diagnostic lock-step check against the clean model and fail on any finding.
 -/
 def check (refine : Bool) (path : String) : IO Bool := do
   let t0 ← IO.monoMsNow
-  match ← readTrace path with
+  let r :=
+    (← Consensus.TraceValidation.load path).bind
+      fun (env, ss) => (Consensus.TraceValidation.validate env ss).map (env, ·)
+  let t1 ← IO.monoMsNow
+  match r with
   | .error e => IO.eprintln s!"FAIL {path}: {e}"; return false
-  | .ok trace =>
-      let r := do
-        let (env, ss) ← Consensus.TraceValidation.environment (← streams trace)
-        Consensus.TraceValidation.validate env ss
-      let t1 ← IO.monoMsNow
-      match r with
-      | .ok v =>
-          IO.println
-            s!"PASS {path}: nodes={v.keys.length} events={v.observations.length} sections={v.sections} actions={v.actions.length} ms={t1 - t0}"
-          if !refine then return true
-          let (env, _) ←
-            IO.ofExcept
-              (do
-                Consensus.TraceValidation.environment (← streams trace))
-          match Consensus.TraceValidation.lockstep env v with
-          | .error e => IO.eprintln s!"REFINE-ERROR {path}: {e}"; return false
-          | .ok [] => return true
-          | .ok fs =>
-              for f in fs do
-                IO.eprintln s!"REFINE {path}: {f}"
-              return false
-      | .error e => IO.eprintln s!"FAIL {path}: {e}"; return false
+  | .ok (env, v) =>
+      IO.println
+        s!"PASS {path}: nodes={v.keys.length} events={v.observations.length} sections={v.sections} actions={v.actions.length} ms={t1 - t0}"
+      if !refine then return true
+      match Consensus.TraceValidation.lockstep env v with
+      | .error e => IO.eprintln s!"REFINE-ERROR {path}: {e}"; return false
+      | .ok [] => return true
+      | .ok fs =>
+          for f in fs do
+            IO.eprintln s!"REFINE {path}: {f}"
+          return false
 
 def main (args : List String) : IO UInt32 := do
   let (refine, args) :=

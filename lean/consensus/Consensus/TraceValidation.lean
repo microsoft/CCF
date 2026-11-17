@@ -10,20 +10,23 @@ public import Consensus.TraceValidation.Proofs.Refinement
 /-!
 # Trace validation (reviewed statement)
 
-The validator `validate` (in `Consensus.TraceValidation.Validator.Validate`) checks a trace of
-`cft.h` trace points, split into one stream per node. The theorem below is what
-acceptance means: the accepted trace is a behaviour of the clean model
+`load` decodes a trace file of `cft.h` trace points into trace-wide parameters `env` and one
+stream of events per node, and the validator `validate` checks them. The theorem below is
+what acceptance means: the accepted trace is a behaviour of the clean model
 `Consensus.Model.transitionSystem` under a state refinement mapping. Properties are
 stated and proved of the clean model only (`Consensus.Properties`); nothing here is
 claimed of the implementation beyond this refinement.
 
-To review, the state refinement mapping and the observations it is checked at:
-`State` (the declared state: the `cft.h` variables of a node, with the ledger it
-holds), `Abs` (the relation `related` of a clean node state to a declared state),
-`Event` (decoded trace points), `Action` and `Observe` (what each trace point is
-compared with), `CCF.Observation` (the refinement statement, in `lean/common`), and this
-file. The behaviour refinement, that is the proof of the theorem, is in
-`Consensus.TraceValidation.Proofs` and is not reviewed.
+The reviewed surface is this file and the files directly in `TraceValidation/`: `State`
+(the declared state: the `cft.h` variables of a node, with the ledger it holds), `Event`
+(decoded trace points and per-node streams), `Input` (`load` and `env`), `Action` and
+`Observe` (what each trace point is compared with), and `Abs` (the relation `related` of a
+clean node state to a declared state); with `CCF.Observation` (the refinement statement, in
+`lean/common`). They import only each other, the clean model and `lean/common`. This file's
+only other references are the validator `validate` and the `observations` of its result
+(`TraceValidation/Validator/`), and the proof `Proofs.validate_refines`; those, the model
+of `cft.h` it runs (`TraceValidation/MTv/`) and the proofs (`TraceValidation/Proofs/`) are
+not reviewed.
 -/
 
 namespace Consensus.TraceValidation
@@ -45,7 +48,7 @@ theorem accepted_refines {env : Env}
     : streamsMatch streams v.observations
       /\ (forall o, o ∈ v.observations -> Exec.consistent o.event o.declared = true)
       /\ CCF.ObservationRefinement.Refines
-          (Consensus.Model.transitionSystem env.genesis v.keys) nodeState
+          (Consensus.Model.transitionSystem env.genesis (streams.map Prod.fst)) nodeState
           (fun node clean declared =>
             related env.names node clean declared.1 = true)
           opens v.observations :=

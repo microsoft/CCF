@@ -346,42 +346,4 @@ def validate (env : Env) (streams : List (NodeID × List Ev)) : Except String Ve
   | .error err => .error err
   | .ok w => conclude env ticking streams w
 
-/-! ## Trace-wide parameters, from the decoded trace -/
-
-partial def collectAddrs (j : Json) (acc : List (Exec.NodeId × String))
-    : List (Exec.NodeId × String) :=
-  match j with
-  | .obj kvs =>
-      kvs.toArray.foldl (init := acc)
-        fun acc (k, v) =>
-          match v.getObjValAs? String "address" with
-          | .ok a => if acc.contains (k, a) then acc else (k, a) :: acc
-          | .error _ => collectAddrs v acc
-  | .arr vs => vs.foldl (init := acc) fun acc v => collectAddrs v acc
-  | _ => acc
-
-/-- The environment and the per-node streams, keyed by clean id. -/
-def environment (ss : List (Exec.NodeId × Array Ev))
-    : Except String (Env × List (NodeID × List Ev)) := do
-  let addrs :=
-    ss.foldl (init := [])
-      fun acc (_, evs) =>
-        evs.foldl (init := acc) fun acc e => collectAddrs e.msg acc
-  for (n, a) in addrs do
-    if addrs.any fun (m, b) => m == n && b != a then throw s!"node {n} has two addresses"
-  let ids := ((ss.map Prod.fst) ++ addrs.map Prod.fst).mergeSort (· <= ·) |>.eraseDups
-  let names : Names := { known := ids.toArray }
-  let firsts :=
-    ss.filterMap
-      fun (n, evs) =>
-        if (evs[0]?.map (·.function)) == some "become_leader" then
-          some (names.id n)
-        else
-          none
-  unless firsts.length == 1 do
-    throw
-      s!"expected one genesis node (stream starting with become_leader), found {firsts.length}"
-  let env : Env := { names, addrs, genesis := CCF.Finset.ofList firsts }
-  return (env, ss.map fun (n, evs) => (names.id n, evs.toList))
-
 end Consensus.TraceValidation

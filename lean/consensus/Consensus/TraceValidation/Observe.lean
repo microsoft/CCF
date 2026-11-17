@@ -10,7 +10,7 @@ public import Consensus.TraceValidation.Action
 @[expose] public section
 
 /-!
-# Trace validation surface (reviewed)
+# Observations (reviewed)
 
 Each trace event maps to exactly one M_tv action (`actionOf`). After the model
 steps that action, the event is observed against the declared state (`Declared`) at the
@@ -23,7 +23,9 @@ the fields its trace point declares (`traceFields`):
   entry contents that only the hooks reveal);
 * the label: values the model computed at the trace point (packets, indices).
 
-Depends only on the declared state, the action type and event decoding.
+Depends only on the declared state, the action type and event decoding. A reviewer
+checks `traceFields` against `cft_trace_msgpack.h`, and each comparison against the
+`cft.h` code at its trace point.
 -/
 
 namespace Consensus.TraceValidation.Exec

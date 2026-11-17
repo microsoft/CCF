@@ -8,7 +8,7 @@ public import Lean.Data.Json
 @[expose] public section
 
 /-!
-# Trace events for messy-model trace validation
+# Trace events (reviewed)
 
 Decoding only: one record per line, `{process_id, h_ts, msg}`. Command records
 (`msg.cmd`) are driver provenance and are kept apart. Every other record is one
@@ -16,7 +16,8 @@ trace event of the node named by `msg.state.node_id` (or `msg.node_id` for
 `retired_committed_tx`, which carries no snapshot).
 
 Events are split into one stream per node, ordered by `h_ts` within the node's
-process. The global order across processes is never used.
+process. The global order across processes is never used. A reviewer checks this
+against the record format the drivers and `cft_trace_msgpack.h` write.
 -/
 
 namespace Consensus.TraceValidation.Exec
@@ -82,10 +83,6 @@ def decode (file input : String) : Except String Trace := do
         (fun e => s!"{loc}: {e}")
     events := events.push { file, line, process, hts, node, function, msg }
   return { events, commands, records }
-
-def readTrace (path : System.FilePath) : IO (Except String Trace) := do
-  let input ← IO.FS.readFile path
-  return decode path.toString input
 
 /-- One stream per node, ordered by `h_ts`; a node must live in one process. -/
 def streams (trace : Trace) : Except String (List (String × Array Ev)) := do

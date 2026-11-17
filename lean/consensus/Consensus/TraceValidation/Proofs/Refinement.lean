@@ -67,11 +67,12 @@ theorem validate_refines {env : Env}
     : streamsMatch streams v.observations
       /\ (forall o, o ∈ v.observations -> Exec.consistent o.event o.declared = true)
       /\ CCF.ObservationRefinement.Refines
-          (Consensus.Model.transitionSystem env.genesis v.keys) nodeState
+          (Consensus.Model.transitionSystem env.genesis (streams.map Prod.fst)) nodeState
           (fun node clean declared =>
             related env.names node clean declared.1 = true)
           opens v.observations := by
-  obtain ⟨accepts, _, matches_, nonempty, consistent⟩ := validate_sound h
+  obtain ⟨accepts, keys, matches_, nonempty, consistent⟩ := validate_sound h
+  rw [← keys]
   exact ⟨matches_, consistent, observation_refines (refinement env (obligations env)) declare
     (fun node clean declared => related env.names node clean declared.1 = true)
     (fun node c l h idle => factors env node c l h idle) (frame env) v.keys _ _ (fun _ init keys => ⟨nonempty, keys, init⟩)

@@ -12,9 +12,9 @@ public import Lean.Data.Json
 
 One `Declared` state per node. Every field mirrors one implementation member, named
 in its doc comment; there is no control, thread, lock or ghost state here. M_tv runs on
-an extension of it (`Consensus.TraceValidation.MTv.Full`), which is not part of the reviewed
-surface. `Consensus.TraceValidation.Observe` compares trace events against projections of
-this structure only.
+an extension of it (in `MTv/`, not reviewed). `Consensus.TraceValidation.Observe` compares
+trace events against projections of this structure only. A reviewer checks each field
+against the `cft.h` member its doc comment names.
 
 The ledger is what the node holds: a node that joined from a snapshot holds only the
 entries after the snapshot (`Ledger::init_idx`); the snapshot's index and view are

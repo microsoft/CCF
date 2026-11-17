@@ -15,7 +15,8 @@ public import CCF.Observation
 The declared state is `Consensus.TraceValidation.Exec.Declared`: one structure of `cft.h`
 members per node, each field documented with the member it mirrors. This file maps it to
 the clean model's node state; `accepted_refines` says an accepted trace is a behaviour of
-the clean model under this mapping.
+the clean model under this mapping. A reviewer checks each clean field against the
+`cft.h` members it is projected from.
 
 `Declared.abs names d` is the clean `NodeState` that the declared state `d` stands for:
 each clean field is a projection of declared fields. Node ids are strings in the
@@ -154,16 +155,7 @@ def related (names : Names) (node : NodeID) (c : NodeState) (d : Declared) : Boo
   names.id d.nodeId == node
   && (d.agrees names c || (d.lastIdx == 0 && d.base == 0 && c.commitIndex == 0))
 
-/-! ## Trace-wide parameters and observations -/
-
-/-- Trace-wide parameters, computed by the decoder. -/
-structure Env where
-  /-- The trace's node ids, sorted. -/
-  names : Names
-  /-- Every node's address, as in configuration hooks. -/
-  addrs : List (Exec.NodeId × String)
-  /-- The genesis configuration: the node whose first event is `become_leader`. -/
-  genesis : Finset NodeID
+/-! ## Observations -/
 
 /-- Events that take the lock: the observation points. -/
 def opens (e : Ev) : Bool := Exec.heads.contains e.function
