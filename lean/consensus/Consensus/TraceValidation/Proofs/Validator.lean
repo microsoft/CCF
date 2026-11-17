@@ -110,6 +110,223 @@ theorem certify_sound {env : Env} {keys : List NodeID} {ticking : NodeID -> Bool
     · cases h
   · cases h
 
+/-! ## The observations are the streams' events -/
+
+/-- The node and event of each action that emits an observation. -/
+def actionEvents : List GAction -> List (NodeID × Ev)
+  | [] => []
+  | .event k e :: as => (k, e) :: actionEvents as
+  | .deliver x e :: as => (x.target, e) :: actionEvents as
+  | .release _ :: as => actionEvents as
+
+theorem emitsCheck_events {env : Env}
+    : forall {s : GState} {actions : List GAction} {f : GState} {obs : List Obs},
+        emitsCheck env s actions = some (f, obs)
+        -> obs.map (fun o => (o.node, o.event)) = actionEvents actions
+  | s, [], f, obs, h => by
+      simp only [emitsCheck, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      rfl
+  | s, .event node e :: rest, f, obs, h => by
+      simp only [emitsCheck] at h
+      split at h
+      · cases h
+      · split at h
+        · cases h
+        · split at h
+          · cases h
+          · rename_i f' os tail
+            simp only [Option.some.injEq, Prod.mk.injEq] at h
+            obtain ⟨rfl, rfl⟩ := h
+            simp [actionEvents, emitsCheck_events tail]
+  | s, .deliver x e :: rest, f, obs, h => by
+      simp only [emitsCheck] at h
+      split at h
+      · cases h
+      · split at h
+        · cases h
+        · split at h
+          · cases h
+          · rename_i f' os tail
+            simp only [Option.some.injEq, Prod.mk.injEq] at h
+            obtain ⟨rfl, rfl⟩ := h
+            simp [actionEvents, emitsCheck_events tail]
+  | s, .release node :: rest, f, obs, h => by
+      simp only [emitsCheck] at h
+      split at h
+      · cases h
+      · rw [actionEvents]
+        exact emitsCheck_events h
+
+theorem certify_events {env : Env} {keys : List NodeID} {ticking : NodeID -> Bool}
+    {actions : List GAction} {obs : List Obs}
+    (h : certify env keys ticking actions = some obs)
+    : keys.Nodup /\ obs.map (fun o => (o.node, o.event)) = actionEvents actions := by
+  unfold certify at h
+  split at h
+  · rename_i guards
+    split at h
+    · rename_i f os run
+      split at h
+      · simp only [Option.some.injEq] at h
+        subst h
+        exact ⟨guards.1, emitsCheck_events run⟩
+      · cases h
+    · cases h
+  · cases h
+
+theorem lookup_mem {k : NodeID} {b : List Ev}
+    : forall {rest : List (NodeID × List Ev)},
+        rest.lookup k = some b -> k ∈ rest.map Prod.fst
+  | [], h => by simp at h
+  | (j, evs) :: rest, h => by
+      by_cases eq : k = j
+      · simp [eq]
+      · have ne : (k == j) = false := by simpa using eq
+        simp only [List.lookup_cons, ne] at h
+        exact List.mem_cons_of_mem _ (lookup_mem h)
+
+theorem lookup_of_mem {k : NodeID} {evs : List Ev}
+    : forall {rest : List (NodeID × List Ev)},
+        (rest.map Prod.fst).Nodup -> (k, evs) ∈ rest -> rest.lookup k = some evs
+  | [], _, h => by simp at h
+  | (j, b) :: rest, nodup, h => by
+      simp only [List.map_cons, List.nodup_cons] at nodup
+      rcases List.mem_cons.mp h with eq | mem
+      · simp only [Prod.mk.injEq] at eq
+        obtain ⟨rfl, rfl⟩ := eq
+        simp
+      · have ne : k ≠ j := by
+          rintro rfl
+          exact nodup.1 (List.mem_map.mpr ⟨_, mem, rfl⟩)
+        have ne : (k == j) = false := by simpa using ne
+        simp only [List.lookup_cons, ne]
+        exact lookup_of_mem nodup.2 mem
+
+theorem lookup_empty {k : NodeID}
+    : forall {rest : List (NodeID × List Ev)},
+        rest.all (·.2.isEmpty) = true -> (rest.lookup k).getD [] = []
+  | [], _ => rfl
+  | (j, evs) :: rest, h => by
+      simp only [List.all_cons, Bool.and_eq_true, List.isEmpty_iff] at h
+      by_cases eq : k = j
+      · simp [eq, h.1]
+      · have ne : (k == j) = false := by simpa using eq
+        simp only [List.lookup_cons, ne]
+        exact lookup_empty h.2
+
+theorem popEvent_spec {k : NodeID} {e : Ev}
+    : forall {rest rest' : List (NodeID × List Ev)},
+        popEvent k rest = some (e, rest')
+        -> rest'.map Prod.fst = rest.map Prod.fst
+            /\ (rest.lookup k).getD [] = e :: (rest'.lookup k).getD []
+            /\ forall j, j ≠ k -> rest'.lookup j = rest.lookup j
+  | [], _, h => by simp [popEvent] at h
+  | (j, evs) :: rest, rest', h => by
+      unfold popEvent at h
+      by_cases eq : j = k
+      · subst eq
+        simp only [beq_self_eq_true, ↓reduceIte] at h
+        cases evs with
+        | nil => cases h
+        | cons e' es =>
+            simp only [Option.some.injEq, Prod.mk.injEq] at h
+            obtain ⟨rfl, rfl⟩ := h
+            refine ⟨rfl, by simp, fun i ne => ?_⟩
+            have ne : (i == j) = false := by simpa using ne
+            simp [List.lookup_cons, ne]
+      · simp only [beq_iff_eq, eq, ↓reduceIte, Option.map_eq_some_iff, Prod.exists] at h
+        obtain ⟨e', r, popped, he⟩ := h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨rfl, rfl⟩ := he
+        obtain ⟨keys, here, others⟩ := popEvent_spec popped
+        have ne : (k == j) = false := by simpa using fun h => eq h.symm
+        refine ⟨by simp [keys], by simpa [List.lookup_cons, ne] using here, fun i ne' => ?_⟩
+        by_cases ij : i = j
+        · simp [ij]
+        · have ij : (i == j) = false := by simpa using ij
+          simp [List.lookup_cons, ij, others i ne']
+
+theorem restream_spec
+    : forall {rest : List (NodeID × List Ev)} {actions actions' : List GAction},
+        restream rest actions = some actions'
+        -> (forall p, p ∈ actionEvents actions' -> p.1 ∈ rest.map Prod.fst)
+            /\ forall k,
+                ((actionEvents actions').filter (·.1 == k)).map Prod.snd
+                = (rest.lookup k).getD []
+  | rest, [], actions', h => by
+      unfold restream at h
+      split at h
+      · rename_i empty
+        simp only [Option.some.injEq] at h
+        subst h
+        exact ⟨by simp [actionEvents], fun k => by simp [actionEvents, lookup_empty empty]⟩
+      · cases h
+  | rest, .release k :: as, actions', h => by
+      simp only [restream, Option.map_eq_some_iff] at h
+      obtain ⟨as', tail, rfl⟩ := h
+      rw [actionEvents]
+      exact restream_spec tail
+  | rest, .event k e :: as, actions', h => by
+      simp only [restream] at h
+      split at h
+      · rename_i e' rest' popped
+        split at h
+        · simp only [Option.map_eq_some_iff] at h
+          obtain ⟨as', tail, rfl⟩ := h
+          exact step popped (restream_spec tail)
+        · cases h
+      · cases h
+  | rest, .deliver x e :: as, actions', h => by
+      simp only [restream] at h
+      split at h
+      · rename_i e' rest' popped
+        split at h
+        · simp only [Option.map_eq_some_iff] at h
+          obtain ⟨as', tail, rfl⟩ := h
+          exact step popped (restream_spec tail)
+        · cases h
+      · cases h
+where
+  step {rest rest' : List (NodeID × List Ev)} {k : NodeID} {e : Ev}
+      {evs : List (NodeID × Ev)} (popped : popEvent k rest = some (e, rest'))
+      (tail
+        : (forall p, p ∈ evs -> p.1 ∈ rest'.map Prod.fst)
+          /\ forall k, (evs.filter (·.1 == k)).map Prod.snd = (rest'.lookup k).getD [])
+      : (forall p, p ∈ (k, e) :: evs -> p.1 ∈ rest.map Prod.fst)
+        /\ forall j,
+            (((k, e) :: evs).filter (·.1 == j)).map Prod.snd
+            = (rest.lookup j).getD [] := by
+    obtain ⟨keys, here, others⟩ := popEvent_spec popped
+    refine ⟨fun p mem => ?_, fun j => ?_⟩
+    · rcases List.mem_cons.mp mem with eq | mem
+      · subst eq
+        cases found : rest.lookup k with
+        | none => simp [found] at here
+        | some b => exact lookup_mem found
+      · rw [← keys]
+        exact tail.1 p mem
+    · by_cases eq : j = k
+      · subst eq
+        simp [here, tail.2]
+      · have ne : (k == j) = false := by simpa using fun h => eq h.symm
+        simp [ne, tail.2, others j eq]
+
+theorem conclude_streams {env : Env} {ticking : NodeID -> Bool}
+    {streams : List (NodeID × List Ev)} {actions : List GAction} {obs : List Obs}
+    {scheduled : List GAction} (restreamed : restream streams scheduled = some actions)
+    (certified : certify env (streams.map Prod.fst) ticking actions = some obs)
+    : streamsMatch streams obs := by
+  obtain ⟨nodup, events⟩ := certify_events certified
+  obtain ⟨members, perNode⟩ := restream_spec restreamed
+  refine ⟨fun o mem => ?_, fun k evs mem => ?_⟩
+  · apply members (o.node, o.event)
+    rw [← events]
+    exact List.mem_map.mpr ⟨o, mem, rfl⟩
+  · have := perNode k
+    rw [lookup_of_mem nodup mem, ← events, List.filter_map, List.map_map] at this
+    simpa [Function.comp_def] using this
+
 /--
 **T1.** If the validator accepts, the acceptance predicate holds of its observations: a
 run of M_tv's event-granular network over exactly the stream nodes, from an initial state,
@@ -120,7 +337,7 @@ theorem validate_sound {env : Env} {streams : List (NodeID × List Ev)} {v : Ver
     (h : validate env streams = .ok v)
     : Accepts (machine env) declare v.keys v.observations
       /\ v.keys = streams.map Prod.fst
-      /\ streamsMatch streams v.observations = true
+      /\ streamsMatch streams v.observations
       /\ env.genesis.Nonempty
       /\ (forall o, o ∈ v.observations -> Exec.consistent o.event o.declared = true) := by
   unfold validate at h
@@ -132,13 +349,13 @@ theorem validate_sound {env : Env} {streams : List (NodeID × List Ev)} {v : Ver
     dsimp only at h
     split at h
     · cases h
-    · rename_i obs certified
+    · rename_i actions restreamed
       split at h
-      · rename_i matches_
+      · cases h
+      · rename_i obs certified
         simp only [Except.ok.injEq] at h
         subst h
         obtain ⟨accepts, nonempty, consistent⟩ := certify_sound certified
-        exact ⟨accepts, rfl, matches_, nonempty, consistent⟩
-      · cases h
+        exact ⟨accepts, rfl, conclude_streams restreamed certified, nonempty, consistent⟩
 
 end Consensus.TraceValidation.Proofs

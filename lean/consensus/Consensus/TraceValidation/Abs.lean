@@ -171,10 +171,12 @@ def opens (e : Ev) : Bool := Exec.heads.contains e.function
 /-- One observation: the node, its event, and its declared state and label at the event. -/
 abbrev Obs := CCF.ObservationRefinement.Observation NodeID Ev (Declared × Exec.Label)
 
-/-- Every node's observed events are its stream, in order (by trace line). -/
-def streamsMatch (streams : List (NodeID × List Ev)) (obs : List Obs) : Bool :=
-  streams.all
-    fun (k, evs) =>
-      ((obs.filter (·.node == k)).map (·.event.line)) == evs.map (·.line)
+/--
+The observations are exactly the streams' events: every observation is of a node that has a
+stream, and every node's observed events are its stream's events, in order.
+-/
+def streamsMatch (streams : List (NodeID × List Ev)) (obs : List Obs) : Prop :=
+  (forall o, o ∈ obs -> o.node ∈ streams.map Prod.fst)
+  /\ forall k evs, (k, evs) ∈ streams -> (obs.filter (·.node == k)).map (·.event) = evs
 
 end Consensus.TraceValidation

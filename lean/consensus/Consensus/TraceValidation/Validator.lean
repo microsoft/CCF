@@ -15,6 +15,8 @@ node, ordered by `h_ts` within the node's process; any node whose next event is 
 steps (receives and joiner releases may wait); a node releases when its next event is a
 section head or its stream has ended. It never compares `h_ts` across nodes.
 
+`restream` takes every action's event from the streams, in order per node, and requires
+every stream to be used up, so the observations are the streams' events by construction.
 `certify` then replays the action list with the framework's own `next` (`emitsCheck`),
 which yields the observation list, and checks that the run started in an initial state
 and ended with every lock released. `validate_sound` (in `Consensus.TraceValidation.Proofs.Validator`) turns
@@ -95,6 +97,37 @@ def certify (env : Env) (keys : List NodeID) (ticking : NodeID -> Bool)
     | none => none
   else
     none
+
+/-- Take node `k`'s next stream event, from the first stream of `k`. -/
+def popEvent (k : NodeID)
+    : List (NodeID × List Ev) -> Option (Ev × List (NodeID × List Ev))
+  | [] => none
+  | (j, evs) :: rest =>
+      if j == k then
+        match evs with
+        | e :: es => some (e, (j, es) :: rest)
+        | [] => none
+      else
+        (popEvent k rest).map fun (e, rest') => (e, (j, evs) :: rest')
+
+/--
+Take the events of the actions from the streams, in order per node (checking the trace
+line), and require every stream to be used up: the observations are then the streams'
+events by construction.
+-/
+def restream : List (NodeID × List Ev) -> List GAction -> Option (List GAction)
+  | rest, [] => if rest.all (·.2.isEmpty) then some [] else none
+  | rest, .release k :: as => (restream rest as).map (.release k :: ·)
+  | rest, .event k e :: as =>
+      match popEvent k rest with
+      | some (e', rest') =>
+          if e'.line == e.line then (restream rest' as).map (.event k e' :: ·) else none
+      | none => none
+  | rest, .deliver x e :: as =>
+      match popEvent x.target rest with
+      | some (e', rest') =>
+          if e'.line == e.line then (restream rest' as).map (.deliver x e' :: ·) else none
+      | none => none
 
 /-! ## Scheduling (untrusted search for an action list) -/
 
@@ -279,22 +312,22 @@ def conclude (env : Env) (ticking : NodeID -> Bool) (streams : List (NodeID × L
     (w : World)
     : Except String Verdict :=
   let keys := streams.map Prod.fst
-  match certify env keys ticking w.actions.toList with
-  | none => .error "internal: the scheduled run does not certify"
-  | some observations =>
-      if streamsMatch streams observations then
-        .ok
-          {
-            keys,
-            releases := w.releases.toList,
-            actions := w.actions.toList,
-            observations,
-            sections := w.sections
-            waits := w.waits,
-            inFlight := w.st.network.length
-          }
-      else
-        .error "internal: observations differ from the streams"
+  match restream streams w.actions.toList with
+  | none => .error "internal: the scheduled events differ from the streams"
+  | some actions =>
+      match certify env keys ticking actions with
+      | none => .error "internal: the scheduled run does not certify"
+      | some observations =>
+          .ok
+            {
+              keys,
+              releases := w.releases.toList,
+              actions,
+              observations,
+              sections := w.sections
+              waits := w.waits,
+              inFlight := w.st.network.length
+            }
 
 /--
 The initial `ticking` of a node: the value carried by its first event that carries one

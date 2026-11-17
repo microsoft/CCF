@@ -42,7 +42,7 @@ the declared state the event was compared with.
 -/
 theorem accepted_refines {env : Env}
     {streams : List (NodeID × List Ev)} {v : Verdict} (h : validate env streams = .ok v)
-    : streamsMatch streams v.observations = true
+    : streamsMatch streams v.observations
       /\ (forall o, o ∈ v.observations -> Exec.consistent o.event o.declared = true)
       /\ CCF.ObservationRefinement.Refines
           (Consensus.Model.transitionSystem env.genesis v.keys) nodeState
