@@ -178,7 +178,9 @@ Closing is deferred rather than immediate. A close requested while output is sti
 
 This matters because the common pattern is to write a response and immediately close. Closing eagerly truncates any response large enough to have been backpressured, which the client observes as a connection reset partway through the body rather than as a well-formed response.
 
-Server shutdown and idle expiry are exceptions: there the close is forced rather than deferred. Each connection takes exactly one further worker pass, writing whatever the socket will accept, and then goes. Waiting for the flush would let a peer which has stopped reading hold the whole node's shutdown open, or retain an expired connection, indefinitely.
+Server shutdown and idle expiry are exceptions: there the close is forced rather than deferred.
+After any in-flight worker pass finishes, a surviving connection takes one final pass which discards pending application output rather than attempting another application write.
+Waiting for the flush would let a peer which has stopped reading hold the whole node's shutdown open, or retain an expired connection, indefinitely.
 
 Idle connections are closed separately. If an idle timeout is configured, a repeating ``uv_timer_t`` periodically sweeps connections whose last I/O is older than the timeout. This retains the once-per-second scheduling used by the previous RPC transport while comparing actual ``steady_clock`` timestamps rather than counting timer ticks.
 
