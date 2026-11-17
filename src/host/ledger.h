@@ -1208,14 +1208,12 @@ namespace asynchost
       }
     };
 
-    // Files in `ledger_dir` which a scan of the directory with
-    // get_file_name_with_idx() would find, i.e. mostly committed files, ordered
-    // by last idx. Files which overlap are all kept. Entries whose file no
-    // longer exists, e.g. because the files cleanup removed it or it was
-    // renamed after startup, are kept too: lookups check that the files they
-    // find still exist. So where files are removed, e.g. with the files cleanup
-    // on, this grows by one entry (about 130 bytes) per committed file until
-    // the process restarts.
+    // The committed files of `ledger_dir`, ordered by last idx. Files which
+    // overlap are all kept. Entries whose file no longer exists, e.g. because
+    // the files cleanup removed it or it was renamed after startup, are kept
+    // too: lookups check that the files they find still exist. So where files
+    // are removed, e.g. with the files cleanup on, this grows by one entry
+    // (about 130 bytes) per committed file until the process restarts.
     std::set<CommittedFile> committed_files
       CCF_GUARDED_BY(committed_files_lock);
 
@@ -1399,15 +1397,21 @@ namespace asynchost
         file.get_file_name().string());
     }
 
-    // Records the files in ledger_dir which a scan of the directory with
-    // get_file_name_with_idx() would find. The directory is scanned before
-    // taking committed_files_lock, which is never held across file operations.
+    // Records the committed files in ledger_dir. The directory is scanned
+    // before taking committed_files_lock, which is never held across file
+    // operations.
     void add_existing_committed_files() CCF_EXCLUDES(committed_files_lock)
     {
       std::vector<CommittedFile> existing_files;
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         auto file_name = f.path().filename().string();
+        if (!ccf::ledger::is_ledger_file_name_committed(file_name))
+        {
+          // Uncommitted files can also be named with a range of entries, e.g.
+          // by ccf.split_ledger
+          continue;
+        }
         const auto range = get_committed_file_range(
           file_name, false /* do not allow recovery files */);
         if (range.has_value())
