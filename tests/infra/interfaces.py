@@ -335,6 +335,7 @@ class HostSpec:
             ),
         }
     )
+    node_to_node_tls_interface: Interface | None = None
 
     def get_primary_interface(self):
         return self.rpc_interfaces[PRIMARY_RPC_INTERFACE]
@@ -343,6 +344,10 @@ class HostSpec:
         return self.rpc_interfaces[FILE_SERVING_RPC_INTERFACE]
 
     def with_args(self, args):
+        if getattr(args, "node_to_node_tls", False):
+            self.node_to_node_tls_interface = Interface(
+                host=self.get_primary_interface().host
+            )
         for interface in self.rpc_interfaces.values():
             interface.apply_args(args)
         return self

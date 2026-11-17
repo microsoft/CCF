@@ -2719,6 +2719,8 @@ namespace aft
 
           // An incoming channel may predate this configuration. The host still
           // needs the peer's address to reconnect after that channel closes.
+          channels->associate_node_tls_address(
+            node_info.first, node_info.second.tls_address);
           channels->associate_node_address(
             node_info.first, node_info.second.hostname, node_info.second.port);
 

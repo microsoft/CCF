@@ -722,6 +722,11 @@ def cli_args(
         type=str,
     )
     parser.add_argument(
+        "--node-to-node-tls",
+        help="Enable the opt-in N2N TLS listener on locally configured nodes",
+        action="store_true",
+    )
+    parser.add_argument(
         "--gov-api-version",
         help="api-version to be used for accessing /gov endpoints",
         type=str,

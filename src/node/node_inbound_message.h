@@ -10,6 +10,7 @@
 #include "node/node_types.h"
 #include "tasks/basic_task.h"
 #include "tasks/ordered_tasks.h"
+#include "tls/inbound_admission.h"
 
 #include <atomic>
 #include <functional>
@@ -112,13 +113,64 @@ namespace ccf
   private:
     std::shared_ptr<ccf::tasks::OrderedTasks> lane;
     Receiver receiver;
+    Receiver tls_receiver;
+    std::shared_ptr<tls::InboundAdmission> tls_admission;
     std::atomic<bool> stopped = false;
 
   public:
-    NodeIngress(ccf::tasks::JobBoard& job_board, Receiver receiver_) :
+    NodeIngress(
+      ccf::tasks::JobBoard& job_board,
+      Receiver receiver_,
+      Receiver tls_receiver_ = {},
+      std::shared_ptr<tls::InboundAdmission> tls_admission_ = nullptr) :
       lane(ccf::tasks::OrderedTasks::create(job_board, "Node ingress")),
-      receiver(std::move(receiver_))
+      receiver(std::move(receiver_)),
+      tls_receiver(std::move(tls_receiver_)),
+      tls_admission(std::move(tls_admission_))
     {}
+
+    void recv_node_tls_inbound(
+      NodeMsgType type,
+      const NodeId& from,
+      std::vector<uint8_t>&& payload) override
+    {
+      if (stopped.load())
+      {
+        return;
+      }
+      if (!tls_receiver)
+      {
+        throw std::logic_error("TLS node receiver not installed");
+      }
+      const auto charge = std::max(payload.size(), size_t{1024});
+      if (tls_admission != nullptr)
+      {
+        tls_admission->queued(charge);
+      }
+      auto release = std::shared_ptr<void>(
+        nullptr, [admission = tls_admission, charge](void*) {
+          if (admission != nullptr)
+          {
+            admission->consumed(charge);
+          }
+        });
+      lane->add_action(ccf::tasks::make_basic_action(
+        [this,
+         type,
+         from,
+         payload = std::move(payload),
+         release = std::move(release)]() {
+          try
+          {
+            tls_receiver(type, from, payload.data(), payload.size());
+          }
+          catch (const std::exception& e)
+          {
+            LOG_DEBUG_FMT("Ignoring TLS node message: {}", e.what());
+          }
+        },
+        "TLS node inbound"));
+    }
 
     // Thread-safe. The payload is owned by the queued action. Peer input is
     // untrusted: an exception while processing it drops that message only.

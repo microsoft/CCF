@@ -7,13 +7,48 @@ Channels are used for two purposes:
 - Sending integrity-protected consensus headers for ledger replication from the primary to backup nodes, or from a candidate node to other replicas during an election.
 - Forwarding encrypted client requests from backups to the primary node for execution.
 
-.. note:: CCF does not use TLS for node-to-node channels for efficiency reasons:
+Opt-in TLS Transport
+~~~~~~~~~~~~~~~~~~~~
 
-    - The ledger entries to be replicated between nodes are encrypted with the ledger key (AES GCM) and we want to avoid having to encrypt them again once per backup.
-    - Headers sent between nodes only contain consensus information that is not confidential and does not need to be encrypted.
+CCF supports mutually authenticated TLS 1.3 alongside its legacy channel protocol.
+Configure ``network.node_to_node_tls_interface`` to enable the TLS listener and outbound TLS.
+A pair uses TLS only when the local configuration enables it and the peer's recorded node metadata includes a TLS endpoint; all other pairs use legacy channels.
+A TLS connection failure never triggers a downgrade to legacy.
+The existing ``network.node_to_node_interface`` remains required in this bridge release.
+See :doc:`/operations/configuration` for configuration and :doc:`/releases/migration_7_x_to_8_x` for upgrade preparation.
 
-Each channel has a corresponding TCP socket, managed by the node's I/O layer (see :doc:`tcp_internals`).
-The network and host infrastructure are untrusted, so channels rely on their own cryptographic protection rather than on the transport.
+TLS authenticates existing service-endorsed node certificates, binds the peer node ID to the certificate's public key, and deliberately ignores certificate expiry as legacy channels do.
+Certificate renewal with unchanged keys updates future handshakes without reconnecting established streams.
+Consensus receives authenticated, normalized headers and ledger payloads only after TLS admission.
+Ledger encryption and integrity checks remain independent and unchanged.
+AppendEntries frames are assembled, including ledger bytes, on the ledger-mutation lane after the preceding ledger writes.
+Both transports use :ccf_repo:`send_node_frame </src/host/node_frame.h>` for this ordering and assembly; it is independent of the legacy socket implementation.
+
+The temporary :ccf_repo:`NodeChannelBridge </src/node/node_channel_bridge.h>` and :ccf_repo:`NodeTransportBridge </src/host/node_transport_bridge.h>` adapt the two backends during migration and are removed with legacy interoperability.
+:ccf_repo:`Bridge tests </tests/n2n_transport_bridge.py>` cover legacy-only and mixed networks, while :ccf_repo:`TLS tests </tests/n2n_tls.py>` retain the all-TLS lifecycle coverage.
+
+Consensus and forwarded requests/responses use separate TLS connections on one listener.
+ALPN identifiers ``ccf-consensus/1`` and ``ccf-forwarding/1`` distinguish their protocols; other or absent ALPN is rejected.
+Each sender owns one outbound stream per peer and purpose, independently of incoming streams, avoiding simultaneous-dial arbitration.
+There is no ordering between forwarding and consensus streams.
+Forwarding remains supported without a separate enablement flag.
+
+The shared :doc:`tls_internals` engine enforces the TLS 1.3 AES-GCM sending-key policy.
+If blocked control output aborts a connection, later sends establish a fresh authenticated connection.
+Consensus retries replication through its existing protocol; forwarded calls are never automatically replayed and may return the existing forwarding timeout.
+Idle streams expire after four election timeouts.
+
+TLS admits at most 128 incoming connections, closes incomplete incoming handshakes after five seconds, bounds partial-frame buffering across streams to approximately twice the configured node-to-node frame limit, and pauses application reads while the 64MiB ingress budget is exhausted.
+Each queued frame is charged at least 1KiB so tiny frames cannot queue unlimited tasks.
+Outbound submission, establishment, per-connection command, and plaintext buffers are bounded by the maximum frame size plus its length prefix; exhaustion closes the affected stream instead of replaying or downgrading it.
+
+Legacy Channels
+~~~~~~~~~~~~~~~
+
+The remaining sections describe the legacy protocol.
+Legacy headers contain consensus information that is integrity protected but not encrypted; replicated ledger entries are independently encrypted with the ledger key.
+Each legacy channel has a corresponding TCP socket, managed by the node's I/O layer (see :doc:`tcp_internals`).
+The network and host infrastructure are untrusted, so legacy channels rely on their own cryptographic protection rather than on the transport.
 Outgoing channels (i.e. those initiated by the local node) are responsible for the lifetime of an outgoing TCP connection, while incoming channels are created when a peer first contacts the local node on its well-known node-to-node interface.
 
 

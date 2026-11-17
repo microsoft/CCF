@@ -5,6 +5,7 @@
 #include "ccf/entity_id.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace aft
@@ -21,6 +22,10 @@ namespace aft
       const ccf::NodeId& peer_id,
       const std::string& peer_hostname,
       const std::string& peer_service) = 0;
+
+    virtual void associate_node_tls_address(
+      const ccf::NodeId&, const std::optional<std::string>&)
+    {}
 
     // Returns false if the message could not be sent
     virtual bool send_consensus_message(

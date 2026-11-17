@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import copy
 import datetime
 import json
 import os
@@ -10,6 +11,7 @@ import ccf.ledger
 import infra.crypto
 import infra.e2e_args
 import infra.github
+import infra.interfaces
 import infra.jwt_issuer
 import infra.logging_app as app
 import infra.network
@@ -40,6 +42,41 @@ FINAL_RELEASE_TAG = re.compile(r"^ccf-(\d+)\.0\.(\d+)$")
 # its certificate, using a default value for the validity period
 # hardcoded in CCF.
 DEFAULT_NODE_CERTIFICATE_VALIDITY_DAYS = 365
+
+
+def validate_tls_upgrade(network, args, binary_dir, library_dir):
+    """Repair metadata stripped by old primaries, then exercise TLS traffic."""
+    primary, _ = network.find_primary()
+    with primary.client() as client:
+        recorded = {
+            entry["node_id"]: entry
+            for entry in client.get("/node/network/nodes").body.json()["nodes"]
+        }
+    for node in list(network.get_joined_nodes()):
+        if recorded[node.node_id].get("node_to_node_tls_interface") is not None:
+            continue
+        LOG.info(
+            f"Replacing {node.node_id}: its old primary did not preserve TLS metadata"
+        )
+        replacement = create_and_join_node(network, args, binary_dir, library_dir, None)
+        network.trust_node(replacement, args)
+        network.retire_node(primary, node)
+        if node == primary:
+            primary, _ = network.wait_for_new_primary(primary)
+        node.stop()
+    network.txs.issue(network, number_txs=2, on_backup=True, repeat=True)
+    primary, _ = network.find_primary()
+    _, backups = network.find_nodes()
+    observed = False
+    for backup in backups:
+        stdout, _ = backup.get_logs()
+        with open(stdout, encoding="utf-8") as logs:
+            text = logs.read()
+        observed |= (
+            f"authenticated n[{primary.node_id}] (ccf-consensus/1)" in text
+            and f"authenticated n[{primary.node_id}] (ccf-forwarding/1)" in text
+        )
+    assert observed, "No backup established TLS consensus and forwarding streams"
 
 
 def validate_compatibility_report(report, branch):
@@ -307,7 +344,16 @@ def create_and_join_node(
     node_container_image=None,
     **join_kwargs,
 ):
+    host = (
+        infra.interfaces.HostSpec().with_args(args)
+        if version is None
+        else infra.interfaces.HostSpec()
+    )
+    if args.node_to_node_tls and version is None:
+        for interface in host.rpc_interfaces.values():
+            interface.redirections = None
     node = network.create_node(
+        host=host,
         binary_dir=binary_dir,
         library_dir=library_dir,
         version=version,
@@ -380,8 +426,12 @@ def run_code_upgrade_from(
 
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
+        hosts = copy.deepcopy(args.nodes)
+        if from_version is not None:
+            for host in hosts:
+                host.node_to_node_tls_interface = None
         with infra.network.network(
-            args.nodes,
+            hosts,
             binary_directory=from_binary_dir,
             library_directory=from_library_dir,
             pdb=args.pdb,
@@ -572,6 +622,8 @@ def run_code_upgrade_from(
                 expected_subject_name=service_subject_name,
                 node_container_image=to_container_image,
             )
+            if args.node_to_node_tls and to_version is None:
+                validate_tls_upgrade(network, args, to_binary_dir, to_library_dir)
             if not primary.major_version:
                 # test_new_service installs the new bundle only after every old
                 # node has left, so old nodes retain their version-matched app.

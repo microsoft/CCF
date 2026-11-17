@@ -64,7 +64,7 @@ The context must not be mutated while in use.
 OpenSSL client contexts otherwise default to ``SSL_VERIFY_NONE``, which completes the handshake with any certificate.
 This check cannot detect a verification callback which overrides failures; such a callback remains the owner's responsibility.
 The engine does not impose N2N policy on RPC: RPC retains its existing TLS configuration.
-This foundation does not activate N2N endpoints or route messages.
+N2N owners use this engine with their own mutual authentication and ALPN policy; see :doc:`node_to_node`.
 
 ``Config::on_handshake`` is optional and applies to both accepted and initiating TLS connections.
 It runs once on a connection worker after TLS establishment, with a borrowed ``SSL`` and a direction flag.
@@ -104,7 +104,7 @@ An update is attempted between completed application writes, only when the socke
 If the update does not complete immediately, the connection is closed without further TLS I/O.
 An opted-in read or write which stalls on TLS control output is also closed rather than worked around.
 Ordinary application-write backpressure retains normal retry handling.
-This intentionally trades connection continuity for a small policy: there are no retry deadlines, extra ciphertext buffers or output budgets.
+This intentionally trades connection continuity for a small policy: there are no retry deadlines, extra ciphertext buffers or policy-specific output budgets.
 The owner must reconnect and recover outstanding application work; the engine does not replay it.
 
 Certificates
@@ -114,7 +114,10 @@ An interface starts listening before its certificate is necessarily known. A joi
 
 ``set_server_cert()`` may be called from any thread. It does not build the ``SSL_CTX`` inline: it queues the request and wakes the loop, so the context is only ever created or replaced on the loop thread. This avoids locking the context on the hot path. Replacing the context affects only subsequent connections; existing connections keep the context they were created with, which OpenSSL keeps alive by reference counting.
 
-The server context sets a minimum version of TLS 1.2 and, when the interface is configured for HTTP/2, advertises ``h2`` via ALPN.
+The RPC server context sets a minimum version of TLS 1.2 and, when the interface is configured for HTTP/2, advertises ``h2`` via ALPN.
+N2N supplies a ``context_factory`` to build its mutually authenticated TLS 1.3 context, including its ALPN selection policy.
+The factory also handles replacement certificates for future handshakes.
+The optional server ``handshake_timeout`` bounds accepted connections' establishment independently of activity; RPC leaves it unset.
 
 Cryptographic policy
 ~~~~~~~~~~~~~~~~~~~~
@@ -129,14 +132,19 @@ The context restricts what the handshake may negotiate:
 
 Note that in TLS 1.3 the *client* effectively chooses the group: OpenSSL picks the first client-offered group that the server also supports, so the server list acts as a filter rather than a preference.
 
-This policy is defined in one place, ``build_server_ctx()``. It is asserted from the wire by the ``openssl_server_test`` unit tests and, for a running service, by the :ccf_repo:`tls_groups </tests/tls_groups.py>` end-to-end test. Both only check the hybrid groups when built with ``-DTEST_HYBRID_TLS_GROUPS=ON``, since those groups require OpenSSL 3.5 or later.
+This RPC policy is defined in one place, ``build_server_ctx()``.
+It is asserted from the wire by the ``openssl_server_test`` unit tests and, for a running service, by the :ccf_repo:`tls_groups </tests/tls_groups.py>` end-to-end test.
+Both only check the hybrid groups when built with ``-DTEST_HYBRID_TLS_GROUPS=ON``, since those groups require OpenSSL 3.5 or later.
 
 The context also sets ``SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER`` and ``SSL_MODE_ENABLE_PARTIAL_WRITE``, both of which are required by the write path described below.
 
 Client authentication
 ~~~~~~~~~~~~~~~~~~~~~
 
-The server calls ``SSL_CTX_set_verify`` with ``SSL_VERIFY_PEER`` and an accept-all callback. This is deliberate: it makes the server *request* the client certificate during the handshake so that it is available for application-level caller authentication, without the TLS layer itself rejecting clients. Whether a certificate is required, and whether it is acceptable, is decided by the endpoint's authentication policy.
+For RPC interfaces, the server calls ``SSL_CTX_set_verify`` with ``SSL_VERIFY_PEER`` and an accept-all callback.
+This is deliberate: it makes the server *request* the client certificate during the handshake so that it is available for application-level caller authentication, without the TLS layer itself rejecting clients.
+Whether a certificate is required, and whether it is acceptable, is decided by the endpoint's authentication policy.
+N2N instead requires and verifies the peer certificate during TLS establishment, then binds the resulting identity to application frames.
 
 Reading
 ~~~~~~~
@@ -171,6 +179,10 @@ Writing and backpressure
 
 Writes are where genuine backpressure appears. ``SSL_write`` on a non-blocking socket may report ``SSL_ERROR_WANT_WRITE`` after consuming only part of the buffer. The remainder stays buffered against the connection, ``UV_WRITABLE`` is armed, and the write resumes when the socket next becomes writable. Because the socket is owned by OpenSSL and is non-blocking, this reflects the real state of the :term:`TCP` send buffer rather than an internal approximation.
 
+N2N sets ``max_pending_write_bytes`` to bound outbound submission, establishment, per-connection commands, and plaintext buffers.
+Exceeding a bound closes the affected connection and discards subsequent unsent work; the owner handles recovery.
+RPC leaves this optional bound unset, preserving its existing behavior.
+
 Closing
 ~~~~~~~
 
@@ -178,7 +190,9 @@ Closing is deferred rather than immediate. A close requested while output is sti
 
 This matters because the common pattern is to write a response and immediately close. Closing eagerly truncates any response large enough to have been backpressured, which the client observes as a connection reset partway through the body rather than as a well-formed response.
 
-Server shutdown and idle expiry are exceptions: there the close is forced rather than deferred. Each connection takes exactly one further worker pass, writing whatever the socket will accept, and then goes. Waiting for the flush would let a peer which has stopped reading hold the whole node's shutdown open, or retain an expired connection, indefinitely.
+Server shutdown and idle expiry are exceptions: there the close is forced rather than deferred.
+Pending application output can be discarded without another write.
+Waiting for the flush would let a peer which has stopped reading hold the whole node's shutdown open, or retain an expired connection, indefinitely.
 
 Idle connections are closed separately. If an idle timeout is configured, a repeating ``uv_timer_t`` periodically sweeps connections whose last I/O is older than the timeout. This retains the once-per-second scheduling used by the previous RPC transport while comparing actual ``steady_clock`` timestamps rather than counting timer ticks.
 

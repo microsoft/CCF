@@ -70,6 +70,8 @@ namespace ccf
       ccf::NodeInfoNetwork::RpcInterfaces rpc_interfaces;
       nlohmann::json node_data;
       ccf::SeqNo last_written{};
+      std::optional<ccf::NodeInfoNetwork::NodeToNodeInterface>
+        node_to_node_tls_interface = std::nullopt;
     };
 
     using Out = NodeInfo;
