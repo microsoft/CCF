@@ -43,7 +43,7 @@ Bootstrap accepts bare ticks and nominations before genesis, which native code r
 Rules reduce each node's stream independently into groups, one per hold of the consensus lock, and read action inputs from its events; only top-level alternatives backtrack.
 A native `replicate` event and the entries that follow it, each starting with its `replicate_entry` event, form one group and one model append, so the model checks commit once per batch, as CCF does.
 A `replicate` call rejected at its first entry traces no entries and appends nothing.
-Snapshot installation runs its `add_configuration` and `retired_committed_tx` hooks outside the lock, before the node's `init_as_backup`; hooks that the initialization does not directly follow form no group, so groups that fall between them and the initialization, such as ticks, replay as usual.
+Snapshot installation runs its `add_configuration` and `retired_committed_tx` hooks outside the lock, before the node's `init_as_backup`; the hooks form no group, so the initialization's group starts at `init_as_backup` and groups that fall between them, such as ticks of any node, replay as usual.
 
 Replay repeatedly runs the next group of some process, with no other group's actions between its actions.
 `h_ts` is the order of execution within a process, and a process that traces several nodes runs them on one thread, as `cft_driver` does, so its groups run in `h_ts` order and must not overlap.

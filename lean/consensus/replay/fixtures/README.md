@@ -4,6 +4,7 @@ The [Lean workflow](../../../../.github/workflows/lean.yml) runs the synthetic f
 Replication failures follow a two-node history with a committed signature, membership expansion, a further signature, a joiner initializing from a snapshot at the committed signature, a heartbeat and log replication.
 The [valid control](valid/replication.ndjson) continues through follower catch-up, acknowledgement and commit.
 Its snapshot installation hook directly follows the leader's `replicate` batch and is followed by a tick before the initialization, which replays as a group of its own.
+The [hook order](valid/hook-order.ndjson) control is the same history with that tick on the leader instead, between the joiner's hook and its initialization.
 The [rejected replicate](valid/rejected-replicate.ndjson) control is a `replicate` call that CCF rejected at its first entry, so it traces no `replicate_entry` and appends nothing.
 The [bootstrap](valid/bootstrap.ndjson) control starts like a real node: a bare tick and a nomination before genesis, then a flush of the genesis entry.
 The [interleaved](valid/interleaved.ndjson) control records the replication history with each node in a process of its own, `ts` in the order of the lines and the joiner's events among the leader's, as clock skew would place them: its initialization inside the leader's signature batch, before the leader commits, its receives before their sends, and a whole receive group, including its own `add_configuration`, between the leader's `add_configuration` and its send.

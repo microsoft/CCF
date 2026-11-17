@@ -368,8 +368,8 @@ private def ruleDrop : Reduction Unit := do
 /--
 Snapshot installation runs ledger hooks outside the consensus lock, so bare ticks
 may interleave with their events.
-A tick is a lock hold of its own, so hooks that `init_as_backup` does not directly follow
-emit nothing; the node must still initialize later.
+A tick is a lock hold of its own, as is `init_as_backup`, so the hooks emit nothing; the
+node must still initialize later.
 -/
 private def ruleInitAsBackup : Reduction Unit := do
   let head ← peek
@@ -386,7 +386,7 @@ private def ruleInitAsBackup : Reduction Unit := do
     liftExcept head
       (throw
         "not grouped with replicate_entry, execute_append_entries_sync or init_as_backup")
-  unless rest[0]?.any (·.function == "init_as_backup") do
+  if hooks.contains head.function then
     return
   let init ← peek
   event head "init_as_backup"
