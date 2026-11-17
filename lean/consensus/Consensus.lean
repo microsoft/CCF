@@ -16,5 +16,6 @@ import Consensus.TraceValidation.Proofs.Handlers.RequestPreVote
 import Consensus.TraceValidation.Proofs.Handlers.RequestPreVoteResponse
 import Consensus.TraceValidation.Proofs.Handlers.RequestVote
 import Consensus.TraceValidation.Proofs.Handlers.RequestVoteResponse
+import Consensus.TraceValidation.Proofs.Handlers.Tick
 import Consensus.TraceValidation.Proofs.Section
 import Consensus.TraceValidation.Proofs.Validator
