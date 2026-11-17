@@ -83,7 +83,6 @@ import Scenarios.swap_single_node
 import Scenarios.unsigned_entry_replaces_stale_suffix
 import Scenarios.vote_request_after_append_entries
 
-/-!
-Every scenario. Importing this module registers them, for `Main` and for other programs
-which run scenarios.
--/
+/-- Run one of the imported scenarios, named by the first argument. -/
+def main (args : List String) : IO Unit :=
+  CftDriver.run args

@@ -12,7 +12,6 @@
 
 #include "tracing/fluentd_sink.h"
 
-#include <algorithm>
 #include <array>
 #include <atomic>
 #include <condition_variable>
@@ -68,39 +67,12 @@ namespace
     items.push_back(std::to_string(item));
   }
 
-  // A backslash escapes a comma or a backslash in an argument, and \n stands
-  // for a newline, so that a step is one line, from which its arguments are
-  // read as they were given
-  std::string escaped(const std::string& item)
-  {
-    std::string text;
-    text.reserve(item.size());
-    for (const char c : item)
-    {
-      if (c == '\n')
-      {
-        text += "\\n";
-        continue;
-      }
-      if (c == '\\' || c == ',')
-      {
-        text += '\\';
-      }
-      text += c;
-    }
-    return text;
-  }
-
   // The trace records each step as its name and arguments, comma separated
   template <typename... Args>
   std::string command(const Args&... args)
   {
     std::vector<std::string> items;
     (append(items, args), ...);
-    for (auto& item : items)
-    {
-      item = escaped(item);
-    }
     return fmt::format("{}", fmt::join(items, ","));
   }
 
@@ -365,12 +337,6 @@ namespace
 
   std::unique_ptr<TraceCapture> capture;
 
-  // The edge flags of the consensus implementation, if this file is compiled
-  // with -fsanitize-coverage=inline-bool-flag. A flag stays set once its edge
-  // has run, where a counter of its runs would return to zero.
-  bool* edges_begin = nullptr;
-  bool* edges_end = nullptr;
-
   // Exports the trace to the Fluentd collector at a host and port, if given,
   // and creates the driver
   void start(const std::vector<std::string>& host_and_port)
@@ -454,28 +420,6 @@ extern "C"
           fmt::format("cft trace exporter dropped {} events", dropped));
       }
     });
-  }
-
-  // The instrumentation calls this before main, with its flags
-  void __sanitizer_cov_bool_flag_init(bool* start, bool* stop)
-  {
-    edges_begin = start;
-    edges_end = stop;
-  }
-
-  lean_obj_res cft_edges()
-  {
-    return io([]() {
-      const auto size = static_cast<size_t>(edges_end - edges_begin);
-      auto* edges = lean_alloc_sarray(1, size, size);
-      std::copy(edges_begin, edges_end, lean_sarray_cptr(edges));
-      return edges;
-    });
-  }
-
-  lean_obj_res cft_time_limit(uint64_t seconds)
-  {
-    return io([&]() { ::alarm(static_cast<unsigned int>(seconds)); });
   }
 
   lean_obj_res cft_start_node(b_lean_obj_arg node)
@@ -726,11 +670,6 @@ extern "C"
     });
   }
 
-  lean_obj_res cft_undelivered_messages()
-  {
-    return io([]() { return strings(driver->undelivered_messages()); });
-  }
-
   lean_obj_res cft_hold_nth(
     b_lean_obj_arg source, b_lean_obj_arg target, uint64_t position)
   {
@@ -740,11 +679,6 @@ extern "C"
       command("hold_nth", src, dst, position),
       [&]() { driver->hold_nth(src, dst, position); },
       Invariants::SKIP);
-  }
-
-  lean_obj_res cft_held_messages()
-  {
-    return io([]() { return strings(driver->held_messages()); });
   }
 
   lean_obj_res cft_dispatch_held(uint64_t position)

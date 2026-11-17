@@ -45,7 +45,6 @@ To report how many steps and traces show each outcome, and which outcomes no tra
 
 An outcome which no trace shows is a missing scenario, a step which the driver or the reduction cannot produce, or behaviour which the model allows and the implementation lacks.
 For example, no trace of a scenario shows `appendEntriesConflictIgnored`, which [`cft.h`](../../../src/consensus/aft/cft.h) logs as a branch which it expects not to reach.
-The [consensus model driver](../../../tests/cft_model/README.md#exploring) looks for runs which show such an outcome, by changing the scenarios at random.
 
 With `--not-shown` and the names of outcomes, separated by commas, the report also fails unless the outcomes which no trace shows are those named:
 
@@ -73,8 +72,6 @@ To replay a saved trace in this way:
 ```
 
 This reports the trace as replay of the whole trace does, and exits with status 3 if that gives another result.
-
-The [consensus model driver](../../../tests/cft_model/README.md) is such a program: it links the driver with replay, and replays each command of a run as soon as the driver has run it.
 
 ## Replay contract
 
@@ -114,7 +111,6 @@ Replay treats a proposal which CCF ignores as lost if the model would campaign a
 - [`ReplayDifferences.lean`](../Consensus/Tests/ReplayDifferences.lean): the differences between CCF and the model which replay accepts, and that it accepts no more.
 - [`ReplayOutcomes.lean`](../Consensus/Tests/ReplayOutcomes.lean): outcomes of chosen steps, and the report of several traces.
 - [`ReplaySession.lean`](../Consensus/Tests/ReplaySession.lean): replay by command against replay of the whole trace, the model state between commands, and a nomination and a response which the model decides how to handle.
-- [`ModelDriver.lean`](../../../tests/cft_model/ModelDriver.lean): the consensus model driver, which replays the scenarios in the process which runs them.
 - [`cft_scenarios_runner.py`](../../../tests/cft_scenarios_runner.py): existing native scenario runner and capture generation.
 
 See [failure fixtures](fixtures/README.md) for examples and expected diagnostics.

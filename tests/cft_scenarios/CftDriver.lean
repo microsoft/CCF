@@ -179,23 +179,11 @@ opaque dropPendingTo (source target : @& NodeId) : IO Unit
 opaque dropNth (source target : @& NodeId) (position : UInt64) : IO Unit
 
 /--
-The undelivered messages of every node, each oldest first.
-Each is JSON, with the sender as `from`, the target as `to`, and the `packet` as
-`pendingMessages` gives it.
--/
-@[extern "cft_undelivered_messages"]
-opaque undeliveredMessages : IO (Array String)
-
-/--
 Set aside the undelivered message at `position`, as `dispatchNth` counts it.
 It is then no longer undelivered: only `dispatchHeld` delivers it, however late.
 -/
 @[extern "cft_hold_nth"]
 opaque holdNth (source target : @& NodeId) (position : UInt64) : IO Unit
-
-/-- The messages which `holdNth` has set aside, oldest first, as `undeliveredMessages`. -/
-@[extern "cft_held_messages"]
-opaque heldMessages : IO (Array String)
 
 /--
 Deliver the message at `position`, counting from 0, among those which `holdNth` has set

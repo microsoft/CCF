@@ -1101,19 +1101,6 @@ public:
     return packet_fields(contents).dump();
   }
 
-  // A queued message as JSON: its sender, its target and its packet
-  std::string message_json(
-    const ccf::NodeId& src,
-    const ccf::NodeId& dst,
-    const std::vector<uint8_t>& contents)
-  {
-    nlohmann::json message;
-    message["from"] = src.value();
-    message["to"] = dst.value();
-    message["packet"] = packet_fields(contents);
-    return message.dump();
-  }
-
   void connect(ccf::NodeId first, ccf::NodeId second)
   {
     CFT_DRIVER_PRINT("{}-->{}: connect", first, second);
@@ -1455,22 +1442,6 @@ public:
     log_msg_details(src, dst, take_pending(src, dst, position), true);
   }
 
-  // The undelivered messages of every node, each oldest first, as
-  // message_json
-  std::vector<std::string> undelivered_messages()
-  {
-    std::vector<std::string> messages;
-    for (const auto& [src, node] : _nodes)
-    {
-      for (const auto& [dst, contents] :
-           channel_stub_proxy(*node.cft)->messages)
-      {
-        messages.push_back(message_json(src, dst, contents));
-      }
-    }
-    return messages;
-  }
-
   // Sets aside the undelivered message which dispatch_nth would deliver. It
   // is no longer undelivered: no other step delivers or drops it.
   void hold_nth(ccf::NodeId src, ccf::NodeId dst, size_t position)
@@ -1482,17 +1453,6 @@ public:
       get_message_summary(contents),
       dst);
     _held.push_back({src, dst, std::move(contents)});
-  }
-
-  // The messages which hold_nth has set aside, oldest first, as message_json
-  std::vector<std::string> held_messages()
-  {
-    std::vector<std::string> messages;
-    for (const auto& held : _held)
-    {
-      messages.push_back(message_json(held.src, held.dst, held.contents));
-    }
-    return messages;
   }
 
   // Delivers the held message at position, counting from 0, or drops it if

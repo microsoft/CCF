@@ -11,7 +11,6 @@ CMakeFiles/
 libuv/
 cft_tests.md
 tests/cft_scenarios/.lake/
-tests/cft_model/.lake/
 *.pyc
 __pycache__/
 sphinx/build/
