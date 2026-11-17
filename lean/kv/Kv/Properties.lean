@@ -361,7 +361,7 @@ theorem replay_snapshot_fixed_witness
 
 /-! ## Per-map globally committed views -/
 
-/-- Acquiring a map actions its global view and returns the revision versions. -/
+/-- Acquiring a map records its global view and returns the revision versions. -/
 theorem step_map_capture
     : ∀ (w next : State) (sid tid localVersion globalVersion : Nat) (map : String)
         (s : Store) (before after : Tx) (snap : Snapshot),
