@@ -6,12 +6,12 @@ public import Consensus.TraceValidation.Lockstep
 import Consensus.Tests.CanonicalTraces
 import Consensus.Tests.TraceValidationHooks
 import Consensus.TraceValidation.Proofs.Handlers.AppendEntries
-import Consensus.TraceValidation.Proofs.Handlers.AppendEntriesResponse
 import Consensus.TraceValidation.Proofs.Handlers.DropPendingTo
 import Consensus.TraceValidation.Proofs.Handlers.ForceBecomePrimary
 import Consensus.TraceValidation.Proofs.Handlers.InitAsBackup
 import Consensus.TraceValidation.Proofs.Handlers.OutOfLockHook
 import Consensus.TraceValidation.Proofs.Handlers.ProposeRequestVote
+import Consensus.TraceValidation.Proofs.Handlers.Replicate
 import Consensus.TraceValidation.Proofs.Handlers.RequestPreVote
 import Consensus.TraceValidation.Proofs.Handlers.RequestPreVoteResponse
 import Consensus.TraceValidation.Proofs.Handlers.RequestVote
