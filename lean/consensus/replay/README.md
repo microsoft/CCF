@@ -52,7 +52,8 @@ The first trace point of a lock hold opens a section; a silent release, inserted
 Where `cft.h` depends on something no trace point records, such as a timer or a batch size, the handler follows the branch that the node's next event requires.
 
 At every trace point, [`Observe`](../Consensus/TraceValidation/Observe.lean) compares the event with the declared state there: the `state` snapshot, the per-event state fields such as `match_idx`, `sent_idx`, `configurations` and `commit.idx`, and the values the model computed, such as packets.
-Every field is either compared or consumed as the step's input, as `Observe.inputFields` lists; an event with a missing or unexpected field is rejected.
+Every trace point has a fixed set of fields (`Observe.traceFields`, as `cft_trace_msgpack.h` declares them); an event with a missing or unexpected field is rejected.
+Every field is either compared or consumed as the step's input, as `Observe.inputFields` lists.
 This includes the `aft::Aft` variables above, which are compared on exactly the events that carry them.
 A receive delivers a message that its sender has already published with an identical packet; a dropped message stays in the network.
 

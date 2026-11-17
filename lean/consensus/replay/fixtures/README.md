@@ -16,6 +16,8 @@ Each invalid fixture is the two-node startup capture with one change, and must b
 | [Reordered events](invalid/reordered-events.ndjson)             | Two events of one node are swapped                        | The model expects a different trace point                  |
 | [Configuration mismatch](invalid/configuration-mismatch.ndjson) | An `add_configuration` hook omits a node                  | A later send is not explained by the open lock hold        |
 | [Missing field](invalid/missing-field.ndjson)                   | `become_leader` lacks its `votes_for_me` field            | `votes_for_me` is absent                                   |
+| [Missing sequence number](invalid/missing-seqno.ndjson)         | A `replicate_entry` lacks its `seqno` field               | `seqno` is absent                                          |
+| [Missing match index](invalid/missing-match-idx.ndjson)         | A `send_append_entries` lacks its `match_idx` field       | `match_idx` is absent                                      |
 
 From `lean/consensus`, inspect a failure directly (exit status 1 is expected):
 

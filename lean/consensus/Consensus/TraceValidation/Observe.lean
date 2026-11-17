@@ -15,7 +15,8 @@ public import Consensus.TraceValidation.Action
 Each trace event maps to exactly one M_tv action (`actionOf`). After the model
 steps that action, the event is observed against the declared state (`Declared`) at the
 trace point and the model's label (`observe`). Every field of every event is in
-exactly one of these classes, or both of the last two:
+exactly one of these classes, or both of the last two, and every event carries exactly
+the fields its trace point declares (`traceFields`):
 
 * `state`, and the per-point fields in `stateFields`: projections of `Declared`;
 * `inputFields`: consumed by the action (message identity, untraced choices,
@@ -28,6 +29,54 @@ Depends only on the declared state, the action type and event decoding.
 namespace Consensus.TraceValidation.Exec
 
 open Lean
+
+/--
+The fields of each trace point besides `function`, as `cft_trace_msgpack.h` declares them.
+An event must carry exactly these.
+-/
+def traceFields (e : Ev) : List String :=
+  match e.function with
+  | "send_append_entries" => ["state", "packet", "to_node_id", "match_idx", "sent_idx"]
+  | "recv_append_entries_response" =>
+      ["state", "packet", "from_node_id", "match_idx", "sent_idx"]
+  | "recv_append_entries" =>
+      ["state", "packet", "from_node_id", "leader_id", "is_new_follower"]
+  | "execute_append_entries_sync" => ["state", "from_node_id", "ticking"]
+  | "send_append_entries_response"
+  | "send_request_vote"
+  | "send_request_vote_response" => ["state", "packet", "to_node_id"]
+  -- Only a regular vote request reads `voted_for` and `leader_id`.
+  | "recv_request_vote" =>
+      match e.msg.getObjValD "packet" |>.getObjValD "msg" |>.getStr? with
+      | .ok "request_vote" =>
+          ["state", "packet", "from_node_id", "voted_for", "leader_id"]
+      | _ => ["state", "packet", "from_node_id"]
+  | "recv_request_vote_response" => ["state", "packet", "from_node_id", "votes_for_me"]
+  | "recv_propose_request_vote" => ["state", "packet", "from_node_id", "ticking"]
+  | "tick" => ["state", "ticking"]
+  | "become_pre_vote_candidate"
+  | "become_leader" => ["state", "configurations", "votes_for_me", "leader_id"]
+  | "become_candidate" =>
+      ["state", "configurations", "voted_for", "votes_for_me", "leader_id"]
+  | "become_follower" =>
+      [
+        "state",
+        "configurations",
+        "voted_for",
+        "votes_for_me",
+        "leader_id",
+        "is_new_follower"
+      ]
+  | "nomination" | "batch_flush" | "replicate" => ["state"]
+  | "step_down_and_nominate_successor" =>
+      ["state", "configurations", "to_node_id", "leader_id"]
+  | "replicate_entry" => ["state", "view", "seqno", "globally_committable", "ticking"]
+  | "retired_committed_tx" => ["node_id", "seqno", "retired_node_id"]
+  | "init_as_backup" => ["state", "seqno", "view"]
+  | "add_configuration" => ["state", "configurations", "idx", "nodes", "rid"]
+  | "commit" => ["state", "idx", "configurations", "leader_id"]
+  | "drop_pending_to" => ["state", "from_node_id", "to_node_id", "packet"]
+  | _ => []
 
 /-- Fields an action consumes as input, by trace point. -/
 def inputFields : String -> List String
@@ -104,33 +153,15 @@ def votesJson (vs : List (Nat × List NodeId × Nat)) : Json :=
             ("votes", toJson (votes.mergeSort (· <= ·)))
           ])
 
-/--
-The `aft::Aft` protocol variables a trace point carries (`cft_trace_msgpack.h`), as
-projections of `Declared`. A regular vote request carries `voted_for` and `leader_id`; a
-pre-vote request carries neither. Every event of these points must carry them.
--/
-def carried (e : Ev) (s : Declared) : List (String × Json) :=
-  let v := ("voted_for", optId s.votedFor)
-  let w := ("votes_for_me", votesJson s.votesForMe)
-  let l := ("leader_id", optId s.leaderId)
-  let n := ("is_new_follower", toJson s.isNewFollower)
-  let t := ("ticking", toJson s.ticking)
-  match e.function with
-  | "tick"
-  | "replicate_entry"
-  | "execute_append_entries_sync"
-  | "recv_propose_request_vote" => [t]
-  | "recv_append_entries" => [l, n]
-  | "recv_request_vote" =>
-      match e.msg.getObjValD "packet" |>.getObjValD "msg" |>.getStr? with
-      | .ok "request_vote" => [v, l]
-      | _ => []
-  | "recv_request_vote_response" => [w]
-  | "become_pre_vote_candidate" | "become_leader" => [w, l]
-  | "become_candidate" => [v, w, l]
-  | "become_follower" => [v, w, l, n]
-  | "commit" | "step_down_and_nominate_successor" => [l]
-  | _ => []
+/-- The `aft::Aft` protocol variables, which some trace points carry, as projections. -/
+def carried (s : Declared) : List (String × Json) :=
+  [
+    ("voted_for", optId s.votedFor),
+    ("votes_for_me", votesJson s.votesForMe),
+    ("leader_id", optId s.leaderId),
+    ("is_new_follower", toJson s.isNewFollower),
+    ("ticking", toJson s.ticking)
+  ]
 
 /-- Non-snapshot fields that are projections of `Declared` at the trace point. -/
 def stateFields (e : Ev) (s : Declared) : List (String × Json) :=
@@ -144,7 +175,7 @@ def stateFields (e : Ev) (s : Declared) : List (String × Json) :=
     | .ok id => s.allOtherNodes.lookup id
     | .error _ => none
   [("configurations", configsJson s.configurations)]
-  ++ carried e s
+  ++ carried s
   ++ (match peer with
       | some p => [("match_idx", toJson p.matchIdx), ("sent_idx", toJson p.sentIdx)]
       | none => [])
@@ -171,8 +202,13 @@ def compareObj (pfx : String) (model : List (String × Json)) (observed : Json)
 def observe (e : Ev) (s : Declared) (label : Label) : Except String Unit := do
   let obj ← e.msg.getObj?
   let proj := stateFields e s
+  for k in traceFields e do
+    unless obj.contains k do
+      throw s!"{k}: absent, a field of every {e.function} event"
   for (k, o) in obj.toList do
     if k == "function" then continue
+    unless (traceFields e).contains k do
+      throw s!"{k}: observed {o.compress}, not a field of {e.function} events"
     if k == "state" then compareObj "state." (snapshot s) o; continue
     match proj.lookup k <|> label.lookup k with
     | some m =>
@@ -181,7 +217,7 @@ def observe (e : Ev) (s : Declared) (label : Label) : Except String Unit := do
     | none =>
         unless (inputFields e.function).contains k do
           throw s!"{k}: observed {o.compress}, neither observed nor consumed by the model"
-  for (k, m) in label ++ carried e s do
+  for (k, m) in label do
     unless obj.contains k do
       throw s!"{k}: absent, model {m.compress}"
 
