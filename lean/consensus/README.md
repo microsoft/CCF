@@ -15,6 +15,8 @@ It assumes familiarity with the [CCF consensus protocol documentation](../../doc
 | Safety theorems and witness lemmas     | [`Properties.lean`](Consensus/Properties.lean)                                                                                 |
 | Valid initial memberships              | [`Properties/Config.lean`](Consensus/Properties/Config.lean)                                                                   |
 | Supporting proofs and executions       | [`Proofs/`](Consensus/Proofs)                                                                                                  |
+| Trace validation: statement            | [`TraceValidation.lean`](Consensus/TraceValidation.lean) (`accepted_refines`)                                                  |
+| Trace validation: model and validator  | [`TraceValidation/`](Consensus/TraceValidation) (declared state, observation, `abs`, M_tv, validator, proofs)                  |
 | Action-trace tests                     | [`Tests/CanonicalTraces.lean`](Consensus/Tests/CanonicalTraces.lean)                                                           |
 
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
@@ -53,7 +55,7 @@ Append regressions check configuration heartbeats followed by flushing, pre-comm
 These are regression examples, not exhaustive checking.
 `lake check` checks both default targets, `Consensus` and `consensus-replay`, in one invocation.
 It runs without sandboxing here, so build-time code must be trusted.
-`Consensus.lean` reexports `Properties.lean` and the replay API transitively, while importing tests privately.
+`Consensus.lean` reexports `Properties.lean`, `TraceValidation.lean` and the diagnostic `TraceValidation/Lockstep.lean`, while importing tests privately.
 The shared `check-imports` command rejects modules missing from that import closure.
 
 ## Proofs
@@ -68,8 +70,8 @@ The safety-invariant proof remains independent of the witness construction, allo
 
 To list the safety-invariant declarations used by the exported theorems, run `lake env lean scripts/invariant-dependencies.lean`.
 
-## Trace replay
+## Trace validation
 
-The [trace replayer](replay/README.md) checks finite driver observations against direct model transitions, independently of proofs.
-It checks each native send against the model, delivers any matching queued packet, treats undelivered packets as lost, and never repairs model state.
-The current native Fluentd capture path and replay's assurance limits are documented there.
+The [trace validator](replay/README.md) checks traces of `cft.h`, from the native driver or from real nodes, against M_tv, a model of `cft.h` with one step per trace point, and checks every lock hold against the clean model's `Node.step`.
+[`TraceValidation.lean`](Consensus/TraceValidation.lean) states what acceptance means: the trace refines `Consensus.Model.transitionSystem` at every lock-taking event, through the reviewed abstraction of the declared `cft.h` state.
+The capture path, the validation contract and the files to review are documented there.
