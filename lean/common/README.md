@@ -107,5 +107,6 @@ The same rules apply to every specification namespace, including multi-component
 - The `Properties` entrypoint can import model modules, property helpers, and proofs.
 - Property helpers can import model modules and other property helpers, but not proofs or the `Properties` entrypoint.
 - Proofs can import model modules, property helpers, and other proofs, but not the `Properties` entrypoint.
-- Other modules, such as tests and trace validation, are unrestricted.
+- Modules directly in `TraceValidation/`, the reviewed trace-validation surface, can import model modules, the `TraceValidation` entrypoint and each other, but not `CCF.Proofs` or the `CCF` entrypoint.
+- Other modules, such as tests and the trace-validation subfolders, are unrestricted.
   Imports outside the specification namespace are unrestricted except for the `CCF` restrictions above.

@@ -22,11 +22,14 @@ def allowedImport (root owner dependency : Name) : Bool :=
   let model := root ++ `Model
   let properties := root ++ `Properties
   let proofs := root ++ `Proofs
+  let traceValidation := root ++ `TraceValidation
+  -- The reviewed trace-validation surface: the modules directly in `TraceValidation/`.
+  let reviewed (module : Name) := module.getPrefix == traceValidation
   if (`CCF).isPrefixOf owner then
     !root.isPrefixOf dependency
   else if !root.isPrefixOf dependency then
     -- The `CCF` entrypoint reexports `CCF.Proofs`, so models must import definitions directly.
-    !(model.isPrefixOf owner
+    !((model.isPrefixOf owner || reviewed owner)
       && ((`CCF.Proofs).isPrefixOf dependency || dependency == `CCF))
   else if model.isPrefixOf owner then
     model.isPrefixOf dependency && (owner == model || dependency != model)
@@ -37,6 +40,8 @@ def allowedImport (root owner dependency : Name) : Bool :=
   else if properties.isPrefixOf owner then
     model.isPrefixOf dependency
     || (dependency != properties && properties.isPrefixOf dependency)
+  else if reviewed owner then
+    model.isPrefixOf dependency || dependency == traceValidation || reviewed dependency
   else if proofs.isPrefixOf owner then
     model.isPrefixOf dependency
     || proofs.isPrefixOf dependency
