@@ -1,11 +1,12 @@
 module
 
 public import Consensus.Model
+public import Consensus.Properties.Bootstrap
 public import Consensus.Properties.Config
 public import CCF.Execution
 public import CCF.Proofs.Execution
 public import CCF.Proofs.Finset
-public import CCF.Function
+public import CCF.Proofs.Function
 
 import all Init.Control.State
 
@@ -331,7 +332,7 @@ theorem bootstrap_highest (config : Config) (primary : NodeID) (peers : Finset N
             /\ config.val.card < (insert primary peers ∩ config.val).card * 2 then
           2
         else
-          0 := by
+          state.commitIndex := by
   have empty_union : ∅ ∪ config.val = config.val := by
     apply Finset.ext
     intro node
@@ -363,7 +364,7 @@ theorem advance_bootstrap (config : Config) (primary : NodeID) (peers : Finset N
     have final : committed config primary peers = 2 := by
       obtain h | h := committed_values config primary peers <;> omega
     rw [final]
-    simp only [Nat.lt_irrefl, false_and, ite_false, Nat.zero_le, ite_true,
+    simp only [Nat.lt_irrefl, false_and, ite_false, Nat.le_refl, ite_true,
       StateT.run, pure, StateT.pure]
     cases state
     simp_all

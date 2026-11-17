@@ -48,6 +48,11 @@ for package in "${PACKAGES[@]}"; do
       lake build ccf_common/+CCF
     fi
     lake build "$library"
+    # The consensus scenarios are a package outside lean/, without leanfmt.
+    if [ "$package" == "disaster-recovery" ]; then
+      lake --dir "$ROOT_DIR/tests/cft_scenarios" build
+      export LEAN_PATH="$ROOT_DIR/tests/cft_scenarios/.lake/build/lib/lean"
+    fi
     git -C "$ROOT_DIR" ls-files -z -- "${PATHSPEC[@]}" |
       while IFS= read -r -d '' file; do
         printf '%s\0' "$ROOT_DIR/$file"

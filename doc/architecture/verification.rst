@@ -60,7 +60,8 @@ Trace sources
 
 Each replayer consumes traces produced by existing C++ tests:
 
-* **Consensus**: the ``cft_scenario_test`` test runs :ccf_repo:`tests/cft_scenarios_runner.py`, which executes each scenario in :ccf_repo:`tests/cft_scenarios/` with the ``cft_driver`` binary (:ccf_repo:`src/consensus/aft/test/driver.cpp`).
+* **Consensus**: the ``cft_scenario_test`` test runs :ccf_repo:`tests/cft_scenarios_runner.py`, which executes each scenario in :ccf_repo:`tests/cft_scenarios/Scenarios/` with the ``cft_driver`` binary.
+  The scenarios are Lean programs, which drive the implementation through the bindings in :ccf_repo:`tests/cft_scenarios/CftDriver.lean` and :ccf_repo:`src/consensus/aft/test/driver.cpp`; see :ccf_repo:`tests/cft_scenarios/README.md`.
   The driver exports consensus events as Fluentd records with the ``ccf.cft`` tag, which the runner collects and writes as NDJSON traces to ``consensus/raw/`` in the build directory.
 * **KV**: building with ``-DCCF_KV_TRACING=ON`` enables test-only trace capture in ``kv_test``.
   :ccf_repo:`tests/kv_trace_validation.py` captures the purpose-built ``KV trace *`` test cases and a seeded concurrent fuzzer, then checks every trace with ``kv-replay`` unless ``--capture-only`` is passed.
@@ -91,6 +92,7 @@ Running locally
 
 Install Lean with `elan <https://lean-lang.org/install/>`__.
 The Lean toolchain is pinned by :ccf_repo:`lean/lean-toolchain`, and the models are independent of normal CCF builds.
+The only part of a CCF build which needs Lean is ``cft_driver``; without Lean, it is not built and ``cft_scenario_test`` is disabled.
 From a package directory under ``lean/``, the common checks are:
 
 .. code-block:: bash

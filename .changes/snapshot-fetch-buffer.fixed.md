@@ -1,0 +1,2 @@
+Joining and backup nodes now allocate the buffer for a snapshot fetched from a peer once, at the snapshot's full size, so a fetch needs about the snapshot's size in memory rather than up to three times it.
+They also stop fetching a snapshot larger than `command.join.fetch_snapshot_max_size` or `snapshots.backup_fetch.max_size` after its first byte range; see [Backup Snapshot Fetching](doc/operations/ledger_snapshot.rst#backup-snapshot-fetching).
