@@ -24,11 +24,11 @@ open Lean Kv.Properties Kv.TraceValidation
 open Kv.Model
       hiding Store Tx advance compactStore rollbackStore tryApply step transitionSystem
 
-private def semanticInputs (w : World) : List Record → Except Failure (List Model.Action)
+private def modelInputs (w : World) : List Record → Except Failure (List Model.Action)
   | [] => .ok []
   | r :: rs => do
       let next ← step w r
-      let rest ← semanticInputs next rs
+      let rest ← modelInputs next rs
       return actions w r.event ++ rest
 
 private def closed (body : List Event) : List Event :=
@@ -91,13 +91,13 @@ private def assertProjection : IO Unit := do
     | .ok w => pure w
     | .error e => throw (IO.userError s!"projection replay: {e.message}")
   let inputs ←
-    match semanticInputs initial segment with
+    match modelInputs initial segment with
     | .ok inputs => pure inputs
     | .error e => throw (IO.userError s!"projection computation: {e.message}")
   let txs ←
     match applicationInputs (initial.model) 1 inputs with
     | some txs => pure txs
-    | none => throw (IO.userError "projected semantic execution is disabled")
+    | none => throw (IO.userError "projected model execution is disabled")
   let before := (find initial.model.stores 1).get!
   let after := (find final.model.stores 1).get!
   if txs.length != 1
@@ -115,7 +115,7 @@ private def assertStutters (initial : World) (events : List Event) : IO World :=
   let mut current := initial
   for r in records do
     if !(actions current r.event).isEmpty then
-      throw (IO.userError "metadata-only report executed a semantic input")
+      throw (IO.userError "metadata-only report executed a model input")
     if executeActions (current.model) (actions current r.event)
         != some (baseline, .unit) then
       throw (IO.userError "metadata-only execution did not stutter")
@@ -124,10 +124,10 @@ private def assertStutters (initial : World) (events : List Event) : IO World :=
       | .ok next => pure next
       | .error failure => throw (IO.userError s!"metadata stutter: {failure.message}")
     if next.model != baseline then
-      throw (IO.userError "trace metadata changed semantic store/transaction state")
+      throw (IO.userError "trace metadata changed store/transaction state")
     current := next
-  if ((semanticInputs initial records).toOption.map List.isEmpty) != some true then
-    throw (IO.userError "metadata-only replay accumulated semantic inputs")
+  if ((modelInputs initial records).toOption.map List.isEmpty) != some true then
+    throw (IO.userError "metadata-only replay accumulated model inputs")
   return current
 
 private def run : IO Unit := do
@@ -150,18 +150,18 @@ private def run : IO Unit := do
     | .ok final => pure final
     | .error failure => throw (IO.userError failure.message)
   let inputs ←
-    match semanticInputs {} records with
+    match modelInputs {} records with
     | .ok inputs => pure inputs
     | .error failure => throw (IO.userError failure.message)
-  let semantic ←
+  let nextState ←
     inputs.foldlM
       (fun s input =>
         match Model.execute s input with
         | some (next, _) => pure next
         | none => throw (IO.userError "translated interleaved input is disabled"))
       ({} : Model.State)
-  if semantic ≠ final.model then
-    throw (IO.userError "interleaved adapter replay differs from semantic execution")
+  if nextState ≠ final.model then
+    throw (IO.userError "interleaved adapter replay differs from model execution")
   if !final.recording.knownTerms.isEmpty || !final.recording.attempts.isEmpty then
     throw (IO.userError "closed lifecycles retained term or callback bookkeeping")
   let beforeManifest ←
@@ -219,7 +219,7 @@ private def run : IO Unit := do
   | .error failure =>
       if failure.kind != .rejected then
         throw (IO.userError "reported observation mismatch was not rejected")
-  | .ok _ => throw (IO.userError "reported observation replaced semantic state")
+  | .ok _ => throw (IO.userError "reported observation replaced model state")
   let ended ←
     match step w ⟨7, .txEnd 1 1⟩ with
     | .ok next => pure next

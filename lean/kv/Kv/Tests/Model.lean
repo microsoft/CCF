@@ -9,9 +9,9 @@ public import Kv.Model
 
 public section
 
-/-! Direct semantic executions: no trace envelopes, reported values, schema, or test scopes. -/
+/-! Direct model executions: no trace envelopes, reported values, schema, or test scopes. -/
 
-namespace Kv.Tests.Semantics
+namespace Kv.Tests.Model
 
 open Kv.Model
 
@@ -20,18 +20,17 @@ private def run (s : State) (inputs : List Action) : IO State :=
     (fun before action =>
       match execute before action with
       | some (after, _) => pure after
-      | none => throw (IO.userError s!"disabled semantic input: {repr action}"))
+      | none => throw (IO.userError s!"disabled model input: {repr action}"))
     s
 
 private def result (s : State) (action : Action) (expected : Output) : IO State := do
   match execute s action with
-  | none => throw (IO.userError s!"disabled semantic input: {repr action}")
+  | none => throw (IO.userError s!"disabled model input: {repr action}")
   | some (next, actual) =>
       if actual ≠ expected then
-        throw
-          (IO.userError s!"semantic result: expected {repr expected}, got {repr actual}")
+        throw (IO.userError s!"result: expected {repr expected}, got {repr actual}")
       if transitionSystem.step s action ≠ some next then
-        throw (IO.userError "semantic transition system is disconnected from execution")
+        throw (IO.userError "model transition system is disconnected from execution")
       return next
 
 private def interleaved : IO Unit := do
@@ -142,8 +141,8 @@ private def check : IO Unit := do
   interleaved
   lazyRollback
   globalFrames
-  IO.println "direct semantic model tests passed"
+  IO.println "direct model tests passed"
 
 #eval check
 
-end Kv.Tests.Semantics
+end Kv.Tests.Model

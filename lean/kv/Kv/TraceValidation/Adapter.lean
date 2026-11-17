@@ -11,9 +11,9 @@ namespace Kv.TraceValidation
 
 open Kv.Model
 
-/-- Translates inputs, not reported outputs, into semantic model actions.
+/-- Translates inputs, not reported outputs, into model actions.
 The omitted initial term is supplied as an environment input before the first snapshot.
-Trace scopes and individual callback reports stutter; freezing entries is a semantic scan. -/
+Trace scopes and individual callback reports stutter; freezing entries is a model scan. -/
 def actions (w : World) : Event → List Model.Action
   | .storeCreate sid => [.storeCreate sid 0]
   | .storeEnd sid => [.storeEnd sid]
@@ -43,7 +43,7 @@ def actions (w : World) : Event → List Model.Action
   | .rollbackRejected sid requested term => [.rollback sid requested term]
   | _ => []
 
-/-- Runs an event's semantic inputs, retaining the last computed output. -/
+/-- Runs an event's model inputs, retaining the last computed output. -/
 def executeActions (s : Model.State) : List Model.Action → Option (Model.State × Output)
   | [] => some (s, .unit)
   | a :: rest => do
@@ -51,7 +51,7 @@ def executeActions (s : Model.State) : List Model.Action → Option (Model.State
       if rest.isEmpty then some (next, output) else executeActions next rest
 
 /-- Compares reported results with the model's computed output.
-Publication echoes are order-insensitive; range results have semantic key order. -/
+Publication echoes are order-insensitive; range results have key order. -/
 def reportedMatches : Event → Output → Bool
   | .snapshot _ _ version global term, .snapshot v g t =>
       decide (version = v ∧ global = g ∧ term = t)

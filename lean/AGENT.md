@@ -25,7 +25,7 @@ Within a model's library directory, use this layout:
 | `TraceValidation.lean` | Replay recorded implementation traces through the executable model.                                  |
 | `TraceValidation/`     | Trace formats, decoding, bookkeeping, and adapters to model transitions.                             |
 
-## Model semantics versus trace validation
+## Model versus trace validation
 
 `Model.lean` and `Model/` define protocol state, actions, results, and executable transitions independently of implementation trace formats.
 A model execution must be expressible without a recorded test case, trace envelope, or parser.
@@ -33,11 +33,11 @@ Keep schemas, sequence numbers, test scopes, recording identifiers, lifecycle-co
 Accommodations for missing trace fields, such as an omitted initial term, also belong there.
 The model computes operation results and state changes.
 The adapter translates records into model actions, compares reported results with computed outputs, and maintains trace bookkeeping without duplicating model transitions.
-Do not add reported observations to semantic actions solely to validate a trace.
+Do not add reported observations to model actions solely to validate a trace.
 Store the model state directly alongside separate recording bookkeeping, and execute model actions when checking traces.
 Do not reconstruct model state from trace-decorated stores or transactions, or introduce a second transition system solely for replay.
 Trace-only bookkeeping steps must leave the model state unchanged.
-State every public safety claim in `Properties.lean` over semantic model state, actions, outputs, or executions of `Model.transitionSystem`.
+State every public safety claim in `Properties.lean` over model state, actions, outputs, or executions of `Model.transitionSystem`.
 Do not use trace-adapter reachability as a safety premise or retain duplicate adapter-scoped safety catalogues.
 The safety entrypoint and its transitive imports must not depend on trace validation.
 
@@ -50,7 +50,7 @@ The safety entrypoint and its transitive imports must not depend on trace valida
   Trace/model correspondence proofs belong under `Proofs/`.
 - Property helpers in `Properties/` should depend only on the model, shared definitions, and other property helpers.
   They may not import `Properties.lean` or `Proofs/`.
-  Keep helpers for trace/model correspondence separate from semantic property helpers.
+  Keep helpers for trace/model correspondence separate from model property helpers.
 - Let `Proofs/` depend on model definitions, property helpers, and other supporting proofs, but not `Properties.lean`.
   `Properties.lean` publicly imports the types and helpers needed to understand its statements and privately imports proof implementations.
 

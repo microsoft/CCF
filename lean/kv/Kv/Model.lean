@@ -8,7 +8,7 @@ public import Kv.Model.Transitions
 
 @[expose] public section
 
-/-! Assembles the executable KV model over semantic inputs, independently of instrumentation. -/
+/-! Assembles the executable KV model over model inputs, independently of instrumentation. -/
 
 namespace Kv.Model
 

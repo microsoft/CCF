@@ -228,7 +228,7 @@ def executeOperation (t : Tx) (op : Operation) : Tx × Output :=
               (fun a b => decide (a.1 ≤ b.1)))
         )
 
-/-- Semantic environment and transaction inputs. -/
+/-- Environment and transaction inputs. -/
 inductive Action where
   /-- Create a live store with an explicit initial term. -/
   | storeCreate (store term : Nat)
@@ -242,7 +242,7 @@ inductive Action where
   | setTerm (store term : Nat)
   /-- Freeze read metadata. -/
   | snapshot (store tx : Nat)
-  /-- Lazily acquire a map or record semantic unavailability. -/
+  /-- Lazily acquire a map or record its unavailability. -/
   | acquire (store tx : Nat) (map : String)
   /-- Execute a KV operation. -/
   | operation (store tx : Nat) (op : Operation)
@@ -264,7 +264,7 @@ def lookupTx (w : State) (sid tid : Nat) : Option (Store × Tx) := do
   let t ← find w.txs tid
   if t.store == sid then some (s, t) else none
 
-/-- Executes semantic inputs and computes both the resulting state and output. -/
+/-- Executes model inputs and computes both the resulting state and output. -/
 def execute (w : State) (action : Action) : Option (State × Output) := do
   match action with
   | .storeCreate sid term =>
@@ -383,7 +383,7 @@ def execute (w : State) (action : Action) : Option (State × Output) := do
         let next := rollbackStore s requested term
         some ({ w with stores := set w.stores sid next }, .rolledBack next.head.version)
 
-/-- State projection of semantic execution. -/
+/-- State projection of model execution. -/
 def step (w : State) (action : Action) : Option State :=
   (execute w action).map Prod.fst
 

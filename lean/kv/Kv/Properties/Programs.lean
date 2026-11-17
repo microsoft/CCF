@@ -53,11 +53,11 @@ def serialRun (base : DB M K V) (ws : Writes M K V)
 
 end Generic
 
-/-- A branch of semantic applications, with compaction but no rollback. -/
+/-- A branch of applications, with compaction but no rollback. -/
 inductive AppliedBranch : Model.Store → List Model.Tx → Model.Store → Prop
   /-- Empty application order. -/
   | nil (s) : AppliedBranch s [] s
-  /-- One enabled semantic publication primitive. -/
+  /-- One enabled publication primitive. -/
   | cons (s middle final : Model.Store) (t : Model.Tx) (ts : List Model.Tx)
     (one : Model.tryApply s t = some middle)
     (rest : AppliedBranch middle ts final)
@@ -67,7 +67,7 @@ inductive AppliedBranch : Model.Store → List Model.Tx → Model.Store → Prop
     (rest : AppliedBranch (Model.compactStore s v) ts final)
     : AppliedBranch s ts final
 
-/-- Serial reference interpretation of semantic attempts in application order. -/
+/-- Serial reference interpretation of attempts in application order. -/
 def serialTransactions (db : Model.Data) (version : Nat)
     : List Model.Tx → Option Model.Data
   | [] => some db

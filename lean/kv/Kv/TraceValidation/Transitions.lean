@@ -15,7 +15,7 @@ open Kv.Model
 def invalid {α : Type} (message : String) : Except Failure α :=
   .error ⟨.invalidTrace, message⟩
 
-/-- A reported behavior forbidden by the semantic system. -/
+/-- A reported behavior forbidden by the model. -/
 def reject {α : Type} (message : String) : Except Failure α :=
   .error ⟨.rejected, message⟩
 
@@ -29,7 +29,7 @@ def present {α : Type} (value : Option α) (message : String) : Except Failure 
 def require (condition : Bool) (message : String) : Except Failure Unit :=
   if condition then .ok () else invalid message
 
-/-- Checks a reported observation or semantic enabling condition. -/
+/-- Checks a reported observation or model enabling condition. -/
 def expect (condition : Bool) (message : String) : Except Failure Unit :=
   if condition then .ok () else reject message
 
@@ -116,7 +116,7 @@ def eachTop (t : Tx) (recording : AttemptRecording) (m : String) (id : Nat)
       return (i, rest)
 
 /-- Validates trace protocol and reports with the existing first-failure diagnostics.
-All semantic state changes are left to `Model.execute`. -/
+All model state changes are left to `Model.execute`. -/
 def guardEvent (w : World) (event : Event) : Except Failure Unit := do
   match event with
   | .traceStart schema =>
@@ -308,7 +308,7 @@ def guardEvent (w : World) (event : Event) : Except Failure Unit := do
           && !w.recording.seenTxs.isEmpty)
         "empty claimed coverage"
 
-/-- Updates only recording metadata; no semantic state is available to this function. -/
+/-- Updates only recording metadata; no model state is available to this function. -/
 def metadata (w : Recording) (event : Event) (output : Output) : Recording :=
   let modifyAttempt (tid : Nat) (f : AttemptRecording → AttemptRecording) :=
     { w with attempts := set w.attempts tid (f ((find w.attempts tid).getD {})) }
@@ -371,13 +371,12 @@ def metadata (w : Recording) (event : Event) (output : Output) : Recording :=
 /-- Checks a record's inputs and reports directly against the main model. -/
 def stepEvent (w : World) (event : Event) : Except Failure World := do
   guardEvent w event
-  let (semantic, output) ←
+  let (nextState, output) ←
     match executeActions w.model (actions w event) with
-    | none => reject "trace adapter disagrees with semantic KV execution"
+    | none => reject "trace adapter disagrees with KV model execution"
     | some pair => pure pair
-  expect (reportedMatches event output)
-    "trace adapter disagrees with semantic KV execution"
-  return { model := semantic, recording := metadata w.recording event output }
+  expect (reportedMatches event output) "trace adapter disagrees with KV model execution"
+  return { model := nextState, recording := metadata w.recording event output }
 
 /-- Applies one ordered record, recording only sequence/count metadata after the event. -/
 def step (w : World) (r : Record) : Except Failure World := do
@@ -395,7 +394,7 @@ def step (w : World) (r : Record) : Except Failure World := do
         { next.recording with lastSeq := some r.seq, count := w.recording.count + 1 }
   }
 
-/-- Replays records through the authoritative semantic executor. -/
+/-- Replays records through the authoritative model. -/
 def replay (w : World) : List Record → Except Failure World
   | [] => .ok w
   | r :: rs => (step w r).bind fun next => replay next rs

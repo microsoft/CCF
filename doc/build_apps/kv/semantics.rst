@@ -1,7 +1,7 @@
 KV Implementation Model
 =======================
 
-The Lean project in ``lean/kv`` gives an executable semantic KV system and a separate adapter for traces from the C++ KV unit tests.
+The Lean project in ``lean/kv`` gives an executable KV model and a separate adapter for traces from the C++ KV unit tests.
 It complements the :doc:`kv_how_to` and :doc:`api`: it makes the observed implementation semantics, their assumptions, and differences from documentation explicit.
 See :doc:`/architecture/verification` for an overview of CCF's other Lean models and how traces are validated in CI.
 
@@ -160,13 +160,13 @@ The :ccf_repo:`proof catalogue <lean/kv/README.md>` records their precise scope 
    * - Main declaration
      - Established scope
    * - ``reachable_store_invariants``, ``reachable_store_data_invariants``
-     - Every live store in every semantic-reachable state has complete publication history, a matching head, a bounded global cut, unique data keys, and bounded previous-write versions.
+     - Every live store in every model-reachable state has complete publication history, a matching head, a bounded global cut, unique data keys, and bounded previous-write versions.
    * - ``transaction_snapshot_serial``, ``transaction_application_serial``
-     - Every semantic-reachable attempt's normal program reproduces its writes on pinned data and, when OCC permits application, on the application head.
+     - Every model-reachable attempt's normal program reproduces its writes on pinned data and, when OCC permits application, on the application head.
    * - ``executable_branch_serializability``
-     - Application-order branches of programs drawn from arbitrary semantic-reachable states serialize through the actual semantic application primitive, allowing compaction interleavings.
+     - Application-order branches of programs drawn from arbitrary reachable states serialize through the model's application primitive, allowing compaction interleavings.
    * - ``replay_segment_serializability``
-     - An actual semantic execution for a live store has a serial witness obtained from its actual application inputs and pre-application transactions.
+     - An actual model execution for a live store has a serial witness obtained from its actual application inputs and pre-application transactions.
        The segment excludes creation, destruction, or successful rollback of that store; rejected rollback and operations on other stores may interleave.
    * - ``replay_snapshot_fixed``
      - The read-version metadata comes from the initial capture and remains fixed during the attempt.
@@ -175,13 +175,13 @@ The :ccf_repo:`proof catalogue <lean/kv/README.md>` records their precise scope 
      - An acquired map's local and global views remain fixed, including for other keys, aliases, compaction, and rollback.
        This is not cross-map global consistency.
    * - ``step_global_read_from_captured_map``
-     - Computed semantic global reads originate in that map's captured irrevocable view, with the explicit empty-placeholder case for a map absent at the local cut.
+     - Computed global reads originate in that map's captured irrevocable view, with the explicit empty-placeholder case for a map absent at the local cut.
    * - ``durable_cut_survives_rollback``
      - Legal rollback preserves observations from the irrevocable prefix.
 
 Serializability is derived from dependency validation, not from an assumption that an accepted transaction is already serializable.
 Model states carry no proofs.
-Snapshot-program and store-history invariants are proved initially and preserved by every successful semantic action, covering arbitrary semantic-reachable states without trace preconditions.
+Snapshot-program and store-history invariants are proved initially and preserved by every successful model action, covering arbitrary model-reachable states without trace preconditions.
 Every canonical safety statement in ``Kv/Properties.lean`` concerns model state, outputs, or executions of ``Kv.Model.transitionSystem``, with no trace reachability premise.
 Its property helpers and proof import chains are independent of trace validation.
 These invariants are not extra sequential-oracle acceptance checks.

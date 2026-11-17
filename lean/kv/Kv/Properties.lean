@@ -19,7 +19,7 @@ import Kv.Proofs.Segment
 Review these statements with the definitions in `Kv/Model/`, `Kv/Model.lean`, and
 `Kv/Properties/`. Each theorem links to its implementation in `Kv/Proofs/`.
 Each claim with premises has an adjacent witness that its premises can hold.
-Safety statements and their proof dependencies concern only the semantic model.
+Safety statements and their proof dependencies concern only the model.
 -/
 
 namespace Kv.Properties
@@ -160,7 +160,7 @@ theorem transaction_snapshot_serial
         → find w.txs tid = some t
         → t.snapshot = some snap
         → serialRun t.data [] t.normal.log = some t.normal.writes := by
-  exact Proofs.SemanticInvariant.semantic_transaction_snapshot_serial
+  exact Proofs.Reachable.reachable_transaction_snapshot_serial
 
 /-- Witness: an attempt with a snapshot can have a nonempty log. -/
 theorem transaction_snapshot_serial_witness
@@ -169,7 +169,7 @@ theorem transaction_snapshot_serial_witness
         ∧ find w.txs tid = some t
         ∧ t.snapshot = some snap
         ∧ t.normal.log ≠ [] := by
-  exact Proofs.SemanticInvariant.semantic_transaction_snapshot_serial_witness
+  exact Proofs.Reachable.reachable_transaction_snapshot_serial_witness
 
 /-- An attempt that may apply runs serially on the current head to the same staged writes. -/
 theorem transaction_application_serial
@@ -180,7 +180,7 @@ theorem transaction_application_serial
         → t.snapshot = some snap
         → canApply s t = true
         → serialRun s.head.data [] t.normal.log = some t.normal.writes := by
-  exact Proofs.SemanticInvariant.semantic_transaction_application_serial
+  exact Proofs.Reachable.reachable_transaction_application_serial
 
 /-- Witness: an attempt with a nonempty log can apply. -/
 theorem transaction_application_serial_witness
@@ -191,7 +191,7 @@ theorem transaction_application_serial_witness
         ∧ t.snapshot = some snap
         ∧ canApply s t = true
         ∧ t.normal.log ≠ [] := by
-  exact Proofs.SemanticInvariant.semantic_transaction_application_serial_witness
+  exact Proofs.Reachable.reachable_transaction_application_serial_witness
 
 /-- A branch of applied attempts matches running their logs serially from the start. -/
 theorem executable_branch_serializability
@@ -201,7 +201,7 @@ theorem executable_branch_serializability
             Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
         → AppliedBranch s ts final
         → serialTransactions s.head.data s.head.version ts = some final.head.data := by
-  exact Proofs.SemanticInvariant.semantic_executable_branch_serializability
+  exact Proofs.Reachable.reachable_branch_serializability
 
 /-- Witness: a nonempty branch of applied attempts exists. -/
 theorem executable_branch_serializability_witness
@@ -211,7 +211,7 @@ theorem executable_branch_serializability_witness
             Model.transitionSystem.Reachable w ∧ find w.txs tid = some t)
         ∧ AppliedBranch s ts final
         ∧ ts ≠ [] := by
-  exact Proofs.SemanticInvariant.semantic_executable_branch_serializability_witness
+  exact Proofs.Reachable.reachable_branch_serializability_witness
 
 /-- In an accepted action segment that keeps store `sid` alive, the applications projected
 onto that store run serially to its final head. -/
@@ -250,13 +250,13 @@ theorem reachable_store_invariants
           ∧ s.history.head? = some s.head
           ∧ s.global ≤ s.head.version
           ∧ (atCut s s.global).version = s.global := by
-  exact Proofs.SemanticInvariant.semantic_reachable_store_invariants
+  exact Proofs.Reachable.reachable_store_invariants
 
 /-- Witness: a reachable world can have a live store. -/
 theorem reachable_store_invariants_witness
     : ∃ (w : Model.State) (sid : Nat) (s : Model.Store),
         Model.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
-  exact Proofs.SemanticInvariant.semantic_reachable_store_invariants_witness
+  exact Proofs.Reachable.reachable_store_invariants_witness
 
 /-- Every live store's head data in a reachable world has unique keys and versions no later than
 the head. -/
@@ -265,13 +265,13 @@ theorem reachable_store_data_invariants
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
         → Unique s.head.data ∧ CellsBounded s.head.data s.head.version := by
-  exact Proofs.SemanticInvariant.semantic_reachable_store_data_invariants
+  exact Proofs.Reachable.reachable_store_data_invariants
 
 /-- Witness: a reachable world can have a live store. -/
 theorem reachable_store_data_invariants_witness
     : ∃ (w : Model.State) (sid : Nat) (s : Model.Store),
         Model.transitionSystem.Reachable w ∧ find w.stores sid = some s := by
-  exact Proofs.SemanticInvariant.semantic_reachable_store_data_invariants_witness
+  exact Proofs.Reachable.reachable_store_data_invariants_witness
 
 /-! ## Current snapshot capture and preservation -/
 
@@ -595,7 +595,7 @@ theorem durable_cut_survives_rollback
         → cut ≤ s.global
         → s.global ≤ v
         → (atCut (rollbackStore s v term) cut).data = (atCut s cut).data := by
-  exact Proofs.SemanticInvariant.semantic_durable_cut_survives_rollback
+  exact Proofs.Reachable.reachable_durable_cut_survives_rollback
 
 /-- Witness: a nonempty cut can be at or below the global version. -/
 theorem durable_cut_survives_rollback_witness

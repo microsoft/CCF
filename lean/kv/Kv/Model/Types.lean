@@ -7,7 +7,7 @@ public import Std
 
 @[expose] public section
 
-/-! Semantic KV data, computed observations, dependencies, and live references. -/
+/-! KV data, computed observations, dependencies, and live references. -/
 
 namespace Kv.Model
 
@@ -80,7 +80,7 @@ def scanAt {M K V : Type} [DecidableEq M] [DecidableEq K]
   writeValues ((image db m).map fun (k, c) => (k, c.value))
     (ws.filterMap fun (a, v) => if a.1 = m then some (a.2, v) else none)
 
-/-- A computed operation in the normal-view history, including its semantic result. -/
+/-- A computed operation in the normal-view history, including its result. -/
 inductive NormalOp (M K V : Type) where
   /-- A read of `addr` with its computed value. -/
   | read (addr : Addr M K) (observed : Option V)
@@ -273,7 +273,7 @@ inductive Outcome where
   | noReplicate
 deriving Repr, BEq, DecidableEq
 
-/-- Live stores and attempts, with reusable semantic references. -/
+/-- Live stores and attempts, with reusable references. -/
 structure State where
   /-- Live stores. -/
   stores : Assoc Nat Store := []

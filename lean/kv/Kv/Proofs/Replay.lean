@@ -8,11 +8,11 @@ public import Kv.Proofs.Reachable
 
 @[expose] public section
 
-namespace Kv.Proofs.SemanticHelpers
+namespace Kv.Proofs.Helpers
 
 open Kv.Model
 
-/-- A successful semantic bind exposes its successful input and continuation. -/
+/-- A successful bind exposes its successful input and continuation. -/
 theorem option_bind_ok {α β : Type} {x : Option α} {f : α → Option β}
     {b : β} (h : x.bind f = some b)
     : ∃ a, x = some a ∧ f a = some b := by
@@ -20,7 +20,7 @@ theorem option_bind_ok {α β : Type} {x : Option α} {f : α → Option β}
   | none => cases h
   | some a => exact ⟨a, rfl, h⟩
 
-/-- Semantic ownership lookup exposes its underlying live store and transaction. -/
+/-- Ownership lookup exposes its underlying live store and transaction. -/
 theorem lookup_found {w : State} {sid tid : Nat} {s : Store} {t : Tx}
     (found : lookupTx w sid tid = some (s, t))
     : find w.stores sid = some s ∧ find w.txs tid = some t ∧ t.store = sid := by
@@ -37,16 +37,16 @@ theorem find_set_same {K V : Type} [DecidableEq K] (xs : Assoc K V) (k : K) (v :
     : find (set xs k v) k = some v := by
   simp [Model.set, find]
 
-end Kv.Proofs.SemanticHelpers
+end Kv.Proofs.Helpers
 
 namespace Kv.Proofs.Retention
 
 open Kv.Model Kv.Properties
-open Kv.Proofs.SemanticHelpers
+open Kv.Proofs.Helpers
 
 /-- Captured metadata and each already acquired local/global view remain fixed. -/
 structure Kept (before after : Model.Tx) : Prop where
-  /-- Semantic ownership cannot change. -/
+  /-- Ownership cannot change. -/
   store : after.store = before.store
   /-- A previously captured current frame and term remain fixed. -/
   snapshot : ∀ snap, before.snapshot = some snap → after.snapshot = some snap
@@ -60,7 +60,7 @@ structure Kept (before after : Model.Tx) : Prop where
 private theorem kept_refl (t : Model.Tx) : Kept t t :=
   ⟨rfl, fun _ h => h, fun _ _ h => ⟨h, rfl⟩⟩
 
-/-- Captured-view preservation composes across semantic execution. -/
+/-- Captured-view preservation composes across model execution. -/
 theorem kept_trans {a b c : Model.Tx} (first : Kept a b) (second : Kept b c)
     : Kept a c := by
   refine ⟨second.store.trans first.store, fun snap h => second.snapshot snap (first.snapshot snap h), ?_⟩
@@ -190,7 +190,7 @@ private theorem acquire_kept (t : Model.Tx) (m : String) (view : GlobalView)
     pinData_other _ _ _ _ other
   ⟩
 
-/-- Every successful semantic action preserves existing captured views in an attempt segment. -/
+/-- Every successful model action preserves existing captured views in an attempt segment. -/
 theorem execute_retains (w next : Model.State) (tid : Nat) (before : Model.Tx)
     (action : Action) (output : Output) (live : find w.txs tid = some before)
     (segment : AttemptAction tid action)
@@ -312,7 +312,7 @@ theorem execute_retains (w next : Model.State) (tid : Nat) (before : Model.Tx)
         · cases accepted
           exact unchanged w _ tid before live rfl
 
-/-- Captured-view preservation holds throughout every actual semantic run in an attempt segment. -/
+/-- Captured-view preservation holds throughout every actual model run in an attempt segment. -/
 theorem run_retains (w final : Model.State) (tid : Nat) (before : Model.Tx)
     (actions : List Action) (live : find w.txs tid = some before)
     (segment : ∀ action ∈ actions, AttemptAction tid action)
@@ -339,9 +339,9 @@ end Kv.Proofs.Retention
 
 namespace Kv.Proofs.Safety
 
-open Kv.Model Kv.Properties Kv.Proofs.SemanticHelpers
+open Kv.Model Kv.Properties Kv.Proofs.Helpers
 
-private theorem snapshot_semantic {w next : Model.State} {sid tid : Nat}
+private theorem snapshot_result {w next : Model.State} {sid tid : Nat}
     {s : Model.Store} {after : Model.Tx} {output : Output}
     (source : find w.stores sid = some s)
     (accepted : Model.execute w (.snapshot sid tid) = some (next, output))
@@ -370,7 +370,7 @@ theorem step_capture_metadata
             t.snapshot = some snap ∧ snap.current = s.head ∧ snap.term = s.term := by
   intro w next sid tid s t output source accepted live
   exact ⟨{ current := s.head, term := s.term },
-    (snapshot_semantic source accepted live).1, rfl, rfl⟩
+    (snapshot_result source accepted live).1, rfl, rfl⟩
 
 /-- Snapshot output contains the actual local/global cuts and commit term. -/
 theorem step_capture_cut_values
@@ -388,7 +388,7 @@ theorem step_capture_cut_values
   · cases accepted
     exact ⟨rfl, rfl, rfl⟩
 
-/-- Semantic acquisition installs its selected local/global frames and computes their revisions. -/
+/-- Map acquisition installs its selected local/global frames and computes their revisions. -/
 theorem step_map_capture
     : ∀ (w next : State) (sid tid localVersion globalVersion : Nat) (map : String)
         (s : Store) (before after : Tx) (snap : Snapshot),
@@ -421,7 +421,7 @@ theorem step_map_capture
       exact ⟨find_set_same _ _ _, congrArg (fun f => (revision f map).version) current, rfl⟩
     · cases accepted
 
-/-- Every attempt-preserving semantic execution keeps an existing current snapshot fixed. -/
+/-- Every attempt-preserving model execution keeps an existing current snapshot fixed. -/
 theorem replay_snapshot_fixed
     : ∀ (w final : State) (tid : Nat) (before : Tx) (snap : Snapshot)
         (inputs : List Action),
@@ -434,7 +434,7 @@ theorem replay_snapshot_fixed
   obtain ⟨after, finalLive, kept⟩ := Retention.run_retains w final tid before inputs live segment run
   exact ⟨after, finalLive, kept.snapshot snap captured⟩
 
-/-- Every attempt-preserving semantic execution keeps already acquired global frames fixed. -/
+/-- Every attempt-preserving model execution keeps already acquired global frames fixed. -/
 theorem replay_map_global_fixed
     : ∀ (w final : State) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
         (inputs : List Action),
@@ -463,7 +463,7 @@ theorem replay_map_local_fixed
   obtain ⟨after, finalLive, kept⟩ := Retention.run_retains w final tid before inputs live segment run
   exact ⟨after, finalLive, (kept.maps map view captured).2⟩
 
-/-- Metadata computed by capture survives the rest of an attempt-preserving semantic execution. -/
+/-- Metadata computed by capture survives the rest of an attempt-preserving model execution. -/
 theorem capture_replay_preserves_metadata
     : ∀ (w captured final : State) (sid tid : Nat) (s : Store) (t : Tx)
         (output : Output) (inputs : List Action),
@@ -482,7 +482,7 @@ theorem capture_replay_preserves_metadata
   obtain ⟨after, finalLive, same⟩ := replay_snapshot_fixed captured final tid t snap inputs live pinned segment run
   exact ⟨after, snap, finalLive, same, current, term⟩
 
-/-- Acquired frames and computed revisions survive an attempt-preserving semantic execution. -/
+/-- Acquired frames and computed revisions survive an attempt-preserving model execution. -/
 theorem capture_replay_preserves_map
     : ∀ (w captured final : State) (sid tid localVersion globalVersion : Nat)
         (map : String) (s : Store) (before acquired : Tx) (snap : Snapshot)
@@ -517,7 +517,7 @@ private theorem provenance (w : State) (sid tid : Nat) (s : Store) (t : Tx) (map
           view.frame = atCut origin origin.global
           ∧ view.frame.version = origin.global
           ∧ CellsBounded view.frame.data origin.global :=
-  SemanticInvariant.semantic_global_provenance w tid t map view reachable
+  Reachable.global_provenance w tid t map view reachable
     (lookup_found source).2.1 captured
 
 /-- Global read outputs are computed from the frozen map frame with committed-prefix provenance. -/

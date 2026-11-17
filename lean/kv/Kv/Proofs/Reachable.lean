@@ -8,7 +8,7 @@ public import CCF.Execution
 
 @[expose] public section
 
-namespace Kv.Proofs.SemanticInvariant
+namespace Kv.Proofs.Reachable
 
 open Kv.Model Kv.Properties
 
@@ -23,7 +23,7 @@ private def observes {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq
   | .scan m vs => decide (scanAt db ws m = vs)
   | .write _ _ => true
 
-/-- Validates reports before using the semantic dependency/write recorder. -/
+/-- Validates reports before using the dependency/write recorder. -/
 private def normalStep {M K V : Type} [DecidableEq M] [DecidableEq K] [DecidableEq V]
     (snapshot : DB M K V) (n : Normal M K V) (op : NormalOp M K V)
     : Option (Normal M K V) :=
@@ -891,7 +891,7 @@ private theorem reachable_invariant (w : State)
       exact world_initial
   | @step w next action _ transition ih =>
       obtain ⟨pair, executed, state⟩ := Option.map_eq_some_iff.mp transition
-      obtain ⟨semantic, output⟩ := pair
+      obtain ⟨nextState, output⟩ := pair
       cases state
       exact execute_invariant _ _ ih action output executed
 
@@ -952,8 +952,8 @@ private theorem map_global_view_safety (view : GlobalView) (valid : GlobalInvari
     · rw [committed]; exact (atCut_spec origin store origin.global store.globalBound).1
     · rw [committed]; exact atCut_cells_bounded origin store origin.global store.globalBound
 
-/-- All semantic-reachable stores have complete publication histories and valid global cuts. -/
-theorem semantic_reachable_store_invariants
+/-- All model-reachable stores have complete publication histories and valid global cuts. -/
+theorem reachable_store_invariants
     : ∀ (w : State) (sid : Nat) (s : Store),
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
@@ -966,8 +966,8 @@ theorem semantic_reachable_store_invariants
   exact ⟨inv.historyShape, inv.headFirst, inv.globalBound,
     (atCut_spec s inv s.global inv.globalBound).1⟩
 
-/-- Every semantic-reachable head has unique keys and bounded previous-write versions. -/
-theorem semantic_reachable_store_data_invariants
+/-- Every model-reachable head has unique keys and bounded previous-write versions. -/
+theorem reachable_store_data_invariants
     : ∀ (w : State) (sid : Nat) (s : Store),
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
@@ -983,8 +983,8 @@ theorem semantic_reachable_store_data_invariants
         using History.head_cells_bounded s.history s.head.version inv.historyShape
   ⟩
 
-/-- Every semantic-reachable captured normal program reproduces its staged writes on pinned data. -/
-theorem semantic_transaction_snapshot_serial
+/-- Every model-reachable captured normal program reproduces its staged writes on pinned data. -/
+theorem reachable_transaction_snapshot_serial
     : ∀ (w : State) (tid : Nat) (t : Tx) (snap : Snapshot),
         Model.transitionSystem.Reachable w
         → find w.txs tid = some t
@@ -994,8 +994,8 @@ theorem semantic_transaction_snapshot_serial
   exact transaction_snapshot_serial t snap
     ((reachable_invariant w reachable).txs tid t found).normal captured
 
-/-- OCC-valid semantic-reachable programs have an independent serial witness at application. -/
-theorem semantic_transaction_application_serial
+/-- OCC-valid model-reachable programs have an independent serial witness at application. -/
+theorem reachable_transaction_application_serial
     : ∀ (w : State) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
         Model.transitionSystem.Reachable w
         → lookupTx w sid tid = some (s, t)
@@ -1007,8 +1007,8 @@ theorem semantic_transaction_application_serial
     (lookup_invariant w (reachable_invariant w reachable) sid tid s t found).2.normal
     captured permitted
 
-/-- Application order serializes arbitrary semantic-reachable attempts, with compaction interleavings. -/
-theorem semantic_executable_branch_serializability
+/-- Application order serializes arbitrary model-reachable attempts, with compaction interleavings. -/
+theorem reachable_branch_serializability
     : ∀ (s final : Store) (ts : List Tx),
         (∀ t ∈ ts,
           ∃ (w : State) (tid : Nat),
@@ -1021,8 +1021,8 @@ theorem semantic_executable_branch_serializability
   obtain ⟨w, tid, initialized, found⟩ := reachable t member
   exact ((reachable_invariant w initialized).txs tid t found).normal
 
-/-- Captured global frames of all semantic-reachable attempts have irrevocable provenance. -/
-theorem semantic_global_provenance
+/-- Captured global frames of all model-reachable attempts have irrevocable provenance. -/
+theorem global_provenance
     : ∀ (w : State) (tid : Nat) (t : Tx) (map : String) (view : GlobalView),
         Model.transitionSystem.Reachable w
         → find w.txs tid = some t
@@ -1036,8 +1036,8 @@ theorem semantic_global_provenance
   exact map_global_view_safety view
     (((reachable_invariant w reachable).txs tid t found).globals map view captured)
 
-/-- A semantic-reachable store's durable cuts survive legal rollback. -/
-theorem semantic_durable_cut_survives_rollback
+/-- A model-reachable store's durable cuts survive legal rollback. -/
+theorem reachable_durable_cut_survives_rollback
     : ∀ (w : State) (sid v term cut : Nat) (s : Store),
         Model.transitionSystem.Reachable w
         → find w.stores sid = some s
@@ -1080,20 +1080,20 @@ private theorem witness_reachable : Model.transitionSystem.Reachable witnessStat
     } : State) := .step (action := .acquire 1 1 "m") r3 rfl
   exact .step (action := .operation 1 1 (.write "m" "k" (some "v"))) r4 rfl
 
-/-- A semantic-reachable store witnesses both store safety premises. -/
-theorem semantic_reachable_store_invariants_witness
+/-- A model-reachable store witnesses both store safety premises. -/
+theorem reachable_store_invariants_witness
     : ∃ (w : State) (sid : Nat) (s : Store),
         Model.transitionSystem.Reachable w ∧ find w.stores sid = some s :=
   ⟨witnessState, 1, {}, witness_reachable, rfl⟩
 
-/-- A semantic-reachable head witnesses data invariant premises. -/
-theorem semantic_reachable_store_data_invariants_witness
+/-- A model-reachable head witnesses data invariant premises. -/
+theorem reachable_store_data_invariants_witness
     : ∃ (w : State) (sid : Nat) (s : Store),
         Model.transitionSystem.Reachable w ∧ find w.stores sid = some s :=
   ⟨witnessState, 1, {}, witness_reachable, rfl⟩
 
-/-- A nonempty normal program is reachable using only semantic actions. -/
-theorem semantic_transaction_snapshot_serial_witness
+/-- A nonempty normal program is reachable using only model actions. -/
+theorem reachable_transaction_snapshot_serial_witness
     : ∃ (w : State) (tid : Nat) (t : Tx) (snap : Snapshot),
         Model.transitionSystem.Reachable w
         ∧ find w.txs tid = some t
@@ -1110,8 +1110,8 @@ theorem semantic_transaction_snapshot_serial_witness
     by decide +kernel
   ⟩
 
-/-- A nonempty semantic-reachable program can pass OCC. -/
-theorem semantic_transaction_application_serial_witness
+/-- A nonempty model-reachable program can pass OCC. -/
+theorem reachable_transaction_application_serial_witness
     : ∃ (w : State) (sid tid : Nat) (s : Store) (t : Tx) (snap : Snapshot),
         Model.transitionSystem.Reachable w
         ∧ lookupTx w sid tid = some (s, t)
@@ -1132,8 +1132,8 @@ theorem semantic_transaction_application_serial_witness
     by decide +kernel
   ⟩
 
-/-- A nonempty application-order branch uses a semantic-reachable attempt. -/
-theorem semantic_executable_branch_serializability_witness
+/-- A nonempty application-order branch uses a model-reachable attempt. -/
+theorem reachable_branch_serializability_witness
     : ∃ (s final : Store) (ts : List Tx),
         (∀ t ∈ ts,
           ∃ (w : State) (tid : Nat),
@@ -1147,4 +1147,4 @@ theorem semantic_executable_branch_serializability_witness
     exact ⟨witnessState, 1, witness_reachable, rfl⟩
   · exact .cons _ _ _ _ [] rfl (.nil _)
 
-end Kv.Proofs.SemanticInvariant
+end Kv.Proofs.Reachable

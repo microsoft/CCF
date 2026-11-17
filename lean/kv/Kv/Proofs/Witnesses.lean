@@ -377,7 +377,7 @@ private def snapAt (n tid : Nat) : Snapshot :=
 private def viewAt (n tid : Nat) : GlobalView :=
   (find (txAt n tid).globalViews "a").getD { frame := {} }
 
-/-- An actual semantic snapshot witnesses capture metadata. -/
+/-- An actual snapshot witnesses capture metadata. -/
 theorem step_capture_metadata_witness
     : ∃ (w next : State) (sid tid : Nat) (s : Store) (t : Tx) (output : Output),
         find w.stores sid = some s
@@ -403,7 +403,7 @@ theorem step_capture_cut_values_witness
         ∧ execute w (.snapshot sid tid) = some (next, .snapshot version global term) :=
   ⟨state 2, state 3, 1, 1, 0, 0, 0, storeAt 2, by decide +kernel, by decide +kernel⟩
 
-/-- A semantic acquisition witnesses captured frames and revision outputs. -/
+/-- A map acquisition witnesses captured frames and revision outputs. -/
 theorem step_map_capture_witness
     : ∃ (w next : State) (sid tid localVersion globalVersion : Nat) (map : String)
         (s : Store) (before after : Tx) (snap : Snapshot),
@@ -430,7 +430,7 @@ theorem step_map_capture_witness
     by decide +kernel
   ⟩
 
-/-- A nonempty semantic execution preserves an already captured current frame. -/
+/-- A nonempty model execution preserves an already captured current frame. -/
 theorem replay_snapshot_fixed_witness
     : ∃ (w final : State) (tid : Nat) (before : Tx) (snap : Snapshot)
         (actions : List Action),
@@ -453,7 +453,7 @@ theorem replay_snapshot_fixed_witness
     by decide +kernel
   ⟩
 
-/-- A nonempty semantic execution preserves an acquired global frame. -/
+/-- A nonempty model execution preserves an acquired global frame. -/
 theorem replay_map_global_fixed_witness
     : ∃ (w final : State) (tid : Nat) (before : Tx) (map : String) (view : GlobalView)
         (actions : List Action),
@@ -501,7 +501,7 @@ theorem replay_map_local_fixed_witness
     by decide +kernel
   ⟩
 
-/-- Actual capture followed by a nonempty semantic execution witnesses metadata preservation. -/
+/-- Actual capture followed by a nonempty model execution witnesses metadata preservation. -/
 theorem capture_replay_preserves_metadata_witness
     : ∃ (w captured final : State) (sid tid : Nat) (s : Store) (t : Tx)
         (output : Output) (actions : List Action),
@@ -565,7 +565,7 @@ theorem capture_replay_preserves_map_witness
     by decide +kernel
   ⟩
 
-/-- A present global value is produced by a reachable semantic execution. -/
+/-- A present global value is produced by a reachable model execution. -/
 theorem step_global_read_from_captured_map_witness
     : ∃ (w next : State) (sid tid : Nat) (s : Store) (t : Tx) (map key value : String)
         (view : GlobalView),
@@ -591,7 +591,7 @@ theorem step_global_read_from_captured_map_witness
     by decide +kernel
   ⟩
 
-/-- Global presence is produced by a reachable semantic execution. -/
+/-- Global presence is produced by a reachable model execution. -/
 theorem step_global_has_from_captured_map_witness
     : ∃ (w next : State) (sid tid : Nat) (s : Store) (t : Tx) (map key : String)
         (view : GlobalView),
@@ -616,7 +616,7 @@ theorem step_global_has_from_captured_map_witness
     by decide +kernel
   ⟩
 
-/-- A nonempty actual semantic segment includes publication and compaction. -/
+/-- A nonempty actual model segment includes publication and compaction. -/
 theorem replay_segment_serializability_witness
     : ∃ (w final : State) (sid : Nat) (s : Store) (actions : List Action),
         transitionSystem.Reachable w

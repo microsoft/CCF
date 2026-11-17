@@ -11,7 +11,7 @@ public import Kv.Properties.Invariants
 
 namespace Kv.Proofs.ModelExecution
 
-open Kv.Model Kv.Properties Kv.Proofs.SemanticHelpers
+open Kv.Model Kv.Properties Kv.Proofs.Helpers
 
 private def Legal (sid : Nat) (output : Output) : Model.Action → Prop
   | .storeCreate actual _ | .storeEnd actual => actual ≠ sid
@@ -226,7 +226,7 @@ private theorem serial_witness (before after : Store) (ts : List Tx)
   cases effect with
   | stutter head => simp [serialTransactions, head]
   | apply t one =>
-      refine ⟨SemanticInvariant.semantic_executable_branch_serializability before after [t]
+      refine ⟨Reachable.reachable_branch_serializability before after [t]
         reachable (.cons _ _ _ _ [] one (.nil _)), ?_⟩
       dsimp only [tryApply] at one
       split at one
@@ -246,7 +246,7 @@ private theorem serial_append (db : Data) (version : Nat) (xs ys : List Tx)
       | some writes =>
           simp [serialTransactions, h, ih, Nat.add_comm, Nat.add_left_comm]
 
-/-- Actual semantic executions serialize the selected store's applications in their real order. -/
+/-- Actual model executions serialize the selected store's applications in their real order. -/
 theorem replay_segment_serializability
     : ∀ (w final : State) (sid : Nat) (s : Store) (inputs : List Action),
         transitionSystem.Reachable w

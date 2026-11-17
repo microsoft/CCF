@@ -12,7 +12,7 @@ namespace Kv.Properties
 
 open Kv.Model
 
-/-- The selected attempt is neither destroyed nor recreated by this semantic input. -/
+/-- The selected attempt is neither destroyed nor recreated by this model input. -/
 def AttemptAction (tid : Nat) : Action → Prop
   | .txCreate _ actual | .txEnd _ actual => actual ≠ tid
   | _ => True
@@ -31,13 +31,13 @@ def SegmentInputs (w : State) (sid : Nat) : List Action → Prop
       SegmentAction w sid a
       ∧ ∀ next, transitionSystem.step w a = some next → SegmentInputs next sid rest
 
-/-- The live attempt an actual semantic input applies to the selected store. -/
+/-- The live attempt an actual model input applies to the selected store. -/
 def appliedTransaction (w : State) (sid : Nat) : Action → List Tx
   | .apply actual tid =>
       if actual = sid then ((lookupTx w actual tid).map Prod.snd).toList else []
   | _ => []
 
-/-- Execute semantic inputs and extract their actual pre-application attempts in order. -/
+/-- Execute model inputs and extract their actual pre-application attempts in order. -/
 def applicationInputs (w : State) (sid : Nat) : List Action → Option (List Tx)
   | [] => some []
   | a :: rest => do

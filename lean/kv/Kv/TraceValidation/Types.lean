@@ -128,7 +128,7 @@ structure Failure where
   message : String
 deriving Repr
 
-/-- Instrumentation bookkeeping, independent of semantic store and transaction state. -/
+/-- Instrumentation bookkeeping, independent of store and transaction state. -/
 structure Recording where
   /-- Stores whose schema-omitted initial term has been established. -/
   knownTerms : List Nat := []
@@ -156,7 +156,7 @@ deriving Repr
 
 /-- The main model state and separate trace-only recording state. -/
 structure World where
-  /-- Authoritative state passed directly to the semantic executor. -/
+  /-- Authoritative state passed directly to the model. -/
   model : Model.State := {}
   /-- Recording protocol and stream metadata. -/
   recording : Recording := {}
