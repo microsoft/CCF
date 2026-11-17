@@ -10,7 +10,10 @@ import Consensus.TraceValidation.Proofs.Handlers.DropPendingTo
 import Consensus.TraceValidation.Proofs.Handlers.ForceBecomePrimary
 import Consensus.TraceValidation.Proofs.Handlers.InitAsBackup
 import Consensus.TraceValidation.Proofs.Handlers.OutOfLockHook
-import Consensus.TraceValidation.Proofs.Handlers.ReplUpdateCommit
-import Consensus.TraceValidation.Proofs.Handlers.VoteLemmas
+import Consensus.TraceValidation.Proofs.Handlers.ProposeRequestVote
+import Consensus.TraceValidation.Proofs.Handlers.RequestPreVote
+import Consensus.TraceValidation.Proofs.Handlers.RequestPreVoteResponse
+import Consensus.TraceValidation.Proofs.Handlers.RequestVote
+import Consensus.TraceValidation.Proofs.Handlers.RequestVoteResponse
 import Consensus.TraceValidation.Proofs.Section
 import Consensus.TraceValidation.Proofs.Validator
