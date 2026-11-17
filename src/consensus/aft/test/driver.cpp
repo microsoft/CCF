@@ -365,10 +365,11 @@ namespace
 
   std::unique_ptr<TraceCapture> capture;
 
-  // The edge counters of the consensus implementation, if this file is
-  // compiled with -fsanitize-coverage=inline-8bit-counters
-  char* edges_begin = nullptr;
-  char* edges_end = nullptr;
+  // The edge flags of the consensus implementation, if this file is compiled
+  // with -fsanitize-coverage=inline-bool-flag. A flag stays set once its edge
+  // has run, where a counter of its runs would return to zero.
+  bool* edges_begin = nullptr;
+  bool* edges_end = nullptr;
 
   // Exports the trace to the Fluentd collector at a host and port, if given,
   // and creates the driver
@@ -455,8 +456,8 @@ extern "C"
     });
   }
 
-  // The instrumentation calls this before main, with its counters
-  void __sanitizer_cov_8bit_counters_init(char* start, char* stop)
+  // The instrumentation calls this before main, with its flags
+  void __sanitizer_cov_bool_flag_init(bool* start, bool* stop)
   {
     edges_begin = start;
     edges_end = stop;

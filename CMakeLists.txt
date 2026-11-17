@@ -1357,7 +1357,7 @@ if(BUILD_TESTS)
       add_san(cft_model_driver)
       add_warning_checks(cft_model_driver)
       enable_coverage(cft_model_driver)
-      # Count the edges of the consensus implementation which a run reaches,
+      # Flag the edges of the consensus implementation which a run reaches,
       # so that the model driver can tell the runs which reach new ones.
       # Without inlining, they are the edges of that implementation only, and
       # not also those of the library code which it calls.
@@ -1366,7 +1366,7 @@ if(BUILD_TESTS)
         target_compile_options(
           cft_model_driver
           PRIVATE
-            -fsanitize-coverage=inline-8bit-counters
+            -fsanitize-coverage=inline-bool-flag
             -fsanitize-coverage-allowlist=${CFT_MODEL_EDGES}
             -fno-inline
         )

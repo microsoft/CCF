@@ -23,8 +23,8 @@ def fail {α : Type} (message : String) : IO α :=
   throw (IO.userError message)
 
 /--
-The counters of the edges of the consensus implementation, each nonzero if the process has
-run its edge. Empty unless the driver was compiled to count them.
+The flags of the edges of the consensus implementation, each nonzero if the process has
+run its edge. Empty unless the driver was compiled to flag them.
 -/
 @[extern "cft_edges"]
 opaque edges : IO ByteArray
