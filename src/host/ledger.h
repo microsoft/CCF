@@ -1378,6 +1378,12 @@ namespace asynchost
       size_t file_start_idx, size_t file_last_idx, std::string name)
       CCF_REQUIRES(committed_files_lock)
     {
+      if (file_last_idx < file_start_idx)
+      {
+        // A file without entries, e.g. one recovered with an empty positions
+        // table, contains no idx to look up
+        return;
+      }
       committed_files.insert(
         {.last_idx = file_last_idx,
          .start_idx = file_start_idx,
