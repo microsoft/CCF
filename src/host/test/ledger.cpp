@@ -2342,13 +2342,24 @@ TEST_CASE("Committed ledger paths include overlapping files")
   REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_9-12.committed"));
   check_committed_ledger_paths(ledger, 12);
 
-  // A file is still found when another file containing the same entries is
-  // removed
-  REQUIRE(fs::remove(fs::path(ledger_dir) / "ledger_9-12.committed"));
-  check_committed_ledger_paths(ledger, 12);
+  // Looking up the index after the end of each file found gives contiguous
+  // files
   REQUIRE(
-    ledger.committed_ledger_path_with_idx(12) ==
-    fs::path(ledger_dir) / "ledger_1-12.committed");
+    ledger.committed_ledger_path_with_idx(4) ==
+    fs::path(ledger_dir) / "ledger_4-8.committed");
+  REQUIRE(
+    ledger.committed_ledger_path_with_idx(9) ==
+    fs::path(ledger_dir) / "ledger_9-12.committed");
+
+  // Index 5 is in two of these files: once the one found for it is removed,
+  // the other is found
+  const auto first_path = ledger.committed_ledger_path_with_idx(5);
+  REQUIRE(first_path.has_value());
+  REQUIRE(fs::remove(first_path.value()));
+  check_committed_ledger_paths(ledger, 12);
+  const auto other_path = ledger.committed_ledger_path_with_idx(5);
+  REQUIRE(other_path.has_value());
+  REQUIRE(other_path != first_path);
 }
 
 TEST_CASE("Committed ledger paths do not wait for slow ledger file operations")

@@ -1201,16 +1201,27 @@ namespace asynchost
       size_t start_idx;
       std::string name;
 
+      // By last idx, then by start idx descending, so that of the files which
+      // contain an index, lookups find first the ones which end first and,
+      // of those, the narrowest. Looking up the index after the end of each
+      // file found then gives contiguous files where files overlap.
       bool operator<(const CommittedFile& other) const
       {
-        return std::tie(last_idx, start_idx, name) <
-          std::tie(other.last_idx, other.start_idx, other.name);
+        if (last_idx != other.last_idx)
+        {
+          return last_idx < other.last_idx;
+        }
+        if (start_idx != other.start_idx)
+        {
+          return start_idx > other.start_idx;
+        }
+        return name < other.name;
       }
     };
 
     // Files in `ledger_dir` which a scan of the directory with
     // get_file_name_with_idx() would find, i.e. mostly committed files, ordered
-    // by last idx. Files which overlap are all kept. Entries whose file no
+    // as above. Files which overlap are all kept. Entries whose file no
     // longer exists, e.g. because the files cleanup removed it or it was
     // renamed after startup, are kept too: lookups check that the files they
     // find still exist. So where files are removed, e.g. with the files cleanup
@@ -2231,7 +2242,9 @@ namespace asynchost
           // max_committed_file_span after it. Usually only the first of them
           // starts at or before it, but files may overlap.
           for (auto it = committed_files.lower_bound(
-                 {.last_idx = idx, .start_idx = 0, .name = {}});
+                 {.last_idx = idx,
+                  .start_idx = std::numeric_limits<size_t>::max(),
+                  .name = {}});
                it != committed_files.end() &&
                it->last_idx - idx <= max_committed_file_span;
                ++it)
