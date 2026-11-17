@@ -1208,12 +1208,13 @@ namespace asynchost
       }
     };
 
-    // The committed files of `ledger_dir`, ordered by last idx. Files which
-    // overlap are all kept. Entries whose file no longer exists, e.g. because
-    // the files cleanup removed it or it was renamed after startup, are kept
-    // too: lookups check that the files they find still exist. So where files
-    // are removed, e.g. with the files cleanup on, this grows by one entry
-    // (about 130 bytes) per committed file until the process restarts.
+    // The committed files of `ledger_dir`, found on startup or committed
+    // since, ordered by last idx. Files which overlap are all kept. Entries
+    // whose file no longer exists, e.g. because the files cleanup removed it
+    // or it was renamed after startup, are kept too: lookups check that the
+    // files they find still exist. So where files are removed, e.g. with the
+    // files cleanup on, this grows by one entry (about 130 bytes) per
+    // committed file until the process restarts.
     std::set<CommittedFile> committed_files
       CCF_GUARDED_BY(committed_files_lock);
 
@@ -1403,37 +1404,20 @@ namespace asynchost
         file.get_file_name().string());
     }
 
-    // Records the committed files in ledger_dir. The directory is scanned
-    // before taking committed_files_lock, which is never held across file
-    // operations.
-    void add_existing_committed_files() CCF_EXCLUDES(committed_files_lock)
+    // Records the committed files of ledger_dir found on startup, by name
+    void add_existing_committed_files(
+      const std::vector<std::string>& file_names)
+      CCF_EXCLUDES(committed_files_lock)
     {
-      std::vector<CommittedFile> existing_files;
-      for (auto const& f : fs::directory_iterator(ledger_dir))
+      ccf::ds::MutexGuard guard(committed_files_lock);
+      for (const auto& file_name : file_names)
       {
-        auto file_name = f.path().filename().string();
-        if (!ccf::ledger::is_ledger_file_name_committed(file_name))
-        {
-          // Uncommitted files can also be named with a range of entries, e.g.
-          // by ccf.split_ledger
-          continue;
-        }
         const auto range = get_committed_file_range(
           file_name, false /* do not allow recovery files */);
         if (range.has_value())
         {
-          existing_files.push_back(
-            {.last_idx = range->last_idx,
-             .start_idx = range->start_idx,
-             .name = std::move(file_name)});
+          record_committed_file(range->start_idx, range->last_idx, file_name);
         }
-      }
-
-      ccf::ds::MutexGuard guard(committed_files_lock);
-      for (auto& file : existing_files)
-      {
-        record_committed_file(
-          file.start_idx, file.last_idx, std::move(file.name));
       }
     }
 
@@ -1652,6 +1636,7 @@ namespace asynchost
 
         // Establish the final committed frontier before admitting mutable
         // files, independently of directory iteration order.
+        std::vector<std::string> committed_file_names;
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
           auto file_name = f.path().filename();
@@ -1661,6 +1646,7 @@ namespace asynchost
           {
             continue;
           }
+          committed_file_names.push_back(file_name.string());
 
           const auto file_end_idx =
             ccf::ledger::get_last_idx_from_file_name(file_name);
@@ -1677,6 +1663,11 @@ namespace asynchost
             end_of_committed_files_idx = file_end_idx.value();
           }
         }
+
+        // Record the committed files, which the loop below leaves as they are.
+        // Uncommitted files are not recorded, although they can also be named
+        // with a range of entries, e.g. by ccf.split_ledger.
+        add_existing_committed_files(committed_file_names);
 
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
@@ -1738,10 +1729,6 @@ namespace asynchost
             "Recovering file from main ledger directory: {}", file_name);
           files.emplace_back(std::move(ledger_file));
         }
-
-        // Committed files are recorded only now, once the files which cannot
-        // be recovered have been renamed or removed
-        add_existing_committed_files();
 
         if (files.empty())
         {
