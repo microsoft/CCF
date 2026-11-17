@@ -233,11 +233,13 @@ TEST_CASE(
   const auto replacement = identity.key->self_sign(
     "CN=replacement", "20200101000000Z", "20201231235959Z");
   const auto did =
-    ccf::crypto::compute_cert_id(identity.cert, IdentityIdFormat::DIDKey);
-  const auto legacy_id = ccf::crypto::compute_cert_id(identity.cert);
+    ccf::crypto::did_key_from_public_key_der(identity.key->public_key_der());
+  const auto legacy_id_of = [](const ccf::crypto::Pem& cert) {
+    return ccf::crypto::Sha256Hash(ccf::crypto::make_verifier(cert)->cert_der())
+      .hex_str();
+  };
+  const auto legacy_id = legacy_id_of(identity.cert);
   REQUIRE(did.starts_with("did:key:z"));
-  REQUIRE(
-    ccf::crypto::compute_cert_id(replacement, IdentityIdFormat::DIDKey) == did);
   auto tx = store.create_tx();
 
   SUBCASE("Members")
@@ -258,7 +260,7 @@ TEST_CASE(
       legacy_id);
     REQUIRE(
       InternalTablesAccess::add_member(tx, {replacement}).value() ==
-      ccf::crypto::compute_cert_id(replacement));
+      legacy_id_of(replacement));
     REQUIRE(tx.ro<MemberPublicKeys>(Tables::MEMBER_PUBLIC_KEYS)->has(did));
     REQUIRE(tx.ro<MemberCerts>(Tables::MEMBER_CERTS)->has(legacy_id));
     REQUIRE(
@@ -310,11 +312,10 @@ TEST_CASE("DID enrollment rejects certificates and malformed keys")
   CHECK_FALSE(tx.ro<MemberInfo>(Tables::MEMBER_INFO)->has(did));
 }
 
-TEST_CASE("Enrollment inputs serialize certificates or DIDs without a format")
+TEST_CASE("Enrollment inputs accept a certificate or a did:key")
 {
   const TestIdentity identity;
-  nlohmann::json member = NewMember{identity.cert};
-  CHECK_FALSE(member.contains("id_format"));
+  const nlohmann::json member = NewMember{identity.cert};
   CHECK(member.get<NewMember>().cert == identity.cert);
   const auto did =
     ccf::crypto::did_key_from_public_key_der(identity.key->public_key_der());
@@ -325,8 +326,6 @@ TEST_CASE("Enrollment inputs serialize certificates or DIDs without a format")
   CHECK(did_member.did_key == did);
   CHECK(did_user.cert.empty());
   CHECK(did_user.did_key == did);
-  CHECK_FALSE(nlohmann::json(did_member).contains("id_format"));
-  CHECK_FALSE(nlohmann::json(did_user).contains("id_format"));
 }
 
 TEST_CASE("Member admission and activation preserve recovery roles")

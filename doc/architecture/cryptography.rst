@@ -146,7 +146,6 @@ If both are enrolled in the same role, TLS client certificate authentication wit
 
 IDs already stored in the ledger are not changed or backfilled.
 There is no automatic transfer of metadata, governance state, or recovery shares between IDs.
-Recovery from an existing common directory discovers each member's enrolled ID format and recovery role from the recovered governance state.
 See :doc:`/governance/migrating_identity_ids` for the user and member migration procedure.
 
 Upgrade every node before opting in to DID identities.

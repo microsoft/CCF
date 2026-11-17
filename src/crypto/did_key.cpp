@@ -22,17 +22,6 @@ namespace ccf::crypto
     constexpr int MIN_RSA_BITS = 2048;
     constexpr int MAX_RSA_BITS = 16384;
 
-    bool same_public_key(EVP_PKEY* lhs, EVP_PKEY* rhs)
-    {
-      const auto rc = EVP_PKEY_eq(lhs, rhs);
-      if (rc < -1)
-      {
-        throw std::runtime_error(
-          "Failed to compare public keys: " + first_error());
-      }
-      return rc == 1;
-    }
-
     [[noreturn]] void invalid_key()
     {
       throw std::invalid_argument(
@@ -229,14 +218,6 @@ namespace ccf::crypto
 
   std::string did_key_from_public_key_der(std::span<const uint8_t> der)
   {
-    auto key = parse_public_key(der);
-    validate_public_key(key);
-    return encode_did_key(key);
-  }
-
-  std::string unvalidated_did_key_from_public_key_der(
-    std::span<const uint8_t> der)
-  {
     return encode_did_key(parse_public_key(der));
   }
 
@@ -327,25 +308,5 @@ namespace ccf::crypto
       invalid_key();
     }
     return validated_public_key_der(key, id);
-  }
-
-  bool public_keys_equal(const Pem& lhs, const Pem& rhs)
-  {
-    using namespace OpenSSL;
-    Unique_BIO left(lhs);
-    Unique_BIO right(rhs);
-    Unique_PKEY left_key(left);
-    Unique_PKEY right_key(right);
-    return same_public_key(left_key, right_key);
-  }
-
-  bool cert_has_public_key(
-    std::span<const uint8_t> cert, std::span<const uint8_t> public_key)
-  {
-    using namespace OpenSSL;
-    const auto* p = cert.data();
-    Unique_X509 certificate(d2i_X509(nullptr, &p, cert.size()), X509_free);
-    const auto key = parse_public_key(public_key);
-    return same_public_key(X509_get0_pubkey(certificate), key);
   }
 }

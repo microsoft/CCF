@@ -7,7 +7,6 @@
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
 #include <algorithm>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 
@@ -29,26 +28,6 @@ namespace ccf
     if (id.starts_with("did:key:"))
     {
       return crypto::is_well_formed_did_key(id);
-    }
-    return is_legacy_identity_id(id);
-  }
-
-  /// Check an identity ID, including validation of the key contained in a
-  /// did:key. This is costly for large RSA keys, so must only be applied to
-  /// authenticated input.
-  inline bool is_valid_identity_id(std::string_view id)
-  {
-    if (id.starts_with("did:key:"))
-    {
-      try
-      {
-        crypto::public_key_der_from_did_key(id);
-        return true;
-      }
-      catch (const std::invalid_argument&)
-      {
-        return false;
-      }
     }
     return is_legacy_identity_id(id);
   }

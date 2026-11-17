@@ -389,8 +389,8 @@ TEST_CASE("Startup inputs are read from files")
   start.members.push_back(
     {write_test_file(dir, "member1_cert.pem", member_cert.str())});
   ParsedMemberInfo did_member;
-  did_member.did_key =
-    ccf::crypto::compute_cert_id(member_cert, IdentityIdFormat::DIDKey);
+  did_member.did_key = ccf::crypto::did_key_from_public_key_der(
+    ccf::crypto::make_verifier(member_cert)->public_key_der());
   start.members.push_back(did_member);
   start.constitution_files = {
     write_test_file(dir, "first.js", "first"),

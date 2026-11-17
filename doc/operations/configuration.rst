@@ -56,7 +56,6 @@ Identity ID Format
 Set ``node_certificate.id_format`` to ``"did:key"`` before starting a new node to use its public-key ``did:key`` as the node ID.
 This applies to start, join, and recovery nodes.
 Each initial member can independently supply ``"did_key": "<did:key>"`` instead of ``certificate_file`` in its ``command.start.members`` entry.
-Do not include ``id_format`` or ``certificate_file`` in a DID member entry.
 Node IDs default to ``"sha256"``, and members enrolled with a certificate retain the legacy certificate fingerprint.
 
 These settings only select IDs for new identities; they do not rename existing ledger entries or change attestation hashes.

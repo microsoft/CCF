@@ -241,8 +241,11 @@ function checkNone(args) {
 function checkEntityId(value, field) {
   checkType(value, "string", field);
   if (value.startsWith("did:key:")) {
-    if (!ccf.isValidEntityId(value)) {
-      throw new Error(`${field} must be a supported did:key`);
+    // An ID which looks up an identity is only checked for syntax. The key it
+    // contains is validated when the identity is enrolled.
+    const re = new RegExp("^did:key:z[1-9A-HJ-NP-Za-km-z]+$");
+    if (value.length > 3000 || !re.test(value)) {
+      throw new Error(`${field} must be a base58-btc did:key`);
     }
     return;
   }
@@ -259,11 +262,6 @@ function checkEntityId(value, field) {
 }
 
 function checkIdentityEnrollment(args) {
-  if (args.id_format !== undefined) {
-    throw new Error(
-      "Use cert for legacy enrollment or did_key without id_format",
-    );
-  }
   if (args.did_key !== undefined) {
     checkType(args.did_key, "string", "did_key");
     if (args.cert !== undefined) {

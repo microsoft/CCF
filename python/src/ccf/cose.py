@@ -28,11 +28,7 @@ from cryptography.hazmat.primitives.serialization import (
 )
 from cryptography.x509 import load_pem_x509_certificate
 
-from ccf.identity import (
-    did_key_from_public_key,
-    identity_id_from_cert,
-    public_key_from_did_key,
-)
+from ccf.identity import did_key_from_public_key, public_key_from_did_key
 
 Pem = str
 
@@ -179,7 +175,7 @@ def _signing_identity(
         raise ValueError("A signing certificate or did_key is required")
     return (
         load_pem_x509_certificate(cert_pem.encode("ascii")).public_key(),
-        identity_id_from_cert(cert_pem).encode("ascii"),
+        cert_fingerprint(cert_pem),
     )
 
 
@@ -245,27 +241,13 @@ def create_cose_sign1_finish(
     return cbor2.dumps(msg)
 
 
-def verify_cose_sign1_with_did_key(
-    did_key: str,
-    cose_sign1: bytes,
-    payload: bytes | None = None,
-) -> tuple[dict[str | int, Any], dict[str | int, Any], bytes]:
-    """Verify a COSE Sign1 message using its enrolled DID, without a certificate."""
-    key = public_key_from_did_key(did_key)
-    pem = key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
-    cose_key = cwt.COSEKey.from_pem(pem, kid=did_key.encode("ascii"))
-    return cwt.COSE.new().decode_with_headers(
-        cose_sign1, cose_key, detached_payload=payload
-    )
-
-
 def verify_cose_sign1_with_cert(
     certificate: bytes,
     cose_sign1: bytes,
     use_key: bool = True,
     payload: bytes | None = None,
 ) -> tuple[dict[str | int, Any], dict[str | int, Any], bytes]:
-    """Verify COSE using a service key fingerprint or an enrolled identity ID."""
+    """Verify a COSE Sign1 message and return its headers and payload."""
     cose_ctx = cwt.COSE.new()
     cert_pem = certificate.decode()
     cose_key = cwt.COSEKey.from_pem(
@@ -273,7 +255,7 @@ def verify_cose_sign1_with_cert(
         kid=(
             key_fingerprint_from_cert(cert_pem)
             if use_key
-            else identity_id_from_cert(cert_pem).encode("utf-8")
+            else cert_fingerprint(cert_pem)
         ),
     )
     return cose_ctx.decode_with_headers(cose_sign1, cose_key, detached_payload=payload)

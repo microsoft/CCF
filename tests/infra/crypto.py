@@ -386,9 +386,8 @@ def did_key_from_private_key(pem: str) -> str:
 def node_id_from_cert(pem: str, id_format: str = "sha256") -> str:
     if id_format == "sha256":
         return compute_public_key_der_hash_hex_from_pem(pem)
-    from ccf.identity import node_id_from_cert as derive
-
-    return derive(pem, id_format)
+    # A node's did:key identifies the public key in its certificate
+    return identity_id_from_cert(pem, id_format)
 
 
 def get_san_from_pem_cert(pem: str):

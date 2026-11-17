@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/crypto/cert_id.h"
+#include "ccf/crypto/did_key.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "ccf/pal/attestation_sev_snp.h"
@@ -78,7 +78,8 @@ namespace ccf
         throw std::logic_error(
           "Enrollment requires a legacy cert or a certificate-free did_key");
       }
-      return ccf::crypto::compute_cert_id(cert);
+      auto cert_der = ccf::crypto::make_verifier(cert)->cert_der();
+      return ccf::crypto::Sha256Hash(cert_der).hex_str();
     }
 
     static void remove_nodes(ccf::kv::Tx& tx, const std::set<NodeId>& node_ids)

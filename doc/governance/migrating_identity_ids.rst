@@ -6,7 +6,9 @@ The ``did:key`` contains the identity public key, so enrollment and COSE authent
 CCF treats the two IDs as independent identities: it does not create an alias, change existing ledger entries, copy identity data between IDs, or check whether the same public key is enrolled under both formats.
 Operators decide when to add the new identity and when to remove the old one.
 
-Before migrating, upgrade every node in the service to a version that supports ``did:key`` IDs, and update the constitution to accept ``did_key`` in ``set_member`` and ``set_user``.
+Before migrating, upgrade every node in the service to a version that supports ``did:key`` IDs, and update the constitution.
+A custom constitution needs the changes made to the default one: ``set_member`` and ``set_user`` accept ``did_key``, ID checks accept ``did:key`` IDs, and ``remove_member`` and ``remove_user`` delete the identity's entry in ``public:ccf.gov.members.public_keys`` or ``public:ccf.gov.users.public_keys``.
+An identity whose ``public_keys`` entry is not deleted can still authenticate after it is removed.
 See :ref:`architecture/cryptography:Identity IDs` for compatibility and identity semantics.
 
 Derive the new ID from the identity public key:

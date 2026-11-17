@@ -6,11 +6,10 @@
 
 #include "ccf/js/extensions/ccf/converters.h"
 
-#include "ccf/crypto/cert_id.h"
+#include "ccf/crypto/did_key.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/crypto/verifier.h"
-#include "ccf/entity_id.h"
 #include "ccf/js/core/context.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/sev_snp_cpuid.h"
@@ -170,10 +169,10 @@ namespace ccf::js::extensions
     JSValue js_pem_to_id(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      if (argc != 1 && argc != 2)
+      if (argc != 1)
       {
         return JS_ThrowTypeError(
-          ctx, "Passed %d arguments, but expected 1 or 2", argc);
+          ctx, "Passed %d arguments, but expected 1", argc);
       }
 
       js::core::Context& jsctx =
@@ -187,18 +186,9 @@ namespace ccf::js::extensions
 
       try
       {
-        auto format = IdentityIdFormat::SHA256;
-        if (argc == 2 && JS_IsUndefined(argv[1]) == 0)
-        {
-          auto format_str = jsctx.to_str(argv[1]);
-          if (!format_str.has_value())
-          {
-            return ccf::js::core::constants::Exception;
-          }
-          format = nlohmann::json(*format_str).get<IdentityIdFormat>();
-        }
         auto pem = ccf::crypto::Pem(*pem_str);
-        auto id = ccf::crypto::compute_cert_id(pem, format);
+        auto der = ccf::crypto::make_verifier(pem)->cert_der();
+        auto id = ccf::crypto::Sha256Hash(der).hex_str();
 
         return JS_NewString(ctx, id.c_str());
       }
@@ -206,31 +196,6 @@ namespace ccf::js::extensions
       {
         return JS_ThrowInternalError(
           ctx, "Failed to parse PEM: %s", exc.what());
-      }
-    }
-
-    JSValue js_is_valid_entity_id(
-      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-    {
-      if (argc != 1)
-      {
-        return JS_ThrowTypeError(ctx, "Expected one identity string");
-      }
-      auto& jsctx =
-        *reinterpret_cast<js::core::Context*>(JS_GetContextOpaque(ctx));
-      auto id = jsctx.to_str(argv[0]);
-      if (!id.has_value())
-      {
-        return ccf::js::core::constants::Exception;
-      }
-      try
-      {
-        return JS_NewBool(
-          ctx, static_cast<int>(ccf::is_valid_identity_id(*id)));
-      }
-      catch (const std::exception& e)
-      {
-        return JS_ThrowInternalError(ctx, "%s", e.what());
       }
     }
 
@@ -353,9 +318,6 @@ namespace ccf::js::extensions
 
     JS_CHECK_OR_THROW(
       ccf.set("pemToId", ctx.new_c_function(js_pem_to_id, "pemToId", 1)));
-    JS_CHECK_OR_THROW(ccf.set(
-      "isValidEntityId",
-      ctx.new_c_function(js_is_valid_entity_id, "isValidEntityId", 1)));
     JS_CHECK_OR_THROW(ccf.set(
       "publicKeyFromDidKey",
       ctx.new_c_function(

@@ -61,6 +61,13 @@ def hash_algo(priv: ec.EllipticCurvePrivateKey):
     }[priv.key_size]
 
 
+def verify_with_did_key(did: str, cose_sign1: bytes):
+    key = ccf.identity.public_key_from_did_key(did)
+    pem = key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+    cose_key = cwt.COSEKey.from_pem(pem, kid=did.encode("ascii"))
+    return cwt.COSE.new().decode_with_headers(cose_sign1, cose_key)
+
+
 def make_self_signed_cert(
     priv, subject_name: str, cert_hash: hashes.SHA256 | hashes.SHA384 | None = None
 ):
@@ -155,7 +162,7 @@ def test_certificate_free_signing(curve):
     did = ccf.identity.did_key_from_public_key(private_key.public_key())
     payload = b"Certificate-free governance"
     signed = ccf.cose.create_cose_sign1(payload, private_pem, did_key=did)
-    protected, _, verified = ccf.cose.verify_cose_sign1_with_did_key(did, signed)
+    protected, _, verified = verify_with_did_key(did, signed)
     assert protected[int(cwt.COSEHeaders.KID)] == did.encode("ascii")
     assert verified == payload
 
@@ -170,7 +177,7 @@ def test_certificate_free_signing(curve):
     finished = ccf.cose.create_cose_sign1_finish(
         payload, signature=base64.urlsafe_b64encode(raw), did_key=did
     )
-    assert ccf.cose.verify_cose_sign1_with_did_key(did, finished)[2] == payload
+    assert verify_with_did_key(did, finished)[2] == payload
 
     wrong_private_pem, _ = make_pem_pair(make_private_key(curve))
     with pytest.raises(ValueError, match="does not match"):
@@ -225,7 +232,7 @@ def test_certificate_free_signing_cli(curve, tmp_path):
         )
 
     result = run_cli("sign", "--signing-key", str(key_file))
-    protected, _, verified = ccf.cose.verify_cose_sign1_with_did_key(did, result.stdout)
+    protected, _, verified = verify_with_did_key(did, result.stdout)
     assert protected[int(cwt.COSEHeaders.KID)] == did.encode("ascii")
     assert protected["ccf.gov.msg.type"] == "proposal"
     assert verified == payload
@@ -243,34 +250,6 @@ def test_certificate_free_signing_cli(curve, tmp_path):
         encoding="ascii",
     )
     finished = run_cli("finish", "--signature", str(signature_file))
-    protected, _, verified = ccf.cose.verify_cose_sign1_with_did_key(
-        did, finished.stdout
-    )
+    protected, _, verified = verify_with_did_key(did, finished.stdout)
     assert protected[int(cwt.COSEHeaders.KID)] == did.encode("ascii")
     assert verified == payload
-
-
-@pytest.mark.parametrize("command", ["sign", "prepare", "finish"])
-def test_cli_rejects_certificate_did_format(command):
-    args = [
-        sys.executable,
-        "-c",
-        f"from ccf.cose import {command}_cli; {command}_cli()",
-        "--signing-cert",
-        "unused_cert.pem",
-        "--content",
-        "-",
-        "--ccf-gov-msg-type",
-        "proposal",
-        "--ccf-gov-msg-created_at",
-        "2025-01-01T00:00:00+00:00",
-        "--identity-id-format",
-        "did:key",
-    ]
-    if command == "sign":
-        args += ["--signing-key", "unused_key.pem"]
-    elif command == "finish":
-        args += ["--signature", "unused_signature.json"]
-    result = subprocess.run(args, input=b"", capture_output=True, check=False)
-    assert result.returncode == 2
-    assert b"unrecognized arguments: --identity-id-format did:key" in result.stderr

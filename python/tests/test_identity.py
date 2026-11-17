@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import base64
-import hashlib
 import subprocess
 from pathlib import Path
 
@@ -14,7 +13,6 @@ from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
     PublicFormat,
-    load_der_public_key,
     load_pem_private_key,
     load_pem_public_key,
 )
@@ -71,21 +69,22 @@ def test_certificate_replacement(curve):
     did = ccf.identity.identity_id_from_cert(first, "did:key")
     assert did.startswith("did:key:z")
     assert did == ccf.identity.identity_id_from_cert(replacement, "did:key")
-    assert did == ccf.identity.node_id_from_cert(first, "did:key")
     assert ccf.identity.identity_id_from_cert(first) == (
         x509.load_pem_x509_certificate(first.encode())
         .fingerprint(hashes.SHA256())
         .hex()
     )
-    der = key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
-    assert ccf.identity.node_id_from_cert(first) == hashlib.sha256(der).hexdigest()
     with pytest.raises(ValueError):
         ccf.identity.identity_id_from_cert(first, "unknown")
 
 
 def test_supported_key_types():
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048).public_key()
-    assert ccf.identity.did_key_from_public_key(key).startswith("did:key:z")
+    did = ccf.identity.did_key_from_public_key(key)
+    assert did.startswith("did:key:z")
+    decoded = ccf.identity.public_key_from_did_key(did)
+    assert isinstance(decoded, rsa.RSAPublicKey)
+    assert decoded.public_numbers() == key.public_numbers()
     with pytest.raises(TypeError, match="Unsupported"):
         ccf.identity.did_key_from_public_key(
             ed25519.Ed25519PrivateKey.generate().public_key()
@@ -138,35 +137,3 @@ def test_did_key_base64url_multibase_is_rejected():
     with pytest.raises(ValueError, match="base58-btc"):
         ccf.identity.public_key_from_did_key("did:key:u" + encoded.decode())
     assert ccf.identity.did_key_from_public_key(key).startswith("did:key:z")
-
-
-def test_invalid_rsa_public_key_is_rejected():
-    # A well-formed 2048-bit RSA public key whose modulus, 3 * (2^2046 + 1), has
-    # a small factor. A CCF service refuses to enroll it.
-    der = base64.b64decode(
-        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw" + "A" * 340 + "wIDAQAB"
-    )
-    key = load_der_public_key(der)
-    assert isinstance(key, rsa.RSAPublicKey)
-    assert key.public_numbers().n == 3 * (2**2046 + 1)
-    with pytest.raises(ValueError, match="Invalid did:key RSA public key"):
-        ccf.identity.did_key_from_public_key(key)
-
-    # The did:key which encodes this key
-    alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-    value = int.from_bytes(
-        b"\x85\x24" + key.public_bytes(Encoding.DER, PublicFormat.PKCS1), "big"
-    )
-    digits = []
-    while value:
-        value, digit = divmod(value, 58)
-        digits.append(alphabet[digit])
-    did = "did:key:z" + "".join(reversed(digits))
-    with pytest.raises(ValueError, match="Invalid did:key RSA public key"):
-        ccf.identity.public_key_from_did_key(did)
-
-    valid = rsa.generate_private_key(65537, 2048).public_key()
-    valid_did = ccf.identity.did_key_from_public_key(valid)
-    decoded = ccf.identity.public_key_from_did_key(valid_did)
-    assert isinstance(decoded, rsa.RSAPublicKey)
-    assert decoded.public_numbers() == valid.public_numbers()

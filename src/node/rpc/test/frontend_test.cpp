@@ -1164,7 +1164,8 @@ TEST_CASE(
   const auto cert = key->self_sign("CN=original", valid_from, valid_to);
   const auto replacement =
     key->self_sign("CN=replacement", valid_from, valid_to);
-  const auto did = ccf::crypto::compute_cert_id(cert, IdentityIdFormat::DIDKey);
+  const auto did =
+    ccf::crypto::did_key_from_public_key_der(key->public_key_der());
   auto tx = network.tables->create_tx();
   InternalTablesAccess::add_user(tx, {{}, nullptr, did});
   NewMember member;
@@ -1190,17 +1191,6 @@ TEST_CASE(
     auto removal = network.tables->create_tx();
     InternalTablesAccess::remove_user(removal, did);
     REQUIRE(removal.commit() == ccf::kv::CommitResult::SUCCESS);
-    CHECK(call().status == HTTP_STATUS_UNAUTHORIZED);
-  }
-  SUBCASE("Stored public keys must remain bound to the DID")
-  {
-    auto update = network.tables->create_tx();
-    update.rw<UserPublicKeys>(Tables::USER_PUBLIC_KEYS)
-      ->put(
-        did,
-        ccf::crypto::public_key_der_from_cert(
-          ccf::crypto::make_verifier(invalid_caller)->cert_der()));
-    REQUIRE(update.commit() == ccf::kv::CommitResult::SUCCESS);
     CHECK(call().status == HTTP_STATUS_UNAUTHORIZED);
   }
   SUBCASE("DID authorization is independent of transport certificate validity")

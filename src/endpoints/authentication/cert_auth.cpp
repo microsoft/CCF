@@ -3,7 +3,7 @@
 
 #include "ccf/endpoints/authentication/cert_auth.h"
 
-#include "ccf/crypto/cert_id.h"
+#include "ccf/crypto/did_key.h"
 #include "ccf/ds/locking.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/rpc_context.h"
@@ -31,18 +31,10 @@ namespace ccf
       }
       try
       {
-        // The caller is not authenticated yet, so derive its ID without the
-        // costly key validation. Enrolled keys were validated on admission.
-        auto did = crypto::unvalidated_did_key_from_public_key_der(
+        auto did = crypto::did_key_from_public_key_der(
           crypto::public_key_der_from_cert(session.caller_cert));
-        auto enrolled = keys->get(did);
-        if (enrolled.has_value())
+        if (keys->has(did))
         {
-          if (!crypto::cert_has_public_key(session.caller_cert, *enrolled))
-          {
-            error_reason = "Enrolled did:key does not match its public key";
-            return std::nullopt;
-          }
           return did;
         }
       }

@@ -8,7 +8,7 @@ import { runInNewContext } from "node:vm";
 import forge from "node-forge";
 import "../src/polyfill.js";
 import { ccf } from "../src/global.js";
-import { generateSelfSignedCert } from "./crypto.js";
+import { didKeyFromCert, generateSelfSignedCert } from "./crypto.js";
 
 const constitution = readFileSync(
   "../../samples/constitutions/default/actions.js",
@@ -27,7 +27,7 @@ const renewed = forge.pki.certificateFromPem(cert);
 renewed.serialNumber = "01";
 renewed.sign(forge.pki.privateKeyFromPem(privateKey), forge.md.sha256.create());
 const replacement = forge.pki.certificateToPem(renewed);
-const did = ccf.pemToId(cert, "did:key");
+const did = didKeyFromCert(cert);
 
 beforeEach(() => {
   for (const name of Object.getOwnPropertyNames(ccf.kv)) {
@@ -56,18 +56,11 @@ function apply(input: string, runtime: object = ccf): void {
   });
 }
 
-// A runtime predating did:key support: it has no DID functions, and its
-// pemToId only accepts a certificate.
+// A runtime predating did:key support cannot decode a did:key.
 const olderRuntime = new Proxy(ccf, {
   get(target, name, receiver) {
-    if (name === "isValidEntityId" || name === "publicKeyFromDidKey") {
+    if (name === "publicKeyFromDidKey") {
       return undefined;
-    }
-    if (name === "pemToId") {
-      return (...args: string[]) => {
-        assert.equal(args.length, 1);
-        return target.pemToId(args[0]);
-      };
     }
     return Reflect.get(target, name, receiver);
   },
@@ -91,11 +84,7 @@ for (const role of ["member", "user"]) {
   }
 
   describe(`${role} identity enrollment`, () => {
-    function enroll(args: {
-      cert?: string;
-      id_format?: string;
-      did_key?: string;
-    }): void {
+    function enroll(args: { cert?: string; did_key?: string }): void {
       runInNewContext(`${constitution}\ncheckIdentityEnrollment(args);`, {
         ccf,
         args,
@@ -108,9 +97,6 @@ for (const role of ["member", "user"]) {
       for (const args of [
         {},
         { did_key: did, cert },
-        { did_key: did, id_format: "did:key" },
-        { cert, id_format: "did:key" },
-        { cert, id_format: "sha256" },
         { did_key: "did:key:zinvalid" },
         { did_key: did + "#fragment" },
       ]) {

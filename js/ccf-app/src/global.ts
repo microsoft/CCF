@@ -637,11 +637,8 @@ export interface CCFHistorical {
 }
 
 export interface CCF {
-  /** Derive a certificate identity ID; legacy certificate SHA-256 is the default. */
-  pemToId(pem: string, format?: "sha256" | "did:key"): string;
-
-  /** Validate a legacy identity ID or a supported bare base58-btc did:key. */
-  isValidEntityId(id: string): boolean;
+  /** Derive the legacy identity ID of a certificate: its SHA-256 fingerprint. */
+  pemToId(pem: string): string;
 
   /** Decode a base58-btc did:key to its DER SubjectPublicKeyInfo public key. */
   publicKeyFromDidKey(id: string): ArrayBuffer;

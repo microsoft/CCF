@@ -11,6 +11,7 @@ import type {
 import { ccf } from "../src/global.js";
 import * as textcodec from "../src/textcodec.js";
 import {
+  didKeyFromCert,
   generateSelfSignedCert,
   generateSelfSignedCACert,
   generateIntermediateCACert,
@@ -27,76 +28,46 @@ beforeEach(function () {
 
 describe("polyfill", function () {
   describe("identity IDs", function () {
-    it("accepts published NIST curve vectors and rejects unsupported codecs", function () {
+    it("decodes published NIST curve vectors and rejects unsupported codecs", function () {
       for (const did of [
         "did:key:zDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv",
         "did:key:z82LkvCwHNreneWpsgPEbV3gu1C6NFJEBg4srfJ5gdxEsMGRJUz2sG9FE42shbn2xkZJh54",
       ]) {
-        assert.equal(ccf.isValidEntityId(did), true);
-        assert.equal(ccf.isValidEntityId(did + "1"), false);
+        const key = crypto.createPublicKey({
+          key: Buffer.from(ccf.publicKeyFromDidKey(did)),
+          format: "der",
+          type: "spki",
+        });
+        assert.equal(key.asymmetricKeyType, "ec");
+        assert.throws(() => ccf.publicKeyFromDidKey(did + "1"));
       }
-      assert.equal(
-        ccf.isValidEntityId(
+      assert.throws(() =>
+        ccf.publicKeyFromDidKey(
           "did:key:z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP",
         ),
-        false,
       );
     });
 
     it("rejects base64url multibase did:key IDs", function () {
-      const did = "did:key:zDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv";
       const point = Buffer.from(
         "038a0ac59a2d3086e8a12a78fd4773a6d52a0ca61ef6c1419e15a05bcc6dafce7b",
         "hex",
       );
       const multicodec = Buffer.concat([Buffer.from([0x80, 0x24]), point]);
       const base64url = "did:key:u" + multicodec.toString("base64url");
-      assert.equal(ccf.isValidEntityId(did), true);
-      assert.equal(ccf.isValidEntityId(base64url), false);
       assert.throws(() => ccf.publicKeyFromDidKey(base64url), /base58-btc/);
     });
 
-    it("rejects an RSA key that a service refuses to enroll", function () {
-      // A well-formed 2048-bit RSA public key whose modulus,
-      // 3 * (2^2046 + 1), has a small factor
-      const invalid = crypto.createPublicKey({
-        key: Buffer.from(
-          "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw" +
-            "A".repeat(340) +
-            "wIDAQAB",
-          "base64",
-        ),
-        format: "der",
-        type: "spki",
-      });
-      // The did:key which encodes this key
-      const alphabet =
-        "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-      let value = BigInt(
-        "0x8524" +
-          invalid.export({ format: "der", type: "pkcs1" }).toString("hex"),
+    it("derives legacy IDs and decodes did:key RSA identities", function () {
+      const { cert, publicKey } = generateSelfSignedCert();
+      assert.match(ccf.pemToId(cert), /^[a-f0-9]{64}$/);
+      const did = didKeyFromCert(cert);
+      assert.deepEqual(
+        Buffer.from(ccf.publicKeyFromDidKey(did)),
+        crypto
+          .createPublicKey(publicKey)
+          .export({ format: "der", type: "spki" }),
       );
-      let encoded = "";
-      while (value > 0n) {
-        encoded = alphabet[Number(value % 58n)] + encoded;
-        value /= 58n;
-      }
-      const did = "did:key:z" + encoded;
-      assert.equal(ccf.isValidEntityId(did), false);
-      assert.throws(
-        () => ccf.publicKeyFromDidKey(did),
-        /Invalid did:key RSA public key/,
-      );
-    });
-
-    it("derives and validates legacy and did:key RSA identities", function () {
-      const { cert } = generateSelfSignedCert();
-      const legacy = ccf.pemToId(cert);
-      const did = ccf.pemToId(cert, "did:key");
-      assert.match(legacy, /^[a-f0-9]{64}$/);
-      assert.match(did, /^did:key:z/);
-      assert.equal(ccf.isValidEntityId(legacy), true);
-      assert.equal(ccf.isValidEntityId(did), true);
       for (const invalid of [
         "",
         did + "#key",
@@ -104,7 +75,7 @@ describe("polyfill", function () {
         "did:key:z0",
         "did:key:z" + "1".repeat(3000),
       ]) {
-        assert.equal(ccf.isValidEntityId(invalid), false);
+        assert.throws(() => ccf.publicKeyFromDidKey(invalid));
       }
     });
   });
