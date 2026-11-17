@@ -1,21 +1,8 @@
 module
 
 public import Consensus.Properties
+public import Consensus.TraceValidation
 public import Consensus.TraceValidation.Lockstep
 
 import Consensus.Tests.CanonicalTraces
 import Consensus.Tests.TraceValidationHooks
-import Consensus.TraceValidation.Proofs.Handlers.AppendEntries
-import Consensus.TraceValidation.Proofs.Handlers.DropPendingTo
-import Consensus.TraceValidation.Proofs.Handlers.ForceBecomePrimary
-import Consensus.TraceValidation.Proofs.Handlers.InitAsBackup
-import Consensus.TraceValidation.Proofs.Handlers.OutOfLockHook
-import Consensus.TraceValidation.Proofs.Handlers.ProposeRequestVote
-import Consensus.TraceValidation.Proofs.Handlers.Replicate
-import Consensus.TraceValidation.Proofs.Handlers.RequestPreVote
-import Consensus.TraceValidation.Proofs.Handlers.RequestPreVoteResponse
-import Consensus.TraceValidation.Proofs.Handlers.RequestVote
-import Consensus.TraceValidation.Proofs.Handlers.RequestVoteResponse
-import Consensus.TraceValidation.Proofs.Handlers.Tick
-import Consensus.TraceValidation.Proofs.Section
-import Consensus.TraceValidation.Proofs.Validator
