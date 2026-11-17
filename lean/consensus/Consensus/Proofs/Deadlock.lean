@@ -80,13 +80,21 @@ private theorem nominateSuccessor (state : NodeState) (primary : state.role = .p
   · exact bind' (send _ _ _) fun _ => pure' _
   · exact pure' _
 
+private theorem nominateOnRetirement (state : NodeState) (primary : state.role = .primary)
+    : Total (Model.Node.nominateOnRetirement (Capabilities.record self) state self) := by
+  unfold Model.Node.nominateOnRetirement
+  refine guard_bind primary ?_
+  split
+  · exact bind' (send _ _ _) fun _ => pure' _
+  · exact pure' _
+
 private theorem advanceCommit (state : NodeState)
     : Total (Model.Node.advanceCommit (Capabilities.record self) state self) := by
   unfold Model.Node.advanceCommit
   refine ite' (fun _ => pure' _) fun _ => ?_
   refine ite' (fun _ => ?_) fun _ => pure' _
   refine ite' (fun primary => ?_) fun _ => pure' _
-  exact bind' (nominateSuccessor self state primary) fun _ => pure' _
+  exact bind' (nominateOnRetirement self state primary) fun _ => pure' _
 
 private theorem broadcastToOthers (state : NodeState) (message : Message)
     : Total

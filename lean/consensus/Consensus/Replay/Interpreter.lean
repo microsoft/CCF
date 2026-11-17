@@ -4,6 +4,7 @@ module
 -- Licensed under the Apache 2.0 License.
 
 public import Consensus.Model
+public import Consensus.Replay.Outcomes
 public import Lean.Data.Json
 
 public section
@@ -47,6 +48,11 @@ def Header.initial (header : Header) : Model.State :=
 inductive Step where
   | local (node : String) (input : Input)
   | receive (source destination : String) (packet : Json)
+  /--
+  A vote proposal which CCF received and ignored. It is lost if the model would campaign
+  and the log of the node does not show that CCF has started its election timer.
+  -/
+  | declineProposal (source destination : String) (packet : Json)
   /-- Initialize from a node's committed prefix ending at `index` in term `view`. -/
   | initAsBackup (node : String) (index view : Nat)
 
@@ -56,12 +62,16 @@ def Step.name : Step → String
   | .local _ (.timeout _) => "timeout"
   | .local _ .nominateSuccessor => "nominateSuccessor"
   | .local _ (.initAsBackup _) | .initAsBackup .. => "initAsBackup"
-  | .receive .. => "receive"
+  | .receive .. | .declineProposal .. => "receive"
 
 structure ReplayState where
   state : Model.State
   /-- Envelopes queued by actions since the last send observation. -/
   queued : List Envelope := []
+  /-- Outcomes shown by the actions run so far, in order. -/
+  shown : Array Outcome := #[]
+  /-- The index of the snapshot from which each joining node started, zero if it had none. -/
+  snapshots : List (NodeID × Nat) := []
 
 /-- A traced native send, or the proposal a nomination implies. -/
 structure NativeSend where
@@ -245,6 +255,10 @@ private def checkPacket (packet : Json) (message : Model.Node.Message)
   unless missing.isEmpty do
     throw s!"packet lacks fields {missing}"
 
+/-- Whether a native packet is the rendering of a model message. -/
+def packetMatches (packet : Json) (message : Model.Node.Message) : Bool :=
+  (checkPacket packet message).isOk
+
 /-- The first matching envelope, else the first with the same `msg`, to diagnose a mismatch. -/
 private def closest (packet : Json) (envelopes : List Envelope) : Option Envelope :=
   envelopes.find? (fun envelope => (checkPacket packet envelope.payload).isOk)
@@ -279,7 +293,56 @@ private def ReplayState.run (replay : ReplayState) (header : Header)
   | throw s!"disabled model action '{name}'"
   -- A step appends the acting node's sends to the network left after any delivery.
   let pending := replay.state.network.length - if action matches .deliver _ then 1 else 0
-  return { state, queued := replay.queued ++ state.network.drop pending }
+  return {
+    replay with
+      state,
+      queued := replay.queued ++ state.network.drop pending,
+      shown := replay.shown ++ outcomes replay.state action
+  }
+
+/--
+Whether CCF cannot send `envelope`: entries or a nomination, from a node to a peer which it
+has never known because that peer retired before the snapshot from which the node started.
+CCF gives such a node the configuration at its snapshot. The model reads the peers of a
+node from its whole log, and sends to that peer until its retirement is confirmed.
+-/
+private def toUnknownPeer (replay : ReplayState) (envelope : Envelope) : Bool :=
+  match envelope.payload, replay.snapshots.lookup envelope.source,
+        nodeState replay.state envelope.source with
+  | .appendEntriesRequest _, some index, some state
+  | .proposeRequestVoteRequest _, some index, some state =>
+      decide (envelope.target ∈ removedNodes (state.log.take index))
+  | _, _, _ => false
+
+/--
+Whether the log of `node` shows that CCF has started its election timer. CCF starts it when
+the node appends or receives a signature while it is in its latest configuration, and never
+stops it. A node receives no signature of the snapshot from which it started. Without such
+a signature, the timer may still have started, since a rollback may have removed the
+signature which started it.
+-/
+private def electionTimerStarted (replay : ReplayState) (node : NodeID) (log : List Entry)
+    : Bool :=
+  let snapshot := (replay.snapshots.lookup node).getD 0
+  (List.range (log.length + 1)).any
+    fun index =>
+      snapshot < index
+      && isSignatureAt log index
+      && decide
+          (node ∈ latestConfigurationMembers (configurationHistory (log.take index)))
+
+/--
+Whether CCF may ignore a vote proposal for which the model campaigns: it does so until it
+has started the election timer of the node, which the model does not have.
+-/
+private def mayDeclineProposal (replay : ReplayState) (destination : NodeID)
+    (envelope : Envelope)
+    : Bool :=
+  match envelope.payload, nodeState replay.state destination with
+  | .proposeRequestVoteRequest term, some state =>
+      decide (term = state.currentTerm /\ canStartElection state destination)
+      && !electionTimerStarted replay destination state.log
+  | _, _ => false
 
 /-- Observations never change model state or repair a disabled action. -/
 def runInstruction (header : Header) (replay : ReplayState) (instruction : Instruction)
@@ -297,7 +360,8 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
         | throw s!"{context}: not queued by the model: {send.packet.compress}"
         (checkPacket send.packet envelope.payload).mapError (s!"{context}: " ++ ·)
         queued := removeOne envelope queued
-      if let some envelope := queued.head? then
+      -- What the model sends to a peer which CCF does not know is lost
+      if let some envelope := queued.find? (!toUnknownPeer replay ·) then
         let target := header.declared[envelope.target]?.getD (toString envelope.target)
         throw
           s!"model queued {(messageJson envelope.payload).compress} to '{target}' with no native send"
@@ -326,6 +390,14 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
       let destination ← header.nodeId destination
       let envelope ← selectPacket replay source destination packet
       replay.run header (.deliver envelope) "receive"
+  | .action (.declineProposal source destination packet) _ =>
+      let source ← header.nodeId source
+      let destination ← header.nodeId destination
+      let envelope ← selectPacket replay source destination packet
+      if mayDeclineProposal replay destination envelope then
+        -- Loss is non-delivery
+        return replay
+      replay.run header (.deliver envelope) "receive"
   | .action (step@(.initAsBackup node index view)) _ =>
       let joiner ← header.nodeId node
       -- Committed prefixes in a reachable state are comparable, so any such node will do.
@@ -336,16 +408,21 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
             && (index == 0 || isSignatureAt state.log index)
             && termAt state.log index == view
       | throw s!"no node has a committed signature at {index} in term {view}"
-      replay.run header (.local joiner (.initAsBackup (source.log.take index))) step.name
+      let replay ←
+        replay.run header (.local joiner (.initAsBackup (source.log.take index)))
+          step.name
+      return { replay with snapshots := (joiner, index) :: replay.snapshots }
 
 structure Result where
   instructions : Nat
   actions : Nat
   observations : Nat
+  /-- Outcomes shown by the actions, in order. -/
+  outcomes : Array Outcome
 deriving Repr, BEq
 
-def replay (header : Header) (instructions : Array Instruction)
-    : Except String Result := do
+/-- The declared nodes are distinct and sorted, and the initial members are among them. -/
+def Header.validate (header : Header) : Except String Unit := do
   unless !header.declared.isEmpty
           && header.declared.all (!·.isEmpty)
           && header.declared.eraseDups == header.declared do
@@ -357,19 +434,33 @@ def replay (header : Header) (instructions : Array Instruction)
   for node in header.bootstrap.sort do
     unless node < header.declared.length do
       throw s!"undeclared model node {node}"
-  if instructions.isEmpty then throw "replay instructions must not be empty"
-  let mut state : ReplayState := { state := header.initial }
-  let mut actions := 0
+
+/-- Run instructions in order. Diagnostics number them from `first`. -/
+def runInstructions (header : Header) (state : ReplayState)
+    (instructions : Array Instruction) (first : Nat := 1)
+    : Except String ReplayState := do
+  let mut state := state
   for instruction in instructions, index in [:instructions.size] do
     state ←
       (runInstruction header state instruction).mapError
         fun error =>
-          s!"instruction {index + 1} at {instruction.origin.label}: {error}"
-    if let .action .. := instruction then actions := actions + 1
+          s!"instruction {first + index} at {instruction.origin.label}: {error}"
+  return state
+
+def countActions (instructions : Array Instruction) : Nat :=
+  (instructions.filter (· matches .action ..)).size
+
+def replay (header : Header) (instructions : Array Instruction)
+    : Except String Result := do
+  header.validate
+  if instructions.isEmpty then throw "replay instructions must not be empty"
+  let state ← runInstructions header { state := header.initial } instructions
+  let actions := countActions instructions
   return {
     instructions := instructions.size,
     actions,
-    observations := instructions.size - actions
+    observations := instructions.size - actions,
+    outcomes := state.shown
   }
 
 end Consensus.Replay

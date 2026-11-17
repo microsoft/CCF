@@ -250,6 +250,17 @@ private def ruleRecvAppendEntriesResponse : Reduction Unit := do
   emitAction head "recv-append-entries-response" action
   emitObserveSends head (← extractSends start)
 
+/-- CCF ignores the response of a node which it does not know. -/
+private def ruleRecvAppendEntriesResponseUnknownNode : Reduction Unit := do
+  let head ← peek
+  let action ← readReceive head ["append_entries_response"]
+  -- consume
+  event head "recv_append_entries_response_unknown_node"
+  -- emit
+  emitObserve head "recv-append-entries-response-unknown-node"
+  emitAction head "recv-append-entries-response-unknown-node" action
+  emitObserveSends head []
+
 private def ruleRecvRequestVote : Reduction Unit := do
   let head ← peek
   let action ← readReceive head ["request_vote", "request_pre_vote"]
@@ -269,15 +280,22 @@ private def ruleRecvProposeRequestVote : Reduction Unit := do
   -- consume
   let start ← position
   event head "recv_propose_request_vote"
-  optional_ do
-    event head "become_candidate"
-    optional_ do
-      event head "become_leader"
+  let campaigned ←
+    CCF.Parsec.optionalRule do
+      event head "become_candidate"
       optional_ do
-        event head "commit"
-        optional_ (event head "step_down_and_nominate_successor")
-      many_ (event head "send_append_entries")
-    many_ (event head "send_request_vote")
+        event head "become_leader"
+        optional_ do
+          event head "commit"
+          optional_ (event head "step_down_and_nominate_successor")
+        many_ (event head "send_append_entries")
+      many_ (event head "send_request_vote")
+  -- CCF ignores a proposal until it has started the election timer of the node
+  let action :=
+    match action, campaigned with
+    | .receive source destination packet, none =>
+        .declineProposal source destination packet
+    | action, _ => action
   -- emit
   emitObserve head "recv-propose-request-vote"
   emitAction head "recv-propose-request-vote" action
@@ -356,9 +374,11 @@ private def ruleNomination : Reduction Unit := do
   let start ← position
   event head "nomination"
   let nominated ← CCF.Parsec.optionalRule (event head "step_down_and_nominate_successor")
+  -- A primary which finds no successor also nominates, and sends no proposal.
+  let primary := optional head.state "leadership_state" == some (toJson "Leader")
   -- emit
   emitObserve head "nomination"
-  if nominated.isSome then
+  if nominated.isSome || primary then
     emitAction head "nomination" (.local head.node .nominateSuccessor)
   emitObserveSends head (← extractSends start)
 
@@ -396,6 +416,7 @@ private def ruleStep : Reduction Unit := do
   -- Recv rules
   attempt ruleRecvAppendEntries
   <|> attempt ruleRecvAppendEntriesResponse
+  <|> attempt ruleRecvAppendEntriesResponseUnknownNode
   <|> attempt ruleRecvRequestVote
   <|> attempt ruleRecvProposeRequestVote
   <|> attempt ruleRecvRequestVoteResponse
@@ -406,18 +427,45 @@ private def ruleStep : Reduction Unit := do
   <|> attempt ruleNomination
   <|> attempt ruleDrop
 
-private def ruleTrace : Reduction String := do
-  let leader ← ruleBootstrap
+/-- Every remaining event is in a group; an ungrouped event is never a stutter. -/
+private def ruleGroups : Reduction Unit := do
   many_ ruleStep
   if let some event ← CCF.Parsec.peek then
     failure s!"{event.record.location}: ungrouped event {event.function}"
+
+private def ruleTrace : Reduction String := do
+  let leader ← ruleBootstrap
+  ruleGroups
   return leader
+
+private def runRule {α : Type} (rule : Reduction α) (events : Array Event)
+    (header : Header) (nextRequestId : ReqID)
+    : Except String (α × Array Instruction × ReqID) := do
+  let (result, state) ← CCF.Parsec.run events (rule.run { header, nextRequestId })
+  return (result, state.instructions, state.nextRequestId)
 
 /-- Consume every event exactly once; an ungrouped event is never a stutter. -/
 def reduce (events : Array Event) (header : Header)
     : Except String (String × Array Instruction) := do
-  let (leader, state) ← CCF.Parsec.run events (ruleTrace.run { header })
-  return (leader, state.instructions)
+  let (leader, instructions, _) ← runRule ruleTrace events header 1
+  return (leader, instructions)
+
+/--
+Reduce the events of the first driver command of a trace, as `reduce` does those of a
+whole trace. Also return the request ID from which the next command numbers transactions.
+-/
+def reduceFirstCommand (events : Array Event) (header : Header)
+    : Except String (String × Array Instruction × ReqID) :=
+  runRule ruleTrace events header 1
+
+/--
+Reduce the events of a later driver command, which are whole native groups, numbering
+transactions from `nextRequestId`. Also return the request ID for the next command.
+-/
+def reduceCommand (events : Array Event) (header : Header) (nextRequestId : ReqID)
+    : Except String (Array Instruction × ReqID) := do
+  let ((), instructions, nextRequestId) ← runRule ruleGroups events header nextRequestId
+  return (instructions, nextRequestId)
 
 end Consensus.Replay.Reducer
 

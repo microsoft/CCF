@@ -9,7 +9,8 @@ Each command is implemented by the C function named in its `extern` attribute, i
 A scenario is an `IO` action built from these commands and registered with `scenario`.
 
 After each command that can alter state, the driver asserts that every node's commit index
-is safe. After the last command, it confirms that the network can still make progress.
+is safe, and that what each node reports and asks for agrees with its ledger. After the last
+command, it confirms that the network can still make progress.
 -/
 
 namespace CftDriver
@@ -46,6 +47,13 @@ opaque trustNode (term : @& Term) (node : @& NodeId) : IO Unit
 @[extern "cft_trust_nodes"]
 opaque trustNodes (term : @& Term) (nodes : @& List NodeId) : IO Unit
 
+/--
+As `trustNode`, but `node` starts from a snapshot of the primary in `term`: it holds what
+that primary has committed, and the configuration which the primary had then.
+-/
+@[extern "cft_trust_node_from_snapshot"]
+opaque trustNodeFromSnapshot (term : @& Term) (node : @& NodeId) : IO Unit
+
 /-- Replicate a configuration which removes `retire` and adds the new node `trust`. -/
 @[extern "cft_swap_node"]
 opaque swapNode (term : @& Term) (retire trust : @& NodeId) : IO Unit
@@ -58,6 +66,15 @@ opaque swapNodes (term : @& Term) (retire : @& List NodeId := [])
 /-- Replicate that the retirement of `nodes` is committed. -/
 @[extern "cft_cleanup_nodes"]
 opaque cleanupNodes (term : @& Term) (nodes : @& List NodeId) : IO Unit
+
+/--
+Replicate that the retirement is committed of each node whose retirement the primary in
+`term` has committed, and has yet to confirm. A real primary does so when its consensus
+asks it to clean up retired nodes: when it is elected, and when it commits a configuration.
+Does nothing if there is no such node.
+-/
+@[extern "cft_cleanup_retired"]
+opaque cleanupRetired (term : @& Term) : IO Unit
 
 /-- Ask `node` to nominate a successor. -/
 @[extern "cft_nominate_successor"]
@@ -127,6 +144,20 @@ opaque dispatchOne (node : @& NodeId) : IO Unit
 @[extern "cft_dispatch_single"]
 opaque dispatchSingle (source target : @& NodeId) : IO Unit
 
+/--
+Deliver the message at `position`, counting from 0, among the undelivered messages sent by
+`source` to `target`, oldest first.
+-/
+@[extern "cft_dispatch_nth"]
+opaque dispatchNth (source target : @& NodeId) (position : UInt64) : IO Unit
+
+/--
+The undelivered messages sent by `source` to `target`, oldest first.
+Each is the JSON of its packet, with the fields which a trace records for it.
+-/
+@[extern "cft_pending_messages"]
+opaque pendingMessages (source target : @& NodeId) : IO (Array String)
+
 /-- Deliver the messages already sent by every node, but not their responses. -/
 @[extern "cft_dispatch_all_once"]
 opaque dispatchAllOnce : IO Unit
@@ -142,6 +173,24 @@ opaque dropPending (node : @& NodeId) : IO Unit
 /-- Drop the undelivered messages sent by `source` to `target`. -/
 @[extern "cft_drop_pending_to"]
 opaque dropPendingTo (source target : @& NodeId) : IO Unit
+
+/-- Drop the undelivered message at `position`, as `dispatchNth` counts it. -/
+@[extern "cft_drop_nth"]
+opaque dropNth (source target : @& NodeId) (position : UInt64) : IO Unit
+
+/--
+Set aside the undelivered message at `position`, as `dispatchNth` counts it.
+It is then no longer undelivered: only `dispatchHeld` delivers it, however late.
+-/
+@[extern "cft_hold_nth"]
+opaque holdNth (source target : @& NodeId) (position : UInt64) : IO Unit
+
+/--
+Deliver the message at `position`, counting from 0, among those which `holdNth` has set
+aside, oldest first. It is dropped if its sender and target are disconnected.
+-/
+@[extern "cft_dispatch_held"]
+opaque dispatchHeld (position : UInt64) : IO Unit
 
 /-- Shuffle the undelivered messages sent by `node`. -/
 @[extern "cft_shuffle_one"]
@@ -208,7 +257,10 @@ opaque assertAbsentConfig (node : @& NodeId) (idx : UInt64) : IO Unit
 @[extern "cft_assert_last_txid"]
 opaque assertLastTxid (node : @& NodeId) (txid : @& String) : IO Unit
 
-/-- Sign on the latest primary, reconnect the active nodes and run until they are in sync. -/
+/--
+Sign on the latest primary, reconnect the active nodes which it knows, and run until they
+are in sync.
+-/
 @[extern "cft_loop_until_sync"]
 opaque loopUntilSync : IO Unit
 
@@ -227,26 +279,54 @@ def scenario (name : String) (steps : IO Unit) : IO Unit :=
 @[extern "cft_start"]
 private opaque start (fluentd : @& List String) : IO Unit
 
+/--
+Start the driver, as `run` does before a scenario, and keep the trace in memory for
+`takeTrace`. A process can start the driver once.
+-/
+@[extern "cft_start_capture"]
+opaque startCapture : IO Unit
+
+/--
+The trace records emitted since the last call, in order.
+Each is JSON, like a line of a trace which the scenario test writes.
+Only after `startCapture`.
+-/
+@[extern "cft_take_trace"]
+opaque takeTrace : IO (Array String)
+
+/--
+Confirm that the network can still make progress, as `run` does after a scenario, and
+stop the driver. After `startCapture`, `takeTrace` then returns the rest of the trace.
+-/
 @[extern "cft_finish"]
-private opaque finish : IO Unit
+opaque finish : IO Unit
 
 /--
 Run the scenario named by the first argument.
-Any trace is exported to the Fluentd host and port given by the remaining arguments.
+One more argument is a file, to which the trace is written.
+Two more are a Fluentd host and port, to which the trace is exported.
 -/
 def run (args : List String) : IO Unit := do
-  let usage := "Expected a scenario name, optionally followed by a Fluentd host and port"
-  let (name, fluentd) ←
-    match args with
-    | [name] => pure (name, [])
-    | [name, host, port] => pure (name, [host, port])
-    | _ => throw <| IO.userError usage
+  let usage :=
+    "Expected a scenario name, then optionally a trace file, or a Fluentd host and port"
+  let name :: target := args | throw <| IO.userError usage
   let registered ← scenarios.get
   let known := registered.map (·.1) |>.reverse
   let some steps := registered.lookup name
   | throw <| IO.userError s!"Unknown scenario '{name}'. Known scenarios: {known}"
-  start fluentd
-  steps
-  finish
+  match target with
+  | [file] =>
+      startCapture
+      try
+        steps
+        finish
+      finally
+        let records ← takeTrace
+        IO.FS.writeFile file (String.join (records.toList.map (· ++ "\n")))
+  | [] | [_, _] =>
+      start target
+      steps
+      finish
+  | _ => throw <| IO.userError usage
 
 end CftDriver

@@ -12,10 +12,22 @@
 
 #include "tracing/fluentd_sink.h"
 
+#include <array>
+#include <atomic>
+#include <condition_variable>
+#include <istream>
 #include <lean/lean.h>
 #include <memory>
+#include <mutex>
+#include <netinet/in.h>
 #include <stdexcept>
+#include <streambuf>
 #include <string>
+#include <sys/socket.h>
+#include <thread>
+#include <type_traits>
+#include <unistd.h>
+#include <utility>
 #include <vector>
 
 namespace
@@ -65,19 +77,44 @@ namespace
   }
 
   // Lean cannot unwind C++ exceptions, so return them as IO errors, which fail
-  // the scenario
+  // the scenario. f returns nothing, or the Lean value which the IO action
+  // returns.
   template <typename F>
   lean_obj_res io(F&& f)
   {
     try
     {
-      f();
-      return lean_io_result_mk_ok(lean_box(0));
+      if constexpr (std::is_void_v<std::invoke_result_t<F&>>)
+      {
+        f();
+        return lean_io_result_mk_ok(lean_box(0));
+      }
+      else
+      {
+        return lean_io_result_mk_ok(f());
+      }
     }
     catch (const std::exception& e)
     {
       return lean_io_result_mk_error(
         lean_mk_io_user_error(lean_mk_string(e.what())));
+    }
+  }
+
+  // Records a step in the trace, and names it if it fails
+  template <typename F>
+  auto traced(const std::string& cmd, F&& f)
+  {
+    ++step_count;
+    try
+    {
+      ccf::tracing::emit(aft::trace::cft_trace_tag, "cmd", cmd);
+      return f();
+    }
+    catch (const std::exception& e)
+    {
+      throw std::runtime_error(
+        fmt::format("Step {} ({}) failed: {}", step_count, cmd, e.what()));
     }
   }
 
@@ -93,22 +130,237 @@ namespace
     const std::string& cmd, F&& f, Invariants invariants = Invariants::CHECK)
   {
     return io([&]() {
-      ++step_count;
-      try
-      {
-        ccf::tracing::emit(aft::trace::cft_trace_tag, "cmd", cmd);
+      traced(cmd, [&]() {
         f();
         if (invariants == Invariants::CHECK)
         {
           driver->assert_invariants();
         }
+      });
+    });
+  }
+
+  lean_obj_res strings(const std::vector<std::string>& items)
+  {
+    auto* array = lean_mk_empty_array();
+    for (const auto& item : items)
+    {
+      array = lean_array_push(
+        array, lean_mk_string_from_bytes(item.data(), item.size()));
+    }
+    return array;
+  }
+
+  // Reads a connected socket as a stream
+  class SocketBuffer : public std::streambuf
+  {
+    int fd;
+    std::array<char, 65536> buffer = {};
+
+  protected:
+    int_type underflow() override
+    {
+      ssize_t count = 0;
+      do
+      {
+        count = ::recv(fd, buffer.data(), buffer.size(), 0);
+      } while (count < 0 && errno == EINTR);
+
+      if (count <= 0)
+      {
+        return traits_type::eof();
+      }
+
+      setg(buffer.data(), buffer.data(), buffer.data() + count);
+      return traits_type::to_int_type(*gptr());
+    }
+
+  public:
+    explicit SocketBuffer(int fd_) : fd(fd_) {}
+  };
+
+  // Keeps the trace in this process, for cft_take_trace. FluentdSink exports
+  // records only over TCP, so it is pointed at a local listener, which a
+  // thread reads.
+  class TraceCapture
+  {
+    // take() emits a record with this key, to learn that the records before
+    // it have arrived
+    static constexpr const char* MARKER = "sync";
+
+    int listener = -1;
+    uint16_t listening_port = 0;
+    std::atomic<int> peer = -1;
+    std::thread collector;
+
+    std::mutex mutex;
+    std::condition_variable arrived;
+    // Records which have arrived and are not yet taken, as JSON
+    std::vector<std::string> records;
+    uint64_t arrived_marker = 0;
+    uint64_t emitted_marker = 0;
+    bool closed = false;
+    std::string error;
+
+    void collect()
+    {
+      try
+      {
+        peer = ::accept4(listener, nullptr, nullptr, SOCK_CLOEXEC);
+        if (peer < 0)
+        {
+          throw std::runtime_error(
+            fmt::format("Cannot accept its connection: errno {}", errno));
+        }
+
+        SocketBuffer buffer(peer);
+        std::istream stream(&buffer);
+        while (stream.peek() != std::istream::traits_type::eof())
+        {
+          // A Fluentd forward message is [tag, time, record]
+          const auto message = nlohmann::json::from_msgpack(stream, false);
+          const auto& record = message.at(2);
+          const auto& msg = record.at("msg");
+
+          std::lock_guard<std::mutex> lock(mutex);
+          if (msg.contains(MARKER))
+          {
+            arrived_marker = msg.at(MARKER).get<uint64_t>();
+            arrived.notify_all();
+          }
+          else
+          {
+            records.push_back(record.dump());
+          }
+        }
       }
       catch (const std::exception& e)
       {
-        throw std::runtime_error(
-          fmt::format("Step {} ({}) failed: {}", step_count, cmd, e.what()));
+        std::lock_guard<std::mutex> lock(mutex);
+        error = e.what();
       }
-    });
+
+      std::lock_guard<std::mutex> lock(mutex);
+      closed = true;
+      arrived.notify_all();
+    }
+
+  public:
+    TraceCapture()
+    {
+      sockaddr_in address = {};
+      address.sin_family = AF_INET;
+      address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      auto* generic = reinterpret_cast<sockaddr*>(&address);
+      socklen_t size = sizeof(address);
+
+      listener = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+      if (
+        listener < 0 || ::bind(listener, generic, size) != 0 ||
+        ::listen(listener, 1) != 0 ||
+        ::getsockname(listener, generic, &size) != 0)
+      {
+        const auto reason = errno;
+        if (listener >= 0)
+        {
+          ::close(listener);
+        }
+        throw std::runtime_error(
+          fmt::format("Cannot listen for the trace: errno {}", reason));
+      }
+
+      listening_port = ntohs(address.sin_port);
+      collector = std::thread([this]() { collect(); });
+    }
+
+    ~TraceCapture()
+    {
+      // Unblock the collector, if the sink never connected or did not stop
+      ::shutdown(listener, SHUT_RDWR);
+      if (peer >= 0)
+      {
+        ::shutdown(peer, SHUT_RDWR);
+      }
+      if (collector.joinable())
+      {
+        collector.join();
+      }
+      if (peer >= 0)
+      {
+        ::close(peer);
+      }
+      ::close(listener);
+    }
+
+    [[nodiscard]] uint16_t port() const
+    {
+      return listening_port;
+    }
+
+    // The records emitted since the last call
+    std::vector<std::string> take()
+    {
+      using Sink = ccf::tracing::FluentdSink;
+      if (Sink::is_running())
+      {
+        // The sink sends from another thread, so wait for a marker to arrive
+        ++emitted_marker;
+        ccf::tracing::emit(aft::trace::cft_trace_tag, MARKER, emitted_marker);
+
+        std::unique_lock<std::mutex> lock(mutex);
+        arrived.wait_for(lock, std::chrono::seconds(10), [this]() {
+          return arrived_marker == emitted_marker || closed;
+        });
+        if (arrived_marker != emitted_marker)
+        {
+          throw std::runtime_error(fmt::format(
+            "The trace did not arrive: {}",
+            closed ? "its connection closed" : "timed out"));
+        }
+      }
+      else if (collector.joinable())
+      {
+        // The sink has sent what it held, and closed its connection
+        collector.join();
+      }
+
+      const auto dropped = Sink::dropped_count();
+      std::lock_guard<std::mutex> lock(mutex);
+      if (dropped != 0 || !error.empty())
+      {
+        throw std::runtime_error(fmt::format(
+          "The trace is incomplete: {} events dropped. {}", dropped, error));
+      }
+      return std::exchange(records, {});
+    }
+  };
+
+  std::unique_ptr<TraceCapture> capture;
+
+  // Exports the trace to the Fluentd collector at a host and port, if given,
+  // and creates the driver
+  void start(const std::vector<std::string>& host_and_port)
+  {
+    // Log all CFT steps to stdout; cft_scenarios_runner.py
+    // filters them.
+    ccf::logger::config::add_text_console_logger();
+    ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
+
+    if (!host_and_port.empty())
+    {
+      ccf::tracing::FluentdSink::Endpoint endpoint{
+        host_and_port.at(0), host_and_port.at(1)};
+      endpoint.tag_prefix_allow_list = {"ccf.cft"};
+      ccf::tracing::FluentdSink::configure(endpoint);
+      ccf::tracing::FluentdSink::bind_producer(0);
+      if (!ccf::tracing::FluentdSink::wait_for_connection(
+            std::chrono::seconds(5)))
+      {
+        throw std::runtime_error("Timed out waiting for Fluentd connection");
+      }
+    }
+
+    driver = std::make_unique<CftDriver>();
   }
 }
 
@@ -129,28 +381,26 @@ extern "C"
 
   lean_obj_res cft_start(b_lean_obj_arg fluentd)
   {
-    return io([&]() {
-      // Log all CFT steps to stdout; cft_scenarios_runner.py
-      // filters them.
-      ccf::logger::config::add_text_console_logger();
-      ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
+    return io([&]() { start(texts(fluentd)); });
+  }
 
-      const auto host_and_port = texts(fluentd);
-      if (!host_and_port.empty())
+  lean_obj_res cft_start_capture()
+  {
+    return io([]() {
+      capture = std::make_unique<TraceCapture>();
+      start({"127.0.0.1", std::to_string(capture->port())});
+    });
+  }
+
+  lean_obj_res cft_take_trace()
+  {
+    return io([]() {
+      if (capture == nullptr)
       {
-        ccf::tracing::FluentdSink::Endpoint endpoint{
-          host_and_port.at(0), host_and_port.at(1)};
-        endpoint.tag_prefix_allow_list = {"ccf.cft"};
-        ccf::tracing::FluentdSink::configure(endpoint);
-        ccf::tracing::FluentdSink::bind_producer(0);
-        if (!ccf::tracing::FluentdSink::wait_for_connection(
-              std::chrono::seconds(5)))
-        {
-          throw std::runtime_error("Timed out waiting for Fluentd connection");
-        }
+        throw std::runtime_error(
+          "The trace is only kept in memory after start_capture");
       }
-
-      driver = std::make_unique<CftDriver>();
+      return strings(capture->take());
     });
   }
 
@@ -159,6 +409,7 @@ extern "C"
     return io([]() {
       // Confirm path to liveness from final state
       driver->loop_until_sync();
+      driver->assert_invariants();
       driver.reset();
 
       ccf::tracing::FluentdSink::shutdown();
@@ -192,6 +443,16 @@ extern "C"
     const auto ids = texts(nodes);
     return step(
       command("trust_nodes", t, ids), [&]() { driver->trust_nodes(t, ids); });
+  }
+
+  lean_obj_res cft_trust_node_from_snapshot(
+    b_lean_obj_arg term, b_lean_obj_arg node)
+  {
+    const auto t = text(term);
+    const auto id = text(node);
+    return step(command("trust_node_from_snapshot", t, id), [&]() {
+      driver->trust_nodes(t, {id}, true);
+    });
   }
 
   lean_obj_res cft_swap_node(
@@ -234,6 +495,13 @@ extern "C"
     return step(command("cleanup_nodes", t, ids), [&]() {
       driver->cleanup_nodes(t, ids);
     });
+  }
+
+  lean_obj_res cft_cleanup_retired(b_lean_obj_arg term)
+  {
+    const auto t = text(term);
+    return step(
+      command("cleanup_retired", t), [&]() { driver->cleanup_retired(t); });
   }
 
   lean_obj_res cft_nominate_successor(b_lean_obj_arg node)
@@ -343,6 +611,28 @@ extern "C"
     });
   }
 
+  lean_obj_res cft_dispatch_nth(
+    b_lean_obj_arg source, b_lean_obj_arg target, uint64_t position)
+  {
+    const auto src = text(source);
+    const auto dst = text(target);
+    return step(command("dispatch_nth", src, dst, position), [&]() {
+      driver->dispatch_nth(src, dst, position);
+    });
+  }
+
+  lean_obj_res cft_pending_messages(
+    b_lean_obj_arg source, b_lean_obj_arg target)
+  {
+    const auto src = text(source);
+    const auto dst = text(target);
+    return io([&]() {
+      return traced(command("pending_messages", src, dst), [&]() {
+        return strings(driver->pending_messages(src, dst));
+      });
+    });
+  }
+
   lean_obj_res cft_dispatch_all_once()
   {
     return step(
@@ -367,6 +657,34 @@ extern "C"
     const auto dst = text(target);
     return step(command("drop_pending_to", src, dst), [&]() {
       driver->drop_pending_to(src, dst);
+    });
+  }
+
+  lean_obj_res cft_drop_nth(
+    b_lean_obj_arg source, b_lean_obj_arg target, uint64_t position)
+  {
+    const auto src = text(source);
+    const auto dst = text(target);
+    return step(command("drop_nth", src, dst, position), [&]() {
+      driver->drop_nth(src, dst, position);
+    });
+  }
+
+  lean_obj_res cft_hold_nth(
+    b_lean_obj_arg source, b_lean_obj_arg target, uint64_t position)
+  {
+    const auto src = text(source);
+    const auto dst = text(target);
+    return step(
+      command("hold_nth", src, dst, position),
+      [&]() { driver->hold_nth(src, dst, position); },
+      Invariants::SKIP);
+  }
+
+  lean_obj_res cft_dispatch_held(uint64_t position)
+  {
+    return step(command("dispatch_held", position), [&]() {
+      driver->dispatch_held(position);
     });
   }
 

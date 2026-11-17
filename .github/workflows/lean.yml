@@ -269,8 +269,19 @@ jobs:
           for trace in "$RUNNER_TEMP"/cft-scenario-traces/*.ndjson; do
             echo "::group::Validate $trace"
             lean/consensus/.lake/build/bin/consensus-replay "$trace"
+            lean/consensus/.lake/build/bin/consensus-replay --by-command "$trace"
             echo "::endgroup::"
           done
+
+      # An outcome which the scenarios showed and no longer show fails this step.
+      - name: Report model outcomes shown by CCF consensus traces
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          lean/consensus/.lake/build/bin/consensus-replay --outcomes \
+            --not-shown appendEntriesConflictIgnored \
+            "$RUNNER_TEMP"/cft-scenario-traces/*.ndjson >> "$GITHUB_STEP_SUMMARY"
 
   models:
     name: Lean models and proofs

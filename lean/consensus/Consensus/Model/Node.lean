@@ -55,7 +55,8 @@ inductive Event where
 /-! ## Primary state -/
 
 /--
-Approximates `all_other_nodes`; unlike CCF, peers lost on rollback are not retained.
+Approximates `all_other_nodes`; unlike CCF, a node which starts from a snapshot knows the
+nodes which retired before it.
 -/
 def eligiblePeers (state : NodeState) (self : NodeID) : Finset NodeID :=
   (state.activeMembers ∪ state.retirementCompletedNodes).erase self
@@ -65,12 +66,11 @@ def rankBelow (a b : Nat × Nat × Nat) : Bool :=
   decide (a.1 < b.1 \/ (a.1 = b.1 /\ Prod.lexLt a.2 b.2))
 
 /-- Maximize replication progress, latest active membership, then node ID. -/
-def findSuccessor (state : NodeState) (self : NodeID) : Option NodeID :=
+def bestSuccessor (state : NodeState) (peers : Finset NodeID) : Option NodeID :=
   let configurations := state.activeConfigurations
   let rank node :=
     (state.matchIndex node, latestMembershipIndex configurations node, node)
-  let peers := (eligiblePeers state self).sort
-  peers.foldl
+  peers.sort.foldl
     (fun best candidate =>
       match best with
       | none => some candidate
@@ -81,10 +81,26 @@ def findSuccessor (state : NodeState) (self : NodeID) : Option NodeID :=
             best)
     none
 
+def findSuccessor (state : NodeState) (self : NodeID) : Option NodeID :=
+  bestSuccessor state (eligiblePeers state self)
+
 def nominateSuccessor (caps : Caps) (state : NodeState) (self : NodeID)
     : NodeEffect NodeState := do
   guard (state.role = .primary)
   if let some successor := findSuccessor state self then
+    caps.send (.proposeRequestVoteRequest state.currentTerm) successor
+  return state
+
+/--
+Nominate as the retirement of this primary is confirmed. CCF has by then forgotten the
+nodes whose retirement it confirmed first, and nominates none of them.
+-/
+def nominateOnRetirement (caps : Caps) (state : NodeState) (self : NodeID)
+    : NodeEffect NodeState := do
+  guard (state.role = .primary)
+  if let some successor :=
+      bestSuccessor state
+        (eligiblePeers state self \ retirementsConfirmedBefore state.log self) then
     caps.send (.proposeRequestVoteRequest state.currentTerm) successor
   return state
 
@@ -141,7 +157,8 @@ def NodeState.recordCommit (node : NodeID) (state : NodeState) (commitIndex : Na
 
 /--
 Retirement nominates using the precommit peer and configuration view, before
-discarding old configurations and clearing the outgoing primary's role.
+discarding old configurations and clearing the outgoing primary's role. Peers
+whose retirement CCF confirms first are forgotten by then.
 -/
 def advanceCommit (caps : Caps) (state : NodeState) (self : NodeID)
     : NodeEffect NodeState := do
@@ -153,7 +170,7 @@ def advanceCommit (caps : Caps) (state : NodeState) (self : NodeID)
     let state := state.recordCommit self commitIndex
     if state.isRetiredCommitted self then
       if preCommitState.role = .primary then
-        let _ ← nominateSuccessor caps preCommitState self
+        let _ ← nominateOnRetirement caps preCommitState self
       return state
     else
       return state

@@ -1465,6 +1465,48 @@ def run_join_no_snapshot_against_original_primary(const_args, ipv6=False):
             ), f"Joiner should have started from a fetched snapshot, got startup_seqno={body['startup_seqno']}"
 
 
+def run_remove_last_node(const_args):
+    # A service which removed its last trusted node could commit nothing
+    # afterwards. The primary refuses the transaction which does so before it
+    # writes it to its ledger, and stops, as it does for any transaction which
+    # it has applied and cannot replicate.
+    args = deepcopy(const_args)
+    args.nodes = infra.e2e_args.nodes(args, 1)
+    args.label += "_remove_last_node"
+
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+        primary, backups = network.find_nodes()
+        assert not backups, backups
+
+        # The node reports a fatal error as it stops
+        network.ignore_errors_on_shutdown()
+        try:
+            network.consortium.retire_node(primary, primary)
+        except (
+            infra.clients.CCFConnectionException,
+            infra.clients.CCFIOException,
+            TimeoutError,
+        ):
+            LOG.info("The node did not answer the vote which removes it")
+        else:
+            raise AssertionError("The last trusted node of the service was removed")
+
+        assert primary.remote.check_done(timeout=10), "The node is still running"
+
+        out_path, _ = primary.get_logs()
+        refusal = "Refusing to replicate the configuration"
+        with open(out_path, encoding="utf-8") as out:
+            assert any(
+                refusal in line for line in out
+            ), f"Expected '{refusal}' in {out_path}"
+
+
 def _assert_ipv6_available():
     assert infra.net.ipv6_loopback_available(), (
         "IPv6 loopback (::1) is not available; CI enables IPv6 via the "

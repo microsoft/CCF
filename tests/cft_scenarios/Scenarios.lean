@@ -9,7 +9,9 @@ import Scenarios.check_quorum
 import Scenarios.check_quorum_012_0
 import Scenarios.check_quorum_0_012
 import Scenarios.commit_before_pending_reconfiguration
+import Scenarios.commit_index_beyond_batch
 import Scenarios.commit_stepwise_through_reconfiguration
+import Scenarios.delayed_append_entries
 import Scenarios.delayed_vote_requests
 import Scenarios.election
 import Scenarios.election_while_reconfiguration
@@ -17,7 +19,10 @@ import Scenarios.fancy_election_1
 import Scenarios.fancy_election_2
 import Scenarios.follower_overcommit_partial_verified
 import Scenarios.follower_rollback_match_index
+import Scenarios.heartbeat_before_stale_suffix
 import Scenarios.indirect_commit_stale_leader
+import Scenarios.join_from_snapshot
+import Scenarios.join_from_snapshot_after_retirement
 import Scenarios.large_entry_batching
 import Scenarios.late_nomination
 import Scenarios.leadership_race
@@ -25,10 +30,15 @@ import Scenarios.liveness_through_conflict
 import Scenarios.matching_partial
 import Scenarios.message_type_summaries
 import Scenarios.multi_election
+import Scenarios.nominate_new_node
+import Scenarios.nominate_node_removed_before_signature
+import Scenarios.nominate_node_retired_before_signature
+import Scenarios.nominate_over_retiring_node
 import Scenarios.nominate_successor
 import Scenarios.nominate_without_successor
 import Scenarios.pre_vote
 import Scenarios.pre_vote_double_leader
+import Scenarios.pre_vote_response_to_candidate
 import Scenarios.pre_vote_split
 import Scenarios.reconfig_01_12
 import Scenarios.reconfig_01_23
@@ -41,6 +51,7 @@ import Scenarios.reconfig_0_1
 import Scenarios.reconfiguration
 import Scenarios.reconnect
 import Scenarios.reelection
+import Scenarios.reordered_messages
 import Scenarios.replicate
 import Scenarios.replicate_on_latest_leader
 import Scenarios.retire_backup
@@ -49,16 +60,28 @@ import Scenarios.retire_one
 import Scenarios.retired_committed_delayed_nomination
 import Scenarios.retired_node_delayed_responses
 import Scenarios.retirement_commit_below_signature
+import Scenarios.retirement_confirmed_by_new_primary
+import Scenarios.retirement_forgets_lower_node
+import Scenarios.retirement_nominates_higher_node
 import Scenarios.retirement_nominates_most_replicated
 import Scenarios.retirement_rollback
+import Scenarios.retirement_signature_rollback
+import Scenarios.rollback_forgets_added_node
 import Scenarios.rollback_safety
 import Scenarios.soft_rollback
+import Scenarios.sole_member_election
+import Scenarios.stale_ack_after_reelection
+import Scenarios.stale_nack_after_ack
+import Scenarios.stale_vote_after_new_term
+import Scenarios.stale_vote_request
 import Scenarios.startup
 import Scenarios.startup_2nodes
 import Scenarios.suffix_collision_1
 import Scenarios.suffix_collision_2
 import Scenarios.suffix_collision_3
 import Scenarios.swap_single_node
+import Scenarios.unsigned_entry_replaces_stale_suffix
+import Scenarios.vote_request_after_append_entries
 
 /-- Run one of the imported scenarios, named by the first argument. -/
 def main (args : List String) : IO Unit :=

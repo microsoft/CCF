@@ -28,10 +28,23 @@ initialize scenario "example" do
 [`CftDriver.lean`](CftDriver.lean) documents every command.
 Node identifiers and terms are written as numbers or strings, and `latest` is the primary in the highest term.
 Each `replicate` appends one batch of entries, which are transaction data or `signature`.
+A node which `trustNode` adds starts with an empty ledger, and one which `trustNodeFromSnapshot` adds starts from a snapshot of the primary, at the index which that primary has committed.
+`cleanupNodes` confirms the retirement of the nodes which it names, and `cleanupRetired` that of each node whose retirement the primary has committed, as a real primary does when its consensus asks it to clean up retired nodes.
+A scenario delivers the messages of a node in the order in which they were sent, or picks one: `dispatchNth` delivers it, `dropNth` loses it, and `holdNth` sets it aside until `dispatchHeld` delivers it, however late.
 Scenarios are ordinary Lean, so they can also use loops, conditions and definitions.
 
-After each command which can alter state, the driver asserts that the commit index of every node is safe.
-After the last command, it confirms that the network can still make progress.
+After each command which can alter state, the driver asserts of every node that:
+
+- a quorum of each of its configurations holds what it has committed;
+- its view history gives each entry of its ledger the term which the ledger records for it, and so its transaction ID;
+- what it reports of the primary, and of whether it should sign, agrees with its role and its ledger;
+- it has notified its commit observer of each advance of its commit index;
+- if it is primary, it has asked for retired nodes to be cleaned up since it had a retirement to confirm.
+
+After the last command, it confirms that the network can still make progress, and asserts these again.
+To do so, it signs on the latest primary, and runs until the active nodes which that primary knows are in sync with it.
+A node starts its election timer as a real node does, when it first holds a signature while it is in its latest configuration.
+Advancing its clock before that starts no election.
 
 ## Adding a scenario
 
@@ -51,6 +64,12 @@ cmake --build build --target cft_driver
 build/cft_driver <name>
 ```
 
+To also write the trace of the scenario to a file, name the file:
+
+```sh
+build/cft_driver <name> <name>.ndjson
+```
+
 `cft_scenario_test` runs every scenario in `Scenarios/` with [`cft_scenarios_runner.py`](../cft_scenarios_runner.py), which needs Python `msgpack`:
 
 ```sh
@@ -65,3 +84,5 @@ The runner prints each scenario as a Mermaid sequence diagram, and writes its tr
 `lake` compiles the scenarios to a static library, which defines `main`.
 `cft_driver` links it with [`driver.cpp`](../../src/consensus/aft/test/driver.cpp), which implements each command declared in `CftDriver.lean` by calling `CftDriver` in [`driver.h`](../../src/consensus/aft/test/driver.h), and with the Lean runtime.
 A trace records each command as a `cmd` record, naming the command and its arguments.
+The driver exports its trace over TCP, to a Fluentd collector such as the scenario test runs.
+For a trace file, and for `takeTrace`, `driver.cpp` collects it from a local port in the same process.

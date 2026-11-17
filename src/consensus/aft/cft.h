@@ -557,6 +557,21 @@ namespace aft
       CFT_DEBUG_FMT(
         "Configurations: add new configuration at {}: {{{}}}", idx, conf);
 
+      // A configuration with no nodes has no quorum, so nothing could be
+      // committed once it is active. A primary refuses the transaction which
+      // asks for one, before it appends the entry or sends it to another
+      // node. Other nodes must follow the log which their primary sends.
+      if (
+        conf.empty() &&
+        state->leadership_state.load() == ccf::kv::LeadershipState::Leader)
+      {
+        CFT_FAIL_FMT(
+          "Refusing to replicate the configuration at {}: it has no nodes",
+          idx);
+        throw std::logic_error(
+          fmt::format("Configuration at {} has no nodes", idx));
+      }
+
       trace::add_configuration(*state, configurations, idx, conf, idx);
 
       // Detect when we are retired by observing a configuration
@@ -1467,11 +1482,21 @@ namespace aft
       else
       {
         // The end of this append entries (r.idx) was not a signature, but may
-        // be in a new term. If it's a new term, this term started immediately
-        // after the previous signature we saw (lci, last committable index).
-        if (r.idx > lci)
+        // be in a new term. If we already know the term of r.idx, there is
+        // nothing to record. We may then still hold entries of a later term
+        // after r.idx, which the sender has yet to replace.
+        // Otherwise the new term starts at the first entry of this append
+        // entries, which holds entries of a single term, after an entry which
+        // we hold in an earlier term. That is immediately after the previous
+        // signature we saw (lci, last committable index), unless a primary
+        // kept transactions after its last signature when it was elected,
+        // which it only does if it has committed nothing.
+        static_assert(
+          max_terms_per_append_entries == 1,
+          "AppendEntries processing for term updates assumes single term");
+        if (r.idx > lci && get_term_internal(r.idx) != r.term_of_idx)
         {
-          state->view_history.update(lci + 1, r.term_of_idx);
+          state->view_history.update(r.prev_idx + 1, r.term_of_idx);
         }
       }
 
@@ -1542,6 +1567,8 @@ namespace aft
       if (node == all_other_nodes.end())
       {
         // Ignore if we don't recognise the node.
+        trace::recv_append_entries_response_unknown_node(
+          *state, r, from.value());
         CFT_FAIL_FMT(
           "Recv append entries response to {} from {}: unknown node",
           state->node_id,
@@ -2682,18 +2709,41 @@ namespace aft
 
       // Rollback configurations.
       bool changed = false;
+      std::set<ccf::NodeId> rolled_back_nodes;
 
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
         CFT_DEBUG_FMT(
           "Configurations: rollback configuration at {}",
           configurations.back().idx);
+        for (const auto& [node_id, _] : configurations.back().nodes)
+        {
+          rolled_back_nodes.insert(node_id);
+        }
         configurations.pop_back();
         changed = true;
       }
 
       if (changed)
       {
+        // Forget the nodes which only the configurations rolled back named:
+        // no configuration is left to make them known. A node which retired
+        // from an earlier configuration is never named again, so it is not
+        // among them, and stays known until its retirement is confirmed.
+        const auto remaining_nodes = other_nodes_in_active_configs();
+        for (const auto& node_id : rolled_back_nodes)
+        {
+          if (
+            !remaining_nodes.contains(node_id) &&
+            all_other_nodes.erase(node_id) != 0)
+          {
+            CFT_INFO_FMT(
+              "Removed {} from nodes known to consensus: the configuration "
+              "which added it was rolled back",
+              node_id);
+          }
+        }
+
         create_and_remove_node_state();
       }
     }

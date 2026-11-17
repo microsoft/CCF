@@ -8,8 +8,10 @@
 #include "logging_stub.h"
 
 #include <chrono>
+#include <functional>
 #include <random>
 #include <set>
+#include <span>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -92,6 +94,32 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
   }
 };
 
+// Queues each AppendEntries with its entries, read from the ledger of the
+// sender as it is sent, like the host of a real node. A later rollback of the
+// sender does not change them. The entries follow the packet in the message.
+struct ChannelStubProxy_Entries : public aft::ChannelStubProxy
+{
+  std::function<std::vector<uint8_t>(const aft::AppendEntries&)> read_entries;
+
+  bool send_consensus_message(
+    const ccf::NodeId& to, const uint8_t* data, size_t size) override
+  {
+    if (!aft::ChannelStubProxy::send_consensus_message(to, data, size))
+    {
+      return false;
+    }
+
+    if (serialized::peek<aft::CftMsgType>(data, size) == aft::append_entries)
+    {
+      const auto entries = read_entries(*(aft::AppendEntries*)data);
+      auto& message = messages.back().second;
+      message.insert(message.end(), entries.begin(), entries.end());
+    }
+
+    return true;
+  }
+};
+
 using ms = std::chrono::milliseconds;
 using TCft = aft::Aft<LedgerStubProxy_Mermaid>;
 using Store = LoggingStubStore_Mermaid;
@@ -105,14 +133,48 @@ aft::ChannelStubProxy* channel_stub_proxy(const TCft& r)
 class CftDriver
 {
 private:
+  // Records the commits of which a node notifies its observer
+  struct CommitRecorder : public aft::CommitObserver
+  {
+    std::vector<ccf::TxID> notified;
+
+    void on_commit(
+      ccf::TxID committed, const aft::ViewHistory& /*view_history*/) override
+    {
+      notified.push_back(committed);
+    }
+  };
+
   struct NodeDriver
   {
     std::shared_ptr<Store> kv;
     std::shared_ptr<TCft> cft;
+    std::shared_ptr<CommitRecorder> commits;
+    // How many times the node has asked for retired nodes to be cleaned up
+    std::shared_ptr<size_t> cleanup_requests;
+
+    // What assert_invariants last saw of the node: its commit index, how many
+    // commits and cleanup requests it had made, the view in which it was
+    // primary, and the retirements which it then had yet to confirm
+    aft::Index seen_commit_idx = 0;
+    size_t seen_commits = 0;
+    size_t seen_cleanup_requests = 0;
+    std::optional<aft::Term> seen_primary_view = std::nullopt;
+    std::set<ccf::NodeId> seen_unconfirmed = {};
+  };
+
+  // A message which hold_nth has set aside
+  struct HeldMessage
+  {
+    ccf::NodeId src;
+    ccf::NodeId dst;
+    std::vector<uint8_t> contents;
   };
 
   std::map<ccf::NodeId, NodeDriver> _nodes;
   std::set<std::pair<ccf::NodeId, ccf::NodeId>> _connections;
+  // Oldest first. Only dispatch_held delivers these.
+  std::vector<HeldMessage> _held;
 
   void _replicate(
     const std::string& term_s,
@@ -206,35 +268,390 @@ private:
     return {idx, d, committable, hooks};
   }
 
-  // A joining node starts as a follower with an empty ledger, like a real
-  // node joining without a snapshot.
-  void add_node(ccf::NodeId node_id, bool joining = true)
+  // What a real node does when it joins from a snapshot which source took at
+  // the index which it has committed: it adopts the configuration of the
+  // snapshot, and starts as a follower at that index. It also holds the
+  // entries before the snapshot, like a real node which was given the
+  // committed ledger files of source, so that ledgers can still be compared.
+  static void init_from_snapshot(TCft& cft, TCft& source)
+  {
+    const auto idx = source.get_committed_seqno();
+    if (idx == 0)
+    {
+      cft.init_as_backup(0, 0, {});
+      return;
+    }
+
+    std::optional<ccf::kv::Configuration::Nodes> configuration;
+    for (const auto& conf : source.get_details().configs)
+    {
+      if (conf.idx <= idx)
+      {
+        configuration = conf.nodes;
+      }
+    }
+    if (configuration.has_value())
+    {
+      cft.add_configuration(idx, configuration.value());
+    }
+
+    const auto& entries = source.ledger->ledger;
+    cft.ledger->ledger.assign(
+      entries.begin(), entries.begin() + static_cast<std::ptrdiff_t>(idx));
+    cft.init_as_backup(idx, source.get_view(idx), source.get_view_history(idx));
+  }
+
+  // A joining node starts as a follower: with an empty ledger, like a real
+  // node joining without a snapshot, or from a snapshot of another node.
+  void add_node(
+    ccf::NodeId node_id,
+    bool joining = true,
+    const std::optional<ccf::NodeId>& snapshot_of = std::nullopt)
   {
     auto kv = std::make_shared<Store>(node_id);
     const ccf::consensus::Configuration settings{{"10ms"}, {"100ms"}};
+    auto channels = std::make_shared<ChannelStubProxy_Entries>();
+    auto commits = std::make_shared<CommitRecorder>();
+    auto cleanup_requests = std::make_shared<size_t>(0);
     auto cft = std::make_shared<TCft>(
       settings,
       std::make_unique<Adaptor>(kv),
       std::make_unique<LedgerStubProxy_Mermaid>(node_id),
-      std::make_shared<aft::ChannelStubProxy>(),
+      channels,
       std::make_shared<aft::State>(node_id),
-      nullptr);
+      [cleanup_requests]() { ++*cleanup_requests; },
+      commits);
+    channels->read_entries =
+      [ledger = cft->ledger.get()](const aft::AppendEntries& ae) {
+        auto entries = ledger->get_append_entries_payload(ae);
+        if (!entries.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Sent AppendEntries ({}, {}] is not in the ledger",
+            ae.prev_idx,
+            ae.idx));
+        }
+        return std::move(*entries);
+      };
     kv->set_set_retired_committed_hook(
       [cft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
         cft->set_retired_committed(idx, node_ids);
       });
     if (joining)
     {
-      cft->init_as_backup(0, 0, {});
+      if (snapshot_of.has_value())
+      {
+        init_from_snapshot(*cft, *_nodes.at(snapshot_of.value()).cft);
+      }
+      else
+      {
+        cft->init_as_backup(0, 0, {});
+      }
     }
-    cft->start_ticking();
+    // The node starts its election timer as a real node does: when it first
+    // holds a signature while it is in its latest configuration.
 
     if (_nodes.find(node_id) != _nodes.end())
     {
       throw std::logic_error(fmt::format("Node {} already exists", node_id));
     }
 
-    _nodes.emplace(node_id, NodeDriver{kv, cft});
+    NodeDriver node{kv, cft, commits, cleanup_requests};
+    // A node which starts from a snapshot has committed it, without notice
+    node.seen_commit_idx = cft->get_committed_seqno();
+    _nodes.emplace(node_id, node);
+  }
+
+  // The configuration which a reconfiguration on the primary in term changes:
+  // the latest which that primary holds, as the nodes which a real primary
+  // trusts are. A node which an earlier configuration removed stays out of it.
+  ccf::kv::Configuration::Nodes latest_configuration(const std::string& term)
+  {
+    const auto primary = find_primary_in_term(term, false);
+    if (!primary.has_value())
+    {
+      return {};
+    }
+    return _nodes.at(primary->second).cft->get_latest_configuration();
+  }
+
+  // An entry as the ledger of a node holds it: see LedgerStubProxy::put_entry
+  struct LedgerEntry
+  {
+    bool committable;
+    aft::Term term;
+    aft::ReplicatedData data;
+  };
+
+  static std::optional<LedgerEntry> ledger_entry(TCft& cft, aft::Index idx)
+  {
+    const auto entry = cft.ledger->get_entry_by_idx(idx);
+    if (!entry.has_value() || entry->empty())
+    {
+      return std::nullopt;
+    }
+
+    const uint8_t* data = entry->data();
+    auto size = entry->size();
+    serialized::skip(data, size, sizeof(size_t));
+    const auto committable = serialized::read<bool>(data, size);
+    const auto term = serialized::read<aft::Term>(data, size);
+    serialized::skip(data, size, sizeof(ccf::kv::Version));
+    return LedgerEntry{
+      committable, term, nlohmann::json::parse(std::span{data, size})};
+  }
+
+  static std::set<ccf::NodeId> named_nodes(const aft::ReplicatedData& data)
+  {
+    const ccf::kv::Configuration::Nodes nodes =
+      nlohmann::json::parse(data.data);
+    std::set<ccf::NodeId> ids;
+    for (const auto& [id, _] : nodes)
+    {
+      ids.insert(id);
+    }
+    return ids;
+  }
+
+  // The nodes whose retirement a node has committed, and which no entry of
+  // its ledger confirms yet. A real primary confirms the retirement of these
+  // when it handles the request of its consensus to clean up retired nodes.
+  static std::set<ccf::NodeId> unconfirmed_retirements(TCft& cft)
+  {
+    std::set<ccf::NodeId> retired;
+    std::set<ccf::NodeId> latest;
+    std::set<ccf::NodeId> confirmed;
+    const auto commit_idx = cft.get_committed_seqno();
+    for (aft::Index idx = 1; idx <= cft.get_last_idx(); ++idx)
+    {
+      const auto entry = ledger_entry(cft, idx);
+      if (!entry.has_value())
+      {
+        continue;
+      }
+
+      if (
+        entry->data.type == aft::ReplicatedDataType::reconfiguration &&
+        idx <= commit_idx)
+      {
+        const auto nodes = named_nodes(entry->data);
+        for (const auto& id : latest)
+        {
+          if (!nodes.contains(id))
+          {
+            retired.insert(id);
+          }
+        }
+        latest = nodes;
+      }
+      else if (entry->data.type == aft::ReplicatedDataType::retired_committed)
+      {
+        confirmed.merge(named_nodes(entry->data));
+      }
+    }
+
+    std::set<ccf::NodeId> unconfirmed;
+    for (const auto& id : retired)
+    {
+      if (!latest.contains(id) && !confirmed.contains(id))
+      {
+        unconfirmed.insert(id);
+      }
+    }
+    return unconfirmed;
+  }
+
+  static std::runtime_error broken(const std::string& what)
+  {
+    return std::runtime_error(fmt::format("Invariant broken: {}", what));
+  }
+
+  // The view history of a node gives each entry of its ledger the term which
+  // the ledger records for it, and so its transaction ID. A real node tells
+  // the status of a transaction from its view history.
+  static void assert_view_history(const ccf::NodeId& node_id, TCft& cft)
+  {
+    for (aft::Index idx = 1; idx <= cft.get_last_idx(); ++idx)
+    {
+      const auto entry = ledger_entry(cft, idx);
+      if (!entry.has_value())
+      {
+        throw broken(fmt::format("Node {} holds no entry at {}", node_id, idx));
+      }
+
+      const auto view = cft.get_view(idx);
+      if (view != entry->term)
+      {
+        throw broken(fmt::format(
+          "Node {} reports {}.{} for the entry which its ledger holds as {}.{}",
+          node_id,
+          view,
+          idx,
+          entry->term,
+          idx));
+      }
+    }
+
+    const auto commit_idx = cft.get_committed_seqno();
+    const auto [view, seqno] = cft.get_committed_txid();
+    const auto committed = ledger_entry(cft, commit_idx);
+    if (
+      seqno != commit_idx || (committed.has_value() && view != committed->term))
+    {
+      throw broken(fmt::format(
+        "Node {} reports {}.{} as committed, and its commit index is {}",
+        node_id,
+        view,
+        seqno,
+        commit_idx));
+    }
+  }
+
+  // What a node reports of the primary agrees with its role, and with its
+  // ledger: a primary should sign until it has signed in its term
+  void assert_reported_primary(const ccf::NodeId& node_id, TCft& cft)
+  {
+    const auto primary = cft.primary();
+    const auto is_primary = cft.is_primary();
+    if (is_primary != (primary == node_id) || cft.can_replicate() != is_primary)
+    {
+      throw broken(fmt::format(
+        "Node {} {} primary, {} replicate, and reports {} as primary",
+        node_id,
+        is_primary ? "is" : "is not",
+        cft.can_replicate() ? "can" : "cannot",
+        primary.has_value() ? primary->value() : "no node"));
+    }
+
+    if (primary.has_value() && primary != node_id)
+    {
+      // It learnt of this primary in its own term, which it has had since
+      const auto it = _nodes.find(primary.value());
+      if (
+        it == _nodes.end() || !cft.is_backup() ||
+        it->second.cft->get_view() < cft.get_view())
+      {
+        throw broken(fmt::format(
+          "Node {} reports {} as primary in term {}",
+          node_id,
+          primary.value(),
+          cft.get_view()));
+      }
+    }
+
+    using Disposition = ccf::kv::Consensus::SignatureDisposition;
+    auto expected = Disposition::CANT_REPLICATE;
+    if (is_primary)
+    {
+      expected = Disposition::SHOULD_SIGN;
+      const auto view = cft.get_view();
+      for (aft::Index idx = cft.get_last_idx(); idx > 0; --idx)
+      {
+        const auto entry = ledger_entry(cft, idx);
+        if (!entry.has_value() || entry->term != view)
+        {
+          break;
+        }
+        if (entry->committable)
+        {
+          expected = Disposition::CAN_SIGN;
+          break;
+        }
+      }
+    }
+    const auto reported = cft.get_signature_disposition();
+    if (reported != expected)
+    {
+      const auto name = [](Disposition disposition) {
+        switch (disposition)
+        {
+          case Disposition::CANT_REPLICATE:
+            return "cannot replicate";
+          case Disposition::CAN_SIGN:
+            return "can sign";
+          case Disposition::SHOULD_SIGN:
+            return "should sign";
+        }
+        return "?";
+      };
+      throw broken(fmt::format(
+        "Node {} reports that it {} in term {}, where it {}",
+        node_id,
+        name(reported),
+        cft.get_view(),
+        name(expected)));
+    }
+  }
+
+  // A node notifies its observer of each advance of its commit index, with
+  // the transaction ID which its ledger holds there
+  static void assert_commit_notified(
+    const ccf::NodeId& node_id, NodeDriver& node)
+  {
+    const auto commit_idx = node.cft->get_committed_seqno();
+    const auto& notified = node.commits->notified;
+    auto previous = node.seen_commit_idx;
+    for (auto i = node.seen_commits; i < notified.size(); ++i)
+    {
+      if (notified[i].seqno <= previous)
+      {
+        throw broken(fmt::format(
+          "Node {} notified its observer of a commit at {} after one at {}",
+          node_id,
+          notified[i].seqno,
+          previous));
+      }
+      previous = notified[i].seqno;
+    }
+
+    const auto committed = ledger_entry(*node.cft, commit_idx);
+    if (
+      previous != commit_idx ||
+      (notified.size() > node.seen_commits &&
+       (!committed.has_value() || notified.back().view != committed->term)))
+    {
+      throw broken(fmt::format(
+        "Node {} has committed {}, and last notified its observer of {}",
+        node_id,
+        commit_idx,
+        notified.empty() ? "nothing" : notified.back().to_str()));
+    }
+
+    node.seen_commit_idx = commit_idx;
+    node.seen_commits = notified.size();
+  }
+
+  // A primary asks for retired nodes to be cleaned up when it is elected, and
+  // when it commits a configuration. It has then asked since it had a
+  // retirement to confirm, if it has one.
+  static void assert_cleanup_requested(
+    const ccf::NodeId& node_id, NodeDriver& node)
+  {
+    const auto requests = *node.cleanup_requests;
+    std::optional<aft::Term> primary_view = std::nullopt;
+    std::set<ccf::NodeId> unconfirmed;
+    if (node.cft->is_primary())
+    {
+      primary_view = node.cft->get_view();
+      unconfirmed = unconfirmed_retirements(*node.cft);
+      const auto was_primary = node.seen_primary_view == primary_view;
+      for (const auto& id : unconfirmed)
+      {
+        const auto seen = was_primary && node.seen_unconfirmed.contains(id);
+        if (!seen && requests == node.seen_cleanup_requests)
+        {
+          throw broken(fmt::format(
+            "Node {} is primary and has committed the retirement of {}, "
+            "without asking for retired nodes to be cleaned up",
+            node_id,
+            id));
+        }
+      }
+    }
+
+    node.seen_primary_view = primary_view;
+    node.seen_unconfirmed = unconfirmed;
+    node.seen_cleanup_requests = requests;
   }
 
 public:
@@ -255,6 +672,8 @@ public:
     for (auto& node : _nodes)
     {
       node.second.cft->add_configuration(0, configuration);
+      // No node can sign before one is elected
+      node.second.cft->start_ticking();
     }
   }
 
@@ -315,19 +734,74 @@ public:
     _replicate(term, {}, false, std::nullopt, retired_committed);
   }
 
-  void trust_nodes(
-    const std::string& term, const std::vector<std::string>& node_ids)
+  // What a real primary does when it handles the request of its consensus to
+  // clean up retired nodes: it confirms the retirement of each node whose
+  // retirement it has committed, and which it has yet to confirm
+  void cleanup_retired(const std::string& term)
   {
+    const auto primary = find_primary_in_term(term);
+    if (!primary.has_value())
+    {
+      CFT_DRIVER_PRINT(
+        "Note left of {}: No primary to clean up retired nodes",
+        _nodes.begin()->first);
+      return;
+    }
+
+    const auto& node_id = primary->second;
+    const auto unconfirmed = unconfirmed_retirements(*_nodes.at(node_id).cft);
+    if (unconfirmed.empty())
+    {
+      CFT_DRIVER_PRINT("Note over {}: No retired node to clean up", node_id);
+      return;
+    }
+
+    ccf::kv::Configuration::Nodes retired_committed;
+    for (const auto& id : unconfirmed)
+    {
+      retired_committed.try_emplace(id);
+    }
+    _replicate(term, {}, false, std::nullopt, retired_committed);
+  }
+
+  // With from_snapshot, each new node starts from a snapshot of the primary in
+  // term. If there is no such primary, it starts empty, as it does without.
+  void trust_nodes(
+    const std::string& term,
+    const std::vector<std::string>& node_ids,
+    bool from_snapshot = false)
+  {
+    std::optional<ccf::NodeId> snapshot_of = std::nullopt;
+    if (from_snapshot)
+    {
+      const auto primary = find_primary_in_term(term, false);
+      if (primary.has_value())
+      {
+        snapshot_of = primary->second;
+      }
+    }
     for (const auto& node_id : node_ids)
     {
-      add_node(node_id);
-      CFT_DRIVER_PRINT(
-        "Note over {}: Node {} trusted", ccf::NodeId(node_id), node_id);
+      add_node(node_id, true, snapshot_of);
+      if (snapshot_of.has_value())
+      {
+        CFT_DRIVER_PRINT(
+          "Note over {}: Node {} trusted, from a snapshot of {} at {}",
+          ccf::NodeId(node_id),
+          node_id,
+          snapshot_of.value(),
+          _nodes.at(node_id).cft->get_last_idx());
+      }
+      else
+      {
+        CFT_DRIVER_PRINT(
+          "Note over {}: Node {} trusted", ccf::NodeId(node_id), node_id);
+      }
     }
-    ccf::kv::Configuration::Nodes configuration;
-    for (const auto& [id, node] : _nodes)
+    ccf::kv::Configuration::Nodes configuration = latest_configuration(term);
+    for (const auto& node_id : node_ids)
     {
-      configuration.try_emplace(id);
+      configuration.try_emplace(node_id);
     }
     for (const auto& node_id : node_ids)
     {
@@ -358,15 +832,15 @@ public:
       CFT_DRIVER_PRINT(
         "Note over {}: Node {} retired", ccf::NodeId(node_out), node_out);
     }
-    std::set<std::string> out(nodes_out.begin(), nodes_out.end());
 
-    ccf::kv::Configuration::Nodes configuration;
-    for (const auto& [id, node] : _nodes)
+    ccf::kv::Configuration::Nodes configuration = latest_configuration(term);
+    for (const auto& node_out : nodes_out)
     {
-      if (out.find(id) == out.end())
-      {
-        configuration.try_emplace(id);
-      }
+      configuration.erase(node_out);
+    }
+    for (const auto& node_in : nodes_in)
+    {
+      configuration.try_emplace(node_in);
     }
     for (const auto& [id, node] : _nodes)
     {
@@ -526,26 +1000,12 @@ public:
     log(node_id, tgt_node_id, s, dropped);
   }
 
-  void log_msg_details(
-    ccf::NodeId node_id,
-    ccf::NodeId tgt_node_id,
-    const std::vector<uint8_t>& contents,
-    bool dropped = false)
+  // Calls f with the packet at the start of a queued message
+  template <typename F>
+  void visit_packet(const std::vector<uint8_t>& contents, F&& f)
   {
     const uint8_t* data = contents.data();
     size_t size = contents.size();
-
-    const auto log_packet = [&](const auto& packet) {
-      log_msg_details(node_id, tgt_node_id, packet, dropped);
-      if (dropped)
-      {
-        aft::trace::drop_pending_to(
-          _nodes.at(node_id).cft->get_state_for_trace(),
-          node_id.value(),
-          tgt_node_id.value(),
-          packet);
-      }
-    };
 
     const auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
     switch (msg_type)
@@ -553,37 +1013,37 @@ public:
       case (aft::CftMsgType::request_vote):
       {
         auto rv = *(aft::RequestVote*)data;
-        log_packet(rv);
+        f(rv);
         break;
       }
       case (aft::CftMsgType::request_pre_vote):
       {
         auto rpv = *(aft::RequestPreVote*)data;
-        log_packet(rpv);
+        f(rpv);
         break;
       }
       case (aft::CftMsgType::request_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
-        log_packet(rvr);
+        f(rvr);
         break;
       }
       case (aft::CftMsgType::request_pre_vote_response):
       {
         auto rvr = *(aft::RequestPreVoteResponse*)data;
-        log_packet(rvr);
+        f(rvr);
         break;
       }
       case (aft::CftMsgType::append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
-        log_packet(ae);
+        f(ae);
         break;
       }
       case (aft::CftMsgType::append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
-        log_packet(aer);
+        f(aer);
         break;
       }
       case (aft::CftMsgType::append_entries_signed_response):
@@ -594,7 +1054,7 @@ public:
       case (aft::CftMsgType::propose_request_vote):
       {
         auto prv = *(aft::ProposeRequestVote*)data;
-        log_packet(prv);
+        f(prv);
         break;
       }
       default:
@@ -603,6 +1063,42 @@ public:
           fmt::format("Unhandled CftMsgType: {}", msg_type));
       }
     }
+  }
+
+  void log_msg_details(
+    ccf::NodeId node_id,
+    ccf::NodeId tgt_node_id,
+    const std::vector<uint8_t>& contents,
+    bool dropped = false)
+  {
+    visit_packet(contents, [&](const auto& packet) {
+      log_msg_details(node_id, tgt_node_id, packet, dropped);
+      if (dropped)
+      {
+        aft::trace::drop_pending_to(
+          _nodes.at(node_id).cft->get_state_for_trace(),
+          node_id.value(),
+          tgt_node_id.value(),
+          packet);
+      }
+    });
+  }
+
+  // The packet of a queued message, with the fields which a trace records for
+  // it
+  nlohmann::json packet_fields(const std::vector<uint8_t>& contents)
+  {
+    std::vector<uint8_t> encoded;
+    visit_packet(contents, [&encoded](const auto& packet) {
+      write_msgpack(encoded, packet);
+    });
+    return nlohmann::json::from_msgpack(encoded);
+  }
+
+  // The packet of a queued message as JSON
+  std::string packet_json(const std::vector<uint8_t>& contents)
+  {
+    return packet_fields(contents).dump();
   }
 
   void connect(ccf::NodeId first, ccf::NodeId second)
@@ -787,51 +1283,21 @@ public:
   {
     if (_connections.find(std::make_pair(src, dst)) != _connections.end())
     {
-      // If this is AppendEntries, fetch the corresponding ledger entries.
+      // The entries of an AppendEntries follow its packet, since it was sent
       const uint8_t* data = contents.data();
       auto size = contents.size();
       auto msg_type = serialized::peek<aft::CftMsgType>(data, size);
-      bool should_send = true;
-      std::vector<uint8_t> body;
+      std::span<const uint8_t> packet = contents;
+      std::span<const uint8_t> entries;
       if (msg_type == aft::append_entries)
       {
-        // Parse the indices to be sent to the recipient.
-        auto ae = *(aft::AppendEntries*)data;
-
-        auto& sender_cft = _nodes.at(src).cft;
-        auto payload_opt = sender_cft->ledger->get_append_entries_payload(ae);
-
-        if (!payload_opt.has_value())
-        {
-          // While trying to construct an AppendEntries, we asked for an
-          // entry that doesn't exist. This is a valid situation - we queued
-          // the AppendEntries, but rolled back before it was dispatched!
-          // We abandon this operation here.
-          // We could log this in Mermaid with the line below, but since
-          // this does not occur in a real node it is silently ignored. In a
-          // real node, the AppendEntries and truncate messages are ordered
-          // and processed by the host in that order. All AppendEntries
-          // referencing a specific index will be processed before any
-          // truncation that removes that index.
-          // CFT_DRIVER_PRINT(
-          //        "Note right of {}: Abandoning AppendEntries"
-          //        "containing {} - no longer in ledger",
-          //        node_id,
-          //        idx);
-          should_send = false;
-        }
-        else
-        {
-          body = std::move(*payload_opt);
-        }
+        entries = packet.subspan(sizeof(aft::AppendEntries));
+        packet = packet.first(sizeof(aft::AppendEntries));
       }
 
-      if (should_send)
-      {
-        log_msg_details(src, dst, contents);
-        _nodes.at(dst).cft->recv_message(src, contents, body);
-        return true;
-      }
+      log_msg_details(src, dst, contents);
+      _nodes.at(dst).cft->recv_message(src, packet, entries);
+      return true;
     }
 
     // Log that this message was dropped
@@ -926,6 +1392,84 @@ public:
     }
   }
 
+  // The undelivered messages sent by src to dst, oldest first, each as
+  // packet_json
+  std::vector<std::string> pending_messages(ccf::NodeId src, ccf::NodeId dst)
+  {
+    std::vector<std::string> packets;
+    for (const auto& [target, contents] :
+         channel_stub_proxy(*_nodes.at(src).cft)->messages)
+    {
+      if (target == dst)
+      {
+        packets.push_back(packet_json(contents));
+      }
+    }
+    return packets;
+  }
+
+  // Removes and returns the undelivered message at position, counting from 0,
+  // among those sent by src to dst
+  std::vector<uint8_t> take_pending(
+    ccf::NodeId src, ccf::NodeId dst, size_t position)
+  {
+    auto& messages = channel_stub_proxy(*_nodes.at(src).cft)->messages;
+    size_t seen = 0;
+    for (auto it = messages.begin(); it != messages.end(); ++it)
+    {
+      if (it->first == dst && seen++ == position)
+      {
+        auto contents = std::move(it->second);
+        messages.erase(it);
+        return contents;
+      }
+    }
+
+    throw std::runtime_error(fmt::format(
+      "No undelivered message at position {} from {} to {}",
+      position,
+      src,
+      dst));
+  }
+
+  void dispatch_nth(ccf::NodeId src, ccf::NodeId dst, size_t position)
+  {
+    dispatch_single_message(src, dst, take_pending(src, dst, position));
+  }
+
+  void drop_nth(ccf::NodeId src, ccf::NodeId dst, size_t position)
+  {
+    log_msg_details(src, dst, take_pending(src, dst, position), true);
+  }
+
+  // Sets aside the undelivered message which dispatch_nth would deliver. It
+  // is no longer undelivered: no other step delivers or drops it.
+  void hold_nth(ccf::NodeId src, ccf::NodeId dst, size_t position)
+  {
+    auto contents = take_pending(src, dst, position);
+    CFT_DRIVER_PRINT(
+      "Note right of {}: Holding {} to {}",
+      src,
+      get_message_summary(contents),
+      dst);
+    _held.push_back({src, dst, std::move(contents)});
+  }
+
+  // Delivers the held message at position, counting from 0, or drops it if
+  // its sender and target are no longer connected
+  void dispatch_held(size_t position)
+  {
+    if (position >= _held.size())
+    {
+      throw std::runtime_error(
+        fmt::format("No held message at position {}", position));
+    }
+
+    auto held = std::move(_held.at(position));
+    _held.erase(_held.begin() + static_cast<std::ptrdiff_t>(position));
+    dispatch_single_message(held.src, held.dst, std::move(held.contents));
+  }
+
   std::vector<std::pair<aft::Term, ccf::NodeId>> find_primaries()
   {
     std::vector<std::pair<aft::Term, ccf::NodeId>> primaries;
@@ -939,8 +1483,9 @@ public:
     return primaries;
   }
 
+  // Unless required, there may be no primary in the term which term_s names
   std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(
-    const std::string& term_s)
+    const std::string& term_s, bool required = true)
   {
     auto primaries = find_primaries();
 
@@ -968,6 +1513,11 @@ public:
           return pair;
         }
       }
+    }
+
+    if (!required)
+    {
+      return std::nullopt;
     }
 
     throw std::runtime_error(
@@ -1214,18 +1764,27 @@ public:
 
     const auto& [term, primary] = term_primary;
 
-    // Don't try to confirm sync with retired nodes
+    // Don't try to confirm sync with retired nodes, or with nodes which the
+    // primary does not know, and so sends nothing to
+    const auto known = _nodes.at(primary).cft->get_details().acks;
     decltype(_nodes) nodes;
     for (auto& [node_id, node_driver] : _nodes)
     {
-      if (node_driver.cft->is_active())
-      {
-        nodes[node_id] = node_driver;
-      }
-      else
+      if (!node_driver.cft->is_active())
       {
         CFT_DRIVER_PRINT(
           "Note over {}: Ignoring from sync check, due to retirement", node_id);
+      }
+      else if (node_id != primary && !known.contains(node_id))
+      {
+        CFT_DRIVER_PRINT(
+          "Note over {}: Ignoring from sync check, as {} does not know it",
+          node_id,
+          primary);
+      }
+      else
+      {
+        nodes[node_id] = node_driver;
       }
     }
 
@@ -1341,6 +1900,14 @@ public:
     // Check invariants:
     // Assert commit_index on all nodes is safe
     assert_commit_safety_all();
+    // Assert that what each node reports and asks for agrees with its ledger
+    for (auto& [node_id, node] : _nodes)
+    {
+      assert_view_history(node_id, *node.cft);
+      assert_reported_primary(node_id, *node.cft);
+      assert_commit_notified(node_id, node);
+      assert_cleanup_requested(node_id, node);
+    }
   }
 
   void assert_commit_idx(ccf::NodeId node_id, const std::string& idx_s)
