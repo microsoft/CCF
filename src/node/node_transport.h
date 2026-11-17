@@ -5,7 +5,6 @@
 #include "ccf/crypto/ec_key_pair.h"
 #include "ccf/entity_id.h"
 #include "node/node_types.h"
-#include "tls/inbound_admission.h"
 
 #include <cstdint>
 #include <memory>
@@ -70,11 +69,6 @@ namespace ccf
       return false;
     }
 
-    virtual std::shared_ptr<tls::InboundAdmission> tls_inbound_admission()
-    {
-      return nullptr;
-    }
-
     virtual void stop_tls() {}
 
     virtual void close_tls(const NodeId& /*peer_id*/) {}
@@ -89,7 +83,7 @@ namespace ccf
       const crypto::Pem& /*node_cert*/)
     {}
 
-    virtual void send_tls(
+    virtual bool send_tls(
       const NodeId& /*to*/,
       NodeMsgType /*type*/,
       const NodeId& /*from*/,

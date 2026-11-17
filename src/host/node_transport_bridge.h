@@ -33,11 +33,6 @@ namespace asynchost
       return tls != nullptr && tls->enabled_for(peer);
     }
 
-    std::shared_ptr<ccf::tls::InboundAdmission> tls_inbound_admission() override
-    {
-      return tls != nullptr ? tls->inbound_admission() : nullptr;
-    }
-
     void stop_tls() override
     {
       if (tls != nullptr)
@@ -84,21 +79,27 @@ namespace asynchost
       legacy->send(to, type, from, std::move(payload));
     }
 
-    void send_tls(
+    bool send_tls(
       const ccf::NodeId& to,
       ccf::NodeMsgType type,
       const ccf::NodeId& from,
       std::vector<uint8_t>&& payload) override
     {
-      send_node_frame(
-        ledger,
-        ledger_subsystem,
+      return tls->send(
         to,
         type,
-        from,
-        std::move(payload),
-        [tls = tls, to, type](std::vector<uint8_t>&& frame) {
-          tls->send(to, type, std::move(frame));
+        [this, to, type, from, payload = std::move(payload)](
+          ::tcp::ConnID id) mutable {
+          send_node_frame(
+            ledger,
+            ledger_subsystem,
+            to,
+            type,
+            from,
+            std::move(payload),
+            [tls = tls, id](std::vector<uint8_t>&& frame) {
+              tls->send_frame(id, std::move(frame));
+            });
         });
     }
 

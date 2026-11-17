@@ -89,7 +89,6 @@ namespace ccf::tls
       std::shared_ptr<InboundAdmission> inbound_admission = nullptr;
       OnHandshake on_handshake = {};
       std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt;
-      std::optional<size_t> max_pending_write_bytes = std::nullopt;
       // Owner callbacks run on the loop and remain valid until stop returns.
       std::function<void()> on_wake = {};
       std::function<void()> on_stop = {};
@@ -263,8 +262,6 @@ namespace ccf::tls
     OnClose on_close;
     OnHandshake on_handshake;
     std::optional<TrafficKeyPolicy> traffic_key_policy;
-    std::optional<size_t> max_pending_write_bytes;
-    size_t pending_out_bytes CCF_GUARDED_BY(out_mutex) = 0;
     std::function<void()> owner_wake;
     std::function<void()> owner_stop;
     std::function<void(::tcp::ConnID, std::vector<uint8_t>, bool)>
@@ -867,16 +864,6 @@ namespace ccf::tls
 
       for (auto& command : input.commands)
       {
-        if (
-          max_pending_write_bytes &&
-          command.data.size() > *max_pending_write_bytes -
-              std::min(conn->outbuf.size(), *max_pending_write_bytes))
-        {
-          LOG_FAIL_FMT("Connection {}: outbound TLS buffer full", conn->id);
-          conn->abort_tls = true;
-          alive = false;
-          break;
-        }
         if (command.close)
         {
           conn->close_after_flush = true;
@@ -900,11 +887,11 @@ namespace ccf::tls
         conn->close_after_flush = true;
       }
 
-      if (alive && conn->state == Conn::Handshaking)
+      if (conn->state == Conn::Handshaking)
       {
         alive = do_handshake(*conn, more_to_read);
       }
-      else if (alive)
+      else
       {
         if ((input.events & (UV_READABLE | UV_DISCONNECT)) != 0)
         {
@@ -1057,26 +1044,6 @@ namespace ccf::tls
       }
     }
 
-    void queue_write(Conn& conn, OutItem&& item)
-    {
-      if (max_pending_write_bytes)
-      {
-        size_t pending = item.data.size();
-        for (const auto& command : conn.pending_commands)
-        {
-          pending += command.data.size();
-        }
-        if (pending > *max_pending_write_bytes)
-        {
-          LOG_FAIL_FMT("Connection {}: outbound TLS queue full", item.id);
-          conn.force_close = true;
-          return;
-        }
-      }
-      conn.last_active = std::chrono::steady_clock::now();
-      conn.pending_commands.push_back(std::move(item));
-    }
-
     // Apply worker completions and cross-thread commands on the libuv thread.
     void drain_pending_out() CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
@@ -1087,7 +1054,6 @@ namespace ccf::tls
         ccf::ds::MutexGuard g(out_mutex);
         recheck_all = std::exchange(recheck_read_interest, false);
         std::swap(items, pending_out);
-        pending_out_bytes = 0;
         std::swap(completions, completed_drives);
       }
 
@@ -1122,7 +1088,8 @@ namespace ccf::tls
         }
         else
         {
-          queue_write(*cit->second, std::move(item));
+          cit->second->last_active = std::chrono::steady_clock::now();
+          cit->second->pending_commands.push_back(std::move(item));
         }
         mark_dirty(cit->second);
       }
@@ -1561,7 +1528,6 @@ namespace ccf::tls
       on_close(std::move(on_close_)),
       on_handshake(std::move(config.on_handshake)),
       traffic_key_policy(config.traffic_key_policy),
-      max_pending_write_bytes(config.max_pending_write_bytes),
       owner_wake(std::move(config.on_wake)),
       owner_stop(std::move(config.on_stop)),
       on_unconnected(std::move(config.on_unconnected))
@@ -1734,19 +1700,7 @@ namespace ccf::tls
     {
       {
         ccf::ds::MutexGuard g(out_mutex);
-        if (
-          max_pending_write_bytes &&
-          data.size() > *max_pending_write_bytes - pending_out_bytes)
-        {
-          LOG_FAIL_FMT(
-            "Connection {}: outbound submission queue full", conn_id);
-          pending_out.push_back({conn_id, {}, true});
-        }
-        else
-        {
-          pending_out_bytes += data.size();
-          pending_out.push_back({conn_id, std::move(data), false});
-        }
+        pending_out.push_back({conn_id, std::move(data), false});
       }
       wake();
     }

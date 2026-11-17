@@ -31,7 +31,6 @@ namespace ccf::tls
       // the connection. See OpenSSLConnectionEngine::OnHandshake.
       OnHandshake on_handshake = {};
       std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt;
-      std::optional<size_t> max_pending_write_bytes = std::nullopt;
     };
 
     struct ConnectConfig
@@ -91,7 +90,6 @@ namespace ccf::tls
     std::shared_ptr<OpenSSLConnectionEngine> engine;
     uv_loop_t* loop;
     OnClose on_close;
-    std::optional<size_t> max_pending_write_bytes;
     ccf::ds::Mutex pending_mutex;
     std::vector<std::pair<::tcp::ConnID, ConnectConfig>> pending_connects
       CCF_GUARDED_BY(pending_mutex);
@@ -513,17 +511,6 @@ namespace ccf::tls
       }
       else
       {
-        size_t pending = data.size();
-        for (const auto& command : it->second->pending_commands)
-        {
-          pending += command.data.size();
-        }
-        if (max_pending_write_bytes && pending > *max_pending_write_bytes)
-        {
-          LOG_FAIL_FMT("Connection {}: outbound establishment queue full", id);
-          cancel_dial(id);
-          return;
-        }
         it->second->pending_commands.push_back({id, std::move(data), false});
       }
     }
@@ -532,8 +519,7 @@ namespace ccf::tls
     // hold weak_from_this(), which is empty unless a shared_ptr owns this.
     OpenSSLClient(Config config, OnData on_data_, OnClose on_close_) :
       loop(config.loop),
-      on_close(std::move(on_close_)),
-      max_pending_write_bytes(config.max_pending_write_bytes)
+      on_close(std::move(on_close_))
     {
       OpenSSLConnectionEngine::Config engine_config{
         .loop = loop,
@@ -542,7 +528,6 @@ namespace ccf::tls
         .inbound_admission = std::move(config.inbound_admission),
         .on_handshake = std::move(config.on_handshake),
         .traffic_key_policy = config.traffic_key_policy,
-        .max_pending_write_bytes = config.max_pending_write_bytes,
         .on_wake = [this]() { start_connects(); },
         .on_stop = [this]() { stop_connects(); },
         .on_unconnected =

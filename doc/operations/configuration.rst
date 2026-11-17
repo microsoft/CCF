@@ -67,6 +67,7 @@ For example:
     }
 
 Keep the legacy ``node_to_node_interface`` configured and reachable for mixed networks.
+Restrict network access to both node-to-node ports to the trusted service nodes.
 TLS is selected only when both the local node and the recorded peer endpoint support it, never as a failure-triggered fallback.
 Omitting the TLS interface disables incoming and outgoing N2N TLS on that node.
 When port zero is requested, ``output_files.node_to_node_address_file`` includes the resolved TLS address alongside the legacy address.

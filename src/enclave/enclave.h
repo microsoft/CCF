@@ -254,8 +254,9 @@ namespace ccf
           NodeMsgType type,
           const NodeId& from,
           const uint8_t* data,
-          size_t size) { node->recv_node_tls_inbound(type, from, data, size); },
-        node_transport->tls_inbound_admission());
+          size_t size) {
+          node->recv_node_tls_inbound(type, from, data, size);
+        });
       node_transport->set_inbound_handler(node_ingress);
 
       rpcsessions->update_listening_interface_options(ccf_config_.network);

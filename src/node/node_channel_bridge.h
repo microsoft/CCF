@@ -67,9 +67,8 @@ namespace ccf
         return NodeToNodeChannelManager::send_authenticated(
           to, type, data, size);
       }
-      transport->send_tls(
+      return transport->send_tls(
         to, type, self, std::vector<uint8_t>(data, data + size));
-      return true;
     }
 
     bool send_encrypted(
@@ -84,8 +83,7 @@ namespace ccf
       }
       std::vector<uint8_t> payload(header.begin(), header.end());
       payload.insert(payload.end(), data.begin(), data.end());
-      transport->send_tls(to, type, self, std::move(payload));
-      return true;
+      return transport->send_tls(to, type, self, std::move(payload));
     }
   };
 }

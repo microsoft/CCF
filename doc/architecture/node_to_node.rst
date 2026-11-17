@@ -38,9 +38,14 @@ If blocked control output aborts a connection, later sends establish a fresh aut
 Consensus retries replication through its existing protocol; forwarded calls are never automatically replayed and may return the existing forwarding timeout.
 Idle streams expire after four election timeouts.
 
-TLS admits at most 128 incoming connections, closes incomplete incoming handshakes after five seconds, bounds partial-frame buffering across streams to approximately twice the configured node-to-node frame limit, and pauses application reads while the 64MiB ingress budget is exhausted.
-Each queued frame is charged at least 1KiB so tiny frames cannot queue unlimited tasks.
-Outbound submission, establishment, per-connection command, and plaintext buffers are bounded by the maximum frame size plus its length prefix; exhaustion closes the affected stream instead of replaying or downgrading it.
+This transport connects trusted service nodes; operators must restrict network access to the node-to-node ports to those nodes.
+Its resource policy aims for parity with legacy channels, not general-purpose listener or memory-exhaustion protection.
+While establishing each outgoing TLS stream, the owner retains only the latest consensus message or up to ten forwarded messages in arrival order.
+Additional forwarding sends report failure to the caller.
+Ledger frame assembly is deferred until the stream is authenticated, so replaced consensus messages do not trigger ledger reads.
+Failed establishment discards queued messages rather than replaying them on another connection.
+Once established, streams use the shared engine's existing buffering and backpressure without an aggregate memory budget.
+The configured ``node_to_node.max_message_size`` still limits individual incoming frames; vector capacity reuse and memory use with slow established peers are not given stronger guarantees than the legacy transport.
 
 Legacy Channels
 ~~~~~~~~~~~~~~~

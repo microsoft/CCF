@@ -14,6 +14,7 @@
 #include <condition_variable>
 #include <csignal>
 #include <doctest/doctest.h>
+#include <future>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
@@ -120,6 +121,20 @@ namespace
     serialized::write(out, remaining, from.value());
     serialized::write(out, remaining, payload.data(), payload.size());
     return result;
+  }
+
+  bool send_frame(
+    ccf::NodeTLS& sender,
+    const ccf::NodeId& peer,
+    ccf::NodeMsgType purpose,
+    std::vector<uint8_t> framed)
+  {
+    return sender.send(
+      peer,
+      purpose,
+      [&sender, framed = std::move(framed)](::tcp::ConnID id) mutable {
+        sender.send_frame(id, std::move(framed));
+      });
   }
 
   struct Receiver : ccf::NodeInboundHandler
@@ -298,6 +313,7 @@ namespace
     size_t identities = 0;
     size_t legacy_closes = 0;
     size_t tls_closes = 0;
+    bool tls_send_result = true;
 
     void associate_node_address(
       const ccf::NodeId&, const std::string&, const std::string&) override
@@ -345,13 +361,14 @@ namespace
       ++identities;
     }
 
-    void send_tls(
+    bool send_tls(
       const ccf::NodeId&,
       ccf::NodeMsgType purpose,
       const ccf::NodeId& from,
       std::vector<uint8_t>&& payload) override
     {
       tls_messages.push_back({purpose, from, std::move(payload)});
+      return tls_send_result;
     }
   };
 }
@@ -365,11 +382,13 @@ TEST_CASE("NodeTLS accepts endorsed identities on separate purpose streams")
   LoopRunner loop;
   const auto consensus = consensus_payload();
   const auto forwarding = forwarding_payload();
-  sender.send(
+  send_frame(
+    sender,
     f.bob.id(),
     ccf::consensus_msg,
     frame(f.alice.id(), ccf::consensus_msg, consensus));
-  sender.send(
+  send_frame(
+    sender,
     f.bob.id(),
     ccf::forwarded_msg,
     frame(f.alice.id(), ccf::forwarded_msg, forwarding));
@@ -384,6 +403,167 @@ TEST_CASE("NodeTLS accepts endorsed identities on separate purpose streams")
       (message.purpose == ccf::consensus_msg ? consensus : forwarding));
   }
   CHECK(messages[0].purpose != messages[1].purpose);
+}
+
+TEST_CASE("NodeTLS bounds callbacks only while establishing a purpose stream")
+{
+  auto purpose = ccf::consensus_msg;
+  SUBCASE("consensus keeps only its latest pending callback") {}
+  SUBCASE("forwarding keeps its first ten pending callbacks in order")
+  {
+    purpose = ccf::forwarded_msg;
+  }
+
+  Fixture f;
+  ccf::NodeTLS sender{"127.0.0.1", 0, Fixture::MAX_FRAME_SIZE, 10s};
+  sender.set_identity(f.service.cert, f.alice.key, f.alice.cert);
+  sender.associate(f.bob.id(), fmt::format("127.0.0.1:{}", f.node.port()));
+  std::atomic<size_t> callbacks = 0;
+  std::atomic<::tcp::ConnID> stream_id = 0;
+  const auto payload = [&](uint8_t sequence) {
+    auto result = purpose == ccf::consensus_msg ? consensus_payload() :
+                                                  forwarding_payload();
+    result.push_back(sequence);
+    return result;
+  };
+  const auto queue = [&](uint8_t sequence) {
+    return sender.send(
+      f.bob.id(),
+      purpose,
+      [&, framed = frame(f.alice.id(), purpose, payload(sequence))](
+        ::tcp::ConnID id) mutable {
+        const auto previous = stream_id.exchange(id);
+        if (previous != 0)
+        {
+          CHECK(id == previous);
+        }
+        ++callbacks;
+        sender.send_frame(id, std::move(framed));
+      });
+  };
+
+  // Without running libuv, no TCP connection or TLS handshake can complete.
+  for (uint8_t sequence = 0; sequence < 12; ++sequence)
+  {
+    CHECK(queue(sequence) == (purpose == ccf::consensus_msg || sequence < 10));
+  }
+  CHECK(callbacks == 0);
+  CHECK(f.received->snapshot().empty());
+
+  const size_t pending_count = purpose == ccf::consensus_msg ? 1 : 10;
+  LoopRunner loop;
+  REQUIRE(f.received->wait(pending_count));
+  CHECK(callbacks == pending_count);
+  const auto pending = f.received->snapshot();
+  REQUIRE(pending.size() == pending_count);
+  for (size_t i = 0; i < pending_count; ++i)
+  {
+    CHECK(pending[i].from == f.alice.id());
+    CHECK(pending[i].purpose == purpose);
+    CHECK(
+      pending[i].payload == payload(purpose == ccf::consensus_msg ? 11 : i));
+  }
+
+  for (uint8_t sequence = 12; sequence < 27; ++sequence)
+  {
+    CHECK(queue(sequence));
+    CHECK(callbacks == pending_count + sequence - 11);
+  }
+  REQUIRE(f.received->wait(pending_count + 15));
+  CHECK_FALSE(f.received->wait(pending_count + 16, 50ms));
+  const auto established = f.received->snapshot();
+  REQUIRE(established.size() == pending_count + 15);
+  for (size_t i = 0; i < 15; ++i)
+  {
+    CHECK(established[pending_count + i].from == f.alice.id());
+    CHECK(established[pending_count + i].purpose == purpose);
+    CHECK(established[pending_count + i].payload == payload(12 + i));
+  }
+}
+
+TEST_CASE("NodeTLS discards pending callbacks on failed establishment or close")
+{
+  const auto check_discarded = [](ccf::NodeMsgType purpose, bool local_close) {
+    Fixture f;
+    Identity unexpected;
+    f.service.endorse(unexpected);
+    if (!local_close)
+    {
+      f.node.set_identity(f.service.cert, unexpected.key, unexpected.cert);
+    }
+    ccf::NodeTLS sender{"127.0.0.1", 0, Fixture::MAX_FRAME_SIZE, 10s};
+    sender.set_identity(f.service.cert, f.alice.key, f.alice.cert);
+    sender.associate(f.bob.id(), fmt::format("127.0.0.1:{}", f.node.port()));
+    std::atomic<size_t> callbacks = 0;
+    std::vector<std::future<void>> discarded;
+    const size_t count = purpose == ccf::consensus_msg ? 1 : 10;
+    for (size_t i = 0; i < count; ++i)
+    {
+      auto pending = std::make_shared<std::promise<void>>();
+      discarded.push_back(pending->get_future());
+      REQUIRE(sender.send(
+        f.bob.id(),
+        purpose,
+        [&, pending, framed = frame(f.alice.id(), purpose, {0xaa})](
+          ::tcp::ConnID id) mutable {
+          ++callbacks;
+          pending->set_value();
+          sender.send_frame(id, std::move(framed));
+        }));
+    }
+    CHECK(callbacks == 0);
+    if (local_close)
+    {
+      sender.close(f.bob.id());
+      for (auto& callback : discarded)
+      {
+        CHECK(callback.wait_for(0s) == std::future_status::ready);
+      }
+    }
+    {
+      LoopRunner loop;
+      // A broken promise observes destruction, not just lack of delivery.
+      for (auto& callback : discarded)
+      {
+        REQUIRE(callback.wait_for(3s) == std::future_status::ready);
+        CHECK_THROWS_AS(callback.get(), std::future_error);
+      }
+      CHECK(callbacks == 0);
+      CHECK(f.received->snapshot().empty());
+    }
+
+    f.node.set_identity(f.service.cert, f.bob.key, f.bob.cert);
+    {
+      LoopRunner loop;
+      CHECK_FALSE(f.received->wait(1, 50ms));
+      REQUIRE(send_frame(
+        sender, f.bob.id(), purpose, frame(f.alice.id(), purpose, {0xbb})));
+      REQUIRE(f.received->wait(1));
+      CHECK_FALSE(f.received->wait(2, 50ms));
+      const auto messages = f.received->snapshot();
+      REQUIRE(messages.size() == 1);
+      CHECK(messages[0].from == f.alice.id());
+      CHECK(messages[0].purpose == purpose);
+      CHECK(messages[0].payload == std::vector<uint8_t>{0xbb});
+      CHECK(callbacks == 0);
+    }
+  };
+  SUBCASE("consensus authentication failure")
+  {
+    check_discarded(ccf::consensus_msg, false);
+  }
+  SUBCASE("forwarding authentication failure")
+  {
+    check_discarded(ccf::forwarded_msg, false);
+  }
+  SUBCASE("consensus local close before authentication")
+  {
+    check_discarded(ccf::consensus_msg, true);
+  }
+  SUBCASE("forwarding local close before authentication")
+  {
+    check_discarded(ccf::forwarded_msg, true);
+  }
 }
 
 TEST_CASE("NodeTLS enforces mutual authentication and strict ALPN/TLS1.3")
@@ -511,13 +691,15 @@ TEST_CASE("NodeTLS authenticates the expected outgoing peer identity")
   const ccf::NodeId wrong_peer{std::string(64, '0')};
   sender.associate(wrong_peer, fmt::format("127.0.0.1:{}", f.node.port()));
   LoopRunner loop;
-  sender.send(
+  send_frame(
+    sender,
     wrong_peer,
     ccf::consensus_msg,
     frame(f.alice.id(), ccf::consensus_msg, consensus_payload()));
   CHECK_FALSE(f.received->wait(1, 150ms));
   sender.associate(f.bob.id(), fmt::format("127.0.0.1:{}", f.node.port()));
-  sender.send(
+  send_frame(
+    sender,
     f.bob.id(),
     ccf::consensus_msg,
     frame(f.alice.id(), ccf::consensus_msg, consensus_payload()));
@@ -664,6 +846,7 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
   sender.set_identity(f.service.cert, f.alice.key, f.alice.cert);
   sender.associate(f.bob.id(), fmt::format("127.0.0.1:{}", observer.port()));
   std::vector<uint8_t> initial;
+  ::tcp::ConnID old_outgoing_id = 0;
   {
     LoopRunner loop;
     for (uint8_t sequence = 0; sequence < 8; ++sequence)
@@ -672,7 +855,7 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
       payload.push_back(sequence);
       const auto message = frame(f.alice.id(), ccf::consensus_msg, payload);
       initial.insert(initial.end(), message.begin(), message.end());
-      sender.send(f.bob.id(), ccf::consensus_msg, message);
+      send_frame(sender, f.bob.id(), ccf::consensus_msg, message);
       std::unique_lock lock(mutex);
       REQUIRE(cv.wait_for(
         lock, 3s, [&]() { return received.size() == initial.size(); }));
@@ -680,6 +863,10 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
       REQUIRE(received == initial);
     }
     CHECK(key_updates >= 3);
+    REQUIRE(sender.send(f.bob.id(), ccf::consensus_msg, [&](::tcp::ConnID id) {
+      old_outgoing_id = id;
+    }));
+    REQUIRE(old_outgoing_id != 0);
   }
   // With the loop paused, this frame is certainly queued rather than written.
   // FIFO processing may still deliver it before applying close, but must never
@@ -688,7 +875,7 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
   abandoned_payload.push_back(0xaa);
   const auto abandoned =
     frame(f.alice.id(), ccf::consensus_msg, abandoned_payload);
-  sender.send(f.bob.id(), ccf::consensus_msg, abandoned);
+  send_frame(sender, f.bob.id(), ccf::consensus_msg, abandoned);
   if (remote_close)
   {
     observer.close_connection(incoming_id);
@@ -715,7 +902,7 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
     auto next_payload = consensus_payload();
     next_payload.push_back(0xbb);
     const auto next = frame(f.alice.id(), ccf::consensus_msg, next_payload);
-    sender.send(f.bob.id(), ccf::consensus_msg, next);
+    send_frame(sender, f.bob.id(), ccf::consensus_msg, next);
     std::unique_lock lock(mutex);
     REQUIRE(cv.wait_for(lock, 3s, [&]() {
       return received.size() >= before_reconnect.size() + next.size();
@@ -724,6 +911,13 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
     expected.insert(expected.end(), next.begin(), next.end());
     CHECK(received == expected);
     CHECK(handshakes == 2);
+    lock.unlock();
+    // Ledger-ordered assembly can finish after its original stream is gone.
+    sender.send_frame(
+      old_outgoing_id, frame(f.alice.id(), ccf::consensus_msg, {0xcc}));
+    lock.lock();
+    CHECK_FALSE(cv.wait_for(
+      lock, 150ms, [&]() { return received != expected || handshakes != 2; }));
   }
 }
 
@@ -759,6 +953,14 @@ TEST_CASE("NodeChannelBridge selects TLS only from recorded metadata")
   expected.insert(expected.end(), body.begin(), body.end());
   CHECK(transport->tls_messages[1].payload == expected);
   CHECK(transport->legacy_messages == legacy_count);
+  transport->tls_send_result = false;
+  CHECK_FALSE(channels.send_authenticated(
+    bob.id(), ccf::consensus_msg, consensus.data(), consensus.size()));
+  CHECK_FALSE(
+    channels.send_encrypted(bob.id(), ccf::forwarded_msg, forwarding, body));
+  CHECK(transport->tls_messages.size() == 4);
+  CHECK(transport->legacy_messages == legacy_count);
+  transport->tls_send_result = true;
   channels.set_endorsed_node_cert(alice.cert);
   CHECK(transport->identities == 2);
   channels.set_idle_timeout(1ms);
@@ -770,7 +972,7 @@ TEST_CASE("NodeChannelBridge selects TLS only from recorded metadata")
   channels.associate_node_tls_address(bob.id(), std::nullopt);
   channels.send_authenticated(
     bob.id(), ccf::consensus_msg, consensus.data(), consensus.size());
-  CHECK(transport->tls_messages.size() == 2);
+  CHECK(transport->tls_messages.size() == 4);
 }
 
 int main(int argc, char** argv)

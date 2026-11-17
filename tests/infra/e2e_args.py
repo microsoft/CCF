@@ -93,6 +93,7 @@ CLI_ARGUMENT_CONFIG_PATHS = {
     "ledger_max_read_bytes": "ledger.max_read_size",
     "ledger_max_pending_append_bytes": "ledger.max_pending_append_bytes",
     "node_to_node_max_message_bytes": "node_to_node.max_message_size",
+    "node_to_node_tls": None,
     "gov_api_version": None,
 }
 

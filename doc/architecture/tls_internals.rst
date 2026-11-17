@@ -104,7 +104,7 @@ An update is attempted between completed application writes, only when the socke
 If the update does not complete immediately, the connection is closed without further TLS I/O.
 An opted-in read or write which stalls on TLS control output is also closed rather than worked around.
 Ordinary application-write backpressure retains normal retry handling.
-This intentionally trades connection continuity for a small policy: there are no retry deadlines, extra ciphertext buffers or policy-specific output budgets.
+This intentionally trades connection continuity for a small policy: there are no retry deadlines, extra ciphertext buffers or output budgets.
 The owner must reconnect and recover outstanding application work; the engine does not replay it.
 
 Certificates
@@ -117,7 +117,6 @@ An interface starts listening before its certificate is necessarily known. A joi
 The RPC server context sets a minimum version of TLS 1.2 and, when the interface is configured for HTTP/2, advertises ``h2`` via ALPN.
 N2N supplies a ``context_factory`` to build its mutually authenticated TLS 1.3 context, including its ALPN selection policy.
 The factory also handles replacement certificates for future handshakes.
-The optional server ``handshake_timeout`` bounds accepted connections' establishment independently of activity; RPC leaves it unset.
 
 Cryptographic policy
 ~~~~~~~~~~~~~~~~~~~~
@@ -179,9 +178,8 @@ Writing and backpressure
 
 Writes are where genuine backpressure appears. ``SSL_write`` on a non-blocking socket may report ``SSL_ERROR_WANT_WRITE`` after consuming only part of the buffer. The remainder stays buffered against the connection, ``UV_WRITABLE`` is armed, and the write resumes when the socket next becomes writable. Because the socket is owned by OpenSSL and is non-blocking, this reflects the real state of the :term:`TCP` send buffer rather than an internal approximation.
 
-N2N sets ``max_pending_write_bytes`` to bound outbound submission, establishment, per-connection commands, and plaintext buffers.
-Exceeding a bound closes the affected connection and discards subsequent unsent work; the owner handles recovery.
-RPC leaves this optional bound unset, preserving its existing behavior.
+N2N limits pending messages during establishment in its owner, before frame assembly; see :doc:`node_to_node`.
+The shared engine does not impose an aggregate output memory budget.
 
 Closing
 ~~~~~~~

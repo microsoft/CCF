@@ -356,9 +356,10 @@ class Node:
         if self.host.node_to_node_tls_interface is not None:
             interface = self.host.node_to_node_tls_interface
             kwargs["node_to_node_tls_interface"] = {
+                **kwargs.get("node_to_node_tls_interface", {}),
                 "bind_address": infra.interfaces.make_address(
                     interface.host, interface.port
-                )
+                ),
             }
         self.remote = infra.remote.CCFRemote(
             start_type,

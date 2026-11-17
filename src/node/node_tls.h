@@ -9,6 +9,7 @@
 #include "tls/openssl_server.h"
 
 #include <charconv>
+#include <functional>
 #include <map>
 #include <mutex>
 
@@ -20,7 +21,7 @@ namespace ccf
   {
     static constexpr std::string_view CONSENSUS_ALPN = "ccf-consensus/1";
     static constexpr std::string_view FORWARDING_ALPN = "ccf-forwarding/1";
-    static constexpr size_t MAX_INCOMING_CONNECTIONS = 128;
+    static constexpr size_t FORWARDING_QUEUE_SIZE = 10;
 
     struct Connection
     {
@@ -28,6 +29,7 @@ namespace ccf
       std::optional<NodeId> peer;
       NodeMsgType purpose = consensus_msg;
       std::vector<uint8_t> pending;
+      std::vector<std::function<void(::tcp::ConnID)>> pending_sends;
       bool authenticated = false;
       bool rejected = false;
     };
@@ -46,9 +48,6 @@ namespace ccf
     const size_t max_frame_size;
     const std::optional<std::chrono::milliseconds> tcp_timeout;
     const std::string source_host;
-    size_t buffered_bytes = 0;
-    std::shared_ptr<tls::InboundAdmission> admission =
-      std::make_shared<tls::InboundAdmission>(64 * 1024 * 1024);
 
     static std::string_view alpn(NodeMsgType purpose)
     {
@@ -137,8 +136,14 @@ namespace ccf
     bool handshake(::tcp::ConnID id, SSL* ssl, bool is_outgoing)
     {
       std::lock_guard guard(mutex);
+      if (!is_outgoing)
+      {
+        connections.try_emplace(id);
+      }
       const auto it = connections.find(id);
-      if (it == connections.end() || SSL_get_verify_result(ssl) != X509_V_OK)
+      if (
+        it == connections.end() || it->second.rejected ||
+        SSL_get_verify_result(ssl) != X509_V_OK)
       {
         return false;
       }
@@ -192,6 +197,11 @@ namespace ccf
         }
       }
       connection.authenticated = true;
+      for (auto& send : connection.pending_sends)
+      {
+        send(id);
+      }
+      connection.pending_sends.clear();
       LOG_INFO_FMT("N2N TLS {} authenticated {} ({})", id, peer, protocol);
       return true;
     }
@@ -199,6 +209,7 @@ namespace ccf
     void close_connection(::tcp::ConnID id, Connection& connection)
     {
       connection.rejected = true;
+      connection.pending_sends.clear();
       if (connection.outgoing)
       {
         client->close_connection(id);
@@ -224,19 +235,8 @@ namespace ccf
         close_connection(id, connection);
         return;
       }
-      // A read is at most 16KiB. Bound partial-frame storage even before the
-      // declared size can be decoded.
-      if (
-        connection.pending.size() + bytes.size() > max_frame_size + 16388 ||
-        buffered_bytes + bytes.size() > max_frame_size * 2 + 16388)
-      {
-        LOG_FAIL_FMT("N2N TLS {}: receive buffer limit exceeded", id);
-        close_connection(id, connection);
-        return;
-      }
       connection.pending.insert(
         connection.pending.end(), bytes.begin(), bytes.end());
-      buffered_bytes += bytes.size();
       size_t consumed = 0;
       try
       {
@@ -276,7 +276,6 @@ namespace ccf
       }
       connection.pending.erase(
         connection.pending.begin(), connection.pending.begin() + consumed);
-      buffered_bytes -= consumed;
     }
 
     void closed(::tcp::ConnID id)
@@ -299,7 +298,6 @@ namespace ccf
         }
       }
       LOG_DEBUG_FMT("N2N TLS {} closed; discarding outstanding output", id);
-      buffered_bytes -= it->second.pending.size();
       connections.erase(it);
     }
 
@@ -336,10 +334,8 @@ namespace ccf
       client = tls::OpenSSLClient::create(
         {.idle_timeout = idle_timeout,
          .shared_next_id = &next_id,
-         .inbound_admission = admission,
          .on_handshake = authenticate,
-         .traffic_key_policy = key_policy,
-         .max_pending_write_bytes = max_frame_size + sizeof(uint32_t)},
+         .traffic_key_policy = key_policy},
         data,
         close);
       server = std::make_unique<tls::OpenSSLServer>(
@@ -348,7 +344,6 @@ namespace ccf
           .port = port,
           .idle_timeout = idle_timeout,
           .shared_next_id = &next_id,
-          .inbound_admission = admission,
           .on_handshake = authenticate,
           .traffic_key_policy = key_policy,
           .tcp_user_timeout = tcp_timeout,
@@ -356,22 +351,9 @@ namespace ccf
             [this](const std::string& cert, const std::string& private_key) {
               std::lock_guard guard(mutex);
               return make_context(cert, private_key, true);
-            },
-          .max_pending_write_bytes = max_frame_size + sizeof(uint32_t),
-          .handshake_timeout = std::chrono::milliseconds(5000)},
+            }},
         data,
-        close,
-        [this](::tcp::ConnID id) -> std::optional<bool> {
-          std::lock_guard guard(mutex);
-          const auto incoming = connections.size() - outgoing.size();
-          if (incoming >= MAX_INCOMING_CONNECTIONS)
-          {
-            LOG_FAIL_FMT("N2N TLS: incoming connection limit reached");
-            return std::nullopt;
-          }
-          connections.emplace(id, Connection{});
-          return false;
-        });
+        close);
       client->start();
       server->start();
     }
@@ -384,11 +366,6 @@ namespace ccf
     [[nodiscard]] uint16_t port() const
     {
       return server->port();
-    }
-
-    std::shared_ptr<tls::InboundAdmission> inbound_admission()
-    {
-      return admission;
     }
 
     void stop()
@@ -448,15 +425,19 @@ namespace ccf
       }
     }
 
-    void send(
-      const NodeId& peer, NodeMsgType purpose, std::vector<uint8_t> frame)
+    // on_ready schedules ledger-ordered frame assembly for this stream only.
+    // A failed stream discards callbacks which have not run, without replay.
+    bool send(
+      const NodeId& peer,
+      NodeMsgType purpose,
+      std::function<void(::tcp::ConnID)> on_ready)
     {
       std::lock_guard guard(mutex);
       const auto address = addresses.find(peer);
       if (address == addresses.end() || !node_cert)
       {
         LOG_DEBUG_FMT("N2N TLS: dropping send to {} before setup", peer);
-        return;
+        return false;
       }
       const auto stream = std::make_pair(peer, purpose);
       auto current = outgoing.find(stream);
@@ -474,7 +455,7 @@ namespace ccf
             "N2N TLS: invalid recorded endpoint for {}: {}",
             peer,
             address->second);
-          return;
+          return false;
         }
         auto ctx =
           make_context(node_cert->str(), key->private_key_pem().str(), false);
@@ -496,15 +477,54 @@ namespace ccf
         if (!id)
         {
           LOG_DEBUG_FMT("N2N TLS: dropping send to {} during shutdown", peer);
-          return;
+          return false;
         }
         connections.emplace(
           *id,
           Connection{
-            .outgoing = true, .peer = peer, .purpose = purpose, .pending = {}});
+            .outgoing = true,
+            .peer = peer,
+            .purpose = purpose,
+            .pending = {},
+            .pending_sends = {}});
         current = outgoing.emplace(stream, *id).first;
       }
-      client->send(current->second, std::move(frame));
+      auto& connection = connections.at(current->second);
+      if (connection.rejected)
+      {
+        LOG_DEBUG_FMT("N2N TLS: dropping send to {} while closing", peer);
+        return false;
+      }
+      if (connection.authenticated)
+      {
+        on_ready(current->second);
+        return true;
+      }
+
+      // Match legacy channel establishment: retain the latest consensus send
+      // and a small FIFO of forwarded messages, before assembling ledger data.
+      if (purpose == consensus_msg)
+      {
+        if (!connection.pending_sends.empty())
+        {
+          LOG_DEBUG_FMT(
+            "N2N TLS: replacing pending consensus send to {}", peer);
+          connection.pending_sends.clear();
+        }
+      }
+      else if (connection.pending_sends.size() >= FORWARDING_QUEUE_SIZE)
+      {
+        LOG_FAIL_FMT(
+          "N2N TLS: forwarding establishment queue full for {}", peer);
+        return false;
+      }
+      connection.pending_sends.push_back(std::move(on_ready));
+      return true;
+    }
+
+    void send_frame(::tcp::ConnID id, std::vector<uint8_t>&& frame)
+    {
+      client->send(id, std::move(frame));
     }
   };
 }
