@@ -2311,55 +2311,63 @@ TEST_CASE("Committed ledger paths ignore files set aside on startup")
 
 TEST_CASE("Committed ledger paths include overlapping files")
 {
-  auto dir = AutoDeleteFolder(ledger_dir);
-
-  Ledger ledger(ledger_dir);
-  TestEntrySubmitter entry_submitter(ledger, 1000);
-  for (size_t idx = 1; idx <= 12; ++idx)
-  {
-    entry_submitter.write(
-      true, idx == 12 ? ccf::kv::FORCE_LEDGER_CHUNK_AFTER : 0);
-  }
-  ledger.commit(12);
-
   // Initialising the ledger inside a committed file and replaying the entries
-  // after it in other chunks leaves files which overlap it
-  ledger.init(3);
-  TestEntrySubmitter replay_submitter(ledger, 1000, 3);
-  for (size_t idx = 4; idx <= 12; ++idx)
+  // after it in other chunks leaves files which overlap it, and which may end
+  // where it ends or after it
+  for (const size_t replay_last_idx : {size_t{12}, size_t{15}})
   {
-    replay_submitter.write(
-      true, (idx == 8 || idx == 12) ? ccf::kv::FORCE_LEDGER_CHUNK_AFTER : 0);
-    if (idx == 8)
+    CAPTURE(replay_last_idx);
+    auto dir = AutoDeleteFolder(ledger_dir);
+
+    Ledger ledger(ledger_dir);
+    TestEntrySubmitter entry_submitter(ledger, 1000);
+    for (size_t idx = 1; idx <= 12; ++idx)
     {
-      ledger.commit(8);
-      check_committed_ledger_paths(ledger, 12);
+      entry_submitter.write(
+        true, idx == 12 ? ccf::kv::FORCE_LEDGER_CHUNK_AFTER : 0);
     }
+    ledger.commit(12);
+
+    ledger.init(3);
+    TestEntrySubmitter replay_submitter(ledger, 1000, 3);
+    for (size_t idx = 4; idx <= replay_last_idx; ++idx)
+    {
+      replay_submitter.write(
+        true,
+        (idx == 8 || idx == replay_last_idx) ?
+          ccf::kv::FORCE_LEDGER_CHUNK_AFTER :
+          0);
+      if (idx == 8)
+      {
+        ledger.commit(8);
+        check_committed_ledger_paths(ledger, replay_last_idx);
+      }
+    }
+    ledger.commit(replay_last_idx);
+    const auto last_replayed_file = fs::path(ledger_dir) /
+      fmt::format("ledger_9-{}{}", replay_last_idx, ledger_committed_suffix);
+    REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_1-12.committed"));
+    REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_4-8.committed"));
+    REQUIRE(fs::exists(last_replayed_file));
+    check_committed_ledger_paths(ledger, replay_last_idx);
+
+    // Looking up the index after the end of each file found gives contiguous
+    // files
+    REQUIRE(
+      ledger.committed_ledger_path_with_idx(4) ==
+      fs::path(ledger_dir) / "ledger_4-8.committed");
+    REQUIRE(ledger.committed_ledger_path_with_idx(9) == last_replayed_file);
+
+    // Index 5 is in two of these files: once the one found for it is removed,
+    // the other is found
+    const auto first_path = ledger.committed_ledger_path_with_idx(5);
+    REQUIRE(first_path.has_value());
+    REQUIRE(fs::remove(first_path.value()));
+    check_committed_ledger_paths(ledger, replay_last_idx);
+    const auto other_path = ledger.committed_ledger_path_with_idx(5);
+    REQUIRE(other_path.has_value());
+    REQUIRE(other_path != first_path);
   }
-  ledger.commit(12);
-  REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_1-12.committed"));
-  REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_4-8.committed"));
-  REQUIRE(fs::exists(fs::path(ledger_dir) / "ledger_9-12.committed"));
-  check_committed_ledger_paths(ledger, 12);
-
-  // Looking up the index after the end of each file found gives contiguous
-  // files
-  REQUIRE(
-    ledger.committed_ledger_path_with_idx(4) ==
-    fs::path(ledger_dir) / "ledger_4-8.committed");
-  REQUIRE(
-    ledger.committed_ledger_path_with_idx(9) ==
-    fs::path(ledger_dir) / "ledger_9-12.committed");
-
-  // Index 5 is in two of these files: once the one found for it is removed,
-  // the other is found
-  const auto first_path = ledger.committed_ledger_path_with_idx(5);
-  REQUIRE(first_path.has_value());
-  REQUIRE(fs::remove(first_path.value()));
-  check_committed_ledger_paths(ledger, 12);
-  const auto other_path = ledger.committed_ledger_path_with_idx(5);
-  REQUIRE(other_path.has_value());
-  REQUIRE(other_path != first_path);
 }
 
 TEST_CASE("Committed ledger paths do not wait for slow ledger file operations")

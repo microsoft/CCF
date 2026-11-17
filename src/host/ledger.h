@@ -1203,8 +1203,7 @@ namespace asynchost
 
       // By last idx, then by start idx descending, so that of the files which
       // contain an index, lookups find first the ones which end first and,
-      // of those, the narrowest. Looking up the index after the end of each
-      // file found then gives contiguous files where files overlap.
+      // of those, the narrowest
       bool operator<(const CommittedFile& other) const
       {
         if (last_idx != other.last_idx)
@@ -2231,7 +2230,7 @@ namespace asynchost
       size_t idx) CCF_EXCLUDES(committed_files_lock)
     {
       size_t end_of_committed_files = 0;
-      std::vector<fs::path> candidates;
+      std::vector<CommittedFile> candidates;
       {
         ccf::ds::MutexGuard guard(committed_files_lock);
 
@@ -2251,7 +2250,7 @@ namespace asynchost
           {
             if (it->start_idx <= idx)
             {
-              candidates.push_back(ledger_dir / it->name);
+              candidates.push_back(*it);
             }
           }
         }
@@ -2267,19 +2266,28 @@ namespace asynchost
         return std::nullopt;
       }
 
+      // Where files overlap, those starting at idx are tried first, so that
+      // looking up the index after the end of each file found gives contiguous
+      // files wherever there are such files
+      std::stable_partition(
+        candidates.begin(), candidates.end(), [idx](const CommittedFile& file) {
+          return file.start_idx == idx;
+        });
+
       // Committed files can be removed without any ledger lock, e.g. by the
       // files cleanup, so only return a file which still exists
       for (const auto& candidate : candidates)
       {
+        auto path = ledger_dir / candidate.name;
         bool exists = false;
         {
-          ccf::ds::TimeBoundLogger log_if_slow(fmt::format(
-            "Checking committed ledger file - exists({})", candidate));
-          exists = fs::exists(candidate);
+          ccf::ds::TimeBoundLogger log_if_slow(
+            fmt::format("Checking committed ledger file - exists({})", path));
+          exists = fs::exists(path);
         }
         if (exists)
         {
-          return candidate;
+          return path;
         }
       }
 
