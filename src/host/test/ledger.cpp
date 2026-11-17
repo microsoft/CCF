@@ -2351,12 +2351,14 @@ TEST_CASE("Committed ledger paths include overlapping files")
     REQUIRE(fs::exists(last_replayed_file));
     check_committed_ledger_paths(ledger, replay_last_idx);
 
-    // Looking up the index after the end of each file found gives contiguous
-    // files
+    // The files replayed after the file they overlap are found rather than it,
+    // including from inside them, so that looking up the index after the end
+    // of each file found gives contiguous files
     REQUIRE(
       ledger.committed_ledger_path_with_idx(4) ==
       fs::path(ledger_dir) / "ledger_4-8.committed");
     REQUIRE(ledger.committed_ledger_path_with_idx(9) == last_replayed_file);
+    REQUIRE(ledger.committed_ledger_path_with_idx(10) == last_replayed_file);
 
     // Index 5 is in two of these files: once the one found for it is removed,
     // the other is found

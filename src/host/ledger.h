@@ -1201,26 +1201,16 @@ namespace asynchost
       size_t start_idx;
       std::string name;
 
-      // By last idx, then by start idx descending, so that of the files which
-      // contain an index, lookups find first the ones which end first and,
-      // of those, the narrowest
       bool operator<(const CommittedFile& other) const
       {
-        if (last_idx != other.last_idx)
-        {
-          return last_idx < other.last_idx;
-        }
-        if (start_idx != other.start_idx)
-        {
-          return start_idx > other.start_idx;
-        }
-        return name < other.name;
+        return std::tie(last_idx, start_idx, name) <
+          std::tie(other.last_idx, other.start_idx, other.name);
       }
     };
 
     // Files in `ledger_dir` which a scan of the directory with
     // get_file_name_with_idx() would find, i.e. mostly committed files, ordered
-    // as above. Files which overlap are all kept. Entries whose file no
+    // by last idx. Files which overlap are all kept. Entries whose file no
     // longer exists, e.g. because the files cleanup removed it or it was
     // renamed after startup, are kept too: lookups check that the files they
     // find still exist. So where files are removed, e.g. with the files cleanup
@@ -2241,9 +2231,7 @@ namespace asynchost
           // max_committed_file_span after it. Usually only the first of them
           // starts at or before it, but files may overlap.
           for (auto it = committed_files.lower_bound(
-                 {.last_idx = idx,
-                  .start_idx = std::numeric_limits<size_t>::max(),
-                  .name = {}});
+                 {.last_idx = idx, .start_idx = 0, .name = {}});
                it != committed_files.end() &&
                it->last_idx - idx <= max_committed_file_span;
                ++it)
@@ -2266,12 +2254,19 @@ namespace asynchost
         return std::nullopt;
       }
 
-      // Where files overlap, those starting at idx are tried first, so that
-      // looking up the index after the end of each file found gives contiguous
-      // files wherever there are such files
-      std::stable_partition(
-        candidates.begin(), candidates.end(), [idx](const CommittedFile& file) {
-          return file.start_idx == idx;
+      // Where files overlap, those starting last are tried first. So a file
+      // starting at idx is found if there is one, and where the ledger was
+      // initialised inside a committed file, the files replayed after it, which
+      // follow on from each other, are found rather than the file they overlap.
+      std::sort(
+        candidates.begin(),
+        candidates.end(),
+        [](const CommittedFile& a, const CommittedFile& b) {
+          if (a.start_idx != b.start_idx)
+          {
+            return a.start_idx > b.start_idx;
+          }
+          return std::tie(a.last_idx, a.name) < std::tie(b.last_idx, b.name);
         });
 
       // Committed files can be removed without any ledger lock, e.g. by the
