@@ -386,29 +386,30 @@ def runInstruction (header : Header) (replay : ReplayState) (instruction : Instr
 Why a step must wait: a receive has no matching queued packet, or an initialization has no
 committed source. Both only become enabled as other nodes act. Other steps are local to a
 node changed only by its own groups, so a disabled one fails when its group runs.
+The reason is built only on demand: a waiting group is retried after every other group.
 -/
 private def Step.waiting (header : Header) (replay : ReplayState)
-    : Step → Except String (Option String)
+    : Step → Except String (Option (Unit → String))
   | .receive source destination packet => do
       let source ← header.nodeId source
       let destination ← header.nodeId destination
       let pending := pendingBetween replay source destination
       if pending.any fun envelope => (checkPacket packet envelope.payload).isOk then
         return none
-      return some (missing header pending source destination packet)
+      return some fun _ => missing header pending source destination packet
   | .initAsBackup _ index view =>
       match initSource replay index view with
       | .ok _ => return none
-      | .error reason => return some reason
+      | .error reason => return some fun _ => reason
   | .local .. => pure none
 
 /-- Why a group must wait before its first action, located at that action. -/
 private def Group.waiting (header : Header) (replay : ReplayState) (group : Group)
-    : Except String (Option String) := do
+    : Except String (Option (Unit → String)) := do
   let some (.action step origin) := group.instructions.find? (· matches .action ..)
   | return none
   let located := (s!"{origin.label}: " ++ ·)
-  return located <$> (← (step.waiting header replay).mapError located)
+  return (located ∘ ·) <$> (← (step.waiting header replay).mapError located)
 
 /-- Run a group's instructions with no other group's actions between them. -/
 private def runGroup (header : Header) (replay : ReplayState) (group : Group)
@@ -440,11 +441,12 @@ Explain a replay in which every process's next group waits. A receive whose send
 send its packet in the rest of the trace, or sends it later in the receiver's own process,
 can never run; the other groups wait for another node.
 -/
-private def stuck (rest : Array Group) (blocked : Array (Group × String)) : String :=
+private def stuck (rest : Array Group) (blocked : Array (Group × (Unit → String)))
+    : String :=
   let (never, waits) :=
     blocked.toList.partitionMap
       fun (group, reason) =>
-        let waiting := s!"node '{group.node}' waits at {reason}"
+        let waiting := s!"node '{group.node}' waits at {reason ()}"
         match group.instructions.find? (· matches .action ..) with
         | some (.action (.receive source destination packet) _) =>
             let sender := rest.filter (·.node == source)
