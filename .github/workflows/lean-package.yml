@@ -111,7 +111,7 @@ jobs:
           shopt -s failglob
           for trace in lean/consensus/replay/fixtures/valid/*.ndjson; do
             echo "::group::Validate $trace"
-            lean/consensus/.lake/build/bin/consensus-replay "$trace"
+            lean/consensus/.lake/build/bin/consensus-replay --refine "$trace"
             echo "::endgroup::"
           done
 

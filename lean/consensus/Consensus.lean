@@ -1,8 +1,7 @@
 module
 
 public import Consensus.Properties
-public import Consensus.Replay.Reduction
-public import Consensus.TraceValidation.Machine
+public import Consensus.TraceValidation.Lockstep
 
 import Consensus.Tests.CanonicalTraces
-import Consensus.Tests.ReplayDelivery
+import Consensus.Tests.TraceValidationHooks
