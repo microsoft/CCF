@@ -73,7 +73,8 @@ def readLog (path : System.FilePath) : IO (Except String (Array Record)) := do
 
 structure Event where
   record : Record
-  process : String
+  /-- `pid`, the process that emitted the record. -/
+  pid : String
   /-- `h_ts`, the emission order within the record's process; other tags share the counter. -/
   time : Nat
   /-- `ts`, the wall-clock emission time in nanoseconds, when the trace records it. -/
@@ -97,20 +98,19 @@ def prepareEvents (records : Array Record)
     records.mapM
       fun record =>
         (do
-          return (← string record.value "process_id", ← nat record.value "h_ts", record))
+          return (← string record.value "pid", ← nat record.value "h_ts", record))
         |>.mapError (s!"{record.location}: " ++ ·)
   let keyed :=
     keyed.toList.mergeSort fun (p, t, _) (q, u, _) => p < q || (p == q && t <= u)
   let mut events : Array Event := #[]
   let mut previous : Option (String × Nat × Record) := none
-  let mut processes : Std.HashMap String String := {}
+  let mut pids : Std.HashMap String String := {}
   let mut declared : List String := []
-  for (process, time, record) in keyed do
+  for (pid, time, record) in keyed do
     if let some (last, lastTime, earlier) := previous then
-      if last == process && lastTime == time then
-        throw
-          s!"{record.location}: h_ts {time} of process '{process}' repeats {earlier.location}"
-    previous := some (process, time, record)
+      if last == pid && lastTime == time then
+        throw s!"{record.location}: h_ts {time} of pid '{pid}' repeats {earlier.location}"
+    previous := some (pid, time, record)
     try
       let message ← field record.value "msg"
       unless (optional message "cmd").isSome do
@@ -122,13 +122,11 @@ def prepareEvents (records : Array Record)
             field message "state"
         let node ←
           string (if function == "retired_committed_tx" then message else state) "node_id"
-        if let some other := processes[node]? then
-          require (other == process)
-            s!"node '{node}' is traced by processes '{other}' and '{process}'"
-        processes := processes.insert node process
+        if let some other := pids[node]? then
+          require (other == pid) s!"node '{node}' is traced by pids '{other}' and '{pid}'"
+        pids := pids.insert node pid
         let ts ← (optional record.value "ts").mapM natural
-        events :=
-          events.push { record, process, time, ts, function, node, message, state }
+        events := events.push { record, pid, time, ts, function, node, message, state }
         declared := node :: declared
         if function == "retired_committed_tx" then
           declared := (← string message "retired_node_id") :: declared
@@ -137,7 +135,7 @@ def prepareEvents (records : Array Record)
     catch error =>
       throw s!"{record.location}: {error}"
   let streams :=
-    processes.keys.mergeSort.toArray.map fun node => events.filter (·.node == node)
+    pids.keys.mergeSort.toArray.map fun node => events.filter (·.node == node)
   return (streams, declared.mergeSort.eraseDups)
 
 end Consensus.Replay

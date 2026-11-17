@@ -33,7 +33,7 @@ private def group : Reduction (Option Group) := do
   return some
     {
       node := head.node
-      process := head.process
+      pid := head.pid
       time := head.time
       last := last.time
       ts := head.ts
@@ -88,9 +88,8 @@ def reduce (streams : Array (Array Event)) (declared : List String)
   let some leader := bootstrap | throw "no node bootstraps the network"
   let header := { header with bootstrap := {← header.nodeId leader} }
   let sorted :=
-    groups.qsort
-      fun a b => a.process < b.process || (a.process == b.process && a.time < b.time)
-  let queues := (sorted.toList.splitBy (·.process == ·.process)).toArray.map (·.toArray)
+    groups.qsort fun a b => a.pid < b.pid || (a.pid == b.pid && a.time < b.time)
+  let queues := (sorted.toList.splitBy (·.pid == ·.pid)).toArray.map (·.toArray)
   for queue in queues do
     for earlier in queue, group in queue.extract 1 do
       unless earlier.last < group.time do

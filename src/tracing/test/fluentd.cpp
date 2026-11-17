@@ -450,7 +450,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     frame[2]["msg"] ==
     nlohmann::json{{"path", "/app/log"}, {"status", 200}, {"cached", false}});
   CHECK(frame[2]["h_ts"] == 2);
-  CHECK(frame[2]["process_id"].is_string());
+  CHECK(frame[2]["pid"].is_string());
   CHECK_FALSE(wrong_thread);
 
   const auto check_event =

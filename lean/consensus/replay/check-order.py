@@ -40,13 +40,13 @@ def owner(record):
 
 def per_node(records, rng):
     clocks = {}
-    for record in sorted(records, key=lambda r: (r["process_id"], r["h_ts"])):
-        key = (record["process_id"], owner(record))
+    for record in sorted(records, key=lambda r: (r["pid"], r["h_ts"])):
+        key = (record["pid"], owner(record))
         if key not in clocks:
             clocks[key] = rng.randrange(1000)
         clocks[key] += rng.randrange(1, 5)
         yield {
-            "process_id": "/".join(key),
+            "pid": "/".join(key),
             "h_ts": clocks[key],
             "msg": record["msg"],
         }

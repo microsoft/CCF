@@ -61,7 +61,7 @@ namespace ccf::tracing
         buffer,
         msgpack::FluentdEventTime::make(std::chrono::system_clock::now()));
       msgpack::write_map_header(buffer, 3);
-      msgpack::write_str(buffer, "process_id");
+      msgpack::write_str(buffer, "pid");
       msgpack::write_str(buffer, process_identity());
       msgpack::write_str(buffer, "h_ts");
       msgpack::write_uint(buffer, sequence);

@@ -87,7 +87,7 @@ lock.
 -/
 structure Group where
   node : String
-  process : String
+  pid : String
   /-- The emission order within its process of the head event, and of the last event. -/
   time : Nat
   last : Nat
@@ -453,7 +453,7 @@ private def stuck (rest : Array Group) (blocked : Array (Group × (Unit → Stri
             match sender.findSome? (·.send? destination packet) with
             | none => .inl s!"{waiting}; '{source}' sends no such packet later"
             | some origin =>
-                if sender.any (·.process == group.process) then
+                if sender.any (·.pid == group.pid) then
                   .inl
                     s!"{waiting}; '{source}', in the same process, sends it only later at {origin.label}"
                 else
