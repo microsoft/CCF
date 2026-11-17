@@ -2407,9 +2407,12 @@ TEST_CASE("Committed ledger paths do not wait for slow ledger file operations")
     return ledger.read_entries(last_idx + 1, last_idx + 1);
   });
 
-  // Wait until the state lock is held, i.e. until a call taking it blocks
+  // Wait until the state lock is held, i.e. until a call taking it blocks.
+  // The read may take a while to start, so keep trying until a deadline.
   std::future<size_t> blocked_call;
-  for (size_t attempt = 0; attempt < 100; ++attempt)
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  do
   {
     blocked_call = std::async(
       std::launch::async, [&ledger]() { return ledger.get_last_idx(); });
@@ -2419,7 +2422,8 @@ TEST_CASE("Committed ledger paths do not wait for slow ledger file operations")
     {
       break;
     }
-  }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  } while (std::chrono::steady_clock::now() < deadline);
 
   auto lookups = std::async(std::launch::async, [&ledger]() {
     return std::make_pair(
