@@ -1059,7 +1059,7 @@ def nominateSuccessor : M Unit := do
   trace "nomination"
   nominateSuccessorUnsafe
 
-/-- `init_as_backup(index, term, {})`, as the driver calls it for a joiner. -/
+/-- `init_as_backup(index, term, term_history)` for a joiner; `term_history` is untraced. -/
 def initAsBackup : M Unit := do
   trace "init_as_backup"
   let index ← inNat "seqno"
@@ -1073,11 +1073,12 @@ def initAsBackup : M Unit := do
     fail
       s!"{← curLoc}: init_as_backup at index {index} in view {term}: index 0 iff view 0"
   note (.initAsBackup index term)
-  -- From a snapshot, `term_history` is untraced: assume every entry up to `index`
-  -- is in view `term`, and the snapshotted entries are opaque (no hooks); a snapshot is
-  -- taken at a signature, so entry `index` is one. The node does not hold them (the
-  -- ledger starts after `index`, the base); the machine replaces them at release by a
-  -- ghost from a node that has committed them.
+  -- From a snapshot, `term_history` is untraced: until the release, assume every entry
+  -- up to `index` is in view `term`, and the snapshotted entries are opaque (no hooks); a
+  -- snapshot is taken at a signature, so entry `index` is one. The node does not hold
+  -- them (the ledger starts after `index`, the base); the machine replaces them at
+  -- release by a ghost from a node that has committed them, and the view history up to
+  -- `index` by that node's.
   let views := if index == 0 then #[] else Array.replicate term 1
   let ledger :=
     (Array.replicate index { term, sig := false }).modify (index - 1)

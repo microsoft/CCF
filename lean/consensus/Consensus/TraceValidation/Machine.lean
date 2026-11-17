@@ -212,8 +212,12 @@ def snapshotOf (c : Ctx) : Option (Nat × Nat) :=
 /--
 Fill a joiner's ledger prefix up to its snapshot `index` (its `base`) from a donor: another
 node whose declared state has committed `index`. The joiner does not hold the prefix
-(`State.declared` drops it): it is a ghost, for the proof. `init_as_backup` gets an empty term history from
-the driver, so every snapshotted entry is in view `term`; the donor's entries must agree.
+(`State.declared` drops it): it is a ghost, for the proof. The joiner does hold the view
+history up to `index`, which `init_as_backup` receives with the snapshot
+(`get_history_until(index)` of the node that took it) but no trace point records: it is the
+donor's, up to `index`. Both nodes' histories give each index up to `index` the term of
+its committed entry (`inv`'s `terms_are_views`), and their starts are positive and sorted,
+so they are equal.
 -/
 def fillSnapshot (others : List (NodeID × Local)) (index term : Nat) (vars : State)
     : Except String State :=
@@ -222,12 +226,10 @@ def fillSnapshot (others : List (NodeID × Local)) (index term : Nat) (vars : St
   | none => .error s!"wait: no node has committed {index} yet"
   | some (_, donor) =>
       let prefix_ := donor.vars.ledger.extract 0 index
-      if !prefix_.all (·.term == term) then
+      -- A snapshot is taken at a signature, in the snapshot's view.
+      if index != 0 && !prefix_[index - 1]?.any fun e => e.sig && e.term == term then
         .error
-          s!"snapshot at {index} in view {term} spans earlier views {prefix_.toList.map (·.term) |>.eraseDups}, which the driver's empty term history cannot express"
-      -- A snapshot is taken at a signature.
-      else if index != 0 && !prefix_[index - 1]?.any (·.sig) then
-        .error s!"snapshot at {index}: the donor's entry {index} is not a signature"
+          s!"snapshot at {index} in view {term}: the donor's entry {index} is not a signature in that view"
       -- The snapshot's hooks installed configurations of the snapshotted prefix. hooks.h
       -- installs a snapshot's configuration at the version of the snapshot's last write
       -- to the nodes table, which may follow the entry that set the membership (a node's
@@ -244,7 +246,12 @@ def fillSnapshot (others : List (NodeID × Local)) (index term : Nat) (vars : St
         .error
           s!"snapshot at {index}: the snapshotted prefix retires the joiner {vars.nodeId}"
       else
-        .ok { vars with ledger := prefix_ ++ vars.ledger.extract index vars.ledger.size }
+        .ok
+          {
+            vars with
+              ledger := prefix_ ++ vars.ledger.extract index vars.ledger.size
+              views := donor.vars.views.filter (· <= index)
+          }
 
 /-- The declared state at release: a joiner's snapshot prefix is filled from a donor. -/
 def closeVars (others : List (NodeID × Local)) (head : Ev) (c : Ctx)

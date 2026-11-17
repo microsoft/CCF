@@ -15,8 +15,8 @@ index and view in a note, sizes the ledger to the index and makes the node a fol
 the snapshot's view. The release (`joinFinish`) fills the ledger with a donor's committed
 prefix (`fillSnapshot`), so the clean `initAsBackup` input is the abstraction of that
 prefix: the donor's clean state has committed it (`admit`), and `fillSnapshot`'s checks give
-the clean guard (the prefix ends at a signature) and the clean view (every entry of the
-prefix is in the snapshot's view).
+the clean guard (the prefix ends at a signature) and the clean view (that signature is in
+the snapshot's view).
 -/
 
 namespace Consensus.TraceValidation.Proofs.Life
@@ -110,15 +110,17 @@ theorem fill_ok {others : List (NodeID × Local)} {index term : Nat} {vars vars'
         (k, donor) ∈ others
         /\ index <= donor.vars.commitIdx
         /\ index <= donor.vars.ledger.size
-        /\ (forall e, e ∈ donor.vars.ledger.extract 0 index -> e.term = term)
         /\ (index != 0
-            -> ((donor.vars.ledger.extract 0 index)[index - 1]?.any (·.sig)) = true)
+            -> ((donor.vars.ledger.extract 0 index)[index - 1]?.any
+                  fun e => e.sig && e.term == term)
+                = true)
         /\ vars'
             = {
               vars with
                 ledger :=
                   donor.vars.ledger.extract 0 index
                   ++ vars.ledger.extract index vars.ledger.size
+                views := donor.vars.views.filter (· <= index)
             } := by
   unfold fillSnapshot at filled
   split at filled
@@ -130,25 +132,15 @@ theorem fill_ok {others : List (NodeID × Local)} {index term : Nat} {vars vars'
   dsimp only at filled
   split at filled
   · cases filled
-  rename_i terms
-  split at filled
-  · cases filled
   rename_i sig
   split at filled
   · cases filled
   split at filled
   · cases filled
   cases filled
-  refine ⟨k, donor, member, chosen.1, chosen.2, ?_, ?_, rfl⟩
-  · intro e member
-    have all : (donor.vars.ledger.extract 0 index).all (·.term == term) = true := by
-      cases hx : (donor.vars.ledger.extract 0 index).all (·.term == term)
-      · rw [hx] at terms
-        exact absurd rfl terms
-      · rfl
-    simpa using Array.all_eq_true_iff_forall_mem.mp all e member
-  · intro nonzero
-    simpa [nonzero] using sig
+  refine ⟨k, donor, member, chosen.1, chosen.2, ?_, rfl⟩
+  intro nonzero
+  simpa [nonzero] using sig
 
 end Consensus.TraceValidation.Proofs.Life
 
@@ -168,14 +160,14 @@ theorem initAsBackupSound (env : Env) : InitAsBackupSound env := by
     Life.TriN.run (Life.init_hold env saved) ⟨rfl, rfl, rfl⟩ ran
   have snap : snapshotOf c = some (index, term) := by simp [snapshotOf, notes]
   simp only [joinFinish, snap] at finished
-  obtain ⟨k, donor, member, committed, enough, terms, sig, filled⟩ := Life.fill_ok finished
+  obtain ⟨k, donor, member, committed, enough, sig, filled⟩ := Life.fill_ok finished
   subst filled
   have commit0 : saved.commitIdx = 0 := by
     simp only [inv, invChecks, List.all_cons, Bool.and_eq_true] at invSaved
     obtain ⟨_, le, _⟩ := invSaved
     simp only [decide_eq_true_eq, last0] at le
     omega
-  generalize hpre : donor.vars.ledger.extract 0 index = pre at terms sig
+  generalize hpre : donor.vars.ledger.extract 0 index = pre at sig
   have preSize : pre.size = index := by
     rw [← hpre, Array.size_extract]
     omega
@@ -198,11 +190,11 @@ theorem initAsBackupSound (env : Env) : InitAsBackupSound env := by
       /\ e.term = term /\ e.sig = true := by
     intro nonzero
     have within : index - 1 < pre.size := by omega
-    refine ⟨pre[index - 1], ?_, terms _ (Array.getElem_mem within), ?_⟩
-    · rw [← hentries]
-      simp [within]
-    · have := sig (by simpa using nonzero)
-      simpa [within] using this
+    have last := sig (by simpa using nonzero)
+    simp only [within, getElem?_pos, Option.any_some, Bool.and_eq_true, beq_iff_eq] at last
+    refine ⟨pre[index - 1], ?_, last.2, last.1⟩
+    rw [← hentries]
+    simp [within]
   have endTerm : termAt entries index = term := by
     by_cases nonzero : index = 0
     · simp only [nonzero, beq_self_eq_true, beq_iff_eq] at iff

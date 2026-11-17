@@ -104,8 +104,9 @@ Validation also tolerates the following without checking them exactly.
   `cft.h` compares that index only with later configurations and with indexes above the commit index, so the behaviour is the same.
 - **T2:** inputs that no trace point records are read from the node's next events: the batch size, `request_timeout`, the CheckQuorum acknowledgement timers, the flush threshold, the out-of-lock hook's snapshot version and `force_become_primary`.
   Every consequence of each one is still checked.
-- **T3:** the view history of a node that joined from a snapshot is not traced, so M_tv assumes that every index up to the snapshot base is in the snapshot's view.
-  Only the base itself is read, and it is a committed signature in that view; any read below the base is rejected (S9).
+- **T3:** the view history that a node joining from a snapshot receives with it is not traced, so M_tv takes the donor's view history up to the snapshot base.
+  The two are equal: both give each index up to the base the term of its committed entry (`inv`'s `terms_are_views`), so a snapshot whose prefix spans several views is modelled exactly.
+  The entries below the base remain a ghost, and any read of them is rejected (S9).
 - **T4:** on an election timeout with no configurations, `cft.h` returns early; the proof matches it with no clean step.
 
 ## Source
