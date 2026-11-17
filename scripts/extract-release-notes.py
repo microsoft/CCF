@@ -31,8 +31,12 @@ def main():
     )
     parser.add_argument(
         "--from-changes",
-        help="Generate release notes directly from change descriptions in the target tag.",
+        help="Generate notes from descriptions added since the previous release tag.",
         action="store_true",
+    )
+    parser.add_argument(
+        "--previous-tag",
+        help="Explicit range start for --from-changes (default: nearest ancestor ccf-* tag).",
     )
     parser.add_argument(
         "--pr",
@@ -58,6 +62,8 @@ def main():
 
     if args.pr and not args.from_changes:
         parser.error("--pr requires --from-changes.")
+    if args.previous_tag and not args.from_changes:
+        parser.error("--previous-tag requires --from-changes.")
     if args.from_changes and args.fix:
         parser.error("--from-changes cannot be combined with --fix.")
 
@@ -73,9 +79,9 @@ def main():
             parser.error("--from-changes requires exactly one target version.")
         version = args.target_version[0]
         tag = f"ccf-{version}"
-        notes = fragments.from_descriptions(root, version, args.pr)
+        previous = args.previous_tag or fragments.previous_tag(root, tag)
+        notes = fragments.from_descriptions(root, version, args.pr, previous)
         if args.describe_path_changes:
-            previous = fragments.previous_tag(root, tag)
             for path in args.describe_path_changes:
                 notes += fragments.describe_path_changes(root, tag, previous, path)
         print(notes)
@@ -165,4 +171,4 @@ if __name__ == "__main__":
             if isinstance(error, subprocess.CalledProcessError)
             else str(error)
         )
-        sys.exit(f"Error: {detail}")
+        sys.exit(f"Error: {detail or str(error)}")

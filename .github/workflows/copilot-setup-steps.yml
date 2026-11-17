@@ -20,7 +20,7 @@ jobs:
   # the Copilot coding agent.
   copilot-setup-steps:
     name: "Copilot Setup Steps"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     permissions:
       # Needed for actions/checkout to clone the repository in the setup steps.

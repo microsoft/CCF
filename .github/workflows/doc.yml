@@ -11,7 +11,7 @@ permissions: read-all
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
     steps:
@@ -78,7 +78,7 @@ jobs:
   deploy:
     name: Deploy
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       # Needed to authorize deployment to GitHub Pages
       pages: write

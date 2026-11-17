@@ -15,5 +15,5 @@ Say what each alternative was and why it was rejected.
 <!--
 Optional "## Safety and compatibility" section: include only if there are security,
 consensus/KV, API, data-format, mixed-version or recovery impacts, or deviations from
-https://microsoft.github.io/CCF/main/build_apps/release_policy.html
+https://microsoft.github.io/CCF/main/releases/release_policy.html
 -->

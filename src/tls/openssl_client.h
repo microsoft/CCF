@@ -30,6 +30,7 @@ namespace ccf::tls
       // before any application reads or queued writes; returning false closes
       // the connection. See OpenSSLConnectionEngine::OnHandshake.
       OnHandshake on_handshake = {};
+      std::optional<TrafficKeyPolicy> traffic_key_policy = std::nullopt;
     };
 
     struct ConnectConfig
@@ -526,6 +527,7 @@ namespace ccf::tls
         .shared_next_id = config.shared_next_id,
         .inbound_admission = std::move(config.inbound_admission),
         .on_handshake = std::move(config.on_handshake),
+        .traffic_key_policy = config.traffic_key_policy,
         .on_wake = [this]() { start_connects(); },
         .on_stop = [this]() { stop_connects(); },
         .on_unconnected =

@@ -200,6 +200,37 @@ namespace ccf::cose
     return decoded;
   }
 
+  // Encodes an inclusion proof as carried in the unprotected header of CCF
+  // COSE receipts: {1: [write_set_digest, commit_evidence, claims_digest],
+  // 2: [[left, sibling digest], ...]}
+  static std::vector<uint8_t> encode_merkle_proof(const MerkleProof& proof)
+  {
+    using namespace tav::cbor;
+
+    std::vector<Value> leaf;
+    leaf.push_back(make_bytes(proof.leaf.write_set_digest));
+    leaf.push_back(make_string(proof.leaf.commit_evidence));
+    leaf.push_back(make_bytes(proof.leaf.claims_digest));
+
+    std::vector<Value> path;
+    for (const auto& [left, sibling] : proof.path)
+    {
+      std::vector<Value> element;
+      element.push_back(make_simple(boolean_to_simple(left != 0)));
+      element.push_back(make_bytes(sibling));
+      path.push_back(make_array(std::move(element)));
+    }
+
+    std::vector<MapItem> encoded;
+    encoded.emplace_back(
+      make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL),
+      make_array(std::move(leaf)));
+    encoded.emplace_back(
+      make_signed(ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL),
+      make_array(std::move(path)));
+    return make_map(std::move(encoded)).nondet_serialize();
+  }
+
   static void decode_ccf_claims(const tav::cbor::Value& cbor, CcfClaims& claims)
   {
     using namespace tav::cbor;

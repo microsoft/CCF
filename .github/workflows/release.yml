@@ -19,7 +19,7 @@ env:
 jobs:
   make_sbom:
     name: SBOM Generation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -46,7 +46,7 @@ jobs:
   release_notes:
     name: Release Notes
     if: ${{ !inputs.dry_run || startsWith(github.ref, 'refs/tags/ccf-') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -407,7 +407,7 @@ jobs:
       - release_notes
       - make_sbom
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

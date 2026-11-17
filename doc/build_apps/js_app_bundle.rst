@@ -97,7 +97,7 @@ Each endpoint object contains the following information:
   - ``"never"``
 
   When omitted, the legacy forwarding policy is inferred from ``"redirection_strategy"``: ``"to_primary"`` implies ``"always"``, while ``"none"`` and ``"to_backup"`` imply ``"never"``. If neither field is supplied, the defaults are ``"to_primary"`` and ``"always"``. Explicit legacy policies, including ``"sometimes"``, are preserved in stored records and governance responses. Forwarding is deprecated and will be removed in CCF 8.0.
-  New applications should explicitly set ``"redirection_strategy"`` to ``"none"``, ``"to_primary"``, or ``"to_backup"`` as appropriate, and enable redirects on their interfaces. Use version-matched application bundles when upgrading from older releases which require ``"forwarding_required"``. See :doc:`fwd_to_redirect`.
+  New applications should explicitly set ``"redirection_strategy"`` to ``"none"``, ``"to_primary"``, or ``"to_backup"`` as appropriate, and enable redirects on their interfaces. Use version-matched application bundles when upgrading from older releases which require ``"forwarding_required"``. See :doc:`/releases/fwd_to_redirect`.
 
 - ``"mode"``: A string indicating whether the endpoint requires read/write or read-only access to the Key-Value Store, or whether it is a historical endpoint that sees the state written in a specific transaction. Possible values are:
 

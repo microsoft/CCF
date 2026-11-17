@@ -1,6 +1,6 @@
 module
 
-public import CCF.Function
+public import CCF.Proofs.Function
 public import Mathlib.Logic.Function.Basic
 
 public section
