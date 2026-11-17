@@ -17,8 +17,9 @@ build/cft_model_driver --all
   It delivers the messages which the model holds, newest first, and asserts of the driver the commit indexes of the model.
 - `--all` runs every scenario and the run in step, each in a process of its own, because a process can start the driver once.
   It also runs each scenario again from its [recorded commands](#programs), which the model must accept and which must all apply, and [explores](#exploring) briefly, which must give no finding.
+  It writes those commands as a [scenario in Lean](#exploring), which must not fail.
   The two runs of a scenario may differ where an election timeout decides, because the timeout of a node differs between processes.
-  It runs in the same way a scenario of its own, `escaped_arguments`, whose entries hold the characters which a program escapes.
+  It runs in the same way a scenario of its own, `escaped_arguments`, whose entries hold the characters which a program escapes, and whose node is `01`, which the scenario written from it must not give as the number `1`.
   A run fails if its process does not exit with status 0, whether or not it writes an error, and `--all` reports that status.
 
 A run prints its status as JSON.
@@ -77,6 +78,7 @@ build/cft_model_driver --scenario <program> <name> <name>.lean
   With `--outcome`, it does so for as long as the model accepts the run and shows that outcome.
   With `--edges`, it does so for as long as the model accepts the run, and the run reaches every edge which it reached at first and the edges in that file lack, such as `scenarios.edges`.
 - `--scenario` writes a program as a scenario in Lean, which ends by asserting the leadership and the commit index of each node.
+  The scenario issues every command of the run, its assertions among them, with the arguments which the driver was given.
 
 ## Building
 

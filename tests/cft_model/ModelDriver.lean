@@ -119,16 +119,25 @@ private def inStep : String := "--in-step"
 /--
 The scenario of the model driver alone, which `--all` runs with the others. Its entries
 hold what the text of a command escapes: a comma, a newline and a backslash. Its program
-fails the assertion unless it replicates each of them as one entry.
+fails the assertion unless it replicates each of them as one entry. Its node is `01`,
+which a scenario must not write as a number, because the driver would be given `1`.
 -/
 private def escapedArguments : String × IO Unit :=
   (
     "escaped_arguments",
     do
-      startNode 0
+      startNode "01"
       replicate 2 ["a,b", "c\nd", "e\\f", "\\n", ",", "\\", signature]
-      assertLastTxid 0 "2.8"
+      assertLastTxid "01" "2.8"
   )
+
+/-- The lines which issue the commands of `escapedArguments` in a scenario, as given. -/
+private def escapedArgumentsLines : List String :=
+  [
+    "  startNode \"01\"",
+    "  replicate 2 [\"a,b\", \"c\\nd\", \"e\\\\f\", \"\\\\n\", \",\", \"\\\\\", signature]",
+    "  assertLastTxid \"01\" \"2.8\""
+  ]
 
 /-- The scenario `name`: one of those registered, or that of the model driver alone. -/
 private def findScenario (name : String) : IO (Option (IO Unit)) := do
@@ -162,9 +171,10 @@ private def reported (file : System.FilePath) : IO (String × Json × String) :=
 Record the commands of a scenario, and run them as a program, which the model must accept
 and which must issue each of them, its assertions among them. The two runs need not show
 the same outcomes, because the election timeout of a node differs between processes.
+Also write the program as a scenario, which must have each of the `lines`.
 Give what went wrong, if anything did.
 -/
-private def roundTrip (directory : System.FilePath) (name : String)
+private def roundTrip (directory : System.FilePath) (name : String) (lines : List String)
     : IO (Option String) := do
   let program := directory / s!"{name}.program"
   if let some problem ← again #["--record", name, program.toString] then
@@ -178,12 +188,19 @@ private def roundTrip (directory : System.FilePath) (name : String)
     return some s!"its commands are {status}: {message}"
   if recorded != ran then
     return some "its program issues other commands"
+  let scenario := directory / s!"{name}.lean"
+  if let some problem ←
+      again #["--scenario", program.toString, name, scenario.toString] then
+    return some s!"writing its commands as a scenario: {problem}"
+  let written := (← IO.FS.readFile scenario).splitOn "\n"
+  if let some line := lines.find? (!written.contains ·) then
+    return some s!"its scenario lacks the line '{line}'"
   return none
 
 /--
 Run every scenario, that of the model driver alone and the run in step, each in a process
 of its own, because a process can start the driver once. Also run each scenario from its
-commands, and explore briefly, which fails if a run is a finding.
+commands, write them as a scenario, and explore briefly, which fails if a run is a finding.
 -/
 private def runAll : IO UInt32 := do
   let names := ((← scenarios.get).map (·.1) |>.reverse) ++ [escapedArguments.1]
@@ -192,7 +209,9 @@ private def runAll : IO UInt32 := do
   for name in names ++ [inStep] do
     let mut problem ← again #[name]
     if problem.isNone && name != inStep then
-      problem ← roundTrip directory name
+      problem ←
+        roundTrip directory name
+          (if name == escapedArguments.1 then escapedArgumentsLines else [])
     match problem with
     | none => IO.println s!"{name}: ok"
     | some message =>

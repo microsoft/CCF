@@ -233,24 +233,38 @@ def toLatest (command : Command) : Command :=
         command
   | [] => command
 
-/-- A node, a term or a number, as a scenario writes it. -/
+/--
+Text which the driver takes, as a scenario writes it: a number only if the driver is then
+given the same text, so `1` but `"01"`.
+-/
 private def value (text : String) : String :=
-  if text.toNat?.isSome || text == "latest" then text else text.quote
+  if text == "latest" || text.toNat?.any (toString · == text) then text else text.quote
+
+/-- A number which the driver takes, as a scenario writes it. -/
+private def count (text : String) : Except String String :=
+  match text.toNat? with
+  | some value => pure (toString value)
+  | none => throw s!"expected a number, got '{text}'"
 
 private def list (items : List String) : String :=
   "[" ++ ", ".intercalate items ++ "]"
 
-/-- The line of a scenario in Lean which issues the command. -/
+/-- The line of a scenario in Lean which issues the command: each which `run` issues. -/
 def scenarioLine (command : Command) : Except String String :=
   let call (function : String) (args : List String) : Except String String :=
     pure (" ".intercalate (function :: args))
+  -- A command whose arguments are all text
   let values (function : String) : Except String String :=
     call function (command.args.map value)
+  -- A command whose last argument is a number, after text
+  let counted (function : String) : Except String String := do
+    let texts := command.args.dropLast.map value
+    call function (texts ++ [← count (command.args.getLast?.getD "")])
   match command.name, command.args with
   | "start_node", [_] => values "startNode"
   | "trust_node", [_, _] => values "trustNode"
-  | "trust_node_from_snapshot", [_, _] => values "trustNodeFromSnapshot"
   | "trust_nodes", term :: nodes => call "trustNodes" [value term, list (nodes.map value)]
+  | "trust_node_from_snapshot", [_, _] => values "trustNodeFromSnapshot"
   | "swap_node", [_, _, _] => values "swapNode"
   | "swap_nodes", term :: items =>
       let (retire, trust) := changes items
@@ -259,12 +273,16 @@ def scenarioLine (command : Command) : Except String String :=
       call "cleanupNodes" [value term, list (nodes.map value)]
   | "cleanup_retired", [_] => values "cleanupRetired"
   | "nominate_successor", [_] => values "nominateSuccessor"
+  | "nodes", nodes => call "nodes" [list (nodes.map value)]
+  | "create_new_node", [_] => values "createNewNode"
+  | "replicate_new_configuration", term :: nodes =>
+      call "replicateNewConfiguration" [value term, list (nodes.map value)]
   | "replicate", term :: entries =>
       let entries :=
         entries.map fun entry => if entry == "$" then "signature" else entry.quote
       call "replicate" [value term, list entries]
-  | "periodic_one", [_, _] => values "periodicOne"
-  | "periodic_all", [_] => values "periodicAll"
+  | "periodic_one", [_, _] => counted "periodicOne"
+  | "periodic_all", [_] => counted "periodicAll"
   | "connect", [_, _] => values "connect"
   | "disconnect", [_, _] => values "disconnect"
   | "disconnect_node", [_] => values "disconnectNode"
@@ -272,17 +290,34 @@ def scenarioLine (command : Command) : Except String String :=
   | "reconnect_node", [_] => values "reconnectNode"
   | "dispatch_one", [_] => values "dispatchOne"
   | "dispatch_single", [_, _] => values "dispatchSingle"
-  | "dispatch_nth", [_, _, _] => values "dispatchNth"
+  | "dispatch_nth", [_, _, _] => counted "dispatchNth"
+  | "pending_messages", [source, target] =>
+      call "discard" [s!"(pendingMessages {value source} {value target})"]
   | "dispatch_all_once", [] => values "dispatchAllOnce"
   | "dispatch_all", [] => values "dispatchAll"
   | "drop_pending", [_] => values "dropPending"
   | "drop_pending_to", [_, _] => values "dropPendingTo"
-  | "drop_nth", [_, _, _] => values "dropNth"
-  | "hold_nth", [_, _, _] => values "holdNth"
-  | "dispatch_held", [_] => values "dispatchHeld"
-  | "assert_commit_idx", [_, _] => values "assertCommitIdx"
+  | "drop_nth", [_, _, _] => counted "dropNth"
+  | "hold_nth", [_, _, _] => counted "holdNth"
+  | "dispatch_held", [_] => counted "dispatchHeld"
+  | "shuffle_one", [_] => values "shuffleOne"
+  | "shuffle_all", [] => values "shuffleAll"
+  | "state_one", [_] => values "stateOne"
+  | "state_all", [] => values "stateAll"
+  | "summarise_log", [_] => values "summariseLog"
+  | "summarise_logs_all", [] => values "summariseLogsAll"
+  | "summarise_messages", [_, _] => values "summariseMessages"
+  | "assert_state_sync", [] => values "assertStateSync"
+  | "assert_commit_safety", [_] => values "assertCommitSafety"
+  | "assert_commit_idx", [_, _] => counted "assertCommitIdx"
   | "assert_detail", [node, detail, expected] =>
       call "assertDetail" [value node, detail.quote, value expected]
+  | "assert_!detail", [node, detail, unexpected] =>
+      call "assertNotDetail" [value node, detail.quote, value unexpected]
+  | "assert_config", node :: idx :: nodes => do
+      call "assertConfig" [value node, ← count idx, list (nodes.map value)]
+  | "assert_absent_config", [_, _] => counted "assertAbsentConfig"
+  | "assert_last_txid", [node, txid] => call "assertLastTxid" [value node, txid.quote]
   | "loop_until_sync", [] => values "loopUntilSync"
   | _, _ => throw s!"a scenario cannot issue '{command.text}'"
 
