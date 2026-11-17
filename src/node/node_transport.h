@@ -26,7 +26,9 @@ namespace ccf
       NodeMsgType type, const NodeId& from, std::vector<uint8_t>&& payload) = 0;
 
     virtual void recv_node_tls_inbound(
-      NodeMsgType, const NodeId&, std::vector<uint8_t>&&)
+      NodeMsgType /*type*/,
+      const NodeId& /*from*/,
+      std::vector<uint8_t>&& /*payload*/)
     {
       throw std::logic_error("TLS node ingress is not installed");
     }
@@ -63,7 +65,7 @@ namespace ccf
     virtual void set_inbound_handler(
       std::shared_ptr<NodeInboundHandler> handler) = 0;
 
-    virtual bool uses_tls(const NodeId&)
+    virtual bool uses_tls(const NodeId& /*peer_id*/)
     {
       return false;
     }
@@ -75,18 +77,23 @@ namespace ccf
 
     virtual void stop_tls() {}
 
-    virtual void close_tls(const NodeId&) {}
+    virtual void close_tls(const NodeId& /*peer_id*/) {}
 
     virtual void associate_tls_address(
-      const NodeId&, const std::optional<std::string>&)
+      const NodeId& /*peer_id*/, const std::optional<std::string>& /*address*/)
     {}
 
     virtual void set_tls_identity(
-      const crypto::Pem&, crypto::ECKeyPairPtr, const crypto::Pem&)
+      const crypto::Pem& /*service_cert*/,
+      crypto::ECKeyPairPtr /*key*/,
+      const crypto::Pem& /*node_cert*/)
     {}
 
     virtual void send_tls(
-      const NodeId&, NodeMsgType, const NodeId&, std::vector<uint8_t>&&)
+      const NodeId& /*to*/,
+      NodeMsgType /*type*/,
+      const NodeId& /*from*/,
+      std::vector<uint8_t>&& /*payload*/)
     {
       throw std::logic_error("TLS node transport is not installed");
     }

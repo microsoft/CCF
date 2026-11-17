@@ -141,7 +141,7 @@ namespace ccf
           std::nullopt;
         // Recorded trusted-peer endpoints let the joiner reply before it has
         // replicated the node table. Older primaries omit this field.
-        std::map<NodeId, std::string> node_to_node_tls_addresses = {};
+        std::map<NodeId, std::string> node_to_node_tls_addresses;
 
         NetworkInfo() = default;
 

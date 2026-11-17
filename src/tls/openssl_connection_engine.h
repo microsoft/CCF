@@ -1057,6 +1057,26 @@ namespace ccf::tls
       }
     }
 
+    void queue_write(Conn& conn, OutItem&& item)
+    {
+      if (max_pending_write_bytes)
+      {
+        size_t pending = item.data.size();
+        for (const auto& command : conn.pending_commands)
+        {
+          pending += command.data.size();
+        }
+        if (pending > *max_pending_write_bytes)
+        {
+          LOG_FAIL_FMT("Connection {}: outbound TLS queue full", item.id);
+          conn.force_close = true;
+          return;
+        }
+      }
+      conn.last_active = std::chrono::steady_clock::now();
+      conn.pending_commands.push_back(std::move(item));
+    }
+
     // Apply worker completions and cross-thread commands on the libuv thread.
     void drain_pending_out() CCF_EXCLUDES(out_mutex, lifecycle_mutex)
     {
@@ -1102,23 +1122,7 @@ namespace ccf::tls
         }
         else
         {
-          if (max_pending_write_bytes)
-          {
-            size_t pending = item.data.size();
-            for (const auto& command : cit->second->pending_commands)
-            {
-              pending += command.data.size();
-            }
-            if (pending > *max_pending_write_bytes)
-            {
-              LOG_FAIL_FMT("Connection {}: outbound TLS queue full", item.id);
-              cit->second->force_close = true;
-              mark_dirty(cit->second);
-              continue;
-            }
-          }
-          cit->second->last_active = std::chrono::steady_clock::now();
-          cit->second->pending_commands.push_back(std::move(item));
+          queue_write(*cit->second, std::move(item));
         }
         mark_dirty(cit->second);
       }

@@ -24,7 +24,8 @@ namespace aft
       const std::string& peer_service) = 0;
 
     virtual void associate_node_tls_address(
-      const ccf::NodeId&, const std::optional<std::string>&)
+      const ccf::NodeId& /*peer_id*/,
+      const std::optional<std::string>& /*address*/)
     {}
 
     // Returns false if the message could not be sent

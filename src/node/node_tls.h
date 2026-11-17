@@ -27,7 +27,7 @@ namespace ccf
       bool outgoing = false;
       std::optional<NodeId> peer;
       NodeMsgType purpose = consensus_msg;
-      std::vector<uint8_t> pending = {};
+      std::vector<uint8_t> pending;
       bool authenticated = false;
       bool rejected = false;
     };
@@ -56,12 +56,12 @@ namespace ccf
     }
 
     static int select_alpn(
-      SSL*,
+      SSL* /*ssl*/,
       const unsigned char** out,
       unsigned char* outlen,
       const unsigned char* in,
       unsigned int inlen,
-      void*)
+      void* /*arg*/)
     {
       for (size_t offset = 0; offset < inlen;)
       {
@@ -86,6 +86,11 @@ namespace ccf
     std::shared_ptr<SSL_CTX> make_context(
       const std::string& cert, const std::string& private_key, bool incoming)
     {
+      if (!service_cert.has_value())
+      {
+        throw std::logic_error(
+          "Cannot create N2N TLS context without service certificate");
+      }
       namespace O = crypto::OpenSSL;
       using O::CHECK1;
       O::Unique_SSL_CTX ctx(
@@ -282,10 +287,11 @@ namespace ccf
       {
         return;
       }
-      if (it->second.outgoing && it->second.peer)
+      const auto& connection = it->second;
+      if (connection.outgoing && connection.peer.has_value())
       {
         const auto stream =
-          std::make_pair(*it->second.peer, it->second.purpose);
+          std::make_pair(*connection.peer, connection.purpose);
         auto current = outgoing.find(stream);
         if (current != outgoing.end() && current->second == id)
         {
@@ -375,7 +381,7 @@ namespace ccf
       stop();
     }
 
-    uint16_t port() const
+    [[nodiscard]] uint16_t port() const
     {
       return server->port();
     }
@@ -493,7 +499,9 @@ namespace ccf
           return;
         }
         connections.emplace(
-          *id, Connection{.outgoing = true, .peer = peer, .purpose = purpose});
+          *id,
+          Connection{
+            .outgoing = true, .peer = peer, .purpose = purpose, .pending = {}});
         current = outgoing.emplace(stream, *id).first;
       }
       client->send(current->second, std::move(frame));
