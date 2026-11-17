@@ -1380,7 +1380,10 @@ namespace asynchost
       size_t file_start_idx, size_t file_last_idx, std::string name)
       CCF_REQUIRES(committed_files_lock)
     {
-      committed_files.insert({file_last_idx, file_start_idx, std::move(name)});
+      committed_files.insert(
+        {.last_idx = file_last_idx,
+         .start_idx = file_start_idx,
+         .name = std::move(name)});
       max_committed_file_span =
         std::max(max_committed_file_span, file_last_idx - file_start_idx);
     }
@@ -1397,10 +1400,11 @@ namespace asynchost
     }
 
     // Records the files in ledger_dir which a scan of the directory with
-    // get_file_name_with_idx() would find. Only called from the constructor,
-    // so the annotation is documentary.
-    void add_existing_committed_files() CCF_REQUIRES(committed_files_lock)
+    // get_file_name_with_idx() would find. The directory is scanned before
+    // taking committed_files_lock, which is never held across file operations.
+    void add_existing_committed_files() CCF_EXCLUDES(committed_files_lock)
     {
+      std::vector<CommittedFile> existing_files;
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         auto file_name = f.path().filename().string();
@@ -1408,9 +1412,18 @@ namespace asynchost
           file_name, false /* do not allow recovery files */);
         if (range.has_value())
         {
-          record_committed_file(
-            range->start_idx, range->last_idx, std::move(file_name));
+          existing_files.push_back(
+            {.last_idx = range->last_idx,
+             .start_idx = range->start_idx,
+             .name = std::move(file_name)});
         }
+      }
+
+      ccf::ds::MutexGuard guard(committed_files_lock);
+      for (auto& file : existing_files)
+      {
+        record_committed_file(
+          file.start_idx, file.last_idx, std::move(file.name));
       }
     }
 
@@ -2217,7 +2230,8 @@ namespace asynchost
           // Files containing idx all end at or after it, and at most
           // max_committed_file_span after it. Usually only the first of them
           // starts at or before it, but files may overlap.
-          for (auto it = committed_files.lower_bound({idx, 0, {}});
+          for (auto it = committed_files.lower_bound(
+                 {.last_idx = idx, .start_idx = 0, .name = {}});
                it != committed_files.end() &&
                it->last_idx - idx <= max_committed_file_span;
                ++it)
