@@ -867,45 +867,35 @@ private theorem CommitFrontier.advance {state : NodeState}
   · rw [Nat.max_eq_left le] at positive ⊢
     exact extends_.2 positive
 
-private theorem foldl_select_max (P : Nat -> Prop) [DecidablePred P] (values : List Nat)
-    (init : Nat)
-    : values.foldl (fun best index => if P index then max best index else best) init
-        = init
-      \/ P
-          (values.foldl (fun best index => if P index then max best index else best)
-            init) := by
+/-- A fold that only moves its accumulator to elements satisfying `P` keeps any
+property those moves keep. -/
+private theorem foldl_select_step (P : Nat -> Nat -> Prop) [forall a b, Decidable (P a b)]
+    (Q : Nat -> Prop) (values : List Nat) (init : Nat) (start : Q init)
+    (step : forall acc value, value ∈ values -> Q acc -> P acc value -> Q value)
+    : Q (values.foldl (fun acc value => if P acc value then value else acc) init) := by
   induction values generalizing init with
-  | nil => exact Or.inl rfl
+  | nil => exact start
   | cons head tail ih =>
       simp only [List.foldl_cons]
-      rcases ih (if P head then max init head else init) with same | holds
-      · rw [same]
-        by_cases chosen : P head
-        · rcases Nat.le_total init head with le | le
-          · right
-            simp [chosen, Nat.max_eq_right le]
-          · left
-            simp [chosen, Nat.max_eq_left le]
-        · simp [chosen]
-      · exact Or.inr holds
-
-private theorem foldl_select_max_pos (P : Nat -> Prop) [DecidablePred P]
-    (values : List Nat)
-    (positive
-      : 0 < values.foldl (fun best index => if P index then max best index else best) 0)
-    : P
-        (values.foldl (fun best index => if P index then max best index else best)
-          0) := by
-  rcases foldl_select_max P values 0 with zero | holds
-  · rw [zero] at positive
-    exact absurd positive (Nat.lt_irrefl 0)
-  · exact holds
+      refine ih _ ?_ fun acc value mem => step acc value (List.mem_cons_of_mem _ mem)
+      split
+      · exact step init head (List.mem_cons.mpr (Or.inl rfl)) start ‹_›
+      · exact start
 
 private theorem highestCommittableIndex_signature (state : NodeState) (self : NodeID)
-    (positive : 0 < highestCommittableIndex state self)
+    (ahead : state.commitIndex < highestCommittableIndex state self)
     : isSignatureAt state.log (highestCommittableIndex state self) = true := by
-  unfold highestCommittableIndex at positive ⊢
-  exact (foldl_select_max_pos _ _ positive).2.1
+  have holds
+      : highestCommittableIndex state self = state.commitIndex
+        \/ isSignatureAt state.log (highestCommittableIndex state self) = true := by
+    dsimp only [highestCommittableIndex]
+    exact foldl_select_step _
+      (fun index => index = state.commitIndex \/ isSignatureAt state.log index = true) _ _
+      (Or.inl rfl) fun _ _ _ _ selected => Or.inr selected.2.1
+  rcases holds with same | signature
+  · rw [same] at ahead
+    exact absurd ahead (Nat.lt_irrefl _)
+  · exact signature
 
 private theorem signature_le_length {log : List Entry} {index : Nat}
     (signature : isSignatureAt log index = true)
@@ -1003,8 +993,7 @@ private theorem CommitFrontier.advanced {state : NodeState} (self : NodeID)
     : Keeps CommitFrontier (Model.Node.advanceCommit caps state self) := by
   unfold Model.Node.advanceCommit
   refine Keeps.ite' (fun _ => Keeps.pure' frontier) fun ahead => ?_
-  have signature := highestCommittableIndex_signature state self
-    (Nat.lt_of_le_of_lt (Nat.zero_le _) (Nat.lt_of_not_le ahead))
+  have signature := highestCommittableIndex_signature state self (Nat.lt_of_not_le ahead)
   have advanced : CommitFrontier
       (state.recordCommit self (highestCommittableIndex state self)) :=
     ⟨by simpa using signature_le_length signature, fun _ => by simpa using signature⟩

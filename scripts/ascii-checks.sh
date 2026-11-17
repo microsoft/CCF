@@ -46,7 +46,7 @@ EXTENSIONS=(
 # - Prose documentation (md, rst, txt): human-authored prose where non-ASCII
 #   is legitimate. Agent instruction Markdown is included explicitly below.
 # - Binary / generated / vendored data (committed, cose, pem, png, pdf, ico,
-#   lock, csv, numbered CCF consensus protocol scenarios, everything under 3rdparty/):
+#   lock, csv, everything under 3rdparty/):
 #   not human-edited source, so an ASCII check is meaningless or harmful.
 
 # SHA-256 hashes of existing Unicode lines, excluding their line endings.

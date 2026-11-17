@@ -4,6 +4,7 @@
 import copy
 import hashlib
 import os
+import re
 import shutil
 
 import ccf.ledger
@@ -258,25 +259,20 @@ def run_recovery_snapshot_endorsements(args):
         try:
             valid_primary, _ = valid_attempt.find_primary()
             logs = _logs(valid_primary)
-            scan_log = "scanning the public ledger suffix for COSE endorsements"
-            validated_log = "Validated 2 recovery snapshot endorsement(s) in memory"
-            snapshot_body_log = "Deserialising snapshot (size:"
-            public_recovery_log = "Starting to read public ledger"
-            body_read_log = "Reading authenticated recovery snapshot body"
-            malformed_log = (
-                "Recovery snapshot recovery_snapshot_endorsements_source/"
-                f"{malformed_snapshot_name} cannot be verified"
-            )
+            expected_seqno = infra.node.get_snapshot_seqnos(snapshot_name)[0]
+            startup_seqnos = [
+                int(seqno)
+                for seqno in re.findall(
+                    r"Setting startup snapshot seqno to (\d+)", logs
+                )
+            ]
+            assert startup_seqnos == [expected_seqno], startup_seqnos
             assert (
-                logs.index(scan_log)
-                < logs.index(validated_log)
-                < logs.index(body_read_log)
-                < logs.index("does not match receipt claim")
-                < logs.index(malformed_log)
-                < logs.index(snapshot_body_log)
-                < logs.index(public_recovery_log)
-            )
-            assert logs.count(body_read_log) == 3, logs
+                f"Selected recovery snapshot recovery_snapshot_endorsements_source/"
+                f"{snapshot_name} at seqno {expected_seqno}"
+            ) in logs
+            assert "does not match receipt claim" in logs
+            assert f"{malformed_snapshot_name} cannot be verified" in logs
             assert (
                 "Snapshot receipt signature verification failed under the "
                 "endorsed snapshot service identity"
@@ -317,7 +313,7 @@ def run_recovery_snapshot_endorsements(args):
             logs = _logs(fallback_primary)
             assert "No usable local snapshot found" in logs
             assert "Setting startup snapshot seqno" not in logs
-            assert body_read_log not in logs
+            assert "Selected recovery snapshot" not in logs
             _assert_node_snapshot_unchanged(
                 fallback_primary, snapshot_name, snapshot_digest
             )

@@ -20,14 +20,16 @@ It assumes familiarity with the [CCF consensus protocol documentation](../../doc
 Transition systems, traces, effects and network composition come from the local [`ccf_common` package](../common/README.md).
 Each node reads membership, quorums and retirement from its own ledger; there is no model-wide configuration after initialization.
 Initialization takes a nonempty initial voting membership, whose smallest member starts as primary with the genesis configuration transaction.
+Production starts with singleton voting membership; the model also accepts multi-node initial configurations supported by the consensus testing infrastructure.
 Actions are local inputs (including timeouts) or delivery of a queued message; no clock is modeled.
 
 ## Scope
 
 Like CCF's `init_as_backup`, a fresh node may initialize once as a follower: with an empty ledger in term zero, or from another node's committed ledger prefix ending at a signature, in that signature's term.
 Crashes are not modeled, so a committed prefix keeps its history, and a valid snapshot, fetched from another node or read from a local file, is such a prefix ([`Model.networkStep`](Consensus/Model.lean)).
-The join protocol is not modeled: any configuration may add a node, and a fresh node may instead follow from its first AppendEntries.
-There are no liveness properties or fairness assumptions.
+The join protocol is not modeled: a configuration may add any node, and a fresh node may instead follow from its first AppendEntries.
+Node identities are never reused, so a configuration may not name a node removed by an earlier configuration in the same log.
+There are no fairness assumptions or guarantees of eventual election or commitment.
 
 ## Validation
 
@@ -62,6 +64,7 @@ Proof modules follow the shared [dependency import contract](../common/README.md
 `Proofs/Direct.lean` establishes node-local commit invariants; `Proofs/SafetyInvariant.lean` establishes the cross-node history invariant, in the `Consensus.Proofs.Safety` namespace, used for election safety and committed-log comparability.
 [`Proofs/Witnesses.lean`](Consensus/Proofs/Witnesses.lean) supplies the checked witness implementations, using shared execution-construction helpers in [`Proofs/GenericWitnesses.lean`](Consensus/Proofs/GenericWitnesses.lean).
 The safety-invariant proof remains independent of the witness construction, allowing Lake to check them in parallel.
+`Proofs/Deadlock.lean` proves deadlock freedom after bootstrapping on top of the cross-node history invariant, so it imports `Proofs/SafetyInvariant.lean` with `import all`.
 
 To list the safety-invariant declarations used by the exported theorems, run `lake env lean scripts/invariant-dependencies.lean`.
 

@@ -628,29 +628,10 @@ namespace ccf
         throw std::logic_error("Empty snapshot receipt");
       }
 
-      if (receipt_bytes[0] != 0xD2)
+      constexpr uint8_t ENCODED_COSE_SIGN1_TAG = 0xD2;
+      if (receipt_bytes[0] != ENCODED_COSE_SIGN1_TAG)
       {
-        try
-        {
-          if (receipt_bytes[0] != '{')
-          {
-            throw std::logic_error("Unrecognised snapshot receipt format");
-          }
-
-          const auto claims_digest = verify_json_snapshot_receipt_signature(
-            receipt_bytes, target_identity.raw());
-          LOG_INFO_FMT(
-            "Recovery snapshot at {} is directly signed by the configured "
-            "previous service identity",
-            snapshot_seqno);
-          return claims_digest;
-        }
-        catch (const std::exception& e)
-        {
-          throw std::logic_error(fmt::format(
-            "old-style snapshot receipt cannot use an endorsement chain: {}",
-            e.what()));
-        }
+        throw std::logic_error("Snapshot receipt is not a COSE_Sign1 receipt");
       }
 
       const auto receipt = ccf::cose::decode_ccf_receipt(
@@ -671,7 +652,7 @@ namespace ccf
           ccf::crypto::make_cose_verifier_from_pem_cert(target_identity);
         if (verifier->verify_detached(receipt_bytes, receipt.merkle_root))
         {
-          LOG_INFO_FMT(
+          LOG_DEBUG_FMT(
             "Recovery snapshot at {} is directly signed by the configured "
             "previous service identity",
             snapshot_seqno);
@@ -686,7 +667,7 @@ namespace ccf
         direct_verification_error = e.what();
       }
 
-      LOG_INFO_FMT(
+      LOG_DEBUG_FMT(
         "Recovery snapshot at {} is not directly signed by the configured "
         "previous service identity ({}); scanning the public ledger suffix "
         "for COSE endorsements",
@@ -708,7 +689,7 @@ namespace ccf
           "Snapshot receipt signature verification failed under the "
           "endorsed snapshot service identity");
       }
-      LOG_INFO_FMT(
+      LOG_DEBUG_FMT(
         "Validated {} recovery snapshot endorsement(s) in memory",
         scan.endorsements.size());
       return claims_digest;
@@ -737,13 +718,10 @@ namespace ccf
         {
           try
           {
-            LOG_INFO_FMT(
-              "Checking local recovery snapshot file: {}", snapshot_path);
             std::ifstream input(snapshot_path, std::ios::binary);
             const auto receipt_bytes = read_snapshot_receipt(input);
             const auto claims_digest = verify_recovery_snapshot_receipt_unsafe(
               receipt_bytes, snapshot_seqno);
-            LOG_INFO_FMT("Reading authenticated recovery snapshot body");
             auto snapshot_data = files::slurp(snapshot_path, true);
             const auto segments = separate_segments(snapshot_data);
             if (!std::ranges::equal(segments.receipt, receipt_bytes))
@@ -756,6 +734,10 @@ namespace ccf
               segments, network.tables->get_encryptor(), snapshot_seqno);
             startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
               snapshot_seqno, std::move(snapshot_data));
+            LOG_INFO_FMT(
+              "Selected recovery snapshot {} at seqno {}",
+              snapshot_path,
+              snapshot_seqno);
             return;
           }
           catch (const std::exception& e)

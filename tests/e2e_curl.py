@@ -98,20 +98,33 @@ class SnapshotServer:
         match = re.fullmatch(r"bytes=(\d+)-(\d+)", request.headers["Range"])
         assert match is not None, request.headers
         start, end = map(int, match.groups())
-        end = min(end, self.size - 1)
+        if self.mode != "overrun":
+            end = min(end, self.size - 1)
+        if self.mode == "ignore_range":
+            # Send the rest of the snapshot, whatever range was requested
+            end = self.size - 1
         if self.mode == "chunk_error" and start != 0:
             return web.Response(status=500, text="Snapshot chunk unavailable")
         if self.mode == "wrong_start":
             start += 1
-        if self.mode == "wrong_end":
+        # After the first range, which the first-response size limit would
+        # reject before the range check
+        if self.mode == "wrong_end" and start != 0:
             end += 1
 
         # CCF 6.x used exclusive ends; 7.x uses HTTP-style inclusive ends.
         header_end = end + 1 if self.mode == "exclusive" else end
+        total = self.size
+        if self.mode == "wrong_total" and start != 0:
+            total += 1
+        body = self.data[start : end + 1]
+        if self.mode == "overrun":
+            # Send every requested range in full, even past the snapshot's end
+            body = body.ljust(end + 1 - start, b"\0")
         return web.Response(
             status=206,
-            headers={"Content-Range": f"bytes {start}-{header_end}/{self.size}"},
-            body=self.data[start : end + 1],
+            headers={"Content-Range": f"bytes {start}-{header_end}/{total}"},
+            body=body,
         )
 
     async def headers(self, request):
@@ -132,6 +145,14 @@ class SnapshotServer:
             "overflow_total": f"bytes 2-4/{overflow}",
             "length_mismatch": "bytes 2-6/10",
             "missing_length": "bytes 2-4/10",
+            "inclusive_final": "bytes 7-9/10",
+            "exclusive_final": "bytes 7-10/10",
+            "end_at_total": "bytes 8-10/10",
+            "past_total": "bytes 2-4/3",
+            "empty": "bytes 5-5/10",
+            "inverted": "bytes 5-4/10",
+            "empty_at_start": "bytes 0-0/10",
+            "inverted_with_body": "bytes 6-4/10",
         }
         case = request.match_info["case"]
         content_range = ranges[case]
@@ -143,7 +164,8 @@ class SnapshotServer:
             await response.write(b"abc")
             await response.write_eof()
             return response
-        return web.Response(status=206, headers=headers, body=b"abc")
+        body = b"" if case in ("empty", "inverted", "empty_at_start") else b"abc"
+        return web.Response(status=206, headers=headers, body=body)
 
 
 def make_self_signed_cert(san_dns):

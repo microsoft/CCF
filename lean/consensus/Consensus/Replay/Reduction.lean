@@ -102,13 +102,21 @@ private def emitObserve (event : Event) (rule : String) : Reduction Unit :=
 private def emitObserveSends (event : Event) (sends : List NativeSend) : Reduction Unit :=
   appendInstruction (.observeSends sends (event.origin "sends"))
 
+/--
+Genesis runs asynchronously after the first node becomes leader, so bare ticks may precede
+it; the model starts after genesis, so they are not observed.
+`replicate` flushes a genesis entry over the append entries size limit. The node has no peers
+yet, so the flush sends nothing.
+-/
 private def ruleBootstrap : Reduction String := do
   let head ← peek
   -- consume
   event head "become_leader"
+  many_ (event head "tick")
   event head "replicate"
   event head "replicate_entry"
   event head "add_configuration"
+  optional_ (event head "batch_flush")
   return head.node
 
 private def readAppendContent (head : Event) (config : Option Event)

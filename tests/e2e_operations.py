@@ -49,6 +49,11 @@ from cryptography.hazmat.backends import default_backend
 from infra import snp
 from loguru import logger as LOG
 
+# Snapshots written by releases before 7.0 carry JSON receipts, which
+# ccf.ledger.Snapshot rejects. These remain in testdata for the recovery and
+# LTS compatibility tests, which replay the ledger of those services.
+LEGACY_RECEIPT_SNAPSHOT_SERVICES = {"eol_service", "expired_service", "sgx_service"}
+
 
 @reqs.description("Move committed ledger files to read-only directory")
 def test_save_committed_ledger_files(network, args):
@@ -863,13 +868,13 @@ def test_corrupt_snapshot_handling(network, args):
 
     # Craft corrupt snapshot data that passes separate_segments() (valid header
     # with non-zero body size and non-empty receipt area) but fails
-    # verify_snapshot() because the receipt is not valid JSON.
+    # verify_snapshot() because the receipt is not a COSE_Sign1 message.
     # SerialisedEntryHeader is 8 bytes: version(1) + flags(1) + size(48-bit LE)
     body_size = 16
     header = bytes([1, 0]) + body_size.to_bytes(6, "little")
     assert len(header) == 8
     body = b"\x00" * body_size
-    receipt = b"this is not valid json!!"
+    receipt = b"this is not a valid receipt!!"
     corrupt_data = header + body + receipt
 
     # Use the newest snapshot for the writable dir so it is tried first
@@ -3711,9 +3716,19 @@ def run_read_ledger_on_testdata(args):
         )
         for snapshot_file in os.scandir(snapshot_path):
             if snapshot_file.is_file() and snapshot_file.name.endswith(".committed"):
-                snapshot_path = os.path.join(snapshot_path, snapshot_file.name)
-                LOG.info(f"Reading and validating snapshot {snapshot_path}")
-                with ccf.ledger.Snapshot(snapshot_file.path) as snapshot:
+                LOG.info(f"Reading and validating snapshot {snapshot_file.path}")
+                # Release tests use the published SDK, which may accept JSON
+                # receipts. Local SDK tests enforce COSE-only snapshot receipts.
+                try:
+                    snapshot = ccf.ledger.Snapshot(snapshot_file.path)
+                except ccf.ledger.InvalidSnapshotException as e:
+                    if testdata_dir.name not in LEGACY_RECEIPT_SNAPSHOT_SERVICES:
+                        raise
+                    assert "Snapshot receipt is not a COSE_Sign1 receipt" in str(e), e
+                    LOG.info(f"Legacy snapshot rejected: {e}")
+                    continue
+
+                with snapshot:
                     tables = snapshot.get_public_domain().get_tables()
                     LOG.info(
                         f"Valid snapshot at {snapshot_file.path} with {len(tables)} tables"

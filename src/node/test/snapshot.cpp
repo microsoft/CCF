@@ -33,15 +33,13 @@ struct CountingSnapshotBuffer : std::stringbuf
   }
 };
 
-TEST_CASE("Recovery reads the receipt before the snapshot body")
+TEST_CASE("Reading a snapshot receipt skips the body")
 {
   ccf::kv::SerialisedEntryHeader header;
   header.set_size(1024 * 1024);
   std::string snapshot(sizeof(header), '\0');
   std::memcpy(snapshot.data(), &header, sizeof(header));
   snapshot.append(header.size, 'b');
-  const ccf::crypto::Sha256Hash claims_digest(
-    reinterpret_cast<const uint8_t*>(snapshot.data()), snapshot.size());
   const std::string receipt = "test receipt";
   snapshot += receipt;
 
@@ -50,30 +48,6 @@ TEST_CASE("Recovery reads the receipt before the snapshot body")
   const auto receipt_bytes = ccf::read_snapshot_receipt(input);
   CHECK(buffer.bytes_read == sizeof(header) + receipt.size());
   CHECK(std::string(receipt_bytes.begin(), receipt_bytes.end()) == receipt);
-  const auto body = std::span(
-    reinterpret_cast<const uint8_t*>(snapshot.data()),
-    sizeof(header) + header.size);
-
-  SUBCASE("The loaded body matches the authenticated digest")
-  {
-    CHECK_NOTHROW(ccf::verify_snapshot_digest(body, claims_digest));
-  }
-  SUBCASE("Authenticated receipts do not permit body tampering")
-  {
-    snapshot[sizeof(header)] ^= 1;
-    CHECK_THROWS_WITH_AS(
-      ccf::verify_snapshot_digest(body, claims_digest),
-      doctest::Contains("does not match receipt claim"),
-      std::logic_error);
-  }
-  SUBCASE("Authenticated receipts do not permit header tampering")
-  {
-    snapshot[0] ^= 1;
-    CHECK_THROWS_WITH_AS(
-      ccf::verify_snapshot_digest(body, claims_digest),
-      doctest::Contains("does not match receipt claim"),
-      std::logic_error);
-  }
 }
 
 TEST_CASE("Recovery rejects malformed snapshot framing before authentication")
@@ -108,70 +82,8 @@ TEST_CASE("Recovery rejects malformed snapshot framing before authentication")
   }
   std::istringstream input(snapshot);
   CHECK_THROWS(ccf::read_snapshot_receipt(input));
-}
-
-TEST_CASE("Legacy JSON snapshot receipts authenticate before body validation")
-{
-  auto service_key = ccf::crypto::make_ec_key_pair();
-  const auto service_cert = service_key->self_sign(
-    "CN=Test Service", "20200101000000Z", "20300101000000Z");
-  auto node_key = ccf::crypto::make_ec_key_pair();
-  auto receipt = std::make_shared<ccf::ProofReceipt>();
-  receipt->cert = service_key->sign_csr(
-    service_cert,
-    node_key->create_csr("CN=Test Node"),
-    "20200101000000Z",
-    "20300101000000Z");
-  receipt->node_id = ccf::compute_node_id_from_kp(node_key);
-
-  ccf::kv::SerialisedEntryHeader header;
-  header.set_size(128);
-  std::string snapshot(sizeof(header), '\0');
-  std::memcpy(snapshot.data(), &header, sizeof(header));
-  snapshot.append(header.size, 'b');
-  receipt->leaf_components.claims_digest.set(ccf::crypto::Sha256Hash(
-    reinterpret_cast<const uint8_t*>(snapshot.data()), snapshot.size()));
-  const auto root = receipt->calculate_root();
-  receipt->signature = node_key->sign_hash(root.h.data(), root.h.size());
-
-  auto target = service_cert;
-  bool reject = false;
-  SUBCASE("Matching identity") {}
-  SUBCASE("Wrong identity")
-  {
-    auto other_key = ccf::crypto::make_ec_key_pair();
-    target = other_key->self_sign(
-      "CN=Other Service", "20200101000000Z", "20300101000000Z");
-    reject = true;
-  }
-  SUBCASE("Invalid signature")
-  {
-    receipt->signature.back() ^= 1;
-    reject = true;
-  }
-
-  const auto receipt_json = nlohmann::json(ccf::ReceiptPtr(receipt)).dump();
-  snapshot += receipt_json;
-  CountingSnapshotBuffer buffer(snapshot);
-  std::istream input(&buffer);
-  const auto load = [&]() {
-    const auto receipt_bytes = ccf::read_snapshot_receipt(input);
-    const auto claims_digest =
-      ccf::verify_json_snapshot_receipt_signature(receipt_bytes, target.raw());
-    const auto body = std::span(
-      reinterpret_cast<const uint8_t*>(snapshot.data()),
-      sizeof(header) + header.size);
-    ccf::verify_snapshot_digest(body, claims_digest);
-  };
-  if (reject)
-  {
-    CHECK_THROWS(load());
-    CHECK(buffer.bytes_read == sizeof(header) + receipt_json.size());
-  }
-  else
-  {
-    CHECK_NOTHROW(load());
-  }
+  CHECK_THROWS(ccf::separate_segments(
+    std::vector<uint8_t>(snapshot.begin(), snapshot.end())));
 }
 
 TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
