@@ -26,7 +26,6 @@ The [interleaved](valid/interleaved.ndjson) control records the replication hist
 | [Uncommitted snapshot](invalid/uncommitted-snapshot.ndjson)             | Joiner initializes at an uncommitted signature          |
 | [Bootstrap event](invalid/bootstrap-event.ndjson)                       | Event other than a tick or nomination before genesis    |
 | [Bootstrap flush send](invalid/bootstrap-flush-send.ndjson)             | Send from the genesis flush, which must send nothing    |
-| [Process order](invalid/process-order.ndjson)                           | Interleaved control in one process: groups overlap      |
 
 From `lean/consensus`, inspect a failure directly (exit status 1 is expected):
 

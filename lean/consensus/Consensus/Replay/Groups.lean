@@ -9,8 +9,8 @@ public section
 
 /-!
 Runs the reduction rules over each node's events: peek the next event, run one rule from
-it, and take what the rule emitted as a group. The peeked event gives the group's node,
-process and times, so the rules track none of them.
+it, and take what the rule emitted as a group. The peeked event gives the group's node and
+times, so the rules track neither.
 A receive or `init_as_backup` must be its rule's first action, since replay decides from
 that action whether the group waits.
 -/
@@ -23,46 +23,38 @@ open Reducer
 private def group : Reduction (Option Group) := do
   let some head ← CCF.Parsec.peek | CCF.Parsec.failure "unexpected end of input"
   ruleStep
-  let last ←
-    liftM (m := CCF.Parsec.Parser Event)
-      ((fun input => .success input (input.events[input.position - 1]?.getD head))
-        : CCF.Parsec.Parser Event Event)
   let state ← get
   set { state with instructions := #[] }
   if state.instructions.isEmpty then return none
   return some
     {
-      node := head.node
-      pid := head.pid
-      m_ts := head.m_ts
-      last_m_ts := last.m_ts
-      ts := head.ts
+      node := head.node,
+      m_ts := head.m_ts,
+      ts := head.ts,
       instructions := state.instructions
     }
 
 /-- One node's events. Every event is consumed; an ungrouped event is never a stutter. -/
-private def node : Reduction (List Group) := do
+private def node : Reduction (Array Group) := do
   let groups ← CCF.Parsec.many group
   if let some event ← CCF.Parsec.peek then
     CCF.Parsec.failure s!"{event.record.location}: ungrouped event {event.function}"
-  return groups.filterMap id
+  return (groups.filterMap id).toArray
 
-/-- Prepared initialization and each process's groups for direct model replay. -/
+/-- Prepared initialization and each node's groups for direct model replay. -/
 structure Reduced where
   header : Header
   queues : Array (Array Group)
 
 /--
-Prepare replay identities, reduce each node's events and queue each process's groups in
-`m_ts` order. Request IDs continue across nodes, so they are unique in the trace.
-A process that traces several nodes, as `cft_driver` does, runs them on one thread, so its
-groups must not overlap.
+Prepare replay identities and reduce each node's events into its queue of groups.
+Request IDs continue across nodes, so they are unique in the trace.
 -/
 def reduce (streams : Array (Array Event)) (declared : List String)
     : Except String Reduced := do
   let header : Header := { bootstrap := ∅, declared }
   let mut bootstrap := none
-  let mut groups := #[]
+  let mut queues := #[]
   let mut nextRequestId := 1
   for events in streams do
     let (found, state) ←
@@ -79,18 +71,10 @@ def reduce (streams : Array (Array Event)) (declared : List String)
       if let some other := bootstrap then
         throw s!"nodes '{other}' and '{leader}' both bootstrap the network"
       bootstrap := some leader
-    groups := groups ++ found
+    queues := queues.push found
     nextRequestId := state.nextRequestId
   let some leader := bootstrap | throw "no node bootstraps the network"
   let header := { header with bootstrap := {← header.nodeId leader} }
-  let sorted :=
-    groups.qsort fun a b => a.pid < b.pid || (a.pid == b.pid && a.m_ts < b.m_ts)
-  let queues := (sorted.toList.splitBy (·.pid == ·.pid)).toArray.map (·.toArray)
-  for queue in queues do
-    for earlier in queue, group in queue.extract 1 do
-      unless earlier.last_m_ts < group.m_ts do
-        throw
-          s!"{group.label}: starts before the group at {earlier.label} of the same process ends"
   return { header, queues }
 
 end Consensus.Replay

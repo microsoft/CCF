@@ -88,12 +88,8 @@ lock.
 structure Group where
   /-- The node whose lock hold this is. -/
   node : String
-  /-- `pid` of the group's events. -/
-  pid : String
   /-- `m_ts` of the head event: where the group starts in its process's order. -/
   m_ts : Nat
-  /-- `m_ts` of the last event: where the group ends in its process's order. -/
-  last_m_ts : Nat
   /-- `ts` of the head event, when the trace records it. -/
   ts : Option Nat
   /-- What the group's rule emitted, run with no other group's actions in between. -/
@@ -441,9 +437,9 @@ private def Group.send? (group : Group) (destination : String) (packet : Json)
     | _ => none
 
 /--
-Explain a replay in which every process's next group waits. A receive whose sender does not
-send its packet in the rest of the trace, or sends it later in the receiver's own process,
-can never run; the other groups wait for another node.
+Explain a replay in which every node's next group waits. A receive whose sender does not
+send its packet in the rest of the trace can never run; the other groups wait for another
+node.
 -/
 private def stuck (rest : Array Group) (blocked : Array (Group × (Unit → String)))
     : String :=
@@ -457,11 +453,7 @@ private def stuck (rest : Array Group) (blocked : Array (Group × (Unit → Stri
             match sender.findSome? (·.send? destination packet) with
             | none => .inl s!"{waiting}; '{source}' sends no such packet later"
             | some origin =>
-                if sender.any (·.pid == group.pid) then
-                  .inl
-                    s!"{waiting}; '{source}', in the same process, sends it only later at {origin.label}"
-                else
-                  .inr s!"{waiting}; '{source}' sends it later at {origin.label}"
+                .inr s!"{waiting}; '{source}' sends it later at {origin.label}"
         | _ => .inr waiting
   let list (title : String) (lines : List String) :=
     if lines.isEmpty then "" else s!"\n{title}:\n  {"\n  ".intercalate lines}"
@@ -470,13 +462,13 @@ private def stuck (rest : Array Group) (blocked : Array (Group × (Unit → Stri
   ++ list "waiting for another node" waits
 
 /--
-Run each process's groups in order, recording the groups run, ending with any that failed.
-`m_ts` is the order of execution within a process. Among processes, the enabled group with
-the earliest wall-clock time runs, then by process; without wall-clock times `m_ts` stands
-in, only so that diagnostics are reproducible, as counters of different processes are not
-comparable. A group's node changes only through its own groups, other nodes only add
-packets it may receive, and a committed prefix stays committed, so the verdict does not
-depend on which enabled group runs.
+Run each node's groups in order, recording the groups run, ending with any that failed.
+The enabled group with the earliest wall-clock time runs, then by node; without wall-clock
+times `m_ts` stands in, which is the order of execution within a process and otherwise only
+makes diagnostics reproducible, as counters of different processes are not comparable.
+A group's node changes only through its own groups, other nodes only add packets it may
+receive, and a committed prefix stays committed, so the verdict does not depend on which
+enabled group runs.
 -/
 def schedule (header : Header) (queues : Array (Array Group))
     : ExceptT String (StateM (Array Group)) Result := do

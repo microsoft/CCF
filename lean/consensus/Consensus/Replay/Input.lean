@@ -74,11 +74,10 @@ def readLog (path : System.FilePath) : IO (Except String (Array Record)) := do
 structure Event where
   /-- The trace line the event was read from. -/
   record : Record
-  /-- `pid`: the process that emitted the record. -/
-  pid : String
   /--
-  `m_ts`: a counter the process increments for each record it emits, so its order within a
-  `pid` is the order of emission. Other tags share the counter, so it may have gaps.
+  `m_ts`: a counter the emitting process (`pid`) increments for each record it emits, so its
+  order within a `pid` is the order of emission. Other tags share the counter, so it may
+  have gaps.
   -/
   m_ts : Nat
   /--
@@ -137,7 +136,7 @@ def prepareEvents (records : Array Record)
           require (other == pid) s!"node '{node}' is traced by pids '{other}' and '{pid}'"
         pids := pids.insert node pid
         let ts ← (optional record.value "ts").mapM natural
-        events := events.push { record, pid, m_ts, ts, function, node, message, state }
+        events := events.push { record, m_ts, ts, function, node, message, state }
         declared := node :: declared
         if function == "retired_committed_tx" then
           declared := (← string message "retired_node_id") :: declared
