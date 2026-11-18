@@ -60,7 +60,6 @@ The Python SDK can derive the DID locally:
 ``--public-key-only`` generates an identity key pair without creating a certificate.
 Omit ``--gen-enc-key`` for non-recovery members.
 
-For a DID member, percent-encode the ID's colons in governance URLs (``did%3Akey%3Az...``), leaving action suffixes such as ``:update`` and ``:ack`` unchanged.
 Pass ``--signing-did-key <did:key>`` instead of ``--signing-cert`` to every ``ccf_cose_sign1`` operation, including activation and recovery.
 Pass ``--member-did-key <did:key>`` instead of ``--member-id-cert`` to ``submit_recovery_share.sh`` before its curl options.
 

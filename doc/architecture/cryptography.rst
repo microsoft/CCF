@@ -124,10 +124,8 @@ As the specification describes, a ``did:key`` is a deterministic encoding of its
 For example, an EC key must use the compressed point encoding.
 Only bare IDs are accepted; DID URLs with fragments, queries, or paths are not identity IDs.
 
-``did:key`` IDs contain colons.
-The ``:`` character is valid in a URL path segment, but CCF endpoint templates use it to separate a path parameter from an action suffix, as in ``/gov/members/state-digests/{memberId}:ack``.
-When inserting a ``did:key`` into an HTTP path, percent-encode its colons as ``%3A``, and leave the endpoint's literal action suffix unchanged.
-The stored ID and COSE ``kid`` remain the unencoded ``did:key``.
+A ``did:key`` is used as it is in an HTTP path, including before an action suffix, as in ``/gov/members/state-digests/did:key:z...:ack``.
+Its colons may also be percent-encoded as ``%3A``.
 
 Members and users enroll a ``did:key`` by passing it as ``did_key`` to ``set_member`` or ``set_user``; no certificate is stored or required.
 That enrollment is the only step needed.

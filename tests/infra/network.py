@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum, IntEnum, auto
 from typing import ClassVar
-from urllib.parse import quote
 
 import ccf.ledger
 from ccf.tx_id import TxID
@@ -1620,7 +1619,7 @@ class Network:
                         if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
                             check_commit = infra.checker.Checker(c)
                             r = c.delete(
-                                f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
+                                f"/node/network/nodes/{node_to_retire.node_id}"
                             )
                             if self._is_retryable_node_removal_response(r):
                                 LOG.warning(f"Retrying node removal after {r}")
@@ -1639,7 +1638,7 @@ class Network:
                                 break
                         else:
                             r = c.get(
-                                f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
+                                f"/node/network/nodes/{node_to_retire.node_id}"
                             ).body.json()
                 except ConnectionRefusedError:
                     pass
@@ -1777,9 +1776,7 @@ class Network:
                     r = c.get("/node/network/removable_nodes").body.json()
                     if node_to_retire.node_id in {n["node_id"] for n in r["nodes"]}:
                         check_commit = infra.checker.Checker(c)
-                        r = c.delete(
-                            f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
-                        )
+                        r = c.delete(f"/node/network/nodes/{node_to_retire.node_id}")
                         if self._is_retryable_node_removal_response(r):
                             LOG.warning(f"Retrying node removal after {r}")
                             try:
@@ -1797,7 +1794,7 @@ class Network:
                             break
                     else:
                         r = c.get(
-                            f"/node/network/nodes/{quote(node_to_retire.node_id, safe='')}"
+                            f"/node/network/nodes/{node_to_retire.node_id}"
                         ).body.json()
             except ConnectionRefusedError:
                 pass
@@ -2120,7 +2117,7 @@ class Network:
         **kwargs,
     ):
         with remote_node.client(**kwargs) as c:
-            r = c.get(f"/node/network/nodes/{quote(node_id, safe='')}")
+            r = c.get(f"/node/network/nodes/{node_id}")
             resp = r.body.json()
             return (
                 r.status_code == http.HTTPStatus.NOT_FOUND.value

@@ -119,12 +119,12 @@ TEST_CASE("URL template parsing")
     {"/foo", "/foo/1", "/foo/bar"});
   require_template_parsing(
     "/foo{id}bar",
-    {{"/foo1bar", {"1"}}, {"/foofazbar", {"faz"}}},
-    {"/foobar", "/foobazbar", "/foo/bar", "/foo/baz/bar"});
+    {{"/foo1bar", {"1"}}, {"/foofazbar", {"faz"}}, {"/foobazbar", {"baz"}}},
+    {"/foobar", "/foo/bar", "/foo/baz/bar"});
   require_template_parsing(
     "/{id}bar",
-    {{"/1bar", {"1"}}, {"/foobar", {"foo"}}},
-    {"/bar", "/bazbar", "/foo/bar", "foo/bar"});
+    {{"/1bar", {"1"}}, {"/foobar", {"foo"}}, {"/bazbar", {"baz"}}},
+    {"/bar", "/foo/bar", "foo/bar"});
   require_template_parsing(
     "/{id}-{name}",
     {{"/foo-bar", {"foo", "bar"}}, {"/1-2", {"1", "2"}}},
@@ -141,17 +141,40 @@ TEST_CASE("URL template parsing")
   REQUIRE_THROWS(PathTemplateSpec::parse("/{id}/{id}/foo"));
 }
 
-TEST_CASE("Percent-encoded DID path components preserve action suffixes")
+TEST_CASE("Templates can contain the literal which follows them")
 {
+  // A template which is the last in its path segment extends to the last
+  // occurrence of the literal which follows it, so an ID containing colons
+  // can precede an action suffix
+  const std::string did =
+    "did:key:zDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv";
   const std::string encoded =
     "did%3Akey%3AzDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv";
   for (const std::string action : {"update", "ack", "submit", "recover"})
   {
     require_template_parsing(
       "/members/{memberId}:" + action,
-      {{"/members/" + encoded + ":" + action, {encoded}}},
-      {"/members/" + encoded + ":invalid"});
+      {{"/members/" + did + ":" + action, {did}},
+       {"/members/" + encoded + ":" + action, {encoded}},
+       {"/members/a:" + action + ":" + action, {"a:" + action}}},
+      {"/members/" + did + ":invalid",
+       "/members/" + did,
+       "/members/:" + action,
+       "/members/" + did + "/x:" + action});
   }
+  require_template_parsing(
+    "/{name}:do/{place}", {{"/a:b:do/c:d", {"a:b", "c:d"}}}, {"/a:b/c"});
+
+  // Templates in the same path segment are still split at the first
+  // occurrence of the literal which separates them
+  require_template_parsing(
+    "/{name}:{action}",
+    {{"/a:b", {"a", "b"}}, {"/a:b:c", {"a", "b:c"}}},
+    {"/a", "/:b"});
+  require_template_parsing(
+    "/{name}:{action}:go",
+    {{"/a:b:go", {"a", "b"}}, {"/a:b:c:go", {"a", "b:c"}}},
+    {"/a:go", "/a:b"});
 }
 
 TEST_CASE("Endpoint properties OpenAPI default")

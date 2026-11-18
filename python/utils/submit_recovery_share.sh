@@ -89,10 +89,9 @@ else
     identity_args=(--signing-cert "$member_id_cert")
 fi
 
-url_member_id="${member_id//:/%3A}"
-get_share_path="gov/recovery/encrypted-shares/${url_member_id}?api-version=${api_version}"
+get_share_path="gov/recovery/encrypted-shares/${member_id}?api-version=${api_version}"
 share_field="encryptedShare"
-submit_share_path="gov/recovery/members/${url_member_id}:recover?api-version=${api_version}"
+submit_share_path="gov/recovery/members/${member_id}:recover?api-version=${api_version}"
 
 # First, retrieve the encrypted recovery share
 encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}/${get_share_path}" "${@}" | jq -r ".${share_field}")

@@ -953,7 +953,7 @@ def did_key_identities(args):
 
         def assert_migration_rollback(migration, role, legacy_id, did_id):
             legacy_path = f"/gov/service/{role}s/{legacy_id}"
-            did_path = f"/gov/service/{role}s/{quote(did_id, safe='')}"
+            did_path = f"/gov/service/{role}s/{did_id}"
             with primary.api_versioned_client(api_version=args.gov_api_version) as c:
                 before = c.get(legacy_path).body.json()
             failed = {
@@ -1024,9 +1024,7 @@ def did_key_identities(args):
                 c.get(f"/gov/service/members/{legacy_member_id}").status_code
                 == http.HTTPStatus.NOT_FOUND
             )
-            body = c.get(
-                f"/gov/service/members/{quote(did_member_id, safe='')}"
-            ).body.json()
+            body = c.get(f"/gov/service/members/{did_member_id}").body.json()
             assert "certificate" not in body, body
             assert body["status"] == "Accepted", body
         assert member.service_id.startswith("did:key:z")
@@ -1041,10 +1039,15 @@ def did_key_identities(args):
             r = c.post("/gov/members/proposals:create", proposal)
             assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r
             other_id = network.consortium.get_any_active_member().service_id
-            r = c.post(f"/gov/members/state-digests/{quote(other_id, safe='')}:update")
+            r = c.post(f"/gov/members/state-digests/{other_id}:update")
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
             r = c.get(f"/gov/members/proposals/{member.service_id}")
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
+            # A did:key is used as it is in a path, including before an action
+            # suffix. Percent-encoded colons are also accepted.
+            for own_id in (member.service_id, quote(member.service_id, safe="")):
+                r = c.post(f"/gov/members/state-digests/{own_id}:update")
+                assert r.status_code == http.HTTPStatus.OK, r
         member.ack(primary)
         member.get_and_decrypt_recovery_share(primary)
         network.consortium.vote_using_majority(
@@ -1071,7 +1074,7 @@ def did_key_identities(args):
             ballot,
         )
         with primary.api_versioned_client(api_version=args.gov_api_version) as c:
-            r = c.get(f"/gov/service/members/{quote(member.service_id, safe='')}")
+            r = c.get(f"/gov/service/members/{member.service_id}")
             assert r.status_code == http.HTTPStatus.OK, r
             body = r.body.json()
             assert body["memberId"] == member.service_id, body
@@ -1089,7 +1092,7 @@ def did_key_identities(args):
         member.ack(primary)
         assert member.get_and_decrypt_recovery_share(primary)
         with primary.api_versioned_client(api_version=args.gov_api_version) as c:
-            r = c.get(f"/gov/service/members/{quote(member.service_id, safe='')}")
+            r = c.get(f"/gov/service/members/{member.service_id}")
             assert r.body.json()["status"] == "Active", r
 
         fresh_member = network.consortium.generate_and_add_new_member(
@@ -1153,16 +1156,16 @@ def did_key_identities(args):
                 c.get(f"/gov/service/users/{legacy_user_id}").status_code
                 == http.HTTPStatus.NOT_FOUND
             )
-            body = c.get(
-                f"/gov/service/users/{quote(did_user_id, safe='')}"
-            ).body.json()
+            body = c.get(f"/gov/service/users/{did_user_id}").body.json()
             assert "certificate" not in body, body
             assert body["userData"] == {"migrated": True}, body
+            r = c.get(f"/gov/service/users/{quote(did_user_id, safe='')}")
+            assert r.body.json() == body, r
             # Unauthenticated lookups only check the syntax of an ID, without
             # decoding or validating the key in a did:key
-            r = c.get(f"/gov/service/users/{quote('did:key:z0', safe='')}")
+            r = c.get("/gov/service/users/did:key:z0")
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r
-            r = c.get(f"/gov/service/users/{quote(did_user_id + '1', safe='')}")
+            r = c.get(f"/gov/service/users/{did_user_id}1")
             assert r.status_code == http.HTTPStatus.NOT_FOUND, r
         with primary.client(user.local_id) as c:
             r = c.post("/app/log/private", {"id": 1, "msg": "DID user"})
@@ -1213,7 +1216,7 @@ def did_key_identities(args):
         network.trust_node(node, args)
         node.verify_certificate_validity_period()
         with primary.client() as c:
-            r = c.get(f"/node/network/nodes/{quote(node.node_id, safe='')}")
+            r = c.get(f"/node/network/nodes/{node.node_id}")
             assert r.status_code == http.HTTPStatus.OK, r
             assert r.body.json()["node_id"] == node.node_id, r
         with node.client(replacement_identity) as c:
@@ -1229,7 +1232,7 @@ def did_key_identities(args):
         node.stop()
         primary, _ = network.find_primary()
         with primary.client() as c:
-            r = c.get(f"/node/network/nodes/{quote(node.node_id, safe='')}")
+            r = c.get(f"/node/network/nodes/{node.node_id}")
             assert r.status_code == http.HTTPStatus.NOT_FOUND, r
 
         network.consortium.remove_user(primary, user.service_id)
