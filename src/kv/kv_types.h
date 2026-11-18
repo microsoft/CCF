@@ -836,7 +836,8 @@ namespace ccf::kv
 
     virtual Version current_version() = 0;
     virtual ccf::TxID current_txid() = 0;
-    virtual std::pair<ccf::TxID, Term> current_txid_and_commit_term() = 0;
+    virtual std::tuple<ccf::TxID, Term, Version>
+    current_txid_commit_term_and_rollback_count() = 0;
 
     virtual Version compacted_version() = 0;
     virtual Term commit_view() = 0;

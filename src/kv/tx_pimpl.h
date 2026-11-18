@@ -26,6 +26,9 @@ namespace ccf::kv
     // the service, before anything has been applied to the KV.
     std::optional<TxID> read_txid = std::nullopt;
     ccf::View commit_view = ccf::VIEW_UNKNOWN;
+    // Reserved transactions are write-only and validate their reservation on
+    // commit instead of selecting a read snapshot.
+    std::optional<Version> read_rollback_count = std::nullopt;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
   };

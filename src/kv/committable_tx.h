@@ -474,7 +474,8 @@ namespace ccf::kv
       return TxID(pimpl->commit_view, version);
     }
 
-    void set_read_txid(const TxID& tx_id, Term commit_view_)
+    void set_read_txid(
+      const TxID& tx_id, Term commit_view_, Version read_rollback_count)
     {
       KV_TRACE(
         trace::unsupported(pimpl->store, "explicit read transaction ID"));
@@ -484,6 +485,7 @@ namespace ccf::kv
       }
       pimpl->read_txid = tx_id;
       pimpl->commit_view = commit_view_;
+      pimpl->read_rollback_count = read_rollback_count;
     }
 
     void set_root_at_read_version(const ccf::crypto::Sha256Hash& r)

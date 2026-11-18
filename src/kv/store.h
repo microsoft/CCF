@@ -1148,12 +1148,23 @@ namespace ccf::kv
       return current_txid_unsafe();
     }
 
-    std::pair<TxID, Term> current_txid_and_commit_term() override
+    std::tuple<TxID, Term, Version>
+    current_txid_commit_term_and_rollback_count() override
     {
       // Must lock in case the version or commit term is being incremented.
       std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
       KV_TRACE(trace::snapshot(this, version, term_of_next_version));
-      return {current_txid_unsafe(), term_of_next_version};
+      return {current_txid_unsafe(), term_of_next_version, rollback_count};
+    }
+
+    std::tuple<TxID, ccf::crypto::Sha256Hash, Term, Version>
+    get_replicated_state_txid_and_root()
+    {
+      // Rollback takes the store version lock before the history state lock.
+      // Hold both while pairing the history snapshot with the store epoch.
+      std::lock_guard<ccf::ds::Mutex> vguard(version_lock);
+      auto [txid, root, term] = history->get_replicated_state_txid_and_root();
+      return {txid, root, term, rollback_count};
     }
 
     Version compacted_version() override
