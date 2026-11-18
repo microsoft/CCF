@@ -49,21 +49,17 @@ def main():
         workspace = Path(directory)
         for index, (name, data) in enumerate(metadata.items()):
             checkout = workspace / str(index)
-            commit = subprocess.check_output(
-                ["git", "rev-parse", f"refs/{data['source']}/{name}"],
-                cwd=root,
-                text=True,
-            ).strip()
-            data["commit"] = commit
             with tempfile.TemporaryFile() as archive:
                 subprocess.run(
-                    ["git", "archive", commit],
+                    ["git", "archive", f"refs/{data['source']}/{name}"],
                     cwd=root,
                     stdout=archive,
                     check=True,
                 )
                 archive.seek(0)
                 with tarfile.open(fileobj=archive) as contents:
+                    # git archive records the exact commit in the global tar header.
+                    data["commit"] = contents.pax_headers["comment"]
                     contents.extractall(checkout, filter="data")
             data["basedir"] = str(checkout)
             data["sourcedir"] = str(checkout / relative_source)

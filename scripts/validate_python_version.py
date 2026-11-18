@@ -23,19 +23,18 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.tag is None:
-        description = subprocess.check_output(
+    if args.tag is not None:
+        tag = args.tag.removeprefix("refs/tags/")
+    else:
+        tag = subprocess.check_output(
             ["git", "describe", "--tags", "--match=ccf-*", "--exclude=ccf-0.0.0*"],
             text=True,
         ).strip()
-        print(to_python_version(description))
-        return
 
-    tag = args.tag.removeprefix("refs/tags/")
     if not tag.startswith("ccf-"):
         parser.error(f"Expected a ccf-* release tag, got {tag}")
     version = to_python_version(tag)
-    if version.local is not None:
+    if args.tag is not None and version.local is not None:
         parser.error(f"PyPI does not accept local versions: {version}")
     print(version)
 

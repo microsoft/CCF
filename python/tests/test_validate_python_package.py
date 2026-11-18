@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import importlib.util
+import runpy
 import subprocess
 import sys
 import zipfile
@@ -10,7 +11,7 @@ from pathlib import Path
 import pytest
 
 SCRIPT_PATH = Path(__file__).parents[2] / "scripts" / "validate_python_package.py"
-RELEASE_VERSION_SCRIPT = SCRIPT_PATH.with_name("python_release_version.py")
+VERSION_SCRIPT = str(SCRIPT_PATH.with_name("validate_python_version.py"))
 SPEC = importlib.util.spec_from_file_location("validate_python_package", SCRIPT_PATH)
 assert SPEC is not None
 assert SPEC.loader is not None
@@ -20,58 +21,27 @@ SPEC.loader.exec_module(VALIDATOR)
 
 @pytest.mark.parametrize(
     "tag, expected",
-    [("7.0.25", "7.0.25"), ("8.0.0-dev10", "8.0.0.dev10"), ("8.0.0-rc0", "8.0.0rc0")],
+    [
+        ("ccf-7.0.25", "7.0.25"),
+        ("refs/tags/ccf-8.0.0-dev10", "8.0.0.dev10"),
+        ("ccf-8.0.0-rc0", "8.0.0rc0"),
+        (None, "7.0.25.post1+gabc1234"),
+        ("refs/heads/main", None),
+        ("ccf-7.0.25-1-gabc1234", None),  # Local versions cannot be published.
+    ],
 )
-def test_python_release_version(tag: str, expected: str) -> None:
-    version = subprocess.check_output(
-        [
-            sys.executable,
-            str(RELEASE_VERSION_SCRIPT),
-            f"refs/tags/ccf-{tag}",
-        ],
-        text=True,
+def test_python_version(tag, expected, monkeypatch, capsys):
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    monkeypatch.setattr(sys, "argv", [VERSION_SCRIPT, tag] if tag else [VERSION_SCRIPT])
+    monkeypatch.setattr(
+        subprocess, "check_output", lambda *a, **kw: "ccf-7.0.25-1-gabc1234"
     )
-    assert version.strip() == expected
-
-
-@pytest.mark.parametrize("ref", ["refs/heads/main", "ccf-8.0.0-unknown"])
-def test_reject_non_release_version(ref: str) -> None:
-    with pytest.raises(subprocess.CalledProcessError):
-        subprocess.run(
-            [sys.executable, str(RELEASE_VERSION_SCRIPT), ref],
-            check=True,
-        )
-
-
-def test_sdk_version_from_checkout(tmp_path: Path) -> None:
-    def git(*args: str) -> str:
-        return subprocess.check_output(
-            [
-                "git",
-                "-c",
-                "user.name=CCF Test",
-                "-c",
-                "user.email=test@example.com",
-                "-c",
-                "commit.gpgsign=false",
-                "-c",
-                "tag.gpgsign=false",
-                *args,
-            ],
-            cwd=tmp_path,
-            text=True,
-        ).strip()
-
-    git("init", "--quiet")
-    git("commit", "--allow-empty", "-m", "release")
-    git("tag", "ccf-7.0.25")
-    command = [sys.executable, str(RELEASE_VERSION_SCRIPT)]
-    assert subprocess.check_output(command, cwd=tmp_path, text=True).strip() == "7.0.25"
-
-    git("commit", "--allow-empty", "-m", "development")
-    git("tag", "ccf-0.0.0-test")
-    expected = f"7.0.25.post1+g{git('rev-parse', '--short', 'HEAD')}"
-    assert subprocess.check_output(command, cwd=tmp_path, text=True).strip() == expected
+    if expected is None:
+        with pytest.raises(SystemExit):
+            runpy.run_path(VERSION_SCRIPT, run_name="__main__")
+    else:
+        runpy.run_path(VERSION_SCRIPT, run_name="__main__")
+        assert capsys.readouterr().out.strip() == expected
 
 
 def create_wheel(tmp_path: Path, *, name: str = "ccf", version: str = "1.2.3") -> Path:

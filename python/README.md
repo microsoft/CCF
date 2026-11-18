@@ -10,7 +10,7 @@ Direct installs use the static development version `0.0.0.dev0` without needing 
 To use the same version as CI, fetch the release tags and their history, then run this from the repository root before installing:
 
 ```bash
-version=$(uv run --no-project --with packaging python scripts/python_release_version.py) &&
+version=$(uv run --no-project --with packaging python scripts/validate_python_version.py) &&
   uv version --project python --frozen "$version"
 ```
 

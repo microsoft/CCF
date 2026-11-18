@@ -149,5 +149,5 @@ runs:
       run: |
         set -eu
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        version=$(uv run --no-project --with packaging python scripts/python_release_version.py)
+        version=$(uv run --no-project --with packaging python scripts/validate_python_version.py)
         uv version --project python --frozen "$version"
