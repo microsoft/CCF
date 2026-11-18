@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import importlib.util
-import runpy
 import subprocess
 import sys
 import zipfile
@@ -11,7 +10,7 @@ from pathlib import Path
 import pytest
 
 SCRIPT_PATH = Path(__file__).parents[2] / "scripts" / "validate_python_package.py"
-VERSION_SCRIPT = str(SCRIPT_PATH.with_name("validate_python_version.py"))
+VERSION_SCRIPT = str(SCRIPT_PATH.with_name("derive_python_version.py"))
 SPEC = importlib.util.spec_from_file_location("validate_python_package", SCRIPT_PATH)
 assert SPEC is not None
 assert SPEC.loader is not None
@@ -25,23 +24,23 @@ SPEC.loader.exec_module(VALIDATOR)
         ("ccf-7.0.25", "7.0.25"),
         ("refs/tags/ccf-8.0.0-dev10", "8.0.0.dev10"),
         ("ccf-8.0.0-rc0", "8.0.0rc0"),
-        (None, "7.0.25.post1+gabc1234"),
         ("refs/heads/main", None),
+        ("ccf-invalid", None),
         ("ccf-7.0.25-1-gabc1234", None),  # Local versions cannot be published.
     ],
 )
-def test_python_version(tag, expected, monkeypatch, capsys):
-    monkeypatch.setattr(sys, "path", sys.path.copy())
-    monkeypatch.setattr(sys, "argv", [VERSION_SCRIPT, tag] if tag else [VERSION_SCRIPT])
-    monkeypatch.setattr(
-        subprocess, "check_output", lambda *a, **kw: "ccf-7.0.25-1-gabc1234"
+def test_derive_python_version(tag: str, expected: str | None) -> None:
+    result = subprocess.run(
+        [sys.executable, VERSION_SCRIPT, tag],
+        check=False,
+        capture_output=True,
+        text=True,
     )
     if expected is None:
-        with pytest.raises(SystemExit):
-            runpy.run_path(VERSION_SCRIPT, run_name="__main__")
+        assert result.returncode == 2, result.stderr
     else:
-        runpy.run_path(VERSION_SCRIPT, run_name="__main__")
-        assert capsys.readouterr().out.strip() == expected
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == expected
 
 
 def create_wheel(tmp_path: Path, *, name: str = "ccf", version: str = "1.2.3") -> Path:

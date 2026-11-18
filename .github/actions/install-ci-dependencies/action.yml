@@ -139,12 +139,3 @@ runs:
         set -euo pipefail
         "$PACKAGE_MANAGER" clean metadata
         bash "$SETUP_SCRIPT"
-
-    - name: Set Python SDK version for this checkout
-      if: inputs.cache-python-packages == 'true'
-      shell: bash
-      run: |
-        set -eu
-        git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        version=$(uv run --no-project --with packaging python scripts/validate_python_version.py)
-        uv version --project python --frozen "$version"
