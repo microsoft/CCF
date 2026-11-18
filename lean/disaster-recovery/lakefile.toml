@@ -26,7 +26,7 @@ copy = false
 [[require]]
 name = "batteries"
 git = "https://github.com/leanprover-community/batteries.git"
-rev = "v4.35.0"
+rev = "v4.36.0"
 
 [[require]]
 name = "leanfmt"
