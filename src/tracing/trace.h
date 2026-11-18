@@ -6,6 +6,7 @@
 #include "msgpack/fluentd_event_time.h"
 #include "msgpack/serialization.h"
 #include "tracing/fluentd_sink.h"
+#include "tracing/traced_mutex.h"
 
 #include <atomic>
 #include <chrono>
@@ -90,7 +91,8 @@ namespace ccf::tracing
   CCF_TRACE_ARGUMENT_FOR_JSON_NEXT(TYPE, MEMBER)
 
 // DECLARE_TRACE_EVENT(event, tag, field) declares event(const auto& field).
-// Declare in the caller's namespace. The wrapper adds the function field.
+// Declare in the caller's namespace. The wrapper adds the function field and
+// lock_hold, the TracedMutex hold the event is emitted in.
 #define DECLARE_TRACE_EVENT(NAME, TAG, ...) \
   inline void NAME(__VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)( \
     CCF_TRACE_PARAMETER, _, __VA_ARGS__))) \
@@ -98,7 +100,9 @@ namespace ccf::tracing
     ccf::tracing::emit( \
       TAG, \
       "function", \
-      #NAME __VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)( \
-        CCF_TRACE_ARGUMENT, _, __VA_ARGS__))); \
+      #NAME, \
+      "lock_hold", \
+      ccf::tracing::lock_hold __VA_OPT__(_FOR_JSON_COUNT_NN(__VA_ARGS__)( \
+        POP1)(CCF_TRACE_ARGUMENT, _, __VA_ARGS__))); \
   } \
   REQUIRES_SEMICOLON_TERMINATION
