@@ -462,10 +462,11 @@ class Network:
                 "nodes": node_ids,
                 "records_per_process": dict(counts),
             }
-            with open(
-                os.path.join(folder, "manifest.json"), "w", encoding="utf-8"
-            ) as f:
+            # Renamed into place, so that a manifest is never partly written.
+            path = os.path.join(folder, "manifest.json")
+            with open(path + ".tmp", "w", encoding="utf-8") as f:
                 json.dump(manifest, f, indent=2)
+            os.replace(path + ".tmp", path)
             LOG.info(f"CCF consensus protocol trace capture in {folder}: {manifest}")
         except Exception:
             LOG.exception("Could not write CCF consensus protocol trace capture")
