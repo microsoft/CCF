@@ -72,16 +72,27 @@ def readLog (path : System.FilePath) : IO (Except String (Array Record)) := do
   return parseLog path.toString input
 
 structure Event where
+  /-- The trace line the event was read from. -/
   record : Record
-  /-- `pid`, the process that emitted the record. -/
+  /-- `pid`: the process that emitted the record. -/
   pid : String
-  /-- `m_ts`, the emission order within the record's process; other tags share the counter. -/
-  time : Nat
-  /-- `ts`, the wall-clock emission time in nanoseconds, when the trace records it. -/
+  /--
+  `m_ts`: a counter the process increments for each record it emits, so its order within a
+  `pid` is the order of emission. Other tags share the counter, so it may have gaps.
+  -/
+  m_ts : Nat
+  /--
+  `ts`: the wall-clock emission time in nanoseconds, when the trace records it. Clocks of
+  different processes may disagree, and one may step backwards.
+  -/
   ts : Option Nat
+  /-- `msg.function`: the name of the event. -/
   function : String
+  /-- `msg.state.node_id`: the node the event is about. -/
   node : String
+  /-- `msg`: the event's own fields. -/
   message : Json
+  /-- `msg.state`: the node's consensus state when the event was emitted. -/
   state : Json
 deriving Inhabited
 
@@ -106,11 +117,11 @@ def prepareEvents (records : Array Record)
   let mut previous : Option (String × Nat × Record) := none
   let mut pids : Std.HashMap String String := {}
   let mut declared : List String := []
-  for (pid, time, record) in keyed do
-    if let some (last, lastTime, earlier) := previous then
-      if last == pid && lastTime == time then
-        throw s!"{record.location}: m_ts {time} of pid '{pid}' repeats {earlier.location}"
-    previous := some (pid, time, record)
+  for (pid, m_ts, record) in keyed do
+    if let some (last, lastMts, earlier) := previous then
+      if last == pid && lastMts == m_ts then
+        throw s!"{record.location}: m_ts {m_ts} of pid '{pid}' repeats {earlier.location}"
+    previous := some (pid, m_ts, record)
     try
       let message ← field record.value "msg"
       unless (optional message "cmd").isSome do
@@ -126,7 +137,7 @@ def prepareEvents (records : Array Record)
           require (other == pid) s!"node '{node}' is traced by pids '{other}' and '{pid}'"
         pids := pids.insert node pid
         let ts ← (optional record.value "ts").mapM natural
-        events := events.push { record, pid, time, ts, function, node, message, state }
+        events := events.push { record, pid, m_ts, ts, function, node, message, state }
         declared := node :: declared
         if function == "retired_committed_tx" then
           declared := (← string message "retired_node_id") :: declared

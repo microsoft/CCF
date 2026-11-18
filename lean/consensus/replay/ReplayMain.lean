@@ -27,7 +27,7 @@ def main (args : List String) : IO UInt32 := do
           | .ok reduced => (schedule reduced.header reduced.queues).run.run #[]
         unless flags.isEmpty do
           for group in ran do
-            IO.eprintln s!"{group.ts.getD group.time} node '{group.node}' {group.label}"
+            IO.eprintln s!"{group.ts.getD group.m_ts} node '{group.node}' {group.label}"
         match result with
         | .error error => IO.eprintln s!"{path}: {error}"; return 1
         | .ok result =>

@@ -86,13 +86,17 @@ A head event and its follow-on events on the same node: one hold of the node's c
 lock.
 -/
 structure Group where
+  /-- The node whose lock hold this is. -/
   node : String
+  /-- `pid` of the group's events. -/
   pid : String
-  /-- The emission order within its process of the head event, and of the last event. -/
-  time : Nat
-  last : Nat
-  /-- The head event's wall-clock time, when the trace records it. -/
+  /-- `m_ts` of the head event: where the group starts in its process's order. -/
+  m_ts : Nat
+  /-- `m_ts` of the last event: where the group ends in its process's order. -/
+  last_m_ts : Nat
+  /-- `ts` of the head event, when the trace records it. -/
   ts : Option Nat
+  /-- What the group's rule emitted, run with no other group's actions in between. -/
   instructions : Array Instruction
 
 /-- Where the group starts, with its rule. -/
@@ -489,7 +493,7 @@ def schedule (header : Header) (queues : Array (Array Group))
       throw s!"undeclared model node {node}"
   let total := queues.foldl (· + ·.size) 0
   if total == 0 then throw "replay groups must not be empty"
-  let key (group : Group) := group.ts.getD group.time
+  let key (group : Group) := group.ts.getD group.m_ts
   let mut state : ReplayState := { state := header.initial }
   let mut next := Array.replicate queues.size 0
   for _ in [:total] do
