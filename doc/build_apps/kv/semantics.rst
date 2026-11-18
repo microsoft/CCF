@@ -115,7 +115,7 @@ Pre-application conflict is permitted conservatively; the checker does not claim
 
 Read-only completion does not append a new write version.
 Local application order is the candidate serial order for writing transactions within a local branch.
-Read-only normal programs have witnesses against their combined pinned local data, which need not identify one store-wide historical cut if rollback occurs between lazy acquisitions.
+Read-only normal programs have witnesses against their pinned local data.
 Not every locally acknowledged transaction belongs to one permanent history across rollbacks.
 
 ``Compact(v)`` abstracts the environment's declaration that a prefix is irrevocable and the removal of obsolete history.
@@ -141,12 +141,6 @@ It cannot cross the irrevocable prefix.
 The model accounts for removed maps, retained handles, invalidated writing attempts, sequence-number reuse, and term changes that do not truncate the local history.
 A retained handle may still read its captured state after rollback; that does not authorize it to republish an invalidated write set.
 
-In particular, a read-only attempt can retain one map from a removed branch and acquire another map from the surviving branch at the frozen read-version bound.
-Its observations can therefore combine local states that never coexisted in one store frame.
-This profile preserves that behavior, including successful read-only completion without a new write version.
-It does not prove a single historical snapshot or serial placement for such an attempt.
-The branch serializability theorem concerns actual writing applications on segments without rollback of the selected store, not all acknowledged read-only attempts across rollback.
-
 Proof and trust boundaries
 --------------------------
 
@@ -170,7 +164,6 @@ The :ccf_repo:`proof catalogue <lean/kv/README.md>` records their precise scope 
        The segment excludes creation, destruction, or successful rollback of that store; rejected rollback and operations on other stores may interleave.
    * - ``replay_snapshot_fixed``
      - The read-version metadata comes from the initial capture and remains fixed during the attempt.
-       Later lazy acquisitions after rollback can select different surviving local frames; this is not a store-wide mixed-view snapshot theorem.
    * - ``capture_replay_preserves_map``
      - An acquired map's local and global views remain fixed, including for other keys, aliases, compaction, and rollback.
        This is not cross-map global consistency.

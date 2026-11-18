@@ -106,12 +106,8 @@ Serializability is derived from the OCC check.
 It applies to **normal** observations on a local branch, not a single global serial read view combining normal and historical reads, and not one permanent serial order across rollback.
 Per-map global observations need not agree with either the current snapshot or each other across maps.
 
-Read-only completions use `transaction_snapshot_serial`, which interprets their normal log against the combined pinned local data, and do not appear as new applications in `executable_branch_serializability`.
-Without intervening rollback, these pinned views come from the frozen read version.
-An already acquired map can retain a removed branch's frame while a later lazy acquisition selects a surviving frame after rollback.
-The checker preserves this mixed-view read-only behavior, including successful completion without publication.
-The theorem does not assert that such combined pinned data occurred at one store-wide historical cut, nor that all successful read-only attempts across rollback have one serial placement.
-Writing attempts still require valid acquired-map lineage, term, and dependencies before publication.
+Read-only completions use `transaction_snapshot_serial` and do not appear as new applications in `executable_branch_serializability`.
+Writing attempts require valid acquired-map lineage, term, and dependencies before publication.
 An already pinned snapshot may belong to a subsequently discarded branch.
 Conversely, every local application belongs to its application-order witness even if its later `commit_result` is `no_replicate`.
 A pre-application `no_replicate` contributes no application.
@@ -130,7 +126,6 @@ Snapshot preservation requires no creation/end of the selected attempt during it
 The model guarantees are proved for actual `Model.execute` transitions and arbitrary reachable model runs, without trace preconditions or a sequential acceptance oracle.
 The trace decoder, event translation, report comparisons, and recording checks are part of the validation trust boundary, rather than a separately proved trace transition system.
 The canonical model theorems cover normal-view serial projection, history safety, frozen read metadata, and per-map local/global provenance and immutability.
-They do not establish cross-map snapshot consistency for the mixed lazy-acquisition rollback schedule described above.
 They do not prove that arbitrary C++ executions refine this model or that the instrumentation is complete; iteration protocol and acquisition-availability checks are not claimed as independently verified C++ algorithms.
 
 ## Trace validation
