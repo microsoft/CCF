@@ -8,6 +8,7 @@ import io
 import json
 import selectors
 import socket
+import struct
 import threading
 import time
 from dataclasses import dataclass, field
@@ -187,8 +188,9 @@ class Recorder:
 
 
 def write_cft_trace(connections, path):
-    """Decode recorded ccf.cft events into one NDJSON file of {process_id,
-    h_ts, msg} records, in connection order.
+    """Decode recorded ccf.cft events into one NDJSON file of {pid, m_ts, msg}
+    records, in connection order, adding each event's emission time in
+    nanoseconds as ts.
 
     Returns the record count per process ID, and any reasons the recorded
     streams may be incomplete.
@@ -202,11 +204,13 @@ def write_cft_trace(connections, path):
             unpacker = msgpack.Unpacker(io.BytesIO(connection.data), raw=False)
             decoded = 0
             try:
-                for tag, _, record in unpacker:
-                    if tag != "ccf.cft" or set(record) != {"process_id", "h_ts", "msg"}:
+                for tag, time, record in unpacker:
+                    if tag != "ccf.cft" or set(record) != {"pid", "m_ts", "msg"}:
                         raise ValueError(f"Unexpected {tag} event: {sorted(record)}")
+                    seconds, nanoseconds = struct.unpack(">II", time.data)
+                    record["ts"] = seconds * 10**9 + nanoseconds
                     output.write(json.dumps(record, allow_nan=False) + "\n")
-                    counts[record["process_id"]] += 1
+                    counts[record["pid"]] += 1
                     decoded = unpacker.tell()
             except Exception as error:
                 problems.append(f"Connection {i} is malformed: {error}")
