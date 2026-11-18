@@ -14,7 +14,6 @@ tests/cft_scenarios/.lake/
 tests/cft_model/.lake/
 *.pyc
 __pycache__/
-sphinx/build/
 tests/Testing/
 test-results/
 doxygen/
@@ -22,7 +21,6 @@ obj/
 *.retry
 tests/env/
 tests/**/*pb2*.py
-sphinx/env/
 html/
 latex/
 env/

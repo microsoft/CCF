@@ -27,6 +27,7 @@ use openssl_sys::{
     EXFLAG_CA,
 };
 use std::cmp::Ordering;
+use std::ffi::c_int;
 
 use super::{
     compatible_key_and_signature, CertificateBackend, CryptoBackend, DigestAlgorithm,
@@ -112,10 +113,12 @@ impl CertificateBackend for Crypto {
     type Certificate = Certificate;
 
     fn from_pem(pem: &[u8]) -> Result<Self::Certificate> {
+        native_len(pem)?;
         openssl::x509::X509::from_pem(pem).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
     }
 
     fn from_pem_chain(pem: &[u8]) -> Result<Vec<Self::Certificate>> {
+        native_len(pem)?;
         openssl::x509::X509::stack_from_pem(pem)
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
     }
@@ -145,6 +148,8 @@ impl CertificateBackend for Crypto {
         let oid = Asn1Object::from_str(oid)
             .map_err(|e| format!("Invalid extension OID {}: {:?}", oid, e))?;
 
+        // SAFETY: cert and oid own the OpenSSL objects. Pointers and lengths are checked
+        // before copying extension bytes while cert is still borrowed.
         unsafe {
             let index = X509_get_ext_by_OBJ(cert.as_ptr(), oid.as_ptr(), -1);
             if index == -1 {
@@ -219,6 +224,7 @@ impl CertificateBackend for Crypto {
             .map(usize::try_from)
             .transpose()
             .map_err(|_| "pathLenConstraint does not fit usize")?;
+        // SAFETY: cert owns a live X509 for the duration of this call.
         let flags = unsafe { X509_get_extension_flags(cert.as_ptr()) };
 
         Ok(Some(super::BasicConstraints {
@@ -232,6 +238,7 @@ impl CertificateBackend for Crypto {
         if Self::extension_criticality(cert, oid::KEY_USAGE)?.is_none() {
             return Ok(None);
         }
+        // SAFETY: cert owns a live X509 for the duration of this call.
         let key_usage = unsafe { X509_get_key_usage(cert.as_ptr()) };
 
         Ok(Some(super::KeyUsage {
@@ -243,6 +250,7 @@ impl CertificateBackend for Crypto {
         let oid = Asn1Object::from_str(oid)
             .map_err(|e| format!("Invalid extension OID {}: {:?}", oid, e))?;
 
+        // SAFETY: cert and oid stay alive; the extension pointer is checked before use.
         unsafe {
             let index = X509_get_ext_by_OBJ(cert.as_ptr(), oid.as_ptr(), -1);
             if index == -1 {
@@ -259,6 +267,7 @@ impl CertificateBackend for Crypto {
     }
 
     fn critical_extension_oids(cert: &Self::Certificate) -> Vec<String> {
+        // SAFETY: cert owns a live X509 for the duration of this call.
         let count = unsafe { X509_get_ext_count(cert.as_ptr()) };
         if count <= 0 {
             return Vec::new();
@@ -266,16 +275,19 @@ impl CertificateBackend for Crypto {
 
         (0..count)
             .filter_map(|index| {
+                // SAFETY: index is within the extension count of the borrowed cert.
                 let extension = unsafe { X509_get_ext(cert.as_ptr(), index) };
                 if extension.is_null() {
                     return None;
                 }
 
+                // SAFETY: extension is non-null and remains owned by cert.
                 let critical = unsafe { X509_EXTENSION_get_critical(extension) != 0 };
                 if !critical {
                     return None;
                 }
 
+                // SAFETY: extension is non-null and remains owned by cert.
                 let object = unsafe { X509_EXTENSION_get_object(extension) };
                 if object.is_null() {
                     return None;
@@ -291,6 +303,8 @@ impl CertificateBackend for Crypto {
 /// for the numeric form that `CertificateBackend` specifies.
 fn dotted_decimal_oid(object: *mut openssl_sys::ASN1_OBJECT) -> Option<String> {
     let mut buffer = [0u8; 128];
+    // SAFETY: The sole caller passes a non-null OID from its borrowed certificate.
+    // buffer is writable for the exact capacity passed to OpenSSL.
     let written = unsafe {
         OBJ_obj2txt(
             buffer.as_mut_ptr().cast(),
@@ -513,4 +527,13 @@ fn ec_curve_nid(algorithm: EcSignatureKeyAlgorithm) -> Nid {
         EcSignatureKeyAlgorithm::P384 => Nid::SECP384R1,
         EcSignatureKeyAlgorithm::P521 => Nid::SECP521R1,
     }
+}
+
+/// OpenSSL reads PEM through a memory BIO, which takes its length as a C
+/// `int`.
+fn native_len(input: &[u8]) -> Result<c_int> {
+    input
+        .len()
+        .try_into()
+        .map_err(|_| "Input exceeds the OpenSSL API length limit".into())
 }

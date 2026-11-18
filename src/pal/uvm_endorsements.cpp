@@ -170,8 +170,9 @@ namespace ccf
 
         if (!cwt_claims.svn.has_value())
         {
-          throw tav::cbor::DecodeError(
-            tav::cbor::Error::KEY_NOT_FOUND, "No CWT svn in UVM endorsements");
+          throw tav::Exception(
+            tav::ErrorCode::CBOR_KEY_NOT_FOUND,
+            "No CWT svn in UVM endorsements");
         }
 
         validate_cwt_iat_against_x5chain(
@@ -215,7 +216,7 @@ namespace ccf
     }
     // Since ContainerPlat 0.2.10, UVM endorsements carry SVN in CWT claims,
     // alongside ISS and SUB(feed), so on decoding failure fallback to legacy.
-    catch (const tav::cbor::DecodeError&)
+    catch (const tav::Exception&)
     {
       phdr = cose::decode_protected_header(uvm_endorsements_raw);
     }

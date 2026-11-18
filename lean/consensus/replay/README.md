@@ -48,7 +48,6 @@ A receive delivers any queued model envelope from its sender whose rendered pack
 It delivers the queued **model payload**, not reconstructing unrecorded native bytes; if matching envelopes differ in payload, for example in AppendEntries entries, which packets omit, replay fails with an ambiguous delivery.
 An envelope that is never delivered stays queued, which models loss, so `drop_pending_to` emits no observation or action.
 After each rule's actions, the envelopes they queued must equal the rule's native sends, as a multiset of target and rendered packet.
-Native code does not trace the `propose_request_vote` send that follows `step_down_and_nominate_successor`, so replay counts each `step_down_and_nominate_successor` as that send.
 
 ## Source and checks
 
