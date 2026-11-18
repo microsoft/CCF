@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#![forbid(unsafe_code)]
+
 //! Portable TEE attestation verification library.
 //!
 //! This crate verifies AMD SEV-SNP attestation reports and certificate
@@ -16,10 +18,6 @@
 //! - `crypto_openssl`: native OpenSSL-backed verification.
 //! - `crypto_webcrypto`: WASM WebCrypto-backed verification.
 //! - `crypto_windows`: Windows CNG and Crypt32-backed verification.
-//!
-//! ## Additional features
-//!
-//! - `kds`: enables certificate fetching from AMD KDS.
 //!
 //! # Usage
 //!
@@ -77,20 +75,6 @@ pub fn certificate_from_pem(pem: &[u8]) -> Result<Certificate, Box<dyn std::erro
 pub fn certificate_from_der(der: &[u8]) -> Result<Certificate, Box<dyn std::error::Error>> {
     Crypto::from_der(der)
 }
-
-#[cfg(feature = "kds")]
-mod certificate_chain;
-#[cfg(feature = "kds")]
-mod kds;
-#[cfg(feature = "kds")]
-pub mod sev_verification;
-#[cfg(feature = "kds")]
-pub use certificate_chain::AmdCertificates;
-#[cfg(feature = "kds")]
-pub use sev_verification::SevVerifier;
-
-#[cfg(all(target_arch = "wasm32", feature = "kds"))]
-pub mod wasm;
 
 #[cfg(test)]
 mod tests {

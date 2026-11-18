@@ -32,7 +32,7 @@ extern "C" {
  *   failure. Inspect failures with tav_error_code and tav_error_message, then
  *   free them with tav_error_free.
  * - Both constructors report invalid inputs and invalid out_report state as
- *   TavError failures. Each input buffer is capped at 1 GiB.
+ *   TavError failures. Input buffers must fit in PTRDIFF_MAX bytes.
  * - Error accessors are defensive for NULL TavError pointers: tav_error_code
  *   returns TAV_ERROR_IS_NULL and tav_error_message returns a static
  *   diagnostic string.
@@ -49,6 +49,10 @@ typedef struct TavSnpAttestationReport TavSnpAttestationReport;
 /*
  * Verify an SNP attestation report using caller-provided ARK, ASK, and VCEK
  * certificates in PEM format.
+ *
+ * Verification reads a library-owned copy of the report. On success, the
+ * returned handle owns that same verified copy. Input buffers must remain
+ * valid and unchanged for the duration of the call; none are retained.
  *
  * out_report must point to a writable report-handle slot. The slot is set to
  * NULL before any fallible work and set to an owned handle only on success.

@@ -4,9 +4,8 @@
 //! Handle-based C ABI for building, serializing, parsing and inspecting CBOR
 //! documents.
 //!
-//! Consumers use the C++ wrapper in `include/tav/cbor.hpp`, which owns
-//! the handles and so upholds the contract below. The ABI itself is declared
-//! in `include/tav/internal/cbor_abi.h`.
+//! The public ABI is declared in `include/tav/cbor.h`. The C++ RAII wrapper
+//! in `include/tav/cbor.hpp` preserves the same borrowing contract.
 //!
 //! # Handle ownership
 //!
@@ -25,10 +24,21 @@
 //!
 //! # Limits
 //!
-//! Parsing and serialization reject nesting deeper than [`MAX_DEPTH_LIMIT`],
-//! whatever depth the caller asks for. Builders do not enforce this limit.
-//! Callers must bound the depth they build. Copying, materializing, or dropping
-//! an extremely deep value can exhaust the process stack and abort.
+//! Parsing and serialization reject nesting deeper than the depth the caller
+//! asks for, and deeper than [`MAX_DEPTH_LIMIT`], the hard cap, whatever that
+//! depth is. Non-deterministic parsing also rejects maps with more than
+//! [`cbor::MAX_CBOR_MAP_ENTRIES`] entries and maps inside map keys. Builders
+//! do not enforce these limits. Callers must bound the depth they build.
+//! Copying, materializing, or dropping an extremely deep value can exhaust
+//! the process stack and abort.
+//!
+//! The default depth, [`cbor::MAX_CBOR_NESTING_DEPTH`], is recommended for
+//! untrusted input. No parser bounds the input length, so callers bound the
+//! length of untrusted input. A larger depth makes it more expensive to
+//! parse, so callers should not raise it for untrusted input: parsing can
+//! cost time proportional to the depth limit times the input length, and
+//! each non-deterministic parse allocates scratch sized by the depth limit,
+//! whatever the input length.
 
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -39,18 +49,8 @@ use cbor::{CborValue, Det, Mode, Nondet};
 
 use crate::cbor_view::{CborView, NativeCborValue};
 
-/// Success.
-pub const STATUS_OK: i32 = 0;
-/// Malformed input, or a panic while parsing.
-pub const STATUS_DECODE_FAILED: i32 = 1;
-/// A map key or tag that is not present.
-pub const STATUS_KEY_NOT_FOUND: i32 = 2;
-/// An index past the end of an array or map.
-pub const STATUS_OUT_OF_BOUND: i32 = 3;
-/// An operation applied to the wrong kind of value.
-pub const STATUS_TYPE_MISMATCH: i32 = 4;
-/// An unencodable value, or a panic while serializing.
-pub const STATUS_ENCODE_FAILED: i32 = 5;
+use super::utils::{owned_out_ptr, TavByteBuffer};
+use crate::{into_result, TavError, TavErrorCode};
 
 /// A null or otherwise unreadable handle.
 pub const KIND_INVALID: i32 = -1;
@@ -62,10 +62,10 @@ pub const KIND_MAP: i32 = 4;
 pub const KIND_TAGGED: i32 = 5;
 pub const KIND_SIMPLE: i32 = 6;
 
-/// Ceiling on the depth a caller may request, bounding recursion in the
+/// Hard cap on the depth a caller may request, bounding recursion in the
 /// parser and serializer so that deeply nested input cannot overflow the
-/// stack.
-pub const MAX_DEPTH_LIMIT: usize = 256;
+/// stack, and how long parsing it can take.
+pub const MAX_DEPTH_LIMIT: usize = 64;
 
 /// An opaque, independently owned view into an immutable CBOR document.
 pub type TavCborHandle = CborView;
@@ -75,7 +75,7 @@ pub(crate) fn into_handle(value: CborValue<'static>) -> *mut TavCborHandle {
     into_view_handle(CborView::from_native(value))
 }
 
-fn into_view_handle(view: CborView) -> *mut TavCborHandle {
+pub(super) fn into_view_handle(view: CborView) -> *mut TavCborHandle {
     Box::into_raw(Box::new(view))
 }
 
@@ -96,7 +96,7 @@ pub(crate) unsafe fn borrowed(data: *const u8, len: usize) -> Option<&'static [u
     if len == 0 {
         return Some(&[]);
     }
-    if data.is_null() {
+    if data.is_null() || len > isize::MAX as usize {
         return None;
     }
     Some(unsafe { std::slice::from_raw_parts(data, len) })
@@ -131,7 +131,7 @@ pub(crate) unsafe fn take_all(
     if count == 0 {
         return Some(Vec::new());
     }
-    if slots.is_null() {
+    if slots.is_null() || count > isize::MAX as usize / std::mem::size_of::<*mut TavCborHandle>() {
         return None;
     }
 
@@ -183,32 +183,6 @@ pub(crate) fn kind_of(value: &CborValue<'static>) -> i32 {
     }
 }
 
-/// Whether `value` may be used as a map key.
-///
-/// Containers are excluded, so that every key a map can hold is also a key
-/// the C ABI can look up. Parsing enforces the same rule, so a map reached
-/// through this ABI never holds a key that map_at would refuse.
-pub(crate) fn usable_as_key(value: &CborValue<'static>) -> bool {
-    !matches!(
-        value,
-        CborValue::Array(_) | CborValue::Map(_) | CborValue::Tagged { .. }
-    )
-}
-
-/// Whether every map below `value` keys its entries on something usable.
-///
-/// Recursion is bounded by the depth the parse was capped to.
-pub(crate) fn keys_are_usable(value: &CborValue<'static>) -> bool {
-    match value {
-        CborValue::Array(items) => items.iter().all(keys_are_usable),
-        CborValue::Map(entries) => entries
-            .iter()
-            .all(|(key, item)| usable_as_key(key) && keys_are_usable(item)),
-        CborValue::Tagged { payload, .. } => keys_are_usable(payload),
-        _ => true,
-    }
-}
-
 /// Whether `value` is a simple value RFC 8949 reserves.
 ///
 /// The reserved range has no encoding, so a handle holding one could be
@@ -218,203 +192,183 @@ pub(crate) fn is_reserved_simple(value: u8) -> bool {
 }
 
 // --- C ABI entry points ---
-//
-// Every entry point runs its body under `std::panic::catch_unwind`, so a
-// panic is reported as a status code or a null handle rather than unwinding
-// into a C frame, which would abort the host process.
 
-/// Run `body`, returning a null handle if it panics.
-fn guard_handle(body: impl FnOnce() -> *mut TavCborHandle) -> *mut TavCborHandle {
-    catch_unwind(AssertUnwindSafe(body)).unwrap_or(std::ptr::null_mut())
+fn cbor_error(code: TavErrorCode) -> TavError {
+    let message = match code {
+        TavErrorCode::CborDecodeFailed => "CBOR decoding failed",
+        TavErrorCode::CborKeyNotFound => "CBOR key or tag not found",
+        TavErrorCode::CborOutOfBound => "CBOR index out of bounds",
+        TavErrorCode::CborTypeMismatch => "CBOR type mismatch or null argument",
+        TavErrorCode::CborEncodeFailed => "CBOR construction or encoding failed",
+        _ => unreachable!("not a CBOR error code"),
+    };
+    TavError::new(code, message)
 }
 
-/// Run `body`, returning `on_panic` if it panics.
-fn guard_status(on_panic: i32, body: impl FnOnce() -> i32) -> i32 {
-    catch_unwind(AssertUnwindSafe(body)).unwrap_or(on_panic)
-}
-
-/// Validate and reset a scalar out-parameter before fallible work.
-///
-/// # Safety
-/// `out` must be null or valid for writing.
-unsafe fn reset_scalar_out<T: Default>(out: *mut T) -> bool {
-    if out.is_null() {
-        return false;
-    }
-    unsafe { *out = T::default() };
-    true
-}
-
-/// Validate and reset an owned-pointer out-parameter before fallible work.
-///
-/// # Safety
-/// `out` must be null or valid for writing.
-unsafe fn reset_owned_out<T>(out: *mut *mut T) -> bool {
-    if out.is_null() {
-        return false;
-    }
-    unsafe { *out = std::ptr::null_mut() };
-    true
-}
-
-/// Reset the error out-parameters, which the caller may omit.
-///
-/// # Safety
-/// `err_ptr` and `err_len` must be null or valid for writing.
-unsafe fn reset_error(err_ptr: *mut *mut u8, err_len: *mut usize) {
-    unsafe {
-        reset_owned_out(err_ptr);
-        reset_scalar_out(err_len);
-    }
-}
-
-/// Copy `msg` into a caller-owned buffer, released with [`tav_cbor_buffer_free`].
-///
-/// # Safety
-/// `err_ptr` and `err_len` must be null or valid for writing.
-unsafe fn set_error(msg: &str, err_ptr: *mut *mut u8, err_len: *mut usize) {
-    if err_ptr.is_null() || err_len.is_null() {
-        return;
-    }
-    let bytes = msg.as_bytes().to_vec().into_boxed_slice();
-    let len = bytes.len();
-    let ptr = Box::into_raw(bytes).cast::<u8>();
-    unsafe {
-        *err_ptr = ptr;
-        *err_len = len;
-    }
+/// Reset the output before running a constructor, including consuming builders.
+unsafe fn construct(
+    out: *mut *mut TavCborHandle,
+    body: impl FnOnce() -> *mut TavCborHandle,
+) -> *mut TavError {
+    into_result(|| {
+        unsafe { owned_out_ptr(out, "out") }?;
+        let value = body();
+        if value.is_null() {
+            return Err(cbor_error(TavErrorCode::CborEncodeFailed));
+        }
+        unsafe { *out = value };
+        Ok(())
+    })
 }
 
 // --- Constructors ---
 
 /// Build a signed integer.
+///
+/// # Safety
+/// `out` must be null or a writable handle slot.
 #[no_mangle]
-pub extern "C" fn tav_cbor_make_signed(value: i64) -> *mut TavCborHandle {
-    guard_handle(|| into_handle(CborValue::Int(value)))
+pub unsafe extern "C" fn tav_cbor_make_signed(
+    value: i64,
+    out: *mut *mut TavCborHandle,
+) -> *mut TavError {
+    unsafe { construct(out, || into_handle(CborValue::Int(value))) }
 }
 
 /// Build a CBOR simple value, such as false, true, or null.
 ///
-/// Returns null for the values RFC 8949 reserves.
+/// Rejects the values RFC 8949 reserves.
+///
+/// # Safety
+/// `out` must be null or a writable handle slot.
 #[no_mangle]
-pub extern "C" fn tav_cbor_make_simple(value: u8) -> *mut TavCborHandle {
-    guard_handle(|| {
-        if is_reserved_simple(value) {
-            return std::ptr::null_mut();
-        }
-        into_handle(CborValue::Simple(value))
-    })
+pub unsafe extern "C" fn tav_cbor_make_simple(
+    value: u8,
+    out: *mut *mut TavCborHandle,
+) -> *mut TavError {
+    unsafe {
+        construct(out, || {
+            if is_reserved_simple(value) {
+                return std::ptr::null_mut();
+            }
+            into_handle(CborValue::Simple(value))
+        })
+    }
 }
 
 /// Build a byte string that borrows `data`.
 ///
 /// # Safety
 /// `data` must be valid for `len` bytes and outlive the returned handle.
+/// `out` must be null or a writable handle slot separate from the input.
 #[no_mangle]
-pub unsafe extern "C" fn tav_cbor_make_bytes(data: *const u8, len: usize) -> *mut TavCborHandle {
-    guard_handle(|| match unsafe { borrowed(data, len) } {
-        Some(payload) => into_handle(bytes_value(payload)),
-        None => std::ptr::null_mut(),
-    })
+pub unsafe extern "C" fn tav_cbor_make_bytes(
+    data: *const u8,
+    len: usize,
+    out: *mut *mut TavCborHandle,
+) -> *mut TavError {
+    unsafe {
+        construct(out, || match borrowed(data, len) {
+            Some(payload) => into_handle(bytes_value(payload)),
+            None => std::ptr::null_mut(),
+        })
+    }
 }
 
 /// Build a text string that borrows `data`, which must be valid UTF-8.
 ///
 /// # Safety
 /// `data` must be valid for `len` bytes and outlive the returned handle.
+/// `out` must be null or a writable handle slot separate from the input.
 #[no_mangle]
 pub unsafe extern "C" fn tav_cbor_make_string(
     data: *const c_char,
     len: usize,
-) -> *mut TavCborHandle {
-    guard_handle(|| {
-        let Some(payload) = (unsafe { borrowed(data.cast::<u8>(), len) }) else {
-            return std::ptr::null_mut();
-        };
-        match string_value(payload) {
-            Some(value) => into_handle(value),
-            None => std::ptr::null_mut(),
-        }
-    })
+    out: *mut *mut TavCborHandle,
+) -> *mut TavError {
+    unsafe {
+        construct(out, || {
+            let Some(payload) = borrowed(data.cast::<u8>(), len) else {
+                return std::ptr::null_mut();
+            };
+            match string_value(payload) {
+                Some(value) => into_handle(value),
+                None => std::ptr::null_mut(),
+            }
+        })
+    }
 }
 
 /// Build an array, consuming `count` handles.
 ///
 /// # Safety
 /// `items` must be valid for `count` handle variables.
+/// `out` must be null or a writable handle slot separate from the input slots.
 #[no_mangle]
 pub unsafe extern "C" fn tav_cbor_make_array(
     items: *mut *mut TavCborHandle,
     count: usize,
-) -> *mut TavCborHandle {
-    guard_handle(|| match unsafe { take_all(items, count) } {
-        Some(values) => into_handle(CborValue::Array(values)),
-        None => std::ptr::null_mut(),
-    })
+    out: *mut *mut TavCborHandle,
+) -> *mut TavError {
+    unsafe {
+        construct(out, || match take_all(items, count) {
+            Some(values) => into_handle(CborValue::Array(values)),
+            None => std::ptr::null_mut(),
+        })
+    }
 }
 
 /// Build a map, consuming `2 * pair_count` handles ordered key, value, key, value.
 ///
-/// Keys must not be arrays, maps or tagged values, matching the lookup
-/// [`tav_cbor_map_at`] offers. Invalid keys are rejected without consuming any
-/// handles. Duplicate keys are unsupported and fail during serialization.
+/// Keys may be any supported CBOR value. Duplicate keys fail during serialization.
 ///
 /// # Safety
 /// `pairs` must be valid for `2 * pair_count` handle variables.
+/// `out` must be null or a writable handle slot separate from the input slots.
 #[no_mangle]
 pub unsafe extern "C" fn tav_cbor_make_map(
     pairs: *mut *mut TavCborHandle,
     pair_count: usize,
-) -> *mut TavCborHandle {
-    guard_handle(|| {
-        let Some(total) = pair_count.checked_mul(2) else {
-            return std::ptr::null_mut();
-        };
-        if total != 0 && pairs.is_null() {
-            return std::ptr::null_mut();
-        }
-        let pairs_slice = if total == 0 {
-            &[]
-        } else {
-            unsafe { std::slice::from_raw_parts(pairs, total) }
-        };
-        for pair in pairs_slice.chunks_exact(2) {
-            let Some(key) = (unsafe { as_handle(pair[0]) }) else {
+    out: *mut *mut TavCborHandle,
+) -> *mut TavError {
+    unsafe {
+        construct(out, || {
+            let Some(total) = pair_count.checked_mul(2) else {
                 return std::ptr::null_mut();
             };
-            if !usable_as_key(key.as_native()) {
+            let Some(values) = take_all(pairs, total) else {
                 return std::ptr::null_mut();
+            };
+            let mut entries = Vec::with_capacity(pair_count);
+            let mut it = values.into_iter();
+            while let (Some(key), Some(value)) = (it.next(), it.next()) {
+                entries.push((key, value));
             }
-        }
-
-        let Some(values) = (unsafe { take_all(pairs, total) }) else {
-            return std::ptr::null_mut();
-        };
-        let mut entries = Vec::with_capacity(pair_count);
-        let mut it = values.into_iter();
-        while let (Some(key), Some(value)) = (it.next(), it.next()) {
-            entries.push((key, value));
-        }
-        into_handle(CborValue::Map(entries))
-    })
+            into_handle(CborValue::Map(entries))
+        })
+    }
 }
 
 /// Build a tagged value, consuming the payload handle.
 ///
 /// # Safety
 /// `payload` must point to a writable handle variable.
+/// `out` must be null or a writable handle slot separate from `payload`.
 #[no_mangle]
 pub unsafe extern "C" fn tav_cbor_make_tagged(
     tag: u64,
     payload: *mut *mut TavCborHandle,
-) -> *mut TavCborHandle {
-    guard_handle(|| match unsafe { take(payload) } {
-        Some(value) => into_handle(CborValue::Tagged {
-            tag,
-            payload: Box::new(value),
-        }),
-        None => std::ptr::null_mut(),
-    })
+    out: *mut *mut TavCborHandle,
+) -> *mut TavError {
+    unsafe {
+        construct(out, || match take(payload) {
+            Some(value) => into_handle(CborValue::Tagged {
+                tag,
+                payload: Box::new(value),
+            }),
+            None => std::ptr::null_mut(),
+        })
+    }
 }
 
 /// Copy a value and everything below it.
@@ -424,12 +378,18 @@ pub unsafe extern "C" fn tav_cbor_make_tagged(
 ///
 /// # Safety
 /// `value` must be null or a live handle.
+/// `out` must be null or a writable handle slot separate from the input.
 #[no_mangle]
-pub unsafe extern "C" fn tav_cbor_shallow_copy(value: *const TavCborHandle) -> *mut TavCborHandle {
-    guard_handle(|| match unsafe { as_handle(value) } {
-        Some(value) => into_handle(value.as_native().clone()),
-        None => std::ptr::null_mut(),
-    })
+pub unsafe extern "C" fn tav_cbor_shallow_copy(
+    value: *const TavCborHandle,
+    out: *mut *mut TavCborHandle,
+) -> *mut TavError {
+    unsafe {
+        construct(out, || match as_handle(value) {
+            Some(value) => into_handle(value.as_native().clone()),
+            None => std::ptr::null_mut(),
+        })
+    }
 }
 
 /// Copy a value and everything below it, copying every payload.
@@ -439,12 +399,18 @@ pub unsafe extern "C" fn tav_cbor_shallow_copy(value: *const TavCborHandle) -> *
 ///
 /// # Safety
 /// `value` must be null or a live handle.
+/// `out` must be null or a writable handle slot separate from the input.
 #[no_mangle]
-pub unsafe extern "C" fn tav_cbor_deep_copy(value: *const TavCborHandle) -> *mut TavCborHandle {
-    guard_handle(|| match unsafe { as_handle(value) } {
-        Some(value) => into_handle(value.as_native().clone().into_owned()),
-        None => std::ptr::null_mut(),
-    })
+pub unsafe extern "C" fn tav_cbor_deep_copy(
+    value: *const TavCborHandle,
+    out: *mut *mut TavCborHandle,
+) -> *mut TavError {
+    unsafe {
+        construct(out, || match as_handle(value) {
+            Some(value) => into_handle(value.as_native().clone().into_owned()),
+            None => std::ptr::null_mut(),
+        })
+    }
 }
 
 /// Release an owning handle. Freeing null is a no-op.
@@ -465,83 +431,43 @@ pub unsafe extern "C" fn tav_cbor_free(value: *mut TavCborHandle) {
 unsafe fn serialize<M: Mode>(
     value: *const TavCborHandle,
     max_depth: usize,
-    out_ptr: *mut *mut u8,
-    out_len: *mut usize,
-    err_ptr: *mut *mut u8,
-    err_len: *mut usize,
-) -> i32 {
-    unsafe { reset_error(err_ptr, err_len) };
-    let out_ok = unsafe { reset_owned_out(out_ptr) };
-    let len_ok = unsafe { reset_scalar_out(out_len) };
-    let Some(handle) = (unsafe { as_handle(value) }) else {
-        unsafe { set_error("Null CBOR handle", err_ptr, err_len) };
-        return STATUS_ENCODE_FAILED;
-    };
-    if !out_ok || !len_ok {
-        unsafe { set_error("Null output pointer", err_ptr, err_len) };
-        return STATUS_ENCODE_FAILED;
-    }
-    match handle
+    out: *mut *mut TavByteBuffer,
+) -> Result<(), TavError> {
+    unsafe { owned_out_ptr(out, "out") }?;
+    let handle = unsafe { as_handle(value) }
+        .ok_or_else(|| TavError::new(TavErrorCode::CborEncodeFailed, "Null CBOR handle"))?;
+    let bytes = handle
         .as_native()
         .to_bytes_with_depth::<M>(capped(max_depth))
-    {
-        Ok(bytes) => {
-            let bytes = bytes.into_boxed_slice();
-            let len = bytes.len();
-            let ptr = Box::into_raw(bytes).cast::<u8>();
-            unsafe {
-                *out_ptr = ptr;
-                *out_len = len;
-            }
-            STATUS_OK
-        }
-        Err(e) => {
-            unsafe { set_error(&e, err_ptr, err_len) };
-            STATUS_ENCODE_FAILED
-        }
-    }
+        .map_err(|e| TavError::new(TavErrorCode::CborEncodeFailed, e))?;
+    unsafe { *out = Box::into_raw(TavByteBuffer::from_bytes(bytes)) };
+    Ok(())
 }
 
-/// Serialize.
-///
-/// The buffer and message outputs are cleared before any work, so a failure
-/// leaves no stale pointer to free. On success writes an owned buffer through
-/// `out_ptr`/`out_len`, released with [`tav_cbor_buffer_free`]. On failure
-/// writes a UTF-8 message, not NUL terminated, through `err_ptr`/`err_len`,
-/// released the same way.
+/// Serialize into an owned buffer, released with `tav_byte_buffer_free`.
 ///
 /// # Safety
-/// All output pointers must be null or valid for writing.
+/// `value` must be null or live. `out` must be null or a writable buffer slot.
 #[no_mangle]
 pub unsafe extern "C" fn tav_cbor_nondet_serialize(
     value: *const TavCborHandle,
     max_depth: usize,
-    out_ptr: *mut *mut u8,
-    out_len: *mut usize,
-    err_ptr: *mut *mut u8,
-    err_len: *mut usize,
-) -> i32 {
-    guard_status(STATUS_ENCODE_FAILED, || unsafe {
-        serialize::<Nondet>(value, max_depth, out_ptr, out_len, err_ptr, err_len)
-    })
+    out: *mut *mut TavByteBuffer,
+) -> *mut TavError {
+    into_result(|| unsafe { serialize::<Nondet>(value, max_depth, out) })
 }
 
 /// Serialize with deterministic encoding.
 ///
 /// # Safety
-/// All output pointers must be null or valid for writing.
+/// Same requirements as `tav_cbor_nondet_serialize`.
 #[no_mangle]
 pub unsafe extern "C" fn tav_cbor_det_serialize(
     value: *const TavCborHandle,
     max_depth: usize,
-    out_ptr: *mut *mut u8,
-    out_len: *mut usize,
-    err_ptr: *mut *mut u8,
-    err_len: *mut usize,
-) -> i32 {
-    guard_status(STATUS_ENCODE_FAILED, || unsafe {
-        serialize::<Det>(value, max_depth, out_ptr, out_len, err_ptr, err_len)
-    })
+    out: *mut *mut TavByteBuffer,
+) -> *mut TavError {
+    into_result(|| unsafe { serialize::<Det>(value, max_depth, out) })
 }
 
 // --- Parsing ---
@@ -550,96 +476,65 @@ unsafe fn parse<M: Mode>(
     data: *const u8,
     len: usize,
     max_depth: usize,
-    out_value: *mut *mut TavCborHandle,
-    err_ptr: *mut *mut u8,
-    err_len: *mut usize,
-) -> i32 {
-    unsafe { reset_error(err_ptr, err_len) };
-    if !unsafe { reset_owned_out(out_value) } {
-        unsafe { set_error("Null output pointer", err_ptr, err_len) };
-        return STATUS_DECODE_FAILED;
-    }
-    let Some(bytes) = (unsafe { borrowed(data, len) }) else {
-        unsafe { set_error("Null CBOR input", err_ptr, err_len) };
-        return STATUS_DECODE_FAILED;
-    };
-    match CborValue::parse_with_depth::<M>(bytes, capped(max_depth)) {
-        Ok(value) => {
-            if !keys_are_usable(&value) {
-                unsafe { set_error("Container used as a map key", err_ptr, err_len) };
-                return STATUS_DECODE_FAILED;
-            }
-            unsafe { *out_value = into_handle(value) };
-            STATUS_OK
-        }
-        Err(e) => {
-            unsafe { set_error(&e, err_ptr, err_len) };
-            STATUS_DECODE_FAILED
-        }
-    }
+    out: *mut *mut TavCborHandle,
+) -> Result<(), TavError> {
+    unsafe { owned_out_ptr(out, "out") }?;
+    let bytes = unsafe { borrowed(data, len) }.ok_or_else(|| {
+        TavError::new(TavErrorCode::CborDecodeFailed, "Invalid CBOR input buffer")
+    })?;
+    let value = CborValue::parse_with_depth::<M>(bytes, capped(max_depth))
+        .map_err(|e| TavError::new(TavErrorCode::CborDecodeFailed, e))?;
+    unsafe { *out = into_handle(value) };
+    Ok(())
 }
 
-/// Parse.
+/// Parse a complete document, borrowing byte and text payloads from `data`.
 ///
-/// Indefinite-length encodings are rejected, and the whole input must be
-/// consumed. A document that keys a map entry on a container is rejected too,
-/// so a parsed map holds only keys [`tav_cbor_map_at`] can look up. The
-/// returned tree borrows byte and text payloads from `data`, which must
-/// outlive it. The handle and message outputs are cleared before any work, so
-/// a failure leaves no stale handle to free.
+/// Indefinite-length encodings, maps with more than
+/// [`cbor::MAX_CBOR_MAP_ENTRIES`] entries, and maps inside map keys are
+/// rejected. Keys use RFC 8949 equivalence.
+///
+/// Each call allocates and zeroes
+/// `3 * (max_depth + 1) * cbor::MAX_CBOR_MAP_ENTRIES` words of scratch,
+/// whatever the input length.
 ///
 /// # Safety
-/// `data` must be valid for `len` bytes and outlive the returned handle. All
-/// output pointers must be null or valid for writing.
+/// `data` must be valid for `len` bytes and remain alive and unmodified while
+/// any derived handle is used. `out` must be null or a writable handle slot.
 #[no_mangle]
 pub unsafe extern "C" fn tav_cbor_nondet_parse(
     data: *const u8,
     len: usize,
     max_depth: usize,
-    out_value: *mut *mut TavCborHandle,
-    err_ptr: *mut *mut u8,
-    err_len: *mut usize,
-) -> i32 {
-    guard_status(STATUS_DECODE_FAILED, || unsafe {
-        parse::<Nondet>(data, len, max_depth, out_value, err_ptr, err_len)
-    })
+    out: *mut *mut TavCborHandle,
+) -> *mut TavError {
+    into_result(|| unsafe { parse::<Nondet>(data, len, max_depth, out) })
 }
 
 /// Parse, requiring deterministic encoding.
 ///
 /// # Safety
-/// `data` must be valid for `len` bytes and outlive the returned handle. All
-/// output pointers must be null or valid for writing.
+/// Same requirements as `tav_cbor_nondet_parse`.
 #[no_mangle]
 pub unsafe extern "C" fn tav_cbor_det_parse(
     data: *const u8,
     len: usize,
     max_depth: usize,
-    out_value: *mut *mut TavCborHandle,
-    err_ptr: *mut *mut u8,
-    err_len: *mut usize,
-) -> i32 {
-    guard_status(STATUS_DECODE_FAILED, || unsafe {
-        parse::<Det>(data, len, max_depth, out_value, err_ptr, err_len)
-    })
-}
-
-/// Release a buffer or error message. Freeing null is a no-op.
-///
-/// # Safety
-/// `ptr`/`len` must come from a `tav_cbor_*` call and must not have been
-/// released already.
-#[no_mangle]
-pub unsafe extern "C" fn tav_cbor_buffer_free(ptr: *mut u8, len: usize) {
-    if ptr.is_null() {
-        return;
-    }
-    unsafe {
-        drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr, len)));
-    }
+    out: *mut *mut TavCborHandle,
+) -> *mut TavError {
+    into_result(|| unsafe { parse::<Det>(data, len, max_depth, out) })
 }
 
 // --- Inspection ---
+
+unsafe fn read<'a, T>(
+    value: *const TavCborHandle,
+    reader: impl FnOnce(&'a NativeCborValue) -> Option<T>,
+) -> Result<T, TavError> {
+    let handle =
+        unsafe { as_handle(value) }.ok_or_else(|| cbor_error(TavErrorCode::CborTypeMismatch))?;
+    reader(handle.as_native()).ok_or_else(|| cbor_error(TavErrorCode::CborTypeMismatch))
+}
 
 /// Report the kind of `value`, or `KIND_INVALID` for a null handle.
 ///
@@ -647,10 +542,11 @@ pub unsafe extern "C" fn tav_cbor_buffer_free(ptr: *mut u8, len: usize) {
 /// `value` must be null or a live handle.
 #[no_mangle]
 pub unsafe extern "C" fn tav_cbor_kind(value: *const TavCborHandle) -> i32 {
-    guard_status(KIND_INVALID, || match unsafe { as_handle(value) } {
+    catch_unwind(AssertUnwindSafe(|| match unsafe { as_handle(value) } {
         Some(value) => kind_of(value.as_native()),
         None => KIND_INVALID,
-    })
+    }))
+    .unwrap_or(KIND_INVALID)
 }
 
 /// Read a signed integer.
@@ -658,18 +554,21 @@ pub unsafe extern "C" fn tav_cbor_kind(value: *const TavCborHandle) -> i32 {
 /// # Safety
 /// `value` must be null or a live handle, and `out` valid for writing.
 #[no_mangle]
-pub unsafe extern "C" fn tav_cbor_as_signed(value: *const TavCborHandle, out: *mut i64) -> i32 {
-    guard_status(STATUS_TYPE_MISMATCH, || {
+pub unsafe extern "C" fn tav_cbor_as_signed(
+    value: *const TavCborHandle,
+    out: *mut i64,
+) -> *mut TavError {
+    into_result(|| {
         if out.is_null() {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         }
-        match unsafe { as_handle(value) }.map(CborView::as_native) {
-            Some(CborValue::Int(v)) => {
-                unsafe { *out = *v };
-                STATUS_OK
-            }
-            _ => STATUS_TYPE_MISMATCH,
+        unsafe {
+            *out = read(value, |value| match value {
+                CborValue::Int(value) => Some(*value),
+                _ => None,
+            })?;
         }
+        Ok(())
     })
 }
 
@@ -678,18 +577,21 @@ pub unsafe extern "C" fn tav_cbor_as_signed(value: *const TavCborHandle, out: *m
 /// # Safety
 /// `value` must be null or a live handle, and `out` valid for writing.
 #[no_mangle]
-pub unsafe extern "C" fn tav_cbor_as_simple(value: *const TavCborHandle, out: *mut u8) -> i32 {
-    guard_status(STATUS_TYPE_MISMATCH, || {
+pub unsafe extern "C" fn tav_cbor_as_simple(
+    value: *const TavCborHandle,
+    out: *mut u8,
+) -> *mut TavError {
+    into_result(|| {
         if out.is_null() {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         }
-        match unsafe { as_handle(value) }.map(CborView::as_native) {
-            Some(CborValue::Simple(v)) => {
-                unsafe { *out = *v };
-                STATUS_OK
-            }
-            _ => STATUS_TYPE_MISMATCH,
+        unsafe {
+            *out = read(value, |value| match value {
+                CborValue::Simple(value) => Some(*value),
+                _ => None,
+            })?;
         }
+        Ok(())
     })
 }
 
@@ -702,21 +604,22 @@ pub unsafe extern "C" fn tav_cbor_as_bytes(
     value: *const TavCborHandle,
     out: *mut *const u8,
     out_len: *mut usize,
-) -> i32 {
-    guard_status(STATUS_TYPE_MISMATCH, || {
+) -> *mut TavError {
+    into_result(|| {
         if out.is_null() || out_len.is_null() {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         }
-        match unsafe { as_handle(value) }.map(CborView::as_native) {
-            Some(CborValue::ByteString(payload)) => {
-                unsafe {
-                    *out = payload.as_ptr();
-                    *out_len = payload.len();
-                }
-                STATUS_OK
-            }
-            _ => STATUS_TYPE_MISMATCH,
+        let payload = unsafe {
+            read(value, |value| match value {
+                CborValue::ByteString(value) => Some(value.as_ref()),
+                _ => None,
+            })
+        }?;
+        unsafe {
+            *out = payload.as_ptr();
+            *out_len = payload.len();
         }
+        Ok(())
     })
 }
 
@@ -729,21 +632,22 @@ pub unsafe extern "C" fn tav_cbor_as_string(
     value: *const TavCborHandle,
     out: *mut *const c_char,
     out_len: *mut usize,
-) -> i32 {
-    guard_status(STATUS_TYPE_MISMATCH, || {
+) -> *mut TavError {
+    into_result(|| {
         if out.is_null() || out_len.is_null() {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         }
-        match unsafe { as_handle(value) }.map(CborView::as_native) {
-            Some(CborValue::TextString(payload)) => {
-                unsafe {
-                    *out = payload.as_ptr().cast();
-                    *out_len = payload.len();
-                }
-                STATUS_OK
-            }
-            _ => STATUS_TYPE_MISMATCH,
+        let payload = unsafe {
+            read(value, |value| match value {
+                CborValue::TextString(value) => Some(value.as_ref()),
+                _ => None,
+            })
+        }?;
+        unsafe {
+            *out = payload.as_ptr().cast();
+            *out_len = payload.len();
         }
+        Ok(())
     })
 }
 
@@ -752,18 +656,22 @@ pub unsafe extern "C" fn tav_cbor_as_string(
 /// # Safety
 /// `value` must be null or a live handle, and `out` valid for writing.
 #[no_mangle]
-pub unsafe extern "C" fn tav_cbor_as_tag(value: *const TavCborHandle, out: *mut u64) -> i32 {
-    guard_status(STATUS_TYPE_MISMATCH, || {
+pub unsafe extern "C" fn tav_cbor_as_tag(
+    value: *const TavCborHandle,
+    out: *mut u64,
+) -> *mut TavError {
+    into_result(|| {
         if out.is_null() {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         }
-        match unsafe { as_handle(value) }.map(CborView::as_native) {
-            Some(CborValue::Tagged { tag, .. }) => {
-                unsafe { *out = *tag };
-                STATUS_OK
-            }
-            _ => STATUS_TYPE_MISMATCH,
-        }
+        let tag = unsafe {
+            read(value, |value| match value {
+                CborValue::Tagged { tag, .. } => Some(*tag),
+                _ => None,
+            })
+        }?;
+        unsafe { *out = tag };
+        Ok(())
     })
 }
 
@@ -772,18 +680,17 @@ pub unsafe extern "C" fn tav_cbor_as_tag(value: *const TavCborHandle, out: *mut 
 /// # Safety
 /// `value` must be null or a live handle, and `out` valid for writing.
 #[no_mangle]
-pub unsafe extern "C" fn tav_cbor_size(value: *const TavCborHandle, out: *mut usize) -> i32 {
-    guard_status(STATUS_TYPE_MISMATCH, || {
+pub unsafe extern "C" fn tav_cbor_size(
+    value: *const TavCborHandle,
+    out: *mut usize,
+) -> *mut TavError {
+    into_result(|| {
         if out.is_null() {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         }
-        let count = match unsafe { as_handle(value) }.map(CborView::as_native) {
-            Some(CborValue::Array(items)) => items.len(),
-            Some(CborValue::Map(entries)) => entries.len(),
-            _ => return STATUS_TYPE_MISMATCH,
-        };
+        let count = unsafe { read(value, |value| value.len().ok()) }?;
         unsafe { *out = count };
-        STATUS_OK
+        Ok(())
     })
 }
 
@@ -791,8 +698,8 @@ pub unsafe extern "C" fn tav_cbor_size(value: *const TavCborHandle, out: *mut us
 
 fn project_handle(
     handle: &TavCborHandle,
-    project: impl for<'a> FnOnce(&'a NativeCborValue) -> Result<[&'a NativeCborValue; 1], i32>,
-) -> Result<*mut TavCborHandle, i32> {
+    project: impl for<'a> FnOnce(&'a NativeCborValue) -> Result<[&'a NativeCborValue; 1], TavError>,
+) -> Result<*mut TavCborHandle, TavError> {
     handle.project(project).map(|[view]| into_view_handle(view))
 }
 
@@ -806,34 +713,34 @@ pub unsafe extern "C" fn tav_cbor_array_at(
     value: *const TavCborHandle,
     index: usize,
     out: *mut *mut TavCborHandle,
-) -> i32 {
-    guard_status(STATUS_TYPE_MISMATCH, || {
+) -> *mut TavError {
+    into_result(|| {
         if out.is_null() {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         }
         unsafe { *out = std::ptr::null_mut() };
         let Some(handle) = (unsafe { as_handle(value) }) else {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         };
         match project_handle(handle, |value| match value {
-            CborValue::Array(items) => items
-                .get(index)
+            CborValue::Array(_) => value
+                .array_at(index)
                 .map(|item| [item])
-                .ok_or(STATUS_OUT_OF_BOUND),
-            _ => Err(STATUS_TYPE_MISMATCH),
+                .map_err(|_| cbor_error(TavErrorCode::CborOutOfBound)),
+            _ => Err(cbor_error(TavErrorCode::CborTypeMismatch)),
         }) {
             Ok(projected) => {
                 unsafe { *out = projected };
-                STATUS_OK
+                Ok(())
             }
-            Err(status) => status,
+            Err(error) => Err(error),
         }
     })
 }
 
 /// Return an independently owned map value by key.
 ///
-/// Containers are not usable as keys and are reported as a type mismatch.
+/// Keys use RFC 8949 equivalence, including order-independent map comparison.
 ///
 /// # Safety
 /// `value` and `key` must be null or live handles. `out` must point to a null
@@ -843,35 +750,31 @@ pub unsafe extern "C" fn tav_cbor_map_at(
     value: *const TavCborHandle,
     key: *const TavCborHandle,
     out: *mut *mut TavCborHandle,
-) -> i32 {
-    guard_status(STATUS_TYPE_MISMATCH, || {
+) -> *mut TavError {
+    into_result(|| {
         if out.is_null() {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         }
         unsafe { *out = std::ptr::null_mut() };
         let Some(handle) = (unsafe { as_handle(value) }) else {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         };
         let Some(key) = (unsafe { as_handle(key) }) else {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         };
         let key = key.as_native();
-        if !usable_as_key(key) {
-            return STATUS_TYPE_MISMATCH;
-        }
         match project_handle(handle, |value| match value {
-            CborValue::Map(entries) => entries
-                .iter()
-                .find(|(candidate, _)| candidate == key)
-                .map(|(_, found)| [found])
-                .ok_or(STATUS_KEY_NOT_FOUND),
-            _ => Err(STATUS_TYPE_MISMATCH),
+            CborValue::Map(_) => value
+                .map_at(key)
+                .map(|found| [found])
+                .map_err(|_| cbor_error(TavErrorCode::CborKeyNotFound)),
+            _ => Err(cbor_error(TavErrorCode::CborTypeMismatch)),
         }) {
             Ok(projected) => {
                 unsafe { *out = projected };
-                STATUS_OK
+                Ok(())
             }
-            Err(status) => status,
+            Err(error) => Err(error),
         }
     })
 }
@@ -886,28 +789,28 @@ pub unsafe extern "C" fn tav_cbor_tag_at(
     value: *const TavCborHandle,
     tag: u64,
     out: *mut *mut TavCborHandle,
-) -> i32 {
-    guard_status(STATUS_TYPE_MISMATCH, || {
+) -> *mut TavError {
+    into_result(|| {
         if out.is_null() {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         }
         unsafe { *out = std::ptr::null_mut() };
         let Some(handle) = (unsafe { as_handle(value) }) else {
-            return STATUS_TYPE_MISMATCH;
+            return Err(cbor_error(TavErrorCode::CborTypeMismatch));
         };
         match project_handle(handle, |value| match value {
             CborValue::Tagged {
                 tag: actual,
                 payload,
-            } if *actual == tag => Ok([payload]),
-            CborValue::Tagged { .. } => Err(STATUS_KEY_NOT_FOUND),
-            _ => Err(STATUS_TYPE_MISMATCH),
+            } if *actual == tag => Ok([payload.as_ref()]),
+            CborValue::Tagged { .. } => Err(cbor_error(TavErrorCode::CborKeyNotFound)),
+            _ => Err(cbor_error(TavErrorCode::CborTypeMismatch)),
         }) {
             Ok(projected) => {
                 unsafe { *out = projected };
-                STATUS_OK
+                Ok(())
             }
-            Err(status) => status,
+            Err(error) => Err(error),
         }
     })
 }
@@ -922,10 +825,8 @@ pub unsafe extern "C" fn tav_cbor_map_key_at(
     value: *const TavCborHandle,
     index: usize,
     out: *mut *mut TavCborHandle,
-) -> i32 {
-    guard_status(STATUS_TYPE_MISMATCH, || unsafe {
-        cbor_map_entry_at(value, index, out, true)
-    })
+) -> *mut TavError {
+    into_result(|| unsafe { cbor_map_entry_at(value, index, out, true) })
 }
 
 /// Return an independently owned map value by entry index.
@@ -938,10 +839,8 @@ pub unsafe extern "C" fn tav_cbor_map_value_at(
     value: *const TavCborHandle,
     index: usize,
     out: *mut *mut TavCborHandle,
-) -> i32 {
-    guard_status(STATUS_TYPE_MISMATCH, || unsafe {
-        cbor_map_entry_at(value, index, out, false)
-    })
+) -> *mut TavError {
+    into_result(|| unsafe { cbor_map_entry_at(value, index, out, false) })
 }
 
 unsafe fn cbor_map_entry_at(
@@ -949,25 +848,25 @@ unsafe fn cbor_map_entry_at(
     index: usize,
     out: *mut *mut TavCborHandle,
     want_key: bool,
-) -> i32 {
+) -> Result<(), TavError> {
     if out.is_null() {
-        return STATUS_TYPE_MISMATCH;
+        return Err(cbor_error(TavErrorCode::CborTypeMismatch));
     }
     unsafe { *out = std::ptr::null_mut() };
     let Some(handle) = (unsafe { as_handle(value) }) else {
-        return STATUS_TYPE_MISMATCH;
+        return Err(cbor_error(TavErrorCode::CborTypeMismatch));
     };
     match project_handle(handle, |value| match value {
         CborValue::Map(entries) => entries
             .get(index)
             .map(|(key, item)| [if want_key { key } else { item }])
-            .ok_or(STATUS_OUT_OF_BOUND),
-        _ => Err(STATUS_TYPE_MISMATCH),
+            .ok_or_else(|| cbor_error(TavErrorCode::CborOutOfBound)),
+        _ => Err(cbor_error(TavErrorCode::CborTypeMismatch)),
     }) {
         Ok(projected) => {
             unsafe { *out = projected };
-            STATUS_OK
+            Ok(())
         }
-        Err(status) => status,
+        Err(error) => Err(error),
     }
 }

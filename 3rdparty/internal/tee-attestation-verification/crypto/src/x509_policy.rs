@@ -1,13 +1,15 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#![allow(dead_code)]
+#![forbid(unsafe_code)]
 
 use std::time::Duration;
+#[cfg(crypto_backend = "crypto_webcrypto")]
 use std::{future::Future, pin::Pin};
 
 use super::CertificateBackend;
 
+#[cfg(crypto_backend = "crypto_windows")]
 pub(crate) fn verify_certificate_path<Certificate>(
     mut verify_signature: impl FnMut(&Certificate, &Certificate) -> super::Result<()>,
     root_trust_anchor: &Certificate,
@@ -23,6 +25,7 @@ pub(crate) fn verify_certificate_path<Certificate>(
     Ok(())
 }
 
+#[cfg(crypto_backend = "crypto_webcrypto")]
 pub(crate) async fn verify_certificate_path_async<Certificate, F>(
     mut verify_signature: F,
     root_trust_anchor: &Certificate,
