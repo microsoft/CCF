@@ -1698,6 +1698,7 @@ if(BUILD_TESTS)
     BUILD_DEPENDS logging
     DETECT_DEADLOCKS
     CONFIGURATIONS partitions
+    ADDITIONAL_ARGS --node-to-node-tls
   )
 
   set_property(

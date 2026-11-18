@@ -277,6 +277,7 @@ class Partitioner:
     ):
         """
         Isolates a single :py:class:`infra.node.Node` from the network, or from a specific other node if specified.
+        Covers both legacy and TLS listeners, including mixed-transport networks.
 
         :param infra.node.Node node: The :py:class:`infra.node.Node` to isolate.
         :param Optional[infra.node.Node] other: The other node to isolate node from (optional).
@@ -289,12 +290,17 @@ class Partitioner:
         base_rule = {"protocol": "tcp", "target": "DROP"}
         name = f"Isolate node {node.local_node_id}"
 
-        # Isolates node server socket
-        server_rule = {
-            **base_rule,
-            "dst": node.n2n_interface.host,
-            "tcp": {"dport": str(node.n2n_interface.port)},
-        }
+        interfaces = [node.n2n_interface]
+        if node.host.node_to_node_tls_interface is not None:
+            interfaces.append(node.host.node_to_node_tls_interface)
+        server_rules = [
+            {
+                **base_rule,
+                "dst": interface.host,
+                "tcp": {"dport": str(interface.port)},
+            }
+            for interface in interfaces
+        ]
 
         # Isolates all node client sockets
         if not node.node_client_host:
@@ -303,22 +309,30 @@ class Partitioner:
             **base_rule,
             "src": node.node_client_host,
         }
+        client_rules = [client_rule]
 
         # If there is one, only isolate from specific node
         if other:
-            server_rule["src"] = other.node_client_host
-            client_rule["dst"] = other.n2n_interface.host
+            for rule in server_rules:
+                rule["src"] = other.node_client_host
+            other_interfaces = [other.n2n_interface]
+            if other.host.node_to_node_tls_interface is not None:
+                other_interfaces.append(other.host.node_to_node_tls_interface)
+            client_rules = [
+                {**client_rule, "dst": host}
+                for host in dict.fromkeys(i.host for i in other_interfaces)
+            ]
             name += f" from node {other.local_node_id}"
 
         rules = []
         if isolation_dir & IsolationDir.INBOUND_REQUESTS:
-            rules.append(server_rule)
+            rules.extend(server_rules)
         if isolation_dir & IsolationDir.INBOUND_RESPONSES:
-            rules.append(self.reverse_rule(server_rule))
+            rules.extend(self.reverse_rule(rule) for rule in server_rules)
         if isolation_dir & IsolationDir.OUTBOUND_REQUESTS:
-            rules.append(client_rule)
+            rules.extend(client_rules)
         if isolation_dir & IsolationDir.OUTBOUND_RESPONSES:
-            rules.append(self.reverse_rule(client_rule))
+            rules.extend(self.reverse_rule(rule) for rule in client_rules)
 
         for rule in rules:
             _replace_rule(self.chain_name, rule)
