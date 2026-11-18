@@ -412,7 +412,7 @@ class Network:
         if recorder is None:
             return
         try:
-            connections = recorder.close()
+            recorder.close()
             for index in itertools.count():
                 folder = os.path.join(self.cft_trace_folder, str(index))
                 try:
@@ -421,7 +421,7 @@ class Network:
                 except FileExistsError:
                     pass
             counts, reasons = infra.fluentd.write_cft_trace(
-                connections, os.path.join(folder, "cft.ndjson")
+                recorder.connections, os.path.join(folder, "cft.ndjson")
             )
             if recorder.error is not None:
                 reasons.append(f"Recorder failed: {recorder.error}")
