@@ -78,6 +78,9 @@ All safety statements concern model state, computed outputs, or executions of `M
 Neither the entrypoint, its property helpers, nor its transitive proof imports depend on trace validation.
 The existing sequential reference helpers remain in `Properties/Programs.lean`, and model execution predicates are in `Properties/Invariants.lean`.
 
+The [`deadlock_free` theorem and its witness](Kv/Properties.lean) use the shared [`TransitionSystem.DeadlockFree`](../common/CCF/TransitionSystem.lean) definition, which permits enabled stutters.
+This is not a fairness or eventual-commit guarantee for individual transactions.
+
 Each claim is followed by a `_witness` lemma, so no claim is vacuous.
 For a claim with premises, the witness asserts that some concrete model state, execution or program satisfies them.
 The five claims without premises (`read_your_write`, `read_your_deletion`, `previous_ignores_pending`, `publish_lookup` and `apply_atomic`) cannot be vacuous; their witnesses instead show that the conclusion has an effect: a staged write or removal changes the read, a key can have both a committed version and a staged write, one write set can leave, remove and write addresses, and one applied write set can span two maps.

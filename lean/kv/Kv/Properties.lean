@@ -6,6 +6,7 @@ module
 public import Kv.Properties.Invariants
 public import CCF.Execution
 
+import Kv.Proofs.Deadlock
 import Kv.Proofs.Reachable
 import Kv.Proofs.Replay
 import Kv.Proofs.Witnesses
@@ -25,6 +26,16 @@ Safety statements and their proof dependencies concern only the model.
 namespace Kv.Properties
 
 open Kv.Model
+
+/-! ## Deadlock freedom -/
+
+/-- Every reachable model state admits an enabled action, including stutters. -/
+theorem deadlock_free : Model.transitionSystem.DeadlockFree := by
+  exact Proofs.Deadlock.deadlock_free
+
+/-- Witness: the empty initial model state is reachable. -/
+theorem deadlock_free_witness : ∃ state, Model.transitionSystem.Reachable state := by
+  exact Proofs.Deadlock.deadlock_free_witness
 
 /-! ## Reads and atomic publication -/
 
