@@ -80,15 +80,15 @@ or if there are no Doxygen changes
 
     $ SKIP_DOXYGEN=ON ./livehtml.sh
 
-The published multi-version documentation is built with:
+The published documentation tracks ``main``.
+Use `GitHub releases <https://github.com/microsoft/CCF/releases>`_ for release notes and links to the source for a particular release.
+The documentation workflow validates changes targeting ``main`` and publishes only from ``main``.
+To reproduce its build locally from the repository root, activate a Python virtual environment and make sure ``uv``, Doxygen, Node.js and npm, Cargo, and Lean are available.
 
 .. code-block:: bash
 
-    $ python3 scripts/build-docs.py -D smv_remote_whitelist=origin doc build/html
-
-Each version is built from its own sources and configuration in a separate Python environment.
-This keeps older releases' documentation dependencies compatible while sharing version-selector metadata across all builds.
-Fetch release tags and their history before building documentation: versioned examples use the nearest CCF release tag reachable from the documented revision.
+    $ uv pip install -e ./python -r doc/requirements.txt
+    $ python -m sphinx --fail-on-warning -b html -d build/doc-doctrees doc build/html/main
 
 HTML builds also build the :ref:`trace viewer <operations/recovery:Trace viewer>`, which needs ``lake``; ``SKIP_TRACE_VIEWER=ON`` skips it.
 See :ref:`architecture/verification:Running locally` for installing Lean and ``lake``.
@@ -96,8 +96,7 @@ See :ref:`architecture/verification:Running locally` for installing Lean and ``l
 Rust API documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
-HTML builds generate the :doc:`Rust API reference </build_apps/rust_api>` by running ``cargo doc`` on ``src/rust/ccf-app``, without building CCF, and publish it in each version's ``rust/`` directory.
-Versions without the SDK are skipped.
+HTML builds generate the :doc:`Rust API reference </build_apps/rust_api>` by running ``cargo doc`` on ``src/rust/ccf-app``, without building CCF, and publish it under ``rust/`` in the site.
 Document the SDK in rustdoc comments, and link to its pages from RST with the ``rustdoc`` role:
 
 .. code-block:: rst

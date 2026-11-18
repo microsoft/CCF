@@ -58,8 +58,8 @@ The default configuration is `RelWithDebInfo`. For a separate Debug build, selec
 For RST changes, build Sphinx from the repository root in a Python virtual environment with the documentation dependencies:
 
 ```bash
-uv pip install -r doc/requirements.txt -r doc/historical_ccf_requirements.txt
-sphinx-build --fail-on-warning -b html doc doc/html
+uv pip install -e ./python -r doc/requirements.txt
+python -m sphinx --fail-on-warning -b html -d build/doc-doctrees doc build/html/main
 ```
 
 ### Python
