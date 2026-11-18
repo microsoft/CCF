@@ -151,7 +151,16 @@ theorem apply_atomic_witness
         a.1 ≠ b.1 ∧ find writes a ≠ none ∧ find writes b ≠ none := by
   exact Proofs.Witnesses.apply_atomic_witness
 
-/-! ## Serial snapshot runs and normal-view serializability -/
+/-! ## Normal-view opacity and serializability -/
+
+/-- A model execution with all lifecycles closed violates normal-view opacity across rollback.
+This is a counterexample, not an opacity guarantee or an extra replay acceptance rule. -/
+theorem transaction_view_opacity_counterexample
+    : ∃ (inputs : List Action) (final : Model.State),
+        CCF.Execution.Run Model.transitionSystem {} inputs final
+        ∧ final = {}
+        ∧ ¬ OpaqueExecution {} inputs := by
+  exact Proofs.Witnesses.transaction_view_opacity_counterexample
 
 /-- An attempt's operation log runs serially on its pinned local views to its staged writes. -/
 theorem transaction_snapshot_serial

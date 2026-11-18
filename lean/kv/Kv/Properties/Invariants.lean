@@ -12,6 +12,13 @@ namespace Kv.Properties
 
 open Kv.Model
 
+/-- Every attempt has an opaque normal view at every accepted prefix, including attempts
+that later fail or end. Checking only the final world would miss destroyed attempts. -/
+def OpaqueExecution (start : State) (inputs : List Action) : Prop :=
+  ∀ (n : Nat) (w : State),
+    CCF.Execution.Run Model.transitionSystem start (inputs.take n) w
+    → ∀ (tid : Nat) (t : Tx), find w.txs tid = some t → OpaqueView t
+
 /-- The selected attempt is neither destroyed nor recreated by this model input. -/
 def AttemptAction (tid : Nat) : Action → Prop
   | .txCreate _ actual | .txEnd _ actual => actual ≠ tid

@@ -53,6 +53,18 @@ def serialRun (base : DB M K V) (ws : Writes M K V)
 
 end Generic
 
+/-- Normal operations, including pending writes, agree with one captured store snapshot.
+This applies before commit and after failure too; historical global reads are excluded.
+An attempt without a snapshot must not have executed normal operations or staged writes. -/
+def OpaqueView (t : Tx) : Prop :=
+  match t.snapshot with
+  | none => t.normal.log = [] ∧ t.normal.writes = []
+  | some snap => serialRun snap.current.data [] t.normal.log = some t.normal.writes
+
+instance (t : Tx) : Decidable (OpaqueView t) := by
+  unfold OpaqueView
+  split <;> infer_instance
+
 /-- A branch of applications, with compaction but no rollback. -/
 inductive AppliedBranch : Model.Store → List Model.Tx → Model.Store → Prop
   /-- Empty application order. -/
