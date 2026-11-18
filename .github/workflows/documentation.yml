@@ -20,10 +20,6 @@ permissions:
 jobs:
   build:
     name: Build documentation
-    if: >-
-      github.ref == 'refs/heads/main' ||
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'merge_group' && github.event.merge_group.base_ref == 'refs/heads/main')
     runs-on: ubuntu-26.04
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
