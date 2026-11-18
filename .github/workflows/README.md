@@ -65,8 +65,8 @@ Main continuous integration job. Builds CCF for all target platforms, runs unit,
 The Virtual A, B, and C jobs target `gha-vmss-d16av7-ci`, `gha-vmss-d16av7-ci-b`, and `gha-vmss-d16av7-ci-c`, respectively, to distribute demand across the regional pools.
 
 End to end tests record each network's CCF consensus protocol trace and upload it with their logs.
-The `Replay e2e consensus traces` job builds the Lean replayer while the Virtual jobs run, waits for them to finish, then replays every complete capture from their logs against the Lean model with `tests/cft_trace_validation.py`.
-It fails if a capture is rejected, or if no capture is complete.
+The `Replay e2e consensus traces` job builds the Lean replayer while the Virtual jobs run, waits for them to finish, then replays every capture from their logs against the Lean model with `tests/cft_trace_validation.py`.
+Tests write a capture only when it is complete, and the job fails if a capture is rejected, or if there is none.
 It does not depend on the Virtual jobs, so re-running only a failed Virtual job does not replay its new captures: use `Re-run all jobs` for that.
 
 File: `ci.yml`

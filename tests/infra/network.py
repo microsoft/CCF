@@ -12,6 +12,7 @@ import pprint
 import random
 import re
 import shutil
+import tempfile
 import time
 from collections import deque
 from contextlib import contextmanager
@@ -402,26 +403,25 @@ class Network:
         node_args["observability"] = observability
 
     def _finish_cft_trace(self):
-        """Close the consensus trace recorder, if any, and write its capture.
+        """Close the consensus trace recorder, if any, and write its capture
+        if it is complete.
 
         The capture is complete only if every node recorded events, stopped
         cleanly without dropping trace events, none recovered a service, and
-        every connection reached EOF. Otherwise it is inconclusive, which never
-        fails the test."""
+        every connection reached EOF. Otherwise it is inconclusive: it is
+        discarded, which never fails the test."""
         recorder, self.cft_recorder = self.cft_recorder, None
         if recorder is None:
             return
+        pending = None
         try:
             recorder.close()
-            for index in itertools.count():
-                folder = os.path.join(self.cft_trace_folder, str(index))
-                try:
-                    os.makedirs(folder)
-                    break
-                except FileExistsError:
-                    pass
+            os.makedirs(self.cft_trace_folder, exist_ok=True)
+            # Only a complete capture is named <n>.ndjson.
+            fd, pending = tempfile.mkstemp(dir=self.cft_trace_folder, suffix=".tmp")
+            os.close(fd)
             counts, reasons = infra.fluentd.write_cft_trace(
-                recorder.connections, os.path.join(folder, "cft.ndjson")
+                recorder.connections, pending
             )
             if recorder.error is not None:
                 reasons.append(f"Recorder failed: {recorder.error}")
@@ -456,20 +456,22 @@ class Network:
                         f"Node {node.local_node_id} did not report shutdown "
                         f"without dropped trace events: {drops}"
                     )
-            manifest = {
-                "complete": not reasons,
-                "reasons": reasons,
-                "nodes": node_ids,
-                "records_per_process": dict(counts),
-            }
-            # Renamed into place, so that a manifest is never partly written.
-            path = os.path.join(folder, "manifest.json")
-            with open(path + ".tmp", "w", encoding="utf-8") as f:
-                json.dump(manifest, f, indent=2)
-            os.replace(path + ".tmp", path)
-            LOG.info(f"CCF consensus protocol trace capture in {folder}: {manifest}")
+            if reasons:
+                LOG.info(f"Inconclusive CCF consensus protocol trace: {reasons}")
+                return
+            for index in itertools.count():
+                path = os.path.join(self.cft_trace_folder, f"{index}.ndjson")
+                try:
+                    os.link(pending, path)
+                    break
+                except FileExistsError:
+                    pass
+            LOG.info(f"CCF consensus protocol trace in {path}: {dict(counts)}")
         except Exception:
             LOG.exception("Could not write CCF consensus protocol trace capture")
+        finally:
+            if pending is not None:
+                os.remove(pending)
 
     def _setup_node(
         self,
