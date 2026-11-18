@@ -235,7 +235,9 @@ File: `npm.yml`
 
 # Documentation
 
-Builds and publishes documentation to GitHub Pages. Triggered on pushes to main, and manually. Note that special permissions (Settings > Environment) are configured.
+Builds a single documentation site from the checked-out source on every workflow run.
+Pushes to `main` and manual runs on `main` publish to GitHub Pages at `/main/`, with a redirect from the site root.
+The `github-pages` deployment environment should allow deployments only from `main`.
 
-File: `doc.yml`
-3rd party dependencies: None
+File: `documentation.yml`
+3rd party dependencies: elan
