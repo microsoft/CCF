@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#![forbid(unsafe_code)]
+
 /// Digest algorithm used by hashing and signature operations.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DigestAlgorithm {

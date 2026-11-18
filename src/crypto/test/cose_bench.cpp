@@ -78,7 +78,7 @@ static CoseSign1Components decompose(const std::vector<uint8_t>& envelope)
   {
     payload = env.array_at(2).as_bytes();
   }
-  catch (const tav::cbor::DecodeError&)
+  catch (const tav::Exception&)
   {
     if (env.array_at(2).as_simple() != tav::cbor::SimpleValue::Null)
     {

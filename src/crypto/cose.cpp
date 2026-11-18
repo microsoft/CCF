@@ -296,7 +296,8 @@ namespace ccf::cose::edit
       using namespace tav::cbor;
       if (input.empty())
       {
-        throw DecodeError(Error::DECODE_FAILED, "Truncated CBOR item");
+        throw tav::Exception(
+          tav::ErrorCode::CBOR_DECODE_FAILED, "Truncated CBOR item");
       }
 
       major = input[0] >> CBOR_MAJOR_TYPE_SHIFT;
@@ -309,15 +310,16 @@ namespace ccf::cose::edit
 
       if (additional > CBOR_ADDITIONAL_INFO_UINT64)
       {
-        throw DecodeError(
-          Error::DECODE_FAILED, "Expected definite-length CBOR");
+        throw tav::Exception(
+          tav::ErrorCode::CBOR_DECODE_FAILED, "Expected definite-length CBOR");
       }
 
       const size_t width = size_t{1}
         << (additional - CBOR_ADDITIONAL_INFO_UINT8);
       if (input.size() < 1 + width)
       {
-        throw DecodeError(Error::DECODE_FAILED, "Truncated CBOR argument");
+        throw tav::Exception(
+          tav::ErrorCode::CBOR_DECODE_FAILED, "Truncated CBOR argument");
       }
 
       argument = 0;
@@ -345,8 +347,8 @@ namespace ccf::cose::edit
         {
           if (argument > input.size() - offset)
           {
-            throw tav::cbor::DecodeError(
-              tav::cbor::Error::DECODE_FAILED, "Truncated CBOR string");
+            throw tav::Exception(
+              tav::ErrorCode::CBOR_DECODE_FAILED, "Truncated CBOR string");
           }
 
           offset += argument;
@@ -369,8 +371,8 @@ namespace ccf::cose::edit
 
           if (children > input.size() - offset)
           {
-            throw tav::cbor::DecodeError(
-              tav::cbor::Error::DECODE_FAILED, "Truncated CBOR container");
+            throw tav::Exception(
+              tav::ErrorCode::CBOR_DECODE_FAILED, "Truncated CBOR container");
           }
 
           pending += children;
@@ -395,8 +397,9 @@ namespace ccf::cose::edit
 
     if (cose_envelope.kind() != Kind::ARRAY || cose_envelope.size() != 4)
     {
-      throw DecodeError(
-        Error::TYPE_MISMATCH, "COSE_Sign1 must be an array of 4 elements");
+      throw tav::Exception(
+        tav::ErrorCode::CBOR_TYPE_MISMATCH,
+        "COSE_Sign1 must be an array of 4 elements");
     }
 
     const Value phdr = rethrow_with_msg(
@@ -413,15 +416,16 @@ namespace ccf::cose::edit
 
     if (phdr.kind() != Kind::BYTES)
     {
-      throw DecodeError(
-        Error::TYPE_MISMATCH,
+      throw tav::Exception(
+        tav::ErrorCode::CBOR_TYPE_MISMATCH,
         "COSE_Sign1 protected header must be a byte string");
     }
 
     if (cose_envelope.array_at(1).kind() != Kind::MAP)
     {
-      throw DecodeError(
-        Error::TYPE_MISMATCH, "COSE_Sign1 unprotected header must be a map");
+      throw tav::Exception(
+        tav::ErrorCode::CBOR_TYPE_MISMATCH,
+        "COSE_Sign1 unprotected header must be a map");
     }
 
     if (
@@ -429,15 +433,16 @@ namespace ccf::cose::edit
       (payload.kind() != Kind::SIMPLE ||
        payload.as_simple() != SimpleValue::Null))
     {
-      throw DecodeError(
-        Error::TYPE_MISMATCH,
+      throw tav::Exception(
+        tav::ErrorCode::CBOR_TYPE_MISMATCH,
         "COSE_Sign1 payload must be a byte string or nil");
     }
 
     if (signature.kind() != Kind::BYTES)
     {
-      throw DecodeError(
-        Error::TYPE_MISMATCH, "COSE_Sign1 signature must be a byte string");
+      throw tav::Exception(
+        tav::ErrorCode::CBOR_TYPE_MISMATCH,
+        "COSE_Sign1 signature must be a byte string");
     }
 
     Value replacement;
@@ -520,8 +525,8 @@ namespace ccf::cose::edit
       "Failed to parse COSE_Sign1 structure");
     if (envelope_size != cose_sign1_size)
     {
-      throw DecodeError(
-        Error::TYPE_MISMATCH,
+      throw tav::Exception(
+        tav::ErrorCode::CBOR_TYPE_MISMATCH,
         fmt::format(
           "COSE_Sign1 must be an array of {} elements, found {}",
           cose_sign1_size,
@@ -544,8 +549,8 @@ namespace ccf::cose::edit
       payload.as_simple() == SimpleValue::Null;
     if (payload.kind() != Kind::BYTES && !payload_is_nil)
     {
-      throw DecodeError(
-        Error::TYPE_MISMATCH,
+      throw tav::Exception(
+        tav::ErrorCode::CBOR_TYPE_MISMATCH,
         "COSE_Sign1 payload must be a byte string or nil");
     }
 

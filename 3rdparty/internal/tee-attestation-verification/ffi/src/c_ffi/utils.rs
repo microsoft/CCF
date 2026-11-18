@@ -104,13 +104,9 @@ pub unsafe extern "C" fn tav_byte_buffer_free(buffer: *mut TavByteBuffer) {
     }
 }
 
-/// Maximum size accepted for any single C ABI input buffer (1 GiB).
-///
-/// Bounds attacker-controlled lengths before they reach `slice::from_raw_parts`
-/// and guards `count * stride` arithmetic in callers that read parallel arrays.
-pub const MAX_INPUT_LEN: usize = 1024 * 1024 * 1024;
-
 /// Borrow a caller-provided input buffer after validating its pointer and length.
+///
+/// The length is unchecked up to `isize::MAX`, the longest slice Rust allows.
 ///
 /// # Safety
 /// When `len` is non-zero, `data` must point to at least `len` readable bytes
@@ -133,7 +129,7 @@ pub unsafe fn input_bytes<'a>(
             "{name} pointer is null"
         )));
     }
-    if len > MAX_INPUT_LEN {
+    if len > isize::MAX as usize {
         return Err(TavError::invalid_argument(format!(
             "{name} exceeds maximum input size"
         )));

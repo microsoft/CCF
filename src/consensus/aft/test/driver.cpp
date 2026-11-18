@@ -98,6 +98,7 @@ namespace
       {
         ccf::tracing::emit(aft::trace::cft_trace_tag, "cmd", cmd);
         f();
+        driver->print_role_changes();
         if (invariants == Invariants::CHECK)
         {
           driver->assert_invariants();

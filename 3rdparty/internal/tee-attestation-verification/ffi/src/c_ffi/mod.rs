@@ -21,5 +21,4 @@ pub(crate) mod caci;
 pub(crate) mod cose;
 #[cfg(sync_crypto)]
 pub(crate) mod snp;
-#[cfg(sync_crypto)]
 pub(crate) mod utils;
