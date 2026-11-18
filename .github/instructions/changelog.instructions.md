@@ -8,7 +8,7 @@ applyTo: ".changes/*.md,CHANGELOG.md,python/pyproject.toml"
 - Add one `.changes/<unique-name>.<category>.md` change description per PR with notable user-facing impact; internal-only changes need none.
 - Categories are `added`, `changed`, `deprecated`, `removed`, `fixed`, `security`, and `dependencies`.
 - Use one or two concise sentences of plain Markdown, naming affected APIs or dependency versions and linking to documentation relative to the repository root, without a leading bullet, heading, release version, or PR number.
-- Leave `CHANGELOG.md` unchanged outside release preparation; the Python SDK release version comes from the tag as described in the [release procedure](../../doc/contribute/release_ccf.rst).
+- Leave `CHANGELOG.md` and the SDK version unchanged outside release preparation; follow the [release procedure](../../doc/contribute/release_ccf.rst) for releases.
 
 For example, `.changes/receipt-validation.fixed.md` could contain:
 
