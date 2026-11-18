@@ -467,8 +467,8 @@ private def stuck (rest : Array Group) (blocked : Array (Group × (Unit → Stri
 
 /--
 Run each process's groups in order, recording the groups run, ending with any that failed.
-`h_ts` is the order of execution within a process. Among processes, the enabled group with
-the earliest wall-clock time runs, then by process; without wall-clock times `h_ts` stands
+`m_ts` is the order of execution within a process. Among processes, the enabled group with
+the earliest wall-clock time runs, then by process; without wall-clock times `m_ts` stands
 in, only so that diagnostics are reproducible, as counters of different processes are not
 comparable. A group's node changes only through its own groups, other nodes only add
 packets it may receive, and a committed prefix stays committed, so the verdict does not

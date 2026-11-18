@@ -34,10 +34,10 @@ The Fluentd tag is `ccf.cft`; packet message names are unprefixed, for example `
 
 ## Replay contract
 
-A trace is one NDJSON file of `{pid, h_ts, msg}` records from all nodes, in any line order, where `pid` identifies the process that emitted the record.
-Replay orders each process's records by `h_ts`, a counter that must not repeat within the process and may have gaps because other tags share it.
+A trace is one NDJSON file of `{pid, m_ts, msg}` records from all nodes, in any line order, where `pid` identifies the process that emitted the record.
+Replay orders each process's records by `m_ts`, a counter that must not repeat within the process and may have gaps because other tags share it.
 It then splits events into one stream per node; a process may trace several nodes, as `cft_driver` does, but each node's records must come from one process.
-Native code emits consensus events while holding the node's consensus lock, so a node's `h_ts` order is the order of its lock holds, whichever threads took them.
+Native code emits consensus events while holding the node's consensus lock, so a node's `m_ts` order is the order of its lock holds, whichever threads took them.
 Every protocol event must match a named rule; the node whose stream starts with bootstrap selects the initial singleton membership.
 Bootstrap accepts bare ticks and nominations before genesis, which native code runs asynchronously after the first node becomes leader, and a flush of the genesis entry.
 Rules reduce each node's stream independently into groups, one per hold of the consensus lock, and read action inputs from its events; only top-level alternatives backtrack.
@@ -46,8 +46,8 @@ A `replicate` call rejected at its first entry traces no entries and appends not
 Snapshot installation runs its `add_configuration` and `retired_committed_tx` hooks outside the lock, before the node's `init_as_backup`; the hooks form no group, so the initialization's group starts at `init_as_backup` and groups that fall between them, such as ticks of any node, replay as usual.
 
 Replay repeatedly runs the next group of some process, with no other group's actions between its actions.
-`h_ts` is the order of execution within a process, and a process that traces several nodes runs them on one thread, as `cft_driver` does, so its groups run in `h_ts` order and must not overlap.
-Among processes, replay runs the enabled group with the earliest `ts`, the wall-clock emission time in nanoseconds that a record may carry; without it `h_ts` stands in, only so that diagnostics are reproducible, as counters of different processes are not comparable.
+`m_ts` is the order of execution within a process, and a process that traces several nodes runs them on one thread, as `cft_driver` does, so its groups run in `m_ts` order and must not overlap.
+Among processes, replay runs the enabled group with the earliest `ts`, the wall-clock emission time in nanoseconds that a record may carry; without it `m_ts` stands in, only so that diagnostics are reproducible, as counters of different processes are not comparable.
 A group whose first action is a receive waits until a matching packet is queued, and one whose first action is `init_as_backup` waits until some node has committed its prefix; other actions must be enabled when their group runs.
 Clocks of different hosts therefore only choose among enabled groups, and cannot fail a trace.
 If groups remain but none may run, replay fails, listing first the groups that can never run, such as a receive whose packet is never sent.

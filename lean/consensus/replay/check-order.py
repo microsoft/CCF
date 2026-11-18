@@ -5,7 +5,7 @@
 
 Each trace is replayed after shuffling its records. A trace that replays successfully is
 also replayed after moving each node's records into a process of its own with a random,
-gapped h_ts counter and no wall-clock times, which changes the order in which the replayer
+gapped m_ts counter and no wall-clock times, which changes the order in which the replayer
 runs enabled groups; a trace that fails may do so because of its order within a process.
 Every variant must give the original's exit status and output, ignoring record locations.
 """
@@ -40,14 +40,14 @@ def owner(record):
 
 def per_node(records, rng):
     clocks = {}
-    for record in sorted(records, key=lambda r: (r["pid"], r["h_ts"])):
+    for record in sorted(records, key=lambda r: (r["pid"], r["m_ts"])):
         key = (record["pid"], owner(record))
         if key not in clocks:
             clocks[key] = rng.randrange(1000)
         clocks[key] += rng.randrange(1, 5)
         yield {
             "pid": "/".join(key),
-            "h_ts": clocks[key],
+            "m_ts": clocks[key],
             "msg": record["msg"],
         }
 

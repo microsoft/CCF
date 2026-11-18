@@ -75,7 +75,7 @@ structure Event where
   record : Record
   /-- `pid`, the process that emitted the record. -/
   pid : String
-  /-- `h_ts`, the emission order within the record's process; other tags share the counter. -/
+  /-- `m_ts`, the emission order within the record's process; other tags share the counter. -/
   time : Nat
   /-- `ts`, the wall-clock emission time in nanoseconds, when the trace records it. -/
   ts : Option Nat
@@ -89,7 +89,7 @@ def Event.origin (event : Event) (rule : String) : Origin :=
   { file := event.record.file, line := event.record.line, rule }
 
 /--
-Order each process's records by `h_ts`, skip driver command records, split events into
+Order each process's records by `m_ts`, skip driver command records, split events into
 per-node streams sorted by node, and collect node identities.
 -/
 def prepareEvents (records : Array Record)
@@ -98,7 +98,7 @@ def prepareEvents (records : Array Record)
     records.mapM
       fun record =>
         (do
-          return (← string record.value "pid", ← nat record.value "h_ts", record))
+          return (← string record.value "pid", ← nat record.value "m_ts", record))
         |>.mapError (s!"{record.location}: " ++ ·)
   let keyed :=
     keyed.toList.mergeSort fun (p, t, _) (q, u, _) => p < q || (p == q && t <= u)
@@ -109,7 +109,7 @@ def prepareEvents (records : Array Record)
   for (pid, time, record) in keyed do
     if let some (last, lastTime, earlier) := previous then
       if last == pid && lastTime == time then
-        throw s!"{record.location}: h_ts {time} of pid '{pid}' repeats {earlier.location}"
+        throw s!"{record.location}: m_ts {time} of pid '{pid}' repeats {earlier.location}"
     previous := some (pid, time, record)
     try
       let message ← field record.value "msg"

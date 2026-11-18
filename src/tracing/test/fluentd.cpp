@@ -449,7 +449,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(
     frame[2]["msg"] ==
     nlohmann::json{{"path", "/app/log"}, {"status", 200}, {"cached", false}});
-  CHECK(frame[2]["h_ts"] == 2);
+  CHECK(frame[2]["m_ts"] == 2);
   CHECK(frame[2]["pid"].is_string());
   CHECK_FALSE(wrong_thread);
 
@@ -491,7 +491,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
     [] { ccf::tracing::emit("ccf.sho", "recovery", true); },
     {{"recovery", true}});
   const auto sequence_before_filtering =
-    nlohmann::json::from_msgpack(ccf::tracing::event_buffer())[2]["h_ts"]
+    nlohmann::json::from_msgpack(ccf::tracing::event_buffer())[2]["m_ts"]
       .get<uint64_t>();
   const auto buffer_before_filtering = ccf::tracing::event_buffer();
   ccf::tracing::emit("ccf.cft", "probe", request_trace::EncodingProbe{encoded});
@@ -499,7 +499,7 @@ TEST_CASE("SPSC export: framing, producer isolation, drops and shutdown")
   CHECK(ccf::tracing::event_buffer() == buffer_before_filtering);
   check_event([] { request_trace::empty(); }, {{"function", "empty"}});
   CHECK(
-    nlohmann::json::from_msgpack(ccf::tracing::event_buffer())[2]["h_ts"] ==
+    nlohmann::json::from_msgpack(ccf::tracing::event_buffer())[2]["m_ts"] ==
     sequence_before_filtering + 1);
 
   for (const auto level :

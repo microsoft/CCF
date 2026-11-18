@@ -71,7 +71,7 @@ def run_driver(driver, scenario, timeout=60, *, text=True):
                                         ">II", timestamp.data
                                     )
                                     assert seconds > 0 and nanos < 10**9
-                                    assert set(record) == {"pid", "h_ts", "msg"}
+                                    assert set(record) == {"pid", "m_ts", "msg"}
                                     records.append(record)
                                     complete = unpacker.tell()
                             assert received == complete, "Truncated MessagePack stream"
@@ -102,7 +102,7 @@ def run_driver(driver, scenario, timeout=60, *, text=True):
             assert records, f"No cft trace records captured for {scenario}"
         for sequence, record in enumerate(records):
             assert (
-                record["h_ts"] == sequence
+                record["m_ts"] == sequence
             ), "Missing, duplicate or reordered trace sequence"
             assert record["pid"] == records[0]["pid"]
         return (
