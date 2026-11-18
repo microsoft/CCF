@@ -58,13 +58,8 @@ Dependencies
 
 The sample uses several runtime and development packages (see ``package.json``).
 One of them is the :typedoc-package:`ccf-app` package.
-This package references the current branch's version of the ``ccf-app`` package using ``file:``.
+The sample references the checkout's ``ccf-app`` package using ``file:``.
 To test against a published version, use the version of the ``@microsoft/ccf-app`` package that matches the CCF release the application will run on (the package is published with the same version number as each CCF release).
-For example, for CCF |ccf_version|:
-
-.. code-block:: js
-
-    "@microsoft/ccf-app": "~|ccf_version|",
 
 Now you can continue with installing all dependencies:
 
