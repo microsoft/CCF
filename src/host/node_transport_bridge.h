@@ -6,15 +6,20 @@
 #include "host/node_frame.h"
 #include "node/node_tls.h"
 
+#include <map>
+#include <mutex>
+
 namespace asynchost
 {
-  // Temporary bridge until legacy sockets are removed.
+  // Temporary adapter intended for removal with legacy sockets.
   class NodeTransportBridge : public ccf::AbstractNodeTransport
   {
     Ledger& ledger;
     LedgerSubsystem& ledger_subsystem;
     std::shared_ptr<NodeConnections> legacy;
     std::shared_ptr<ccf::NodeTLS> tls;
+    std::mutex peers_mutex;
+    std::map<ccf::NodeId, const std::optional<std::string>> peers;
 
   public:
     NodeTransportBridge(
@@ -30,7 +35,9 @@ namespace asynchost
 
     bool uses_tls(const ccf::NodeId& peer) override
     {
-      return tls != nullptr && tls->enabled_for(peer);
+      std::lock_guard guard(peers_mutex);
+      const auto it = peers.find(peer);
+      return it != peers.end() && it->second.has_value();
     }
 
     void stop_tls() override
@@ -45,9 +52,13 @@ namespace asynchost
       const ccf::NodeId& peer,
       const std::optional<std::string>& address) override
     {
-      if (tls != nullptr)
+      const auto selected_address = tls != nullptr ? address : std::nullopt;
+      std::lock_guard guard(peers_mutex);
+      const auto [it, inserted] = peers.try_emplace(peer, selected_address);
+      if (!inserted && it->second != selected_address)
       {
-        tls->associate(peer, address);
+        throw std::logic_error(fmt::format(
+          "Cannot change registered node transport for peer {}", peer));
       }
     }
 
@@ -85,9 +96,21 @@ namespace asynchost
       const ccf::NodeId& from,
       std::vector<uint8_t>&& payload) override
     {
+      std::string address;
+      {
+        std::lock_guard guard(peers_mutex);
+        const auto& registered = peers.at(to);
+        if (!registered.has_value())
+        {
+          throw std::logic_error(
+            "Cannot send TLS traffic on a registered legacy transport");
+        }
+        address = *registered;
+      }
       return tls->send(
         to,
         type,
+        address,
         [this, to, type, from, payload = std::move(payload)](
           ::tcp::ConnID id) mutable {
           send_node_frame(

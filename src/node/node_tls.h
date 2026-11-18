@@ -38,7 +38,6 @@ namespace ccf
     std::atomic<::tcp::ConnID> next_id = 1;
     std::map<::tcp::ConnID, Connection> connections;
     std::map<std::pair<NodeId, NodeMsgType>, ::tcp::ConnID> outgoing;
-    std::map<NodeId, std::string> addresses;
     std::shared_ptr<NodeInboundHandler> handler;
     std::optional<crypto::Pem> service_cert;
     std::optional<crypto::Pem> node_cert;
@@ -393,26 +392,6 @@ namespace ccf
       server->set_server_cert(cert.str(), key->private_key_pem().str());
     }
 
-    void associate(
-      const NodeId& peer, const std::optional<std::string>& address)
-    {
-      std::lock_guard guard(mutex);
-      if (address)
-      {
-        addresses[peer] = *address;
-      }
-      else
-      {
-        addresses.erase(peer);
-      }
-    }
-
-    bool enabled_for(const NodeId& peer)
-    {
-      std::lock_guard guard(mutex);
-      return addresses.contains(peer);
-    }
-
     void close(const NodeId& peer)
     {
       std::lock_guard guard(mutex);
@@ -430,11 +409,11 @@ namespace ccf
     bool send(
       const NodeId& peer,
       NodeMsgType purpose,
+      const std::string& address,
       std::function<void(::tcp::ConnID)> on_ready)
     {
       std::lock_guard guard(mutex);
-      const auto address = addresses.find(peer);
-      if (address == addresses.end() || !node_cert)
+      if (!node_cert)
       {
         LOG_DEBUG_FMT("N2N TLS: dropping send to {} before setup", peer);
         return false;
@@ -443,7 +422,7 @@ namespace ccf
       auto current = outgoing.find(stream);
       if (current == outgoing.end())
       {
-        const auto [host, port] = split_net_address(address->second);
+        const auto [host, port] = split_net_address(address);
         uint16_t port_number = 0;
         const auto [end, error] =
           std::from_chars(port.data(), port.data() + port.size(), port_number);
@@ -452,9 +431,7 @@ namespace ccf
           end != port.data() + port.size() || port_number == 0)
         {
           LOG_FAIL_FMT(
-            "N2N TLS: invalid recorded endpoint for {}: {}",
-            peer,
-            address->second);
+            "N2N TLS: invalid recorded endpoint for {}: {}", peer, address);
           return false;
         }
         auto ctx =

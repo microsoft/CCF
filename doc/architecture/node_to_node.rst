@@ -13,6 +13,8 @@ Opt-in TLS Transport
 CCF supports mutually authenticated TLS 1.3 alongside its legacy channel protocol.
 Configure ``network.node_to_node_tls_interface`` to enable the TLS listener and outbound TLS.
 A pair uses TLS only when the local configuration enables it and the peer's recorded node metadata includes a TLS endpoint; all other pairs use legacy channels.
+The bridge retains that registration for the lifetime of the node pair, including across connection expiry and reconnects.
+Repeated registration must agree with the original endpoint and transport.
 A TLS connection failure never triggers a downgrade to legacy.
 The existing ``network.node_to_node_interface`` remains required in this bridge release.
 See :doc:`/operations/configuration` for configuration and :doc:`/releases/migration_7_x_to_8_x` for upgrade preparation.
@@ -24,7 +26,7 @@ Ledger encryption and integrity checks remain independent and unchanged.
 AppendEntries frames are assembled, including ledger bytes, on the ledger-mutation lane after the preceding ledger writes.
 Both transports use :ccf_repo:`send_node_frame </src/host/node_frame.h>` for this ordering and assembly; it is independent of the legacy socket implementation.
 
-The temporary :ccf_repo:`NodeChannelBridge </src/node/node_channel_bridge.h>` and :ccf_repo:`NodeTransportBridge </src/host/node_transport_bridge.h>` adapt the two backends during migration and are removed with legacy interoperability.
+The temporary :ccf_repo:`NodeChannelBridge </src/node/node_channel_bridge.h>` and :ccf_repo:`NodeTransportBridge </src/host/node_transport_bridge.h>` adapt the two backends during migration and are intended for removal with legacy interoperability.
 :ccf_repo:`Bridge tests </tests/n2n_transport_bridge.py>` cover legacy-only and mixed networks, while :ccf_repo:`TLS tests </tests/n2n_tls.py>` retain the all-TLS lifecycle coverage.
 
 Consensus and forwarded requests/responses use separate TLS connections on one listener.

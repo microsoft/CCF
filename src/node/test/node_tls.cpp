@@ -6,6 +6,7 @@
 #include "ccf/ds/x509_time_fmt.h"
 #include "consensus/aft/cft_types.h"
 #include "crypto/certs.h"
+#include "host/node_transport_bridge.h"
 #include "node/node_channel_bridge.h"
 #include "tasks/task_system.h"
 
@@ -14,6 +15,7 @@
 #include <condition_variable>
 #include <csignal>
 #include <doctest/doctest.h>
+#include <filesystem>
 #include <future>
 #include <sys/socket.h>
 #include <thread>
@@ -125,6 +127,7 @@ namespace
 
   bool send_frame(
     ccf::NodeTLS& sender,
+    const std::string& address,
     const ccf::NodeId& peer,
     ccf::NodeMsgType purpose,
     std::vector<uint8_t> framed)
@@ -132,6 +135,7 @@ namespace
     return sender.send(
       peer,
       purpose,
+      address,
       [&sender, framed = std::move(framed)](::tcp::ConnID id) mutable {
         sender.send_frame(id, std::move(framed));
       });
@@ -378,17 +382,19 @@ TEST_CASE("NodeTLS accepts endorsed identities on separate purpose streams")
   Fixture f;
   ccf::NodeTLS sender{"127.0.0.1", 0, Fixture::MAX_FRAME_SIZE, 10s};
   sender.set_identity(f.service.cert, f.alice.key, f.alice.cert);
-  sender.associate(f.bob.id(), fmt::format("127.0.0.1:{}", f.node.port()));
+  const auto address = fmt::format("127.0.0.1:{}", f.node.port());
   LoopRunner loop;
   const auto consensus = consensus_payload();
   const auto forwarding = forwarding_payload();
   send_frame(
     sender,
+    address,
     f.bob.id(),
     ccf::consensus_msg,
     frame(f.alice.id(), ccf::consensus_msg, consensus));
   send_frame(
     sender,
+    address,
     f.bob.id(),
     ccf::forwarded_msg,
     frame(f.alice.id(), ccf::forwarded_msg, forwarding));
@@ -417,7 +423,7 @@ TEST_CASE("NodeTLS bounds callbacks only while establishing a purpose stream")
   Fixture f;
   ccf::NodeTLS sender{"127.0.0.1", 0, Fixture::MAX_FRAME_SIZE, 10s};
   sender.set_identity(f.service.cert, f.alice.key, f.alice.cert);
-  sender.associate(f.bob.id(), fmt::format("127.0.0.1:{}", f.node.port()));
+  const auto address = fmt::format("127.0.0.1:{}", f.node.port());
   std::atomic<size_t> callbacks = 0;
   std::atomic<::tcp::ConnID> stream_id = 0;
   const auto payload = [&](uint8_t sequence) {
@@ -430,6 +436,7 @@ TEST_CASE("NodeTLS bounds callbacks only while establishing a purpose stream")
     return sender.send(
       f.bob.id(),
       purpose,
+      address,
       [&, framed = frame(f.alice.id(), purpose, payload(sequence))](
         ::tcp::ConnID id) mutable {
         const auto previous = stream_id.exchange(id);
@@ -493,7 +500,7 @@ TEST_CASE("NodeTLS discards pending callbacks on failed establishment or close")
     }
     ccf::NodeTLS sender{"127.0.0.1", 0, Fixture::MAX_FRAME_SIZE, 10s};
     sender.set_identity(f.service.cert, f.alice.key, f.alice.cert);
-    sender.associate(f.bob.id(), fmt::format("127.0.0.1:{}", f.node.port()));
+    const auto address = fmt::format("127.0.0.1:{}", f.node.port());
     std::atomic<size_t> callbacks = 0;
     std::vector<std::future<void>> discarded;
     const size_t count = purpose == ccf::consensus_msg ? 1 : 10;
@@ -504,6 +511,7 @@ TEST_CASE("NodeTLS discards pending callbacks on failed establishment or close")
       REQUIRE(sender.send(
         f.bob.id(),
         purpose,
+        address,
         [&, pending, framed = frame(f.alice.id(), purpose, {0xaa})](
           ::tcp::ConnID id) mutable {
           ++callbacks;
@@ -537,7 +545,11 @@ TEST_CASE("NodeTLS discards pending callbacks on failed establishment or close")
       LoopRunner loop;
       CHECK_FALSE(f.received->wait(1, 50ms));
       REQUIRE(send_frame(
-        sender, f.bob.id(), purpose, frame(f.alice.id(), purpose, {0xbb})));
+        sender,
+        address,
+        f.bob.id(),
+        purpose,
+        frame(f.alice.id(), purpose, {0xbb})));
       REQUIRE(f.received->wait(1));
       CHECK_FALSE(f.received->wait(2, 50ms));
       const auto messages = f.received->snapshot();
@@ -689,17 +701,18 @@ TEST_CASE("NodeTLS authenticates the expected outgoing peer identity")
   ccf::NodeTLS sender{"127.0.0.1", 0, Fixture::MAX_FRAME_SIZE, 10s};
   sender.set_identity(f.service.cert, f.alice.key, f.alice.cert);
   const ccf::NodeId wrong_peer{std::string(64, '0')};
-  sender.associate(wrong_peer, fmt::format("127.0.0.1:{}", f.node.port()));
+  const auto address = fmt::format("127.0.0.1:{}", f.node.port());
   LoopRunner loop;
   send_frame(
     sender,
+    address,
     wrong_peer,
     ccf::consensus_msg,
     frame(f.alice.id(), ccf::consensus_msg, consensus_payload()));
   CHECK_FALSE(f.received->wait(1, 150ms));
-  sender.associate(f.bob.id(), fmt::format("127.0.0.1:{}", f.node.port()));
   send_frame(
     sender,
+    address,
     f.bob.id(),
     ccf::consensus_msg,
     frame(f.alice.id(), ccf::consensus_msg, consensus_payload()));
@@ -844,7 +857,7 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
     {},
     {.record_budget = record_budget}};
   sender.set_identity(f.service.cert, f.alice.key, f.alice.cert);
-  sender.associate(f.bob.id(), fmt::format("127.0.0.1:{}", observer.port()));
+  const auto address = fmt::format("127.0.0.1:{}", observer.port());
   std::vector<uint8_t> initial;
   ::tcp::ConnID old_outgoing_id = 0;
   {
@@ -855,7 +868,7 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
       payload.push_back(sequence);
       const auto message = frame(f.alice.id(), ccf::consensus_msg, payload);
       initial.insert(initial.end(), message.begin(), message.end());
-      send_frame(sender, f.bob.id(), ccf::consensus_msg, message);
+      send_frame(sender, address, f.bob.id(), ccf::consensus_msg, message);
       std::unique_lock lock(mutex);
       REQUIRE(cv.wait_for(
         lock, 3s, [&]() { return received.size() == initial.size(); }));
@@ -863,9 +876,10 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
       REQUIRE(received == initial);
     }
     CHECK(key_updates >= 3);
-    REQUIRE(sender.send(f.bob.id(), ccf::consensus_msg, [&](::tcp::ConnID id) {
-      old_outgoing_id = id;
-    }));
+    REQUIRE(sender.send(
+      f.bob.id(), ccf::consensus_msg, address, [&](::tcp::ConnID id) {
+        old_outgoing_id = id;
+      }));
     REQUIRE(old_outgoing_id != 0);
   }
   // With the loop paused, this frame is certainly queued rather than written.
@@ -875,7 +889,7 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
   abandoned_payload.push_back(0xaa);
   const auto abandoned =
     frame(f.alice.id(), ccf::consensus_msg, abandoned_payload);
-  send_frame(sender, f.bob.id(), ccf::consensus_msg, abandoned);
+  send_frame(sender, address, f.bob.id(), ccf::consensus_msg, abandoned);
   if (remote_close)
   {
     observer.close_connection(incoming_id);
@@ -902,7 +916,7 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
     auto next_payload = consensus_payload();
     next_payload.push_back(0xbb);
     const auto next = frame(f.alice.id(), ccf::consensus_msg, next_payload);
-    send_frame(sender, f.bob.id(), ccf::consensus_msg, next);
+    send_frame(sender, address, f.bob.id(), ccf::consensus_msg, next);
     std::unique_lock lock(mutex);
     REQUIRE(cv.wait_for(lock, 3s, [&]() {
       return received.size() >= before_reconnect.size() + next.size();
@@ -921,6 +935,72 @@ TEST_CASE("NodeTLS closes outgoing streams without replaying queued frames")
   }
 }
 
+TEST_CASE("NodeTransportBridge retains peer registration across reconnects")
+{
+  auto tls = std::make_shared<ccf::NodeTLS>(
+    "127.0.0.1", 0, Fixture::MAX_FRAME_SIZE, 10s);
+  const auto directory = std::filesystem::temp_directory_path() /
+    fmt::format("node_transport_bridge_{}_{}", getpid(), tls->port());
+
+  struct Cleanup
+  {
+    std::filesystem::path directory;
+
+    ~Cleanup()
+    {
+      std::filesystem::remove_all(directory);
+    }
+  } cleanup{directory};
+
+  asynchost::Ledger ledger(directory.string());
+  ccf::tasks::JobBoard job_board;
+  asynchost::LedgerSubsystem subsystem(ledger, 1024, job_board);
+  const ccf::NodeId tls_peer{std::string(64, '1')};
+  const ccf::NodeId legacy_peer{std::string(64, '2')};
+  SUBCASE("local TLS is disabled")
+  {
+    asynchost::NodeTransportBridge bridge(ledger, subsystem, nullptr, nullptr);
+    bridge.associate_tls_address(tls_peer, "127.0.0.1:8082");
+    CHECK_FALSE(bridge.uses_tls(tls_peer));
+  }
+  SUBCASE("registered choices cannot change")
+  {
+    asynchost::NodeTransportBridge bridge(ledger, subsystem, nullptr, tls);
+    bridge.associate_tls_address(tls_peer, "127.0.0.1:8082");
+    bridge.associate_tls_address(tls_peer, "127.0.0.1:8082");
+    CHECK(bridge.uses_tls(tls_peer));
+    bridge.close_tls(tls_peer);
+    CHECK(bridge.uses_tls(tls_peer));
+    CHECK_THROWS_AS(
+      bridge.associate_tls_address(tls_peer, std::nullopt), std::logic_error);
+    CHECK_THROWS_AS(
+      bridge.associate_tls_address(tls_peer, "127.0.0.1:9999"),
+      std::logic_error);
+    CHECK(bridge.uses_tls(tls_peer));
+    bridge.associate_tls_address(legacy_peer, std::nullopt);
+    bridge.associate_tls_address(legacy_peer, std::nullopt);
+    CHECK_FALSE(bridge.uses_tls(legacy_peer));
+    CHECK_THROWS_AS(
+      bridge.associate_tls_address(legacy_peer, "127.0.0.1:8082"),
+      std::logic_error);
+    CHECK_FALSE(bridge.uses_tls(legacy_peer));
+  }
+  SUBCASE("lookup misses do not register a peer")
+  {
+    asynchost::NodeTransportBridge bridge(ledger, subsystem, nullptr, tls);
+    CHECK_FALSE(bridge.uses_tls(tls_peer));
+    bridge.associate_tls_address(tls_peer, "127.0.0.1:8082");
+    CHECK(bridge.uses_tls(tls_peer));
+    CHECK_FALSE(bridge.uses_tls(legacy_peer));
+    bridge.associate_tls_address(legacy_peer, std::nullopt);
+    CHECK_THROWS_AS(
+      bridge.associate_tls_address(legacy_peer, "127.0.0.1:8082"),
+      std::logic_error);
+  }
+  tls->stop();
+  uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+}
+
 TEST_CASE("NodeChannelBridge selects TLS only from recorded metadata")
 {
   Service service;
@@ -934,8 +1014,9 @@ TEST_CASE("NodeChannelBridge selects TLS only from recorded metadata")
   channels.initialize(alice.id(), service.cert, alice.key, alice.cert);
   REQUIRE(transport->identities == 1);
   const auto consensus = consensus_payload();
+  const ccf::NodeId legacy_peer{std::string(64, '0')};
   channels.send_authenticated(
-    bob.id(), ccf::consensus_msg, consensus.data(), consensus.size());
+    legacy_peer, ccf::consensus_msg, consensus.data(), consensus.size());
   REQUIRE(transport->legacy_messages > 0);
   const auto legacy_count = transport->legacy_messages;
   channels.associate_node_tls_address(bob.id(), "127.0.0.1:1");
@@ -969,10 +1050,10 @@ TEST_CASE("NodeChannelBridge selects TLS only from recorded metadata")
   CHECK(transport->tls_closes == 0);
   channels.close_channel(bob.id());
   CHECK(transport->tls_closes == 1);
-  channels.associate_node_tls_address(bob.id(), std::nullopt);
+  channels.associate_node_tls_address(bob.id(), "127.0.0.1:1");
   channels.send_authenticated(
     bob.id(), ccf::consensus_msg, consensus.data(), consensus.size());
-  CHECK(transport->tls_messages.size() == 4);
+  CHECK(transport->tls_messages.size() == 5);
 }
 
 int main(int argc, char** argv)

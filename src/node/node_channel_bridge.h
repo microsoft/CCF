@@ -6,8 +6,8 @@
 
 namespace ccf
 {
-  // Temporary bridge until legacy channels are removed. Selection depends only
-  // on configuration and recorded metadata, never on a connection outcome.
+  // Temporary adapter intended for removal with legacy channels. Selection
+  // depends only on configuration and metadata, never on a connection outcome.
   class NodeChannelBridge : public NodeToNodeChannelManager
   {
     std::shared_ptr<AbstractNodeTransport> transport;

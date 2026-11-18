@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-"""Temporary legacy interoperability coverage, removed with the N2N bridge."""
+"""Legacy interoperability coverage intended for removal with the N2N bridge."""
 
 import infra.e2e_args
 import infra.interfaces

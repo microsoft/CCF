@@ -478,19 +478,13 @@ class Node:
                 node_address_file = os.path.join(
                     self.common_dir, self.remote.node_address_file
                 )
-                self._resolve_address(
-                    node_address_file,
-                    {
-                        infra.interfaces.NODE_TO_NODE_INTERFACE_NAME: self.n2n_interface,
-                        **(
-                            {
-                                "node_to_node_tls_interface": self.host.node_to_node_tls_interface
-                            }
-                            if self.host.node_to_node_tls_interface is not None
-                            else {}
-                        ),
-                    },
-                )
+                node_interfaces = {
+                    infra.interfaces.NODE_TO_NODE_INTERFACE_NAME: self.n2n_interface
+                }
+                tls_interface = self.host.node_to_node_tls_interface
+                if tls_interface is not None:
+                    node_interfaces["node_to_node_tls_interface"] = tls_interface
+                self._resolve_address(node_address_file, node_interfaces)
 
             if self.remote.rpc_addresses_file is not None:
                 rpc_address_file = os.path.join(
