@@ -20,16 +20,35 @@ Within a model's library directory, use this layout:
 | `../common/CCF/`       | Reusable transition systems, network composition, and execution definitions in the `CCF` namespace.  |
 | `Properties.lean`      | State safety theorems and witness lemmas explicitly, linked to checked implementations.              |
 | `Properties/`          | Definitions needed to state and understand those claims, such as state and trace predicates.         |
-| `Proofs/`              | Supporting derivations, ghost state, strengthening invariants, and correspondence proofs.            |
+| `Proofs/`              | Supporting derivations, ghost state, and strengthening invariants.                                   |
 | `Tests/`               | Executable model checks and regression cases.                                                        |
 | `TraceValidation.lean` | Replay recorded implementation traces through the executable model.                                  |
-| `TraceValidation/`     | Parsing and ordering of those traces, for `TraceValidation.lean`.                                    |
+| `TraceValidation/`     | Trace formats, decoding, bookkeeping, and adapters to model transitions.                             |
+
+## Model versus trace validation
+
+`Model.lean` and `Model/` define protocol state, actions, results, and executable transitions independently of implementation trace formats.
+A model execution must be expressible without a recorded test case, trace envelope, or parser.
+Keep schemas, sequence numbers, test scopes, recording identifiers, lifecycle-completeness checks, parser errors, and replay diagnostics in `TraceValidation.lean` or `TraceValidation/`.
+Accommodations for missing trace fields, such as an omitted initial term, also belong there.
+The model computes operation results and state changes.
+The adapter translates records into model actions, compares reported results with computed outputs, and maintains trace bookkeeping without independently updating model state.
+If diagnostic checks run before model execution, negative trace tests must also exercise model execution and reported-output comparison without those checks.
+Do not add reported observations to model actions solely to validate a trace.
+Store the model state directly alongside separate recording bookkeeping, and execute model actions when checking traces.
+Do not reconstruct model state from trace-decorated stores or transactions, or introduce a second transition system solely for replay.
+Trace-only bookkeeping steps must leave the model state unchanged.
+State every public safety claim in `Properties.lean` over model state, actions, outputs, or executions of `Model.transitionSystem`.
+Do not use trace-adapter reachability as a safety premise or retain duplicate adapter-scoped safety catalogues.
+The safety entrypoint and its transitive imports must not depend on trace validation.
 
 ## Dependency direction
 
 - Keep `common/CCF/`, `Model/`, and `Model.lean` independent of property helpers, theorem entrypoints, and proof modules.
+  They must also be independent of trace validation.
   Shared infrastructure must not depend on a particular protocol.
-- Property helpers in `Properties/` should depend on the model, shared definitions, and other property helpers.
+- Let `TraceValidation.lean` and `TraceValidation/` depend on the model and shared definitions, not property helpers, theorem entrypoints, or proof implementations.
+- Property helpers in `Properties/` should depend only on the model, shared definitions, and other property helpers.
   They may not import `Properties.lean` or `Proofs/`.
 - Let `Proofs/` depend on model definitions, property helpers, and other supporting proofs, but not `Properties.lean`.
   `Properties.lean` publicly imports the types and helpers needed to understand its statements and privately imports proof implementations.
