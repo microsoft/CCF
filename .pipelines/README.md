@@ -45,4 +45,4 @@ Before publication, the pipeline verifies that:
 - The wheel name and version match the tag.
 - The wheel installs in a clean environment.
 
-The build writes the normalized tag version to `python/VERSION` in its checkout before packaging; no release commit or matching changelog section is needed.
+The build passes the normalized tag version to setuptools without modifying any source files; no version-bump commit or matching changelog section is needed.

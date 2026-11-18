@@ -1,2 +1,2 @@
-Python SDK releases take their version from the CCF release tag without a version-bump commit; local SDK builds report `0.0.0.dev0`.
+Python SDK releases take their version from the CCF release tag without a version-bump commit; builds between releases include the commit distance and hash from Git.
 See the [release procedure](doc/contribute/release_ccf.rst).

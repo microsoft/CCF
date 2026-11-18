@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 77.0, < 85"]
+requires = ["setuptools >= 77.0, < 85", "packaging >= 25, < 27"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -36,7 +36,15 @@ script-files = [
 ]
 
 [tool.setuptools.dynamic]
-version = {file = "VERSION"}
+version = {attr = "ccf._versionifier.sdk_version"}
+
+[tool.uv]
+cache-keys = [
+    {file = "pyproject.toml"},
+    {file = "src/ccf/_versionifier.py"},
+    {git = {commit = true, tags = true}},
+    {env = "CCF_PYTHON_PACKAGE_VERSION"},
+]
 
 [project.urls]
 Homepage = "https://github.com/microsoft/ccf"

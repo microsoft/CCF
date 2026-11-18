@@ -28,10 +28,9 @@ package_version=$(
     "$uv" run --no-project --with packaging \
         python scripts/python_release_version.py "$BUILD_SOURCEBRANCH"
 )
-printf '%s\n' "$package_version" > python/VERSION
 
 rm -rf python/dist
-"$uv" build --wheel python
+CCF_PYTHON_PACKAGE_VERSION="$package_version" "$uv" build --wheel python
 mapfile -t wheels < <(
     find python/dist -maxdepth 1 -type f -name 'ccf-*.whl' -print
 )

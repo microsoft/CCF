@@ -1,0 +1,1 @@
+$Format:%(describe:tags,match=ccf-*,exclude=ccf-0.0.0*)$

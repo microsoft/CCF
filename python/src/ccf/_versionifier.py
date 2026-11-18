@@ -1,6 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import os
+import subprocess
+from email.parser import Parser
+from pathlib import Path
+
 from packaging.version import (
     InvalidVersion,
     Version,
@@ -35,6 +40,42 @@ def to_python_version(original: str) -> Version:
             )
 
     raise ValueError(f"Cannot convert '{original}' to a Version")
+
+
+_SDK_DIR = Path(__file__).resolve().parents[2]
+
+
+def sdk_version(sdk_dir: Path = _SDK_DIR) -> str:
+    """Resolve the SDK build version from the release job, Git, or a source archive."""
+    if override := os.environ.get("CCF_PYTHON_PACKAGE_VERSION"):
+        return str(Version(override))
+
+    # A wheel built from an sdist must retain its recorded version without Git.
+    pkg_info = sdk_dir / "PKG-INFO"
+    if pkg_info.is_file():
+        with pkg_info.open(encoding="utf-8") as metadata:
+            version = Parser().parse(metadata, headersonly=True).get("Version")
+            if not version:
+                raise ValueError(f"Missing version in {pkg_info}")
+            return str(Version(str(version)))
+
+    if (sdk_dir.parent / ".git").exists():
+        description = subprocess.check_output(
+            ["git", "describe", "--tags", "--match=ccf-*", "--exclude=ccf-0.0.0*"],
+            cwd=sdk_dir.parent,
+            text=True,
+        ).strip()
+        return str(to_python_version(description))
+
+    # git archive expands the description for source trees without .git.
+    archival = sdk_dir / ".git_archival.txt"
+    if archival.is_file():
+        description = archival.read_text(encoding="utf-8").strip()
+        if description.startswith("ccf-"):
+            return str(to_python_version(description))
+    raise ValueError(
+        "Build from a CCF checkout with release tags, git archive or sdist"
+    )
 
 
 if __name__ == "__main__":
