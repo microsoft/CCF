@@ -346,9 +346,8 @@ jobs:
 
   cft_replay:
     name: "Replay e2e consensus traces"
-    needs: [vmss-virtual-a, vmss-virtual-b, vmss-virtual-c]
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 120
     defaults:
       run:
         shell: bash
@@ -372,6 +371,20 @@ jobs:
         run: |
           set -euo pipefail
           lake build --wfail consensus-replay
+
+      # The Virtual jobs run in parallel with the steps above. Waiting for
+      # them here, unlike a job dependency, lets the replayer build meanwhile.
+      # Their logs are replayed whether or not their tests passed.
+      - name: Wait for the VMSS Virtual jobs
+        run: |
+          set -euo pipefail
+          until [ "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs" \
+            --jq '[.jobs[] | select(.name | startswith("VMSS Virtual "))] | length == 3 and all(.status == "completed")')" = true ]; do
+            echo "Waiting for the VMSS Virtual jobs"
+            sleep 30
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       # RUNNER_TEMP can persist between jobs on reused self-hosted runners; drop files from earlier runs.
       - name: Clear stale e2e logs
