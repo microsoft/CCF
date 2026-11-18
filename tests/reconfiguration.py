@@ -125,21 +125,15 @@ def wait_for_reconfiguration_to_complete(network, timeout=10):
 def test_node_to_node_tls_metadata(network, args):
     primary, _ = network.find_primary()
     new_node = network.create_node()
-    interface = infra.interfaces.Interface(host=new_node.n2n_interface.host)
+    interface = infra.interfaces.NodeToNodeInterface(
+        host=new_node.n2n_interface.host, published_address="peer.example:8082"
+    )
     new_node.host.node_to_node_tls_interface = interface
-    endpoint = {
-        "bind_address": infra.interfaces.make_address(interface.host, interface.port),
-        "published_address": "peer.example:8082",
-    }
     network.join_node(
         new_node,
         args.package,
         args,
         from_snapshot=False,
-        node_to_node_tls_interface=endpoint,
-    )
-    endpoint["bind_address"] = infra.interfaces.make_address(
-        interface.host, interface.port
     )
     new_node.stop()
     with primary.client() as c:
@@ -154,7 +148,9 @@ def test_node_to_node_tls_metadata(network, args):
         info = json.loads(
             tables[ccf.ledger.NODES_TABLE_NAME][new_node.node_id.encode()]
         )
-        assert info["node_to_node_tls_interface"] == endpoint, info
+        assert info["node_to_node_tls_interface"] == (
+            infra.interfaces.NodeToNodeInterface.to_json(interface)
+        ), info
     return network
 
 

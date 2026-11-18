@@ -18,7 +18,9 @@ if __name__ == "__main__":
         hosts = infra.e2e_args.nodes(runner.args, len(enabled))
         for host, tls in zip(hosts, enabled):
             host.node_to_node_tls_interface = (
-                infra.interfaces.Interface(host=host.get_primary_interface().host)
+                infra.interfaces.NodeToNodeInterface(
+                    host=host.get_primary_interface().host
+                )
                 if tls
                 else None
             )

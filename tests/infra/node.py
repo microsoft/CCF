@@ -353,14 +353,11 @@ class Node:
         self.host_data_transparent_statement_path = host_data_transparent_statement_path
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.election_timeout_ms = kwargs.get("election_timeout_ms")
-        if self.host.node_to_node_tls_interface is not None:
-            interface = self.host.node_to_node_tls_interface
-            kwargs["node_to_node_tls_interface"] = {
-                **kwargs.get("node_to_node_tls_interface", {}),
-                "bind_address": infra.interfaces.make_address(
-                    interface.host, interface.port
-                ),
-            }
+        interface = self.host.node_to_node_tls_interface
+        if interface is not None:
+            kwargs["node_to_node_tls_interface"] = (
+                infra.interfaces.NodeToNodeInterface.to_json(interface)
+            )
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,

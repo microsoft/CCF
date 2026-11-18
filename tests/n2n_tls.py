@@ -126,7 +126,7 @@ if __name__ == "__main__":
     runner.args.package = "samples/apps/logging/logging"
     hosts = infra.e2e_args.nodes(runner.args, 3)
     for host in hosts:
-        host.node_to_node_tls_interface = infra.interfaces.Interface(
+        host.node_to_node_tls_interface = infra.interfaces.NodeToNodeInterface(
             host=host.get_primary_interface().host
         )
     runner.add(

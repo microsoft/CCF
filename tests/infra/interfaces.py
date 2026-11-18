@@ -70,6 +70,25 @@ class Interface:
     port: int = 0
 
 
+@dataclass
+class NodeToNodeInterface(Interface):
+    published_address: str | None = None
+
+    @staticmethod
+    def to_json(interface: "NodeToNodeInterface") -> dict[str, str]:
+        result = {"bind_address": make_address(interface.host, interface.port)}
+        if interface.published_address is not None:
+            result["published_address"] = interface.published_address
+        return result
+
+    @staticmethod
+    def from_json(data: dict[str, str]) -> "NodeToNodeInterface":
+        host, port = split_netloc(data["bind_address"])
+        return NodeToNodeInterface(
+            host=host, port=port, published_address=data.get("published_address")
+        )
+
+
 class NodeRole(str, Enum):
     primary = "primary"
     backup = "backup"
@@ -335,7 +354,7 @@ class HostSpec:
             ),
         }
     )
-    node_to_node_tls_interface: Interface | None = None
+    node_to_node_tls_interface: NodeToNodeInterface | None = None
 
     def get_primary_interface(self):
         return self.rpc_interfaces[PRIMARY_RPC_INTERFACE]
@@ -345,7 +364,7 @@ class HostSpec:
 
     def with_args(self, args):
         if getattr(args, "node_to_node_tls", False):
-            self.node_to_node_tls_interface = Interface(
+            self.node_to_node_tls_interface = NodeToNodeInterface(
                 host=self.get_primary_interface().host
             )
         for interface in self.rpc_interfaces.values():
@@ -380,6 +399,18 @@ if __name__ == "__main__":
         j = before.to_json(before)
         after = before.from_json(j)
         assert before == after, f"Inaccurate JSON roundtrip:\n {before}\n!=\n {after}"
+
+    n2n = NodeToNodeInterface(host="127.0.0.1")
+    test_roundtrip(n2n)
+    assert NodeToNodeInterface.to_json(n2n) == {"bind_address": "127.0.0.1:0"}
+    n2n = NodeToNodeInterface(
+        host="::1", port=8082, published_address="[2001:db8::1]:9082"
+    )
+    test_roundtrip(n2n)
+    assert NodeToNodeInterface.to_json(n2n) == {
+        "bind_address": "[::1]:8082",
+        "published_address": "[2001:db8::1]:9082",
+    }
 
     rc = RedirectionConfig()
     test_roundtrip(rc)
