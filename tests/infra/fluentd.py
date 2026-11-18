@@ -207,6 +207,8 @@ def write_cft_trace(connections, path):
                 for tag, time, record in unpacker:
                     if tag != "ccf.cft" or set(record) != {"pid", "m_ts", "msg"}:
                         raise ValueError(f"Unexpected {tag} event: {sorted(record)}")
+                    if time.code != 0:
+                        raise ValueError("Expected Fluentd EventTime")
                     seconds, nanoseconds = struct.unpack(">II", time.data)
                     record["ts"] = seconds * 10**9 + nanoseconds
                     output.write(json.dumps(record, allow_nan=False) + "\n")

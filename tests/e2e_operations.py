@@ -2580,14 +2580,10 @@ def run_pid_file_check(args):
             if node.remote.check_done(timeout=0):
                 break
             time.sleep(0.1)
-        out, _ = node.remote.get_logs()
-        with open(out, "r") as outf:
-            last_lines = outf.read().splitlines()[-2:]
-        # A trace exporter logs its shutdown after this.
-        assert any(
-            line.endswith("PID file node.pid already exists. Exiting.")
-            for line in last_lines
-        ), last_lines
+        # The restart truncated the log, and a trace exporter may log after this.
+        assert node.check_log_for_error_message(
+            "PID file node.pid already exists. Exiting."
+        )
         LOG.info("Node shut down for the right reason")
         network.ignoring_shutdown_errors = True
 

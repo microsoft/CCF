@@ -405,8 +405,9 @@ class Network:
         """Close the consensus trace recorder, if any, and write its capture.
 
         The capture is complete only if every node recorded events, stopped
-        cleanly without dropping trace events, and every connection reached
-        EOF. Otherwise it is inconclusive, which never fails the test."""
+        cleanly without dropping trace events, none recovered a service, and
+        every connection reached EOF. Otherwise it is inconclusive, which never
+        fails the test."""
         recorder, self.cft_recorder = self.cft_recorder, None
         if recorder is None:
             return
