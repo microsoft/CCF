@@ -38,7 +38,7 @@ namespace asynchost
 {
   static constexpr size_t ledger_max_read_cache_files_default = 5;
 
-  enum class LedgerFileLookup
+  enum class LedgerFileLookup : std::uint8_t
   {
     Historical,
     HistoricalIncludingRecovery,
