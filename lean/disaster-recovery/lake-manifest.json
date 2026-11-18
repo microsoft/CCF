@@ -19,10 +19,10 @@
       "type": "git",
       "subDir": null,
       "scope": "",
-      "rev": "66e469188fe07963e5cf666c7d4433f45b8131c5",
+      "rev": "b4b25a3886a16daacaf6615c2eea7170a6e8f458",
       "name": "batteries",
       "manifestFile": "lake-manifest.json",
-      "inputRev": "v4.35.0",
+      "inputRev": "v4.36.0",
       "inherited": false,
       "configFile": "lakefile.toml"
     },
